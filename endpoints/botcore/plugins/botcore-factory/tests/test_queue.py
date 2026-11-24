@@ -10,8 +10,20 @@ from test_commands import failing
 REFUSALS = [
     ("running", {}, "wt/stray", "NOT_FOUND", "cell-register"),
     ("running", {}, "wt/none", "NOT_FOUND", "worktree"),
-    ("running", {"thisMachine": "mini"}, "wt/parser", "NOT_LANE_HOST", "lane-handoff"),
-    ("running", {"laneHost": None}, "wt/parser", "NOT_LANE_HOST", "lane-host-set"),
+    (
+        "running",
+        {"thisMachine": "mini"},
+        "wt/parser",
+        "NOT_LANE_HOST",
+        "workstation) and call lane-enqueue",
+    ),
+    (
+        "running",
+        {"laneHost": None},
+        "wt/parser",
+        "NOT_LANE_HOST",
+        "foreman, who chooses the lane host with lane-host-set",
+    ),
     ("running", {}, "wt/half-done", "DIRTY_WORKTREE", "commit"),
     ("running", {}, "wt/unreviewed", "REVIEW_MISSING", "prepare-pr"),
     ("ejected", {}, "wt/type-slip", "PREQUEUE_FAILED", "lane-enqueue"),

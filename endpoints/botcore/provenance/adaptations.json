@@ -1786,10 +1786,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "7dfce4e945cd2ede4e4eb88f2d8d2af9c1300a2c7ec504c53a509292370965dd",
+      "current_import_sha256": "9d7e04aa079a24bb2d5ffbbe2897de04cad33beb3746afc9bc4ee253027cf377",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); lane-enqueue names the install command on PREQUEUE_FAILED (#1594); Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933); Attach test_changes reports to factory cell and attempt records and enforce Phase 5 gate-change hold (#1387 step 5); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5); Format Botcore, add mypy type checking and py.typed marker (#1757); Normalize LF bytes in Botcore provenance digests so Linux CI matches git blobs (#1757)"
+      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); lane-enqueue names the install command on PREQUEUE_FAILED (#1594); Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933); Attach test_changes reports to factory cell and attempt records and enforce Phase 5 gate-change hold (#1387 step 5); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5); Format Botcore, add mypy type checking and py.typed marker (#1757); Normalize LF bytes in Botcore provenance digests so Linux CI matches git blobs (#1757); Suggestions name only commands the factory serves (verified recovery step 1)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/real_run.py",
@@ -2160,10 +2160,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "e5e0c34be644d0eb731119ac5c13fd38a9881db581319721d658e6b96a97d701",
+      "current_import_sha256": "d3de919487544db34b305991afd1ee4811f136aba85671f406c813f1280ff52a",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "lane-enqueue names the install command on PREQUEUE_FAILED (#1594); Emit provenance-rerecorded record (schema 4), count it in lane-report, and include Health in regenerate paths (lushly-dev/afd#1472); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5)"
+      "import_reason": "lane-enqueue names the install command on PREQUEUE_FAILED (#1594); Emit provenance-rerecorded record (schema 4), count it in lane-report, and include Health in regenerate paths (lushly-dev/afd#1472); Attach test_changes reports to factory cell and attempt records, enforce Phase 5 gate-change hold and add measure-approve (#1387 step 5); Suggestions name only commands the factory serves (verified recovery step 1)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_real_world.py",
@@ -2230,6 +2230,17 @@
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933); Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test; a lock file being deleted on Windows counts as held (lushly-dev/afd#1793)"
+    },
+    {
+      "path": "plugins/botcore-factory/tests/test_suggestions.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "506b444a11afeb960c648b7105fcc0b80c1eb4f1a088d052da0219de0bb0c82e",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Suggestions name only commands the factory serves (verified recovery step 1)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_test_changes.py",

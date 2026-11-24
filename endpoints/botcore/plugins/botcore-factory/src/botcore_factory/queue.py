@@ -63,9 +63,10 @@ def _check_host(factory: Factory) -> None:
         raise Refusal(
             "NOT_LANE_HOST",
             f"This machine ({me}) is not the lane host: {where}",
-            "Hand the branch over with lane-handoff from this machine"
+            f"Stop and tell the foreman: cells run on the lane host ({lane_host}) and call "
+            "lane-enqueue there, since handing a branch over from another machine is not built yet"
             if lane_host
-            else "Choose the lane host with lane-host-set first",
+            else "Stop and tell the foreman, who chooses the lane host with lane-host-set",
         )
 
 

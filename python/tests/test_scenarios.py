@@ -80,6 +80,59 @@ steps:
         assert result.scenario.steps[0].input == {"title": "Buy groceries"}
         assert result.scenario.steps[0].expect.success is True
 
+    def test_parse_keeps_the_error_suggestion(self):
+        yaml_str = """
+name: Refuse a missing todo
+description: As a user, I learn how to find the todo
+job: basic-workflow
+steps:
+  - command: todo-get
+    input: { id: none }
+    expect:
+      success: false
+      error:
+        code: NOT_FOUND
+        suggestion: todo-list
+  - command: todo-get
+    input: { id: none }
+    expect:
+      success: false
+      error:
+        suggestion: { contains: todo-list }
+"""
+        result = parse_scenario(yaml_str)
+        assert result.success is True
+        assert result.scenario.steps[0].expect.error["suggestion"] == "todo-list"
+        assert result.scenario.steps[1].expect.error["suggestion"] == {"contains": "todo-list"}
+        bad = parse_scenario(yaml_str.replace("suggestion: todo-list", "suggestion: 3"))
+        assert bad.success is False and "suggestion" in bad.error
+        # Matchers are as strict as the TypeScript runner's: no stray keys, no bad values.
+        for matcher in (
+            "{ contains: todo-list, matchs: x }",
+            "{ contains: 3 }",
+            "{ matches: '(' }",
+            "{}",
+        ):
+            refused = parse_scenario(
+                yaml_str.replace("suggestion: { contains: todo-list }", f"suggestion: {matcher}")
+            )
+            assert refused.success is False, matcher
+        no_keys = parse_scenario(
+            yaml_str.replace("suggestion: { contains: todo-list }", "suggestion: { foo: 1 }")
+        )
+        assert "has no matcher keys" in no_keys.error
+        not_object = parse_scenario(
+            yaml_str.replace("suggestion: { contains: todo-list }", "suggestion: [todo-list]")
+        )
+        assert "must be a string or a matcher object" in not_object.error
+        equals = parse_scenario(
+            yaml_str.replace(
+                "suggestion: { contains: todo-list }", "suggestion: { equals: Run todo-list }"
+            )
+        )
+        assert equals.success is True
+        assert equals.scenario.steps[1].expect.error["suggestion"] == {"equals": "Run todo-list"}
+
     def test_parse_missing_name(self):
         yaml_str = """
 description: Missing name
@@ -481,6 +534,36 @@ class TestEvaluator:
         expected = Expectation(success=False, error={"code": None, "message": "not found"})
         result = evaluate_result(actual, expected)
         assert result.passed is True
+
+    def test_error_suggestion_contains_by_default(self):
+        actual = {
+            "success": False,
+            "error": {"code": "ERR", "message": "m", "suggestion": "Run todo-list first"},
+        }
+        assert evaluate_result(
+            actual, Expectation(success=False, error={"suggestion": "todo-list"})
+        ).passed
+        missing = evaluate_result(
+            actual, Expectation(success=False, error={"suggestion": "todo-get"})
+        )
+        assert missing.passed is False
+        assert [a.path for a in missing.assertions if not a.passed] == ["error.suggestion"]
+
+    def test_error_suggestion_takes_a_matcher(self):
+        actual = {"success": False, "error": {"code": "ERR", "suggestion": "Wait 5 seconds"}}
+        assert evaluate_result(
+            actual, Expectation(success=False, error={"suggestion": {"matches": r"Wait \d+"}})
+        ).passed
+        assert not evaluate_result(
+            {"success": False, "error": {"code": "ERR"}},
+            Expectation(success=False, error={"suggestion": {"exists": True}}),
+        ).passed
+        assert evaluate_result(
+            actual, Expectation(success=False, error={"suggestion": {"equals": "Wait 5 seconds"}})
+        ).passed
+        assert not evaluate_result(
+            actual, Expectation(success=False, error={"suggestion": {"equals": "Wait"}})
+        ).passed
 
     def test_reasoning_assertion(self):
         actual = {"success": True, "data": {}, "reasoning": "Cache hit for user 123"}

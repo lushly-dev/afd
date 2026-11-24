@@ -7,6 +7,7 @@ a sequence of commands with expected outcomes.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal
@@ -79,8 +80,9 @@ class Expectation:
     data: dict[str, Any] | None = None
     """Assertions on the data field (JSONPath-like keys)."""
 
-    error: dict[str, str | None] | None = None
-    """Expected error details (for failure tests). Keys: code, message."""
+    error: dict[str, Any] | None = None
+    """Expected error details (for failure tests). Keys: code and message (strings), and
+    suggestion: a string the suggestion must contain, or an assertion matcher."""
 
     reasoning: str | None = None
     """Pattern match on reasoning field."""
@@ -363,6 +365,7 @@ def create_step_error(
 
 _MATCHER_KEYS = frozenset(
     [
+        "equals",
         "contains",
         "matches",
         "exists",
@@ -382,6 +385,64 @@ def is_assertion_matcher(value: Any) -> bool:
     if not isinstance(value, dict):
         return False
     return bool(set(value.keys()) & _MATCHER_KEYS)
+
+
+def _matcher_value_problem(key: str, value: Any) -> str | None:
+    """What is wrong with one matcher's value, as the TypeScript runner judges it."""
+    number = (int, float)
+    if key == "contains":
+        return None if isinstance(value, str) else "expects a string"
+    if key == "matches":
+        if not isinstance(value, str):
+            return "expects a regular expression string"
+        try:
+            re.compile(value)
+        except re.error:
+            return "is not a valid regular expression"
+        return None
+    if key in ("exists", "notExists", "not_exists"):
+        return None if isinstance(value, bool) else "expects true or false"
+    if key == "length":
+        ok = isinstance(value, int) and not isinstance(value, bool) and value >= 0
+        return None if ok else "expects a non-negative integer"
+    if key in ("gte", "lte"):
+        ok = isinstance(value, number) and not isinstance(value, bool)
+        return None if ok else "expects a number"
+    if key == "between":
+        ok = (
+            isinstance(value, list)
+            and len(value) == 2
+            and all(isinstance(v, number) and not isinstance(v, bool) for v in value)
+            and value[0] <= value[1]
+        )
+        return None if ok else "expects [min, max] with min <= max"
+    return None  # equals and includes take any value
+
+
+def matcher_problem(value: Any, path: str) -> str | None:
+    """Why ``value`` is not a well-formed matcher object, or None when it is.
+
+    As in the TypeScript runner, every key must be a matcher key (a typo such as ``matchs``
+    beside a real matcher is refused, never ignored), and each value must suit its matcher.
+    """
+    if not isinstance(value, dict) or not value:
+        return f"'{path}' must be a string or a matcher object such as {{contains: ...}}"
+    others = sorted(set(value) - _MATCHER_KEYS)
+    if others and len(others) == len(value):
+        return (
+            f"'{path}' has no matcher keys ({', '.join(repr(k) for k in others)}); use a string "
+            f"or matcher keys ({', '.join(sorted(_MATCHER_KEYS))})"
+        )
+    if others:
+        return (
+            f"'{path}' mixes matcher keys with {', '.join(repr(k) for k in others)}; use only "
+            f"matcher keys ({', '.join(sorted(_MATCHER_KEYS))})"
+        )
+    for key, matcher_value in value.items():
+        problem = _matcher_value_problem(key, matcher_value)
+        if problem:
+            return f"'{path}.{key}' {problem}"
+    return None
 
 
 def is_scenario(value: Any) -> bool:

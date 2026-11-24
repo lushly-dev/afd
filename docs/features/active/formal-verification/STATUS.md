@@ -1,6 +1,6 @@
 # Formal verification and stateful property checking
 
-**State** Active for the approved claims pilot. The implementation is in review as [#2422](https://github.com/lushly-dev/afd/pull/2422). The triage job belongs to the [Software Factory](../software-factory/STATUS.md). Later verification methods remain proposals.
+**State** Active for the approved claims pilot. The implementation merged on 2026-11-24 as [#2422](https://github.com/lushly-dev/afd/pull/2422). The triage job belongs to the [Software Factory](../software-factory/STATUS.md). Later verification methods remain proposals.
 
 ## How to keep this file
 
@@ -13,9 +13,9 @@ Record the date, revision and evidence for each step. Mark work done when it lan
 | Initial draft, 2026-11-23 | Revised before merge | Drafted at `841511f23`. The original alternatives were factory stateful tests, a Rust/Kani pilot, and later TLC, a drift guard and skill changes. |
 | Research and contract review, 2026-11-23 | In review on the branch | Refreshed to `38f5c2bba`. Read production studies and replayed three isolated claim histories through the factory host and Node CLI entry point. The two-live-claim case returned different holders. Both paths refused the observer. [Research](formal-verification.proposal.md#what-changes-with-the-industry-evidence) · [Fixture observations](formal-verification.proposal.md#baseline-observations) |
 | Choose the holder rule | Approved 2026-11-23 | Earliest still-standing live claimant for the common two-branch case. [Pilot decision](formal-verification.proposal.md#pilot-decision) |
-| Shared fixture and scenario | In review, [#2422](https://github.com/lushly-dev/afd/pull/2422) | Both readers use the [fifteen claim histories](../software-factory/scenarios/fixtures/claim-histories.json). The [factory scenario](../software-factory/scenarios/14b-identify-the-standing-claimant.scenario.yaml) follows the refusal to successful registration on a free issue. |
+| Shared fixture and scenario | Merged 2026-11-24, [#2422](https://github.com/lushly-dev/afd/pull/2422) | Both readers use the [fifteen claim histories](../software-factory/scenarios/fixtures/claim-histories.json). The [factory scenario](../software-factory/scenarios/14b-identify-the-standing-claimant.scenario.yaml) follows the refusal to successful registration on a free issue. |
 | Independent review, 2026-11-24 | Findings applied on branch | A fresh reviewer applied the diff to `38f5c2bba` and ran both readers, the commands that write and the gateway's reader. Three blockers and seven improvements, all applied: [what it found](#review-of-2026-11-24). |
-| Releases and renewals keep the rule | In review, [#2422](https://github.com/lushly-dev/afd/pull/2422) | The label stays with a live claim that still stands, a non-holder takes back its own claim, and the CLI's read-back follows the readers. [What keeps the contract](formal-verification.proposal.md#baseline-observations) |
+| Releases and renewals keep the rule | Merged 2026-11-24, [#2422](https://github.com/lushly-dev/afd/pull/2422) | The label stays with a live claim that still stands, a non-holder takes back its own claim, and the CLI's read-back follows the readers. [What keeps the contract](formal-verification.proposal.md#baseline-observations) |
 | Renewed holder's place after its first lease | Open for the owner | Both readers pass the issue to a rival that claimed in between. Recommended: keep it. [Pilot decision](formal-verification.proposal.md#pilot-decision) |
 | Enumerated operation histories | Conditional | Compare incremental detection, replay and maintenance cost with the fixed cases. Keeping just the fixed cases is a successful outcome. |
 | Adopt or stop | Not started | The plan's step 4: setup time, history and transition counts, added wall time over five runs on one runner, and a replay by another maintainer. Nothing is measured yet. |
