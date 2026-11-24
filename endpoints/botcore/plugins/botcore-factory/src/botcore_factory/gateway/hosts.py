@@ -1,7 +1,8 @@
 """The gateway's hosts, one per kind of caller, on botcore's remote-caller profile.
 
-Each host serves its route's commands under their kebab-case names and journals every call
-with AFD's journal middleware, recording the actor the route's verified token named.
+Each host serves its route's commands under their kebab-case names and journals every write
+command (with its failures) via AFD's journal middleware, recording the actor the route's
+verified token named.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from botcore_factory.gateway.commands import ROUTES as ROUTES
 from botcore_factory.gateway.config import GatewayConfig
 from botcore_factory.gateway.docs import DOCS
 from botcore_factory.gateway.github import GitHub
+from botcore_factory.gateway.records import WRITE_COMMANDS
 from botcore_factory.gateway.service import Gateway
 from botcore_factory.gateway.state import DailyJournalSink, GatewayState
 
@@ -49,11 +51,15 @@ def build_gateway_host(
         host.register(command, handler, POLICIES[command])
     host.middleware = [
         create_journal_middleware(
-            DailyJournalSink(state.journal_dir),
+            DailyJournalSink(
+                state.journal_dir,
+                keep_days=config.journal.keep_days,
+                clock=clock,
+            ),
             record_failures=True,
-            # A lane reports every minute or so; state.json keeps its last report and who sent
-            # it, and the journal, which gateway-audit and gateway-wait read whole, stays small.
-            filter=lambda command: not command.startswith("auth-") and command != "lane-heartbeat",
+            # Journal write commands only (with their failures): pure reads, gateway-wait and
+            # lane-heartbeat stay out so polling keeps the journal small (#2413).
+            filter=lambda command: command in WRITE_COMMANDS,
         )
     ]
     host.docs = {"gateway": DOCS}

@@ -68,7 +68,13 @@ def apply_fixture(run_dir: Path, arguments: dict[str, Any]) -> CommandResult[Any
             f"Fixture keys the gateway harness does not know: {', '.join(sorted(unknown))}",
             suggestion="Add the key to the harness's GitHub, state or config keys",
         )
-    config = GatewayConfig(**{k: v for k, v in fixture.items() if k in _CONFIG_KEYS})
+    config = GatewayConfig(
+        **{
+            k: v
+            for k, v in fixture.items()
+            if k in _CONFIG_KEYS and not (k == "journal" and isinstance(v, list))
+        }
+    )
     shutil.rmtree(run_dir, ignore_errors=True)
     run_dir.mkdir(parents=True)
     world = fake_world(fixture, config.repositories[0])

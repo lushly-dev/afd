@@ -2441,32 +2441,23 @@ def test_t3_native_ids_finds_unicode_escaped_key(t3_store: T3Store) -> None:
     assert found == {"toolu_escaped"}
 
 
-def test_project_upgrades_from_folder_name_once_git_answers(
-    state: Path, t3_store: T3Store, checkout: Path, monkeypatch: pytest.MonkeyPatch
+def test_project_upgrades_from_folder_name_once_origin_resolves(
+    state: Path, t3_store: T3Store, checkout: Path
 ) -> None:
-    """lushly-dev/afd#2052: a folder first seen while git refused it (e.g. dubious ownership)
-    moves from its folder name to owner/name once git answers, and refiles earlier loads and
+    """lushly-dev/afd#2052: a folder first seen without a readable origin moves from its
+    folder name to owner/name once an origin is present, and refiles earlier loads and
     sessions — even those T3 Code has since dropped."""
     git(checkout, "init", "-q", "-b", "main")
-    git(checkout, "remote", "add", "origin", "git@example.com:acme/garden.git")
     git(checkout, "add", "-A")
     git(checkout, "commit", "-q", "-m", "skills", at="2026-04-01T10:00:00+00:00")
     first_thread = t3_store.thread("main-1")
     t3_store.skill_tool(first_thread, "plant-beds", stamp(1))
 
-    real = collect.git_out
-
-    def refused(root: Path, *args: str, **more: object) -> str:
-        if Path(root) == checkout:
-            raise collect.GitError("git: fatal: detected dubious ownership in repository")
-        return real(root, *args, **more)
-
-    monkeypatch.setattr(collect, "git_out", refused)
     run(skill_usage_collect())
     assert [event.project for event in collected(state)] == ["garden"]
     assert store.load_sessions(state)[first_thread]["project"] == "garden"
 
-    # Drop the first thread from T3 Code's store before git becomes readable so refiling must
+    # Drop the first thread from T3 Code's store before origin is added so refiling must
     # preserve and move records T3 Code no longer holds.
     with t3_store.connect() as conn:
         conn.execute(f"delete from {t3.ITEMS} where thread_id = ?", (first_thread,))
@@ -2475,7 +2466,7 @@ def test_project_upgrades_from_folder_name_once_git_answers(
     second_thread = t3_store.thread("main-2")
     t3_store.skill_tool(second_thread, "plant-beds", stamp(2))
 
-    monkeypatch.setattr(collect, "git_out", real)
+    git(checkout, "remote", "add", "origin", "git@example.com:acme/garden.git")
     run(skill_usage_collect())
 
     saved = store.load_state(state)
@@ -2497,12 +2488,12 @@ def test_project_upgrades_from_folder_name_once_git_answers(
     ]
 
 
-def test_second_checkout_that_timed_out_merges_into_remote_project(
+def test_second_checkout_without_a_readable_origin_merges_into_remote_project(
     state: Path, t3_store: T3Store, checkout: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """lushly-dev/afd#2052: when one of two clones of an origin times out on first collection,
-    it is named after its folder temporarily; once git answers, it merges into owner/name and
-    its duplicate quiet skills disappear."""
+    """lushly-dev/afd#2052: when one of two clones of an origin has no readable origin on first
+    collection, it is named after its folder temporarily; once origin resolves, it merges into
+    owner/name and its duplicate quiet skills disappear."""
     git(checkout, "init", "-q", "-b", "main")
     git(checkout, "remote", "add", "origin", "git@example.com:acme/garden.git")
     git(checkout, "add", "-A")
@@ -2514,14 +2505,14 @@ def test_second_checkout_that_timed_out_merges_into_remote_project(
     t3_store.skill_tool(t3_store.thread("main-1"), "plant-beds", stamp(1))
     t3_store.skill_tool(t3_store.thread("main-2", project_id="p2"), "plant-beds", stamp(2))
 
-    real = collect.git_out
+    real_remote = collect.project_remote
 
-    def timed_out(root: Path, *args: str, **more: object) -> str:
+    def unreadable(root: Path) -> str | None:
         if Path(root) == second:
-            raise collect.GitError("git remote: timed out")
-        return real(root, *args, **more)
+            return None
+        return real_remote(root)
 
-    monkeypatch.setattr(collect, "git_out", timed_out)
+    monkeypatch.setattr(collect, "project_remote", unreadable)
     run(skill_usage_collect())
     before = run(skill_usage_report())
     assert {(row["project"], row["skill"]) for row in before["quiet"]} == {
@@ -2529,7 +2520,7 @@ def test_second_checkout_that_timed_out_merges_into_remote_project(
         ("garden", "prune-roses"),
     }
 
-    monkeypatch.setattr(collect, "git_out", real)
+    monkeypatch.setattr(collect, "project_remote", real_remote)
     run(skill_usage_collect())
 
     saved = store.load_state(state)
@@ -2573,33 +2564,107 @@ def test_staged_multi_root_upgrade_does_not_misattribute_history(tmp_path: Path)
 
 
 def test_remote_upgrade_preserves_unreadable_event_lines(
-    state: Path, t3_store: T3Store, checkout: Path, monkeypatch: pytest.MonkeyPatch
+    state: Path, t3_store: T3Store, checkout: Path
 ) -> None:
     """lushly-dev/afd#2052: automatic refiling during normal collection preserves unreadable
     lines in events.jsonl so damage evidence is never silently dropped."""
     git(checkout, "init", "-q", "-b", "main")
-    git(checkout, "remote", "add", "origin", "git@example.com:acme/garden.git")
     git(checkout, "add", "-A")
     git(checkout, "commit", "-q", "-m", "skills", at="2026-04-01T10:00:00+00:00")
     t3_store.skill_tool(t3_store.thread("main-1"), "plant-beds", stamp(1))
 
-    real = collect.git_out
-
-    def refused(root: Path, *args: str, **more: object) -> str:
-        if Path(root) == checkout:
-            raise collect.GitError("git: fatal: detected dubious ownership")
-        return real(root, *args, **more)
-
-    monkeypatch.setattr(collect, "git_out", refused)
     run(skill_usage_collect())
     events_path = state / store.EVENTS_FILE
     events_path.write_text(
         events_path.read_text(encoding="utf-8") + "{corrupted-json-line\n", encoding="utf-8"
     )
 
-    monkeypatch.setattr(collect, "git_out", real)
+    git(checkout, "remote", "add", "origin", "git@example.com:acme/garden.git")
     run(skill_usage_collect())
 
     events, unreadable = store.load_events(state)
     assert unreadable == 1
     assert [event.project for event in events] == ["acme/garden"]
+
+
+def test_project_remote_reads_git_config_on_dubious_ownership(
+    state: Path, t3_store: T3Store, checkout: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """lushly-dev/afd#2370: when git refuses a clone with dubious ownership, project_remote
+    reads [remote "origin"] directly from .git/config (and follows worktree gitdir/commondir),
+    so clones merge under owner/name without splitting or duplicating quiet skills."""
+    git(checkout, "init", "-q", "-b", "main")
+    git(checkout, "remote", "add", "origin", "https://github.com/acme/garden.git")
+    git(checkout, "add", "-A")
+    git(checkout, "commit", "-q", "-m", "skills", at="2026-04-01T10:00:00+00:00")
+
+    worktree = checkout.parent / "wt-garden"
+    git(checkout, "worktree", "add", "-q", "-b", "topic", str(worktree))
+    t3_store.project("p2", worktree)
+    t3_store.skill_tool(t3_store.thread("main-1"), "plant-beds", stamp(1))
+    t3_store.skill_tool(t3_store.thread("main-2", project_id="p2"), "plant-beds", stamp(2))
+
+    real = collect.git_out
+
+    def dubious(root: Path, *args: str, **more: object) -> str:
+        if Path(root) == worktree:
+            raise collect.GitError("git: fatal: detected dubious ownership in repository")
+        return real(root, *args, **more)
+
+    monkeypatch.setattr(collect, "git_out", dubious)
+    assert collect.project_remote(worktree) == "acme/garden"
+
+    run(skill_usage_collect())
+    saved = store.load_state(state)
+    assert list(saved["projects"]) == ["acme/garden"]
+    assert set(saved["projects"]["acme/garden"]["roots"]) == {str(checkout), str(worktree)}
+
+    report = run(skill_usage_report())
+    assert [(row["project"], row["skill"], row["sessions"]) for row in report["skills"]] == [
+        ("acme/garden", "plant-beds", 2)
+    ]
+    assert [(row["project"], row["skill"]) for row in report["quiet"]] == [
+        ("acme/garden", "prune-roses")
+    ]
+
+
+def test_cached_folder_fallback_upgrades_via_git_config_on_dubious_ownership(
+    state: Path, t3_store: T3Store, checkout: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """lushly-dev/afd#2370: a pre-existing remote:false folder-name entry in state.json
+    upgrades cleanly to owner/name even while git still refuses dubious ownership."""
+    git(checkout, "init", "-q", "-b", "main")
+    git(checkout, "remote", "add", "origin", "https://github.com/acme/garden.git")
+    git(checkout, "add", "-A")
+    git(checkout, "commit", "-q", "-m", "skills", at="2026-04-01T10:00:00+00:00")
+
+    # Seed state as if an older botcore version cached the dubious-ownership clone under its
+    # folder name (`remote: false`).
+    store.save_state(
+        state,
+        {
+            "version": collect.STATE_VERSION,
+            "projects": {
+                "garden": {
+                    "remote": False,
+                    "roots": [str(checkout)],
+                    "renames": {},
+                    "accounts": {},
+                    "storage": {},
+                    "missing": {},
+                }
+            },
+        },
+    )
+    t3_store.skill_tool(t3_store.thread("main-1"), "plant-beds", stamp(1))
+
+    def dubious(root: Path, *args: str, **more: object) -> str:
+        raise collect.GitError("git: fatal: detected dubious ownership in repository")
+
+    monkeypatch.setattr(collect, "git_out", dubious)
+    run(skill_usage_collect())
+
+    saved = store.load_state(state)
+    assert "garden" not in saved["projects"]
+    assert saved["projects"]["acme/garden"]["remote"] is True
+    assert [event.project for event in collected(state)] == ["acme/garden"]

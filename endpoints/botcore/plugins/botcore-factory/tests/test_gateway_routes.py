@@ -694,6 +694,207 @@ def test_the_audit_traces_live_writes_to_a_pull_request_and_its_head(run):
     assert outside == [{"kind": "pushed", "target": f"pr#{number}"}]
 
 
+def test_pure_reads_stay_out_of_the_journal(run, tmp_path):
+    """lushly-dev/afd#2413: pure reads and polling commands are excluded from the journal."""
+    gateway = run()
+    assert gateway("owner", "gateway-status").success
+    assert gateway("owner", "issue-get", repo=REPO, number=101).success
+    assert gateway("owner", "gateway-audit", repo=REPO).success
+    assert gateway("owner", "gateway-wait", repo=REPO, consumer="c1", timeout_ms=0).success
+    assert read_journal(tmp_path / "run" / "state" / "journal") == []
+
+
+def test_journal_prunes_old_days_at_start_and_rollover(tmp_path):
+    """lushly-dev/afd#2413: journal.keepDays prunes older UTC day files at start and rollover."""
+    import asyncio
+    from datetime import UTC, datetime
+
+    from afd.core.journal import JournalContextDigest, JournalRecord
+
+    from botcore_factory.gateway.state import DailyJournalSink, journal_size, prune_journal
+
+    journal_dir = tmp_path / "journal"
+    journal_dir.mkdir()
+    for day in ("2030-01-01", "2030-01-02", "2030-01-03", "2030-01-04", "notes"):
+        (journal_dir / f"{day}.jsonl").write_text("", encoding="utf-8")
+
+    # keep_days=0 disables pruning.
+    assert prune_journal(journal_dir, 0, now=datetime(2030, 1, 5, tzinfo=UTC)) == []
+    assert (journal_dir / "2030-01-01.jsonl").exists()
+
+    now = [datetime(2030, 1, 4, 12, 0, tzinfo=UTC)]
+    sink = DailyJournalSink(journal_dir, keep_days=2, clock=lambda: now[0])
+    # At start on 2030-01-04 with keep_days=2, 2030-01-03 and 2030-01-04 remain; non-date untouched.
+    assert sorted(p.stem for p in journal_dir.glob("*.jsonl")) == [
+        "2030-01-03",
+        "2030-01-04",
+        "notes",
+    ]
+    assert journal_size(journal_dir)[1] == "2030-01-03"
+
+    # Rollover to 2030-01-05 prunes 2030-01-03 when writing the new day's first entry.
+    now[0] = datetime(2030, 1, 5, 0, 5, tzinfo=UTC)
+    record = JournalRecord(
+        timestamp="2030-01-05T00:05:00Z",
+        command="issue-claim",
+        input={"repo": REPO, "numbers": [101]},
+        context_digest=JournalContextDigest(hash="sha256:" + "0" * 64),
+        result={"success": True},
+        duration_ms=1.0,
+    )
+    asyncio.run(sink.append(record))
+    assert sorted(p.stem for p in journal_dir.glob("*.jsonl")) == [
+        "2030-01-04",
+        "2030-01-05",
+        "notes",
+    ]
+
+
+def test_read_journal_since_skips_older_day_files(tmp_path):
+    """lushly-dev/afd#2413: read_journal(since=...) skips reading day files before since's date."""
+    import asyncio
+    from datetime import UTC, datetime
+
+    from afd.core.journal import JournalContextDigest, JournalRecord
+
+    from botcore_factory.gateway.state import DailyJournalSink
+
+    journal_dir = tmp_path / "journal"
+    journal_dir.mkdir()
+    # Corrupt older day file: if read_journal opened it, parse_journal would raise ValueError.
+    (journal_dir / "2030-01-01.jsonl").write_text("{not valid json}\n", encoding="utf-8")
+    sink = DailyJournalSink(
+        journal_dir, keep_days=0, clock=lambda: datetime(2030, 1, 5, 10, 0, tzinfo=UTC)
+    )
+    asyncio.run(
+        sink.append(
+            JournalRecord(
+                timestamp="2030-01-05T10:00:00Z",
+                command="issue-claim",
+                input={"repo": REPO, "numbers": [101]},
+                context_digest=JournalContextDigest(hash="sha256:" + "0" * 64),
+                result={"success": True},
+                duration_ms=1.0,
+            )
+        )
+    )
+    entries = read_journal(journal_dir, since=datetime(2030, 1, 5, 8, 0, tzinfo=UTC))
+    assert [entry.command for entry in entries] == ["issue-claim"]
+
+
+def test_gateway_config_and_host_wire_journal_keep_days(tmp_path):
+    """lushly-dev/afd#2413: GatewayConfig parses journal.keepDays, rejects negatives, and
+    build_gateway_host prunes old day files using config.journal.keep_days."""
+    from datetime import UTC, datetime
+
+    from botcore.context import ExecutionContext
+    from pydantic import ValidationError
+
+    from botcore_factory.gateway.config import GatewayConfig
+    from botcore_factory.gateway.github import FakeGitHub, fake_world
+    from botcore_factory.gateway.hosts import build_gateway_host
+
+    base = {
+        "bot": "example-factory[bot]",
+        "owner": "owner",
+        "repositories": [REPO],
+        "ownerEmails": ["owner@example.com"],
+    }
+    assert GatewayConfig(**base).journal.keep_days == 365
+    cfg = GatewayConfig(**base, journal={"keepDays": 2})
+    assert cfg.journal.keep_days == 2
+    with pytest.raises(ValidationError):
+        GatewayConfig(**base, journal={"keepDays": -1})
+
+    state_dir = tmp_path / "state"
+    journal_dir = state_dir / "journal"
+    journal_dir.mkdir(parents=True)
+    for day in ("2030-01-01", "2030-01-03", "2030-01-04"):
+        (journal_dir / f"{day}.jsonl").write_text("", encoding="utf-8")
+    github_file = tmp_path / "github.json"
+    github_file.write_text(json.dumps(fake_world({}, REPO)), encoding="utf-8")
+    build_gateway_host(
+        "owner",
+        ExecutionContext(state_dir, profile="remote-caller"),
+        github=FakeGitHub(github_file, bot=cfg.bot),
+        config=cfg,
+        state=GatewayState(state_dir),
+        clock=lambda: datetime(2030, 1, 4, 12, 0, tzinfo=UTC),
+    )
+    assert sorted(p.stem for p in journal_dir.glob("*.jsonl")) == ["2030-01-03", "2030-01-04"]
+
+
+def test_gateway_audit_since_skips_older_day_files(run, tmp_path):
+    """lushly-dev/afd#2413: gateway-audit(since=...) skips opening day files before since."""
+    gateway = run()
+    gateway.edit(lambda d: d.update({"pullRequests": []}))
+    assert gateway("lane", "issue-claim", repo=REPO, numbers=[101], holder=HOLDER).success
+    journal_dir = tmp_path / "run" / "state" / "journal"
+    # Plant a corrupt older day file; gateway-audit with a later `since` must never open it.
+    (journal_dir / "2020-01-01.jsonl").write_text("{corrupt\n", encoding="utf-8")
+    audit = gateway("owner", "gateway-audit", repo=REPO, since="2030-02-03T00:00:00Z")
+    assert audit.success
+    assert [row["command"] for row in audit.data["entries"]] == ["issue-claim"]
+
+
+def test_gateway_wait_and_outside_writes_skip_journal_when_unneeded(run, monkeypatch):
+    """lushly-dev/afd#2413: outside_writes skips journal_rows when no bot PR is open, and
+    gateway-wait skips outside_writes when kinds excludes outside-write."""
+    from botcore_factory.gateway import records
+
+    gateway = run()
+    gateway.edit(lambda d: d.update({"pullRequests": []}))
+
+    called = []
+    real_journal_rows = records.journal_rows
+
+    def spy_journal_rows(*args, **kwargs):
+        called.append(True)
+        return real_journal_rows(*args, **kwargs)
+
+    monkeypatch.setattr(records, "journal_rows", spy_journal_rows)
+    res = gateway("owner", "gateway-wait", repo=REPO, consumer="c-skip", timeout_ms=0)
+    assert res.success
+    assert called == []
+
+    # Add an open bot-authored PR and confirm requesting only pr-merged skips outside_writes.
+    gateway.edit(
+        lambda d: d.update(
+            {
+                "pullRequests": [
+                    {
+                        "number": 999,
+                        "branch": "fix/bot-pr",
+                        "head": "a" * 40,
+                        "author": "example-factory[bot]",
+                        "state": "open",
+                        "title": "Bot PR",
+                        "body": "",
+                    }
+                ]
+            }
+        )
+    )
+    outside_called = []
+    real_outside = records.outside_writes
+
+    def spy_outside(*args, **kwargs):
+        outside_called.append(True)
+        return real_outside(*args, **kwargs)
+
+    monkeypatch.setattr(records, "outside_writes", spy_outside)
+    res2 = gateway(
+        "owner",
+        "gateway-wait",
+        repo=REPO,
+        consumer="c-merged-only",
+        kinds=["pr-merged"],
+        timeout_ms=0,
+    )
+    assert res2.success
+    assert outside_called == []
+
+
 # ── Review findings: forgery, all-or-none, closed pull requests, unchecked fields, races ──
 
 

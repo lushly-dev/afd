@@ -249,8 +249,38 @@ IMPORT_REASONS = {
 }
 
 
+BINARY_SUFFIXES = frozenset(
+    {
+        ".gif",
+        ".gz",
+        ".ico",
+        ".jpeg",
+        ".jpg",
+        ".pdf",
+        ".png",
+        ".tar",
+        ".whl",
+        ".woff",
+        ".woff2",
+        ".zip",
+    }
+)
+
+
 def digest(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
+
+
+def checked_bytes(path: Path, name: str) -> bytes:
+    """Read file bytes for provenance, refusing CRLF in tracked LF text files (#2390)."""
+    raw = path.read_bytes()
+    is_binary = path.suffix.lower() in BINARY_SUFFIXES or b"\x00" in raw
+    if not is_binary and b"\r\n" in raw:
+        raise ValueError(
+            f"Refusing to record CRLF line endings in {name}: "
+            "convert to LF before refreshing provenance (lushly-dev/afd#2390)"
+        )
+    return raw
 
 
 def encode(value) -> bytes:
@@ -310,7 +340,7 @@ def refresh(files: list[str], reason: str | None) -> bool:
                     "Outside the immutable frozen import selection; no source-byte claim"
                 ),
             }
-        row["current_import_sha256"] = digest(path.read_bytes()) if path.exists() else None
+        row["current_import_sha256"] = digest(checked_bytes(path, name)) if path.exists() else None
         row["stage_classification"], row["import_classification"] = classify(
             row["upstream_sha256"], row["staged_sha256"], row["current_import_sha256"]
         )
@@ -399,7 +429,7 @@ def main() -> None:
         original = upstream_by_path.get(name)
         staged_hash = staged_by_path.get(name)
         file = ROOT / name
-        imported = digest(file.read_bytes()) if file.exists() else None
+        imported = digest(checked_bytes(file, name)) if file.exists() else None
         stage_class, import_class = classify(original, staged_hash, imported)
         stage_reasons = {
             "not-in-staging": "Not selected in the frozen staged-input payload",
