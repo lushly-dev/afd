@@ -25,7 +25,7 @@ The same repository holds the rest of the AFD family: Specimen, FAST-AF, Violet,
 - TypeScript: `npm install @lushly-dev/afd-server @lushly-dev/afd-cli zod`
 - Python: `pip install afd`
 - Rust: `cargo add afd`
-- C++: CMake `FetchContent` from `https://github.com/lushly-dev/afd.git` with `SOURCE_SUBDIR packages/cpp`, then link `afd::afd`. Use the published `GIT_TAG cpp-v0.2.0`.
+- C++: CMake `FetchContent` from `https://github.com/lushly-dev/afd.git` with `SOURCE_SUBDIR packages/cpp`, then link `afd::afd`. Use the published `GIT_TAG cpp-v0.3.0`.
 
 ## Minimal command (TypeScript)
 

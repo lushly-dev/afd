@@ -113,7 +113,7 @@ and fresh consumers after publication; do not repeat the successful 0.1.0 upload
 C++ has no registry upload. Its first tag, GitHub Release and fresh tagged-consumer
 checks are complete; future releases follow the same reviewed-merge procedure.
 
-C++ package/skill/site installation snippets pin the latest published tag (`cpp-v0.2.0` as of 2026-11-04); distribution status is published and the feature record is
+C++ package/skill/site installation snippets pin the latest published tag (`cpp-v0.3.0` as of 2026-11-24); distribution status is published and the feature record is
 under `docs/features/complete/cpp-support/`. Rust package/skill/site installation
 now recommends the published crate. Rust remains a preview in-process library;
 publication does not provide the historical proposal's general-purpose MCP
@@ -150,3 +150,28 @@ from the tag. Because the CMake package uses `SameMinorVersion` compatibility,
 the minor bump also had to change `find_package(afd 0.2 …)` in
 `packages/cpp/tests/consumer/CMakeLists.txt`; the `C++ (package, …)` jobs
 failed until it did.
+
+### Rust 0.3.0
+
+`rust-v0.3.0` was published on 2026-11-24 from #2393's merge commit
+`80bd87bfed0b083f0d4b0e4b271ab69c541f046d`
+([Publish Rust Crate run 45353267598](https://github.com/lushly-dev/afd/actions/runs/45353267598))
+via crates.io trusted publishing after maintainer approval of the `crates-io`
+deployment gate. Post-publish checks verified `afd` `0.3.0` on crates.io
+(`yanked: false`, downloaded `.crate` 653,141 bytes, SHA-256
+`4f1f9e71fe208690a877a706acfa34d117e916def1d05d6333f7b01c29555026`),
+`docs.rs` (`{"doc_status":true,"version":"0.3.0"}`), and fresh consumers with
+both default features and `--no-default-features` reporting `contract=1.0-rc`.
+
+### C++ 0.3.0
+
+`cpp-v0.3.0` was published on 2026-11-24 from #2402's merge commit
+`317accc68be2d8fd14babd5c2af868c7947b5078` (version bump in #2397, iterative
+explicit-stack schema validator fix for Emscripten's 64 KiB Wasm stack in #2402,
+full 14-job `cpp.yml` matrix green in
+[run 45342991204](https://github.com/lushly-dev/afd/actions/runs/45342991204)).
+Its GitHub Release (`afd-cpp 0.3.0`) was created with `--latest=false`, so the
+npm release kept "Latest". Fresh public `FetchContent` (`GIT_TAG cpp-v0.3.0`)
+and installed `find_package(afd 0.3 CONFIG REQUIRED)` consumers linking
+`afd::afd` and `afd::mcp_stdio` built, ran, and reported
+`header=0.3.0 library=0.3.0 contract=1.0-rc`.
