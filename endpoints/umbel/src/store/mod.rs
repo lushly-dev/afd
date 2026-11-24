@@ -249,7 +249,7 @@ pub(crate) fn command_error(error: &StoreError) -> CommandError {
         ),
         StoreError::LaneStale => (
             records::RECORD_LANE_STALE,
-            "Run umbel store-records-reindex first.",
+            "Run umbel store records-reindex first.",
             false,
         ),
         StoreError::Invalid(_) | StoreError::TooLarge(_) | StoreError::NotFound => (
@@ -324,7 +324,7 @@ mod tests {
             error
                 .suggestion
                 .as_deref()
-                .is_some_and(|suggestion| suggestion.contains("umbel store-records-reindex"))
+                .is_some_and(|suggestion| suggestion.contains("umbel store records-reindex"))
         );
     }
 }
