@@ -1,5 +1,25 @@
 # @lushly-dev/afd-auth
 
+## 2.5.0
+
+### Patch Changes
+
+- [#978](https://github.com/lushly-dev/afd/pull/978) [`cfbdc10`](https://github.com/lushly-dev/afd/commit/cfbdc10d859d02e9e9512df463af0c4b61ad0793) Thanks [@Falkicon](https://github.com/Falkicon)! - `BetterAuthAdapter.refresh()` no longer resolves before the provider has answered. Better Auth cancels a session request when a newer one starts (after a sign-in or sign-out, on window focus, from another tab or on its poll), and the cancelled `refetch` resolved with no error stored, so `refresh()` could report the session kept while the provider was unreachable. It now waits for the session store to settle, and rejects with `NETWORK_ERROR` or `REFRESH_FAILED` as documented.
+
+- [#1813](https://github.com/lushly-dev/afd/pull/1813) [`902e5ee`](https://github.com/lushly-dev/afd/commit/902e5ee2cb711bc9f45bf4ffa1b74dc248a0d1eb) Thanks [@Falkicon](https://github.com/Falkicon)! - Fix P0/P1 security, reliability, and Windows compatibility bugs across TypeScript AFD packages:
+
+  - Fail closed with `TOKEN_EXPIRED` in `createAuthMiddleware` when `afd-server`-branded credentials expire instead of falling through to the local `AuthAdapter` session, and propagate admission clock skew on the brand ([#1701](https://github.com/lushly-dev/afd/issues/1701)).
+  - Enforce `requiredScopes` on `GET /sse` and post-routing on `resources/*` and `skills/*` handlers ([#1702](https://github.com/lushly-dev/afd/issues/1702)).
+  - Guard `handler.admit()` and `handler.preDispatchCheck().decide()` against protocol-relative and malformed `req.url` values ([#1703](https://github.com/lushly-dev/afd/issues/1703)).
+  - Bound `$input`/variable expansion nodes, characters, and combined nesting depth in `resolveVariables()` and map limit violations to `VALIDATION_ERROR` in `executePipeline()` ([#1704](https://github.com/lushly-dev/afd/issues/1704)).
+  - Defer `FileJournalSink.lastSeq` assignment until `appendFile()` succeeds so failed first appends preserve unterminated/torn tail recovery ([#1705](https://github.com/lushly-dev/afd/issues/1705)).
+  - Translate MCP SDK `SdkHttpError` into `HttpStatusError` in `McpClient.request()` so `call()`, `batch()`, and `pipe()` classify HTTP 4xx/5xx responses accurately ([#1706](https://github.com/lushly-dev/afd/issues/1706)).
+  - Frame `PipelineResult` `isError` from step failures in `DirectTransport` on tool-surface registries ([#1707](https://github.com/lushly-dev/afd/issues/1707)).
+  - Use `cwd` and normalized separators in `findScenarioFiles()` so `afd scenario run`/`validate` work on Windows and directories with glob metacharacters ([#1708](https://github.com/lushly-dev/afd/issues/1708)).
+
+- Updated dependencies [[`ea0cd02`](https://github.com/lushly-dev/afd/commit/ea0cd0276bc784c31f9bf923a7c67a97a06cf3dd), [`d676427`](https://github.com/lushly-dev/afd/commit/d6764276fdabede07f7f9eaf33785e046829a7d4), [`67ca558`](https://github.com/lushly-dev/afd/commit/67ca558ab822145a3ec2f5403b4dc94e1425cc4d), [`8c3425d`](https://github.com/lushly-dev/afd/commit/8c3425d880a4894255264a742dc57f447e6fef49), [`eb33657`](https://github.com/lushly-dev/afd/commit/eb33657896346ece72368a362ded232abae08e36), [`0928fc9`](https://github.com/lushly-dev/afd/commit/0928fc99fa557b4e5dc5b52f25e560c096a2a61a), [`902e5ee`](https://github.com/lushly-dev/afd/commit/902e5ee2cb711bc9f45bf4ffa1b74dc248a0d1eb), [`dcabc87`](https://github.com/lushly-dev/afd/commit/dcabc87a4384dc6229608837f1fcdb1dc502773f), [`67bfdaa`](https://github.com/lushly-dev/afd/commit/67bfdaaef1cd56f30531c66597c950cfb8127eb1), [`7aacc49`](https://github.com/lushly-dev/afd/commit/7aacc498709944a0eef463ef3a10ba7930ce7184), [`619909a`](https://github.com/lushly-dev/afd/commit/619909adbb14f7bb3115ce4e6c6ee485676d069e), [`9c3f9f2`](https://github.com/lushly-dev/afd/commit/9c3f9f24c59c50dcd81298545f133825af2c2554)]:
+  - @lushly-dev/afd-core@2.5.0
+
 ## 2.4.0
 
 ### Minor Changes

@@ -1,8 +1,0 @@
----
-"@lushly-dev/afd-server": minor
-"@lushly-dev/afd-client": patch
----
-
-`devMode` no longer opens a server to every browser origin. It used to turn off the Origin and `Sec-Fetch-Site` checks and turn on CORS with `Access-Control-Allow-Origin: *`; now it only adds exception details to error responses, so a page you visit cannot call your dev server. If a browser app on another origin calls your local server (such as a Vite app on port 5173), restore that by listing it and turning on CORS: `allowedOrigins: ['http://localhost:5173'], cors: true`. `cors` now defaults to `false` instead of following `devMode`, and its header echoes the accepted origin, never `*`. `allowedOrigins` entries must be exact http(s) origins (`scheme://host[:port]`); `*`, `null`, a path or a trailing slash throws when the server is built.
-
-HTTP sessions stay with the principal that created them. With `auth`, one issuer and subject holds at most `maxSessionsPerOwner` sessions across its client IDs (new option, default 100, never above `maxSessions`); at that quota, or at `maxSessions`, its `initialize` evicts its own least recently used session, never another subject's. Only when the store is full and the caller holds no session is `initialize` refused, with HTTP 503, `Retry-After` and JSON-RPC error `-32000` carrying the request's `id` and `data.code: "SESSION_LIMIT_REACHED"`. `@lushly-dev/afd-client` reports that as the retryable `SESSION_LIMIT_REACHED`, and `connect()` rejects with the new `SessionLimitError` (`retryAfterSeconds`). Without `auth` every caller is one owner, so session behaviour there is unchanged. The server README's "Sessions" section states the rule.
