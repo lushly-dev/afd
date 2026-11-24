@@ -9,10 +9,10 @@ import {
     registerSystemSortAscendingIcon,
     registerSystemSortDescendingIcon,
 } from "../icon/generated";
-import "../icon/violet-icon";
-import "./violet-menu";
-import "./violet-menu-item";
-import "../button/violet-button";
+import "../icon/violet-icon.define";
+import "./violet-menu.define";
+import "./violet-menu-item.define";
+import "../button/violet-button.define";
 import type { VioletMenu } from "./violet-menu";
 import type { VioletMenuItem } from "./violet-menu-item";
 

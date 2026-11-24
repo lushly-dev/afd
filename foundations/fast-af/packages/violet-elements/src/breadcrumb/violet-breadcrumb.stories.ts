@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect } from "@lushly-dev/specimen/test";
 
-import "../breadcrumb-item/violet-breadcrumb-item";
-import "./violet-breadcrumb";
+import "../breadcrumb-item/violet-breadcrumb-item.define";
+import "./violet-breadcrumb.define";
 
 function renderBreadcrumb(): HTMLElement {
     const breadcrumb = document.createElement("violet-breadcrumb") as HTMLElement & { label: string };

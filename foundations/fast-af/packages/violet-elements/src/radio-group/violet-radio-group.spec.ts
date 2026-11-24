@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import "../radio/violet-radio";
+import "../radio/violet-radio.define";
 import type { VioletRadio } from "../radio/violet-radio";
-import "./violet-radio-group";
+import "./violet-radio-group.define";
 import type { VioletRadioGroup } from "./violet-radio-group";
 
 function nextFrame(): Promise<void> {

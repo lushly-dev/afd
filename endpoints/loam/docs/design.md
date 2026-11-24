@@ -431,10 +431,10 @@ checkout; the [`components` plugin's README](../../umbel/plugins/components/READ
 says how to build and approve it.
 
 The repository's deployment maps `loam` to exclusions of `violet-elements/import.root`
-and `violet-elements/theme.install`. These library rules do not apply to Loam's deep
+and `violet-elements/theme.install`. These library rules do not apply to Loam's per-element
 imports and its own tokens. The map is in the separate `components/consumers` pack;
 Specimen's pack and Umbel's shared `pack.toml` format are unchanged. The library's
-`import` field remains library documentation; follow this document's deep imports.
+`import` field remains library documentation; follow this document's per-element imports.
 `components-open` still shows the unfiltered library record.
 
 - **The brief states the library's facts, not Loam's rules.** Where they
@@ -448,8 +448,9 @@ Specimen's pack and Umbel's shared `pack.toml` format are unchanged. The library
 
 ## Iconography
 
-Icons are `violet-icon` from `@lushly-dev/violet-elements`, imported by deep
-import (`@lushly-dev/violet-elements/dist/<component>/…`, spec section 7).
+Icons are `violet-icon` from `@lushly-dev/violet-elements`, registered through
+its per-element subpath (`@lushly-dev/violet-elements/icon/define`, spec
+section 7; the `dist/` deep imports it replaced are no longer exported, #1785).
 
 - **Names** come from the registry, source-prefixed. Version 1 generates 16
   system icons: `system/arrow-up`, `attach`, `calendar`, `checkmark`,
@@ -459,7 +460,7 @@ import (`@lushly-dev/violet-elements/dist/<component>/…`, spec section 7).
   unregistered name renders a fallback glyph.
 - **Registration.** Importing `violet-icon` registers no icon. A component
   imports each icon it uses from
-  `@lushly-dev/violet-elements/dist/icon/generated/icons/system-<name>…` and
+  `@lushly-dev/violet-elements/icons/system-<name>` and
   calls its register function (`registerSystemSearchIcon()`), as
   `violet-alert` does.
 - **New icons** are added to `violet-elements`' registry with their source

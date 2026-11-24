@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import "./violet-tree-item";
+import "./violet-tree-item.define";
 import { VioletTreeItem } from "./violet-tree-item";
 
 function nextFrame(): Promise<void> {

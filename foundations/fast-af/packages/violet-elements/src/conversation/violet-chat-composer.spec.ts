@@ -1,7 +1,7 @@
 import { Observable } from "@lushly-dev/fast-element";
 import { afterEach, describe, expect, it } from "vitest";
 
-import "./violet-chat-composer";
+import "./violet-chat-composer.define";
 import type { VioletChatComposer } from "./violet-chat-composer";
 
 // The Vitest browser transform drops decorators on `declare` fields, so `@observable` properties are plain

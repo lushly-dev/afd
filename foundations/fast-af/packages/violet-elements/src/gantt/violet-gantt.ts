@@ -1,4 +1,4 @@
-import { attr, FASTElement, html, observable, repeat, Updates, when } from "@lushly-dev/fast-element";
+import { attr, FASTElement, html, observable, repeat, Updates, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 import { violetGanttStyles } from "./violet-gantt.styles";
 import {
   ganttClippedGeometry,
@@ -2127,10 +2127,9 @@ observable(VioletGantt.prototype, "scrollTop");
 observable(VioletGantt.prototype, "scrollLeft");
 observable(VioletGantt.prototype, "hasToolbarContent");
 
-if (!customElements.get("violet-gantt")) {
-  await FASTElement.define(VioletGantt, {
-    name: "violet-gantt",
-    template,
-    styles: violetGanttStyles,
-  });
-}
+/** The FAST definition of `<violet-gantt>`; `defineVioletGantt` in `./violet-gantt.define` registers it. */
+export const violetGanttDefinition = {
+  name: "violet-gantt",
+  template,
+  styles: violetGanttStyles,
+} satisfies PartialFASTElementDefinition;

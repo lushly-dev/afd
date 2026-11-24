@@ -3,7 +3,7 @@ import { cdp, server, userEvent } from "vitest/browser";
 
 const isChromium = server.browser === "chromium";
 
-import "./violet-dialog";
+import "./violet-dialog.define";
 import { VioletDialog } from "./violet-dialog";
 import { registerSystemSearchIcon } from "../icon/generated/icons/system-search";
 import { resolveVioletIcon } from "../icon/icon-registry";

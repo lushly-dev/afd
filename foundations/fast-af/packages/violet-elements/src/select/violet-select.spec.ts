@@ -3,9 +3,9 @@ import { cdp, server, userEvent } from "vitest/browser";
 
 const isChromium = server.browser === "chromium";
 
-import "../option/violet-option";
-import "../option-group/violet-option-group";
-import "./violet-select";
+import "../option/violet-option.define";
+import "../option-group/violet-option-group.define";
+import "./violet-select.define";
 import type { VioletOption } from "../option/violet-option";
 import type { VioletSelect } from "./violet-select";
 

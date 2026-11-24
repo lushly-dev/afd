@@ -1,8 +1,7 @@
-import { FASTElement, attr, css, html } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 import { registerSystemChevronRightIcon } from "../icon/generated/icons/system-chevron-right";
-import "../icon/violet-icon";
 
 const styles = css`
     ${violetSurfaceTokenDefaults}
@@ -179,10 +178,9 @@ attr({ mode: "boolean" })(VioletReasoningBlock.prototype, "expanded");
 attr(VioletReasoningBlock.prototype, "state");
 attr(VioletReasoningBlock.prototype, "label");
 
-if (!customElements.get("violet-reasoning-block")) {
-    await FASTElement.define(VioletReasoningBlock, {
-        name: "violet-reasoning-block",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-reasoning-block>`; `defineVioletReasoningBlock` in `./violet-reasoning-block.define` registers it. */
+export const violetReasoningBlockDefinition = {
+    name: "violet-reasoning-block",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

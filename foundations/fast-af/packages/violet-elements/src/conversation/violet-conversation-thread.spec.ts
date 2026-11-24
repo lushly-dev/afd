@@ -1,7 +1,7 @@
 import { Observable } from "@lushly-dev/fast-element";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import "./violet-conversation-thread";
+import "./violet-conversation-thread.define";
 import type { VioletConversationThread } from "./violet-conversation-thread";
 
 // The Vitest browser transform drops decorators on `declare` fields, so `@observable` properties are plain

@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, fn, userEvent } from "@lushly-dev/specimen/test";
 
-import "./violet-chat-composer";
-import "../button/violet-button";
+import "./violet-chat-composer.define";
+import "../button/violet-button.define";
 import type { VioletChatComposer, VioletChatComposerStatus } from "./violet-chat-composer";
 
 type ComposerStoryArgs = {

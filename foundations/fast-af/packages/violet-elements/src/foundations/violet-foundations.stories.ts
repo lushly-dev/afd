@@ -2,14 +2,14 @@ import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect } from "@lushly-dev/specimen/test";
 import rawPaletteProposalText from "../../tokens/raw-palette.proposal.jsonc?raw";
 
-import "../button/violet-button";
-import "../checkbox/violet-checkbox";
+import "../button/violet-button.define";
+import "../checkbox/violet-checkbox.define";
 import {
   VioletDataGridColumn,
   VioletDataGridRow,
 } from "../data-grid/violet-data-grid";
-import "../data-grid/violet-data-grid";
-import "../text-field/violet-text-field";
+import "../data-grid/violet-data-grid.define";
+import "../text-field/violet-text-field.define";
 import {
   buildRegistryCssVars,
   isColorToken,

@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import "./violet-option";
-import "../option-group/violet-option-group";
-import "../select/violet-select";
-import "../combobox/violet-combobox";
-import "../listbox/violet-listbox";
-import "../theme/violet-theme";
+import "./violet-option.define";
+import "../option-group/violet-option-group.define";
+import "../select/violet-select.define";
+import "../combobox/violet-combobox.define";
+import "../listbox/violet-listbox.define";
+import "../theme/violet-theme.define";
 import { loadVioletBuiltInTheme } from "../theme/violet-theme-runtime";
 import { VioletOption } from "./violet-option";
 import type { VioletSelect } from "../select/violet-select";

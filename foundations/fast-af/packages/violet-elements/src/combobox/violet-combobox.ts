@@ -1,6 +1,5 @@
-import { FASTElement, Observable, attr, css, html, observable, when } from "@lushly-dev/fast-element";
+import { FASTElement, Observable, attr, css, html, observable, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
-import "../option/violet-option";
 import type { VioletOption } from "../option/violet-option";
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { resolveFieldErrorText } from "../shared/field-error";
@@ -1003,13 +1002,12 @@ attr({ mode: "boolean" })(VioletCombobox.prototype, "invalid");
 attr({ mode: "boolean" })(VioletCombobox.prototype, "open");
 attr({ attribute: "open-on-focus", mode: "boolean" })(VioletCombobox.prototype, "openOnFocus");
 
-if (!customElements.get("violet-combobox")) {
-    await FASTElement.define(VioletCombobox, {
-        name: "violet-combobox",
-        template,
-        styles,
-        shadowOptions: {
-            delegatesFocus: true,
-        },
-    });
-}
+/** The FAST definition of `<violet-combobox>`; `defineVioletCombobox` in `./violet-combobox.define` registers it. */
+export const violetComboboxDefinition = {
+    name: "violet-combobox",
+    template,
+    styles,
+    shadowOptions: {
+        delegatesFocus: true,
+    },
+} satisfies PartialFASTElementDefinition;

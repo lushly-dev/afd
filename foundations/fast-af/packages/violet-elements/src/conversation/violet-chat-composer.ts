@@ -1,11 +1,8 @@
-import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 import { registerSystemArrowUpIcon } from "../icon/generated/icons/system-arrow-up";
 import { registerSystemStopIcon } from "../icon/generated/icons/system-stop";
-import "../icon/violet-icon";
-import "../icon-button/violet-icon-button";
-import "../text-area/violet-text-area";
 import type { VioletTextArea } from "../text-area/violet-text-area";
 
 const styles = css`
@@ -333,11 +330,10 @@ attr(VioletChatComposer.prototype, "label");
 attr({ mode: "fromView" })(VioletChatComposer.prototype, "value");
 attr({ mode: "boolean" })(VioletChatComposer.prototype, "disabled");
 
-if (!customElements.get("violet-chat-composer")) {
-    await FASTElement.define(VioletChatComposer, {
-        name: "violet-chat-composer",
-        template,
-        styles,
-        shadowOptions: { delegatesFocus: true },
-    });
-}
+/** The FAST definition of `<violet-chat-composer>`; `defineVioletChatComposer` in `./violet-chat-composer.define` registers it. */
+export const violetChatComposerDefinition = {
+    name: "violet-chat-composer",
+    template,
+    styles,
+    shadowOptions: { delegatesFocus: true },
+} satisfies PartialFASTElementDefinition;

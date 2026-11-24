@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, userEvent, waitFor } from "@lushly-dev/specimen/test";
 
-import "../card/violet-card";
-import "../text/violet-text";
-import "./violet-carousel";
+import "../card/violet-card.define";
+import "../text/violet-text.define";
+import "./violet-carousel.define";
 import type { VioletCarousel } from "./violet-carousel";
 
 type VioletCarouselStoryArgs = {

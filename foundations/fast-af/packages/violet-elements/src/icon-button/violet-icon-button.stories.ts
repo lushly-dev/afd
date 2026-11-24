@@ -3,8 +3,8 @@ import { expect, userEvent } from "@lushly-dev/specimen/test";
 
 import { clearVioletIconRegistryForTesting } from "../icon/icon-registry";
 import { registerSystemCloseIcon, registerSystemSearchIcon, registerSystemSettingsIcon } from "../icon/generated";
-import "../icon/violet-icon";
-import "./violet-icon-button";
+import "../icon/violet-icon.define";
+import "./violet-icon-button.define";
 import type { VioletIconButton } from "./violet-icon-button";
 
 type VioletIconButtonStoryArgs = {

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import "./violet-divider";
+import "./violet-divider.define";
 import type { VioletDivider } from "./violet-divider";
 
 function nextFrame(): Promise<void> {

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import "./violet-reasoning-block";
+import "./violet-reasoning-block.define";
 import type { VioletReasoningBlock } from "./violet-reasoning-block";
 
 function nextFrame(): Promise<void> {

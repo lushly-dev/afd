@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetActionTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -149,13 +149,12 @@ export class VioletMenuItem extends FASTElement {
 
 attr({ mode: "boolean" })(VioletMenuItem.prototype, "disabled");
 
-if (!customElements.get("violet-menu-item")) {
-    await FASTElement.define(VioletMenuItem, {
-        name: "violet-menu-item",
-        template,
-        styles,
-        shadowOptions: {
-            delegatesFocus: true,
-        },
-    });
-}
+/** The FAST definition of `<violet-menu-item>`; `defineVioletMenuItem` in `./violet-menu-item.define` registers it. */
+export const violetMenuItemDefinition = {
+    name: "violet-menu-item",
+    template,
+    styles,
+    shadowOptions: {
+        delegatesFocus: true,
+    },
+} satisfies PartialFASTElementDefinition;

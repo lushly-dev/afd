@@ -3,8 +3,8 @@ import { cdp, server } from "vitest/browser";
 
 const isChromium = server.browser === "chromium";
 
-import "../button/violet-button";
-import "./violet-teaching-tip";
+import "../button/violet-button.define";
+import "./violet-teaching-tip.define";
 import type { VioletTeachingTip } from "./violet-teaching-tip";
 import { registerSystemSearchIcon } from "../icon/generated/icons/system-search";
 import { resolveVioletIcon } from "../icon/icon-registry";

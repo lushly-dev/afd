@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import "./violet-data-grid-persona-picker";
+import "./violet-data-grid-persona-picker.define";
 import type { VioletDataGridEditorOption } from "./violet-data-grid";
 import type { VioletDataGridPersonaPicker } from "./violet-data-grid-persona-picker";
 

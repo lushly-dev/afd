@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, waitFor } from "@lushly-dev/specimen/test";
 
-import "./violet-tooltip";
+import "./violet-tooltip.define";
 import type { VioletTooltip, VioletTooltipPositioning } from "./violet-tooltip";
 
 type VioletTooltipStoryArgs = {

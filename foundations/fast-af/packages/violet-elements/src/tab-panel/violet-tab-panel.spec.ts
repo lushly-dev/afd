@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import "./violet-tab-panel";
+import "./violet-tab-panel.define";
 import type { VioletTabPanel } from "./violet-tab-panel";
 
 function nextFrame(): Promise<void> {

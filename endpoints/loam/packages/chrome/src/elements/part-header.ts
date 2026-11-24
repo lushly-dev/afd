@@ -7,7 +7,7 @@
  */
 
 import { attr, css, FASTElement, html, observable, repeat } from '@lushly-dev/fast-element';
-import '@lushly-dev/violet-elements/dist/breadcrumb/violet-breadcrumb.js';
+import '@lushly-dev/violet-elements/breadcrumb/define';
 import { actionButton } from '../apps/action-styles.js';
 
 /** One breadcrumb: its text, and where an ancestor links. The last has no link. */

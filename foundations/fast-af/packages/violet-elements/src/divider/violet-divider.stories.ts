@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect } from "@lushly-dev/specimen/test";
 
-import "./violet-divider";
-import "../text/violet-text";
+import "./violet-divider.define";
+import "../text/violet-text.define";
 import type { VioletDivider } from "./violet-divider";
 
 type Story = StoryObj<VioletDivider>;

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, userEvent } from "@lushly-dev/specimen/test";
 
-import "./violet-radio";
+import "./violet-radio.define";
 import type { VioletRadio } from "./violet-radio";
 
 type VioletRadioStoryArgs = {

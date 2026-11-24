@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import "../calendar/violet-calendar";
-import "../carousel/violet-carousel";
-import "../radio-group/violet-radio-group";
-import "../radio/violet-radio";
-import "../segment/violet-segment";
-import "../segmented-control/violet-segmented-control";
-import "../tree-item/violet-tree-item";
-import "../tree/violet-tree";
+import "../calendar/violet-calendar.define";
+import "../carousel/violet-carousel.define";
+import "../radio-group/violet-radio-group.define";
+import "../radio/violet-radio.define";
+import "../segment/violet-segment.define";
+import "../segmented-control/violet-segmented-control.define";
+import "../tree-item/violet-tree-item.define";
+import "../tree/violet-tree.define";
 import type { VioletCalendar } from "../calendar/violet-calendar";
 import type { VioletCarousel } from "../carousel/violet-carousel";
 import type { VioletRadioGroup } from "../radio-group/violet-radio-group";

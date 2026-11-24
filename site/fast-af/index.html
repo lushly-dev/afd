@@ -412,6 +412,8 @@
 						<figure class="command-source" id="code-use" role="tabpanel" aria-labelledby="tab-use">
 							<figcaption><span>app.js and any HTML</span><span>One import registers every element</span></figcaption>
 							<pre tabindex="0"><code><span class="tok-kw">import</span> <span class="tok-str">'@lushly-dev/violet-elements'</span>;
+<span class="tok-dim">// Or only the elements you use, one subpath each:</span>
+<span class="tok-dim">// import '@lushly-dev/violet-elements/button/define';</span>
 
 <span class="tok-dim">// Then, in HTML, a template, or a framework's markup:</span>
 &lt;violet-text-field label=<span class="tok-str">"Task"</span> name=<span class="tok-str">"title"</span>&gt;&lt;/violet-text-field&gt;

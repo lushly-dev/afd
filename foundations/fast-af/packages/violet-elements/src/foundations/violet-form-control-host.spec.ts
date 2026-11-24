@@ -1,19 +1,19 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import "../color-picker/violet-color-picker";
-import "../combobox/violet-combobox";
-import "../date-picker/violet-date-picker";
-import "../date-range-picker/violet-date-range-picker";
-import "../dialog/violet-dialog";
-import "../file-upload/violet-file-upload";
-import "../segment/violet-segment";
-import "../segmented-control/violet-segmented-control";
-import "../slider/violet-range-slider";
-import "../slider/violet-slider";
-import "../text-area/violet-text-area";
-import "../text-field/violet-text-field";
-import "../time-picker/violet-time-picker";
+import "../color-picker/violet-color-picker.define";
+import "../combobox/violet-combobox.define";
+import "../date-picker/violet-date-picker.define";
+import "../date-range-picker/violet-date-range-picker.define";
+import "../dialog/violet-dialog.define";
+import "../file-upload/violet-file-upload.define";
+import "../segment/violet-segment.define";
+import "../segmented-control/violet-segmented-control.define";
+import "../slider/violet-range-slider.define";
+import "../slider/violet-slider.define";
+import "../text-area/violet-text-area.define";
+import "../text-field/violet-text-field.define";
+import "../time-picker/violet-time-picker.define";
 
 // What an application may rely on from a form control's host, without reaching into its shadow root:
 // `focus()` reaches the control, a `value` write reaches what the person sees, and each edit reaches

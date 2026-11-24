@@ -97,14 +97,35 @@ assert.equal(component.version, await sourceVersion(componentSource));
 // Published as a preview since 2026-11-14; upstream it was private and never published.
 assert.equal(component.private, undefined, 'violet-elements is publishable');
 assert.equal(Object.keys(runtime.exports).length, 36);
+// One class entry and one define entry per tag in the packed manifest (#1785), and no `./dist/*`.
+const packedTags = JSON.parse(
+	execFileSync(tarCommand(), ['-xzOf', packs[componentName], 'package/custom-elements.json'], {
+		encoding: 'utf8',
+		// The manifest is over a megabyte, past execFileSync's default buffer.
+		maxBuffer: 64 * 1024 * 1024,
+	})
+)
+	.modules.flatMap((module) => module.declarations ?? [])
+	.filter((declaration) => declaration.customElement && declaration.tagName)
+	.map((declaration) => declaration.tagName.replace(/^violet-/, ''))
+	.sort();
+assert.equal(packedTags.length, 77);
 assert.deepEqual(Object.keys(component.exports), [
 	'.',
+	...packedTags.flatMap((tag) => [`./${tag}`, `./${tag}/define`]),
+	'./icon-registry',
+	'./icons/*',
 	'./theme-css',
 	'./theme-runtime',
-	'./dist/*',
+	'./theme-builtin',
 	'./custom-elements.json',
 	'./tokens/*',
 	'./package.json',
+]);
+assert.deepEqual(component.sideEffects, [
+	'./dist/**/*.define.js',
+	'./dist/all.js',
+	'./dist/index.js',
 ]);
 assert.deepEqual(edges(runtime), ['@webcomponents/scoped-custom-element-registry']);
 // `workspace:^` packs as a range from the runtime it was built against, not an exact pin.
@@ -123,7 +144,9 @@ const license = (name) =>
 	execFileSync(tarCommand(), ['-xzOf', packs[name], 'package/LICENSE'], { encoding: 'utf8' });
 assert.match(license(runtimeName), /Copyright \(c\) Microsoft Corporation/);
 assert.match(license(componentName), /Copyright \(c\) 2026 Lushly Dev/);
-passed('packed manifests: identities, 38 runtime exports, portable ranges, licenses, no hooks');
+passed(
+	`packed manifests: identities, 36 runtime exports, ${packedTags.length * 2} element entries, portable ranges, licenses, no hooks`
+);
 
 async function install(name, dependencies, { expected = true } = {}) {
 	const root = join(consumers, name);
@@ -223,13 +246,25 @@ await writeFile(
 	[
 		`import * as components from ${JSON.stringify(componentName)};`,
 		`import * as runtime from ${JSON.stringify(runtimeName)};`,
+		`import { VioletButton, violetButtonDefinition } from ${JSON.stringify(`${componentName}/button`)};`,
+		`import { defineVioletButton } from ${JSON.stringify(`${componentName}/button/define`)};`,
+		`import { registerSystemCloseIcon } from ${JSON.stringify(`${componentName}/icons/system-close`)};`,
+		`import { resolveVioletIcon } from ${JSON.stringify(`${componentName}/icon-registry`)};`,
+		`import { VioletTheme, installVioletTheme } from ${JSON.stringify(`${componentName}/theme`)};`,
 		'export const elements: typeof components = components;',
 		'export const fast: typeof runtime = runtime;',
+		'export const button: typeof VioletButton = VioletButton;',
+		'export const buttonTag: string = violetButtonDefinition.name;',
+		'export const define: (registry?: CustomElementRegistry) => Promise<void> = defineVioletButton;',
+		'export const icons = [registerSystemCloseIcon, resolveVioletIcon] as const;',
+		'export const theme = [VioletTheme, installVioletTheme] as const;',
 		'',
 	].join('\n')
 );
 await typecheck(components.root, 'bundler');
-passed('components: root and runtime type-check in strict bundler mode');
+passed(
+	'components: root, element, define, icon and theme subpaths type-check in strict bundler mode'
+);
 const resolveFrom = createRequire(join(components.root, 'package.json'));
 const assets = {};
 for (const asset of [
@@ -298,8 +333,8 @@ if (browserName !== 'none') {
 	await writeFile(
 		join(components.root, 'single-file-entry.js'),
 		[
-			`import ${JSON.stringify(`${componentName}/dist/theme/violet-theme.js`)};`,
-			`import ${JSON.stringify(`${componentName}/dist/text/violet-text.js`)};`,
+			`import ${JSON.stringify(`${componentName}/theme/define`)};`,
+			`import ${JSON.stringify(`${componentName}/text/define`)};`,
 			'globalThis.__singleFileReady = true;',
 			'',
 		].join('\n')
@@ -322,6 +357,66 @@ if (browserName !== 'none') {
 			},
 		},
 	});
+	// One import, one element (#1785): each entry is bundled alone from the packed tarball, and the
+	// bundle holds, and registers, exactly the elements named here.
+	const isolation = {
+		'button-define': {
+			source: `import ${JSON.stringify(`${componentName}/button/define`)};`,
+			tags: ['violet-button'],
+		},
+		'alert-define': {
+			source: `import ${JSON.stringify(`${componentName}/alert/define`)};`,
+			tags: ['violet-alert', 'violet-button', 'violet-card', 'violet-icon', 'violet-icon-button'],
+		},
+		'button-class': {
+			source: [
+				`import { VioletButton } from ${JSON.stringify(`${componentName}/button`)};`,
+				'globalThis.__isolationClass = VioletButton.name;',
+			].join('\n'),
+			tags: [],
+		},
+	};
+	for (const [id, { source, tags }] of Object.entries(isolation)) {
+		await writeFile(
+			join(components.root, `${id}.js`),
+			`${source}\nglobalThis.__isolationReady = true;\n`
+		);
+		await viteBuild({
+			root: components.root,
+			configFile: false,
+			logLevel: 'silent',
+			build: {
+				outDir: `isolation-dist/${id}`,
+				emptyOutDir: true,
+				minify: false,
+				rollupOptions: {
+					input: join(components.root, `${id}.js`),
+					output: { format: 'es', codeSplitting: false, entryFileNames: 'bundle.js' },
+				},
+			},
+		});
+		const bundle = await readFile(join(components.root, `isolation-dist/${id}/bundle.js`), 'utf8');
+		const defined = [
+			...new Set(
+				[...bundle.matchAll(/\bname:\s*["'](violet-[a-z-]+)["']/g)].map((match) => match[1])
+			),
+		].sort();
+		assert.deepEqual(
+			defined,
+			[...tags].sort(),
+			`${id} bundles the definitions of ${defined.join(', ')}`
+		);
+		// The bundle, tree-shaken under `sideEffects`, and the entry served unbundled, which loads the
+		// packed modules as they are: a class module that registered would show in the second.
+		await writeFile(
+			join(components.root, `${id}.bundled.html`),
+			`<!doctype html><html><body><script type="module" src="/isolation-dist/${id}/bundle.js"></script></body></html>\n`
+		);
+		await writeFile(
+			join(components.root, `${id}.unbundled.html`),
+			`<!doctype html><html><body><script type="module" src="/${id}.js"></script></body></html>\n`
+		);
+	}
 	await writeFile(
 		join(components.root, 'single-file.html'),
 		'<!doctype html><html><body><violet-theme preset="dark"><violet-text>Bundled</violet-text></violet-theme><script type="module" src="/single-file-dist/bundle.js"></script></body></html>\n'
@@ -431,6 +526,36 @@ if (browserName !== 'none') {
 		await singleFilePage.close();
 		passed(
 			`components (${browserName}): single-file bundle upgrades pre-existing violet-theme without TDZ`
+		);
+
+		for (const [id, { tags }] of Object.entries(isolation).flatMap(([name, entry]) =>
+			['bundled', 'unbundled'].map((form) => [`${name}.${form}`, entry])
+		)) {
+			const isolationPage = await launched.newPage();
+			const isolationErrors = [];
+			isolationPage.on('pageerror', (error) => isolationErrors.push(error.message));
+			await isolationPage.goto(`${server.resolvedUrls.local[0]}${id}.html`);
+			await isolationPage.waitForFunction(() => globalThis.__isolationReady === true, null, {
+				timeout: 30000,
+			});
+			const registered = await isolationPage.evaluate(
+				(all) => ({
+					tags: all.filter((tag) => customElements.get(tag) !== undefined).sort(),
+					className: globalThis.__isolationClass ?? null,
+				}),
+				declared.map((item) => item.tagName)
+			);
+			assert.deepEqual(isolationErrors, [], `${id} page errors`);
+			assert.deepEqual(
+				registered.tags,
+				[...tags].sort(),
+				`${id} registers ${registered.tags.join(', ')}`
+			);
+			if (id.startsWith('button-class.')) assert.equal(registered.className, 'VioletButton');
+			await isolationPage.close();
+		}
+		passed(
+			`components (${browserName}): bundled and unbundled, button/define registers only violet-button, alert/define alert and its 4 elements, the button class none`
 		);
 	} finally {
 		await launched.close();

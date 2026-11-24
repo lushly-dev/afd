@@ -1,6 +1,5 @@
-import { FASTElement, Updates, attr, css, html, observable, when } from "@lushly-dev/fast-element";
+import { FASTElement, Updates, attr, css, html, observable, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
-import "../segment/violet-segment";
 import type { VioletSegment } from "../segment/violet-segment";
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
@@ -447,10 +446,9 @@ installFormDisabled(VioletSegmentedControl.prototype);
 attr({ mode: "boolean" })(VioletSegmentedControl.prototype, "invalid");
 attr({ mode: "boolean" })(VioletSegmentedControl.prototype, "required");
 
-if (!customElements.get("violet-segmented-control")) {
-    await FASTElement.define(VioletSegmentedControl, {
-        name: "violet-segmented-control",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-segmented-control>`; `defineVioletSegmentedControl` in `./violet-segmented-control.define` registers it. */
+export const violetSegmentedControlDefinition = {
+    name: "violet-segmented-control",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

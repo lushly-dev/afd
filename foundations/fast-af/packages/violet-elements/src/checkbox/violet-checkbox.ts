@@ -1,4 +1,4 @@
-import { FASTElement, Updates, attr, css, html, observable, when } from "@lushly-dev/fast-element";
+import { FASTElement, Updates, attr, css, html, observable, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
@@ -699,13 +699,12 @@ attr(VioletCheckbox.prototype, "name");
 attr(VioletCheckbox.prototype, "value");
 attr({ mode: "boolean" })(VioletCheckbox.prototype, "required");
 
-if (!customElements.get("violet-checkbox")) {
-    await FASTElement.define(VioletCheckbox, {
-        name: "violet-checkbox",
-        template,
-        styles,
-        shadowOptions: {
-            delegatesFocus: true,
-        },
-    });
-}
+/** The FAST definition of `<violet-checkbox>`; `defineVioletCheckbox` in `./violet-checkbox.define` registers it. */
+export const violetCheckboxDefinition = {
+    name: "violet-checkbox",
+    template,
+    styles,
+    shadowOptions: {
+        delegatesFocus: true,
+    },
+} satisfies PartialFASTElementDefinition;

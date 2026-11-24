@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import "./violet-message-media";
+import "./violet-message-media.define";
 import type { VioletMessageMedia } from "./violet-message-media";
 
 // Remote hosts use the reserved .invalid TLD so nothing real is ever contacted.

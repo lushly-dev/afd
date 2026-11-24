@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, userEvent, waitFor } from "@lushly-dev/specimen/test";
 
-import "../button/violet-button";
-import "./violet-popover";
+import "../button/violet-button.define";
+import "./violet-popover.define";
 import type { VioletPopover } from "./violet-popover";
 
 type Story = StoryObj<VioletPopover>;

@@ -3,8 +3,8 @@ import { cdp, server, userEvent } from "vitest/browser";
 
 const isChromium = server.browser === "chromium";
 
-import "../button/violet-button";
-import "./violet-tooltip";
+import "../button/violet-button.define";
+import "./violet-tooltip.define";
 import type { VioletTooltip } from "./violet-tooltip";
 
 function nextFrame(): Promise<void> {

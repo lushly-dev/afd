@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import "./violet-dialog";
+import "./violet-dialog.define";
 import type { VioletDialog } from "./violet-dialog";
 
 function nextFrame(): Promise<void> {

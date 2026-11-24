@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import "./violet-color-picker";
-import "../theme/violet-theme";
+import "./violet-color-picker.define";
+import "../theme/violet-theme.define";
 import { loadVioletBuiltInTheme } from "../theme/violet-theme-runtime";
 import type { VioletColorPicker } from "./violet-color-picker";
 

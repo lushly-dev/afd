@@ -1,21 +1,21 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import "../checkbox/violet-checkbox";
-import "../color-picker/violet-color-picker";
-import "../combobox/violet-combobox";
-import "../date-picker/violet-date-picker";
-import "../file-upload/violet-file-upload";
-import "../radio-group/violet-radio-group";
-import "../radio/violet-radio";
-import "../segment/violet-segment";
-import "../segmented-control/violet-segmented-control";
-import "../select/violet-select";
-import "../slider/violet-range-slider";
-import "../slider/violet-slider";
-import "../switch/violet-switch";
-import "../text-area/violet-text-area";
-import "../text-field/violet-text-field";
-import "../time-picker/violet-time-picker";
+import "../checkbox/violet-checkbox.define";
+import "../color-picker/violet-color-picker.define";
+import "../combobox/violet-combobox.define";
+import "../date-picker/violet-date-picker.define";
+import "../file-upload/violet-file-upload.define";
+import "../radio-group/violet-radio-group.define";
+import "../radio/violet-radio.define";
+import "../segment/violet-segment.define";
+import "../segmented-control/violet-segmented-control.define";
+import "../select/violet-select.define";
+import "../slider/violet-range-slider.define";
+import "../slider/violet-slider.define";
+import "../switch/violet-switch.define";
+import "../text-area/violet-text-area.define";
+import "../text-field/violet-text-field.define";
+import "../time-picker/violet-time-picker.define";
 import { isDisabledByFieldset } from "./violet-form-disabled";
 
 type FormDisabledElement = HTMLElement & {

@@ -3,8 +3,8 @@ import { cdp, server } from "vitest/browser";
 
 const isChromium = server.browser === "chromium";
 
-import "../accordion-item/violet-accordion-item";
-import "./violet-accordion";
+import "../accordion-item/violet-accordion-item.define";
+import "./violet-accordion.define";
 import type { VioletAccordion } from "./violet-accordion";
 
 function nextFrame(): Promise<void> {

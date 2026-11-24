@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import type { VioletCalendar } from "../calendar/violet-calendar";
-import "./violet-date-range-picker";
+import "./violet-date-range-picker.define";
 import type { VioletDateRangePicker } from "./violet-date-range-picker";
 
 function nextFrame(): Promise<void> {
@@ -434,7 +434,7 @@ describe("violet-date-range-picker", () => {
         });
 
         it("defers top-layer promotion for an initially open picker inside a closed violet-dialog until the dialog opens", async () => {
-            await import("../dialog/violet-dialog");
+            await import("../dialog/violet-dialog.define");
             document.body.innerHTML = "";
             const openButton = document.createElement("button");
             openButton.textContent = "Open dialog";

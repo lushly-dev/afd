@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -196,10 +196,9 @@ attr({ attribute: "message-role" })(VioletMessage.prototype, "messageRole");
 attr(VioletMessage.prototype, "tone");
 attr({ mode: "boolean" })(VioletMessage.prototype, "streaming");
 
-if (!customElements.get("violet-message")) {
-    await FASTElement.define(VioletMessage, {
-        name: "violet-message",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-message>`; `defineVioletMessage` in `./violet-message.define` registers it. */
+export const violetMessageDefinition = {
+    name: "violet-message",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

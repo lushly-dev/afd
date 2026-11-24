@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, userEvent, waitFor } from "@lushly-dev/specimen/test";
 
-import "./violet-color-picker";
+import "./violet-color-picker.define";
 import type { VioletColorPicker } from "./violet-color-picker";
 
 type VioletColorPickerStoryArgs = {

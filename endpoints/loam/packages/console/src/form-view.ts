@@ -5,16 +5,16 @@
  */
 
 import { Observable } from '@lushly-dev/fast-element';
-import '@lushly-dev/violet-elements/dist/checkbox/violet-checkbox.js';
-import '@lushly-dev/violet-elements/dist/option/violet-option.js';
-import '@lushly-dev/violet-elements/dist/select/violet-select.js';
-import '@lushly-dev/violet-elements/dist/text-area/violet-text-area.js';
-import '@lushly-dev/violet-elements/dist/text-field/violet-text-field.js';
-import type { VioletCheckbox } from '@lushly-dev/violet-elements/dist/checkbox/violet-checkbox.js';
-import type { VioletOption } from '@lushly-dev/violet-elements/dist/option/violet-option.js';
-import type { VioletSelect } from '@lushly-dev/violet-elements/dist/select/violet-select.js';
-import type { VioletTextArea } from '@lushly-dev/violet-elements/dist/text-area/violet-text-area.js';
-import type { VioletTextField } from '@lushly-dev/violet-elements/dist/text-field/violet-text-field.js';
+import '@lushly-dev/violet-elements/checkbox/define';
+import '@lushly-dev/violet-elements/option/define';
+import '@lushly-dev/violet-elements/select/define';
+import '@lushly-dev/violet-elements/text-area/define';
+import '@lushly-dev/violet-elements/text-field/define';
+import type { VioletCheckbox } from '@lushly-dev/violet-elements/checkbox';
+import type { VioletOption } from '@lushly-dev/violet-elements/option';
+import type { VioletSelect } from '@lushly-dev/violet-elements/select';
+import type { VioletTextArea } from '@lushly-dev/violet-elements/text-area';
+import type { VioletTextField } from '@lushly-dev/violet-elements/text-field';
 import type { FormField, FormRules } from './form.js';
 
 export interface FieldView {

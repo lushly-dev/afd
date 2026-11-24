@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import "../option/violet-option";
+import "../option/violet-option.define";
 import type { VioletOption } from "../option/violet-option";
-import "../option-group/violet-option-group";
-import "./violet-combobox";
+import "../option-group/violet-option-group.define";
+import "./violet-combobox.define";
 import type { VioletCombobox } from "./violet-combobox";
 
 function nextFrame(): Promise<void> {

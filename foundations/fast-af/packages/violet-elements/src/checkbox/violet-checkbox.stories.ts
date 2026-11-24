@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { claim } from "@lushly-dev/specimen/evidence";
 import { expect, userEvent, waitFor } from "@lushly-dev/specimen/test";
 
-import "./violet-checkbox";
+import "./violet-checkbox.define";
 import type { VioletCheckbox } from "./violet-checkbox";
 
 type VioletCheckboxStoryArgs = {

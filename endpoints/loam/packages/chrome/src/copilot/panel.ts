@@ -18,12 +18,12 @@
  */
 
 import { css, FASTElement, html, observable } from '@lushly-dev/fast-element';
-import '@lushly-dev/violet-elements/dist/conversation/violet-conversation-thread.js';
-import '@lushly-dev/violet-elements/dist/conversation/violet-message.js';
-import '@lushly-dev/violet-elements/dist/conversation/violet-message-text.js';
-import '@lushly-dev/violet-elements/dist/conversation/violet-chat-composer.js';
-import '@lushly-dev/violet-elements/dist/conversation/violet-approval-card.js';
-import '@lushly-dev/violet-elements/dist/button/violet-button.js';
+import '@lushly-dev/violet-elements/conversation-thread/define';
+import '@lushly-dev/violet-elements/message/define';
+import '@lushly-dev/violet-elements/message-text/define';
+import '@lushly-dev/violet-elements/chat-composer/define';
+import '@lushly-dev/violet-elements/approval-card/define';
+import '@lushly-dev/violet-elements/button/define';
 import type { UIMessage } from '@tanstack/ai-client';
 import { renderCards, type SessionRecordsV1 } from './cards.js';
 import {

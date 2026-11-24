@@ -1,10 +1,7 @@
-import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 import { registerSystemSettingsIcon } from "../icon/generated/icons/system-settings";
-import "../icon/violet-icon";
-import "../card/violet-card";
-import "./violet-approval-card";
 
 const styles = css`
     ${violetSurfaceTokenDefaults}
@@ -405,10 +402,9 @@ attr({ attribute: "tool-name" })(VioletToolCallCard.prototype, "toolName");
 attr({ attribute: "tool-call-id" })(VioletToolCallCard.prototype, "toolCallId");
 attr(VioletToolCallCard.prototype, "state");
 
-if (!customElements.get("violet-tool-call-card")) {
-    await FASTElement.define(VioletToolCallCard, {
-        name: "violet-tool-call-card",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-tool-call-card>`; `defineVioletToolCallCard` in `./violet-tool-call-card.define` registers it. */
+export const violetToolCallCardDefinition = {
+    name: "violet-tool-call-card",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

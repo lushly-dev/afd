@@ -3,11 +3,11 @@ import { cdp, server, userEvent } from "vitest/browser";
 
 const isChromium = server.browser === "chromium";
 
-import "../tab-panel/violet-tab-panel";
+import "../tab-panel/violet-tab-panel.define";
 import type { VioletTabPanel } from "../tab-panel/violet-tab-panel";
-import "../tab/violet-tab";
+import "../tab/violet-tab.define";
 import type { VioletTab } from "../tab/violet-tab";
-import "./violet-tabs";
+import "./violet-tabs.define";
 import type { VioletTabs } from "./violet-tabs";
 
 function nextFrame(): Promise<void> {

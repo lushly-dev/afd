@@ -20,10 +20,10 @@ import type {
 	ResourceLinkV1,
 } from '@lushly-dev/loam-kernel';
 import type { DocumentRecordV1, DocumentTypeV1 } from '@lushly-dev/loam-sdk';
-import '@lushly-dev/violet-elements/dist/button/violet-button.js';
-import '@lushly-dev/violet-elements/dist/text-field/violet-text-field.js';
-import '@lushly-dev/violet-elements/dist/progress/violet-progress.js';
-import type { VioletTextField } from '@lushly-dev/violet-elements/dist/text-field/violet-text-field.js';
+import '@lushly-dev/violet-elements/button/define';
+import '@lushly-dev/violet-elements/text-field/define';
+import '@lushly-dev/violet-elements/progress/define';
+import type { VioletTextField } from '@lushly-dev/violet-elements/text-field';
 import { type ProjectLookup, resourceLinkUrl } from '../resource-link.js';
 import { formatRoute } from '../route-format.js';
 import {

@@ -1,14 +1,10 @@
-import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 import { registerSystemCheckmarkIcon } from "../icon/generated/icons/system-checkmark";
 import { registerSystemCloseIcon } from "../icon/generated/icons/system-close";
 import { registerSystemDismissIcon } from "../icon/generated/icons/system-dismiss";
 import { registerSystemWarningIcon } from "../icon/generated/icons/system-warning";
-import "../button/violet-button";
-import "../card/violet-card";
-import "../icon/violet-icon";
-import "../icon-button/violet-icon-button";
 
 const styles = css`
     ${violetSurfaceTokenDefaults}
@@ -38,8 +34,6 @@ const styles = css`
     :host(:not([open])) {
         display: none;
     }
-
-
 
     :host([tone="success"]) {
         --_toast-surface: color-mix(in srgb, var(--color-state-success-background, #dfeae3) 78%, var(--_surface-card));
@@ -426,13 +420,12 @@ attr(VioletToast.prototype, "announcement");
 attr({ mode: "boolean" })(VioletToast.prototype, "dismissible");
 attr(VioletToast.prototype, "timeout");
 
-if (!customElements.get("violet-toast")) {
-    await FASTElement.define(VioletToast, {
-        name: "violet-toast",
-        template,
-        styles,
-        shadowOptions: {
-            delegatesFocus: true,
-        },
-    });
-}
+/** The FAST definition of `<violet-toast>`; `defineVioletToast` in `./violet-toast.define` registers it. */
+export const violetToastDefinition = {
+    name: "violet-toast",
+    template,
+    styles,
+    shadowOptions: {
+        delegatesFocus: true,
+    },
+} satisfies PartialFASTElementDefinition;

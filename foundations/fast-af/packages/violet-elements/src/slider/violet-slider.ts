@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html, when } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
@@ -113,8 +113,6 @@ const styles = css`
         border-radius: inherit;
         background: var(--_selection-fill);
     }
-
-
 
     :host([orientation="vertical"]) .fill {
         inset-block-start: auto;
@@ -804,13 +802,12 @@ attr({ mode: "boolean" })(VioletSlider.prototype, "invalid");
 attr({ attribute: "show-fill", mode: "boolean" })(VioletSlider.prototype, "showFill");
 attr({ attribute: "show-ticks", mode: "boolean" })(VioletSlider.prototype, "showTicks");
 
-if (!customElements.get("violet-slider")) {
-    await FASTElement.define(VioletSlider, {
-        name: "violet-slider",
-        template,
-        styles,
-        shadowOptions: {
-            delegatesFocus: true,
-        },
-    });
-}
+/** The FAST definition of `<violet-slider>`; `defineVioletSlider` in `./violet-slider.define` registers it. */
+export const violetSliderDefinition = {
+    name: "violet-slider",
+    template,
+    styles,
+    shadowOptions: {
+        delegatesFocus: true,
+    },
+} satisfies PartialFASTElementDefinition;

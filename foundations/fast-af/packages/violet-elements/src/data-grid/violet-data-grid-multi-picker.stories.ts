@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, userEvent, waitFor } from "@lushly-dev/specimen/test";
 
-import "./violet-data-grid-multi-picker";
+import "./violet-data-grid-multi-picker.define";
 import type { VioletDataGridEditorOption } from "./violet-data-grid";
 import type { VioletDataGridMultiPicker } from "./violet-data-grid-multi-picker";
 

@@ -3,12 +3,12 @@
  * Importing `violet-icon` registers no icon.
  */
 
-import '@lushly-dev/violet-elements/dist/icon/violet-icon.js';
-import { registerSystemCloseIcon } from '@lushly-dev/violet-elements/dist/icon/generated/icons/system-close.js';
-import { registerSystemDocumentIcon } from '@lushly-dev/violet-elements/dist/icon/generated/icons/system-document.js';
-import { registerSystemFolderIcon } from '@lushly-dev/violet-elements/dist/icon/generated/icons/system-folder.js';
-import { registerSystemSearchIcon } from '@lushly-dev/violet-elements/dist/icon/generated/icons/system-search.js';
-import { registerSystemSettingsIcon } from '@lushly-dev/violet-elements/dist/icon/generated/icons/system-settings.js';
+import '@lushly-dev/violet-elements/icon/define';
+import { registerSystemCloseIcon } from '@lushly-dev/violet-elements/icons/system-close';
+import { registerSystemDocumentIcon } from '@lushly-dev/violet-elements/icons/system-document';
+import { registerSystemFolderIcon } from '@lushly-dev/violet-elements/icons/system-folder';
+import { registerSystemSearchIcon } from '@lushly-dev/violet-elements/icons/system-search';
+import { registerSystemSettingsIcon } from '@lushly-dev/violet-elements/icons/system-settings';
 
 let registered = false;
 

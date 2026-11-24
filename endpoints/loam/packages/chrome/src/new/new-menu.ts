@@ -13,9 +13,9 @@
 import { css, FASTElement, html } from '@lushly-dev/fast-element';
 import type { LoamKernel } from '@lushly-dev/loam-kernel';
 import type { DocumentRecordV1, DocumentTypeV1, NewItemV1 } from '@lushly-dev/loam-sdk';
-import '@lushly-dev/violet-elements/dist/menu/violet-menu.js';
-import '@lushly-dev/violet-elements/dist/menu/violet-menu-item.js';
-import type { VioletMenu } from '@lushly-dev/violet-elements/dist/menu/violet-menu.js';
+import '@lushly-dev/violet-elements/menu/define';
+import '@lushly-dev/violet-elements/menu-item/define';
+import type { VioletMenu } from '@lushly-dev/violet-elements/menu';
 
 /** What this chunk reads of the shell, so it imports nothing first paint holds but FAST (2.4). */
 export interface NewHost {

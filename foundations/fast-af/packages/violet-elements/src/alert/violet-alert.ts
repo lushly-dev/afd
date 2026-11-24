@@ -1,14 +1,10 @@
-import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 import { registerSystemCheckmarkIcon } from "../icon/generated/icons/system-checkmark";
 import { registerSystemCloseIcon } from "../icon/generated/icons/system-close";
 import { registerSystemDismissIcon } from "../icon/generated/icons/system-dismiss";
 import { registerSystemWarningIcon } from "../icon/generated/icons/system-warning";
-import "../button/violet-button";
-import "../card/violet-card";
-import "../icon/violet-icon";
-import "../icon-button/violet-icon-button";
 
 const styles = css`
     ${violetSurfaceTokenDefaults}
@@ -395,13 +391,12 @@ attr(VioletAlert.prototype, "tone");
 attr(VioletAlert.prototype, "announcement");
 attr({ mode: "boolean" })(VioletAlert.prototype, "dismissible");
 
-if (!customElements.get("violet-alert")) {
-    await FASTElement.define(VioletAlert, {
-        name: "violet-alert",
-        template,
-        styles,
-        shadowOptions: {
-            delegatesFocus: true,
-        },
-    });
-}
+/** The FAST definition of `<violet-alert>`; `defineVioletAlert` in `./violet-alert.define` registers it. */
+export const violetAlertDefinition = {
+    name: "violet-alert",
+    template,
+    styles,
+    shadowOptions: {
+        delegatesFocus: true,
+    },
+} satisfies PartialFASTElementDefinition;

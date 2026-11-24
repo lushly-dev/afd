@@ -1,11 +1,6 @@
-import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
-import "../icon/violet-icon";
-import "../icon-button/violet-icon-button";
-import { registerSystemCloseIcon } from "../icon/generated";
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
-
-registerSystemCloseIcon();
 
 let violetDialogId = 0;
 
@@ -551,10 +546,9 @@ attr(VioletDialog.prototype, "padding");
 attr({ attribute: "no-close-button", mode: "boolean" })(VioletDialog.prototype, "noCloseButton");
 attr({ attribute: "no-backdrop", mode: "boolean" })(VioletDialog.prototype, "noBackdrop");
 
-if (!customElements.get("violet-dialog")) {
-    await FASTElement.define(VioletDialog, {
-        name: "violet-dialog",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-dialog>`; `defineVioletDialog` in `./violet-dialog.define` registers it. */
+export const violetDialogDefinition = {
+    name: "violet-dialog",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

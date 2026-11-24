@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import {
     LazyFallbackPositionController,
@@ -567,10 +567,9 @@ export class VioletMenu extends FASTElement {
 
 attr(VioletMenu.prototype, "label");
 
-if (!customElements.get("violet-menu")) {
-    await FASTElement.define(VioletMenu, {
-        name: "violet-menu",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-menu>`; `defineVioletMenu` in `./violet-menu.define` registers it. */
+export const violetMenuDefinition = {
+    name: "violet-menu",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

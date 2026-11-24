@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { isSafeLinkHref } from "../foundations/violet-safe-url";
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
@@ -134,10 +134,9 @@ export class VioletBreadcrumbItem extends FASTElement {
 attr(VioletBreadcrumbItem.prototype, "href");
 attr({ mode: "boolean" })(VioletBreadcrumbItem.prototype, "current");
 
-if (!customElements.get("violet-breadcrumb-item")) {
-    await FASTElement.define(VioletBreadcrumbItem, {
-        name: "violet-breadcrumb-item",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-breadcrumb-item>`; `defineVioletBreadcrumbItem` in `./violet-breadcrumb-item.define` registers it. */
+export const violetBreadcrumbItemDefinition = {
+    name: "violet-breadcrumb-item",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

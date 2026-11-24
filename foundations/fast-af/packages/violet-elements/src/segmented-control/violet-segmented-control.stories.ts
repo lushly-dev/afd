@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, userEvent, waitFor } from "@lushly-dev/specimen/test";
 
-import "../segment/violet-segment";
-import "./violet-segmented-control";
+import "../segment/violet-segment.define";
+import "./violet-segmented-control.define";
 import type { VioletSegment } from "../segment/violet-segment";
 import type { VioletSegmentedControl } from "./violet-segmented-control";
 

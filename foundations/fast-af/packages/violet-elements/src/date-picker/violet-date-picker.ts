@@ -1,9 +1,6 @@
-import { FASTElement, attr, css, html, observable, when } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, observable, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
-import "../calendar/violet-calendar";
 import type { VioletCalendar } from "../calendar/violet-calendar";
-import "../icon/violet-icon";
-import { registerSystemCalendarIcon } from "../icon/generated/icons/system-calendar";
 import { formatDisplayDate, parseIsoDate } from "../date-time/violet-date-utils";
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
@@ -19,7 +16,6 @@ import {
 export type VioletDatePickerSize = "compact" | "natural" | "comfortable";
 
 let violetDatePickerCount = 0;
-registerSystemCalendarIcon();
 
 const styles = css`
     ${violetFieldTokenDefaults}
@@ -799,13 +795,12 @@ attr(VioletDatePicker.prototype, "max");
 attr(VioletDatePicker.prototype, "locale");
 attr(VioletDatePicker.prototype, "size");
 
-if (!customElements.get("violet-date-picker")) {
-    await FASTElement.define(VioletDatePicker, {
-        name: "violet-date-picker",
-        template,
-        styles,
-        shadowOptions: {
-            delegatesFocus: true,
-        },
-    });
-}
+/** The FAST definition of `<violet-date-picker>`; `defineVioletDatePicker` in `./violet-date-picker.define` registers it. */
+export const violetDatePickerDefinition = {
+    name: "violet-date-picker",
+    template,
+    styles,
+    shadowOptions: {
+        delegatesFocus: true,
+    },
+} satisfies PartialFASTElementDefinition;

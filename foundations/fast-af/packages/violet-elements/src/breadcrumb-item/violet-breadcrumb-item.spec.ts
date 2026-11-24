@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import "./violet-breadcrumb-item";
+import "./violet-breadcrumb-item.define";
 import type { VioletBreadcrumbItem } from "./violet-breadcrumb-item";
 
 function nextFrame(): Promise<void> {

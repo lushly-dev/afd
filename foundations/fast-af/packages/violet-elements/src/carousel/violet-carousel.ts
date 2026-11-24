@@ -1,8 +1,5 @@
-import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
-import { registerSystemChevronRightIcon } from "../icon/generated";
-import "../icon/violet-icon";
-import "../icon-button/violet-icon-button";
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 import { logicalArrowKey } from "../foundations/violet-direction";
 
@@ -30,8 +27,6 @@ function readIntegerAttribute(element: HTMLElement, name: string, fallback: numb
     const parsed = Number.parseInt(raw, 10);
     return Number.isFinite(parsed) ? parsed : fallback;
 }
-
-registerSystemChevronRightIcon();
 
 const styles = css`
     ${violetSurfaceTokenDefaults}
@@ -696,13 +691,12 @@ attr({ attribute: "active-index", converter: integerConverter })(VioletCarousel.
 attr({ attribute: "slides-per-view", converter: integerConverter })(VioletCarousel.prototype, "slidesPerView");
 attr({ mode: "boolean" })(VioletCarousel.prototype, "loop");
 
-if (!customElements.get("violet-carousel")) {
-    await FASTElement.define(VioletCarousel, {
-        name: "violet-carousel",
-        template,
-        styles,
-        shadowOptions: {
-            delegatesFocus: true,
-        },
-    });
-}
+/** The FAST definition of `<violet-carousel>`; `defineVioletCarousel` in `./violet-carousel.define` registers it. */
+export const violetCarouselDefinition = {
+    name: "violet-carousel",
+    template,
+    styles,
+    shadowOptions: {
+        delegatesFocus: true,
+    },
+} satisfies PartialFASTElementDefinition;

@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -218,10 +218,9 @@ export class VioletConversationThread extends FASTElement {
 attr({ mode: "boolean" })(VioletConversationThread.prototype, "busy");
 attr({ mode: "boolean" })(VioletConversationThread.prototype, "empty");
 
-if (!customElements.get("violet-conversation-thread")) {
-    await FASTElement.define(VioletConversationThread, {
-        name: "violet-conversation-thread",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-conversation-thread>`; `defineVioletConversationThread` in `./violet-conversation-thread.define` registers it. */
+export const violetConversationThreadDefinition = {
+    name: "violet-conversation-thread",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

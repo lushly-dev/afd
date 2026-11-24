@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import "../breadcrumb-item/violet-breadcrumb-item";
-import "./violet-breadcrumb";
+import "../breadcrumb-item/violet-breadcrumb-item.define";
+import "./violet-breadcrumb.define";
 
 function nextFrame(): Promise<void> {
     return new Promise(resolve => requestAnimationFrame(() => resolve()));

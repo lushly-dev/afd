@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html, observable, when } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, observable, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -101,10 +101,9 @@ export class VioletOptionGroup extends FASTElement {
 attr(VioletOptionGroup.prototype, "label");
 attr({ mode: "boolean" })(VioletOptionGroup.prototype, "disabled");
 
-if (!customElements.get("violet-option-group")) {
-    await FASTElement.define(VioletOptionGroup, {
-        name: "violet-option-group",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-option-group>`; `defineVioletOptionGroup` in `./violet-option-group.define` registers it. */
+export const violetOptionGroupDefinition = {
+    name: "violet-option-group",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

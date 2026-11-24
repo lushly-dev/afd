@@ -14,9 +14,10 @@ describe('the console package', () => {
 		for (const { name, text } of sources) expect(text, name).not.toContain('loam-kernel');
 	});
 
-	it('imports violet-elements only through ./dist/* deep imports (section 1)', () => {
+	it('imports violet-elements only through its per-element subpaths (section 1)', () => {
 		for (const { name, text } of sources) {
 			expect(text, name).not.toMatch(/['"]@lushly-dev\/violet-elements['"]/);
+			expect(text, name).not.toMatch(/['"]@lushly-dev\/violet-elements\/dist\//);
 		}
 	});
 

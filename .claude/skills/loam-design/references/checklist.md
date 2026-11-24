@@ -60,7 +60,8 @@ Under items 2 and 3, from phase 2's step 10:
       position, and no `transform` on an overlay.
 - [ ] Logical properties only (`inline-start`, `inline-end`, `block-start`,
       `block-end`).
-- [ ] `violet-elements` is imported by deep import, never from its root.
+- [ ] `violet-elements` is imported through its per-element subpaths
+      (`<name>/define`, `<name>`), never from its root.
 - [ ] Icons set `icon`, register each icon they use, are `decorative` inside
       a named control, and take a `label` when they stand alone.
 

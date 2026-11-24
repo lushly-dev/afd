@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { normalizeHexColor } from "../color-picker/violet-color-utils";
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
@@ -100,10 +100,9 @@ attr({ mode: "boolean" })(VioletColorSwatch.prototype, "decorative");
 attr(VioletColorSwatch.prototype, "shape");
 attr(VioletColorSwatch.prototype, "size");
 
-if (!customElements.get("violet-color-swatch")) {
-    await VioletColorSwatch.define({
-        name: "violet-color-swatch",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-color-swatch>`; `defineVioletColorSwatch` in `./violet-color-swatch.define` registers it. */
+export const violetColorSwatchDefinition = {
+    name: "violet-color-swatch",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

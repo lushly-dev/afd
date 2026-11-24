@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, fn, userEvent, within } from "@lushly-dev/specimen/test";
 
-import "../button/violet-button";
-import "./violet-alert";
+import "../button/violet-button.define";
+import "./violet-alert.define";
 import type { VioletAlert } from "./violet-alert";
 
 type AlertStoryArgs = Partial<VioletAlert> & {

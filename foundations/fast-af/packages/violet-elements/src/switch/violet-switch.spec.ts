@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import "./violet-switch";
+import "./violet-switch.define";
 import type { VioletSwitch } from "./violet-switch";
 
 function nextFrame(): Promise<void> {

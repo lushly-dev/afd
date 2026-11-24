@@ -1,6 +1,5 @@
-import { FASTElement, Updates, attr, css, html, observable, when } from "@lushly-dev/fast-element";
+import { FASTElement, Updates, attr, css, html, observable, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
-import "../radio/violet-radio";
 import type { VioletRadio } from "../radio/violet-radio";
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
@@ -527,13 +526,12 @@ attr({ mode: "boolean" })(VioletRadioGroup.prototype, "invalid");
 attr({ mode: "boolean" })(VioletRadioGroup.prototype, "required");
 attr(VioletRadioGroup.prototype, "orientation");
 
-if (!customElements.get("violet-radio-group")) {
-    await FASTElement.define(VioletRadioGroup, {
-        name: "violet-radio-group",
-        template,
-        styles,
-        shadowOptions: {
-            delegatesFocus: true,
-        },
-    });
-}
+/** The FAST definition of `<violet-radio-group>`; `defineVioletRadioGroup` in `./violet-radio-group.define` registers it. */
+export const violetRadioGroupDefinition = {
+    name: "violet-radio-group",
+    template,
+    styles,
+    shadowOptions: {
+        delegatesFocus: true,
+    },
+} satisfies PartialFASTElementDefinition;

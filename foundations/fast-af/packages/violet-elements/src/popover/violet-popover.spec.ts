@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import "../button/violet-button";
-import "./violet-popover";
+import "../button/violet-button.define";
+import "./violet-popover.define";
 import type { VioletPopover } from "./violet-popover";
 
 function nextFrame(): Promise<void> {

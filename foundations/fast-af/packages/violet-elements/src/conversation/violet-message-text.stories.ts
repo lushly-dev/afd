@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect } from "@lushly-dev/specimen/test";
 
-import "./violet-message-text";
+import "./violet-message-text.define";
 import type { VioletMessageText, VioletMessageTextState } from "./violet-message-text";
 
 type TextStoryArgs = {

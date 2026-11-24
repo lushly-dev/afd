@@ -3,10 +3,10 @@ import { cdp, page, server } from "vitest/browser";
 
 const isChromium = server.browser === "chromium";
 
-import "../button/violet-button";
+import "../button/violet-button.define";
 import { clearVioletIconRegistryForTesting } from "../icon/icon-registry";
 import { systemCheckmarkIcon } from "../icon/generated/icons/system-checkmark";
-import "./violet-alert";
+import "./violet-alert.define";
 import type { VioletAlert } from "./violet-alert";
 
 function nextFrame(): Promise<void> {

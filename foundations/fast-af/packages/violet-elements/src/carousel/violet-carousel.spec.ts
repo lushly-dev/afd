@@ -3,7 +3,7 @@ import { cdp, server } from "vitest/browser";
 
 const isChromium = server.browser === "chromium";
 
-import "./violet-carousel";
+import "./violet-carousel.define";
 import type { VioletCarousel } from "./violet-carousel";
 
 function nextFrame(): Promise<void> {

@@ -3,19 +3,19 @@
  * (a per-element module registers itself and what it imports; the package root registers all 77).
  * Add a module here when a frontend starts using another element.
  */
-import '@lushly-dev/violet-elements/dist/alert/violet-alert.js';
-import '@lushly-dev/violet-elements/dist/badge/violet-badge.js';
-import '@lushly-dev/violet-elements/dist/button/violet-button.js';
-import '@lushly-dev/violet-elements/dist/checkbox/violet-checkbox.js';
-import '@lushly-dev/violet-elements/dist/conversation/violet-approval-card.js';
-import '@lushly-dev/violet-elements/dist/conversation/violet-source-citation.js';
-import '@lushly-dev/violet-elements/dist/conversation/violet-tool-call-card.js';
-import '@lushly-dev/violet-elements/dist/dialog/violet-dialog.js';
-import '@lushly-dev/violet-elements/dist/empty-state/violet-empty-state.js';
-import '@lushly-dev/violet-elements/dist/option/violet-option.js';
-import '@lushly-dev/violet-elements/dist/progress/violet-progress.js';
-import '@lushly-dev/violet-elements/dist/segment/violet-segment.js';
-import '@lushly-dev/violet-elements/dist/segmented-control/violet-segmented-control.js';
-import '@lushly-dev/violet-elements/dist/select/violet-select.js';
-import '@lushly-dev/violet-elements/dist/snackbar/violet-snackbar.js';
-import '@lushly-dev/violet-elements/dist/text-field/violet-text-field.js';
+import '@lushly-dev/violet-elements/alert/define';
+import '@lushly-dev/violet-elements/badge/define';
+import '@lushly-dev/violet-elements/button/define';
+import '@lushly-dev/violet-elements/checkbox/define';
+import '@lushly-dev/violet-elements/approval-card/define';
+import '@lushly-dev/violet-elements/source-citation/define';
+import '@lushly-dev/violet-elements/tool-call-card/define';
+import '@lushly-dev/violet-elements/dialog/define';
+import '@lushly-dev/violet-elements/empty-state/define';
+import '@lushly-dev/violet-elements/option/define';
+import '@lushly-dev/violet-elements/progress/define';
+import '@lushly-dev/violet-elements/segment/define';
+import '@lushly-dev/violet-elements/segmented-control/define';
+import '@lushly-dev/violet-elements/select/define';
+import '@lushly-dev/violet-elements/snackbar/define';
+import '@lushly-dev/violet-elements/text-field/define';

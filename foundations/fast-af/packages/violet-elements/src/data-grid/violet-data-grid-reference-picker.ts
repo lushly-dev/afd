@@ -1,17 +1,6 @@
-import {
-  attr,
-  css,
-  FASTElement,
-  html,
-  observable,
-  repeat,
-  Updates,
-  when,
-} from "@lushly-dev/fast-element";
+import { attr, css, FASTElement, html, observable, repeat, Updates, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
-import "../listbox/violet-listbox";
 import type { VioletListbox } from "../listbox/violet-listbox";
-import "../option/violet-option";
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import type { VioletDataGridEditorOption } from "./violet-data-grid";
 import {
@@ -1111,13 +1100,12 @@ observable(VioletDataGridReferencePicker.prototype, "options");
 observable(VioletDataGridReferencePicker.prototype, "open");
 observable(VioletDataGridReferencePicker.prototype, "filterQuery");
 
-if (!customElements.get("violet-data-grid-reference-picker")) {
-  await FASTElement.define(VioletDataGridReferencePicker, {
-    name: "violet-data-grid-reference-picker",
-    template,
-    styles,
-    shadowOptions: {
-      delegatesFocus: true,
-    },
-  });
-}
+/** The FAST definition of `<violet-data-grid-reference-picker>`; `defineVioletDataGridReferencePicker` in `./violet-data-grid-reference-picker.define` registers it. */
+export const violetDataGridReferencePickerDefinition = {
+  name: "violet-data-grid-reference-picker",
+  template,
+  styles,
+  shadowOptions: {
+    delegatesFocus: true,
+  },
+} satisfies PartialFASTElementDefinition;

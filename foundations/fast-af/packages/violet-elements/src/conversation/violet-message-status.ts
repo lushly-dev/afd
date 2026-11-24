@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -76,7 +76,6 @@ const styles = css`
         background: var(--_danger-text);
     }
 
-
     .text {
         min-inline-size: 0;
     }
@@ -90,7 +89,6 @@ const styles = css`
         0%, 60%, 100% { transform: translateY(0); }
         30% { transform: translateY(-4px); }
     }
-
 
     @media (prefers-reduced-motion: reduce) {
         :host([status="submitted"]) .dot,
@@ -170,10 +168,9 @@ export type VioletMessageStatusType = "submitted" | "streaming" | "error" | "can
 
 attr(VioletMessageStatus.prototype, "status");
 
-if (!customElements.get("violet-message-status")) {
-    await FASTElement.define(VioletMessageStatus, {
-        name: "violet-message-status",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-message-status>`; `defineVioletMessageStatus` in `./violet-message-status.define` registers it. */
+export const violetMessageStatusDefinition = {
+    name: "violet-message-status",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

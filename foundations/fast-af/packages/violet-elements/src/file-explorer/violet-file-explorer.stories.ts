@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, userEvent, waitFor } from "@lushly-dev/specimen/test";
 
-import "../button/violet-button";
+import "../button/violet-button.define";
 import type { VioletButton } from "../button/violet-button";
-import "../file-upload/violet-file-upload";
+import "../file-upload/violet-file-upload.define";
 import type { VioletFileUpload } from "../file-upload/violet-file-upload";
-import "./violet-file-explorer";
+import "./violet-file-explorer.define";
 import type {
     VioletFileExplorer,
     VioletFileExplorerFolderRequestDetail,

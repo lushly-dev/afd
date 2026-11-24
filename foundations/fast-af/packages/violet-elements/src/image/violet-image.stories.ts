@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, waitFor } from "@lushly-dev/specimen/test";
 
-import "./violet-image";
-import "../text/violet-text";
+import "./violet-image.define";
+import "../text/violet-text.define";
 import type { VioletImage } from "./violet-image";
 
 type Story = StoryObj<VioletImage>;

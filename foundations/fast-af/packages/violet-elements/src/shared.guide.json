@@ -2,7 +2,7 @@
   "rules": [
     {
       "id": "import.root",
-      "text": "Importing \"@lushly-dev/violet-elements\" registers every element. A per-element module registers only itself and what it imports: the tabs module does not register tab or tab-panel, nor the menu module menu-item.",
+      "text": "Importing \"@lushly-dev/violet-elements\" registers every element. Its \"<name>/define\" subpath registers one and the elements it uses (alert/define adds button, card, icon and icon-button; menu/define not menu-item); \"<name>\" registers none.",
       "appliesTo": {
         "tags": [
           "violet-accordion",

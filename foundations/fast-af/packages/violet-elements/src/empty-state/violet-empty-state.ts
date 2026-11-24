@@ -1,6 +1,5 @@
-import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
-import "../text/violet-text";
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
 export type VioletEmptyStateAppearance = "plain" | "subtle" | "outline";
@@ -190,10 +189,9 @@ attr(VioletEmptyState.prototype, "message");
 attr(VioletEmptyState.prototype, "appearance");
 attr(VioletEmptyState.prototype, "orientation");
 
-if (!customElements.get("violet-empty-state")) {
-    await FASTElement.define(VioletEmptyState, {
-        name: "violet-empty-state",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-empty-state>`; `defineVioletEmptyState` in `./violet-empty-state.define` registers it. */
+export const violetEmptyStateDefinition = {
+    name: "violet-empty-state",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

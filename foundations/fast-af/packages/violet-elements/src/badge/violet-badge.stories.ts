@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, within } from "@lushly-dev/specimen/test";
 
-import "./violet-badge";
+import "./violet-badge.define";
 import type { VioletBadge } from "./violet-badge";
 
 type Story = StoryObj<VioletBadge>;

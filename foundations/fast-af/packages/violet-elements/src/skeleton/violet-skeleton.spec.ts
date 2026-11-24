@@ -3,7 +3,7 @@ import { cdp, server } from "vitest/browser";
 
 const isChromium = server.browser === "chromium";
 
-import "./violet-skeleton";
+import "./violet-skeleton.define";
 import type { VioletSkeleton } from "./violet-skeleton";
 
 function nextFrame(): Promise<void> {

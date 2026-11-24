@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import "./violet-text-area";
+import "./violet-text-area.define";
 import type { VioletTextArea } from "./violet-text-area";
 
 function nextFrame(): Promise<void> {

@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { VIOLET_THEME_PRESET_ATTRIBUTE, VIOLET_THEME_ROOT_ATTRIBUTE, type VioletThemePreset } from "./violet-theme-css";
 import { isShadowRoot } from "./violet-theme-nodes";
@@ -59,10 +59,9 @@ export class VioletTheme extends FASTElement {
     }
 }
 
-if (!customElements.get("violet-theme")) {
-    await FASTElement.define(VioletTheme, {
-        name: "violet-theme",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-theme>`; `defineVioletTheme` in `./violet-theme.define` registers it. */
+export const violetThemeDefinition = {
+    name: "violet-theme",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

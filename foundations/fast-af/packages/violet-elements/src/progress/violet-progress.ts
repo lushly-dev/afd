@@ -1,4 +1,4 @@
-import { FASTElement, Observable, attr, css, html, when } from "@lushly-dev/fast-element";
+import { FASTElement, Observable, attr, css, html, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -240,10 +240,9 @@ attr(VioletProgress.prototype, "value");
 attr(VioletProgress.prototype, "max");
 attr({ attribute: "value-text" })(VioletProgress.prototype, "valueText");
 
-if (!customElements.get("violet-progress")) {
-    await FASTElement.define(VioletProgress, {
-        name: "violet-progress",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-progress>`; `defineVioletProgress` in `./violet-progress.define` registers it. */
+export const violetProgressDefinition = {
+    name: "violet-progress",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

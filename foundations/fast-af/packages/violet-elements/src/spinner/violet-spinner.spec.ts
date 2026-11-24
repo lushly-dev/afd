@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import "./violet-spinner";
+import "./violet-spinner.define";
 import type { VioletSpinner } from "./violet-spinner";
 
 function nextFrame(): Promise<void> {

@@ -1,4 +1,4 @@
-import { FASTElement, Observable, attr, css, html, observable, when } from "@lushly-dev/fast-element";
+import { FASTElement, Observable, attr, css, html, observable, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -266,10 +266,9 @@ attr(VioletPersona.prototype, "initials");
 attr({ mode: "boolean" })(VioletPersona.prototype, "decorative");
 attr(VioletPersona.prototype, "size");
 
-if (!customElements.get("violet-persona")) {
-    await FASTElement.define(VioletPersona, {
-        name: "violet-persona",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-persona>`; `defineVioletPersona` in `./violet-persona.define` registers it. */
+export const violetPersonaDefinition = {
+    name: "violet-persona",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

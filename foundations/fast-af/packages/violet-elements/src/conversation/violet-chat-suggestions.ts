@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -166,10 +166,9 @@ export class VioletChatSuggestions extends FASTElement {
 
 attr(VioletChatSuggestions.prototype, "orientation");
 
-if (!customElements.get("violet-chat-suggestions")) {
-    await FASTElement.define(VioletChatSuggestions, {
-        name: "violet-chat-suggestions",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-chat-suggestions>`; `defineVioletChatSuggestions` in `./violet-chat-suggestions.define` registers it. */
+export const violetChatSuggestionsDefinition = {
+    name: "violet-chat-suggestions",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

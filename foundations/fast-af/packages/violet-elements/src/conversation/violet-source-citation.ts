@@ -1,9 +1,8 @@
-import { FASTElement, attr, css, html } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { isSafeLinkHref } from "../foundations/violet-safe-url";
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 import { registerSystemDocumentIcon } from "../icon/generated/icons/system-document";
-import "../icon/violet-icon";
 
 const styles = css`
     ${violetSurfaceTokenDefaults}
@@ -162,10 +161,9 @@ attr({ attribute: "source-id" })(VioletSourceCitation.prototype, "sourceId");
 attr({ attribute: "media-type" })(VioletSourceCitation.prototype, "mediaType");
 attr(VioletSourceCitation.prototype, "index");
 
-if (!customElements.get("violet-source-citation")) {
-    await FASTElement.define(VioletSourceCitation, {
-        name: "violet-source-citation",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-source-citation>`; `defineVioletSourceCitation` in `./violet-source-citation.define` registers it. */
+export const violetSourceCitationDefinition = {
+    name: "violet-source-citation",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

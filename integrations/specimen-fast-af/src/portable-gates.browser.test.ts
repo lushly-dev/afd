@@ -16,9 +16,11 @@ describe('Patterns B2 portable gates on real violet-select and violet-text-field
 
 	beforeAll(async () => {
 		root = await realpath(await mkdtemp(join(tmpdir(), 'specimen-violet-b2-')));
-		const themeImport = JSON.stringify(join(violetElements, 'theme/violet-theme.ts'));
-		const selectImport = JSON.stringify(join(violetElements, 'select/violet-select.ts'));
-		const fieldImport = JSON.stringify(join(violetElements, 'text-field/violet-text-field.ts'));
+		const themeImport = JSON.stringify(join(violetElements, 'theme/violet-theme.define.ts'));
+		const selectImport = JSON.stringify(join(violetElements, 'select/violet-select.define.ts'));
+		const fieldImport = JSON.stringify(
+			join(violetElements, 'text-field/violet-text-field.define.ts')
+		);
 		await writeFile(
 			join(root, 'violet-gates.ts'),
 			`import ${themeImport};

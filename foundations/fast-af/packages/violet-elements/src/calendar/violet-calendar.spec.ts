@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import "./violet-calendar";
+import "./violet-calendar.define";
 import type { VioletCalendar } from "./violet-calendar";
 
 function nextFrame(): Promise<void> {

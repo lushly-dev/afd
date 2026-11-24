@@ -1,4 +1,4 @@
-import { FASTElement, Updates, attr, css, html, nullableNumberConverter, observable, when } from "@lushly-dev/fast-element";
+import { FASTElement, Updates, attr, css, html, nullableNumberConverter, observable, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
@@ -701,13 +701,12 @@ attr({ mode: "boolean" })(VioletTextField.prototype, "invalid");
 attr(VioletTextField.prototype, "name");
 attr({ mode: "boolean" })(VioletTextField.prototype, "required");
 
-if (!customElements.get("violet-text-field")) {
-    await FASTElement.define(VioletTextField, {
-        name: "violet-text-field",
-        template,
-        styles,
-        shadowOptions: {
-            delegatesFocus: true,
-        },
-    });
-}
+/** The FAST definition of `<violet-text-field>`; `defineVioletTextField` in `./violet-text-field.define` registers it. */
+export const violetTextFieldDefinition = {
+    name: "violet-text-field",
+    template,
+    styles,
+    shadowOptions: {
+        delegatesFocus: true,
+    },
+} satisfies PartialFASTElementDefinition;

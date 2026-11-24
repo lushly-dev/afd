@@ -1,6 +1,5 @@
-import { FASTElement, attr, css, html, when } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
-import "../icon/violet-icon";
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
 export type VioletBadgeAppearance = "filled" | "outline" | "subtle";
@@ -196,10 +195,9 @@ attr({ mode: "boolean" })(VioletBadge.prototype, "decorative");
 attr(VioletBadge.prototype, "icon");
 attr(VioletBadge.prototype, "label");
 
-if (!customElements.get("violet-badge")) {
-    await FASTElement.define(VioletBadge, {
-        name: "violet-badge",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-badge>`; `defineVioletBadge` in `./violet-badge.define` registers it. */
+export const violetBadgeDefinition = {
+    name: "violet-badge",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

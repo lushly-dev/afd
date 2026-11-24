@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import "../option-group/violet-option-group";
-import "../option/violet-option";
-import "./violet-listbox";
+import "../option-group/violet-option-group.define";
+import "../option/violet-option.define";
+import "./violet-listbox.define";
 import type { VioletOption } from "../option/violet-option";
 import type { VioletListbox } from "./violet-listbox";
 

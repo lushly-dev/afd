@@ -1,6 +1,5 @@
-import { FASTElement, attr, css, html, observable, when } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, observable, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
-import "../tree-item/violet-tree-item";
 import { VioletTreeItem } from "../tree-item/violet-tree-item";
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { logicalArrowKey } from "../foundations/violet-direction";
@@ -534,10 +533,9 @@ attr(VioletTree.prototype, "value");
 attr({ attribute: "aria-label", mode: "fromView" })(VioletTree.prototype, "ariaLabel");
 attr(VioletTree.prototype, "appearance");
 
-if (!customElements.get("violet-tree")) {
-    await FASTElement.define(VioletTree, {
-        name: "violet-tree",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-tree>`; `defineVioletTree` in `./violet-tree.define` registers it. */
+export const violetTreeDefinition = {
+    name: "violet-tree",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

@@ -1,4 +1,4 @@
-import { FASTElement, Updates, attr, css, html, observable, when } from "@lushly-dev/fast-element";
+import { FASTElement, Updates, attr, css, html, observable, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
@@ -644,13 +644,12 @@ attr(VioletSwitch.prototype, "name");
 attr(VioletSwitch.prototype, "value");
 attr({ mode: "boolean" })(VioletSwitch.prototype, "required");
 
-if (!customElements.get("violet-switch")) {
-    await FASTElement.define(VioletSwitch, {
-        name: "violet-switch",
-        template,
-        styles,
-        shadowOptions: {
-            delegatesFocus: true,
-        },
-    });
-}
+/** The FAST definition of `<violet-switch>`; `defineVioletSwitch` in `./violet-switch.define` registers it. */
+export const violetSwitchDefinition = {
+    name: "violet-switch",
+    template,
+    styles,
+    shadowOptions: {
+        delegatesFocus: true,
+    },
+} satisfies PartialFASTElementDefinition;

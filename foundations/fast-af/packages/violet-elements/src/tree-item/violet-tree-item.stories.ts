@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, within } from "@lushly-dev/specimen/test";
 
-import "../tree/violet-tree";
-import "./violet-tree-item";
+import "../tree/violet-tree.define";
+import "./violet-tree-item.define";
 
 const meta = {
     title: "Components/Tree Item",

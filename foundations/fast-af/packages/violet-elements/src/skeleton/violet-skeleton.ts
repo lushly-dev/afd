@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html, repeat } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, repeat, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -164,10 +164,9 @@ attr(VioletSkeleton.prototype, "size");
 attr(VioletSkeleton.prototype, "lines");
 attr({ mode: "boolean" })(VioletSkeleton.prototype, "animated");
 
-if (!customElements.get("violet-skeleton")) {
-    await FASTElement.define(VioletSkeleton, {
-        name: "violet-skeleton",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-skeleton>`; `defineVioletSkeleton` in `./violet-skeleton.define` registers it. */
+export const violetSkeletonDefinition = {
+    name: "violet-skeleton",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import "../button/violet-button";
-import "../segment/violet-segment";
+import "../button/violet-button.define";
+import "../segment/violet-segment.define";
 import type { VioletSegment } from "../segment/violet-segment";
-import "./violet-segmented-control";
+import "./violet-segmented-control.define";
 import type { VioletSegmentedControl } from "./violet-segmented-control";
 
 function nextFrame(): Promise<void> {

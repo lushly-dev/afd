@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import "../theme/violet-theme";
+import "../theme/violet-theme.define";
 import { loadVioletBuiltInTheme } from "../theme/violet-theme-runtime";
-import "./violet-data-grid-multi-picker";
-import "./violet-data-grid-persona-picker";
-import "./violet-data-grid-pill-select";
-import "./violet-data-grid-reference-picker";
+import "./violet-data-grid-multi-picker.define";
+import "./violet-data-grid-persona-picker.define";
+import "./violet-data-grid-pill-select.define";
+import "./violet-data-grid-reference-picker.define";
 import type { VioletDataGridEditorOption } from "./violet-data-grid";
 import type { VioletDataGridPillSelect } from "./violet-data-grid-pill-select";
 

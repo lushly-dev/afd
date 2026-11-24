@@ -12,7 +12,7 @@ const supportsSegmentedTimeInput =
         return probe.type === "time";
     })();
 
-import "./violet-time-picker";
+import "./violet-time-picker.define";
 import type { VioletTimePicker } from "./violet-time-picker";
 
 function nextFrame(): Promise<void> {

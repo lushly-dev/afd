@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import "../listbox/violet-listbox";
-import "../option/violet-option";
-import "./violet-option-group";
+import "../listbox/violet-listbox.define";
+import "../option/violet-option.define";
+import "./violet-option-group.define";
 import type { VioletOption } from "../option/violet-option";
 import type { VioletOptionGroup } from "./violet-option-group";
 

@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetActionTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -361,13 +361,12 @@ attr({ attribute: "page-count", converter: integerConverter })(VioletPagination.
 attr({ attribute: "sibling-count", converter: integerConverter })(VioletPagination.prototype, "siblingCount");
 attr({ attribute: "boundary-count", converter: integerConverter })(VioletPagination.prototype, "boundaryCount");
 
-if (!customElements.get("violet-pagination")) {
-    await FASTElement.define(VioletPagination, {
-        name: "violet-pagination",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-pagination>`; `defineVioletPagination` in `./violet-pagination.define` registers it. */
+export const violetPaginationDefinition = {
+    name: "violet-pagination",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;
 
 function buildPageSequence(
     page: number,

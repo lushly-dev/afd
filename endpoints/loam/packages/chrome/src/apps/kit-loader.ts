@@ -13,19 +13,17 @@ type Loader = () => Promise<unknown>;
 const loaded: Loader = () => Promise.resolve();
 
 const LOADERS: Readonly<Record<KitElementNameV1, Loader>> = {
-	'violet-badge': () => import('@lushly-dev/violet-elements/dist/badge/violet-badge.js'),
-	'violet-button': () => import('@lushly-dev/violet-elements/dist/button/violet-button.js'),
-	'violet-checkbox': () => import('@lushly-dev/violet-elements/dist/checkbox/violet-checkbox.js'),
-	'violet-divider': () => import('@lushly-dev/violet-elements/dist/divider/violet-divider.js'),
+	'violet-badge': () => import('@lushly-dev/violet-elements/badge/define'),
+	'violet-button': () => import('@lushly-dev/violet-elements/button/define'),
+	'violet-checkbox': () => import('@lushly-dev/violet-elements/checkbox/define'),
+	'violet-divider': () => import('@lushly-dev/violet-elements/divider/define'),
 	'violet-empty-state': loaded,
 	'violet-icon': loaded,
-	'violet-option': () => import('@lushly-dev/violet-elements/dist/option/violet-option.js'),
-	'violet-select': () => import('@lushly-dev/violet-elements/dist/select/violet-select.js'),
-	'violet-switch': () => import('@lushly-dev/violet-elements/dist/switch/violet-switch.js'),
-	'violet-text-area': () =>
-		import('@lushly-dev/violet-elements/dist/text-area/violet-text-area.js'),
-	'violet-text-field': () =>
-		import('@lushly-dev/violet-elements/dist/text-field/violet-text-field.js'),
+	'violet-option': () => import('@lushly-dev/violet-elements/option/define'),
+	'violet-select': () => import('@lushly-dev/violet-elements/select/define'),
+	'violet-switch': () => import('@lushly-dev/violet-elements/switch/define'),
+	'violet-text-area': () => import('@lushly-dev/violet-elements/text-area/define'),
+	'violet-text-field': () => import('@lushly-dev/violet-elements/text-field/define'),
 	'loam-list': loaded,
 	'loam-status-item': loaded,
 	// A chunk of its own, loaded by the first editor that embeds (documents specification, 9.2).

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect } from "@lushly-dev/specimen/test";
 
-import "./violet-date-range-picker";
+import "./violet-date-range-picker.define";
 import type { VioletDateRangePicker } from "./violet-date-range-picker";
 
 type Story = StoryObj<VioletDateRangePicker>;

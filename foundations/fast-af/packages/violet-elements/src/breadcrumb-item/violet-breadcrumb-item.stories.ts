@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect } from "@lushly-dev/specimen/test";
 
-import "./violet-breadcrumb-item";
+import "./violet-breadcrumb-item.define";
 
 type VioletBreadcrumbItemStoryArgs = {
     current: boolean;

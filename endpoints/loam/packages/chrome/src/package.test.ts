@@ -23,18 +23,19 @@ describe('the chrome package', () => {
 		expect([...STATE_PROPERTIES]).toEqual(manifest.loamLintTokens.stateProperties);
 	});
 
-	it('imports violet-elements only through ./dist/* deep imports (section 7)', () => {
+	it('imports violet-elements only through its per-element subpaths (section 7)', () => {
 		const files = [...sources(join(ROOT, 'src')), ...sources(join(ROOT, 'specimens'))];
+		// The root registers every element, and `dist/` is no longer exported (#1785).
 		const offenders = files.filter((file) =>
-			/from\s+['"]@lushly-dev\/violet-elements['"]|import\s+['"]@lushly-dev\/violet-elements['"]|import\(\s*['"]@lushly-dev\/violet-elements['"]/.test(
+			/from\s+['"]@lushly-dev\/violet-elements['"]|import\s+['"]@lushly-dev\/violet-elements['"]|import\(\s*['"]@lushly-dev\/violet-elements['"]|['"]@lushly-dev\/violet-elements\/dist\//.test(
 				readFileSync(file, 'utf8')
 			)
 		);
 		expect(offenders).toEqual([]);
-		const deep = files.filter((file) =>
-			readFileSync(file, 'utf8').includes("'@lushly-dev/violet-elements/dist/")
+		const subpaths = files.filter((file) =>
+			/['"]@lushly-dev\/violet-elements\/[a-z-]+\/define['"]/.test(readFileSync(file, 'utf8'))
 		);
-		expect(deep.length).toBeGreaterThan(0);
+		expect(subpaths.length).toBeGreaterThan(0);
 	});
 
 	it('sets no inline style through markup, so style-src stays self', () => {

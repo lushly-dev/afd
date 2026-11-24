@@ -1007,6 +1007,8 @@ async function measurePage() {
 	// First paint's chunks, by name without their hash: a chunk split off, or merged, by any cause, fails here
 	// (step 9's review): a lazy chunk that statically imports what first paint shares parts first paint's
 	// chunks, each an import line and its gzip overhead. A deliberate change edits this list in its own step.
+	// `violet-icon.define` is `violet-icon` since violet-elements split each element's define module from
+	// its class (AFD #1785): the chunk is named after the define module Loam imports.
 	const FIRST_PAINT_CHUNKS = [
 		'api',
 		'events',
@@ -1019,7 +1021,7 @@ async function measurePage() {
 		'system-folder',
 		'template',
 		'types',
-		'violet-icon',
+		'violet-icon.define',
 		'violet-token-defaults',
 		'when',
 	];

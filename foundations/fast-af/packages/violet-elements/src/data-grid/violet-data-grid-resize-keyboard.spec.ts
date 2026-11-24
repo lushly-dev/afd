@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import "./violet-data-grid";
+import "./violet-data-grid.define";
 import type { VioletDataGrid } from "./violet-data-grid";
 import { isColumnResizeShortcut, keyboardResizedColumnWidth } from "./violet-data-grid-resize";
 

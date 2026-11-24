@@ -1,12 +1,9 @@
-import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 import { registerSystemCheckmarkIcon } from "../icon/generated/icons/system-checkmark";
 import { registerSystemDismissIcon } from "../icon/generated/icons/system-dismiss";
 import { registerSystemWarningIcon } from "../icon/generated/icons/system-warning";
-import "../icon/violet-icon";
-import "../button/violet-button";
-import "../card/violet-card";
 
 const styles = css`
     ${violetSurfaceTokenDefaults}
@@ -330,10 +327,9 @@ export type VioletApprovalState = "pending" | "approved" | "denied";
 
 attr(VioletApprovalCard.prototype, "state");
 
-if (!customElements.get("violet-approval-card")) {
-    await FASTElement.define(VioletApprovalCard, {
-        name: "violet-approval-card",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-approval-card>`; `defineVioletApprovalCard` in `./violet-approval-card.define` registers it. */
+export const violetApprovalCardDefinition = {
+    name: "violet-approval-card",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

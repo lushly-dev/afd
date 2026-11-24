@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect } from "@lushly-dev/specimen/test";
 
-import "./violet-reasoning-block";
+import "./violet-reasoning-block.define";
 import type { VioletReasoningBlock, VioletReasoningState } from "./violet-reasoning-block";
 
 type ReasoningStoryArgs = {

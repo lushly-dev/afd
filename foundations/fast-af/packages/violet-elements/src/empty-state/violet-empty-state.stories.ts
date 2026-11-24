@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect } from "@lushly-dev/specimen/test";
 
-import "./violet-empty-state";
-import "../button/violet-button";
-import "../image/violet-image";
-import "../text/violet-text";
+import "./violet-empty-state.define";
+import "../button/violet-button.define";
+import "../image/violet-image.define";
+import "../text/violet-text.define";
 import type { VioletEmptyState } from "./violet-empty-state";
 
 type Story = StoryObj<VioletEmptyState>;

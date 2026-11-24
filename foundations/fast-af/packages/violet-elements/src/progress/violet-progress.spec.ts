@@ -3,7 +3,7 @@ import { cdp, server } from "vitest/browser";
 
 const isChromium = server.browser === "chromium";
 
-import "./violet-progress";
+import "./violet-progress.define";
 import type { VioletProgress } from "./violet-progress";
 
 function nextFrame(): Promise<void> {

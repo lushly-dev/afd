@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { server, userEvent } from "vitest/browser";
 
-import "./violet-dialog";
+import "./violet-dialog.define";
 import type { VioletDialog } from "./violet-dialog";
 
 async function settle(): Promise<void> {

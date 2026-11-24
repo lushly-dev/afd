@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html, when } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -138,13 +138,12 @@ attr(VioletText.prototype, "variant");
 attr(VioletText.prototype, "tone");
 attr({ mode: "boolean" })(VioletText.prototype, "truncate");
 
-if (!customElements.get("violet-text")) {
-    await FASTElement.define(VioletText, {
-        name: "violet-text",
-        template,
-        styles,
-        shadowOptions: {
-            delegatesFocus: true,
-        },
-    });
-}
+/** The FAST definition of `<violet-text>`; `defineVioletText` in `./violet-text.define` registers it. */
+export const violetTextDefinition = {
+    name: "violet-text",
+    template,
+    styles,
+    shadowOptions: {
+        delegatesFocus: true,
+    },
+} satisfies PartialFASTElementDefinition;

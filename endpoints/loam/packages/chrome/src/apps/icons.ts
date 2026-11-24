@@ -1,12 +1,12 @@
 /** @fileoverview `ICONS_V1`, registered in the nav's lazy chunk (phase 1 specification, 4.2). */
 
-import { registerSystemAttachIcon } from '@lushly-dev/violet-elements/dist/icon/generated/icons/system-attach.js';
-import { registerSystemCalendarIcon } from '@lushly-dev/violet-elements/dist/icon/generated/icons/system-calendar.js';
-import { registerSystemCheckmarkIcon } from '@lushly-dev/violet-elements/dist/icon/generated/icons/system-checkmark.js';
-import { registerSystemClockIcon } from '@lushly-dev/violet-elements/dist/icon/generated/icons/system-clock.js';
-import { registerSystemDocumentIcon } from '@lushly-dev/violet-elements/dist/icon/generated/icons/system-document.js';
-import { registerSystemFolderIcon } from '@lushly-dev/violet-elements/dist/icon/generated/icons/system-folder.js';
-import { registerSystemWarningIcon } from '@lushly-dev/violet-elements/dist/icon/generated/icons/system-warning.js';
+import { registerSystemAttachIcon } from '@lushly-dev/violet-elements/icons/system-attach';
+import { registerSystemCalendarIcon } from '@lushly-dev/violet-elements/icons/system-calendar';
+import { registerSystemCheckmarkIcon } from '@lushly-dev/violet-elements/icons/system-checkmark';
+import { registerSystemClockIcon } from '@lushly-dev/violet-elements/icons/system-clock';
+import { registerSystemDocumentIcon } from '@lushly-dev/violet-elements/icons/system-document';
+import { registerSystemFolderIcon } from '@lushly-dev/violet-elements/icons/system-folder';
+import { registerSystemWarningIcon } from '@lushly-dev/violet-elements/icons/system-warning';
 
 let registered = false;
 

@@ -3,23 +3,23 @@ import { cdp, server } from "vitest/browser";
 
 const isChromium = server.browser === "chromium";
 
-import "../color-picker/violet-color-picker";
-import "../combobox/violet-combobox";
-import "../data-grid/violet-data-grid-pill-select";
-import "../date-picker/violet-date-picker";
-import "../date-range-picker/violet-date-range-picker";
-import "../file-upload/violet-file-upload";
-import "../option/violet-option";
-import "../radio-group/violet-radio-group";
-import "../radio/violet-radio";
-import "../segment/violet-segment";
-import "../segmented-control/violet-segmented-control";
-import "../select/violet-select";
-import "../slider/violet-range-slider";
-import "../slider/violet-slider";
-import "../time-picker/violet-time-picker";
-import "../tree/violet-tree";
-import "../tree-item/violet-tree-item";
+import "../color-picker/violet-color-picker.define";
+import "../combobox/violet-combobox.define";
+import "../data-grid/violet-data-grid-pill-select.define";
+import "../date-picker/violet-date-picker.define";
+import "../date-range-picker/violet-date-range-picker.define";
+import "../file-upload/violet-file-upload.define";
+import "../option/violet-option.define";
+import "../radio-group/violet-radio-group.define";
+import "../radio/violet-radio.define";
+import "../segment/violet-segment.define";
+import "../segmented-control/violet-segmented-control.define";
+import "../select/violet-select.define";
+import "../slider/violet-range-slider.define";
+import "../slider/violet-slider.define";
+import "../time-picker/violet-time-picker.define";
+import "../tree/violet-tree.define";
+import "../tree-item/violet-tree-item.define";
 
 import { resolveFieldErrorText } from "./field-error";
 

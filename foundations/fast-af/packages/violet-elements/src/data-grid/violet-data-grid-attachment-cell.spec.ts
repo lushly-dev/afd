@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import "./violet-data-grid-attachment-cell";
+import "./violet-data-grid-attachment-cell.define";
 import type { VioletFileUpload } from "../file-upload/violet-file-upload";
 import type {
   VioletDataGridAttachmentCell,

@@ -3,7 +3,7 @@ import { cdp, server } from "vitest/browser";
 
 const isChromium = server.browser === "chromium";
 
-import "./violet-toast";
+import "./violet-toast.define";
 import type { VioletToast } from "./violet-toast";
 
 function nextFrame(): Promise<void> {

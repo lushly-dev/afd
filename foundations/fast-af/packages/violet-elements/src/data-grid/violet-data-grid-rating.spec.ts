@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Updates } from "@lushly-dev/fast-element";
 import { userEvent } from "vitest/browser";
 
-import "./violet-data-grid-rating";
+import "./violet-data-grid-rating.define";
 import type { VioletDataGridRating } from "./violet-data-grid-rating";
 import { normalizeRatingMax, parseRatingValue, serializeRatingValue } from "./violet-data-grid-rating-values";
 

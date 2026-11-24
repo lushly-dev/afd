@@ -1,7 +1,5 @@
-import { FASTElement, attr, css, html, observable, when } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, observable, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
-import "../icon/violet-icon";
-import { registerSystemClockIcon } from "../icon/generated/icons/system-clock";
 import { parseTimeValue } from "../date-time/violet-date-utils";
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
@@ -10,7 +8,6 @@ import { resolveFieldErrorText } from "../shared/field-error";
 export type VioletTimePickerSize = "compact" | "natural" | "comfortable";
 
 let violetTimePickerCount = 0;
-registerSystemClockIcon();
 
 const styles = css`
     ${violetFieldTokenDefaults}
@@ -486,13 +483,12 @@ installFormDisabled(VioletTimePicker.prototype);
 attr({ mode: "boolean" })(VioletTimePicker.prototype, "invalid");
 attr(VioletTimePicker.prototype, "size");
 
-if (!customElements.get("violet-time-picker")) {
-    await FASTElement.define(VioletTimePicker, {
-        name: "violet-time-picker",
-        template,
-        styles,
-        shadowOptions: {
-            delegatesFocus: true,
-        },
-    });
-}
+/** The FAST definition of `<violet-time-picker>`; `defineVioletTimePicker` in `./violet-time-picker.define` registers it. */
+export const violetTimePickerDefinition = {
+    name: "violet-time-picker",
+    template,
+    styles,
+    shadowOptions: {
+        delegatesFocus: true,
+    },
+} satisfies PartialFASTElementDefinition;

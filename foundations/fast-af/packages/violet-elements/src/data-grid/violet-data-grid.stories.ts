@@ -2,9 +2,9 @@ import { html } from "@lushly-dev/fast-element";
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, userEvent, waitFor } from "@lushly-dev/specimen/test";
 
-import "../button/violet-button";
-import "./violet-data-grid-pill-select";
-import "./violet-data-grid";
+import "../button/violet-button.define";
+import "./violet-data-grid-pill-select.define";
+import "./violet-data-grid.define";
 import type {
     VioletDataGridCellLocation,
   VioletDataGridCellRange,

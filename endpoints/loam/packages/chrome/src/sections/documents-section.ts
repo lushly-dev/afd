@@ -11,8 +11,8 @@
 import { css, FASTElement, html, observable, Updates, when } from '@lushly-dev/fast-element';
 import type { LoamKernel } from '@lushly-dev/loam-kernel';
 import type { DocumentRecordV1, DocumentTypeV1 } from '@lushly-dev/loam-sdk';
-import '@lushly-dev/violet-elements/dist/select/violet-select.js';
-import type { VioletSelect } from '@lushly-dev/violet-elements/dist/select/violet-select.js';
+import '@lushly-dev/violet-elements/select/define';
+import type { VioletSelect } from '@lushly-dev/violet-elements/select';
 import { formatRoute } from '../route-format.js';
 import { documentsStyles } from './documents-styles.js';
 import { changesDocuments, dateOf, el, isoOf, numberOf } from './dom.js';

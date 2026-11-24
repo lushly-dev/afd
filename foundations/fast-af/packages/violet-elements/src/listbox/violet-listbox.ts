@@ -1,7 +1,5 @@
-import { FASTElement, Observable, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, Observable, attr, css, html, observable, type PartialFASTElementDefinition, type FASTElementExtension } from "@lushly-dev/fast-element";
 
-import "../option-group/violet-option-group";
-import "../option/violet-option";
 import type { VioletOption } from "../option/violet-option";
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 import {
@@ -536,17 +534,15 @@ attr({ mode: "boolean" })(VioletListbox.prototype, "disabled");
 attr({ mode: "boolean" })(VioletListbox.prototype, "multiple");
 attr({ mode: "boolean", attribute: "selection-follows-focus" })(VioletListbox.prototype, "selectionFollowsFocus");
 
-if (!customElements.get("violet-listbox")) {
-    await FASTElement.define(
-        VioletListbox,
-        {
-            name: "violet-listbox",
-            template,
-            styles,
-            shadowOptions: {
-                delegatesFocus: true,
-            },
-        },
-        [observeAttribute("value")]
-    );
-}
+/** The FAST definition of `<violet-listbox>`; `defineVioletListbox` in `./violet-listbox.define` registers it. */
+export const violetListboxDefinition = {
+    name: "violet-listbox",
+    template,
+    styles,
+    shadowOptions: {
+        delegatesFocus: true,
+    },
+} satisfies PartialFASTElementDefinition;
+
+/** The FAST extensions `<violet-listbox>` is defined with. */
+export const violetListboxExtensions: FASTElementExtension[] = [observeAttribute("value")];

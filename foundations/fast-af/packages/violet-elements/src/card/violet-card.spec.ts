@@ -3,7 +3,7 @@ import { cdp, server } from "vitest/browser";
 
 const isChromium = server.browser === "chromium";
 
-import "./violet-card";
+import "./violet-card.define";
 import type { VioletCard } from "./violet-card";
 
 function nextFrame(): Promise<void> {

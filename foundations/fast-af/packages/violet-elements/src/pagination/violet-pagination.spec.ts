@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import "./violet-pagination";
+import "./violet-pagination.define";
 import type { VioletPagination } from "./violet-pagination";
 
 function nextFrame(): Promise<void> {

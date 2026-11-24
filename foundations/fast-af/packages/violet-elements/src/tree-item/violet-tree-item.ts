@@ -1,12 +1,8 @@
-import { FASTElement, attr, css, html, observable, ref } from "@lushly-dev/fast-element";
+import { FASTElement, attr, css, html, observable, ref, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
 
-import { registerSystemChevronRightIcon } from "../icon/generated";
-import "../icon/violet-icon";
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 
 let violetTreeItemId = 0;
-
-registerSystemChevronRightIcon();
 
 function isTreeItemElement(value: unknown): value is VioletTreeItem {
     return value instanceof HTMLElement && value.tagName.toLowerCase() === "violet-tree-item";
@@ -396,10 +392,9 @@ attr({ mode: "boolean" })(VioletTreeItem.prototype, "selected");
 attr({ mode: "boolean" })(VioletTreeItem.prototype, "disabled");
 attr(VioletTreeItem.prototype, "value");
 
-if (!customElements.get("violet-tree-item")) {
-    await FASTElement.define(VioletTreeItem, {
-        name: "violet-tree-item",
-        template,
-        styles,
-    });
-}
+/** The FAST definition of `<violet-tree-item>`; `defineVioletTreeItem` in `./violet-tree-item.define` registers it. */
+export const violetTreeItemDefinition = {
+    name: "violet-tree-item",
+    template,
+    styles,
+} satisfies PartialFASTElementDefinition;

@@ -3,7 +3,7 @@ import { cdp, page, server, userEvent } from "vitest/browser";
 
 const isChromium = server.browser === "chromium";
 
-import "./violet-checkbox";
+import "./violet-checkbox.define";
 import type { VioletCheckbox } from "./violet-checkbox";
 
 interface FrameTree {

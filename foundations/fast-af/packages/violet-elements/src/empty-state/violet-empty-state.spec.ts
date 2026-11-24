@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import "./violet-empty-state";
+import "./violet-empty-state.define";
 import type { VioletEmptyState } from "./violet-empty-state";
 
 function nextFrame(): Promise<void> {

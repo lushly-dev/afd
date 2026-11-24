@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import "./violet-range-slider";
+import "./violet-range-slider.define";
 import type { VioletRangeSlider } from "./violet-range-slider";
 
 function nextFrame(): Promise<void> {
