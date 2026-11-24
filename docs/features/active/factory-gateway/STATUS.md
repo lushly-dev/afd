@@ -231,7 +231,18 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   folded subject with the open pull request's number
   ([#2088](https://github.com/lushly-dev/afd/pull/2088)); the lane's half waits, by the owner's
   decision of 2026-11-22, until [#1887](https://github.com/lushly-dev/afd/issues/1887) is
-  designed. Not yet seen: the committer of a merge the gateway's App enqueues.
+  designed. **Closed 2026-11-23:** the first merge the gateway's App enqueued in AFD,
+  [#2400](https://github.com/lushly-dev/afd/pull/2400) by `pr-merge`, landed as `38f5c2bb`:
+  author the owner, committer `lushly-factory-gateway[bot]`, unsigned, the subject keeping
+  ` (#2400)` from `pnpm branch:squash`, and `main-credit` passed. The App's queued merges keep
+  the owner's credit as a session's do.
+- **Validation lag ([#2401](https://github.com/lushly-dev/afd/issues/2401)), found 2026-11-23:**
+  that `pr-merge`, a second after its `verification-record`, was refused as
+  `VALIDATION_MISSING`: GitHub's check-runs list had not yet listed the run, and the lane
+  records and merges in that order every time. Fixed on `lush/gateway-validation-lag`: the
+  gateway keeps its own record of each validation for a week and lets it decide (only it
+  writes `factory/verification`); a failure is kept before its check run, a pass after.
+  GitHub's list answers for heads with no record in that week. Not yet deployed on `random`.
 
 - **Follow-up (2026-11-20, this session):** a merge that closes a claimed issue leaves the
   claim's `status:in-progress` label on the closed issue, and `issue-release` then answers
@@ -241,8 +252,9 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   GraphQL budget ([#1833](https://github.com/lushly-dev/afd/issues/1833)) landed in
   [#2303](https://github.com/lushly-dev/afd/pull/2303). Both run on `random` since the update
   to `3fe08c00` on 2026-11-23.
-- **Next, in order:** the first merge the App enqueues in AFD, checked for its committer, which closes
-  [#1809](https://github.com/lushly-dev/afd/issues/1809); change 3 redesigned so the host is the only validator (held on
+- **Next, in order:** the validation-lag fix
+  ([#2401](https://github.com/lushly-dev/afd/issues/2401)) merged and deployed on `random`;
+  change 3 redesigned so the host is the only validator (held on
   `lush/botcore-command-tools`); the lane on `random`
   with its health in `gateway-status`; the factory plugin on the gateway (after
   `feat/factory-lane-loop` lands); Lushly's side ([lushly#2392](https://github.com/lushly-dev/lushly/issues/2392));

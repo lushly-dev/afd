@@ -34,6 +34,9 @@ from botcore_factory.gateway.state import GatewayState, journal_size
 
 DEDUPE = "factory-gateway:dedupe"
 VERIFICATION = "factory/verification"
+#: How long the gateway keeps its own verification records. GitHub's list of check runs lags
+#: the write that created one (#2401); a merge follows its record within minutes.
+VERIFICATION_DAYS = 7
 REVIEW = "factory/review"
 QUEUE_PREFIX = "refs/factory/queue/"
 HEADS_PREFIX = "refs/heads/"
@@ -769,15 +772,42 @@ class Gateway:
             )
         conclusion = "success" if result == "passed" else "failure"
         self.spend("verification-record")
-        self.github.create_check_run(
-            repo, head, {"name": VERIFICATION, "conclusion": conclusion, "summary": summary}
-        )
+        check = {"name": VERIFICATION, "conclusion": conclusion, "summary": summary}
+        # A failure is kept before GitHub hears of it and a pass only after GitHub has it, so a
+        # write that fails part way can only leave a head less validated than it is.
+        if conclusion == "failure":
+            self._keep_verification(repo, head, conclusion)
+        self.github.create_check_run(repo, head, check)
+        if conclusion == "success":
+            self._keep_verification(repo, head, conclusion)
         return success(
             {"check": {"name": VERIFICATION, "conclusion": conclusion}, "head": head},
             reasoning=f"Recorded {result} for {head[:12]}",
         )
 
+    def _keep_verification(self, repo: str, head: str, conclusion: str) -> None:
+        now = self.now()
+        kept = {
+            key: row
+            for key, row in self.state.get("verifications", {}).items()
+            if self._recent(row, now)
+        }
+        kept[_verification_key(repo, head)] = {"conclusion": conclusion, "at": iso(now)}
+        self.state.put("verifications", kept)
+
+    @staticmethod
+    def _recent(row: dict[str, Any], now: datetime) -> bool:
+        at = parse_time(row.get("at"))
+        return at is not None and at > now - timedelta(days=VERIFICATION_DAYS)
+
     def validated(self, repo: str, head: str) -> bool:
+        """Whether the latest validation recorded for ``head`` passed. The gateway's own record
+        decides, since only the gateway writes ``factory/verification`` and GitHub's list of
+        check runs can miss one created a second earlier (#2401). GitHub's list answers for a
+        head the gateway kept no record of, or one recorded ``VERIFICATION_DAYS`` or more ago."""
+        own = self.state.get("verifications", {}).get(_verification_key(repo, head))
+        if own is not None and self._recent(own, self.now()):
+            return bool(own["conclusion"] == "success")
         runs = [
             run
             for run in self.github.check_runs(repo, head)
@@ -1184,3 +1214,7 @@ class Gateway:
             {"name": name, "value": value, "previous": previous},
             reasoning=f"{name} is {value}",
         )
+
+
+def _verification_key(repo: str, head: str) -> str:
+    return f"{repo.lower()}@{head.lower()}"
