@@ -774,7 +774,15 @@ url = "http://127.0.0.1:7461/mcp"
 bearer_file = "<the file mail-token-create wrote>"
 labels = "per-part"
 approvals = "shell"
-expose = { agent = true, palette = true, apps = true }   # the reads
+expose = { agent = true, palette = true }
+
+# `expose.apps` is set per command, never on the instance (phase 5's 7.5; `loam deployment check`
+# refuses it there with `DEPLOYMENT_EXPOSE_UNAVAILABLE`). The reads the mail app calls:
+[apps.mail.commands."mail-thread-open"]
+expose = { agent = true, palette = true, apps = true }
+
+[apps.mail.commands."mail-draft-show"]
+expose = { agent = true, palette = true, apps = true }
 
 # The four released commands, each with its preview.
 [apps.mail.commands."mail-draft-send"]
@@ -806,7 +814,9 @@ are: `mail-sync`, `mail-selection-create`, `mail-archive`, `mail-label`, `mail-m
 `mail-draft-restore`, `mail-sender-suggest`, `mail-sender-dismiss`, `mail-record-propose`,
 `mail-record-withdraw`, `mail-story-propose`, `mail-story-dismiss`, `mail-replyset-create`, and
 step E3's commands for recording answers and editing a reply. A command left out stays hidden from
-Loam's agents and apps, as phase 1's 7.4 says.
+Loam's agents and apps, as phase 1's 7.4 says. **Every read the mail app calls** needs its own entry
+too, with `apps = true`, since the instance's own `expose` cannot carry it: today the slice's
+`mail-thread-open` and `mail-draft-show` above, and each read of 13.2's grant as the app grows.
 
 **The mount package.** Step F adds `endpoints/loam/plugins/mail/mount/` with a manifest of kind
 `mounted`: `plugin.id = "mail"`, `domains = ["mail"]`, `mount = { prefix = "mail", transport = "http" }`,
@@ -917,8 +927,8 @@ F6 in the plan.
 
 ### 13.2 Its manifest's grant
 
-In the form phase 5's 7.5 describes (`[[calls]]` naming an instance and its commands; the exact key
-is phase 5's step 4's):
+In the form phase 5's 7.5 describes, with the key its step 4 gave the manifest: `[[calls]]` names the
+mounted app by `app`, and its commands:
 
 ```toml
 [[grants]]
@@ -926,7 +936,7 @@ name = "calls"
 reason = "Reaches your mail engine's commands through Loam."
 
 [[calls]]
-instance = "mail"
+app = "mail"
 commands = [
   # reading
   "mail-status", "mail-account-list", "mail-message-list", "mail-thread-list", "mail-thread-open",
@@ -1117,7 +1127,8 @@ owner can confirm or amend them.
 9. **`mail-replyset-next`'s kind.** 6.1's default `act` covers reads; the engine's section 11 lists
    the command as Local. Section 9.1 makes it a read; otherwise every unit would ask.
 10. **The `calls` key for a mounted callee.** 7.5 says a native app's `[[calls]]` "names an instance";
-    section 9 writes `[[calls]] app = …`. Section 13 writes `instance`, for phase 5's step 4 to fix.
+    section 9 writes `[[calls]] app = …`. Phase 5's step 4 settled the key as `app`, and step F6 wrote
+    section 13.2 with it.
 11. **Taint per account** is listed in 5.3 and section 17 as "a follow-up for mail's step F", but
     taint's source is Loam's to define: only option (b) would have changed it. Option (c) (M36,
     [Q1](#q1-taint-per-account)) stays wholly inside the engine and requires no Loam amendment.

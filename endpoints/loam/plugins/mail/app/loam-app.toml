@@ -1,0 +1,42 @@
+manifest_version = 2
+protocol = 1
+afd_contract = "1.0"
+
+# Mail's native app, its first slice (the plugin's specification, 13.1; F6 in its 18). It holds no mail:
+# everything it shows comes from the mounted instance `mail` through the `calls` grant below, and it
+# keeps only view state. It has no commands of its own, so nothing it reads reaches an agent through it.
+[plugin]
+id = "mailapp"
+title = "Mail"
+version = "0.1.0"
+description = "Open a mail thread, write a reply as a draft and send it once you confirm."
+kind = "native"
+domains = ["mailapp"]
+license = "MIT"
+
+[native]
+entry = "dist/native.js"
+
+[[grants]]
+name = "calls"
+reason = "Reads a thread and writes and sends your reply through your mail engine."
+
+# The slice's grant, narrowed from the full app's (the specification's 13.2) to what it calls.
+# `mail-draft-send` is held for a person: Loam asks in the slot with `mail-draft-show`'s preview.
+[[calls]]
+app = "mail"
+commands = [
+	"mail-thread-open",
+	"mail-draft-create",
+	"mail-draft-update",
+	"mail-draft-show",
+	"mail-draft-send",
+]
+
+[ui.surfaces.rail]
+label = "Mail"
+icon = "system/document"
+order = 30
+
+[ui.surfaces.main]
+element = "mail-reply"
