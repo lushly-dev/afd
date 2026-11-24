@@ -15,6 +15,9 @@ defaults. Agents review early and often, and a person decides at the points that
 - **Amended:** 2026-11-16, with [5.10](#510-where-the-parts-live), where the result-state work
   and interface state live, and two facts in [section 2](#specimen-violet-and-umbel) about the
   component runtime and how applications render results.
+- **Amended 2026-11-24:** with the owner's answer on what an agent inside an application sees
+  of the screen ([question 13](#9-for-the-owner)) and a published design to compare it with,
+  both in [5.10](#510-where-the-parts-live).
 - **Verified:** every claim in [What exists today](#2-what-exists-today) was read first-hand on
   2026-11-14 at `545316f2`, except where a line says otherwise.
 - **Not verified:**
@@ -33,6 +36,8 @@ defaults. Agents review early and often, and a person decides at the points that
     Interface Guidelines. [Section 5.8](#58-the-skill) says what was taken.
   - The owner's earlier design-engine brainstorm and its app specification, in a private
     repository. Nothing here depends on them, and none of their text or data is used.
+  - [UI SDK](https://ui-sdk.dev/)'s documentation for agents, read on 2026-11-24. It was not
+    installed or run. [Section 5.10](#a-published-design-to-compare) says what it bears on.
 - **Next:** the bench in the [bench specification](bench.md) is built. The owner approved
   its domain and its budget on 2026-11-15 and confirmed its rules for "go" on 2026-11-21. The owner
   also answers the questions still open in [For the owner](#9-for-the-owner): 4, 8, 9 and 10.
@@ -644,6 +649,7 @@ Four questions place a part:
 | Turning a result into what a piece shows: loading, ready, empty or error, with the message, suggestion, `retryable`, code, warnings and the rest of the result kept | AFD's browser client, beside the browser-safe DirectClient ([#655](https://github.com/lushly-dev/afd/issues/655)). The direct registry's command summary should also carry `confirmPrompt`, `examples`, `requires` and `tags`, which it drops today (`packages/server/src/direct-registry.ts:214`) |
 | Wording, which command a control calls, and what happens after | The application |
 | An agent seeing and setting interface state (an open panel, a selection, a tab) | `@lushly-dev/afd-view-state`, which Loam already uses with handlers it writes by hand; Lushly describes where the person is in a string it sets by hand. Proposed: a helper in that package that binds an element's properties and change events to a view-state id, and a rule Specimen can check, that a stateful component exposes its state as a settable property with a change event |
+| An agent seeing and filling what is on the screen (a field's label, its value, its choices) | Decided 2026-11-24 ([question 13](#9-for-the-owner)): an agent inside an application can, where today it can only call commands and set the state in the row above. Components still declare no actions. Two points are open. Where its code goes: in `afd-view-state`, sharing its three commands or with commands of its own beside them, or in a layer of its own; the recommendation the owner agreed to named `afd-view-state`, and the reply does not settle it. And how much of the screen an agent sees. [#2275](https://github.com/lushly-dev/afd/issues/2275), the binder of the row above, covers neither the reading nor the filling until its approach or a new sub-issue says so. Nothing is built |
 | What an agent knows about a component | Specimen's pack and Umbel's `components-brief`, as now |
 | Scoped registries in the render path, the loader for their polyfill, and the opt-in definition schema Specimen reads | The component runtime (`fast-element`). Its scoped mixin and registry builders went with the command layer on 2026-11-17 ([#1398](https://github.com/lushly-dev/afd/pull/1398)): Loam, the application that needs scoped registries, uses the browser's own API |
 
@@ -665,7 +671,81 @@ What this rules out:
 
 [Epic #1385](https://github.com/lushly-dev/afd/issues/1385) holds the steps, the runtime
 cleanup first. They are its work, not this proposal's; an agent inside a product acting for its
-user stays out of scope ([section 10](#10-out-of-scope)).
+user stays out of scope ([section 10](#10-out-of-scope)). The row on seeing and filling the
+screen records the owner's answer and what it leaves open, and nothing more: what such an
+agent may do for its user is designed under the epic, not here.
+
+#### A published design to compare
+
+[UI SDK](https://ui-sdk.dev/) is a library of interface behaviours, written once and rendered
+in React, Vue, Svelte, Solid and custom elements, with a bridge that lets an agent read and
+change the components on a page. Its
+[documentation for agents](https://ui-sdk.dev/docs/agents/llms.txt) was read on 2026-11-24, from
+its plain-text copy. That documentation carries no version number; npm tagged `0.1.0-beta.17`
+as `latest` when it was read, and the package was first published on 2026-11-12. It was not
+installed or run, and no other design was surveyed. Its bridge is a published design close to
+the screen row above:
+
+- **What an agent reads.** `snapshot()` returns an entry for each registered component: its
+  kind, its accessible name as `label`, its state (`value`, `checked`, `open`), its choices as
+  `items` when it has ten or fewer, its `errors`, whether it is `disabled`, and the names of the
+  `actions` it accepts. A snapshot holds at most 100 components; `query()` finds one past that
+  limit and reads a longer list of choices.
+- **What an agent may not read.** A password, card or one-time-code field's value, or one
+  inside `data-agent-secret`, reads `"[redacted]"`. Components inside `data-agent-hidden` are
+  left out.
+- **How a change is made.** `act()` calls a component's own methods: "They don't simulate
+  pointer or keyboard input." An agent's change reaches the same callbacks as a person's, with
+  the change's source given as `agent`, and the application can cancel it. A failed step says
+  what to do next: `No item "XL" in Size (c1). Its items: Small, Medium, Large.`
+- **Who confirms.** The application's `allow` callback "runs before the step changes
+  anything". `data-agent-confirm` on an element marks a step that needs a person: without
+  `allow` the step fails, and with it the callback is given the mark's text. The documentation
+  warns that an `allow` which returns `true` without reading that text "answers yes for the
+  person".
+
+It differs from this section on where an agent's capability lives, in two ways:
+
+- **A component can declare its agent actions,** with an `agent` key on its definition (its
+  Checkbox has `agent: { actions: ["setChecked"] }`), as `@command` did. The key is optional
+  and marked experimental: without it, "the bridge guesses from method names". The decision of
+  2026-11-24 keeps actions out of components.
+- **The bridge is all it gives an agent to act with,** and the bridge works only on a page
+  open in a browser: it "reads and changes the components on the page, so it runs in the
+  browser." A step reaches what that page can render, opening a closed tab or section to find
+  a component, and an application may give its agent other tools of its own. Its documentation
+  gives the limits that follow:
+  - "Earlier steps stay applied; there is no rollback."
+  - Of a `set` action's arguments only the first is checked, and only where its option is a
+    boolean, a number or read by an attribute parser. The rest "arrive unchecked, so check
+    them in the method".
+  - Its history, marked experimental, restores recorded component values and can undo an
+    agent's changes. It "doesn't undo a network request, recreate a removed component or
+    reverse an action such as saving a form."
+
+  In AFD those belong to the command: its input schema, `undoCommand` and the journal.
+
+Two other parts of it meet [epic #1385](https://github.com/lushly-dev/afd/issues/1385):
+
+- **What an agent knows when it writes markup** (step 9,
+  [#1157](https://github.com/lushly-dev/afd/issues/1157)). Each of its packages carries its
+  Markdown documentation for the installed version (`node_modules/@ui-sdk/react/docs/llms.txt`),
+  and `@ui-sdk/core` carries a skill (`node_modules/@ui-sdk/core/skills/ui-sdk/SKILL.md`).
+  `violet-elements`' pack is not in its npm package.
+- **WebMCP** (step 12, [#2278](https://github.com/lushly-dev/afd/issues/2278)). Its
+  `registerTools` registers three tools for any page, `snapshot`, `act` and `query`, through
+  `document.modelContext`, with `readOnlyHint` on `snapshot`, `consequentialHint` on `act` and
+  `untrustedContentHint` on all three. Loam's
+  [phase 5 specification](../../../../endpoints/loam/docs/phases/5-copilot/spec.md#11-webmcp-885-d149)
+  has its projection register each command exposed to MCP and names the same three hints
+  (section 11), so this adds no requirement there. That projection is an optional step and is
+  not started.
+
+Its benchmark is its own: one task on a settings screen, the median of three runs, Sonnet
+through Claude Code. In React the bridge took 2 tool calls and 21.8k tokens where browser tools
+took 17 and 291.1k on Base UI, and it adds that its own screen driven with browser tools "took
+about as much as the other libraries, so the difference comes from the tools." No AFD
+application has been measured on that task.
 
 ## 6. What this changes elsewhere
 
@@ -679,7 +759,7 @@ Each is an amendment for the owner to accept, not an edit made here.
 | Pointing | No change. Its question about pointing in the running application stands |
 | `afd` skill, `command-schema.md`, `result.ts` comments, the whitepaper | The edits in [5.3](#53-default-opinions-move-out-of-the-contract) |
 | Design to Code | Retire or rewrite it; the owner's call, already raised in the Patterns status file |
-| `fast-element`, `violet-elements`, AFD's browser client, `afd-view-state` | Where the result-state work and interface state live ([5.10](#510-where-the-parts-live)). Decided 2026-11-16 (question 13); the code changes are [epic #1385](https://github.com/lushly-dev/afd/issues/1385)'s, not this document's |
+| `fast-element`, `violet-elements`, AFD's browser client, `afd-view-state` | Where the result-state work and interface state live ([5.10](#510-where-the-parts-live)). Decided 2026-11-16 (question 13), with an addition on 2026-11-24: an agent inside an application sees and fills what is on the screen; where that code goes and how much of the screen it sees are open. The code changes are [epic #1385](https://github.com/lushly-dev/afd/issues/1385)'s, not this document's |
 
 ## 7. Phases
 
@@ -808,6 +888,17 @@ Each recommendation is for the owner to decide.
     entirely rather than staying for interface operations; its scoped mixin and registry
     builders go; and the library's result-state pieces take plain properties. The first two were
     carried out on 2026-11-17 ([#1398](https://github.com/lushly-dev/afd/pull/1398)).
+    **Decided 2026-11-24,** after a comparison with
+    [UI SDK](#a-published-design-to-compare). The question put: "Should an agent inside an AFD
+    app see and fill what is on screen (labels, values, choices), or only call commands and
+    switch panels as today? I recommend the first, through `afd-view-state` with UI SDK's
+    snapshot as the reference, and still no actions declared by components." It gave its
+    confidence as "high on refusing component actions, medium on how far the snapshot should
+    go." The owner: "Agree, I think that fills a nice gap and shoehorning it in with some other
+    command/ui layer is not ideal." The reply does not say which layer it would be shoehorned
+    into, or how far the snapshot goes, so both stay open: where the code goes, in
+    `afd-view-state` or in a layer of its own, and how much of the screen an agent sees
+    ([5.10](#510-where-the-parts-live)).
 
 ## 10. Out of scope
 
