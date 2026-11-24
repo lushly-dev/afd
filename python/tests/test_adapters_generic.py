@@ -11,7 +11,6 @@ from afd.testing.adapters import (
     create_generic_adapter,
 )
 
-
 # ==============================================================================
 # Generic adapter: creation with defaults and custom options
 # ==============================================================================

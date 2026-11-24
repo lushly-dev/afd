@@ -107,6 +107,12 @@ jobs:
       - name: Lint
         run: uv run --locked ruff check .
 
+      - name: Format check
+        run: uv run --locked ruff format --check .
+
+      - name: Type check
+        run: uv run --locked mypy src
+
       - name: Test
         run: uv run --locked pytest tests/ -v
 

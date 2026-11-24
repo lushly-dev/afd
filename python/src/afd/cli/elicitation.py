@@ -11,7 +11,8 @@ from __future__ import annotations
 
 import sys
 import unicodedata
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 import click
 
@@ -25,7 +26,7 @@ Confirm = Callable[[str], Awaitable[bool]]
 """Asks a ``[y/N]`` question and returns whether the answer was yes."""
 
 
-def _boolean_properties(schema: Dict[str, Any]) -> Optional[List[str]]:
+def _boolean_properties(schema: dict[str, Any]) -> list[str] | None:
     """The boolean property names of a form schema, or ``None`` for any other form."""
     properties = schema.get("properties")
     if not isinstance(properties, dict) or not properties:
@@ -64,7 +65,7 @@ def terminal_elicitation(confirm: Confirm) -> ElicitationHandler:
     return handler
 
 
-def interactive_elicitation(confirm: Confirm) -> Optional[ElicitationHandler]:
+def interactive_elicitation(confirm: Confirm) -> ElicitationHandler | None:
     """The terminal handler when stdin and stderr are both terminals; ``None`` otherwise."""
     if sys.stdin.isatty() and sys.stderr.isatty():
         return terminal_elicitation(confirm)

@@ -92,9 +92,7 @@ pub const MAX_RESOLVED_NODES: usize = 100_000;
 /// String and key characters (UTF-16 code units) one resolved step input may hold.
 pub const MAX_RESOLVED_CHARS: usize = 16 * 1024 * 1024;
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // PIPELINE REQUEST TYPES
-// ═══════════════════════════════════════════════════════════════════════════════
 
 /// Request to execute a pipeline of chained commands.
 ///
@@ -394,9 +392,7 @@ fn deserialize_timeout_ms<'de, D: Deserializer<'de>>(
     Ok(Some(timeout_ms))
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // PIPELINE CONDITION TYPES
-// ═══════════════════════════════════════════════════════════════════════════════
 
 /// Conditional expression for pipeline steps.
 ///
@@ -505,6 +501,7 @@ pub enum PipelineCondition {
 /// Check if a field exists in the context.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PipelineConditionExists {
+    /// Variable reference that must resolve to a non-null value.
     #[serde(rename = "$exists")]
     pub exists: String,
 }
@@ -512,6 +509,7 @@ pub struct PipelineConditionExists {
 /// Check if a field equals a value.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PipelineConditionEq {
+    /// `(reference, expected_value)` pair to compare for equality.
     #[serde(rename = "$eq")]
     pub eq: (String, serde_json::Value),
 }
@@ -519,6 +517,7 @@ pub struct PipelineConditionEq {
 /// Check if a field does not equal a value.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PipelineConditionNe {
+    /// `(reference, unexpected_value)` pair to compare for inequality.
     #[serde(rename = "$ne")]
     pub ne: (String, serde_json::Value),
 }
@@ -526,6 +525,7 @@ pub struct PipelineConditionNe {
 /// Check if a field is greater than a value.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PipelineConditionGt {
+    /// `(reference, threshold)` pair requiring `value > threshold`.
     #[serde(rename = "$gt", serialize_with = "crate::wire::reference_and_number")]
     pub gt: (String, f64),
 }
@@ -533,6 +533,7 @@ pub struct PipelineConditionGt {
 /// Check if a field is greater than or equal to a value.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PipelineConditionGte {
+    /// `(reference, threshold)` pair requiring `value >= threshold`.
     #[serde(rename = "$gte", serialize_with = "crate::wire::reference_and_number")]
     pub gte: (String, f64),
 }
@@ -540,6 +541,7 @@ pub struct PipelineConditionGte {
 /// Check if a field is less than a value.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PipelineConditionLt {
+    /// `(reference, threshold)` pair requiring `value < threshold`.
     #[serde(rename = "$lt", serialize_with = "crate::wire::reference_and_number")]
     pub lt: (String, f64),
 }
@@ -547,6 +549,7 @@ pub struct PipelineConditionLt {
 /// Check if a field is less than or equal to a value.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PipelineConditionLte {
+    /// `(reference, threshold)` pair requiring `value <= threshold`.
     #[serde(rename = "$lte", serialize_with = "crate::wire::reference_and_number")]
     pub lte: (String, f64),
 }
@@ -554,6 +557,7 @@ pub struct PipelineConditionLte {
 /// Logical AND - all conditions must be true.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PipelineConditionAnd {
+    /// Sub-conditions that must all hold.
     #[serde(rename = "$and")]
     pub and: Vec<PipelineCondition>,
 }
@@ -561,6 +565,7 @@ pub struct PipelineConditionAnd {
 /// Logical OR - any condition must be true.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PipelineConditionOr {
+    /// Sub-conditions of which at least one must hold.
     #[serde(rename = "$or")]
     pub or: Vec<PipelineCondition>,
 }
@@ -568,6 +573,7 @@ pub struct PipelineConditionOr {
 /// Logical NOT - negates a condition.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PipelineConditionNot {
+    /// Sub-condition whose truth value is negated.
     #[serde(rename = "$not")]
     pub not: Box<PipelineCondition>,
 }
@@ -634,9 +640,7 @@ impl From<PipelineConditionNot> for PipelineCondition {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // PIPELINE RESULT TYPES
-// ═══════════════════════════════════════════════════════════════════════════════
 
 /// Result of executing a pipeline.
 ///
@@ -1105,9 +1109,7 @@ pub enum StepStatus {
     Skipped,
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // PIPELINE CONTEXT
-// ═══════════════════════════════════════════════════════════════════════════════
 
 /// Context available during pipeline execution, used for variable resolution.
 #[derive(Debug, Clone, Default)]
@@ -1159,9 +1161,7 @@ pub type CommandExecutor = Arc<
         + Sync,
 >;
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // TYPE GUARDS
-// ═══════════════════════════════════════════════════════════════════════════════
 
 /// Type guard to check if a value is a PipelineRequest.
 pub fn is_pipeline_request(value: &serde_json::Value) -> bool {
@@ -1260,9 +1260,7 @@ pub fn is_not_condition(condition: &PipelineCondition) -> bool {
     matches!(condition, PipelineCondition::Not { .. })
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
-// ═══════════════════════════════════════════════════════════════════════════════
 
 /// Create a PipelineRequest from an array of steps.
 pub fn create_pipeline(
@@ -1376,9 +1374,7 @@ pub fn build_confidence_breakdown(
         .collect()
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // EXECUTION
-// ═══════════════════════════════════════════════════════════════════════════════
 
 fn pipeline_error(code: &str, message: String, suggestion: &str, retryable: bool) -> CommandError {
     CommandError::new(code, message)
@@ -1710,9 +1706,7 @@ pub async fn execute_pipeline(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // TESTS
-// ═══════════════════════════════════════════════════════════════════════════════
 
 #[cfg(test)]
 mod tests;

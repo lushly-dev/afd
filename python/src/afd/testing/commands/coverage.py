@@ -18,158 +18,158 @@ from afd.testing.scenarios.parser import parse_scenario_file
 
 
 def scenario_coverage_cmd(
-	input: dict[str, Any] | None = None,
-	*,
-	root: str | os.PathLike[str] | None = None,
+    input: dict[str, Any] | None = None,
+    *,
+    root: str | os.PathLike[str] | None = None,
 ) -> CommandResult[Any]:
-	"""Analyze test coverage of JTBD scenarios against known commands.
+    """Analyze test coverage of JTBD scenarios against known commands.
 
-	``directory`` must stay inside ``root`` (default: the current working
-	directory). ``..`` segments, absolute paths and symlinks that leave
-	``root`` are refused.
+    ``directory`` must stay inside ``root`` (default: the current working
+    directory). ``..`` segments, absolute paths and symlinks that leave
+    ``root`` are refused.
 
-	Input:
-		directory: str - Directory containing scenarios
-		known_commands: list[str] - Commands that should be tested
-		known_errors: list[str] - Error codes that should be tested
-		format: str - Output format (json, terminal, markdown)
+    Input:
+            directory: str - Directory containing scenarios
+            known_commands: list[str] - Commands that should be tested
+            known_errors: list[str] - Error codes that should be tested
+            format: str - Output format (json, terminal, markdown)
 
-	Returns:
-		CommandResult with coverage data.
-	"""
-	params = input or {}
-	directory = params.get("directory", "./scenarios")
-	known_commands = params.get("known_commands") or params.get("knownCommands")
-	known_errors = params.get("known_errors") or params.get("knownErrors")
-	output_format = params.get("format", "json")
+    Returns:
+            CommandResult with coverage data.
+    """
+    params = input or {}
+    directory = params.get("directory", "./scenarios")
+    known_commands = params.get("known_commands") or params.get("knownCommands")
+    known_errors = params.get("known_errors") or params.get("knownErrors")
+    output_format = params.get("format", "json")
 
-	base = project_root(root)
-	scenario_dir = (
-		resolve_inside(directory, base) if isinstance(directory, (str, os.PathLike)) else None
-	)
-	if scenario_dir is None:
-		return error(
-			"VALIDATION_ERROR",
-			f"Scenario directory is outside the project root: {str(directory)[:200]}",
-			suggestion="Use a directory inside the project, such as ./scenarios.",
-			details={"field": "directory"},
-		)
+    base = project_root(root)
+    scenario_dir = (
+        resolve_inside(directory, base) if isinstance(directory, (str, os.PathLike)) else None
+    )
+    if scenario_dir is None:
+        return error(
+            "VALIDATION_ERROR",
+            f"Scenario directory is outside the project root: {str(directory)[:200]}",
+            suggestion="Use a directory inside the project, such as ./scenarios.",
+            details={"field": "directory"},
+        )
 
-	# Discover and parse scenarios
-	files = [
-		str(resolved)
-		for path in find_scenario_files(str(scenario_dir))
-		if (resolved := resolve_inside(path, base)) is not None
-	]
-	parsed_scenarios = []
-	for filepath in files:
-		result = parse_scenario_file(filepath)
-		if result.success:
-			parsed_scenarios.append((result.scenario, filepath))
+    # Discover and parse scenarios
+    files = [
+        str(resolved)
+        for path in find_scenario_files(str(scenario_dir))
+        if (resolved := resolve_inside(path, base)) is not None
+    ]
+    parsed_scenarios = []
+    for filepath in files:
+        result = parse_scenario_file(filepath)
+        if result.success:
+            parsed_scenarios.append((result.scenario, filepath))
 
-	if not parsed_scenarios and not known_commands:
-		return error(
-			"NOT_FOUND",
-			f"No scenario files found in {directory}",
-			suggestion="Check that the directory contains .scenario.yaml files or provide knownCommands.",
-		)
+    if not parsed_scenarios and not known_commands:
+        return error(
+            "NOT_FOUND",
+            f"No scenario files found in {directory}",
+            suggestion="Check that the directory contains .scenario.yaml files or provide knownCommands.",
+        )
 
-	# Calculate coverage
-	report = scenario_coverage(
-		parsed_scenarios,
-		known_commands=known_commands,
-		known_errors=known_errors,
-	)
+    # Calculate coverage
+    report = scenario_coverage(
+        parsed_scenarios,
+        known_commands=known_commands,
+        known_errors=known_errors,
+    )
 
-	# Format output
-	formatted_output = ""
-	if output_format == "terminal":
-		formatted_output = _format_terminal(report)
-	elif output_format == "markdown":
-		formatted_output = _format_markdown(report)
+    # Format output
+    formatted_output = ""
+    if output_format == "terminal":
+        formatted_output = _format_terminal(report)
+    elif output_format == "markdown":
+        formatted_output = _format_markdown(report)
 
-	summary = report.summary
+    summary = report.summary
 
-	return success(
-		{
-			"summary": {
-				"total_scenarios": summary.total_scenarios,
-				"total_steps": summary.total_steps,
-				"commands_tested": summary.commands_tested,
-				"commands_known": summary.commands_known,
-				"commands_coverage": summary.commands_coverage,
-				"commands_untested": summary.commands_untested,
-				"errors_tested": summary.errors_tested,
-				"errors_known": summary.errors_known,
-				"errors_coverage": summary.errors_coverage,
-				"errors_untested": summary.errors_untested,
-				"jobs_count": summary.jobs_count,
-				"jobs_names": summary.jobs_names,
-			},
-			"command_coverage": [
-				{
-					"command": c.command,
-					"scenario_count": c.scenario_count,
-					"step_count": c.step_count,
-					"used_in": c.used_in,
-					"has_error_tests": c.has_error_tests,
-				}
-				for c in report.command_coverage
-			],
-			"error_coverage": [
-				{
-					"error_code": e.error_code,
-					"scenario_count": e.scenario_count,
-					"tested_in": e.tested_in,
-				}
-				for e in report.error_coverage
-			],
-			"job_coverage": [
-				{
-					"job": j.job,
-					"scenario_count": j.scenario_count,
-					"tags": j.tags,
-					"avg_steps": j.avg_steps,
-				}
-				for j in report.job_coverage
-			],
-			"formatted_output": formatted_output,
-		},
-		reasoning=f"Analyzed {summary.total_scenarios} scenario(s) covering {summary.commands_tested} command(s).",
-		confidence=0.95,
-	)
+    return success(
+        {
+            "summary": {
+                "total_scenarios": summary.total_scenarios,
+                "total_steps": summary.total_steps,
+                "commands_tested": summary.commands_tested,
+                "commands_known": summary.commands_known,
+                "commands_coverage": summary.commands_coverage,
+                "commands_untested": summary.commands_untested,
+                "errors_tested": summary.errors_tested,
+                "errors_known": summary.errors_known,
+                "errors_coverage": summary.errors_coverage,
+                "errors_untested": summary.errors_untested,
+                "jobs_count": summary.jobs_count,
+                "jobs_names": summary.jobs_names,
+            },
+            "command_coverage": [
+                {
+                    "command": c.command,
+                    "scenario_count": c.scenario_count,
+                    "step_count": c.step_count,
+                    "used_in": c.used_in,
+                    "has_error_tests": c.has_error_tests,
+                }
+                for c in report.command_coverage
+            ],
+            "error_coverage": [
+                {
+                    "error_code": e.error_code,
+                    "scenario_count": e.scenario_count,
+                    "tested_in": e.tested_in,
+                }
+                for e in report.error_coverage
+            ],
+            "job_coverage": [
+                {
+                    "job": j.job,
+                    "scenario_count": j.scenario_count,
+                    "tags": j.tags,
+                    "avg_steps": j.avg_steps,
+                }
+                for j in report.job_coverage
+            ],
+            "formatted_output": formatted_output,
+        },
+        reasoning=f"Analyzed {summary.total_scenarios} scenario(s) covering {summary.commands_tested} command(s).",
+        confidence=0.95,
+    )
 
 
 def _format_terminal(report: Any) -> str:
-	s = report.summary
-	lines: list[str] = [
-		"\nCoverage Report",
-		"===============",
-		f"  Scenarios: {s.total_scenarios}",
-		f"  Steps: {s.total_steps}",
-		f"  Commands tested: {s.commands_tested}",
-	]
-	if s.commands_known is not None:
-		pct = f"{s.commands_coverage:.0%}" if s.commands_coverage is not None else "N/A"
-		lines.append(f"  Commands coverage: {pct} ({s.commands_tested}/{s.commands_known})")
-	if s.commands_untested:
-		lines.append(f"  Untested: {', '.join(s.commands_untested)}")
-	return "\n".join(lines)
+    s = report.summary
+    lines: list[str] = [
+        "\nCoverage Report",
+        "===============",
+        f"  Scenarios: {s.total_scenarios}",
+        f"  Steps: {s.total_steps}",
+        f"  Commands tested: {s.commands_tested}",
+    ]
+    if s.commands_known is not None:
+        pct = f"{s.commands_coverage:.0%}" if s.commands_coverage is not None else "N/A"
+        lines.append(f"  Commands coverage: {pct} ({s.commands_tested}/{s.commands_known})")
+    if s.commands_untested:
+        lines.append(f"  Untested: {', '.join(s.commands_untested)}")
+    return "\n".join(lines)
 
 
 def _format_markdown(report: Any) -> str:
-	s = report.summary
-	lines: list[str] = [
-		"# Coverage Report",
-		"",
-		"## Summary",
-		f"- **Scenarios**: {s.total_scenarios}",
-		f"- **Steps**: {s.total_steps}",
-		f"- **Commands tested**: {s.commands_tested}",
-	]
-	if s.commands_known is not None:
-		pct = f"{s.commands_coverage:.0%}" if s.commands_coverage is not None else "N/A"
-		lines.append(f"- **Coverage**: {pct}")
-	if s.commands_untested:
-		lines.append(f"- **Untested**: {', '.join(s.commands_untested)}")
-	return "\n".join(lines)
+    s = report.summary
+    lines: list[str] = [
+        "# Coverage Report",
+        "",
+        "## Summary",
+        f"- **Scenarios**: {s.total_scenarios}",
+        f"- **Steps**: {s.total_steps}",
+        f"- **Commands tested**: {s.commands_tested}",
+    ]
+    if s.commands_known is not None:
+        pct = f"{s.commands_coverage:.0%}" if s.commands_coverage is not None else "N/A"
+        lines.append(f"- **Coverage**: {pct}")
+    if s.commands_untested:
+        lines.append(f"- **Untested**: {', '.join(s.commands_untested)}")
+    return "\n".join(lines)

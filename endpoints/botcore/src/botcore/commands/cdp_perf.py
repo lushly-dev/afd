@@ -91,10 +91,12 @@ def _analyze_trace_events(events: list[dict]) -> dict[str, Any]:
         elif name in ("MinorGC", "MajorGC", "V8.GCScavenger"):
             summary["gc_count"] += 1
         elif name == "RunTask" and dur > 50:
-            summary["long_tasks"].append({
-                "duration_ms": dur,
-                "start_time": event.get("ts", 0) / 1000,
-            })
+            summary["long_tasks"].append(
+                {
+                    "duration_ms": dur,
+                    "start_time": event.get("ts", 0) / 1000,
+                }
+            )
 
     return summary
 
@@ -123,13 +125,15 @@ async def perf_profile_cpu(duration_ms: int = 5000) -> CommandResult[dict[str, A
             count = sample_counts.get(node_id, 0)
             if count > 0:
                 call_frame = node.get("callFrame", {})
-                hot_functions.append({
-                    "function": call_frame.get("functionName", "(anonymous)"),
-                    "url": call_frame.get("url", ""),
-                    "line": call_frame.get("lineNumber", 0),
-                    "sample_count": count,
-                    "percentage": (count / len(samples)) * 100 if samples else 0,
-                })
+                hot_functions.append(
+                    {
+                        "function": call_frame.get("functionName", "(anonymous)"),
+                        "url": call_frame.get("url", ""),
+                        "line": call_frame.get("lineNumber", 0),
+                        "sample_count": count,
+                        "percentage": (count / len(samples)) * 100 if samples else 0,
+                    }
+                )
 
         hot_functions.sort(key=lambda x: x["sample_count"], reverse=True)
 
@@ -173,10 +177,13 @@ async def perf_coverage() -> CommandResult[dict[str, Any]]:
     async def _action(page: Any) -> dict[str, Any]:
         cdp = await page.context.new_cdp_session(page)
         await cdp.send("Profiler.enable")
-        await cdp.send("Profiler.startPreciseCoverage", {
-            "callCount": True,
-            "detailed": True,
-        })
+        await cdp.send(
+            "Profiler.startPreciseCoverage",
+            {
+                "callCount": True,
+                "detailed": True,
+            },
+        )
 
         result = await cdp.send("Profiler.takePreciseCoverage")
 
@@ -198,12 +205,14 @@ async def perf_coverage() -> CommandResult[dict[str, Any]]:
                         covered_bytes += size
 
             if total_bytes > 0:
-                scripts.append({
-                    "url": url,
-                    "total_bytes": total_bytes,
-                    "covered_bytes": covered_bytes,
-                    "coverage_percent": (covered_bytes / total_bytes) * 100,
-                })
+                scripts.append(
+                    {
+                        "url": url,
+                        "total_bytes": total_bytes,
+                        "covered_bytes": covered_bytes,
+                        "coverage_percent": (covered_bytes / total_bytes) * 100,
+                    }
+                )
 
         scripts.sort(key=lambda x: x["coverage_percent"])
 

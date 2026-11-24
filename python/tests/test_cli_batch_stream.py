@@ -46,7 +46,12 @@ def batch_result(success=True, failures=0, results=None):
     return {
         "success": success,
         "results": results or [],
-        "summary": {"total": 2, "successCount": 2 - failures, "failureCount": failures, "skippedCount": 0},
+        "summary": {
+            "total": 2,
+            "successCount": 2 - failures,
+            "failureCount": failures,
+            "skippedCount": 0,
+        },
         "timing": {"totalMs": 4, "averageMs": 2, "startedAt": "s", "completedAt": "c"},
         "confidence": 1 if failures == 0 else 0.5,
         "reasoning": "All 2 commands succeeded",
@@ -112,7 +117,10 @@ def test_parse_batch_commands_refuses_what_is_not_a_command_array(raw, message):
 
 # ── Batch results ─────────────────────────────────────────────────────────────
 
-COMMANDS = [{"id": "cmd-0", "command": "a", "input": {}}, {"id": "cmd-1", "command": "b", "input": {}}]
+COMMANDS = [
+    {"id": "cmd-0", "command": "a", "input": {}},
+    {"id": "cmd-1", "command": "b", "input": {}},
+]
 
 
 async def test_run_batch_sends_one_afd_batch_call_and_returns_its_result():
@@ -123,11 +131,22 @@ async def test_run_batch_sends_one_afd_batch_call_and_returns_its_result():
 
 
 async def test_a_refused_batch_keeps_the_servers_error():
-    error = {"code": "VALIDATION_ERROR", "message": "commands is empty", "suggestion": "Add a command"}
-    result = await run_batch(AsyncMock(return_value={"success": False, "error": error}), COMMANDS, {})
+    error = {
+        "code": "VALIDATION_ERROR",
+        "message": "commands is empty",
+        "suggestion": "Add a command",
+    }
+    result = await run_batch(
+        AsyncMock(return_value={"success": False, "error": error}), COMMANDS, {}
+    )
     assert result["success"] is False
     assert result["error"] == error
-    assert result["summary"] == {"total": 2, "successCount": 0, "failureCount": 2, "skippedCount": 0}
+    assert result["summary"] == {
+        "total": 2,
+        "successCount": 0,
+        "failureCount": 2,
+        "skippedCount": 0,
+    }
 
 
 async def test_a_tool_error_without_a_result_is_a_batch_error():
@@ -137,10 +156,15 @@ async def test_a_tool_error_without_a_result_is_a_batch_error():
 
 
 async def test_a_lost_answer_leaves_the_outcome_unknown_with_no_failures_claimed():
-    result = await run_batch(AsyncMock(side_effect=asyncio.TimeoutError("timed out")), COMMANDS, {})
+    result = await run_batch(AsyncMock(side_effect=TimeoutError("timed out")), COMMANDS, {})
     assert result["error"]["code"] == "OUTCOME_UNKNOWN"
     assert result["error"]["retryable"] is False
-    assert result["summary"] == {"total": 2, "successCount": 0, "failureCount": 0, "skippedCount": 0}
+    assert result["summary"] == {
+        "total": 2,
+        "successCount": 0,
+        "failureCount": 0,
+        "skippedCount": 0,
+    }
     assert result["results"] == []
 
 
@@ -212,7 +236,10 @@ class _StatusError(Exception):
 @pytest.mark.parametrize(
     ("raised", "outcome"),
     [
-        (TransportError("bad", cause=_McpError(-32700, "Could not decode the answer")), "OUTCOME_UNKNOWN"),
+        (
+            TransportError("bad", cause=_McpError(-32700, "Could not decode the answer")),
+            "OUTCOME_UNKNOWN",
+        ),
         (TransportError("bad", cause=_McpError(-32603, "Internal")), "OUTCOME_UNKNOWN"),
         (TransportError("refused", cause=_StatusError(403)), "HTTP_403"),
         (TransportError("down", cause=_StatusError(502)), "OUTCOME_UNKNOWN"),
@@ -228,7 +255,7 @@ async def test_an_mcp_sdk_failure_is_a_refusal_only_when_the_server_refused(rais
     [
         (JsonRpcError(-32603, "Internal"), {"cause": "INTERNAL_ERROR", "jsonRpcCode": -32603}),
         (HttpStatusError(503, "HTTP 503"), {"cause": "HTTP_503"}),
-        (asyncio.TimeoutError("timed out"), {"cause": "TIMEOUT"}),
+        (TimeoutError("timed out"), {"cause": "TIMEOUT"}),
         (OSError("reset"), {"cause": "CONNECTION_ERROR"}),
     ],
 )
@@ -241,14 +268,18 @@ async def test_an_unknown_outcome_records_its_typed_cause(raised, details):
     ("status", "code", "expected"),
     [(200, -32602, -32602), (400, -32602, -32602), (500, -32602, -32602), (400, -32603, -32603)],
 )
-async def test_the_http_transport_reads_a_json_rpc_error_before_the_status(monkeypatch, status, code, expected):
+async def test_the_http_transport_reads_a_json_rpc_error_before_the_status(
+    monkeypatch, status, code, expected
+):
     from afd.transports.http import HttpTransport
 
     async def post(self_client, url, *, json=None, headers=None, timeout=None):
         if json["method"] == "initialize":
             return httpx.Response(200, json={"jsonrpc": "2.0", "id": json["id"], "result": {}})
-        return httpx.Response(status, json={"jsonrpc": "2.0", "id": json["id"],
-                                            "error": {"code": code, "message": "Nope"}})
+        return httpx.Response(
+            status,
+            json={"jsonrpc": "2.0", "id": json["id"], "error": {"code": code, "message": "Nope"}},
+        )
 
     monkeypatch.setattr(httpx.AsyncClient, "post", post)
     transport = HttpTransport("http://localhost:3100/message")
@@ -286,11 +317,15 @@ def test_the_exit_code_tells_failure_from_partial_failure():
     assert "Failed:" not in click.unstyle("\n".join(batch_text(odd)))
 
 
-@pytest.mark.parametrize(("confidence", "bars", "percent"), [(0.85, 9, 85), (0.125, 1, 13), (0.5, 5, 50)])
+@pytest.mark.parametrize(
+    ("confidence", "bars", "percent"), [(0.85, 9, 85), (0.125, 1, 13), (0.5, 5, 50)]
+)
 def test_confidence_rounds_half_up_as_javascript_does(confidence, bars, percent):
     result = batch_result()
     result["confidence"] = confidence
-    line = next(line for line in map(click.unstyle, batch_text(result)) if line.startswith("Confidence:"))
+    line = next(
+        line for line in map(click.unstyle, batch_text(result)) if line.startswith("Confidence:")
+    )
     assert line == f"Confidence: {'█' * bars}{'░' * (10 - bars)} {percent}%"
 
 
@@ -298,8 +333,20 @@ def test_batch_text_shows_each_command_when_verbose_and_strips_escapes():
     result = batch_result(
         failures=1,
         results=[
-            {"id": "cmd-0", "index": 0, "command": "a", "durationMs": 1, "result": {"success": True, "data": {"n": "café"}}},
-            {"id": "cmd-2", "index": 2, "command": "c", "durationMs": 1, "result": {"success": True, "data": None}},
+            {
+                "id": "cmd-0",
+                "index": 0,
+                "command": "a",
+                "durationMs": 1,
+                "result": {"success": True, "data": {"n": "café"}},
+            },
+            {
+                "id": "cmd-2",
+                "index": 2,
+                "command": "c",
+                "durationMs": 1,
+                "result": {"success": True, "data": None},
+            },
             {
                 "id": "cmd-1",
                 "index": 1,
@@ -307,7 +354,11 @@ def test_batch_text_shows_each_command_when_verbose_and_strips_escapes():
                 "durationMs": 2,
                 "result": {
                     "success": False,
-                    "error": {"code": "NOT_FOUND", "message": "no \x1b[2Jb", "suggestion": "List first"},
+                    "error": {
+                        "code": "NOT_FOUND",
+                        "message": "no \x1b[2Jb",
+                        "suggestion": "List first",
+                    },
                 },
             },
         ],
@@ -382,7 +433,9 @@ def test_the_global_json_flag_selects_json_too(transport):
     assert json.loads(outcome.output) == batch_result()
 
 
-@pytest.mark.parametrize(("result", "code"), [(batch_result(failures=1), 2), (batch_result(success=False), 1)])
+@pytest.mark.parametrize(
+    ("result", "code"), [(batch_result(failures=1), 2), (batch_result(success=False), 1)]
+)
 def test_batch_exits_2_on_partial_failure_and_1_on_failure(transport, result, code):
     transport.call_tool.return_value = result
     assert CliRunner().invoke(cli, ["batch", '[{"command":"a"}]']).exit_code == code
@@ -397,7 +450,9 @@ def test_batch_refuses_malformed_commands_before_connecting(transport):
 
 
 def test_batch_reports_a_connection_failure_as_plain_text(transport):
-    transport.connect.side_effect = TransportError("HTTP 500: \x1b]52;c;aGk=\x07[/x][link=https://e]docs[/link]")
+    transport.connect.side_effect = TransportError(
+        "HTTP 500: \x1b]52;c;aGk=\x07[/x][link=https://e]docs[/link]"
+    )
     outcome = CliRunner().invoke(cli, ["batch", '[{"command":"a"}]'])
     assert outcome.exit_code == 1
     assert "Batch execution error: HTTP 500: [/x][link=https://e]docs[/link]" in outcome.output
@@ -442,9 +497,21 @@ def _printed(*chunks, show_progress=True):
 
 def test_stream_text_rewrites_progress_and_prints_the_final_result():
     text, failed = _printed(
-        {"type": "progress", "progress": 0.5, "message": "Half", "itemsProcessed": 1, "itemsTotal": 2},
+        {
+            "type": "progress",
+            "progress": 0.5,
+            "message": "Half",
+            "itemsProcessed": 1,
+            "itemsTotal": 2,
+        },
         {"type": "data", "data": "hello", "index": 0, "isLast": True},
-        {"type": "complete", "totalChunks": 1, "totalDurationMs": 7, "confidence": 1, "data": {"n": 1}},
+        {
+            "type": "complete",
+            "totalChunks": 1,
+            "totalDurationMs": 7,
+            "confidence": 1,
+            "data": {"n": 1},
+        },
     )
     assert failed == [False, False, False]
     assert "[██████████░░░░░░░░░░] 50% (1/2) Half" in text
@@ -472,8 +539,14 @@ def test_stream_text_reports_an_error_chunk():
         }
     )
     assert failed == [True]
-    for line in ("✗ Stream error", "  Error: [E] bad", "  Suggestion: retry", "  Chunks before error: 3",
-                 "  This error may be recoverable", "  Resume from: 3"):
+    for line in (
+        "✗ Stream error",
+        "  Error: [E] bad",
+        "  Suggestion: retry",
+        "  Chunks before error: 3",
+        "  This error may be recoverable",
+        "  Resume from: 3",
+    ):
         assert line in text
 
 
@@ -497,7 +570,7 @@ def test_stream_refuses_malformed_arguments(raw):
         ("  ", {}),
         ('{"title": "Buy  milk"}', {"title": "Buy  milk"}),
         ("count=2 done=true title=milk", {"count": 2, "done": True, "title": "milk"}),
-        ('title="Buy milk" note=\'two words\'', {"title": "Buy milk", "note": "two words"}),
+        ("title=\"Buy milk\" note='two words'", {"title": "Buy milk", "note": "two words"}),
         ('tags=["a", "b"] meta={"k": [1, 2]}', {"tags": ["a", "b"], "meta": {"k": [1, 2]}}),
         ("note=don't url=a=b", {"note": "don't", "url": "a=b"}),
         ('say="a \\" b"', {"say": 'a " b'}),
@@ -519,6 +592,7 @@ def test_a_header_flag_replaces_an_environment_header_of_the_same_name():
 
 
 # ── Live ──────────────────────────────────────────────────────────────────────
+
 
 def protocol_server(*args, **kwargs):
     pytest.importorskip("mcp.client.streamable_http")
@@ -546,20 +620,27 @@ async def afd(*args, home):
     """Run the CLI in a subprocess; return (exit code, stdout and stderr)."""
     env = dict(os.environ, PYTHONPATH=str(ROOT / "src"), HOME=str(home), NO_COLOR="1")
     process = await asyncio.create_subprocess_exec(
-        sys.executable, "-c", "from afd.cli.main import main; main()", *args,
-        env=env, stdin=asyncio.subprocess.DEVNULL,
-        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        sys.executable,
+        "-c",
+        "from afd.cli.main import main; main()",
+        *args,
+        env=env,
+        stdin=asyncio.subprocess.DEVNULL,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
     )
     stdout, stderr = await asyncio.wait_for(process.communicate(), 60)
     return process.returncode, _text(stdout) + _text(stderr)
 
 
 async def test_batch_runs_against_a_python_server(tmp_path):
-    commands = json.dumps([
-        {"command": "probe-write"},
-        {"command": "probe-read", "id": "read"},
-        {"command": "no-such-command"},
-    ])
+    commands = json.dumps(
+        [
+            {"command": "probe-write"},
+            {"command": "probe-read", "id": "read"},
+            {"command": "no-such-command"},
+        ]
+    )
     async with protocol_server("individual", "streamable-http") as url:
         code, out = await afd("batch", commands, "--server", url, "-f", "json", home=tmp_path)
         assert code == 2, out
@@ -578,8 +659,16 @@ async def test_batch_runs_against_a_python_server(tmp_path):
 
 async def test_stream_runs_against_a_stream_endpoint(tmp_path):
     async with protocol_server("individual", "streamable-http", fixture="stream_server.py") as url:
-        code, out = await afd("stream", "export-run", '{"format":"csv"}', "--server", url,
-                              "--format", "json", home=tmp_path)
+        code, out = await afd(
+            "stream",
+            "export-run",
+            '{"format":"csv"}',
+            "--server",
+            url,
+            "--format",
+            "json",
+            home=tmp_path,
+        )
         assert code == 0, out
         chunks = [json.loads(line) for line in out.splitlines()]
         assert [chunk["type"] for chunk in chunks] == ["progress", "data", "data", "complete"]
@@ -600,25 +689,41 @@ async def test_stream_runs_against_a_stream_endpoint(tmp_path):
         assert code == 1
         assert json.loads(out.splitlines()[-1])["error"]["code"] == "STREAM_TRUNCATED"
 
-        code, out = await afd("stream", "slow-run", "--server", url, "-f", "json", "-t", "500",
-                              home=tmp_path)
+        code, out = await afd(
+            "stream", "slow-run", "--server", url, "-f", "json", "-t", "500", home=tmp_path
+        )
         assert code == 1
         assert json.loads(out.splitlines()[-1])["error"]["code"] == "STREAM_TIMEOUT"
 
         code, out = await afd("stream", "missing-run", "--server", url, "-f", "json", home=tmp_path)
         assert code == 1
         error = json.loads(out.splitlines()[-1])["error"]
-        assert error == {"code": "COMMAND_NOT_FOUND", "message": "Unknown command missing-run",
-                         "suggestion": "Run afd-discover"}
+        assert error == {
+            "code": "COMMAND_NOT_FOUND",
+            "message": "Unknown command missing-run",
+            "suggestion": "Run afd-discover",
+        }
 
-        code, out = await afd("stream", "escape-run", "--server", url, "--no-progress", home=tmp_path)
+        code, out = await afd(
+            "stream", "escape-run", "--server", url, "--no-progress", home=tmp_path
+        )
         assert code == 0, out
         assert "safetext" in out and "red" in out
         # Click strips CSI from piped output itself, so only the OSC check proves the sanitizer.
         assert "\x1b]" not in out and "owned" not in out
 
-        code, out = await afd("stream", "export-run", "format=csv", "--server", url, "-t", "0",
-                              "-f", "json", home=tmp_path)
+        code, out = await afd(
+            "stream",
+            "export-run",
+            "format=csv",
+            "--server",
+            url,
+            "-t",
+            "0",
+            "-f",
+            "json",
+            home=tmp_path,
+        )
         assert code == 0, out
         assert json.loads(out.splitlines()[1])["data"] == {"row": 1, "format": "csv"}
 
@@ -626,16 +731,23 @@ async def test_stream_runs_against_a_stream_endpoint(tmp_path):
 async def _spawn(*args, home):
     env = dict(os.environ, PYTHONPATH=str(ROOT / "src"), HOME=str(home), NO_COLOR="1")
     return await asyncio.create_subprocess_exec(
-        sys.executable, "-c", "from afd.cli.main import main; main()", *args,
-        env=env, stdin=asyncio.subprocess.DEVNULL,
-        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        sys.executable,
+        "-c",
+        "from afd.cli.main import main; main()",
+        *args,
+        env=env,
+        stdin=asyncio.subprocess.DEVNULL,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
     )
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX signals")
 @pytest.mark.parametrize("signum", ["SIGINT", "SIGTERM"])
 @pytest.mark.parametrize("output", ["json", "text"])
-async def test_a_signal_cancels_the_stream_with_a_final_chunk_and_exit_130(tmp_path, signum, output):
+async def test_a_signal_cancels_the_stream_with_a_final_chunk_and_exit_130(
+    tmp_path, signum, output
+):
     import signal
 
     async with protocol_server("individual", "streamable-http", fixture="stream_server.py") as url:

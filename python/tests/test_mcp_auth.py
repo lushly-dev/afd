@@ -188,9 +188,7 @@ def _make_server(
             seen.append(context)
             return success(
                 {
-                    "verifiedDuringTask": is_verified_credentials(
-                        context.credentials, NOW * 1000
-                    ),
+                    "verifiedDuringTask": is_verified_credentials(context.credentials, NOW * 1000),
                     "subject": (
                         context.credentials.subject
                         if isinstance(context.credentials, Credentials)
@@ -207,7 +205,9 @@ async def _http_client(server: Any, *, stateless_http: bool = True):
     app = server.streamable_http_app(stateless_http=stateless_http, json_response=True)
     async with app.router.lifespan_context(app):
         transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1:8000") as client:
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://127.0.0.1:8000"
+        ) as client:
             yield client
 
 
@@ -255,7 +255,9 @@ async def _raw_asgi_call(
     await app(scope, receive, send)
     start = next(msg for msg in sent if msg["type"] == "http.response.start")
     resp_headers = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in start["headers"]}
-    resp_body = b"".join(msg.get("body", b"") for msg in sent if msg["type"] == "http.response.body")
+    resp_body = b"".join(
+        msg.get("body", b"") for msg in sent if msg["type"] == "http.response.body"
+    )
     return start["status"], resp_headers, resp_body
 
 
@@ -291,9 +293,7 @@ async def test_metadata_served_publicly_at_both_paths_get_only() -> None:
 @pytest.mark.asyncio
 async def test_missing_and_invalid_tokens_answer_m5_401() -> None:
     server, seen, _, refusals, _ = _make_server()
-    call_body = _rpc(
-        "tools/call", {"name": "caller-get", "arguments": {}, "_meta": MODERN_META}
-    )
+    call_body = _rpc("tools/call", {"name": "caller-get", "arguments": {}, "_meta": MODERN_META})
     async with _http_client(server) as client:
         no_tok = await client.post("/mcp", json=call_body, headers=MODERN_HEADERS)
         assert no_tok.status_code == 401
@@ -386,13 +386,13 @@ async def test_m2_token_location_refusals_and_form_body() -> None:
 
 
 @pytest.mark.asyncio
-async def test_valid_token_reaches_command_strips_header_unbrands_after_and_keeps_journal_clean() -> None:
+async def test_valid_token_reaches_command_strips_header_unbrands_after_and_keeps_journal_clean() -> (
+    None
+):
     server, seen, hooks, _, sink = _make_server()
     token = _sign_jws("EdDSA")
     signature = token.split(".")[2]
-    call_body = _rpc(
-        "tools/call", {"name": "caller-get", "arguments": {}, "_meta": MODERN_META}
-    )
+    call_body = _rpc("tools/call", {"name": "caller-get", "arguments": {}, "_meta": MODERN_META})
 
     async with _http_client(server) as client:
         res = await client.post(
@@ -455,9 +455,7 @@ async def test_context_hook_can_map_actor_but_cannot_alter_credentials() -> None
 
     server, seen, _, _, _ = _make_server(context_hook=hook)
     token = _sign_jws()
-    call_body = _rpc(
-        "tools/call", {"name": "caller-get", "arguments": {}, "_meta": MODERN_META}
-    )
+    call_body = _rpc("tools/call", {"name": "caller-get", "arguments": {}, "_meta": MODERN_META})
     async with _http_client(server) as client:
         res = await client.post(
             "/mcp",
@@ -478,8 +476,8 @@ async def test_context_hook_can_map_actor_but_cannot_alter_credentials() -> None
 @pytest.mark.asyncio
 async def test_mtls_certificate_binding_over_asgi_tls_extension() -> None:
     cert_der = b"fake-der-certificate-bytes-for-test"
-    thumbprint = base64.urlsafe_b64encode(hashlib.sha256(cert_der).digest()).rstrip(b"=").decode(
-        "ascii"
+    thumbprint = (
+        base64.urlsafe_b64encode(hashlib.sha256(cert_der).digest()).rstrip(b"=").decode("ascii")
     )
     server, _, _, refusals, _ = _make_server(require_bound_tokens=True)
     app = server.streamable_http_app(stateless_http=True, json_response=True)
@@ -556,10 +554,14 @@ async def test_m1_fail_closed_untrusted_transport_and_trusted_escape_hatch() -> 
     token = _sign_jws()
     async with miswired.router.lifespan_context(miswired):
         transport = httpx.ASGITransport(app=miswired)
-        async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1:8000") as client:
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://127.0.0.1:8000"
+        ) as client:
             res = await client.post(
                 "/mcp",
-                json=_rpc("tools/call", {"name": "caller-get", "arguments": {}, "_meta": MODERN_META}),
+                json=_rpc(
+                    "tools/call", {"name": "caller-get", "arguments": {}, "_meta": MODERN_META}
+                ),
                 headers=_tool_headers("caller-get", token),
             )
             assert res.status_code == 200
@@ -634,7 +636,11 @@ async def test_confirmation_request_state_binds_afd_verified_credentials() -> No
         result = first.json()["result"]
         assert result["resultType"] == "input_required"
         state = result["requestState"]
-        answers = {"confirm": ElicitResult(action="accept", content={"confirm": True}).model_dump(by_alias=True)}
+        answers = {
+            "confirm": ElicitResult(action="accept", content={"confirm": True}).model_dump(
+                by_alias=True
+            )
+        }
         retry_body = _rpc(
             "tools/call",
             {
@@ -813,9 +819,7 @@ async def test_batch_and_pipe_forward_verified_credentials_and_unbrand_after() -
                 "tools/call",
                 {
                     "name": "afd-pipe",
-                    "arguments": {
-                        "steps": [{"command": "caller-get", "input": {}, "as": "who"}]
-                    },
+                    "arguments": {"steps": [{"command": "caller-get", "input": {}, "as": "who"}]},
                     "_meta": MODERN_META,
                 },
             ),
@@ -833,7 +837,9 @@ async def test_batch_and_pipe_forward_verified_credentials_and_unbrand_after() -
 
 
 @pytest.mark.asyncio
-async def test_context_hook_in_place_credentials_mutation_cannot_tamper_authoritative_claims() -> None:
+async def test_context_hook_in_place_credentials_mutation_cannot_tamper_authoritative_claims() -> (
+    None
+):
     def mutating_hook(_req: ContextHookRequest, ctx: CommandContext) -> CommandContext:
         assert is_verified_credentials(ctx.credentials, NOW * 1000) is True
         object.__setattr__(ctx.credentials, "subject", "admin-spoofed")
@@ -1227,7 +1233,9 @@ async def test_claim_admitted_dispatch_fails_closed_on_eager_replay_and_expiry()
     try:
         # 1. Single-use handoff succeeds once, then a replay BEFORE POST `finally:` fails closed.
         handoff = _QueuedDispatch(queued=True)
-        tok = _ADMITTED_AUTH.set(_AdmittedAuth(layer=layer, credentials=creds, skew_s=60, handoff=handoff))
+        tok = _ADMITTED_AUTH.set(
+            _AdmittedAuth(layer=layer, credentials=creds, skew_s=60, handoff=handoff)
+        )
         try:
             with claim_admitted_dispatch(layer):
                 admitted = admitted_credentials_for(layer)

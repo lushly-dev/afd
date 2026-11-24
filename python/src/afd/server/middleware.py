@@ -23,26 +23,29 @@ import random
 import sys
 import time
 from collections import OrderedDict
+from collections.abc import Awaitable, Callable
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
+from datetime import UTC
 from typing import (
     Any,
-    Awaitable,
-    Callable,
-    ContextManager,
-    Dict,
-    List,
-    Optional,
     Protocol,
-    Union,
     runtime_checkable,
 )
 from uuid import uuid4
 
 from afd.core.actor import actor_kind_of
 from afd.core.clock import system_clock
-from afd.core.commands import CommandContext, CommandMiddleware, NextFn
+from afd.core.commands import (
+    CommandContext,
+)
+from afd.core.commands import (
+    CommandMiddleware as CommandMiddleware,
+)
+from afd.core.commands import (
+    NextFn as NextFn,
+)
 from afd.core.result import CommandError, CommandResult
-
 
 # =============================================================================
 # TELEMETRY TYPES
@@ -74,20 +77,20 @@ class TelemetryEvent:
     completed_at: str
     duration_ms: float
     success: bool
-    error: Optional[Dict[str, Any]] = None
-    trace_id: Optional[str] = None
-    input: Optional[Any] = None
-    confidence: Optional[float] = None
-    metadata: Optional[Dict[str, Any]] = None
-    command_version: Optional[str] = None
-    actor_kind: Optional[str] = None
+    error: dict[str, Any] | None = None
+    trace_id: str | None = None
+    input: Any | None = None
+    confidence: float | None = None
+    metadata: dict[str, Any] | None = None
+    command_version: str | None = None
+    actor_kind: str | None = None
 
 
 @runtime_checkable
 class TelemetrySink(Protocol):
     """Protocol for telemetry event sinks."""
 
-    def record(self, event: TelemetryEvent) -> Union[None, Awaitable[None]]:
+    def record(self, event: TelemetryEvent) -> None | Awaitable[None]:
         """Record a telemetry event. May be sync or async."""
         ...
 
@@ -116,7 +119,7 @@ class ConsoleTelemetrySink:
     def __init__(
         self,
         *,
-        log: Optional[Callable[[str], None]] = None,
+        log: Callable[[str], None] | None = None,
         json_mode: bool = False,
         prefix: str = "[Telemetry]",
     ):
@@ -147,13 +150,13 @@ class ConsoleTelemetrySink:
             status = "SUCCESS" if event.success else "FAILURE"
             trace_info = f" [{event.trace_id}]" if event.trace_id else ""
             confidence_info = (
-                f" (confidence: {event.confidence})"
-                if event.confidence is not None
-                else ""
+                f" (confidence: {event.confidence})" if event.confidence is not None else ""
             )
             error_info = ""
             if event.error:
-                error_info = f" - {event.error.get('code', 'UNKNOWN')}: {event.error.get('message', '')}"
+                error_info = (
+                    f" - {event.error.get('code', 'UNKNOWN')}: {event.error.get('message', '')}"
+                )
             self._log(
                 f"{self._prefix}{trace_info} {event.command_name} "
                 f"{status} in {event.duration_ms}ms{confidence_info}{error_info}"
@@ -172,8 +175,8 @@ class ConsoleTelemetrySink:
 class Span(Protocol):
     """Span interface compatible with OpenTelemetry."""
 
-    def set_attribute(self, key: str, value: Union[str, int, float, bool]) -> None: ...
-    def set_status(self, status: Dict[str, Any]) -> None: ...
+    def set_attribute(self, key: str, value: str | int | float | bool) -> None: ...
+    def set_status(self, status: dict[str, Any]) -> None: ...
     def end(self) -> None: ...
 
 
@@ -185,7 +188,7 @@ class Tracer(Protocol):
     real OpenTelemetry Python API, not the JS callback pattern.
     """
 
-    def start_as_current_span(self, name: str) -> ContextManager[Span]: ...
+    def start_as_current_span(self, name: str) -> AbstractContextManager[Span]: ...
 
 
 # =============================================================================
@@ -194,7 +197,7 @@ class Tracer(Protocol):
 
 
 def create_auto_trace_id_middleware(
-    generate: Optional[Callable[[], str]] = None,
+    generate: Callable[[], str] | None = None,
 ) -> CommandMiddleware:
     """Create middleware that auto-generates context.trace_id when missing.
 
@@ -225,7 +228,7 @@ def create_auto_trace_id_middleware(
 
 def create_logging_middleware(
     *,
-    log: Optional[Callable[..., None]] = None,
+    log: Callable[..., None] | None = None,
     log_input: bool = False,
     log_result: bool = False,
 ) -> CommandMiddleware:
@@ -264,9 +267,7 @@ def create_logging_middleware(
                     {"result": result},
                 )
             else:
-                log_fn(
-                    f"[{trace_id}] Completed: {command_name} ({duration_ms:.0f}ms) - {status}"
-                )
+                log_fn(f"[{trace_id}] Completed: {command_name} ({duration_ms:.0f}ms) - {status}")
 
             return result
         except Exception as exc:
@@ -285,7 +286,7 @@ def create_logging_middleware(
 def create_timing_middleware(
     *,
     slow_threshold: float = 1000,
-    on_slow: Optional[Callable[[str, float], None]] = None,
+    on_slow: Callable[[str, float], None] | None = None,
 ) -> CommandMiddleware:
     """Create timing middleware that warns on slow commands.
 
@@ -339,7 +340,7 @@ def create_retry_middleware(
     *,
     max_retries: int = 3,
     retry_delay: float = 100,
-    should_retry: Optional[Callable[[str], bool]] = None,
+    should_retry: Callable[[str], bool] | None = None,
     max_delay: float = 5000,
     jitter: bool = True,
 ) -> CommandMiddleware:
@@ -373,9 +374,7 @@ def create_retry_middleware(
         raise ValueError(
             "Retry retry_delay and max_delay must be nonnegative, and max_delay finite"
         )
-    _should_retry = should_retry or (
-        lambda code: code in ("TRANSIENT_ERROR", "TIMEOUT")
-    )
+    _should_retry = should_retry or (lambda code: code in ("TRANSIENT_ERROR", "TIMEOUT"))
 
     async def middleware(
         command_name: str,
@@ -437,10 +436,12 @@ def create_tracing_middleware(
                 return result
             except Exception as exc:
                 span.set_attribute("error", True)
-                span.set_status({
-                    "code": 2,
-                    "message": str(exc),
-                })
+                span.set_status(
+                    {
+                        "code": 2,
+                        "message": str(exc),
+                    }
+                )
                 raise
 
     return middleware
@@ -459,7 +460,7 @@ def create_rate_limit_middleware(
     max_requests: int,
     window_ms: float,
     *,
-    key_fn: Optional[Callable[[CommandContext], str]] = None,
+    key_fn: Callable[[CommandContext], str] | None = None,
     max_keys: int = DEFAULT_RATE_LIMIT_MAX_KEYS,
 ) -> CommandMiddleware:
     """Create in-memory fixed-window rate limiting middleware.
@@ -494,7 +495,7 @@ def create_rate_limit_middleware(
     _key_fn = key_fn or (lambda _ctx: "global")
     # key -> [count, reset_at]. Every window has the same length and starts at
     # a monotonic "now", so insertion order is expiry order.
-    windows: "OrderedDict[str, List[float]]" = OrderedDict()
+    windows: OrderedDict[str, list[float]] = OrderedDict()
 
     async def middleware(
         command_name: str,
@@ -552,10 +553,10 @@ def create_rate_limit_middleware(
 
 def _iso_from_ms(ms: float) -> str:
     """An epoch-milliseconds instant as an ISO 8601 UTC timestamp."""
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     # Epoch plus a delta, not fromtimestamp(), which rejects negative instants on Windows.
-    epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+    epoch = datetime(1970, 1, 1, tzinfo=UTC)
     return (epoch + timedelta(milliseconds=ms)).isoformat()
 
 
@@ -564,7 +565,7 @@ def create_telemetry_middleware(
     *,
     include_input: bool = False,
     include_metadata: bool = True,
-    filter_fn: Optional[Callable[[str], bool]] = None,
+    filter_fn: Callable[[str], bool] | None = None,
 ) -> CommandMiddleware:
     """Create telemetry middleware that records command execution events.
 
@@ -589,8 +590,8 @@ def create_telemetry_middleware(
         start_time = clock.now()
         started_at = _iso_from_ms(start_time)
 
-        result: Optional[CommandResult[Any]] = None
-        thrown_error: Optional[Exception] = None
+        result: CommandResult[Any] | None = None
+        thrown_error: Exception | None = None
 
         try:
             result = await next_fn()
@@ -615,12 +616,7 @@ def create_telemetry_middleware(
                 }
 
             metadata_dict = None
-            if (
-                not thrown_error
-                and result
-                and include_metadata
-                and result.metadata
-            ):
+            if not thrown_error and result and include_metadata and result.metadata:
                 metadata_dict = result.metadata.model_dump()
 
             event = TelemetryEvent(
@@ -707,10 +703,10 @@ def compose_middleware(*middlewares: CommandMiddleware) -> CommandMiddleware:
 
 def default_middleware(
     *,
-    trace_id: Union[bool, Dict[str, Any], None] = None,
-    logging_mw: Union[bool, Dict[str, Any], None] = None,
-    timing: Union[bool, Dict[str, Any], None] = None,
-) -> List[CommandMiddleware]:
+    trace_id: bool | dict[str, Any] | None = None,
+    logging_mw: bool | dict[str, Any] | None = None,
+    timing: bool | dict[str, Any] | None = None,
+) -> list[CommandMiddleware]:
     """Returns pre-configured middleware for common observability needs.
 
     Returns [trace_id, logging, timing] by default. Each can be disabled
@@ -721,7 +717,7 @@ def default_middleware(
         logging_mw: False to disable, dict to configure, None for defaults.
         timing: False to disable, dict to configure, None for defaults.
     """
-    stack: List[CommandMiddleware] = []
+    stack: list[CommandMiddleware] = []
 
     if trace_id is not False:
         kwargs = trace_id if isinstance(trace_id, dict) else {}

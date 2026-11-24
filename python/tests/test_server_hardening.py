@@ -121,9 +121,7 @@ class TestDiscoveryOnlySeesMcpExposedCommands:
     async def test_afd_detail_treats_private_command_as_not_found(self):
         server = _server_with_private_command(tool_strategy="individual")
 
-        result = await server.call_tool(
-            "afd-detail", {"command": [PRIVATE_NAME, "secret-rotat"]}
-        )
+        result = await server.call_tool("afd-detail", {"command": [PRIVATE_NAME, "secret-rotat"]})
 
         for entry in result.data:
             assert entry["found"] is False

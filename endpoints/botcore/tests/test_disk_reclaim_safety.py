@@ -1,5 +1,6 @@
 """disk-reclaim's second review: each way a reclaim could delete the wrong thing or lose a run."""
 
+# ruff: noqa: F811
 from __future__ import annotations
 
 import asyncio
@@ -39,7 +40,9 @@ def plan_then(monkeypatch: pytest.MonkeyPatch, after) -> None:
 
 
 def test_a_lock_taken_after_planning_stops_the_strip(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     age_worktree(repo["main"], repo["old"])
     plan_then(monkeypatch, lambda: git(repo["main"], "worktree", "lock", str(repo["old"])))
@@ -49,7 +52,9 @@ def test_a_lock_taken_after_planning_stops_the_strip(
 
 
 def test_a_build_that_finished_after_planning_stops_the_strip(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     age_worktree(repo["main"], repo["old"])
     plan_then(monkeypatch, lambda: (repo["old"] / "dist" / "fresh.js").write_text("x"))
@@ -58,7 +63,8 @@ def test_a_build_that_finished_after_planning_stops_the_strip(
 
 
 def test_a_nested_repository_is_never_stripped(
-    repo: dict[str, Path], state: Path,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
 ) -> None:
     nested = repo["old"] / "vendor" / "lib"
     (nested / "gen").mkdir(parents=True)
@@ -73,7 +79,9 @@ def test_a_nested_repository_is_never_stripped(
 
 
 def test_a_git_failure_skips_the_action_and_still_writes_the_receipt(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     age_worktree(repo["main"], repo["old"])
 
@@ -88,7 +96,8 @@ def test_a_git_failure_skips_the_action_and_still_writes_the_receipt(
 
 
 def test_forced_pressure_runs_every_step_it_previews(
-    repo: dict[str, Path], state: Path,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
 ) -> None:
     fresh = repo["fresh"]
     admin = Path(git(fresh, "rev-parse", "--absolute-git-dir").strip())
@@ -110,15 +119,19 @@ def test_forced_pressure_runs_every_step_it_previews(
 
 
 def test_an_aged_folder_refreshed_after_planning_is_kept(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     cache = repo["tmp"] / "cache" / "slot"
     cache.mkdir(parents=True)
     (cache / "old.bin").write_bytes(b"r")
     age(cache / "old.bin")
     age(cache)
-    repo["settings"].write_text(repo["settings"].read_text() + (
-        f'\n[[aged]]\npath = {json.dumps(str(cache.parent) + "/*")}\nmax_age_days = 7\n'))
+    repo["settings"].write_text(
+        repo["settings"].read_text()
+        + (f"\n[[aged]]\npath = {json.dumps(str(cache.parent) + '/*')}\nmax_age_days = 7\n")
+    )
     original = reclaim.plan_tier0
 
     def plan_then_refresh(data):
@@ -133,7 +146,9 @@ def test_an_aged_folder_refreshed_after_planning_is_kept(
 
 
 def test_an_aged_pattern_over_the_home_folder_deletes_nothing(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     home = repo["tmp"] / "home"
     (home / "Documents").mkdir(parents=True)
@@ -142,8 +157,9 @@ def test_an_aged_pattern_over_the_home_folder_deletes_nothing(
     age(home / "Documents")
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("USERPROFILE", str(home))
-    repo["settings"].write_text(repo["settings"].read_text() +
-                                '\n[[aged]]\npath = "~/*"\nmax_age_days = 1\n')
+    repo["settings"].write_text(
+        repo["settings"].read_text() + '\n[[aged]]\npath = "~/*"\nmax_age_days = 1\n'
+    )
     data = run_reclaim(apply=True, tier=0)
     assert not [a for a in data["actions"] if a["kind"] == "aged"]
     assert (home / "Documents" / "thesis.docx").exists()
@@ -176,7 +192,7 @@ def test_hard_link_evidence_must_come_from_the_store_being_pruned(tmp_path: Path
 # ── Lock, receipts and status ───────────────────────────────────────────────
 
 
-def test_the_lock_survives_a_reader_and_frees_on_exit(state: Path) -> None:  # noqa: F811
+def test_the_lock_survives_a_reader_and_frees_on_exit(state: Path) -> None:
     lock_path = state / "run.lock"
     with RunLock(lock_path):
         assert holder(lock_path)["pid"] == os.getpid()
@@ -185,7 +201,7 @@ def test_the_lock_survives_a_reader_and_frees_on_exit(state: Path) -> None:  # n
     assert lock_path.exists()  # never deleted: the kernel, not the file, is the lock
 
 
-def test_receipts_have_unique_names_and_the_newest_is_kept(state: Path) -> None:  # noqa: F811
+def test_receipts_have_unique_names_and_the_newest_is_kept(state: Path) -> None:
     payload = {"apply": False, "actions": [], "failures": []}
     first, second = reclaim.write_receipt(payload), reclaim.write_receipt(payload)
     assert first != second and first.exists() and second.exists()
@@ -202,11 +218,16 @@ def test_the_job_does_not_rerun_every_hour_while_space_stays_low() -> None:
 
 
 def test_the_job_reports_a_refused_reclaim(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async def refused(**_kwargs):
-        return SimpleNamespace(success=False, data=None,
-                               error=SimpleNamespace(code="DISK_RUN_IN_PROGRESS", message="busy"))
+        return SimpleNamespace(
+            success=False,
+            data=None,
+            error=SimpleNamespace(code="DISK_RUN_IN_PROGRESS", message="busy"),
+        )
 
     monkeypatch.setattr(reclaim, "disk_reclaim", refused)
     result = asyncio.run(setup.disk_run(force=True))
@@ -217,7 +238,8 @@ def test_the_job_reports_a_refused_reclaim(
 
 
 def test_setup_refuses_a_botcore_inside_a_checkout(
-    repo: dict[str, Path], monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     exe = repo["old"] / ".venv" / "bin" / "botcore"
     exe.parent.mkdir(parents=True)
@@ -230,7 +252,8 @@ def test_setup_refuses_a_botcore_inside_a_checkout(
 
 @pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privileges on Windows")
 def test_tools_are_recorded_by_paths_that_last(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(setup, "_session_path", lambda path: "/session" in path)
     # fnm: the session folder links to the Node version's folder, and pnpm there links to
@@ -243,7 +266,8 @@ def test_tools_are_recorded_by_paths_that_last(
     (tmp_path / "session").symlink_to(tmp_path / "versions" / "v24", target_is_directory=True)
     found = str(tmp_path / "session" / "bin" / "pnpm")
     assert setup.stable_tool_path("pnpm", found) == os.path.join(
-        os.path.realpath(version_bin), "pnpm")
+        os.path.realpath(version_bin), "pnpm"
+    )
     # Homebrew: a link into a versioned Cellar folder is kept as the link
     brew = tmp_path / "brew" / "bin"
     (tmp_path / "brew" / "Cellar" / "uv" / "0.12" / "bin").mkdir(parents=True)
@@ -256,12 +280,15 @@ def test_tools_are_recorded_by_paths_that_last(
     (tmp_path / "session-only").mkdir()
     (tmp_path / "session-only" / "gh").write_text("")
     assert setup.stable_tool_path("gh", str(tmp_path / "session-only" / "gh")) is None
-    monkeypatch.setattr(setup.shutil, "which",
-                        lambda name: {"pnpm": found, "uv": str(brew / "uv")}.get(name))
+    monkeypatch.setattr(
+        setup.shutil, "which", lambda name: {"pnpm": found, "uv": str(brew / "uv")}.get(name)
+    )
     settings = setup.MachineSettings(tools={"gh": "/old/gh"})
     assert set(setup.record_tools(settings)) == {"pnpm", "uv"}
     assert setup.job_path(settings).split(os.pathsep)[:2] == [
-        os.path.realpath(version_bin), str(brew)]
+        os.path.realpath(version_bin),
+        str(brew),
+    ]
 
 
 def test_an_unreadable_crontab_is_never_overwritten(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -274,16 +301,20 @@ def test_an_unreadable_crontab_is_never_overwritten(monkeypatch: pytest.MonkeyPa
         return subprocess.CompletedProcess(args, 0, "", "")
 
     monkeypatch.setattr(schedule, "_run", fake_run)
-    monkeypatch.setattr(schedule.shutil, "which",
-                        lambda name: None if name == "systemctl" else name)
+    monkeypatch.setattr(
+        schedule.shutil, "which", lambda name: None if name == "systemctl" else name
+    )
     state_ = schedule._linux_install("/x/botcore", "/usr/bin")
     assert not state_.installed and writes == []
     assert schedule.read_crontab() is None
 
 
 def test_an_absent_crontab_reads_as_empty(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(schedule, "_run", lambda args, stdin=None: subprocess.CompletedProcess(
-        args, 1, "", "no crontab for jason"))
+    monkeypatch.setattr(
+        schedule,
+        "_run",
+        lambda args, stdin=None: subprocess.CompletedProcess(args, 1, "", "no crontab for jason"),
+    )
     monkeypatch.setattr(schedule.shutil, "which", lambda name: name)
     assert schedule.read_crontab() == ""
 
@@ -293,7 +324,8 @@ def test_an_absent_crontab_reads_as_empty(monkeypatch: pytest.MonkeyPatch) -> No
 
 @pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privileges on Windows")
 def test_the_path_walker_also_never_follows_links_or_enters_checkouts(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(remove, "HANDLES", False)
     root = tmp_path / "wt"

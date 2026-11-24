@@ -14,6 +14,7 @@ confirmations yet).
 from __future__ import annotations
 
 from datetime import timedelta
+from typing import Any
 
 from botcore_factory.cells import seated
 from botcore_factory.claims import format_time, parse_time
@@ -49,7 +50,7 @@ def readiness(factory: Factory) -> list[str]:
     return missing
 
 
-def probe(factory: Factory) -> dict:
+def probe(factory: Factory) -> dict[str, Any]:
     world = factory.world
     me = world.machine.id()
     previous = next((r for r in world.git.host_records() if r.id == me), None)
@@ -69,7 +70,7 @@ def probe(factory: Factory) -> dict:
     return {"record": record.describe()}
 
 
-def view(factory: Factory, record: HostRecord) -> dict:
+def view(factory: Factory, record: HostRecord) -> dict[str, Any]:
     now = factory.world.clock.now()
     reachable = record.probed_at is None or now - parse_time(record.probed_at) <= STALE_AFTER
     shown = record.describe()
@@ -77,11 +78,11 @@ def view(factory: Factory, record: HostRecord) -> dict:
     return shown
 
 
-def host_list(factory: Factory) -> dict:
+def host_list(factory: Factory) -> dict[str, Any]:
     return {"machines": [view(factory, r) for r in factory.world.git.host_records()]}
 
 
-def _busy(factory: Factory, state: dict) -> list[str]:
+def _busy(factory: Factory, state: dict[str, Any]) -> list[str]:
     reasons = []
     if state["queue"] or state["held"]:
         reasons.append(f"{len(state['queue'])} queued and {len(state['held'])} held here")
@@ -95,7 +96,7 @@ def _busy(factory: Factory, state: dict) -> list[str]:
     return reasons
 
 
-def host_set(factory: Factory, host_id: str, drain: bool, recover: bool) -> dict:
+def host_set(factory: Factory, host_id: str, drain: bool, recover: bool) -> dict[str, Any]:
     if drain and recover:
         raise Refusal(
             "VALIDATION_ERROR",
@@ -147,11 +148,11 @@ def host_set(factory: Factory, host_id: str, drain: bool, recover: bool) -> dict
     return {"host": {"id": host_id}, "previous": current}
 
 
-def _recover(factory: Factory, state: dict) -> dict:
+def _recover(factory: Factory, state: dict[str, Any]) -> dict[str, Any]:
     """Rebuild the queue from origin's queue refs and the cells from GitHub's claims."""
     refs = factory.world.git.queue_refs()
     backlog = read_backlog(factory)
-    by_branch: dict[str, dict] = {}
+    by_branch: dict[str, dict[str, Any]] = {}
     for number, claim in sorted(backlog.claims.items()):
         if claim is None:
             continue

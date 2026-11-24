@@ -5,22 +5,26 @@ import pytest
 from alfred import mcp_server
 
 
-@pytest.mark.parametrize('flags', [
-    [],
-    ['--raw-python', '--profile', 'trusted-local'],
-    ['--profile', 'trusted-local'],
-    ['--raw-python'],
-])
+@pytest.mark.parametrize(
+    "flags",
+    [
+        [],
+        ["--raw-python", "--profile", "trusted-local"],
+        ["--profile", "trusted-local"],
+        ["--raw-python"],
+    ],
+)
 def test_sse_is_refused_for_every_profile(flags, tmp_path, monkeypatch, capsys):
-    monkeypatch.setattr(mcp_server, 'create_server',
-                        lambda *a, **k: pytest.fail('no server is built'))
+    monkeypatch.setattr(
+        mcp_server, "create_server", lambda *a, **k: pytest.fail("no server is built")
+    )
     with pytest.raises(SystemExit) as exited:
-        mcp_server.main(['--workspace', str(tmp_path), '--sse', *flags])
+        mcp_server.main(["--workspace", str(tmp_path), "--sse", *flags])
     assert exited.value.code == 2
-    assert 'stdio only' in capsys.readouterr().err
+    assert "stdio only" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize('flags', [[], ['--raw-python', '--profile', 'trusted-local']])
+@pytest.mark.parametrize("flags", [[], ["--raw-python", "--profile", "trusted-local"]])
 def test_stdio_runs(flags, tmp_path, monkeypatch):
     calls = []
 
@@ -28,6 +32,6 @@ def test_stdio_runs(flags, tmp_path, monkeypatch):
         def run(self, transport):
             calls.append(transport)
 
-    monkeypatch.setattr(mcp_server, 'create_server', lambda *a, **k: Server())
-    mcp_server.main(['--workspace', str(tmp_path), *flags])
-    assert calls == ['stdio']
+    monkeypatch.setattr(mcp_server, "create_server", lambda *a, **k: Server())
+    mcp_server.main(["--workspace", str(tmp_path), *flags])
+    assert calls == ["stdio"]

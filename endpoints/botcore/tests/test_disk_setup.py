@@ -1,5 +1,6 @@
 """disk-setup, disk-status, disk-run and the scheduler definitions."""
 
+# ruff: noqa: F811
 from __future__ import annotations
 
 import asyncio
@@ -67,7 +68,9 @@ def test_settings_toml_round_trips() -> None:
 
 
 def test_setup_registers_the_repository_and_its_volumes(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     repo["settings"].unlink()
     monkeypatch.chdir(repo["old"])  # from a worktree: the main checkout is what gets registered
@@ -83,7 +86,9 @@ def test_setup_registers_the_repository_and_its_volumes(
 
 
 def test_setup_migrates_macos_root_snapshot_volume_id_without_touching_external_volumes(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """lushly-dev/afd#2267: rerunning `disk-setup` replaces an ephemeral macOS APFS snapshot
     UUID on an internal `/` volume with `APFSVolumeGroupID`, while leaving external volumes,
@@ -170,10 +175,14 @@ def test_setup_migrates_macos_root_snapshot_volume_id_without_touching_external_
 
 
 def test_setup_rerun_keeps_usable_tools_and_reports_changes(
-    repo: dict[str, Path], state: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """lushly-dev/afd#1934: a rerun from a different shell PATH keeps existing usable [tools]
     entries, only filling in missing or broken ones, and reports any entry it changed."""
+
     def make_tool(folder: Path, name: str, executable: bool = True) -> Path:
         folder.mkdir(parents=True, exist_ok=True)
         suffix = ".cmd" if sys.platform == "win32" else ""
@@ -272,15 +281,18 @@ def test_setup_rerun_keeps_usable_tools_and_reports_changes(
 
 
 def test_setup_refuses_a_botcore_from_uvs_cache(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     cache = repo["tmp"] / "uv-cache"
     exe = cache / "archive-v0" / "bin" / "botcore"
     exe.parent.mkdir(parents=True)
     exe.write_text("#!/bin/sh\n")
     real_which = setup.shutil.which
-    monkeypatch.setattr(setup.shutil, "which",
-                        lambda name: str(exe) if name == "botcore" else real_which(name))
+    monkeypatch.setattr(
+        setup.shutil, "which", lambda name: str(exe) if name == "botcore" else real_which(name)
+    )
     monkeypatch.setattr(setup, "uv_cache_dir", lambda: str(cache))
     monkeypatch.chdir(repo["main"])
     result = asyncio.run(setup.disk_setup())
@@ -288,10 +300,11 @@ def test_setup_refuses_a_botcore_from_uvs_cache(
 
 
 def test_status_reports_problems_until_a_run_succeeds(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(schedule, "current",
-                        lambda: schedule.ScheduleState("test", True, "here"))
+    monkeypatch.setattr(schedule, "current", lambda: schedule.ScheduleState("test", True, "here"))
     data = run(setup.disk_status())
     assert not data["healthy"]
     assert "no successful run in the last 48 hours" in data["problems"]
@@ -302,7 +315,9 @@ def test_status_reports_problems_until_a_run_succeeds(
 
 
 def test_the_job_only_reclaims_when_due(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls = []
 
@@ -325,7 +340,10 @@ def test_the_job_only_reclaims_when_due(
 
 
 def test_the_job_collects_skill_usage_and_the_status_tells_a_failure_that_lasts(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     async def fake_reclaim(**_kwargs):
         now = setup.datetime.now(setup.UTC).isoformat(timespec="seconds")
@@ -387,7 +405,10 @@ def test_the_job_collects_skill_usage_and_the_status_tells_a_failure_that_lasts(
 
 
 def test_collection_never_holds_or_fails_the_disk_work(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     order: list[str] = []
 
@@ -515,7 +536,9 @@ def at_once(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_a_disk_step_that_only_waits_is_left_and_the_status_says_where(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     import botcore.commands.disk.reclaim as reclaim
@@ -543,8 +566,9 @@ def test_a_disk_step_that_only_waits_is_left_and_the_status_says_where(
 
     monkeypatch.setattr(reclaim, "disk_reclaim", held_by_the_system)
     monkeypatch.setattr(usage, "skill_usage_collect", collect)
-    monkeypatch.setattr(schedule, "current",
-                        lambda: schedule.ScheduleState("test", installed=True, where="test"))
+    monkeypatch.setattr(
+        schedule, "current", lambda: schedule.ScheduleState("test", installed=True, where="test")
+    )
     monkeypatch.setattr(setup, "consent_hint", lambda path: f"allow it for {path}")
 
     result = asyncio.run(setup.disk_run(force=True, own_process=True))  # it ended by itself
@@ -571,7 +595,8 @@ def test_a_disk_step_that_only_waits_is_left_and_the_status_says_where(
     assert check_file(state)["disk_work"]["failing_since"] == since  # since when is kept
     check = check_file(state)
     check["disk_work"]["failing_since"] = (
-        setup.datetime.now(setup.UTC) - timedelta(hours=3)).isoformat()
+        setup.datetime.now(setup.UTC) - timedelta(hours=3)
+    ).isoformat()
     (state / "check.json").write_text(json.dumps(check))
     assert any("(for 3 hours)" in found for found in run(setup.disk_status())["problems"])
 
@@ -584,7 +609,9 @@ def test_a_disk_step_that_only_waits_is_left_and_the_status_says_where(
 
 
 def test_disk_work_that_is_working_is_waited_for_and_never_recorded_as_waiting(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import botcore.commands.disk.reclaim as reclaim
     import botcore.commands.skill_usage as usage
@@ -628,7 +655,9 @@ def test_disk_work_that_is_working_is_waited_for_and_never_recorded_as_waiting(
 
 
 def test_a_step_that_was_left_starts_nothing_more(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     alive,
 ) -> None:
@@ -670,7 +699,9 @@ def test_a_step_that_was_left_starts_nothing_more(
 
 
 def test_a_collection_that_reports_progress_finishes_past_usage_seconds(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """lushly-dev/afd#2160: a collection that keeps reporting progress (e.g. reading a multi-GB
     T3 store on a busy machine) runs past USAGE_SECONDS until it finishes instead of being cut
@@ -702,7 +733,9 @@ def test_a_collection_that_reports_progress_finishes_past_usage_seconds(
 
 
 def test_a_collection_that_stops_making_progress_is_left_and_writes_nothing_more(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """lushly-dev/afd#2160: a collection that goes quiet for USAGE_SECONDS (truly waiting) is
     left, recorded with what it was waiting on, and stopped at its next word."""
@@ -734,14 +767,17 @@ def test_a_collection_that_stops_making_progress_is_left_and_writes_nothing_more
     found = run(setup.disk_run(force=True, own_process=True))["skill_usage"]
     assert found["ok"] is False
     assert found["error"] == (
-        "it made no progress for 300 seconds: it was reading T3 Code's store /stores/t3.sqlite")
+        "it made no progress for 300 seconds: it was reading T3 Code's store /stores/t3.sqlite"
+    )
     assert check_file(state)["skill_usage"] == found  # what was returned is what was kept
     release.set()
     assert told.wait(20) and wrote == []  # left, it writes nothing more
 
 
 def test_in_a_process_that_lives_on_nothing_is_left_running(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
     alive,
 ) -> None:
     import botcore.commands.disk.reclaim as reclaim
@@ -823,7 +859,9 @@ def test_in_a_process_that_lives_on_nothing_is_left_running(
 
 
 def test_a_call_that_is_cancelled_tells_its_steps_to_stop(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
     alive,
 ) -> None:
     import botcore.commands.disk.reclaim as reclaim
@@ -862,7 +900,9 @@ def test_a_call_that_is_cancelled_tells_its_steps_to_stop(
 
 
 def test_the_jobs_own_files_cannot_hold_the_scheduled_run(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
     at_once,
 ) -> None:
     import botcore.commands.disk.reclaim as reclaim
@@ -918,7 +958,10 @@ def test_the_jobs_own_files_cannot_hold_the_scheduled_run(
 
 
 def test_every_run_on_macos_reads_the_folders_it_will_need_before_anything_else(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     import botcore.commands.disk.reclaim as reclaim
 
@@ -930,11 +973,18 @@ def test_every_run_on_macos_reads_the_folders_it_will_need_before_anything_else(
         f"worktree_roots = [{json.dumps(str(extra))}]\n{before}"
         f"\n[[volume]]\nmount = {json.dumps(str(tmp_path))}\n"
         f"\n[[aged]]\npath = {json.dumps(str(aged) + '/*')}\nmax_age_days = 7\n",
-        encoding="utf-8")
+        encoding="utf-8",
+    )
     settings = load_machine_settings()[0]
     folders = [str(folder) for folder in setup.job_folders(settings)]
-    wanted = [str(tmp_path), str(repo["main"]), str(repo["old"]), str(repo["fresh"]),
-              str(extra), str(aged)]
+    wanted = [
+        str(tmp_path),
+        str(repo["main"]),
+        str(repo["old"]),
+        str(repo["fresh"]),
+        str(extra),
+        str(aged),
+    ]
     at = [folders.index(folder) for folder in wanted]  # volumes, worktrees, then the rest
     assert at[0] < at[1] < min(at[2:4]) and max(at[2:4]) < min(at[4:])
     assert len(set(folders)) == len(folders)
@@ -952,8 +1002,9 @@ def test_every_run_on_macos_reads_the_folders_it_will_need_before_anything_else(
         return []
 
     with monkeypatch.context() as patch:
-        patch.setattr(setup, "list_worktrees",
-                      lambda path: listed.append(path) or list_worktrees(path))
+        patch.setattr(
+            setup, "list_worktrees", lambda path: listed.append(path) or list_worktrees(path)
+        )
         named = setup.job_folders(settings)
         assert [str(next(named)), str(next(named))] == wanted[:2] and listed == []
         assert str(next(named)) in wanted[2:4] and listed == [repo["main"]]
@@ -1010,7 +1061,9 @@ def test_every_run_on_macos_reads_the_folders_it_will_need_before_anything_else(
 
 
 def test_how_the_disk_work_ended_is_what_the_status_says(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     import botcore.commands.disk.reclaim as reclaim
@@ -1037,8 +1090,13 @@ def test_how_the_disk_work_ended_is_what_the_status_says(
     assert not any("disk work" in found for found in status["problems"])  # it came back
 
     async def refused(**_kwargs):  # a reclaim that came back with an error, as a held lock does
-        return SimpleNamespace(success=False, data=None, error=SimpleNamespace(
-            code="DISK_RUN_IN_PROGRESS", message="another disk run holds the lock"))
+        return SimpleNamespace(
+            success=False,
+            data=None,
+            error=SimpleNamespace(
+                code="DISK_RUN_IN_PROGRESS", message="another disk run holds the lock"
+            ),
+        )
 
     monkeypatch.setattr(reclaim, "disk_reclaim", refused)
     result = asyncio.run(setup.disk_run(force=True))
@@ -1052,6 +1110,7 @@ def test_how_the_disk_work_ended_is_what_the_status_says(
             now = setup.datetime.now(setup.UTC).isoformat(timespec="seconds")
             (state / "status.json").write_text(json.dumps({"last_apply": {"at": now, "ok": ok}}))
             return SimpleNamespace(success=True, data={"still_low": [], "failures": failures})
+
         return fake
 
     monkeypatch.setattr(reclaim, "disk_reclaim", reclaim_with([], True))
@@ -1075,7 +1134,10 @@ def test_how_the_disk_work_ended_is_what_the_status_says(
 
 
 def test_a_shared_folder_that_does_not_answer_is_told_apart_from_a_collection_that_failed(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
     at_once,
 ) -> None:
     import botcore.commands.disk.reclaim as reclaim
@@ -1165,7 +1227,9 @@ def test_a_shared_folder_that_does_not_answer_is_told_apart_from_a_collection_th
 
 
 def test_the_status_does_not_wait_at_what_it_is_asked_about(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
     at_once,
     alive,
 ) -> None:
@@ -1175,23 +1239,35 @@ def test_the_status_does_not_wait_at_what_it_is_asked_about(
         return SimpleNamespace(success=True, data={"still_low": []})
 
     monkeypatch.setattr(reclaim, "disk_reclaim", fake_reclaim)
-    installed = SimpleNamespace(installed=True, where="test", detail=None,
-                                as_dict=lambda: {"installed": True})
+    installed = SimpleNamespace(
+        installed=True, where="test", detail=None, as_dict=lambda: {"installed": True}
+    )
     monkeypatch.setattr(schedule, "current", lambda: installed)
     # a job that is installed and has never checked in
-    assert any("no scheduled check is recorded yet" in found
-               for found in run(setup.disk_status())["warnings"])
+    assert any(
+        "no scheduled check is recorded yet" in found
+        for found in run(setup.disk_status())["warnings"]
+    )
     run(setup.disk_run(force=True))
     status = run(setup.disk_status())
-    assert not any("scheduled check" in found or "checked in" in found
-                   for found in status["warnings"]) and status["volumes"] == []
+    assert (
+        not any("scheduled check" in found or "checked in" in found for found in status["warnings"])
+        and status["volumes"] == []
+    )
     check = check_file(state)
     check["last_check"] = (setup.datetime.now(setup.UTC) - timedelta(hours=4)).isoformat()
-    check["disk_work"] = {"ok": False, "error": "it has been reading /Volumes/Shed",
-                          "waiting_on": {"what": "reading", "path": "/Volumes/Shed"}}
+    check["disk_work"] = {
+        "ok": False,
+        "error": "it has been reading /Volumes/Shed",
+        "waiting_on": {"what": "reading", "path": "/Volumes/Shed"},
+    }
     (state / "check.json").write_text(json.dumps(check))
-    counted = {"at": setup.datetime.now(setup.UTC).isoformat(), "count": 30,
-               "checkout": str(repo["main"]), "warning": "30 worktrees idle 3 days or more"}
+    counted = {
+        "at": setup.datetime.now(setup.UTC).isoformat(),
+        "count": 30,
+        "checkout": str(repo["main"]),
+        "warning": "30 worktrees idle 3 days or more",
+    }
     file = state / "status.json"
     saved = json.loads(file.read_text()) if file.exists() else {}
     saved["worktree_warnings"] = {"repos": {str(repo["main"]): counted}}
@@ -1258,7 +1334,9 @@ def test_the_status_does_not_wait_at_what_it_is_asked_about(
 
 
 def test_the_status_does_not_wait_at_its_own_files(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
     at_once,
 ) -> None:
     release = threading.Event()
@@ -1283,10 +1361,13 @@ def test_the_status_does_not_wait_at_its_own_files(
 
 
 def test_check_json_keeps_every_writers_update(
-    state: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    state: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    writers = [threading.Thread(target=setup._write_check, args=({f"thread{n}": n},))
-               for n in range(12)]
+    writers = [
+        threading.Thread(target=setup._write_check, args=({f"thread{n}": n},)) for n in range(12)
+    ]
     for writer in writers:
         writer.start()
     for writer in writers:
@@ -1346,20 +1427,24 @@ def test_check_json_keeps_every_writers_update(
 
 
 @pytest.mark.skipif(os.name == "nt", reason="these are macOS paths")
-@pytest.mark.parametrize(("path", "said"), [
-    ("/Volumes/Shed/worktrees/a", "an external or network volume"),
-    ("~/Library/CloudStorage/Drive-someone/My Drive/usage", "a cloud drive's app manages"),
-    ("~/Library/Mobile Documents/com~apple~CloudDocs/usage", "a cloud drive's app manages"),
-    ("~/Documents/checkouts/a", "this folder"),
-])
+@pytest.mark.parametrize(
+    ("path", "said"),
+    [
+        ("/Volumes/Shed/worktrees/a", "an external or network volume"),
+        ("~/Library/CloudStorage/Drive-someone/My Drive/usage", "a cloud drive's app manages"),
+        ("~/Library/Mobile Documents/com~apple~CloudDocs/usage", "a cloud drive's app manages"),
+        ("~/Documents/checkouts/a", "this folder"),
+    ],
+)
 def test_what_to_do_about_a_read_macos_holds(path: str, said: str) -> None:
     hint = steps.consent_hint(str(Path(path).expanduser()), "darwin")
     assert said in hint and "Full Disk Access" in hint and steps.PROGRAM in hint
 
 
 @pytest.mark.skipif(os.name == "nt", reason="these are macOS paths")
-@pytest.mark.parametrize("path", ["~/dev/checkouts/a", "~/Documentsx", "/Volumesx/a",
-                                  "~/Shared/skill-usage"])
+@pytest.mark.parametrize(
+    "path", ["~/dev/checkouts/a", "~/Documentsx", "/Volumesx/a", "~/Shared/skill-usage"]
+)
 def test_a_path_that_may_lead_there_by_a_link_gets_the_short_hint(path: str) -> None:
     hint = steps.consent_hint(str(Path(path).expanduser()), "darwin")
     assert hint.startswith("If macOS is asking") and "Full Disk Access" not in hint
@@ -1530,13 +1615,15 @@ def _plain(path: str) -> str:
     """A path as the walkers spell it on Windows (long_path), back in ordinary syntax:
     `\\\\?\\C:\\...` is `C:\\...`, and `\\\\?\\UNC\\server\\...` is `\\\\server\\...`."""
     if path.startswith("\\\\?\\UNC\\"):
-        return "\\\\" + path[len("\\\\?\\UNC\\"):]
+        return "\\\\" + path[len("\\\\?\\UNC\\") :]
     return path.removeprefix("\\\\?\\")
 
 
 @pytest.mark.parametrize("handles", [True, False], ids=["by-handle", "by-path"])
 def test_the_disk_work_says_what_it_does_as_it_goes(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
     handles: bool,
 ) -> None:
     """A reclaim that stopped saying what it does would pass for one that waits, and be left
@@ -1622,7 +1709,10 @@ def test_a_step_is_left_only_if_it_has_said_nothing_since_it_was_seen(
 
 @pytest.mark.parametrize("handles", [True, False], ids=["by-handle", "by-path"])
 def test_a_step_left_in_a_read_removes_and_shares_nothing_when_the_read_comes_back(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
     handles: bool,
 ) -> None:
     """A read the system holds cannot be told anything. When it comes back, the step is
@@ -1680,8 +1770,9 @@ def test_a_step_left_in_a_read_removes_and_shares_nothing_when_the_read_comes_ba
         return load_json(path)
 
     monkeypatch.setattr(usage_store, "_load_json", shared_copy_held)
-    step = steps.Step("skill-usage-collect",
-                      lambda: usage_store.publish(directory, shared, "bench"))
+    step = steps.Step(
+        "skill-usage-collect", lambda: usage_store.publish(directory, shared, "bench")
+    )
     assert held.wait(10)
     step.leave()
     release.set()
@@ -1692,7 +1783,10 @@ def test_a_step_left_in_a_read_removes_and_shares_nothing_when_the_read_comes_ba
 
 
 def test_every_removal_and_every_shared_write_asks_first_whether_the_step_was_left(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     import botcore.commands.disk.remove as remove
     import botcore.commands.skill_usage.collect as collect
@@ -1728,9 +1822,14 @@ def test_every_removal_and_every_shared_write_asks_first_whether_the_step_was_le
     link.symlink_to(file)
     for path, removal in ((file, remove._unlink_path), (link, remove._remove_link_path)):
         info = os.lstat(path)
-        left_while(lambda path=path, removal=removal, info=info: (
-            steps.doing("reading", path), waits(),
-            removal(str(path), info, remove.Removal(str(path)))), "its metadata")
+        left_while(
+            lambda path=path, removal=removal, info=info: (
+                steps.doing("reading", path),
+                waits(),
+                removal(str(path), info, remove.Removal(str(path))),
+            ),
+            "its metadata",
+        )
         assert os.path.lexists(path)
 
     # a file of the shared copy is not replaced after the copy that lies there was read
@@ -1743,8 +1842,11 @@ def test_every_removal_and_every_shared_write_asks_first_whether_the_step_was_le
     before = (shared / "bench" / "state.json").read_bytes()
     copy_bytes = usage_store._copy_bytes
     with monkeypatch.context() as patch:
-        patch.setattr(usage_store, "_copy_bytes",
-                      lambda path: (path.name == "state.json" and waits()) or copy_bytes(path))
+        patch.setattr(
+            usage_store,
+            "_copy_bytes",
+            lambda path: (path.name == "state.json" and waits()) or copy_bytes(path),
+        )
         left_while(lambda: usage_store.publish(directory, shared, "bench"), "the copy")
     assert (shared / "bench" / "state.json").read_bytes() == before
 
@@ -1769,7 +1871,10 @@ def test_every_removal_and_every_shared_write_asks_first_whether_the_step_was_le
 
 
 def test_a_left_step_writes_no_receipt_replaces_no_copy_and_retries_no_removal(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     import botcore.commands.disk.reclaim as reclaim
     import botcore.commands.disk.remove as remove
@@ -1793,6 +1898,7 @@ def test_a_left_step_writes_no_receipt_replaces_no_copy_and_retries_no_removal(
     # a reclaim left while the volumes are read one last time records nothing: a receipt and
     # a status would say it ran, and put off the next one
     idle_after = reclaim._idle_after
+
     def read_once_more(data, run_):
         found = idle_after(data, run_)
         waits()
@@ -1814,8 +1920,9 @@ def test_a_left_step_writes_no_receipt_replaces_no_copy_and_retries_no_removal(
     before = (shared / "bench" / "state.json").read_bytes()
     write_bytes = usage_store._write_bytes
     with monkeypatch.context() as patch:
-        patch.setattr(usage_store, "_write_bytes",
-                      lambda path, data: (write_bytes(path, data), waits())[0])
+        patch.setattr(
+            usage_store, "_write_bytes", lambda path, data: (write_bytes(path, data), waits())[0]
+        )
         left_while(lambda: usage_store.publish(directory, shared, "bench"))
     assert (shared / "bench" / "state.json").read_bytes() == before
     stale = list((shared / "bench").glob("*.tmp"))
@@ -1868,7 +1975,9 @@ def test_a_left_step_writes_no_receipt_replaces_no_copy_and_retries_no_removal(
 
 
 def test_disk_work_that_speaks_again_as_the_job_decides_is_not_left(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import botcore.commands.disk.reclaim as reclaim
 
@@ -1907,7 +2016,9 @@ def test_disk_work_that_speaks_again_as_the_job_decides_is_not_left(
 
 
 def test_disk_work_that_ends_just_after_it_was_seen_waiting_is_recorded_as_it_ended(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
     alive,
 ) -> None:
     import botcore.commands.disk.reclaim as reclaim
@@ -1941,27 +2052,51 @@ def test_disk_work_that_ends_just_after_it_was_seen_waiting_is_recorded_as_it_en
 
 
 def test_the_status_of_a_machine_that_does_not_answer_reads_no_path(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
     at_once,
     alive,
 ) -> None:
     state.mkdir(parents=True, exist_ok=True)
     now = setup.datetime.now(setup.UTC).isoformat()
     gone = tmp_path / "no-longer-registered"
-    (state / "status.json").write_text(json.dumps({
-        "last_apply": {"at": now, "ok": True, "receipt": "second.json"},
-        "worktree_warnings": {"repos": {
-            str(repo["main"]): {"at": now, "count": 30, "checkout": str(repo["main"]),
-                                "warning": "30 worktrees idle 3 days or more"},
-            str(gone): {"at": now, "count": 40, "checkout": str(gone / "checkout"),
-                        "warning": "40 worktrees idle 3 days or more"},
-        }},
-    }))
+    (state / "status.json").write_text(
+        json.dumps(
+            {
+                "last_apply": {"at": now, "ok": True, "receipt": "second.json"},
+                "worktree_warnings": {
+                    "repos": {
+                        str(repo["main"]): {
+                            "at": now,
+                            "count": 30,
+                            "checkout": str(repo["main"]),
+                            "warning": "30 worktrees idle 3 days or more",
+                        },
+                        str(gone): {
+                            "at": now,
+                            "count": 40,
+                            "checkout": str(gone / "checkout"),
+                            "warning": "40 worktrees idle 3 days or more",
+                        },
+                    }
+                },
+            }
+        )
+    )
     # what a reclaim could not do is the receipt's to tell, for as long as that reclaim is
     # the last one: a later one that worked has the last word
-    setup._write_check({"disk_work": {
-        "ok": False, "ran": True, "reclaim_ok": False,
-        "error": "the reclaim had 1 failures: read its receipt"}})
+    setup._write_check(
+        {
+            "disk_work": {
+                "ok": False,
+                "ran": True,
+                "reclaim_ok": False,
+                "error": "the reclaim had 1 failures: read its receipt",
+            }
+        }
+    )
     status = run(setup.disk_status())
     assert "30 worktrees idle 3 days or more" in status["warnings"]
     assert "40 worktrees idle 3 days or more" not in status["warnings"]  # not registered now
@@ -1969,8 +2104,9 @@ def test_the_status_of_a_machine_that_does_not_answer_reads_no_path(
 
     resolved: list[str] = []
     path_key = setup.path_key
-    monkeypatch.setattr(setup, "path_key",
-                        lambda path: resolved.append(str(path)) or path_key(path))
+    monkeypatch.setattr(
+        setup, "path_key", lambda path: resolved.append(str(path)) or path_key(path)
+    )
     release = threading.Event()
     live = setup._live
 
@@ -1986,7 +2122,8 @@ def test_the_status_of_a_machine_that_does_not_answer_reads_no_path(
     # every count is given, and no path was resolved to choose among them: resolving reads
     # the volume the repository is on, which may be the one that does not answer
     assert {"30 worktrees idle 3 days or more", "40 worktrees idle 3 days or more"} <= set(
-        status["warnings"])
+        status["warnings"]
+    )
     assert resolved == [] and alive("disk-status") == 1
 
     # nor are counts a reclaim has written since: asked again while the old read still
@@ -2011,6 +2148,7 @@ def test_the_status_of_a_machine_that_does_not_answer_reads_no_path(
     monkeypatch.setattr(setup, "_LIVE", None)
 
     for recorded in (gone / "checkout", gone):  # the checkout it wrote down, and the main
+
         def does_not_answer(path, recorded=recorded):
             if str(path) == str(recorded):
                 at_once("STATUS_SECONDS")
@@ -2052,12 +2190,12 @@ def test_the_status_of_a_machine_that_does_not_answer_reads_no_path(
     said: list[tuple[str, str]] = []
     monkeypatch.setattr(steps, "SAID", said)
     setup.t3_worktree_roots(load_machine_settings()[0])
-    assert said.index(("reading", str(t3_settings))) < said.index(
-        ("resolving", shed))
+    assert said.index(("reading", str(t3_settings))) < said.index(("resolving", shed))
 
 
 def test_whether_a_folder_can_be_read_takes_one_entry(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import botcore.commands.disk.report as report
 
@@ -2101,7 +2239,9 @@ def test_whether_a_folder_can_be_read_takes_one_entry(
 
 
 def test_the_command_line_runs_the_job_as_a_process_of_its_own(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Only the scheduler's own process may leave a step behind: the command it runs says
     that is what it is, and nothing else does."""
@@ -2114,8 +2254,14 @@ def test_the_command_line_runs_the_job_as_a_process_of_its_own(
 
     async def fake(**kwargs):
         asked.append(kwargs)
-        return SimpleNamespace(success=True, data={"ran": False}, error=None, reasoning=None,
-                               warnings=None, suggestions=None)
+        return SimpleNamespace(
+            success=True,
+            data={"ran": False},
+            error=None,
+            reasoning=None,
+            warnings=None,
+            suggestions=None,
+        )
 
     monkeypatch.setattr(disk, "disk_run", fake)
     out = CliRunner().invoke(cli, ["disk-run", "--force", "--json"])
@@ -2126,7 +2272,9 @@ def test_the_command_line_runs_the_job_as_a_process_of_its_own(
 
 
 def test_setup_writes_the_machines_name_down_once(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.chdir(repo["main"])
     monkeypatch.setattr(usage_store.platform, "node", lambda: "Shed.local")
@@ -2139,7 +2287,9 @@ def test_setup_writes_the_machines_name_down_once(
 
 
 def test_the_job_notifies_once_while_space_stays_low(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     notices = []
 
@@ -2176,9 +2326,11 @@ def test_windows_task_runs_hidden_on_battery_without_elevation() -> None:
 def test_macos_agent_definition(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(schedule.Path, "home", lambda: tmp_path)
     ran = []
-    monkeypatch.setattr(schedule, "_run", lambda args, stdin=None: (
-        ran.append(args) or subprocess.CompletedProcess(args, 0, "", "")
-    ))
+    monkeypatch.setattr(
+        schedule,
+        "_run",
+        lambda args, stdin=None: ran.append(args) or subprocess.CompletedProcess(args, 0, "", ""),
+    )
     monkeypatch.setattr(schedule.os, "getuid", lambda: 501, raising=False)
     state = schedule._macos_install("/u/.local/bin/botcore", tmp_path / "logs", "/usr/bin:/bin")
     assert state.installed
@@ -2200,8 +2352,9 @@ def test_linux_falls_back_to_crontab(tmp_path: Path, monkeypatch: pytest.MonkeyP
         return subprocess.CompletedProcess(args, 0, "", "")
 
     monkeypatch.setattr(schedule, "_run", fake_run)
-    monkeypatch.setattr(schedule.shutil, "which",
-                        lambda name: None if name == "systemctl" else name)
+    monkeypatch.setattr(
+        schedule.shutil, "which", lambda name: None if name == "systemctl" else name
+    )
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     assert schedule._linux_install("/home/u/.local/bin/botcore", "/usr/bin").installed
     assert "other-job" in table["text"] and schedule.CRON_MARK in table["text"]

@@ -234,7 +234,11 @@ class TestIsHandoff:
 
     def test_returns_false_when_credentials_wrong_type(self):
         """Test that is_handoff returns False when credentials is wrong type."""
-        handoff = {"protocol": "websocket", "endpoint": "wss://example.com", "credentials": "invalid"}
+        handoff = {
+            "protocol": "websocket",
+            "endpoint": "wss://example.com",
+            "credentials": "invalid",
+        }
         assert is_handoff(handoff) is False
 
     def test_returns_false_when_credentials_token_wrong_type(self):
@@ -319,7 +323,9 @@ class TestGetHandoffProtocol:
 
     def test_returns_handoff_protocol_property_when_present(self):
         """Test that get_handoff_protocol returns handoff_protocol property."""
-        assert get_handoff_protocol({"handoff": True, "handoff_protocol": "websocket"}) == "websocket"
+        assert (
+            get_handoff_protocol({"handoff": True, "handoff_protocol": "websocket"}) == "websocket"
+        )
 
     def test_returns_protocol_from_tag(self):
         """Test that get_handoff_protocol extracts protocol from handoff:{protocol} tag."""
@@ -349,7 +355,9 @@ class TestCreateHandoff:
         assert result["endpoint"] == "wss://example.com/chat"
         assert "credentials" not in result
         assert result["metadata"]["reconnect"] == {
-            "allowed": True, "maxAttempts": 3, "backoffMs": 1000,
+            "allowed": True,
+            "maxAttempts": 3,
+            "backoffMs": 1000,
         }
 
     def test_creates_handoff_with_token(self):
@@ -415,11 +423,21 @@ class TestCreateHandoff:
         assert to_wire(parsed) == result
 
     def test_is_handoff_checks_camel_case_fields(self):
-        assert is_handoff({"protocol": "ws", "endpoint": "ws://x", "credentials": {"sessionId": 1}}) is False
-        assert is_handoff({"protocol": "ws", "endpoint": "ws://x", "metadata": {"expiresAt": 1}}) is False
+        assert (
+            is_handoff({"protocol": "ws", "endpoint": "ws://x", "credentials": {"sessionId": 1}})
+            is False
+        )
+        assert (
+            is_handoff({"protocol": "ws", "endpoint": "ws://x", "metadata": {"expiresAt": 1}})
+            is False
+        )
         assert (
             is_handoff(
-                {"protocol": "ws", "endpoint": "ws://x", "metadata": {"reconnect": {"allowed": True, "maxAttempts": "5"}}}
+                {
+                    "protocol": "ws",
+                    "endpoint": "ws://x",
+                    "metadata": {"reconnect": {"allowed": True, "maxAttempts": "5"}},
+                }
             )
             is False
         )

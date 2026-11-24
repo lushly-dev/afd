@@ -9,7 +9,8 @@ only holds the types and the reporting rule (``spec/command-metadata.md``,
 "Approvals").
 """
 
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Literal, Optional, Union
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from afd.core.commands import CommandContext
@@ -19,10 +20,10 @@ __all__ = ["ApprovalDecision", "ApprovalPolicy", "approval_mode"]
 ApprovalDecision = Literal["not-required", "required"]
 """Whether one call needs a human's approval before its handler runs."""
 
-ApprovalPolicy = Union[
-    ApprovalDecision,
-    Callable[[Any, "CommandContext"], Union[ApprovalDecision, Awaitable[ApprovalDecision]]],
-]
+ApprovalPolicy = (
+    ApprovalDecision
+    | Callable[[Any, "CommandContext"], ApprovalDecision | Awaitable[ApprovalDecision]]
+)
 """A command's approval policy: a fixed decision, or a function (sync or async) of the
 validated input and the call context, for example "agents need approval, humans do not".
 Unset means ``"not-required"``. ``create_approval_middleware`` decides it; ``create_server`` and
@@ -31,8 +32,8 @@ approval step admitted the call. Core's ``create_command_registry`` does not che
 
 
 def approval_mode(
-    policy: Optional[ApprovalPolicy],
-) -> Optional[Literal["not-required", "required", "conditional"]]:
+    policy: ApprovalPolicy | None,
+) -> Literal["not-required", "required", "conditional"] | None:
     """How a policy is reported in ``_meta.approval``, ``afd-detail`` and ``afd-docs``.
 
     A function cannot be serialized, so it is reported as ``"conditional"``.

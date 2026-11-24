@@ -9,6 +9,7 @@ clears only the merges it ran after, so a merge that landed meanwhile still owes
 from __future__ import annotations
 
 import contextlib
+from typing import Any
 
 from botcore_factory.cells import build_dir, disk_short, seated
 from botcore_factory.events import is_open
@@ -73,7 +74,7 @@ class NodeUnavailable(LaneTrouble):
 class Coverage(StepBase):
     def job_steps(
         self, label: str, command: list[str], cwd: str, slot: str, branch: str
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Install (bounded by a timeout), then the command: one background job, on the Node
         the checkout at ``cwd`` names in ``.nvmrc``, with ``CARGO_TARGET_DIR`` at the slot's
         build directory (``slot_build``)."""
@@ -212,7 +213,7 @@ class Coverage(StepBase):
             path = self.world.git.prepare_slot("coverage", "", base)
             log = f"coverage/{base[:12]}.log"
             handle = self.world.processes.start_job(
-                self.job_steps("coverage", self.config.coverage, path, "coverage", ""),
+                self.job_steps("coverage", self.config.coverage or [], path, "coverage", ""),
                 cwd=path,
                 log=self.absolute(log),
                 label="coverage",

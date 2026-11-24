@@ -28,7 +28,7 @@ def _infrastructure_failure(result: dict) -> CommandResult | None:
 
 async def _lint_single_language(
     lang: str,
-    ws: Path,
+    ws: Path | None,
     config: BotCoreConfig,
     package: str | None,
     fix: bool,
@@ -77,7 +77,7 @@ async def _lint_single_language(
 
 async def _test_single_language(
     lang: str,
-    ws: Path,
+    ws: Path | None,
     config: BotCoreConfig,
     package: str | None,
     coverage: bool,
@@ -128,7 +128,7 @@ async def _test_single_language(
 
 async def _build_single_language(
     lang: str,
-    ws: Path,
+    ws: Path | None,
     config: BotCoreConfig,
     package: str | None,
 ) -> CommandResult[dict]:
@@ -256,8 +256,8 @@ async def dev_lint(
 
     if _should_run_all(language, path, config):
         results: dict[str, CommandResult[dict]] = {}
-        for lang in config.languages:
-            results[lang] = await _lint_single_language(lang, ws, config, package, fix)
+        for item_lang in config.languages:
+            results[item_lang] = await _lint_single_language(item_lang, ws, config, package, fix)
         return _aggregate_results(results, "lint")
 
     lang = (
@@ -298,8 +298,10 @@ async def dev_test(
 
     if _should_run_all(language, path, config):
         results: dict[str, CommandResult[dict]] = {}
-        for lang in config.languages:
-            results[lang] = await _test_single_language(lang, ws, config, package, coverage)
+        for item_lang in config.languages:
+            results[item_lang] = await _test_single_language(
+                item_lang, ws, config, package, coverage
+            )
         return _aggregate_results(results, "test")
 
     lang = (
@@ -338,8 +340,8 @@ async def dev_build(
 
     if _should_run_all(language, path, config):
         results: dict[str, CommandResult[dict]] = {}
-        for lang in config.languages:
-            results[lang] = await _build_single_language(lang, ws, config, package)
+        for item_lang in config.languages:
+            results[item_lang] = await _build_single_language(item_lang, ws, config, package)
         return _aggregate_results(results, "build")
 
     lang = (

@@ -27,7 +27,6 @@ from afd.testing.adapters import (
     set_global_registry,
 )
 
-
 # ==============================================================================
 # Helpers
 # ==============================================================================
@@ -104,9 +103,7 @@ class TestAdapterRegistry:
         """Should pre-register adapters from options."""
         a1 = _make_adapter("app-a")
         a2 = _make_adapter("app-b")
-        registry = create_adapter_registry(
-            AdapterRegistryOptions(adapters=[a1, a2])
-        )
+        registry = create_adapter_registry(AdapterRegistryOptions(adapters=[a1, a2]))
         assert len(registry.list()) == 2
         assert registry.has("app-a")
         assert registry.has("app-b")
@@ -161,9 +158,7 @@ class TestAdapterRegistry:
     def test_duplicate_via_options_and_register_raises_error(self):
         """Should raise ValueError when registering a name already in options."""
         adapter = _make_adapter("pre")
-        registry = create_adapter_registry(
-            AdapterRegistryOptions(adapters=[adapter])
-        )
+        registry = create_adapter_registry(AdapterRegistryOptions(adapters=[adapter]))
         with pytest.raises(ValueError, match="already registered"):
             registry.register(_make_adapter("pre"))
 
@@ -179,9 +174,7 @@ class TestAdapterRegistryDetect:
     def test_detect_by_app_field(self):
         """Should detect an adapter by the fixture 'app' field."""
         adapter = _make_adapter("todo")
-        registry = create_adapter_registry(
-            AdapterRegistryOptions(adapters=[adapter])
-        )
+        registry = create_adapter_registry(AdapterRegistryOptions(adapters=[adapter]))
         result = registry.detect({"app": "todo", "data": []})
         assert result is adapter
 
@@ -234,15 +227,14 @@ class TestAdapterRegistryDetect:
 
     def test_detect_with_validate_on_adapter_skips_it(self):
         """Adapter with validate function should not be matched via _can_adapter_handle_fixture."""
+
         # _can_adapter_handle_fixture returns False if adapter.fixture.validate is set.
         # This means the adapter won't match through the secondary detection path.
         async def _dummy_validate(_fixture: Any) -> FixtureValidationResult:
             return FixtureValidationResult(valid=True)
 
         adapter = _make_adapter_with_validate("validated", validate_fn=_dummy_validate)
-        registry = create_adapter_registry(
-            AdapterRegistryOptions(adapters=[adapter])
-        )
+        registry = create_adapter_registry(AdapterRegistryOptions(adapters=[adapter]))
         # Fixture has app matching adapter name but detection first checks _is_fixture_with_app
         # which returns the adapter directly since it matches by name.
         result = registry.detect({"app": "validated"})
@@ -258,9 +250,7 @@ class TestAdapterRegistryDetect:
         # _can_adapter_handle_fixture checks if fixture has app field matching adapter.name
         # and adapter.fixture.validate is None.
         adapter = _make_adapter("secondary")
-        registry = create_adapter_registry(
-            AdapterRegistryOptions(adapters=[adapter])
-        )
+        registry = create_adapter_registry(AdapterRegistryOptions(adapters=[adapter]))
         # The primary path checks fixture["app"], finds "secondary", returns adapter.
         result = registry.detect({"app": "secondary"})
         assert result is adapter

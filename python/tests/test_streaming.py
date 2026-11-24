@@ -1,7 +1,6 @@
 """Tests for afd.core.streaming module."""
 
-import asyncio
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 import pytest
 
@@ -12,8 +11,8 @@ from afd.core.streaming import (
     DataChunk,
     ErrorChunk,
     ProgressChunk,
-    StreamCallbacks,
     StreamableCommand,
+    StreamCallbacks,
     StreamChunk,
     StreamOptions,
     collect_stream_data,
@@ -46,7 +45,9 @@ class TestCreateProgressChunk:
 
     def test_with_items(self):
         chunk = create_progress_chunk(
-            0.5, items_processed=50, items_total=100,
+            0.5,
+            items_processed=50,
+            items_total=100,
         )
         assert chunk.items_processed == 50
         assert chunk.items_total == 100
@@ -116,7 +117,8 @@ class TestCreateCompleteChunk:
     def test_with_all_fields(self):
         meta = ResultMetadata(trace_id="trace-123")
         chunk = create_complete_chunk(
-            10, 5000,
+            10,
+            5000,
             data={"exported": 100},
             confidence=0.95,
             reasoning="All items exported",
@@ -227,6 +229,7 @@ class TestStreamingTypeGuards:
     def test_is_streamable_command_with_object(self):
         class Cmd:
             streamable = True
+
         assert is_streamable_command(Cmd()) is True
 
     def test_is_streamable_command_false(self):

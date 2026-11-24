@@ -9,7 +9,7 @@ import json
 import logging
 import math
 import os
-from collections.abc import AsyncIterator, Callable, Iterator, Mapping, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator, Mapping, Sequence
 from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from typing import (
@@ -21,15 +21,23 @@ from typing import (
 from pydantic import BaseModel, ConfigDict, create_model
 from pydantic import ValidationError as PydanticValidationError
 
-from afd.core.batch import (
-    DEFAULT_MAX_BATCH_PARALLELISM,
-    DEFAULT_MAX_BATCH_SIZE,
-    BatchResult,
-)
 from afd.core.actor import Actor, ContextDefaults, actor_kind_of, with_context_defaults
 from afd.core.approval import ApprovalPolicy
+from afd.core.batch import (
+    DEFAULT_MAX_BATCH_PARALLELISM as DEFAULT_MAX_BATCH_PARALLELISM,
+)
+from afd.core.batch import (
+    DEFAULT_MAX_BATCH_SIZE as DEFAULT_MAX_BATCH_SIZE,
+)
+from afd.core.batch import (
+    BatchResult,
+)
+from afd.core.builtin_names import (
+    AFD_BOOTSTRAP_COMMAND_NAMES,
+    AFD_CONTEXT_COMMAND_NAMES,
+    AFD_META_TOOL_NAMES,
+)
 from afd.core.clock import Clock, RandomSource, system_clock
-from afd.core.direct_allow import _is_allowed, _not_allowed
 from afd.core.commands import (
     DEFAULT_EXPOSE,
     CallGrant,
@@ -45,6 +53,7 @@ from afd.core.commands import (
     validate_command_scopes,
     validate_task_declaration,
 )
+from afd.core.direct_allow import _is_allowed, _not_allowed
 from afd.core.errors import CommandError, ErrorCodes
 from afd.core.meta_keys import assert_advertised_input_schema, assert_tool_meta
 from afd.core.output_budget import (
@@ -76,42 +85,6 @@ from afd.core.schema_validation import (
 )
 from afd.core.similarity import truncate_name
 from afd.core.wire import to_wire
-from afd.server.bootstrap import ContextState, get_bootstrap_commands
-from afd.server.principal import IncompleteCredentials, principal_binding, sdk_credentials
-from afd.server.decorators import (
-    CommandMetadata,
-    command_to_definition,
-    define_command,
-    get_command_metadata,
-    has_command_metadata,
-    validate_command_input,
-)
-from afd.core.builtin_names import (
-    AFD_BOOTSTRAP_COMMAND_NAMES,
-    AFD_CONTEXT_COMMAND_NAMES,
-    AFD_META_TOOL_NAMES,
-)
-from afd.server.context_fields import (
-    AFD_CONTEXT_FIELDS_META_KEY,
-    ContextField,
-    apply_context_fields,
-    bind_context_field_values,
-    check_context_fields,
-    context_field_values,
-    describe_context_fields,
-)
-from afd.server.context_hook import (
-    ContextHook,
-    HookOutcome,
-    bind_hook_outcome,
-    current_hook_outcome,
-    run_context_hook,
-    trace_prefix_for_tool,
-)
-from afd.server.first_class import check_first_class_tools, normalize_first_class_tools
-from afd.server.lazy_tools import not_found_suggestion
-from afd.server.meta_argument import lift_meta_argument, meta_argument_keys
-from afd.server.middleware import CommandMiddleware
 from afd.server.approval_admission import (
     Admission,
     admission_for,
@@ -136,12 +109,58 @@ from afd.server.auth_rules import Credentials
 from afd.server.auth_scopes import ScopeChallenge
 from afd.server.auth_view import ScopeAuthority, ScopeView, listed_commands, scope_view_of
 from afd.server.batch_execution import execute_batch, execute_pipeline_request
+from afd.server.bootstrap import ContextState, get_bootstrap_commands
+from afd.server.config import (
+    DEFAULT_COMMAND_TIMEOUT_MS as DEFAULT_COMMAND_TIMEOUT_MS,
+)
+from afd.server.config import (
+    DEFAULT_TOOLS_LIST_TTL_MS as DEFAULT_TOOLS_LIST_TTL_MS,
+)
+from afd.server.config import (
+    MCPTransport as MCPTransport,
+)
+from afd.server.config import (
+    ServerConfig,
+    _resolve_default_timeout_ms,
+    default_instructions,
+    refuse_apps_tool_call,
+)
 from afd.server.confirmations import (
     CONFIRMATION_MODES,
     ConfirmationGate,
     bind_confirmation_channel,
 )
+from afd.server.context_fields import (
+    AFD_CONTEXT_FIELDS_META_KEY,
+    ContextField,
+    apply_context_fields,
+    bind_context_field_values,
+    check_context_fields,
+    context_field_values,
+    describe_context_fields,
+)
+from afd.server.context_hook import (
+    ContextHook,
+    HookOutcome,
+    bind_hook_outcome,
+    current_hook_outcome,
+    run_context_hook,
+    trace_prefix_for_tool,
+)
+from afd.server.decorators import (
+    CommandMetadata,
+    command_to_definition,
+    define_command,
+    get_command_metadata,
+    has_command_metadata,
+    validate_command_input,
+)
 from afd.server.elicitation import MAX_IN_BAND_ROUNDS, ElicitationRound
+from afd.server.first_class import check_first_class_tools, normalize_first_class_tools
+from afd.server.lazy_tools import not_found_suggestion
+from afd.server.meta_argument import lift_meta_argument, meta_argument_keys
+from afd.server.middleware import CommandMiddleware
+from afd.server.principal import IncompleteCredentials, principal_binding, sdk_credentials
 from afd.server.resources import (
     ResourceService,
     ResourcesOption,
@@ -171,17 +190,13 @@ from afd.server.tool_router import (
     create_tool_router,
     new_trace_id,
 )
-from afd.server.config import (
-    DEFAULT_COMMAND_TIMEOUT_MS,
-    DEFAULT_TOOLS_LIST_TTL_MS,
-    MCPTransport as MCPTransport,
-    ServerConfig,
-    _resolve_default_timeout_ms,
-    default_instructions,
-    refuse_apps_tool_call,
-)
 from afd.server.tools import get_tools_list
-from afd.server.types import ContextConfig, GroupByFn, ToolStrategy
+from afd.server.types import (
+    ContextConfig,
+    GroupByFn,
+    ToolStrategy,
+    _consume_task_exception,
+)
 from afd.server.validation import _input_validation_failure
 
 TInput = TypeVar("TInput", bound=BaseModel)
@@ -195,11 +210,6 @@ META_TOOL_NAMES: frozenset[str] = AFD_META_TOOL_NAMES
 these names, and batch items and pipeline steps cannot call them."""
 
 _CONTEXT_COMMAND_NAMES = frozenset({"afd-context-enter", "afd-context-exit"})
-
-
-def _consume_task_exception(task: asyncio.Task[Any]) -> None:
-    if not task.cancelled():
-        task.exception()
 
 
 # The SDK request context (``ServerRequestContext``) of the MCP request being handled,
@@ -251,9 +261,9 @@ class MCPServer:
             dev_mode=config.dev_mode,
         )
         self._registry = create_command_registry(call_grant=config.call_grant)
-        self._commands: dict[str, Callable] = {}
+        self._commands: dict[str, Callable[..., Any]] = {}
         self._metadata: dict[str, CommandMetadata] = {}
-        self._mcp_server = None
+        self._mcp_server: Any = None
         self._stateless_http = False
         self._middleware: list[CommandMiddleware] = list(config.middleware)
         self._context_state = SessionContextState()
@@ -261,7 +271,7 @@ class MCPServer:
         self._names_key: tuple[Any, ...] | None = None
         # Per-call caches, rebuilt after register() or a context change.
         self._command_index: dict[str, CommandDefinition] | None = None
-        self._router: Callable[[str, Any], Any] | None = None
+        self._router: Callable[..., Awaitable[Any]] | None = None
         self._scope_authority: ScopeAuthority | None = None
         self._first_class_checked = False
         self._auth_layer: AuthLayer | None = (
@@ -283,9 +293,7 @@ class MCPServer:
             clock=config.clock,
             actor=config.actor,
             has_context_hook=config.context_hook is not None,
-            run_context_hook=(
-                self._run_context_hook if config.context_hook is not None else None
-            ),
+            run_context_hook=(self._run_context_hook if config.context_hook is not None else None),
             get_admitted_credentials=self._current_admitted_credentials,
             get_scope_view=self._current_scope_view,
         )
@@ -353,7 +361,8 @@ class MCPServer:
         )
 
     def _get_scope_authority(self) -> ScopeAuthority:
-        assert self._auth_layer is not None
+        if self._auth_layer is None:
+            raise RuntimeError("auth layer is not configured")
         self._check_before_request()
         if self._scope_authority is None:
             commands = self.list_exposed_commands(
@@ -380,9 +389,7 @@ class MCPServer:
             return None
         return admitted_view_for(self._auth_layer)
 
-    def _insufficient_scope_rpc_error(
-        self, view: ScopeView, missing: Sequence[str]
-    ) -> Exception:
+    def _insufficient_scope_rpc_error(self, view: ScopeView, missing: Sequence[str]) -> Exception:
         from mcp import MCPError
         from mcp_types import INVALID_REQUEST
 
@@ -465,10 +472,10 @@ class MCPServer:
         advertised_input_schema: dict[str, Any] | None = None,
         output_budget: OutputBudget | dict[str, Any] | None = None,
         scopes: Sequence[str] | None = None,
-    ) -> Callable:
+    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Decorator to register a command with this server (arguments as ``define_command``)."""
 
-        def decorator(func: Callable) -> Callable:
+        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
             decorated = define_command(
                 name=name,
                 description=description,
@@ -504,7 +511,7 @@ class MCPServer:
 
         return decorator
 
-    def register(self, func: Callable) -> None:
+    def register(self, func: Callable[..., Any]) -> None:
         """Register an already-decorated command function.
 
         Raises:
@@ -686,9 +693,7 @@ class MCPServer:
             commands.extend(self._get_bootstrap_commands())
         if context_filtered:
             active_context = self._context_state.get_active()
-            commands = [
-                command for command in commands if _in_context(command, active_context)
-            ]
+            commands = [command for command in commands if _in_context(command, active_context)]
         return commands
 
     def _find_command(
@@ -699,9 +704,7 @@ class MCPServer:
         context_filtered: bool = False,
     ) -> CommandDefinition | None:
         command = (
-            self._get_command_index().get(name)
-            if include_bootstrap
-            else self._registry.get(name)
+            self._get_command_index().get(name) if include_bootstrap else self._registry.get(name)
         )
         if command is None:
             return None
@@ -741,7 +744,7 @@ class MCPServer:
         context: CommandContext,
         *,
         check_before_request: bool = False,
-    ) -> tuple[CommandDefinition, Any] | CommandResult:
+    ) -> tuple[CommandDefinition, Any] | CommandResult[Any]:
         """Check a call before any middleware runs.
 
         Lookup (with a "did you mean" suggestion), exposure, active context and
@@ -797,7 +800,11 @@ class MCPServer:
             )
 
         # An unknown interface exposes nothing, as in TypeScript's isExposedTo.
-        if interface is not None and interface != "" and not self._is_exposed_to(command, interface):
+        if (
+            interface is not None
+            and interface != ""
+            and not self._is_exposed_to(command, interface)
+        ):
             return error(
                 "COMMAND_NOT_EXPOSED",
                 f"Command '{command.name}' is not exposed to {interface}",
@@ -822,6 +829,8 @@ class MCPServer:
                 input_schema, input, max_issues=self._max_validation_issues
             )
         except (PydanticValidationError, SchemaValidationError) as exc:
+            if input_schema is None:
+                raise
             return _input_validation_failure(
                 input_schema,
                 {} if input is None else input,
@@ -885,7 +894,7 @@ class MCPServer:
             )
         return result
 
-    def _internal_error(self, command_name: str, exc: BaseException) -> CommandResult:
+    def _internal_error(self, command_name: str, exc: BaseException) -> CommandResult[Any]:
         """Log an unexpected exception and return a failure that is safe to send remotely.
 
         The exception text is only returned when ``dev_mode`` is enabled.
@@ -897,7 +906,7 @@ class MCPServer:
         )
         return execution_failure(exc, self.config.dev_mode)
 
-    def _as_command_result(self, command_name: str, result: Any) -> CommandResult:
+    def _as_command_result(self, command_name: str, result: Any) -> CommandResult[Any]:
         """Coerce a batch item or pipeline step result (see coerce_command_result)."""
         if isinstance(result, CommandResult):
             return result
@@ -983,8 +992,7 @@ class MCPServer:
             cancel = getattr(context, "cancel", None)
             signal = getattr(context, "signal", None)
             return bool(
-                (cancel is not None and cancel.is_set())
-                or (signal is not None and signal.is_set())
+                (cancel is not None and cancel.is_set()) or (signal is not None and signal.is_set())
             )
 
         def _cancelled_before_start() -> CommandResult[Any]:
@@ -1023,7 +1031,9 @@ class MCPServer:
 
             next_fn: Callable[[], Any] = run_handler
             for middleware in reversed(self._middleware):
-                next_fn = (lambda mw, nxt: (lambda: mw(name, data, context, nxt)))(middleware, next_fn)
+                next_fn = (lambda mw, nxt: lambda: mw(name, data, context, nxt))(
+                    middleware, next_fn
+                )
 
             if effective_timeout is None:
                 try:
@@ -1059,6 +1069,7 @@ class MCPServer:
                 if any(ev.is_set() for ev in caller_events):
                     deadline_event.set()
                 elif caller_events:
+
                     async def _mirror_caller() -> None:
                         waits = [asyncio.create_task(ev.wait()) for ev in caller_events]
                         try:
@@ -1079,9 +1090,9 @@ class MCPServer:
                         if task.cancelled():
                             result = _cancelled_before_start()
                         else:
-                            exc = task.exception()
-                            if exc is not None:
-                                result = self._internal_error(name, exc)
+                            task_exc = task.exception()
+                            if task_exc is not None:
+                                result = self._internal_error(name, task_exc)
                             else:
                                 result = task.result()
                     else:
@@ -1125,7 +1136,9 @@ class MCPServer:
     ) -> Any:
         """Execute a command or built-in tool by name."""
 
-        interface = context.extra.get("interface") if context is not None and context.extra else None
+        interface = (
+            context.extra.get("interface") if context is not None and context.extra else None
+        )
         if interface == "apps":
             return await self._execute_command(
                 name,
@@ -1166,11 +1179,7 @@ class MCPServer:
     def _refresh_dynamic_tools(self, name: str, result: Any) -> None:
         """Refresh caches and live MCP tools after context-changing commands."""
 
-        if (
-            name in _CONTEXT_COMMAND_NAMES
-            and isinstance(result, CommandResult)
-            and result.success
-        ):
+        if name in _CONTEXT_COMMAND_NAMES and isinstance(result, CommandResult) and result.success:
             self._router = None
             # The shared FastMCP registry stays complete; tools/list filters per session.
 
@@ -1182,6 +1191,8 @@ class MCPServer:
         promise a notification that never comes.
         """
         lowlevel = getattr(self._mcp_server, "_lowlevel_server", None)
+        if lowlevel is None:
+            return
         get_capabilities = getattr(lowlevel, "get_capabilities", None)
         if get_capabilities is None or getattr(lowlevel, "_afd_fixed_tools_list", False):
             return
@@ -1233,6 +1244,8 @@ class MCPServer:
         if not self.config.context_fields:
             return
         lowlevel = getattr(self._mcp_server, "_lowlevel_server", None)
+        if lowlevel is None:
+            return
         get_handler = getattr(lowlevel, "get_request_handler", None)
         entry = get_handler("server/discover") if get_handler is not None else None
         if entry is None or getattr(lowlevel, "_afd_context_fields_discover", False):
@@ -1249,7 +1262,10 @@ class MCPServer:
                 return result.model_copy(update={"meta": {**(meta or {}), **listed}})
             if isinstance(result, Mapping):
                 meta = result.get("_meta")
-                return {**result, "_meta": {**(meta if isinstance(meta, Mapping) else {}), **listed}}
+                return {
+                    **result,
+                    "_meta": {**(meta if isinstance(meta, Mapping) else {}), **listed},
+                }
             return result
 
         lowlevel.add_request_handler("server/discover", entry.params_type, discover_with_fields)
@@ -1278,8 +1294,12 @@ class MCPServer:
             if tool is None:
                 if server._current_scope_view() is None:
                     active_context = server._context_state.get_active()
-                    registered = server._find_command(name, include_bootstrap=True, context_filtered=False)
-                    visible = server._find_command(name, include_bootstrap=True, context_filtered=True)
+                    registered = server._find_command(
+                        name, include_bootstrap=True, context_filtered=False
+                    )
+                    visible = server._find_command(
+                        name, include_bootstrap=True, context_filtered=True
+                    )
                     if (
                         active_context
                         and registered is not None
@@ -1324,7 +1344,7 @@ class MCPServer:
         self,
         request: Any,
         context: CommandContext | None = None,
-    ) -> BatchResult:
+    ) -> BatchResult[Any]:
         """Run a batch with partial-success semantics (see ``execute_batch``)."""
         return await execute_batch(
             request,
@@ -1346,7 +1366,7 @@ class MCPServer:
 
     async def _run_isolated(
         self, command_name: str, input: Any, context: CommandContext
-    ) -> CommandResult:
+    ) -> CommandResult[Any]:
         """Run one batch command or pipeline step. Never raises, except when cancelled."""
         try:
             result = await self._execute_command(command_name, input, context)
@@ -1356,7 +1376,7 @@ class MCPServer:
 
     # ── Tool routing ───────────────────────────────────────────────────────
 
-    def _get_router(self) -> Callable[[str, Any], Any]:
+    def _get_router(self) -> Callable[..., Awaitable[Any]]:
         """The tool router, built once and rebuilt after register() or a context change."""
         self._check_before_request()
         if self._router is None:
@@ -1489,7 +1509,7 @@ class MCPServer:
             tool = self._create_fastmcp_tool(tool_definition)
             tool_manager._tools[tool.name] = tool
 
-    def _build_input_model(self, tool_name: str, schema: dict[str, Any]) -> type[BaseModel]:
+    def _build_input_model(self, tool_name: str, schema: dict[str, Any]) -> Any:
         """Build a FastMCP argument model that passes arguments through unchanged.
 
         The advertised ``inputSchema`` is the command's schema, but FastMCP does
@@ -1510,7 +1530,7 @@ class MCPServer:
             __base__=PassthroughArgs,
         )
 
-    def _create_fastmcp_tool(self, tool_definition: dict[str, Any]):
+    def _create_fastmcp_tool(self, tool_definition: dict[str, Any]) -> Any:
         from mcp.server.mcpserver.tools import Tool
         from mcp.server.mcpserver.utilities.func_metadata import FuncMetadata
 
@@ -1539,6 +1559,7 @@ class MCPServer:
             fn_metadata=FuncMetadata(arg_model=input_model),
             is_async=True,
             context_kwarg="afd_ctx",
+            annotations=None,
             meta=tool_definition.get("_meta"),
         )
 
@@ -1587,7 +1608,7 @@ class MCPServer:
                 return _tool_call_result(_unanswered_approval(tool_name))
         return _tool_call_result(_unanswered_approval(tool_name))
 
-    def _create_mcp_server(self):
+    def _create_mcp_server(self) -> Any:
         """Create the underlying MCP SDK server (``mcp.server.mcpserver.MCPServer``)."""
 
         try:
@@ -1743,7 +1764,7 @@ class MCPServer:
                 uvicorn_server = uvicorn.Server(config)
                 await uvicorn_server.serve()
 
-            async def list_tools(self):
+            async def list_tools(self) -> Any:
                 from mcp.types import Tool as MCPTool
 
                 if not server._is_auth_admitted():
@@ -1782,7 +1803,7 @@ class MCPServer:
                 ):
                     return await super().call_tool(name, lifted.arguments, context)
 
-            async def call_tool(self, name, arguments, context=None):
+            async def call_tool(self, name: Any, arguments: Any, context: Any = None) -> Any:
                 if not server._is_auth_admitted():
                     return _tool_call_result(failure(server._unauthorized_error()))
                 outcome = current_hook_outcome()
@@ -1795,13 +1816,15 @@ class MCPServer:
                         return await self._dispatch_tool_call(name, arguments, context, outcome)
                 return await self._dispatch_tool_call(name, arguments, context, outcome)
 
-        cache_hints: dict[str, Any] = {
+        cache_hints: Any = {
             "tools/list": hint,
             "server/discover": discover_hint,
         }
         extensions: list[Any] = [self._task_runtime.create_extension()]
         if self._resource_service is not None:
-            cache_hints.update(self._resource_service.cache_hints(auth_configured=self._auth_layer is not None))
+            cache_hints.update(
+                self._resource_service.cache_hints(auth_configured=self._auth_layer is not None)
+            )
             skills_ext = self._resource_service.create_skills_extension()
             if skills_ext is not None:
                 extensions.append(skills_ext)
@@ -1841,7 +1864,11 @@ class MCPServer:
         lowlevel = getattr(self._mcp_server, "_lowlevel_server", None)
         strip_unused_sdk_handlers(lowlevel, serve_resources=self._resource_service is not None)
         if self._resource_service is not None:
-            self._resource_service.install_handlers(lowlevel, get_admitted_credentials=self._current_admitted_credentials, auth_configured=self._auth_layer is not None)
+            self._resource_service.install_handlers(
+                lowlevel,
+                get_admitted_credentials=self._current_admitted_credentials,
+                auth_configured=self._auth_layer is not None,
+            )
         self._install_pre_boundary_middleware()
         self._sync_mcp_tool_definitions()
         self._install_fastmcp_context_error_translation()
@@ -1851,9 +1878,11 @@ class MCPServer:
 
     async def _run_context_hook(self, tool_name: str, request_context: Any) -> HookOutcome:
         """Run the server's per-request context hook once for ``tools/call``."""
-        assert self.config.context_hook is not None
+        hook = self.config.context_hook
+        if hook is None:
+            raise RuntimeError("context_hook is not configured")
         return await run_context_hook(
-            self.config.context_hook,
+            hook,
             tool_name,
             request_context,
             ContextDefaults(
@@ -1962,10 +1991,14 @@ class MCPServer:
         lowlevel = getattr(self._mcp_server, "_lowlevel_server", None)
         chain = getattr(lowlevel, "middleware", None)
         boundary = next(
-            (index for index, item in enumerate(chain or ()) if isinstance(item, RequestStateBoundary)),
+            (
+                index
+                for index, item in enumerate(chain or ())
+                if isinstance(item, RequestStateBoundary)
+            ),
             None,
         )
-        if boundary is None:
+        if boundary is None or chain is None:
             raise RuntimeError("the MCP SDK's request-state boundary was not found")
         chain.insert(boundary, pre_boundary)
 
@@ -2090,7 +2123,7 @@ def _in_context(command: CommandDefinition, active_context: str | None) -> bool:
     return not active_context or not command.contexts or active_context in command.contexts
 
 
-def _approval_unavailable(command_name: str, admission: str) -> CommandResult:
+def _approval_unavailable(command_name: str, admission: str) -> CommandResult[Any]:
     """``APPROVAL_UNAVAILABLE`` for a gated dispatch no approval step admitted.
 
     ``admission`` is ``"missing"`` (no approval step admitted this call) or ``"mismatch"``: an
@@ -2122,13 +2155,13 @@ def _approval_unavailable(command_name: str, admission: str) -> CommandResult:
 
 
 def _with_execution_metadata(
-    result: CommandResult,
+    result: CommandResult[Any],
     *,
     execution_time_ms: float,
     command_version: str | None,
     trace_id: str | None,
     actor_kind: str | None = None,
-) -> CommandResult:
+) -> CommandResult[Any]:
     """A copy of ``result`` whose metadata carries the server's execution fields.
 
     The handler's own result object is never mutated (it may be shared).
@@ -2196,8 +2229,8 @@ def _tool_call_result(result: Any) -> Any:
     wire = to_wire(result)
     return CallToolResult(
         content=[TextContent(type="text", text=json.dumps(wire))],
-        structuredContent=wire if isinstance(wire, dict) else None,
-        isError=_is_error_result(result),
+        structured_content=wire if isinstance(wire, dict) else None,
+        is_error=_is_error_result(result),
     )
 
 

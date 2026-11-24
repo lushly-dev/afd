@@ -546,7 +546,9 @@ def test_a_ref_outside_the_subset_fails_at_registration(ref):
     schema = {
         "type": "object",
         "properties": {"p": {"$ref": ref}},
-        "$defs": {"A": {"type": "object", "$defs": {"B": {"type": "string"}}, "properties": {"x": {}}}},
+        "$defs": {
+            "A": {"type": "object", "$defs": {"B": {"type": "string"}}, "properties": {"x": {}}}
+        },
         "definitions": {"A": {"type": "array", "items": {}}},
     }
     with pytest.raises(ValueError, match=r"Unsupported \$ref"):

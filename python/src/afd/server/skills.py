@@ -444,11 +444,7 @@ class SkillCatalog:
 
     def resources(self) -> list[dict[str, Any]]:
         """Every skill file as a ``resources/list`` item, skill by skill in manifest order (S5)."""
-        return [
-            copy.deepcopy(item.resource)
-            for skill in self._skills
-            for item in skill.files
-        ]
+        return [copy.deepcopy(item.resource) for skill in self._skills for item in skill.files]
 
     def file(self, uri: str) -> tuple[bytes, str] | None:
         """A skill file's ``(bytes, mime_type)`` by its exact URI."""
@@ -478,10 +474,7 @@ class SkillCatalog:
                         "name": subdirectory,
                         "mimeType": _DIRECTORY_MIME_TYPE,
                     }
-        return [
-            children[name]
-            for name in sorted(children, key=lambda key: key.encode("utf-8"))
-        ]
+        return [children[name] for name in sorted(children, key=lambda key: key.encode("utf-8"))]
 
 
 def _is_within_root(root: str, target: str) -> bool:

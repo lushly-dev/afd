@@ -2,26 +2,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Callable, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError
 
 from afd.core.commands import CommandContext, CommandDefinition, ExposeOptions
 from afd.core.result import CommandResult, error, success
 from afd.core.wire import WireModel
+from afd.server.types import ContextConfig
 from afd.server.validation import _input_validation_failure
-
-
-@dataclass(frozen=True)
-class ContextConfig:
-    """Configuration for a named tool context."""
-
-    name: str
-    description: Optional[str] = None
-    triggers: List[str] = field(default_factory=list)
-    priority: Optional[int] = None
-
 
 DEFAULT_CONTEXT_MAX_DEPTH = 16
 
@@ -54,9 +44,9 @@ class ContextState:
             raise ValueError("Context max_depth must be a positive integer")
         self.max_depth = max_depth
         self.persistent = persistent
-        self.stack: List[str] = []
+        self.stack: list[str] = []
 
-    def get_active(self) -> Optional[str]:
+    def get_active(self) -> str | None:
         return self.stack[-1] if self.stack else None
 
     def enter(self, name: str) -> None:
@@ -66,7 +56,7 @@ class ContextState:
             raise ValueError(f"Context stack is limited to {self.max_depth} levels")
         self.stack.append(name)
 
-    def exit(self) -> Optional[str]:
+    def exit(self) -> str | None:
         return self.stack.pop() if self.stack else None
 
 
@@ -98,16 +88,16 @@ class ContextInfo(WireModel):
     """Metadata about a configured context."""
 
     name: str
-    description: Optional[str] = None
-    triggers: Optional[List[str]] = None
-    priority: Optional[int] = None
+    description: str | None = None
+    triggers: list[str] | None = None
+    priority: int | None = None
 
 
 class AfdContextListOutput(WireModel):
     """Output for afd-context-list."""
 
-    contexts: List[ContextInfo]
-    active_context: Optional[str] = None
+    contexts: list[ContextInfo]
+    active_context: str | None = None
 
 
 class AfdContextEnterInput(BaseModel):
@@ -120,8 +110,8 @@ class AfdContextEnterOutput(WireModel):
     """Output for afd-context-enter."""
 
     entered: str
-    previous: Optional[str] = None
-    persisted: Optional[bool] = None
+    previous: str | None = None
+    persisted: bool | None = None
     """``False`` on a stateless request: nothing was stored."""
 
 
@@ -134,9 +124,9 @@ class AfdContextExitInput(BaseModel):
 class AfdContextExitOutput(WireModel):
     """Output for afd-context-exit."""
 
-    exited: Optional[str] = None
-    current: Optional[str] = None
-    persisted: Optional[bool] = None
+    exited: str | None = None
+    current: str | None = None
+    persisted: bool | None = None
     """``False`` on a stateless request: nothing was changed."""
 
 
@@ -144,14 +134,14 @@ BOOTSTRAP_EXPOSE = ExposeOptions(mcp=True, cli=True)
 
 
 def create_afd_context_list_command(
-    get_contexts: Callable[[], List[ContextConfig]],
+    get_contexts: Callable[[], list[ContextConfig]],
     context_state: ContextState,
 ) -> CommandDefinition:
     """Create the afd-context-list bootstrap command."""
 
     async def handler(
         input: Any,
-        context: Optional[CommandContext] = None,
+        context: CommandContext | None = None,
     ) -> CommandResult[AfdContextListOutput]:
         _ = context
         configs = sorted(
@@ -192,14 +182,14 @@ def create_afd_context_list_command(
 
 
 def create_afd_context_enter_command(
-    get_contexts: Callable[[], List[ContextConfig]],
+    get_contexts: Callable[[], list[ContextConfig]],
     context_state: ContextState,
 ) -> CommandDefinition:
     """Create the afd-context-enter bootstrap command."""
 
     async def handler(
         input: Any,
-        context: Optional[CommandContext] = None,
+        context: CommandContext | None = None,
     ) -> CommandResult[AfdContextEnterOutput]:
         _ = context
         if not context_state.session_available:
@@ -217,9 +207,7 @@ def create_afd_context_enter_command(
             return error(
                 "CONTEXT_NOT_FOUND",
                 f"Context '{parsed.context}' is not configured",
-                suggestion=(
-                    "Use afd-context-list to see available contexts."
-                ),
+                suggestion=("Use afd-context-list to see available contexts."),
             )
 
         previous = context_state.get_active()
@@ -263,7 +251,7 @@ def create_afd_context_exit_command(
 
     async def handler(
         input: Any,
-        context: Optional[CommandContext] = None,
+        context: CommandContext | None = None,
     ) -> CommandResult[AfdContextExitOutput]:
         _ = input, context
         if not context_state.session_available:
@@ -280,11 +268,7 @@ def create_afd_context_exit_command(
         current = context_state.get_active()
         return success(
             AfdContextExitOutput(exited=exited, current=current),
-            reasoning=(
-                f"Exited context '{exited}'"
-                if exited
-                else "No active context to exit"
-            ),
+            reasoning=(f"Exited context '{exited}'" if exited else "No active context to exit"),
             confidence=1.0,
         )
 

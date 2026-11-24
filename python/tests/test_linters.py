@@ -460,9 +460,9 @@ def test_severity_override_promotes_warning_to_error(tmp_dir: Path) -> None:
 
 def test_severity_override_demotes_error_to_warning(tmp_dir: Path) -> None:
     _write(tmp_dir, _FETCH, _FETCH_SRC)
-    result = AFDLinter(
-        rule_severity_overrides={"afd-no-direct-fetch": Severity.WARNING}
-    ).lint(tmp_dir)
+    result = AFDLinter(rule_severity_overrides={"afd-no-direct-fetch": Severity.WARNING}).lint(
+        tmp_dir
+    )
     assert result.error_count == 0
     assert result.warning_count == 1
     assert result.passed is True
@@ -544,9 +544,7 @@ _AMBIENT_RULES = {"afd-no-ambient-time", "afd-no-ambient-random"}
 
 
 def _ambient(result) -> list[tuple[int, str, str]]:
-    return sorted(
-        (i.line, i.rule, i.message) for i in result.issues if i.rule in _AMBIENT_RULES
-    )
+    return sorted((i.line, i.rule, i.message) for i in result.issues if i.rule in _AMBIENT_RULES)
 
 
 def test_ambient_calls_in_handler_flagged_as_warnings(tmp_dir: Path) -> None:
@@ -895,7 +893,9 @@ def test_ambient_python_seeded_random_class_not_flagged(tmp_dir: Path) -> None:
 
 
 def test_ambient_python_syntax_error_is_skipped(tmp_dir: Path) -> None:
-    _write(tmp_dir, _PY_CMD, "import time\n@server.command(name='x', description='d'\ndef broken(:\n")
+    _write(
+        tmp_dir, _PY_CMD, "import time\n@server.command(name='x', description='d'\ndef broken(:\n"
+    )
     assert _ambient(AFDLinter().lint(tmp_dir)) == []
 
 
@@ -967,13 +967,13 @@ def test_ambient_rust_negatives_not_flagged(tmp_dir: Path) -> None:
         "let mw = |n: String, ctx: CommandContext, next: MiddlewareNext| { Instant::now(); next() };\n"
         "impl CommandHandler for Get {\n"
         "    async fn execute(&self, input: Value, context: CommandContext) -> CommandResult<Value> {\n"
-        "        let s = \"SystemTime::now()\"; // Instant::now()\n"
-        "        let raw = r#\"Uuid::new_v4() \" still raw\"#;\n"
+        '        let s = "SystemTime::now()"; // Instant::now()\n'
+        '        let raw = r#"Uuid::new_v4() " still raw"#;\n'
         "        /* outer /* nested */ rand::random() */\n"
         "        let c = '\"'; let l: &'static str = \"x\";\n"
         "        let now = context.clock().now();\n"
         "        let roll = context.random().next();\n"
-        "        success(json!({ \"now\": now }))\n"
+        '        success(json!({ "now": now }))\n'
         "    }\n"
         "}\n",
     )
@@ -987,7 +987,7 @@ def test_ambient_cpp_handler_lambda_flagged(tmp_dir: Path) -> None:
     _write(
         tmp_dir,
         _CPP_CMD,
-        "auto create = command(\"todo-create\", \"Create\", {\"todo\"}, true,\n"
+        'auto create = command("todo-create", "Create", {"todo"}, true,\n'
         "    [store](const Json& input, CommandContext& context) -> afd::CommandResult {\n"
         "        auto now = std::chrono::system_clock::now();\n"
         "        auto t0 = std::chrono::steady_clock::now();\n"
@@ -1018,7 +1018,7 @@ def test_ambient_cpp_function_and_designated_initializer_flagged(tmp_dir: Path) 
         "inline afd::CommandResult get(const afd::Json& input, afd::CommandContext&) noexcept {\n"
         "    return afd::success(time(nullptr));\n"
         "}\n"
-        "afd::CommandDefinition def{.name = \"x-get\",\n"
+        'afd::CommandDefinition def{.name = "x-get",\n'
         "    .handler = [](const afd::Json& input, afd::CommandContext&) {\n"
         "        return afd::success(rand());\n"
         "    }};\n",
@@ -1067,8 +1067,8 @@ def test_ambient_cpp_negatives_not_flagged(tmp_dir: Path) -> None:
         "};\n"
         "void f() { if (run(CommandContext{})) { std::rand(); } }\n"
         "auto h = [](const Json& input, CommandContext& context) {\n"
-        "    const char* s = \"std::rand()\"; // std::time(nullptr)\n"
-        "    const char* raw = R\"x(std::random_device \" still raw)x\";\n"
+        '    const char* s = "std::rand()"; // std::time(nullptr)\n'
+        '    const char* raw = R"x(std::random_device " still raw)x";\n'
         "    int big = 1'000'000; char q = '\"';\n"
         "    auto at = context.clock->wall_ms();\n"
         "    double roll = context.random->next();\n"
@@ -1081,12 +1081,21 @@ def test_ambient_cpp_negatives_not_flagged(tmp_dir: Path) -> None:
 @pytest.mark.parametrize(
     ("rel", "source"),
     [
-        (_PY_CMD, "import time\n@server.command(name='x', description='d')\nasync def h(i):\n"
-         "    # afd-lint-disable: display-only timestamp\n    return time.time()\n"),
-        (_RS_CMD, "fn h(c: CommandContext) {\n    // afd-lint-disable: display-only timestamp\n"
-         "    SystemTime::now();\n}\n"),
-        (_CPP_CMD, "auto h = [](const Json& i, CommandContext& c) {\n"
-         "    // afd-lint-disable: display-only timestamp\n    std::time(nullptr);\n};\n"),
+        (
+            _PY_CMD,
+            "import time\n@server.command(name='x', description='d')\nasync def h(i):\n"
+            "    # afd-lint-disable: display-only timestamp\n    return time.time()\n",
+        ),
+        (
+            _RS_CMD,
+            "fn h(c: CommandContext) {\n    // afd-lint-disable: display-only timestamp\n"
+            "    SystemTime::now();\n}\n",
+        ),
+        (
+            _CPP_CMD,
+            "auto h = [](const Json& i, CommandContext& c) {\n"
+            "    // afd-lint-disable: display-only timestamp\n    std::time(nullptr);\n};\n",
+        ),
     ],
 )
 def test_ambient_other_languages_take_directives_and_overrides(
@@ -1229,7 +1238,7 @@ def _crypto_cmd(imports: str, body: str) -> str:
         ("import { randomInt } from '%s';", "const n = randomInt(10);", "randomInt()"),
         ("import { randomUUID as uuid } from '%s';", "const id = uuid();", "randomUUID()"),
         (
-            "import { createHash, type X, randomInt\n  as roll } from \"%s\";",
+            'import { createHash, type X, randomInt\n  as roll } from "%s";',
             "const n = roll(5);",
             "randomInt()",
         ),
@@ -1315,7 +1324,10 @@ def test_crypto_default_and_named_import_together(tmp_dir: Path) -> None:
     _write(
         tmp_dir,
         _CMD,
-        _crypto_cmd("import nc, { randomInt } from 'node:crypto';", "const n = randomInt(3) + nc.randomInt(3);"),
+        _crypto_cmd(
+            "import nc, { randomInt } from 'node:crypto';",
+            "const n = randomInt(3) + nc.randomInt(3);",
+        ),
     )
     assert [m for _, _, m in _ambient(AFDLinter().lint(tmp_dir))] == [
         "Ambient nc.randomInt() in command handler",

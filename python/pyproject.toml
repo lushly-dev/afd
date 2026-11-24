@@ -99,9 +99,36 @@ ignore = ["E501"]
 
 [tool.mypy]
 python_version = "3.11"
+# Strict by default across the package, with explicit per-module overrides below
+# ratcheting down as remaining non-core/non-server modules tighten (#1757).
 strict = true
 warn_return_any = true
 warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = [
+    "afd.cli.*",
+    "afd.client",
+    "afd.connectors.*",
+    "afd.direct",
+    "afd.handoff_client",
+    "afd.lushx_ext.*",
+    "afd.platform",
+    "afd.testing.*",
+    "afd.transports.*",
+]
+strict = false
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+disallow_any_generics = false
+warn_return_any = false
+no_implicit_reexport = false
+check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = ["yaml", "yaml.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

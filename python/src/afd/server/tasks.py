@@ -15,7 +15,7 @@ import os
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal, Protocol, Union, runtime_checkable
+from typing import Any, Literal, Protocol, runtime_checkable
 
 from afd.core.commands import CommandContext, CommandDefinition, validate_task_declaration
 from afd.core.errors import CommandError
@@ -147,13 +147,13 @@ class TaskCancelledChange:
     kind: Literal["cancelled"] = "cancelled"
 
 
-TaskChange = Union[
-    TaskProgressChange,
-    TaskCancelRequestedChange,
-    TaskCompletedChange,
-    TaskFailedChange,
-    TaskCancelledChange,
-]
+TaskChange = (
+    TaskProgressChange
+    | TaskCancelRequestedChange
+    | TaskCompletedChange
+    | TaskFailedChange
+    | TaskCancelledChange
+)
 """A change applied atomically to a working task record."""
 
 

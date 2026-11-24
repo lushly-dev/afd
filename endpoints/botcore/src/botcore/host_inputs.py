@@ -36,11 +36,11 @@ def _bound(text: str) -> str:
     return text[: DESCRIPTION_LIMIT - 3].rsplit(" ", 1)[0] + "..."
 
 
-def _doc(handler: Callable) -> str:
+def _doc(handler: Callable[..., Any]) -> str:
     return inspect.cleandoc(getattr(handler, "__doc__", None) or "")
 
 
-def summary(handler: Callable) -> str:
+def summary(handler: Callable[..., Any]) -> str:
     """The docstring's first line: the only prose of it a catalog row carries."""
     lines = _doc(handler).splitlines()
     return _bound(lines[0]) if lines else ""
@@ -52,7 +52,9 @@ def parameter_docs(doc: str | None) -> dict[str, str]:
     An entry's continuation lines join it. Other docstring styles yield nothing.
     """
     found: dict[str, list[str]] = {}
-    mode = current = entry_indent = None
+    mode: str | None = None
+    current: str | None = None
+    entry_indent: int | None = None
     for line in inspect.cleandoc(doc or "").splitlines():
         text, indent = line.strip(), len(line) - len(line.lstrip())
         if not text:
@@ -68,14 +70,14 @@ def parameter_docs(doc: str | None) -> dict[str, str]:
         elif mode == "google" and (entry_indent is None or indent <= entry_indent):
             entry, entry_indent = _ENTRY.fullmatch(text), indent
             current = entry[1] if entry else None
-            if entry:
+            if entry and current is not None:
                 found[current] = [entry[2]]
         elif current:
             found[current].append(text)
     return {name: _bound(" ".join(parts)) for name, parts in found.items() if "".join(parts)}
 
 
-def _signature(handler: Callable) -> inspect.Signature:
+def _signature(handler: Callable[..., Any]) -> inspect.Signature:
     """The signature with string hints resolved one at a time, as eval_str would.
 
     A hint naming something unimportable at runtime (a TYPE_CHECKING import) stays a
@@ -100,7 +102,7 @@ def _signature(handler: Callable) -> inspect.Signature:
     )
 
 
-def _parameter_schema(annotation: Any, defs: dict) -> dict:
+def _parameter_schema(annotation: Any, defs: dict[str, Any]) -> dict[str, Any]:
     if annotation is inspect.Parameter.empty or isinstance(annotation, str):
         return {}  # Unannotated, or a hint that did not resolve: any JSON value.
     try:
@@ -114,11 +116,11 @@ def _parameter_schema(annotation: Any, defs: dict) -> dict:
 
 
 @lru_cache(maxsize=1024)
-def _derive(handler: Callable) -> tuple[str, dict]:
+def _derive(handler: Callable[..., Any]) -> tuple[str, dict[str, Any]]:
     docs = parameter_docs(_doc(handler))
-    properties: dict[str, dict] = {}
+    properties: dict[str, dict[str, Any]] = {}
     required: list[str] = []
-    defs: dict[str, dict] = {}
+    defs: dict[str, dict[str, Any]] = {}
     open_ended = False
     for name, parameter in _signature(handler).parameters.items():
         if parameter.kind is inspect.Parameter.VAR_KEYWORD:
@@ -145,7 +147,7 @@ def _derive(handler: Callable) -> tuple[str, dict]:
     return summary(handler), input_schema
 
 
-def describe_inputs(handler: Callable) -> tuple[str, dict]:
+def describe_inputs(handler: Callable[..., Any]) -> tuple[str, dict[str, Any]]:
     """Return the handler's one-line description and the JSON Schema of its keyword inputs.
 
     Required inputs have no default; optional ones carry their default when it has a JSON
@@ -173,7 +175,9 @@ def closest_parameter(name: str, accepted: list[str]) -> str | None:
     return by_key[match[0]] if match else None
 
 
-def check_arguments(name: str, handler: Callable, arguments: dict) -> CommandResult | None:
+def check_arguments(
+    name: str, handler: Callable[..., Any], arguments: dict[str, Any]
+) -> CommandResult[Any] | None:
     """Refuse an argument the handler does not take, or a missing required one.
 
     The refusal is AFD's VALIDATION_ERROR, with the shared catalog's
@@ -219,11 +223,11 @@ def check_arguments(name: str, handler: Callable, arguments: dict) -> CommandRes
 
 
 @lru_cache(maxsize=1024)
-def _adapters(handler: Callable) -> dict[str, TypeAdapter]:
+def _adapters(handler: Callable[..., Any]) -> dict[str, TypeAdapter[Any]]:
     """A validator per annotated keyword input. A hint that did not resolve, or one
     Pydantic cannot build a validator for, is left unchecked, as the catalog leaves it
     undescribed."""
-    adapters = {}
+    adapters: dict[str, TypeAdapter[Any]] = {}
     for name, parameter in _signature(handler).parameters.items():
         annotation = parameter.annotation
         if parameter.kind not in _KEYWORD or annotation is inspect.Parameter.empty:
@@ -237,7 +241,7 @@ def _adapters(handler: Callable) -> dict[str, TypeAdapter]:
     return adapters
 
 
-def _location(name: str, loc: tuple) -> str:
+def _location(name: str, loc: tuple[str | int, ...]) -> str:
     path = name
     for part in loc:
         path += f"[{part}]" if isinstance(part, int) else f".{part}"
@@ -245,8 +249,8 @@ def _location(name: str, loc: tuple) -> str:
 
 
 def validate_arguments(
-    name: str, handler: Callable, arguments: dict
-) -> tuple[dict, CommandResult | None]:
+    name: str, handler: Callable[..., Any], arguments: dict[str, Any]
+) -> tuple[dict[str, Any], CommandResult[Any] | None]:
     """Validate each input against its type hint, as the catalog's schema describes it.
 
     Returns the validated arguments (a Pydantic model hint arrives as the model, a

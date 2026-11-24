@@ -41,15 +41,11 @@ class TestTokenCacheEntry:
         assert entry.is_expired() is False
 
     def test_is_expired_false_when_future(self) -> None:
-        entry = TokenCacheEntry(
-            token="t", provider="x", expires_at=time.monotonic() + 3600
-        )
+        entry = TokenCacheEntry(token="t", provider="x", expires_at=time.monotonic() + 3600)
         assert entry.is_expired() is False
 
     def test_is_expired_true_when_past(self) -> None:
-        entry = TokenCacheEntry(
-            token="t", provider="x", expires_at=time.monotonic() - 1
-        )
+        entry = TokenCacheEntry(token="t", provider="x", expires_at=time.monotonic() - 1)
         assert entry.is_expired() is True
 
     def test_needs_refresh_false_when_no_expiry(self) -> None:
@@ -57,15 +53,11 @@ class TestTokenCacheEntry:
         assert entry.needs_refresh() is False
 
     def test_needs_refresh_true_when_within_buffer(self) -> None:
-        entry = TokenCacheEntry(
-            token="t", provider="x", expires_at=time.monotonic() + 100
-        )
+        entry = TokenCacheEntry(token="t", provider="x", expires_at=time.monotonic() + 100)
         assert entry.needs_refresh(buffer_seconds=200) is True
 
     def test_needs_refresh_false_when_far_from_expiry(self) -> None:
-        entry = TokenCacheEntry(
-            token="t", provider="x", expires_at=time.monotonic() + 3600
-        )
+        entry = TokenCacheEntry(token="t", provider="x", expires_at=time.monotonic() + 3600)
         assert entry.needs_refresh(buffer_seconds=300) is False
 
 
@@ -261,9 +253,7 @@ class TestConnectorAuth401Retry:
         resolver.resolve = AsyncMock(return_value="some-token")
         resolver.invalidate = AsyncMock()
 
-        respx.get(f"{BASE}/data").mock(
-            return_value=httpx.Response(401, json={"message": "nope"})
-        )
+        respx.get(f"{BASE}/data").mock(return_value=httpx.Response(401, json={"message": "nope"}))
 
         async with _make_connector(resolver=resolver, auth_provider="github") as c:
             result = await c.api_call("GET", "/data")
@@ -301,9 +291,7 @@ class TestConnectorAuth401Retry:
         resolver = AsyncMock()
         resolver.resolve = AsyncMock(return_value="")
 
-        route = respx.get(f"{BASE}/data").mock(
-            return_value=httpx.Response(200, json={})
-        )
+        route = respx.get(f"{BASE}/data").mock(return_value=httpx.Response(200, json={}))
 
         async with _make_connector(resolver=resolver, auth_provider="github") as c:
             result = await c.api_call("GET", "/data")
@@ -315,9 +303,7 @@ class TestConnectorAuth401Retry:
     @respx.mock
     async def test_no_resolver_no_auth_injection(self) -> None:
         """No resolver → backward-compat, no auth header."""
-        route = respx.get(f"{BASE}/data").mock(
-            return_value=httpx.Response(200, json={"ok": True})
-        )
+        route = respx.get(f"{BASE}/data").mock(return_value=httpx.Response(200, json={"ok": True}))
 
         async with _make_connector() as c:
             result = await c.api_call("GET", "/data")
@@ -349,9 +335,7 @@ class TestTokenSecurityInvariants:
         resolver = AsyncMock()
         resolver.resolve = AsyncMock(return_value="wire-token-xyz")
 
-        route = respx.get(f"{BASE}/data").mock(
-            return_value=httpx.Response(200, json={})
-        )
+        route = respx.get(f"{BASE}/data").mock(return_value=httpx.Response(200, json={}))
 
         async with _make_connector(resolver=resolver, auth_provider="github") as c:
             await c.api_call("GET", "/data")

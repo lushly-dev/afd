@@ -63,16 +63,16 @@ async def test_per_call_deadline_timeout():
     server = create_server("execution-controls-deadline")
     observed_signal: asyncio.Event | None = None
 
-    @server.command(name=call["command"], description="Slow command", expose=ExposeOptions(mcp=True))
+    @server.command(
+        name=call["command"], description="Slow command", expose=ExposeOptions(mcp=True)
+    )
     async def work_slow(input: Any, context: CommandContext):
         nonlocal observed_signal
         observed_signal = context.signal
         await asyncio.sleep(call["handler"]["delayMs"] / 1000.0)
         return success({"done": True})
 
-    result = await server.execute(
-        call["command"], {}, CommandContext(timeout=call["timeoutMs"])
-    )
+    result = await server.execute(call["command"], {}, CommandContext(timeout=call["timeoutMs"]))
     assert result.success is expected["success"]
     assert result.error is not None
     assert result.error.code == expected["code"]
@@ -97,7 +97,9 @@ async def test_server_default_deadline():
     )
     observed_signal: asyncio.Event | None = None
 
-    @server.command(name=call["command"], description="Slow command", expose=ExposeOptions(mcp=True))
+    @server.command(
+        name=call["command"], description="Slow command", expose=ExposeOptions(mcp=True)
+    )
     async def work_slow(input: Any, context: CommandContext):
         nonlocal observed_signal
         observed_signal = context.signal
@@ -276,9 +278,7 @@ async def test_batch_limits(case: dict[str, Any]):
         assert len(result.results) == expected["resultsLength"]
 
 
-@pytest.mark.parametrize(
-    "case", VALIDATION_CAP_CASES, ids=[c["id"] for c in VALIDATION_CAP_CASES]
-)
+@pytest.mark.parametrize("case", VALIDATION_CAP_CASES, ids=[c["id"] for c in VALIDATION_CAP_CASES])
 async def test_validation_issue_cap(case: dict[str, Any]):
     expected = case["expect"]
     limit = case["limit"]
@@ -301,7 +301,11 @@ async def test_validation_issue_cap(case: dict[str, Any]):
     @server.command(
         name="validate-schema",
         description="Validate with JSON Schema",
-        input_schema={"type": "object", "properties": {"values": {"type": "array", "items": {"type": "string"}}}, "required": ["values"]},
+        input_schema={
+            "type": "object",
+            "properties": {"values": {"type": "array", "items": {"type": "string"}}},
+            "required": ["values"],
+        },
         expose=ExposeOptions(mcp=True),
     )
     async def validate_schema_cmd(input: Any):
@@ -405,6 +409,7 @@ async def test_timeout_keeps_signal_set_for_cleanup_and_preserves_partial_caller
     )
 
     for srv in (j_server, j_server_no_timeout):
+
         @srv.command(name="echo-ok", description="Quick echo")
         async def echo_ok(input: Any):
             return success(input)

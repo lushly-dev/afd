@@ -43,18 +43,20 @@ _RANDOM = "random"
 
 # ─── Python ─────────────────────────────────────────────────────────────────
 
-_PY_TIME_CALLS = frozenset({
-    "time.time",
-    "time.time_ns",
-    "time.monotonic",
-    "time.monotonic_ns",
-    "time.perf_counter",
-    "time.perf_counter_ns",
-    "datetime.datetime.now",
-    "datetime.datetime.utcnow",
-    "datetime.datetime.today",
-    "datetime.date.today",
-})
+_PY_TIME_CALLS = frozenset(
+    {
+        "time.time",
+        "time.time_ns",
+        "time.monotonic",
+        "time.monotonic_ns",
+        "time.perf_counter",
+        "time.perf_counter_ns",
+        "datetime.datetime.now",
+        "datetime.datetime.utcnow",
+        "datetime.datetime.today",
+        "datetime.date.today",
+    }
+)
 _PY_RANDOM_CALLS = frozenset({"uuid.uuid1", "uuid.uuid4", "os.urandom"})
 _PY_RANDOM_MODULES = ("random.",)
 # `secrets` generators only; `secrets.compare_digest` is deterministic.
@@ -147,7 +149,9 @@ def _is_command_decorator(decorator: ast.expr) -> bool:
     return has_description or len(decorator.args) >= 2
 
 
-def _python_handlers(tree: ast.Module) -> Iterator[ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda]:
+def _python_handlers(
+    tree: ast.Module,
+) -> Iterator[ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda]:
     functions = [
         node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     ]
@@ -183,7 +187,9 @@ def _python_method_handlers(tree: ast.Module) -> Iterator[ast.FunctionDef | ast.
             if not isinstance(node, ast.Call):
                 continue
             func = node.func
-            if (func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)) != "CommandDefinition":
+            if (
+                func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
+            ) != "CommandDefinition":
                 continue
             for keyword in node.keywords:
                 value = keyword.value
@@ -227,7 +233,9 @@ _RUST_NAMES = {
     "OsRng": "OsRng",
 }
 
-_CPP_CLOCKS = r"system_clock|steady_clock|high_resolution_clock|utc_clock|tai_clock|gps_clock|file_clock"
+_CPP_CLOCKS = (
+    r"system_clock|steady_clock|high_resolution_clock|utc_clock|tai_clock|gps_clock|file_clock"
+)
 _CPP_TIME = (
     re.compile(rf"\b(?P<n>{_CPP_CLOCKS})\s*::\s*now\s*\("),
     re.compile(r"\bstd\s*::\s*(?P<n>time)\s*\("),
@@ -253,9 +261,20 @@ _RUST_FN_RE = re.compile(r"\bfn\s+[A-Za-z_]\w*\s*")
 _RUST_IMPL_RE = re.compile(r"\bimpl\b")
 _RUST_HANDLER_IMPL_RE = re.compile(r"\bCommandHandler\s+for\b")
 _RUST_CLOSURE_RE = re.compile(r"\|([^|;{}]*)\|")
-_CPP_NOT_FUNCTIONS = frozenset({
-    "if", "while", "for", "switch", "return", "sizeof", "decltype", "catch", "alignof", "noexcept",
-})
+_CPP_NOT_FUNCTIONS = frozenset(
+    {
+        "if",
+        "while",
+        "for",
+        "switch",
+        "return",
+        "sizeof",
+        "decltype",
+        "catch",
+        "alignof",
+        "noexcept",
+    }
+)
 
 
 def rust_ambient_calls(content: str) -> list[Finding]:
@@ -263,7 +282,9 @@ def rust_ambient_calls(content: str) -> list[Finding]:
     if "CommandContext" not in content:
         return []
     masked = mask_c_like(content, rust=True)
-    return _scan(content, masked, _rust_handler_spans(masked), _RUST_TIME, _RUST_RANDOM, _RUST_NAMES)
+    return _scan(
+        content, masked, _rust_handler_spans(masked), _RUST_TIME, _RUST_RANDOM, _RUST_NAMES
+    )
 
 
 def cpp_ambient_calls(content: str) -> list[Finding]:
@@ -335,12 +356,12 @@ def mask_c_like(content: str, *, rust: bool) -> str:
             blank(i + 1, k)
             i = k + 1
         elif ch == "'":
-            end = _char_literal_end(content, i, rust=rust)
-            if end is None:
+            char_end = _char_literal_end(content, i, rust=rust)
+            if char_end is None:
                 i += 1
             else:
-                blank(i + 1, end - 1)
-                i = end
+                blank(i + 1, char_end - 1)
+                i = char_end
         else:
             i += 1
     return "".join(out)
@@ -489,7 +510,9 @@ def _rust_impl_blocks(masked: str) -> list[tuple[int, int, bool]]:
         if brace == -1 or (semi != -1 and semi < brace):
             continue
         header = masked[match.end() : brace]
-        blocks.append((brace, _match_close(masked, brace) + 1, bool(_RUST_HANDLER_IMPL_RE.search(header))))
+        blocks.append(
+            (brace, _match_close(masked, brace) + 1, bool(_RUST_HANDLER_IMPL_RE.search(header)))
+        )
     return blocks
 
 

@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from botcore_factory.world import Issue, WorldError
 
@@ -70,10 +70,10 @@ def _non_empty_str(value: object, name: str) -> str:
     return value
 
 
-def _parse_totals(raw: object) -> dict[str, dict]:
+def _parse_totals(raw: object) -> dict[str, dict[str, Any]]:
     if not isinstance(raw, dict):
         raise WorldError("test_changes report field totals must be an object")
-    totals: dict[str, dict] = {}
+    totals: dict[str, dict[str, Any]] = {}
     for language, entry in raw.items():
         if not isinstance(language, str) or not isinstance(entry, dict):
             raise WorldError("test_changes totals entries must map language names to objects")
@@ -91,7 +91,7 @@ def _parse_totals(raw: object) -> dict[str, dict]:
     return totals
 
 
-def _parse_finding(raw: object, index: int) -> dict:
+def _parse_finding(raw: object, index: int) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raise WorldError(f"test_changes finding[{index}] must be an object")
     finding: dict[str, object] = {
@@ -123,7 +123,7 @@ def _parse_finding(raw: object, index: int) -> dict:
     return finding
 
 
-def parse_report(raw: str) -> dict:
+def parse_report(raw: str) -> dict[str, Any]:
     """Parse and validate ``report-test-changes.mjs --json`` output.
 
     Malformed or missing fields raise ``WorldError`` rather than returning empty findings, so a
@@ -159,7 +159,9 @@ def parse_report(raw: str) -> dict:
     return report
 
 
-def run_report(factory: Factory, *, cwd: str, worktree: str, base: str, head: str) -> dict | None:
+def run_report(
+    factory: Factory, *, cwd: str, worktree: str, base: str, head: str
+) -> dict[str, Any] | None:
     """Run the adapter's ``test_changes`` command and return its validated report.
 
     Returns ``None`` when the adapter configures no ``test_changes`` command. Any non-zero exit
@@ -200,7 +202,7 @@ def summarize_hold(reasons: Sequence[str]) -> tuple[str, list[str]]:
 
 
 def check_less_reasons(
-    report: dict | None,
+    report: dict[str, Any] | None,
     *,
     gate_paths: Sequence[str] = (),
     checks_run_delta: int | None = None,
@@ -235,14 +237,14 @@ def check_less_reasons(
     return reasons
 
 
-def is_factory_branch(issues: Sequence[Issue], cell: dict | None = None) -> bool:
+def is_factory_branch(issues: Sequence[Issue], cell: dict[str, Any] | None = None) -> bool:
     """Whether a branch changes the factory itself (``area:factory`` or an improvement cell)."""
     if (cell or {}).get("improvement"):
         return True
     return any(AREA_FACTORY in issue.labels for issue in issues)
 
 
-def is_gate_change_approved(cell: dict | None, head: str) -> bool:
+def is_gate_change_approved(cell: dict[str, Any] | None, head: str) -> bool:
     """Whether a person already approved this exact head's gate/test change."""
     approved = (cell or {}).get("gateChangeApproved")
     return isinstance(approved, dict) and bool(head) and approved.get("head") == head

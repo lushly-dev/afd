@@ -29,9 +29,9 @@ async def test_lint_clean_python(tmp_dir):
     """A well-formed Python file should produce no issues."""
     py_file = tmp_dir / "good.py"
     py_file.write_text(
-        'from afd import CommandResult, success\n'
-        '\n'
-        'async def handler(input) -> CommandResult[dict]:\n'
+        "from afd import CommandResult, success\n"
+        "\n"
+        "async def handler(input) -> CommandResult[dict]:\n"
         '    return success({"ok": True})\n',
         encoding="utf-8",
     )
@@ -46,8 +46,7 @@ async def test_lint_detects_missing_command_result(tmp_dir):
     """Handler returning wrong type should be flagged."""
     py_file = tmp_dir / "bad.py"
     py_file.write_text(
-        'async def handler(input) -> dict:\n'
-        '    return {"ok": True}\n',
+        'async def handler(input) -> dict:\n    return {"ok": True}\n',
         encoding="utf-8",
     )
     result = await alfred_lint(str(tmp_dir))
@@ -62,9 +61,9 @@ async def test_lint_detects_missing_suggestion(tmp_dir):
     """error() call without suggestion should produce a warning."""
     py_file = tmp_dir / "no_suggestion.py"
     py_file.write_text(
-        'from afd import CommandResult, error\n'
-        '\n'
-        'async def handler(input) -> CommandResult[dict]:\n'
+        "from afd import CommandResult, error\n"
+        "\n"
+        "async def handler(input) -> CommandResult[dict]:\n"
         '    return error("NOT_FOUND", "Missing item")\n',
         encoding="utf-8",
     )
@@ -148,9 +147,7 @@ async def test_lint_severity_off_counts_as_suppressed(tmp_dir):
     (tmp_dir / "bad.py").write_text(
         "async def handler(input) -> dict:\n    return {}\n", encoding="utf-8"
     )
-    result = await alfred_lint(
-        str(tmp_dir), rule_severity_overrides={"afd-command-result": "off"}
-    )
+    result = await alfred_lint(str(tmp_dir), rule_severity_overrides={"afd-command-result": "off"})
     assert result.data["error_count"] == 0
     assert result.data["suppressed"]["by_reason"] == {"severity-off": 1}
 
@@ -219,7 +216,7 @@ async def test_lint_flags_ambient_calls_in_python_rust_and_cpp_handlers(tmp_dir)
         "fn helper() { Uuid::new_v4(); }\n"
         "impl CommandHandler for Create {\n"
         "    async fn execute(&self, input: Value, context: CommandContext) -> CommandResult<Value> {\n"
-        "        success(json!({ \"id\": Uuid::new_v4().to_string() }))\n"
+        '        success(json!({ "id": Uuid::new_v4().to_string() }))\n'
         "    }\n"
         "}\n",
         encoding="utf-8",
@@ -243,6 +240,8 @@ async def test_lint_flags_ambient_calls_in_python_rust_and_cpp_handlers(tmp_dir)
     assert "context.random().next()" in suggestions["todo.rs"]
     assert "context.clock->wall_ms()" in suggestions["todo.cpp"]
 
-    gated = await alfred_lint(str(tmp_dir), rule_severity_overrides={"afd-no-ambient-random": "error"})
+    gated = await alfred_lint(
+        str(tmp_dir), rule_severity_overrides={"afd-no-ambient-random": "error"}
+    )
     assert gated.data["passed"] is False
     assert gated.data["error_count"] == 1

@@ -55,9 +55,8 @@ def test_catalog_builds_manifest_order_digests_and_mime_types():
     assert resources["skill://acme/hello/a/icon.SVG"]["mimeType"] == "image/svg+xml"
     assert resources["skill://acme/hello/a/unknown.xyz"]["mimeType"] == "application/octet-stream"
     assert "description" not in resources["skill://acme/hello/z.txt"]
-    assert (
-        resources["skill://acme/hello/z.txt"]["_meta"]["dev.afd/digest"]
-        == sha256_digest(b"last")
+    assert resources["skill://acme/hello/z.txt"]["_meta"]["dev.afd/digest"] == sha256_digest(
+        b"last"
     )
 
 
@@ -135,7 +134,9 @@ def test_catalog_enforces_file_count_and_byte_limits():
     skill_md = _skill_md("huge").encode("utf-8")
     over_bytes = MAX_SKILL_BYTES - len(skill_md) + 1
     with pytest.raises(ValueError, match="16"):
-        SkillCatalog([Skill(path="huge", files={"SKILL.md": skill_md, "big.bin": b"0" * over_bytes})])
+        SkillCatalog(
+            [Skill(path="huge", files={"SKILL.md": skill_md, "big.bin": b"0" * over_bytes})]
+        )
 
 
 def test_catalog_enforces_description_length_and_path_rules():

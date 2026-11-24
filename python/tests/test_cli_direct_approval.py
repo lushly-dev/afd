@@ -10,7 +10,8 @@ from afd.cli.main import cli
 def module(tmp_path):
     path = tmp_path / "commands.py"
     marker = tmp_path / "ran.txt"
-    path.write_text('''from pathlib import Path
+    path.write_text(
+        """from pathlib import Path
 from afd import create_direct_registry, success
 from afd.server import define_command, create_approval_middleware
 
@@ -21,7 +22,8 @@ async def delete(input):
 
 registry = create_direct_registry([delete], middleware=[create_approval_middleware(
     secret="test-cli-private-approval-secret-0123456789abcdef", commands=[delete])])
-'''.replace("MARKER", repr(str(marker))))
+""".replace("MARKER", repr(str(marker)))
+    )
     return path, marker
 
 
@@ -37,7 +39,9 @@ def test_json_noninteractive_call_holds_without_disclosing_credentials(tmp_path)
 
 def test_explicit_approve_retries_once(tmp_path):
     path, marker = module(tmp_path)
-    result = CliRunner().invoke(cli, ["--json", "call", "item-delete", "--module", str(path), "--approve"])
+    result = CliRunner().invoke(
+        cli, ["--json", "call", "item-delete", "--module", str(path), "--approve"]
+    )
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["success"]
     assert marker.read_text() == "ran"
@@ -45,7 +49,9 @@ def test_explicit_approve_retries_once(tmp_path):
 
 def test_tool_arguments_never_authorize(tmp_path):
     path, marker = module(tmp_path)
-    result = CliRunner().invoke(cli, ["--json", "call", "item-delete", '{"approval":"forged"}', "--module", str(path)])
+    result = CliRunner().invoke(
+        cli, ["--json", "call", "item-delete", '{"approval":"forged"}', "--module", str(path)]
+    )
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["error"]["code"] == "APPROVAL_REQUIRED"
     assert not marker.exists()
@@ -72,8 +78,15 @@ def run_terminal(path, *, answer=None, timeout=None):
     import pty
 
     master, slave = pty.openpty()
-    args = [sys.executable, "-c", "from afd.cli.main import cli; cli()",
-            "call", "item-delete", "--module", str(path)]
+    args = [
+        sys.executable,
+        "-c",
+        "from afd.cli.main import cli; cli()",
+        "call",
+        "item-delete",
+        "--module",
+        str(path),
+    ]
     if timeout is not None:
         args.extend(["--timeout", str(timeout)])
     process = subprocess.Popen(args, stdin=slave, stderr=slave, stdout=subprocess.PIPE)
@@ -90,8 +103,14 @@ def run_terminal(path, *, answer=None, timeout=None):
             while process.poll() is None or selector.get_map():
                 deadline = startup_deadline if prompt_at is None else prompt_at + 3
                 if time.monotonic() >= deadline:
-                    stage = "starting the interpreter" if prompt_at is None else "waiting after the prompt"
-                    pytest.fail(f"CLI stalled {stage}: {bytes(terminal)!r}; stdout={bytes(output)!r}")
+                    stage = (
+                        "starting the interpreter"
+                        if prompt_at is None
+                        else "waiting after the prompt"
+                    )
+                    pytest.fail(
+                        f"CLI stalled {stage}: {bytes(terminal)!r}; stdout={bytes(output)!r}"
+                    )
                 for key, _events in selector.select(0.05):
                     try:
                         chunk = os.read(key.fd, 8192)
@@ -106,7 +125,9 @@ def run_terminal(path, *, answer=None, timeout=None):
                     if answer is not None:
                         os.write(master, answer)
         process.wait(timeout=1)
-        assert process.returncode == 0, output.decode(errors="replace") + terminal.decode(errors="replace")
+        assert process.returncode == 0, output.decode(errors="replace") + terminal.decode(
+            errors="replace"
+        )
         assert prompt_at is not None, "The test must reach a real approval prompt"
         assert time.monotonic() - prompt_at < 3
         return bytes(output), bytes(terminal)
@@ -130,11 +151,15 @@ def test_module_with_postponed_dataclass_annotations_loads_and_is_cleaned_up(tmp
     import sys
 
     path, marker = module(tmp_path)
-    path.write_text('from __future__ import annotations\nfrom dataclasses import dataclass\n'
-                    '@dataclass\nclass Input:\n    id: int\n\n' + path.read_text())
+    path.write_text(
+        "from __future__ import annotations\nfrom dataclasses import dataclass\n"
+        "@dataclass\nclass Input:\n    id: int\n\n" + path.read_text()
+    )
     before = {key for key in sys.modules if key.startswith("_afd_call_")}
     for _ in range(2):
-        result = CliRunner().invoke(cli, ["--json", "call", "item-delete", "--module", str(path), "--approve"])
+        result = CliRunner().invoke(
+            cli, ["--json", "call", "item-delete", "--module", str(path), "--approve"]
+        )
         assert result.exit_code == 0, result.output
         assert json.loads(result.stdout)["success"]
     assert marker.exists()

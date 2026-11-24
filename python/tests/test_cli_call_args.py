@@ -46,7 +46,9 @@ def test_call_takes_key_value_pairs(transport):
 
 
 def test_call_still_takes_a_json_object(transport):
-    outcome = CliRunner().invoke(cli, ["call", "todo-create", '{"title": "Buy  milk"}', "-s", "http://x/mcp"])
+    outcome = CliRunner().invoke(
+        cli, ["call", "todo-create", '{"title": "Buy  milk"}', "-s", "http://x/mcp"]
+    )
     assert outcome.exit_code == 0, outcome.output
     transport.call_tool.assert_awaited_once_with("todo-create", {"title": "Buy  milk"})
 
@@ -84,7 +86,9 @@ def test_call_sends_headers_from_the_flags_and_the_environment(transport, monkey
 def test_call_refuses_headers_for_an_in_process_module(transport, tmp_path):
     module = tmp_path / "commands.py"
     module.write_text("registry = None\n")
-    outcome = CliRunner().invoke(cli, ["call", "todo-create", "--module", str(module), "-H", "A: b"])
+    outcome = CliRunner().invoke(
+        cli, ["call", "todo-create", "--module", str(module), "-H", "A: b"]
+    )
     assert outcome.exit_code == 2
     assert "--header needs a server" in outcome.output
 
@@ -102,7 +106,9 @@ def test_call_refuses_headers_for_an_in_process_module(transport, tmp_path):
         ([], "Authorization: Bearer sk-\x0bSECRET", "AFD_HEADERS line 1"),
     ],
 )
-def test_a_malformed_header_exits_1_without_showing_its_value(transport, monkeypatch, flags, env, source):
+def test_a_malformed_header_exits_1_without_showing_its_value(
+    transport, monkeypatch, flags, env, source
+):
     monkeypatch.setenv("AFD_HEADERS", env)
     outcome = CliRunner().invoke(cli, ["call", "todo-create", "-s", "http://x/mcp", *flags])
     assert outcome.exit_code == 1
@@ -112,7 +118,9 @@ def test_a_malformed_header_exits_1_without_showing_its_value(transport, monkeyp
 
 
 def test_a_header_value_may_hold_tabs_and_latin_1(transport):
-    outcome = CliRunner().invoke(cli, ["call", "x", "-s", "http://x/mcp", "-H", "X-Note: a\tb caf\xe9"])
+    outcome = CliRunner().invoke(
+        cli, ["call", "x", "-s", "http://x/mcp", "-H", "X-Note: a\tb caf\xe9"]
+    )
     assert outcome.exit_code == 0, outcome.output
     assert transport.calls[-1]["headers"] == {"X-Note": "a\tb caf\xe9"}
 
@@ -132,7 +140,9 @@ def test_other_commands_send_headers_too(transport, command):
 
 
 def test_connect_does_not_save_headers_and_says_so(transport):
-    outcome = CliRunner().invoke(cli, ["connect", "http://x/mcp", "-H", "Authorization: Bearer secret"])
+    outcome = CliRunner().invoke(
+        cli, ["connect", "http://x/mcp", "-H", "Authorization: Bearer secret"]
+    )
     assert "secret" not in _cli_main.STATE_FILE.read_text()
     assert "Request headers are not saved." in outcome.output
     assert "secret" not in outcome.output
@@ -193,7 +203,10 @@ def _shell(transport, monkeypatch, *lines):
 
 def test_a_failed_call_prints_its_error_and_the_shell_continues(transport, monkeypatch):
     """#1835, as TypeScript's shell: a failed request does not end the shell."""
-    transport.call_tool.side_effect = [RuntimeError("lost \x1b]0;owned\x07[/x] link"), {"success": True}]
+    transport.call_tool.side_effect = [
+        RuntimeError("lost \x1b]0;owned\x07[/x] link"),
+        {"success": True},
+    ]
     outcome = _shell(transport, monkeypatch, "call todo-create", "call todo-create title=milk")
     assert outcome.exit_code == 0, outcome.output
     assert "Call failed: lost [/x] link" in outcome.output
@@ -203,7 +216,10 @@ def test_a_failed_call_prints_its_error_and_the_shell_continues(transport, monke
 
 
 def test_a_failed_tools_listing_prints_its_error_and_the_shell_continues(transport, monkeypatch):
-    transport.list_tools.side_effect = [OSError("reset"), [ToolInfo(name="todo-create", description="Create")]]
+    transport.list_tools.side_effect = [
+        OSError("reset"),
+        [ToolInfo(name="todo-create", description="Create")],
+    ]
     outcome = _shell(transport, monkeypatch, "tools", "tools")
     assert outcome.exit_code == 0, outcome.output
     assert "Listing tools failed: reset" in outcome.output
@@ -227,7 +243,11 @@ def test_an_unknown_command_with_markup_is_printed_literally(transport, monkeypa
 def test_a_failed_result_with_markup_does_not_end_the_shell(transport, monkeypatch):
     transport.call_tool.return_value = {
         "success": False,
-        "error": {"code": "BAD [x]", "message": "bad [/x] arg :smile:", "suggestion": "fix \x1b]0;t\x07[/b]"},
+        "error": {
+            "code": "BAD [x]",
+            "message": "bad [/x] arg :smile:",
+            "suggestion": "fix \x1b]0;t\x07[/b]",
+        },
     }
     outcome = _shell(transport, monkeypatch, "call todo-create", "exit")
     assert outcome.exit_code == 0, outcome.output
@@ -248,7 +268,9 @@ def test_afd_call_prints_a_failed_result_with_markup_literally(transport):
 
 
 def test_tools_with_markup_in_a_description_are_listed_as_written(transport, monkeypatch):
-    transport.list_tools.return_value = [ToolInfo(name="todo-[x]", description="See [/example] :smile:")]
+    transport.list_tools.return_value = [
+        ToolInfo(name="todo-[x]", description="See [/example] :smile:")
+    ]
     outcome = _shell(transport, monkeypatch, "tools")
     assert "Listing tools failed" not in outcome.output
     assert "See [/example] :smile:" in outcome.output
@@ -269,9 +291,13 @@ def test_an_unknown_command_keeps_emoji_codes_literal(transport, monkeypatch):
     assert "Unknown command: unknown :smile:" in outcome.output
 
 
-@pytest.mark.parametrize("command", [["--json", "tools"], ["--json", "tools", "--detail", "todo-[x]"]])
+@pytest.mark.parametrize(
+    "command", [["--json", "tools"], ["--json", "tools", "--detail", "todo-[x]"]]
+)
 def test_json_output_keeps_server_text_exact(transport, command):
-    transport.list_tools.return_value = [ToolInfo(name="todo-[x]", description="See [/example] :smile:")]
+    transport.list_tools.return_value = [
+        ToolInfo(name="todo-[x]", description="See [/example] :smile:")
+    ]
     outcome = CliRunner().invoke(cli, [*command, "-s", "http://x/mcp"])
     assert outcome.exit_code == 0, outcome.output
     assert "See [/example] :smile:" in json.loads(outcome.output).__repr__()
@@ -285,7 +311,12 @@ def test_status_json_keeps_the_saved_server_exact(transport):
 
 def test_surface_findings_print_command_names_as_written(transport):
     transport.list_tools.return_value = [
-        ToolInfo(name="foo[/x]", description="x", input_schema={"type": "object"}, meta={"mutation": False}),
+        ToolInfo(
+            name="foo[/x]",
+            description="x",
+            input_schema={"type": "object"},
+            meta={"mutation": False},
+        ),
     ]
     outcome = CliRunner().invoke(cli, ["validate", "--surface", "--verbose", "-s", "http://x/mcp"])
     assert "closing tag" not in outcome.output
@@ -299,7 +330,9 @@ def test_the_shell_help_shows_the_args_placeholder(transport, monkeypatch):
 
 def test_a_long_description_is_cut_after_escape_codes_are_removed(transport):
     visible = "d" * 57
-    transport.list_tools.return_value = [ToolInfo(name="t", description=f"\x1b[31m{visible}\x1b[0m")]
+    transport.list_tools.return_value = [
+        ToolInfo(name="t", description=f"\x1b[31m{visible}\x1b[0m")
+    ]
     outcome = CliRunner().invoke(cli, ["tools", "-s", "http://x/mcp"])
     assert visible in outcome.output.replace("\n", "").replace("│", "").replace(" ", "")
     assert "..." not in outcome.output
@@ -323,4 +356,3 @@ def test_an_afd_headers_line_holding_only_a_control_character_is_reported_by_its
 
     with pytest.raises(ValueError, match="^AFD_HEADERS line 2: Invalid header"):
         resolve_headers([], {"AFD_HEADERS": "X: 1\n\x0b"})
-

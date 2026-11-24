@@ -65,7 +65,13 @@ def test_the_meta_tools_match_spec_names_and_titles():
     spec = {tool["name"]: tool["title"] for tool in json.loads(SPEC_META_TOOLS.read_text())}
     python = {
         schema["name"]: schema["title"]
-        for schema in (CallToolSchema, BatchToolSchema, PipeToolSchema, DiscoverToolSchema, DetailToolSchema)
+        for schema in (
+            CallToolSchema,
+            BatchToolSchema,
+            PipeToolSchema,
+            DiscoverToolSchema,
+            DetailToolSchema,
+        )
     }
     assert python == spec
     # Every strategy lists them with their titles.
@@ -76,7 +82,9 @@ def test_the_meta_tools_match_spec_names_and_titles():
 
 @pytest.mark.asyncio
 async def test_afd_detail_reports_the_title_when_set():
-    detail = await _server("lazy").call_tool("afd-detail", {"command": ["todo-create", "todo-list"]})
+    detail = await _server("lazy").call_tool(
+        "afd-detail", {"command": ["todo-create", "todo-list"]}
+    )
     assert detail.success is True
     titled, untitled = detail.data
     assert titled["title"] == "New todo"
@@ -116,7 +124,10 @@ async def test_titles_reach_an_mcp_client_in_process(mode):
 
 @pytest.mark.parametrize("mode", ["auto", "legacy"])
 async def test_titles_reach_an_mcp_client_over_streamable_http(mode):
-    async with protocol_server("individual", "streamable-http") as url, Client(url, mode=mode) as client:
+    async with (
+        protocol_server("individual", "streamable-http") as url,
+        Client(url, mode=mode) as client,
+    ):
         titles = _titles(await client.list_tools())
     assert titles["alpha-run"] == "Run alpha"
     assert titles["afd-detail"] == "Describe commands"

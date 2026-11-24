@@ -24,8 +24,8 @@ import logging
 import math
 import re
 from collections.abc import Callable, Iterator, Mapping, Sequence
-from contextlib import contextmanager
-from contextvars import ContextVar
+from contextlib import contextmanager, suppress
+from contextvars import ContextVar, Token
 from dataclasses import dataclass
 from typing import Any
 
@@ -385,13 +385,15 @@ def _replay_receive(body: bytes, original_receive: Any) -> Any:
         if not delivered:
             delivered = True
             return {"type": "http.request", "body": body, "more_body": False}
-        return await original_receive()
+        msg: dict[str, Any] = await original_receive()
+        return msg
 
     return receive
 
 
 async def _send_pre_dispatch(send: Callable[[dict[str, Any]], Any], pre: PreDispatch) -> None:
-    assert pre.status is not None
+    if pre.status is None:
+        raise RuntimeError("pre-dispatch response missing HTTP status")
     payload = pre.body.encode("utf-8")
     headers = [
         (name.lower().encode("latin-1"), value.encode("latin-1"))
@@ -568,11 +570,7 @@ class PreDispatchCheck:
     def decide(self, request_or_scope: Any, body: bytes | bytearray | str) -> PreDispatch:
         """Decide ``request_or_scope`` (ASGI scope or Starlette Request) whose body the host has
         read, after admitting credentials with ``server.admit(...)``."""
-        raw_bytes = (
-            body.encode("utf-8")
-            if isinstance(body, str)
-            else bytes(body)
-        )
+        raw_bytes = body.encode("utf-8") if isinstance(body, str) else bytes(body)
         if len(raw_bytes) > self._max_body_bytes:
             return body_too_large()
 
@@ -662,10 +660,8 @@ class AuthLayer:
             if issuer is None
             else (issuer if _SAFE_ALIAS.match(issuer) is not None else "host")
         )
-        try:
+        with suppress(Exception):
             self._on_refusal(AuthRefusal(rule=safe_rule, issuer=safe_issuer))
-        except Exception:
-            pass
 
     async def _send_unauthorized(
         self,
@@ -701,9 +697,7 @@ class AuthLayer:
             and _is_branded_credentials(existing.credentials)
             and any(scope is admitted_scope for admitted_scope in existing.scopes)
         ):
-            raise ValueError(
-                "[AFD] admit refuses a request whose credentials were admitted before"
-            )
+            raise ValueError("[AFD] admit refuses a request whose credentials were admitted before")
         now = math.floor(self._clock.now() / 1000)
         checked = _admissible(
             credentials,
@@ -767,9 +761,7 @@ class AuthLayer:
         decide_post_body: bool = True,
     ) -> Any:
         """Wrap an ASGI application (Streamable HTTP or SSE) with AFD's bearer layer."""
-        json_cap = (
-            _DEFAULT_MAX_JSON_BODY_BYTES if max_body_bytes is None else max_body_bytes
-        )
+        json_cap = _DEFAULT_MAX_JSON_BODY_BYTES if max_body_bytes is None else max_body_bytes
         return _BearerAuthAsgiApp(
             self,
             app,
@@ -939,8 +931,8 @@ class _BearerAuthAsgiApp:
             return
 
         _brand_verified_credentials(admitted, layer._skew_s)
-        handoff: _QueuedDispatch | None = None
-        ctx_token = None
+        post_handoff: _QueuedDispatch | None = None
+        post_ctx_token: Token[_AdmittedAuth | None] | None = None
         try:
             view = layer._build_view(admitted)
             next_receive = receive
@@ -988,35 +980,35 @@ class _BearerAuthAsgiApp:
             else:
                 cleaned_scope.pop("user", None)
 
-            handoff = _QueuedDispatch() if method == "POST" else None
+            post_handoff = _QueuedDispatch() if method == "POST" else None
 
             async def _observe_send(message: dict[str, Any]) -> None:
                 if (
-                    handoff is not None
+                    post_handoff is not None
                     and message.get("type") == "http.response.start"
                     and message.get("status") == 202
                 ):
-                    handoff.queued = True
+                    post_handoff.queued = True
                 await send(message)
 
-            ctx_token = _ADMITTED_AUTH.set(
+            post_ctx_token = _ADMITTED_AUTH.set(
                 _AdmittedAuth(
                     layer=layer,
                     credentials=admitted,
                     skew_s=layer._skew_s,
                     view=view,
-                    handoff=handoff,
+                    handoff=post_handoff,
                     scopes=(scope, cleaned_scope),
                 )
             )
             await self._app(
-                cleaned_scope, next_receive, _observe_send if handoff is not None else send
+                cleaned_scope, next_receive, _observe_send if post_handoff is not None else send
             )
         finally:
-            if handoff is not None:
-                handoff.finished = True
-            if ctx_token is not None:
-                _ADMITTED_AUTH.reset(ctx_token)
+            if post_handoff is not None:
+                post_handoff.finished = True
+            if post_ctx_token is not None:
+                _ADMITTED_AUTH.reset(post_ctx_token)
             _unbrand_verified_credentials(admitted)
 
 

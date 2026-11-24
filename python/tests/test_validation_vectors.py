@@ -11,7 +11,9 @@ from afd.server import create_server
 from afd.server.validation import ValidationError, format_enhanced_validation_error
 
 CASES = json.loads(
-    (Path(__file__).resolve().parents[2] / "spec/vectors/validation.json").read_text(encoding="utf-8")
+    (Path(__file__).resolve().parents[2] / "spec/vectors/validation.json").read_text(
+        encoding="utf-8"
+    )
 )["cases"]
 TESTS = [(case, test) for case in CASES for test in case["tests"]]
 

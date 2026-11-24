@@ -42,10 +42,12 @@ def _make_client(reg=None):
 async def test_simple_two_step_pipeline():
     """Two-step pipeline with $prev variable resolution."""
     client = _make_client()
-    result = await client.pipe([
-        {"command": "greet", "input": {"name": "Alice"}},
-        {"command": "uppercase", "input": {"text": "$prev.greeting"}},
-    ])
+    result = await client.pipe(
+        [
+            {"command": "greet", "input": {"name": "Alice"}},
+            {"command": "uppercase", "input": {"text": "$prev.greeting"}},
+        ]
+    )
 
     assert result.success is True
     data = assert_success(result.final)
@@ -55,10 +57,12 @@ async def test_simple_two_step_pipeline():
 async def test_pipeline_with_alias():
     """Pipeline step with alias and $steps.alias.field access."""
     client = _make_client()
-    result = await client.pipe([
-        {"command": "greet", "input": {"name": "Bob"}, "as": "g"},
-        {"command": "count-chars", "input": {"text": "$steps.g.greeting"}},
-    ])
+    result = await client.pipe(
+        [
+            {"command": "greet", "input": {"name": "Bob"}, "as": "g"},
+            {"command": "count-chars", "input": {"text": "$steps.g.greeting"}},
+        ]
+    )
 
     assert result.success is True
     data = assert_success(result.final)
@@ -69,10 +73,12 @@ async def test_pipeline_with_alias():
 async def test_pipeline_failure_propagation():
     """Pipeline failure at step 2 stops execution."""
     client = _make_client()
-    result = await client.pipe([
-        {"command": "greet", "input": {"name": "Test"}},
-        {"command": "failing"},
-    ])
+    result = await client.pipe(
+        [
+            {"command": "greet", "input": {"name": "Test"}},
+            {"command": "failing"},
+        ]
+    )
 
     assert result.success is False
     # First step succeeded, second failed
@@ -83,10 +89,16 @@ async def test_pipeline_failure_propagation():
 async def test_pipeline_with_when_true():
     """Pipeline step with when condition that evaluates to true."""
     client = _make_client()
-    result = await client.pipe([
-        {"command": "greet", "input": {"name": "Alice"}, "as": "g"},
-        {"command": "uppercase", "input": {"text": "$steps.g.greeting"}, "when": "$steps.g.name"},
-    ])
+    result = await client.pipe(
+        [
+            {"command": "greet", "input": {"name": "Alice"}, "as": "g"},
+            {
+                "command": "uppercase",
+                "input": {"text": "$steps.g.greeting"},
+                "when": "$steps.g.name",
+            },
+        ]
+    )
 
     assert result.success is True
     data = assert_success(result.final)
@@ -96,10 +108,12 @@ async def test_pipeline_with_when_true():
 async def test_pipeline_with_when_unresolved_skips_step():
     """A when condition on a missing field skips the step instead of running it."""
     client = _make_client()
-    result = await client.pipe([
-        {"command": "greet", "input": {"name": "Alice"}, "as": "g"},
-        {"command": "uppercase", "input": {"text": "x"}, "when": "$steps.g.missing"},
-    ])
+    result = await client.pipe(
+        [
+            {"command": "greet", "input": {"name": "Alice"}, "as": "g"},
+            {"command": "uppercase", "input": {"text": "x"}, "when": "$steps.g.missing"},
+        ]
+    )
 
     assert result.success is True
     skipped = assert_success(result.steps[1].result)
@@ -125,9 +139,11 @@ async def test_handler_exception_is_redacted():
 async def test_single_step_pipeline():
     """Single-step pipeline works as a simple call."""
     client = _make_client()
-    result = await client.pipe([
-        {"command": "greet", "input": {"name": "Solo"}},
-    ])
+    result = await client.pipe(
+        [
+            {"command": "greet", "input": {"name": "Solo"}},
+        ]
+    )
 
     assert result.success is True
     data = assert_success(result.final)
@@ -137,11 +153,13 @@ async def test_single_step_pipeline():
 async def test_pipeline_three_steps():
     """Three-step pipeline chains data through multiple commands."""
     client = _make_client()
-    result = await client.pipe([
-        {"command": "greet", "input": {"name": "Chain"}, "as": "g"},
-        {"command": "count-chars", "input": {"text": "$steps.g.greeting"}, "as": "c"},
-        {"command": "greet", "input": {"name": "Done"}},
-    ])
+    result = await client.pipe(
+        [
+            {"command": "greet", "input": {"name": "Chain"}, "as": "g"},
+            {"command": "count-chars", "input": {"text": "$steps.g.greeting"}, "as": "c"},
+            {"command": "greet", "input": {"name": "Done"}},
+        ]
+    )
 
     assert result.success is True
     assert len(result.steps) == 3

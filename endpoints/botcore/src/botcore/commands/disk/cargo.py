@@ -24,6 +24,7 @@ import shutil
 import tomllib
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any
 
 from botcore.commands.disk.caches import HASH_BUCKET, parse_aged_pattern, unsafe_aged_root
 from botcore.commands.disk.git import GitError, list_worktrees, path_key
@@ -79,29 +80,37 @@ class Placement:
     def problem(self) -> str | None:  # noqa: PLR0911 - one message per arrangement
         where = f"Cargo's {self.kind} ({self.source})"
         if self.state == "unknown":
-            return (f"{where} is {self.value!r}, which lands outside the worktree relative to "
-                    "where Cargo runs, so no [[aged]] folder can name it: use an absolute folder "
-                    "of its own")
+            return (
+                f"{where} is {self.value!r}, which lands outside the worktree relative to "
+                "where Cargo runs, so no [[aged]] folder can name it: use an absolute folder "
+                "of its own"
+            )
         if self.state != "moved" or self.covered_by:
             return None
         if not self.per_workspace:
             own = Path(self.root or "").parent / "cargo-build"
-            return (f"{where} puts every workspace's output in one folder, {self.root}: parallel "
-                    "worktrees wait on its lock, and nothing can tell which output a removed "
-                    f"worktree left. Unset it (Cargo then keeps {self.kind} in each worktree); "
-                    "to keep build output off the worktrees' disk, set build-dir to "
-                    f"{json.dumps(str(own / _PER_WORKSPACE))} and give "
-                    f"{json.dumps(str(own / '*'))} an [[aged]] entry. Or cap this folder with an "
-                    "[[aged]] entry that sets max_gb")
+            return (
+                f"{where} puts every workspace's output in one folder, {self.root}: parallel "
+                "worktrees wait on its lock, and nothing can tell which output a removed "
+                f"worktree left. Unset it (Cargo then keeps {self.kind} in each worktree); "
+                "to keep build output off the worktrees' disk, set build-dir to "
+                f"{json.dumps(str(own / _PER_WORKSPACE))} and give "
+                f"{json.dumps(str(own / '*'))} an [[aged]] entry. Or cap this folder with an "
+                "[[aged]] entry that sets max_gb"
+            )
         if self.aged is None:
-            return (f"{where} puts build output under {self.root}, which also holds other "
-                    "things (or is a drive's top folder, the home folder or Cargo's own): point "
-                    "it at a folder of its own, then give that folder's `/*` an [[aged]] entry")
+            return (
+                f"{where} puts build output under {self.root}, which also holds other "
+                "things (or is a drive's top folder, the home folder or Cargo's own): point "
+                "it at a folder of its own, then give that folder's `/*` an [[aged]] entry"
+            )
         max_gb = self.suggested_max_gb if self.suggested_max_gb is not None else SUGGESTED_MAX_GB
-        return (f"{where} puts build output under {self.root}, which no [[aged]] folder clears, "
-                "so it outlives the worktrees. Add to the machine settings:\n"
-                f"[[aged]]\npath = {json.dumps(self.aged)}\n"
-                f"max_age_days = {SUGGESTED_AGE_DAYS}\nmax_gb = {max_gb}")
+        return (
+            f"{where} puts build output under {self.root}, which no [[aged]] folder clears, "
+            "so it outlives the worktrees. Add to the machine settings:\n"
+            f"[[aged]]\npath = {json.dumps(self.aged)}\n"
+            f"max_age_days = {SUGGESTED_AGE_DAYS}\nmax_gb = {max_gb}"
+        )
 
 
 def cargo_home() -> Path:
@@ -146,8 +155,10 @@ class _Configs:
         for include, optional in _includes(data.get("include")):
             target = path.parent / include
             if not include.endswith(".toml"):
-                self.problems.append(f"Cargo's config {path} includes {include}, which Cargo "
-                                     "refuses: an include must end in .toml")
+                self.problems.append(
+                    f"Cargo's config {path} includes {include}, which Cargo "
+                    "refuses: an include must end in .toml"
+                )
             elif depth >= MAX_INCLUDE_DEPTH:
                 self.problems.append(f"Cargo's config {path} includes too deeply to follow")
             elif is_file(target):
@@ -201,7 +212,8 @@ def _place(kind: str, source: str, value: str, base: Path | None, place: Path) -
         text = text.replace("{cargo-cache-home}", str(cargo_home()))
     # Relative to the workspace, or (an environment variable's) to wherever Cargo runs
     relative_to_build = (templated and _WORKSPACE in text) or (
-        base is None and not Path(text).is_absolute())
+        base is None and not Path(text).is_absolute()
+    )
     if templated:
         text = text.replace(_WORKSPACE, str(place))
     per_workspace = templated and _PER_WORKSPACE in text
@@ -296,7 +308,9 @@ def _cargo_only(root: Path) -> bool:
 
 
 def _covered_by(
-    found: Placement, settings: MachineSettings, protected: list[Path],
+    found: Placement,
+    settings: MachineSettings,
+    protected: list[Path],
 ) -> str | None:
     """The [[aged]] path that clears this output, if any. A folder shared by every workspace is
     always in use, so only a size cap (max_gb) clears it; per-workspace folders need an entry
@@ -311,8 +325,9 @@ def _covered_by(
         key = path_key(base)
         if found.per_workspace and depth in (1, 2) and key == root:
             return aged.path
-        if aged.max_gb is not None and (key == root or (depth == 1 and key == path_key(
-                os.path.dirname(found.root or "")))):
+        if aged.max_gb is not None and (
+            key == root or (depth == 1 and key == path_key(os.path.dirname(found.root or "")))
+        ):
             return aged.path
     return None
 
@@ -338,12 +353,13 @@ def _places(settings: MachineSettings) -> tuple[list[Path], list[Path]]:
 
 
 def cargo_outputs(
-    settings: MachineSettings, places: list[Path] | None = None,
+    settings: MachineSettings,
+    places: list[Path] | None = None,
 ) -> tuple[list[Placement], list[str]]:
     """Each distinct place Cargo output goes for the registered worktrees, and the problems
     reading Cargo's config."""
     configs = _Configs()
-    found: dict[tuple, Placement] = {}
+    found: dict[tuple[str, str, str, str, str | None], Placement] = {}
     if places is None:
         places, protected = _places(settings)
     else:
@@ -358,14 +374,17 @@ def cargo_outputs(
             placed = _place(kind, source, value, base, place)
             if placed.state == "inside":
                 continue
-            placed = Placement(**{**asdict(placed),
-                                  "covered_by": _covered_by(placed, settings, protected)})
+            placed = Placement(
+                **{**asdict(placed), "covered_by": _covered_by(placed, settings, protected)}
+            )
             found.setdefault((kind, source, value, placed.state, placed.root), placed)
     return list(found.values()), list(dict.fromkeys(configs.problems))
 
 
 def _setting(
-    kind: str, chain: list[Path], configs: _Configs,
+    kind: str,
+    chain: list[Path],
+    configs: _Configs,
 ) -> tuple[str, str, Path | None] | None:
     """(source, value, base for a relative value) of the setting that wins for one build."""
     for name in ENVIRONMENT[kind]:
@@ -379,7 +398,7 @@ def _setting(
     return None
 
 
-def cargo_check(settings: MachineSettings, places: list[Path] | None = None) -> dict:
+def cargo_check(settings: MachineSettings, places: list[Path] | None = None) -> dict[str, Any]:
     """The Cargo arrangement as plain data for disk-setup and disk-status."""
     outputs, problems = cargo_outputs(settings, places)
     return {

@@ -8,7 +8,7 @@ These types enable rich agent UX by providing:
 
 Example:
     >>> from afd.core.metadata import Source, create_source
-    >>> 
+    >>>
     >>> source = create_source(
     ...     "document",
     ...     id="style-guide-v3",
@@ -18,7 +18,7 @@ Example:
 """
 
 from enum import Enum
-from typing import Any, Generic, List, Optional, TypeVar
+from typing import Any, Generic, TypeVar
 
 from pydantic import Field
 
@@ -29,9 +29,9 @@ T = TypeVar("T")
 
 class Source(WireModel):
     """Information source used by a command to produce its result.
-    
+
     Enables: Attribution, verification, trust building.
-    
+
     Attributes:
         type: Source type identifier (document, url, database, api, etc.).
         id: Unique identifier for the source.
@@ -40,7 +40,7 @@ class Source(WireModel):
         location: Specific location within source (page, section, line).
         accessed_at: ISO timestamp when source was accessed.
         relevance: Confidence or relevance score (0-1).
-    
+
     Example:
         >>> source = Source(
         ...     type="document",
@@ -51,15 +51,15 @@ class Source(WireModel):
     """
 
     type: str
-    id: Optional[str] = None
-    title: Optional[str] = None
-    url: Optional[str] = None
-    location: Optional[str] = None
-    accessed_at: Optional[str] = None
-    relevance: Optional[float] = Field(default=None, ge=0, le=1)
+    id: str | None = None
+    title: str | None = None
+    url: str | None = None
+    location: str | None = None
+    accessed_at: str | None = None
+    relevance: float | None = Field(default=None, ge=0, le=1)
 
 
-class PlanStepStatus(str, Enum):
+class PlanStepStatus(str, Enum):  # noqa: UP042
     """Possible statuses for a plan step."""
 
     PENDING = "pending"
@@ -71,9 +71,9 @@ class PlanStepStatus(str, Enum):
 
 class PlanStep(WireModel):
     """A step in a multi-step plan or operation.
-    
+
     Enables: Plan visualization, progress tracking, transparency.
-    
+
     Attributes:
         id: Unique identifier for this step.
         action: The action being performed (verb: fetch, validate, etc.).
@@ -84,7 +84,7 @@ class PlanStep(WireModel):
         error: Error information if the step failed.
         progress: Progress percentage (0-100) if in progress.
         estimated_time_remaining_ms: Estimated time remaining in ms.
-    
+
     Example:
         >>> step = PlanStep(
         ...     id="validate-input",
@@ -98,25 +98,25 @@ class PlanStep(WireModel):
     id: str
     action: str
     status: PlanStepStatus = PlanStepStatus.PENDING
-    description: Optional[str] = None
-    depends_on: Optional[List[str]] = None
-    result: Optional[Any] = None
-    error: Optional[dict[str, str]] = None  # {code, message}
-    progress: Optional[int] = Field(default=None, ge=0, le=100)
-    estimated_time_remaining_ms: Optional[int] = None
+    description: str | None = None
+    depends_on: list[str] | None = None
+    result: Any | None = None
+    error: dict[str, str] | None = None  # {code, message}
+    progress: int | None = Field(default=None, ge=0, le=100)
+    estimated_time_remaining_ms: int | None = None
 
 
 class Alternative(WireModel, Generic[T]):
     """An alternative result that was considered but not chosen.
-    
+
     Enables: User choice, exploration, transparency about decisions.
-    
+
     Attributes:
         data: The alternative result data.
         reason: Why this wasn't selected, or why user might prefer it.
         confidence: Confidence score for this alternative (0-1).
         label: Display label (e.g., "Formal", "Concise", "Detailed").
-    
+
     Example:
         >>> alt: Alternative[str] = Alternative(
         ...     data="More formal version of the text...",
@@ -128,11 +128,11 @@ class Alternative(WireModel, Generic[T]):
 
     data: T
     reason: str
-    confidence: Optional[float] = Field(default=None, ge=0, le=1)
-    label: Optional[str] = None
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    label: str | None = None
 
 
-class WarningSeverity(str, Enum):
+class WarningSeverity(str, Enum):  # noqa: UP042
     """Severity levels for warnings."""
 
     INFO = "info"
@@ -142,15 +142,15 @@ class WarningSeverity(str, Enum):
 
 class Warning(WireModel):
     """A non-fatal warning or notice to surface to the user.
-    
+
     Enables: Proactive transparency, awareness of potential issues.
-    
+
     Attributes:
         code: Machine-readable warning code (SCREAMING_SNAKE_CASE).
         message: Human-readable warning message.
         severity: Severity level for UI treatment.
         details: Additional context or details.
-    
+
     Example:
         >>> warning = Warning(
         ...     code="OUTDATED_SOURCE",
@@ -161,8 +161,8 @@ class Warning(WireModel):
 
     code: str
     message: str
-    severity: Optional[WarningSeverity] = WarningSeverity.WARNING
-    details: Optional[dict[str, Any]] = None
+    severity: WarningSeverity | None = WarningSeverity.WARNING
+    details: dict[str, Any] | None = None
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -173,15 +173,15 @@ class Warning(WireModel):
 def create_source(
     type: str,
     *,
-    id: Optional[str] = None,
-    title: Optional[str] = None,
-    url: Optional[str] = None,
-    location: Optional[str] = None,
-    accessed_at: Optional[str] = None,
-    relevance: Optional[float] = None,
+    id: str | None = None,
+    title: str | None = None,
+    url: str | None = None,
+    location: str | None = None,
+    accessed_at: str | None = None,
+    relevance: float | None = None,
 ) -> Source:
     """Create a new Source.
-    
+
     Args:
         type: Source type identifier.
         id: Unique identifier for the source.
@@ -190,10 +190,10 @@ def create_source(
         location: Specific location within source.
         accessed_at: ISO timestamp of access.
         relevance: Relevance score (0-1).
-        
+
     Returns:
         A Source instance.
-    
+
     Example:
         >>> source = create_source(
         ...     "document",
@@ -215,18 +215,18 @@ def create_source(
 def create_step(
     id: str,
     action: str,
-    description: Optional[str] = None,
+    description: str | None = None,
 ) -> PlanStep:
     """Create a new PlanStep with pending status.
-    
+
     Args:
         id: Unique identifier for the step.
         action: The action being performed (verb).
         description: Human-readable description.
-        
+
     Returns:
         A PlanStep with status=pending.
-    
+
     Example:
         >>> step = create_step("fetch-data", "fetch", "Retrieve user data")
         >>> step.status
@@ -244,22 +244,22 @@ def update_step_status(
     step: PlanStep,
     status: PlanStepStatus,
     *,
-    result: Optional[Any] = None,
-    error: Optional[dict[str, str]] = None,
-    progress: Optional[int] = None,
+    result: Any | None = None,
+    error: dict[str, str] | None = None,
+    progress: int | None = None,
 ) -> PlanStep:
     """Update a PlanStep's status and optionally its result/error.
-    
+
     Args:
         step: The step to update.
         status: New status value.
         result: Result data if completing successfully.
         error: Error info if failing.
         progress: Progress percentage if in progress.
-        
+
     Returns:
         A new PlanStep with updated values.
-    
+
     Example:
         >>> step = create_step("fetch", "fetch")
         >>> step = update_step_status(step, PlanStepStatus.COMPLETE, result={"data": "..."})
@@ -281,19 +281,19 @@ def create_warning(
     code: str,
     message: str,
     severity: WarningSeverity = WarningSeverity.WARNING,
-    details: Optional[dict[str, Any]] = None,
+    details: dict[str, Any] | None = None,
 ) -> Warning:
     """Create a new Warning.
-    
+
     Args:
         code: Machine-readable warning code.
         message: Human-readable warning message.
         severity: Severity level for UI treatment.
         details: Additional context.
-        
+
     Returns:
         A Warning instance.
-    
+
     Example:
         >>> warning = create_warning(
         ...     "DEPRECATED_API",

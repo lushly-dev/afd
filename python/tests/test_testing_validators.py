@@ -1,31 +1,25 @@
 """Tests for the AFD testing validators."""
 
-import pytest
 from afd.core import (
     CommandResult,
-    success,
-    error,
-    failure,
     PlanStep,
     PlanStepStatus,
-    Source,
+    error,
+    success,
 )
 from afd.core.commands import CommandDefinition, CommandParameter
 from afd.core.errors import CommandError, not_found_error
 from afd.testing.validators import (
-    ValidationError,
-    ValidationWarning,
-    ValidationResult,
     ResultValidationOptions,
-    validate_result,
-    validate_error,
     validate_command_definition,
+    validate_error,
+    validate_result,
 )
-
 
 # ==============================================================================
 # Test validate_result
 # ==============================================================================
+
 
 class TestValidateResult:
     """Tests for validate_result validator."""
@@ -40,8 +34,10 @@ class TestValidateResult:
     def test_valid_error_result(self):
         """Should pass for a well-formed error result."""
         result = error(
-            "NOT_FOUND", "Not found",
-            suggestion="Check the ID", retryable=False,
+            "NOT_FOUND",
+            "Not found",
+            suggestion="Check the ID",
+            retryable=False,
         )
         vr = validate_result(result)
         assert vr.valid
@@ -131,7 +127,8 @@ class TestValidateResult:
     def test_valid_plan_steps(self):
         """Should pass for valid plan steps."""
         result = CommandResult(
-            success=True, data="test",
+            success=True,
+            data="test",
             plan=[
                 PlanStep(id="s1", action="fetch", status=PlanStepStatus.PENDING),
                 PlanStep(id="s2", action="process", status=PlanStepStatus.COMPLETE),
@@ -158,14 +155,17 @@ class TestValidateResult:
 # Test validate_error
 # ==============================================================================
 
+
 class TestValidateError:
     """Tests for validate_error validator."""
 
     def test_valid_error(self):
         """Should pass for a complete CommandError."""
         err = CommandError(
-            code="NOT_FOUND", message="Not found",
-            suggestion="Check ID", retryable=False,
+            code="NOT_FOUND",
+            message="Not found",
+            suggestion="Check ID",
+            retryable=False,
         )
         vr = validate_error(err)
         assert vr.valid
@@ -219,6 +219,7 @@ class TestValidateError:
 # Test validate_command_definition
 # ==============================================================================
 
+
 class TestValidateCommandDefinition:
     """Tests for validate_command_definition validator."""
 
@@ -235,8 +236,10 @@ class TestValidateCommandDefinition:
             category="todos",
             parameters=[
                 CommandParameter(
-                    name="title", type="string",
-                    description="The todo title", required=True,
+                    name="title",
+                    type="string",
+                    description="The todo title",
+                    required=True,
                 ),
             ],
             errors=["VALIDATION_ERROR", "CONFLICT"],
@@ -299,14 +302,24 @@ class TestValidateCommandDefinition:
 
     def test_missing_handler(self):
         """Should error when handler is not callable."""
-        cmd = {"name": "todo-create", "description": "Create a todo", "handler": None, "parameters": []}
+        cmd = {
+            "name": "todo-create",
+            "description": "Create a todo",
+            "handler": None,
+            "parameters": [],
+        }
         vr = validate_command_definition(cmd)
         assert not vr.valid
         assert any(e.code == "MISSING_HANDLER" for e in vr.errors)
 
     def test_missing_parameters(self):
         """Should error when parameters is None."""
-        cmd = {"name": "todo-create", "description": "Create a todo", "handler": self._dummy_handler, "parameters": None}
+        cmd = {
+            "name": "todo-create",
+            "description": "Create a todo",
+            "handler": self._dummy_handler,
+            "parameters": None,
+        }
         vr = validate_command_definition(cmd)
         assert not vr.valid
         assert any(e.code == "MISSING_PARAMETERS" for e in vr.errors)

@@ -21,7 +21,7 @@ Example:
 import json
 import sys
 from datetime import datetime
-from typing import Any, Optional, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel
 
@@ -65,13 +65,13 @@ class TelemetryEvent(BaseModel):
     completed_at: str
     duration_ms: float
     success: bool
-    error: Optional[CommandError] = None
-    trace_id: Optional[str] = None
-    confidence: Optional[float] = None
-    metadata: Optional[dict[str, Any]] = None
-    input: Optional[Any] = None
-    command_version: Optional[str] = None
-    actor_kind: Optional[str] = None
+    error: CommandError | None = None
+    trace_id: str | None = None
+    confidence: float | None = None
+    metadata: dict[str, Any] | None = None
+    input: Any | None = None
+    command_version: str | None = None
+    actor_kind: str | None = None
 
 
 @runtime_checkable
@@ -153,14 +153,14 @@ def create_telemetry_event(
     started_at: str,
     completed_at: str,
     success: bool,
-    duration_ms: Optional[float] = None,
-    error: Optional[CommandError] = None,
-    trace_id: Optional[str] = None,
-    confidence: Optional[float] = None,
-    metadata: Optional[dict[str, Any]] = None,
-    input: Optional[Any] = None,
-    command_version: Optional[str] = None,
-    actor_kind: Optional[str] = None,
+    duration_ms: float | None = None,
+    error: CommandError | None = None,
+    trace_id: str | None = None,
+    confidence: float | None = None,
+    metadata: dict[str, Any] | None = None,
+    input: Any | None = None,
+    command_version: str | None = None,
+    actor_kind: str | None = None,
 ) -> TelemetryEvent:
     """Create a telemetry event from command execution data.
 

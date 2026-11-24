@@ -19,6 +19,7 @@ from botcore.host_client import create_remote_cli
 
 from botcore_factory.gateway.commands import ROUTES
 from botcore_factory.gateway.config import GatewayConfig
+from botcore_factory.gateway.github import GitHub
 
 client_cli = create_remote_cli(
     "factory-gateway", env_prefix="FACTORY_GATEWAY", unavailable_code="GATEWAY_UNAVAILABLE"
@@ -86,7 +87,7 @@ def serve(
         raise click.UsageError(str(exc)) from None
 
 
-def _github(config: GatewayConfig, data_dir: Path, fake: Path | None, key: Path | None):
+def _github(config: GatewayConfig, data_dir: Path, fake: Path | None, key: Path | None) -> GitHub:
     """The fake GitHub for local testing, or the App with its key; never both, never neither."""
     if fake is not None and key is not None:
         raise click.UsageError("Pass --fake-github or --app-key, not both")
@@ -115,7 +116,7 @@ def _github(config: GatewayConfig, data_dir: Path, fake: Path | None, key: Path 
     )
 
 
-def _prime_mirrors(github, config: GatewayConfig) -> None:
+def _prime_mirrors(github: GitHub, config: GatewayConfig) -> None:
     """Fetch each repository's main into its mirror before serving, so the first upload is
     not the one that waits for a whole history. A failure is reported, not fatal: an upload
     fetches again."""

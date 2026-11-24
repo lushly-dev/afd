@@ -65,7 +65,12 @@ def _reference(root: dict[str, Any], ref: str) -> Any:
     # The subset (spec/validation.md) names a definition, never a deeper pointer: one that
     # reached into a nested `$id` subschema would resolve its references in the wrong resource.
     keyword, _, name = ref[2:].partition("/")
-    if not ref.startswith("#/") or keyword not in ("definitions", "$defs") or not name or "/" in name:
+    if (
+        not ref.startswith("#/")
+        or keyword not in ("definitions", "$defs")
+        or not name
+        or "/" in name
+    ):
         raise ValueError(
             f"Unsupported $ref {ref!r}: only '#', '#/$defs/<name>' and "
             "'#/definitions/<name>' are supported"
@@ -104,9 +109,7 @@ def check_schema(schema: dict[str, Any]) -> None:
                     raise ValueError(f"Schema keyword {key!r} at {here} must be an object")
                 for name, child in value.items():
                     visit(child, f"{here}/{name}", resource)
-            elif key in {"items", "not"}:
-                visit(value, here, resource)
-            elif key == "additionalProperties":
+            elif key in {"items", "not"} or key == "additionalProperties":
                 visit(value, here, resource)
             elif key in {"anyOf", "oneOf", "allOf"}:
                 if not isinstance(value, list) or not value:

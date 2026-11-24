@@ -14,7 +14,7 @@ import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel
@@ -39,10 +39,7 @@ from afd.testing.scenarios.types import (
 # Types
 # ============================================================================
 
-CommandHandler = Callable[
-    [str, dict[str, Any] | None],
-    Any,  # Awaitable[dict[str, Any]]
-]
+CommandHandler = Callable[..., Any]
 """Async function: (command, input) -> CommandResult dict.
 
 A handler that declares a ``context`` parameter also receives
@@ -104,37 +101,38 @@ class ScenarioValidationResult:
 def _format_assertion_failures(failures: list[AssertionResult]) -> str:
     """Format failed assertions into a human-readable error message."""
     if not failures:
-        return 'Assertions failed'
+        return "Assertions failed"
 
     if len(failures) == 1:
         f = failures[0]
-        return f'{f.path}: expected {_format_value(f.expected)}, got {_format_value(f.actual)}'
+        return f"{f.path}: expected {_format_value(f.expected)}, got {_format_value(f.actual)}"
 
     lines = [
-        f'  - {f.path}: expected {_format_value(f.expected)}, got {_format_value(f.actual)}'
+        f"  - {f.path}: expected {_format_value(f.expected)}, got {_format_value(f.actual)}"
         for f in failures
     ]
-    return f'{len(failures)} assertions failed:\n' + '\n'.join(lines)
+    return f"{len(failures)} assertions failed:\n" + "\n".join(lines)
 
 
 def _format_value(value: Any) -> str:
     """Format a value for error message display."""
     if value is None:
-        return 'None'
+        return "None"
     if isinstance(value, str):
         truncated = f'"{value[:40]}..."' if len(value) > 40 else f'"{value}"'
         return truncated
     if isinstance(value, (dict, list)):
         import json
+
         try:
             s = json.dumps(value)
-            return s[:60] + '...' if len(s) > 60 else s
+            return s[:60] + "..." if len(s) > 60 else s
         except (TypeError, ValueError):
-            return '[object]'
+            return "[object]"
     return str(value)
 
 
-_TEST_ACTOR = Actor(kind='test')
+_TEST_ACTOR = Actor(kind="test")
 """The default actor of a scenario step."""
 
 
@@ -146,7 +144,7 @@ def _accepts_context(handler: Callable[..., Any]) -> bool:
         return False
     # Only a named ``context``: ``**kwargs`` (and mocks) keep the two-argument call.
     return any(
-        parameter.name == 'context'
+        parameter.name == "context"
         and parameter.kind
         in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
         for parameter in parameters
@@ -178,7 +176,7 @@ class InProcessExecutor:
 
     async def execute(self, scenario: Scenario) -> ScenarioResult:
         """Execute a scenario in-process."""
-        started_at = datetime.now(timezone.utc)
+        started_at = datetime.now(UTC)
         start_time = time.monotonic()
         step_results: list[StepResult] = []
         step_outputs: list[dict[str, Any]] = []
@@ -196,15 +194,15 @@ class InProcessExecutor:
 
             if should_skip_remaining:
                 skipped_result = StepResult(
-                    step_id=f'step-{step_num}',
+                    step_id=f"step-{step_num}",
                     command=step.command,
-                    outcome='skip',
+                    outcome="skip",
                     duration_ms=0,
                     assertions=[],
-                    skipped_reason='Previous step failed',
+                    skipped_reason="Previous step failed",
                 )
                 step_results.append(skipped_result)
-                step_outputs.append({'success': False})
+                step_outputs.append({"success": False})
                 skipped_steps += 1
                 if self._on_step_complete:
                     self._on_step_complete(step, skipped_result)
@@ -213,14 +211,14 @@ class InProcessExecutor:
             # Dry run mode
             if self._dry_run:
                 dry_run_result = StepResult(
-                    step_id=f'step-{step_num}',
+                    step_id=f"step-{step_num}",
                     command=step.command,
-                    outcome='pass',
+                    outcome="pass",
                     duration_ms=0,
                     assertions=[],
                 )
                 step_results.append(dry_run_result)
-                step_outputs.append({'success': True, 'data': {}})
+                step_outputs.append({"success": True, "data": {}})
                 passed_steps += 1
                 if self._on_step_complete:
                     self._on_step_complete(step, dry_run_result)
@@ -244,28 +242,28 @@ class InProcessExecutor:
             step_outputs.append(
                 step_result.command_result
                 if step_result.command_result is not None
-                else {'success': step_result.outcome == 'pass'}
+                else {"success": step_result.outcome == "pass"}
             )
 
-            if step_result.outcome == 'pass':
+            if step_result.outcome == "pass":
                 passed_steps += 1
-            elif step_result.outcome in ('fail', 'error'):
+            elif step_result.outcome in ("fail", "error"):
                 failed_steps += 1
                 if self._stop_on_failure and not step.continue_on_failure:
                     should_skip_remaining = True
-            elif step_result.outcome == 'skip':
+            elif step_result.outcome == "skip":
                 skipped_steps += 1
 
             if self._on_step_complete:
                 self._on_step_complete(step, step_result)
 
-        completed_at = datetime.now(timezone.utc)
+        completed_at = datetime.now(UTC)
         duration_ms = (time.monotonic() - start_time) * 1000
 
         outcome = _determine_outcome(passed_steps, failed_steps, skipped_steps)
 
         result = ScenarioResult(
-            scenario_path='',
+            scenario_path="",
             job_name=scenario.job,
             job_description=scenario.description,
             outcome=outcome,
@@ -295,7 +293,7 @@ class InProcessExecutor:
 
     async def _execute_step(self, step: Step, step_num: int) -> StepResult:
         """Execute a single step in-process."""
-        step_id = f'step-{step_num}'
+        step_id = f"step-{step_num}"
         start_time = time.monotonic()
 
         try:
@@ -311,17 +309,17 @@ class InProcessExecutor:
             # JSON a client receives, as the TypeScript runner does.
             if isinstance(command_result, (BaseModel, dict)):
                 command_result = to_wire(command_result)
-            elif hasattr(command_result, '__dict__'):
+            elif hasattr(command_result, "__dict__"):
                 command_result = vars(command_result)
 
             evaluation = evaluate_result(command_result, step.expect)
-            outcome: StepOutcome = 'pass' if evaluation.passed else 'fail'
+            outcome: StepOutcome = "pass" if evaluation.passed else "fail"
 
             error_info: StepError | None = None
             if not evaluation.passed:
                 failed_assertions = [a for a in evaluation.assertions if not a.passed]
                 error_message = _format_assertion_failures(failed_assertions)
-                error_info = create_step_error('expectation_mismatch', error_message)
+                error_info = create_step_error("expectation_mismatch", error_message)
 
             return StepResult(
                 step_id=step_id,
@@ -337,9 +335,9 @@ class InProcessExecutor:
             return StepResult(
                 step_id=step_id,
                 command=step.command,
-                outcome='error',
+                outcome="error",
                 duration_ms=duration_ms,
-                error=create_step_error('command_failed', str(exc), cause=exc),
+                error=create_step_error("command_failed", str(exc), cause=exc),
                 assertions=[],
             )
 
@@ -348,8 +346,8 @@ class InProcessExecutor:
 # Step Reference Resolution
 # ============================================================================
 
-_EXACT_REF_PATTERN = re.compile(r'^\$\{\{\s*steps\[(\d+)\]\.(.+?)\s*\}\}$')
-_EMBEDDED_REF_PATTERN = re.compile(r'\$\{\{\s*steps\[(\d+)\]\.(.+?)\s*\}\}')
+_EXACT_REF_PATTERN = re.compile(r"^\$\{\{\s*steps\[(\d+)\]\.(.+?)\s*\}\}$")
+_EMBEDDED_REF_PATTERN = re.compile(r"\$\{\{\s*steps\[(\d+)\]\.(.+?)\s*\}\}")
 
 
 def resolve_step_references(
@@ -382,9 +380,7 @@ def _resolve_value(value: Any, step_outputs: list[dict[str, Any]]) -> Any:
     return value
 
 
-def _resolve_string_references(
-    value: str, step_outputs: list[dict[str, Any]]
-) -> Any:
+def _resolve_string_references(value: str, step_outputs: list[dict[str, Any]]) -> Any:
     """Resolve step references in a string value.
 
     Pattern: ${{ steps[N].path.to.value }}
@@ -400,13 +396,14 @@ def _resolve_string_references(
 
     # Check for embedded references (replace within string) - always returns string
     if _EMBEDDED_REF_PATTERN.search(value):
+
         def _replacer(m: re.Match[str]) -> str:
             step_index = int(m.group(1))
             path = m.group(2)
             if step_index < len(step_outputs):
                 resolved = get_value_at_path(step_outputs[step_index], path)
-                return str(resolved) if resolved is not None else ''
-            return ''
+                return str(resolved) if resolved is not None else ""
+            return ""
 
         return _EMBEDDED_REF_PATTERN.sub(_replacer, value)
 
@@ -418,17 +415,15 @@ def _resolve_string_references(
 # ============================================================================
 
 
-def _determine_outcome(
-    passed: int, failed: int, skipped: int
-) -> ScenarioOutcome:
+def _determine_outcome(passed: int, failed: int, skipped: int) -> ScenarioOutcome:
     """Determine overall scenario outcome."""
     if failed == 0 and skipped == 0:
-        return 'pass'
+        return "pass"
     if passed == 0:
-        return 'fail'
+        return "fail"
     if failed > 0 and passed > 0:
-        return 'partial'
-    return 'fail'
+        return "partial"
+    return "fail"
 
 
 # ============================================================================
@@ -448,13 +443,13 @@ def validate_scenario(
     warnings: list[str] = []
 
     if not scenario.name:
-        errors.append('Missing required field: name')
+        errors.append("Missing required field: name")
 
     if not scenario.job:
-        errors.append('Missing required field: job')
+        errors.append("Missing required field: job")
 
     if not scenario.steps:
-        errors.append('Scenario must have at least one step')
+        errors.append("Scenario must have at least one step")
 
     # Validate each step
     for index, step in enumerate(scenario.steps or []):
@@ -466,14 +461,15 @@ def validate_scenario(
         # Check for forward references
         if step.input:
             import json
+
             input_str = json.dumps(step.input)
-            refs = re.findall(r'\$\{\{\s*steps\[(\d+)\]', input_str)
+            refs = re.findall(r"\$\{\{\s*steps\[(\d+)\]", input_str)
             for ref_idx_str in refs:
                 ref_index = int(ref_idx_str)
                 if ref_index >= index:
                     errors.append(
-                        f'Step {step_num}: Invalid reference to step {ref_index} '
-                        f'(can only reference earlier steps)'
+                        f"Step {step_num}: Invalid reference to step {ref_index} "
+                        f"(can only reference earlier steps)"
                     )
 
         # Check if command is known
@@ -485,11 +481,11 @@ def validate_scenario(
         errors=errors,
         warnings=warnings,
         metadata={
-            'name': scenario.name,
-            'job': scenario.job,
-            'step_count': len(scenario.steps) if scenario.steps else 0,
-            'has_fixture': scenario.fixture is not None,
-            'tags': scenario.tags or [],
+            "name": scenario.name,
+            "job": scenario.job,
+            "step_count": len(scenario.steps) if scenario.steps else 0,
+            "has_fixture": scenario.fixture is not None,
+            "tags": scenario.tags or [],
         },
     )
 

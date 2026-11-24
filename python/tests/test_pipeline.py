@@ -5,44 +5,37 @@ import asyncio
 import pytest
 from pydantic import ValidationError
 
-from afd import success, error
+from afd import error, success
+from afd.core.metadata import Source, Warning
 from afd.core.pipeline import (
+    PipelineContext,
+    PipelineMetadata,
+    PipelineOptions,
     # Types
     PipelineRequest,
-    PipelineStep,
-    PipelineOptions,
     PipelineResult,
-    PipelineMetadata,
+    PipelineStep,
     StepResult,
     StepStatus,
-    PipelineContext,
-    StepConfidence,
-    StepReasoning,
-    PipelineWarning,
-    PipelineSource,
-    # Type guards
-    is_pipeline_request,
-    is_pipeline_step,
-    is_pipeline_result,
-    is_pipeline_condition,
-    # Helper functions
-    create_pipeline,
-    get_nested_value,
-    resolve_variable,
-    resolve_variables,
-    evaluate_condition,
     aggregate_pipeline_confidence,
     aggregate_pipeline_reasoning,
-    aggregate_pipeline_warnings,
     aggregate_pipeline_sources,
+    aggregate_pipeline_warnings,
     build_confidence_breakdown,
-    build_pipeline_metadata,
+    create_pipeline,
+    evaluate_condition,
     execute_pipeline,
+    get_nested_value,
+    is_pipeline_condition,
+    # Type guards
+    is_pipeline_request,
+    is_pipeline_result,
+    is_pipeline_step,
+    resolve_variable,
+    resolve_variables,
 )
 from afd.core.result import ResultMetadata
-from afd.core.metadata import Warning, Source, WarningSeverity
 from afd.core.wire import WIRE_ENVELOPE
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TYPE TESTS

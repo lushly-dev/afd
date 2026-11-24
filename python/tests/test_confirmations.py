@@ -22,8 +22,10 @@ MCP = ExposeOptions(mcp=True)
 
 def _server(calls, **options):
     server = create_server(
-        "confirm-test", tool_strategy=options.pop("tool_strategy", "individual"),
-        confirmations=options.pop("confirmations", "enforce"), **options,
+        "confirm-test",
+        tool_strategy=options.pop("tool_strategy", "individual"),
+        confirmations=options.pop("confirmations", "enforce"),
+        **options,
     )
 
     @server.command(
@@ -211,7 +213,9 @@ ACCEPT = {"confirm": types.ElicitResult(action="accept", content={"confirm": Tru
 
 async def _ask(server, arguments):
     """The ``requestState`` the server mints for ``todo-clear``, for the caller of the block."""
-    async with Client(server._create_mcp_server(), elicitation_callback=_answer("accept", [])) as client:
+    async with Client(
+        server._create_mcp_server(), elicitation_callback=_answer("accept", [])
+    ) as client:
         asked = await client.session.call_tool("todo-clear", arguments, allow_input_required=True)
     assert type(asked).__name__ == "InputRequiredResult"
     return asked.request_state
@@ -221,7 +225,9 @@ async def _retry(server, arguments, state, responses=ACCEPT):
     """The retry's result, or the ``MCPError`` the SDK refused it with."""
     from mcp import MCPError
 
-    async with Client(server._create_mcp_server(), elicitation_callback=_answer("accept", [])) as client:
+    async with Client(
+        server._create_mcp_server(), elicitation_callback=_answer("accept", [])
+    ) as client:
         try:
             return await client.session.call_tool(
                 "todo-clear",
@@ -252,7 +258,9 @@ async def test_a_state_is_bound_to_the_actor_it_was_issued_to():
     # A tampered state is the reference: a caller the state was not issued to gets exactly
     # the same refusal, before any handler runs.
     tampered = _refusal(
-        await _retry(_server(calls, confirmation_key=KEY, actor=issued_to), {"scope": "a"}, state[:-2] + "xx")
+        await _retry(
+            _server(calls, confirmation_key=KEY, actor=issued_to), {"scope": "a"}, state[:-2] + "xx"
+        )
     )
     assert tampered[0] == -32602
     others = [
@@ -262,11 +270,15 @@ async def test_a_state_is_bound_to_the_actor_it_was_issued_to():
         None,  # the server's default actor
     ]
     for other in others:
-        refused = await _retry(_server(calls, confirmation_key=KEY, actor=other), {"scope": "a"}, state)
+        refused = await _retry(
+            _server(calls, confirmation_key=KEY, actor=other), {"scope": "a"}, state
+        )
         assert _refusal(refused) == tampered, other
     # A decline in another caller's state is refused too, not taken as an answer.
     declined = {"confirm": types.ElicitResult(action="decline")}
-    refused = await _retry(_server(calls, confirmation_key=KEY, actor=others[0]), {"scope": "a"}, state, declined)
+    refused = await _retry(
+        _server(calls, confirmation_key=KEY, actor=others[0]), {"scope": "a"}, state, declined
+    )
     assert _refusal(refused) == tampered
     assert calls == []
 
@@ -371,7 +383,11 @@ async def test_an_incomplete_token_identity_never_mints_or_takes_a_state(missing
 
     calls = []
     server = _server(calls, confirmation_key=KEY)
-    complete = {"issuer": "https://auth.example.com", "subject": "user-1", "client_id": "todo-agent"}
+    complete = {
+        "issuer": "https://auth.example.com",
+        "subject": "user-1",
+        "client_id": "todo-agent",
+    }
     reset = as_token(**complete)
     try:
         state = await _ask(server, {"scope": "a"})
@@ -380,11 +396,15 @@ async def test_an_incomplete_token_identity_never_mints_or_takes_a_state(missing
 
     reset = as_token(**{**complete, **missing})
     try:
-        async with Client(server._create_mcp_server(), elicitation_callback=_answer("accept", [])) as client:
+        async with Client(
+            server._create_mcp_server(), elicitation_callback=_answer("accept", [])
+        ) as client:
             from mcp import MCPError
 
             with pytest.raises(MCPError) as minted:
-                await client.session.call_tool("todo-clear", {"scope": "a"}, allow_input_required=True)
+                await client.session.call_tool(
+                    "todo-clear", {"scope": "a"}, allow_input_required=True
+                )
         retried = await _retry(server, {"scope": "a"}, state)
     finally:
         auth_context_var.reset(reset)

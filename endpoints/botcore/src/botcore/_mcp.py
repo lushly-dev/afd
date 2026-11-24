@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from typing import Any
 
-def sdk_types():
+
+def sdk_types() -> tuple[Any, Any]:
     """Return the installed SDK's server/context classes without changing wire tools."""
     try:
         from mcp.server.mcpserver import Context, MCPServer
@@ -12,6 +14,7 @@ def sdk_types():
     except ModuleNotFoundError as exc:
         if exc.name not in {"mcp.server.mcpserver", "mcp", "mcp.server"}:
             raise
-        from mcp.server.fastmcp import Context, FastMCP
+        import importlib
 
-        return FastMCP, Context
+        fastmcp = importlib.import_module("mcp.server.fastmcp")
+        return fastmcp.FastMCP, fastmcp.Context

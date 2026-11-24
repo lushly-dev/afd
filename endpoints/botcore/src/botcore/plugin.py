@@ -151,7 +151,7 @@ def discover_plugins(allowlist: tuple[str, ...] | None = None) -> dict[str, BotC
     """
     plugins: dict[str, BotCorePlugin] = {}
 
-    eps = importlib.metadata.entry_points()
+    eps: Any = importlib.metadata.entry_points()
     if hasattr(eps, "select"):
         botcore_eps = eps.select(group="botcore.plugins")
     else:

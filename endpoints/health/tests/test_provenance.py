@@ -13,9 +13,9 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 RECORD = ROOT / "provenance" / "provenance.json"
 # Pinned so a changed claim cannot pass by rehashing the record alone.
-RECORD_SHA256 = "a1a23c23a17da25f10a9011b711c6962beab0b7ad653a5413a02ec7c0a4b8404"
+RECORD_SHA256 = "eef68974d680eebae6ed08e6e275fb9e56436351b0911f76b54428770b140ec8"
 SOURCE_REVISION = "35e3cf041f9daff1354c9e8aee05388389397a0d"
-IGNORED = {".venv", "__pycache__", ".pytest_cache", ".ruff_cache", "dist", "build"}
+IGNORED = {".venv", "__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", "dist", "build"}
 
 pytestmark = pytest.mark.skipif(
     not RECORD.is_file() or (ROOT / "PKG-INFO").is_file(),

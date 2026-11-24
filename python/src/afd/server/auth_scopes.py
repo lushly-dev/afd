@@ -10,7 +10,7 @@ import logging
 import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Literal, Protocol, Union, runtime_checkable
+from typing import Any, Literal, Protocol, runtime_checkable
 
 from afd.server.auth_resource import is_scope_token
 from afd.server.auth_rules import Credentials
@@ -31,7 +31,7 @@ class ScopeMissing:
             object.__setattr__(self, "missing", tuple(self.missing))
 
 
-ScopeDecision = Union[Literal["allowed"], Literal["defer"], ScopeMissing]
+ScopeDecision = Literal["allowed", "defer"] | ScopeMissing
 """A scope decision for one call: ``"allowed"``, ``"defer"`` or :class:`ScopeMissing`."""
 
 
@@ -48,7 +48,7 @@ class RequestForbidden:
             object.__setattr__(self, "forbidden", tuple(self.forbidden))
 
 
-RequestDecision = Union[Literal["proceed"], RequestForbidden]
+RequestDecision = Literal["proceed"] | RequestForbidden
 """What a whole request gets from the decisions on its steps: ``"proceed"`` or
 :class:`RequestForbidden`."""
 
@@ -161,8 +161,10 @@ def merge_decisions(required: ScopeDecision, decision: ScopeDecision) -> ScopeDe
 
 def checked_decision(decision: Any) -> ScopeDecision:
     """Normalize a resolver's return value; anything unrecognized fails closed."""
-    if decision == "allowed" or decision == "defer":
-        return decision
+    if decision == "allowed":
+        return "allowed"
+    if decision == "defer":
+        return "defer"
     if isinstance(decision, ScopeMissing):
         return decision
     if isinstance(decision, Mapping) and "missing" in decision:
@@ -211,22 +213,20 @@ class ScopeChallenge:
 
     def __init__(self, scheme: str, params: Mapping[str, str] | None = None) -> None:
         if not isinstance(scheme, str) or _HTTP_TOKEN.match(scheme) is None:
-            raise ValueError(
-                f"[AFD] the challenge scheme {scheme!r} is not an HTTP token"
-            )
+            raise ValueError(f"[AFD] the challenge scheme {scheme!r} is not an HTTP token")
         if scheme.lower() == "bearer":
             raise ValueError(
                 "[AFD] a Bearer 403 is M5's own challenge; a ScopeChallenge names another scheme"
             )
         if params is not None and not isinstance(params, Mapping):
-            raise ValueError("[AFD] challenge params must be a mapping of parameter names to strings")
+            raise ValueError(
+                "[AFD] challenge params must be a mapping of parameter names to strings"
+            )
         seen: set[str] = set()
         kept: list[tuple[str, str]] = []
         for name, value in (params or {}).items():
             if not isinstance(name, str) or _HTTP_TOKEN.match(name) is None:
-                raise ValueError(
-                    f"[AFD] the challenge parameter {name!r} is not an HTTP token"
-                )
+                raise ValueError(f"[AFD] the challenge parameter {name!r} is not an HTTP token")
             folded = name.lower()
             if folded in ("error", "scope"):
                 raise ValueError(

@@ -267,7 +267,15 @@ export const SUITES = [
 			},
 			{
 				"cwd": "python",
-				"run": "uv run ruff check --select F821,F841,B904 src"
+				"run": "uv run ruff check src tests"
+			},
+			{
+				"cwd": "python",
+				"run": "uv run ruff format --check src tests"
+			},
+			{
+				"cwd": "python",
+				"run": "uv run mypy src"
 			},
 			{
 				"cwd": "python",
@@ -296,6 +304,14 @@ export const SUITES = [
 			},
 			{
 				"cwd": "alfred",
+				"run": "uv run --locked ruff format --check ."
+			},
+			{
+				"cwd": "alfred",
+				"run": "uv run --locked mypy src"
+			},
+			{
+				"cwd": "alfred",
 				"run": "uv run --locked pytest tests/ -q"
 			}
 		]
@@ -318,6 +334,14 @@ export const SUITES = [
 			{
 				"cwd": "endpoints/botcore",
 				"run": "uv run --frozen ruff check src/ tests/ scripts/ packages/ botcore-connectors/src/ botcore-connectors/tests/ plugins/botcore-teams/"
+			},
+			{
+				"cwd": "endpoints/botcore",
+				"run": "uv run --frozen ruff format --check src/ tests/ scripts/ packages/ botcore-connectors/src/ botcore-connectors/tests/ plugins/botcore-teams/"
+			},
+			{
+				"cwd": "endpoints/botcore",
+				"run": "uv run --frozen mypy src"
 			},
 			{
 				"cwd": "endpoints/botcore",
@@ -361,6 +385,10 @@ export const SUITES = [
 			},
 			{
 				"cwd": "endpoints/botcore/plugins/botcore-factory",
+				"run": "uv run --frozen mypy src"
+			},
+			{
+				"cwd": "endpoints/botcore/plugins/botcore-factory",
 				"run": "uv run --frozen pytest -q"
 			}
 		]
@@ -390,6 +418,10 @@ export const SUITES = [
 			},
 			{
 				"cwd": "endpoints/health",
+				"run": "uv run --frozen mypy src"
+			},
+			{
+				"cwd": "endpoints/health",
 				"run": "uv run --frozen pytest -q"
 			},
 			{
@@ -403,7 +435,7 @@ export const SUITES = [
 		"tools": [
 			"cargo"
 		],
-		"remote": "the wasm32 checks and the docs.rs build",
+		"remote": "the wasm32 checks and tests, the MSRV matrix, and the docs.rs build",
 		"steps": [
 			{
 				"cwd": "packages/rust",
@@ -411,51 +443,59 @@ export const SUITES = [
 			},
 			{
 				"cwd": "packages/rust",
-				"run": "cargo clippy --all-targets -- -D warnings"
+				"run": "cargo clippy --locked --all-targets -- -D warnings"
 			},
 			{
 				"cwd": "packages/rust",
-				"run": "cargo clippy --all-targets --no-default-features -- -D warnings"
+				"run": "cargo clippy --locked --all-targets --no-default-features -- -D warnings"
 			},
 			{
 				"cwd": "packages/rust",
-				"run": "cargo test --no-fail-fast"
+				"run": "cargo test --locked --no-fail-fast"
 			},
 			{
 				"cwd": "packages/rust",
-				"run": "cargo test --no-fail-fast --no-default-features"
+				"run": "cargo test --locked --no-fail-fast --no-default-features"
 			},
 			{
 				"cwd": "packages/rust",
-				"run": "cargo test --no-fail-fast --all-features --lib --test batch_controls_vectors"
+				"run": "cargo test --locked --no-fail-fast --all-features --lib --test batch_controls_vectors"
 			},
 			{
 				"cwd": "packages/rust",
-				"run": "cargo clippy --all-targets --features server -- -D warnings"
+				"run": "cargo clippy --locked --all-targets --features server -- -D warnings"
 			},
 			{
 				"cwd": "packages/rust",
-				"run": "cargo test --no-fail-fast --features server"
+				"run": "cargo test --locked --no-fail-fast --features server"
 			},
 			{
 				"cwd": "packages/rust",
-				"run": "cargo clippy --all-targets --features server-auth -- -D warnings"
+				"run": "cargo clippy --locked --all-targets --no-default-features --features server -- -D warnings"
 			},
 			{
 				"cwd": "packages/rust",
-				"run": "cargo test --no-fail-fast --features server-auth"
+				"run": "cargo test --locked --no-fail-fast --no-default-features --features server"
 			},
 			{
 				"cwd": "packages/rust",
-				"run": "cargo test --no-fail-fast --features journal-file-shared"
+				"run": "cargo clippy --locked --all-targets --features server-auth -- -D warnings"
 			},
 			{
 				"cwd": "packages/rust",
-				"run": "cargo clippy --all-targets --no-default-features --features frontmatter -- -D warnings"
+				"run": "cargo test --locked --no-fail-fast --features server-auth"
 			},
 			{
 				"cwd": "packages/rust",
-				"run": "cargo test --no-fail-fast --no-default-features --features frontmatter"
+				"run": "cargo test --locked --no-fail-fast --features journal-file-shared"
+			},
+			{
+				"cwd": "packages/rust",
+				"run": "cargo clippy --locked --all-targets --no-default-features --features frontmatter -- -D warnings"
+			},
+			{
+				"cwd": "packages/rust",
+				"run": "cargo test --locked --no-fail-fast --no-default-features --features frontmatter"
 			}
 		]
 	},

@@ -7,7 +7,7 @@ C++ load the same file (see spec/vectors/README.md).
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import pytest
 
@@ -21,14 +21,14 @@ from afd.core.pipeline import (
 )
 
 VECTORS = json.loads(
-    (Path(__file__).resolve().parents[2] / "spec" / "vectors" / "pipeline-variables.json").read_text(
-        encoding="utf-8"
-    )
+    (
+        Path(__file__).resolve().parents[2] / "spec" / "vectors" / "pipeline-variables.json"
+    ).read_text(encoding="utf-8")
 )
 
 
-def _context(spec: Dict[str, Any]) -> PipelineContext:
-    steps: List[StepResult] = [
+def _context(spec: dict[str, Any]) -> PipelineContext:
+    steps: list[StepResult] = [
         StepResult(
             index=entry["index"],
             alias=entry.get("alias"),
@@ -65,7 +65,7 @@ def test_vectors_have_the_expected_number_of_cases():
 @pytest.mark.parametrize(
     "vector", VECTORS["references"], ids=[_label(v["reference"]) for v in VECTORS["references"]]
 )
-def test_reference(vector: Dict[str, Any]):
+def test_reference(vector: dict[str, Any]):
     reference = vector["reference"]
     # resolve_variable returns None for both null and an unresolved reference;
     # inside a step input, an unresolved reference is omitted from its object.
@@ -81,5 +81,5 @@ def test_reference(vector: Dict[str, Any]):
 @pytest.mark.parametrize(
     "vector", VECTORS["conditions"], ids=[json.dumps(v["condition"]) for v in VECTORS["conditions"]]
 )
-def test_condition(vector: Dict[str, Any]):
+def test_condition(vector: dict[str, Any]):
     assert evaluate_condition(vector["condition"], CONTEXT) is vector["expected"]

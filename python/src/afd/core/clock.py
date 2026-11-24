@@ -23,8 +23,8 @@ from __future__ import annotations
 import math
 import random as _random
 import time
-from datetime import datetime, timedelta, timezone
-from typing import Optional, Protocol, Union
+from datetime import UTC, datetime, timedelta
+from typing import Protocol
 
 __all__ = [
     "Clock",
@@ -49,7 +49,7 @@ class Clock(Protocol):
 class ManualClock(Clock, Protocol):
     """A clock that only moves when told to, from :func:`fixed_clock`."""
 
-    def set(self, at: "ClockInstant") -> None:
+    def set(self, at: ClockInstant) -> None:
         """Move the clock to ``at`` (epoch milliseconds, an ISO string or a ``datetime``)."""
         ...
 
@@ -71,7 +71,7 @@ class RandomSource(Protocol):
         ...
 
 
-ClockInstant = Union[int, float, str, datetime]
+ClockInstant = int | float | str | datetime
 """An instant accepted by :func:`fixed_clock`: epoch milliseconds, an ISO 8601 string or a ``datetime``."""
 
 
@@ -91,7 +91,7 @@ class _SystemRandom:
     """The real random source: ``random.random()``. Not seeded, so not reproducible."""
 
     __slots__ = ()
-    seed: Optional[str] = None
+    seed: str | None = None
 
     def next(self) -> float:
         return _random.random()
@@ -107,7 +107,7 @@ system_random: RandomSource = _SystemRandom()
 """The real random source: ``random.random()``. Not seeded, so not reproducible."""
 
 
-_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+_EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 
 def _to_epoch_ms(at: ClockInstant) -> float:
@@ -115,7 +115,7 @@ def _to_epoch_ms(at: ClockInstant) -> float:
         raise ValueError(f"Invalid clock instant: {at!r}")
     if isinstance(at, datetime):
         # A naive datetime is taken as UTC, so a test reads the same everywhere.
-        moment = at if at.tzinfo is not None else at.replace(tzinfo=timezone.utc)
+        moment = at if at.tzinfo is not None else at.replace(tzinfo=UTC)
         return (moment - _EPOCH) // timedelta(milliseconds=1)
     if isinstance(at, str):
         text = at.strip()
@@ -196,7 +196,7 @@ class _SeededRandom:
     __slots__ = ("seed", "_state")
 
     def __init__(self, seed: str) -> None:
-        self.seed: Optional[str] = seed
+        self.seed: str | None = seed
         self._state = _fnv1a(seed)
 
     def next(self) -> float:

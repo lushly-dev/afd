@@ -9,12 +9,11 @@ Example:
 """
 
 import json
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from afd.platform import ExecOptions, ExecResult, exec_command, is_exec_error
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TYPES
@@ -34,9 +33,9 @@ class IssueCreateOptions(BaseModel):
 
     title: str
     body: str
-    repo: Optional[str] = None
-    labels: Optional[list[str]] = None
-    project: Optional[str] = None
+    repo: str | None = None
+    labels: list[str] | None = None
+    project: str | None = None
 
 
 class IssueFilters(BaseModel):
@@ -49,10 +48,10 @@ class IssueFilters(BaseModel):
         limit: Maximum number of issues to return.
     """
 
-    state: Optional[Literal["open", "closed", "all"]] = None
-    label: Optional[str] = None
-    assignee: Optional[str] = None
-    limit: Optional[int] = Field(default=None, gt=0)
+    state: Literal["open", "closed", "all"] | None = None
+    label: str | None = None
+    assignee: str | None = None
+    limit: int | None = Field(default=None, gt=0)
 
 
 class Issue(BaseModel):
@@ -85,7 +84,7 @@ class PrCreateOptions(BaseModel):
     title: str
     body: str
     head: str
-    base: Optional[str] = None
+    base: str | None = None
     draft: bool = False
 
 
@@ -140,7 +139,7 @@ class GitHubConnector:
         >>> issues = await gh.issue_list("owner/repo", IssueFilters(state="open", limit=10))
     """
 
-    def __init__(self, options: Optional[GitHubConnectorOptions] = None) -> None:
+    def __init__(self, options: GitHubConnectorOptions | None = None) -> None:
         self._options = options
 
     async def issue_create(self, opts: IssueCreateOptions) -> int:
@@ -186,9 +185,7 @@ class GitHubConnector:
 
         return int(match.group(1))
 
-    async def issue_list(
-        self, repo: str, filters: Optional[IssueFilters] = None
-    ) -> list[Issue]:
+    async def issue_list(self, repo: str, filters: IssueFilters | None = None) -> list[Issue]:
         """List issues from a repository.
 
         Args:
@@ -205,9 +202,13 @@ class GitHubConnector:
             >>> issues = await gh.issue_list("owner/repo", IssueFilters(state="open"))
         """
         cmd: list[str] = [
-            "gh", "issue", "list",
-            "--repo", repo,
-            "--json", "number,title,state,url",
+            "gh",
+            "issue",
+            "list",
+            "--repo",
+            repo,
+            "--json",
+            "number,title,state,url",
         ]
 
         if filters:
@@ -255,10 +256,15 @@ class GitHubConnector:
             ... ))
         """
         cmd: list[str] = [
-            "gh", "pr", "create",
-            "--title", opts.title,
-            "--body", opts.body,
-            "--head", opts.head,
+            "gh",
+            "pr",
+            "create",
+            "--title",
+            opts.title,
+            "--body",
+            opts.body,
+            "--head",
+            opts.head,
         ]
 
         if opts.base:
@@ -281,9 +287,7 @@ class GitHubConnector:
 
         return int(match.group(1))
 
-    async def pr_list(
-        self, repo: str, filters: Optional[IssueFilters] = None
-    ) -> list[PullRequest]:
+    async def pr_list(self, repo: str, filters: IssueFilters | None = None) -> list[PullRequest]:
         """List pull requests from a repository.
 
         Args:
@@ -300,9 +304,13 @@ class GitHubConnector:
             >>> prs = await gh.pr_list("owner/repo", IssueFilters(state="open"))
         """
         cmd: list[str] = [
-            "gh", "pr", "list",
-            "--repo", repo,
-            "--json", "number,title,state,url",
+            "gh",
+            "pr",
+            "list",
+            "--repo",
+            repo,
+            "--json",
+            "number,title,state,url",
         ]
 
         if filters:

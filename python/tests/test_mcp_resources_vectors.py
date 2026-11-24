@@ -44,7 +44,9 @@ def _load_vectors() -> dict[str, Any]:
     return json.loads(SPEC_VECTORS.read_text(encoding="utf-8"))
 
 
-def _catalog_from_spec(skills_spec: list[dict[str, Any]], *, directory_read: bool = False) -> SkillCatalog:
+def _catalog_from_spec(
+    skills_spec: list[dict[str, Any]], *, directory_read: bool = False
+) -> SkillCatalog:
     skills: list[Skill] = []
     for item in skills_spec:
         files: dict[str, str | bytes] = {}
@@ -255,7 +257,10 @@ async def test_spec_catalog_vectors_modern_http():
             _, got = await _modern_http(
                 http, "skills/get", {"uri": get_case["uri"]}, include_mcp_name=False
             )
-            assert got["result"]["skill"] == cat_spec["skillsList"]["skills"][get_case["skillsListIndex"]]
+            assert (
+                got["result"]["skill"]
+                == cat_spec["skillsList"]["skills"][get_case["skillsListIndex"]]
+            )
             assert got["result"]["ttlMs"] == 300_000
             assert got["result"]["cacheScope"] == "public"
 
@@ -302,15 +307,22 @@ async def test_spec_catalog_vectors_legacy_http():
             assert null_cursor["error"]["code"] == -32602
 
         for read_case in cat_spec["reads"]:
-            res_read = await _legacy_http(http, session_id, "resources/read", {"uri": read_case["uri"]})
+            res_read = await _legacy_http(
+                http, session_id, "resources/read", {"uri": read_case["uri"]}
+            )
             assert res_read["result"]["contents"] == read_case["contents"]
 
         for get_case in cat_spec["skillsGet"]:
             got = await _legacy_http(http, session_id, "skills/get", {"uri": get_case["uri"]})
-            assert got["result"]["skill"] == cat_spec["skillsList"]["skills"][get_case["skillsListIndex"]]
+            assert (
+                got["result"]["skill"]
+                == cat_spec["skillsList"]["skills"][get_case["skillsListIndex"]]
+            )
 
         for err_case in cat_spec["errors"]:
-            err_resp = await _legacy_http(http, session_id, err_case["method"], {"uri": err_case["uri"]})
+            err_resp = await _legacy_http(
+                http, session_id, err_case["method"], {"uri": err_case["uri"]}
+            )
             assert err_resp["error"]["code"] == err_case["code"]
             if not err_case.get("dataOptional"):
                 assert err_resp["error"]["data"]["uri"] == err_case["uri"]
@@ -348,7 +360,10 @@ async def test_spec_catalog_vectors_stdio_both_eras():
             got = await send(
                 "skills/get", {"uri": get_case["uri"], "_meta": _modern_meta()}, req_id=idx
             )
-            assert got["result"]["skill"] == cat_spec["skillsList"]["skills"][get_case["skillsListIndex"]]
+            assert (
+                got["result"]["skill"]
+                == cat_spec["skillsList"]["skills"][get_case["skillsListIndex"]]
+            )
             assert got["result"]["ttlMs"] == 300_000
 
         for idx, err_case in enumerate(cat_spec["errors"], start=30):
@@ -389,7 +404,10 @@ async def test_spec_catalog_vectors_stdio_both_eras():
 
         for idx, get_case in enumerate(cat_spec["skillsGet"], start=20):
             got = await send("skills/get", {"uri": get_case["uri"]}, req_id=idx)
-            assert got["result"]["skill"] == cat_spec["skillsList"]["skills"][get_case["skillsListIndex"]]
+            assert (
+                got["result"]["skill"]
+                == cat_spec["skillsList"]["skills"][get_case["skillsListIndex"]]
+            )
 
         for idx, err_case in enumerate(cat_spec["errors"], start=30):
             er = await send(err_case["method"], {"uri": err_case["uri"]}, req_id=idx)
@@ -554,9 +572,7 @@ async def test_provider_and_skills_order_ui_meta_templates_cursors_and_contexts(
 
         # Provider entries come first, then skill files; dev.afd/context does not vary list or lower ttlMs.
         _, rl1 = await _modern_http(http, "resources/list")
-        _, rl2 = await _modern_http(
-            http, "resources/list", {"_meta": {"dev.afd/context": "alpha"}}
-        )
+        _, rl2 = await _modern_http(http, "resources/list", {"_meta": {"dev.afd/context": "alpha"}})
         assert rl1["result"]["resources"] == rl2["result"]["resources"]
         assert rl1["result"]["ttlMs"] == 12_345
         assert rl2["result"]["ttlMs"] == 12_345

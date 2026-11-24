@@ -71,7 +71,7 @@ _LINK = "120000"  # a tree entry that is a link: its blob is the path it points 
 # How long a folder that is not there, and that nothing shows was removed, keeps speaking for
 # its project: a volume away for longer speaks no more, until it is read again
 GONE_AFTER = timedelta(days=30)
-NOTHING_HELD = {"at": None, "commit": None, "held": {}, "renames": {}}
+NOTHING_HELD: dict[str, object] = {"at": None, "commit": None, "held": {}, "renames": {}}
 UNKNOWN_PROJECT = "unknown"
 _PATHSPECS = tuple(f":(glob){folder}/*/SKILL.md" for folder in SKILL_DIRS)
 _REMOTE = re.compile(r"[:/]([^/:\s]+/[^/\s]+?)(?:\.git)?/?$")
@@ -232,14 +232,16 @@ def _volume_id(
     """A volume's stable identifier at `mount`. Cached by `(mount, device)` while recording
     present folders in a collection; `storage_there` always queries live before dropping an
     account so a disk swapped mid-collection is never mistaken for the one seen earlier."""
-    key = (str(mount), device) if cache is not None and device is not None else None
-    if key is not None and key in cache:
-        return cache[key]
-    found = volume_id(mount)
-    value = found if isinstance(found, str) and found else None
-    if key is not None:
+    if cache is not None and device is not None:
+        key = (str(mount), device)
+        if key in cache:
+            return cache[key]
+        found = volume_id(mount)
+        value = found if isinstance(found, str) and found else None
         cache[key] = value
-    return value
+        return value
+    found = volume_id(mount)
+    return found if isinstance(found, str) and found else None
 
 
 def storage_of(
@@ -285,7 +287,7 @@ def storage_there(kept_on: dict) -> bool:
     folder, volume = kept_on.get("folder"), kept_on.get("volume")
     if isinstance(folder, str):
         return _valid_path(folder) and folder_there(Path(folder)) is True
-    if not _valid_path(volume):
+    if not isinstance(volume, str) or not _valid_path(volume):
         return False
     try:
         device = os.stat(volume).st_dev
@@ -500,7 +502,7 @@ def _name_projects(
     removed and `refiled[old_name] = remote` is recorded so historical events and sessions can
     be refiled to the canonical project name.
     """
-    projects = {
+    projects: dict[str, dict] = {
         name: {
             "remote": bool(entry.get("remote")),
             **({"split": True} if entry.get("split") else {}),
@@ -641,9 +643,7 @@ def _read_t3(
     try:
         with t3.progress(connection, path):
             t3.check_schema(connection)
-            return t3.read(
-                connection, since=since, all_items=all_items, natives=natives, path=path
-            )
+            return t3.read(connection, since=since, all_items=all_items, natives=natives, path=path)
     except sqlite3.Error as exc:
         raise t3.StoreUnreadable(str(exc)) from exc
     finally:
@@ -769,6 +769,7 @@ async def skill_usage_collect(  # noqa: PLR0911 - one refusal per way a source c
             "Pass machine with the name of the machine the store was copied from, or leave "
             "t3_store out to read this machine's own store",
         )  # fmt: skip
+
     def _run_collect() -> CommandResult[dict]:  # noqa: PLR0911
         try:
             here = local()
@@ -929,7 +930,8 @@ def _collect(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one collection, start t
         known_skills = {(event.project, event.skill) for event in stored}
     # A session stays in the project it was filed under: its checkout may have been moved
     # or removed since, and where it ran is not where its folder leads today
-    for item in [*claude.loads, *claude.sessions]:
+    claude_items: list[t3.Load | t3.Session] = [*claude.loads, *claude.sessions]
+    for item in claude_items:
         thread = item.thread if isinstance(item, t3.Load) else item.id
         filed = _mapping(sessions.get(thread)).get("project")
         if item.project_id is None and isinstance(filed, str) and filed != UNKNOWN_PROJECT:

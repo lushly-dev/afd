@@ -34,8 +34,12 @@ def _decode(raw: bytes) -> str:
 
 
 def git_out(  # noqa: PLR0913 - git's own knobs
-    cwd: Path, *args: str, timeout: float = GIT_TIMEOUT, stdin: str | None = None,
-    ok_codes: tuple[int, ...] = (0,), env: dict[str, str] | None = None,
+    cwd: Path,
+    *args: str,
+    timeout: float = GIT_TIMEOUT,
+    stdin: str | None = None,
+    ok_codes: tuple[int, ...] = (0,),
+    env: dict[str, str] | None = None,
 ) -> str:
     """Run git in cwd and return stdout; raise GitError on failure or timeout."""
     try:
@@ -167,8 +171,15 @@ def verify_checkout(worktree: Worktree, common: Path, timeout: float = GIT_TIMEO
     if os.path.islink(worktree.path):
         return "the registered folder is now a symbolic link"
     try:
-        out = git_out(worktree.path, "rev-parse", "--path-format=absolute", "--show-toplevel",
-                      "--git-dir", "--git-common-dir", timeout=timeout)
+        out = git_out(
+            worktree.path,
+            "rev-parse",
+            "--path-format=absolute",
+            "--show-toplevel",
+            "--git-dir",
+            "--git-common-dir",
+            timeout=timeout,
+        )
         top, own, shared = (out.splitlines() + ["", "", ""])[:3]
     except GitError as exc:
         return f"git cannot read it: {exc}"
@@ -202,8 +213,13 @@ _OPERATIONS = {
 def status(worktree: Path, admin: Path | None, timeout: float = GIT_TIMEOUT) -> Status:
     """Changed and untracked paths, and any git operation in progress."""
     out = git_out(
-        worktree, "status", "--porcelain=v1", "-z", "--untracked-files=all",
-        "--ignore-submodules=none", timeout=timeout,
+        worktree,
+        "status",
+        "--porcelain=v1",
+        "-z",
+        "--untracked-files=all",
+        "--ignore-submodules=none",
+        timeout=timeout,
     )
     changed: list[str] = []
     records = out.split("\0")
@@ -235,8 +251,15 @@ def ignored(worktree: Path, paths: list[str], timeout: float = GIT_TIMEOUT) -> s
     """The subset of paths (relative, forward slashes) that git ignores."""
     if not paths:
         return set()
-    out = git_out(worktree, "check-ignore", "-z", "--stdin", stdin="\0".join(paths) + "\0",
-                  timeout=timeout, ok_codes=(0, 1))
+    out = git_out(
+        worktree,
+        "check-ignore",
+        "-z",
+        "--stdin",
+        stdin="\0".join(paths) + "\0",
+        timeout=timeout,
+        ok_codes=(0, 1),
+    )
     return {p for p in out.split("\0") if p}
 
 
@@ -273,8 +296,9 @@ def tracked_files(worktree: Path, timeout: float = GIT_TIMEOUT) -> list[str]:
     return [f for f in out.split("\0") if f]
 
 
-def tracked_under(worktree: Path, paths: list[str], files: list[str] | None = None,
-                  fold: bool | None = None) -> set[str]:
+def tracked_under(
+    worktree: Path, paths: list[str], files: list[str] | None = None, fold: bool | None = None
+) -> set[str]:
     """The subset of paths that are, or hold, a tracked path.
 
     Compared case-insensitively where the filesystem is, so `BUILD` counts as holding the

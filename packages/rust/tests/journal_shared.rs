@@ -1,6 +1,6 @@
-#![cfg(feature = "journal-file-shared")]
-
 //! Several sinks, in one process here and in several in `umbel`, appending to one journal file.
+
+#![cfg(feature = "journal-file-shared")]
 
 use afd::{
     parse_journal, success, CommandContext, CommandDefinition, CommandHandler, CommandParameter,

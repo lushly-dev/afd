@@ -10,7 +10,7 @@ from afd.core.commands import (
     command_to_mcp_tool,
     create_command_registry,
 )
-from afd.core.result import CommandResult, success
+from afd.core.result import success
 
 
 class TestCommandParameter:

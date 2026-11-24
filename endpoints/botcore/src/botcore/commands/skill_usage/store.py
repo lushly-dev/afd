@@ -402,9 +402,9 @@ def as_inventory(value: object) -> dict | None:
     if not isinstance(value, dict) or not isinstance(value.get("held"), dict):
         return None
     moment, commit = _moment(value.get("at")), value.get("commit")
-    dated = moment is not None and isinstance(commit, str) and _COMMIT.fullmatch(commit)
+    dated = moment is not None and isinstance(commit, str) and _COMMIT.fullmatch(commit) is not None
     return {
-        "at": moment.astimezone(UTC).isoformat() if dated else None,
+        "at": moment.astimezone(UTC).isoformat() if dated and moment is not None else None,
         "commit": commit if dated else None,
         "held": {
             name: list(facts)
@@ -610,7 +610,9 @@ def _link_rank(link: object) -> tuple[int, bool, str]:
         return (3, True, "")
     when = link.get("linked_at")
     when = when if isinstance(when, str) else None
-    return ({True: 0, False: 1}.get(link.get("opened"), 2), when is None, when or "")
+    opened = link.get("opened")
+    rank = 0 if opened is True else 1 if opened is False else 2
+    return (rank, when is None, when or "")
 
 
 def _merged(one: dict, other: dict) -> dict:
@@ -645,7 +647,11 @@ def _name_skills(record: Record, renames: dict[str, dict], skills: dict[str, dic
     for machine in sorted(skills):  # of two machines at one commit, the first by name
         for project, inventory in skills[machine].items():
             held.setdefault(project, []).append(inventory)
-    record.skills = {project: newest_inventory(found) for project, found in held.items()}
+    record.skills = {
+        project: inv
+        for project, found in held.items()
+        if (inv := newest_inventory(found)) is not None
+    }
     for project, inventory in record.skills.items():
         # a skill's name now and the list it is looked up in come from one commit: where two
         # machines' histories say otherwise of a name, the one whose list is used is right

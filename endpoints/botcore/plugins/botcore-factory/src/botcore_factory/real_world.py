@@ -19,6 +19,7 @@ import sys
 import time
 from collections.abc import Callable, Sequence
 from pathlib import Path, PurePosixPath
+from typing import Any
 
 from botcore_factory.adapter import _slot_clean_path
 from botcore_factory.real_run import Run, make_runner, parse_json, resolve_program, run_process
@@ -54,7 +55,7 @@ __all__ = [
 ]
 
 
-def _issue(raw: dict) -> Issue:
+def _issue(raw: dict[str, Any]) -> Issue:
     return Issue(
         number=raw["number"],
         title=raw.get("title", ""),
@@ -282,9 +283,9 @@ class GhGitHub:
             body,
         )
 
-    def _commits(self, pr: int) -> list[dict]:
+    def _commits(self, pr: int) -> list[dict[str, Any]]:
         """A pull request's commits, which GitHub lists up to 250 of, 100 to a page."""
-        commits: list[dict] = []
+        commits: list[dict[str, Any]] = []
         path = f"repos/{self.repository()}/pulls/{pr}/commits"
         for page in range(1, 4):
             batch = parse_json(
@@ -353,7 +354,7 @@ class GhGitHub:
         so a job GitHub has not created yet still holds the answer at ``pending``."""
         repository = self.repository()
         runs = self._pages(f"repos/{repository}/commits/{commit}/check-runs", "check_runs")
-        latest: dict[tuple, dict] = {}
+        latest: dict[tuple[Any, str], dict[str, Any]] = {}
         for run in runs:
             key = ((run.get("check_suite") or {}).get("id"), run.get("name", ""))
             if (run.get("started_at") or "") >= (latest.get(key, {}).get("started_at") or ""):
@@ -379,9 +380,9 @@ class GhGitHub:
             _worst(checks, f"workflow: {run.get('name', '')}", _run_state(run))
         return checks
 
-    def _pages(self, path: str, key: str) -> list[dict]:
+    def _pages(self, path: str, key: str) -> list[dict[str, Any]]:
         """Every item of a paged list; a read that stops short raises."""
-        items: list[dict] = []
+        items: list[dict[str, Any]] = []
         separator = "&" if "?" in path else "?"
         for page in range(1, 11):
             found = parse_json(
@@ -426,7 +427,7 @@ def _worst(checks: dict[str, str], name: str, state: str) -> None:
         checks[name] = state
 
 
-def _run_state(run: dict) -> str:
+def _run_state(run: dict[str, Any]) -> str:
     """A check run's or workflow run's state."""
     if run.get("status") != "completed":
         return "pending"
@@ -552,7 +553,7 @@ class CliGit:
             ]
         )
 
-    def queue_refs(self) -> list[dict]:
+    def queue_refs(self) -> list[dict[str, Any]]:
         out = self.run(["git", "ls-remote", "origin", "refs/factory/queue/*"])
         refs = []
         for line in out.splitlines():
@@ -1005,7 +1006,7 @@ def _is_junction(path: Path) -> bool:
 def _rename_slot_dir_posix(slot_root: Path, parts: tuple[str, ...], trash_name: str) -> Path | None:
     """Walk ``parts`` inside ``slot_root`` using opened ``O_NOFOLLOW`` directory fds and
     atomically rename the final directory into ``slot_root.parent``."""
-    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
     parent_fd: int | None = None
     cur_fd: int | None = None
     try:
@@ -1125,11 +1126,13 @@ def _remove_detached(repository: str, path: Path, *, checkout: bool = True) -> N
     """``git worktree remove --force`` the checkout at ``path`` (only a ``checkout``) in a
     process of its own that outlives the lane step, then delete whatever is left (best effort:
     a leftover ``.removing-*`` directory holds no lane state)."""
-    options: dict = (
-        {"creationflags": subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP}
-        if sys.platform == "win32"
-        else {"start_new_session": True}
-    )
+    options: dict[str, Any]
+    if sys.platform == "win32":
+        options = {
+            "creationflags": subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+        }
+    else:
+        options = {"start_new_session": True}
     code = (
         "import os, shutil, stat, subprocess, sys\n"
         "path = sys.argv[2]\n"

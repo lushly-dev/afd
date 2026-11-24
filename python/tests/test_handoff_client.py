@@ -11,16 +11,13 @@ Tests cover:
 
 from __future__ import annotations
 
-import asyncio
-import time
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from afd.handoff_client import (
-    HandoffConnection,
     HandoffConnectionOptions,
     HandoffConnectionState,
     ReconnectingHandoffConnection,
@@ -40,7 +37,6 @@ from afd.handoff_client import (
     unregister_handoff_handler,
 )
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # TEST HELPERS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -57,12 +53,12 @@ class MockConnection:
         self._protocol = protocol
         self._endpoint = endpoint
         self._state = HandoffConnectionState.DISCONNECTED
-        self._message_callbacks: List[Callable] = []
-        self._error_callbacks: List[Callable] = []
-        self._close_callbacks: List[Callable] = []
+        self._message_callbacks: list[Callable] = []
+        self._error_callbacks: list[Callable] = []
+        self._close_callbacks: list[Callable] = []
         self.connect_count = 0
         self.disconnect_count = 0
-        self.sent_data: List[Any] = []
+        self.sent_data: list[Any] = []
 
     async def connect(self) -> None:
         self.connect_count += 1
@@ -227,17 +223,13 @@ class TestConnectHandoff:
 
         register_handoff_handler("test-ws", handler)
 
-        result = await connect_handoff(
-            {"protocol": "test-ws", "endpoint": "ws://test"}
-        )
+        result = await connect_handoff({"protocol": "test-ws", "endpoint": "ws://test"})
         assert result is mock_conn
 
     @pytest.mark.asyncio
     async def test_raises_for_unknown_protocol(self):
         with pytest.raises(ValueError, match="No protocol handler registered for 'unknown'"):
-            await connect_handoff(
-                {"protocol": "unknown", "endpoint": "unknown://test"}
-            )
+            await connect_handoff({"protocol": "unknown", "endpoint": "unknown://test"})
 
     @pytest.mark.asyncio
     async def test_error_lists_available_protocols(self):
@@ -248,9 +240,7 @@ class TestConnectHandoff:
         register_handoff_handler("sse", handler)
 
         with pytest.raises(ValueError, match="Available protocols:"):
-            await connect_handoff(
-                {"protocol": "webrtc", "endpoint": "webrtc://test"}
-            )
+            await connect_handoff({"protocol": "webrtc", "endpoint": "webrtc://test"})
 
     @pytest.mark.asyncio
     async def test_passes_options_to_handler(self):

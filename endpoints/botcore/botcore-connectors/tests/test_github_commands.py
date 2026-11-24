@@ -461,9 +461,7 @@ class TestGithubPrReview:
     @respx.mock
     async def test_request_changes(self, github_commands: GitHubCommandSet) -> None:
         respx.post(f"{GH}/repos/octocat/hello-world/pulls/1/reviews").mock(
-            return_value=httpx.Response(
-                200, json=_review_json(state="CHANGES_REQUESTED")
-            )
+            return_value=httpx.Response(200, json=_review_json(state="CHANGES_REQUESTED"))
         )
         cmd = _cmd_by_name(github_commands, "github_pr_review")
         result = await cmd(1, "REQUEST_CHANGES", body="Fix the bug")

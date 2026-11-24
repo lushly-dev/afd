@@ -15,6 +15,7 @@ async def until(predicate):
     async def wait():
         while not predicate():
             await asyncio.sleep(0.005)
+
     await asyncio.wait_for(wait(), 3)
 
 
@@ -43,7 +44,9 @@ class LoopbackMcp:
             if method == "GET" and path == "/sse":
                 session = str(len(self.sessions) + 1)
                 self.sessions[session] = writer
-                writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n")
+                writer.write(
+                    b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n"
+                )
                 writer.write(f"event: endpoint\ndata: /message?session={session}\n\n".encode())
                 await writer.drain()
                 await reader.read()
@@ -66,12 +69,24 @@ class LoopbackMcp:
                 if self.fail_init:
                     await self.respond(writer, 503, {})
                     return
-                result = {"protocolVersion": "2024-11-05", "capabilities": {}, "serverInfo": {"name": "loopback", "version": "1"}}
+                result = {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {},
+                    "serverInfo": {"name": "loopback", "version": "1"},
+                }
             elif rpc_method == "tools/list":
-                tool = {"name": f"tool-{self.initializations}", "description": "Live discovery", "inputSchema": {"type": "object"}}
+                tool = {
+                    "name": f"tool-{self.initializations}",
+                    "description": "Live discovery",
+                    "inputSchema": {"type": "object"},
+                }
                 if self.advertise_output:
                     tool["name"] = "output-read"
-                    tool["outputSchema"] = {"type": "object", "properties": {"value": {"type": "integer"}}, "required": ["value"]}
+                    tool["outputSchema"] = {
+                        "type": "object",
+                        "properties": {"value": {"type": "integer"}},
+                        "required": ["value"],
+                    }
                 result = {"tools": [tool]}
             elif rpc_method == "tools/call":
                 self.writes += 1
@@ -85,9 +100,14 @@ class LoopbackMcp:
                     arguments = request["params"].get("arguments", {})
                     result = {"content": [{"type": "text", "text": '{"success":true,"data":null}'}]}
                     if arguments.get("mode") != "missing":
-                        result["structuredContent"] = {"value": "bad" if arguments.get("mode") == "invalid" else 7}
+                        result["structuredContent"] = {
+                            "value": "bad" if arguments.get("mode") == "invalid" else 7
+                        }
                 elif request["params"]["name"] == "fail-tool":
-                    result = {"content": [{"type": "text", "text": "Invalid input"}], "isError": True}
+                    result = {
+                        "content": [{"type": "text", "text": "Invalid input"}],
+                        "isError": True,
+                    }
                 else:
                     result = {"content": [{"type": "text", "text": '{"success":true,"data":null}'}]}
             else:
@@ -110,7 +130,10 @@ class LoopbackMcp:
 
     async def respond(self, writer, status, body):
         payload = json.dumps(body).encode()
-        writer.write(f"HTTP/1.1 {status} Response\r\nContent-Type: application/json\r\nContent-Length: {len(payload)}\r\nConnection: close\r\n\r\n".encode() + payload)
+        writer.write(
+            f"HTTP/1.1 {status} Response\r\nContent-Type: application/json\r\nContent-Length: {len(payload)}\r\nConnection: close\r\n\r\n".encode()
+            + payload
+        )
         await writer.drain()
 
     def drop_sse(self):
@@ -138,10 +161,15 @@ async def running_server():
 
 
 def make_client(server, transport, **config):
-    return McpClient(McpClientConfig(
-        url=server.url + ("/sse" if transport == "sse" else "/message"),
-        transport=transport, timeout=2, reconnect_delay=0.01, **config,
-    ))
+    return McpClient(
+        McpClientConfig(
+            url=server.url + ("/sse" if transport == "sse" else "/message"),
+            transport=transport,
+            timeout=2,
+            reconnect_delay=0.01,
+            **config,
+        )
+    )
 
 
 @pytest.mark.parametrize("transport", ["http", "sse"])

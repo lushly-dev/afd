@@ -30,11 +30,7 @@ TESTING_EXTRA_MODULES = ("pytest", "_pytest", "yaml")
 
 
 def _run_without(blocked: tuple[str, ...], code: str) -> subprocess.CompletedProcess[str]:
-    prelude = (
-        "import sys\n"
-        f"for _name in {blocked!r}:\n"
-        "    sys.modules[_name] = None\n"
-    )
+    prelude = f"import sys\nfor _name in {blocked!r}:\n    sys.modules[_name] = None\n"
     env = {**os.environ, "PYTHONPATH": str(SRC_DIR)}
     return subprocess.run(
         [sys.executable, "-c", prelude + textwrap.dedent(code)],

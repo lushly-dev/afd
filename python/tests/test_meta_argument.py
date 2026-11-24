@@ -154,7 +154,13 @@ def test_a_meta_argument_that_is_not_an_object_fails(argument):
 
 def test_every_meta_tool_advertises_meta_as_the_spec_does():
     spec = {tool["name"]: tool for tool in json.loads(SPEC_META_TOOLS.read_text())}
-    for schema in (CallToolSchema, BatchToolSchema, PipeToolSchema, DiscoverToolSchema, DetailToolSchema):
+    for schema in (
+        CallToolSchema,
+        BatchToolSchema,
+        PipeToolSchema,
+        DiscoverToolSchema,
+        DetailToolSchema,
+    ):
         prop = schema["inputSchema"]["properties"]["meta"]
         assert prop == {"type": "object", "description": META_ARGUMENT_DESCRIPTION}
         assert prop == spec[schema["name"]]["inputSchema"]["properties"]["meta"]

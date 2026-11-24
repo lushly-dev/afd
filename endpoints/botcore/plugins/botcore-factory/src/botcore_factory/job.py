@@ -19,6 +19,7 @@ import json
 import os
 import subprocess
 import sys
+from typing import Any
 
 from botcore_factory.real_run import path_env, resolve_program
 from botcore_factory.real_system import kill_tree, new_group
@@ -29,7 +30,7 @@ TIMED_OUT = 124
 NOT_FOUND = 127
 
 
-def run_step(step: dict) -> tuple[int, bool]:
+def run_step(step: dict[str, Any]) -> tuple[int, bool]:
     """Run one step; its exit code and whether it timed out."""
     env = path_env(step.get("path") or ())
     if step.get("env"):
@@ -60,12 +61,13 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def failure(tail: str) -> dict | None:
+def failure(tail: str) -> dict[str, Any] | None:
     """The failed step a job's log names, if any."""
     for line in reversed(tail.splitlines()):
         if line.startswith(MARKER):
             try:
-                return json.loads(line[len(MARKER) :])
+                parsed = json.loads(line[len(MARKER) :])
+                return parsed if isinstance(parsed, dict) else None
             except ValueError:
                 return None
     return None

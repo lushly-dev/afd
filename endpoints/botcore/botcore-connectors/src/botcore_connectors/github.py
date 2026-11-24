@@ -138,9 +138,7 @@ class GitHubConnector(ConnectorBase):
                 if wait > 0:
                     await super()._backoff(attempt, retry_after_seconds=wait)
                     return
-        await super()._backoff(
-            attempt, network=network, retry_after_seconds=retry_after_seconds
-        )
+        await super()._backoff(attempt, network=network, retry_after_seconds=retry_after_seconds)
 
     # -- gh_api_call: pre-flight check + error remapping -----------------------
 
@@ -162,9 +160,7 @@ class GitHubConnector(ConnectorBase):
         if not is_search and self._is_rate_limited(is_search=False):
             return github_rate_limited(self._api_rate_reset)
 
-        result = await self.api_call(
-            method, path, json=json, params=params, headers=headers
-        )
+        result = await self.api_call(method, path, json=json, params=params, headers=headers)
 
         # Remap generic error codes to GitHub-specific codes.
         if result.error is not None and result.error.code in GITHUB_ERROR_REMAP:
@@ -175,9 +171,7 @@ class GitHubConnector(ConnectorBase):
         # Emit audit log entry (spec 04 — non-blocking, never crashes pipeline).
         meta = result.metadata
         audit_args = dict((json or params or {}).items()) if (json or params) else {}
-        status = "success" if result.success else (
-            result.error.code if result.error else "error"
-        )
+        status = "success" if result.success else (result.error.code if result.error else "error")
         self._audit.log(
             agent_id="",  # populated by orchestration layer
             connector="github",

@@ -177,7 +177,11 @@ def _outside_workspace(boundary: Path | None, path: Path) -> bool:
 
 
 def _record_outside(
-    issues: list[dict], md_file: Path, ws: Path | None, line_num: int, url_path: str,
+    issues: list[dict],
+    md_file: Path,
+    ws: Path | None,
+    line_num: int,
+    url_path: str,
     link_text: str,
 ) -> None:
     _record_issue(
@@ -230,7 +234,8 @@ def _check_frontmatter(
 
 def _split_anchor(link_url: str) -> tuple[str, str]:
     if "#" in link_url:
-        return link_url.split("#", 1)
+        base, anchor = link_url.split("#", 1)
+        return base, anchor
     return link_url, ""
 
 
@@ -627,7 +632,7 @@ def _git_lines(ws: Path, *args: str) -> list[str] | None:
 def _staged_changes(ws: Path) -> list[tuple[str, str, str | None]]:
     """Each staged change in the workspace as ``(status, path, old path)``, relative to the
     workspace, which may sit below the git root; a rename's old path, else None."""
-    changes = []
+    changes: list[tuple[str, str, str | None]] = []
     for line in _git_lines(ws, "diff", "--cached", "--name-status", "-M", "--relative") or []:
         fields = line.split("\t")
         if len(fields) == 3:

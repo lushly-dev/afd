@@ -16,6 +16,7 @@ import copy
 import json
 import os
 from pathlib import Path
+from typing import Any, cast
 
 from botcore_factory import records
 from botcore_factory.claims import Claim, claim_body
@@ -28,6 +29,7 @@ from botcore_factory.fixture_parts import (
     FixtureProcesses,
     FixtureValidationLock,
 )
+from botcore_factory.state import StateStore
 from botcore_factory.world import World, WorldError
 
 #: Fixture keys the world answers for; the rest of a fixture is the lane's own state.
@@ -87,7 +89,7 @@ STATE_KEYS = frozenset(
 IGNORED_KEYS = frozenset({"$schema", "app", "description", "version"})
 
 
-def deep_merge(base: dict, override: dict) -> dict:
+def deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     """Merge as AFD's fixture loader does: objects recursively, arrays and values replaced."""
     result = copy.deepcopy(base)
     for key, value in override.items():
@@ -98,7 +100,9 @@ def deep_merge(base: dict, override: dict) -> dict:
     return result
 
 
-def load_fixture(path: Path, base: str | None = None, overrides: dict | None = None) -> dict:
+def load_fixture(
+    path: Path, base: str | None = None, overrides: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """A fixture file merged over its base (relative to the fixture's directory), then overrides."""
     data = json.loads(path.read_text(encoding="utf-8"))
     if base:
@@ -106,7 +110,7 @@ def load_fixture(path: Path, base: str | None = None, overrides: dict | None = N
     return deep_merge(data, overrides or {})
 
 
-def split_fixture(fixture: dict) -> tuple[dict, dict]:
+def split_fixture(fixture: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     """The world part and the lane-state part of a fixture. Unknown keys are refused."""
     unknown = set(fixture) - WORLD_KEYS - STATE_KEYS - IGNORED_KEYS
     if unknown:
@@ -116,7 +120,7 @@ def split_fixture(fixture: dict) -> tuple[dict, dict]:
     return world, state
 
 
-def normalize_world(data: dict) -> dict:
+def normalize_world(data: dict[str, Any]) -> dict[str, Any]:
     """Turn fixture ``claims`` into claim comments on their issues; idempotent."""
     data = copy.deepcopy(data)
     issues = {issue["number"]: issue for issue in data.get("issues", [])}
@@ -136,7 +140,7 @@ def normalize_world(data: dict) -> dict:
     return data
 
 
-def open_run(world_path: Path, state_base: Path, fixture: dict) -> tuple[World, object]:
+def open_run(world_path: Path, state_base: Path, fixture: dict[str, Any]) -> tuple[World, object]:
     """Start a scenario run: write its world and seed its lane state from a merged fixture.
 
     The lane-state part replaces the empty state. A fixture worktree's ``ejectedFor`` (the cause
@@ -179,7 +183,7 @@ def open_run(world_path: Path, state_base: Path, fixture: dict) -> tuple[World, 
 FIXTURE_LANE_PID = 4_000_000
 
 
-def _seed_running_lane(world_path: Path, store) -> None:
+def _seed_running_lane(world_path: Path, store: StateStore) -> None:
     """A fixture that says the lane runs gets a live lane process holding the host lock."""
     fixture = FixtureWorld(world_path)
     processes = fixture.data.setdefault("processes", {})
@@ -214,7 +218,7 @@ class FixtureWorld:
             raise WorldError(f"Cannot read the fixture world {path}: {exc}") from exc
 
     @classmethod
-    def create(cls, path: Path, world: dict) -> FixtureWorld:
+    def create(cls, path: Path, world: dict[str, Any]) -> FixtureWorld:
         """Write a world from a fixture's world part and open it."""
         path.parent.mkdir(parents=True, exist_ok=True)
         _write(path, normalize_world(world))
@@ -234,21 +238,21 @@ class FixtureWorld:
             validation_lock=FixtureValidationLock(self),
         )
 
-    def issue_data(self, number: int) -> dict:
+    def issue_data(self, number: int) -> dict[str, Any]:
         for issue in self.data.get("issues", []):
             if issue["number"] == number:
-                return issue
+                return cast("dict[str, Any]", issue)
         raise WorldError(f"Issue #{number} not found")
 
-    def this_machine(self) -> dict:
+    def this_machine(self) -> dict[str, Any]:
         machine_id = self.data.get("thisMachine") or "workstation"
         for record in self.data.get("machines", []):
             if record.get("id") == machine_id:
-                return record
+                return cast("dict[str, Any]", record)
         return {"id": machine_id}
 
 
-def _write(path: Path, data: dict) -> None:
+def _write(path: Path, data: dict[str, Any]) -> None:
     temporary = path.with_name(f"{path.name}.{os.getpid()}.tmp")
     temporary.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     os.replace(temporary, path)

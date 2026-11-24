@@ -5,13 +5,14 @@ Provides the Click-based command-line interface.
 """
 
 import asyncio
-import json
+import contextlib
 import importlib.util
+import json
 import math
 import os
+import sys
 import threading
 import uuid
-import sys
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -19,6 +20,7 @@ from urllib.parse import urlparse
 import click
 from rich.text import Text
 
+from afd.cli.elicitation import interactive_elicitation
 from afd.cli.output import (
     console,
     plain,
@@ -35,7 +37,6 @@ from afd.cli.output import (
 from afd.cli.surface_commands import approval_policy_warnings, collect_surface_commands
 from afd.cli.terminal import terminal_text
 from afd.core.builtin_names import is_afd_builtin_name
-from afd.cli.elicitation import interactive_elicitation
 from afd.transports import (
     ElicitationHandler,
     HttpTransport,
@@ -109,9 +110,7 @@ def _get_transport(
         state = _load_state()
         server = state.get("server")
         if not server:
-            raise click.ClickException(
-                "No server connected. Use 'afd connect <url>' first."
-            )
+            raise click.ClickException("No server connected. Use 'afd connect <url>' first.")
 
     # Check for mock transport
     if server == "mock" or server.startswith("mock:"):
@@ -143,7 +142,10 @@ def _fail(message: str) -> None:
 
 def _headers_option(func: Any) -> Any:
     return click.option(
-        "--header", "-H", "headers", multiple=True,
+        "--header",
+        "-H",
+        "headers",
+        multiple=True,
         help="Request header 'Name: value', repeatable (never saved; also read from AFD_HEADERS)",
     )(func)
 
@@ -183,8 +185,14 @@ def cli(ctx: click.Context, json_output: bool, quiet: bool) -> None:
 
 @cli.command()
 @click.argument("server")
-@click.option("--timeout", "-t", type=click.FloatRange(min=0, min_open=True), default=30.0,
-              show_default=True, help="Connection timeout in seconds")
+@click.option(
+    "--timeout",
+    "-t",
+    type=click.FloatRange(min=0, min_open=True),
+    default=30.0,
+    show_default=True,
+    help="Connection timeout in seconds",
+)
 @_headers_option
 @click.pass_context
 def connect(ctx: click.Context, server: str, timeout: float, headers: tuple[str, ...]) -> None:
@@ -197,7 +205,7 @@ def connect(ctx: click.Context, server: str, timeout: float, headers: tuple[str,
     - http(s)://host/sse       Deprecated SSE endpoint of an AFD server
     - http(s)://host/message   Deprecated HTTP message endpoint
     - mock                     Use mock transport for testing
-    
+
     Headers from -H and AFD_HEADERS are sent to check the connection and are
     never saved; give them again to each later command.
 
@@ -221,13 +229,13 @@ def connect(ctx: click.Context, server: str, timeout: float, headers: tuple[str,
     async def _connect() -> None:
         try:
             await transport.connect()
-            
+
             # Save connection state
             _save_state({"server": server})
-            
+
             if not quiet:
                 print_success(f"Connected to {server}")
-                
+
                 # List available tools
                 tools = await transport.list_tools()
                 if tools:
@@ -240,7 +248,7 @@ def connect(ctx: click.Context, server: str, timeout: float, headers: tuple[str,
                 )
         finally:
             await transport.disconnect()
-    
+
     try:
         asyncio.run(_connect())
     except Exception as e:
@@ -257,21 +265,21 @@ def disconnect(ctx: click.Context) -> None:
     Clears the saved connection state.
     """
     quiet = ctx.obj.get("quiet", False)
-    
+
     state = _load_state()
     server = state.get("server")
-    
+
     if not server:
         if not quiet:
             print_info("No active connection")
         return
-    
+
     if not quiet:
         print_disconnecting()
-    
+
     # Clear state
     _save_state({})
-    
+
     if not quiet:
         print_success(f"Disconnected from {server}")
 
@@ -282,8 +290,13 @@ def disconnect(ctx: click.Context) -> None:
 @click.option("--detail", "-d", "tool_name", help="Show detailed info for a specific tool")
 @_headers_option
 @click.pass_context
-def tools(ctx: click.Context, server: str | None, pattern: str | None, tool_name: str | None,
-          headers: tuple[str, ...]) -> None:
+def tools(
+    ctx: click.Context,
+    server: str | None,
+    pattern: str | None,
+    tool_name: str | None,
+    headers: tuple[str, ...],
+) -> None:
     """
     List available tools from the connected server.
 
@@ -301,40 +314,49 @@ def tools(ctx: click.Context, server: str | None, pattern: str | None, tool_name
         try:
             await transport.connect()
             tool_list = await transport.list_tools()
-            
+
             # Filter if pattern provided
             if pattern:
                 tool_list = [t for t in tool_list if pattern.lower() in t.name.lower()]
-            
+
             # Show detail for specific tool
             if tool_name:
                 matching = [t for t in tool_list if t.name == tool_name]
                 if not matching:
                     raise click.ClickException(f"Tool '{tool_name}' not found")
-                
+
                 if json_output:
                     import json as json_module
-                    click.echo(json_module.dumps({
-                        "name": matching[0].name,
-                        "description": matching[0].description,
-                        "input_schema": matching[0].input_schema,
-                    }, indent=2))
+
+                    click.echo(
+                        json_module.dumps(
+                            {
+                                "name": matching[0].name,
+                                "description": matching[0].description,
+                                "input_schema": matching[0].input_schema,
+                            },
+                            indent=2,
+                        )
+                    )
                 else:
                     print_tool_detail(matching[0])
                 return
-            
+
             # List all tools
             if json_output:
                 import json as json_module
-                click.echo(json_module.dumps([
-                    {"name": t.name, "description": t.description}
-                    for t in tool_list
-                ], indent=2))
+
+                click.echo(
+                    json_module.dumps(
+                        [{"name": t.name, "description": t.description} for t in tool_list],
+                        indent=2,
+                    )
+                )
             else:
                 print_tools(tool_list)
         finally:
             await transport.disconnect()
-    
+
     try:
         asyncio.run(_list_tools())
     except click.ClickException:
@@ -369,7 +391,7 @@ async def _terminal_yes(prompt: str) -> bool:
                 if not char or char in (b"\n", b"\r"):
                     break
                 line.extend(char)
-            answer = line.strip().lower() in (b"y", b"yes")
+            answer = bytes(line).strip().lower() in (b"y", b"yes")
         except (OSError, ValueError):
             answer = False
 
@@ -377,10 +399,9 @@ async def _terminal_yes(prompt: str) -> bool:
             if not decision.done():
                 decision.set_result(answer is True)
 
-        try:
+        # The call may have expired and its event loop already closed.
+        with contextlib.suppress(RuntimeError):
             loop.call_soon_threadsafe(finish)
-        except RuntimeError:
-            pass  # The call expired and its event loop has already closed.
 
     threading.Thread(target=ask, daemon=True).start()
     return await decision
@@ -390,15 +411,28 @@ async def _terminal_yes(prompt: str) -> bool:
 @click.argument("tool")
 @click.argument("args", required=False, default="")
 @click.option("--server", "-s", help="Server to use (uses saved connection if omitted)")
-@click.option("--module", "module_path", type=click.Path(exists=True, dir_okay=False, path_type=Path),
-              help="Load a Python file exporting registry for an in-process call")
+@click.option(
+    "--module",
+    "module_path",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Load a Python file exporting registry for an in-process call",
+)
 @click.option("--approve", is_flag=True, help="Explicitly approve one in-process retry")
-@click.option("--timeout", type=click.FloatRange(min=0, min_open=True), help="Total in-process deadline in ms")
+@click.option(
+    "--timeout", type=click.FloatRange(min=0, min_open=True), help="Total in-process deadline in ms"
+)
 @_headers_option
 @click.pass_context
-def call(ctx: click.Context, tool: str, args: str, server: str | None,
-         module_path: Path | None, approve: bool, timeout: float | None,
-         headers: tuple[str, ...]) -> None:
+def call(
+    ctx: click.Context,
+    tool: str,
+    args: str,
+    server: str | None,
+    module_path: Path | None,
+    approve: bool,
+    timeout: float | None,
+    headers: tuple[str, ...],
+) -> None:
     """
     Call a tool on the connected server.
 
@@ -430,13 +464,15 @@ def call(ctx: click.Context, tool: str, args: str, server: str | None,
     if module_path is not None and headers:
         raise click.UsageError("--header needs a server; --module calls run in process")
     if module_path is None and (approve or timeout is not None):
-        raise click.UsageError("--approve and --timeout require --module; remote approval belongs to the server")
+        raise click.UsageError(
+            "--approve and --timeout require --module; remote approval belongs to the server"
+        )
     if timeout is not None and not math.isfinite(timeout):
         raise click.UsageError("--timeout must be finite")
     request_headers = _resolve_headers(headers) if module_path is None else {}
 
     async def _call_module() -> None:
-        from afd.direct import DirectClient, DirectClientOptions, DirectCallContext
+        from afd.direct import DirectCallContext, DirectClient, DirectClientOptions
 
         spec = importlib.util.spec_from_file_location(f"_afd_call_{uuid.uuid4().hex}", module_path)
         if spec is None or spec.loader is None:
@@ -451,10 +487,15 @@ def call(ctx: click.Context, tool: str, args: str, server: str | None,
 
             async def decide(request):
                 # JSON escaping keeps command-provided control characters out of the terminal.
-                plain = lambda value: json.dumps(value, ensure_ascii=True)[1:-1]
-                click.echo(f"{plain(request.command)} needs approval before it runs.\n"
-                           f"Action: {plain(request.summary)}\n"
-                           f"Approval expires: {plain(request.expires_at)}", err=True)
+                def plain(value):
+                    return json.dumps(value, ensure_ascii=True)[1:-1]
+
+                click.echo(
+                    f"{plain(request.command)} needs approval before it runs.\n"
+                    f"Action: {plain(request.summary)}\n"
+                    f"Approval expires: {plain(request.expires_at)}",
+                    err=True,
+                )
                 if approve:
                     return True
                 if json_output or not sys.stdin.isatty() or not sys.stderr.isatty():
@@ -478,7 +519,7 @@ def call(ctx: click.Context, tool: str, args: str, server: str | None,
             print_result(result, json_output=json_output)
         finally:
             await transport.disconnect()
-    
+
     try:
         asyncio.run(_call_module() if module_path is not None else _call_tool())
     except Exception as e:
@@ -490,18 +531,45 @@ def call(ctx: click.Context, tool: str, args: str, server: str | None,
 @click.argument("commands")
 @click.option("--server", help="Server to use (uses saved connection if omitted)")
 @click.option("--stop-on-error", "-s", is_flag=True, help="Stop execution on first error")
-@click.option("--timeout", "-t", type=click.IntRange(min=0), default=30000, show_default=True,
-              help="Timeout for the entire batch in milliseconds")
-@click.option("--parallel", "-p", type=click.IntRange(min=1), default=1, show_default=True,
-              help="Maximum parallel commands (1 = sequential)")
-@click.option("--format", "-f", "output_format", type=click.Choice(["json", "text"]),
-              default="text", show_default=True, help="Output format (--json also selects json)")
+@click.option(
+    "--timeout",
+    "-t",
+    type=click.IntRange(min=0),
+    default=30000,
+    show_default=True,
+    help="Timeout for the entire batch in milliseconds",
+)
+@click.option(
+    "--parallel",
+    "-p",
+    type=click.IntRange(min=1),
+    default=1,
+    show_default=True,
+    help="Maximum parallel commands (1 = sequential)",
+)
+@click.option(
+    "--format",
+    "-f",
+    "output_format",
+    type=click.Choice(["json", "text"]),
+    default="text",
+    show_default=True,
+    help="Output format (--json also selects json)",
+)
 @click.option("--verbose", "-v", is_flag=True, help="Show detailed output for each command")
 @_headers_option
 @click.pass_context
-def batch(ctx: click.Context, commands: str, server: str | None, stop_on_error: bool,
-          timeout: int, parallel: int, output_format: str, verbose: bool,
-          headers: tuple[str, ...]) -> None:
+def batch(
+    ctx: click.Context,
+    commands: str,
+    server: str | None,
+    stop_on_error: bool,
+    timeout: int,
+    parallel: int,
+    output_format: str,
+    verbose: bool,
+    headers: tuple[str, ...],
+) -> None:
     """
     Execute multiple commands in a single batch request.
 
@@ -528,8 +596,11 @@ def batch(ctx: click.Context, commands: str, server: str | None, stop_on_error: 
         parsed = parse_batch_commands(commands)
     except (ValueError, OSError) as e:
         _fail(f"Invalid commands format: {e}")
-        click.echo("\nExpected format:\n  [{\"command\":\"todo-create\",\"input\":{\"title\":\"Task 1\"}},...]"
-                   "\n\nOr provide a JSON file path:\n  afd batch ./commands.json", err=True)
+        click.echo(
+            '\nExpected format:\n  [{"command":"todo-create","input":{"title":"Task 1"}},...]'
+            "\n\nOr provide a JSON file path:\n  afd batch ./commands.json",
+            err=True,
+        )
         sys.exit(1)
 
     # The batch deadline runs on the server: wait a margin past it for the answer, and
@@ -544,11 +615,15 @@ def batch(ctx: click.Context, commands: str, server: str | None, stop_on_error: 
     async def _batch() -> dict[str, Any]:
         await transport.connect()
         try:
-            return await run_batch(transport.call_tool, parsed, {
-                "stopOnError": stop_on_error,
-                "timeout": timeout,
-                "parallelism": parallel,
-            })
+            return await run_batch(
+                transport.call_tool,
+                parsed,
+                {
+                    "stopOnError": stop_on_error,
+                    "timeout": timeout,
+                    "parallelism": parallel,
+                },
+            )
         finally:
             await transport.disconnect()
 
@@ -571,16 +646,36 @@ def batch(ctx: click.Context, commands: str, server: str | None, stop_on_error: 
 @click.argument("name")
 @click.argument("args", required=False, default="")
 @click.option("--server", "-s", help="Server to use (uses saved connection if omitted)")
-@click.option("--timeout", "-t", type=click.IntRange(min=0), default=60000, show_default=True,
-              help="Timeout in milliseconds (0: no deadline)")
-@click.option("--format", "-f", "output_format", type=click.Choice(["json", "text"]),
-              default="text", show_default=True,
-              help="Output format: json prints one chunk per line (--json also selects it)")
+@click.option(
+    "--timeout",
+    "-t",
+    type=click.IntRange(min=0),
+    default=60000,
+    show_default=True,
+    help="Timeout in milliseconds (0: no deadline)",
+)
+@click.option(
+    "--format",
+    "-f",
+    "output_format",
+    type=click.Choice(["json", "text"]),
+    default="text",
+    show_default=True,
+    help="Output format: json prints one chunk per line (--json also selects it)",
+)
 @click.option("--progress/--no-progress", default=True, help="Show or hide progress updates")
 @_headers_option
 @click.pass_context
-def stream(ctx: click.Context, name: str, args: str, server: str | None, timeout: int,
-           output_format: str, progress: bool, headers: tuple[str, ...]) -> None:
+def stream(
+    ctx: click.Context,
+    name: str,
+    args: str,
+    server: str | None,
+    timeout: int,
+    output_format: str,
+    progress: bool,
+    headers: tuple[str, ...],
+) -> None:
     """
     Execute a command with streaming results (Ctrl+C to cancel).
 
@@ -635,16 +730,21 @@ def stream(ctx: click.Context, name: str, args: str, server: str | None, timeout
             except (NotImplementedError, RuntimeError, ValueError):
                 pass  # Windows: Ctrl+C arrives as KeyboardInterrupt instead.
         client = McpClient(
-            McpClientConfig(url=url, auto_reconnect=False, headers=request_headers),
+            McpClientConfig(url=str(url or ""), auto_reconnect=False, headers=request_headers),
             transport=transport,
         )
         try:
             await client.connect()
             if not json_output and progress:
-                click.echo(click.style(f"Streaming {terminal_text(name)}... (Ctrl+C to cancel)", dim=True))
+                click.echo(
+                    click.style(f"Streaming {terminal_text(name)}... (Ctrl+C to cancel)", dim=True)
+                )
                 click.echo()
             async for chunk in client.stream(
-                name, parsed_args, timeout=timeout / 1000 if timeout else None, cancel=cancel,
+                name,
+                parsed_args,
+                timeout=timeout / 1000 if timeout else None,
+                cancel=cancel,
                 idle_timeout=None,  # -t bounds the stream, and -t 0 means no limit, as in TypeScript
             ):
                 if json_output:
@@ -664,11 +764,17 @@ def stream(ctx: click.Context, name: str, args: str, server: str | None, timeout
         interrupted = True
     except Exception as e:
         if json_output:
-            dump(stream_error_chunk({
-                "code": "STREAM_FAILED",
-                "message": str(e),
-                "suggestion": "Check the connection and retry the stream",
-            }, 0, True))
+            dump(
+                stream_error_chunk(
+                    {
+                        "code": "STREAM_FAILED",
+                        "message": str(e),
+                        "suggestion": "Check the connection and retry the stream",
+                    },
+                    0,
+                    True,
+                )
+            )
         else:
             _fail(f"Stream failed: {e}")
         sys.exit(1)
@@ -691,17 +797,22 @@ def status(ctx: click.Context) -> None:
     Displays the currently connected server and connection state.
     """
     json_output = ctx.obj.get("json_output", False)
-    
+
     state = _load_state()
     server = state.get("server")
-    
+
     if json_output:
-        click.echo(json.dumps({
-            "connected": server is not None,
-            "server": server,
-        }, indent=2))
+        click.echo(
+            json.dumps(
+                {
+                    "connected": server is not None,
+                    "server": server,
+                },
+                indent=2,
+            )
+        )
         return
-    
+
     if server:
         print_success(f"Connected to: {server}")
     else:
@@ -761,11 +872,11 @@ def validate(
             "tool_count": 0,
             "errors": [],
         }
-        
+
         try:
             await transport.connect()
             results["connection"] = True
-            
+
             tools = await transport.list_tools()
             results["tools_listed"] = True
             results["tool_count"] = len(tools)
@@ -790,7 +901,7 @@ def validate(
                     print_success("Validation passed!")
             if failed:
                 sys.exit(1)
-                
+
         except Exception as e:
             results["errors"].append(str(e))
             if json_output:
@@ -855,9 +966,21 @@ def validate(
                     print_warning(warning)
                 print_info(f"Surface validation analyzed {result.summary.command_count} commands")
                 severity_buckets = {
-                    "error": [finding for finding in result.findings if not finding.suppressed and finding.severity == "error"],
-                    "warning": [finding for finding in result.findings if not finding.suppressed and finding.severity == "warning"],
-                    "info": [finding for finding in result.findings if not finding.suppressed and finding.severity == "info"],
+                    "error": [
+                        finding
+                        for finding in result.findings
+                        if not finding.suppressed and finding.severity == "error"
+                    ],
+                    "warning": [
+                        finding
+                        for finding in result.findings
+                        if not finding.suppressed and finding.severity == "warning"
+                    ],
+                    "info": [
+                        finding
+                        for finding in result.findings
+                        if not finding.suppressed and finding.severity == "info"
+                    ],
                 }
                 for severity, findings in severity_buckets.items():
                     if not findings:
@@ -893,7 +1016,7 @@ def validate(
             sys.exit(1)
         finally:
             await transport.disconnect()
-    
+
     try:
         asyncio.run(_validate_surface() if surface else _validate_connection())
     except Exception as e:
@@ -935,9 +1058,7 @@ async def _load_surface_commands(
         schema_result = await transport.call_tool("afd-schema", {"format": "json"})
         help_payload = help_result.get("data", help_result) if isinstance(help_result, dict) else {}
         schema_payload = (
-            schema_result.get("data", schema_result)
-            if isinstance(schema_result, dict)
-            else {}
+            schema_result.get("data", schema_result) if isinstance(schema_result, dict) else {}
         )
         schema_map = {
             item["name"]: item
@@ -955,9 +1076,7 @@ async def _load_surface_commands(
                     "description": item.get("description", ""),
                     "category": item.get("category"),
                     "jsonSchema": schema.get("input_schema") or schema.get("inputSchema"),
-                    "outputJsonSchema": (
-                        schema.get("output_schema") or schema.get("outputSchema")
-                    ),
+                    "outputJsonSchema": (schema.get("output_schema") or schema.get("outputSchema")),
                     "requires": item.get("requires"),
                     "contexts": item.get("contexts"),
                 }
@@ -983,46 +1102,48 @@ def shell(ctx: click.Context, headers: tuple[str, ...]) -> None:
     from afd.cli.args import describe_args_error, parse_tool_args
 
     request_headers = _resolve_headers(headers)
-    
+
     state = _load_state()
     server = state.get("server")
-    
+
     if not server:
         print_error("No server connected. Use 'afd connect <server>' first.")
         sys.exit(1)
-    
+
     console.print(Text.assemble(("AFD Shell", "bold"), " - Connected to ", plain(server, "cyan")))
     console.print("[dim]Type 'help' for commands, 'exit' to quit[/dim]\n")
-    
+
     async def _shell() -> None:
         transport = _get_transport(server, headers=request_headers)
         await transport.connect()
-        
+
         try:
             while True:
                 try:
                     line = Prompt.ask("[cyan]afd[/cyan]")
                 except EOFError:
                     break
-                
+
                 line = line.strip()
                 if not line:
                     continue
-                
+
                 if line in ("exit", "quit"):
                     break
-                
+
                 if line == "help":
                     console.print()
                     console.print(Text("Commands:", style="bold"))
-                    console.print(Text(
-                        "  tools              List available tools\n"
-                        "  call <tool> [args] Call a tool with a JSON object or key=value pairs\n"
-                        "  help               Show this help\n"
-                        "  exit               Exit the shell\n"
-                    ))
+                    console.print(
+                        Text(
+                            "  tools              List available tools\n"
+                            "  call <tool> [args] Call a tool with a JSON object or key=value pairs\n"
+                            "  help               Show this help\n"
+                            "  exit               Exit the shell\n"
+                        )
+                    )
                     continue
-                
+
                 # A failed request prints its error and the prompt returns, as in
                 # TypeScript's shell; only exit, quit or Ctrl+D end it.
                 if line == "tools":
@@ -1052,15 +1173,13 @@ def shell(ctx: click.Context, headers: tuple[str, ...]) -> None:
                     continue
 
                 console.print(plain(f"Unknown command: {line}", "yellow"))
-                
+
         finally:
             await transport.disconnect()
-    
-    try:
+
+    with contextlib.suppress(KeyboardInterrupt):
         asyncio.run(_shell())
-    except KeyboardInterrupt:
-        pass
-    
+
     console.print("\n[dim]Goodbye![/dim]")
 
 

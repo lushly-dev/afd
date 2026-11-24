@@ -108,9 +108,7 @@ async def cdp_inspect(
         elif enabled:
             result["enabled"] = await locator.is_enabled()
         elif focused:
-            result["focused"] = await locator.evaluate(
-                "el => document.activeElement === el"
-            )
+            result["focused"] = await locator.evaluate("el => document.activeElement === el")
         else:
             info = await locator.evaluate("""el => ({
                 tagName: el.tagName.toLowerCase(),
@@ -212,14 +210,14 @@ async def cdp_snapshot(root_selector: str | None = None) -> CommandResult[dict]:
         if isinstance(node, str):
             return [_parse_snapshot_label(node)]
         if isinstance(node, dict):
-            result: list[dict[str, Any]] = []
+            entries: list[dict[str, Any]] = []
             for key, value in node.items():
                 entry = _parse_snapshot_label(str(key))
                 children = _to_snapshot_tree(value)
                 if children:
                     entry["children"] = children
-                result.append(entry)
-            return result
+                entries.append(entry)
+            return entries
         return [{"role": "unknown", "name": str(node)}]
 
     async def _action(page: Any) -> dict:

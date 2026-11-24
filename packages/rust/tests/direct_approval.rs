@@ -1,3 +1,5 @@
+//! Integration tests for [`afd::DirectClient`] approval exchanges.
+
 #![cfg(feature = "approval")]
 
 use afd::*;

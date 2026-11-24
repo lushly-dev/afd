@@ -36,8 +36,10 @@ def run_reclaim(**kwargs) -> dict:
 
 
 def outcomes(data: dict) -> dict[str, str]:
-    return {Path(a["target"]).name if a["kind"] == "strip" else a["target"]: a["outcome"]
-            for a in data["actions"]}
+    return {
+        Path(a["target"]).name if a["kind"] == "strip" else a["target"]: a["outcome"]
+        for a in data["actions"]
+    }
 
 
 # ── Planning and carrying out ───────────────────────────────────────────────
@@ -55,7 +57,8 @@ def test_a_dry_run_changes_nothing(repo: dict[str, Path], state: Path) -> None: 
 
 
 def test_apply_strips_only_ready_untracked_ignored_output(
-    repo: dict[str, Path], state: Path,  # noqa: F811
+    repo: dict[str, Path],  # noqa: F811
+    state: Path,
 ) -> None:
     age_worktree(repo["main"], repo["old"])
     data = run_reclaim(apply=True)
@@ -72,7 +75,9 @@ def test_apply_strips_only_ready_untracked_ignored_output(
 
 
 def test_a_worktree_that_came_back_to_life_is_left_alone(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],  # noqa: F811
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     age_worktree(repo["main"], repo["old"])
     original = reclaim.plan_strips
@@ -90,7 +95,9 @@ def test_a_worktree_that_came_back_to_life_is_left_alone(
 
 
 def test_a_path_that_became_tracked_is_left_alone(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],  # noqa: F811
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     old = repo["old"]
     age_worktree(repo["main"], old)
@@ -110,7 +117,9 @@ def test_a_path_that_became_tracked_is_left_alone(
 
 
 def test_a_process_that_starts_in_the_worktree_stops_the_strip(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],  # noqa: F811
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     age_worktree(repo["main"], repo["old"])
     busy = Processes(cwds=[str(repo["old"])], method="test", sees_cwds=True)
@@ -120,7 +129,8 @@ def test_a_process_that_starts_in_the_worktree_stops_the_strip(
 
 
 def test_low_space_strips_pressure_patterns_and_younger_output(
-    repo: dict[str, Path], state: Path,  # noqa: F811
+    repo: dict[str, Path],  # noqa: F811
+    state: Path,
 ) -> None:
     fresh = repo["fresh"]
     (fresh / "node_modules" / "pkg").mkdir(parents=True)
@@ -143,7 +153,9 @@ def test_low_space_strips_pressure_patterns_and_younger_output(
 
 
 def test_aged_folders_wait_for_rust_builds(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],  # noqa: F811
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Scoped busy protection: an unrelated `cargo` process does not block evicting stale
     aged folders, while recently-touched dirs, held `.cargo-lock` dirs, and dirs named on a
@@ -169,7 +181,7 @@ def test_aged_folders_wait_for_rust_builds(
 
     # max_gb = 0 makes all four eligible so we can verify each scoped guard independently.
     text = repo["settings"].read_text(encoding="utf-8")
-    text += f'\n[[aged]]\npath = {json.dumps(str(root) + "/*")}\nmax_gb = 0\n'
+    text += f"\n[[aged]]\npath = {json.dumps(str(root) + '/*')}\nmax_gb = 0\n"
     repo["settings"].write_text(text, encoding="utf-8")
 
     cargo_procs = Processes(
@@ -206,7 +218,8 @@ def test_aged_folders_wait_for_rust_builds(
 
 
 def test_aged_bucket_eviction_prunes_empty_buckets_and_keeps_populated_ones(
-    repo: dict[str, Path], state: Path,  # noqa: F811
+    repo: dict[str, Path],  # noqa: F811
+    state: Path,
 ) -> None:
     root = repo["tmp"] / "cargo-build"
     fresh = root / "ab" / "0305f56e9b9616"
@@ -216,12 +229,16 @@ def test_aged_bucket_eviction_prunes_empty_buckets_and_keeps_populated_ones(
         (folder / "debug" / "deps").mkdir(parents=True)
         (folder / "debug" / "deps" / "x.rlib").write_bytes(b"x" * 4096)
     for folder in (stale_in_shared, stale_alone):
-        for p in (folder / "debug" / "deps" / "x.rlib", folder / "debug" / "deps",
-                  folder / "debug", folder):
+        for p in (
+            folder / "debug" / "deps" / "x.rlib",
+            folder / "debug" / "deps",
+            folder / "debug",
+            folder,
+        ):
             age(p)
 
     text = repo["settings"].read_text(encoding="utf-8")
-    text += f'\n[[aged]]\npath = {json.dumps(str(root) + "/*")}\nmax_age_days = 7\n'
+    text += f"\n[[aged]]\npath = {json.dumps(str(root) + '/*')}\nmax_age_days = 7\n"
     repo["settings"].write_text(text, encoding="utf-8")
 
     data = run_reclaim(apply=True, tier=0)
@@ -236,7 +253,9 @@ def test_aged_bucket_eviction_prunes_empty_buckets_and_keeps_populated_ones(
 
 
 def test_low_space_pressure_escalates_aged_folders_and_stops_when_recovered(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],  # noqa: F811
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     now = time.time()
     root = repo["tmp"] / "cargo-build"
@@ -260,7 +279,7 @@ def test_low_space_pressure_escalates_aged_folders_and_stops_when_recovered(
     text = repo["settings"].read_text(encoding="utf-8")
     text += (
         f"\n[[volume]]\nmount = {json.dumps(str(mount))}\nlow_space_gb = 1000000\n"
-        f'\n[[aged]]\npath = {json.dumps(str(root) + "/*")}\nmax_age_days = 7\n'
+        f"\n[[aged]]\npath = {json.dumps(str(root) + '/*')}\nmax_age_days = 7\n"
     )
     repo["settings"].write_text(text, encoding="utf-8")
 
@@ -312,7 +331,8 @@ def test_low_space_pressure_escalates_aged_folders_and_stops_when_recovered(
 
 
 def test_forced_pressure_and_max_gb_only_aged_escalation(
-    repo: dict[str, Path], state: Path,  # noqa: F811
+    repo: dict[str, Path],  # noqa: F811
+    state: Path,
 ) -> None:
     now = time.time()
     root = repo["tmp"] / "aged-pressure"
@@ -333,7 +353,7 @@ def test_forced_pressure_and_max_gb_only_aged_escalation(
     # Forced pressure on a non-low volume runs 1.0d and 0.25d steps, but not pressure-oldest (<6h).
     base_settings = repo["settings"].read_text(encoding="utf-8")
     repo["settings"].write_text(
-        base_settings + f'\n[[aged]]\npath = {json.dumps(str(root) + "/*")}\nmax_age_days = 7\n',
+        base_settings + f"\n[[aged]]\npath = {json.dumps(str(root) + '/*')}\nmax_age_days = 7\n",
         encoding="utf-8",
     )
     forced = run_reclaim(apply=True, tier=0, pressure=True)
@@ -357,7 +377,7 @@ def test_forced_pressure_and_max_gb_only_aged_escalation(
     repo["settings"].write_text(
         base_settings
         + f"\n[[volume]]\nmount = {json.dumps(str(mount))}\nlow_space_gb = 1000000\n"
-        + f'\n[[aged]]\npath = {json.dumps(str(capped_root) + "/*")}\nmax_gb = 500\n',
+        + f"\n[[aged]]\npath = {json.dumps(str(capped_root) + '/*')}\nmax_gb = 500\n",
         encoding="utf-8",
     )
     low_run = run_reclaim(apply=True, tier=0)
@@ -434,8 +454,11 @@ def test_receipts_are_capped(state: Path, monkeypatch: pytest.MonkeyPatch) -> No
         (folder / f"2026010{index}T000000Z-dry.json").write_text("{}")
     monkeypatch.setattr(reclaim, "MAX_RECEIPTS", 3)
     reclaim.prune_receipts(folder)
-    assert sorted(p.name[:9] for p in folder.glob("*.json")) == ["20260103T", "20260104T",
-                                                                  "20260105T"]
+    assert sorted(p.name[:9] for p in folder.glob("*.json")) == [
+        "20260103T",
+        "20260104T",
+        "20260105T",
+    ]
 
 
 # ── remove_inside ───────────────────────────────────────────────────────────
@@ -479,7 +502,8 @@ def test_remove_never_follows_a_junction(tmp_path: Path) -> None:
     (outside / "precious").write_text("keep", encoding="utf-8")
     subprocess.run(
         ["cmd", "/c", "mklink", "/J", str(root / "node_modules" / "pkg"), str(outside)],
-        check=True, capture_output=True,
+        check=True,
+        capture_output=True,
     )
     removal = remove_inside(root / "node_modules", root)
     assert removal.complete and not (root / "node_modules").exists()
@@ -506,7 +530,8 @@ def test_tool_running_matches_programs_not_substrings() -> None:
 
 
 def test_report_and_reclaim_share_settings_errors(
-    repo: dict[str, Path], state: Path,  # noqa: F811
+    repo: dict[str, Path],  # noqa: F811
+    state: Path,
 ) -> None:
     repo["settings"].write_text("strip_after_days = -1\n", encoding="utf-8")
     for command in (report.disk_report, reclaim.disk_reclaim):
@@ -515,14 +540,17 @@ def test_report_and_reclaim_share_settings_errors(
 
 
 def test_build_info_is_stripped_before_output_and_failed_build_info_keeps_output(
-    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],  # noqa: F811
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """lushly-dev/afd#1939: file candidates (such as *.tsbuildinfo) are stripped before folder
     candidates (such as dist) within a worktree, and if build info cannot be removed its
     output folder stays intact."""
     main, old = repo["main"], repo["old"]
     (main / "botcore.toml").write_text(
-        '[disk]\nregenerable = ["**/dist", "**/*.tsbuildinfo"]\n', encoding="utf-8",
+        '[disk]\nregenerable = ["**/dist", "**/*.tsbuildinfo"]\n',
+        encoding="utf-8",
     )
     (main / ".gitignore").write_text("dist/\n*.tsbuildinfo\n", encoding="utf-8")
     git(main, "commit", "-q", "-am", "add tsbuildinfo rule")

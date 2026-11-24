@@ -14,6 +14,7 @@ import json
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Any
 
 from botcore_factory.gateway.config import GatewayConfig
 
@@ -44,7 +45,7 @@ class Claim:
     at: datetime
     legacy: bool = False
 
-    def holder(self) -> dict:
+    def holder(self) -> dict[str, Any]:
         return {"branch": self.branch, "machine": self.machine}
 
     def held_by(self, branch: str, machine: str | None = None) -> bool:
@@ -65,7 +66,7 @@ class Release:
     at: datetime
 
 
-def _markers(body: str) -> list[tuple[str, dict]]:
+def _markers(body: str) -> list[tuple[str, dict[str, Any]]]:
     found = []
     for kind, payload in _MARKER.findall(body or ""):
         try:
@@ -78,22 +79,36 @@ def _markers(body: str) -> list[tuple[str, dict]]:
 
 
 def _legacy(
-    number: int, kind: str, value: dict, at: datetime, config: GatewayConfig, active: datetime
-):
+    number: int,
+    kind: str,
+    value: dict[str, Any],
+    at: datetime,
+    config: GatewayConfig,
+    active: datetime,
+) -> Claim | None:
     cutover = config.cutover
+    if cutover is None:
+        return None
     if kind == CLAIM and {"branch", "machine", "leaseUntil"} <= set(value):
         until = parse_time(value["leaseUntil"])
+        if until is None:
+            return None
         return Claim(number, value["branch"], value["machine"], until, at, legacy=True)
     if kind == LUSHLY and {"branch", "host", "startedAt"} <= set(value):
         # Lushly's rule: live until four hours pass without activity on the issue by its
         # holder's account (the lease's start, or a later comment from that account).
-        last = max(parse_time(value["startedAt"]), active)
+        started = parse_time(value["startedAt"])
+        if started is None:
+            return None
+        last = max(started, active)
         until = last + timedelta(hours=cutover.lushly_stale_hours)
         return Claim(number, value["branch"], value["host"], until, at, legacy=True)
     return None
 
 
-def read_claim(number: int, comments: list[dict], config: GatewayConfig, now: datetime):
+def read_claim(
+    number: int, comments: list[dict[str, Any]], config: GatewayConfig, now: datetime
+) -> Claim | Release | None:
     """The issue's current record: a ``Claim``, a ``Release`` or ``None`` when never claimed.
 
     A legacy claim the cutover no longer honours, or one already lapsed, is not a claim.
@@ -101,26 +116,24 @@ def read_claim(number: int, comments: list[dict], config: GatewayConfig, now: da
     record: Claim | Release | None = None
     cutover = config.cutover
     ordered = sorted(comments, key=lambda c: c.get("at") or "")
-    active = max(
-        (
-            parse_time(c["at"])
-            for c in ordered
+    legacy_times: list[datetime] = []
+    if cutover is not None:
+        for c in ordered:
             # Only before the cutover: after it, agents share the account until G5, so an
             # unrelated comment must not keep an old lease alive.
-            if cutover
-            and c.get("at")
-            and c.get("author") == cutover.legacy_author
-            and parse_time(c["at"]) < cutover.start
-        ),
-        default=datetime.min.replace(tzinfo=now.tzinfo),
-    )
+            if c.get("at") and c.get("author") == cutover.legacy_author:
+                parsed_at = parse_time(c["at"])
+                if parsed_at is not None and parsed_at < cutover.start:
+                    legacy_times.append(parsed_at)
+    active = max(legacy_times, default=datetime.min.replace(tzinfo=now.tzinfo))
     for comment in ordered:
         at = parse_time(comment.get("at")) or now
         for kind, value in _markers(comment.get("body", "")):
             if comment.get("author") == config.bot:
                 if kind == CLAIM and {"branch", "machine", "leaseUntil"} <= set(value):
                     until = parse_time(value["leaseUntil"])
-                    record = Claim(number, value["branch"], value["machine"], until, at)
+                    if until is not None:
+                        record = Claim(number, value["branch"], value["machine"], until, at)
                 elif kind == RELEASE and {"branch", "machine"} <= set(value):
                     record = Release(number, value["branch"], value["machine"], at)
             elif (
@@ -136,19 +149,19 @@ def read_claim(number: int, comments: list[dict], config: GatewayConfig, now: da
     return record
 
 
-def claim_body(holder: dict, lease_until: datetime) -> str:
+def claim_body(holder: dict[str, Any], lease_until: datetime) -> str:
     payload = {**holder, "leaseUntil": iso(lease_until)}
     return (
         f"Claimed by the factory gateway for `{holder['branch']}`.\n\n{marker_text(CLAIM, payload)}"
     )
 
 
-def release_body(holder: dict, reason: str) -> str:
+def release_body(holder: dict[str, Any], reason: str) -> str:
     return (
         f"Released by the factory gateway: {reason}\n\n"
         f"{marker_text(RELEASE, {**holder, 'reason': reason})}"
     )
 
 
-def marker_text(kind: str, payload: dict) -> str:
+def marker_text(kind: str, payload: dict[str, Any]) -> str:
     return f"<!-- {kind} {json.dumps(payload, sort_keys=True)} -->"

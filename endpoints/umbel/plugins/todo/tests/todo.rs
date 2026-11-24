@@ -9,10 +9,37 @@ use std::sync::Arc;
 use afd::{Actor, ActorKind, ApprovalPolicy};
 use serde_json::{Value, json};
 use umbel::cli::{Console, Environment};
+use umbel::plugins::{Asset, CompiledPlugin, PluginCommand, PluginError, Services};
 use umbel::testkit::TestHost;
 use umbel::testkit::mcp::Client;
 use umbel::workspace::Overrides;
-use umbel_plugin_todo::{MANIFEST, plugin};
+use umbel_plugin_todo::{MANIFEST, Todo, assets, plugin};
+
+#[derive(Clone)]
+struct CompiledTodo(Todo);
+
+impl CompiledPlugin for CompiledTodo {
+    fn manifest(&self) -> &str {
+        MANIFEST
+    }
+
+    fn assets(&self) -> &'static [Asset] {
+        assets()
+    }
+
+    fn commands(&self, _services: Services) -> Result<Vec<PluginCommand>, PluginError> {
+        Ok(self
+            .0
+            .commands()
+            .into_iter()
+            .map(|(definition, schema)| PluginCommand::definition(definition, schema))
+            .collect())
+    }
+}
+
+fn compiled() -> CompiledTodo {
+    CompiledTodo(plugin())
+}
 
 const NAMES: [&str; 13] = [
     "todo-create",
@@ -35,7 +62,7 @@ fn manifest() -> toml::Table {
 }
 
 fn host() -> TestHost {
-    TestHost::compiled(plugin()).boot().unwrap()
+    TestHost::compiled(compiled()).boot().unwrap()
 }
 
 #[tokio::test]
@@ -473,7 +500,7 @@ async fn human_cli_caller_runs_todo_clear_without_approval_hold() {
         ["umbel-todo", "todo", "clear", "all=true"],
         &env,
         &mut stdout,
-        |builder| builder.with_compiled(plugin()),
+        |builder| builder.with_compiled(compiled()),
     )
     .await;
     let out = String::from_utf8(stdout).unwrap();

@@ -26,10 +26,8 @@ from afd import (  # noqa: E402
     CommandError,
     CommandResult,
     ExposeOptions,
-    ManualClock,
     create_command_registry,
     error,
-    failure,
     fixed_clock,
     success,
 )
@@ -225,8 +223,12 @@ def test_task_metadata_surfaces_in_meta_grouped_actions_and_afd_detail():
         return success({"ok": True})
 
     cmd_default = CommandDefinition(name="job-default", description="Default", handler=noop)
-    cmd_opt = CommandDefinition(name="job-opt", description="Optional", handler=noop, task="optional")
-    cmd_req = CommandDefinition(name="job-req", description="Required", handler=noop, task="required")
+    cmd_opt = CommandDefinition(
+        name="job-opt", description="Optional", handler=noop, task="optional"
+    )
+    cmd_req = CommandDefinition(
+        name="job-req", description="Required", handler=noop, task="required"
+    )
     cmd_never = CommandDefinition(name="job-never", description="Never", handler=noop, task="never")
 
     assert "task" not in command_to_mcp_tool(cmd_default)["_meta"]
@@ -265,7 +267,9 @@ async def test_afd_detail_reports_task_when_set_and_omits_when_unset():
     async def _plain(input: Any) -> CommandResult[Any]:
         return success({})
 
-    detail = await server.route_tool_call("afd-detail", {"command": ["job-opt", "job-req", "job-plain"]})
+    detail = await server.route_tool_call(
+        "afd-detail", {"command": ["job-opt", "job-req", "job-plain"]}
+    )
     assert detail.success is True
     by_name = {entry["name"]: entry for entry in detail.data}
     assert by_name["job-opt"]["task"] == "optional"
@@ -279,6 +283,7 @@ def test_registration_refuses_task_beside_person_gates_and_invalid_values():
 
     # Invalid value
     with pytest.raises(ValueError, match="invalid task support"):
+
         @define_command(name="job-bad", description="Bad", task="always")  # type: ignore[arg-type]
         async def _bad(input: Any):
             return success({})
@@ -286,6 +291,7 @@ def test_registration_refuses_task_beside_person_gates_and_invalid_values():
     # Beside confirm_prompt
     for support in ("optional", "required"):
         with pytest.raises(ValueError, match="confirm_prompt"):
+
             @define_command(
                 name="job-confirm",
                 description="Confirm",
@@ -298,6 +304,7 @@ def test_registration_refuses_task_beside_person_gates_and_invalid_values():
     # Beside approval="required" or callable approval
     for support in ("optional", "required"):
         with pytest.raises(ValueError, match="approval"):
+
             @define_command(
                 name="job-approve",
                 description="Approve",
@@ -308,6 +315,7 @@ def test_registration_refuses_task_beside_person_gates_and_invalid_values():
                 return success({})
 
         with pytest.raises(ValueError, match="approval"):
+
             @define_command(
                 name="job-cond",
                 description="Conditional",
@@ -319,7 +327,9 @@ def test_registration_refuses_task_beside_person_gates_and_invalid_values():
 
     # Core registry refuses confirmation_mode attribute as well
     reg = create_command_registry()
-    cmd_cm = CommandDefinition(name="job-cm", description="Host verified", handler=noop, task="optional")
+    cmd_cm = CommandDefinition(
+        name="job-cm", description="Host verified", handler=noop, task="optional"
+    )
     cmd_cm.confirmation_mode = "host-verified"  # type: ignore[attr-defined]
     with pytest.raises(ValueError, match="confirmation_mode"):
         reg.register(cmd_cm)
@@ -398,7 +408,9 @@ async def test_in_memory_task_store_crud_owner_isolation_and_eviction():
 
     # Progress and completion
     await store.update(rec1.id, "alice", TaskProgressChange(message="half", at=1200))
-    await store.update(rec1.id, "alice", TaskCompletedChange(result={"content": [], "isError": False}, at=1300))
+    await store.update(
+        rec1.id, "alice", TaskCompletedChange(result={"content": [], "isError": False}, at=1300)
+    )
     # Terminal record is immutable
     await store.update(rec1.id, "alice", TaskCancelledChange(at=1400))
     got = await store.get(rec1.id, "alice")
@@ -428,7 +440,9 @@ async def test_in_memory_task_store_crud_owner_isolation_and_eviction():
     assert tot.value.kind == "total-limit"
 
     # Mark bob1 failed -> carol1 evicts bob1 (finished)
-    await store.update(bob1.id, "bob", TaskFailedChange(error=TaskRpcError(-32603, "boom"), at=1850))
+    await store.update(
+        bob1.id, "bob", TaskFailedChange(error=TaskRpcError(-32603, "boom"), at=1850)
+    )
     await store.create(carol1)
     assert await store.get(bob1.id, "bob") is None
     assert await store.get(carol1.id, "carol") is not None
@@ -574,7 +588,10 @@ async def test_capability_advertisement_and_optional_vs_required_in_process():
 
     # 3. 2025 legacy client never gets tasks, even with extension object passed
     async with Client(sdk, mode="legacy") as client:
-        assert not (client.server_capabilities.extensions and TASKS_EXTENSION_ID in client.server_capabilities.extensions)
+        assert not (
+            client.server_capabilities.extensions
+            and TASKS_EXTENSION_ID in client.server_capabilities.extensions
+        )
         opt_legacy = await client.call_tool("job-optional", {"v": 9})
         assert _body(opt_legacy)["data"] == {"mode": "optional", "value": 9}
         with pytest.raises(MCPError) as legacy_req:
@@ -612,13 +629,17 @@ async def test_routes_afd_call_grouped_hybrid_and_composite_refusal():
     sdk = server._create_mcp_server()
     async with Client(sdk, extensions=[_tasks_extension()]) as client:
         # Grouped tool starts a task
-        g = await client.session.call_tool("work", {"action": "opt", "params": {}}, allow_claimed=True)
+        g = await client.session.call_tool(
+            "work", {"action": "opt", "params": {}}, allow_claimed=True
+        )
         assert g.result_type == "task"
         g_done = await _poll_until_done(client, g.task_id)
         assert g_done.status == "completed"
 
         # afd-call starts a task
-        c = await client.session.call_tool("afd-call", {"command": "work-req", "input": {}}, allow_claimed=True)
+        c = await client.session.call_tool(
+            "afd-call", {"command": "work-req", "input": {}}, allow_claimed=True
+        )
         assert c.result_type == "task"
         c_done = await _poll_until_done(client, c.task_id)
         assert c_done.status == "completed"
@@ -675,11 +696,15 @@ async def test_cancellation_failed_command_result_size_cap_and_max_running():
             raise
         return success({})
 
-    @server.command(name="job-fail", description="Returns failed CommandResult", expose=MCP, task="required")
+    @server.command(
+        name="job-fail", description="Returns failed CommandResult", expose=MCP, task="required"
+    )
     async def job_fail(input: Any) -> CommandResult[Any]:
         return error("NOT_FOUND", "Missing item", suggestion="Check the ID")
 
-    @server.command(name="job-huge", description="Returns oversized payload", expose=MCP, task="required")
+    @server.command(
+        name="job-huge", description="Returns oversized payload", expose=MCP, task="required"
+    )
     async def job_huge(input: Any) -> CommandResult[Any]:
         return success({"blob": "x" * 1000})
 
@@ -826,9 +851,9 @@ async def test_http_with_hook_identification_enforces_owner_and_ttl():
         assert json.loads(got["result"]["result"]["content"][0]["text"])["data"] == {"who": "alice"}
 
         # Bob cannot read, update, or cancel Alice's task -> -32602 identical to unknown
-        unknown_err = (
-            await _http_rpc(http, "tasks/get", {"taskId": "a" * 26}, headers=bob)
-        )["error"]
+        unknown_err = (await _http_rpc(http, "tasks/get", {"taskId": "a" * 26}, headers=bob))[
+            "error"
+        ]
         assert unknown_err["code"] == -32602
         for method in ("tasks/get", "tasks/update", "tasks/cancel"):
             bob_rpc = await _http_rpc(http, method, {"taskId": task_id}, headers=bob)
@@ -853,16 +878,22 @@ async def test_token_expiry_and_incomplete_credentials():
         "token-test",
         tool_strategy="individual",
         clock=clock,
-        task_options=TaskOptions(poll_interval_ms=10, check_interval_ms=10, token_expiry_grace_ms=5_000),
+        task_options=TaskOptions(
+            poll_interval_ms=10, check_interval_ms=10, token_expiry_grace_ms=5_000
+        ),
     )
 
-    @server.command(name="job-mut", description="Mutation", mutation=True, expose=MCP, task="required")
+    @server.command(
+        name="job-mut", description="Mutation", mutation=True, expose=MCP, task="required"
+    )
     async def job_mut(input: Any) -> CommandResult[Any]:
         started.set()
         await gate.wait()
         return success({"done": True})
 
-    @server.command(name="job-read", description="Read", mutation=False, expose=MCP, task="required")
+    @server.command(
+        name="job-read", description="Read", mutation=False, expose=MCP, task="required"
+    )
     async def job_read(input: Any) -> CommandResult[Any]:
         return success({"read": True})
 
@@ -978,7 +1009,9 @@ async def test_removed_command_in_shared_store_answers_unknown_task():
         task_options=TaskOptions(poll_interval_ms=10, check_interval_ms=10),
     )
 
-    @server_a.command(name="job-old", description="Removed in next deploy", expose=MCP, task="required")
+    @server_a.command(
+        name="job-old", description="Removed in next deploy", expose=MCP, task="required"
+    )
     async def job_old(input: Any) -> CommandResult[Any]:
         return success({"legacy": True})
 

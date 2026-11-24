@@ -53,7 +53,7 @@ DEFAULT_OPEN_TIMEOUT_S = 10.0
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-class HandoffConnectionState(str, Enum):
+class HandoffConnectionState(str, Enum):  # noqa: UP042
     """Connection state for handoff connections."""
 
     CONNECTING = "connecting"
@@ -366,13 +366,15 @@ class ReconnectingHandoffConnection:
             max_attempts=(
                 options.max_attempts
                 if options.max_attempts is not None
-                else metadata_attempts if metadata_attempts is not None
+                else metadata_attempts
+                if metadata_attempts is not None
                 else _DEFAULT_RECONNECT_POLICY["maxAttempts"]
             ),
             backoff_ms=(
                 options.backoff_ms
                 if options.backoff_ms is not None
-                else metadata_backoff if metadata_backoff is not None
+                else metadata_backoff
+                if metadata_backoff is not None
                 else _DEFAULT_RECONNECT_POLICY["backoffMs"]
             ),
             max_backoff_ms=options.max_backoff_ms,
@@ -432,7 +434,9 @@ class ReconnectingHandoffConnection:
         self._generation += 1
         generation = self._generation
         self._set_state(
-            HandoffConnectionState.RECONNECTING if reconnecting else HandoffConnectionState.CONNECTING
+            HandoffConnectionState.RECONNECTING
+            if reconnecting
+            else HandoffConnectionState.CONNECTING
         )
 
         def on_message(message: Any) -> None:
@@ -510,7 +514,7 @@ class ReconnectingHandoffConnection:
             while not self._closed:
                 self._reconnect_attempt += 1
                 attempt = self._reconnect_attempt
-                if attempt > self._options.max_attempts:
+                if self._options.max_attempts is not None and attempt > self._options.max_attempts:
                     self._set_state(HandoffConnectionState.FAILED)
                     _call_safely(self._options.on_reconnect_failed)
                     return
@@ -895,9 +899,7 @@ class SseHandoffHandler:
 
         return _SseConnection(
             endpoint=handoff["endpoint"],
-            headers=_auth_headers(
-                handoff.get("credentials"), {"Accept": "text/event-stream"}
-            ),
+            headers=_auth_headers(handoff.get("credentials"), {"Accept": "text/event-stream"}),
             options=options,
             protocol=handoff.get("protocol", "sse"),
         )

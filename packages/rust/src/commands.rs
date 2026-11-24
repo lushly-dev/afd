@@ -39,9 +39,7 @@ pub(crate) use context::{ScopeCheck, ToolSurface, Visibility};
 type BatchExecutionFuture<'a> =
     Pin<Box<dyn Future<Output = (usize, BatchCommandResult<serde_json::Value>)> + Send + 'a>>;
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // COMMAND NAME VALIDATION
-// ═══════════════════════════════════════════════════════════════════════════════
 
 fn command_name_pattern() -> &'static Regex {
     static PATTERN: OnceLock<Regex> = OnceLock::new();
@@ -66,20 +64,25 @@ pub fn validate_command_name(name: &str) -> Result<(), String> {
     Ok(())
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // JSON SCHEMA TYPES
-// ═══════════════════════════════════════════════════════════════════════════════
 
 /// JSON Schema type for command parameter validation.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum JsonSchemaType {
+    /// JSON string.
     String,
+    /// JSON floating-point or integer number.
     Number,
+    /// JSON boolean.
     Boolean,
+    /// JSON object.
     Object,
+    /// JSON array.
     Array,
+    /// JSON `null`.
     Null,
+    /// JSON integer.
     Integer,
 }
 
@@ -148,9 +151,7 @@ pub struct JsonSchema {
     pub format: Option<String>,
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // COMMAND PARAMETER
-// ═══════════════════════════════════════════════════════════════════════════════
 
 /// Definition for a single command parameter.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -423,9 +424,7 @@ pub fn is_exposed_to(command: &CommandDefinition, interface: CommandInterface) -
     command.expose.is_exposed_to(interface)
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // CONFIRMATION MODE OF ONE COMMAND
-// ═══════════════════════════════════════════════════════════════════════════════
 
 /// How one command is confirmed over MCP (`spec/command-metadata.md`, "Host-verified
 /// confirmation"), reported as `confirmationMode` in `_meta` and `afd-detail`. Unset, the
@@ -463,9 +462,7 @@ impl fmt::Display for CommandConfirmationMode {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // TASK SUPPORT OF ONE COMMAND
-// ═══════════════════════════════════════════════════════════════════════════════
 
 /// Whether an MCP `tools/call` to a command may run as a task under the Tasks extension,
 /// `io.modelcontextprotocol/tasks` (`spec/command-metadata.md`, "Tasks"), reported as `task` in
@@ -519,9 +516,7 @@ impl fmt::Display for TaskSupport {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // EXECUTION TIME ESTIMATE
-// ═══════════════════════════════════════════════════════════════════════════════
 
 /// Estimated execution time category.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -537,9 +532,7 @@ pub enum ExecutionTime {
     LongRunning,
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // COMMAND DEFINITION
-// ═══════════════════════════════════════════════════════════════════════════════
 
 /// A boxed, `Send` future, as returned by middleware.
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -973,9 +966,7 @@ impl HandoffCommandLike for CommandDefinition {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // COMMAND REGISTRY
-// ═══════════════════════════════════════════════════════════════════════════════
 
 /// Registry for managing and executing command definitions.
 ///
@@ -1018,6 +1009,7 @@ impl Default for ExecutionLimits {
     }
 }
 
+/// Registry that stores AFD command definitions and dispatches validated executions.
 #[derive(Default)]
 pub struct CommandRegistry {
     commands: RwLock<RegisteredCommands>,
@@ -2073,9 +2065,7 @@ impl CommandRegistry {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // EXECUTION HELPERS
-// ═══════════════════════════════════════════════════════════════════════════════
 
 /// Standard `COMMAND_CANCELLED` error (`spec/execution-controls.md`).
 fn command_cancelled_error(name: &str) -> CommandError {
@@ -2318,28 +2308,33 @@ where
         .unwrap_or_else(|_| handler_panic_failure())
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // MCP TOOL CONVERSION
-// ═══════════════════════════════════════════════════════════════════════════════
 
 /// MCP Tool format for command export.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpTool {
+    /// Command tool name.
     pub name: String,
     /// Display label (`spec/command-metadata.md`, "Tool titles"), only when the command sets one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
+    /// Human- and agent-readable description of the tool.
     pub description: String,
+    /// JSON Schema describing the tool's input object.
     pub input_schema: McpInputSchema,
 }
 
+/// JSON Schema object describing an [`McpTool`]'s input arguments.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpInputSchema {
+    /// JSON Schema type, always `"object"`.
     #[serde(rename = "type")]
     pub schema_type: String,
+    /// Declared input properties keyed by parameter name.
     pub properties: HashMap<String, JsonSchema>,
+    /// Names of required input properties.
     pub required: Vec<String>,
 }
 
@@ -2569,6 +2564,7 @@ fn validate_tool_meta(command: &CommandDefinition) -> Result<(), String> {
     Ok(())
 }
 
+/// Create an empty [`CommandRegistry`].
 pub fn create_command_registry() -> CommandRegistry {
     CommandRegistry::new()
 }

@@ -15,16 +15,17 @@ Example:
 from __future__ import annotations
 
 import asyncio
-from contextlib import AsyncExitStack
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from contextlib import AsyncExitStack, suppress
+from typing import Any
 
+from afd.transports._mcp_protocol import _HttpBasedTransport
 from afd.transports.base import (
     ToolInfo,
     TransportError,
     TransportState,
     _TaskSeed,
 )
-from afd.transports._mcp_protocol import _HttpBasedTransport
 
 
 class _EndOfStreamSignal:
@@ -47,7 +48,7 @@ class _EndOfStreamSignal:
             self._ended()
             raise
 
-    def __aiter__(self) -> "_EndOfStreamSignal":
+    def __aiter__(self) -> _EndOfStreamSignal:
         return self
 
     async def __anext__(self) -> Any:
@@ -58,7 +59,7 @@ class _EndOfStreamSignal:
         except anyio.EndOfStream:
             raise StopAsyncIteration from None
 
-    async def __aenter__(self) -> "_EndOfStreamSignal":
+    async def __aenter__(self) -> _EndOfStreamSignal:
         await self._stream.__aenter__()
         return self
 
@@ -91,23 +92,29 @@ class SseTransport(_HttpBasedTransport):
         self,
         url: str,
         *,
-        headers: Optional[Dict[str, str]] = None,
+        headers: dict[str, str] | None = None,
         timeout: float = 30.0,
         client_name: str = "afd-python-client",
         client_version: str = "0.2.0",
-        on_close: Optional[Callable[[], None]] = None,
-        on_error: Optional[Callable[[Exception], None]] = None,
+        on_close: Callable[[], None] | None = None,
+        on_error: Callable[[Exception], None] | None = None,
     ) -> None:
-        super().__init__(url, headers=headers, timeout=timeout, client_name=client_name, client_version=client_version)
+        super().__init__(
+            url,
+            headers=headers,
+            timeout=timeout,
+            client_name=client_name,
+            client_version=client_version,
+        )
         self._on_close = on_close
         self._on_error = on_error
-        self._client_on_close: Optional[Callable[[], None]] = None
-        self._client_on_error: Optional[Callable[[Exception], None]] = None
-        self._exit_stack: Optional[AsyncExitStack] = None
+        self._client_on_close: Callable[[], None] | None = None
+        self._client_on_error: Callable[[Exception], None] | None = None
+        self._exit_stack: AsyncExitStack | None = None
         self._session: Any = None
-        self._owner: Optional[asyncio.Task] = None
-        self._stop: Optional[asyncio.Event] = None
-        self._ready: Optional[asyncio.Future] = None
+        self._owner: asyncio.Task | None = None
+        self._stop: asyncio.Event | None = None
+        self._ready: asyncio.Future | None = None
         self._closing = False
 
     def set_callbacks(
@@ -166,7 +173,8 @@ class SseTransport(_HttpBasedTransport):
                 )
                 self._capabilities = (
                     capabilities.model_dump(mode="json", by_alias=True, exclude_none=True)
-                    if capabilities is not None else None
+                    if capabilities is not None
+                    else None
                 )
                 self._state = TransportState.CONNECTED
                 connected = True
@@ -202,17 +210,25 @@ class SseTransport(_HttpBasedTransport):
             from mcp.client.session import ClientSession
             from mcp.client.sse import sse_client
         except ImportError as exc:  # pragma: no cover - optional dependency
-            raise ImportError("MCP client dependencies not installed. Install with: pip install afd[client]") from exc
-        read, write = await stack.enter_async_context(sse_client(
-            self._url, headers=self._headers, timeout=self._timeout,
-        ))
+            raise ImportError(
+                "MCP client dependencies not installed. Install with: pip install afd[client]"
+            ) from exc
+        read, write = await stack.enter_async_context(
+            sse_client(
+                self._url,
+                headers=self._headers,
+                timeout=self._timeout,
+            )
+        )
         # The SDK session's dispatcher ends when the SSE stream does; seeing
         # end-of-stream on the read side is how the connection loss is noticed.
-        session = await stack.enter_async_context(ClientSession(
-            _EndOfStreamSignal(read, stop.set),
-            write,
-            read_timeout_seconds=float(self._timeout),
-        ))
+        session = await stack.enter_async_context(
+            ClientSession(
+                _EndOfStreamSignal(read, stop.set),
+                write,
+                read_timeout_seconds=float(self._timeout),
+            )
+        )
         init_result = await session.initialize()
         return (
             session,
@@ -231,9 +247,9 @@ class SseTransport(_HttpBasedTransport):
     async def call_tool(
         self,
         name: str,
-        arguments: Optional[Dict[str, Any]] = None,
+        arguments: dict[str, Any] | None = None,
         *,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
     ) -> Any:
         """Call a tool through the live MCP session."""
         if self._session is None:
@@ -251,15 +267,16 @@ class SseTransport(_HttpBasedTransport):
             return self._extract_content(payload)
         except Exception as exc:
             self._raise_operation_error(exc, session)
+            raise  # unreachable
 
     async def _call_tool_payload(
         self,
         session: Any,
         name: str,
-        arguments: Dict[str, Any],
+        arguments: dict[str, Any],
         *,
-        timeout: Optional[float] = None,
-    ) -> Dict[str, Any]:
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
         """Call the tool and return its result as wire-format JSON."""
         effective_timeout = self._timeout if timeout is None else timeout
         result = await session.call_tool(
@@ -267,7 +284,7 @@ class SseTransport(_HttpBasedTransport):
         )
         return result.model_dump(by_alias=True, mode="json", exclude_none=True)
 
-    async def list_tools(self) -> List[ToolInfo]:
+    async def list_tools(self) -> list[ToolInfo]:
         """List tools through the live MCP session."""
         if self._session is None:
             raise RuntimeError("Transport not connected. Call connect() first.")
@@ -275,20 +292,23 @@ class SseTransport(_HttpBasedTransport):
         session = self._session
         try:
             result = await session.list_tools()
-            tools: List[ToolInfo] = []
+            tools: list[ToolInfo] = []
             for tool in result.tools:
                 payload = tool.model_dump(by_alias=True, mode="json", exclude_none=True)
-                tools.append(ToolInfo(
-                    name=payload["name"],
-                    description=payload.get("description", ""),
-                    input_schema=payload.get("inputSchema"),
-                    meta=payload.get("_meta"),
-                ))
+                tools.append(
+                    ToolInfo(
+                        name=payload["name"],
+                        description=payload.get("description", ""),
+                        input_schema=payload.get("inputSchema"),
+                        meta=payload.get("_meta"),
+                    )
+                )
             return tools
         except Exception as exc:
             self._raise_operation_error(exc, session)
+            raise  # unreachable
 
-    async def _bounded(self, operation: Any, *, timeout: Optional[float] = None) -> Any:
+    async def _bounded(self, operation: Any, *, timeout: float | None = None) -> Any:
         """Await ``operation`` for at most the transport timeout.
 
         mcp 2.x does not bound a call whose POST never completes: its timeout sends a
@@ -303,7 +323,7 @@ class SseTransport(_HttpBasedTransport):
             return task.result()
         task.cancel()
         task.add_done_callback(lambda finished: finished.cancelled() or finished.exception())
-        raise asyncio.TimeoutError(f"MCP request timed out after {effective_timeout}s")
+        raise TimeoutError(f"MCP request timed out after {effective_timeout}s")
 
     def _raise_operation_error(self, exc: Exception, session: Any) -> None:
         """Reconnect only for explicit IO/timeout failures, not SDK validation."""
@@ -311,6 +331,7 @@ class SseTransport(_HttpBasedTransport):
         import httpx
         from mcp import MCPError
         from mcp.types import CONNECTION_CLOSED
+
         from afd.transports.base import JsonRpcError, ToolExecutionError
 
         try:  # mcp 2.x sends its HTTP requests with httpx2.
@@ -322,12 +343,18 @@ class SseTransport(_HttpBasedTransport):
 
         if isinstance(exc, ToolExecutionError):
             raise exc
-        lost = (
-            isinstance(exc, MCPError) and exc.code in (CONNECTION_CLOSED, 408)
-        ) or isinstance(exc, (
-            anyio.BrokenResourceError, anyio.ClosedResourceError, anyio.EndOfStream,
-            ConnectionError, EOFError, asyncio.TimeoutError, *http_errors,
-        ))
+        lost = (isinstance(exc, MCPError) and exc.code in (CONNECTION_CLOSED, 408)) or isinstance(
+            exc,
+            (
+                anyio.BrokenResourceError,
+                anyio.ClosedResourceError,
+                anyio.EndOfStream,
+                ConnectionError,
+                EOFError,
+                asyncio.TimeoutError,
+                *http_errors,
+            ),
+        )
         if lost and self._session is session and self._state == TransportState.CONNECTED:
             self._state = TransportState.ERROR
             self._report_error(exc)
@@ -337,7 +364,7 @@ class SseTransport(_HttpBasedTransport):
             raise exc
         raise TransportError(str(exc), cause=exc) from exc
 
-    async def _cleanup(self, ready: Optional[asyncio.Future]) -> None:
+    async def _cleanup(self, ready: asyncio.Future | None) -> None:
         """Stop only this handshake's owner and promptly settle its waiter."""
         if ready is not self._ready:
             return
@@ -346,17 +373,16 @@ class SseTransport(_HttpBasedTransport):
         owner = self._owner
         self._owner = None
         initializing = ready is not None and not ready.done()
-        if initializing:
+        if ready is not None and initializing:
             ready.cancel()
         if owner is not None:
-            self._stop.set()
+            if self._stop is not None:
+                self._stop.set()
             if initializing:
                 owner.cancel()
             if owner is not asyncio.current_task():
-                try:
+                with suppress(asyncio.CancelledError):
                     await owner
-                except asyncio.CancelledError:
-                    pass
 
     def _report_error(self, exc: Exception) -> None:
         """Notify the optional error callback."""

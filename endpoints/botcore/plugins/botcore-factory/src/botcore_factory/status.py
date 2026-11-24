@@ -8,6 +8,7 @@ lane process's own liveness) are left out rather than reported empty.
 from __future__ import annotations
 
 import difflib
+from typing import Any
 
 from botcore_factory import dials, foreman
 from botcore_factory.cells import (
@@ -21,7 +22,7 @@ from botcore_factory.cells import (
     waits_on_owner,
 )
 from botcore_factory.events import open_events, view
-from botcore_factory.intake import dispatchable, read_backlog
+from botcore_factory.intake import Backlog, dispatchable, read_backlog
 from botcore_factory.labels import NEEDS_OWNER
 from botcore_factory.lane_base import counted_ejections
 from botcore_factory.runtime import Factory, Refusal, paginate
@@ -42,7 +43,7 @@ CELL_FIELDS = (
 )
 
 
-def _cell_view(cell: dict) -> dict:
+def _cell_view(cell: dict[str, Any]) -> dict[str, Any]:
     view = {key: cell.get(key) for key in CELL_FIELDS if key in cell}
     issues = cell.get("issues") or []
     view["issue"] = issues[0] if issues else None
@@ -53,7 +54,7 @@ def _cell_view(cell: dict) -> dict:
     return view
 
 
-def can_start(factory: Factory, state: dict, ready: list[int]) -> dict:
+def can_start(factory: Factory, state: dict[str, Any], ready: list[int]) -> dict[str, Any]:
     """Whether the foreman may start a cell now: on which plan and issue, or why not."""
     overrides = state["dials"]
     if state["lane"].get("draining"):
@@ -89,12 +90,12 @@ def can_start(factory: Factory, state: dict, ready: list[int]) -> dict:
         return {"canStartCell": False, "reason": "Nothing is dispatchable: run triage-issues"}
     return {
         "canStartCell": True,
-        "plan": describe_plan(choice.plan, choice.ceiling, choice.now),
+        "plan": describe_plan(choice.plan, choice.ceiling, choice.now or factory.world.clock.now()),
         "nextIssue": ready[0],
     }
 
 
-def waiting_on_owner(state: dict, backlog) -> int:
+def waiting_on_owner(state: dict[str, Any], backlog: Backlog) -> int:
     """Items only the owner can answer: decision and operator issues (a parked cell's issue
     among them), parked cells and ejected cells at ``cells.maxEjections``, and open events
     that need the owner (a sign-in)."""
@@ -112,7 +113,7 @@ def waiting_on_owner(state: dict, backlog) -> int:
     return len(issues) + sum(1 for event in open_events(state) if event.get("needsOwner"))
 
 
-def lane_status(factory: Factory, limit: int | None, cursor: str | None) -> dict:
+def lane_status(factory: Factory, limit: int | None, cursor: str | None) -> dict[str, Any]:
     world = factory.world
     state = factory.store.read()
     backlog = read_backlog(factory)
@@ -152,7 +153,7 @@ def lane_status(factory: Factory, limit: int | None, cursor: str | None) -> dict
     }
 
 
-def compact_status(factory: Factory) -> dict:
+def compact_status(factory: Factory) -> dict[str, Any]:
     """What a woken foreman needs first, carried by every event lane-wait returns.
 
     The queue length always comes from the lane's state; when GitHub cannot be read, the rest
@@ -171,7 +172,7 @@ def compact_status(factory: Factory) -> dict:
     return {**compact, **start, "waitingOnOwner": waiting_on_owner(state, backlog)}
 
 
-def plan_list(factory: Factory) -> dict:
+def plan_list(factory: Factory) -> dict[str, Any]:
     overrides = factory.store.read()["dials"]
     ceiling = dials.value(overrides, "plans.ceiling")
     plans, now = read_plans(factory), factory.world.clock.now()
@@ -202,7 +203,7 @@ def slots_ceiling(factory: Factory) -> tuple[int, str]:
     return 1, host  # Until a host has been measured, suggestedSlots is 1.
 
 
-def dial_get(factory: Factory, key: str | None) -> dict:
+def dial_get(factory: Factory, key: str | None) -> dict[str, Any]:
     overrides = factory.store.read()["dials"]
     if key is None:
         return {
@@ -212,7 +213,7 @@ def dial_get(factory: Factory, key: str | None) -> dict:
     return dial.describe(dials.value(overrides, key))
 
 
-def dial_set(factory: Factory, key: str, value, session: str | None = None) -> dict:
+def dial_set(factory: Factory, key: str, value: Any, session: str | None = None) -> dict[str, Any]:
     foreman.hold(factory, session, "dial-set", owner_may=True)
     dial = find_dial(key)
     if dial.owner_only:

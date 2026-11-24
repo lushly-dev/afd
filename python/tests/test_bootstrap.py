@@ -1,25 +1,24 @@
 """Tests for bootstrap commands."""
 
 import pytest
-from pydantic import BaseModel
 
 from afd import CONTRACT_VERSION, success
-from afd.core.wire import to_wire
 from afd.core.commands import (
-    CommandExample,
     CommandDefinition,
+    CommandExample,
     CommandParameter,
     create_command_registry,
 )
+from afd.core.wire import to_wire
 from afd.server.bootstrap import (
-    get_bootstrap_commands,
-    create_afd_help_command,
     create_afd_docs_command,
+    create_afd_help_command,
     create_afd_schema_command,
+    get_bootstrap_commands,
 )
-from afd.server.bootstrap.afd_help import AfdHelpInput, AfdHelpOutput
-from afd.server.bootstrap.afd_docs import AfdDocsInput, AfdDocsOutput
-from afd.server.bootstrap.afd_schema import AfdSchemaInput, AfdSchemaOutput
+from afd.server.bootstrap.afd_docs import AfdDocsInput
+from afd.server.bootstrap.afd_help import AfdHelpInput
+from afd.server.bootstrap.afd_schema import AfdSchemaInput
 
 
 # Test helper to create sample commands
@@ -223,7 +222,9 @@ class TestAfdHelp:
             assert "tags" not in by_name[name]
             assert "examples" not in by_name[name]
         assert by_name["todo-create"]["tags"] == ["todo", "mutation", "write"]
-        assert by_name["todo-create"]["examples"] == [{"title": "Basic", "input": {"title": "Buy milk"}}]
+        assert by_name["todo-create"]["examples"] == [
+            {"title": "Basic", "input": {"title": "Buy milk"}}
+        ]
 
     @pytest.mark.asyncio
     async def test_grouped_by_category(self):

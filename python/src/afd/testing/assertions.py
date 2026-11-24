@@ -8,47 +8,49 @@ Example:
     >>> result = await create_user({"name": "Alice"})
     >>> data = assert_success(result)
     >>> assert data["id"] == 1
-    >>> 
+    >>>
     >>> result = await create_user({})
     >>> error = assert_error(result, "VALIDATION_ERROR")
     >>> assert "name" in error.message
 """
 
-from typing import Any, Dict, List, Optional, TypeVar, Union
+from typing import Any, TypeVar
 
 from afd.core import (
-    CommandResult,
+    Alternative,
     CommandError,
-    Source,
+    CommandResult,
     PlanStep,
     PlanStepStatus,
+    Source,
+)
+from afd.core import (
     Warning as AfdWarning,
-    Alternative,
 )
 
 T = TypeVar("T")
 
 
 def assert_success(
-    result: Union[CommandResult[T], Dict[str, Any]],
-    message: Optional[str] = None,
+    result: CommandResult[T] | dict[str, Any],
+    message: str | None = None,
 ) -> T:
     """Assert that a command result is successful and return the data.
-    
+
     This is the primary assertion for testing successful commands.
     It validates the result structure and returns the data for
     further assertions.
-    
+
     Args:
         result: Command result to check (dict or CommandResult).
         message: Optional custom failure message.
-    
+
     Returns:
         The data field from the result.
-    
+
     Raises:
         AssertionError: If the result is not successful.
-    
+
     Example:
         >>> result = await create_user({"name": "Alice"})
         >>> data = assert_success(result)
@@ -64,45 +66,47 @@ def assert_success(
         success = result.success
         data = result.data
         error = result.error
-    
+
     if not success:
         # Build informative error message
         if error:
             if isinstance(error, dict):
-                error_msg = f"{error.get('code', 'UNKNOWN')}: {error.get('message', 'Unknown error')}"
+                error_msg = (
+                    f"{error.get('code', 'UNKNOWN')}: {error.get('message', 'Unknown error')}"
+                )
             else:
                 error_msg = f"{error.code}: {error.message}"
         else:
             error_msg = "Unknown error (no error details)"
-        
+
         failure_msg = message or f"Expected success but got error: {error_msg}"
         raise AssertionError(failure_msg)
-    
+
     return data  # type: ignore
 
 
 def assert_error(
-    result: Union[CommandResult[Any], Dict[str, Any]],
-    expected_code: Optional[str] = None,
-    message: Optional[str] = None,
+    result: CommandResult[Any] | dict[str, Any],
+    expected_code: str | None = None,
+    message: str | None = None,
 ) -> CommandError:
     """Assert that a command result is a failure and return the error.
-    
+
     This is the primary assertion for testing error cases.
     Optionally validates the error code.
-    
+
     Args:
         result: Command result to check.
         expected_code: Optional error code to validate.
         message: Optional custom failure message.
-    
+
     Returns:
         The error from the result.
-    
+
     Raises:
         AssertionError: If the result is not a failure, or if the
             error code doesn't match.
-    
+
     Example:
         >>> result = await create_user({})
         >>> error = assert_error(result, "VALIDATION_ERROR")
@@ -117,11 +121,11 @@ def assert_error(
         success = result.success
         error = result.error
         data = result.data
-    
+
     if success or error is None:
         failure_msg = message or f"Expected error but got success with data: {data}"
         raise AssertionError(failure_msg)
-    
+
     # Convert dict error to CommandError if needed
     if isinstance(error, dict):
         error = CommandError(
@@ -131,110 +135,108 @@ def assert_error(
             details=error.get("details"),
             retryable=error.get("retryable", False),
         )
-    
+
     if expected_code is not None and error.code != expected_code:
         failure_msg = message or f"Expected error code '{expected_code}' but got '{error.code}'"
         raise AssertionError(failure_msg)
-    
+
     return error
 
 
 def assert_has_confidence(
-    result: Union[CommandResult[Any], Dict[str, Any]],
+    result: CommandResult[Any] | dict[str, Any],
     min_confidence: float = 0.0,
     max_confidence: float = 1.0,
 ) -> float:
     """Assert that a result has a confidence value within range.
-    
+
     Args:
         result: Command result to check.
         min_confidence: Minimum expected confidence (inclusive).
         max_confidence: Maximum expected confidence (inclusive).
-    
+
     Returns:
         The confidence value.
-    
+
     Raises:
         AssertionError: If confidence is missing or out of range.
-    
+
     Example:
         >>> result = await analyze_text({"text": "Hello"})
         >>> confidence = assert_has_confidence(result, min_confidence=0.8)
         >>> assert confidence >= 0.8
     """
     confidence = result.get("confidence") if isinstance(result, dict) else result.confidence
-    
+
     if confidence is None:
         raise AssertionError("Expected result to have confidence, but it was None")
-    
+
     if not min_confidence <= confidence <= max_confidence:
         raise AssertionError(
             f"Expected confidence in [{min_confidence}, {max_confidence}] but got {confidence}"
         )
-    
+
     return confidence
 
 
 def assert_has_reasoning(
-    result: Union[CommandResult[Any], Dict[str, Any]],
-    contains: Optional[str] = None,
+    result: CommandResult[Any] | dict[str, Any],
+    contains: str | None = None,
 ) -> str:
     """Assert that a result has reasoning and optionally check content.
-    
+
     Args:
         result: Command result to check.
         contains: Optional substring that should be in the reasoning.
-    
+
     Returns:
         The reasoning string.
-    
+
     Raises:
         AssertionError: If reasoning is missing or doesn't contain
             the expected substring.
-    
+
     Example:
         >>> result = await generate_summary({"text": long_text})
         >>> reasoning = assert_has_reasoning(result, contains="key points")
     """
     reasoning = result.get("reasoning") if isinstance(result, dict) else result.reasoning
-    
+
     if reasoning is None:
         raise AssertionError("Expected result to have reasoning, but it was None")
-    
+
     if contains is not None and contains not in reasoning:
-        raise AssertionError(
-            f"Expected reasoning to contain '{contains}' but got: {reasoning}"
-        )
-    
+        raise AssertionError(f"Expected reasoning to contain '{contains}' but got: {reasoning}")
+
     return reasoning
 
 
 def assert_has_sources(
-    result: Union[CommandResult[Any], Dict[str, Any]],
+    result: CommandResult[Any] | dict[str, Any],
     min_count: int = 1,
-) -> List[Source]:
+) -> list[Source]:
     """Assert that a result has sources and return them.
-    
+
     Args:
         result: Command result to check.
         min_count: Minimum number of expected sources.
-    
+
     Returns:
         List of sources.
-    
+
     Raises:
         AssertionError: If sources are missing or below min_count.
-    
+
     Example:
         >>> result = await search_docs({"query": "authentication"})
         >>> sources = assert_has_sources(result, min_count=2)
         >>> assert all(s.url for s in sources)
     """
     sources = result.get("sources") if isinstance(result, dict) else result.sources
-    
+
     if sources is None:
         raise AssertionError("Expected result to have sources, but it was None")
-    
+
     # Convert dicts to Source objects if needed
     converted_sources = []
     for s in sources:
@@ -244,148 +246,153 @@ def assert_has_sources(
             converted_sources.append(Source.model_validate(source_data))
         else:
             converted_sources.append(s)
-    
+
     if len(converted_sources) < min_count:
         raise AssertionError(
             f"Expected at least {min_count} sources but got {len(converted_sources)}"
         )
-    
+
     return converted_sources
 
 
 def assert_has_plan(
-    result: Union[CommandResult[Any], Dict[str, Any]],
+    result: CommandResult[Any] | dict[str, Any],
     min_steps: int = 1,
-) -> List[PlanStep]:
+) -> list[PlanStep]:
     """Assert that a result has a plan and return the steps.
-    
+
     Args:
         result: Command result to check.
         min_steps: Minimum number of expected steps.
-    
+
     Returns:
         List of plan steps.
-    
+
     Raises:
         AssertionError: If plan is missing or has too few steps.
-    
+
     Example:
         >>> result = await plan_migration({"from": "v1", "to": "v2"})
         >>> steps = assert_has_plan(result, min_steps=3)
         >>> assert steps[0].title == "Backup data"
     """
     plan = result.get("plan") if isinstance(result, dict) else result.plan
-    
+
     if plan is None:
         raise AssertionError("Expected result to have plan, but it was None")
-    
+
     # Convert dicts to PlanStep objects if needed
     converted_steps = []
     for step in plan:
         if isinstance(step, dict):
-            converted_steps.append(PlanStep(
-                id=step.get("id", ""),
-                action=step.get("action", "unknown"),
-                title=step.get("title", ""),
-                description=step.get("description"),
-                status=step.get("status", "pending"),
-            ))
+            converted_steps.append(
+                PlanStep(
+                    id=step.get("id", ""),
+                    action=step.get("action", "unknown"),
+                    description=step.get("description"),
+                    status=step.get("status", "pending"),
+                )
+            )
         else:
             converted_steps.append(step)
-    
+
     if len(converted_steps) < min_steps:
         raise AssertionError(
             f"Expected at least {min_steps} plan steps but got {len(converted_steps)}"
         )
-    
+
     return converted_steps
 
 
 def assert_has_warnings(
-    result: Union[CommandResult[Any], Dict[str, Any]],
+    result: CommandResult[Any] | dict[str, Any],
     min_count: int = 1,
-) -> List[AfdWarning]:
+) -> list[AfdWarning]:
     """Assert that a result has warnings and return them.
-    
+
     Args:
         result: Command result to check.
         min_count: Minimum number of expected warnings.
-    
+
     Returns:
         List of warnings.
-    
+
     Raises:
         AssertionError: If warnings are missing or below min_count.
-    
+
     Example:
         >>> result = await deploy({"env": "production"})
         >>> warnings = assert_has_warnings(result)
         >>> assert any("deprecated" in w.message for w in warnings)
     """
     warnings = result.get("warnings") if isinstance(result, dict) else result.warnings
-    
+
     if warnings is None:
         raise AssertionError("Expected result to have warnings, but it was None")
-    
+
     # Convert dicts to Warning objects if needed
     converted_warnings = []
     for w in warnings:
         if isinstance(w, dict):
-            converted_warnings.append(AfdWarning(
-                code=w.get("code", ""),
-                message=w.get("message", ""),
-                severity=w.get("severity", "info"),
-                details=w.get("details"),
-            ))
+            converted_warnings.append(
+                AfdWarning(
+                    code=w.get("code", ""),
+                    message=w.get("message", ""),
+                    severity=w.get("severity", "info"),
+                    details=w.get("details"),
+                )
+            )
         else:
             converted_warnings.append(w)
-    
+
     if len(converted_warnings) < min_count:
         raise AssertionError(
             f"Expected at least {min_count} warnings but got {len(converted_warnings)}"
         )
-    
+
     return converted_warnings
 
 
 def assert_has_alternatives(
-    result: Union[CommandResult[Any], Dict[str, Any]],
+    result: CommandResult[Any] | dict[str, Any],
     min_count: int = 1,
-) -> List[Alternative[Any]]:
+) -> list[Alternative[Any]]:
     """Assert that a result has alternatives and return them.
-    
+
     Args:
         result: Command result to check.
         min_count: Minimum number of expected alternatives.
-    
+
     Returns:
         List of alternatives.
-    
+
     Raises:
         AssertionError: If alternatives are missing or below min_count.
-    
+
     Example:
         >>> result = await suggest_names({"context": "user service"})
         >>> alts = assert_has_alternatives(result, min_count=3)
         >>> assert all(a.reason for a in alts)
     """
     alternatives = result.get("alternatives") if isinstance(result, dict) else result.alternatives
-    
+
     if alternatives is None:
         raise AssertionError("Expected result to have alternatives, but it was None")
-    
+
     # Convert dicts to Alternative objects if needed
-    converted_alts: List[Alternative[Any]] = []
+    converted_alts: list[Alternative[Any]] = []
     for alt in alternatives:
         if isinstance(alt, dict):
-            converted_alts.append(Alternative(
-                data=alt.get("data"),
-                reason=alt.get("reason", ""),
-                confidence=alt.get("confidence"),
-            ))
+            converted_alts.append(
+                Alternative(
+                    data=alt.get("data"),
+                    reason=alt.get("reason", ""),
+                    confidence=alt.get("confidence"),
+                )
+            )
         else:
             converted_alts.append(alt)
-    
+
     if len(converted_alts) < min_count:
         raise AssertionError(
             f"Expected at least {min_count} alternatives but got {len(converted_alts)}"
@@ -395,8 +402,8 @@ def assert_has_alternatives(
 
 
 def assert_has_suggestion(
-    result: Union[CommandResult[Any], Dict[str, Any]],
-    message: Optional[str] = None,
+    result: CommandResult[Any] | dict[str, Any],
+    message: str | None = None,
 ) -> str:
     """Assert that a failed result's error includes a suggestion.
 
@@ -421,17 +428,15 @@ def assert_has_suggestion(
     err = assert_error(result)
 
     if not err.suggestion:
-        raise AssertionError(
-            message or "Expected error to have a suggestion but none was provided"
-        )
+        raise AssertionError(message or "Expected error to have a suggestion but none was provided")
 
     return err.suggestion
 
 
 def assert_retryable(
-    result: Union[CommandResult[Any], Dict[str, Any]],
+    result: CommandResult[Any] | dict[str, Any],
     expected: bool = True,
-    message: Optional[str] = None,
+    message: str | None = None,
 ) -> bool:
     """Assert that a failed result's error has the expected retryable flag.
 
@@ -457,18 +462,17 @@ def assert_retryable(
 
     if err.retryable != expected:
         raise AssertionError(
-            message
-            or f"Expected error.retryable to be {expected} but got {err.retryable}"
+            message or f"Expected error.retryable to be {expected} but got {err.retryable}"
         )
 
-    return err.retryable  # type: ignore[return-value]
+    return err.retryable
 
 
 def assert_step_status(
-    result: Union[CommandResult[Any], Dict[str, Any]],
+    result: CommandResult[Any] | dict[str, Any],
     step_id: str,
     expected_status: str,
-    message: Optional[str] = None,
+    message: str | None = None,
 ) -> PlanStep:
     """Assert that a plan step has the expected status.
 
@@ -499,9 +503,7 @@ def assert_step_status(
 
     step = next((s for s in steps if s.id == step_id), None)
     if step is None:
-        raise AssertionError(
-            message or f"Plan step '{step_id}' not found"
-        )
+        raise AssertionError(message or f"Plan step '{step_id}' not found")
 
     # Normalize status comparison (handle PlanStepStatus enum vs string)
     actual_status = step.status.value if isinstance(step.status, PlanStepStatus) else step.status
@@ -515,9 +517,9 @@ def assert_step_status(
 
 
 def assert_ai_result(
-    result: Union[CommandResult[Any], Dict[str, Any]],
+    result: CommandResult[T] | dict[str, Any],
     *,
-    min_confidence: Optional[float] = None,
+    min_confidence: float | None = None,
     require_sources: bool = False,
     require_alternatives: bool = False,
 ) -> T:
@@ -556,9 +558,7 @@ def assert_ai_result(
         raise AssertionError("AI result must include confidence score")
 
     if min_confidence is not None and confidence < min_confidence:
-        raise AssertionError(
-            f"AI result confidence {confidence} is below minimum {min_confidence}"
-        )
+        raise AssertionError(f"AI result confidence {confidence} is below minimum {min_confidence}")
 
     # Reasoning is required for AI results
     reasoning = result.get("reasoning") if isinstance(result, dict) else result.reasoning
@@ -573,7 +573,9 @@ def assert_ai_result(
 
     # Alternatives may be required
     if require_alternatives:
-        alternatives = result.get("alternatives") if isinstance(result, dict) else result.alternatives
+        alternatives = (
+            result.get("alternatives") if isinstance(result, dict) else result.alternatives
+        )
         if not alternatives or len(alternatives) == 0:
             raise AssertionError("AI result must include alternatives")
 

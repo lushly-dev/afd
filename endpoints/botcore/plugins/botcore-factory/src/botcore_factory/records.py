@@ -173,7 +173,7 @@ class RecordError(ValueError):
     """A record that does not follow the schema; nothing is written."""
 
 
-def make(kind: str, at: str, run_id: str | None, **fields: Any) -> dict:
+def make(kind: str, at: str, run_id: str | None, **fields: Any) -> dict[str, Any]:
     """A record of ``kind``, checked against the schema."""
     if kind not in REQUIRED:
         raise RecordError(f"Unknown record kind {kind!r}")
@@ -183,56 +183,59 @@ def make(kind: str, at: str, run_id: str | None, **fields: Any) -> dict:
     return {"schema": SCHEMA, "kind": kind, "at": at, "runId": run_id, **fields}
 
 
-def for_branch(records: list[dict], branch: str) -> list[dict]:
+def for_branch(records: list[dict[str, Any]], branch: str) -> list[dict[str, Any]]:
     return [record for record in records if record.get("branch") == branch]
 
 
-def next_attempt(records: list[dict], branch: str) -> int:
+def next_attempt(records: list[dict[str, Any]], branch: str) -> int:
     attempts = [r["attempt"] for r in for_branch(records, branch) if r.get("kind") == "enqueued"]
     return max(attempts, default=0) + 1
 
 
-def first_enqueued(records: list[dict], branch: str) -> str | None:
+def first_enqueued(records: list[dict[str, Any]], branch: str) -> str | None:
     """When the branch was first enqueued: queue wait counts from here, across repairs."""
     times = [r["at"] for r in for_branch(records, branch) if r.get("kind") == "enqueued"]
     return min(times) if times else None
 
 
-def last_ejection(records: list[dict], branch: str) -> dict | None:
+def last_ejection(records: list[dict[str, Any]], branch: str) -> dict[str, Any] | None:
     ejections = [r for r in for_branch(records, branch) if r.get("kind") == "ejected"]
     return ejections[-1] if ejections else None
 
 
-def attempts(records: list[dict]) -> list[dict]:
+def attempts(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """One row per attempt: its times, outcome and cause, plan, route, profile and checks.
 
     ``state`` is the furthest the attempt got (``held``, ``queued``, ``validating``,
     ``validated``); ``outcome`` is ``merged``, ``ejected`` or ``dropped`` once it ended.
     """
-    rows: dict[tuple[str, int], dict] = {}
+    rows: dict[tuple[str, int], dict[str, Any]] = {}
     last: dict[str, tuple[str, int]] = {}
     for record in records:
         kind, branch = record.get("kind"), record.get("branch")
-        if kind == "dropped" and branch in last:
+        if kind == "dropped" and isinstance(branch, str) and branch in last:
             row = rows[last[branch]]
             row.setdefault("outcome", "dropped")
             row["droppedAt"] = record["at"]
             continue
-        if kind in _COUNTS and (branch, record.get("attempt")) in rows:
-            row = rows[(branch, record["attempt"])]
+        attempt = record.get("attempt")
+        if not isinstance(branch, str) or not isinstance(attempt, int):
+            continue
+        if kind in _COUNTS and (branch, attempt) in rows:
+            row = rows[(branch, attempt)]
             row[_COUNTS[kind]] = row.get(_COUNTS[kind], 0) + 1
             continue
-        if kind not in _TIMES or "attempt" not in record:
+        if kind not in _TIMES:
             continue
-        key = (branch, record["attempt"])
+        key = (branch, attempt)
         last[branch] = key
-        row = rows.setdefault(key, {"branch": branch, "attempt": record["attempt"]})
+        row = rows.setdefault(key, {"branch": branch, "attempt": attempt})
         row[_TIMES[kind]] = record["at"]
         _fold(row, kind, record)
     return list(rows.values())
 
 
-def _fold(row: dict, kind: str, record: dict) -> None:
+def _fold(row: dict[str, Any], kind: str, record: dict[str, Any]) -> None:
     if kind == "enqueued":
         for name in ("head", "issues", "plan", "route", "profile", "firstEnqueuedAt", "runId"):
             row[name] = record.get(name)
@@ -283,7 +286,9 @@ def _fold(row: dict, kind: str, record: dict) -> None:
     row.setdefault("state", None)
 
 
-def test_changes_for(records: list[dict], branch: str, attempt: int | None = None) -> dict | None:
+def test_changes_for(
+    records: list[dict[str, Any]], branch: str, attempt: int | None = None
+) -> dict[str, Any] | None:
     """The latest test-change report attached to ``branch`` (or its specific ``attempt``)."""
     rows = [
         row
@@ -295,6 +300,6 @@ def test_changes_for(records: list[dict], branch: str, attempt: int | None = Non
     return rows[-1]["testChanges"] if rows else None
 
 
-def merges(records: list[dict]) -> list[dict]:
+def merges(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """The attempts that merged, each with what Measurement computes per merge."""
     return [row for row in attempts(records) if row.get("outcome") == "merged"]

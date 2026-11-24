@@ -36,9 +36,8 @@ DEFAULT_TOOLS_LIST_TTL_MS = 300_000
 
 def _resolve_default_timeout_ms(value: int | float | None) -> int | float | None:
     """Validate and normalize ``default_timeout_ms`` (``None`` or ``0`` disables)."""
-    if (
-        value is None
-        or (isinstance(value, (int, float)) and not isinstance(value, bool) and value == 0)
+    if value is None or (
+        isinstance(value, (int, float)) and not isinstance(value, bool) and value == 0
     ):
         return None
     if (

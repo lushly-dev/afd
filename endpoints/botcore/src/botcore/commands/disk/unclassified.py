@@ -9,6 +9,7 @@ import time
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from botcore.commands.disk.git import GitError, git_out
 from botcore.commands.disk.scan import compile_pattern, is_link
@@ -166,7 +167,9 @@ def unclassified_paths(
     return scan_unclassified(worktree, config, deadline=deadline).paths
 
 
-def add_unclassified(pairs: list[tuple[dict, DiskConfig | None]], deadline: float) -> bool:
+def add_unclassified(
+    pairs: list[tuple[dict[str, Any], DiskConfig | None]], deadline: float
+) -> bool:
     """Add an `unclassified` list to each present worktree row of each repository.
 
     Marks truncated lists (`unclassified_truncated`, `unclassified_omitted`) and incomplete
@@ -202,7 +205,7 @@ def add_unclassified(pairs: list[tuple[dict, DiskConfig | None]], deadline: floa
     return complete
 
 
-def format_unclassified_summary(data: dict) -> str:
+def format_unclassified_summary(data: dict[str, Any]) -> str:
     """Plain-text summary of unclassified ignored paths grouped across each repo's worktrees,
     followed by worktrees whose scan was incomplete (lushly-dev/afd#1955)."""
     sections: list[str] = []
@@ -228,9 +231,7 @@ def format_unclassified_summary(data: dict) -> str:
             reasons: list[str] = []
             if row.get("unclassified_truncated"):
                 omitted = row.get("unclassified_omitted")
-                reasons.append(
-                    f"truncated ({omitted} omitted)" if omitted else "truncated"
-                )
+                reasons.append(f"truncated ({omitted} omitted)" if omitted else "truncated")
             if row.get("unclassified_incomplete"):
                 reasons.append("scan budget spent")
             if row.get("unclassified_error"):

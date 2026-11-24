@@ -5,15 +5,14 @@ import json
 import pytest
 from pydantic import BaseModel
 
-from afd import success, error
-from afd.server import create_server, define_command, MCPServer
+from afd import success
+from afd.core.commands import CommandExample, ExposeOptions
+from afd.server import create_server, define_command
 from afd.server.decorators import (
-    CommandMetadata,
+    command_to_definition,
     get_command_metadata,
     has_command_metadata,
-    command_to_definition,
 )
-from afd.core.commands import CommandExample, ExposeOptions
 
 
 # Test schemas
@@ -127,7 +126,8 @@ class TestDefineCommand:
         )
 
     def test_decorator_validates_examples_against_schema(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
+
             @define_command(
                 name="invalid-example",
                 description="Invalid example",

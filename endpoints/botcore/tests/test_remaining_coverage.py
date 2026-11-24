@@ -43,8 +43,7 @@ async def test_undo_status_work_complete(tmp_path) -> None:
     """undo_status generates rollback for work.complete actions."""
     history_file = tmp_path / "history.json"
     history_file.write_text(
-        '{"last_action": {"action": "work.complete", "timestamp": "2026-01-01",'
-        ' "issue": "42"}}'
+        '{"last_action": {"action": "work.complete", "timestamp": "2026-01-01", "issue": "42"}}'
     )
 
     with patch("botcore.commands.undo.HISTORY_FILE", history_file):
@@ -94,9 +93,7 @@ def test_detect_language_rust(tmp_path) -> None:
 
 def test_detect_language_python_with_build(tmp_path) -> None:
     """Detects Python from pyproject.toml with build-system."""
-    (tmp_path / "pyproject.toml").write_text(
-        '[build-system]\nrequires = ["hatchling"]\n'
-    )
+    (tmp_path / "pyproject.toml").write_text('[build-system]\nrequires = ["hatchling"]\n')
     assert detect_language(tmp_path) == "python"
 
 
@@ -269,7 +266,8 @@ async def test_run_external_tool_not_found() -> None:
     # Count only this call's warning: an unrelated one (a ResourceWarning from garbage
     # collection, say) can land in the window and must not fail the test (#1467).
     ours = [
-        x for x in w
+        x
+        for x in w
         if issubclass(x.category, UserWarning) and "__nonexistent_tool_xyz__" in str(x.message)
     ]
     assert len(ours) == 1
@@ -280,7 +278,9 @@ async def test_run_external_tool_not_found() -> None:
 async def test_run_external_tool_found() -> None:
     """Returns result when tool is available."""
     result = await run_external_tool(
-        sys.executable, ["-c", "print('hi')"], install_hint="Install Python",
+        sys.executable,
+        ["-c", "print('hi')"],
+        install_hint="Install Python",
     )
     assert result is not None
     assert result["success"] is True

@@ -145,8 +145,12 @@ def _transcripts(root: Path) -> dict[str, list[Path]]:
     for agent in beside:
         row = _first_row(agent)
         parent = row.get("sessionId")
-        ours = isinstance(parent, str) and parent in found and row.get("isSidechain") is True
-        found.setdefault(parent if ours else agent.stem, []).append(agent)
+        key = (
+            parent
+            if (isinstance(parent, str) and parent in found and row.get("isSidechain") is True)
+            else agent.stem
+        )
+        found.setdefault(key, []).append(agent)
     return found
 
 
@@ -277,7 +281,8 @@ def _note(found: _Transcript, row: dict, home: str, others: set[str], subagent: 
     if at:
         seen.first = min(seen.first or at, at)
         seen.last = max(seen.last or at, at)
-    message = row.get("message") if isinstance(row.get("message"), dict) else {}
+    raw_message = row.get("message")
+    message: dict[object, object] = raw_message if isinstance(raw_message, dict) else {}
     kind = row.get("type")
     if kind == "assistant":
         for part in _parts(row):
@@ -296,8 +301,13 @@ def _note(found: _Transcript, row: dict, home: str, others: set[str], subagent: 
                 found.finished.add(call)
         # a command a person typed: a subagent's brief and a line the harness wrote are not
         text = message.get("content")
-        typed = isinstance(text, str) and text.lstrip().startswith(_ENVELOPE)
-        if typed and not sidechain and row.get("isMeta") is not True and at:
+        if (
+            isinstance(text, str)
+            and text.lstrip().startswith(_ENVELOPE)
+            and not sidechain
+            and row.get("isMeta") is not True
+            and at
+        ):
             named = _COMMAND.search(text)
             row_id = _identifier(row.get("uuid"))
             if named and row_id:
@@ -426,8 +436,9 @@ def read(root: Path, known: dict, held: set[str], *, everything: bool = False) -
                     result.t3_sessions.add(thread)
                     continue
             gave.append(thread)
-            if checkout[session]:
-                result.projects[checkout[session]] = checkout[session]
+            project_root = checkout[session]
+            if project_root:
+                result.projects[project_root] = project_root
             result.sessions.append(
                 Session(
                     id=thread,
@@ -465,15 +476,15 @@ def read(root: Path, known: dict, held: set[str], *, everything: bool = False) -
                         )
                     )
         for session, row_id, name, at, program in parsed.typed:
-            skill = clean_skill_name(name)
+            typed_skill = clean_skill_name(name)
             thread = f"{PREFIX}{session}"
-            if skill and thread in gave and program not in ran.get(session, {T3_STARTED}):
+            if typed_skill and thread in gave and program not in ran.get(session, {T3_STARTED}):
                 result.loads.append(
                     Load(
                         item=row_id,
                         native=None,
                         at=at,
-                        skill=skill,
+                        skill=typed_skill,
                         path=TYPED,
                         harness=HARNESS,
                         thread=thread,

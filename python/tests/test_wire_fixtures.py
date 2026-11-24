@@ -48,9 +48,11 @@ def _schema_validator(schema_file: str):
         schema = json.loads((SCHEMA_DIR / name).read_text(encoding="utf-8"))
         loaded[name] = schema
         registry = registry.with_resource(
-            schema["$id"], referencing.Resource.from_contents(schema, default_specification=DRAFT202012)
+            schema["$id"],
+            referencing.Resource.from_contents(schema, default_specification=DRAFT202012),
         )
     return jsonschema.Draft202012Validator(loaded[schema_file], registry=registry)
+
 
 MODELS = {
     "result-success-minimal.json": CommandResult,

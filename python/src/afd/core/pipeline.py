@@ -22,8 +22,9 @@ import asyncio
 import logging
 import math
 import time
+from collections.abc import Callable
 from enum import Enum
-from typing import Any, Callable, Dict, Generic, List, Optional, Tuple, TypeVar, Union
+from typing import Any, Generic, Optional, TypeVar
 
 from pydantic import (
     BaseModel,
@@ -53,7 +54,6 @@ from afd.core.pipeline_variables import (
     get_nested_value,  # noqa: F401 - re-exported
     is_number,
     json_equals,
-    json_view,
     pipeline_view,
     resolve_input,
     resolve_operand,
@@ -110,10 +110,10 @@ class PipelineStep(WireModel):
     """
 
     command: str
-    input: Optional[Dict[str, Any]] = None
-    as_: Optional[str] = Field(default=None, alias="as")
+    input: dict[str, Any] | None = None
+    as_: str | None = Field(default=None, alias="as")
     when: Optional["PipelineCondition"] = None
-    stream: Optional[StrictBool] = None
+    stream: StrictBool | None = None
 
     @field_validator("command")
     @classmethod
@@ -154,7 +154,7 @@ class PipelineOptions(WireModel):
     """
 
     continue_on_failure: StrictBool = False
-    timeout_ms: Optional[Union[int, float]] = Field(default=None, ge=0, allow_inf_nan=False)
+    timeout_ms: int | float | None = Field(default=None, ge=0, allow_inf_nan=False)
     parallel: StrictBool = False
 
     model_config = ConfigDict(**WIRE_MODEL_CONFIG, extra="forbid")
@@ -188,10 +188,10 @@ class PipelineRequest(WireModel):
         ... )
     """
 
-    id: Optional[str] = None
-    steps: List[PipelineStep]
-    options: Optional[PipelineOptions] = None
-    input: Optional[Dict[str, Any]] = None
+    id: str | None = None
+    steps: list[PipelineStep]
+    options: PipelineOptions | None = None
+    input: dict[str, Any] | None = None
 
     @field_validator("id", "options", mode="before")
     @classmethod
@@ -260,14 +260,14 @@ class PipelineConditionLte(BaseModel):
 class PipelineConditionAnd(BaseModel):
     """Logical AND - all conditions must be true."""
 
-    and_: List["PipelineCondition"] = Field(alias="$and")
+    and_: list["PipelineCondition"] = Field(alias="$and")
     model_config = _CONDITION_CONFIG
 
 
 class PipelineConditionOr(BaseModel):
     """Logical OR - any condition must be true."""
 
-    or_: List["PipelineCondition"] = Field(alias="$or")
+    or_: list["PipelineCondition"] = Field(alias="$or")
     model_config = _CONDITION_CONFIG
 
 
@@ -281,18 +281,18 @@ class PipelineConditionNot(BaseModel):
 # Union type for all condition types. There is no catch-all branch: a
 # PipelineStep rejects a malformed or unknown operator (``$exist``) when it is
 # validated, so no step of a pipeline with a bad condition ever runs.
-PipelineCondition = Union[
-    PipelineConditionExists,
-    PipelineConditionEq,
-    PipelineConditionNe,
-    PipelineConditionGt,
-    PipelineConditionGte,
-    PipelineConditionLt,
-    PipelineConditionLte,
-    PipelineConditionAnd,
-    PipelineConditionOr,
-    PipelineConditionNot,
-]
+PipelineCondition = (
+    PipelineConditionExists
+    | PipelineConditionEq
+    | PipelineConditionNe
+    | PipelineConditionGt
+    | PipelineConditionGte
+    | PipelineConditionLt
+    | PipelineConditionLte
+    | PipelineConditionAnd
+    | PipelineConditionOr
+    | PipelineConditionNot
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -300,7 +300,7 @@ PipelineCondition = Union[
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-class StepStatus(str, Enum):
+class StepStatus(str, Enum):  # noqa: UP042
     """Possible statuses for a pipeline step."""
 
     SUCCESS = "success"
@@ -312,10 +312,10 @@ class StepConfidence(WireModel):
     """Confidence information for a single step."""
 
     step: int
-    alias: Optional[str] = None
+    alias: str | None = None
     command: str
     confidence: float
-    reasoning: Optional[str] = None
+    reasoning: str | None = None
 
 
 class StepReasoning(WireModel):
@@ -330,7 +330,7 @@ class PipelineWarning(Warning):
     """Warning from a pipeline step."""
 
     step_index: int
-    step_alias: Optional[str] = None
+    step_alias: str | None = None
 
 
 class PipelineSource(Source):
@@ -344,8 +344,8 @@ class PipelineAlternative(WireModel, Generic[T]):
 
     data: T
     reason: str
-    confidence: Optional[float] = Field(default=None, ge=0, le=1)
-    label: Optional[str] = None
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    label: str | None = None
     step_index: int
 
 
@@ -353,17 +353,17 @@ class StepResult(WireModel):
     """Result of a single pipeline step."""
 
     index: int
-    alias: Optional[str] = None
+    alias: str | None = None
     command: str
     status: StepStatus
-    data: Optional[Any] = None
-    error: Optional[CommandError] = None
+    data: Any | None = None
+    error: CommandError | None = None
     execution_time_ms: float = 0
-    metadata: Optional[ResultMetadata] = None
+    metadata: ResultMetadata | None = None
 
     @field_serializer("error", mode="wrap")
     def _serialize_error(
-        self, value: Optional[CommandError], handler: SerializerFunctionWrapHandler
+        self, value: CommandError | None, handler: SerializerFunctionWrapHandler
     ) -> Any:
         return _omit_unset_cause(handler(value))
 
@@ -384,11 +384,11 @@ class PipelineMetadata(ResultMetadata):
     """
 
     confidence: float = 1.0
-    confidence_breakdown: List[StepConfidence] = Field(default_factory=list)
-    reasoning_steps: List[StepReasoning] = Field(default_factory=list, alias="reasoning")
-    pipeline_warnings: List[PipelineWarning] = Field(default_factory=list, alias="warnings")
-    pipeline_sources: List[PipelineSource] = Field(default_factory=list, alias="sources")
-    pipeline_alternatives: List[PipelineAlternative[Any]] = Field(
+    confidence_breakdown: list[StepConfidence] = Field(default_factory=list)
+    reasoning_steps: list[StepReasoning] = Field(default_factory=list, alias="reasoning")
+    pipeline_warnings: list[PipelineWarning] = Field(default_factory=list, alias="warnings")
+    pipeline_sources: list[PipelineSource] = Field(default_factory=list, alias="sources")
+    pipeline_alternatives: list[PipelineAlternative[Any]] = Field(
         default_factory=list, alias="alternatives"
     )
     completed_steps: int = 0
@@ -398,9 +398,9 @@ class PipelineMetadata(ResultMetadata):
 class PipelineResult(WireModel, Generic[T]):
     """Result of executing a pipeline."""
 
-    data: Optional[T] = None
+    data: T | None = None
     metadata: PipelineMetadata
-    steps: List[StepResult]
+    steps: list[StepResult]
 
     @model_serializer(mode="wrap")
     def _serialize_null_data(
@@ -418,12 +418,12 @@ class PipelineContext(WireModel):
         steps: Results of the steps run or skipped so far, by index.
     """
 
-    pipeline_input: Optional[Dict[str, Any]] = None
-    previous_result: Optional[StepResult] = None
-    steps: List[StepResult] = Field(default_factory=list)
+    pipeline_input: dict[str, Any] | None = None
+    previous_result: StepResult | None = None
+    steps: list[StepResult] = Field(default_factory=list)
 
     # JSON views of step data, keyed by id(step): (step, view).
-    _views: Dict[int, Tuple[Any, Any]] = PrivateAttr(default_factory=dict)
+    _views: dict[int, tuple[Any, Any]] = PrivateAttr(default_factory=dict)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -512,9 +512,9 @@ def is_pipeline_condition(value: Any) -> bool:
 
 
 def create_pipeline(
-    steps: List[PipelineStep],
-    options: Optional[PipelineOptions] = None,
-    input: Optional[Dict[str, Any]] = None,
+    steps: list[PipelineStep],
+    options: PipelineOptions | None = None,
+    input: dict[str, Any] | None = None,
 ) -> PipelineRequest:
     """Create a PipelineRequest from an array of steps."""
     return PipelineRequest(steps=steps, options=options, input=input)
@@ -524,14 +524,14 @@ def create_pipeline(
 # JSON-only traversal live in afd.core.pipeline_variables.
 
 
-def step_data(result: CommandResult[Any]) -> Dict[str, Any]:
+def step_data(result: CommandResult[Any]) -> dict[str, Any]:
     """The ``data`` keyword of a successful step built from ``result``: ``None`` set explicitly
     when the result's data was set to ``None``, nothing when the result has no data, so a
     reference reads the first as ``null`` and the second as absent."""
     return {"data": result.data} if "data" in result.model_fields_set else {}
 
 
-def _step_view(step: Optional[StepResult], context: PipelineContext) -> Any:
+def _step_view(step: StepResult | None, context: PipelineContext) -> Any:
     """JSON view of a successful step's data, or ABSENT for any other step."""
     # A successful step's data is `null` when it was set to None, and absent only when it was
     # never set, as in TypeScript, where `data: null` and `data: undefined` differ (#1961).
@@ -594,7 +594,7 @@ def resolve_variables(input: Any, context: PipelineContext) -> Any:
     """
     # One view of $input per step input, so repeated references to it are
     # recognized as repeats.
-    input_view: List[Any] = []
+    input_view: list[Any] = []
 
     def lookup(reference: VariableReference) -> Any:
         if reference.root != "input":
@@ -607,7 +607,7 @@ def resolve_variables(input: Any, context: PipelineContext) -> Any:
     return None if value is ABSENT else value
 
 
-_CONDITION_FIELDS: Dict[type, Tuple[str, str]] = {
+_CONDITION_FIELDS: dict[type, tuple[str, str]] = {
     PipelineConditionExists: ("$exists", "exists"),
     PipelineConditionEq: ("$eq", "eq"),
     PipelineConditionNe: ("$ne", "ne"),
@@ -620,7 +620,7 @@ _CONDITION_FIELDS: Dict[type, Tuple[str, str]] = {
     PipelineConditionNot: ("$not", "not_"),
 }
 
-_COMPARISONS: Dict[str, Callable[[Any, Any], bool]] = {
+_COMPARISONS: dict[str, Callable[[Any, Any], bool]] = {
     "$gt": lambda value, threshold: value > threshold,
     "$gte": lambda value, threshold: value >= threshold,
     "$lt": lambda value, threshold: value < threshold,
@@ -628,7 +628,7 @@ _COMPARISONS: Dict[str, Callable[[Any, Any], bool]] = {
 }
 
 
-def _condition_parts(condition: Any) -> Optional[Tuple[str, Any]]:
+def _condition_parts(condition: Any) -> tuple[str, Any] | None:
     """Return a condition's (operator, operand), for models and raw dicts."""
     fields = _CONDITION_FIELDS.get(type(condition))
     if fields is not None:
@@ -643,7 +643,7 @@ def _is_ref_pair(operand: Any) -> bool:
     return isinstance(operand, (list, tuple)) and len(operand) == 2 and isinstance(operand[0], str)
 
 
-def condition_error(condition: Any, depth: int = 1) -> Optional[str]:
+def condition_error(condition: Any, depth: int = 1) -> str | None:
     """Describe why a ``when`` condition is malformed, or return None if it is valid."""
     if depth > MAX_INPUT_DEPTH:
         return f"conditions are nested deeper than {MAX_INPUT_DEPTH} levels"
@@ -703,11 +703,7 @@ def evaluate_condition(condition: PipelineCondition, context: PipelineContext) -
             return json_equals(value, expected)
         if operator == "$ne":
             return not json_equals(value, expected)
-        return (
-            is_number(value)
-            and is_number(expected)
-            and _COMPARISONS[operator](value, expected)
-        )
+        return is_number(value) and is_number(expected) and _COMPARISONS[operator](value, expected)
 
     if operator in ("$and", "$or"):
         if not isinstance(operand, (list, tuple)):
@@ -749,7 +745,7 @@ def resolution_limit_failure(
     )
 
 
-def validate_pipeline_request(request: PipelineRequest) -> Optional[CommandError]:
+def validate_pipeline_request(request: PipelineRequest) -> CommandError | None:
     """Check limits and conditions before any step runs.
 
     Returns:
@@ -821,7 +817,7 @@ def _step_meta(step: StepResult, key: str) -> Any:
     return None
 
 
-def aggregate_pipeline_confidence(steps: List[StepResult]) -> float:
+def aggregate_pipeline_confidence(steps: list[StepResult]) -> float:
     """Calculate aggregated confidence from step results (weakest link)."""
     confidences = []
     for s in steps:
@@ -832,7 +828,7 @@ def aggregate_pipeline_confidence(steps: List[StepResult]) -> float:
     return min(confidences) if confidences else 0.0
 
 
-def aggregate_pipeline_reasoning(steps: List[StepResult]) -> List[StepReasoning]:
+def aggregate_pipeline_reasoning(steps: list[StepResult]) -> list[StepReasoning]:
     """Aggregate reasoning from all steps."""
     result = []
     for s in steps:
@@ -848,9 +844,9 @@ def aggregate_pipeline_reasoning(steps: List[StepResult]) -> List[StepReasoning]
     return result
 
 
-def aggregate_pipeline_warnings(steps: List[StepResult]) -> List[PipelineWarning]:
+def aggregate_pipeline_warnings(steps: list[StepResult]) -> list[PipelineWarning]:
     """Aggregate warnings from all steps."""
-    warnings: List[PipelineWarning] = []
+    warnings: list[PipelineWarning] = []
     for step in steps:
         for raw in _step_meta(step, "warnings") or []:
             warning = raw if isinstance(raw, Warning) else Warning.model_validate(raw)
@@ -867,9 +863,9 @@ def aggregate_pipeline_warnings(steps: List[StepResult]) -> List[PipelineWarning
     return warnings
 
 
-def aggregate_pipeline_sources(steps: List[StepResult]) -> List[PipelineSource]:
+def aggregate_pipeline_sources(steps: list[StepResult]) -> list[PipelineSource]:
     """Aggregate sources from all steps."""
-    sources: List[PipelineSource] = []
+    sources: list[PipelineSource] = []
     for step in steps:
         for raw in _step_meta(step, "sources") or []:
             source = raw if isinstance(raw, Source) else Source.model_validate(raw)
@@ -889,10 +885,10 @@ def aggregate_pipeline_sources(steps: List[StepResult]) -> List[PipelineSource]:
 
 
 def aggregate_pipeline_alternatives(
-    steps: List[StepResult],
-) -> List[PipelineAlternative[Any]]:
+    steps: list[StepResult],
+) -> list[PipelineAlternative[Any]]:
     """Aggregate alternatives from all steps."""
-    alternatives: List[PipelineAlternative[Any]] = []
+    alternatives: list[PipelineAlternative[Any]] = []
     for step in steps:
         for raw in _step_meta(step, "alternatives") or []:
             alt = raw if isinstance(raw, Alternative) else Alternative[Any].model_validate(raw)
@@ -909,11 +905,11 @@ def aggregate_pipeline_alternatives(
 
 
 def build_confidence_breakdown(
-    steps: List[StepResult],
-    step_defs: Optional[List[PipelineStep]] = None,
-) -> List[StepConfidence]:
+    steps: list[StepResult],
+    step_defs: list[PipelineStep] | None = None,
+) -> list[StepConfidence]:
     """Build confidence breakdown from step results."""
-    breakdown: List[StepConfidence] = []
+    breakdown: list[StepConfidence] = []
     for s in steps:
         if s.status == StepStatus.SUCCESS:
             conf = _step_meta(s, "confidence")
@@ -937,8 +933,8 @@ def build_confidence_breakdown(
 
 
 def build_pipeline_metadata(
-    steps: List[StepResult],
-    step_defs: Optional[List[PipelineStep]] = None,
+    steps: list[StepResult],
+    step_defs: list[PipelineStep] | None = None,
     total_execution_time_ms: float = 0,
 ) -> PipelineMetadata:
     """Build complete pipeline metadata from step results."""
@@ -948,10 +944,10 @@ def build_pipeline_metadata(
     return PipelineMetadata(
         confidence=aggregate_pipeline_confidence(steps),
         confidence_breakdown=build_confidence_breakdown(steps, step_defs),
-        reasoning_steps=aggregate_pipeline_reasoning(steps),
-        pipeline_warnings=aggregate_pipeline_warnings(steps),
-        pipeline_sources=aggregate_pipeline_sources(steps),
-        pipeline_alternatives=aggregate_pipeline_alternatives(steps),
+        reasoning=aggregate_pipeline_reasoning(steps),
+        warnings=aggregate_pipeline_warnings(steps),
+        sources=aggregate_pipeline_sources(steps),
+        alternatives=aggregate_pipeline_alternatives(steps),
         execution_time_ms=total_execution_time_ms,
         completed_steps=completed,
         total_steps=total,
@@ -981,7 +977,7 @@ def _stream_unsupported_error(index: int) -> CommandError:
     )
 
 
-def _unsupported_option(request: PipelineRequest) -> Optional[Tuple[int, CommandError]]:
+def _unsupported_option(request: PipelineRequest) -> tuple[int, CommandError] | None:
     """An option the request sets that the executor does not implement.
 
     Returns the index of the step to blame and the ``UNSUPPORTED_OPTION``
@@ -1002,9 +998,9 @@ def _unsupported_option(request: PipelineRequest) -> Optional[Tuple[int, Command
 
 
 async def _call_step(
-    executor: Callable[[str, Dict[str, Any]], Any],
+    executor: Callable[[str, dict[str, Any]], Any],
     command: str,
-    payload: Dict[str, Any],
+    payload: dict[str, Any],
     dev_mode: bool,
 ) -> Any:
     """Run one step. An exception from the executor becomes a failed result
@@ -1018,7 +1014,7 @@ async def _call_step(
 
 async def execute_pipeline(
     request: PipelineRequest,
-    executor: Callable[[str, Dict[str, Any]], Any],
+    executor: Callable[[str, dict[str, Any]], Any],
     *,
     dev_mode: bool = False,
 ) -> PipelineResult[Any]:
@@ -1064,7 +1060,7 @@ async def execute_pipeline(
     if invalid is not None:
         return create_pipeline_failure(invalid)
 
-    step_results: List[StepResult] = []
+    step_results: list[StepResult] = []
     pipeline_context = PipelineContext(
         pipeline_input=request.input,
         previous_result=None,
@@ -1115,7 +1111,7 @@ async def execute_pipeline(
 
         # Resolve variable references in input. A step input over the limits
         # fails the step without running the command.
-        resolution_failure: Optional[CommandResult[Any]] = None
+        resolution_failure: CommandResult[Any] | None = None
         resolved_input: Any = {}
         try:
             if step.input:
@@ -1133,14 +1129,14 @@ async def execute_pipeline(
                 elapsed_ms = (time.perf_counter() - total_start_time) * 1000
                 remaining_s = (options.timeout_ms - elapsed_ms) / 1000
                 if remaining_s <= 0:
-                    raise asyncio.TimeoutError
+                    raise TimeoutError
                 raw_result = await asyncio.wait_for(
                     _call_step(executor, step.command, resolved_input, dev_mode),
                     timeout=remaining_s,
                 )
             else:
                 raw_result = await _call_step(executor, step.command, resolved_input, dev_mode)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             timeout_error = CommandError(
                 code="PIPELINE_TIMEOUT",
                 message=f"Pipeline timeout exceeded ({options.timeout_ms if options else 0}ms)",
@@ -1179,7 +1175,7 @@ async def execute_pipeline(
 
         if result.success:
             # Step metadata carries the result's trust signals, as in TypeScript.
-            step_metadata = {
+            step_metadata: dict[str, Any] = {
                 key: value
                 for key, value in (
                     ("confidence", result.confidence),
@@ -1235,7 +1231,7 @@ async def execute_pipeline(
 
     # The final data is the last successful step's: `null` when that step's data was set to
     # None, and left unset when it has none, as TypeScript's `lastSuccessfulStep?.data` (#2073).
-    final_data: Dict[str, Any] = {}
+    final_data: dict[str, Any] = {}
     for step_result in reversed(step_results):
         if step_result.status == StepStatus.SUCCESS:
             if "data" in step_result.model_fields_set:

@@ -91,7 +91,7 @@ def _extract_expected_errors(steps: list[Step]) -> list[str]:
     errors: list[str] = []
     for step in steps:
         if step.expect and step.expect.error:
-            code = step.expect.error.get('code')
+            code = step.expect.error.get("code")
             if code:
                 errors.append(code)
     return errors

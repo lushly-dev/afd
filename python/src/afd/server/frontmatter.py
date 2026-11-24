@@ -63,9 +63,7 @@ def _parse_finite_int(raw: str, base: int) -> int:
     try:
         parsed = int(raw, base)
         if not math.isfinite(float(parsed)):
-            raise FrontmatterError(
-                f"the frontmatter holds {raw}, which is not a finite number"
-            )
+            raise FrontmatterError(f"the frontmatter holds {raw}, which is not a finite number")
     except (ValueError, OverflowError) as exc:
         raise FrontmatterError(
             f"the frontmatter holds {raw}, which is not a finite number"
@@ -91,15 +89,11 @@ def _resolve_core_scalar(value: str, style: str | None) -> Any:
     if _INT_HEX_RE.fullmatch(value):
         return _parse_finite_int(value[2:], 16)
     if _INF_RE.fullmatch(value) or _NAN_RE.fullmatch(value):
-        raise FrontmatterError(
-            f"the frontmatter holds {value}, which is not a finite number"
-        )
+        raise FrontmatterError(f"the frontmatter holds {value}, which is not a finite number")
     if _FLOAT_RE.fullmatch(value):
         parsed = float(value)
         if not math.isfinite(parsed):
-            raise FrontmatterError(
-                f"the frontmatter holds {value}, which is not a finite number"
-            )
+            raise FrontmatterError(f"the frontmatter holds {value}, which is not a finite number")
         return parsed
     return value
 
@@ -111,7 +105,7 @@ def parse_frontmatter(text: str) -> dict[str, Any]:
         FrontmatterError: Naming the rule the frontmatter breaks.
     """
     try:
-        import yaml  # type: ignore[import-untyped]
+        import yaml
     except ImportError as exc:  # pragma: no cover - optional server extra
         raise ImportError(
             "PyYAML is required for SkillCatalog frontmatter parsing. "

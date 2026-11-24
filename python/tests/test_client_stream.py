@@ -86,7 +86,11 @@ async def test_cr_lf_and_crlf_split_across_pieces_end_lines(serve):
 
 
 async def test_events_that_are_not_chunks_are_skipped_and_not_counted(serve):
-    serve(body(b"data: not json\n\n", b'data: {"type":"heartbeat"}\n\n', b": comment\n\n", event(DATA)))
+    serve(
+        body(
+            b"data: not json\n\n", b'data: {"type":"heartbeat"}\n\n', b": comment\n\n", event(DATA)
+        )
+    )
     chunks = await read()
     assert chunks[0] == DATA
     assert chunks[1]["error"]["code"] == "STREAM_TRUNCATED"
@@ -121,7 +125,11 @@ async def test_an_oversized_line_without_its_end_is_refused_too(serve):
 
 
 async def test_a_refusal_keeps_the_servers_error_and_suggestion(serve):
-    error = {"code": "INSUFFICIENT_SCOPE", "message": "Needs export:write", "suggestion": "Ask for the scope"}
+    error = {
+        "code": "INSUFFICIENT_SCOPE",
+        "message": "Needs export:write",
+        "suggestion": "Ask for the scope",
+    }
     serve(lambda request: httpx.Response(403, json={"success": False, "error": error}))
     assert await read() == [
         {"type": "error", "error": error, "chunksBeforeError": 0, "recoverable": False}
@@ -289,8 +297,9 @@ async def test_a_silent_server_fails_after_the_clients_timeout_by_default():
 
 async def test_a_stream_deadline_replaces_the_idle_timeout(serve):
     serve(body(event(DATA), 0.2, event(DONE)))
-    client = McpClient(McpClientConfig(url="http://localhost:3100/mcp", timeout=0.05),
-                       transport=MockTransport())
+    client = McpClient(
+        McpClientConfig(url="http://localhost:3100/mcp", timeout=0.05), transport=MockTransport()
+    )
     await client.connect()
     chunks = [chunk async for chunk in client.stream("export-run", {}, timeout=5)]
     assert chunks[-1] == DONE
@@ -299,10 +308,16 @@ async def test_a_stream_deadline_replaces_the_idle_timeout(serve):
 async def test_a_disconnected_client_yields_not_connected():
     client = McpClient(McpClientConfig(url="http://localhost:3100/mcp"), transport=MockTransport())
     chunks = [chunk async for chunk in client.stream("export-run", {})]
-    assert chunks == [{
-        "type": "error",
-        "error": {"code": "NOT_CONNECTED", "message": "The client is not connected",
-                  "suggestion": "Call connect() before stream()", "retryable": False},
-        "chunksBeforeError": 0,
-        "recoverable": False,
-    }]
+    assert chunks == [
+        {
+            "type": "error",
+            "error": {
+                "code": "NOT_CONNECTED",
+                "message": "The client is not connected",
+                "suggestion": "Call connect() before stream()",
+                "retryable": False,
+            },
+            "chunksBeforeError": 0,
+            "recoverable": False,
+        }
+    ]

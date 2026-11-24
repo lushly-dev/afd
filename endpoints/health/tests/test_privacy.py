@@ -11,7 +11,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from privacy import load_deny_terms, scan_member, scan_text  # noqa: E402
 
-IGNORED = {".venv", "__pycache__", ".pytest_cache", ".ruff_cache", "dist", "build"}
+IGNORED = {".venv", "__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", "dist", "build"}
 
 
 def tree_files():

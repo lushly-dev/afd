@@ -57,10 +57,7 @@ async def test_quality_short_description(tmp_dir):
     """A too-short description should be flagged."""
     ts_file = tmp_dir / "commands.ts"
     ts_file.write_text(
-        "const cmd = defineCommand({\n"
-        "  name: 'todo-get',\n"
-        "  description: 'Get todo',\n"
-        "});\n",
+        "const cmd = defineCommand({\n  name: 'todo-get',\n  description: 'Get todo',\n});\n",
         encoding="utf-8",
     )
     result = await alfred_quality(str(tmp_dir))
@@ -154,10 +151,7 @@ async def test_quality_description_over_the_old_cap_is_clean(tmp_dir):
     assert 120 < len(desc) <= 300
     ts_file = tmp_dir / "commands.ts"
     ts_file.write_text(
-        "const cmd = defineCommand({\n"
-        f"  name: 'data-fetch',\n"
-        f"  description: '{desc}',\n"
-        "});\n",
+        f"const cmd = defineCommand({{\n  name: 'data-fetch',\n  description: '{desc}',\n}});\n",
         encoding="utf-8",
     )
     result = await alfred_quality(str(tmp_dir))
@@ -235,9 +229,7 @@ const text = 'call defineCommand({ ... }) to define';
 type Factory = typeof defineCommand;
 defineCommand({ name: 'real-one', description: 'Create the real command' }); // trailing
 """
-    assert _pairs(parse_ts_define_commands(content)) == [
-        ("real-one", "Create the real command")
-    ]
+    assert _pairs(parse_ts_define_commands(content)) == [("real-one", "Create the real command")]
 
 
 def test_ts_line_numbers():

@@ -20,6 +20,7 @@ import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from botcore_factory.world import Processes
 
@@ -39,7 +40,7 @@ class LockSnapshot:
     mtime: float
     raw: bytes
 
-    def holder(self) -> dict | None:
+    def holder(self) -> dict[str, Any] | None:
         try:
             data = json.loads(self.raw.decode("utf-8"))
         except (UnicodeDecodeError, ValueError):
@@ -317,7 +318,7 @@ def replace_stale_lock(
 class LaneLocked(Exception):
     """Another live lane holds the host's lock."""
 
-    def __init__(self, holder: dict) -> None:
+    def __init__(self, holder: dict[str, Any]) -> None:
         super().__init__(f"pid {holder.get('pid')} ({holder.get('repository', 'a lane')})")
         self.holder = holder
 
@@ -327,14 +328,14 @@ class HostLock:
         self.path = path
         self.processes = processes
 
-    def holder(self) -> dict | None:
+    def holder(self) -> dict[str, Any] | None:
         try:
             snapshot = read_lock_snapshot(self.path)
         except OSError:
             return None
         return snapshot.holder() if snapshot is not None else None
 
-    def _live_holder_from(self, snapshot: LockSnapshot | None) -> dict | None:
+    def _live_holder_from(self, snapshot: LockSnapshot | None) -> dict[str, Any] | None:
         if snapshot is None:
             return None
         holder = snapshot.holder()
@@ -344,7 +345,7 @@ class HostLock:
             return None
         return holder if self.processes.alive(holder["pid"], holder.get("startedAt")) else None
 
-    def live_holder(self) -> dict | None:
+    def live_holder(self) -> dict[str, Any] | None:
         """The holder, when its process still runs; a lock being written counts as live (its
         pid is then None)."""
         try:
@@ -353,7 +354,7 @@ class HostLock:
             return {"pid": None, "unreadable": True}
         return self._live_holder_from(snapshot)
 
-    def acquire(self, pid: int, **info) -> None:
+    def acquire(self, pid: int, **info: Any) -> None:
         """Take the lock for ``pid``; a dead holder's lock is replaced atomically only if its
         inode and bytes are unchanged, a live one refuses."""
         self.path.parent.mkdir(parents=True, exist_ok=True)

@@ -4,7 +4,6 @@ Registers Alfred's commands, docs, and identity with botcore's plugin system.
 Discovered automatically via the ``botcore.plugins`` entry point.
 """
 
-
 from botcore import PluginRegistry
 
 from alfred.commands.lint import alfred_lint

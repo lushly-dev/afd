@@ -11,17 +11,22 @@ use crate::result::{failure, success_with, CommandResult, ResultOptions};
 
 use super::{bootstrap_expose, RegistryRef, BOOTSTRAP_CATEGORY, BOOTSTRAP_TAGS};
 
+/// Input arguments for `afd-docs`.
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct DocsInput {
+    /// Optional single command name to document.
     #[serde(default)]
     pub command: Option<String>,
 }
 
+/// Output payload returned by `afd-docs`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DocsOutput {
+    /// Rendered markdown documentation.
     pub markdown: String,
+    /// Number of commands included in `markdown`.
     pub command_count: usize,
 }
 

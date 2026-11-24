@@ -1,5 +1,7 @@
 """Tests for MCP testing server tool generation, validation, creation, and basic requests."""
 
+from unittest.mock import AsyncMock
+
 import pytest
 
 from afd.testing.mcp.server import McpTestingServer
@@ -7,8 +9,6 @@ from afd.testing.mcp.tools import (
     _validate_input,
     generate_tools,
 )
-from unittest.mock import AsyncMock
-
 
 # ==============================================================================
 # Helpers
@@ -34,6 +34,7 @@ def _jsonrpc_request(method: str, params=None, req_id=1) -> dict:
 # ==============================================================================
 # generate_tools
 # ==============================================================================
+
 
 class TestGenerateTools:
     """Tests for generate_tools()."""
@@ -101,6 +102,7 @@ class TestGenerateTools:
 # _validate_input
 # ==============================================================================
 
+
 class TestValidateInput:
     """Tests for _validate_input()."""
 
@@ -147,6 +149,7 @@ class TestValidateInput:
 # McpTestingServer creation
 # ==============================================================================
 
+
 class TestMcpTestingServerCreation:
     """Tests for McpTestingServer instantiation."""
 
@@ -187,6 +190,7 @@ class TestMcpTestingServerCreation:
 # ==============================================================================
 # handle_request: initialize
 # ==============================================================================
+
 
 class TestHandleRequestInitialize:
     """Tests for the initialize JSON-RPC method."""
@@ -266,6 +270,7 @@ class TestHandleRequestInitialize:
 # handle_request: ping
 # ==============================================================================
 
+
 class TestHandleRequestPing:
     """Tests for the ping JSON-RPC method."""
 
@@ -287,6 +292,7 @@ class TestHandleRequestPing:
 # ==============================================================================
 # handle_request: tools/list
 # ==============================================================================
+
 
 class TestHandleRequestToolsList:
     """Tests for the tools/list JSON-RPC method."""

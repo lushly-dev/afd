@@ -113,7 +113,7 @@ def check_meta_entry(key: Any, value: Any, *, allow_ui: bool) -> str | None:
     parts = key.split("/")
     if len(parts) != 2:
         return why(
-            "must be a prefixed key with two or more labels (dev.example/name) or \"ui\", in MCP's key format"
+            'must be a prefixed key with two or more labels (dev.example/name) or "ui", in MCP\'s key format'
         )
     prefix, name = parts
     labels = prefix.split(".")
@@ -123,7 +123,7 @@ def check_meta_entry(key: Any, value: Any, *, allow_ui: bool) -> str | None:
         or not _NAME_RE.fullmatch(name)
     ):
         return why(
-            "must be a prefixed key with two or more labels (dev.example/name) or \"ui\", in MCP's key format"
+            'must be a prefixed key with two or more labels (dev.example/name) or "ui", in MCP\'s key format'
         )
 
     # Reserved prefixes are compared without regard to case, which only widens the refusal.

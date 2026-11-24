@@ -11,6 +11,10 @@
 		{
 			"path": "endpoints/botcore/package.json",
 			"reason": "not a distribution: the private Changesets stub that holds this track's version (scripts/release/tracks.mjs); the pyproject.toml beside it is the classified unit"
+		},
+		{
+			"path": "packages/rust/fuzz/Cargo.toml",
+			"reason": "cargo-fuzz harness for packages/rust; built with nightly Rust and libFuzzer outside the published crate (#1765)"
 		}
 	],
 	"lanes": [
@@ -322,7 +326,13 @@
 			"manifest": "endpoints/umbel/plugins/todo/Cargo.toml",
 			"family": "umbel",
 			"layer": "endpoint",
-			"publicSurfaces": ["rust-library", "bin:umbel-todo"]
+			"publicSurfaces": ["rust-library"]
+		},
+		{
+			"manifest": "endpoints/umbel/bins/todo/Cargo.toml",
+			"family": "umbel",
+			"layer": "endpoint",
+			"publicSurfaces": ["bin:umbel-todo"]
 		},
 		{
 			"manifest": "endpoints/umbel/plugins/sources-filesystem/Cargo.toml",
@@ -334,13 +344,13 @@
 			"manifest": "endpoints/umbel/plugins/knowledge/Cargo.toml",
 			"family": "umbel",
 			"layer": "endpoint",
-			"publicSurfaces": ["rust-library", "bin:umbel-knowledge"]
+			"publicSurfaces": ["rust-library"]
 		},
 		{
 			"manifest": "endpoints/umbel/plugins/memory/Cargo.toml",
 			"family": "umbel",
 			"layer": "endpoint",
-			"publicSurfaces": ["rust-library", "bin:umbel-memory"]
+			"publicSurfaces": ["rust-library"]
 		},
 		{
 			"manifest": "endpoints/umbel/plugins/context/Cargo.toml",
@@ -358,7 +368,7 @@
 			"manifest": "endpoints/umbel/first-party/Cargo.toml",
 			"family": "umbel",
 			"layer": "endpoint",
-			"publicSurfaces": ["bin:umbel-first-party"]
+			"publicSurfaces": ["bin:umbel-first-party", "bin:umbel-knowledge", "bin:umbel-memory"]
 		},
 		{
 			"manifest": "endpoints/umbel/adapters/hook/Cargo.toml",
@@ -396,7 +406,7 @@
 			"allowed": {
 				"base": ["base"],
 				"host": ["base"],
-				"plugin": ["base", "host", "plugin"],
+				"plugin": ["base", "plugin"],
 				"bundle": ["base", "host", "plugin"],
 				"adapter": ["base", "host"],
 				"fixture": ["base"]
@@ -412,6 +422,7 @@
 			"assign": [
 				{ "match": "umbel", "sublayer": "host" },
 				{ "match": "umbel-first-party", "sublayer": "bundle" },
+				{ "match": "umbel-todo", "sublayer": "bundle" },
 				{ "match": "umbel-hook", "sublayer": "adapter" },
 				{ "match": "umbel-testkit-idp", "sublayer": "fixture" },
 				{ "prefix": "umbel-fixture-", "sublayer": "fixture" },
@@ -473,8 +484,8 @@
 		},
 		{
 			"from": "@afd/example-todo",
-			"to": "umbel-plugin-todo",
-			"reason": "The todo conformance harness builds and runs umbel-plugin-todo in umbel.yml (test:conformance:umbel script)",
+			"to": "umbel-todo",
+			"reason": "The todo conformance harness builds and runs umbel-todo in umbel.yml (test:conformance:umbel script)",
 			"issue": "#1782"
 		},
 		{

@@ -37,7 +37,6 @@ async def test_annotations_reach_the_wire():
     assert dumped["annotations"] == {"readOnlyHint": False, "destructiveHint": False}
 
 
-
 def _trust_server(tool_strategy="individual"):
     server = create_server("trust", tool_strategy=tool_strategy)
 

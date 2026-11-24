@@ -68,6 +68,7 @@ export const testFiles = [
 	'scripts/issue-labels.test.mjs',
 	'scripts/issue-claim.test.mjs',
 	'scripts/release/exec-tool.test.mjs',
+	'tests/consumers/pnpm.test.mjs',
 ];
 
 /** Suites that test the release tooling with fixture repositories. */

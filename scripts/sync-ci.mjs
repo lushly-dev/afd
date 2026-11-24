@@ -227,7 +227,7 @@ const SUITE_CONFIG = [
 		tools: ['uv'],
 		remote: 'Python 3.11 to 3.14, and the wheel install smoke test per extra',
 		extract(wf) {
-			return extractUvSteps(wf, 'test', { includeRuffFormat: false });
+			return extractUvSteps(wf, 'test', { includeRuffFormat: true });
 		},
 	},
 	{
@@ -236,7 +236,7 @@ const SUITE_CONFIG = [
 		remote: 'Python 3.11 and the isolated wheel smoke test',
 		extract(wf) {
 			return extractUvSteps(wf, 'test-and-package', {
-				includeRuffFormat: false,
+				includeRuffFormat: true,
 				rewrite: (cmd) => cmd.replace(/pytest tests\/ -v$/, 'pytest tests/ -q'),
 			});
 		},
@@ -246,7 +246,7 @@ const SUITE_CONFIG = [
 		tools: ['uv'],
 		remote: 'Python 3.11',
 		extract(wf) {
-			const steps = extractUvSteps(wf, 'core-and-package', { includeRuffFormat: false });
+			const steps = extractUvSteps(wf, 'core-and-package', { includeRuffFormat: true });
 			for (const script of ['scripts/package_tests.py', 'scripts/package_smoke.py']) {
 				const s = findStep(wf, 'core-and-package', (st) => st.run.includes(script));
 				steps.push({ cwd: wf.jobs['core-and-package'].defaultWorkingDirectory, run: s.run });
@@ -285,10 +285,12 @@ const SUITE_CONFIG = [
 	{
 		workflow: 'rust.yml',
 		tools: ['cargo'],
-		remote: 'the wasm32 checks and the docs.rs build',
+		remote: 'the wasm32 checks and tests, the MSRV matrix, and the docs.rs build',
 		extract(wf) {
 			return extractCargoSteps(wf, 'check', {
-				skip: (cmd) => cmd.includes('journal-file-shared') && cmd.startsWith('cargo clippy'),
+				skip: (cmd) =>
+					(cmd.includes('journal-file-shared') && cmd.startsWith('cargo clippy')) ||
+					cmd.includes('--target wasm32-unknown-unknown'),
 			});
 		},
 	},
@@ -542,6 +544,7 @@ function extractUvSteps(wf, jobId, { includeRuffFormat = false, rewrite = (c) =>
 				/^uv sync\b/.test(raw) ||
 				/^uv run\b.*\bruff check\b/.test(raw) ||
 				(includeRuffFormat && /^uv run\b.*\bruff format --check\b/.test(raw)) ||
+				/^uv run\b.*\bmypy\b/.test(raw) ||
 				/^uv run\b.*\bpytest\b/.test(raw);
 			if (!isUv) continue;
 			out.push({ ...(cwd ? { cwd } : {}), run: rewrite(raw) });

@@ -43,16 +43,16 @@ MERGEABLE = {"MERGEABLE": "clean", "CONFLICTING": "conflict", "BLOCKED": "blocke
 class Refusal(Exception):
     """A refusal raised from deep in a command; ``guard`` turns it into its CommandResult."""
 
-    def __init__(self, result: CommandResult) -> None:
+    def __init__(self, result: CommandResult[Any]) -> None:
         super().__init__(result.error.message if result.error else "refused")
         self.result = result
 
 
-def refuse(code: str, message: str, suggestion: str, **details) -> Refusal:
+def refuse(code: str, message: str, suggestion: str, **details: Any) -> Refusal:
     return Refusal(error(code, message, suggestion=suggestion, details=details or None))
 
 
-def guard(body: Callable[[], CommandResult]) -> CommandResult:
+def guard(body: Callable[[], CommandResult[Any]]) -> CommandResult[Any]:
     try:
         return body()
     except Refusal as refusal:
@@ -63,7 +63,7 @@ def guard(body: Callable[[], CommandResult]) -> CommandResult:
         return refused_by_github(exc)
 
 
-def refused_by_github(exc: GitHubRefused) -> CommandResult:
+def refused_by_github(exc: GitHubRefused) -> CommandResult[Any]:
     return error(
         "GITHUB_REFUSED",
         f"GitHub refused the call: {exc}",
@@ -72,7 +72,7 @@ def refused_by_github(exc: GitHubRefused) -> CommandResult:
     )
 
 
-def unavailable(exc: Exception) -> CommandResult:
+def unavailable(exc: Exception) -> CommandResult[Any]:
     return error(
         "GITHUB_UNAVAILABLE",
         f"GitHub did not answer: {exc}",
@@ -81,7 +81,7 @@ def unavailable(exc: Exception) -> CommandResult:
     )
 
 
-def _actor() -> dict:
+def _actor() -> dict[str, Any]:
     actor = getattr(current_call(), "actor", None)
     if actor is None:
         return {}
@@ -142,7 +142,7 @@ class Gateway:
         log = [
             entry
             for entry in self.state.get("writes", [])
-            if parse_time(entry["at"]) > now - timedelta(hours=1)
+            if (at := parse_time(entry["at"])) is not None and at > now - timedelta(hours=1)
         ]
         mine = [entry for entry in log if entry["actor"] == actor]
         if budget is not None and len(mine) + count > budget:
@@ -169,7 +169,7 @@ class Gateway:
             )
         return int(cursor)
 
-    def issue_or_refuse(self, repo: str, number: int) -> dict:
+    def issue_or_refuse(self, repo: str, number: int) -> dict[str, Any]:
         issue = self.github.issue(repo, number)
         if issue is None:
             raise refuse(
@@ -179,7 +179,7 @@ class Gateway:
             )
         return issue
 
-    def pull_or_refuse(self, repo: str, number: int) -> dict:
+    def pull_or_refuse(self, repo: str, number: int) -> dict[str, Any]:
         pull = self.github.pull(repo, number)
         if pull is None:
             raise refuse(
@@ -223,7 +223,7 @@ class Gateway:
 
     # ── reads ─────────────────────────────────────────────────────────────
 
-    def status(self, host: str, writes: list[str]) -> CommandResult:
+    def status(self, host: str, writes: list[str]) -> CommandResult[Any]:
         size, oldest = journal_size(self.state.journal_dir)
         limit = self.github.rate_limit()
         # Read credential ages after rate_limit() so the App adapter has already
@@ -257,7 +257,7 @@ class Gateway:
             reasoning=f"{host} on {self.config.app}, writing as {self.config.bot}",
         )
 
-    def issue_get(self, repo: str, number: int) -> CommandResult:
+    def issue_get(self, repo: str, number: int) -> CommandResult[Any]:
         self.repo(repo)
         issue = self.issue_or_refuse(repo, number)
         record = self.claim(repo, number)
@@ -276,7 +276,9 @@ class Gateway:
             data["claim"] = self._claim_row(record, issue)
         return success(data, reasoning=f"Issue {number} is {issue['state']}")
 
-    def comment_list(self, repo: str, number: int, limit: int, cursor: str | None):
+    def comment_list(
+        self, repo: str, number: int, limit: int, cursor: str | None
+    ) -> CommandResult[Any]:
         self.repo(repo)
         issue = self.issue_or_refuse(repo, number)
         start = self.offset(cursor)
@@ -298,13 +300,13 @@ class Gateway:
             data["nextCursor"] = str(start + limit)
         return success(data, reasoning=f"{len(rows)} of {len(comments)} comments on {number}")
 
-    def _association(self, login: str | None, issue: dict) -> str:
+    def _association(self, login: str | None, issue: dict[str, Any]) -> str:
         if login == self.config.owner:
             return "OWNER"
         author = issue.get("author") or {}
         return author.get("association", "NONE") if author.get("login") == login else "NONE"
 
-    def _claim_row(self, record: Claim, issue: dict) -> dict:
+    def _claim_row(self, record: Claim, issue: dict[str, Any]) -> dict[str, Any]:
         return {
             "number": record.number,
             "holder": record.holder(),
@@ -314,7 +316,7 @@ class Gateway:
             "labelMatches": IN_PROGRESS in issue.get("labels", []),
         }
 
-    def claim_list(self, repo: str, stale: bool | None) -> CommandResult:
+    def claim_list(self, repo: str, stale: bool | None) -> CommandResult[Any]:
         self.repo(repo)
         rows = []
         for issue in sorted(self.github.issues(repo), key=lambda i: i["number"]):
@@ -330,7 +332,7 @@ class Gateway:
         lapsed = sum(row["stale"] for row in rows)
         return success({"claims": rows}, reasoning=f"{len(rows)} claims, {lapsed} lapsed")
 
-    def required_check(self, repo: str, pull: dict) -> dict:
+    def required_check(self, repo: str, pull: dict[str, Any]) -> dict[str, Any]:
         name = self.config.required_check.name
         runs = [run for run in self.github.check_runs(repo, pull["head"]) if run["name"] == name]
         if not runs:
@@ -350,12 +352,12 @@ class Gateway:
                 return row
         return {"name": name, "state": "running"}
 
-    def pull_state(self, pull: dict) -> str:
+    def pull_state(self, pull: dict[str, Any]) -> str:
         if pull["state"] == "merged" or pull.get("merged") or pull.get("mergedAt"):
             return "merged"
         return "open" if pull["state"] == "open" else "closed"
 
-    def pr_status(self, repo: str, number: int) -> CommandResult:
+    def pr_status(self, repo: str, number: int) -> CommandResult[Any]:
         self.repo(repo)
         pull = self.pull_or_refuse(repo, number)
         pull["checks"] = self.github.check_runs(repo, pull["head"]) or pull.get("checks", [])
@@ -374,7 +376,7 @@ class Gateway:
             if pull.get("mergeQueue"):
                 # Open, not queued and no auto-merge after a queued pr-merge: it left the queue.
                 data["mergeQueue"] = self._queued(pull, changed=False)["mergeQueue"]
-            data["mergeable"] = MERGEABLE.get(pull.get("mergeable"), "pending")
+            data["mergeable"] = MERGEABLE.get(str(pull.get("mergeable") or ""), "pending")
             data["requiredCheck"] = self.required_check(repo, pull)
             data["checks"] = [
                 {key: run.get(key) for key in ("name", "status", "conclusion") if run.get(key)}
@@ -386,7 +388,9 @@ class Gateway:
 
     # ── claims ────────────────────────────────────────────────────────────
 
-    def issue_claim(self, repo: str, numbers: list[int], holder: dict, lease_hours: float | None):
+    def issue_claim(
+        self, repo: str, numbers: list[int], holder: dict[str, Any], lease_hours: float | None
+    ) -> CommandResult[Any]:
         """All or none: every issue is checked, and the whole write budget spent, before the
         first write. A GitHub outage part-way leaves some claimed; retrying the same call
         renews those and claims the rest."""
@@ -405,7 +409,11 @@ class Gateway:
                 )
             record = self.claim(repo, number)
             live = isinstance(record, Claim) and not record.stale(now)
-            if live and not record.held_by(holder["branch"], holder["machine"]):
+            if (
+                isinstance(record, Claim)
+                and live
+                and not record.held_by(holder["branch"], holder["machine"])
+            ):
                 raise refuse(
                     "ALREADY_CLAIMED",
                     f"Issue {number} is held by {record.describe()}; nothing was claimed",
@@ -437,7 +445,9 @@ class Gateway:
             reasoning=f"Claimed {', '.join(str(row['number']) for row in rows)} until {iso(until)}",
         )
 
-    def issue_release(self, repo: str, number: int, holder: dict, reason: str, force: bool):
+    def issue_release(
+        self, repo: str, number: int, holder: dict[str, Any], reason: str, force: bool
+    ) -> CommandResult[Any]:
         self.repo(repo)
         self.text(reason=reason, **{f"holder.{key}": value for key, value in holder.items()})
         issue = self.issue_or_refuse(repo, number)
@@ -485,7 +495,7 @@ class Gateway:
             reasoning=f"Released issue {number}" + (" by force" if force else ""),
         )
 
-    def _release_labels(self, repo: str, issue: dict) -> None:
+    def _release_labels(self, repo: str, issue: dict[str, Any]) -> None:
         """Restore ``status:planned`` on an open issue; on a closed one, only drop
         ``status:in-progress`` so a closed issue never reads as in progress or planned."""
         previous = list(issue.get("labels", []))
@@ -499,7 +509,9 @@ class Gateway:
 
     # ── issues and comments ──────────────────────────────────────────────
 
-    def issue_label(self, repo: str, number: int, add: list[str], remove: list[str]):
+    def issue_label(
+        self, repo: str, number: int, add: list[str], remove: list[str]
+    ) -> CommandResult[Any]:
         self.repo(repo)
         issue = self.github.issue(repo, number) or self.pull_or_refuse(repo, number)
         self.labels_known(repo, [*add, *remove])
@@ -514,7 +526,9 @@ class Gateway:
             reasoning=f"Issue {number} labels: {', '.join(labels) or 'none'}",
         )
 
-    def issue_comment(self, repo: str, number: int, body: str, dedupe_key: str | None):
+    def issue_comment(
+        self, repo: str, number: int, body: str, dedupe_key: str | None
+    ) -> CommandResult[Any]:
         self.repo(repo)
         self.text(body=body, dedupe_key=dedupe_key)
         self.issue_or_refuse(repo, number)
@@ -534,7 +548,9 @@ class Gateway:
             reasoning=f"Commented on {number}",
         )
 
-    def issue_create(self, repo: str, title: str, body: str, labels: list[str], dedupe_key):
+    def issue_create(
+        self, repo: str, title: str, body: str, labels: list[str], dedupe_key: str | None
+    ) -> CommandResult[Any]:
         self.repo(repo)
         self.text(title=title, body=body, dedupe_key=dedupe_key)
         self.labels_known(repo, labels)
@@ -554,7 +570,7 @@ class Gateway:
 
     # ── pushes and pull requests ─────────────────────────────────────────
 
-    def branch_push(self, repo: str, ref: str, head: str, bundle: str):
+    def branch_push(self, repo: str, ref: str, head: str, bundle: str) -> CommandResult[Any]:
         self.repo(repo)
         self.text(ref=ref)
         if not ref_is_well_formed(ref):
@@ -645,7 +661,7 @@ class Gateway:
             reasoning=f"{ref} {'is now' if changed else 'was already'} {head[:12]}",
         )
 
-    def _publish_review(self, repo: str, head: str) -> list[dict]:
+    def _publish_review(self, repo: str, head: str) -> list[dict[str, Any]]:
         record = self.state.get("reviews", {}).get(head)
         if record is None:
             return []
@@ -655,7 +671,9 @@ class Gateway:
         )
         return [{"name": REVIEW, "conclusion": conclusion}]
 
-    def pr_open(self, repo: str, branch: str, title: str, body: str, closes: list[int]):
+    def pr_open(
+        self, repo: str, branch: str, title: str, body: str, closes: list[int]
+    ) -> CommandResult[Any]:
         self.repo(repo)
         self.text(branch=branch, title=title, body=body)
         if not ref_is_well_formed(f"{HEADS_PREFIX}{branch}"):
@@ -711,7 +729,9 @@ class Gateway:
         number = self.github.create_pull(repo, branch, title, full)
         return success(self._opened(number, True, False, closes), reasoning=f"Opened {number}")
 
-    def _opened(self, number: int, created: bool, updated: bool, closes: list[int]) -> dict:
+    def _opened(
+        self, number: int, created: bool, updated: bool, closes: list[int]
+    ) -> dict[str, Any]:
         return {
             "number": number,
             "created": created,
@@ -720,7 +740,9 @@ class Gateway:
             "author": self.config.bot,
         }
 
-    def verification_record(self, repo: str, head: str, result: str, summary: str):
+    def verification_record(
+        self, repo: str, head: str, result: str, summary: str
+    ) -> CommandResult[Any]:
         self.repo(repo)
         self.text(summary=summary)
         if not self.github.has_commit(repo, head):
@@ -747,7 +769,7 @@ class Gateway:
         ]
         return bool(runs) and runs[-1].get("conclusion") == "success"
 
-    def pr_merge(self, repo: str, number: int, head: str, cancel: bool):
+    def pr_merge(self, repo: str, number: int, head: str, cancel: bool) -> CommandResult[Any]:
         self.repo(repo)
         pull = self.pull_or_refuse(repo, number)
         state = self.pull_state(pull)
@@ -779,7 +801,7 @@ class Gateway:
             )
         return self._merge(repo, pull)
 
-    def _cancel(self, repo: str, pull: dict) -> CommandResult:
+    def _cancel(self, repo: str, pull: dict[str, Any]) -> CommandResult[Any]:
         """Turn auto-merge off and take the pull request out of the merge queue, then say what
         GitHub shows, never what was asked: auto-merge can become a queue entry between the
         read and the write, so it is read again and cancelled once more before answering."""
@@ -837,7 +859,7 @@ class Gateway:
         off = "taken out of the merge queue" if dequeued else "turned off"
         return success(data, reasoning=f"Auto-merge {off if changed else 'was already off'}")
 
-    def _merge(self, repo: str, pull: dict) -> CommandResult:
+    def _merge(self, repo: str, pull: dict[str, Any]) -> CommandResult[Any]:
         number, head = pull["number"], pull["head"]
         if not self.validated(repo, head):
             raise refuse(
@@ -893,7 +915,7 @@ class Gateway:
             reasoning=f"Queued {number} to {method}-merge at {head[:12]} once its checks pass",
         )
 
-    def _queued(self, pull: dict, *, changed: bool) -> dict[str, Any]:
+    def _queued(self, pull: dict[str, Any], *, changed: bool) -> dict[str, Any]:
         """pr-merge's answer for a pull request GitHub holds to merge later: ``state`` is
         ``queued``. ``mergeQueue`` is there only where the base has a merge queue: ``queued``
         says whether the pull request is in it yet (``state`` and ``position`` as GitHub gives
@@ -914,7 +936,7 @@ class Gateway:
             data["mergeQueue"].setdefault("queued", False)
         return data
 
-    def _enqueue(self, repo: str, pull: dict) -> CommandResult:
+    def _enqueue(self, repo: str, pull: dict[str, Any]) -> CommandResult[Any]:
         """The base takes merges only through a merge queue, which refuses a direct merge.
 
         A pull request whose required check passed is added to the queue itself, bound to the
@@ -927,7 +949,9 @@ class Gateway:
         """
         number, head = pull["number"], pull["head"]
         method = self.config.merge_method(repo)
-        entry: dict | None = None  # GitHub's own answer to the enqueue, when one was made.
+        entry: dict[str, Any] | None = (
+            None  # GitHub's own answer to the enqueue, when one was made.
+        )
         try:
             if self.required_check(repo, pull)["state"] == "passed":
                 entry = self.github.enqueue_pull(repo, number, head)
@@ -980,7 +1004,7 @@ class Gateway:
             )
         return success(data, reasoning=f"{said}; pr-status says when it merged or left the queue")
 
-    def _merge_now(self, repo: str, pull: dict) -> CommandResult:
+    def _merge_now(self, repo: str, pull: dict[str, Any]) -> CommandResult[Any]:
         number, head = pull["number"], pull["head"]
         try:
             self.github.merge_pull(repo, number, head, self.config.merge_method(repo))
@@ -999,14 +1023,14 @@ class Gateway:
             reasoning=f"Merged {number} at {head[:12]}",
         )
 
-    def _fast_forward(self, repo: str, upload: dict, current: str, head: str) -> bool:
+    def _fast_forward(self, repo: str, upload: dict[str, Any], current: str, head: str) -> bool:
         """Whether ``head`` contains ``current``, so the push only moves the branch forward.
         Decided from git's history, never from what the bundle lists."""
         if self._contains is not None:
             return self._contains(repo, head, current)
         return current in set(upload.get("ancestors", []))
 
-    def _owns_upload(self, bundle: str, upload: dict) -> None:
+    def _owns_upload(self, bundle: str, upload: dict[str, Any]) -> None:
         """An upload is pushed by the route and caller that made it; the owner may push any."""
         if self.route == "owner":
             return
@@ -1019,7 +1043,7 @@ class Gateway:
                 "Upload your own bundle on your route and push with the id it returns",
             )
 
-    def _credit(self, repo: str, bundle: str, upload: dict, head: str) -> None:
+    def _credit(self, repo: str, bundle: str, upload: dict[str, Any], head: str) -> None:
         """Refuse a push that would add a commit someone other than the owner authored.
 
         The upload route reads the bundle's commits and their authors from the bundle itself,
@@ -1061,7 +1085,7 @@ class Gateway:
             method=method,
         )
 
-    def _release_on_merge(self, repo: str, pull: dict, *, spend: bool = False) -> bool:
+    def _release_on_merge(self, repo: str, pull: dict[str, Any], *, spend: bool = False) -> bool:
         """Post the release comment (if still claimed) and drop ``status:in-progress`` for every
         issue this pull request closes. Idempotent, so retrying ``pr-merge`` after a partial write
         finishes any leftover label cleanup without re-posting the release comment."""
@@ -1091,7 +1115,7 @@ class Gateway:
                     self.github.set_labels(repo, number, labels)
         return changed
 
-    def pr_revert(self, repo: str, numbers: list[int], reason: str):
+    def pr_revert(self, repo: str, numbers: list[int], reason: str) -> CommandResult[Any]:
         self.repo(repo)
         self.text(reason=reason)
         pulls = self.github.pulls(repo)
@@ -1127,7 +1151,7 @@ class Gateway:
             rows.append({"reverts": pull["number"], "number": created, "created": True})
         return success({"revertPrs": rows}, reasoning=f"{len(rows)} revert pull requests")
 
-    def variable_set(self, repo: str, name: str, value: str):
+    def variable_set(self, repo: str, name: str, value: str) -> CommandResult[Any]:
         self.repo(repo)
         if name not in self.config.allowed_variables:
             raise refuse(

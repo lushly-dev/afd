@@ -96,9 +96,7 @@ _RESERVED_NAMES = frozenset(
 
 _LABEL = "[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?"
 # A reverse-DNS prefix of two or more labels, a slash, then the key's name.
-_META_KEY = re.compile(
-    rf"^{_LABEL}(?:\.{_LABEL})+/[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$"
-)
+_META_KEY = re.compile(rf"^{_LABEL}(?:\.{_LABEL})+/[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$")
 _RESERVED_LABELS = frozenset({"mcp", "modelcontextprotocol"})
 
 # Set on a context the server validated: the names of the declared fields marked
@@ -262,7 +260,9 @@ def check_context_fields(
                 f"such as 'dev.example/{name}'"
             )
         labels = meta[: meta.index("/")].lower().split(".")
-        if meta.lower().startswith("dev.afd/") or any(label in _RESERVED_LABELS for label in labels):
+        if meta.lower().startswith("dev.afd/") or any(
+            label in _RESERVED_LABELS for label in labels
+        ):
             raise ValueError(
                 f"Context field '{name}' uses the reserved meta prefix of '{meta}'; "
                 "use your own domain"
@@ -359,7 +359,7 @@ def _field_failure(
         message,
         suggestion=(
             f"Send '{declared.name}' in _meta[\"{declared.meta}\"] as its schema describes "
-            f"(server/discover lists it under _meta[\"dev.afd/context-fields\"]){tail}"
+            f'(server/discover lists it under _meta["dev.afd/context-fields"]){tail}'
         ),
         details={"field": declared.name, "meta": declared.meta, "errors": errors},
     )

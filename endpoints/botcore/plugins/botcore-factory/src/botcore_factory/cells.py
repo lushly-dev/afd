@@ -14,11 +14,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import PurePath
+from typing import Any, cast
 
 from botcore_factory import change_report, dials, records
 from botcore_factory.claims import Claim, claim_body, format_time, parse_time, release_body
 from botcore_factory.events import answer, emit
-from botcore_factory.intake import not_dispatchable_reasons, read_backlog
+from botcore_factory.intake import Backlog, not_dispatchable_reasons, read_backlog
 from botcore_factory.labels import IN_PROGRESS, PLANNED
 from botcore_factory.lane_base import MERGE_QUEUED, counted_ejections
 from botcore_factory.lock import HostLock
@@ -80,7 +81,7 @@ def choose_plan(plans: list[Plan], ceiling: float, now: datetime) -> PlanChoice:
     return PlanChoice(None, resets[0] if resets else None, ceiling, now)
 
 
-def describe_plan(plan: Plan, ceiling: float, now: datetime) -> dict:
+def describe_plan(plan: Plan, ceiling: float, now: datetime) -> dict[str, Any]:
     return {
         "id": plan.id,
         "provider": plan.provider,
@@ -115,7 +116,7 @@ def read_plans(factory: Factory) -> list[Plan]:
 CLAUDE_PROVIDERS = frozenset({"claudeAgent", "anthropic"})
 
 
-def cell_plans(plans: list[Plan], overrides: dict) -> list[Plan]:
+def cell_plans(plans: list[Plan], overrides: dict[str, Any]) -> list[Plan]:
     """The plans a cell may start on: only Claude's while ``cells.claudeOnly`` is on, since
     cells implement on Opus (the owner's route of 2026-11-17)."""
     if dials.value(overrides, "cells.claudeOnly"):
@@ -123,7 +124,9 @@ def cell_plans(plans: list[Plan], overrides: dict) -> list[Plan]:
     return plans
 
 
-def no_plan_reason(plans: list[Plan], choice: PlanChoice, overrides: dict) -> tuple[str, str, str]:
+def no_plan_reason(
+    plans: list[Plan], choice: PlanChoice, overrides: dict[str, Any]
+) -> tuple[str, str, str]:
     """Why no plan was chosen, as a refusal code, message and suggestion: no Claude plan at
     all, or every plan a cell may take at its ceiling."""
     if not plans and dials.value(overrides, "cells.claudeOnly"):
@@ -142,7 +145,7 @@ def no_plan_reason(plans: list[Plan], choice: PlanChoice, overrides: dict) -> tu
     )
 
 
-def waits_on_owner(cell: dict, overrides: dict) -> bool:
+def waits_on_owner(cell: dict[str, Any], overrides: dict[str, Any]) -> bool:
     """An ejected cell whose own failures reached ``cells.maxEjections``: its foreman stops
     and the owner decides (an ``ejection-excuse``, a re-enqueue or a drop), so it frees its
     seat until then (lushly-dev/afd#1593). An ejected cell under the limit, which its foreman
@@ -152,13 +155,13 @@ def waits_on_owner(cell: dict, overrides: dict) -> bool:
     )
 
 
-def seated(state: dict) -> list[dict]:
+def seated(state: dict[str, Any]) -> list[dict[str, Any]]:
     """The cells still active: not parked. The lane is idle, and its host free to move, only
     with none."""
     return [cell for cell in state["cells"] if cell.get("state", "working") in SEATED_STATES]
 
 
-def holding_seats(state: dict) -> list[dict]:
+def holding_seats(state: dict[str, Any]) -> list[dict[str, Any]]:
     """The cells that count toward ``cells.max``: the active ones, less those that wait on the
     owner."""
     return [cell for cell in seated(state) if not waits_on_owner(cell, state["dials"])]
@@ -194,7 +197,7 @@ class DiskShort:
         )
 
 
-def build_root(factory: Factory, overrides: dict) -> str:
+def build_root(factory: Factory, overrides: dict[str, Any]) -> str:
     """Where the lane's slots keep their build output (lushly-dev/afd#1641): under
     ``host.buildDir`` when set (a data volume), in ``<slots' folder name>-build``, else
     ``.build`` in the slots' directory. Never the slots' directory itself: with the repository
@@ -214,12 +217,12 @@ def build_root(factory: Factory, overrides: dict) -> str:
     return str(PurePath(slots) / ".build")
 
 
-def build_dir(factory: Factory, overrides: dict, slot: str) -> str:
+def build_dir(factory: Factory, overrides: dict[str, Any], slot: str) -> str:
     """The slot's own build directory, which its jobs get as ``CARGO_TARGET_DIR``."""
     return str(PurePath(build_root(factory, overrides)) / slot)
 
 
-def disk_short(factory: Factory, overrides: dict) -> DiskShort | None:
+def disk_short(factory: Factory, overrides: dict[str, Any]) -> DiskShort | None:
     """Whether free disk where the lane's slots build is below ``host.minFreeDiskGb``: a full
     disk ejected a good branch mid-build (lushly-dev/afd#1565), so it refuses work instead.
     Both the slots' directory and, when ``host.buildDir`` names another, the build output's are
@@ -267,7 +270,9 @@ def _validate(issues: list[int], branch: str, route: str) -> None:
         )
 
 
-def _check_issue_count(issues: list[int], overrides: dict, related_because: str | None) -> None:
+def _check_issue_count(
+    issues: list[int], overrides: dict[str, Any], related_because: str | None
+) -> None:
     most = dials.value(overrides, "cells.issuesMax")
     if len(issues) > most:
         raise Refusal(
@@ -285,7 +290,7 @@ def _check_issue_count(issues: list[int], overrides: dict, related_because: str 
         )
 
 
-def _check_issues(factory: Factory, issues: list[int]):
+def _check_issues(factory: Factory, issues: list[int]) -> Backlog:
     backlog = read_backlog(factory, issues)
     by_number = {issue.number: issue for issue in backlog.issues}
     for number in issues:
@@ -317,7 +322,7 @@ def _check_issues(factory: Factory, issues: list[int]):
     return backlog
 
 
-def _check_capacity(factory: Factory, state: dict) -> PlanChoice:
+def _check_capacity(factory: Factory, state: dict[str, Any]) -> PlanChoice:
     overrides = state["dials"]
     most = dials.value(overrides, "cells.max")
     if len(holding_seats(state)) >= most:
@@ -360,8 +365,8 @@ def register(
     route: str,
     thread: str | None,
     related_because: str | None = None,
-    guard: Callable[[dict], None] | None = None,
-):
+    guard: Callable[[dict[str, Any]], None] | None = None,
+) -> dict[str, Any]:
     """Claim ``issues`` for a new cell on ``branch`` and record it; the cell is returned.
 
     More than one issue is a package the foreman names: ``related_because`` says why they share
@@ -381,6 +386,8 @@ def register(
             )
         # The host's limits first: a loaded host refuses before anything is read from GitHub.
         choice = _check_capacity(factory, state)
+        if choice.plan is None:
+            raise RuntimeError("capacity check returned without a selected plan")
         backlog = _check_issues(factory, issues)
         world = factory.world
         now = world.clock.now()
@@ -425,7 +432,7 @@ def register(
     return cell
 
 
-def find(state: dict, branch: str) -> dict:
+def find(state: dict[str, Any], branch: str) -> dict[str, Any]:
     cell = next((c for c in state["cells"] if c.get("branch") == branch), None)
     if cell is None:
         raise Refusal(
@@ -433,10 +440,10 @@ def find(state: dict, branch: str) -> dict:
             f"No cell is registered for {branch}",
             "lane-status lists the cells; register one with cell-register",
         )
-    return cell
+    return cast("dict[str, Any]", cell)
 
 
-def attach(factory: Factory, branch: str, thread: str) -> dict:
+def attach(factory: Factory, branch: str, thread: str) -> dict[str, Any]:
     """Record the T3 Code thread delegate_task returned for a registered cell."""
     if not thread.strip():
         raise Refusal(
@@ -451,8 +458,11 @@ def attach(factory: Factory, branch: str, thread: str) -> dict:
 
 
 def gate_allow(
-    factory: Factory, branch: str, reason: str, guard: Callable[[dict], None] | None = None
-) -> dict:
+    factory: Factory,
+    branch: str,
+    reason: str,
+    guard: Callable[[dict[str, Any]], None] | None = None,
+) -> dict[str, Any]:
     """Record that a diagnosis found the repair's gate edit to be the right one.
 
     Only the foreman calls it (the factory host), after a diagnosis on the stronger route;
@@ -468,7 +478,7 @@ def gate_allow(
     return {"allowed": True, "branch": branch}
 
 
-def measure_approve(factory: Factory, branch: str, reason: str) -> dict:
+def measure_approve(factory: Factory, branch: str, reason: str) -> dict[str, Any]:
     """Release a branch held for ``gate-change`` or ``measure-change`` to the queue.
 
     Only served on the ``factory`` host (never ``factory-cell``); approves the exact held
@@ -539,8 +549,11 @@ def measure_approve(factory: Factory, branch: str, reason: str) -> dict:
 
 
 def ejection_excuse(
-    factory: Factory, branch: str, reason: str, guard: Callable[[dict], None] | None = None
-) -> dict:
+    factory: Factory,
+    branch: str,
+    reason: str,
+    guard: Callable[[dict[str, Any]], None] | None = None,
+) -> dict[str, Any]:
     """Record that the cell's latest ejection was not its branch's fault, so it stops counting
     toward ``cells.maxEjections``.
 
@@ -611,8 +624,11 @@ def ejection_excuse(
 
 
 def drop(
-    factory: Factory, branch: str, reason: str, guard: Callable[[dict], None] | None = None
-) -> dict:
+    factory: Factory,
+    branch: str,
+    reason: str,
+    guard: Callable[[dict[str, Any]], None] | None = None,
+) -> dict[str, Any]:
     """Dequeue the branch, release its claims and forget the cell; its worktree is left alone.
 
     Each issue goes back to ``status:planned`` with one release comment. A drop that frees the
@@ -719,7 +735,7 @@ def drop(
     return {"dropped": True, "released": released, "answered": answered}
 
 
-def _release(factory: Factory, cell: dict, reason: str) -> list[int]:
+def _release(factory: Factory, cell: dict[str, Any], reason: str) -> list[int]:
     """Put each issue the cell claimed back to status:planned, with one release comment."""
     released: list[int] = []
     github = factory.world.github

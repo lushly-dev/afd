@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 import copy
 import math
-from typing import Any, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from afd.core.approval import approval_mode
 from afd.core.commands import CommandDefinition, command_to_mcp_tool, serialize_command_examples
@@ -176,13 +176,17 @@ def execute_discover(
     parsed_limit, limit_err = _parse_discover_int(
         payload.get("limit", _MISSING), field="limit", default=50
     )
-    if limit_err is not None:
-        return limit_err
+    if limit_err is not None or parsed_limit is None:
+        return limit_err or error(
+            "VALIDATION_ERROR", "Invalid limit", suggestion="Pass an integer limit."
+        )
     parsed_offset, offset_err = _parse_discover_int(
         payload.get("offset", _MISSING), field="offset", default=0
     )
-    if offset_err is not None:
-        return offset_err
+    if offset_err is not None or parsed_offset is None:
+        return offset_err or error(
+            "VALIDATION_ERROR", "Invalid offset", suggestion="Pass an integer offset."
+        )
 
     limit = max(1, min(parsed_limit, 200))
     offset = max(0, parsed_offset)
@@ -217,10 +221,7 @@ def execute_discover(
         "availableCategories": all_categories,
         "availableTags": all_tags,
     }
-    reasoning = (
-        f"Returned {len(page)} of {len(filtered)} matching commands "
-        f"({len(commands)} total)"
-    )
+    reasoning = f"Returned {len(page)} of {len(filtered)} matching commands ({len(commands)} total)"
     if data["hasMore"]:
         reasoning += f". Use offset={offset + limit} to see more."
     return success(data, reasoning=reasoning, confidence=1.0)
@@ -290,9 +291,7 @@ def execute_detail(
             "task": command.task,
             "toolMeta": copy.deepcopy(command.tool_meta) if command.tool_meta else None,
             "outputBudget": (
-                command.output_budget.to_wire_dict()
-                if command.output_budget is not None
-                else None
+                command.output_budget.to_wire_dict() if command.output_budget is not None else None
             ),
         }
         # Wire format: unset fields are omitted, never null.

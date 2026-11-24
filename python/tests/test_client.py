@@ -2,11 +2,10 @@
 
 import pytest
 
-from afd.client import McpClient, McpClientConfig, ClientStatus, create_client
-from afd.transports.base import ToolInfo, TransportError, TransportState
+from afd import success
+from afd.client import ClientStatus, McpClient, McpClientConfig, create_client
+from afd.transports.base import TransportState
 from afd.transports.mock import MockTransport
-from afd import success, failure, create_error
-
 
 # ============================================================================
 # Helpers
@@ -231,11 +230,14 @@ class TestMcpClientCall:
     @pytest.mark.asyncio
     async def test_call_returns_command_result_as_is(self):
         transport = MockTransport()
-        transport.add_mock_response("cmd", {
-            "success": True,
-            "data": {"id": "42"},
-            "reasoning": "Found it",
-        })
+        transport.add_mock_response(
+            "cmd",
+            {
+                "success": True,
+                "data": {"id": "42"},
+                "reasoning": "Found it",
+            },
+        )
 
         client = await _connected_client(transport)
         result = await client.call("cmd", {})
@@ -290,15 +292,20 @@ class TestMcpClientBatch:
     @pytest.mark.asyncio
     async def test_batch_calls_afd_batch_tool(self):
         transport = MockTransport()
-        transport.add_mock_response("afd-batch", {
-            "success": True,
-            "results": [{"success": True}],
-        })
+        transport.add_mock_response(
+            "afd-batch",
+            {
+                "success": True,
+                "results": [{"success": True}],
+            },
+        )
 
         client = await _connected_client(transport)
-        result = await client.batch([
-            {"name": "todo-create", "input": {"title": "Test"}},
-        ])
+        result = await client.batch(
+            [
+                {"name": "todo-create", "input": {"title": "Test"}},
+            ]
+        )
 
         assert result["success"] is True
 
@@ -321,15 +328,20 @@ class TestMcpClientPipe:
     @pytest.mark.asyncio
     async def test_pipe_calls_afd_pipe_tool(self):
         transport = MockTransport()
-        transport.add_mock_response("afd-pipe", {
-            "success": True,
-            "steps": [],
-        })
+        transport.add_mock_response(
+            "afd-pipe",
+            {
+                "success": True,
+                "steps": [],
+            },
+        )
 
         client = await _connected_client(transport)
-        result = await client.pipe([
-            {"command": "user-get", "input": {"id": 1}, "as": "user"},
-        ])
+        result = await client.pipe(
+            [
+                {"command": "user-get", "input": {"id": 1}, "as": "user"},
+            ]
+        )
 
         assert result["success"] is True
 

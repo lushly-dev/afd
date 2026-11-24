@@ -7,7 +7,7 @@ omitted rather than null, ``isError`` on failures, and AFD validation errors
 """
 
 import json
-from typing import Any, Dict
+from typing import Any
 
 import pytest
 from mcp import Client
@@ -69,7 +69,7 @@ def _server():
     return server
 
 
-async def _call(server, name: str, arguments: Dict[str, Any]):
+async def _call(server, name: str, arguments: dict[str, Any]):
     """Call a tool over a real MCP session; return (isError, parsed JSON body)."""
     mcp = server._create_mcp_server()
     async with Client(mcp) as session:
@@ -236,7 +236,10 @@ class TestNullData:
     def test_result_and_step_keep_null_data_and_omit_unset_data(self):
         assert to_wire(success(None)) == {"success": True, "data": None}
         assert to_wire(CommandResult(success=True)) == {"success": True}
-        assert to_wire(error("X", "m")) == {"success": False, "error": {"code": "X", "message": "m"}}
+        assert to_wire(error("X", "m")) == {
+            "success": False,
+            "error": {"code": "X", "message": "m"},
+        }
 
         def step(**data):
             return StepResult(index=0, command="c", status=StepStatus.SUCCESS, **data)

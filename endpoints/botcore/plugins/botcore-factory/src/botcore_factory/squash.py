@@ -12,12 +12,13 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable, Sequence
+from typing import Any
 
 #: As ``commit-credit.mjs`` reads one: spacing before the colon still makes it a trailer.
 _CO_AUTHOR = re.compile(r"^[ \t]*co-authored-by[ \t]*:", re.IGNORECASE)
 
 
-def squash_body(commits: Iterable[dict]) -> str:
+def squash_body(commits: Iterable[dict[str, Any]]) -> str:
     """The branch's commit messages, from GitHub's list of a pull request's commits (REST).
 
     Merge commits (more than one parent) are left out, as GitHub's default leaves them out, unless

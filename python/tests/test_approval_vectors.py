@@ -10,7 +10,7 @@ from __future__ import annotations
 import base64
 import json
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import pytest
 
@@ -30,7 +30,7 @@ async def _handler(input: Any, context: Any = None):
     return success("ran")
 
 
-def _actor(name: Optional[str]) -> Optional[Actor]:
+def _actor(name: str | None) -> Actor | None:
     if name is None:
         return None
     actor = VECTORS["actors"][name]
@@ -43,11 +43,11 @@ def _actor(name: Optional[str]) -> Optional[Actor]:
 
 
 def _gate(
-    now: Optional[int] = None,
-    secrets: Optional[list[str]] = None,
-    replay: Optional[str] = None,
-    include_token: Optional[bool] = None,
-    relay: Optional[str] = None,
+    now: int | None = None,
+    secrets: list[str] | None = None,
+    replay: str | None = None,
+    include_token: bool | None = None,
+    relay: str | None = None,
 ):
     """One middleware, as a case configures it, in front of a handler that reports it ran."""
     kwargs: dict[str, Any] = {}
@@ -70,9 +70,9 @@ def _gate(
     async def call(
         command: str,
         input: Any,
-        actor: Optional[str],
-        token: Optional[str] = None,
-        interface: Optional[str] = None,
+        actor: str | None,
+        token: str | None = None,
+        interface: str | None = None,
     ):
         async def next_fn():
             return success("ran")
@@ -106,7 +106,9 @@ async def test_binding(binding):
     assert len(base64.urlsafe_b64decode(nonce + "==")) == 16
     assert payload == binding["payload"].replace(binding["nonce"], nonce)
 
-    accepted = await _gate()(binding["command"], binding["input"], binding["actor"], binding["token"])
+    accepted = await _gate()(
+        binding["command"], binding["input"], binding["actor"], binding["token"]
+    )
     assert _outcome(accepted) == "accepted"
 
 

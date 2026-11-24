@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import itertools
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any
 from urllib.parse import quote, urlsplit, urlunsplit
 
 import httpx
@@ -39,7 +39,7 @@ class _HttpBasedTransport:
         self,
         url: str,
         *,
-        headers: Optional[Dict[str, str]] = None,
+        headers: dict[str, str] | None = None,
         timeout: float = 30.0,
         client_name: str = "afd-python-client",
         client_version: str = "0.2.0",
@@ -50,11 +50,11 @@ class _HttpBasedTransport:
         self._client_name = client_name
         self._client_version = client_version
         self._state = TransportState.DISCONNECTED
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: httpx.AsyncClient | None = None
         self._message_url: str = self._derive_message_url(url)
         self._request_counter = itertools.count(1)
-        self._server_info: Optional[Dict[str, Any]] = None
-        self._capabilities: Optional[Dict[str, Any]] = None
+        self._server_info: dict[str, Any] | None = None
+        self._capabilities: dict[str, Any] | None = None
 
     @property
     def state(self) -> TransportState:
@@ -70,9 +70,9 @@ class _HttpBasedTransport:
     async def _send_request(
         self,
         method: str,
-        params: Optional[Dict[str, Any]] = None,
+        params: dict[str, Any] | None = None,
         *,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
     ) -> Any:
         """Build a JSON-RPC request, POST it, and return the ``result`` field.
 
@@ -83,7 +83,7 @@ class _HttpBasedTransport:
         if self._client is None:
             raise RuntimeError("Transport not connected. Call connect() first.")
 
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "jsonrpc": "2.0",
             "id": self._next_request_id(),
             "method": method,
@@ -105,13 +105,13 @@ class _HttpBasedTransport:
 
         try:
             data = response.json()
-            json_exc: Optional[ValueError] = None
+            json_exc: ValueError | None = None
         except ValueError as exc:
             data = None
             json_exc = exc
         err = data.get("error") if isinstance(data, dict) else None
         code = err.get("code") if isinstance(err, dict) else None
-        if isinstance(code, int) and not isinstance(code, bool):
+        if isinstance(err, dict) and isinstance(code, int) and not isinstance(code, bool):
             # A JSON-RPC error says what the server did, whatever the HTTP status.
             raise JsonRpcError(code, str(err.get("message", "Unknown")), err.get("data"))
 
@@ -140,16 +140,19 @@ class _HttpBasedTransport:
 
     # ── MCP operations ────────────────────────────────────────────────────
 
-    async def _initialize(self) -> Dict[str, Any]:
+    async def _initialize(self) -> dict[str, Any]:
         """Perform the MCP ``initialize`` handshake."""
-        result = await self._send_request("initialize", {
-            "protocolVersion": MCP_PROTOCOL_VERSION,
-            "capabilities": {},
-            "clientInfo": {
-                "name": self._client_name,
-                "version": self._client_version,
+        result = await self._send_request(
+            "initialize",
+            {
+                "protocolVersion": MCP_PROTOCOL_VERSION,
+                "capabilities": {},
+                "clientInfo": {
+                    "name": self._client_name,
+                    "version": self._client_version,
+                },
             },
-        })
+        )
         if not isinstance(result, dict):
             raise TransportError(
                 f"Invalid initialize result: expected JSON object, got {type(result).__name__}",
@@ -161,9 +164,9 @@ class _HttpBasedTransport:
     async def call_tool(
         self,
         name: str,
-        arguments: Optional[Dict[str, Any]] = None,
+        arguments: dict[str, Any] | None = None,
         *,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
     ) -> Any:
         """Call a tool via the MCP ``tools/call`` method.
 
@@ -179,7 +182,7 @@ class _HttpBasedTransport:
         )
         return self._extract_content(result)
 
-    async def list_tools(self) -> List[ToolInfo]:
+    async def list_tools(self) -> list[ToolInfo]:
         """List available tools via the MCP ``tools/list`` method."""
         result = await self._send_request("tools/list")
         if not isinstance(result, dict):
@@ -191,18 +194,20 @@ class _HttpBasedTransport:
             raise TransportError(
                 f"Invalid tools/list result: 'tools' must be a list, got {type(raw_tools).__name__}",
             )
-        tools: List[ToolInfo] = []
+        tools: list[ToolInfo] = []
         for tool in raw_tools:
             if not isinstance(tool, dict) or not isinstance(tool.get("name"), str):
                 raise TransportError(
                     "Invalid tools/list result: each tool entry must be an object with a string 'name'",
                 )
-            tools.append(ToolInfo(
-                name=tool["name"],
-                description=tool.get("description", ""),
-                input_schema=tool.get("inputSchema"),
-                meta=tool.get("_meta"),
-            ))
+            tools.append(
+                ToolInfo(
+                    name=tool["name"],
+                    description=tool.get("description", ""),
+                    input_schema=tool.get("inputSchema"),
+                    meta=tool.get("_meta"),
+                )
+            )
         return tools
 
     # ── Helpers ────────────────────────────────────────────────────────────
@@ -273,9 +278,7 @@ class _HttpBasedTransport:
         if isinstance(result, dict) and result.get("isError"):
             if is_afd_result(parsed):
                 return parsed
-            raise ToolExecutionError(
-                " ".join(texts) or "Tool execution failed"
-            )
+            raise ToolExecutionError(" ".join(texts) or "Tool execution failed")
 
         if not combined:
             return result

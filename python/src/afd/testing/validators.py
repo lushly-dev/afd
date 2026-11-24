@@ -13,7 +13,7 @@ Example:
 
 import re
 from dataclasses import dataclass, field
-from typing import Any, List, Optional
+from typing import Any
 
 
 @dataclass
@@ -57,8 +57,8 @@ class ValidationResult:
     """
 
     valid: bool
-    errors: List[ValidationError] = field(default_factory=list)
-    warnings: List[ValidationWarning] = field(default_factory=list)
+    errors: list[ValidationError] = field(default_factory=list)
+    warnings: list[ValidationWarning] = field(default_factory=list)
 
 
 @dataclass
@@ -84,7 +84,7 @@ _KEBAB_CASE_RE = re.compile(r"^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)+$")
 
 def validate_result(
     result: Any,
-    options: Optional[ResultValidationOptions] = None,
+    options: ResultValidationOptions | None = None,
 ) -> ValidationResult:
     """Validate a CommandResult structure.
 
@@ -104,8 +104,8 @@ def validate_result(
         >>> assert vr.valid
     """
     opts = options or ResultValidationOptions()
-    errors: List[ValidationError] = []
-    warnings: List[ValidationWarning] = []
+    errors: list[ValidationError] = []
+    warnings: list[ValidationWarning] = []
 
     # -- Extract fields (support both objects and dicts) -------------------
     if isinstance(result, dict):
@@ -127,81 +127,101 @@ def validate_result(
 
     # -- success must be a boolean -----------------------------------------
     if not isinstance(success_val, bool):
-        errors.append(ValidationError(
-            path="success",
-            message="success must be a boolean",
-            code="INVALID_SUCCESS_TYPE",
-        ))
+        errors.append(
+            ValidationError(
+                path="success",
+                message="success must be a boolean",
+                code="INVALID_SUCCESS_TYPE",
+            )
+        )
 
     # -- success / data consistency ----------------------------------------
     if success_val is True and data is None and opts.require_data:
-        warnings.append(ValidationWarning(
-            path="data",
-            message="Successful result has no data",
-            code="MISSING_DATA",
-        ))
+        warnings.append(
+            ValidationWarning(
+                path="data",
+                message="Successful result has no data",
+                code="MISSING_DATA",
+            )
+        )
 
     # -- failure / error consistency ---------------------------------------
     if success_val is False and error_val is None:
-        errors.append(ValidationError(
-            path="error",
-            message="Failed result must have error details",
-            code="MISSING_ERROR",
-        ))
+        errors.append(
+            ValidationError(
+                path="error",
+                message="Failed result must have error details",
+                code="MISSING_ERROR",
+            )
+        )
 
     # -- validate error structure if present -------------------------------
     if error_val is not None:
         err_validation = validate_error(error_val)
         for e in err_validation.errors:
-            errors.append(ValidationError(
-                path=f"error.{e.path}" if e.path else "error",
-                message=e.message,
-                code=e.code,
-            ))
+            errors.append(
+                ValidationError(
+                    path=f"error.{e.path}" if e.path else "error",
+                    message=e.message,
+                    code=e.code,
+                )
+            )
         for w in err_validation.warnings:
-            warnings.append(ValidationWarning(
-                path=f"error.{w.path}" if w.path else "error",
-                message=w.message,
-                code=w.code,
-            ))
+            warnings.append(
+                ValidationWarning(
+                    path=f"error.{w.path}" if w.path else "error",
+                    message=w.message,
+                    code=w.code,
+                )
+            )
 
     # -- confidence --------------------------------------------------------
     if opts.require_confidence and confidence is None:
-        warnings.append(ValidationWarning(
-            path="confidence",
-            message="AI-powered commands should include confidence score",
-            code="MISSING_CONFIDENCE",
-        ))
+        warnings.append(
+            ValidationWarning(
+                path="confidence",
+                message="AI-powered commands should include confidence score",
+                code="MISSING_CONFIDENCE",
+            )
+        )
 
     if confidence is not None:
         if not isinstance(confidence, (int, float)):
-            errors.append(ValidationError(
-                path="confidence",
-                message="confidence must be a number",
-                code="INVALID_CONFIDENCE_TYPE",
-            ))
+            errors.append(
+                ValidationError(
+                    path="confidence",
+                    message="confidence must be a number",
+                    code="INVALID_CONFIDENCE_TYPE",
+                )
+            )
         elif confidence < 0 or confidence > 1:
-            errors.append(ValidationError(
-                path="confidence",
-                message="confidence must be between 0 and 1",
-                code="INVALID_CONFIDENCE_RANGE",
-            ))
+            errors.append(
+                ValidationError(
+                    path="confidence",
+                    message="confidence must be between 0 and 1",
+                    code="INVALID_CONFIDENCE_RANGE",
+                )
+            )
 
     # -- reasoning ---------------------------------------------------------
     if opts.require_reasoning and not reasoning:
-        warnings.append(ValidationWarning(
-            path="reasoning",
-            message="AI-powered commands should include reasoning",
-            code="MISSING_REASONING",
-        ))
+        warnings.append(
+            ValidationWarning(
+                path="reasoning",
+                message="AI-powered commands should include reasoning",
+                code="MISSING_REASONING",
+            )
+        )
 
     # -- sources -----------------------------------------------------------
     if opts.require_sources and (not sources or len(sources) == 0):
-        warnings.append(ValidationWarning(
-            path="sources",
-            message="Commands using external data should include sources",
-            code="MISSING_SOURCES",
-        ))
+        warnings.append(
+            ValidationWarning(
+                path="sources",
+                message="Commands using external data should include sources",
+                code="MISSING_SOURCES",
+            )
+        )
 
     # -- plan step integrity -----------------------------------------------
     if plan is not None:
@@ -216,23 +236,29 @@ def validate_result(
                 step_status = getattr(step, "status", None)
 
             if not step_id:
-                errors.append(ValidationError(
-                    path=f"plan[{i}].id",
-                    message="Plan step must have an id",
-                    code="MISSING_STEP_ID",
-                ))
+                errors.append(
+                    ValidationError(
+                        path=f"plan[{i}].id",
+                        message="Plan step must have an id",
+                        code="MISSING_STEP_ID",
+                    )
+                )
             if not step_action:
-                errors.append(ValidationError(
-                    path=f"plan[{i}].action",
-                    message="Plan step must have an action",
-                    code="MISSING_STEP_ACTION",
-                ))
+                errors.append(
+                    ValidationError(
+                        path=f"plan[{i}].action",
+                        message="Plan step must have an action",
+                        code="MISSING_STEP_ACTION",
+                    )
+                )
             if not step_status:
-                errors.append(ValidationError(
-                    path=f"plan[{i}].status",
-                    message="Plan step must have a status",
-                    code="MISSING_STEP_STATUS",
-                ))
+                errors.append(
+                    ValidationError(
+                        path=f"plan[{i}].status",
+                        message="Plan step must have a status",
+                        code="MISSING_STEP_STATUS",
+                    )
+                )
 
     return ValidationResult(
         valid=len(errors) == 0,
@@ -258,8 +284,8 @@ def validate_error(error: Any) -> ValidationResult:
         >>> vr = validate_error(not_found_error("Doc", "123"))
         >>> assert vr.valid
     """
-    errors: List[ValidationError] = []
-    warnings: List[ValidationWarning] = []
+    errors: list[ValidationError] = []
+    warnings: list[ValidationWarning] = []
 
     # Extract fields
     if isinstance(error, dict):
@@ -275,35 +301,43 @@ def validate_error(error: Any) -> ValidationResult:
 
     # code is required
     if not code or not isinstance(code, str):
-        errors.append(ValidationError(
-            path="code",
-            message="Error code must be a non-empty string",
-            code="INVALID_ERROR_CODE",
-        ))
+        errors.append(
+            ValidationError(
+                path="code",
+                message="Error code must be a non-empty string",
+                code="INVALID_ERROR_CODE",
+            )
+        )
 
     # message is required
     if not message or not isinstance(message, str):
-        errors.append(ValidationError(
-            path="message",
-            message="Error message must be a non-empty string",
-            code="INVALID_ERROR_MESSAGE",
-        ))
+        errors.append(
+            ValidationError(
+                path="message",
+                message="Error message must be a non-empty string",
+                code="INVALID_ERROR_MESSAGE",
+            )
+        )
 
     # suggestion is recommended
     if not suggestion:
-        warnings.append(ValidationWarning(
-            path="suggestion",
-            message="Errors should include a suggestion for recovery",
-            code="MISSING_SUGGESTION",
-        ))
+        warnings.append(
+            ValidationWarning(
+                path="suggestion",
+                message="Errors should include a suggestion for recovery",
+                code="MISSING_SUGGESTION",
+            )
+        )
 
     # retryable is recommended
     if retryable is None:
-        warnings.append(ValidationWarning(
-            path="retryable",
-            message="Errors should indicate if they are retryable",
-            code="MISSING_RETRYABLE",
-        ))
+        warnings.append(
+            ValidationWarning(
+                path="retryable",
+                message="Errors should indicate if they are retryable",
+                code="MISSING_RETRYABLE",
+            )
+        )
 
     return ValidationResult(
         valid=len(errors) == 0,
@@ -334,8 +368,8 @@ def validate_command_definition(command: Any) -> ValidationResult:
         >>> vr = validate_command_definition(cmd)
         >>> assert vr.valid
     """
-    errors: List[ValidationError] = []
-    warnings: List[ValidationWarning] = []
+    errors: list[ValidationError] = []
+    warnings: list[ValidationWarning] = []
 
     # Extract fields
     if isinstance(command, dict):
@@ -355,39 +389,49 @@ def validate_command_definition(command: Any) -> ValidationResult:
 
     # -- name --------------------------------------------------------------
     if not name or not isinstance(name, str):
-        errors.append(ValidationError(
-            path="name",
-            message="Command must have a name",
-            code="MISSING_NAME",
-        ))
+        errors.append(
+            ValidationError(
+                path="name",
+                message="Command must have a name",
+                code="MISSING_NAME",
+            )
+        )
     elif not _KEBAB_CASE_RE.match(name):
-        warnings.append(ValidationWarning(
-            path="name",
-            message='Command name should use kebab-case domain-action format (e.g., "todo-create")',
-            code="INVALID_NAME_FORMAT",
-        ))
+        warnings.append(
+            ValidationWarning(
+                path="name",
+                message='Command name should use kebab-case domain-action format (e.g., "todo-create")',
+                code="INVALID_NAME_FORMAT",
+            )
+        )
 
     # -- description -------------------------------------------------------
     if not description or not isinstance(description, str):
-        errors.append(ValidationError(
-            path="description",
-            message="Command must have a description",
-            code="MISSING_DESCRIPTION",
-        ))
+        errors.append(
+            ValidationError(
+                path="description",
+                message="Command must have a description",
+                code="MISSING_DESCRIPTION",
+            )
+        )
     elif len(description) < 10:
-        warnings.append(ValidationWarning(
-            path="description",
-            message="Description should be more detailed",
-            code="SHORT_DESCRIPTION",
-        ))
+        warnings.append(
+            ValidationWarning(
+                path="description",
+                message="Description should be more detailed",
+                code="SHORT_DESCRIPTION",
+            )
+        )
 
     # -- parameters --------------------------------------------------------
     if parameters is None or not isinstance(parameters, list):
-        errors.append(ValidationError(
-            path="parameters",
-            message="Command must have a parameters array",
-            code="MISSING_PARAMETERS",
-        ))
+        errors.append(
+            ValidationError(
+                path="parameters",
+                message="Command must have a parameters array",
+                code="MISSING_PARAMETERS",
+            )
+        )
     else:
         for i, param in enumerate(parameters):
             if isinstance(param, dict):
@@ -400,46 +444,58 @@ def validate_command_definition(command: Any) -> ValidationResult:
                 p_desc = getattr(param, "description", None)
 
             if not p_name:
-                errors.append(ValidationError(
-                    path=f"parameters[{i}].name",
-                    message="Parameter must have a name",
-                    code="MISSING_PARAM_NAME",
-                ))
+                errors.append(
+                    ValidationError(
+                        path=f"parameters[{i}].name",
+                        message="Parameter must have a name",
+                        code="MISSING_PARAM_NAME",
+                    )
+                )
             if not p_type:
-                errors.append(ValidationError(
-                    path=f"parameters[{i}].type",
-                    message="Parameter must have a type",
-                    code="MISSING_PARAM_TYPE",
-                ))
+                errors.append(
+                    ValidationError(
+                        path=f"parameters[{i}].type",
+                        message="Parameter must have a type",
+                        code="MISSING_PARAM_TYPE",
+                    )
+                )
             if not p_desc:
-                warnings.append(ValidationWarning(
-                    path=f"parameters[{i}].description",
-                    message="Parameter should have a description",
-                    code="MISSING_PARAM_DESCRIPTION",
-                ))
+                warnings.append(
+                    ValidationWarning(
+                        path=f"parameters[{i}].description",
+                        message="Parameter should have a description",
+                        code="MISSING_PARAM_DESCRIPTION",
+                    )
+                )
 
     # -- handler -----------------------------------------------------------
     if not handler or not callable(handler):
-        errors.append(ValidationError(
-            path="handler",
-            message="Command must have a handler function",
-            code="MISSING_HANDLER",
-        ))
+        errors.append(
+            ValidationError(
+                path="handler",
+                message="Command must have a handler function",
+                code="MISSING_HANDLER",
+            )
+        )
 
     # -- recommended fields ------------------------------------------------
     if not category:
-        warnings.append(ValidationWarning(
-            path="category",
-            message="Command should have a category for organization",
-            code="MISSING_CATEGORY",
-        ))
+        warnings.append(
+            ValidationWarning(
+                path="category",
+                message="Command should have a category for organization",
+                code="MISSING_CATEGORY",
+            )
+        )
 
     if not cmd_errors or (isinstance(cmd_errors, list) and len(cmd_errors) == 0):
-        warnings.append(ValidationWarning(
-            path="errors",
-            message="Command should document possible error codes",
-            code="MISSING_ERROR_DOCS",
-        ))
+        warnings.append(
+            ValidationWarning(
+                path="errors",
+                message="Command should document possible error codes",
+                code="MISSING_ERROR_DOCS",
+            )
+        )
 
     return ValidationResult(
         valid=len(errors) == 0,

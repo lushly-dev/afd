@@ -85,7 +85,9 @@ def _expected_errors(expected: dict[str, Any]) -> list[Any]:
     return [entry.get("error") for entry in expected.get("results", [])]
 
 
-def _project_batch(wire: dict[str, Any], ran: list[int], expected: dict[str, Any]) -> dict[str, Any]:
+def _project_batch(
+    wire: dict[str, Any], ran: list[int], expected: dict[str, Any]
+) -> dict[str, Any]:
     if not wire.get("success"):
         projected: dict[str, Any] = {
             "success": False,

@@ -203,7 +203,8 @@ def create_mcp_server(
             exec(compile(wrapped, f"<{name}-run>", "exec"), run_ns)
 
             with redirect_stdout(stdout_buf), redirect_stderr(stderr_buf):
-                result = await run_ns["__result__"]
+                coro: Any = run_ns["__result__"]
+                result = await coro
 
             captured = stdout_buf.getvalue()
             if result is not None:
@@ -221,7 +222,7 @@ def create_mcp_server(
     if include_research:
         _, Context = sdk_types()
 
-        async def _research(query: str, ctx: Context, mode: str = "fast") -> str:
+        async def _research(query: str, ctx: Any, mode: str = "fast") -> str:
             from afd import error
 
             from botcore.commands.research import research_result, research_stream
@@ -235,7 +236,12 @@ def create_mcp_server(
                 if result is not None:
                     return json.dumps(result.model_dump(mode="json", exclude_none=True), indent=2)
                 step += 1
-                message = chunk.message if chunk.type == "progress" else chunk.data["text"]
+                if chunk.type == "progress":
+                    message = chunk.message
+                elif chunk.type == "data" and isinstance(chunk.data, dict):
+                    message = str(chunk.data["text"])
+                else:
+                    message = ""
                 await ctx.report_progress(step, message=message)
             result = error(
                 "RESEARCH_FAILED",

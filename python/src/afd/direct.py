@@ -24,36 +24,31 @@ import asyncio
 import copy
 import dataclasses
 import inspect
-import math
 import logging
+import math
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import (
     Any,
-    Callable,
-    Dict,
-    List,
-    Optional,
     Protocol,
     TypeVar,
-    Union,
     runtime_checkable,
 )
 
-from afd.core.result import (
-    CommandResult,
-    coerce_command_result,  # noqa: F401 (importable from afd.direct before the pipeline moved)
-    execution_failure,
-    failure,
-    success,  # noqa: F401 (importable from afd.direct before the pipeline moved)
-)
 from afd.core.actor import Actor, ContextDefaults, with_context_defaults
 from afd.core.clock import Clock, RandomSource
 from afd.core.commands import call_not_granted
 from afd.core.direct_allow import _bind_allow, _direct_allows, _is_allowed, _not_allowed
+from afd.core.direct_approval import (
+    DirectApprovalRequest,
+    _DirectApprovalExchange,
+    _public_result,
+)
 from afd.core.errors import CommandError, not_found_error, validation_error
-from afd.core.similarity import find_similar_tools, truncate_name
+from afd.core.output_budget import ask_validation_failure, normalize_ask_option, parse_ask
+
 # Importable from afd.direct before DirectClient.pipe's runner moved to afd.direct_pipeline.
 from afd.core.pipeline import (  # noqa: F401
     condition_error,
@@ -67,18 +62,20 @@ from afd.core.pipeline_variables import (  # noqa: F401
     PipelineResolutionLimitError,
     exceeds_depth,
 )
-
+from afd.core.result import (
+    CommandResult,
+    coerce_command_result,  # noqa: F401 (importable from afd.direct before the pipeline moved)
+    execution_failure,
+    failure,
+    success,  # noqa: F401 (importable from afd.direct before the pipeline moved)
+)
+from afd.core.similarity import find_similar_tools, truncate_name
 from afd.direct_pipeline import (
     PipelineResult,
     PipelineStep,
     PipelineStepResult,  # noqa: F401 (re-exported)
     run_direct_pipeline,
 )
-
-from afd.core.direct_approval import (
-    DirectApprovalRequest, _DirectApprovalExchange, _public_result,
-)
-from afd.core.output_budget import ask_validation_failure, normalize_ask_option, parse_ask
 
 logger = logging.getLogger("afd.direct")
 
@@ -103,21 +100,21 @@ class CommandContext:
     :func:`afd.core.with_context_defaults`). ``approval`` is the call's approval
     evidence for trusted host execution. DirectClient ignores caller-provided evidence.
     """
-    
+
     trace_id: str
-    source: Optional[str] = None
-    timeout: Optional[float] = None
-    extra: Dict[str, Any] = field(default_factory=dict)
-    actor: Optional[Actor] = None
-    clock: Optional[Clock] = None
-    random: Optional[RandomSource] = None
-    approval: Optional[str] = None
-    cancel: Optional[asyncio.Event] = None
-    signal: Optional[asyncio.Event] = None
-    output_budget: Optional[int] = None
+    source: str | None = None
+    timeout: float | None = None
+    extra: dict[str, Any] = field(default_factory=dict)
+    actor: Actor | None = None
+    clock: Clock | None = None
+    random: RandomSource | None = None
+    approval: str | None = None
+    cancel: asyncio.Event | None = None
+    signal: asyncio.Event | None = None
+    output_budget: int | None = None
     _direct_approval: Any = field(default=None, repr=False, compare=False)
     _direct_allow: Any = field(default=None, repr=False, compare=False)
-    _server_signal: Optional[asyncio.Event] = field(default=None, repr=False, compare=False)
+    _server_signal: asyncio.Event | None = field(default=None, repr=False, compare=False)
     _server_signal_fields: tuple[str, ...] = field(default=(), repr=False, compare=False)
     _output_budget_ask: Any = field(default=None, repr=False, compare=False)
 
@@ -128,7 +125,7 @@ class CommandContext:
             or (self.signal is not None and self.signal.is_set())
         )
 
-    def with_output_budget_ask(self, max_bytes: Any) -> "CommandContext":
+    def with_output_budget_ask(self, max_bytes: Any) -> CommandContext:
         """Return a copy of this context carrying an output budget ask (B2)."""
         return dataclasses.replace(self, _output_budget_ask=normalize_ask_option(max_bytes))
 
@@ -136,7 +133,7 @@ class CommandContext:
 @dataclass
 class CommandInfo:
     """Information about a registered command."""
-    
+
     name: str
     description: str
 
@@ -144,22 +141,22 @@ class CommandInfo:
 @dataclass
 class CommandParameter:
     """Command parameter definition for validation."""
-    
+
     name: str
     type: str  # 'string', 'number', 'boolean', 'object', 'array'
     description: str = ""
     required: bool = True
     default: Any = None
-    enum: Optional[List[Any]] = None
+    enum: list[Any] | None = None
 
 
 @dataclass
 class CommandDefinition:
     """Full command definition with parameters."""
-    
+
     name: str
     description: str
-    parameters: List[CommandParameter] = field(default_factory=list)
+    parameters: list[CommandParameter] = field(default_factory=list)
 
 
 @dataclass
@@ -173,18 +170,18 @@ class DirectClientOptions:
             the registry's own default applies.
         random: ``context.random`` of every call that sets none. Default: none.
     """
-    
-    source: Optional[str] = None
+
+    source: str | None = None
     debug: bool = False
     validate_inputs: bool = True
-    actor: Optional[Actor] = None
-    clock: Optional[Clock] = None
-    random: Optional[RandomSource] = None
-    on_approval_needed: Optional[Callable[[DirectApprovalRequest], Any]] = None
+    actor: Actor | None = None
+    clock: Clock | None = None
+    random: RandomSource | None = None
+    on_approval_needed: Callable[[DirectApprovalRequest], Any] | None = None
     """Trusted host hook. Only an explicit True permits one private retry."""
-    allow: Optional[Callable[[str], bool]] = None
+    allow: Callable[[str], bool] | None = None
     """Permit only names for which this predicate returns True; exceptions deny."""
-    middleware: List[Callable] = field(default_factory=list)
+    middleware: list[Callable] = field(default_factory=list)
     """Client middleware wraps each registry attempt, in list order."""
 
 
@@ -196,19 +193,19 @@ class DirectCallContext:
     TypeScript DirectClient. Cancellation is cooperative: a handler that
     suppresses cancellation may still finish after the call times out.
     """
-    
-    trace_id: Optional[str] = None
-    timeout: Optional[float] = None
-    extra: Dict[str, Any] = field(default_factory=dict)
-    actor: Optional[Actor] = None
+
+    trace_id: str | None = None
+    timeout: float | None = None
+    extra: dict[str, Any] = field(default_factory=dict)
+    actor: Actor | None = None
     """Who is calling; wins over the client's actor."""
-    clock: Optional[Clock] = None
+    clock: Clock | None = None
     """Clock for this call; wins over the client's."""
-    random: Optional[RandomSource] = None
+    random: RandomSource | None = None
     """Random source for this call; wins over the client's."""
-    approval: Optional[str] = None
+    approval: str | None = None
     """Ignored on public calls; configure on_approval_needed to approve."""
-    output_budget: Optional[int] = None
+    output_budget: int | None = None
     """Per-call output budget ask in bytes (spec/output-budgets.md, B2)."""
 
 
@@ -220,25 +217,22 @@ class DirectCallContext:
 @dataclass
 class UnknownToolError:
     """Structured error when an agent calls a non-existent tool."""
-    
+
     error: str = "UNKNOWN_TOOL"
     message: str = ""
     requested_tool: str = ""
-    available_tools: List[str] = field(default_factory=list)
-    suggestions: List[str] = field(default_factory=list)
-    hint: Optional[str] = None
+    available_tools: list[str] = field(default_factory=list)
+    suggestions: list[str] = field(default_factory=list)
+    hint: str | None = None
 
 
-def _create_unknown_tool_error(
-    requested: str,
-    available: List[str]
-) -> UnknownToolError:
+def _create_unknown_tool_error(requested: str, available: list[str]) -> UnknownToolError:
     """Create a structured unknown tool error."""
     suggestions = find_similar_tools(requested, available)
     hint = f"Did you mean '{suggestions[0]}'?" if suggestions else None
     # The requested name is untrusted: echo a bounded copy.
     requested = truncate_name(requested)
-    
+
     return UnknownToolError(
         error="UNKNOWN_TOOL",
         message=f"Tool '{requested}' not found in registry",
@@ -257,51 +251,51 @@ def _create_unknown_tool_error(
 @runtime_checkable
 class DirectRegistry(Protocol):
     """Protocol for registries that support direct execution.
-    
+
     Implement this in your application to enable DirectClient.
-    
+
     Example:
         >>> class MyRegistry:
         ...     def __init__(self):
         ...         self._commands = {}
-        ...     
+        ...
         ...     async def execute(self, name, args, context):
         ...         handler = self._commands.get(name)
         ...         return await handler(args)
-        ...     
+        ...
         ...     def has_command(self, name):
         ...         return name in self._commands
-        ...     
+        ...
         ...     def list_commands(self):
         ...         return [{'name': n, 'description': ''} for n in self._commands]
-        ...     
+        ...
         ...     def list_command_names(self):
         ...         return list(self._commands.keys())
     """
-    
+
     async def execute(
         self,
         name: str,
-        args: Optional[Dict[str, Any]] = None,
-        context: Optional[CommandContext] = None,
+        args: dict[str, Any] | None = None,
+        context: CommandContext | None = None,
     ) -> CommandResult:
         """Execute a command by name."""
         ...
-    
+
     def has_command(self, name: str) -> bool:
         """Check if command exists."""
         ...
-    
-    def list_commands(self) -> List[CommandInfo]:
+
+    def list_commands(self) -> list[CommandInfo]:
         """List all registered commands."""
         ...
-    
-    def list_command_names(self) -> List[str]:
+
+    def list_command_names(self) -> list[str]:
         """List command names only."""
         ...
-    
+
     # Optional method for validation support
-    def get_command(self, name: str) -> Optional[CommandDefinition]:
+    def get_command(self, name: str) -> CommandDefinition | None:
         """Get command definition for validation (optional)."""
         ...
 
@@ -314,11 +308,11 @@ class DirectRegistry(Protocol):
 @dataclass
 class RegisteredCommand:
     """A registered command with its handler and metadata."""
-    
+
     name: str
     description: str
     handler: Callable
-    parameters: List[CommandParameter] = field(default_factory=list)
+    parameters: list[CommandParameter] = field(default_factory=list)
 
 
 def _takes_context(handler: Callable) -> bool:
@@ -347,11 +341,11 @@ class SimpleRegistry:
 
     Example:
         >>> registry = SimpleRegistry()
-        >>> 
+        >>>
         >>> @registry.command(name='hello', description='Say hello')
         ... async def hello(name: str = 'World'):
         ...     return success({'message': f'Hello, {name}!'})
-        >>> 
+        >>>
         >>> client = DirectClient(registry)
         >>> result = await client.call('hello', {'name': 'Agent'})
         >>>
@@ -359,13 +353,13 @@ class SimpleRegistry:
         ... async def roll(*, context):
         ...     return success({'roll': 1 + int(context.random.next() * 6)})
     """
-    
+
     def __init__(
         self,
         *,
         dev_mode: bool = False,
-        clock: Optional[Clock] = None,
-        random: Optional[RandomSource] = None,
+        clock: Clock | None = None,
+        random: RandomSource | None = None,
     ):
         """
         Args:
@@ -373,23 +367,24 @@ class SimpleRegistry:
             clock: Clock for handlers when the call's context has none.
             random: Random source for handlers when the call's context has none.
         """
-        self._commands: Dict[str, RegisteredCommand] = {}
+        self._commands: dict[str, RegisteredCommand] = {}
         self._dev_mode = dev_mode
         self._context_defaults = ContextDefaults(clock=clock, random=random)
-    
+
     def command(
         self,
         name: str,
         description: str = "",
-        parameters: Optional[List[CommandParameter]] = None,
+        parameters: list[CommandParameter] | None = None,
     ) -> Callable:
         """Decorator to register a command.
-        
+
         Args:
             name: Command name (use dot.notation for namespacing)
             description: What the command does
             parameters: Parameter definitions for validation
         """
+
         def decorator(func: Callable) -> Callable:
             self._commands[name] = RegisteredCommand(
                 name=name,
@@ -398,14 +393,15 @@ class SimpleRegistry:
                 parameters=parameters or [],
             )
             return func
+
         return decorator
-    
+
     def register(
         self,
         name: str,
         handler: Callable,
         description: str = "",
-        parameters: Optional[List[CommandParameter]] = None,
+        parameters: list[CommandParameter] | None = None,
     ) -> None:
         """Register a command imperatively."""
         self._commands[name] = RegisteredCommand(
@@ -414,12 +410,12 @@ class SimpleRegistry:
             handler=handler,
             parameters=parameters or [],
         )
-    
+
     async def execute(
         self,
         name: str,
-        args: Optional[Dict[str, Any]] = None,
-        context: Optional[CommandContext] = None,
+        args: dict[str, Any] | None = None,
+        context: CommandContext | None = None,
     ) -> CommandResult:
         """Execute a command by name."""
         if _is_apps_context(context):
@@ -432,13 +428,15 @@ class SimpleRegistry:
         raw_ask = getattr(context, "_output_budget_ask", None) if context is not None else None
         if raw_ask is not None and parse_ask(raw_ask) is None:
             return ask_validation_failure()
-        
+
         kwargs = dict(args or {})
         if _takes_context(cmd.handler):
             if "context" in kwargs:
-                return failure(validation_error(
-                    f"Invalid arguments for '{name}': 'context' is reserved for the command context"
-                ))
+                return failure(
+                    validation_error(
+                        f"Invalid arguments for '{name}': 'context' is reserved for the command context"
+                    )
+                )
             kwargs["context"] = with_context_defaults(context, self._context_defaults)
         try:
             inspect.signature(cmd.handler).bind(**kwargs)
@@ -452,23 +450,23 @@ class SimpleRegistry:
             # The handler itself failed: not the caller's input.
             logger.error("Command '%s' raised an unhandled exception", name, exc_info=exc)
             return execution_failure(exc, self._dev_mode)
-    
+
     def has_command(self, name: str) -> bool:
         """Check if command exists."""
         return name in self._commands
-    
-    def list_commands(self) -> List[CommandInfo]:
+
+    def list_commands(self) -> list[CommandInfo]:
         """List all registered commands."""
         return [
             CommandInfo(name=cmd.name, description=cmd.description)
             for cmd in self._commands.values()
         ]
-    
-    def list_command_names(self) -> List[str]:
+
+    def list_command_names(self) -> list[str]:
         """List command names only."""
         return list(self._commands.keys())
-    
-    def get_command(self, name: str) -> Optional[CommandDefinition]:
+
+    def get_command(self, name: str) -> CommandDefinition | None:
         """Get command definition for validation."""
         cmd = self._commands.get(name)
         if not cmd:
@@ -504,15 +502,15 @@ def _generate_trace_id() -> str:
 
 class DirectClient:
     """Zero-overhead command execution client.
-    
+
     Calls commands directly via the registry without MCP transport.
     Provides ~0.1ms latency vs 10-100ms for MCP.
-    
+
     Example:
         >>> client = DirectClient(registry)
         >>> result = await client.call('todo-create', {'title': 'Fast task'})
         >>> print(result.data)
-    
+
     Pipeline Example:
         >>> result = await client.pipe([
         ...     {'command': 'user-get', 'input': {'id': 123}, 'as': 'user'},
@@ -523,7 +521,7 @@ class DirectClient:
     def __init__(
         self,
         registry: DirectRegistry,
-        options: Optional[DirectClientOptions] = None,
+        options: DirectClientOptions | None = None,
     ):
         self.registry = registry
         self.options = options or DirectClientOptions()
@@ -543,36 +541,36 @@ class DirectClient:
 
         next_fn = execute
         for middleware in reversed(self.options.middleware):
-            next_fn = (lambda mw, nxt: lambda: mw(name, args if args is not None else {}, context, nxt))(
-                middleware, next_fn
-            )
+            next_fn = (
+                lambda mw, nxt: lambda: mw(name, args if args is not None else {}, context, nxt)
+            )(middleware, next_fn)
         try:
             return await next_fn()
         except Exception as exc:
             logger.error("Command '%s' raised an unhandled exception", name, exc_info=exc)
             return execution_failure(exc)
-    
+
     async def call(
         self,
         name: str,
-        args: Optional[Dict[str, Any]] = None,
-        context: Optional[DirectCallContext] = None,
+        args: dict[str, Any] | None = None,
+        context: DirectCallContext | None = None,
         *,
         output_budget: Any = None,
     ) -> CommandResult:
         """Execute a command with zero transport overhead.
-        
+
         Args:
             name: Command name
             args: Command arguments
             context: Optional call context for tracing
-        
+
         Returns:
             CommandResult from the command handler
         """
         start_time = time.perf_counter() if self.options.debug else 0
         trace_id = (context.trace_id if context else None) or _generate_trace_id()
-        
+
         self._debug(f"[{trace_id}] Calling {name}", args)
 
         # App-to-app calls (spec/command-metadata.md, "App-to-app calls") go directly
@@ -582,41 +580,39 @@ class DirectClient:
 
         if not self._is_allowed(name):
             return failure(_not_allowed(name))
-        
+
         # Check if command exists
         if not self.registry.has_command(name):
             available = self.list_command_names()
             error_data = _create_unknown_tool_error(name, available)
-            
+
             self._debug(f"[{trace_id}] Unknown command: {name}")
-            
+
             return CommandResult(
                 success=False,
                 data=error_data,
-                error={
-                    "code": "UNKNOWN_TOOL",
-                    "message": error_data.message,
+                error=CommandError(
+                    code="UNKNOWN_TOOL",
+                    message=error_data.message,
                     # Always a suggestion (spec/error-codes.md, D4): the closest
                     # match, or where to find valid names.
-                    "suggestion": error_data.hint
+                    suggestion=error_data.hint
                     or "Call one of the commands returned by list_command_names()",
-                    "retryable": False,
-                },
+                    retryable=False,
+                ),
             )
-        
+
         # Input validation (if registry supports getCommand)
-        if self.options.validate_inputs and hasattr(self.registry, 'get_command'):
+        if self.options.validate_inputs and hasattr(self.registry, "get_command"):
             cmd_def = self.registry.get_command(name)
             if cmd_def:
                 issues = self._validate_input(args, cmd_def.parameters)
                 if issues:
                     self._debug(f"[{trace_id}] Validation failed: {issues}")
                     return failure(
-                        validation_error(
-                            f"Invalid input for '{name}': {'; '.join(issues)}"
-                        )
+                        validation_error(f"Invalid input for '{name}': {'; '.join(issues)}")
                     )
-        
+
         # Build command context. The call's actor, clock and random win over the client's.
         # Clock and random are only set when configured, so a registry's own defaults
         # still apply.
@@ -640,15 +636,20 @@ class DirectClient:
             approval=None,
             _output_budget_ask=raw_ask,
         )
-        
+
         # The exchange survives context copies, but credentials never enter public contexts.
         exchange = _DirectApprovalExchange()
         cmd_context._direct_approval = exchange
 
         timeout = cmd_context.timeout
-        seconds = (min(timeout, 2_147_483_647) / 1000 if
-            isinstance(timeout, (int, float)) and not isinstance(timeout, bool)
-            and (isinstance(timeout, int) or math.isfinite(timeout)) and timeout > 0 else None)
+        seconds = (
+            min(timeout, 2_147_483_647) / 1000
+            if isinstance(timeout, (int, float))
+            and not isinstance(timeout, bool)
+            and (isinstance(timeout, int) or math.isfinite(timeout))
+            and timeout > 0
+            else None
+        )
         loop = asyncio.get_running_loop()
         deadline = loop.time() + seconds if seconds is not None else None
 
@@ -656,13 +657,18 @@ class DirectClient:
             return deadline is not None and loop.time() >= deadline
 
         def timed_out():
-            return failure(CommandError(
-                code="TIMEOUT",
-                message=f"Command '{truncate_name(name)}' timed out after {timeout}ms",
-                suggestion=("Retry with a larger timeout. The command was signalled to abort "
-                    "but may have completed, so check its effect before retrying a mutation."),
-                retryable=True, details={"command": name, "timeoutMs": timeout},
-            ))
+            return failure(
+                CommandError(
+                    code="TIMEOUT",
+                    message=f"Command '{truncate_name(name)}' timed out after {timeout}ms",
+                    suggestion=(
+                        "Retry with a larger timeout. The command was signalled to abort "
+                        "but may have completed, so check its effect before retrying a mutation."
+                    ),
+                    retryable=True,
+                    details={"command": name, "timeoutMs": timeout},
+                )
+            )
 
         async def run():
             result = _public_result(await self._execute(name, args, cmd_context), name)
@@ -670,8 +676,13 @@ class DirectClient:
                 return timed_out()
             pending = exchange.pending()
             hook = self.options.on_approval_needed
-            if (not result.success and result.error is not None
-                    and result.error.code == "APPROVAL_REQUIRED" and pending and hook):
+            if (
+                not result.success
+                and result.error is not None
+                and result.error.code == "APPROVAL_REQUIRED"
+                and pending
+                and hook
+            ):
                 request = DirectApprovalRequest(command=name, input=copy.deepcopy(args), **pending)
                 try:
                     answer = hook(request)
@@ -711,48 +722,55 @@ class DirectClient:
 
         if self.options.debug:
             duration = (time.perf_counter() - start_time) * 1000
-            self._debug(f"[{trace_id}] Completed in {duration:.3f}ms", {
-                "success": result.success,
-            })
-        
+            self._debug(
+                f"[{trace_id}] Completed in {duration:.3f}ms",
+                {
+                    "success": result.success,
+                },
+            )
+
         return result
-    
-    def list_commands(self) -> List[CommandInfo]:
+
+    def list_commands(self) -> list[CommandInfo]:
         """List available commands."""
-        return [command for command in self.registry.list_commands() if self._is_allowed(command.name)]
-    
-    def list_command_names(self) -> List[str]:
+        return [
+            command for command in self.registry.list_commands() if self._is_allowed(command.name)
+        ]
+
+    def list_command_names(self) -> list[str]:
         """List command names."""
         return [name for name in self.registry.list_command_names() if self._is_allowed(name)]
-    
+
     def has_command(self, name: str) -> bool:
         """Check if a command exists."""
         return self._is_allowed(name) and self.registry.has_command(name)
-    
-    def get_source(self) -> Optional[str]:
+
+    def get_source(self) -> str | None:
         """Get the source identifier for this client."""
         return self.options.source
-    
+
     def _validate_input(
         self,
-        args: Optional[Dict[str, Any]],
-        parameters: List[CommandParameter],
-    ) -> List[str]:
+        args: dict[str, Any] | None,
+        parameters: list[CommandParameter],
+    ) -> list[str]:
         """Validate input against parameter definitions."""
         issues = []
         args = args or {}
-        
+
         for param in parameters:
             if param.required and param.name not in args:
                 issues.append(f"Missing required parameter: '{param.name}'")
                 continue
-            
+
             if param.name in args:
                 value = args[param.name]
                 # Type checking (basic)
                 if param.type == "string" and not isinstance(value, str):
                     issues.append(f"'{param.name}' must be a string")
-                elif param.type == "number" and (isinstance(value, bool) or not isinstance(value, (int, float))):
+                elif param.type == "number" and (
+                    isinstance(value, bool) or not isinstance(value, (int, float))
+                ):
                     issues.append(f"'{param.name}' must be a number")
                 elif param.type == "boolean" and not isinstance(value, bool):
                     issues.append(f"'{param.name}' must be a boolean")
@@ -760,19 +778,17 @@ class DirectClient:
                     issues.append(f"'{param.name}' must be an object")
                 elif param.type == "array" and not isinstance(value, list):
                     issues.append(f"'{param.name}' must be an array")
-                
+
                 # Enum validation
                 if param.enum and value not in param.enum:
-                    issues.append(
-                        f"'{param.name}' must be one of: {param.enum}"
-                    )
-        
+                    issues.append(f"'{param.name}' must be one of: {param.enum}")
+
         return issues
-    
+
     async def connect_handoff(
         self,
-        handoff: Dict[str, Any],
-        options: Optional[Any] = None,
+        handoff: dict[str, Any],
+        options: Any | None = None,
     ) -> Any:
         """Connect to a handoff endpoint.
 
@@ -786,12 +802,13 @@ class DirectClient:
             A HandoffConnection for the protocol.
         """
         from afd.handoff_client import connect_handoff as _connect_handoff
+
         return await _connect_handoff(handoff, options)
 
     async def create_reconnecting_handoff(
         self,
-        handoff: Dict[str, Any],
-        options: Optional[Any] = None,
+        handoff: dict[str, Any],
+        options: Any | None = None,
     ) -> Any:
         """Create a reconnecting handoff connection.
 
@@ -805,19 +822,20 @@ class DirectClient:
             A ReconnectingHandoffConnection with auto-reconnect.
         """
         from afd.handoff_client import create_reconnecting_handoff as _create
+
         return await _create(self, handoff, options)
 
     def _debug(self, message: str, data: Any = None) -> None:
         """Debug logging helper."""
         if self.options.debug:
             print(f"[DirectClient] {message}", data if data else "")
-    
+
     async def pipe(
         self,
-        steps: List[Union[PipelineStep, Dict[str, Any]]],
-        context: Optional[DirectCallContext] = None,
+        steps: list[PipelineStep | dict[str, Any]],
+        context: DirectCallContext | None = None,
         *,
-        input: Optional[Dict[str, Any]] = None,
+        input: dict[str, Any] | None = None,
         output_budget: Any = None,
     ) -> PipelineResult:
         """Execute a pipeline of commands with variable resolution.
@@ -879,7 +897,7 @@ class DirectClient:
                 total_duration_ms=(time.perf_counter() - start_time) * 1000,
             )
 
-        async def call(command: str, args: Optional[Dict[str, Any]]) -> Any:
+        async def call(command: str, args: dict[str, Any] | None) -> Any:
             return await self.call(command, args, context, output_budget=output_budget)
 
         return await run_direct_pipeline(
@@ -900,8 +918,8 @@ class DirectClient:
 def create_registry(
     *,
     dev_mode: bool = False,
-    clock: Optional[Clock] = None,
-    random: Optional[RandomSource] = None,
+    clock: Clock | None = None,
+    random: RandomSource | None = None,
 ) -> SimpleRegistry:
     """Create a new SimpleRegistry instance.
 
@@ -914,7 +932,7 @@ def create_registry(
 
     Example:
         >>> registry = create_registry()
-        >>> 
+        >>>
         >>> @registry.command(name='ping', description='Health check')
         ... async def ping():
         ...     return success({'status': 'ok'})
@@ -924,25 +942,25 @@ def create_registry(
 
 def create_direct_client(
     registry: DirectRegistry,
-    source: Optional[str] = None,
+    source: str | None = None,
     debug: bool = False,
     validate_inputs: bool = True,
     *,
-    on_approval_needed: Optional[Callable[[DirectApprovalRequest], Any]] = None,
-    allow: Optional[Callable[[str], bool]] = None,
-    middleware: Optional[List[Callable]] = None,
+    on_approval_needed: Callable[[DirectApprovalRequest], Any] | None = None,
+    allow: Callable[[str], bool] | None = None,
+    middleware: list[Callable] | None = None,
 ) -> DirectClient:
     """Create a DirectClient for zero-overhead command execution.
-    
+
     Args:
         registry: The command registry to execute against
         source: Optional source identifier (e.g., 'my-agent')
         debug: Enable debug logging
         validate_inputs: Validate inputs against schemas
-    
+
     Returns:
         Configured DirectClient instance
-    
+
     Example:
         >>> client = create_direct_client(registry, source='api-server')
         >>> result = await client.call('user-get', {'id': 123})
@@ -976,19 +994,29 @@ class DirectCommandRegistry:
         self._server = server
         self._interface = interface
 
-    def list_commands(self) -> List[CommandInfo]:
-        return [CommandInfo(c.name, c.description) for c in
-                self._server.list_exposed_commands(interface=self._interface, include_bootstrap=False)]
+    def list_commands(self) -> list[CommandInfo]:
+        return [
+            CommandInfo(c.name, c.description)
+            for c in self._server.list_exposed_commands(
+                interface=self._interface, include_bootstrap=False
+            )
+        ]
 
-    def list_command_names(self) -> List[str]:
+    def list_command_names(self) -> list[str]:
         return [c.name for c in self.list_commands()]
 
     def has_command(self, name: str) -> bool:
         return name in self.list_command_names()
 
-    async def execute(self, name: str, args: Any = None, context: Any = None, *,
-                      allow: Optional[Callable[[str], bool]] = None,
-                      output_budget: Any = None) -> CommandResult:
+    async def execute(
+        self,
+        name: str,
+        args: Any = None,
+        context: Any = None,
+        *,
+        allow: Callable[[str], bool] | None = None,
+        output_budget: Any = None,
+    ) -> CommandResult:
         from afd.core.direct_approval import _exchange, _public_context
 
         if _is_apps_context(context):
@@ -999,17 +1027,26 @@ class DirectCommandRegistry:
         # server.execute also routes MCP meta-tools, which build a fresh MCP context.
         # Only registered commands may cross this direct boundary; never dispatch a router.
         if not any(command.name == name for command in self._server.list_commands()):
-            return failure(CommandError(code="COMMAND_NOT_FOUND",
-                message=f"Command '{truncate_name(name)}' not found",
-                suggestion="List available commands to see valid options", retryable=False))
-        definition = next(command for command in self._server.list_commands() if command.name == name)
+            return failure(
+                CommandError(
+                    code="COMMAND_NOT_FOUND",
+                    message=f"Command '{truncate_name(name)}' not found",
+                    suggestion="List available commands to see valid options",
+                    retryable=False,
+                )
+            )
+        definition = next(
+            command for command in self._server.list_commands() if command.name == name
+        )
         if not self._server._is_exposed_to(definition, self._interface):
-            return failure(CommandError(
-                code="COMMAND_NOT_EXPOSED",
-                message=f"Command '{truncate_name(name)}' is not exposed to {self._interface}",
-                suggestion="Call a command exposed to the registry's configured interface",
-                retryable=False,
-            ))
+            return failure(
+                CommandError(
+                    code="COMMAND_NOT_EXPOSED",
+                    message=f"Command '{truncate_name(name)}' is not exposed to {self._interface}",
+                    suggestion="Call a command exposed to the registry's configured interface",
+                    retryable=False,
+                )
+            )
         exchange = _exchange(context)
         owned = exchange is None
         exchange = exchange or _DirectApprovalExchange()
@@ -1029,8 +1066,13 @@ class DirectCommandRegistry:
                 exchange.dispose()
 
 
-def create_direct_registry(commands: List[Callable], *, middleware: Optional[List[Any]] = None,
-                           interface: str = "agent", **options: Any) -> DirectCommandRegistry:
+def create_direct_registry(
+    commands: list[Callable],
+    *,
+    middleware: list[Any] | None = None,
+    interface: str = "agent",
+    **options: Any,
+) -> DirectCommandRegistry:
     """Create an agent boundary for decorated commands using the validating server engine."""
     from afd.server import create_server
 

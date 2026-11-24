@@ -20,7 +20,7 @@ import logging
 import math
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, Protocol
 
 from pydantic_core import to_jsonable_python
@@ -158,7 +158,7 @@ class _RecordingRandom:
 def _iso_timestamp(ms: float) -> str:
     """Epoch milliseconds as JavaScript's ``Date.toISOString()`` writes them."""
     whole = math.trunc(ms)
-    moment = datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(milliseconds=whole)
+    moment = datetime(1970, 1, 1, tzinfo=UTC) + timedelta(milliseconds=whole)
     return moment.strftime("%Y-%m-%dT%H:%M:%S.") + f"{moment.microsecond // 1000:03d}Z"
 
 
@@ -358,7 +358,7 @@ def create_journal_middleware(
 
         if thrown is not None:
             raise thrown
-        return result
+        return result  # type: ignore[no-any-return]
 
     return middleware
 
@@ -458,6 +458,10 @@ class _TapeClock:
     def __init__(self, readings: Sequence[float], start: float) -> None:
         self._readings = readings
         self._start = start
+        self._index = 0
+        self._last = start
+        self._overran = False
+        self._ended = False
         self.rewind()
 
     def now(self) -> float:
@@ -492,6 +496,10 @@ class _TapeRandom:
     def __init__(self, values: Sequence[float], seed: str) -> None:
         self._values = values
         self.seed = seed
+        self._index = 0
+        self._overran = False
+        self._ended = False
+        self._fallback = seeded_random(seed)
         self.rewind()
 
     def next(self) -> float:
@@ -534,7 +542,9 @@ def _tape_notes(entry: JournalEntry, clock: _TapeClock | None, random: _TapeRand
             "later readings repeat the last one"
         )
     elif clock is not None and clock.used() < len(tape.clock):
-        notes.append(f"clock: the replay read {clock.used()} of {len(tape.clock)} recorded readings")
+        notes.append(
+            f"clock: the replay read {clock.used()} of {len(tape.clock)} recorded readings"
+        )
     if random.overran():
         notes.append(
             f"random: the tape holds {len(tape.random)} values and the replay read more; "
@@ -652,10 +662,7 @@ def _target_checks_app_calls(registry: Any) -> bool:
             and "_prepare_command" not in inst_dict
         )
     if isinstance(registry, _CommandRegistryImpl):
-        return (
-            type(registry).execute is _CommandRegistryImpl.execute
-            and "execute" not in inst_dict
-        )
+        return type(registry).execute is _CommandRegistryImpl.execute and "execute" not in inst_dict
     return False
 
 

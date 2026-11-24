@@ -615,9 +615,7 @@ async def test_cdp_perf_trace_unsupported_and_metrics_single_wrapped(monkeypatch
 
 
 @pytest.mark.asyncio
-async def test_cdp_select_page_tracks_target_id_and_detects_closed_tab(
-    monkeypatch, tmp_path: Path
-):
+async def test_cdp_select_page_tracks_target_id_and_detects_closed_tab(monkeypatch, tmp_path: Path):
     """lushly-dev/afd#778: closing an earlier tab outside Botcore keeps targeting the selected
     targetId, and closing the selected target surfaces CDP_SELECTED_PAGE_CLOSED."""
     from botcore.commands.cdp import core, forms

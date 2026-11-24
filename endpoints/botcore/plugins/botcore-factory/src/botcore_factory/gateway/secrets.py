@@ -8,6 +8,7 @@ names the field and the rule, never the matched text.
 from __future__ import annotations
 
 import re
+from typing import Any
 
 from afd import CommandResult, error
 
@@ -35,7 +36,7 @@ BUILT_IN_RULES: dict[str, str] = {
 }
 
 
-def rules(patterns: list[str]) -> dict[str, re.Pattern]:
+def rules(patterns: list[str]) -> dict[str, re.Pattern[str]]:
     compiled = {name: re.compile(pattern) for name, pattern in BUILT_IN_RULES.items()}
     for index, pattern in enumerate(patterns):
         compiled[f"repository-pattern-{index + 1}"] = re.compile(pattern)
@@ -44,7 +45,7 @@ def rules(patterns: list[str]) -> dict[str, re.Pattern]:
 
 def check_text(
     fields: dict[str, str | None], patterns: list[str], max_bytes: int
-) -> CommandResult | None:
+) -> CommandResult[Any] | None:
     """Refuse the first field that is too large or matches a secret rule; None when clean."""
     compiled = rules(patterns)
     for field, text in fields.items():

@@ -233,6 +233,7 @@ def init(
 
     # Detect language
     detected = detect_language(ws)
+    lang: str | None
     if language:
         lang = language
     elif non_interactive:

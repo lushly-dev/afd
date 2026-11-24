@@ -19,22 +19,15 @@ from afd.core.batch import (
 from afd.core.commands import CommandContext, CommandDefinition
 from afd.core.output_budget import current_output_budget_ask
 from afd.core.pipeline import create_pipeline_failure
-from afd.core.result import CommandResult, error, failure as command_failure
+from afd.core.result import CommandResult, error
+from afd.core.result import failure as command_failure
+from afd.core.similarity import truncate_name
 from afd.server.approval_relay import (
     NEVER_ASKS,
     UpFrontApproval,
     bind_approval_relay,
     current_approval_relay,
 )
-from afd.server.config import refuse_apps_tool_call
-from afd.server.confirmations import (
-    ConfirmationGate,
-    ConfirmationStep,
-    declares_confirm_input,
-    named_acknowledgement,
-    without_confirm,
-)
-from afd.core.similarity import truncate_name
 from afd.server.auth import credentials_actor
 from afd.server.auth_view import (
     ScopeView,
@@ -43,6 +36,14 @@ from afd.server.auth_view import (
     scope_view_of,
     select_grouped_call,
     shown_only,
+)
+from afd.server.config import refuse_apps_tool_call
+from afd.server.confirmations import (
+    ConfirmationGate,
+    ConfirmationStep,
+    declares_confirm_input,
+    named_acknowledgement,
+    without_confirm,
 )
 from afd.server.context_fields import current_context_field_values
 from afd.server.context_hook import copy_extra, current_hook_outcome
@@ -81,6 +82,7 @@ class ToolRouterDeps:
     max_batch_size: int = DEFAULT_MAX_BATCH_SIZE
     max_batch_parallelism: int = DEFAULT_MAX_BATCH_PARALLELISM
 
+
 NOT_IN_CONTEXT_SUGGESTION = (
     "Use afd-context-list to see available contexts, or afd-context-enter to switch."
 )
@@ -115,7 +117,7 @@ def _index_by_name(commands: list[CommandDefinition]) -> dict[str, CommandDefini
     return index
 
 
-def create_tool_router(deps: ToolRouterDeps):
+def create_tool_router(deps: ToolRouterDeps) -> Callable[..., Awaitable[Any]]:
     """Create a router that dispatches built-in, grouped, or direct MCP tools.
 
     Lookups are precomputed when the router is created, so a call costs the
@@ -258,6 +260,8 @@ def create_tool_router(deps: ToolRouterDeps):
         refusal = outcome.error
         if to_result is not None:
             return to_result(refusal)
+        if refusal is None:
+            raise RuntimeError("confirmation gate refused without an error")
         return command_failure(refusal)
 
     def routed(command_name: str) -> None:
@@ -388,7 +392,9 @@ def create_tool_router(deps: ToolRouterDeps):
                 ],
                 view,
             )
-            return execute_detail(visible_all_commands, exposed_command_names, {} if args is None else args)
+            return execute_detail(
+                visible_all_commands, exposed_command_names, {} if args is None else args
+            )
 
         if tool_name == "afd-batch":
             limit_error = check_batch_limits(
@@ -405,7 +411,9 @@ def create_tool_router(deps: ToolRouterDeps):
                         deps.refuse_composite_task("afd-batch", required_task)
                     )
             batch_steps = [
-                step for step in _steps(args, "commands") if view is None or view.known(step.command)
+                step
+                for step in _steps(args, "commands")
+                if view is None or view.known(step.command)
             ]
             refused = await unconfirmed(
                 batch_steps,
@@ -522,7 +530,12 @@ def create_tool_router(deps: ToolRouterDeps):
         # the command validates its input, unless the command's own schema declares it.
         command_input = {} if args is None else args
         acknowledged = False
-        if gate is not None and command is not None and command.confirm_prompt and isinstance(command_input, dict):
+        if (
+            gate is not None
+            and command is not None
+            and command.confirm_prompt
+            and isinstance(command_input, dict)
+        ):
             acknowledged = command_input.get("confirm") is True
             if not declares_confirm_input(command):
                 command_input = without_confirm(command_input)

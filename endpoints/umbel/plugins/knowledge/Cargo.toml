@@ -5,7 +5,7 @@ edition = "2024"
 rust-version = "1.97"
 publish = false
 license = "MIT"
-description = "AFD Umbel knowledge plugin: structure-aware chunking, lexical search, open and find over the document store, and the umbel-knowledge binary"
+description = "AFD Umbel knowledge plugin: structure-aware chunking, lexical search, open and find over the document store"
 repository = "https://github.com/lushly-dev/afd"
 
 [features]
@@ -17,10 +17,6 @@ code = [
 	"dep:streaming-iterator", "dep:tree-sitter", "dep:tree-sitter-python", "dep:tree-sitter-rust",
 	"dep:tree-sitter-typescript",
 ]
-
-[[bin]]
-name = "umbel-knowledge"
-path = "src/bin/umbel-knowledge.rs"
 
 [dependencies]
 # RFC 3339 dates for the index's date fields; the same crate the host reads timestamps with.
@@ -41,12 +37,7 @@ tree-sitter-typescript = { version = "0.23", optional = true }
 sha2 = "0.11"
 # The ranking pack is a TOML file.
 toml = "1"
-# The binary is the `umbel` command line with the knowledge plugins compiled in: the command line
-# and the embedded stores, and no loader (so no wasmtime), as `umbel-todo` does.
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
-umbel = { path = "../..", default-features = false, features = ["cli", "store-embedded"] }
 umbel-okf = { path = "../../okf" }
-umbel-plugin-sources-filesystem = { path = "../sources-filesystem" }
 umbel-scan = { path = "../../scan" }
 umbel-sdk = { path = "../../sdk" }
 umbel-store = { path = "../../store" }
@@ -68,6 +59,7 @@ http-body-util = "0.1"
 hyper = { version = "1", features = ["client", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio", "http1"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["aws_lc_rs", "tls12"] }
+umbel-plugin-sources-filesystem = { path = "../sources-filesystem" }
 umbel-testkit-idp = { path = "../../testkit-idp" }
 url = "2"
 # The query set and the report are validated against their schemas.
@@ -79,7 +71,7 @@ tempfile = "3"
 tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
 # The tests boot a host with collections, readers and allow lists, and seed the graph the way
 # step 7a's indexer will. `auth` serves the hosted workspace `tests/relay.rs` approves in.
-umbel = { path = "../..", default-features = false, features = ["auth", "store-embedded", "testkit"] }
+umbel = { path = "../..", default-features = false, features = ["auth", "cli", "store-embedded", "testkit"] }
 # `conformance` for the store suite's memory samples: the verification tests write memory records
 # through the store, as phase 3's tests do (no crate is added; `tempfile` is already here).
 umbel-store = { path = "../../store", features = ["conformance"] }

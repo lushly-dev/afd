@@ -200,7 +200,8 @@ def _node_alignment(path: Path, language: str) -> dict:
     local = checks._read_local_node_majors(path)
     if not majors or len(set(local.values())) != 1:
         return result
-    if result["status"] != "pass" and "does not match CI" not in result["message"]:
+    message = result.get("message") or ""
+    if result["status"] != "pass" and "does not match CI" not in message:
         return result
     # The source function misreads lists and misses matrix expressions and folded values,
     # so the CI comparison is decided here. It stops at that comparison, so engines follow.

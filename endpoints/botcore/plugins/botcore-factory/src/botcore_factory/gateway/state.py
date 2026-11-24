@@ -12,8 +12,15 @@ import json
 import threading
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
-from afd.core.journal import FileJournalSink, JournalEntry, JournalRange, parse_journal
+from afd.core.journal import (
+    FileJournalSink,
+    JournalEntry,
+    JournalRange,
+    JournalRecord,
+    parse_journal,
+)
 
 STATE_KEYS = {"uploads", "reviews", "journal", "verifications"}
 
@@ -31,7 +38,7 @@ class GatewayState:
         self._data = json.loads(self.path.read_text(encoding="utf-8")) if self.path.exists() else {}
 
     @classmethod
-    def seed(cls, directory: Path, fixture: dict) -> GatewayState:
+    def seed(cls, directory: Path, fixture: dict[str, Any]) -> GatewayState:
         directory.mkdir(parents=True, exist_ok=True)
         data = {
             "uploads": fixture.get("uploads", {}),
@@ -43,10 +50,10 @@ class GatewayState:
         (directory / "state.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
         return cls(directory)
 
-    def get(self, key: str, default=None):
+    def get(self, key: str, default: Any = None) -> Any:
         return self._data.get(key, default)
 
-    def put(self, key: str, value) -> None:
+    def put(self, key: str, value: Any) -> None:
         self._data[key] = value
         self.directory.mkdir(parents=True, exist_ok=True)
         self.path.write_text(json.dumps(self._data, indent=2), encoding="utf-8")
@@ -65,7 +72,7 @@ class DailyJournalSink:
             self._sinks[day] = FileJournalSink(self.directory / f"{day}.jsonl")
         return self._sinks[day]
 
-    async def append(self, record):
+    async def append(self, record: JournalRecord) -> JournalEntry:
         return await self._today().append(record)
 
     async def read(self, range: JournalRange | None = None) -> list[JournalEntry]:

@@ -36,17 +36,43 @@ def _event(chunk):
 
 async def _chunks(name, args, session_id=None):
     if name == "session-run":
-        yield {"type": "complete", "totalChunks": 0, "totalDurationMs": 1, "data": {"session": session_id}}
+        yield {
+            "type": "complete",
+            "totalChunks": 0,
+            "totalDurationMs": 1,
+            "data": {"session": session_id},
+        }
     elif name == "export-run":
-        yield {"type": "progress", "progress": 0.5, "message": "Halfway", "itemsProcessed": 1, "itemsTotal": 2}
-        yield {"type": "data", "data": {"row": 1, "format": args.get("format")}, "index": 0, "isLast": False}
+        yield {
+            "type": "progress",
+            "progress": 0.5,
+            "message": "Halfway",
+            "itemsProcessed": 1,
+            "itemsTotal": 2,
+        }
+        yield {
+            "type": "data",
+            "data": {"row": 1, "format": args.get("format")},
+            "index": 0,
+            "isLast": False,
+        }
         yield {"type": "data", "data": "done", "index": 1, "isLast": True}
-        yield {"type": "complete", "totalChunks": 2, "totalDurationMs": 12, "confidence": 0.9, "data": {"rows": 2}}
+        yield {
+            "type": "complete",
+            "totalChunks": 2,
+            "totalDurationMs": 12,
+            "confidence": 0.9,
+            "data": {"rows": 2},
+        }
     elif name == "fail-run":
         yield {"type": "data", "data": "partial", "index": 0, "isLast": False}
         yield {
             "type": "error",
-            "error": {"code": "EXPORT_FAILED", "message": "Disk full", "suggestion": "Free space and retry"},
+            "error": {
+                "code": "EXPORT_FAILED",
+                "message": "Disk full",
+                "suggestion": "Free space and retry",
+            },
             "chunksBeforeError": 1,
             "recoverable": True,
             "resumeFrom": 1,
@@ -57,15 +83,28 @@ async def _chunks(name, args, session_id=None):
         yield {"type": "progress", "progress": 0.1}
         await asyncio.sleep(30)
     elif name == "escape-run":
-        yield {"type": "data", "data": "safe\x1b]0;owned\x07\x1b[2Jtext", "index": 0, "isLast": True}
-        yield {"type": "complete", "totalChunks": 1, "totalDurationMs": 1, "reasoning": "\x1b[31mred\x1b[0m"}
+        yield {
+            "type": "data",
+            "data": "safe\x1b]0;owned\x07\x1b[2Jtext",
+            "index": 0,
+            "isLast": True,
+        }
+        yield {
+            "type": "complete",
+            "totalChunks": 1,
+            "totalDurationMs": 1,
+            "reasoning": "\x1b[31mred\x1b[0m",
+        }
 
 
 async def stream(request: Request):
     name = request.path_params["name"]
     if name == "missing-run":
-        error = {"code": "COMMAND_NOT_FOUND", "message": "Unknown command missing-run",
-                 "suggestion": "Run afd-discover"}
+        error = {
+            "code": "COMMAND_NOT_FOUND",
+            "message": "Unknown command missing-run",
+            "suggestion": "Run afd-discover",
+        }
         return JSONResponse({"success": False, "error": error}, status_code=404)
     args = await request.json()
 

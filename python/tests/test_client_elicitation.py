@@ -25,9 +25,7 @@ MODERN = "2026-07-28"
 
 
 def serve():
-    return protocol_server(
-        "individual", "streamable-http", fixture="elicitation_server.py"
-    )
+    return protocol_server("individual", "streamable-http", fixture="elicitation_server.py")
 
 
 async def test_answers_through_on_elicitation_and_returns_the_final_result():
@@ -39,9 +37,7 @@ async def test_answers_through_on_elicitation_and_returns_the_final_result():
 
     async with serve() as url:
         client = McpClient(
-            McpClientConfig(
-                url=url, auto_reconnect=False, timeout=5, on_elicitation=on_elicitation
-            )
+            McpClientConfig(url=url, auto_reconnect=False, timeout=5, on_elicitation=on_elicitation)
         )
         await client.connect()
         try:

@@ -9,12 +9,22 @@ from afd import success
 from afd.direct import CommandParameter, DirectCallContext, DirectClient, SimpleRegistry
 
 
-@pytest.mark.parametrize(("kind", "value"), [
-    ("number", True), ("number", False), ("number", "1"),
-    ("object", "bad"), ("object", []), ("object", None),
-    ("array", "bad"), ("array", {}), ("array", (1,)),
-    ("boolean", 1), ("string", 1),
-])
+@pytest.mark.parametrize(
+    ("kind", "value"),
+    [
+        ("number", True),
+        ("number", False),
+        ("number", "1"),
+        ("object", "bad"),
+        ("object", []),
+        ("object", None),
+        ("array", "bad"),
+        ("array", {}),
+        ("array", (1,)),
+        ("boolean", 1),
+        ("string", 1),
+    ],
+)
 async def test_shallow_invalid_types_do_not_execute(kind, value):
     registry = SimpleRegistry()
     calls = []
@@ -29,10 +39,17 @@ async def test_shallow_invalid_types_do_not_execute(kind, value):
     assert calls == []
 
 
-@pytest.mark.parametrize(("kind", "value"), [
-    ("number", 1), ("number", 0.25), ("object", {}), ("array", []),
-    ("boolean", False), ("string", ""),
-])
+@pytest.mark.parametrize(
+    ("kind", "value"),
+    [
+        ("number", 1),
+        ("number", 0.25),
+        ("object", {}),
+        ("array", []),
+        ("boolean", False),
+        ("string", ""),
+    ],
+)
 async def test_valid_shallow_types(kind, value):
     registry = SimpleRegistry()
 
@@ -89,7 +106,9 @@ async def test_caller_cancellation_propagates_and_cancels_execution():
             cancelled.set()
 
     registry.register("slow-record", slow)
-    call = asyncio.create_task(DirectClient(registry).call("slow-record", {}, DirectCallContext(timeout=1000)))
+    call = asyncio.create_task(
+        DirectClient(registry).call("slow-record", {}, DirectCallContext(timeout=1000))
+    )
     await entered.wait()
     call.cancel()
     with pytest.raises(asyncio.CancelledError):
@@ -106,7 +125,9 @@ async def test_non_positive_or_non_finite_deadlines_are_not_enforced(timeout):
         return success(None)
 
     registry.register("value-record", record)
-    assert (await DirectClient(registry).call("value-record", {}, DirectCallContext(timeout=timeout))).success
+    assert (
+        await DirectClient(registry).call("value-record", {}, DirectCallContext(timeout=timeout))
+    ).success
 
 
 async def test_large_finite_deadline_does_not_overflow_timer():
@@ -116,5 +137,7 @@ async def test_large_finite_deadline_does_not_overflow_timer():
         return success(None)
 
     registry.register("value-record", record)
-    result = await DirectClient(registry).call("value-record", {}, DirectCallContext(timeout=10 ** 400))
+    result = await DirectClient(registry).call(
+        "value-record", {}, DirectCallContext(timeout=10**400)
+    )
     assert result.success

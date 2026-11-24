@@ -14,11 +14,18 @@
 
 use std::sync::Arc;
 
+use afd::CommandDefinition;
+use serde_json::Value;
 use todo_backend_rust::TodoStore;
-use umbel::plugins::{Asset, CompiledPlugin, PluginCommand, PluginError, Services};
+use umbel_sdk::Asset;
 
 /// The plugin's manifest.
 pub const MANIFEST: &str = include_str!("../umbel-plugin.toml");
+
+/// The plugin's embedded schema assets.
+pub fn assets() -> &'static [Asset] {
+    umbel_sdk::embedded_assets!()
+}
 
 /// The todo plugin: one in-memory store for the host process, shared by every instance and every
 /// seal of it. Several host processes on one workspace each have their own todos, which is why
@@ -35,19 +42,9 @@ pub fn plugin() -> Todo {
     }
 }
 
-impl CompiledPlugin for Todo {
-    fn manifest(&self) -> &str {
-        MANIFEST
-    }
-
-    fn assets(&self) -> &'static [Asset] {
-        umbel_sdk::embedded_assets!()
-    }
-
-    fn commands(&self, _services: Services) -> Result<Vec<PluginCommand>, PluginError> {
-        Ok(todo_backend_rust::commands(Arc::clone(&self.store))
-            .into_iter()
-            .map(|(definition, schema)| PluginCommand::definition(definition, schema))
-            .collect())
+impl Todo {
+    /// The thirteen backend command definitions and their input schemas, bound to this store.
+    pub fn commands(&self) -> Vec<(CommandDefinition, Value)> {
+        todo_backend_rust::commands(Arc::clone(&self.store))
     }
 }

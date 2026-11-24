@@ -18,7 +18,9 @@ from afd import ExposeOptions, success  # noqa: E402
 from afd.server import ContextConfig, create_server  # noqa: E402
 
 VECTORS = json.loads(
-    (Path(__file__).resolve().parents[2] / "spec" / "vectors" / "tool-strategies.json").read_text(encoding="utf-8")
+    (Path(__file__).resolve().parents[2] / "spec" / "vectors" / "tool-strategies.json").read_text(
+        encoding="utf-8"
+    )
 )
 CONTEXT_KEY = "dev.afd/context"
 SERVERS = {item["id"]: item for item in VECTORS["servers"]}
@@ -124,14 +126,18 @@ def test_a_bare_string_is_not_a_list_of_names():
 def test_the_cap_error_names_the_first_entry_beyond_it():
     names = [f"cmd-{letter}" for letter in "abcdefghij"]
     server = create_server("x", tool_strategy="hybrid", first_class_tools=names)
-    _register(server, [{"name": name, "description": name, "expose": {"mcp": True}} for name in names])
+    _register(
+        server, [{"name": name, "description": name, "expose": {"mcp": True}} for name in names]
+    )
     with pytest.raises(ValueError, match="'cmd-i'"):
         server.get_tool_definitions()
 
 
 def test_the_set_is_checked_before_any_request_however_it_is_reached():
     def fresh():
-        server = create_server("x", tool_strategy="hybrid", first_class_tools=["note-list", "missing"])
+        server = create_server(
+            "x", tool_strategy="hybrid", first_class_tools=["note-list", "missing"]
+        )
         _register(server)
         return server
 
@@ -153,7 +159,11 @@ async def test_the_check_runs_before_a_call_and_again_after_a_registration():
         with pytest.raises(ValueError, match="'late-add'"):
             await call()
 
-    @server.command(name="late-add", description="Registered after the first check", expose=ExposeOptions(mcp=True))
+    @server.command(
+        name="late-add",
+        description="Registered after the first check",
+        expose=ExposeOptions(mcp=True),
+    )
     async def late(input):
         return success({})
 
@@ -168,7 +178,9 @@ def test_a_change_that_unexposes_a_first_class_command_is_refused():
 
     with pytest.raises(ValueError, match="'note-list'"):
 
-        @server.command(name="note-list", description="Now private", expose=ExposeOptions(mcp=False))
+        @server.command(
+            name="note-list", description="Now private", expose=ExposeOptions(mcp=False)
+        )
         async def private(input):
             return success({})
 
@@ -180,7 +192,9 @@ def test_commands_outside_the_set_change_without_changing_the_list():
     server = create_server("x", tool_strategy="hybrid", first_class_tools=["note-list"])
     _register(server)
     before = server.get_tool_definitions()
-    _register(server, [{"name": "extra-one", "description": "Added later", "expose": {"mcp": True}}])
+    _register(
+        server, [{"name": "extra-one", "description": "Added later", "expose": {"mcp": True}}]
+    )
     assert server.get_tool_definitions() == before
 
 
@@ -226,7 +240,10 @@ def test_meta_tools_equal_the_lazy_tools(case):
 
 
 def test_first_class_tools_take_confirm_where_confirmations_enforce():
-    tools = {tool["name"]: tool for tool in _build(SERVERS["no-contexts"]["config"]).get_tool_definitions()}
+    tools = {
+        tool["name"]: tool
+        for tool in _build(SERVERS["no-contexts"]["config"]).get_tool_definitions()
+    }
     assert "confirm" in tools["note-delete"]["inputSchema"]["properties"]
     assert "confirm" not in tools["tag-list"]["inputSchema"].get("properties", {})
     assert "confirm" in tools["afd-call"]["inputSchema"]["properties"]

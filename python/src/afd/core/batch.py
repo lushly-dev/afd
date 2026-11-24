@@ -16,8 +16,8 @@ Example:
     >>> assert request.commands[0].id == "cmd-0"
 """
 
-from datetime import datetime, timezone
-from typing import Any, Union, Generic, List, Optional, TypeVar
+from datetime import UTC, datetime
+from typing import Any, Generic, TypeVar
 
 from pydantic import ConfigDict, Field, StrictBool, ValidationInfo, field_validator
 
@@ -39,7 +39,7 @@ def check_batch_limits(
     *,
     max_batch_size: int = DEFAULT_MAX_BATCH_SIZE,
     max_batch_parallelism: int = DEFAULT_MAX_BATCH_PARALLELISM,
-) -> Optional[CommandError]:
+) -> CommandError | None:
     """Validate batch size and parallelism against configured ceilings.
 
     Returns an ``INVALID_BATCH_REQUEST`` ``CommandError`` (``retryable=False``)
@@ -81,10 +81,7 @@ def check_batch_limits(
             },
         )
     if parallelism > max_batch_parallelism:
-        message = (
-            f"Batch parallelism {parallelism} exceeds maximum of "
-            f"{max_batch_parallelism}"
-        )
+        message = f"Batch parallelism {parallelism} exceeds maximum of {max_batch_parallelism}"
         return CommandError(
             code="INVALID_BATCH_REQUEST",
             message=message,
@@ -127,7 +124,7 @@ class BatchCommand(WireModel):
         True
     """
 
-    id: Optional[str] = None
+    id: str | None = None
     command: str
     input: Any = None
 
@@ -158,7 +155,7 @@ class BatchOptions(WireModel):
     """
 
     stop_on_error: StrictBool = False
-    timeout: Optional[Union[int, float]] = Field(default=None, ge=0, allow_inf_nan=False)
+    timeout: int | float | None = Field(default=None, ge=0, allow_inf_nan=False)
     parallelism: int = Field(default=1, ge=1)
 
     model_config = ConfigDict(**WIRE_MODEL_CONFIG, extra="forbid")
@@ -185,8 +182,8 @@ class BatchRequest(WireModel):
         ... )
     """
 
-    commands: List[BatchCommand]
-    options: Optional[BatchOptions] = None
+    commands: list[BatchCommand]
+    options: BatchOptions | None = None
 
     @field_validator("options", mode="before")
     @classmethod
@@ -296,14 +293,14 @@ class BatchResult(WireModel, Generic[T]):
     """
 
     success: bool
-    results: List[BatchCommandResult[T]]
+    results: list[BatchCommandResult[T]]
     summary: BatchSummary
     timing: BatchTiming
     confidence: float = Field(ge=0, le=1)
     reasoning: str
-    warnings: Optional[List[BatchWarning]] = None
-    error: Optional[CommandError] = None
-    metadata: Optional[ResultMetadata] = None
+    warnings: list[BatchWarning] | None = None
+    error: CommandError | None = None
+    metadata: ResultMetadata | None = None
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -312,9 +309,9 @@ class BatchResult(WireModel, Generic[T]):
 
 
 def create_batch_request(
-    commands: List[dict],
+    commands: list[dict[str, Any]],
     *,
-    options: Optional[BatchOptions] = None,
+    options: BatchOptions | None = None,
 ) -> BatchRequest:
     """Create a batch request, auto-assigning IDs to commands that lack them.
 
@@ -347,7 +344,7 @@ def create_batch_request(
     return BatchRequest(commands=batch_commands, options=options)
 
 
-def calculate_batch_confidence(results: List[BatchCommandResult]) -> float:
+def calculate_batch_confidence(results: list[BatchCommandResult[Any]]) -> float:
     """Calculate aggregated confidence for a batch result.
 
     Formula: (successRatio * 0.5) + (avgCommandConfidence * 0.5)
@@ -385,7 +382,7 @@ def calculate_batch_confidence(results: List[BatchCommandResult]) -> float:
 
 def _generate_batch_reasoning(summary: BatchSummary) -> str:
     """Generate human-readable reasoning for a batch result."""
-    parts: List[str] = []
+    parts: list[str] = []
 
     suffix = "" if summary.total == 1 else "s"
     parts.append(f"Executed {summary.total} command{suffix}")
@@ -393,7 +390,7 @@ def _generate_batch_reasoning(summary: BatchSummary) -> str:
     if summary.success_count == summary.total:
         parts.append("all succeeded")
     else:
-        details: List[str] = []
+        details: list[str] = []
         if summary.success_count > 0:
             details.append(f"{summary.success_count} succeeded")
         if summary.failure_count > 0:
@@ -406,11 +403,11 @@ def _generate_batch_reasoning(summary: BatchSummary) -> str:
 
 
 def create_batch_result(
-    results: List[BatchCommandResult],
+    results: list[BatchCommandResult[Any]],
     timing: BatchTiming,
     *,
-    metadata: Optional[ResultMetadata] = None,
-) -> BatchResult:
+    metadata: ResultMetadata | None = None,
+) -> BatchResult[Any]:
     """Create a batch result from command results.
 
     Args:
@@ -441,7 +438,7 @@ def create_batch_result(
     confidence = calculate_batch_confidence(results)
 
     # Collect warnings from all commands
-    warnings: List[BatchWarning] = []
+    warnings: list[BatchWarning] = []
     for r in results:
         if r.result.warnings:
             for w in r.result.warnings:
@@ -471,9 +468,9 @@ def create_failed_batch_result(
     error: CommandError,
     *,
     total_ms: float = 0,
-    started_at: Optional[str] = None,
-    completed_at: Optional[str] = None,
-) -> BatchResult:
+    started_at: str | None = None,
+    completed_at: str | None = None,
+) -> BatchResult[Any]:
     """Create a failed batch result (batch-level failure, not command failure).
 
     Args:
@@ -485,7 +482,7 @@ def create_failed_batch_result(
     Returns:
         A failed BatchResult object.
     """
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     return BatchResult(
         success=False,
         results=[],

@@ -345,7 +345,9 @@ async def _http_client(server: Any, *, max_request_body_size: int | None = None)
     app = server.streamable_http_app(**opts)
     async with app.router.lifespan_context(app):
         transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1:8000") as client:
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://127.0.0.1:8000"
+        ) as client:
             yield client
 
 
@@ -451,9 +453,7 @@ async def test_command_scopes_metadata_on_all_surfaces_and_validation() -> None:
 
 @pytest.mark.asyncio
 async def test_pre_dispatch_403_across_tools_groups_batches_pipelines_and_other_methods() -> None:
-    server, ran = _build_todo_server(
-        tool_strategy="individual", required_scopes=["todo:read"]
-    )
+    server, ran = _build_todo_server(tool_strategy="individual", required_scopes=["todo:read"])
     reader = _token("todo:read")
     empty = _token("")
 
@@ -802,6 +802,7 @@ async def test_hidden_commands_are_byte_identical_to_twin_server_on_every_route(
     tok = _token("todo:read todo:write todo:export todo:admin secret:run")
 
     async with _http_client(hiding_srv) as h_client, _http_client(twin_srv) as t_client:
+
         async def assert_same(fn):
             h_res = _normalize_response(await fn(h_client))
             t_res = _normalize_response(await fn(t_client))
@@ -880,12 +881,21 @@ async def test_hidden_commands_are_byte_identical_to_twin_server_on_every_route(
 
 
 @pytest.mark.asyncio
-async def test_resolver_known_true_visible_false_allows_step_up_and_decides_once_per_request() -> None:
+async def test_resolver_known_true_visible_false_allows_step_up_and_decides_once_per_request() -> (
+    None
+):
     visible_calls: list[str] = []
     known_calls: list[str] = []
     resolver = _TableResolver(
         hide={"todo-create"},
-        known_override={"todo-list", "todo-create", "todo-export", "todo-archive", "list-pick", "nested-caller"},
+        known_override={
+            "todo-list",
+            "todo-create",
+            "todo-export",
+            "todo-archive",
+            "list-pick",
+            "nested-caller",
+        },
         visible_calls=visible_calls,
         known_calls=known_calls,
     )
@@ -937,7 +947,9 @@ def test_admit_is_method_only_never_exported_and_validates_inputs() -> None:
 
     plain = create_server("plain")
     with pytest.raises(ValueError, match="auth option"):
-        plain.admit({"type": "http", "method": "POST", "path": "/mcp", "headers": []}, _host_creds())
+        plain.admit(
+            {"type": "http", "method": "POST", "path": "/mcp", "headers": []}, _host_creds()
+        )
     with pytest.raises(ValueError, match="auth option"):
         plain.pre_dispatch_check()
 
@@ -949,9 +961,11 @@ def test_admit_is_method_only_never_exported_and_validates_inputs() -> None:
         "headers": [(b"authorization", b"Bearer abc")],
         "query_string": b"",
     }
-    with pytest.raises(ValueError, match="carries a bearer token"):
-        with server.admit(scope_with_auth, _host_creds()):
-            pass
+    with (
+        pytest.raises(ValueError, match="carries a bearer token"),
+        server.admit(scope_with_auth, _host_creds()),
+    ):
+        pass
 
     scope_with_encoded_query = {
         "type": "http",
@@ -960,9 +974,11 @@ def test_admit_is_method_only_never_exported_and_validates_inputs() -> None:
         "headers": [],
         "query_string": b"x=1&%61ccess%5Ftoken=abc",
     }
-    with pytest.raises(ValueError, match="carries a bearer token"):
-        with server.admit(scope_with_encoded_query, _host_creds()):
-            pass
+    with (
+        pytest.raises(ValueError, match="carries a bearer token"),
+        server.admit(scope_with_encoded_query, _host_creds()),
+    ):
+        pass
 
     clean_scope = {
         "type": "http",
@@ -979,15 +995,16 @@ def test_admit_is_method_only_never_exported_and_validates_inputs() -> None:
         (_host_creds(scopes=("bad scope",)), "rule claims"),
         (_host_creds(cnf={"x5t#S256": "thumb"}), "rule binding"),
     ):
-        with pytest.raises(ValueError, match=pattern):
-            with server.admit(clean_scope, bad_creds):
-                pass
+        with pytest.raises(ValueError, match=pattern), server.admit(clean_scope, bad_creds):
+            pass
 
     # Double admit refused.
-    with server.admit(clean_scope, _host_creds()):
-        with pytest.raises(ValueError, match="admitted before"):
-            with server.admit(clean_scope, _host_creds()):
-                pass
+    with (
+        server.admit(clean_scope, _host_creds()),
+        pytest.raises(ValueError, match="admitted before"),
+        server.admit(clean_scope, _host_creds()),
+    ):
+        pass
 
 
 @pytest.mark.asyncio
@@ -1305,16 +1322,22 @@ async def test_nested_static_scope_check_and_background_task_meta_tool_scope_vie
         ran.append("inner-secret")
         return success({"ok": True})
 
-    @server.command("bg-probe", "Task probing meta-tools", expose=MCP, scopes=["todo:read"], task="optional")
+    @server.command(
+        "bg-probe", "Task probing meta-tools", expose=MCP, scopes=["todo:read"], task="optional"
+    )
     async def bg_probe(_inp: dict[str, Any], context: CommandContext | None = None):
         await asyncio.sleep(0.03)
         disc = await server.execute("afd-discover", {}, context)
-        call_res = await server.execute("afd-call", {"command": "inner-secret", "input": {}}, context)
+        call_res = await server.execute(
+            "afd-call", {"command": "inner-secret", "input": {}}, context
+        )
         disc_names = [c["name"] for c in (disc.data["commands"] if disc.success else [])]
         return success(
             {
                 "discover": disc_names,
-                "callError": call_res.error.code if not call_res.success and call_res.error else None,
+                "callError": call_res.error.code
+                if not call_res.success and call_res.error
+                else None,
                 "callScopes": (
                     call_res.error.details.get("scopes")
                     if not call_res.success and call_res.error and call_res.error.details
@@ -1361,7 +1384,9 @@ async def test_nested_static_scope_check_and_background_task_meta_tool_scope_vie
 
 
 @pytest.mark.asyncio
-async def test_execution_resolver_ignores_output_exclude_serialization_alias_and_serializer() -> None:
+async def test_execution_resolver_ignores_output_exclude_serialization_alias_and_serializer() -> (
+    None
+):
     from pydantic import field_serializer
 
     class _TrickyInput(BaseModel):
@@ -1378,10 +1403,17 @@ async def test_execution_resolver_ignores_output_exclude_serialization_alias_and
     class _StrictResolver:
         def resolve(self, command: str, input: Any, credentials: Credentials) -> ScopeDecision:
             seen_inputs.append(input)
-            if command == "tricky-run" and isinstance(input, dict):
-                if input.get("env") == "prod" or input.get("tier") == "restricted" or input.get("flag") == "secret":
-                    if "prod:admin" not in credentials.scopes:
-                        return ScopeMissing(("prod:admin",))
+            if (
+                command == "tricky-run"
+                and isinstance(input, dict)
+                and (
+                    input.get("env") == "prod"
+                    or input.get("tier") == "restricted"
+                    or input.get("flag") == "secret"
+                )
+                and "prod:admin" not in credentials.scopes
+            ):
+                return ScopeMissing(("prod:admin",))
             return "allowed"
 
         def visible(self, _command: str, _credentials: Credentials) -> bool:
@@ -1456,10 +1488,18 @@ async def test_resolver_callbacks_receive_branded_credentials_and_unbrand_on_ear
     # Host admit path also brands before visible/known/resolve and unbrands on exit.
     observed.clear()
     captured_creds.clear()
-    scope = {"type": "http", "method": "POST", "path": "/mcp", "headers": [(b"content-type", b"application/json")], "query_string": b""}
+    scope = {
+        "type": "http",
+        "method": "POST",
+        "path": "/mcp",
+        "headers": [(b"content-type", b"application/json")],
+        "query_string": b"",
+    }
     check = server.pre_dispatch_check()
     with server.admit(scope, _host_creds(["todo:read"])):
-        dec = check.decide(scope, json.dumps(_rpc("tools/call", {"name": "todo-list", "arguments": {}})))
+        dec = check.decide(
+            scope, json.dumps(_rpc("tools/call", {"name": "todo-list", "arguments": {}}))
+        )
         assert dec.proceed is False and dec.status == 403
     assert observed
     assert all(branded is True for _hook, branded in observed)
@@ -1467,7 +1507,9 @@ async def test_resolver_callbacks_receive_branded_credentials_and_unbrand_on_ear
 
 
 @pytest.mark.asyncio
-async def test_host_admit_request_identity_non_post_required_scopes_and_default_body_limit() -> None:
+async def test_host_admit_request_identity_non_post_required_scopes_and_default_body_limit() -> (
+    None
+):
     from afd.server.auth import create_auth_layer
 
     # 1. Default JSON body cap matches MCP SDK's 4 MiB on both bearer and host pre_dispatch_check.
@@ -1480,8 +1522,20 @@ async def test_host_admit_request_identity_non_post_required_scopes_and_default_
 
     # 2. Request identity binding: distinct nested scope allowed, same scope or bearer scope refused,
     #    and check.decide(other_scope, ...) returns PROCEED.
-    s1 = {"type": "http", "method": "POST", "path": "/mcp", "headers": [(b"content-type", b"application/json")], "query_string": b""}
-    s2 = {"type": "http", "method": "POST", "path": "/mcp", "headers": [(b"content-type", b"application/json")], "query_string": b""}
+    s1 = {
+        "type": "http",
+        "method": "POST",
+        "path": "/mcp",
+        "headers": [(b"content-type", b"application/json")],
+        "query_string": b"",
+    }
+    s2 = {
+        "type": "http",
+        "method": "POST",
+        "path": "/mcp",
+        "headers": [(b"content-type", b"application/json")],
+        "query_string": b"",
+    }
     body = json.dumps(_rpc("tools/call", {"name": "todo-purge", "arguments": {}}))
     with server.admit(s1, _host_creds(["todo:read"])):
         # Other request object does not inherit s1's view in check.decide.
@@ -1490,9 +1544,11 @@ async def test_host_admit_request_identity_non_post_required_scopes_and_default_
         with server.admit(s2, _host_creds(["todo:read", "todo:write", "todo:admin"])):
             assert check.decide(s2, body).proceed is True
             # Same scope cannot be re-admitted.
-            with pytest.raises(ValueError, match="admitted before"):
-                with server.admit(s2, _host_creds(["todo:read"])):
-                    pass
+            with (
+                pytest.raises(ValueError, match="admitted before"),
+                server.admit(s2, _host_creds(["todo:read"])),
+            ):
+                pass
 
     # Re-admitting a bearer-admitted downstream scope raises ValueError.
     re_admit_error: list[Exception] = []
@@ -1510,10 +1566,14 @@ async def test_host_admit_request_identity_non_post_required_scopes_and_default_
     app._app = _probing_inner
     async with orig_inner.router.lifespan_context(orig_inner):
         transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1:8000") as client:
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://127.0.0.1:8000"
+        ) as client:
             res = await client.post(
                 "/mcp",
-                json=_rpc("tools/call", {"name": "todo-list", "arguments": {}, "_meta": MODERN_META}),
+                json=_rpc(
+                    "tools/call", {"name": "todo-list", "arguments": {}, "_meta": MODERN_META}
+                ),
                 headers=_headers("tools/call", "todo-list", _token("todo:read")),
             )
             assert res.status_code == 200
@@ -1531,8 +1591,12 @@ async def test_host_admit_request_identity_non_post_required_scopes_and_default_
 
     async with raw_app.router.lifespan_context(raw_app):
         transport = httpx.ASGITransport(app=_host_wrapper)
-        async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1:8000") as client:
-            _expect_forbidden(await client.get("/mcp", headers={"Accept": "text/event-stream"}), "todo:read")
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://127.0.0.1:8000"
+        ) as client:
+            _expect_forbidden(
+                await client.get("/mcp", headers={"Accept": "text/event-stream"}), "todo:read"
+            )
             _expect_forbidden(await client.delete("/mcp"), "todo:read")
 
     # 4. Standalone create_auth_layer enforces required_scopes + batch refusal, and rejects
@@ -1547,7 +1611,13 @@ async def test_host_admit_request_identity_non_post_required_scopes_and_default_
     )
 
     async def _ok_app(_scope: dict[str, Any], _receive: Any, send: Any) -> None:
-        await send({"type": "http.response.start", "status": 200, "headers": [(b"content-type", b"application/json")]})
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [(b"content-type", b"application/json")],
+            }
+        )
         await send({"type": "http.response.body", "body": b'{"ok":true}'})
 
     wrapped = standalone.wrap_asgi_app(_ok_app, decide_post_body=True)
@@ -1557,14 +1627,20 @@ async def test_host_admit_request_identity_non_post_required_scopes_and_default_
             await client.post(
                 "/mcp",
                 json=_rpc("tools/list", {}),
-                headers={"Content-Type": "application/json", "Authorization": f"Bearer {_token('')}"},
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {_token('')}",
+                },
             ),
             "todo:read",
         )
         batch_res = await client.post(
             "/mcp",
             json=[_rpc("tools/list", {})],
-            headers={"Content-Type": "application/json", "Authorization": f"Bearer {_token('todo:read')}"},
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {_token('todo:read')}",
+            },
         )
         assert batch_res.status_code == 400
         assert batch_res.json()["error"]["code"] == -32600
@@ -1576,14 +1652,32 @@ async def test_requires_never_discloses_unexposed_commands_and_positional_args_p
     async def _noop(_inp: Any, _ctx: Any = None):
         return success({})
 
-    cd = CommandDefinition("pos-one", "desc", _noop, None, [], None, None, None, None, None, None, False, None, [], [], [], True)
+    cd = CommandDefinition(
+        "pos-one",
+        "desc",
+        _noop,
+        None,
+        [],
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        False,
+        None,
+        [],
+        [],
+        [],
+        True,
+    )
     assert cd.handoff is True and cd.scopes == []
 
     @define_command("pos-two", "desc", None, None, None, None, False, None, None, None, True)
     async def _pos_two(_inp: Any, _ctx: Any = None):
         return success({})
 
-    assert getattr(_pos_two, "__afd_command__").handoff is True
+    assert _pos_two.__afd_command__.handoff is True
 
     # Dict and set scopes are rejected by validate_command_scopes.
     with pytest.raises(ValueError, match="sequence"):
@@ -1601,7 +1695,19 @@ async def test_requires_never_discloses_unexposed_commands_and_positional_args_p
     )
 
     # Positional expose argument on @server.command still binds to expose.
-    @server.command("cli-only", "CLI only", None, None, None, None, False, None, None, None, ExposeOptions(mcp=False, cli=True))
+    @server.command(
+        "cli-only",
+        "CLI only",
+        None,
+        None,
+        None,
+        None,
+        False,
+        None,
+        None,
+        None,
+        ExposeOptions(mcp=False, cli=True),
+    )
     async def cli_only(_inp: Any, _ctx: Any = None):
         return success({})
 
@@ -1609,7 +1715,13 @@ async def test_requires_never_discloses_unexposed_commands_and_positional_args_p
     async def todo_list(_inp: Any, _ctx: Any = None):
         return success({})
 
-    @server.command("todo-export", "Export", expose=MCP, scopes=["todo:read"], requires=["todo-list", "cli-only"])
+    @server.command(
+        "todo-export",
+        "Export",
+        expose=MCP,
+        scopes=["todo:read"],
+        requires=["todo-list", "cli-only"],
+    )
     async def todo_export(_inp: Any, _ctx: Any = None):
         return success({})
 
@@ -1635,17 +1747,19 @@ async def test_tasks_resolver_visible_false_exec_refusal_and_hidden_required_tas
 
     class _TaskResolver:
         def resolve(self, command: str, input: Any, credentials: Credentials) -> ScopeDecision:
-            if command == "default-task" and isinstance(input, dict) and input.get("mode") == "privileged":
-                if "task:admin" not in credentials.scopes:
-                    return ScopeMissing(("task:admin",))
+            if (
+                command == "default-task"
+                and isinstance(input, dict)
+                and input.get("mode") == "privileged"
+                and "task:admin" not in credentials.scopes
+            ):
+                return ScopeMissing(("task:admin",))
             return "allowed"
 
         def visible(self, command: str, _credentials: Credentials) -> bool:
             if command == "hidden-req-task":
                 return False
-            if hide_visible and command == "report-build":
-                return False
-            return True
+            return not (hide_visible and command == "report-build")
 
         def known(self, command: str, _credentials: Credentials) -> bool:
             return command != "hidden-req-task"
@@ -1665,7 +1779,13 @@ async def test_tasks_resolver_visible_false_exec_refusal_and_hidden_required_tas
         await asyncio.sleep(0.05)
         return success({"done": True})
 
-    @server.command("default-task", "Defaulted task", input_schema=_DefaultTaskInput, expose=MCP, task="optional")
+    @server.command(
+        "default-task",
+        "Defaulted task",
+        input_schema=_DefaultTaskInput,
+        expose=MCP,
+        task="optional",
+    )
     async def default_task(inp: _DefaultTaskInput, _ctx: CommandContext | None = None):
         return success({"mode": inp.mode})
 

@@ -6,6 +6,8 @@ A finished run's summary is written into the lane state when the run stops, from
 
 from __future__ import annotations
 
+from typing import Any
+
 from botcore_factory.claims import parse_time
 from botcore_factory.records import attempts
 from botcore_factory.runtime import Factory, Refusal
@@ -24,7 +26,9 @@ NUMBERS = (
 )
 
 
-def summarize(history: list[dict], run_id: str, started_at: str | None, stopped_at: str) -> dict:
+def summarize(
+    history: list[dict[str, Any]], run_id: str, started_at: str | None, stopped_at: str
+) -> dict[str, Any]:
     """What a run did, from its records: merges, validations, re-runs, wakes and lane-hours."""
     mine = [record for record in history if record.get("runId") == run_id]
     rows = attempts(mine)
@@ -74,11 +78,11 @@ def summarize(history: list[dict], run_id: str, started_at: str | None, stopped_
     }
 
 
-def _ratio(numerator, denominator, digits: int = 2):
+def _ratio(numerator: float, denominator: float | None, digits: int = 2) -> float | None:
     return round(numerator / denominator, digits) if denominator else None
 
 
-def numbers(summary: dict) -> dict:
+def numbers(summary: dict[str, Any]) -> dict[str, Any]:
     merged = summary.get("merged", 0)
     wakes = summary.get("foremanWakes", 0)
     prs = summary.get("prs", [])
@@ -104,15 +108,15 @@ def numbers(summary: dict) -> dict:
     }
 
 
-def _count(prs: list[dict], key: str) -> list[dict]:
-    counts: dict = {}
+def _count(prs: list[dict[str, Any]], key: str) -> list[dict[str, Any]]:
+    counts: dict[str, Any] = {}
     for pr in prs:
         if pr.get(key):
             counts[pr[key]] = counts.get(pr[key], 0) + 1
     return [{key: name, "merged": count} for name, count in sorted(counts.items())]
 
 
-def run_summary(factory: Factory, state: dict, run_id: str) -> dict:
+def run_summary(factory: Factory, state: dict[str, Any], run_id: str) -> dict[str, Any]:
     run = next((r for r in state["runs"] if r.get("id") == run_id), None)
     if run is None:
         raise Refusal(
@@ -121,13 +125,14 @@ def run_summary(factory: Factory, state: dict, run_id: str) -> dict:
             "lane-status shows the current runId; a report without run gives the latest",
         )
     if "merged" in run:  # Summarized when it stopped.
-        return run
+        run_dict: dict[str, Any] = run
+        return run_dict
     now = factory.world.clock.now().isoformat().replace("+00:00", "Z")
     live = factory.store.summarize_run(run_id, run.get("startedAt"), now)
     return {**run, **live, "prs": run.get("prs") or live["prs"]}
 
 
-def lane_report(factory: Factory, run: str | None, compare: str | None) -> dict:
+def lane_report(factory: Factory, run: str | None, compare: str | None) -> dict[str, Any]:
     state = factory.store.read()
     run_id = (
         run or state["lane"].get("runId") or (state["runs"][-1]["id"] if state["runs"] else None)

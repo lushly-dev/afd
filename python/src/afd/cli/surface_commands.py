@@ -15,7 +15,7 @@ surface, and findings about them tell the user nothing they can fix.
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from afd.core.builtin_names import is_afd_builtin_name
 from afd.transports.base import ToolInfo, Transport
@@ -55,7 +55,7 @@ def _action_to_command(action: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _grouped_actions(tool: ToolInfo) -> Optional[list[dict[str, Any]]]:
+def _grouped_actions(tool: ToolInfo) -> list[dict[str, Any]] | None:
     """The well-formed ``_meta.actions`` entries of a grouped tool, or None."""
     actions = (tool.meta or {}).get("actions")
     if not isinstance(actions, list):
@@ -129,7 +129,9 @@ def commands_from_tools(tools: list[ToolInfo]) -> list[dict[str, Any]]:
             commands.append(_tool_to_command(tool))
             continue
         commands.extend(
-            _action_to_command(action) for action in actions if not is_afd_builtin_name(action["command"])
+            _action_to_command(action)
+            for action in actions
+            if not is_afd_builtin_name(action["command"])
         )
     return commands
 
@@ -145,7 +147,11 @@ async def collect_surface_commands(
     tools are validated as they are and a warning says why.
     """
     commands = commands_from_tools(tools)
-    opaque = {tool.name for tool in tools if not is_afd_builtin_name(tool.name) and is_opaque_grouped_tool(tool)}
+    opaque = {
+        tool.name
+        for tool in tools
+        if not is_afd_builtin_name(tool.name) and is_opaque_grouped_tool(tool)
+    }
     lazy = not commands and any(tool.name == "afd-discover" for tool in tools)
     if not lazy and not opaque:
         return commands, []
@@ -154,7 +160,9 @@ async def collect_surface_commands(
         discovered = await _discover_commands(transport)
     except Exception as exc:  # noqa: BLE001 - any failure falls back to the listing
         if lazy:
-            return commands, [f"Could not list commands with afd-discover ({exc}); no commands were validated."]
+            return commands, [
+                f"Could not list commands with afd-discover ({exc}); no commands were validated."
+            ]
         names = ", ".join(sorted(opaque))
         return commands, [
             f"Could not list the commands of grouped tools {names} with afd-discover ({exc}); "
@@ -184,14 +192,18 @@ async def _discover_commands(transport: Transport) -> list[dict[str, Any]]:
     offset = 0
     for _ in range(MAX_DISCOVER_PAGES):
         data = _payload(
-            await transport.call_tool("afd-discover", {"limit": DISCOVER_PAGE_SIZE, "offset": offset}),
+            await transport.call_tool(
+                "afd-discover", {"limit": DISCOVER_PAGE_SIZE, "offset": offset}
+            ),
             "afd-discover",
         )
         entries = data.get("commands") if isinstance(data, dict) else None
         if not isinstance(entries, list):
             raise RuntimeError("afd-discover returned no commands list")
         names.extend(
-            entry["name"] for entry in entries if isinstance(entry, dict) and isinstance(entry.get("name"), str)
+            entry["name"]
+            for entry in entries
+            if isinstance(entry, dict) and isinstance(entry.get("name"), str)
         )
         if data.get("hasMore") is not True or not entries:
             break
@@ -201,7 +213,9 @@ async def _discover_commands(transport: Transport) -> list[dict[str, Any]]:
     commands: list[dict[str, Any]] = []
     for start in range(0, len(wanted), DETAIL_BATCH_SIZE):
         batch = wanted[start : start + DETAIL_BATCH_SIZE]
-        details = _payload(await transport.call_tool("afd-detail", {"command": batch}), "afd-detail")
+        details = _payload(
+            await transport.call_tool("afd-detail", {"command": batch}), "afd-detail"
+        )
         if not isinstance(details, list):
             raise RuntimeError("afd-detail returned no command list")
         for entry in details:

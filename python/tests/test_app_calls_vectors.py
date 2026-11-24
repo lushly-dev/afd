@@ -204,9 +204,7 @@ async def test_calls_on_server(case):
 async def test_batches_on_server(case):
     server = _server_for(case["grant"])
     payload: dict[str, Any] = {
-        "commands": [
-            {"command": item["command"], "input": item["input"]} for item in case["items"]
-        ]
+        "commands": [{"command": item["command"], "input": item["input"]} for item in case["items"]]
     }
     if "requestContext" in case:
         payload["context"] = case["requestContext"]
@@ -258,7 +256,9 @@ async def test_refusal_precedes_middleware_and_meta_tools():
     assert ok.success is True
     denied = await server.execute("tally-get", {}, _context_for("apps", "hello"))
     _check(denied, {"refused": True})
-    meta = await server.execute("afd-call", {"command": "tally-get"}, _context_for("apps", "checklist"))
+    meta = await server.execute(
+        "afd-call", {"command": "tally-get"}, _context_for("apps", "checklist")
+    )
     _check(meta, {"refused": True})
     assert seen == [("tally-get", "apps", "checklist")]
 
@@ -281,10 +281,12 @@ async def test_replay_checks_grant_again_and_cannot_be_downgraded():
     def _build(with_journal: bool):
         server = create_server(
             "apps-replay",
-            call_grant=lambda name, ctx: granted
-            and name == "tally-get"
-            and ctx.extra.get("caller") == "checklist",
-            context_fields=[ContextField(name="caller", meta="dev.example/caller", schema=str, journal=True)],
+            call_grant=lambda name, ctx: (
+                granted and name == "tally-get" and ctx.extra.get("caller") == "checklist"
+            ),
+            context_fields=[
+                ContextField(name="caller", meta="dev.example/caller", schema=str, journal=True)
+            ],
             middleware=[create_journal_middleware(sink)] if with_journal else [],
         )
 
@@ -333,9 +335,7 @@ async def test_replay_checks_grant_again_and_cannot_be_downgraded():
             entry.context_digest.interface = "agent"
         return {"interface": "agent"}
 
-    mutated = await replay_journal(
-        _build(False), copy.deepcopy(entries), context=_mutating_context
-    )
+    mutated = await replay_journal(_build(False), copy.deepcopy(entries), context=_mutating_context)
     assert mutated.different == 1
     _check(mutated.entries[0].replayed, {"refused": True})
     assert ran == ["tally-get", "tally-get"]
@@ -383,9 +383,7 @@ async def test_direct_surfaces_refuse_apps_context_before_lookup_or_allow():
         mw_called.append(name)
         return await nxt()
 
-    client_on_direct = create_direct_client(
-        direct_reg, allow=lambda _n: False, middleware=[_mw]
-    )
+    client_on_direct = create_direct_client(direct_reg, allow=lambda _n: False, middleware=[_mw])
     client_on_simple = create_direct_client(simple, allow=lambda _n: False, middleware=[_mw])
 
     apps_ctx = CommandContext(extra={"interface": "apps"})
@@ -477,9 +475,7 @@ async def test_ungranted_app_refusal_precedes_hybrid_config_diagnostic_and_singl
         )
     )
 
-    refused = await hybrid.execute(
-        "private-cmd", {}, CommandContext(extra={"interface": "apps"})
-    )
+    refused = await hybrid.execute("private-cmd", {}, CommandContext(extra={"interface": "apps"}))
     _check(refused, {"refused": True})
     routed_refused = await hybrid.route_tool_call(
         "afd-call",

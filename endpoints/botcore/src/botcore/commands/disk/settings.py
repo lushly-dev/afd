@@ -14,6 +14,7 @@ import sys
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -166,7 +167,7 @@ def _show(main: Path, ref: str, name: str) -> str | None:
         return None
 
 
-def _section(main: Path, ref: str) -> tuple[dict | None, str | None]:
+def _section(main: Path, ref: str) -> tuple[dict[str, Any] | None, str | None]:
     """The botcore table at ref, with botcore's precedence: pyproject's [tool.botcore] wins."""
     text = _show(main, ref, "pyproject.toml")
     if text is not None:
@@ -206,8 +207,12 @@ def read_repo_disk_config(main: Path) -> RepoDiskConfig:
             message = f"[disk] at {ref} is not valid for this botcore: {where}: {first['msg']}"
             return RepoDiskConfig(None, ref, source, message)
         return RepoDiskConfig(config, ref, source)
-    return RepoDiskConfig(None, None, None, "no landing branch (origin's HEAD, origin/main or "
-                          "main) to read [disk] from")
+    return RepoDiskConfig(
+        None,
+        None,
+        None,
+        "no landing branch (origin's HEAD, origin/main or main) to read [disk] from",
+    )
 
 
 def t3_settings_file(settings: MachineSettings) -> Path | None:

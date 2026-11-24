@@ -269,9 +269,7 @@ def _fail(code: str, message: str, suggestion: str) -> CommandResult[dict]:
     return error(code, message, suggestion=suggestion)
 
 
-async def skill_usage_triggers(
-    days: int = 30, repo: str | None = None
-) -> CommandResult[dict]:
+async def skill_usage_triggers(days: int = 30, repo: str | None = None) -> CommandResult[dict]:
     """For each skill a repository requires, the merged changes to its paths and whether the
     session that opened each one's pull request had loaded the skill by then.
 
@@ -394,7 +392,7 @@ def _skill_usage_triggers_sync(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
     except (GitError, ValueError):  # git stopped answering since the changes were read
         here_now = None
     accounts = [here_now, record.skills.get(project)]
-    account = newest_inventory([one for one in accounts if one]) or NOTHING_HELD
+    account: dict = newest_inventory([one for one in accounts if one]) or dict(NOTHING_HELD)
     project_renames = {
         **(here_now["renames"] if here_now else {}),
         **record.renames.get(project, {}),

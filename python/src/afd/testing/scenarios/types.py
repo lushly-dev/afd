@@ -148,7 +148,7 @@ class Scenario:
     fixture: FixtureConfig | None = None
     """Starting state configuration."""
 
-    isolation: Literal['fresh', 'chained'] | None = None
+    isolation: Literal["fresh", "chained"] | None = None
     """Isolation mode: fresh (default) or chained."""
 
     depends_on: list[str] | None = None
@@ -165,15 +165,15 @@ class Scenario:
 # Report Types
 # ============================================================================
 
-StepOutcome = Literal['pass', 'fail', 'skip', 'error']
-ScenarioOutcome = Literal['pass', 'fail', 'error', 'partial']
+StepOutcome = Literal["pass", "fail", "skip", "error"]
+ScenarioOutcome = Literal["pass", "fail", "error", "partial"]
 
 
 @dataclass
 class StepError:
     """Detailed error information from a step."""
 
-    type: Literal['command_failed', 'expectation_mismatch', 'timeout', 'parse_error', 'unknown']
+    type: Literal["command_failed", "expectation_mismatch", "timeout", "parse_error", "unknown"]
     """Error type classification."""
 
     message: str
@@ -332,11 +332,11 @@ def calculate_summary(scenarios: list[ScenarioResult]) -> TestSummary:
         summary.failed_steps += scenario.failed_steps
         summary.skipped_steps += scenario.skipped_steps
 
-        if scenario.outcome == 'pass':
+        if scenario.outcome == "pass":
             summary.passed_scenarios += 1
-        elif scenario.outcome in ('fail', 'partial'):
+        elif scenario.outcome in ("fail", "partial"):
             summary.failed_scenarios += 1
-        elif scenario.outcome == 'error':
+        elif scenario.outcome == "error":
             summary.error_scenarios += 1
 
     summary.pass_rate = (
@@ -347,7 +347,9 @@ def calculate_summary(scenarios: list[ScenarioResult]) -> TestSummary:
 
 
 def create_step_error(
-    error_type: str,
+    error_type: Literal[
+        "command_failed", "expectation_mismatch", "timeout", "parse_error", "unknown"
+    ],
     message: str,
     **kwargs: Any,
 ) -> StepError:
@@ -360,8 +362,18 @@ def create_step_error(
 # ============================================================================
 
 _MATCHER_KEYS = frozenset(
-    ['contains', 'matches', 'exists', 'not_exists', 'notExists',
-     'length', 'includes', 'gte', 'lte', 'between']
+    [
+        "contains",
+        "matches",
+        "exists",
+        "not_exists",
+        "notExists",
+        "length",
+        "includes",
+        "gte",
+        "lte",
+        "between",
+    ]
 )
 
 
@@ -377,9 +389,9 @@ def is_scenario(value: Any) -> bool:
     if not isinstance(value, dict):
         return False
     return (
-        isinstance(value.get('name'), str)
-        and isinstance(value.get('description'), str)
-        and isinstance(value.get('job'), str)
-        and isinstance(value.get('tags', []), list)
-        and isinstance(value.get('steps'), list)
+        isinstance(value.get("name"), str)
+        and isinstance(value.get("description"), str)
+        and isinstance(value.get("job"), str)
+        and isinstance(value.get("tags", []), list)
+        and isinstance(value.get("steps"), list)
     )

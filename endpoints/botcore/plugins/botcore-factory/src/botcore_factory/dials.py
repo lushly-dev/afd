@@ -22,11 +22,11 @@ class Dial:
     trades: str = ""
     owner_only: bool = False
 
-    def describe(self, value: Any) -> dict:
+    def describe(self, value: Any) -> dict[str, Any]:
         return {"key": self.key, "value": value, "default": self.default}
 
 
-def _int(key, default, low, high, trades):
+def _int(key: str, default: int, low: int, high: int | None, trades: str) -> Dial:
     return Dial(key, default, "int", low, high, trades)
 
 

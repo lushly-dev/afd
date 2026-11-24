@@ -104,10 +104,18 @@ _SKIP_NAMES = {
 
 # Normalized TypeScript names that are platform/connector APIs or language-specific internals.
 _TS_ONLY_NAMES = {
-    "is_windows", "is_mac", "is_linux", "exec", "find_up",
-    "get_temp_dir", "normalize_path", "exec_error_code",
-    "create_exec_result", "is_exec_error",
-    "git_hub_connector", "package_manager_connector",
+    "is_windows",
+    "is_mac",
+    "is_linux",
+    "exec",
+    "find_up",
+    "get_temp_dir",
+    "normalize_path",
+    "exec_error_code",
+    "create_exec_result",
+    "is_exec_error",
+    "git_hub_connector",
+    "package_manager_connector",
     # Shared transport-formatting helpers are exported for packages/server's TS call paths.
     # Other languages implement the behavior in their own dispatch layers and cover the
     # observable results with the shared vectors; these names are not cross-language APIs.
@@ -337,13 +345,13 @@ def _python_all_names(tree: ast.Module) -> list[str]:
     def visit(statements: list[ast.stmt]) -> None:
         nonlocal names
         for stmt in statements:
-            assigned = (
-                isinstance(stmt, ast.Assign) and any(is_all(t) for t in stmt.targets)
-            ) or (isinstance(stmt, ast.AnnAssign) and is_all(stmt.target) and stmt.value)
-            if assigned:
-                value = _all_value(stmt.value, names)
-                if value is not None:
-                    names = value
+            if (isinstance(stmt, ast.Assign) and any(is_all(t) for t in stmt.targets)) or (
+                isinstance(stmt, ast.AnnAssign) and is_all(stmt.target) and stmt.value is not None
+            ):
+                if stmt.value is not None:
+                    value = _all_value(stmt.value, names)
+                    if value is not None:
+                        names = value
             elif (
                 isinstance(stmt, ast.AugAssign)
                 and is_all(stmt.target)
@@ -564,14 +572,35 @@ _CPP_IDENTIFIER_RE = re.compile(r"[A-Za-z_]\w*")
 _CPP_ATTRIBUTE_RE = re.compile(r"\[\[.*?\]\]", re.S)
 _CPP_NAMESPACE_RE = re.compile(r"\bnamespace\s+([A-Za-z_][\w:]*)?\s*$")
 _CPP_NOT_A_NAME = {
-    "if", "for", "while", "switch", "return", "sizeof", "decltype", "alignas", "alignof",
-    "noexcept", "requires", "static_assert", "operator", "typename", "new", "delete", "catch",
+    "if",
+    "for",
+    "while",
+    "switch",
+    "return",
+    "sizeof",
+    "decltype",
+    "alignas",
+    "alignof",
+    "noexcept",
+    "requires",
+    "static_assert",
+    "operator",
+    "typename",
+    "new",
+    "delete",
+    "catch",
 }
 # C++ idioms with no TypeScript counterpart: nlohmann's ADL hooks, the JSON alias, the C++23
 # std::expected stand-in, and the version constants.
 _CPP_SKIP_NAMES = {
-    "to_json", "from_json", "Json", "Expected", "Unexpected", "unexpected",
-    "header_version", "library_version",
+    "to_json",
+    "from_json",
+    "Json",
+    "Expected",
+    "Unexpected",
+    "unexpected",
+    "header_version",
+    "library_version",
 }
 
 
@@ -615,7 +644,11 @@ def _blank_cpp_code(content: str) -> str:
             end = n if end < 0 else end + 2
             blank(i, end)
             i = end
-        elif ch == "R" and content.startswith('"', i + 1) and (i == 0 or not content[i - 1].isalnum()):
+        elif (
+            ch == "R"
+            and content.startswith('"', i + 1)
+            and (i == 0 or not content[i - 1].isalnum())
+        ):
             open_paren = content.find("(", i + 2)
             delimiter = content[i + 2 : open_paren] if open_paren >= 0 else ""
             close = content.find(")" + delimiter + '"', open_paren)
@@ -869,11 +902,7 @@ def _python_loads_vector(source: str, fixture: str) -> bool:
     path_names: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign) and contains_vector(node.value):
-            path_names.update(
-                target.id
-                for target in node.targets
-                if isinstance(target, ast.Name)
-            )
+            path_names.update(target.id for target in node.targets if isinstance(target, ast.Name))
         elif (
             isinstance(node, ast.AnnAssign)
             and node.value is not None
@@ -920,9 +949,9 @@ def _loads_vector(language: str, source: str, fixture: str) -> bool:
             and "serde_json::from_str" in code
         )
     if language == "cpp":
-        return re.search(
-            rf"\b(?:load_vectors|[A-Za-z_]\w*::load)\s*\(\s*{literal}", code
-        ) is not None
+        return (
+            re.search(rf"\b(?:load_vectors|[A-Za-z_]\w*::load)\s*\(\s*{literal}", code) is not None
+        )
     raise ValueError(f"Unknown vector-test language: {language}")
 
 
@@ -1066,9 +1095,7 @@ def check_contract_version(root: Path) -> dict:
         elif expected and version != expected:
             report["mismatched"].append(lang)
 
-    report["gaps"] = (
-        (0 if expected else 1) + len(report["missing"]) + len(report["mismatched"])
-    )
+    report["gaps"] = (0 if expected else 1) + len(report["missing"]) + len(report["mismatched"])
     return report
 
 

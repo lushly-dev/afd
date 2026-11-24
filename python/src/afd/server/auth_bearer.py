@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal, Union
+from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     from afd.server.auth_rules import AuthRuleCode
@@ -14,9 +14,7 @@ if TYPE_CHECKING:
 # parser may have left spaces or tabs. One anchored match whose parts cannot overlap (no space
 # or tab inside a b64token), so it runs in time linear in the value. Uses ``\Z`` so a trailing
 # newline is never accepted.
-_BEARER = re.compile(
-    r"\A[ \t]*bearer +([A-Za-z0-9\-._~+/]+=*)[ \t]*\Z", re.IGNORECASE | re.ASCII
-)
+_BEARER = re.compile(r"\A[ \t]*bearer +([A-Za-z0-9\-._~+/]+=*)[ \t]*\Z", re.IGNORECASE | re.ASCII)
 _PERCENT_HEX = re.compile(r"%([0-9A-Fa-f]{2})", re.ASCII)
 
 
@@ -64,7 +62,7 @@ class BearerRefusal:
         return False
 
 
-BearerResult = Union[BearerToken, BearerRefusal]
+BearerResult = BearerToken | BearerRefusal
 
 
 def extract_bearer(

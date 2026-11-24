@@ -4,9 +4,9 @@ import os
 import sys
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
 
 import pytest
+from pydantic import ValidationError
 
 from afd.platform import (
     ExecErrorCode,
@@ -24,7 +24,6 @@ from afd.platform import (
     is_windows,
     normalize_path,
 )
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PLATFORM CONSTANTS
@@ -132,10 +131,10 @@ class TestExecOptions:
         assert opts.env == {"KEY": "val"}
 
     def test_timeout_must_be_positive(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             ExecOptions(timeout=0)
 
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             ExecOptions(timeout=-1)
 
 
@@ -232,7 +231,9 @@ class TestExecCommand:
         assert result.error_code == ExecErrorCode.EXIT_CODE
 
     async def test_stderr_captured(self):
-        result = await exec_command([sys.executable, "-c", "import sys; sys.stderr.write('err msg'); sys.exit(1)"])
+        result = await exec_command(
+            [sys.executable, "-c", "import sys; sys.stderr.write('err msg'); sys.exit(1)"]
+        )
         assert result.exit_code != 0
         assert result.stderr != ""
 
@@ -383,28 +384,33 @@ class TestRootImports:
     """Tests that platform utilities are importable from package root."""
 
     def test_exec_types_importable(self):
-        from afd import ExecErrorCode, ExecOptions, ExecResult
+        from afd import ExecErrorCode
+
         assert ExecErrorCode.TIMEOUT == "TIMEOUT"
 
     def test_exec_functions_importable(self):
         from afd import create_exec_result, exec_command, is_exec_error
+
         assert callable(exec_command)
         assert callable(create_exec_result)
         assert callable(is_exec_error)
 
     def test_platform_constants_importable(self):
         from afd import is_linux, is_mac, is_windows
+
         assert isinstance(is_linux, bool)
         assert isinstance(is_mac, bool)
         assert isinstance(is_windows, bool)
 
     def test_os_info_importable(self):
         from afd import OsInfo, get_os_info
+
         info = get_os_info()
         assert isinstance(info, OsInfo)
 
     def test_path_utilities_importable(self):
         from afd import find_up, get_temp_dir, normalize_path
+
         assert callable(find_up)
         assert callable(get_temp_dir)
         assert callable(normalize_path)

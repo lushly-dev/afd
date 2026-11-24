@@ -23,16 +23,16 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import Sequence
-from typing import Any, Optional
+from typing import Any, Literal
 
 from afd.server.approval_relay import (
     APPROVAL_INPUT_KEY,
     APPROVAL_REQUESTED_SCHEMA,
+    MISSING,
     AcceptedApproval,
     ApprovalAnswer,
     ApprovalAnswers,
     ApprovedStep,
-    MISSING,
     StepsHold,
 )
 from afd.server.confirmations import (
@@ -56,7 +56,7 @@ def _now() -> int:
     return time.time_ns() // 1_000_000
 
 
-def _entry(item: Any) -> Optional[dict[str, Any]]:
+def _entry(item: Any) -> dict[str, Any] | None:
     """One question of a state, or ``None`` when it is not one."""
     if not isinstance(item, dict):
         return None
@@ -75,7 +75,7 @@ def _is_int(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
-def _accepts(response: Any, key: str) -> Optional[bool]:
+def _accepts(response: Any, key: str) -> bool | None:
     """``True`` for an accepted form whose field is ``true``, ``False`` for any other answer,
     ``None`` when there is no answer."""
     if response is None or not hasattr(response, "action"):
@@ -97,7 +97,8 @@ class ElicitationRound:
         capabilities = getattr(ctx, "client_capabilities", None)
         elicitation = getattr(capabilities, "elicitation", None) if capabilities else None
         form = elicitation is not None and (
-            getattr(elicitation, "form", None) is not None or getattr(elicitation, "url", None) is None
+            getattr(elicitation, "form", None) is not None
+            or getattr(elicitation, "url", None) is None
         )
         self.can_elicit = form and (self.modern or not stateless_http)
         params = getattr(request, "params", None)
@@ -147,11 +148,11 @@ class ElicitationRound:
 
     # ── Confirmations (afd.server.confirmations.ConfirmationChannel) ────────────────────────
 
-    async def response(self, binding: str) -> str:
+    async def response(self, binding: str) -> Literal["accept", "decline", "missing"]:
         accepted, declined = self._answers()
 
         def asks(item: dict[str, Any]) -> bool:
-            return item["k"] == CONFIRM_INPUT_KEY and item["b"] == binding
+            return bool(item["k"] == CONFIRM_INPUT_KEY and item["b"] == binding)
 
         if any(map(asks, declined)):
             return "decline"
@@ -234,7 +235,9 @@ class ElicitationRound:
         return InputRequiredResult(
             input_requests={
                 key: ElicitRequest(
-                    params=ElicitRequestFormParams(message=message, requested_schema=requested_schema)
+                    params=ElicitRequestFormParams(
+                        message=message, requested_schema=requested_schema
+                    )
                 )
             },
             request_state=json.dumps(state, separators=(",", ":")),
@@ -270,7 +273,10 @@ def _accepted_approval(item: dict[str, Any]) -> AcceptedApproval:
     index, input, call = item.get("s"), item.get("i"), item.get("c")
     step = (
         ApprovedStep(index, input, call)
-        if _is_int(index) and isinstance(input, str) and isinstance(call, str)
+        if isinstance(index, int)
+        and _is_int(index)
+        and isinstance(input, str)
+        and isinstance(call, str)
         else None
     )
     return AcceptedApproval(
@@ -284,9 +290,9 @@ class RoundRelay:
 
     def __init__(self, round: ElicitationRound) -> None:
         self._round = round
-        self._routed: Optional[str] = None
+        self._routed: str | None = None
         self._claimed = False
-        self.held: Optional[StepsHold] = None
+        self.held: StepsHold | None = None
 
     def route(self, command: str) -> None:
         if self._routed is None:

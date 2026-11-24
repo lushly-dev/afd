@@ -166,17 +166,29 @@ pub struct JournalEntry {
 /// in [`JournalEntry`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct JournalRecord {
+    /// RFC 3339 UTC timestamp when execution finished.
     pub timestamp: String,
+    /// Optional caller-provided trace identifier.
     pub trace_id: Option<String>,
+    /// Executed command name.
     pub command: String,
+    /// Validated command input payload.
     pub input: Value,
+    /// Caller actor, when recorded.
     pub actor: Option<Actor>,
+    /// SHA-256 digest of the canonical context fields.
     pub context_digest: JournalContextDigest,
+    /// Recorded declared context fields.
     pub context: Option<Map<String, Value>>,
+    /// Declared context field names omitted from `context` (for size or redaction).
     pub context_omitted: Option<Vec<String>>,
+    /// Output budget requested for this call, in bytes.
     pub output_budget: Option<u64>,
+    /// Recorded command result envelope.
     pub result: CommandResult<Value>,
+    /// Execution duration in milliseconds.
     pub duration_ms: f64,
+    /// Clock and random values read by the handler, for deterministic replay.
     pub tape: Option<JournalTape>,
 }
 

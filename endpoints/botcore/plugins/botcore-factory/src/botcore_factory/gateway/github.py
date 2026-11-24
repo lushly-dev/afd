@@ -56,14 +56,14 @@ class MergeMethodNotAllowed(Exception):
 
 
 class GitHub(Protocol):
-    def issue(self, repo: str, number: int) -> dict | None: ...
-    def issues(self, repo: str) -> list[dict]: ...
-    def pull(self, repo: str, number: int) -> dict | None: ...
-    def pulls(self, repo: str) -> list[dict]: ...
+    def issue(self, repo: str, number: int) -> dict[str, Any] | None: ...
+    def issues(self, repo: str) -> list[dict[str, Any]]: ...
+    def pull(self, repo: str, number: int) -> dict[str, Any] | None: ...
+    def pulls(self, repo: str) -> list[dict[str, Any]]: ...
     def repo_labels(self, repo: str) -> list[str]: ...
     def set_labels(self, repo: str, number: int, labels: list[str]) -> None: ...
-    def comments(self, repo: str, number: int) -> list[dict]: ...
-    def add_comment(self, repo: str, number: int, body: str) -> dict: ...
+    def comments(self, repo: str, number: int) -> list[dict[str, Any]]: ...
+    def add_comment(self, repo: str, number: int, body: str) -> dict[str, Any]: ...
     def create_issue(self, repo: str, title: str, body: str, labels: list[str]) -> int: ...
     def ref(self, repo: str, ref: str) -> str | None: ...
     def has_commit(self, repo: str, sha: str) -> bool:
@@ -97,7 +97,7 @@ class GitHub(Protocol):
         ...
 
     def disable_auto_merge(self, repo: str, number: int) -> None: ...
-    def enqueue_pull(self, repo: str, number: int, head: str) -> dict:
+    def enqueue_pull(self, repo: str, number: int, head: str) -> dict[str, Any]:
         """Add the pull request to its base's merge queue, bound to ``head`` (GraphQL
         enqueuePullRequest with expectedHeadOid), and return the entry GitHub made
         (``state``, ``position``); ``HeadMoved`` when the head is another, ``GitHubRefused``
@@ -114,14 +114,14 @@ class GitHub(Protocol):
         """A pull request reverting a merged one (GraphQL revertPullRequest)."""
         ...
 
-    def check_runs(self, repo: str, head: str) -> list[dict]: ...
-    def create_check_run(self, repo: str, head: str, run: dict) -> None: ...
+    def check_runs(self, repo: str, head: str) -> list[dict[str, Any]]: ...
+    def create_check_run(self, repo: str, head: str, run: dict[str, Any]) -> None: ...
     def variable(self, repo: str, name: str) -> str | None: ...
     def set_variable(self, repo: str, name: str, value: str) -> None: ...
-    def issue_events(self, repo: str) -> list[dict]: ...
-    def comment_feed(self, repo: str) -> list[dict]: ...
-    def actions_status(self) -> dict | None: ...
-    def rate_limit(self) -> dict: ...
+    def issue_events(self, repo: str) -> list[dict[str, Any]]: ...
+    def comment_feed(self, repo: str) -> list[dict[str, Any]]: ...
+    def actions_status(self) -> dict[str, Any] | None: ...
+    def rate_limit(self) -> dict[str, Any]: ...
     def ages(self) -> dict[str, int | None]:
         """Credential ages in seconds for gateway-status: ``appKey`` (seconds since the key file
         was modified) and ``token`` (seconds left on the current installation token)."""
@@ -130,7 +130,7 @@ class GitHub(Protocol):
     def now(self) -> str | None: ...
 
 
-def marker(kind: str, payload: dict | str) -> str:
+def marker(kind: str, payload: dict[str, Any] | str) -> str:
     """A hidden comment marker: ``<!-- kind {...} -->`` (or a bare value)."""
     value = payload if isinstance(payload, str) else json.dumps(payload, sort_keys=True)
     return f"<!-- {kind} {value} -->"
@@ -159,7 +159,7 @@ GITHUB_KEYS = {
 }
 
 
-def fake_world(data: dict, repo: str) -> dict:
+def fake_world(data: dict[str, Any], repo: str) -> dict[str, Any]:
     """Normalise a fixture's GitHub part: branches become refs, claim comments become
     comments on their issues with the marker their author wrote. Idempotent."""
     world = copy.deepcopy({key: value for key, value in data.items() if key in GITHUB_KEYS})
@@ -210,26 +210,27 @@ class FakeGitHub:
 
     # ── plumbing ──────────────────────────────────────────────────────────
 
-    def _check(self, repo: str) -> dict:
+    def _check(self, repo: str) -> dict[str, Any]:
         if self._data.get("githubUnavailable"):
             raise GitHubUnavailable("GitHub answered 503")
         if repo != self._data["repo"]:
             return {}
-        return self._data
+        data: dict[str, Any] = self._data
+        return data
 
     @contextmanager
-    def _write(self, repo: str) -> Iterator[dict]:
+    def _write(self, repo: str) -> Iterator[dict[str, Any]]:
         data = self._check(repo)
         yield data
         self.path.write_text(json.dumps(self._data, indent=2), encoding="utf-8")
 
-    def _issue(self, data: dict, number: int) -> dict | None:
+    def _issue(self, data: dict[str, Any], number: int) -> dict[str, Any] | None:
         return next((i for i in data.get("issues", []) if i["number"] == number), None)
 
-    def _pull(self, data: dict, number: int) -> dict | None:
+    def _pull(self, data: dict[str, Any], number: int) -> dict[str, Any] | None:
         return next((p for p in data.get("pullRequests", []) if p["number"] == number), None)
 
-    def _next_number(self, data: dict) -> int:
+    def _next_number(self, data: dict[str, Any]) -> int:
         numbers = [i["number"] for i in data.get("issues", [])]
         numbers += [p["number"] for p in data.get("pullRequests", [])]
         return max(numbers, default=0) + 1
@@ -237,69 +238,79 @@ class FakeGitHub:
     # ── reads ─────────────────────────────────────────────────────────────
 
     def now(self) -> str | None:
-        return self._data.get("now")
+        val = self._data.get("now")
+        return str(val) if val is not None else None
 
-    def issue(self, repo, number):
+    def issue(self, repo: str, number: int) -> dict[str, Any] | None:
         return copy.deepcopy(self._issue(self._check(repo), number))
 
-    def issues(self, repo):
-        return copy.deepcopy(self._check(repo).get("issues", []))
+    def issues(self, repo: str) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = copy.deepcopy(self._check(repo).get("issues", []))
+        return items
 
-    def pull(self, repo, number):
+    def pull(self, repo: str, number: int) -> dict[str, Any] | None:
         return copy.deepcopy(self._pull(self._check(repo), number))
 
-    def pulls(self, repo):
-        return copy.deepcopy(self._check(repo).get("pullRequests", []))
+    def pulls(self, repo: str) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = copy.deepcopy(self._check(repo).get("pullRequests", []))
+        return items
 
-    def repo_labels(self, repo):
+    def repo_labels(self, repo: str) -> list[str]:
         return list(self._check(repo).get("labels", []))
 
-    def comments(self, repo, number):
+    def comments(self, repo: str, number: int) -> list[dict[str, Any]]:
         issue = self._issue(self._check(repo), number)
-        return copy.deepcopy(issue.get("comments", [])) if issue else []
+        items: list[dict[str, Any]] = copy.deepcopy(issue.get("comments", [])) if issue else []
+        return items
 
-    def ref(self, repo, ref):
-        return self._check(repo).get("refs", {}).get(ref)
+    def ref(self, repo: str, ref: str) -> str | None:
+        val = self._check(repo).get("refs", {}).get(ref)
+        return str(val) if val is not None else None
 
-    def has_commit(self, repo, sha):
+    def has_commit(self, repo: str, sha: str) -> bool:
         data = self._check(repo)
         heads = set(data.get("refs", {}).values()) | set(data.get("checkRuns", {}))
         heads |= {pull.get("head") for pull in data.get("pullRequests", [])}
         return sha in heads
 
-    def on_main(self, repo, sha):
+    def on_main(self, repo: str, sha: str) -> bool:
         data = self._check(repo)
         return sha == data.get("refs", {}).get("refs/heads/main") or sha in data.get(
             "mainHistory", []
         )
 
-    def _merge_method(self, data: dict, method: str) -> None:
+    def _merge_method(self, data: dict[str, Any], method: str) -> None:
         allowed = data.get("allowedMergeMethods")
         if allowed is not None and method not in allowed:
             raise MergeMethodNotAllowed(method)
 
-    def check_runs(self, repo, head):
+    def check_runs(self, repo: str, head: str) -> list[dict[str, Any]]:
         data = self._check(repo)
-        runs = []
+        runs: list[dict[str, Any]] = []
         for pull in data.get("pullRequests", []):
             if pull.get("head") == head:
                 runs += copy.deepcopy(pull.get("checks", []))
-        return runs + copy.deepcopy(data.get("checkRuns", {}).get(head, []))
+        extra: list[dict[str, Any]] = copy.deepcopy(data.get("checkRuns", {}).get(head, []))
+        return runs + extra
 
-    def variable(self, repo, name):
-        return self._check(repo).get("variables", {}).get(name)
+    def variable(self, repo: str, name: str) -> str | None:
+        val = self._check(repo).get("variables", {}).get(name)
+        return str(val) if val is not None else None
 
-    def issue_events(self, repo):
-        return copy.deepcopy(self._check(repo).get("issueEvents", []))
+    def issue_events(self, repo: str) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = copy.deepcopy(self._check(repo).get("issueEvents", []))
+        return items
 
-    def comment_feed(self, repo):
-        return copy.deepcopy(self._check(repo).get("issueComments", []))
+    def comment_feed(self, repo: str) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = copy.deepcopy(self._check(repo).get("issueComments", []))
+        return items
 
-    def actions_status(self):
-        return copy.deepcopy(self._data.get("actionsStatus"))
+    def actions_status(self) -> dict[str, Any] | None:
+        val: dict[str, Any] | None = copy.deepcopy(self._data.get("actionsStatus"))
+        return val
 
-    def rate_limit(self):
-        return copy.deepcopy(
+    def rate_limit(self) -> dict[str, Any]:
+        val: dict[str, Any] = copy.deepcopy(
             self._data.get("rateLimit")
             or {
                 "remaining": 5000,
@@ -307,18 +318,34 @@ class FakeGitHub:
                 "graphql": {"remaining": 5000, "limit": 5000},
             }
         )
+        return val
 
-    def ages(self):
-        return copy.deepcopy(self._data.get("ages") or {"appKey": 0, "token": 3600})
+    def ages(self) -> dict[str, Any]:
+        val: dict[str, Any] = copy.deepcopy(self._data.get("ages") or {"appKey": 0, "token": 3600})
+        return val
 
     # ── writes, all as the App's bot ──────────────────────────────────────
 
-    def set_labels(self, repo, number, labels):
+    def _require_issue(self, data: dict[str, Any], number: int) -> dict[str, Any]:
+        issue = self._issue(data, number)
+        if issue is None:
+            raise KeyError(f"unknown issue #{number}")
+        return issue
+
+    def _require_pull(self, data: dict[str, Any], number: int) -> dict[str, Any]:
+        pull = self._pull(data, number)
+        if pull is None:
+            raise KeyError(f"unknown pull request #{number}")
+        return pull
+
+    def set_labels(self, repo: str, number: int, labels: list[str]) -> None:
         with self._write(repo) as data:
             target = self._issue(data, number) or self._pull(data, number)
+            if target is None:
+                raise KeyError(f"unknown issue or pull request #{number}")
             target["labels"] = list(labels)
 
-    def add_comment(self, repo, number, body):
+    def add_comment(self, repo: str, number: int, body: str) -> dict[str, Any]:
         with self._write(repo) as data:
             data["nextCommentId"] = data.get("nextCommentId", 90_000) + 1
             comment = {
@@ -327,10 +354,11 @@ class FakeGitHub:
                 "at": data.get("now"),
                 "body": body,
             }
-            self._issue(data, number).setdefault("comments", []).append(comment)
+            issue = self._require_issue(data, number)
+            issue.setdefault("comments", []).append(comment)
             return copy.deepcopy(comment)
 
-    def create_issue(self, repo, title, body, labels):
+    def create_issue(self, repo: str, title: str, body: str, labels: list[str]) -> int:
         with self._write(repo) as data:
             number = self._next_number(data)
             data["issues"].append(
@@ -346,14 +374,14 @@ class FakeGitHub:
             )
             return number
 
-    def update_ref(self, repo, ref, head, expected=None):
+    def update_ref(self, repo: str, ref: str, head: str, expected: str | None = None) -> None:
         with self._write(repo) as data:
             refs = data.setdefault("refs", {})
             if refs.get(ref) != expected:
                 raise HeadMoved(refs.get(ref) or "")
             refs[ref] = head
 
-    def create_pull(self, repo, branch, title, body, **extra):
+    def create_pull(self, repo: str, branch: str, title: str, body: str, **extra: Any) -> int:
         with self._write(repo) as data:
             number = self._next_number(data)
             data["pullRequests"].append(
@@ -375,13 +403,14 @@ class FakeGitHub:
             )
             return number
 
-    def update_pull(self, repo, number, *, title, body):
+    def update_pull(self, repo: str, number: int, *, title: str, body: str) -> None:
         with self._write(repo) as data:
-            self._pull(data, number).update(title=title, body=body, closes=_closes(body))
+            pull = self._require_pull(data, number)
+            pull.update(title=title, body=body, closes=_closes(body))
 
-    def merge_pull(self, repo, number, head, method):
+    def merge_pull(self, repo: str, number: int, head: str, method: str) -> str:
         with self._write(repo) as data:
-            pull = self._pull(data, number)
+            pull = self._require_pull(data, number)
             if pull["head"] != head:
                 raise HeadMoved(pull["head"])  # GitHub answers 409 to a stale sha.
             self._merge_method(data, method)
@@ -392,15 +421,16 @@ class FakeGitHub:
                 issue = self._issue(data, issue_number)
                 if issue is not None:
                     issue["state"] = "closed"
-            return pull["mergedAt"]
+            merged_at = pull["mergedAt"]
+            return str(merged_at) if merged_at is not None else ""
 
-    def enable_auto_merge(self, repo, number, head, method):
+    def enable_auto_merge(self, repo: str, number: int, head: str, method: str) -> None:
         """Behind a merge queue (the pull request's ``mergeQueue.required``) GitHub takes a
         pull request that is clean and whose checks all passed into the queue at once; any
         other waits with auto-merge set, as without a queue."""
         with self._write(repo) as data:
             self._merge_method(data, method)
-            pull = self._pull(data, number)
+            pull = self._require_pull(data, number)
             pull.update(autoMerge=True, autoMergeHead=head, autoMergeMethod=method)
             queue = pull.get("mergeQueue") or {}
             green = pull.get("mergeable") == "MERGEABLE" and all(
@@ -409,15 +439,15 @@ class FakeGitHub:
             if queue.get("required") and green:
                 self._enqueue(pull, head)
 
-    def disable_auto_merge(self, repo, number):
+    def disable_auto_merge(self, repo: str, number: int) -> None:
         """GitHub refuses to turn off auto-merge that is not set."""
         with self._write(repo) as data:
-            pull = self._pull(data, number)
+            pull = self._require_pull(data, number)
             if not pull.get("autoMerge"):
                 raise GitHubRefused(200, "Can't disable auto-merge for this pull request")
             pull.update(autoMerge=False, autoMergeHead=None)
 
-    def _enqueue(self, pull: dict, head: str) -> None:
+    def _enqueue(self, pull: dict[str, Any], head: str) -> None:
         pull["mergeQueue"] = {
             **(pull.get("mergeQueue") or {}),
             "queued": True,
@@ -426,9 +456,9 @@ class FakeGitHub:
             "head": head,
         }
 
-    def enqueue_pull(self, repo, number, head):
+    def enqueue_pull(self, repo: str, number: int, head: str) -> dict[str, Any]:
         with self._write(repo) as data:
-            pull = self._pull(data, number)
+            pull = self._require_pull(data, number)
             if pull["head"] != head:
                 raise HeadMoved(pull["head"])
             if not (pull.get("mergeQueue") or {}).get("required"):
@@ -436,25 +466,27 @@ class FakeGitHub:
             self._enqueue(pull, head)
             return {"state": "QUEUED", "position": 1}
 
-    def dequeue_pull(self, repo, number):
+    def dequeue_pull(self, repo: str, number: int) -> None:
         with self._write(repo) as data:
-            pull = self._pull(data, number)
+            pull = self._require_pull(data, number)
             pull["mergeQueue"] = {"required": bool((pull.get("mergeQueue") or {}).get("required"))}
 
-    def create_revert(self, repo, number, title, body):
+    def create_revert(self, repo: str, number: int, title: str, body: str) -> int:
         original = self.pull(repo, number)
+        if original is None:
+            raise KeyError(f"unknown pull request #{number}")
         branch = f"revert-{number}"
         head = fake_head(f"revert:{number}:{original['head']}")
         self.update_ref(repo, f"refs/heads/{branch}", head, self.ref(repo, f"refs/heads/{branch}"))
         return self.create_pull(repo, branch, title, body, revertOf=number)
 
-    def create_check_run(self, repo, head, run):
+    def create_check_run(self, repo: str, head: str, run: dict[str, Any]) -> None:
         with self._write(repo) as data:
             data.setdefault("checkRuns", {}).setdefault(head, []).append(
                 {**run, "app": self.bot, "status": "completed", "completedAt": data.get("now")}
             )
 
-    def set_variable(self, repo, name, value):
+    def set_variable(self, repo: str, name: str, value: str) -> None:
         with self._write(repo) as data:
             data.setdefault("variables", {})[name] = value
 

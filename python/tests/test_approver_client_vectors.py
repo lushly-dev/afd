@@ -28,17 +28,13 @@ def test_python_is_a_documented_gap():
     assert GAP == "https://github.com/lushly-dev/afd/issues/1466"
 
 
-@pytest.mark.parametrize(
-    "case", VECTORS["display"]["cases"], ids=lambda case: case["description"]
-)
+@pytest.mark.parametrize("case", VECTORS["display"]["cases"], ids=lambda case: case["description"])
 def test_display(case):
     assert case["expected"]
     pytest.skip(f"approval display rules: documented Python gap, {GAP}")
 
 
-@pytest.mark.parametrize(
-    "case", VECTORS["carrier"]["cases"], ids=lambda case: case["description"]
-)
+@pytest.mark.parametrize("case", VECTORS["carrier"]["cases"], ids=lambda case: case["description"])
 def test_carrier(case):
     assert case["steps"]
     pytest.skip(f"approver carrier: documented Python gap, {GAP}")

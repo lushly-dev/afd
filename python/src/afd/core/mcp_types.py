@@ -23,10 +23,9 @@ Example:
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PROTOCOL CONSTANTS
@@ -43,7 +42,7 @@ MODERN_PROTOCOL_VERSION = "2026-07-28"
 LEGACY_PROTOCOL_VERSIONS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
 """``initialize``-era MCP revisions, newest first."""
 
-JSONRPC_VERSION = "2.0"
+JSONRPC_VERSION: Literal["2.0"] = "2.0"
 """JSON-RPC version used by MCP."""
 
 
@@ -93,10 +92,10 @@ class EmbeddedResource(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     type: Literal["resource"] = "resource"
-    resource: Dict[str, Any]
+    resource: dict[str, Any]
 
 
-Content = Union[TextContent, ImageContent, EmbeddedResource]
+Content = TextContent | ImageContent | EmbeddedResource
 """Union of all MCP content types."""
 
 
@@ -117,8 +116,8 @@ class ToolInputSchema(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     type: Literal["object"] = "object"
-    properties: Dict[str, Any] = Field(default_factory=dict)
-    required: List[str] = Field(default_factory=list)
+    properties: dict[str, Any] = Field(default_factory=dict)
+    required: list[str] = Field(default_factory=list)
 
 
 class ToolDefinition(BaseModel):
@@ -134,9 +133,7 @@ class ToolDefinition(BaseModel):
 
     name: str
     description: str = ""
-    input_schema: ToolInputSchema = Field(
-        default_factory=ToolInputSchema, alias="inputSchema"
-    )
+    input_schema: ToolInputSchema = Field(default_factory=ToolInputSchema, alias="inputSchema")
 
 
 class ToolCallParams(BaseModel):
@@ -150,7 +147,7 @@ class ToolCallParams(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     name: str
-    arguments: Dict[str, Any] = Field(default_factory=dict)
+    arguments: dict[str, Any] = Field(default_factory=dict)
 
 
 class ToolResult(BaseModel):
@@ -163,7 +160,7 @@ class ToolResult(BaseModel):
 
     model_config = ConfigDict(frozen=True, populate_by_name=True)
 
-    content: List[Content] = Field(default_factory=list)
+    content: list[Content] = Field(default_factory=list)
     is_error: bool = Field(default=False, alias="isError")
 
 
@@ -185,7 +182,7 @@ class JsonRpcError(BaseModel):
 
     code: int
     message: str
-    data: Optional[Any] = None
+    data: Any | None = None
 
 
 class McpRequest(BaseModel):
@@ -201,9 +198,9 @@ class McpRequest(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     jsonrpc: Literal["2.0"] = JSONRPC_VERSION
-    id: Union[int, str]
+    id: int | str
     method: str
-    params: Optional[Dict[str, Any]] = None
+    params: dict[str, Any] | None = None
 
 
 class McpResponse(BaseModel):
@@ -218,7 +215,7 @@ class McpResponse(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     jsonrpc: Literal["2.0"] = JSONRPC_VERSION
-    id: Union[int, str]
+    id: int | str
     result: Any
 
 
@@ -234,7 +231,7 @@ class McpErrorResponse(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     jsonrpc: Literal["2.0"] = JSONRPC_VERSION
-    id: Union[int, str]
+    id: int | str
     error: JsonRpcError
 
 
@@ -282,10 +279,8 @@ class InitializeParams(BaseModel):
 
     model_config = ConfigDict(frozen=True, populate_by_name=True)
 
-    protocol_version: str = Field(
-        default=MCP_PROTOCOL_VERSION, alias="protocolVersion"
-    )
-    capabilities: Dict[str, Any] = Field(default_factory=dict)
+    protocol_version: str = Field(default=MCP_PROTOCOL_VERSION, alias="protocolVersion")
+    capabilities: dict[str, Any] = Field(default_factory=dict)
     client_info: ClientInfo = Field(alias="clientInfo")
 
 
@@ -300,11 +295,9 @@ class InitializeResult(BaseModel):
 
     model_config = ConfigDict(frozen=True, populate_by_name=True)
 
-    protocol_version: str = Field(
-        default=MCP_PROTOCOL_VERSION, alias="protocolVersion"
-    )
-    capabilities: Dict[str, Any] = Field(default_factory=dict)
-    server_info: Optional[ServerInfo] = Field(default=None, alias="serverInfo")
+    protocol_version: str = Field(default=MCP_PROTOCOL_VERSION, alias="protocolVersion")
+    capabilities: dict[str, Any] = Field(default_factory=dict)
+    server_info: ServerInfo | None = Field(default=None, alias="serverInfo")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -347,7 +340,7 @@ def image_content(data: str, mime_type: str) -> ImageContent:
     return ImageContent(data=data, mimeType=mime_type)
 
 
-def embedded_resource(resource: Dict[str, Any]) -> EmbeddedResource:
+def embedded_resource(resource: dict[str, Any]) -> EmbeddedResource:
     """Create an EmbeddedResource block.
 
     Args:
@@ -359,7 +352,7 @@ def embedded_resource(resource: Dict[str, Any]) -> EmbeddedResource:
     return EmbeddedResource(resource=resource)
 
 
-def tool_call_params(name: str, arguments: Optional[Dict[str, Any]] = None) -> ToolCallParams:
+def tool_call_params(name: str, arguments: dict[str, Any] | None = None) -> ToolCallParams:
     """Create parameters for a ``tools/call`` request.
 
     Args:
@@ -378,7 +371,7 @@ def tool_call_params(name: str, arguments: Optional[Dict[str, Any]] = None) -> T
 
 
 def tool_result(
-    content: Optional[List[Content]] = None,
+    content: list[Content] | None = None,
     *,
     is_error: bool = False,
 ) -> ToolResult:
@@ -403,8 +396,8 @@ def tool_definition(
     name: str,
     description: str = "",
     *,
-    properties: Optional[Dict[str, Any]] = None,
-    required: Optional[List[str]] = None,
+    properties: dict[str, Any] | None = None,
+    required: list[str] | None = None,
 ) -> ToolDefinition:
     """Create a tool definition.
 
@@ -432,8 +425,8 @@ def tool_definition(
 def mcp_request(
     method: str,
     *,
-    id: Union[int, str] = 1,
-    params: Optional[Any] = None,
+    id: int | str = 1,
+    params: Any | None = None,
 ) -> McpRequest:
     """Create an MCP JSON-RPC request.
 
@@ -450,6 +443,7 @@ def mcp_request(
         >>> req.method
         'tools/list'
     """
+    serialized: dict[str, Any] | None
     if isinstance(params, BaseModel):
         serialized = params.model_dump(by_alias=True)
     elif isinstance(params, dict):
@@ -459,7 +453,7 @@ def mcp_request(
     return McpRequest(id=id, method=method, params=serialized)
 
 
-def mcp_response(id: Union[int, str], result: Any) -> McpResponse:
+def mcp_response(id: int | str, result: Any) -> McpResponse:
     """Create an MCP JSON-RPC success response.
 
     Args:
@@ -478,11 +472,11 @@ def mcp_response(id: Union[int, str], result: Any) -> McpResponse:
 
 
 def mcp_error_response(
-    id: Union[int, str],
+    id: int | str,
     code: int,
     message: str,
     *,
-    data: Optional[Any] = None,
+    data: Any | None = None,
 ) -> McpErrorResponse:
     """Create an MCP JSON-RPC error response.
 
@@ -511,7 +505,7 @@ def initialize_params(
     client_version: str,
     *,
     protocol_version: str = MCP_PROTOCOL_VERSION,
-    capabilities: Optional[Dict[str, Any]] = None,
+    capabilities: dict[str, Any] | None = None,
 ) -> InitializeParams:
     """Create parameters for the ``initialize`` method.
 
@@ -541,7 +535,7 @@ def initialize_result(
     server_version: str = "",
     *,
     protocol_version: str = MCP_PROTOCOL_VERSION,
-    capabilities: Optional[Dict[str, Any]] = None,
+    capabilities: dict[str, Any] | None = None,
 ) -> InitializeResult:
     """Create a result for the ``initialize`` method.
 

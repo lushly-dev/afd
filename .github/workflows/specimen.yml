@@ -17,8 +17,8 @@ on:
       - '.github/actions/playwright-install/**'
       - 'foundations/fast-af/packages/element/packages/fast-element/**'
       - 'foundations/fast-af/packages/violet-elements/**'
-      - 'tests/consumers/specimen/**'
       - 'tests/consumers/pnpm.mjs'
+      - 'tests/consumers/specimen/**'
       - 'scripts/release/exec-tool.mjs'
       - '.github/workflows/specimen.yml'
       - '.github/workflows/queue.yml'
@@ -41,8 +41,8 @@ on:
       - '.github/actions/playwright-install/**'
       - 'foundations/fast-af/packages/element/packages/fast-element/**'
       - 'foundations/fast-af/packages/violet-elements/**'
-      - 'tests/consumers/specimen/**'
       - 'tests/consumers/pnpm.mjs'
+      - 'tests/consumers/specimen/**'
       - 'scripts/release/exec-tool.mjs'
       - '.github/workflows/specimen.yml'
       - '.github/workflows/queue.yml'
@@ -142,8 +142,14 @@ jobs:
             os: macos-15
           - platform: darwin-x64
             os: macos-15-intel
+          - platform: win32-x64
+            os: windows-latest
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
+    defaults:
+      run:
+        # Git Bash on Windows so $RUNNER_TEMP and multi-line steps behave identically on all OSes.
+        shell: bash
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -155,6 +161,27 @@ jobs:
         with:
           package: '@lushly-dev/specimen'
         timeout-minutes: 10
+      - name: Allow Chromium user namespaces under AppArmor
+        if: runner.os == 'Linux'
+        run: |
+          if [ "$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null || echo 0)" = "1" ]; then
+            cache="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}"
+            mapfile -t bins < <(find "$cache" -type f \( -name 'chrome-headless-shell' -o -name 'headless_shell' -o -name 'chrome' \) -executable | sort)
+            if [ "${#bins[@]}" -eq 0 ]; then
+              echo "No Playwright Chromium binaries found under $cache" >&2
+              exit 1
+            fi
+            {
+              echo 'abi <abi/4.0>,'
+              echo 'include <tunables/global>'
+              i=0
+              for bin in "${bins[@]}"; do
+                i=$((i + 1))
+                printf 'profile specimen-playwright-chromium-%d "%s" flags=(unconfined) {\n  userns,\n}\n' "$i" "$bin"
+              done
+            } | sudo tee /etc/apparmor.d/specimen-playwright-chromium >/dev/null
+            sudo apparmor_parser -r /etc/apparmor.d/specimen-playwright-chromium
+          fi
       - name: Install Rust toolchain
         working-directory: foundations/specimen/host
         run: rustup toolchain install
@@ -166,6 +193,8 @@ jobs:
       - name: Native host release build
         run: pnpm -F @lushly-dev/specimen build:host
       - name: Packed consumers on this platform's host package
+        env:
+          SPECIMEN_CHROMIUM_SANDBOX: '1'
         run: node tests/consumers/specimen/verify-artifacts.mjs --output "$RUNNER_TEMP/specimen-receipt"
       - name: Pack the host package
         run: |
@@ -197,6 +226,26 @@ jobs:
         with:
           package: '@lushly-dev/specimen'
         timeout-minutes: 10
+      - name: Allow Chromium user namespaces under AppArmor
+        run: |
+          if [ "$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null || echo 0)" = "1" ]; then
+            cache="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}"
+            mapfile -t bins < <(find "$cache" -type f \( -name 'chrome-headless-shell' -o -name 'headless_shell' -o -name 'chrome' \) -executable | sort)
+            if [ "${#bins[@]}" -eq 0 ]; then
+              echo "No Playwright Chromium binaries found under $cache" >&2
+              exit 1
+            fi
+            {
+              echo 'abi <abi/4.0>,'
+              echo 'include <tunables/global>'
+              i=0
+              for bin in "${bins[@]}"; do
+                i=$((i + 1))
+                printf 'profile specimen-playwright-chromium-%d "%s" flags=(unconfined) {\n  userns,\n}\n' "$i" "$bin"
+              done
+            } | sudo tee /etc/apparmor.d/specimen-playwright-chromium >/dev/null
+            sudo apparmor_parser -r /etc/apparmor.d/specimen-playwright-chromium
+          fi
       - name: Install Rust toolchain
         working-directory: foundations/specimen/host
         run: rustup toolchain install
@@ -212,6 +261,8 @@ jobs:
       - name: Native host release build
         run: pnpm -F @lushly-dev/specimen build:host
       - name: Story typecheck, every story, the story contract, the review page's budgets and the component pack
+        env:
+          SPECIMEN_CHROMIUM_SANDBOX: '1'
         run: pnpm -F @lushly-dev/violet-elements test:stories
 
   browser-and-consumers:
@@ -228,6 +279,26 @@ jobs:
         with:
           package: '@lushly-dev/specimen'
         timeout-minutes: 10
+      - name: Allow Chromium user namespaces under AppArmor
+        run: |
+          if [ "$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null || echo 0)" = "1" ]; then
+            cache="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}"
+            mapfile -t bins < <(find "$cache" -type f \( -name 'chrome-headless-shell' -o -name 'headless_shell' -o -name 'chrome' \) -executable | sort)
+            if [ "${#bins[@]}" -eq 0 ]; then
+              echo "No Playwright Chromium binaries found under $cache" >&2
+              exit 1
+            fi
+            {
+              echo 'abi <abi/4.0>,'
+              echo 'include <tunables/global>'
+              i=0
+              for bin in "${bins[@]}"; do
+                i=$((i + 1))
+                printf 'profile specimen-playwright-chromium-%d "%s" flags=(unconfined) {\n  userns,\n}\n' "$i" "$bin"
+              done
+            } | sudo tee /etc/apparmor.d/specimen-playwright-chromium >/dev/null
+            sudo apparmor_parser -r /etc/apparmor.d/specimen-playwright-chromium
+          fi
       - name: Install Rust toolchain
         working-directory: foundations/specimen/host
         run: rustup toolchain install
@@ -243,14 +314,24 @@ jobs:
       - name: Native host release build
         run: pnpm -F @lushly-dev/specimen build:host
       - name: Full native suite (unit, resource, process-worker and Chromium)
+        env:
+          SPECIMEN_CHROMIUM_SANDBOX: '1'
         run: pnpm -F @lushly-dev/specimen test:browser
       - name: Integration and endpoint suites
+        env:
+          SPECIMEN_CHROMIUM_SANDBOX: '1'
         run: pnpm -F @lushly-dev/specimen-afd -F @lushly-dev/specimen-afd-runner -F @lushly-dev/specimen-cli -F @lushly-dev/specimen-fast-af test
       - name: FAST-AF plugin through the bench
+        env:
+          SPECIMEN_CHROMIUM_SANDBOX: '1'
         run: pnpm -F @lushly-dev/specimen-fast-af test:browser
       - name: AFD runner plugin through the bench
+        env:
+          SPECIMEN_CHROMIUM_SANDBOX: '1'
         run: pnpm -F @lushly-dev/specimen-afd-runner test:browser
       - name: Packed-artifact consumers outside the workspace
+        env:
+          SPECIMEN_CHROMIUM_SANDBOX: '1'
         run: node tests/consumers/specimen/verify-artifacts.mjs --output "$RUNNER_TEMP/specimen-receipt"
       - name: Upload consumer receipt
         if: ${{ !cancelled() }}

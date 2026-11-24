@@ -1,3 +1,5 @@
+//! Integration tests for command input validation boundaries.
+
 use afd::{
     command_to_mcp_tool, register_bootstrap_commands, success, CommandContext, CommandDefinition,
     CommandHandler, CommandParameter, CommandRegistry, CommandResult, JsonSchema, JsonSchemaType,

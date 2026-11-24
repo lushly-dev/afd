@@ -120,5 +120,8 @@ jobs:
         run: |
           uv run --frozen ruff check src tests
           uv run --frozen ruff format --check src tests
+      - name: Type check
+        if: runner.os == 'Linux'
+        run: uv run --frozen mypy src
       - name: Test (units, and the jobs through AFD's TypeScript scenario runner)
         run: uv run --frozen pytest -q

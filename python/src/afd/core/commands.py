@@ -6,10 +6,10 @@ is defined as a command with a clear schema.
 Example:
     >>> from afd.core.commands import CommandDefinition, create_command_registry
     >>> from afd import success
-    >>> 
+    >>>
     >>> async def my_handler(input, context=None):
     ...     return success({"id": "123"})
-    >>> 
+    >>>
     >>> registry = create_command_registry()
     >>> registry.register(CommandDefinition(
     ...     name="my-command",
@@ -19,21 +19,17 @@ Example:
 """
 
 import asyncio
+import builtins
 import copy
 import dataclasses
-from collections.abc import Sequence
-from dataclasses import dataclass, field, replace
 import logging
 import re
 import warnings
+from collections.abc import Awaitable, Callable, Sequence
+from dataclasses import dataclass, field, replace
 from typing import (
     Any,
-    Awaitable,
-    Callable,
-    Dict,
-    List,
     Literal,
-    Optional,
     Protocol,
     TypeVar,
 )
@@ -65,19 +61,17 @@ _VALID_TASK_SUPPORTS = frozenset({"never", "optional", "required"})
 _SCOPE_TOKEN_RE = re.compile(r"\A[\x21\x23-\x5B\x5D-\x7E]+\Z", re.ASCII)
 
 
-def validate_command_scopes(name: str, scopes: Any) -> List[str]:
+def validate_command_scopes(name: str, scopes: Any) -> list[str]:
     """Validate and deduplicate ``scopes`` (OAuth scope tokens, RFC 6749 3.3)."""
     if scopes is None:
         return []
     if isinstance(scopes, (str, bytes)) or not isinstance(scopes, Sequence):
         raise ValueError(f"command '{name}': scopes must be a sequence of scope tokens")
-    kept: List[str] = []
+    kept: list[str] = []
     seen: set[str] = set()
     for scope in scopes:
         if not isinstance(scope, str) or _SCOPE_TOKEN_RE.match(scope) is None:
-            raise ValueError(
-                f"command '{name}': scope {scope!r} is not an OAuth scope token"
-            )
+            raise ValueError(f"command '{name}': scope {scope!r} is not an OAuth scope token")
         if scope not in seen:
             seen.add(scope)
             kept.append(scope)
@@ -86,11 +80,11 @@ def validate_command_scopes(name: str, scopes: Any) -> List[str]:
 
 def validate_task_declaration(
     name: str,
-    task: Optional[TaskSupport],
+    task: TaskSupport | None,
     *,
-    confirm_prompt: Optional[str] = None,
-    approval: Optional[ApprovalPolicy] = None,
-    confirmation_mode: Optional[str] = None,
+    confirm_prompt: str | None = None,
+    approval: ApprovalPolicy | None = None,
+    confirmation_mode: str | None = None,
 ) -> None:
     """Validate ``task`` metadata against ``spec/command-metadata.md`` ("Tasks").
 
@@ -149,7 +143,7 @@ _VALID_INTERFACES = frozenset({"palette", "mcp", "agent", "cli", "apps"})
 
 TInput = TypeVar("TInput")
 TOutput = TypeVar("TOutput")
-JsonSchema = Dict[str, Any]
+JsonSchema = dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -162,15 +156,15 @@ class CommandExample:
         description: Optional longer explanation for the example.
     """
 
-    input: Dict[str, Any]
-    title: Optional[str] = None
-    description: Optional[str] = None
+    input: dict[str, Any]
+    title: str | None = None
+    description: str | None = None
 
 
 @dataclass
 class CommandParameter:
     """Definition for a single command parameter.
-    
+
     Attributes:
         name: Parameter name.
         type: JSON Schema type.
@@ -184,15 +178,15 @@ class CommandParameter:
     type: Literal["string", "number", "boolean", "object", "array", "null"]
     description: str
     required: bool = False
-    default: Optional[Any] = None
-    enum: Optional[List[Any]] = None
-    schema: Optional[JsonSchema] = None
+    default: Any | None = None
+    enum: list[Any] | None = None
+    schema: JsonSchema | None = None
 
 
 @dataclass
 class CommandContext:
     """Context provided to command handlers.
-    
+
     Attributes:
         trace_id: Unique ID for this command invocation.
         timeout: Timeout in milliseconds.
@@ -219,21 +213,21 @@ class CommandContext:
             forwarded.
     """
 
-    trace_id: Optional[str] = None
-    timeout: Optional[int | float] = None
-    extra: Dict[str, Any] = field(default_factory=dict)
-    actor: Optional[Actor] = None
-    clock: Optional[Clock] = None
-    random: Optional[RandomSource] = None
-    approval: Optional[str] = None
-    report_progress: Optional[Callable[[str], None]] = None
-    cancel: Optional[asyncio.Event] = None
-    signal: Optional[asyncio.Event] = None
-    credentials: Optional[Any] = None
-    output_budget: Optional[int] = None
+    trace_id: str | None = None
+    timeout: int | float | None = None
+    extra: dict[str, Any] = field(default_factory=dict)
+    actor: Actor | None = None
+    clock: Clock | None = None
+    random: RandomSource | None = None
+    approval: str | None = None
+    report_progress: Callable[[str], None] | None = None
+    cancel: asyncio.Event | None = None
+    signal: asyncio.Event | None = None
+    credentials: Any | None = None
+    output_budget: int | None = None
     _direct_approval: Any = field(default=None, repr=False, compare=False)
     _direct_allow: Any = field(default=None, repr=False, compare=False)
-    _server_signal: Optional[asyncio.Event] = field(default=None, repr=False, compare=False)
+    _server_signal: asyncio.Event | None = field(default=None, repr=False, compare=False)
     _server_signal_fields: tuple[str, ...] = field(default=(), repr=False, compare=False)
     _output_budget_ask: Any = field(default=None, repr=False, compare=False)
     _scope_view: Any = field(default=None, repr=False, compare=False)
@@ -252,7 +246,7 @@ class CommandContext:
 
 # Type alias for command handler functions
 CommandHandler = Callable[
-    [Any, Optional[CommandContext]],
+    [Any, CommandContext | None],
     Awaitable[CommandResult[Any]],
 ]
 
@@ -289,10 +283,10 @@ def call_not_granted() -> CommandError:
 
 
 def app_call_granted(
-    command: Optional["CommandDefinition"],
+    command: "CommandDefinition | None",
     name: str,
     context: CommandContext,
-    call_grant: Optional[CallGrant],
+    call_grant: CallGrant | None,
 ) -> bool:
     """Whether an ``interface == 'apps'`` call to ``name`` is admitted.
 
@@ -314,7 +308,7 @@ def app_call_granted(
 @dataclass
 class CommandDefinition:
     """Full command definition with schema, handler, and metadata.
-    
+
     Attributes:
         name: Unique command name using kebab-case (domain-action).
         description: Human-readable description of what the command does.
@@ -340,11 +334,11 @@ class CommandDefinition:
             ``_meta.approval``.
         title: A short human-readable label, the MCP tool ``title`` of the command's own
             tool. Display text, never derived from the name and never in ``_meta``.
-    
+
     Example:
         >>> async def create_doc(input, context=None):
         ...     return success({"id": "doc-123", "title": input.get("title")})
-        >>> 
+        >>>
         >>> cmd = CommandDefinition(
         ...     name="document-create",
         ...     description="Creates a new document",
@@ -365,32 +359,32 @@ class CommandDefinition:
     name: str
     description: str
     handler: CommandHandler
-    category: Optional[str] = None
-    parameters: List[CommandParameter] = field(default_factory=list)
-    input_schema: Optional[JsonSchema] = None
-    returns_description: Optional[str] = None
-    returns: Optional[JsonSchema] = None
-    errors: Optional[List[str]] = None
-    version: Optional[str] = None
-    tags: Optional[List[str]] = None
+    category: str | None = None
+    parameters: list[CommandParameter] = field(default_factory=list)
+    input_schema: JsonSchema | None = None
+    returns_description: str | None = None
+    returns: JsonSchema | None = None
+    errors: list[str] | None = None
+    version: str | None = None
+    tags: list[str] | None = None
     mutation: bool = False
-    execution_time: Optional[Literal["instant", "fast", "slow", "long-running"]] = None
-    examples: List[CommandExample] = field(default_factory=list)
-    requires: List[str] = field(default_factory=list)
-    contexts: List[str] = field(default_factory=list)
+    execution_time: Literal["instant", "fast", "slow", "long-running"] | None = None
+    examples: list[CommandExample] = field(default_factory=list)
+    requires: list[str] = field(default_factory=list)
+    contexts: list[str] = field(default_factory=list)
     handoff: bool = False
-    handoff_protocol: Optional[str] = None
-    expose: Optional[ExposeOptions] = None
-    destructive: Optional[bool] = None
-    confirm_prompt: Optional[str] = None
-    undoable: Optional[bool] = None
-    approval: Optional[ApprovalPolicy] = None
-    title: Optional[str] = None
-    task: Optional[TaskSupport] = None
-    tool_meta: Optional[Dict[str, Any]] = None
-    advertised_input_schema: Optional[JsonSchema] = None
-    output_budget: Optional[OutputBudget] = None
-    scopes: List[str] = field(default_factory=list)
+    handoff_protocol: str | None = None
+    expose: ExposeOptions | None = None
+    destructive: bool | None = None
+    confirm_prompt: str | None = None
+    undoable: bool | None = None
+    approval: ApprovalPolicy | None = None
+    title: str | None = None
+    task: TaskSupport | None = None
+    tool_meta: dict[str, Any] | None = None
+    advertised_input_schema: JsonSchema | None = None
+    output_budget: OutputBudget | None = None
+    scopes: list[str] = field(default_factory=list)
 
 
 class CommandRegistry(Protocol):
@@ -398,21 +392,21 @@ class CommandRegistry(Protocol):
 
     def register(self, command: CommandDefinition) -> None:
         """Register a command.
-        
+
         Args:
             command: The command definition to register.
-            
+
         Raises:
             ValueError: If a command with the same name already exists.
         """
         ...
 
-    def get(self, name: str) -> Optional[CommandDefinition]:
+    def get(self, name: str) -> CommandDefinition | None:
         """Get a command by name.
-        
+
         Args:
             name: The command name.
-            
+
         Returns:
             The command definition or None if not found.
         """
@@ -420,35 +414,35 @@ class CommandRegistry(Protocol):
 
     def has(self, name: str) -> bool:
         """Check if a command exists.
-        
+
         Args:
             name: The command name.
-            
+
         Returns:
             True if the command exists.
         """
         ...
 
-    def list(self) -> List[CommandDefinition]:
+    def list(self) -> list[CommandDefinition]:
         """Get all registered commands.
-        
+
         Returns:
             List of all command definitions.
         """
         ...
 
-    def list_by_category(self, category: str) -> List[CommandDefinition]:
+    def list_by_category(self, category: str) -> builtins.list[CommandDefinition]:
         """Get commands by category.
-        
+
         Args:
             category: The category to filter by.
-            
+
         Returns:
             List of commands in the category.
         """
         ...
 
-    def list_by_exposure(self, interface: str) -> List[CommandDefinition]:
+    def list_by_exposure(self, interface: str) -> builtins.list[CommandDefinition]:
         """Get commands exposed to ``interface``.
 
         Args:
@@ -463,17 +457,17 @@ class CommandRegistry(Protocol):
         self,
         name: str,
         input: Any,
-        context: Optional[CommandContext] = None,
+        context: CommandContext | None = None,
         *,
         output_budget: Any = None,
     ) -> CommandResult[Any]:
         """Execute a command by name.
-        
+
         Args:
             name: The command name.
             input: The command input.
             context: Optional execution context.
-            
+
         Returns:
             The command result.
         """
@@ -483,12 +477,10 @@ class CommandRegistry(Protocol):
 class _CommandRegistryImpl:
     """Default command registry implementation."""
 
-    def __init__(
-        self, *, dev_mode: bool = False, call_grant: Optional[CallGrant] = None
-    ) -> None:
+    def __init__(self, *, dev_mode: bool = False, call_grant: CallGrant | None = None) -> None:
         if call_grant is not None and not callable(call_grant):
             raise TypeError("call_grant must be callable")
-        self._commands: Dict[str, CommandDefinition] = {}
+        self._commands: dict[str, CommandDefinition] = {}
         self._dev_mode = dev_mode
         self._call_grant = call_grant
 
@@ -516,9 +508,7 @@ class _CommandRegistryImpl:
         clean_advertised = assert_advertised_input_schema(
             command.name, command.advertised_input_schema
         )
-        normalized_budget = validate_output_budget_declaration(
-            command.name, command.output_budget
-        )
+        normalized_budget = validate_output_budget_declaration(command.name, command.output_budget)
         normalized_scopes = validate_command_scopes(command.name, command.scopes)
         if command.tool_meta is not None or command.advertised_input_schema is not None:
             command = replace(
@@ -533,19 +523,19 @@ class _CommandRegistryImpl:
             command.scopes = normalized_scopes
         self._commands[command.name] = command
 
-    def get(self, name: str) -> Optional[CommandDefinition]:
+    def get(self, name: str) -> CommandDefinition | None:
         return self._commands.get(name)
 
     def has(self, name: str) -> bool:
         return name in self._commands
 
-    def list(self) -> List[CommandDefinition]:
+    def list(self) -> list[CommandDefinition]:
         return list(self._commands.values())
 
-    def list_by_category(self, category: str) -> List[CommandDefinition]:
+    def list_by_category(self, category: str) -> builtins.list[CommandDefinition]:
         return [cmd for cmd in self._commands.values() if cmd.category == category]
 
-    def list_by_exposure(self, interface: str) -> List[CommandDefinition]:
+    def list_by_exposure(self, interface: str) -> builtins.list[CommandDefinition]:
         if interface not in _VALID_INTERFACES:
             return []
         return [
@@ -559,15 +549,17 @@ class _CommandRegistryImpl:
         self,
         name: str,
         input: Any,
-        context: Optional[CommandContext] = None,
+        context: CommandContext | None = None,
         *,
         output_budget: Any = None,
     ) -> CommandResult[Any]:
         from afd.core.direct_allow import _is_allowed, _not_allowed
         from afd.core.result import failure
 
-        interface = context.extra.get("interface") if context and context.extra else None
-        if interface == "apps":
+        interface = (
+            context.extra.get("interface") if context is not None and context.extra else None
+        )
+        if interface == "apps" and context is not None:
             command = self._commands.get(name)
             if not app_call_granted(command, name, context, self._call_grant):
                 return failure(call_not_granted())
@@ -603,8 +595,7 @@ class _CommandRegistryImpl:
                             "Call it from an interface it is exposed to, or set "
                             f"expose.{interface} to true in its definition"
                             if known
-                            else "Use one of the interfaces "
-                            + ", ".join(sorted(_VALID_INTERFACES))
+                            else "Use one of the interfaces " + ", ".join(sorted(_VALID_INTERFACES))
                         ),
                         retryable=False,
                     ),
@@ -621,8 +612,7 @@ class _CommandRegistryImpl:
                     error=CmdError(
                         code="COMMAND_NOT_IN_CONTEXT",
                         message=(
-                            f"Command '{name}' is not available in context "
-                            f"'{active_context}'"
+                            f"Command '{name}' is not available in context '{active_context}'"
                         ),
                         suggestion=(
                             f"Switch to a context this command belongs to ({contexts}), "
@@ -634,7 +624,11 @@ class _CommandRegistryImpl:
         # Decorated handlers already own advertised-schema validation and
         # native model conversion. Raw definitions need the same boundary here.
         if command.input_schema is not None and not hasattr(command.handler, "__afd_command__"):
-            from afd.core.schema_validation import SchemaValidationError, schema_validation_failure, validate_schema
+            from afd.core.schema_validation import (
+                SchemaValidationError,
+                schema_validation_failure,
+                validate_schema,
+            )
 
             try:
                 input = validate_schema(command.input_schema, {} if input is None else input)
@@ -642,11 +636,14 @@ class _CommandRegistryImpl:
                 return schema_validation_failure(exc)
             except Exception as exc:
                 logger.error("Input validation for '%s' raised", name, exc_info=exc)
-                return CommandResult(success=False, error=CmdError(
-                    code="VALIDATION_ERROR",
-                    message="Input validation failed",
-                    suggestion="Check the input against the command's registered schema and retry",
-                ))
+                return CommandResult(
+                    success=False,
+                    error=CmdError(
+                        code="VALIDATION_ERROR",
+                        message="Input validation failed",
+                        suggestion="Check the input against the command's registered schema and retry",
+                    ),
+                )
 
         # Handlers always get a context with a clock and a random source.
         exec_context = with_context_defaults(context)
@@ -669,7 +666,7 @@ class _CommandRegistryImpl:
 
 
 def create_command_registry(
-    *, dev_mode: bool = False, call_grant: Optional[CallGrant] = None
+    *, dev_mode: bool = False, call_grant: CallGrant | None = None
 ) -> CommandRegistry:
     """Create a new command registry.
 
@@ -684,7 +681,7 @@ def create_command_registry(
 
     Returns:
         A CommandRegistry instance for registering and executing commands.
-    
+
     Example:
         >>> registry = create_command_registry()
         >>> registry.register(my_command)
@@ -729,15 +726,15 @@ def warn_invalid_command_name(name: str, *, stacklevel: int = 2) -> bool:
 
 def command_to_mcp_tool(command: CommandDefinition) -> dict[str, Any]:
     """Convert a CommandDefinition to MCP tool format.
-    
+
     This is used by the server module to expose commands as MCP tools.
-    
+
     Args:
         command: The command definition.
-        
+
     Returns:
         A dict in MCP tool format with name, description, and inputSchema.
-    
+
     Example:
         >>> tool = command_to_mcp_tool(my_command)
         >>> tool["name"]
@@ -748,11 +745,11 @@ def command_to_mcp_tool(command: CommandDefinition) -> dict[str, Any]:
     elif command.input_schema is not None:
         input_schema = copy.deepcopy(command.input_schema)
     else:
-        properties: Dict[str, Dict[str, Any]] = {}
-        required: List[str] = []
+        properties: dict[str, dict[str, Any]] = {}
+        required: list[str] = []
 
         for param in command.parameters:
-            prop: Dict[str, Any] = dict(param.schema or {})
+            prop: dict[str, Any] = dict(param.schema or {})
             prop.setdefault("type", param.type)
             prop.setdefault("description", param.description)
             if param.default is not None and "default" not in prop:
@@ -770,7 +767,7 @@ def command_to_mcp_tool(command: CommandDefinition) -> dict[str, Any]:
             "required": required,
         }
 
-    tool: Dict[str, Any] = {"name": command.name}
+    tool: dict[str, Any] = {"name": command.name}
     # Display label only (spec/command-metadata.md, "Tool titles"); none when unset.
     if command.title is not None:
         tool["title"] = command.title
@@ -782,7 +779,7 @@ def command_to_mcp_tool(command: CommandDefinition) -> dict[str, Any]:
 
     # Extra tool _meta entries (spec/mcp-resources.md, T1) go before the server's own fields so
     # they can never replace one; the key rule already forbids reserved and unprefixed keys.
-    meta: Dict[str, Any] = (
+    meta: dict[str, Any] = (
         {key: copy.deepcopy(val) for key, val in command.tool_meta.items()}
         if command.tool_meta
         else {}
@@ -822,7 +819,7 @@ def command_to_mcp_tool(command: CommandDefinition) -> dict[str, Any]:
     return tool
 
 
-def command_tool_annotations(command: CommandDefinition) -> Optional[Dict[str, bool]]:
+def command_tool_annotations(command: CommandDefinition) -> dict[str, bool] | None:
     """MCP tool annotations for a command (``spec/command-metadata.md``, "Annotations").
 
     Only what the command declares is reported. ``mutation`` has no unset state in
@@ -865,7 +862,7 @@ def _retarget_root(schema: Any, target: str, root: bool = True) -> Any:
     ``default``, ``examples``) are left as they are."""
     if not isinstance(schema, dict) or (not root and starts_resource(schema)):
         return schema
-    out: Dict[str, Any] = {}
+    out: dict[str, Any] = {}
     for key, value in schema.items():
         if key == "$ref" and value == "#":
             out[key] = target
@@ -880,7 +877,7 @@ def _retarget_root(schema: Any, target: str, root: bool = True) -> Any:
     return out
 
 
-def command_result_output_schema(data_schema: Dict[str, Any]) -> Dict[str, Any]:
+def command_result_output_schema(data_schema: dict[str, Any]) -> dict[str, Any]:
     """The MCP ``outputSchema`` of a command tool: the CommandResult envelope, with
     ``data`` typed by ``data_schema`` (``spec/command-metadata.md``, "Structured results").
 
@@ -895,7 +892,7 @@ def command_result_output_schema(data_schema: Dict[str, Any]) -> Dict[str, Any]:
     resource = starts_resource(data)
     if not resource:
         data = _retarget_root(data, "#/properties/data")
-    envelope: Dict[str, Any] = {
+    envelope: dict[str, Any] = {
         "type": "object",
         "properties": {
             "success": {"type": "boolean"},
@@ -921,7 +918,7 @@ def command_result_output_schema(data_schema: Dict[str, Any]) -> Dict[str, Any]:
     return envelope
 
 
-def _local_pointer(root: Dict[str, Any], ref: str) -> Any:
+def _local_pointer(root: dict[str, Any], ref: str) -> Any:
     """The value a local JSON Pointer reference (``#`` or ``#/...``) names, or None."""
     if ref == "#":
         return root
@@ -944,7 +941,7 @@ def _local_pointer(root: Dict[str, Any], ref: str) -> Any:
     return target
 
 
-def _accepts_null(schema: Any, root: Dict[str, Any], seen: frozenset = frozenset()) -> bool:
+def _accepts_null(schema: Any, root: dict[str, Any], seen: frozenset[int] = frozenset()) -> bool:
     """Whether ``schema`` admits ``null``: a ``null`` type, enum value or const, a schema
     that constrains nothing (``{}``, as for ``Any``), a nullable ``anyOf``/``oneOf`` branch,
     or a local ``$ref`` to one of those."""
@@ -961,8 +958,10 @@ def _accepts_null(schema: Any, root: Dict[str, Any], seen: frozenset = frozenset
         # followed, its tokens decoded (`~1` is "/", `~0` is "~").
         target: Any = _local_pointer(root, ref)
         # Visited by target, since the same reference text names a target in each resource.
-        if target is not None and id(target) not in seen and _accepts_null(
-            target, root, seen | {id(target)}
+        if (
+            target is not None
+            and id(target) not in seen
+            and _accepts_null(target, root, seen | {id(target)})
         ):
             return True
     kind = schema.get("type")
@@ -977,7 +976,7 @@ def _accepts_null(schema: Any, root: Dict[str, Any], seen: frozenset = frozenset
     return not constraining & schema.keys()
 
 
-def _optional_nullable_properties(node: Any, root: Optional[Dict[str, Any]] = None) -> Any:
+def _optional_nullable_properties(node: Any, root: dict[str, Any] | None = None) -> Any:
     """A copy of a schema whose objects no longer require a property that accepts ``null``.
 
     Only schema positions are walked: a value (``const``, ``enum``, ``default``, ``examples``)
@@ -986,7 +985,7 @@ def _optional_nullable_properties(node: Any, root: Optional[Dict[str, Any]] = No
         return node
     if root is None or starts_resource(node):
         root = node
-    out: Dict[str, Any] = {}
+    out: dict[str, Any] = {}
     for key, value in node.items():
         if key in _SCHEMA_LIST_KEYWORDS and isinstance(value, list):
             out[key] = [_optional_nullable_properties(item, root) for item in value]
@@ -1008,7 +1007,7 @@ def _optional_nullable_properties(node: Any, root: Optional[Dict[str, Any]] = No
     return out
 
 
-def serialize_command_examples(examples: List[CommandExample]) -> List[Dict[str, Any]]:
+def serialize_command_examples(examples: list[CommandExample]) -> list[dict[str, Any]]:
     """Convert normalized examples to JSON-serializable dictionaries."""
     return [
         {

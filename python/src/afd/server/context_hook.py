@@ -84,7 +84,7 @@ from collections.abc import Awaitable, Callable, Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import Any, Union
+from typing import Any
 
 from afd.core.actor import Actor, ContextDefaults, is_actor, with_context_defaults
 from afd.core.commands import CommandContext
@@ -144,10 +144,10 @@ class ContextHookRequest:
         return None
 
 
-ContextHookResult = Union[CommandContext, CommandError, CommandResult[Any]]
+ContextHookResult = CommandContext | CommandError | CommandResult[Any]
 ContextHook = Callable[
     [ContextHookRequest, CommandContext],
-    Union[ContextHookResult, Awaitable[ContextHookResult]],
+    ContextHookResult | Awaitable[ContextHookResult],
 ]
 """Per-request hook: ``(request, context) -> CommandContext | CommandError`` (sync or async)."""
 
@@ -333,7 +333,9 @@ async def run_context_hook(
         hook_budget_ask = (
             raw._output_budget_ask
             if raw._output_budget_ask is not None
-            else (normalize_ask_option(raw.output_budget) if raw.output_budget is not None else None)
+            else (
+                normalize_ask_option(raw.output_budget) if raw.output_budget is not None else None
+            )
         )
         clean = CommandContext(
             trace_id=raw.trace_id if raw.trace_id else trace_id,

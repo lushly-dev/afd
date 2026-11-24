@@ -15,7 +15,7 @@ import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 #: The repository variable naming the lane host, so every machine reads the same answer.
 LANE_HOST_VARIABLE = "FACTORY_LANE_HOST"
@@ -73,9 +73,9 @@ class HostRecord:
     measured: bool = False
     suggested_slots: int = 1
     probed_at: str | None = None
-    extra: dict = field(default_factory=dict, compare=False)
+    extra: dict[str, Any] = field(default_factory=dict, compare=False)
 
-    def describe(self) -> dict:
+    def describe(self) -> dict[str, Any]:
         """The record as published (``host.json``) and as lane-host-list shows it."""
         return {
             "id": self.id,
@@ -91,7 +91,7 @@ class HostRecord:
         }
 
     @classmethod
-    def read(cls, raw: dict, fallback_id: str = "") -> HostRecord:
+    def read(cls, raw: dict[str, Any], fallback_id: str = "") -> HostRecord:
         known = {
             "id",
             "name",
@@ -339,7 +339,7 @@ class Git(Protocol):
         rebuild the queue."""
         ...
 
-    def queue_refs(self) -> list[dict]:
+    def queue_refs(self) -> list[dict[str, Any]]:
         """``{branch, head}`` for every ``refs/factory/queue/*`` on origin."""
         ...
 
@@ -541,7 +541,7 @@ class Processes(Protocol):
         """
         ...
 
-    def start_job(self, steps: Sequence[dict], cwd: str, log: str, *, label: str) -> str:
+    def start_job(self, steps: Sequence[dict[str, Any]], cwd: str, log: str, *, label: str) -> str:
         """Start a background job: ``steps`` (``{label, args, timeout?}``) run in order until
         one fails, their output appended to ``log``. A handle to poll."""
         ...
@@ -580,7 +580,7 @@ class ValidationLockProtocol(Protocol):
         *,
         register_waiter: bool = True,
         lane: str = "botcore-factory",
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """None when this lane may take a new hold; otherwise a deterministic blocker summary."""
         ...
 
@@ -591,7 +591,7 @@ class ValidationLockProtocol(Protocol):
         pid: int,
         *,
         lane: str = "botcore-factory",
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Acquire ``hold_id``; returns None on success or a deterministic blocker summary."""
         ...
 
@@ -640,7 +640,7 @@ class ValidationLockProtocol(Protocol):
         """Remove this lane from ``waiters`` when it is no longer waiting to start work."""
         ...
 
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         """Pruned snapshot of the shared host validation lock."""
         ...
 

@@ -108,9 +108,7 @@ def _close_win32_job(job: int | None) -> None:
     kernel32.CloseHandle(ctypes.c_void_p(job))
 
 
-async def _kill_process_group(
-    process: asyncio.subprocess.Process, job: int | None = None
-) -> None:
+async def _kill_process_group(process: asyncio.subprocess.Process, job: int | None = None) -> None:
     """Terminate *process* and any descendants it spawned (even if *process* already exited),
     then reap it."""
     pid = process.pid

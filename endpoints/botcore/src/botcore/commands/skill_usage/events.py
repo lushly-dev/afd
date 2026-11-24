@@ -114,7 +114,7 @@ class Event:
                 fields[name] = None
         if not isinstance(fields["v"], int):
             fields["v"] = 0
-        return cls(**fields)
+        return cls(**dict(fields))  # type: ignore[arg-type]
 
 
 def is_skill_folder(name: object) -> bool:
@@ -577,7 +577,7 @@ def skills_read_by(command: str, depth: int = 0, *, _powershell: bool | None = N
             else:
                 skills = []
         else:
-            skills = [skill_of_file(path) for path in _files_read(name, arguments)]
+            skills = [s for path in _files_read(name, arguments) if (s := skill_of_file(path))]
         for skill in skills:
             if skill and skill not in found:
                 found.append(skill)

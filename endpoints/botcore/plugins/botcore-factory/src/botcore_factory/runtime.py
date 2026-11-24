@@ -8,10 +8,11 @@ that world; a host built without it uses the real world of its target checkout.
 from __future__ import annotations
 
 import contextlib
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from afd import CommandResult, error
 
@@ -51,11 +52,11 @@ def current_bindings() -> Bindings:
 class Refusal(Exception):
     """A command's named refusal, raised from deep in its logic and returned as an error."""
 
-    def __init__(self, code: str, message: str, suggestion: str, **details) -> None:
+    def __init__(self, code: str, message: str, suggestion: str, **details: Any) -> None:
         super().__init__(message)
         self.code, self.message, self.suggestion, self.details = code, message, suggestion, details
 
-    def result(self) -> CommandResult:
+    def result(self) -> CommandResult[Any]:
         return error(
             self.code, self.message, suggestion=self.suggestion, details=self.details or None
         )
@@ -88,7 +89,7 @@ class Factory:
             )
         return self._store
 
-    def definitions(self) -> list[dict]:
+    def definitions(self) -> list[dict[str, Any]]:
         if not self.config.labels:
             raise Refusal(
                 "NOT_CONFIGURED",
@@ -106,7 +107,7 @@ class Factory:
             ) from exc
 
 
-def guarded(run) -> CommandResult:
+def guarded(run: Callable[[], CommandResult[Any]]) -> CommandResult[Any]:
     """Run a command body, turning named refusals and outside failures into errors."""
     try:
         return run()
@@ -133,7 +134,7 @@ def guarded(run) -> CommandResult:
         )
 
 
-def page(items: list, limit: int | None, cursor: str | None) -> tuple[list, int]:
+def page(items: list[Any], limit: int | None, cursor: str | None) -> tuple[list[Any], int]:
     """One page of ``items`` and the offset after it."""
     start = parse_cursor(cursor)
     size = DEFAULT_LIMIT if limit is None else limit
@@ -146,9 +147,9 @@ def page(items: list, limit: int | None, cursor: str | None) -> tuple[list, int]
     return items[start : start + size], start + size
 
 
-def paginate(lists: dict[str, list], limit: int | None, cursor: str | None) -> dict:
+def paginate(lists: dict[str, list[Any]], limit: int | None, cursor: str | None) -> dict[str, Any]:
     """Bound every list to one page; ``nextCursor`` continues them, ``total`` counts them."""
-    out: dict = {}
+    out: dict[str, Any] = {}
     more = False
     end = 0
     for key, items in lists.items():

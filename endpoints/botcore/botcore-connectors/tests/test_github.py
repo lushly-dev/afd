@@ -71,9 +71,7 @@ class TestRateLimitCapture:
         self, github_connector: GitHubConnector
     ) -> None:
         respx.get(f"{GH}/repos/a/b").mock(
-            return_value=httpx.Response(
-                200, json={}, headers={"X-RateLimit-Remaining": "100"}
-            )
+            return_value=httpx.Response(200, json={}, headers={"X-RateLimit-Remaining": "100"})
         )
         respx.get(f"{GH}/search/issues").mock(
             return_value=httpx.Response(
@@ -89,9 +87,7 @@ class TestRateLimitCapture:
 
     @respx.mock
     async def test_missing_headers_leaves_none(self, github_connector: GitHubConnector) -> None:
-        respx.get(f"{GH}/repos/a/b").mock(
-            return_value=httpx.Response(200, json={})
-        )
+        respx.get(f"{GH}/repos/a/b").mock(return_value=httpx.Response(200, json={}))
         await github_connector.api_call("GET", "/repos/a/b")
         assert github_connector._api_rate_remaining is None
         assert github_connector._api_rate_reset is None
@@ -99,9 +95,7 @@ class TestRateLimitCapture:
     @respx.mock
     async def test_malformed_remaining_ignored(self, github_connector: GitHubConnector) -> None:
         respx.get(f"{GH}/repos/a/b").mock(
-            return_value=httpx.Response(
-                200, json={}, headers={"X-RateLimit-Remaining": "bad"}
-            )
+            return_value=httpx.Response(200, json={}, headers={"X-RateLimit-Remaining": "bad"})
         )
         await github_connector.api_call("GET", "/repos/a/b")
         assert github_connector._api_rate_remaining is None
@@ -200,9 +194,7 @@ class TestPreFlightRateCheck:
         self, github_connector: GitHubConnector
     ) -> None:
         github_connector._search_rate_remaining = 0
-        result = await github_connector.gh_api_call(
-            "GET", "/search/code", params={"q": "test"}
-        )
+        result = await github_connector.gh_api_call("GET", "/search/code", params={"q": "test"})
         assert result.error is not None
         assert result.error.code == "GITHUB_SEARCH_RATE_LIMITED"
 
@@ -212,9 +204,7 @@ class TestPreFlightRateCheck:
     ) -> None:
         github_connector._api_rate_remaining = 0
         github_connector._api_rate_reset = time.time() - 1
-        respx.get(f"{GH}/repos/a/b").mock(
-            return_value=httpx.Response(200, json={"ok": True})
-        )
+        respx.get(f"{GH}/repos/a/b").mock(return_value=httpx.Response(200, json={"ok": True}))
         result = await github_connector.gh_api_call("GET", "/repos/a/b")
         assert result.success is True
 
@@ -227,30 +217,20 @@ class TestPreFlightRateCheck:
         respx.get(f"{GH}/search/code").mock(
             return_value=httpx.Response(200, json={"items": [], "total_count": 0})
         )
-        result = await github_connector.gh_api_call(
-            "GET", "/search/code", params={"q": "test"}
-        )
+        result = await github_connector.gh_api_call("GET", "/search/code", params={"q": "test"})
         assert result.success is True
 
     @respx.mock
-    async def test_remaining_positive_passes(
-        self, github_connector: GitHubConnector
-    ) -> None:
+    async def test_remaining_positive_passes(self, github_connector: GitHubConnector) -> None:
         github_connector._api_rate_remaining = 10
-        respx.get(f"{GH}/repos/a/b").mock(
-            return_value=httpx.Response(200, json={"ok": True})
-        )
+        respx.get(f"{GH}/repos/a/b").mock(return_value=httpx.Response(200, json={"ok": True}))
         result = await github_connector.gh_api_call("GET", "/repos/a/b")
         assert result.success is True
 
     @respx.mock
-    async def test_remaining_none_passes(
-        self, github_connector: GitHubConnector
-    ) -> None:
+    async def test_remaining_none_passes(self, github_connector: GitHubConnector) -> None:
         assert github_connector._api_rate_remaining is None
-        respx.get(f"{GH}/repos/a/b").mock(
-            return_value=httpx.Response(200, json={"ok": True})
-        )
+        respx.get(f"{GH}/repos/a/b").mock(return_value=httpx.Response(200, json={"ok": True}))
         result = await github_connector.gh_api_call("GET", "/repos/a/b")
         assert result.success is True
 
@@ -299,9 +279,7 @@ class TestBackoffUsesReset:
                 httpx.Response(200, json={"items": [], "total_count": 0}),
             ]
         )
-        result = await github_connector.gh_api_call(
-            "GET", "/search/code", params={"q": "test"}
-        )
+        result = await github_connector.gh_api_call("GET", "/search/code", params={"q": "test"})
         assert result.success is True
 
     @respx.mock
@@ -342,13 +320,9 @@ class TestBackoffUsesReset:
 
 class TestAuditIntegration:
     @respx.mock
-    async def test_gh_api_call_emits_audit_log(
-        self, github_connector: GitHubConnector
-    ) -> None:
+    async def test_gh_api_call_emits_audit_log(self, github_connector: GitHubConnector) -> None:
         """Every gh_api_call must emit an audit log entry (spec 04)."""
-        respx.get(f"{GH}/repos/a/b").mock(
-            return_value=httpx.Response(200, json={"ok": True})
-        )
+        respx.get(f"{GH}/repos/a/b").mock(return_value=httpx.Response(200, json={"ok": True}))
         # Capture audit log output
         import logging
 
@@ -367,9 +341,7 @@ class TestAuditIntegration:
             audit_logger.removeHandler(handler)
 
     @respx.mock
-    async def test_audit_captures_error_status(
-        self, github_connector: GitHubConnector
-    ) -> None:
+    async def test_audit_captures_error_status(self, github_connector: GitHubConnector) -> None:
         respx.get(f"{GH}/repos/a/b").mock(
             return_value=httpx.Response(404, json={"message": "Not Found"})
         )

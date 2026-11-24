@@ -234,38 +234,59 @@ impl CommandError {
 /// codes.
 pub mod error_codes {
     // Validation Errors (4xx range)
+    /// Input failed schema or semantic validation.
     pub const VALIDATION_ERROR: &str = "VALIDATION_ERROR";
+    /// Input value is invalid for the operation.
     pub const INVALID_INPUT: &str = "INVALID_INPUT";
+    /// A required input field was omitted.
     pub const MISSING_REQUIRED_FIELD: &str = "MISSING_REQUIRED_FIELD";
+    /// An input value does not match its expected format.
     pub const INVALID_FORMAT: &str = "INVALID_FORMAT";
 
     // Resource Errors
+    /// The requested resource was not found.
     pub const NOT_FOUND: &str = "NOT_FOUND";
+    /// A resource with the same identity already exists.
     pub const ALREADY_EXISTS: &str = "ALREADY_EXISTS";
+    /// The operation conflicts with the resource's current state.
     pub const CONFLICT: &str = "CONFLICT";
 
     // Authorization Errors
+    /// The caller is not authenticated.
     pub const UNAUTHORIZED: &str = "UNAUTHORIZED";
+    /// The authenticated caller lacks permission for the operation.
     pub const FORBIDDEN: &str = "FORBIDDEN";
+    /// The caller's authentication token has expired.
     pub const TOKEN_EXPIRED: &str = "TOKEN_EXPIRED";
 
     // Rate Limiting
+    /// The caller exceeded the allowed request rate.
     pub const RATE_LIMITED: &str = "RATE_LIMITED";
+    /// The caller exceeded an allocated usage quota.
     pub const QUOTA_EXCEEDED: &str = "QUOTA_EXCEEDED";
 
     // Network/Service Errors
+    /// A downstream dependency or service is unavailable.
     pub const SERVICE_UNAVAILABLE: &str = "SERVICE_UNAVAILABLE";
+    /// The operation exceeded its deadline.
     pub const TIMEOUT: &str = "TIMEOUT";
+    /// A network connection could not be established or was lost.
     pub const CONNECTION_ERROR: &str = "CONNECTION_ERROR";
 
     // Internal Errors
+    /// An unexpected internal failure occurred.
     pub const INTERNAL_ERROR: &str = "INTERNAL_ERROR";
+    /// The requested capability is not implemented.
     pub const NOT_IMPLEMENTED: &str = "NOT_IMPLEMENTED";
+    /// An unclassified error occurred.
     pub const UNKNOWN_ERROR: &str = "UNKNOWN_ERROR";
 
     // Command-specific
+    /// No registered command matches the requested name.
     pub const COMMAND_NOT_FOUND: &str = "COMMAND_NOT_FOUND";
+    /// Command arguments were malformed or incompatible.
     pub const INVALID_COMMAND_ARGS: &str = "INVALID_COMMAND_ARGS";
+    /// Command execution was cancelled before completion.
     pub const COMMAND_CANCELLED: &str = "COMMAND_CANCELLED";
     /// A command handler crashed (panicked) instead of returning a result.
     /// See [`execution_failure`](crate::execution_failure).
@@ -360,8 +381,11 @@ pub const HOST_ERROR_CODE_PREFIX: &str = "HOST_";
 /// and `None` when retryability varies by emitting site (`"varies"`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ErrorCodeInfo {
+    /// Machine-readable error code string.
     pub code: &'static str,
+    /// `Some(true)` if retryable, `Some(false)` if not, or `None` when context-dependent.
     pub retryable: Option<bool>,
+    /// Contract profile that defines this code (for example `core` or `server`).
     pub profile: &'static str,
 }
 

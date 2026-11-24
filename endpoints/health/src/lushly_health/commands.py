@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any, cast
 
 from afd import error, success
 from botcore.context import current_context
@@ -40,7 +41,9 @@ async def health_audit(
             )
             for t in targets
         )
-        policy = Policy(tuple(check_ids), frozenset(disabled or []), dict(severity or {}))
+        policy = Policy(
+            tuple(check_ids), frozenset(disabled or []), cast(Any, dict(severity or {}))
+        )
         if measures_files is not None and (
             not isinstance(measures_files, list)
             or not all(isinstance(path, str) for path in measures_files)

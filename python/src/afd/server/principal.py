@@ -40,7 +40,7 @@ class PrincipalCredentials:
                 raise IncompleteCredentials()
 
 
-class IncompleteCredentials(TypeError):
+class IncompleteCredentials(TypeError):  # noqa: N818  # Cross-language contract name (spec/authorization.md)
     """Credentials without a non-empty issuer, subject and client id: no principal binding is
     made of them, so no confirmation state is minted or accepted for the call. The message
     names no one."""
@@ -61,10 +61,19 @@ def _identity(
             client_id=credentials.client_id,
         )
     elif isinstance(credentials, Mapping):
+        raw_issuer = credentials.get("issuer")
+        raw_subject = credentials.get("subject")
+        raw_client_id = credentials.get("clientId")
+        if (
+            not isinstance(raw_issuer, str)
+            or not isinstance(raw_subject, str)
+            or not isinstance(raw_client_id, str)
+        ):
+            raise IncompleteCredentials()
         credentials = PrincipalCredentials(
-            issuer=credentials.get("issuer"),
-            subject=credentials.get("subject"),
-            client_id=credentials.get("clientId"),
+            issuer=raw_issuer,
+            subject=raw_subject,
+            client_id=raw_client_id,
         )
     if not isinstance(credentials, PrincipalCredentials):
         raise IncompleteCredentials()

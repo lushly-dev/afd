@@ -38,6 +38,7 @@ naming the PRs merged without a local re-check.
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from botcore_factory.adapter import check_selected, matches
 from botcore_factory.lane_base import LaneTrouble, StepBase
@@ -54,7 +55,7 @@ SETTLE_MINUTES = 2.0
 
 
 class Advancing(StepBase):
-    def follow_base(self, entry: dict) -> bool:
+    def follow_base(self, entry: dict[str, Any]) -> bool:
         """Whether the entry may go on at the base's head: it is where the entry was validated,
         or the entry advanced to it. Otherwise the entry is requeued and this is False."""
         new = self.base_head(fresh=True)
@@ -88,7 +89,7 @@ class Advancing(StepBase):
         self.actions.append(f"advanced {entry['branch']} to {new}{why}")
         return True
 
-    def check_stands_in(self, entry: dict, old: str, new: str) -> bool:
+    def check_stands_in(self, entry: dict[str, Any], old: str, new: str) -> bool:
         """Whether the PR's required check stands in for validating again on ``new``: the attempt
         reached ``lane.maxBaseReruns``, the validated head merges onto ``new`` cleanly, and main's
         changes touch none of the paths the check cannot stand in for.
@@ -112,7 +113,7 @@ class Advancing(StepBase):
             return False
         return merged.clean
 
-    def why_validate_again(self, entry: dict, old: str, new: str) -> str | None:
+    def why_validate_again(self, entry: dict[str, Any], old: str, new: str) -> str | None:
         """Why the move from ``old`` to ``new`` needs a new validation, or None when it does not."""
         if not self.config.units:
             return "the adapter names no units command"
@@ -147,10 +148,10 @@ class Advancing(StepBase):
             theirs = self.units(changed, checkout)
         except WorldError as exc:
             return f"the units could not be read: {exc}"
-        mine = set(entry["units"])
-        if mine and theirs and ("*" in mine or "*" in theirs):
+        mine_units = set(entry["units"])
+        if mine_units and theirs and ("*" in mine_units or "*" in theirs):
             return "a change affects every unit"
-        both = sorted(mine & set(theirs))
+        both = sorted(mine_units & set(theirs))
         if both:
             return f"main's changes affect its units: {', '.join(both[:5])}"
         return None
@@ -177,7 +178,7 @@ class Advancing(StepBase):
             raise WorldError("units must print a JSON list of unit names")
         return sorted(set(found))
 
-    def watch_unchecked(self, entry: dict, pr: int) -> None:
+    def watch_unchecked(self, entry: dict[str, Any], pr: int) -> None:
         """Watch main after a merge that advanced without a new validation."""
         if entry.get("advanced"):
             self.lane.setdefault("uncheckedMerges", []).append(
@@ -226,7 +227,7 @@ class Advancing(StepBase):
                     "longer watches them: check them, then lane-resume"
                 )
 
-    def main_red(self, item: dict, failed: list[str]) -> None:
+    def main_red(self, item: dict[str, Any], failed: list[str]) -> None:
         suspects = [other["pr"] for other in self.lane["uncheckedMerges"]]
         self.lane["uncheckedMerges"] = []  # Each is named here; none is watched twice.
         commit = str(item.get("commit"))[:12]

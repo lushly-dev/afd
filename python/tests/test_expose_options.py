@@ -3,16 +3,15 @@
 import pytest
 
 from afd.core.commands import (
+    DEFAULT_EXPOSE,
     CommandContext,
     CommandDefinition,
-    DEFAULT_EXPOSE,
     ExposeOptions,
     create_command_registry,
 )
 from afd.core.result import success
 from afd.server import create_server, define_command
-from afd.server.decorators import get_command_metadata, command_to_definition
-
+from afd.server.decorators import command_to_definition, get_command_metadata
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ExposeOptions DEFAULTS
@@ -356,10 +355,12 @@ class TestExposeExports:
     """Tests that ExposeOptions is accessible from the package root."""
 
     def test_import_from_afd(self):
-        from afd import ExposeOptions, DEFAULT_EXPOSE
+        from afd import DEFAULT_EXPOSE
+
         assert DEFAULT_EXPOSE.palette is True
         assert DEFAULT_EXPOSE.mcp is False
 
     def test_import_from_afd_core(self):
-        from afd.core import ExposeOptions, DEFAULT_EXPOSE
+        from afd.core import DEFAULT_EXPOSE
+
         assert DEFAULT_EXPOSE.agent is True

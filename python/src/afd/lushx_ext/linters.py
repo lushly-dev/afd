@@ -110,7 +110,6 @@ _AMBIENT_OTHER: Mapping[str, tuple[Callable[[str], list[tuple[int, str, str]]], 
 }
 
 
-
 def _crypto_random_patterns(content: str, masked: str) -> list[tuple[re.Pattern[str], str]]:
     """Call patterns for random generators imported from ``crypto``/``node:crypto``.
 
@@ -308,49 +307,53 @@ class AFDLinter:
     }
 
     # Directories to skip
-    SKIP_DIRS: ClassVar[frozenset[str]] = frozenset({
-        # Package managers
-        "node_modules",
-        ".venv",
-        "venv",
-        ".env",
-        # Build artifacts
-        "__pycache__",
-        ".git",
-        "dist",
-        "build",
-        "target",
-        ".pytest_cache",
-        ".mypy_cache",
-        ".ruff_cache",
-        # IDE/tool data
-        ".lushx",
-        ".claude",
-        ".agent",
-        ".idea",
-        ".vscode",
-        # Browser/profile data
-        "chrome-profile",
-        "chromadb",
-        "Default",
-        "Extensions",
-        # Generated code
-        ".next",
-        ".nuxt",
-        ".output",
-        ".turbo",
-    })
+    SKIP_DIRS: ClassVar[frozenset[str]] = frozenset(
+        {
+            # Package managers
+            "node_modules",
+            ".venv",
+            "venv",
+            ".env",
+            # Build artifacts
+            "__pycache__",
+            ".git",
+            "dist",
+            "build",
+            "target",
+            ".pytest_cache",
+            ".mypy_cache",
+            ".ruff_cache",
+            # IDE/tool data
+            ".lushx",
+            ".claude",
+            ".agent",
+            ".idea",
+            ".vscode",
+            # Browser/profile data
+            "chrome-profile",
+            "chromadb",
+            "Default",
+            "Extensions",
+            # Generated code
+            ".next",
+            ".nuxt",
+            ".output",
+            ".turbo",
+        }
+    )
 
     # Additional path patterns to skip (substrings)
-    SKIP_PATH_PATTERNS: ClassVar[frozenset[str]] = frozenset({
-        "chrome-profile",
-        "chromadb",
-        "Extensions/",
-        ".lushx/",
-        ".claude/",
-        "/.git/",
-        "\\\\Extensions\\\\",
-    })
+    SKIP_PATH_PATTERNS: ClassVar[frozenset[str]] = frozenset(
+        {
+            "chrome-profile",
+            "chromadb",
+            "Extensions/",
+            ".lushx/",
+            ".claude/",
+            "/.git/",
+            "\\\\Extensions\\\\",
+        }
+    )
 
     def __init__(
         self,
@@ -409,9 +412,7 @@ class AFDLinter:
             _RULE_AMBIENT_RANDOM: self._check_no_ambient_in_handlers,
             "afd-layer-imports": self._check_layer_imports,
         }
-        self._severity_overrides = self._validate_severity_overrides(
-            rule_severity_overrides or {}
-        )
+        self._severity_overrides = self._validate_severity_overrides(rule_severity_overrides or {})
 
     def _validate_severity_overrides(
         self, overrides: Mapping[str, Severity | str]
@@ -460,7 +461,7 @@ class AFDLinter:
 
     def _find_files(self, path: Path) -> list[Path]:
         """Find all lintable files in the path."""
-        all_extensions = set()
+        all_extensions: set[str] = set()
         for exts in self.EXTENSIONS.values():
             all_extensions.update(exts)
 

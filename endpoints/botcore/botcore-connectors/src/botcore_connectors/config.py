@@ -6,9 +6,7 @@ from pydantic import BaseModel, ConfigDict, field_validator
 
 from botcore_connectors.auth import AuthConfig
 
-KNOWN_CONNECTORS: frozenset[str] = frozenset(
-    {"github", "azure_blob", "azure_queue", "email"}
-)
+KNOWN_CONNECTORS: frozenset[str] = frozenset({"github", "azure_blob", "azure_queue", "email"})
 
 
 # ── Per-connector sub-models ──────────────────────────────────────────────

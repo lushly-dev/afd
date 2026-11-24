@@ -181,7 +181,11 @@ def resolve_headers(
         # Numbered before blank lines are skipped, so the number is the line's own.
         # Blank means spaces and tabs only, so a line holding a control character is
         # refused with its number rather than skipped.
-        *((f"{HEADERS_ENV} line {n}", line) for n, line in enumerate(lines, 1) if line.strip(" \t")),
+        *(
+            (f"{HEADERS_ENV} line {n}", line)
+            for n, line in enumerate(lines, 1)
+            if line.strip(" \t")
+        ),
         *((f"--header {n}", flag) for n, flag in enumerate(flags, 1)),
     ]
     for source, header in sources:

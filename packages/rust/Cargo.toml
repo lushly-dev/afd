@@ -16,6 +16,11 @@ documentation = "https://github.com/lushly-dev/afd/tree/main/packages/rust"
 readme = "README.md"
 keywords = ["afd", "agent", "mcp", "ai", "commands"]
 categories = ["development-tools", "api-bindings"]
+exclude = ["fuzz/"]
+
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
 
 [features]
 default = ["native", "journal-file", "approval"]
@@ -23,9 +28,9 @@ default = ["native", "journal-file", "approval"]
 # middleware's default wait (`tokio::time::sleep`). The host application provides the Tokio
 # runtime (with its time driver enabled).
 native = ["dep:tokio"]
-# Browser WebAssembly (`wasm32-unknown-unknown`): measures durations with
-# `web-time`, because `std::time::Instant::now()` traps on that target.
-wasm = ["dep:web-time", "getrandom?/wasm_js"]
+# Browser WebAssembly (`wasm32-unknown-unknown`): enables `getrandom/wasm_js` for the approval
+# middleware's nonces; monotonic and wall time use `web-time` automatically on that target.
+wasm = ["getrandom?/wasm_js"]
 # `FileJournalSink`: a command journal in a JSON Lines file, through blocking `std::fs`.
 journal-file = []
 # `FileJournalSink::shared`: several sinks and processes append to one journal file under an
@@ -79,9 +84,6 @@ subtle = { version = "2.5", optional = true }
 # Native-only: only `tokio::time::timeout` is used.
 tokio = { version = "1.0", default-features = false, features = ["time"], optional = true }
 
-# WASM-only
-web-time = { version = "1.1", optional = true }
-
 # `server` feature: the MCP Rust SDK (stateless Streamable HTTP, stdio). 3.9 is the floor: it routes
 # the Skills extension (SEP-2640) itself, through `ServerHandler::list_skills`, `get_skill` and
 # `read_resource_directory`, which the server implements; before 3.9 those methods reached
@@ -121,7 +123,7 @@ tower-service = { version = "0.3", optional = true }
 # `server-auth` feature: a refused token's rule code and issuer alias, at `warn`.
 tracing = { version = "0.1", default-features = false, features = ["std"], optional = true }
 
-[dev-dependencies]
+[target.'cfg(not(all(target_family = "wasm", target_os = "unknown")))'.dev-dependencies]
 tokio = { version = "1.0", features = ["full", "test-util"] }
 pretty_assertions = "1.4"
 # `server` feature tests drive the HTTP service in process.
@@ -134,6 +136,14 @@ tower = { version = "0.5", features = ["util"] }
 aws-lc-rs = "1.15"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "std"] }
 
+[target.'cfg(all(target_family = "wasm", target_os = "unknown"))'.dependencies]
+# Browser WebAssembly (`wasm32-unknown-unknown`): measures durations and wall time with
+# `web-time`, because `std::time::Instant::now()` and `SystemTime::now()` trap on that target.
+web-time = "1.1"
+
+[target.'cfg(all(target_family = "wasm", target_os = "unknown"))'.dev-dependencies]
+wasm-bindgen-test = "0.3"
+
 # `cargo bench --bench execute`: the per-call cost of `CommandRegistry::execute` (#1764).
 [[bench]]
 name = "execute"
@@ -142,7 +152,3 @@ harness = false
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
-
-# This crate sets no lints of its own. The empty table tells Cargo 1.100 (`missing_lints_inheritance`) that it
-# does not inherit `[workspace.lints]` from Umbel, which reaches it as a path dependency.
-[lints]

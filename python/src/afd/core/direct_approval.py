@@ -1,7 +1,7 @@
 """Internal per-call approval exchange. This is a trusted host seam, not a sandbox."""
 
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -12,16 +12,16 @@ class DirectApprovalRequest:
     input: Any
     summary: str
     expires_at: str
-    reason: Optional[str] = None
+    reason: str | None = None
 
 
 class _DirectApprovalExchange:
     def __init__(self) -> None:
         self._active = True
-        self._hold: Optional[dict[str, Any]] = None
-        self._evidence: Optional[str] = None
+        self._hold: dict[str, Any] | None = None
+        self._evidence: str | None = None
 
-    def pending(self) -> Optional[dict[str, Any]]:
+    def pending(self) -> dict[str, Any] | None:
         if self._hold is None:
             return None
         return {key: value for key, value in self._hold.items() if key != "approval_token"}
@@ -33,7 +33,7 @@ class _DirectApprovalExchange:
             return True
         return False
 
-    def take(self) -> Optional[str]:
+    def take(self) -> str | None:
         evidence, self._evidence = self._evidence, None
         return evidence if self._active else None
 
@@ -47,7 +47,7 @@ class _DirectApprovalExchange:
         self._evidence = None
 
 
-def _exchange(context: Any) -> Optional[_DirectApprovalExchange]:
+def _exchange(context: Any) -> _DirectApprovalExchange | None:
     value = getattr(context, "_direct_approval", None)
     # A disposed marker still suppresses public tokens after a late timeout.
     return value if isinstance(value, _DirectApprovalExchange) else None
@@ -56,21 +56,31 @@ def _exchange(context: Any) -> Optional[_DirectApprovalExchange]:
 def _public_context(context: Any) -> Any:
     from afd.core.commands import CommandContext
 
-    return CommandContext(**{
-        key: getattr(context, key, None) for key in
-        ("trace_id", "timeout", "actor", "clock", "random")
-    }, extra=dict(getattr(context, "extra", {})),
-       _direct_allow=getattr(context, "_direct_allow", None),
-       _output_budget_ask=getattr(context, "_output_budget_ask", None))
+    return CommandContext(
+        trace_id=getattr(context, "trace_id", None),
+        timeout=getattr(context, "timeout", None),
+        actor=getattr(context, "actor", None),
+        clock=getattr(context, "clock", None),
+        random=getattr(context, "random", None),
+        extra=dict(getattr(context, "extra", {})),
+        _direct_allow=getattr(context, "_direct_allow", None),
+        _output_budget_ask=getattr(context, "_output_budget_ask", None),
+    )
 
 
 def _public_result(result: Any, command: str) -> Any:
     from afd.core.result import coerce_command_result
 
     result = coerce_command_result(result, command)
-    if (not result.success and result.error is not None
-            and result.error.code == "APPROVAL_REQUIRED" and result.error.details
-            and "approvalToken" in result.error.details):
+    if (
+        not result.success
+        and result.error is not None
+        and result.error.code == "APPROVAL_REQUIRED"
+        and result.error.details
+        and "approvalToken" in result.error.details
+    ):
         details = {k: v for k, v in result.error.details.items() if k != "approvalToken"}
-        return result.model_copy(update={"error": result.error.model_copy(update={"details": details})})
+        return result.model_copy(
+            update={"error": result.error.model_copy(update={"details": details})}
+        )
     return result

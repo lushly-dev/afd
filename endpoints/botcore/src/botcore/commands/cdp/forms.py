@@ -117,13 +117,15 @@ async def cdp_list_pages() -> CommandResult[dict]:
                 )
                 if is_selected:
                     selected_idx = idx
-                pages_info.append({
-                    "index": idx,
-                    "url": page.url,
-                    "title": await page.title(),
-                    "context": ctx_idx,
-                    "selected": is_selected,
-                })
+                pages_info.append(
+                    {
+                        "index": idx,
+                        "url": page.url,
+                        "title": await page.title(),
+                        "context": ctx_idx,
+                        "selected": is_selected,
+                    }
+                )
                 idx += 1
         return {
             "pages": pages_info,

@@ -81,7 +81,11 @@ def _positive_json_integer(value: Any) -> int | None:
 
 def _is_strict_budget_int(value: Any) -> bool:
     """Strict Python ``int`` (never ``bool`` or ``float``) within ``1..=MAX_OUTPUT_BUDGET_BYTES``."""
-    return isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= MAX_OUTPUT_BUDGET_BYTES
+    return (
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and 1 <= value <= MAX_OUTPUT_BUDGET_BYTES
+    )
 
 
 @dataclass(frozen=True)
@@ -125,12 +129,12 @@ class OutputBudget:
                     "it takes only defaultBytes and maxBytes"
                 )
         raw_default = value.get("defaultBytes") if "defaultBytes" in value else None
-        if not _is_strict_budget_int(raw_default):
+        if not isinstance(raw_default, int) or not _is_strict_budget_int(raw_default):
             raise ValueError(
                 f"outputBudget.defaultBytes must be an integer from 1 to {MAX_OUTPUT_BUDGET_BYTES}"
             )
         raw_max = value.get("maxBytes") if "maxBytes" in value else None
-        if not _is_strict_budget_int(raw_max):
+        if not isinstance(raw_max, int) or not _is_strict_budget_int(raw_max):
             raise ValueError(
                 f"outputBudget.maxBytes must be an integer from 1 to {MAX_OUTPUT_BUDGET_BYTES}"
             )
@@ -234,9 +238,7 @@ def ask_validation_failure() -> CommandResult[Any]:
     )
 
 
-def apply_output_budget(
-    command: Any, context: Any
-) -> tuple[int | None, CommandResult[Any] | None]:
+def apply_output_budget(command: Any, context: Any) -> tuple[int | None, CommandResult[Any] | None]:
     """Validate the call's ask and stamp the effective budget on ``context`` (B2–B4).
 
     The ask is validated even when ``command`` declares no output budget, and

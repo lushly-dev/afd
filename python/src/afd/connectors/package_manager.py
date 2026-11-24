@@ -10,12 +10,11 @@ Example:
     >>> result = await pm.install()
 """
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel
 
 from afd.platform import ExecOptions, ExecResult, exec_command, is_exec_error
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TYPES
@@ -35,7 +34,7 @@ class PackageManagerConnectorOptions(BaseModel):
     """
 
     debug: bool = False
-    cwd: Optional[str] = None
+    cwd: str | None = None
 
 
 class Dependency(BaseModel):
@@ -55,7 +54,7 @@ class Dependency(BaseModel):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-async def detect_package_manager(cwd: Optional[str] = None) -> Optional[PackageManager]:
+async def detect_package_manager(cwd: str | None = None) -> PackageManager | None:
     """Detect the project's package manager by checking for lockfiles and CLI availability.
 
     Detection order:
@@ -134,7 +133,7 @@ class PackageManagerConnector:
     def __init__(
         self,
         pm: PackageManager = "npm",
-        options: Optional[PackageManagerConnectorOptions] = None,
+        options: PackageManagerConnectorOptions | None = None,
     ) -> None:
         self._pm: PackageManager = pm
         self._options = options
@@ -144,7 +143,7 @@ class PackageManagerConnector:
         """The package manager type."""
         return self._pm
 
-    async def install(self, pkg: Optional[str] = None, dev: bool = False) -> ExecResult:
+    async def install(self, pkg: str | None = None, dev: bool = False) -> ExecResult:
         """Install dependencies.
 
         Args:
@@ -170,15 +169,9 @@ class PackageManagerConnector:
             else:
                 cmd = ["uv", "pip", "install", "-r", "requirements.txt"]
         elif self._pm == "pip":
-            if pkg:
-                cmd = ["pip", "install", pkg]
-            else:
-                cmd = ["pip", "install", "-r", "requirements.txt"]
+            cmd = ["pip", "install", pkg] if pkg else ["pip", "install", "-r", "requirements.txt"]
         elif self._pm == "cargo":
-            if pkg:
-                cmd = ["cargo", "add", pkg]
-            else:
-                cmd = ["cargo", "build"]
+            cmd = ["cargo", "add", pkg] if pkg else ["cargo", "build"]
         else:
             cmd = [self._pm, "install"]
 
@@ -274,7 +267,9 @@ class PackageManagerConnector:
                 if not isinstance(dep_map, dict):
                     continue
                 for name, info in dep_map.items():
-                    version = info.get("version", "unknown") if isinstance(info, dict) else "unknown"
+                    version = (
+                        info.get("version", "unknown") if isinstance(info, dict) else "unknown"
+                    )
                     key = (name, version)
                     if key not in seen:
                         seen.add(key)
@@ -289,10 +284,7 @@ class PackageManagerConnector:
                     f"Failed to list dependencies: {result.stderr or result.error_code}"
                 )
             packages = json_mod.loads(result.stdout)
-            return [
-                Dependency(name=pkg["name"], version=pkg["version"])
-                for pkg in packages
-            ]
+            return [Dependency(name=pkg["name"], version=pkg["version"]) for pkg in packages]
 
         elif self._pm == "pip":
             cmd = ["pip", "list", "--format=json"]
@@ -302,10 +294,7 @@ class PackageManagerConnector:
                     f"Failed to list dependencies: {result.stderr or result.error_code}"
                 )
             packages = json_mod.loads(result.stdout)
-            return [
-                Dependency(name=pkg["name"], version=pkg["version"])
-                for pkg in packages
-            ]
+            return [Dependency(name=pkg["name"], version=pkg["version"]) for pkg in packages]
 
         elif self._pm == "cargo":
             cmd = ["cargo", "metadata", "--format-version=1", "--no-deps"]
@@ -338,11 +327,11 @@ class PackageManagerConnector:
             cmd: list[str] = [self._pm, "run", script]
         elif self._pm == "cargo":
             # cargo run is the closest equivalent to npm run
-            _CARGO_ALLOWED = frozenset({"run", "build", "test", "bench", "check", "clippy", "fmt"})
-            if script not in _CARGO_ALLOWED:
+            cargo_allowed = frozenset({"run", "build", "test", "bench", "check", "clippy", "fmt"})
+            if script not in cargo_allowed:
                 raise RuntimeError(
                     f"cargo subcommand '{script}' is not allowed. "
-                    f"Allowed: {', '.join(sorted(_CARGO_ALLOWED))}"
+                    f"Allowed: {', '.join(sorted(cargo_allowed))}"
                 )
             cmd = ["cargo", script]
         else:

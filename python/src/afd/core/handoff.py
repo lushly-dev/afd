@@ -13,17 +13,16 @@ Example:
     ...     print(f"Connect to {result['endpoint']}")
 """
 
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Literal
 
 from pydantic import Field
 
 from afd.core.wire import WireModel
 
 # Type alias for standard protocols
-HandoffProtocol = Union[
-    Literal["websocket", "webrtc", "sse", "http-stream"],
-    str,  # Allow custom protocols
-]
+HandoffProtocol = (
+    Literal["websocket", "webrtc", "sse", "http-stream"] | str  # Allow custom protocols
+)
 
 
 _DEFAULT_RECONNECT_POLICY = {"allowed": True, "maxAttempts": 3, "backoffMs": 1000}
@@ -46,8 +45,8 @@ class ReconnectPolicy(WireModel):
     """
 
     allowed: bool
-    max_attempts: Optional[int] = Field(default=None, ge=0)
-    backoff_ms: Optional[int] = Field(default=None, ge=0)
+    max_attempts: int | None = Field(default=None, ge=0)
+    backoff_ms: int | None = Field(default=None, ge=0)
 
 
 class HandoffCredentials(WireModel):
@@ -66,9 +65,9 @@ class HandoffCredentials(WireModel):
         ... )
     """
 
-    token: Optional[str] = None
-    headers: Optional[Dict[str, str]] = None
-    session_id: Optional[str] = None
+    token: str | None = None
+    headers: dict[str, str] | None = None
+    session_id: str | None = None
 
 
 class HandoffMetadata(WireModel):
@@ -91,11 +90,11 @@ class HandoffMetadata(WireModel):
         ... )
     """
 
-    expected_latency: Optional[int] = Field(default=None, ge=0)
-    capabilities: Optional[List[str]] = None
-    expires_at: Optional[str] = None
-    reconnect: Optional[ReconnectPolicy] = None
-    description: Optional[str] = None
+    expected_latency: int | None = Field(default=None, ge=0)
+    capabilities: list[str] | None = None
+    expires_at: str | None = None
+    reconnect: ReconnectPolicy | None = None
+    description: str | None = None
 
 
 class HandoffResult(WireModel):
@@ -129,8 +128,8 @@ class HandoffResult(WireModel):
 
     protocol: str = Field(..., min_length=1)
     endpoint: str = Field(..., min_length=1)
-    credentials: Optional[HandoffCredentials] = None
-    metadata: Optional[HandoffMetadata] = None
+    credentials: HandoffCredentials | None = None
+    metadata: HandoffMetadata | None = None
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -138,7 +137,7 @@ class HandoffResult(WireModel):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-def _field(mapping: Dict[str, Any], camel: str, snake: str) -> Any:
+def _field(mapping: dict[str, Any], camel: str, snake: str) -> Any:
     """A handoff field by its wire (camelCase) name, or its snake_case name."""
     if camel in mapping:
         return mapping[camel]
@@ -236,7 +235,7 @@ def is_handoff(value: Any) -> bool:
     return True
 
 
-def is_handoff_protocol(handoff: Dict[str, Any], protocol: str) -> bool:
+def is_handoff_protocol(handoff: dict[str, Any], protocol: str) -> bool:
     """Type guard to check if a HandoffResult uses a specific protocol.
 
     Args:
@@ -304,7 +303,7 @@ def is_handoff_command(command: Any) -> bool:
     return False
 
 
-def get_handoff_protocol(command: Any) -> Optional[str]:
+def get_handoff_protocol(command: Any) -> str | None:
     """Get the handoff protocol from a command definition.
 
     Returns the protocol in this priority order:
@@ -334,7 +333,7 @@ def get_handoff_protocol(command: Any) -> Optional[str]:
     if isinstance(command, dict):
         # Check explicit handoff_protocol property first
         handoff_protocol = _field(command, "handoffProtocol", "handoff_protocol")
-        if handoff_protocol:
+        if isinstance(handoff_protocol, str) and handoff_protocol:
             return handoff_protocol
 
         # Check for handoff:{protocol} tag
@@ -342,7 +341,7 @@ def get_handoff_protocol(command: Any) -> Optional[str]:
     else:
         # Handle object with attributes
         handoff_protocol = getattr(command, "handoff_protocol", None)
-        if handoff_protocol:
+        if isinstance(handoff_protocol, str) and handoff_protocol:
             return handoff_protocol
 
         tags = getattr(command, "tags", None) or []
@@ -350,7 +349,7 @@ def get_handoff_protocol(command: Any) -> Optional[str]:
     # Find handoff:{protocol} tag
     for tag in tags:
         if isinstance(tag, str) and tag.startswith("handoff:"):
-            return tag[len("handoff:"):]
+            return tag[len("handoff:") :]
 
     return None
 
@@ -359,17 +358,17 @@ def create_handoff(
     protocol: str,
     endpoint: str,
     *,
-    token: Optional[str] = None,
-    session_id: Optional[str] = None,
-    headers: Optional[Dict[str, str]] = None,
-    expected_latency: Optional[int] = None,
-    capabilities: Optional[List[str]] = None,
-    expires_at: Optional[str] = None,
-    reconnect_allowed: Optional[bool] = None,
-    reconnect_max_attempts: Optional[int] = None,
-    reconnect_backoff_ms: Optional[int] = None,
-    description: Optional[str] = None,
-) -> Dict[str, Any]:
+    token: str | None = None,
+    session_id: str | None = None,
+    headers: dict[str, str] | None = None,
+    expected_latency: int | None = None,
+    capabilities: list[str] | None = None,
+    expires_at: str | None = None,
+    reconnect_allowed: bool | None = None,
+    reconnect_max_attempts: int | None = None,
+    reconnect_backoff_ms: int | None = None,
+    description: str | None = None,
+) -> dict[str, Any]:
     """Create a HandoffResult dict with the given parameters.
 
     This is a convenience function for creating handoff results in command handlers.
@@ -405,14 +404,14 @@ def create_handoff(
         ... )
         >>> result = success(handoff)
     """
-    result: Dict[str, Any] = {
+    result: dict[str, Any] = {
         "protocol": protocol,
         "endpoint": endpoint,
     }
 
     # Build credentials if any credential fields provided
     if token is not None or session_id is not None or headers is not None:
-        credentials: Dict[str, Any] = {}
+        credentials: dict[str, Any] = {}
         if token is not None:
             credentials["token"] = token
         if session_id is not None:
@@ -423,7 +422,7 @@ def create_handoff(
 
     # Always include the reference reconnect policy. An explicit policy replaces
     # it, rather than filling in fields the caller intentionally left unset.
-    metadata: Dict[str, Any] = {}
+    metadata: dict[str, Any] = {}
     if expected_latency is not None:
         metadata["expectedLatency"] = expected_latency
     if capabilities is not None:
@@ -434,10 +433,11 @@ def create_handoff(
         metadata["description"] = description
 
     # Build reconnect policy if specified
-    if any(value is not None for value in (
-        reconnect_allowed, reconnect_max_attempts, reconnect_backoff_ms
-    )):
-        reconnect: Dict[str, Any] = {
+    if any(
+        value is not None
+        for value in (reconnect_allowed, reconnect_max_attempts, reconnect_backoff_ms)
+    ):
+        reconnect: dict[str, Any] = {
             "allowed": True if reconnect_allowed is None else reconnect_allowed
         }
         if reconnect_max_attempts is not None:

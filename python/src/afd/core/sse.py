@@ -37,7 +37,11 @@ class SseDecoder:
     """
 
     def __init__(self, *, max_event_bytes: int = 1024 * 1024) -> None:
-        if isinstance(max_event_bytes, bool) or not isinstance(max_event_bytes, int) or max_event_bytes <= 0:
+        if (
+            isinstance(max_event_bytes, bool)
+            or not isinstance(max_event_bytes, int)
+            or max_event_bytes <= 0
+        ):
             raise ValueError("max_event_bytes must be a positive integer")
         self._max_event_bytes = max_event_bytes
         self._event_bytes = 0

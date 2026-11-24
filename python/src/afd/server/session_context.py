@@ -12,10 +12,10 @@ An MCP 2026-07-28 request has no session: its active context is request input,
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Collection, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Any, Collection
+from typing import Any
 from weakref import WeakKeyDictionary
 
 from afd.server.bootstrap.afd_context import AFD_CONTEXT_META_KEY, ContextState
@@ -50,15 +50,15 @@ class SessionContextState(ContextState):
         return self._current.get() or self.local
 
     @property
-    def stack(self) -> list[str]:
+    def stack(self) -> list[str]:  # type: ignore[override]
         return self._state().stack
 
     @property
-    def max_depth(self) -> int:
+    def max_depth(self) -> int:  # type: ignore[override]
         return self._state().max_depth
 
     @property
-    def session_available(self) -> bool:
+    def session_available(self) -> bool:  # type: ignore[override]
         return self._state().session_available
 
     @property
@@ -107,9 +107,7 @@ class SessionContextState(ContextState):
             requested = meta.get(AFD_CONTEXT_META_KEY) if isinstance(meta, dict) else None
             if requested is not None:
                 if not isinstance(requested, str) or requested not in contexts:
-                    raise UnknownContextError(
-                        f'Unknown context in _meta["{AFD_CONTEXT_META_KEY}"]'
-                    )
+                    raise UnknownContextError(f'Unknown context in _meta["{AFD_CONTEXT_META_KEY}"]')
                 state.enter(requested)
         elif stateless and getattr(request, "request", None) is not None:
             # SDK stateless HTTP creates a new ServerSession for each request.
@@ -125,10 +123,12 @@ class SessionContextState(ContextState):
             # the identity of a 2025-era client. There is no public accessor, and the
             # live session-isolation tests fail if this stops holding.
             identity = getattr(session, "_connection", session)
-            state = self.sessions.get(identity)
-            if state is None:
+            existing = self.sessions.get(identity)
+            if existing is None:
                 state = ContextState()
                 self.sessions[identity] = state
+            else:
+                state = existing
         token = self._current.set(state)
         try:
             yield

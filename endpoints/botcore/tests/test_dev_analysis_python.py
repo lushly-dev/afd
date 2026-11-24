@@ -58,9 +58,7 @@ def test_find_cycles_three_node_cycle() -> None:
 
 def test_scan_imports_finds_third_party(tmp_path) -> None:
     """Identifies third-party imports from Python files."""
-    (tmp_path / "app.py").write_text(
-        "import os\nimport requests\nfrom pydantic import BaseModel\n"
-    )
+    (tmp_path / "app.py").write_text("import os\nimport requests\nfrom pydantic import BaseModel\n")
     result = _scan_imports(tmp_path)
     assert "requests" in result
     assert "pydantic" in result
@@ -109,7 +107,10 @@ async def test_dead_code_python_vulture(tmp_path) -> None:
         patch("botcore.commands.dev.analysis.subprocess.run") as mock_run,
     ):
         mock_run.return_value = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout=vulture_output, stderr="",
+            args=[],
+            returncode=0,
+            stdout=vulture_output,
+            stderr="",
         )
         result = await dev_dead_code(language="python")
 
@@ -129,7 +130,10 @@ async def test_dead_code_python_no_issues(tmp_path) -> None:
         patch("botcore.commands.dev.analysis.subprocess.run") as mock_run,
     ):
         mock_run.return_value = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout="", stderr="",
+            args=[],
+            returncode=0,
+            stdout="",
+            stderr="",
         )
         result = await dev_dead_code(language="python")
 

@@ -82,12 +82,12 @@ def _mask_ts_source(content: str) -> str:
         elif ch == "`":
             i = scan_template(i + 1)
         elif ch == "/" and _regex_can_start(out, i):
-            end = _regex_end(content, i)
-            if end is None:
+            regex_end = _regex_end(content, i)
+            if regex_end is None:
                 i += 1  # no closing slash on this line: division after all
             else:
-                blank(i + 1, end)
-                i = end + 1
+                blank(i + 1, regex_end)
+                i = regex_end + 1
         elif ch == "{":
             depth += 1
             i += 1
@@ -105,21 +105,23 @@ def _mask_ts_source(content: str) -> str:
 
 # Characters and keywords after which a `/` starts a regex rather than dividing.
 _REGEX_PRECEDING_CHARS = frozenset("(,=:[!&|?{};+-*%<>~^")
-_REGEX_PRECEDING_WORDS = frozenset({
-    "return",
-    "typeof",
-    "case",
-    "do",
-    "else",
-    "in",
-    "of",
-    "void",
-    "yield",
-    "await",
-    "delete",
-    "throw",
-    "new",
-})
+_REGEX_PRECEDING_WORDS = frozenset(
+    {
+        "return",
+        "typeof",
+        "case",
+        "do",
+        "else",
+        "in",
+        "of",
+        "void",
+        "yield",
+        "await",
+        "delete",
+        "throw",
+        "new",
+    }
+)
 
 
 def _regex_can_start(out: Sequence[str], i: int) -> bool:

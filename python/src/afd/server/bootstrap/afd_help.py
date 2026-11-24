@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import copy
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from collections.abc import Callable, Sequence
+from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -25,7 +26,7 @@ from afd.server.validation import _input_validation_failure
 class AfdHelpInput(BaseModel):
     """Input for ``afd-help``."""
 
-    filter: Optional[str] = Field(default=None, description="Filter by tag, category, or command name")
+    filter: str | None = Field(default=None, description="Filter by tag, category, or command name")
     format: str = Field(default="brief", description='Output format: "brief" or "full"')
 
 
@@ -33,37 +34,38 @@ class CommandInfo(WireModel):
     """Information about a single command."""
 
     name: str
-    title: Optional[str] = None
+    title: str | None = None
     description: str
-    category: Optional[str] = None
-    tags: Optional[List[str]] = None
-    mutation: Optional[bool] = None
-    destructive: Optional[bool] = None
-    undoable: Optional[bool] = None
-    requires: Optional[List[str]] = None
-    contexts: Optional[List[str]] = None
-    scopes: Optional[List[str]] = None
-    examples: Optional[List[dict[str, Any]]] = None
-    output_schema: Optional[dict[str, Any]] = None
-    output_budget: Optional[dict[str, int]] = None
-    first_class: Optional[bool] = None
+    category: str | None = None
+    tags: list[str] | None = None
+    mutation: bool | None = None
+    destructive: bool | None = None
+    undoable: bool | None = None
+    requires: list[str] | None = None
+    contexts: list[str] | None = None
+    scopes: list[str] | None = None
+    examples: list[dict[str, Any]] | None = None
+    output_schema: dict[str, Any] | None = None
+    output_budget: dict[str, int] | None = None
+    first_class: bool | None = None
 
 
 class AfdHelpOutput(WireModel):
     """Output for ``afd-help``."""
 
     contract_version: str = Field(description="The AFD contract version this server implements")
-    commands: List[CommandInfo]
+    commands: list[CommandInfo]
     total: int
     filtered: bool
-    grouped_by_category: Dict[str, List[CommandInfo]]
-    tool_strategy: Optional[str] = Field(
-        default=None, description="The server's tool strategy; omitted when not served by an MCP server"
+    grouped_by_category: dict[str, list[CommandInfo]]
+    tool_strategy: str | None = Field(
+        default=None,
+        description="The server's tool strategy; omitted when not served by an MCP server",
     )
-    first_class_tools: Optional[List[str]] = Field(
+    first_class_tools: list[str] | None = Field(
         default=None, description="Hybrid servers only: the first-class tools, in list order"
     )
-    context_fields: Optional[List[Dict[str, Any]]] = Field(
+    context_fields: list[dict[str, Any]] | None = Field(
         default=None,
         description=(
             "The declared context fields and their _meta keys (spec/context-fields.md): "
@@ -78,11 +80,11 @@ def _serialize_examples(examples: list[CommandExample]) -> list[dict[str, Any]]:
 
 async def _afd_help_handler(
     input: AfdHelpInput,
-    context: Optional[CommandContext],
-    get_commands: Callable[[], List[CommandDefinition]],
-    tool_strategy: Optional[str] = None,
-    first_class_tools: Optional[List[str]] = None,
-    context_fields: Optional[List[Dict[str, Any]]] = None,
+    context: CommandContext | None,
+    get_commands: Callable[[], list[CommandDefinition]],
+    tool_strategy: str | None = None,
+    first_class_tools: list[str] | None = None,
+    context_fields: list[dict[str, Any]] | None = None,
 ) -> CommandResult[AfdHelpOutput]:
     view = scope_view_of(context)
     all_commands = listed_commands(get_commands(), view)
@@ -129,9 +131,7 @@ async def _afd_help_handler(
             info.examples = _serialize_examples(command.examples) if command.examples else None
             info.output_schema = command.returns
             info.output_budget = (
-                command.output_budget.to_wire_dict()
-                if command.output_budget is not None
-                else None
+                command.output_budget.to_wire_dict() if command.output_budget is not None else None
             )
 
         command_infos.append(info)
@@ -162,10 +162,10 @@ async def _afd_help_handler(
 
 
 def create_afd_help_command(
-    get_commands: Callable[[], List[CommandDefinition]],
-    tool_strategy: Optional[str] = None,
-    first_class_tools: Optional[List[str]] = None,
-    context_fields: Optional[Sequence[ContextField]] = None,
+    get_commands: Callable[[], list[CommandDefinition]],
+    tool_strategy: str | None = None,
+    first_class_tools: list[str] | None = None,
+    context_fields: Sequence[ContextField] | None = None,
 ) -> CommandDefinition:
     """Create the ``afd-help`` bootstrap command.
 
@@ -178,10 +178,12 @@ def create_afd_help_command(
 
     async def handler(
         input: Any,
-        context: Optional[CommandContext] = None,
+        context: CommandContext | None = None,
     ) -> CommandResult[AfdHelpOutput]:
         try:
-            parsed_input = input if isinstance(input, AfdHelpInput) else AfdHelpInput(**(input or {}))
+            parsed_input = (
+                input if isinstance(input, AfdHelpInput) else AfdHelpInput(**(input or {}))
+            )
         except ValidationError as exc:
             return _input_validation_failure(AfdHelpInput, input, exc)
         return await _afd_help_handler(

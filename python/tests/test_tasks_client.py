@@ -78,7 +78,12 @@ def _make_live_server() -> tuple[Any, asyncio.Event]:
         ),
     )
 
-    @server.command(name="job-progress", description="Reports progress then finishes", expose=MCP, task="required")
+    @server.command(
+        name="job-progress",
+        description="Reports progress then finishes",
+        expose=MCP,
+        task="required",
+    )
     async def job_progress(input: Any, context: CommandContext) -> CommandResult[Any]:
         if context.report_progress is not None:
             context.report_progress("step-1")
@@ -92,7 +97,9 @@ def _make_live_server() -> tuple[Any, asyncio.Event]:
     async def job_optional(input: Any) -> CommandResult[Any]:
         return success({"mode": "optional"})
 
-    @server.command(name="job-hang", description="Waits until cancelled", expose=MCP, task="required")
+    @server.command(
+        name="job-hang", description="Waits until cancelled", expose=MCP, task="required"
+    )
     async def job_hang(input: Any) -> CommandResult[Any]:
         try:
             await asyncio.sleep(30)
@@ -254,7 +261,9 @@ async def test_client_handles_failed_task_status_and_disconnect_during_poll():
         ),
     )
 
-    @server.command(name="job-rpc-fail", description="Marked failed in store", expose=MCP, task="required")
+    @server.command(
+        name="job-rpc-fail", description="Marked failed in store", expose=MCP, task="required"
+    )
     async def job_rpc_fail(input: Any) -> CommandResult[Any]:
         await asyncio.sleep(10)
         return success({})
@@ -284,9 +293,7 @@ async def test_client_handles_failed_task_status_and_disconnect_during_poll():
             started = asyncio.Event()
 
             async def call_long():
-                return await client.call(
-                    "job-long", {}, on_task_progress=lambda _t: started.set()
-                )
+                return await client.call("job-long", {}, on_task_progress=lambda _t: started.set())
 
             poll_task = asyncio.create_task(call_long())
             await asyncio.wait_for(started.wait(), timeout=2.0)
@@ -337,7 +344,9 @@ async def test_client_inline_result_type_task_output_schema_and_inflight_poll_ti
         ),
     )
 
-    @server.command(name="inline-fake-task", description="Returns JSON with resultType=task", expose=MCP)
+    @server.command(
+        name="inline-fake-task", description="Returns JSON with resultType=task", expose=MCP
+    )
     async def inline_fake_task(input: Any) -> CommandResult[Any]:
         return success({"resultType": "task", "taskId": "not-a-real-task"})
 
@@ -419,7 +428,9 @@ async def test_client_inline_result_type_task_output_schema_and_inflight_poll_ti
             # 4. Cancellation arriving while tasks/get is blocked unblocks promptly
             get_entered.clear()
             cancel_ev = asyncio.Event()
-            call_fut = asyncio.create_task(client.call("job-stall", {}, cancel=cancel_ev, timeout=10.0))
+            call_fut = asyncio.create_task(
+                client.call("job-stall", {}, cancel=cancel_ev, timeout=10.0)
+            )
             await asyncio.wait_for(get_entered.wait(), timeout=2.0)
             cancel_ev.set()
             cancelled = await asyncio.wait_for(call_fut, timeout=2.0)

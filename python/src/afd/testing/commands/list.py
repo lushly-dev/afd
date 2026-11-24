@@ -17,124 +17,124 @@ from afd.testing.scenarios.parser import parse_scenario_file
 
 
 def scenario_list(
-	input: dict[str, Any] | None = None,
-	*,
-	root: str | os.PathLike[str] | None = None,
+    input: dict[str, Any] | None = None,
+    *,
+    root: str | os.PathLike[str] | None = None,
 ) -> CommandResult[Any]:
-	"""List JTBD scenario files.
+    """List JTBD scenario files.
 
-	``directory`` must stay inside ``root`` (default: the current working
-	directory). ``..`` segments, absolute paths and symlinks that leave
-	``root`` are refused.
+    ``directory`` must stay inside ``root`` (default: the current working
+    directory). ``..`` segments, absolute paths and symlinks that leave
+    ``root`` are refused.
 
-	Input:
-		directory: str - Directory to search (default: ./scenarios)
-		tags: list[str] - Filter by tags
-		job: str - Filter by job name pattern
-		status: str - Filter by status
-		search: str - Full-text search
-		sort: str - Sort by field (name, job, step_count)
-		order: str - Sort order (asc, desc)
-		recursive: bool - Search subdirectories (default: True)
+    Input:
+            directory: str - Directory to search (default: ./scenarios)
+            tags: list[str] - Filter by tags
+            job: str - Filter by job name pattern
+            status: str - Filter by status
+            search: str - Full-text search
+            sort: str - Sort by field (name, job, step_count)
+            order: str - Sort order (asc, desc)
+            recursive: bool - Search subdirectories (default: True)
 
-	Returns:
-		CommandResult with scenario list data.
-	"""
-	params = input or {}
-	directory = params.get("directory", "./scenarios")
-	tags_filter = params.get("tags")
-	job_filter = params.get("job")
-	status_filter = params.get("status")
-	search_term = params.get("search")
-	sort_field = params.get("sort", "name")
-	sort_order = params.get("order", "asc")
-	recursive = params.get("recursive", True)
+    Returns:
+            CommandResult with scenario list data.
+    """
+    params = input or {}
+    directory = params.get("directory", "./scenarios")
+    tags_filter = params.get("tags")
+    job_filter = params.get("job")
+    status_filter = params.get("status")
+    search_term = params.get("search")
+    sort_field = params.get("sort", "name")
+    sort_order = params.get("order", "asc")
+    recursive = params.get("recursive", True)
 
-	base = project_root(root)
-	scenario_dir = (
-		resolve_inside(directory, base) if isinstance(directory, (str, os.PathLike)) else None
-	)
-	if scenario_dir is None:
-		return error(
-			"VALIDATION_ERROR",
-			f"Scenario directory is outside the project root: {str(directory)[:200]}",
-			suggestion="Use a directory inside the project, such as ./scenarios.",
-			details={"field": "directory"},
-		)
+    base = project_root(root)
+    scenario_dir = (
+        resolve_inside(directory, base) if isinstance(directory, (str, os.PathLike)) else None
+    )
+    if scenario_dir is None:
+        return error(
+            "VALIDATION_ERROR",
+            f"Scenario directory is outside the project root: {str(directory)[:200]}",
+            suggestion="Use a directory inside the project, such as ./scenarios.",
+            details={"field": "directory"},
+        )
 
-	try:
-		files = [
-			str(resolved)
-			for path in find_scenario_files(str(scenario_dir), recursive)
-			if (resolved := resolve_inside(path, base)) is not None
-		]
-	except Exception as e:
-		return error(
-			"INTERNAL_ERROR",
-			f"Failed to search directory: {e}",
-			suggestion="Check that the directory exists and is readable.",
-		)
+    try:
+        files = [
+            str(resolved)
+            for path in find_scenario_files(str(scenario_dir), recursive)
+            if (resolved := resolve_inside(path, base)) is not None
+        ]
+    except Exception as e:
+        return error(
+            "INTERNAL_ERROR",
+            f"Failed to search directory: {e}",
+            suggestion="Check that the directory exists and is readable.",
+        )
 
-	scenarios: list[dict[str, Any]] = []
-	for filepath in files:
-		result = parse_scenario_file(filepath)
-		if result.success:
-			sc = result.scenario
-			scenarios.append({
-				"name": sc.name,
-				"job": sc.job,
-				"description": sc.description,
-				"path": filepath,
-				"tags": sc.tags,
-				"step_count": len(sc.steps),
-				"has_fixture": sc.fixture is not None,
-			})
+    scenarios: list[dict[str, Any]] = []
+    for filepath in files:
+        result = parse_scenario_file(filepath)
+        if result.success:
+            sc = result.scenario
+            scenarios.append(
+                {
+                    "name": sc.name,
+                    "job": sc.job,
+                    "description": sc.description,
+                    "path": filepath,
+                    "tags": sc.tags,
+                    "step_count": len(sc.steps),
+                    "has_fixture": sc.fixture is not None,
+                }
+            )
 
-	total = len(scenarios)
+    total = len(scenarios)
 
-	# Apply filters
-	filtered = scenarios
-	if job_filter:
-		job_lower = job_filter.lower()
-		filtered = [s for s in filtered if job_lower in s["job"].lower()]
-	if tags_filter:
-		filtered = [
-			s for s in filtered
-			if all(t in s["tags"] for t in tags_filter)
-		]
-	if status_filter:
-		filtered = [s for s in filtered if s.get("status") == status_filter]
-	if search_term:
-		term = search_term.lower()
-		filtered = [
-			s for s in filtered
-			if term in s["name"].lower()
-			or term in s.get("description", "").lower()
-			or term in s["job"].lower()
-		]
+    # Apply filters
+    filtered = scenarios
+    if job_filter:
+        job_lower = job_filter.lower()
+        filtered = [s for s in filtered if job_lower in s["job"].lower()]
+    if tags_filter:
+        filtered = [s for s in filtered if all(t in s["tags"] for t in tags_filter)]
+    if status_filter:
+        filtered = [s for s in filtered if s.get("status") == status_filter]
+    if search_term:
+        term = search_term.lower()
+        filtered = [
+            s
+            for s in filtered
+            if term in s["name"].lower()
+            or term in s.get("description", "").lower()
+            or term in s["job"].lower()
+        ]
 
-	# Sort
-	reverse = sort_order == "desc"
-	if sort_field == "job":
-		filtered.sort(key=lambda s: s["job"].lower(), reverse=reverse)
-	elif sort_field == "step_count":
-		filtered.sort(key=lambda s: s["step_count"], reverse=reverse)
-	else:
-		filtered.sort(key=lambda s: s["name"].lower(), reverse=reverse)
+    # Sort
+    reverse = sort_order == "desc"
+    if sort_field == "job":
+        filtered.sort(key=lambda s: s["job"].lower(), reverse=reverse)
+    elif sort_field == "step_count":
+        filtered.sort(key=lambda s: s["step_count"], reverse=reverse)
+    else:
+        filtered.sort(key=lambda s: s["name"].lower(), reverse=reverse)
 
-	return success(
-		{
-			"total": total,
-			"filtered": len(filtered),
-			"scenarios": filtered,
-			"filters": {
-				"directory": directory,
-				"tags": tags_filter,
-				"job": job_filter,
-				"status": status_filter,
-				"search": search_term,
-			},
-		},
-		reasoning=f"Found {total} scenario(s), {len(filtered)} after filtering.",
-		confidence=0.95,
-	)
+    return success(
+        {
+            "total": total,
+            "filtered": len(filtered),
+            "scenarios": filtered,
+            "filters": {
+                "directory": directory,
+                "tags": tags_filter,
+                "job": job_filter,
+                "status": status_filter,
+                "search": search_term,
+            },
+        },
+        reasoning=f"Found {total} scenario(s), {len(filtered)} after filtering.",
+        confidence=0.95,
+    )

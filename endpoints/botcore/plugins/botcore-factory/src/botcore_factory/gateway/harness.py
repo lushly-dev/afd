@@ -23,10 +23,12 @@ import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from afd import Actor, CommandResult, error, success
 from afd.core.commands import CommandContext
 from botcore.context import ExecutionContext
+from botcore.host import CommandHost
 
 from botcore_factory.gateway.config import GatewayConfig
 from botcore_factory.gateway.github import GITHUB_KEYS, FakeGitHub, fake_world
@@ -50,7 +52,7 @@ _CONFIG_KEYS = set(GatewayConfig.model_fields) | {
 }
 
 
-def apply_fixture(run_dir: Path, arguments: dict) -> CommandResult:
+def apply_fixture(run_dir: Path, arguments: dict[str, Any]) -> CommandResult[Any]:
     fixture = arguments.get("fixture")
     if not isinstance(fixture, dict):
         return error(
@@ -75,7 +77,7 @@ def apply_fixture(run_dir: Path, arguments: dict) -> CommandResult:
     return success({"applied": sorted(fixture)}, reasoning=f"Applied a fixture to {run_dir}")
 
 
-def host_for(run_dir: Path, route: str):
+def host_for(run_dir: Path, route: str) -> CommandHost:
     config = GatewayConfig.model_validate_json((run_dir / "config.json").read_text("utf-8"))
     return build_gateway_host(
         route,
@@ -87,7 +89,7 @@ def host_for(run_dir: Path, route: str):
     )
 
 
-def call(command: str, arguments: dict, run_dir: Path, route: str) -> CommandResult:
+def call(command: str, arguments: dict[str, Any], run_dir: Path, route: str) -> CommandResult[Any]:
     if command == APPLY:
         return apply_fixture(run_dir, arguments)
     if not (run_dir / "config.json").exists():

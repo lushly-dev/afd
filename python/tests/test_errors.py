@@ -1,7 +1,5 @@
 """Tests for afd.core.errors module."""
 
-import pytest
-
 from afd.core.errors import (
     CommandError,
     ErrorCodes,

@@ -613,8 +613,8 @@ async def dev_check_deps(
 
     if _should_run_all(language, None, config):
         results: dict[str, CommandResult[dict]] = {}
-        for lang in config.languages:
-            results[lang] = await _check_deps_for_language(lang, ws, config, staged_only)
+        for item_lang in config.languages:
+            results[item_lang] = await _check_deps_for_language(item_lang, ws, config, staged_only)
         return _aggregate_results(results, "check-deps")
 
     lang = resolve_language(

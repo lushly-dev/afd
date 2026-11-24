@@ -7,7 +7,7 @@ import json
 import os
 from collections.abc import Callable, Sequence
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from botcore_factory.claims import parse_time
 from botcore_factory.failures import disk_full, failing_tests
@@ -44,7 +44,7 @@ if TYPE_CHECKING:
 DEFAULT_NOW = "2030-01-01T00:00:00Z"
 
 
-def _issue(data: dict) -> Issue:
+def _issue(data: dict[str, Any]) -> Issue:
     return Issue(
         number=data["number"],
         title=data.get("title", f"Issue {data['number']}"),
@@ -114,8 +114,10 @@ class FixtureGitHub:
 
     def get_variable(self, name: str) -> str | None:
         if name == LANE_HOST_VARIABLE:
-            return self.store.data.get("laneHost")
-        return self.store.data.get("variables", {}).get(name)
+            val = self.store.data.get("laneHost")
+            return str(val) if val is not None else None
+        val = self.store.data.get("variables", {}).get(name)
+        return str(val) if val is not None else None
 
     def signed_in(self) -> bool:
         return "gh sign-in" not in self.store.this_machine().get("missing", [])
@@ -128,18 +130,19 @@ class FixtureGitHub:
             return list(data["requiredChecks"])
         return ["ci-ok"] if data.get("requiredCheckOnMain") else []
 
-    def _prs(self) -> dict:
-        return self.store.data.setdefault("prs", {})
+    def _prs(self) -> dict[str, Any]:
+        prs: dict[str, Any] = self.store.data.setdefault("prs", {})
+        return prs
 
     def open_pr(self, branch: str, title: str, body: str, base: str = "main") -> int:
         _fail(self.store, "pr", branch)
         for number, pr in self._prs().items():
             if pr["branch"] == branch and pr["state"] == "OPEN" and pr.get("base", "main") == base:
                 return int(number)
-        number = int(self.store.data.get("nextPr", 600))
-        self.store.data["nextPr"] = number + 1
+        next_num = int(self.store.data.get("nextPr", 600))
+        self.store.data["nextPr"] = next_num + 1
         head = self.store.data.get("pushed", {}).get(branch, "")
-        self._prs()[str(number)] = {
+        self._prs()[str(next_num)] = {
             "branch": branch,
             "base": base,
             "title": title,
@@ -148,7 +151,7 @@ class FixtureGitHub:
             "state": "OPEN",
         }
         self.store.save()
-        return number
+        return next_num
 
     def check_status(self, pr: int, name: str, head: str) -> str:
         """Bound to ``head``: a check reported for another head of the PR is not this one's.
@@ -202,18 +205,18 @@ class FixtureGitHub:
         if result.startswith("lands-then-fail"):
             raise WorldError(result.split(":", 1)[1].strip() if ":" in result else "timed out")
 
-    def _queue(self, pr: int, found: dict, head: str) -> None:
+    def _queue(self, pr: int, found: dict[str, Any], head: str) -> None:
         found["queuedHead"] = head
         found.setdefault("queue", {"state": "QUEUED", "position": 1, "groupHead": f"group@{pr}"})
 
-    def _merge(self, pr: int, found: dict, head: str, commit: str) -> None:
+    def _merge(self, pr: int, found: dict[str, Any], head: str, commit: str) -> None:
         found["state"] = "MERGED"
         found["mergedHead"] = head
         found["mergeCommit"] = commit
         self.store.data.setdefault("main", {})["head"] = commit
 
     def pr_state(self, pr: int) -> str:
-        return self._prs()[str(pr)]["state"]
+        return str(self._prs()[str(pr)]["state"])
 
     def merge_progress(self, pr: int) -> MergeProgress:
         """A queued pull request is settled here, on a read, once the fixture says how:
@@ -256,7 +259,8 @@ class FixtureGitHub:
         return str(self.store.data.get("commitMessages", {}).get(commit, ""))
 
     def merge_commit(self, pr: int) -> str | None:
-        return self._prs()[str(pr)].get("mergeCommit")
+        val = self._prs()[str(pr)].get("mergeCommit")
+        return str(val) if val is not None else None
 
     def commit_checks(self, commit: str) -> dict[str, str]:
         """``mainChecks[commit]``: each check run's state on a commit of main."""
@@ -278,14 +282,14 @@ class FixtureGit:
     def host_records(self) -> list[HostRecord]:
         return [HostRecord.read(raw) for raw in self.store.data.get("machines", [])]
 
-    def _worktree(self, worktree: str) -> dict:
+    def _worktree(self, worktree: str) -> dict[str, Any]:
         found = self.store.data.get("worktrees", {}).get(worktree)
-        if found is None:
+        if not isinstance(found, dict):
             raise WorldError(f"No worktree {worktree}")
         return found
 
     def head(self, worktree: str) -> str:
-        return self._worktree(worktree).get("head", "")
+        return str(self._worktree(worktree).get("head", ""))
 
     def branch(self, worktree: str) -> str | None:
         return self._worktree(worktree).get("branch")
@@ -321,7 +325,7 @@ class FixtureGit:
         self.store.data["originQueueRefs"] = [*refs, {"branch": branch, "head": head}]
         self.store.save()
 
-    def queue_refs(self) -> list[dict]:
+    def queue_refs(self) -> list[dict[str, Any]]:
         return [dict(ref) for ref in self.store.data.get("originQueueRefs", [])]
 
     def delete_queue_ref(self, branch: str, head: str) -> None:
@@ -350,15 +354,18 @@ class FixtureGit:
             # branch's own (``branchSlotFiles.<branch>``) take their place in its slot.
             branch = self._slots().get(worktree.removeprefix("slots/"), {}).get("branch")
             own = self.store.data.get("branchSlotFiles", {}).get(branch, {})
-            return own.get(path, self.store.data.get("slotFiles", {}).get(path))
-        return self._worktree(worktree).get("files", {}).get(path)
+            val = own.get(path, self.store.data.get("slotFiles", {}).get(path))
+            return str(val) if val is not None else None
+        val = self._worktree(worktree).get("files", {}).get(path)
+        return str(val) if val is not None else None
 
     def fetch_base(self, base: str) -> str:
         _fail(self.store, "fetch")
-        return self.store.data.setdefault("main", {}).get("head", "main-0")
+        return str(self.store.data.setdefault("main", {}).get("head", "main-0"))
 
-    def _slots(self) -> dict:
-        return self.store.data.setdefault("checkouts", {})
+    def _slots(self) -> dict[str, Any]:
+        slots: dict[str, Any] = self.store.data.setdefault("checkouts", {})
+        return slots
 
     def slots_dir(self) -> str:
         return "slots"
@@ -369,8 +376,9 @@ class FixtureGit:
         self.store.save()
         return f"slots/{slot}"
 
-    def _slot(self, path: str) -> dict:
-        return self._slots()[path.removeprefix("slots/")]
+    def _slot(self, path: str) -> dict[str, Any]:
+        slot: dict[str, Any] = self._slots()[path.removeprefix("slots/")]
+        return slot
 
     def park_slot(self, slot: str, name: str) -> str:
         """``outcomes.park``: ``fail: ...`` refuses the move."""
@@ -412,7 +420,12 @@ class FixtureGit:
         self.store.save()
         return removed
 
-    def merge_main(self, path: str, main: str, keep_open=None) -> MergeOutcome:
+    def merge_main(
+        self,
+        path: str,
+        main: str,
+        keep_open: Callable[[tuple[str, ...]], bool] | None = None,
+    ) -> MergeOutcome:
         slot = self._slot(path)
         result = _outcome(self.store, "merge", slot["branch"], "clean")
         if result.startswith("conflict"):
@@ -575,12 +588,15 @@ class FixtureMachine:
         on_path = self.store.data.get("nodeToolchains", {})
         for directory in path:
             if tool in on_path.get(directory, {}):
-                return on_path[directory][tool]
-        return self.store.data.get("toolchains", {}).get(tool)
+                val = on_path[directory][tool]
+                return str(val) if val is not None else None
+        val = self.store.data.get("toolchains", {}).get(tool)
+        return str(val) if val is not None else None
 
     def node_bin(self, spec: str) -> str | None:
         """``nodes.<spec>``: the installed Node's bin directory, or absent when it is not."""
-        return self.store.data.get("nodes", {}).get(spec.strip().removeprefix("v"))
+        val = self.store.data.get("nodes", {}).get(spec.strip().removeprefix("v"))
+        return str(val) if val is not None else None
 
 
 class FixturePlans:
@@ -620,10 +636,11 @@ class FixtureProcesses:
         known = self._processes().get("startTimes", {}).get(str(pid))
         return None if known is None else float(known)
 
-    def _processes(self) -> dict:
-        return self.store.data.setdefault("processes", {})
+    def _processes(self) -> dict[str, Any]:
+        procs: dict[str, Any] = self.store.data.setdefault("processes", {})
+        return procs
 
-    def start_job(self, steps: Sequence[dict], cwd: str, log: str, *, label: str) -> str:
+    def start_job(self, steps: Sequence[dict[str, Any]], cwd: str, log: str, *, label: str) -> str:
         """A scripted job: each step's ``outcomes.<step label>[branch]`` (``pass`` by default,
         ``running``, or ``fail: ...``), in order; the coverage slot's branch is empty."""
         _fail(self.store, f"start-{label}")
@@ -744,14 +761,14 @@ class FixtureValidationLock:
     def __init__(self, store: FixtureWorld) -> None:
         self.store = store
 
-    def _read(self) -> dict:
+    def _read(self) -> dict[str, Any]:
         _fail(self.store, "hostLock")
         raw = self.store.data.get("hostLock")
         if raw is None:
             return empty_lock_state()
         return validate_lock_state(raw, "fixture hostLock")
 
-    def _write(self, state: dict) -> None:
+    def _write(self, state: dict[str, Any]) -> None:
         self.store.data["hostLock"] = state
         self.store.save()
 
@@ -762,7 +779,7 @@ class FixtureValidationLock:
         *,
         register_waiter: bool = True,
         lane: str = DEFAULT_LANE,
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         before = self._read()
         after, blocker = apply_check_available(
             before,
@@ -784,7 +801,7 @@ class FixtureValidationLock:
         pid: int,
         *,
         lane: str = DEFAULT_LANE,
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         before = self._read()
         after, blocker = apply_try_acquire(
             before,
@@ -882,13 +899,13 @@ class FixtureValidationLock:
         if after != before:
             self._write(after)
 
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         return prune_lock_state(
             self._read(), FixtureProcesses(self.store), FixtureClock(self.store).now()
         )
 
 
-def _outcome(store: FixtureWorld, kind: str, key: str | None = None, default: str = "pass"):
+def _outcome(store: FixtureWorld, kind: str, key: str | None = None, default: str = "pass") -> str:
     """The fixture's scripted outcome (``outcomes``): per key (a branch), or one for all."""
     found = store.data.get("outcomes", {}).get(kind)
     if isinstance(found, dict):
@@ -1004,12 +1021,12 @@ def _test_changes_run(store: FixtureWorld, args: tuple[str, ...], cwd: str) -> C
     return Completed(args, 0, json.dumps(report), "")
 
 
-def _worktree_run(args: tuple[str, ...], worktree: dict, label: str) -> Completed:
+def _worktree_run(args: tuple[str, ...], worktree: dict[str, Any], label: str) -> Completed:
     """Answer a labelled run in a fixture worktree: its review record or a prequeue stage."""
     if label == "review-evidence":
         review = worktree.get("review")
         asked = args[args.index("--head") + 1] if "--head" in args[:-1] else worktree.get("head")
-        reviewed = bool(review) and review.get("head") == worktree.get("head") == asked
+        reviewed = isinstance(review, dict) and review.get("head") == worktree.get("head") == asked
         # 3 is the verifier's refusal (``scripts/review-record.mjs``'s ``REFUSED``).
         return Completed(args, 0 if reviewed else 3, "", "" if reviewed else "no review record")
     if label.startswith("prequeue:"):

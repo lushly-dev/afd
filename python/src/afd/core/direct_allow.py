@@ -1,7 +1,8 @@
 """Private, opaque per-call allow policy shared by the in-process boundaries."""
 
 import copy
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 from weakref import WeakKeyDictionary
 
 from afd.core.errors import CommandError
@@ -21,21 +22,27 @@ def _direct_allows(allow: Callable[[str], bool], name: str) -> bool:
         return False
 
 
-def _bound_allow(context: Any) -> Optional[Callable[[str], bool]]:
+def _bound_allow(context: Any) -> Callable[[str], bool] | None:
     token = getattr(context, "_direct_allow", None)
     if token is None:
         return None
     # A caller cannot replace an opaque marker with another predicate to widen access.
-    return _predicates.get(token, lambda _: False) if isinstance(token, _AllowToken) else lambda _: False
+    return (
+        _predicates.get(token, lambda _: False)
+        if isinstance(token, _AllowToken)
+        else lambda _: False
+    )
 
 
-def _bind_allow(context: Any, allow: Optional[Callable[[str], bool]]) -> Any:
+def _bind_allow(context: Any, allow: Callable[[str], bool] | None) -> Any:
     carried = _bound_allow(context)
     if allow is None and carried is None:
         return context
     token = _AllowToken()
     if allow is not None and carried is not None:
-        _predicates[token] = lambda name: _direct_allows(carried, name) and _direct_allows(allow, name)
+        _predicates[token] = lambda name: (
+            _direct_allows(carried, name) and _direct_allows(allow, name)
+        )
     else:
         policy = allow if allow is not None else carried
         assert policy is not None

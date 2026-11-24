@@ -17,6 +17,7 @@ import hashlib
 import json
 import os
 import secrets
+import sys
 import tempfile
 import threading
 import time
@@ -25,8 +26,9 @@ from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
-if os.name == "nt":
+if sys.platform == "win32":
     from ._windows_security import ensure_directory, open_private, pinned_directory
 
 PREFIX = "bct_"
@@ -55,7 +57,7 @@ class TokenRecord:
     def active(self) -> bool:
         return self.revoked_at is None
 
-    def public(self) -> dict:
+    def public(self) -> dict[str, Any]:
         """What ``list`` shows: everything but the digest, which the record never holds."""
         return {
             "id": self.id,
@@ -72,28 +74,31 @@ class TokenStore:
     """Tokens in ``path``: issue, verify, list and revoke."""
 
     def __init__(self, path: Path) -> None:
-        self.path = Path(os.path.abspath(path)) if os.name == "nt" else Path(path)
+        self.path = Path(os.path.abspath(path)) if sys.platform == "win32" else Path(path)
         self._lock = threading.Lock()
-        self._loaded: tuple[tuple, dict[str, TokenRecord]] | None = None
+        self._loaded: tuple[tuple[int, ...], dict[str, TokenRecord]] | None = None
 
     # ── file ──────────────────────────────────────────────────────────────
 
-    def _read(self) -> dict[str, dict]:
-        if os.name == "nt":
+    def _read(self) -> dict[str, dict[str, Any]]:
+        if sys.platform == "win32":
             try:
                 descriptor = open_private(self.path)
             except FileNotFoundError:
                 return {}
             with os.fdopen(descriptor, encoding="utf-8") as handle:
-                return json.load(handle).get("tokens", {})
+                raw: dict[str, Any] = json.load(handle)
+                tokens = raw.get("tokens", {})
+                return tokens if isinstance(tokens, dict) else {}
         if not self.path.exists():
             return {}
-        data = json.loads(self.path.read_text(encoding="utf-8"))
-        return data.get("tokens", {})
+        data: dict[str, Any] = json.loads(self.path.read_text(encoding="utf-8"))
+        tokens = data.get("tokens", {})
+        return tokens if isinstance(tokens, dict) else {}
 
     def _directory(self) -> Path:
         directory = self.path.parent
-        if os.name == "nt":
+        if sys.platform == "win32":
             ensure_directory(directory)
         elif not directory.exists():
             directory.mkdir(parents=True, mode=0o700)
@@ -103,20 +108,20 @@ class TokenStore:
     def _exclusive(self) -> Iterator[None]:
         """This process's lock, and an OS lock on ``<store>.lock`` across processes."""
         with self._lock:
-            guard = (
-                pinned_directory(self.path.parent)
-                if os.name == "nt"
-                else nullcontext(self._directory())
-            )
+            if sys.platform == "win32":
+                guard: Any = pinned_directory(self.path.parent)
+            else:
+                guard = nullcontext(self._directory())
             with guard as directory:
                 lock = directory / f"{self.path.name}.lock"
-                descriptor = (
-                    open_private(lock, create=True, lock=True)
-                    if os.name == "nt"
-                    else os.open(lock, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
-                )
+                if sys.platform == "win32":
+                    descriptor = open_private(lock, create=True, lock=True)
+                else:
+                    descriptor = os.open(
+                        lock, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600
+                    )
                 try:
-                    if os.name == "nt":
+                    if sys.platform == "win32":
                         import msvcrt
 
                         # LK_LOCK retries once a second, which would stall an HTTP
@@ -143,18 +148,19 @@ class TokenStore:
     def _reading(self) -> Iterator[None]:
         # Windows' CRT readers can prevent replacement. The shared store lock also
         # prevents a reader from observing another process between read and write.
-        with self._exclusive() if os.name == "nt" else self._lock:
+        with self._exclusive() if sys.platform == "win32" else self._lock:
             yield
 
-    def _write(self, tokens: dict[str, dict]) -> None:
+    def _write(self, tokens: dict[str, dict[str, Any]]) -> None:
         """Replace the store atomically; call inside ``_exclusive``."""
         directory = self._directory()
-        if os.name == "nt":
+        if sys.platform == "win32":
             temporary = directory / f".{self.path.name}.{secrets.token_hex(16)}"
             descriptor = open_private(temporary, create=True)
         else:
             # mkstemp creates a new file (O_EXCL), readable by the owner only.
-            descriptor, temporary = tempfile.mkstemp(prefix=f".{self.path.name}.", dir=directory)
+            descriptor, temp_path = tempfile.mkstemp(prefix=f".{self.path.name}.", dir=directory)
+            temporary = Path(temp_path)
         try:
             with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
                 json.dump({"version": 1, "tokens": tokens}, handle, indent=2, sort_keys=True)
@@ -162,13 +168,13 @@ class TokenStore:
                 os.fsync(handle.fileno())
             os.replace(temporary, self.path)
         except BaseException:
-            Path(temporary).unlink(missing_ok=True)
+            temporary.unlink(missing_ok=True)
             raise
         self._loaded = None
 
-    def _stamp(self) -> tuple:
+    def _stamp(self) -> tuple[int, ...]:
         try:
-            if os.name == "nt":
+            if sys.platform == "win32":
                 descriptor = open_private(self.path)
                 try:
                     info = os.fstat(descriptor)

@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tomllib
 from collections import defaultdict
+from typing import Any
 
 from afd import CommandResult, error, success
 
@@ -45,11 +46,11 @@ async def dev_dead_code(
 
     if _should_run_all(language, path, config):
         results: dict[str, CommandResult[dict]] = {}
-        for lang in config.languages:
-            results[lang] = await dev_dead_code(
+        for item_lang in config.languages:
+            results[item_lang] = await dev_dead_code(
                 path=path,
                 min_confidence=min_confidence,
-                language=lang,
+                language=item_lang,
             )
         return _aggregate_results(results, "dead-code")
 
@@ -100,15 +101,15 @@ async def dev_dead_code(
         )
 
     # Default: Python via vulture
-    result = subprocess.run(
+    proc = subprocess.run(
         [sys.executable, "-m", "vulture", scan_path, f"--min-confidence={min_confidence}"],
         capture_output=True,
         text=True,
         cwd=ws,
     )
 
-    issues = []
-    for line in result.stdout.strip().splitlines():
+    issues: list[dict[str, Any]] = []
+    for line in proc.stdout.strip().splitlines():
         if not line:
             continue
         parts = line.split(":", 2)
@@ -165,8 +166,8 @@ async def dev_circular_imports(
 
     if _should_run_all(language, path, config):
         results: dict[str, CommandResult[dict]] = {}
-        for lang in config.languages:
-            results[lang] = await dev_circular_imports(path=path, language=lang)
+        for item_lang in config.languages:
+            results[item_lang] = await dev_circular_imports(path=path, language=item_lang)
         return _aggregate_results(results, "circular-imports")
 
     lang = (
@@ -288,8 +289,8 @@ async def dev_unused_deps(language: str | None = None) -> CommandResult[dict]:
 
     if _should_run_all(language, None, config):
         results: dict[str, CommandResult[dict]] = {}
-        for lang in config.languages:
-            results[lang] = await dev_unused_deps(language=lang)
+        for item_lang in config.languages:
+            results[item_lang] = await dev_unused_deps(language=item_lang)
         return _aggregate_results(results, "unused-deps")
 
     lang = resolve_language(None, config, ws, language_override=language)
@@ -393,8 +394,8 @@ async def dev_dep_graph(
 
     if _should_run_all(language, path, config):
         results: dict[str, CommandResult[dict]] = {}
-        for lang in config.languages:
-            results[lang] = await dev_dep_graph(path=path, output=output, language=lang)
+        for item_lang in config.languages:
+            results[item_lang] = await dev_dep_graph(path=path, output=output, language=item_lang)
         return _aggregate_results(results, "dep-graph")
 
     lang = (

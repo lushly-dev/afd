@@ -5,6 +5,8 @@
 //! do not vary with machine load, and the median time per call over several rounds, which does.
 //! No benchmark framework: it needs only the crate and Tokio.
 
+#![allow(unsafe_code)]
+
 use afd::{
     success, CommandContext, CommandDefinition, CommandHandler, CommandMiddleware, CommandRegistry,
     CommandResult,

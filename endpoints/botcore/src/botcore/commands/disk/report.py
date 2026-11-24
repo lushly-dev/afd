@@ -19,6 +19,7 @@ import time
 from dataclasses import dataclass, field
 from fnmatch import fnmatchcase
 from pathlib import Path
+from typing import Any
 
 from afd import CommandResult, error, success
 
@@ -116,7 +117,8 @@ def manager(path: Path | str, t3_roots: list[Path], repository: Path | None = No
     """The tool that creates and removes this worktree itself, if any: tier 2 leaves it alone.
     A Factory slot sits directly in this repository's `<repository>.factory-slots/`."""
     if repository is not None and path_key(Path(path).parent) == path_key(
-            factory_slots(repository)):
+        factory_slots(repository)
+    ):
         return "factory"
     if any(_inside(root, path) for root in t3_roots):
         return "t3-code"
@@ -168,7 +170,9 @@ def _presence(path: Path) -> tuple[str, str | None]:
     return "missing", None
 
 
-def _repo_block(worktrees: list[Worktree], ctx: Context) -> tuple[str | None, dict[str, tuple]]:
+def _repo_block(
+    worktrees: list[Worktree], ctx: Context
+) -> tuple[str | None, dict[str, tuple[str, str | None]]]:
     """Why no worktree of this repository may be acted on, and each worktree's presence."""
     presence = {str(w.path): _presence(w.path) for w in worktrees}
     for wt in worktrees:
@@ -226,12 +230,15 @@ def _holds_checkout(folder: Path, checkouts: list[str]) -> bool:
 
 
 def _strippable(
-    worktree: Path, found: list[Candidate], config: DiskConfig, ctx: Context,
-) -> tuple[list[Candidate], list[dict]]:
+    worktree: Path,
+    found: list[Candidate],
+    config: DiskConfig,
+    ctx: Context,
+) -> tuple[list[Candidate], list[dict[str, Any]]]:
     """Candidates that may be stripped, and those refused with the reason."""
     git_timeout = ctx.git_timeout()
     fold = case_insensitive(worktree)
-    refused: list[dict] = []
+    refused: list[dict[str, Any]] = []
     keep: list[Candidate] = []
     for cand in found:
         nested = cand.kind == "dir" and _holds_checkout(worktree / cand.rel, ctx.checkouts)
@@ -266,7 +273,7 @@ def _threshold(cand: Candidate, ctx: Context) -> float:
 # ── Rows ────────────────────────────────────────────────────────────────────
 
 
-def _base_row(wt: Worktree, ctx: Context, common: Path) -> dict:
+def _base_row(wt: Worktree, ctx: Context, common: Path) -> dict[str, Any]:
     return {
         "path": str(wt.path),
         "branch": wt.branch,
@@ -276,8 +283,7 @@ def _base_row(wt: Worktree, ctx: Context, common: Path) -> dict:
         "exists": False,
         "locked": wt.locked,
         "prunable": wt.prunable,
-        "managed_by": None if wt.is_main else manager(wt.path, ctx.t3_roots,
-                                                        repository_of(common)),
+        "managed_by": None if wt.is_main else manager(wt.path, ctx.t3_roots, repository_of(common)),
         "tier": 3,
         "can_strip": False,
         "complete": False,
@@ -288,7 +294,7 @@ def _base_row(wt: Worktree, ctx: Context, common: Path) -> dict:
     }
 
 
-def _protections(row: dict, wt: Worktree, ctx: Context) -> bool:
+def _protections(row: dict[str, Any], wt: Worktree, ctx: Context) -> bool:
     """Record why the worktree is protected; True when anything protects it."""
     before = len(row["reasons"])
     if wt.is_main:
@@ -312,7 +318,12 @@ def _protections(row: dict, wt: Worktree, ctx: Context) -> bool:
 
 
 def _inspect(
-    row: dict, wt: Worktree, common: Path, main: Path, config: DiskConfig, ctx: Context,
+    row: dict[str, Any],
+    wt: Worktree,
+    common: Path,
+    main: Path,
+    config: DiskConfig,
+    ctx: Context,
 ) -> None:
     """Fill a present worktree's row: verification, status, candidates, activity, readiness."""
     mismatch = None if wt.is_main else verify_checkout(wt, common, ctx.git_timeout())
@@ -330,14 +341,16 @@ def _inspect(
         if value is not None and (activity is None or value > activity):
             activity = value
     idle = None if activity is None else max(0.0, ctx.now - activity)
-    row.update({
-        "changed_files": len(st.changed),
-        "operation": st.operation,
-        "idle_seconds": None if idle is None else int(idle),
-        "idle_days": None if idle is None else round(idle / DAY, 2),
-        "refused": refused,
-        "complete": walked,
-    })
+    row.update(
+        {
+            "changed_files": len(st.changed),
+            "operation": st.operation,
+            "idle_seconds": None if idle is None else int(idle),
+            "idle_days": None if idle is None else round(idle / DAY, 2),
+            "refused": refused,
+            "complete": walked,
+        }
+    )
     if st.operation:
         protected = True
         row["reasons"].append(f"a {st.operation} is in progress")
@@ -352,20 +365,38 @@ def _inspect(
 
 
 def _judge_finished(
-    row: dict, wt: Worktree, main: Path, changed: list[str], operation: str | None,
-    config: DiskConfig, idle: float | None, ctx: Context,
+    row: dict[str, Any],
+    wt: Worktree,
+    main: Path,
+    changed: list[str],
+    operation: str | None,
+    config: DiskConfig,
+    idle: float | None,
+    ctx: Context,
 ) -> None:
     """Tier 2: a worktree no other tool manages, idle long enough, nothing unique, landed."""
     due = ctx.settings.remove_landed_after_days
     if idle is None or idle < due * DAY:
         return
     if not ctx.t3_read:
-        row["reasons"].append("tier 2 is off: T3 Code's settings could not be read, so which "
-                              "worktrees it manages is unknown")
+        row["reasons"].append(
+            "tier 2 is off: T3 Code's settings could not be read, so which "
+            "worktrees it manages is unknown"
+        )
         return
     others = [c for c in ctx.checkouts if c != path_key(wt.path)]
-    verdict = judge(wt.path, main, wt.admin, wt.head, wt.branch, changed, operation, config,
-                    ctx.git_timeout(), others)
+    verdict = judge(
+        wt.path,
+        main,
+        wt.admin,
+        wt.head,
+        wt.branch,
+        changed,
+        operation,
+        config,
+        ctx.git_timeout(),
+        others,
+    )
     row["finished"] = {
         "unique": verdict.unique,
         "landed": verdict.landed,
@@ -380,23 +411,27 @@ def _judge_finished(
         row["reasons"].append("restorable but not landed: removed only with include_restorable")
 
 
-def _plan(row: dict, cands: list[Candidate], idle: float | None, ctx: Context) -> None:
+def _plan(row: dict[str, Any], cands: list[Candidate], idle: float | None, ctx: Context) -> None:
     waits = []
     for cand in cands:
         due = _threshold(cand, ctx)
         ready = bool(
-            row["can_strip"] and cand.pattern.when == "idle"
-            and idle is not None and idle >= due * DAY
+            row["can_strip"]
+            and cand.pattern.when == "idle"
+            and idle is not None
+            and idle >= due * DAY
         )
-        row["strip"].append({
-            "path": cand.rel,
-            "kind": cand.kind,
-            "pattern": cand.pattern.path,
-            "when": cand.pattern.when,
-            "after_days": due,
-            "ready": ready,
-            "bytes": None,
-        })
+        row["strip"].append(
+            {
+                "path": cand.rel,
+                "kind": cand.kind,
+                "pattern": cand.pattern.path,
+                "when": cand.pattern.when,
+                "after_days": due,
+                "ready": ready,
+                "bytes": None,
+            }
+        )
         if cand.pattern.when == "idle" and not ready:
             waits.append(due)
     if any(item["ready"] for item in row["strip"]):
@@ -407,7 +442,7 @@ def _plan(row: dict, cands: list[Candidate], idle: float | None, ctx: Context) -
         row["reasons"].append("nothing its [disk] patterns name")
 
 
-def _measure(rows: list[dict], ctx: Context) -> None:
+def _measure(rows: list[dict[str, Any]], ctx: Context) -> None:
     """Sizes of ready folders, after every row was inspected, within what is left of the budget."""
     for row in rows:
         for item in row.get("strip", []):
@@ -422,9 +457,14 @@ def _measure(rows: list[dict], ctx: Context) -> None:
 
 
 def _worktree_row(  # noqa: PLR0913 - one row needs each of these
-    wt: Worktree, common: Path, main: Path, config: DiskConfig, ctx: Context,
-    block: str | None, presence: tuple[str, str | None],
-) -> dict:
+    wt: Worktree,
+    common: Path,
+    main: Path,
+    config: DiskConfig,
+    ctx: Context,
+    block: str | None,
+    presence: tuple[str, str | None],
+) -> dict[str, Any]:
     row = _base_row(wt, ctx, common)
     state, _detail = presence
     if block:
@@ -456,8 +496,8 @@ def _worktree_row(  # noqa: PLR0913 - one row needs each of these
     return row
 
 
-def _repo_rows(checkout: Path, ctx: Context) -> tuple[dict, DiskConfig | None]:
-    out: dict = {"checkout": str(checkout)}
+def _repo_rows(checkout: Path, ctx: Context) -> tuple[dict[str, Any], DiskConfig | None]:
+    out: dict[str, Any] = {"checkout": str(checkout)}
     try:
         common, worktrees = ctx.listed.get(path_key(checkout)) or list_worktrees(
             checkout, ctx.git_timeout()
@@ -468,12 +508,14 @@ def _repo_rows(checkout: Path, ctx: Context) -> tuple[dict, DiskConfig | None]:
         return out, None
     main = worktrees[0].path if worktrees else checkout
     repo_cfg = read_repo_disk_config(main)
-    out.update({
-        "main": str(main),
-        "git_common_dir": str(common),
-        "config_ref": repo_cfg.ref,
-        "config_source": repo_cfg.source,
-    })
+    out.update(
+        {
+            "main": str(main),
+            "git_common_dir": str(common),
+            "config_ref": repo_cfg.ref,
+            "config_source": repo_cfg.source,
+        }
+    )
     if repo_cfg.error or repo_cfg.config is None:
         out["error"] = repo_cfg.error or "no [disk] settings"
         out["worktrees"] = []
@@ -492,7 +534,9 @@ def _repo_rows(checkout: Path, ctx: Context) -> tuple[dict, DiskConfig | None]:
     return out, repo_cfg.config
 
 
-def count_idle(out: dict, settings: MachineSettings, gone: set[str] | None = None) -> None:
+def count_idle(
+    out: dict[str, Any], settings: MachineSettings, gone: set[str] | None = None
+) -> None:
     """How many linked worktrees have been idle strip_after_days or longer, and a warning when
     that passes idle_worktree_limit. Kept worktrees and Factory's slots (it removes its own) are
     not counted, nor those in `gone` (removed by this run). `complete` is false when a worktree
@@ -502,16 +546,26 @@ def count_idle(out: dict, settings: MachineSettings, gone: set[str] | None = Non
     gone = gone or set()
     rows = [w for w in out["worktrees"] if not w["main"] and path_key(w["path"]) not in gone]
     idle = [
-        w for w in rows
-        if w["exists"] and w["locked"] is None and w["managed_by"] != "factory"
-        and w.get("idle_seconds") is not None and w["idle_seconds"] >= days * DAY
+        w
+        for w in rows
+        if w["exists"]
+        and w["locked"] is None
+        and w["managed_by"] != "factory"
+        and w.get("idle_seconds") is not None
+        and w["idle_seconds"] >= days * DAY
     ]
     managed = sum(1 for w in idle if w["managed_by"] == "t3-code")
     limit = settings.idle_worktree_limit
     complete = not out.get("blocked") and not any(
-        r.startswith("not inspected") for w in rows for r in w["reasons"])
-    out["idle_worktrees"] = {"count": len(idle), "days": days, "t3_code": managed,
-                             "limit": limit, "complete": complete}
+        r.startswith("not inspected") for w in rows for r in w["reasons"]
+    )
+    out["idle_worktrees"] = {
+        "count": len(idle),
+        "days": days,
+        "t3_code": managed,
+        "limit": limit,
+        "complete": complete,
+    }
     if limit and len(idle) > limit:
         out["warning"] = (
             f"{out['main']}: {len(idle)} worktrees idle {days:g} days or more, over the limit "
@@ -542,7 +596,8 @@ def _unique(paths: list[Path]) -> list[Path]:
 
 
 def _all_checkouts(
-    repos: list[Path], deadline: float,
+    repos: list[Path],
+    deadline: float,
 ) -> tuple[list[Path], dict[str, tuple[Path, list[Worktree]]]]:
     paths: list[Path] = []
     listed: dict[str, tuple[Path, list[Worktree]]] = {}
@@ -557,7 +612,8 @@ def _all_checkouts(
 
 
 def _volumes(
-    settings: MachineSettings, paths: list[Path],
+    settings: MachineSettings,
+    paths: list[Path],
 ) -> dict[str, VolumeState]:
     """Configured volumes, plus every volume holding a repository, a worktree or a T3 root."""
     states: dict[str, VolumeState] = {}
@@ -573,7 +629,7 @@ def _volumes(
     return states
 
 
-def _orphans(ctx: Context, known: set[str]) -> list[dict]:
+def _orphans(ctx: Context, known: set[str]) -> list[dict[str, Any]]:
     """Linked-worktree folders under configured roots that no registered repository lists."""
     rows = []
     roots = [expand(r) for r in ctx.settings.worktree_roots] + ctx.t3_roots
@@ -595,8 +651,11 @@ def _orphans(ctx: Context, known: set[str]) -> list[dict]:
 def _children(folder: Path) -> list[Path]:
     doing("reading", folder)
     try:
-        return [Path(e.path) for e in each("reading", folder, os.scandir(folder))
-                if e.is_dir(follow_symlinks=False)]
+        return [
+            Path(e.path)
+            for e in each("reading", folder, os.scandir(folder))
+            if e.is_dir(follow_symlinks=False)
+        ]
     except OSError:
         return []
 
@@ -612,7 +671,7 @@ def _orphan_reason(git_file: Path) -> str:
     return "a worktree of a repository the machine settings do not register"
 
 
-def _totals(repos: list[dict], cache_rows: list[dict]) -> dict:
+def _totals(repos: list[dict[str, Any]], cache_rows: list[dict[str, Any]]) -> dict[str, Any]:
     rows = [w for r in repos for w in r.get("worktrees", [])]
     strip = sum(w.get("strip_ready_bytes", 0) for w in rows)
     return {
@@ -628,20 +687,24 @@ async def disk_report(
     repo: str | None = None,
     unclassified: bool = False,
     budget_seconds: float = 180,
-) -> CommandResult[dict]:
+) -> CommandResult[dict[str, Any]]:
     """Report every worktree, cache and watched volume, and what each tier would reclaim.
 
     Read-only. Without machine settings it reports the repository holding the working
     directory. `unclassified` also lists ignored paths in each worktree that no [disk] pattern
     or declared copy covers, which is how a repository's list is finished.
     """
-    def _run_report() -> CommandResult[dict]:
+
+    def _run_report() -> CommandResult[dict[str, Any]]:
         try:
             settings, settings_file, settings_found = load_machine_settings()
         except SettingsError as exc:
             return settings_error(exc)
         data, _pairs, _ctx = build_report(
-            settings, repo, unclassified=unclassified, budget_seconds=budget_seconds,
+            settings,
+            repo,
+            unclassified=unclassified,
+            budget_seconds=budget_seconds,
         )
         data["settings"] = {"path": str(settings_file), "found": settings_found}
         suggestions = [
@@ -661,7 +724,7 @@ async def disk_report(
     return await run_blocking(_run_report)
 
 
-def settings_error(exc: SettingsError) -> CommandResult[dict]:
+def settings_error(exc: SettingsError) -> CommandResult[dict[str, Any]]:
     return error(
         "DISK_SETTINGS_INVALID",
         str(exc),
@@ -675,7 +738,7 @@ def build_report(
     *,
     unclassified: bool = False,
     budget_seconds: float = 180,
-) -> tuple[dict, list[tuple[dict, DiskConfig | None]], Context]:
+) -> tuple[dict[str, Any], list[tuple[dict[str, Any], DiskConfig | None]], Context]:
     """The report's data, each repository's row with its [disk] config, and the run context."""
     deadline = time.monotonic() + budget_seconds
     repos = _repos(settings, repo)
