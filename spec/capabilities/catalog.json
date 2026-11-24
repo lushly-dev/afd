@@ -31,6 +31,10 @@
 			"label": "`ErrorCodes` and `ERROR_CODE_CATALOG`: 50 shared codes (33 core + 17 profile) with `{ code, retryable, profile }` and `HOST_` prefix ([`spec/error-codes.md`](../spec/error-codes.md)), checked against `spec/vectors/error-codes.json` (#1740)"
 		},
 		{
+			"id": "wire.error-recovery",
+			"label": "`CommandError.recovery`: a structured `call`, `fix-input`, `retry`, `external` or `stop` step beside the suggestion, read leniently ([`spec/recovery.md`](../spec/recovery.md)), checked against `spec/vectors/recovery.json`"
+		},
+		{
 			"id": "wire.result-constructors",
 			"label": "`success` / `failure` / `error` constructors"
 		},
@@ -457,6 +461,9 @@
 				},
 				{
 					"capability": "wire.error-codes"
+				},
+				{
+					"capability": "wire.error-recovery"
 				},
 				{
 					"capability": "wire.result-constructors"

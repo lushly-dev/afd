@@ -29,6 +29,7 @@ add_executable(
     output_budget_vectors_test.cpp
     pipeline_test.cpp
     pipeline_variables_test.cpp
+    recovery_vectors_test.cpp
     registry_test.cpp
     result_test.cpp
     schema_test.cpp

@@ -41,7 +41,7 @@ from mcp import Client, MCPError  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 from starlette.middleware.base import BaseHTTPMiddleware  # noqa: E402
 
-from afd import Actor, CommandError, ExposeOptions, error, success  # noqa: E402
+from afd import Actor, CommandError, ExposeOptions, Recovery, error, success  # noqa: E402
 from afd.core.clock import fixed_clock, seeded_random  # noqa: E402
 from afd.core.commands import CommandContext  # noqa: E402
 from afd.server import (  # noqa: E402
@@ -296,6 +296,7 @@ async def test_hook_reads_verified_asgi_state_and_headers_over_streamable_http()
                 message="Authentication is required",
                 suggestion="Send valid credentials",
                 retryable=False,
+                recovery=Recovery(kind="external"),
                 details={"reason": "missing token for alice"},
                 cause="gateway check failed",
             )
@@ -321,7 +322,8 @@ async def test_hook_reads_verified_asgi_state_and_headers_over_streamable_http()
         assert ok["data"]["extra"]["hdr"] == "v1"
         assert ok["metadata"]["actorKind"] == "service"
 
-        # Unauthenticated request: refused with details & cause stripped, nothing runs.
+        # Unauthenticated request: refused with details & cause stripped and the recovery kept,
+        # nothing runs.
         denied_rpc = await _modern_http_post(http, "context-probe")
         assert denied_rpc["result"]["isError"] is True
         denied = _http_command_result(denied_rpc)
@@ -331,6 +333,7 @@ async def test_hook_reads_verified_asgi_state_and_headers_over_streamable_http()
             "message": "Authentication is required",
             "suggestion": "Send valid credentials",
             "retryable": False,
+            "recovery": {"kind": "external"},
         }
         assert "alice" not in json.dumps(denied_rpc)
         assert "gateway check failed" not in json.dumps(denied_rpc)

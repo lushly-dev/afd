@@ -7,7 +7,7 @@
  */
 
 import type { ActorKind } from './actor.js';
-import type { CommandError } from './errors.js';
+import type { CommandError, Recovery } from './errors.js';
 import type { Alternative, PlanStep, Source, Warning } from './metadata.js';
 import type { OutputBudgetReport } from './output-budget.js';
 
@@ -231,6 +231,7 @@ export function error<T = unknown>(
 	options?: {
 		suggestion?: string;
 		retryable?: boolean;
+		recovery?: Recovery;
 		details?: Record<string, unknown>;
 	}
 ): CommandResult<T> {

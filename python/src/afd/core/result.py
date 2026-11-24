@@ -30,7 +30,7 @@ from pydantic import (
 # ``afd.core.result.CommandError`` and ``afd.core.errors.CommandError`` are the
 # same class.
 from afd.core.errors import CommandError as CommandError
-from afd.core.errors import _omit_unset_cause
+from afd.core.errors import Recovery, _omit_unset_cause
 from afd.core.metadata import Alternative, PlanStep, Source, Warning
 from afd.core.similarity import truncate_name
 from afd.core.wire import WIRE_MODEL_CONFIG, WireModel, keep_null_data
@@ -243,6 +243,7 @@ def error(
     suggestion: str | None = None,
     retryable: bool | None = None,
     details: dict[str, Any] | None = None,
+    recovery: Recovery | None = None,
 ) -> CommandResult[Any]:
     """Create an error command result.
 
@@ -255,6 +256,7 @@ def error(
         suggestion: Recovery guidance for the user.
         retryable: Whether retrying might succeed.
         details: Additional technical details.
+        recovery: The step ``suggestion`` describes, structured (``spec/recovery.md``).
 
     Returns:
         CommandResult with success=False.
@@ -273,6 +275,7 @@ def error(
             message=message,
             suggestion=suggestion,
             retryable=retryable,
+            recovery=recovery,
             details=details,
         ),
     )

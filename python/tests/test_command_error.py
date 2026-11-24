@@ -91,6 +91,7 @@ class TestSerializationUnchanged:
             "message": "Custom failure",
             "suggestion": None,
             "retryable": None,
+            "recovery": None,
             "details": None,
             "cause": None,
         }

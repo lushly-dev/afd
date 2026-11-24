@@ -3,9 +3,439 @@
 //! Errors should be actionable - they tell the user what went wrong
 //! AND what they can do about it.
 
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use serde::{de, Deserialize, Deserializer, Serialize};
+use std::collections::{HashMap, HashSet};
 use std::fmt::{self, Display};
+
+/// The kinds of [`Recovery`], in `spec/recovery.md` order.
+pub const RECOVERY_KINDS: &[&str] = &["call", "fix-input", "retry", "external", "stop"];
+
+/// The largest `afterMs`, 2^53 − 1: the schema's maximum, and the largest whole number every
+/// language reads exactly (a double holds it, so `30000.0`-style values up to it read exactly).
+pub const MAX_AFTER_MS: u64 = 9_007_199_254_740_991;
+
+const MAX_EXACT_WHOLE_FLOAT: f64 = 9_007_199_254_740_991.0;
+
+/// The step a failed command's `suggestion` describes, in a form a program can follow and a test
+/// can check (`spec/recovery.md`). It sits beside the prose `suggestion`, never in its place:
+/// agents read the prose, and tools and tests read this.
+///
+/// Each kind carries only the fields that belong to it (rule 4), so a recovery that puts
+/// `command` on a `retry` or `afterMs` on a `call` cannot be built. It serializes as the spec's
+/// object: `{"kind": "call", "command": "lane-resume", "thenRetry": true}`, with unset fields
+/// omitted.
+///
+/// # Building one
+///
+/// Every variant is `#[non_exhaustive]`, so code outside this crate builds a recovery only through
+/// its constructors, and a field added to a kind later breaks no caller. The constructors refuse
+/// what `spec/schema/error.json`'s `$defs/recovery` refuses ([`InvalidRecovery`]): an empty
+/// `command`; an empty `input` or one carrying `confirm` (rule 5); an empty `needs`, or one with an
+/// empty or repeated name; and a `fix-input` with neither `input` nor `needs`. The fields stay
+/// public to read by pattern (`Recovery::Call { command, .. }`); a value changed through a `&mut`
+/// pattern is not checked again, and [`Recovery::validate`] checks it.
+///
+/// # Reading one
+///
+/// Reading checks the same rules, as JSON Schema reads them: `afterMs` is a whole number of at
+/// least 0, and `30000.0` reads as `30000` (written with a fraction part, up to 2^53 − 1), while
+/// `"30000"`, `true` and `1.5` are refused, as are an unknown member and a `null` one. A
+/// [`CommandError`] whose recovery is refused reads as having none, with the rest of the error kept
+/// (rule 7).
+///
+/// New kinds may be added without a breaking change, so a `match` needs a wildcard arm.
+///
+/// # Example
+///
+/// ```rust
+/// use afd::{CommandError, Recovery};
+///
+/// let error = CommandError::new("ALREADY_CLAIMED", "Issue #205 is claimed")
+///     .with_suggestion("Take another issue from issue-check's dispatchable list")
+///     .with_recovery(Recovery::call("issue-check")?);
+/// assert_eq!(
+///     serde_json::to_value(&error.recovery).unwrap(),
+///     serde_json::json!({ "kind": "call", "command": "issue-check" })
+/// );
+/// assert!(Recovery::call("").is_err());
+/// # Ok::<(), afd::InvalidRecovery>(())
+/// ```
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", try_from = "RawRecovery")]
+#[non_exhaustive]
+pub enum Recovery {
+    /// Call `command`. With `then_retry`, the call fixes what refused the original, so the
+    /// original call is repeated after it succeeds; without it, the call is the way forward.
+    /// Built with [`Recovery::call`] or [`Recovery::call_with`].
+    #[serde(rename_all = "camelCase")]
+    #[non_exhaustive]
+    Call {
+        /// The command to call next, by its registered name: one the caller can call on the
+        /// surface that returned the error (rule 2). Never empty.
+        command: String,
+        /// Arguments for `command` that are known to work (rule 3). At least one member, never
+        /// `confirm` (rule 5).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        input: Option<HashMap<String, serde_json::Value>>,
+        /// Top-level input fields of `command` the caller must choose: at least one, distinct and
+        /// non-empty, and never in `input`.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        needs: Option<Vec<String>>,
+        /// Once `command` succeeds, repeat the failed call unchanged.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        then_retry: Option<bool>,
+    },
+    /// Call the same command again with changed input. Built with [`Recovery::fix_input`].
+    #[serde(rename_all = "camelCase")]
+    #[non_exhaustive]
+    FixInput {
+        /// Replacement values for the failed call's input that are known to fix it (rule 3). At
+        /// least one member, never `confirm` (rule 5).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        input: Option<HashMap<String, serde_json::Value>>,
+        /// Top-level input fields the caller must choose: at least one, distinct and non-empty,
+        /// and never in `input`. At least one of `input` and `needs` is set.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        needs: Option<Vec<String>>,
+    },
+    /// Call the same command again with the same input, after `after_ms`. Only for a transient
+    /// failure: the error **must** set `retryable: true`. Built with [`Recovery::retry`].
+    #[serde(rename_all = "camelCase")]
+    #[non_exhaustive]
+    Retry {
+        /// Wait at least this many milliseconds before repeating the call.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        after_ms: Option<u64>,
+    },
+    /// The step is outside the command surface (a configuration change, a person's decision, a
+    /// shell command); the suggestion says what. Built with [`Recovery::external`].
+    #[non_exhaustive]
+    External {},
+    /// No step makes this call succeed; do something else. The error **must not** set
+    /// `retryable: true`. Built with [`Recovery::stop`].
+    #[non_exhaustive]
+    Stop {},
+}
+
+impl Recovery {
+    /// A `call` recovery to `command`, with no input, needs or retry. Refused when `command` is
+    /// empty.
+    pub fn call(command: impl Into<String>) -> Result<Self, InvalidRecovery> {
+        Self::call_with(command, None, None, None)
+    }
+
+    /// A `call` recovery with every field: `input` holds arguments known to work, `needs` the
+    /// fields the caller must choose, and `then_retry` repeats the failed call once `command`
+    /// succeeds. Refused when it breaks `$defs/recovery` (see [`Recovery`]).
+    pub fn call_with(
+        command: impl Into<String>,
+        input: Option<HashMap<String, serde_json::Value>>,
+        needs: Option<Vec<String>>,
+        then_retry: Option<bool>,
+    ) -> Result<Self, InvalidRecovery> {
+        Self::Call {
+            command: command.into(),
+            input,
+            needs,
+            then_retry,
+        }
+        .checked()
+    }
+
+    /// A `fix-input` recovery: `input` replaces members of the failed call's input and `needs`
+    /// names the fields the caller must choose. Refused unless at least one is set, or when
+    /// either breaks `$defs/recovery` (see [`Recovery`]).
+    pub fn fix_input(
+        input: Option<HashMap<String, serde_json::Value>>,
+        needs: Option<Vec<String>>,
+    ) -> Result<Self, InvalidRecovery> {
+        Self::FixInput { input, needs }.checked()
+    }
+
+    /// A `retry` recovery, waiting at least `after_ms` milliseconds when it is set. A wait above
+    /// [`MAX_AFTER_MS`] is refused.
+    pub fn retry(after_ms: Option<u64>) -> Result<Self, InvalidRecovery> {
+        Self::Retry { after_ms }.checked()
+    }
+
+    /// An `external` recovery: the step is outside the command surface.
+    pub fn external() -> Self {
+        Self::External {}
+    }
+
+    /// A `stop` recovery: no step makes the call succeed.
+    pub fn stop() -> Self {
+        Self::Stop {}
+    }
+
+    /// The recovery's `kind` as written on the wire: one of [`RECOVERY_KINDS`].
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Self::Call { .. } => "call",
+            Self::FixInput { .. } => "fix-input",
+            Self::Retry { .. } => "retry",
+            Self::External {} => "external",
+            Self::Stop {} => "stop",
+        }
+    }
+
+    /// Check the recovery against `spec/schema/error.json`'s `$defs/recovery`. The constructors
+    /// and the reader already do; this checks a value changed through a `&mut` pattern since.
+    /// It does not check rule 3 (`needs` and `input` naming the same field), which the schema
+    /// does not check either.
+    pub fn validate(&self) -> Result<(), InvalidRecovery> {
+        match self {
+            Self::Call {
+                command,
+                input,
+                needs,
+                ..
+            } => {
+                if command.is_empty() {
+                    return Err(InvalidRecovery::new("a call recovery names its command"));
+                }
+                check_input(input.as_ref())?;
+                check_needs(needs.as_deref())
+            }
+            Self::FixInput { input, needs } => {
+                if input.is_none() && needs.is_none() {
+                    return Err(InvalidRecovery::new(
+                        "a fix-input recovery sets input or needs",
+                    ));
+                }
+                check_input(input.as_ref())?;
+                check_needs(needs.as_deref())
+            }
+            Self::Retry { after_ms, .. } => match after_ms {
+                Some(ms) if *ms > MAX_AFTER_MS => {
+                    Err(InvalidRecovery::new("afterMs is at most 2^53 - 1"))
+                }
+                _ => Ok(()),
+            },
+            Self::External {} | Self::Stop {} => Ok(()),
+        }
+    }
+
+    fn checked(self) -> Result<Self, InvalidRecovery> {
+        self.validate()?;
+        Ok(self)
+    }
+}
+
+fn check_input(input: Option<&HashMap<String, serde_json::Value>>) -> Result<(), InvalidRecovery> {
+    match input {
+        Some(input) if input.is_empty() => {
+            Err(InvalidRecovery::new("input has at least one member"))
+        }
+        Some(input) if input.contains_key("confirm") => Err(InvalidRecovery::new(
+            "input never carries confirm, the acknowledgement of a confirmation (rule 5)",
+        )),
+        _ => Ok(()),
+    }
+}
+
+fn check_needs(needs: Option<&[String]>) -> Result<(), InvalidRecovery> {
+    let Some(needs) = needs else {
+        return Ok(());
+    };
+    if needs.is_empty() {
+        return Err(InvalidRecovery::new("needs names at least one field"));
+    }
+    let mut seen = HashSet::new();
+    if !needs
+        .iter()
+        .all(|need| !need.is_empty() && seen.insert(need))
+    {
+        return Err(InvalidRecovery::new(
+            "needs holds distinct, non-empty field names",
+        ));
+    }
+    Ok(())
+}
+
+/// Why a [`Recovery`] breaks `spec/schema/error.json`'s `$defs/recovery`, from a constructor,
+/// [`Recovery::validate`] or reading one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InvalidRecovery {
+    reason: &'static str,
+}
+
+impl InvalidRecovery {
+    fn new(reason: &'static str) -> Self {
+        Self { reason }
+    }
+
+    /// The rule the recovery breaks, in words.
+    pub fn reason(&self) -> &'static str {
+        self.reason
+    }
+}
+
+impl Display for InvalidRecovery {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "invalid recovery: {}", self.reason)
+    }
+}
+
+impl std::error::Error for InvalidRecovery {}
+
+/// A recovery as read from the wire, before its fields are checked against its kind. Every member
+/// is read as its schema type, with no coercion: `"30000"` is not a number and `"true"` not a
+/// boolean.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RawRecovery {
+    kind: String,
+    #[serde(default, deserialize_with = "present")]
+    command: Option<String>,
+    #[serde(default, deserialize_with = "present")]
+    input: Option<HashMap<String, serde_json::Value>>,
+    #[serde(default, deserialize_with = "present")]
+    needs: Option<Vec<String>>,
+    #[serde(default, deserialize_with = "present")]
+    then_retry: Option<bool>,
+    #[serde(default, deserialize_with = "present")]
+    after_ms: Option<WholeMillis>,
+}
+
+/// An optional field that, when present, holds a value of its type: `null` is refused, as the
+/// schema refuses it, rather than read as absent.
+fn present<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    T::deserialize(deserializer).map(Some)
+}
+
+/// `afterMs` read as JSON Schema reads `"type": "integer", "minimum": 0, "maximum": 2^53 − 1`: a
+/// whole number from 0 to 2^53 − 1, written as `30000` or `30000.0`. A string, a boolean, a
+/// fraction, a negative number and a larger number are refused.
+struct WholeMillis(u64);
+
+impl<'de> Deserialize<'de> for WholeMillis {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct Visitor;
+
+        impl de::Visitor<'_> for Visitor {
+            type Value = WholeMillis;
+
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str("a whole number of milliseconds, at least 0")
+            }
+
+            fn visit_u64<E: de::Error>(self, value: u64) -> Result<WholeMillis, E> {
+                if value <= MAX_AFTER_MS {
+                    Ok(WholeMillis(value))
+                } else {
+                    Err(E::invalid_value(de::Unexpected::Unsigned(value), &self))
+                }
+            }
+
+            fn visit_i64<E: de::Error>(self, value: i64) -> Result<WholeMillis, E> {
+                u64::try_from(value)
+                    .ok()
+                    .filter(|ms| *ms <= MAX_AFTER_MS)
+                    .map(WholeMillis)
+                    .ok_or_else(|| E::invalid_value(de::Unexpected::Signed(value), &self))
+            }
+
+            fn visit_f64<E: de::Error>(self, value: f64) -> Result<WholeMillis, E> {
+                if value.fract() == 0.0 && (0.0..=MAX_EXACT_WHOLE_FLOAT).contains(&value) {
+                    // Exact: a whole number in 0..=2^53 − 1 converts without rounding.
+                    Ok(WholeMillis(value as u64))
+                } else {
+                    Err(E::invalid_value(de::Unexpected::Float(value), &self))
+                }
+            }
+        }
+
+        deserializer.deserialize_any(Visitor)
+    }
+}
+
+impl TryFrom<RawRecovery> for Recovery {
+    type Error = InvalidRecovery;
+
+    fn try_from(raw: RawRecovery) -> Result<Self, Self::Error> {
+        let RawRecovery {
+            kind,
+            command,
+            input,
+            needs,
+            then_retry,
+            after_ms,
+        } = raw;
+        let set = [
+            ("command", command.is_some()),
+            ("input", input.is_some()),
+            ("needs", needs.is_some()),
+            ("thenRetry", then_retry.is_some()),
+            ("afterMs", after_ms.is_some()),
+        ];
+        // Rule 4: a member on a kind it does not belong to is refused, not ignored.
+        let only = |allowed: &[&str]| {
+            if set
+                .iter()
+                .any(|(name, is_set)| *is_set && !allowed.contains(name))
+            {
+                Err(InvalidRecovery::new(
+                    "command and thenRetry belong to call, afterMs to retry, and input and needs \
+                     to call and fix-input (rule 4)",
+                ))
+            } else {
+                Ok(())
+            }
+        };
+        let recovery = match kind.as_str() {
+            "call" => {
+                only(&["command", "input", "needs", "thenRetry"])?;
+                Self::Call {
+                    command: command
+                        .ok_or_else(|| InvalidRecovery::new("a call recovery names its command"))?,
+                    input,
+                    needs,
+                    then_retry,
+                }
+            }
+            "fix-input" => {
+                only(&["input", "needs"])?;
+                Self::FixInput { input, needs }
+            }
+            "retry" => {
+                only(&["afterMs"])?;
+                Self::Retry {
+                    after_ms: after_ms.map(|WholeMillis(ms)| ms),
+                }
+            }
+            "external" => {
+                only(&[])?;
+                Self::External {}
+            }
+            "stop" => {
+                only(&[])?;
+                Self::Stop {}
+            }
+            _ => {
+                return Err(InvalidRecovery::new(
+                    "kind is one of call, fix-input, retry, external, stop",
+                ))
+            }
+        };
+        recovery.checked()
+    }
+}
+
+/// Reads `CommandError.recovery` leniently (`spec/recovery.md`, rule 7): a recovery that breaks
+/// `$defs/recovery` (an unknown kind or member, a `null` member, a member of the wrong type or on
+/// the wrong kind, a value out of range) is no recovery, and the rest of the error still reads.
+fn read_recovery_leniently<'de, D>(deserializer: D) -> Result<Option<Box<Recovery>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(serde_json::from_value(value).ok())
+}
 
 /// Standard error structure for command failures.
 ///
@@ -51,6 +481,19 @@ pub struct CommandError {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub retryable: Option<bool>,
 
+    /// The step `suggestion` describes, in a form a program can follow and a test can check
+    /// (`spec/recovery.md`). Set `suggestion` too: agents read the prose.
+    ///
+    /// A `retry` recovery needs `retryable: Some(true)`, and a `stop` recovery must not have it.
+    /// An error read from the wire whose recovery breaks `$defs/recovery` has `None` here (rule 7).
+    /// Boxed, as `cause` is, so an error without one stays small.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "read_recovery_leniently"
+    )]
+    pub recovery: Option<Box<Recovery>>,
+
     /// Additional technical details for debugging.
     ///
     /// May include stack traces, request IDs, timestamps, etc.
@@ -85,6 +528,7 @@ impl CommandError {
             message: message.into(),
             suggestion: None,
             retryable: None,
+            recovery: None,
             details: None,
             cause: None,
         }
@@ -99,6 +543,12 @@ impl CommandError {
     /// Set whether the error is retryable.
     pub fn with_retryable(mut self, retryable: bool) -> Self {
         self.retryable = Some(retryable);
+        self
+    }
+
+    /// Set the structured step the suggestion describes (`spec/recovery.md`).
+    pub fn with_recovery(mut self, recovery: Recovery) -> Self {
+        self.recovery = Some(Box::new(recovery));
         self
     }
 
@@ -137,6 +587,7 @@ impl CommandError {
                 resource.to_lowercase()
             )),
             retryable: Some(false),
+            recovery: None,
             details: Some(details),
             cause: None,
         }
@@ -158,6 +609,7 @@ impl CommandError {
             message: message.to_string(),
             suggestion: suggestion.map(|s| s.to_string()),
             retryable: Some(false),
+            recovery: None,
             details: None,
             cause: None,
         }
@@ -181,6 +633,7 @@ impl CommandError {
             message: "Rate limit exceeded".to_string(),
             suggestion: Some(suggestion),
             retryable: Some(true),
+            recovery: None,
             details,
             cause: None,
         }
@@ -205,6 +658,7 @@ impl CommandError {
                 "Try again with a simpler request or contact support if this persists".to_string(),
             ),
             retryable: Some(true),
+            recovery: None,
             details: Some(details),
             cause: None,
         }
@@ -217,6 +671,7 @@ impl CommandError {
             message: message.to_string(),
             suggestion: Some("Please try again. If this persists, contact support.".to_string()),
             retryable: Some(true),
+            recovery: None,
             details: None,
             cause: None,
         }
@@ -663,6 +1118,7 @@ pub fn validation_error(
         message: message.to_string(),
         suggestion: Some("Check the input and try again".to_string()),
         retryable: Some(false),
+        recovery: None,
         details,
         cause: None,
     }
@@ -691,6 +1147,21 @@ pub fn internal_error(message: &str) -> CommandError {
 /// Wrap an arbitrary error-like value in a CommandError.
 pub fn wrap_error(error: impl Display) -> CommandError {
     CommandError::internal(&error.to_string())
+}
+
+/// Whether `value` is a recovery a reader keeps: it matches `$defs/recovery` in
+/// `spec/schema/error.json` (`spec/recovery.md`, rule 7). The same test as TypeScript's
+/// `isCommandRecovery`, and the same test [`CommandError`] reads `recovery` with.
+///
+/// ```rust
+/// use afd::is_command_recovery;
+/// use serde_json::json;
+///
+/// assert!(is_command_recovery(&json!({ "kind": "call", "command": "issue-check" })));
+/// assert!(!is_command_recovery(&json!({ "kind": "fix-input", "input": { "confirm": true } })));
+/// ```
+pub fn is_command_recovery(value: &serde_json::Value) -> bool {
+    Recovery::deserialize(value).is_ok()
 }
 
 /// Type guard to check if a value is a CommandError.

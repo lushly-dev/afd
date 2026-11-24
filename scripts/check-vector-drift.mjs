@@ -72,6 +72,7 @@ export const VECTOR_MANIFEST = Object.freeze({
 		generator: 'generate-pipeline-variables.mjs',
 		needs: ['packages/core/dist/pipeline-variables.js'],
 	},
+	'recovery.json': { kind: 'authored' },
 	'tool-strategies.json': { kind: 'authored' },
 	'validation.json': {
 		kind: 'reference-generated',

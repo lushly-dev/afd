@@ -103,16 +103,19 @@ export { AFD_CONTRACT_VERSION } from './contract.js';
 // Error types
 export type { ErrorCodeInfo } from './error-catalog.js';
 export { ERROR_CODE_CATALOG, HOST_ERROR_CODE_PREFIX } from './error-catalog.js';
-export type { CommandError, ErrorCode } from './errors.js';
+export type { CommandError, ErrorCode, Recovery } from './errors.js';
 export {
 	createError,
 	ErrorCodes,
 	internalError,
 	isCommandError,
+	isCommandRecovery,
 	notFoundError,
+	RECOVERY_KINDS,
 	rateLimitError,
 	timeoutError,
 	validationError,
+	withReadableRecovery,
 	wrapError,
 } from './errors.js';
 // Handoff types

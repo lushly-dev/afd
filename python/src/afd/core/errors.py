@@ -18,7 +18,97 @@ Example:
 from dataclasses import dataclass
 from typing import Any, Literal, Union
 
-from afd.core.wire import WireModel
+from pydantic import (
+    StrictBool,
+    StrictStr,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
+
+from afd.core.wire import WIRE_MODEL_CONFIG, WireModel
+
+RecoveryKind = Literal["call", "fix-input", "retry", "external", "stop"]
+RECOVERY_KINDS: tuple[str, ...] = ("call", "fix-input", "retry", "external", "stop")
+"""The kinds of :class:`Recovery`, in ``spec/recovery.md`` order."""
+
+_RECOVERY_WIRE_MEMBERS = frozenset({"kind", "command", "input", "needs", "thenRetry", "afterMs"})
+MAX_AFTER_MS = 2**53 - 1
+"""The largest ``afterMs``: the largest integer every language reads exactly."""
+
+
+class Recovery(WireModel):
+    """The step a failed command's ``suggestion`` describes, structured (``spec/recovery.md``).
+
+    It sits beside the prose ``suggestion``, never in its place: agents read the prose, and tools
+    and tests read this.
+
+    Kinds:
+        call: call ``command`` next; with ``then_retry``, repeat the failed call once it succeeds.
+        fix-input: call the same command again with ``input``'s values, choosing ``needs``.
+        retry: call the same command again unchanged, after ``after_ms``; the error is retryable.
+        external: a step outside the command surface, described only in the suggestion.
+        stop: no step makes the call succeed; do something else.
+
+    A recovery built in Python that breaks the specification's rules raises ``ValueError``; one
+    read from the wire that breaks them is read as none (``CommandError.recovery``, rule 7).
+
+    Example:
+        >>> Recovery(kind="call", command="issue-check").kind
+        'call'
+    """
+
+    model_config = {**WIRE_MODEL_CONFIG, "extra": "forbid"}
+
+    kind: RecoveryKind
+    command: StrictStr | None = None
+    input: dict[str, Any] | None = None
+    needs: list[StrictStr] | None = None
+    then_retry: StrictBool | None = None
+    after_ms: int | None = None
+
+    @field_validator("after_ms", mode="before")
+    @classmethod
+    def _whole_number(cls, value: Any) -> Any:
+        """A JSON integer, or a number with a zero fraction such as ``30000.0``; never a
+        boolean or a string, which Python would otherwise coerce."""
+        if value is None:
+            return None
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError("afterMs is an integer")
+        if isinstance(value, float):
+            if not value.is_integer():
+                raise ValueError("afterMs is an integer")
+            value = int(value)
+        if value > MAX_AFTER_MS:
+            raise ValueError("afterMs is at most 2^53 - 1")
+        return value
+
+    @model_validator(mode="after")
+    def _fields_belong_to_their_kind(self) -> "Recovery":
+        if self.kind == "call" and not self.command:
+            raise ValueError("A call recovery names its command")
+        if self.kind != "call" and (self.command is not None or self.then_retry is not None):
+            raise ValueError("command and thenRetry belong to a call recovery only")
+        if self.kind != "retry" and self.after_ms is not None:
+            raise ValueError("afterMs belongs to a retry recovery only")
+        if self.kind not in ("call", "fix-input") and (
+            self.input is not None or self.needs is not None
+        ):
+            raise ValueError("input and needs belong to call and fix-input recoveries only")
+        if self.after_ms is not None and self.after_ms < 0:
+            raise ValueError("afterMs is at least 0")
+        if self.needs is not None and (
+            not self.needs or len(set(self.needs)) != len(self.needs) or not all(self.needs)
+        ):
+            raise ValueError("needs holds at least one distinct, non-empty field name")
+        if self.input is not None and (not self.input or "confirm" in self.input):
+            raise ValueError(
+                "input has at least one member and never confirm: an acknowledgement goes in needs"
+            )
+        if self.kind == "fix-input" and self.input is None and self.needs is None:
+            raise ValueError("A fix-input recovery sets input or needs")
+        return self
 
 
 class CommandError(WireModel):
@@ -31,6 +121,7 @@ class CommandError(WireModel):
         message: Human-readable error description.
         suggestion: What the user can do about this error.
         retryable: Whether retrying the same request might succeed.
+        recovery: The step ``suggestion`` describes, structured (``spec/recovery.md``).
         details: Additional technical details for debugging.
         cause: Original error that caused this error.
 
@@ -50,18 +141,64 @@ class CommandError(WireModel):
     message: str
     suggestion: str | None = None
     retryable: bool | None = None
+    recovery: Recovery | None = None
     details: dict[str, Any] | None = None
     cause: Union["CommandError", str] | None = None
 
+    @field_validator("recovery", mode="before")
+    @classmethod
+    def _read_recovery_leniently(cls, value: Any) -> Recovery | None:
+        """A recovery this version cannot read is no recovery (``spec/recovery.md``, rule 7):
+        the error keeps its ``suggestion``, and new kinds may arrive without a breaking change."""
+        if value is None or isinstance(value, Recovery):
+            return value
+        return _read_wire_recovery(value)
+
+
+def _read_wire_recovery(value: Any) -> Recovery | None:
+    """``value`` as a recovery if it matches ``$defs/recovery``, else None (rule 7)."""
+    if not isinstance(value, dict) or (
+        any(member is None for member in value.values()) or not set(value) <= _RECOVERY_WIRE_MEMBERS
+    ):
+        # No member is null on the wire, and every member is spelled as the specification
+        # spells it: snake_case aliases are for Python callers, never for the wire.
+        return None
+    try:
+        return Recovery.model_validate(value)
+    except ValidationError:
+        return None
+
+
+def is_command_recovery(value: Any) -> bool:
+    """Whether ``value`` is a recovery a reader keeps: a :class:`Recovery`, or a wire object that
+    matches ``$defs/recovery`` in ``spec/schema/error.json`` (``spec/recovery.md``, rule 7).
+
+    The same test as TypeScript's ``isCommandRecovery``. A recovery that fails it is read as none.
+
+    Example:
+        >>> is_command_recovery({"kind": "call", "command": "issue-check"})
+        True
+        >>> is_command_recovery({"kind": "fix-input", "input": {"confirm": True}})
+        False
+    """
+    if isinstance(value, Recovery):
+        # Checked in its wire form: a Recovery changed after it was built may break the rules.
+        value = value.model_dump(by_alias=True, exclude_none=True)
+    return _read_wire_recovery(value) is not None
+
 
 def _omit_unset_cause(data: Any) -> Any:
-    """Drop an unset ``cause`` from a serialized CommandError.
+    """Drop an unset ``cause`` and ``recovery`` from a serialized CommandError.
 
-    ``CommandResult.error`` used to hold a CommandError without a ``cause``
-    field. Result serializers call this so their output keeps that shape.
+    ``CommandResult.error`` used to hold a CommandError without either field.
+    Result serializers call this so their output keeps that shape.
     """
-    if isinstance(data, dict) and data.get("cause") is None:
-        data.pop("cause", None)
+    if isinstance(data, dict):
+        for name in ("cause", "recovery"):
+            if data.get(name) is None:
+                data.pop(name, None)
+        if isinstance(data.get("cause"), dict):
+            _omit_unset_cause(data["cause"])
     return data
 
 
@@ -250,6 +387,7 @@ def create_error(
     retryable: bool | None = None,
     details: dict[str, Any] | None = None,
     cause: CommandError | Exception | str | None = None,
+    recovery: Recovery | None = None,
 ) -> CommandError:
     """Create a CommandError with standard fields.
 
@@ -260,6 +398,7 @@ def create_error(
         retryable: Whether retry might succeed.
         details: Additional debugging info.
         cause: Original error that caused this.
+        recovery: The step ``suggestion`` describes, structured (``spec/recovery.md``).
 
     Returns:
         A CommandError instance.
@@ -284,6 +423,7 @@ def create_error(
         message=message,
         suggestion=suggestion,
         retryable=retryable,
+        recovery=recovery,
         details=details,
         cause=cause_value,
     )

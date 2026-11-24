@@ -5,13 +5,96 @@
 #include "afd/json.hpp"
 
 #include <array>
+#include <cstdint>
 #include <exception>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace afd {
+
+/// What the caller does next after a failure (`spec/recovery.md`). Wire values are `call`,
+/// `fix-input`, `retry`, `external` and `stop`.
+enum class RecoveryKind {
+    /// Call `Recovery::command`; with `then_retry`, repeat the failed call once it succeeds.
+    call,
+    /// Call the same command again with `Recovery::input`'s values, choosing the `needs` fields.
+    fix_input,
+    /// Call the same command again unchanged, after `Recovery::after_ms`. The error is retryable.
+    retry,
+    /// A step outside the command surface, described only in the suggestion.
+    external,
+    /// No step makes the call succeed; do something else. The error is not retryable.
+    stop,
+};
+
+/// Every `RecoveryKind`, in `spec/recovery.md` order. TypeScript's `RECOVERY_KINDS`.
+inline constexpr std::array<RecoveryKind, 5> recovery_kinds = {
+    RecoveryKind::call, RecoveryKind::fix_input, RecoveryKind::retry, RecoveryKind::external,
+    RecoveryKind::stop};
+
+/// The step a failed command's `suggestion` describes, in a form a program can follow and a test
+/// can check (`spec/recovery.md`; TypeScript's `Recovery`). It sits beside the prose
+/// suggestion, never in its place. Wire keys are camelCase, and unset fields are omitted.
+///
+/// Each field belongs to its kinds (rule 4): `command` and `then_retry` to `call`, `after_ms` to
+/// `retry`, and `input` and `needs` to `call` and `fix-input`. `input` has at least one member and
+/// never `confirm` (rule 5), `needs` names at least one distinct, non-empty field, and a
+/// `fix-input` recovery sets `input` or `needs`.
+///
+/// `Recovery` is an aggregate, built with designated initializers, so a value that breaks these
+/// rules can be built; `validate()` names the rule it breaks. Such a recovery never reaches the
+/// wire or a reader: `create_error` and `error` leave it off the error, `to_json` of a
+/// `CommandError` omits it, and every reader drops it (rule 7).
+///
+/// ```cpp
+/// error.recovery = afd::Recovery{.kind = afd::RecoveryKind::call, .command = "issue-check"};
+/// ```
+struct Recovery {
+    RecoveryKind kind = RecoveryKind::stop;
+    /// `call` only, and required there: the command to call next, by its registered name.
+    std::optional<std::string> command;
+    /// `call`: arguments for `command`. `fix-input`: replacement values for the failed call's
+    /// input. A JSON object holding only values known to work.
+    std::optional<Json> input;
+    /// `call` and `fix-input`: distinct top-level input fields the caller must choose.
+    std::optional<std::vector<std::string>> needs;
+    /// `call` only: once `command` succeeds, repeat the failed call unchanged.
+    std::optional<bool> then_retry;
+    /// `retry` only: wait at least this many milliseconds (0 to 2^53 - 1) first.
+    std::optional<std::int64_t> after_ms;
+
+    bool operator==(const Recovery&) const = default;
+
+    /// Reads a recovery, refusing exactly the values that break `spec/schema/error.json`'s
+    /// `$defs/recovery`: a value that is not an object, an unknown kind or member, a `null`
+    /// member, a member of the wrong JSON type (nothing is coerced) or on the wrong kind, and a
+    /// value out of range. An integer written with a zero fraction (`30000.0`) is read as that
+    /// integer. An `afterMs` above 2^53 - 1, the schema's maximum, is refused. Never
+    /// throws.
+    [[nodiscard]] static Expected<Recovery> from_json(const Json& value);
+
+    /// The `$defs/recovery` rule this recovery breaks, naming the field, or `std::nullopt` when it
+    /// follows them all. The error-level rules tying `retry` and `stop` to `retryable` are not
+    /// checked here.
+    [[nodiscard]] std::optional<std::string> validate() const;
+};
+
+/// The wire name of `kind`: `call`, `fix-input`, `retry`, `external` or `stop`.
+std::string_view recovery_kind_name(RecoveryKind kind) noexcept;
+
+/// The kind named `name`, or `std::nullopt` if it names none this version knows.
+std::optional<RecoveryKind> parse_recovery_kind(std::string_view name) noexcept;
+
+/// Whether `value` matches `$defs/recovery`, the same check as `Recovery::from_json` succeeding.
+/// A reader treats an error whose recovery fails this as having none, and still reads its
+/// `suggestion` (`spec/recovery.md`, rule 7).
+bool is_command_recovery(const Json& value);
+
+void to_json(Json& out, RecoveryKind kind);
+void to_json(Json& out, const Recovery& recovery);
 
 /// A command failure with recovery guidance for the caller. Wire keys are camelCase.
 struct CommandError {
@@ -23,12 +106,20 @@ struct CommandError {
     std::optional<std::string> suggestion;
     /// Whether retrying the same call may succeed.
     std::optional<bool> retryable;
+    /// The step `suggestion` describes, structured so a program can follow it and a test can
+    /// check it (`spec/recovery.md`). Set `suggestion` too: agents read the prose. A `retry`
+    /// recovery needs `retryable = true`, and a `stop` recovery must not set it. A recovery that
+    /// fails `Recovery::validate()` is not written to the wire.
+    std::optional<Recovery> recovery;
     /// Structured context: a JSON object.
     std::optional<Json> details;
     /// The error that caused this one.
     std::shared_ptr<const CommandError> cause;
 
-    /// Reads a CommandError from JSON without throwing.
+    /// Reads a CommandError from JSON without throwing. A `recovery` that does not match
+    /// `$defs/recovery` (see `Recovery::from_json`) is read as absent, here and on each `cause`,
+    /// and the rest of the error is kept (`spec/recovery.md`, rule 7). The error-level rules
+    /// tying `retry` and `stop` to `retryable` are not enforced.
     static Expected<CommandError> from_json(const Json& value);
 };
 
@@ -41,6 +132,7 @@ using ErrorCode = std::string;
 struct ErrorOptions {
     std::optional<std::string> suggestion;
     std::optional<bool> retryable;
+    std::optional<Recovery> recovery;
     std::optional<Json> details;
 };
 
@@ -180,7 +272,8 @@ inline constexpr std::array<ErrorCodeInfo, 50> error_code_catalog = {{
     {error_codes::CALL_NOT_GRANTED, false, "app-calls"},
 }};
 
-/// `{code, message}` plus any of `options`.
+/// `{code, message}` plus any of `options`. A `recovery` that fails `Recovery::validate()` is
+/// left off the error rather than carried where every reader would drop it.
 CommandError create_error(std::string code, std::string message, ErrorOptions options = {});
 
 /// VALIDATION_ERROR with the suggestion "Check the input and try again".
