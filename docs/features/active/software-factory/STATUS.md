@@ -204,7 +204,7 @@ What a cell may take, which plan it runs on, the foreman's commands and `run-fle
 
 #### Competing issue claims, 2026-11-24
 
-[#2422](https://github.com/lushly-dev/afd/pull/2422), for the
+Merged 2026-11-24 as [#2422](https://github.com/lushly-dev/afd/pull/2422), for the
 [formal verification pilot](../formal-verification/STATUS.md). The factory named the latest claim
 on an issue where the issue-claim CLI named the earliest live one, and a release took the label
 off an issue another branch's live claim still held.

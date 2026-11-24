@@ -58,8 +58,13 @@ validator loads every file in this directory into its schema registry before com
 - `code` (non-empty string) and `message` (string) are required on the wire.
 - `suggestion` is **optional on the wire** so consumers accept compact errors (such as a stream
   error chunk), and **SHOULD** be present on every error a command or engine emits to tell the
-  caller how to recover. Surface linters (`afd validate --surface`) and authoring guidelines
-  enforce it on command authors.
+  caller how to recover. It is free text, and nothing checks that following it helps. The contract
+  pins the text of a few engine suggestions (the `VALIDATION_ERROR` layout in
+  [`../vectors/validation.json`](../vectors/validation.json), `CALL_NOT_GRANTED` in
+  [`../vectors/app-calls.json`](../vectors/app-calls.json)) and limits which meta-tools a
+  suggestion may name ([`../error-codes.md`](../error-codes.md#suggestions-name-only-tools-the-host-provides)).
+  The TypeScript and Python testing packages warn `MISSING_SUGGESTION` when one is absent, and
+  scenarios can assert its text (`expect.error.suggestion`); no surface rule reads suggestions.
 - `retryable`, when omitted, is read by consumers as `false` (not retryable). The shared catalog's
   retryability rules are pinned in [`../error-codes.md`](../error-codes.md) and
   [`../vectors/error-codes.json`](../vectors/error-codes.json).

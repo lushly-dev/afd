@@ -93,6 +93,25 @@ def evaluate_result(actual: dict[str, Any], expected: Expectation) -> Evaluation
             if not msg_assertion.passed:
                 all_passed = False
 
+        expected_suggestion = expected.error.get("suggestion")
+        if expected_suggestion is not None:
+            actual_suggestion = error_dict.get("suggestion")
+            suggestion_assertions = (
+                _evaluate_matcher_assertions(
+                    "error.suggestion", actual_suggestion, expected_suggestion
+                )
+                if is_assertion_matcher(expected_suggestion)
+                else [
+                    _evaluate_assertion(
+                        "error.suggestion", actual_suggestion, expected_suggestion, "contains"
+                    )
+                ]
+            )
+            for assertion in suggestion_assertions:
+                assertions.append(assertion)
+                if not assertion.passed:
+                    all_passed = False
+
     # Check reasoning assertion
     if expected.reasoning is not None:
         reasoning_assertion = _evaluate_assertion(
@@ -146,6 +165,9 @@ def _evaluate_matcher_assertions(
 ) -> list[AssertionResult]:
     """Evaluate all matchers in an AssertionMatcher dict."""
     results: list[AssertionResult] = []
+
+    if "equals" in matcher:
+        results.append(_evaluate_assertion(path, actual, matcher["equals"], "equals"))
 
     if "contains" in matcher:
         results.append(_evaluate_assertion(path, actual, matcher["contains"], "contains"))

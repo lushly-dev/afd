@@ -19,6 +19,7 @@ from afd.testing.scenarios.types import (
     Scenario,
     Step,
     Verification,
+    matcher_problem,
 )
 
 # ============================================================================
@@ -229,7 +230,7 @@ def _parse_expectation(raw: Any, step_num: int, file_path: str) -> Expectation |
         )
 
     # Parse error block
-    error: dict[str, str | None] | None = None
+    error: dict[str, Any] | None = None
     raw_error = raw.get("error")
     if isinstance(raw_error, dict):
         error = {
@@ -238,6 +239,21 @@ def _parse_expectation(raw: Any, step_num: int, file_path: str) -> Expectation |
             if isinstance(raw_error.get("message"), str)
             else None,
         }
+        # A string the suggestion must contain, or a matcher, as the TypeScript runner reads it.
+        suggestion = raw_error.get("suggestion")
+        problem = (
+            None
+            if suggestion is None or isinstance(suggestion, str)
+            else matcher_problem(suggestion, "expect.error.suggestion")
+        )
+        if problem:
+            return ParseError(
+                success=False,
+                error=f"Step {step_num} {problem}",
+                path=file_path,
+            )
+        if suggestion is not None:
+            error["suggestion"] = suggestion
 
     # Parse data assertions
     raw_data = raw.get("data")
