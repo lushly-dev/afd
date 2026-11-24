@@ -43,7 +43,10 @@ export interface UrlHostV1 {
 }
 
 interface NavigationLike {
-	navigate(url: string, options: { history: 'push' | 'replace'; info: unknown }): unknown;
+	navigate(
+		url: string,
+		options: { history: 'push' | 'replace'; info: unknown }
+	): { committed?: Promise<unknown>; finished?: Promise<unknown> } | undefined;
 }
 
 /** Main's heading when a chunk of its own does not load (2.2), written once. */
@@ -376,8 +379,15 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 		const navigation = (view as unknown as { navigation?: NavigationLike }).navigation;
 		// Without the API, only a replace: a pushed entry would need a `popstate` listener in first paint,
 		// and Back and Forward across whole documents load each URL as a deep link does.
-		if (navigation) navigation.navigate(url, { history, info: STATE_INFO });
-		else view.history.replaceState(null, '', url);
+		if (navigation) {
+			const result = navigation.navigate(url, { history, info: STATE_INFO });
+			// A later command's navigation can supersede an in-flight one; silence its AbortError,
+			// and report any other failure once (finished rejects alongside committed).
+			result?.committed?.catch(() => {});
+			result?.finished?.catch((cause: unknown) => {
+				if ((cause as { name?: string } | null)?.name !== 'AbortError') reportError(cause);
+			});
+		} else view.history.replaceState(null, '', url);
 		host.route = 'home';
 	}
 

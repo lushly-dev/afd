@@ -49,7 +49,10 @@ const MODAL = new Set([
 ]);
 
 function expectClean(observation: Observation, id = observation.manifest.specimenId) {
-	expect(observation.channels.console.errors, id).toEqual([]);
+	expect(
+		observation.channels.console.errors,
+		`${id} console errors: ${observation.channels.console.errors.join(' | ')}`
+	).toEqual([]);
 	if (MODAL.has(id)) {
 		expect(observation.channels.dom.normalized, id).toMatch(/<dialog[^>]* open/);
 		return;

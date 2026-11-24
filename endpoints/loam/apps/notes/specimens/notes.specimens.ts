@@ -116,7 +116,7 @@ const frame = () => new Promise<void>((resolve) => requestAnimationFrame(() => r
 const macrotask = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 type HostedShell = LoamShell & {
-	apps?: { idle?: Promise<void> } | null;
+	apps?: { idle?: Promise<void>; start?: () => Promise<void> } | null;
 	editor?: { idle?: Promise<void> };
 	call?: (name: string, input?: Record<string, unknown>) => Promise<unknown>;
 };
@@ -189,13 +189,17 @@ function notesShellJob(density: Density, caller: CallerInterface = 'person'): Sp
 					home: '/',
 					listsApps: true,
 				})) as HostedShell;
-				for (let wait = 0; wait < 40 && !shell.apps; wait++) {
+				await kernel.appsReady;
+				for (let wait = 0; wait < 40 && (!shell.apps || !shell.urlBooted); wait++) {
 					await macrotask();
 					await frame();
 				}
-				if (!shell.apps) {
-					throw new Error('notesShellJob: shell.apps did not initialize within 40 frames');
+				if (!shell.apps || !shell.urlBooted) {
+					throw new Error(
+						`notesShellJob: shell did not finish stage B within 40 frames (apps=${Boolean(shell.apps)}, urlBooted=${Boolean(shell.urlBooted)})`
+					);
 				}
+				await shell.apps.start?.();
 				await settleShell(shell);
 				const target = caller === 'agent' ? kernel.agent : kernel;
 				shell.call = async (name: string, input?: Record<string, unknown>) => {

@@ -15,6 +15,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use super::JournalEntry;
 use crate::clock::{fixed_clock, seeded_random, Clock, ClockInstant, RandomSource, SeededRandom};
 use crate::commands::{CommandContext, CommandInterface, CommandRegistry};
+use crate::output_budget::AFD_OUTPUT_BUDGET_META_KEY;
 use crate::result::CommandResult;
 
 const DEFAULT_IGNORE: &str = "metadata.executionTimeMs";
@@ -581,8 +582,23 @@ pub async fn replay_journal(
                     }
                     None => context,
                 };
+                // A budgeted call that succeeded without a B6 report came from `execute_stream`
+                // (`spec/output-budgets.md`, B7), where B5 is skipped; replay it without B5 so
+                // deterministic streams do not diverge, while normal budgeted calls still run B5.
+                let has_budget_report = entry
+                    .result
+                    .metadata
+                    .as_ref()
+                    .is_some_and(|meta| meta.extra.contains_key(AFD_OUTPUT_BUDGET_META_KEY));
+                let check_output_budget =
+                    !(entry.output_budget.is_some() && entry.result.success && !has_budget_report);
                 let replayed = registry
-                    .execute(&entry.command, entry.input.clone(), Some(context))
+                    .execute_with_budget(
+                        &entry.command,
+                        entry.input.clone(),
+                        Some(context),
+                        check_output_budget,
+                    )
                     .await;
                 let recorded = serde_json::to_value(&entry.result).unwrap_or(Value::Null);
                 let replayed_value = serde_json::to_value(&replayed).unwrap_or(Value::Null);

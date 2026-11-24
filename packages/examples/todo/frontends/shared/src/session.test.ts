@@ -30,14 +30,20 @@ async function startBackend(port: number): Promise<ChildProcess> {
 		},
 		stdio: 'ignore',
 	});
+	const healthUrl = `http://127.0.0.1:${port}/health`;
 	for (let attempt = 0; attempt < 80; attempt++) {
+		if (child.exitCode !== null || child.signalCode !== null) {
+			throw new Error(
+				`The backend exited before ready (code=${child.exitCode}, signal=${child.signalCode})`
+			);
+		}
 		try {
-			if ((await fetch(`http://127.0.0.1:${port}/health`)).ok) return child;
+			if ((await fetch(healthUrl)).ok) return child;
 		} catch {}
 		await new Promise((resolve) => setTimeout(resolve, 125));
 	}
 	child.kill();
-	throw new Error('The backend did not start');
+	throw new Error(`The backend did not answer ${healthUrl}`);
 }
 
 async function stopBackend(child: ChildProcess): Promise<void> {
@@ -92,23 +98,7 @@ function freePort(): Promise<number> {
 beforeAll(async () => {
 	const port = await freePort();
 	baseUrl = `http://127.0.0.1:${port}`;
-	backend = spawn(process.execPath, [SERVER], {
-		env: {
-			...process.env,
-			TRANSPORT: 'http',
-			HOST: '127.0.0.1',
-			PORT: String(port),
-			TODO_STORE_TYPE: 'memory',
-		},
-		stdio: 'ignore',
-	});
-	for (let attempt = 0; attempt < 80; attempt++) {
-		try {
-			if ((await fetch(`${baseUrl}/health`)).ok) return;
-		} catch {}
-		await new Promise((resolve) => setTimeout(resolve, 125));
-	}
-	throw new Error('The backend did not start');
+	backend = await startBackend(port);
 }, 30_000);
 
 afterAll(async () => {
@@ -257,7 +247,7 @@ describe('TodoSession', () => {
 		expect(session.snapshot.error).toBeUndefined();
 		expect(session.snapshot.connected).toBe(true);
 		expect(session.snapshot.todos.some((each) => each.title === title)).toBe(true);
-	});
+	}, 30_000);
 
 	it('shares one reconnect among calls made at once', async () => {
 		const port = await freePort();
@@ -274,7 +264,7 @@ describe('TodoSession', () => {
 			session.client.call('todo-history'),
 		]);
 		expect(results.map((result) => result.success)).toEqual([true, true, true]);
-	});
+	}, 30_000);
 
 	it('never lets an older refresh that answers late undo a newer state', async () => {
 		const control = holdingFetch();

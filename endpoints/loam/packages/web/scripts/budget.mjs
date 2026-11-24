@@ -833,7 +833,7 @@ export const CEILINGS = Object.freeze({
 	// `shell-name`), the app's settings delivered through `surface-calls` (1,700, shared with `surfaces`), the change of
 	// person and main's gate, the view's teardown and the wait for the app surfaces; set to 39,900 under D115.
 	accountMinified: 40_400,
-	urlMinified: 6_400,
+	urlMinified: 6_600, // D115 (measured 6,411): Navigation API rejection handling (#2444)
 	// Step 2 too: 396,210 of 395,700, the stage B reader of the projection's `copilot`; set to 397,000.
 	// Phase 4's step 1 on top: 417,099, the manifest validator's `ui.settings`; set to 417,500.
 	// Phase 4's step 5 on top: 417,629, the SDK's notices; set to 418,000. Step 4's own rows: 418,500 and 93,500.
