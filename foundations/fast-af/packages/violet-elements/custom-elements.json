@@ -43950,6 +43950,12 @@
     },
     {
       "kind": "javascript-module",
+      "path": "src/theme/violet-theme-nodes.ts",
+      "declarations": [],
+      "exports": []
+    },
+    {
+      "kind": "javascript-module",
       "path": "src/theme/violet-theme-runtime.ts",
       "declarations": [
         {
@@ -44046,7 +44052,7 @@
           "name": "installVioletTheme",
           "return": {
             "type": {
-              "text": "HTMLStyleElement"
+              "text": "CSSStyleSheet"
             }
           },
           "parameters": [
@@ -44058,14 +44064,14 @@
               }
             }
           ],
-          "description": "Writes the active theme set's stylesheet into `target` (the document's head by default, or a\nshadow root), reusing the runtime style element already there. The active set is the built-in\ndefault unless `installVioletThemeSet()` installed another; the built-in stylesheet is written\nwhen its module has loaded (`loadVioletBuiltInTheme()`)."
+          "description": "Adopts the active theme set's stylesheet into `target` (the document by default, or a shadow\nroot) through `adoptedStyleSheets`, appending it once and never twice, and returns it. A document\nand its shadow roots share one constructed sheet, so no `<style>` element is written and a page\nwhose Content Security Policy forbids inline styles needs no exception. The active set is the\nbuilt-in default unless `installVioletThemeSet()` installed another; the built-in stylesheet is\nwritten when its module has loaded (`loadVioletBuiltInTheme()`).\n\nThe returned sheet is the runtime's: it is rewritten whenever the active set changes, so an edit\nmade to it lasts only until then, and a repeated install does not undo one. Throws a `TypeError`\nwhen `target` is neither a document nor a shadow root, or its document has no window (one made\nby `createHTMLDocument` or `DOMParser`, or an iframe's once the iframe is removed)."
         },
         {
           "kind": "function",
           "name": "installVioletThemeSet",
           "return": {
             "type": {
-              "text": "HTMLStyleElement"
+              "text": "CSSStyleSheet"
             }
           },
           "parameters": [
@@ -44083,7 +44089,7 @@
               }
             }
           ],
-          "description": "Makes `themeSet` the active theme set, replacing the built-in default, and writes it into\n`target` and every runtime style element installed before, so scoped `violet-theme` hosts in\nshadow roots switch too. Preset names are the set's own. Throws a `TypeError` when the set is not\nsound (see `validateVioletThemeSet`); completeness against `tokens/interface.json` is a build-time\ncheck (`findVioletThemeSetGaps`)."
+          "description": "Makes `themeSet` the active theme set, replacing the built-in default, rewrites every runtime\nsheet with it, so every document and shadow root that adopted one, scoped `violet-theme` hosts\namong them, switches at once, and adopts the sheet into `target` as `installVioletTheme()` does.\nPreset names are the set's own. Throws a `TypeError` when the set is not sound (see\n`validateVioletThemeSet`), or when `target` is not a document or shadow root that can take a\nconstructed sheet; both are checked before anything changes. A target that refuses the adoption\nitself throws after the set has changed. Completeness against `tokens/interface.json` is a build-time check (`findVioletThemeSetGaps`)."
         },
         {
           "kind": "function",
@@ -44111,7 +44117,7 @@
               "text": "Promise<string>"
             }
           },
-          "description": "Loads the built-in default set's stylesheet, writing it into every installed runtime style if no\nproduct set is active by then. `installVioletTheme()` calls it; await it to know the built-in\ntheme is applied. A failed load (a chunk that did not arrive) rejects and is not cached, so the\nnext call, or the next install, tries again."
+          "description": "Loads the built-in default set's stylesheet, writing it into every runtime sheet if no product\nset is active by then. `installVioletTheme()` calls it; await it to know the built-in\ntheme is applied. A failed load (a chunk that did not arrive) rejects and is not cached, so the\nnext call, or the next install, tries again."
         },
         {
           "kind": "function",
@@ -44139,7 +44145,7 @@
               "text": "void"
             }
           },
-          "description": "Makes the built-in default the active set again and rewrites every installed runtime style."
+          "description": "Makes the built-in default the active set again and rewrites every runtime sheet."
         }
       ],
       "exports": [

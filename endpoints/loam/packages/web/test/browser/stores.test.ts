@@ -74,12 +74,16 @@ describe('P2-E13: E7: VioletRuntime with the preloaded source', () => {
 							stylesheet: Record<string, string>;
 							light: Record<string, string>;
 							applied: Record<string, string>;
+							inline: number;
+							adopted: boolean;
 						}>;
 					}
 				).loamVioletRuntime(list),
 			properties
 		);
 		expect(result.applied).toEqual(result.stylesheet);
+		expect(result.adopted).toBe(true);
+		expect(result.inline).toBe(0);
 		// The comparison means something only if dark differs from light.
 		expect(result.applied).not.toEqual(result.light);
 		expect(opened.violations).toEqual([]);

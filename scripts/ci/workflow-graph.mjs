@@ -336,11 +336,13 @@ export const WORKFLOW_GRAPH = {
 	'violet.yml': {
 		usesSetupAction: true,
 		groups: ['violet', 'afdCore', 'pnpmLock', 'pnpmWorkspace', 'playwrightAction'],
+		// The selector contract violet-runtime reproduces; the packed consumers check its parity.
 		extra: [
 			'tests/consumers/violet/**',
 			'tests/consumers/pnpm.mjs',
 			'scripts/release/exec-tool.mjs',
 			'foundations/fast-af/packages/violet-elements/tokens/interface.json',
+			'foundations/fast-af/packages/violet-elements/src/theme/violet-theme-css.ts',
 		],
 	},
 };

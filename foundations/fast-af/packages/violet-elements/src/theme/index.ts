@@ -32,7 +32,7 @@ export {
   type VioletBuiltInThemePreset,
 } from "./violet-theme-runtime";
 // The built-in set's values. A product that installs its own set and wants them out of its bundle
-// imports the elements and `theme/violet-theme-runtime` directly rather than this root.
+// imports the elements and `@lushly-dev/violet-elements/theme-runtime` rather than this root.
 export {
   violetThemeBuiltInSet,
   violetThemeCssText,

@@ -53,6 +53,7 @@ import "@lushly-dev/violet-elements";
 - `@lushly-dev/violet-elements/custom-elements.json` is the Custom Elements Manifest (also referenced by the `customElements` field).
 - `@lushly-dev/violet-elements/tokens/*` exposes the token sources: `tokens/interface.json`, the custom properties the components read, and `tokens/violet-theme.export.json`, the built-in default theme.
 - `@lushly-dev/violet-elements/theme-css` is the Node-safe theme-set helpers (`findVioletThemeSetGaps` and the types), side-effect free; see [Runtime Theme](#runtime-theme).
+- `@lushly-dev/violet-elements/theme-runtime` is the runtime theme alone (`installVioletTheme`, `installVioletThemeSet`, `loadVioletBuiltInTheme`, the preset functions), without the built-in set's values or any element; see [Runtime Theme](#runtime-theme).
 - Element modules register themselves when imported, so the package declares `sideEffects: true`.
 
 ## Story Review
@@ -172,9 +173,39 @@ path:
 
 ## Runtime Theme
 
-The theme is a stylesheet the runtime installs once, so components work without a provider
-wrapper around every usage site. Presets apply to the document root or to any element marked
-`data-violet-theme-root` (the `violet-theme` host marks itself).
+The theme is one constructed stylesheet that the runtime adopts through `adoptedStyleSheets`, so
+components work without a provider wrapper around every usage site. Presets apply to the document
+root or to any element marked `data-violet-theme-root` (the `violet-theme` host marks itself).
+
+`installVioletTheme(target?)` adopts the sheet into the document, or into a shadow root, and
+returns the `CSSStyleSheet`. It appends to the sheets already adopted there, once: a repeated call
+adds nothing. A document and its shadow roots share one sheet, and another document (an iframe's)
+gets its own, because a constructed sheet can be adopted only within the document it was made
+for. No `<style>` element is written, so a page whose Content Security Policy forbids inline
+styles needs no exception for the theme. `installVioletTheme()` throws a `TypeError` for a target
+that is neither a document nor a shadow root, and for a document with no window (one made by
+`createHTMLDocument` or `DOMParser`, or an iframe's once the iframe is removed), since only a
+window can construct the sheet.
+
+Where a token override lands in the cascade:
+
+- Adopted sheets come after the document's own `<style>` and `<link>` sheets, so a page rule
+  overriding a token on `:root` needs a more specific selector (or set the property on an
+  element, which inherits).
+- The sheet sets the tokens on every `[data-violet-theme-root]` and `<violet-theme>` too, so a
+  token set on `body`, or any ancestor, is overridden again inside such a descendant. Set the
+  override on that element, or with a selector that matches it.
+- The runtime appends its sheet after those already adopted there. A page's own adopted sheet
+  that overrides tokens must be adopted after `installVioletTheme()`, or use more specific
+  selectors.
+- In a shadow root the same order holds: its `<style>` elements come before its adopted sheets.
+  The theme used to be a `<style>` element there too, so a host's own `<style>` written after it
+  won a tie; now the runtime's sheet comes after every `<style>` in the root, and a host's
+  override of a token on a `[data-violet-theme-root]` child with equal specificity loses. Raise
+  its specificity, or put it in a sheet adopted after the runtime's.
+- The returned sheet belongs to the runtime. It is rewritten whenever the active set changes, so
+  an edit made to it lasts until then, and a repeated `installVioletTheme()` does not undo it.
+  Put overrides in a sheet of your own.
 
 The zero-config route installs the built-in default:
 
@@ -185,11 +216,13 @@ installVioletTheme();
 applyVioletThemePreset(document, "dark");
 ```
 
-The runtime (`dist/theme/violet-theme-runtime.js`) never imports the built-in set's values:
-`installVioletTheme()` loads them on first use with a dynamic import and writes the stylesheet when
-they arrive; `await loadVioletBuiltInTheme()` to know it is applied. Until then the components
-render their literal fallbacks, which are the built-in light values. A load that fails is reported
-with `console.error`, not cached, and retried by the next install or call.
+The runtime (`@lushly-dev/violet-elements/theme-runtime`) never imports the built-in set's
+values: `installVioletTheme()` loads them on first use with a dynamic import and writes them into
+the adopted sheets when they arrive; `await loadVioletBuiltInTheme()` to know it is applied. Until
+then the components render their literal fallbacks, which are the built-in light values. A load
+that fails is reported with `console.error`, not cached, and retried by the next install or call;
+`loadVioletBuiltInTheme()` rejects, so a page that awaits it at startup catches that rejection and
+carries on with the fallbacks.
 
 The laziness helps only a consumer that deep-imports the runtime and the element modules. The
 package root and `theme/index.ts` statically re-export the built-in module (`violetThemeCssText`,
@@ -197,7 +230,7 @@ package root and `theme/index.ts` statically re-export the built-in module (`vio
 the module is imported both statically and dynamically (it then stays in the same chunk). A product
 that installs its own set and wants the built-in values out of its bundle imports the element
 modules (`@lushly-dev/violet-elements/dist/<element>/<element>.js`) and
-`@lushly-dev/violet-elements/dist/theme/violet-theme-runtime.js`, never the root.
+`@lushly-dev/violet-elements/theme-runtime`, never the root.
 
 A product that brings its own Violet tree installs its complete theme set as data instead. The
 set replaces the built-in default, which is then never written, wherever this package installed a
@@ -251,8 +284,10 @@ applyVioletThemeRoot(panel, "dark");
   `resetVioletThemeSet()` goes back to the built-in one. `violetThemeBuiltInSet` (typed narrowly,
   `as const`), `violetThemePresets`, `VIOLET_THEME_DEFAULT_PRESET` and `violetThemeCssText` are the
   built-in set.
-- Runtime styles are tracked weakly and rewritten on every change, so a shadow root detached when
-  the set changed is current when it is attached again.
+- Changing the active set (`installVioletThemeSet`, `resetVioletThemeSet`, or the built-in set
+  arriving) rewrites each document's sheet with `replaceSync`, so every root that adopted it
+  switches at once, a shadow root detached at the time included. Sheets are held weakly per
+  document.
 
 ```html
 <violet-theme preset="dark">

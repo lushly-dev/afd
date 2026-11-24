@@ -1565,9 +1565,9 @@
       "path": "foundations/violet/packages/runtime/README.md",
       "upstream_path": "packages/runtime/README.md",
       "upstream_sha256": "85a4432484d3dde68ce3f7a416e08fae963add1bc8bd3b1b57fe9e8d0a05e05b",
-      "current_import_sha256": "be2855bd58917f05660da979764c72cba7a0e640881e47178c4469a1b8a27777",
+      "current_import_sha256": "1e2d77e37972492bd68d22b4c50a148c7f750c004cfe71b6a2d4070831c9ee8b",
       "classification": "adapted",
-      "reason": "Loam D50 and phase 0 spec section 3 (step 0b): documents the preloaded source (source in place of apiUrl, switchNode with a new source, ThemeManager theme sources) and the high-contrast theme of useSystemPreference; Review of #1196 (#1192): install with @preview, since latest stays on the placeholder once the maintainer's retag is done",
+      "reason": "Loam D50 and phase 0 spec section 3 (step 0b): documents the preloaded source (source in place of apiUrl, switchNode with a new source, ThemeManager theme sources) and the high-contrast theme of useSystemPreference; Review of #1196 (#1192): install with @preview, since latest stays on the placeholder once the maintainer's retag is done; One runtime theming path (lushly-dev/afd#1786 phase 2): documents adopt() and unadopt(), the selector contract, the preset option and the CSP benefit, and the deprecation of applyToDocument, removeFromDocument and autoApply; Review of #1786 phase 2: documents where an override lands against the adopted sheet (a page's adopted override after adopt(), body against a theme root, a shadow root's own style elements), that the returned sheet is the runtime's, the TypeErrors for a windowless document or a non-target, and that inline removal touches only what the runtime wrote; review follow-up (#1786): removeFromDocument() restores the value the page had before the first inline write, the consumer check guards the Node version it needs for the TypeScript selector source",
       "candidate": {
         "path": "packages/runtime/README.md",
         "sha256": "85a4432484d3dde68ce3f7a416e08fae963add1bc8bd3b1b57fe9e8d0a05e05b",
@@ -1612,6 +1612,19 @@
         "path": "packages/runtime/src/__tests__/cache.test.ts",
         "sha256": "1babf9349f74e29e2c2cc0bd160e60956b15471fb5738a25a78a29136e87f1a1",
         "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/runtime/src/__tests__/client-adopt.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "401d4458f9686d8e9db61e5e550d73bed2c1d65c4b10566d0fcd18a0ab457c4d",
+      "classification": "afd-authored",
+      "reason": "Covers VioletRuntime.adopt() (lushly-dev/afd#1786 phase 2): one sheet adopted once with violet-elements' selectors and no inline property, the sheet rewritten on switchNode for the document and its shadow roots, inline properties from autoApply removed and no longer written, the preset selectors and one preset per runtime, a value that cannot end the rule, and unadopt() removing only its own sheet; Review of #1786 phase 2: a page inline override survives switchNode() after adopt(), adopt() with autoApply off touches no inline style, only values autoApply wrote are removed, a windowless document and a non-target are refused with a TypeError, a refused adoption commits nothing, and one sheet that cannot be written does not stop the others; review follow-up (#1786): removeFromDocument() restores the value the page had before the first inline write, the consumer check guards the Node version it needs for the TypeScript selector source",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
       }
     },
     {
@@ -1722,9 +1735,9 @@
       "path": "foundations/violet/packages/runtime/src/client.ts",
       "upstream_path": "packages/runtime/src/client.ts",
       "upstream_sha256": "87badf970a29ec705033471780df6f8688a8675d2e2abcf532ac7e19ee569f64",
-      "current_import_sha256": "dc2524106eb33911b5bced595814ebf290e7aabbf04f635fa6078780eaba6233",
+      "current_import_sha256": "a674462c0b46ddd94a6a28f4f3350063efe222a22a8d215d0166ea22b133790d",
       "classification": "adapted",
-      "reason": "Loam D50 and phase 0 spec section 3 (step 0b): VioletRuntime accepts a preloaded source, { tokens }, in place of apiUrl, so a static build applies a theme with no token server; load() resolves from it, switchNode(nodeId, source) takes a new one, preload() is a no-op and the cache is never used; source with apiUrl or apiKey, a malformed source (no id, a non-finite, array or null value, a non-string resolvedAt), and a source given to an HTTP runtime are refused; the HTTP path is unchanged",
+      "reason": "Loam D50 and phase 0 spec section 3 (step 0b): VioletRuntime accepts a preloaded source, { tokens }, in place of apiUrl, so a static build applies a theme with no token server; load() resolves from it, switchNode(nodeId, source) takes a new one, preload() is a no-op and the cache is never used; source with apiUrl or apiKey, a malformed source (no id, a non-finite, array or null value, a non-string resolvedAt), and a source given to an HTTP runtime are refused; the HTTP path is unchanged; One runtime theming path (lushly-dev/afd#1786 phase 2): VioletRuntime.adopt(target, { preset }) adopts one constructed stylesheet per owner document with violet-elements' theme selectors (:root and [data-violet-theme-root], narrowed by [data-violet-theme=\"<preset>\"]; reproduced, not imported, per Loam D50), writes values through the CSSOM and rewrites it on every load and switch; unadopt() removes it; once adopted, autoApply writes no inline properties and those already written are removed; applyToDocument and removeFromDocument are deprecated in its favour; Review of #1786 phase 2: removeFromDocument() and switchNode() remove only the inline properties applyToDocument() wrote that still hold its value, so adopt() never touches a page's own; adopt() and unadopt() refuse a target that is neither a Document nor a ShadowRoot, and adopt() a document with no window, with a TypeError; a sheet and the adopted preset are recorded only once the target accepts the sheet; a sheet that cannot be rewritten is logged and dropped without stopping the others, and collected sheets are pruned when one is added; review follow-up (#1786): removeFromDocument() restores the value the page had before the first inline write, the consumer check guards the Node version it needs for the TypeScript selector source",
       "candidate": {
         "path": "packages/runtime/src/client.ts",
         "sha256": "87badf970a29ec705033471780df6f8688a8675d2e2abcf532ac7e19ee569f64",
@@ -1735,9 +1748,9 @@
       "path": "foundations/violet/packages/runtime/src/index.ts",
       "upstream_path": "packages/runtime/src/index.ts",
       "upstream_sha256": "3f582b4857b3072f8d4c03aa4467f058b65d421b2db53a99d8c89f456b3a6e9f",
-      "current_import_sha256": "fcb9186ce6b83cd06587460c2769215bbd7c5664df828c13ba316752118f5a55",
+      "current_import_sha256": "fae6bda380e336ba26661985bf5132a1114e4e4637c33fc914cd82ec7ab715c8",
       "classification": "adapted",
-      "reason": "Loam D50 and phase 0 spec section 3 (step 0b): exports the VioletBaseConfig, VioletHttpConfig, VioletSourceConfig, VioletTokenSource and SourceToken types",
+      "reason": "Loam D50 and phase 0 spec section 3 (step 0b): exports the VioletBaseConfig, VioletHttpConfig, VioletSourceConfig, VioletTokenSource and SourceToken types; One runtime theming path (lushly-dev/afd#1786 phase 2): exports the VioletAdoptOptions type",
       "candidate": {
         "path": "packages/runtime/src/index.ts",
         "sha256": "3f582b4857b3072f8d4c03aa4467f058b65d421b2db53a99d8c89f456b3a6e9f",
@@ -1761,9 +1774,9 @@
       "path": "foundations/violet/packages/runtime/src/types.ts",
       "upstream_path": "packages/runtime/src/types.ts",
       "upstream_sha256": "d1a3d23f4c775e99bf9a55b5c7135a030c5455383e79a4b4db064f0d46169694",
-      "current_import_sha256": "886351ca2e437bb05726af74bb6f3daaf552c94c3155aff2d2c723d9cebcb9e7",
+      "current_import_sha256": "1793a2ecb992386f8206ed9d7ae873425e3b0a8392aa8e9b4b3c059e5b44bcc3",
       "classification": "adapted",
-      "reason": "Loam D50 and phase 0 spec section 3 (step 0b): VioletConfig becomes the either/or union of VioletHttpConfig and VioletSourceConfig over VioletBaseConfig, with VioletTokenSource and SourceToken (resolvedAt optional, defaulting to the node); Theme gains an optional source",
+      "reason": "Loam D50 and phase 0 spec section 3 (step 0b): VioletConfig becomes the either/or union of VioletHttpConfig and VioletSourceConfig over VioletBaseConfig, with VioletTokenSource and SourceToken (resolvedAt optional, defaulting to the node); Theme gains an optional source; One runtime theming path (lushly-dev/afd#1786 phase 2): autoApply is deprecated in favour of adopt() and ignored once adopt() has been called",
       "candidate": {
         "path": "packages/runtime/src/types.ts",
         "sha256": "d1a3d23f4c775e99bf9a55b5c7135a030c5455383e79a4b4db064f0d46169694",
@@ -4154,9 +4167,9 @@
       "path": "tests/consumers/violet/verify-artifacts.mjs",
       "upstream_path": null,
       "upstream_sha256": null,
-      "current_import_sha256": "8d3f69b9a7b8762aef35595d914af338cf2eea8af9d099d9991cafac3aec9902",
+      "current_import_sha256": "06242802831f77d1200531bec3db2226dbee057d81df20a857253f7d8e90f0f5",
       "classification": "afd-authored",
-      "reason": "Packed-artifact consumers outside the workspace (Phase 3 evidence); afd-core is packed from the workspace and shared with the consumer after the move to AFD 2.x; reads the fixed-group version and the integration peer range from the workspace manifests, so a version step needs no edit; the static server answers a directory request with 404 instead of crashing on EISDIR; in Chromium, the packed runtime applies the same resolved tokens from a preloaded source with no token request, and ThemeManager follows prefers-color-scheme, prefers-contrast and forced-colors to a high-contrast theme; the declarations accept either a source or a token server, never both (Loam D50 and phase 0 spec section 3 (step 0b)); pnpm, tar and the installed bins start portably so the check runs on Windows (#1200); Reads the integration peer as the workspace range it packs as (#1192); the stdio check calls node.list and checks that validate and doctor are not listed and that node.list succeeds; The integration and the violet binary register 49 commands with export.tree, interface.check and token.remove (lushly-dev/afd#1322, #1323, #1328); under pnpm 12 the overrides go in each consumer's pnpm-workspace.yaml, the consumer pins the repository's packageManager, every install asserts its overrides reached it, and the peer checks read pnpm 12's peer-issue blocks (#1805)",
+      "reason": "Packed-artifact consumers outside the workspace (Phase 3 evidence); afd-core is packed from the workspace and shared with the consumer after the move to AFD 2.x; reads the fixed-group version and the integration peer range from the workspace manifests, so a version step needs no edit; the static server answers a directory request with 404 instead of crashing on EISDIR; in Chromium, the packed runtime applies the same resolved tokens from a preloaded source with no token request, and ThemeManager follows prefers-color-scheme, prefers-contrast and forced-colors to a high-contrast theme; the declarations accept either a source or a token server, never both (Loam D50 and phase 0 spec section 3 (step 0b)); pnpm, tar and the installed bins start portably so the check runs on Windows (#1200); Reads the integration peer as the workspace range it packs as (#1192); the stdio check calls node.list and checks that validate and doctor are not listed and that node.list succeeds; The integration and the violet binary register 49 commands with export.tree, interface.check and token.remove (lushly-dev/afd#1322, #1323, #1328); under pnpm 12 the overrides go in each consumer's pnpm-workspace.yaml, the consumer pins the repository's packageManager, every install asserts its overrides reached it, and the peer checks read pnpm 12's peer-issue blocks (#1805); One runtime theming path (lushly-dev/afd#1786 phase 2): an adopted.html page whose policy forbids every style shows VioletRuntime.adopt() applying the preloaded tokens as an adopted sheet, with nothing inline and no policy violation; Review of #1786 phase 2: compares the selectors adopt() writes with those of violet-elements' createVioletThemeCss (imported from its source) for the default and a named preset, and both packages' preset-name rules on the same samples; adopted.html adds a token value that tries to end the rule (refused, one rule, the body's background unchanged) and a runtime whose adopted iframe is removed before a switch that still rewrites the document's sheet; review follow-up (#1786): removeFromDocument() restores the value the page had before the first inline write, the consumer check guards the Node version it needs for the TypeScript selector source",
       "candidate": {
         "path": null,
         "sha256": null,

@@ -50,7 +50,7 @@ here; the resolution is normative, and those that change an approved choice are 
 | F4 | `violet-tree-compare` must check another document's record, which needs the `documents` grant | Documents specification 11: a port calls `document-get` only with the grant | Grants are `store`, `clock`, `random` and `documents` (3.2, Q6) |
 | F5 | The `example` template's `size.focus.width` is in neither the components' interface nor Loam's tree, so scenario 14 (the default fills the pinned interface) cannot pass | `size.focus-ring.width` is the id in `violet-elements/tokens/interface.json` and `loam-theme/contract/tokens.json`; `size.focus.width` is in neither | The template uses `size.focus-ring.width`; scenario 03 changes with it when it moves (4.2, Q7) |
 | F6 | The interface is contract version 3 with 98 ids, not version 1 with 89 | `foundations/fast-af/packages/violet-elements/tokens/interface.json` | Read the version from the file; nothing pins 89 |
-| F7 | `violet-elements`' theme set is global: `installVioletThemeSet` replaces the active set for every installed style | `src/theme/violet-theme-runtime.ts:200-230` | The preview sets custom properties with CSSOM on its own root, and never installs a theme set (7.4) |
+| F7 | `violet-elements`' theme set is global: `installVioletThemeSet` replaces the active set and rewrites every adopted runtime sheet, in every document and shadow root | `src/theme/violet-theme-runtime.ts:250-282` | The preview sets custom properties with CSSOM on its own root, and never installs a theme set (7.4) |
 | F8 | A `tree` sidebar's command takes `{}`, so it cannot list one document's nodes | Scope and projects specification, 7.4 (`2-scope-projects/spec.md:1151`) | A UX decision (7.2, U1) |
 | F9 | Constraints do not travel in tree files | `export.tree` writes adds and overrides; `import.tree`'s extension has `node`, `parent`, `type`, `includes`, `tiers` (`import/tree.ts:23-33`) | Export lists them in `dropped`; a follow-up for `violet-afd` (Q8) |
 | F10 | A deleted node cannot be brought back by any command: deletion is soft, and `node.create` refuses an existing id | `node/delete.ts` sets `deletedAt`; `node/create.ts:60-69` | `violet-node-create` takes `restore: true` (6.4, Q9) |
@@ -888,7 +888,7 @@ The preview root is an element inside the editor's shadow root. The editor sets 
 `properties[i]` with `root.style.setProperty(name, value)` (CSSOM, which `style-src 'self'`
 allows) and clears what it set before setting a new node's. It never writes to
 `document.documentElement`, never sets `data-loam-theme`, and never calls
-`installVioletThemeSet`, which replaces the active theme set for every installed style (F7).
+`installVioletThemeSet`, which replaces the active theme set in every adopted runtime sheet (F7).
 `refused` values are not set. A dark node previewed in a light Loam leaves every element outside
 the root on Loam's light values; 7.6's scoped fixture proves it.
 

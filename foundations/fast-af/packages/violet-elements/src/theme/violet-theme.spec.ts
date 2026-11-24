@@ -32,6 +32,11 @@ import runtimeSource from "./violet-theme-runtime.ts?raw";
 import elementSource from "./violet-theme.ts?raw";
 import "./violet-theme";
 
+/** The built-in light accent fill, read from the set so a palette change does not break these specs. */
+const builtInAccentBackground = violetThemeBuiltInSet.presets.light.find(
+    (token) => token.id === "color.accent.background",
+)?.value;
+
 /** A product's own set: preset names the built-in set does not have, and an id it lacks. */
 const productSet: VioletThemeSet = {
     defaultPreset: "meadow",
@@ -50,15 +55,35 @@ const productSet: VioletThemeSet = {
 };
 
 function clearRuntimeTheme(): void {
-    document.querySelectorAll('style[data-violet-theme="runtime"]').forEach(node => {
-        node.remove();
-    });
+    document.adoptedStyleSheets = [];
     document.documentElement.removeAttribute(VIOLET_THEME_PRESET_ATTRIBUTE);
     document.body.innerHTML = "";
 }
 
-function runtimeStyles(): HTMLStyleElement[] {
-    return [...document.head.querySelectorAll<HTMLStyleElement>('style[data-violet-theme="runtime"]')];
+function runtimeSheets(): CSSStyleSheet[] {
+    return [...document.adoptedStyleSheets];
+}
+
+/** A sheet's rules as the browser serializes them. */
+function sheetText(sheet: CSSStyleSheet): string {
+    return [...sheet.cssRules].map(rule => rule.cssText).join("\n");
+}
+
+/** `cssText` serialized as a constructed sheet holding it would be, to compare with a runtime sheet. */
+function parsed(cssText: string): string {
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(cssText);
+    return sheetText(sheet);
+}
+
+/** An iframe whose page forbids every style but adopted ones, loaded and attached. */
+async function strictCspFrame(): Promise<HTMLIFrameElement> {
+    const frame = document.createElement("iframe");
+    frame.srcdoc = `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'none'"></head><body></body></html>`;
+    const loaded = new Promise(resolve => frame.addEventListener("load", resolve, { once: true }));
+    document.body.append(frame);
+    await loaded;
+    return frame;
 }
 
 describe("violet runtime theme", () => {
@@ -68,26 +93,83 @@ describe("violet runtime theme", () => {
         await loadVioletBuiltInTheme();
     });
 
-    it("reuses the same runtime style element for repeated document installs", () => {
+    it("adopts one runtime sheet for repeated document installs, without re-parsing it", () => {
         const first = installVioletTheme(document);
-        first.textContent = "stale";
+        const replaceSync = vi.spyOn(first, "replaceSync");
 
         const second = installVioletTheme(document);
 
         expect(second).toBe(first);
-        expect(second.textContent).toBe(violetThemeCssText);
-        expect(runtimeStyles()).toHaveLength(1);
+        expect(second).toBeInstanceOf(CSSStyleSheet);
+        expect(sheetText(second)).toBe(parsed(violetThemeCssText));
+        expect(replaceSync).not.toHaveBeenCalled();
+        expect(runtimeSheets()).toEqual([first]);
+        replaceSync.mockRestore();
     });
 
-    it("installs the runtime style inside a shadow root when requested", () => {
+    it("appends to the sheets a page adopted itself and writes no style element", () => {
+        const own = new CSSStyleSheet();
+        document.adoptedStyleSheets = [own];
+
+        const sheet = installVioletTheme(document);
+
+        expect(runtimeSheets()).toEqual([own, sheet]);
+        expect(document.querySelectorAll("style[data-violet-theme]")).toHaveLength(0);
+        expect(getComputedStyle(document.documentElement).getPropertyValue("--color-accent-background").trim()).toBe(builtInAccentBackground);
+    });
+
+    it("adopts the runtime sheet into a shadow root when requested, shared with its document", () => {
         const host = document.createElement("div");
         const shadowRoot = host.attachShadow({ mode: "open" });
 
-        const style = installVioletTheme(shadowRoot);
+        const sheet = installVioletTheme(shadowRoot);
 
-        expect(shadowRoot.querySelector('style[data-violet-theme="runtime"]')).toBe(style);
-        expect(style.textContent).toBe(violetThemeCssText);
-        expect(document.head.querySelector('style[data-violet-theme="runtime"]')).toBeNull();
+        expect([...shadowRoot.adoptedStyleSheets]).toEqual([sheet]);
+        expect(sheetText(sheet)).toBe(parsed(violetThemeCssText));
+        expect(shadowRoot.querySelector("style")).toBeNull();
+        expect(runtimeSheets()).toEqual([]);
+        expect(installVioletTheme(document)).toBe(sheet);
+        expect(installVioletTheme(shadowRoot)).toBe(sheet);
+        expect([...shadowRoot.adoptedStyleSheets]).toEqual([sheet]);
+    });
+
+    it("keeps a sheet per owner document, and themes a page whose policy forbids inline styles", async () => {
+        const frame = await strictCspFrame();
+        const frameDocument = frame.contentDocument!;
+        const frameWindow = frame.contentWindow!;
+        // The policy is live: an inline style element is refused.
+        const inline = frameDocument.createElement("style");
+        inline.textContent = ":root { --inline-probe: 1px; }";
+        frameDocument.head.append(inline);
+        expect(frameWindow.getComputedStyle(frameDocument.documentElement).getPropertyValue("--inline-probe")).toBe("");
+
+        // A sheet constructed for this document cannot be adopted by the frame's.
+        const pageSheet = installVioletTheme(document);
+        expect(() => {
+            frameDocument.adoptedStyleSheets = [pageSheet];
+        }).toThrow();
+
+        const frameSheet = installVioletTheme(frameDocument);
+
+        expect(frameSheet).not.toBe(pageSheet);
+        expect([...frameDocument.adoptedStyleSheets]).toEqual([frameSheet]);
+        const frameRoot = () => frameWindow.getComputedStyle(frameDocument.documentElement);
+        expect(frameRoot().getPropertyValue("--color-accent-background").trim()).toBe(builtInAccentBackground);
+        applyVioletThemePreset(frameDocument, "dark");
+        expect(frameRoot().getPropertyValue("--color-accent-background").trim()).not.toBe(builtInAccentBackground);
+
+        // A shadow root in the frame's document adopts the frame's sheet, and a set change reaches both documents.
+        const host = frameDocument.createElement("div");
+        frameDocument.body.append(host);
+        const shadowRoot = host.attachShadow({ mode: "open" });
+        expect(installVioletTheme(shadowRoot)).toBe(frameSheet);
+        installVioletThemeSet(productSet);
+        expect(sheetText(frameSheet)).toBe(parsed(createVioletThemeCss(productSet)));
+        expect(sheetText(pageSheet)).toBe(parsed(createVioletThemeCss(productSet)));
+        applyVioletThemePreset(frameDocument, "meadow");
+        expect(frameRoot().getPropertyValue("--color-brand-leaf").trim()).toBe("#2f6b3a");
+        resetVioletThemeSet();
+        expect(sheetText(frameSheet)).toBe(parsed(violetThemeCssText));
     });
 
     it("marks arbitrary elements as scoped Violet theme roots", () => {
@@ -122,6 +204,7 @@ describe("violet runtime theme", () => {
     it("derives the built-in exports from the built-in set", () => {
         expect(violetThemePresets).toEqual(["light", "dark", "high-contrast"]);
         expect(violetThemeBuiltInSet.defaultPreset).toBe(VIOLET_THEME_DEFAULT_PRESET);
+        expect(builtInAccentBackground).toMatch(/^#[0-9a-f]{6}$/);
         expect(violetThemeCssText).toBe(createVioletThemeCss(violetThemeBuiltInSet));
         expect(violetThemeCssText.startsWith(":root,\n[data-violet-theme-root]\n{\n  --color-accent-background: #dfecf4;")).toBe(true);
         expect(violetThemeCssText).toContain(':root[data-violet-theme="dark"],\n[data-violet-theme-root][data-violet-theme="dark"]\n{');
@@ -139,26 +222,31 @@ describe("violet runtime theme", () => {
         await expect(loadVioletBuiltInTheme()).resolves.toBe(violetThemeCssText);
     });
 
-    it("connects violet-theme hosts as scoped roots and ensures the runtime style exists", () => {
+    it("connects violet-theme hosts as scoped roots and ensures the runtime sheet is adopted", () => {
         const scope = document.createElement("violet-theme");
 
         document.body.append(scope);
 
         expect(scope.hasAttribute(VIOLET_THEME_ROOT_ATTRIBUTE)).toBe(true);
         expect(scope.getAttribute(VIOLET_THEME_PRESET_ATTRIBUTE)).toBe(VIOLET_THEME_DEFAULT_PRESET);
-        expect(document.head.querySelector('style[data-violet-theme="runtime"]')).toBeTruthy();
+        expect(runtimeSheets()).toHaveLength(1);
+        expect(sheetText(runtimeSheets()[0]!)).toBe(parsed(violetThemeCssText));
     });
 
-    it("installs the runtime style into a shadow root when violet-theme is used inside one", () => {
+    it("adopts the runtime sheet into a shadow root when violet-theme is used inside one", () => {
         const host = document.createElement("div");
         const shadowRoot = host.attachShadow({ mode: "open" });
         const scope = document.createElement("violet-theme");
+        scope.setAttribute("preset", "dark");
 
         document.body.append(host);
         shadowRoot.append(scope);
 
         expect(scope.hasAttribute(VIOLET_THEME_ROOT_ATTRIBUTE)).toBe(true);
-        expect(shadowRoot.querySelector('style[data-violet-theme="runtime"]')).toBeTruthy();
+        expect(shadowRoot.adoptedStyleSheets).toHaveLength(1);
+        expect(sheetText(shadowRoot.adoptedStyleSheets[0]!)).toBe(parsed(violetThemeCssText));
+        expect(runtimeSheets()).toEqual([]);
+        expect(getComputedStyle(scope).getPropertyValue("--color-accent-background").trim()).not.toBe(builtInAccentBackground);
     });
 
     it("reflects preset changes on violet-theme hosts", () => {
@@ -188,20 +276,21 @@ describe("a product's replacement theme set", () => {
     });
 
     it("installs as data without the built-in default ever being written", () => {
-        const style = installVioletThemeSet(productSet);
+        const sheet = installVioletThemeSet(productSet);
 
-        expect(runtimeStyles()).toEqual([style]);
-        expect(style.textContent).toBe(createVioletThemeCss(productSet));
-        expect(style.textContent).not.toContain("--color-action-danger-background");
-        expect(style.textContent).toContain('[data-violet-theme-root][data-violet-theme="night-garden"]');
+        expect(runtimeSheets()).toEqual([sheet]);
+        expect(sheetText(sheet)).toBe(parsed(createVioletThemeCss(productSet)));
+        expect(sheetText(sheet)).not.toContain("--color-action-danger-background");
+        expect(sheetText(sheet)).toContain('[data-violet-theme-root][data-violet-theme="night-garden"]');
         expect(getComputedStyle(document.documentElement).getPropertyValue("--color-brand-leaf").trim()).toBe("#2f6b3a");
         expect(getVioletThemePresets()).toEqual(["meadow", "night-garden"]);
         expect(getVioletThemeDefaultPreset()).toBe("meadow");
         expect(getVioletThemePreset(document)).toBe("meadow");
 
         // Later installs, by violet-theme hosts among them, write the product's set, not the built-in one.
-        expect(installVioletTheme(document)).toBe(style);
-        expect(style.textContent).toBe(createVioletThemeCss(productSet));
+        expect(installVioletTheme(document)).toBe(sheet);
+        expect(runtimeSheets()).toEqual([sheet]);
+        expect(sheetText(sheet)).toBe(parsed(createVioletThemeCss(productSet)));
     });
 
     it("selects a non-default preset on the document", () => {
@@ -238,12 +327,13 @@ describe("a product's replacement theme set", () => {
         const shadowRoot = host.attachShadow({ mode: "open" });
         document.body.append(host);
         shadowRoot.append(document.createElement("violet-theme"));
-        const scoped = shadowRoot.querySelector<HTMLStyleElement>('style[data-violet-theme="runtime"]');
-        expect(scoped?.textContent).toBe(violetThemeCssText);
+        const [scoped] = shadowRoot.adoptedStyleSheets;
+        expect(sheetText(scoped!)).toBe(parsed(violetThemeCssText));
 
         installVioletThemeSet(productSet);
 
-        expect(scoped?.textContent).toBe(createVioletThemeCss(productSet));
+        expect([...shadowRoot.adoptedStyleSheets]).toEqual([scoped]);
+        expect(sheetText(scoped!)).toBe(parsed(createVioletThemeCss(productSet)));
     });
 
     it("reaches a shadow root that was detached when the set changed, once it is attached again", () => {
@@ -251,15 +341,19 @@ describe("a product's replacement theme set", () => {
         const shadowRoot = host.attachShadow({ mode: "open" });
         document.body.append(host);
         const scoped = installVioletTheme(shadowRoot);
+        const scope = applyVioletThemeRoot(document.createElement("div"));
+        shadowRoot.append(scope);
         host.remove();
-        expect(scoped.isConnected).toBe(false);
+        expect(host.isConnected).toBe(false);
 
         installVioletThemeSet(productSet);
         document.body.append(host);
 
-        expect(scoped.textContent).toBe(createVioletThemeCss(productSet));
+        expect([...shadowRoot.adoptedStyleSheets]).toEqual([scoped]);
+        expect(sheetText(scoped)).toBe(parsed(createVioletThemeCss(productSet)));
+        expect(getComputedStyle(scope).getPropertyValue("--color-brand-leaf").trim()).toBe("#2f6b3a");
         resetVioletThemeSet();
-        expect(scoped.textContent).toBe(violetThemeCssText);
+        expect(sheetText(scoped)).toBe(parsed(violetThemeCssText));
     });
 
     it("keeps a violet-theme host's unknown preset as written and warns", () => {
@@ -274,11 +368,11 @@ describe("a product's replacement theme set", () => {
     });
 
     it("goes back to the built-in set on reset", () => {
-        const style = installVioletThemeSet(productSet);
+        const sheet = installVioletThemeSet(productSet);
 
         resetVioletThemeSet();
 
-        expect(style.textContent).toBe(violetThemeCssText);
+        expect(sheetText(sheet)).toBe(parsed(violetThemeCssText));
         expect(getVioletThemePresets()).toEqual(["light", "dark", "high-contrast"]);
     });
 
@@ -303,7 +397,7 @@ describe("a product's replacement theme set", () => {
             "the preset 'meadow' lists 'color.text.primary' more than once",
         ]);
         expect(() => installVioletThemeSet(unsound)).toThrow(TypeError);
-        expect(runtimeStyles()).toEqual([]);
+        expect(runtimeSheets()).toEqual([]);
         expect(getVioletThemePresets()).toEqual(["light", "dark", "high-contrast"]);
         // An open bracket or quote would swallow the rest of the stylesheet, so each is refused.
         for (const value of ["rgb(0 0 0", "var(--x", '"Inter', "'Segoe UI", "attr(x]", "a)b", "[x"]) {
@@ -318,5 +412,114 @@ describe("a product's replacement theme set", () => {
         expect(validateVioletThemeSet({ defaultPreset: "x", presets: null } as unknown as VioletThemeSet)).toEqual([
             "the theme set has no presets object",
         ]);
+    });
+});
+
+describe("the runtime sheet's targets", () => {
+    let error: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(async () => {
+        resetVioletThemeSet();
+        clearRuntimeTheme();
+        await loadVioletBuiltInTheme();
+        error = vi.spyOn(console, "error").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+        error.mockRestore();
+        resetVioletThemeSet();
+        clearRuntimeTheme();
+    });
+
+    it("refuses a document with no window, and a target that is not a document or shadow root", async () => {
+        const noWindow = /this document has no window; a constructed stylesheet cannot be adopted into it/;
+        const created = document.implementation.createHTMLDocument("created");
+        const parsedDocument = new DOMParser().parseFromString("<!doctype html><p>parsed</p>", "text/html");
+        const frame = await strictCspFrame();
+        const frameDocument = frame.contentDocument!;
+        frame.remove();
+        expect(frameDocument.defaultView).toBeNull();
+
+        for (const windowless of [created, parsedDocument, frameDocument]) {
+            expect(() => installVioletTheme(windowless)).toThrow(TypeError);
+            expect(() => installVioletTheme(windowless)).toThrow(noWindow);
+            expect([...windowless.adoptedStyleSheets]).toEqual([]);
+        }
+        const notATarget = document.createElement("div") as unknown as Document;
+        expect(() => installVioletTheme(notATarget)).toThrow(TypeError);
+        expect(() => installVioletTheme(notATarget)).toThrow(/must be a Document or a ShadowRoot/);
+
+        // A set refused for its target is not installed either.
+        expect(() => installVioletThemeSet(productSet, created)).toThrow(noWindow);
+        expect(getVioletThemePresets()).toEqual(["light", "dark", "high-contrast"]);
+        expect(runtimeSheets()).toEqual([]);
+    });
+
+    it("records no sheet when the target refuses it", async () => {
+        const frame = await strictCspFrame();
+        const frameDocument = frame.contentDocument!;
+        const constructed: CSSStyleSheet[] = [];
+        // The frame's document refuses an adoption, recording the sheet it was offered.
+        Object.defineProperty(frameDocument, "adoptedStyleSheets", {
+            configurable: true,
+            get: () => [],
+            set: (sheets: CSSStyleSheet[]) => {
+                constructed.push(...sheets);
+                throw new DOMException("refused", "NotAllowedError");
+            },
+        });
+
+        expect(() => installVioletTheme(frameDocument)).toThrow("refused");
+        delete (frameDocument as { adoptedStyleSheets?: unknown }).adoptedStyleSheets;
+        const [orphan] = constructed;
+        expect(orphan).toBeDefined();
+
+        // The refused sheet is not the frame's: the next install makes another, and a set change skips it.
+        const sheet = installVioletTheme(frameDocument);
+        expect(sheet).not.toBe(orphan);
+        expect([...frameDocument.adoptedStyleSheets]).toEqual([sheet]);
+        installVioletThemeSet(productSet);
+        expect(sheetText(sheet)).toBe(parsed(createVioletThemeCss(productSet)));
+        expect(sheetText(orphan!)).toBe(parsed(violetThemeCssText));
+    });
+
+    it("still rewrites the document's sheet after an adopted iframe is removed", async () => {
+        const pageSheet = installVioletTheme(document);
+        const frame = await strictCspFrame();
+        const frameSheet = installVioletTheme(frame.contentDocument!);
+        expect(frameSheet).not.toBe(pageSheet);
+
+        frame.remove();
+        installVioletThemeSet(productSet);
+
+        expect(runtimeSheets()).toEqual([pageSheet]);
+        expect(sheetText(pageSheet)).toBe(parsed(createVioletThemeCss(productSet)));
+        expect(getComputedStyle(document.documentElement).getPropertyValue("--color-brand-leaf").trim()).toBe("#2f6b3a");
+        // Chromium still writes a removed iframe's sheet, so its removal is no failure to report.
+        expect(error).not.toHaveBeenCalled();
+    });
+
+    it("keeps rewriting the other sheets when one cannot be written, and drops that one", async () => {
+        const frame = await strictCspFrame();
+        const frameSheet = installVioletTheme(frame.contentDocument!);
+        const pageSheet = installVioletTheme(document);
+        const broken = vi.spyOn(frameSheet, "replaceSync").mockImplementation(() => {
+            throw new DOMException("gone", "NotAllowedError");
+        });
+
+        installVioletThemeSet(productSet);
+
+        expect(sheetText(pageSheet)).toBe(parsed(createVioletThemeCss(productSet)));
+        expect(error).toHaveBeenCalledWith(expect.stringMatching(/could not be rewritten/), expect.any(DOMException));
+        expect(broken).toHaveBeenCalledTimes(1);
+
+        // Dropped: later changes no longer try it, and the frame's next install makes a new sheet.
+        resetVioletThemeSet();
+        expect(broken).toHaveBeenCalledTimes(1);
+        expect(sheetText(pageSheet)).toBe(parsed(violetThemeCssText));
+        const replacement = installVioletTheme(frame.contentDocument!);
+        expect(replacement).not.toBe(frameSheet);
+        expect(sheetText(replacement)).toBe(parsed(violetThemeCssText));
+        broken.mockRestore();
     });
 });

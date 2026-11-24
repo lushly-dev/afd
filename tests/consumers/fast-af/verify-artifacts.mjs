@@ -100,6 +100,7 @@ assert.equal(Object.keys(runtime.exports).length, 36);
 assert.deepEqual(Object.keys(component.exports), [
 	'.',
 	'./theme-css',
+	'./theme-runtime',
 	'./dist/*',
 	'./custom-elements.json',
 	'./tokens/*',
@@ -396,10 +397,9 @@ if (browserName !== 'none') {
 		await singleFilePage.waitForFunction(
 			() =>
 				globalThis.__singleFileReady === true &&
-				Boolean(
-					document
-						.querySelector('style[data-violet-theme="runtime"]')
-						?.textContent?.includes('--color-surface-page')
+				// The runtime adopts its theme sheet; it writes no style element.
+				document.adoptedStyleSheets.some((sheet) =>
+					[...sheet.cssRules].some((rule) => rule.cssText.includes('--color-surface-page'))
 				),
 			null,
 			{ timeout: 30000 }

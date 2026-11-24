@@ -11,6 +11,10 @@
  *   the runtime in Chromium, and optional storage backends that are absent.
  * - Integration absent, present, incompatible (bad or missing core peer) and unavailable (its
  *   declared AFD dependency missing), plus a consumer's own AFD 2.x shared with it.
+ * - Selector parity: violet-runtime reproduces `@lushly-dev/violet-elements`' theme selectors and
+ *   preset-name rule rather than importing them (Loam D50), so the rule `adopt()` writes is
+ *   compared in Chromium with the rules violet-elements' `createVioletThemeCss` writes (imported
+ *   from its source, which Node runs as it is), and both validators judge the same names.
  * - Endpoints: the `violet` and `violet-mcp` binaries and the server's entry points. With
  *   `--baseline <violet checkout>` (built at the imported revision) the CLI's serialized output
  *   is compared byte for byte with the upstream binary.
@@ -18,6 +22,9 @@
  * Local tarballs only: this is not registry installation evidence. `@lushly-dev/afd-core` is packed
  * from the workspace like the Violet units; third-party packages come from the configured registry
  * or pnpm store.
+ *
+ * Needs a Node that strips TypeScript types by default (22.18, 23.6 or later; CI uses .nvmrc),
+ * because it reads violet-elements' selector source, a .ts file, for the selector parity check.
  *
  * Usage: pnpm -F "@lushly-dev/violet-cli..." -F @lushly-dev/violet-runtime -F @lushly-dev/afd-core build
  *        node tests/consumers/violet/verify-artifacts.mjs [--output <dir>] [--baseline <dir>]
@@ -37,6 +44,16 @@ import { execTool, spawnTool, tarCommand } from '../../../scripts/release/exec-t
 import { assertOverridesApplied, peerIssue, writeConsumer } from '../pnpm.mjs';
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+// The selector parity check reads violet-elements' TypeScript source, which Node runs only where
+// it strips types by default; say so plainly instead of failing at import.
+if (!process.features?.typescript) {
+	throw new Error(
+		`tests/consumers/violet needs a Node that runs TypeScript by default (22.18, 23.6 or later); this is ${process.version}. Use the .nvmrc version.`
+	);
+}
+const { createVioletThemeCss, validateVioletThemeSet } = await import(
+	'../../../foundations/fast-af/packages/violet-elements/src/theme/violet-theme-css.ts'
+);
 const argument = (name) => {
 	const index = process.argv.indexOf(name);
 	return index > 0 ? resolve(process.argv[index + 1]) : undefined;
@@ -329,6 +346,54 @@ await writeFile(
 	join(violetRoot, 'source.html'),
 	`<!doctype html><style>button { background: var(--color-action); padding: var(--spacing-md); }</style><button>Source</button><script type="module">${runtimeImport} const violet = new VioletRuntime({ nodeId: "brand-dark", source: ${JSON.stringify(preloaded)} }); await violet.load(); document.body.dataset.loaded = String(violet.getAll().length);</script>`
 );
+// adopt() themes a page whose policy forbids every style element and attribute: the runtime's
+// sheet, and the page's own button rule, are constructed sheets, which style-src does not govern.
+// One value tries to end the rule and style the body; the CSSOM refuses it, so it adds no
+// rule. A second runtime adopts into an iframe that is then removed, and its next switch still rewrites the
+// document's sheet.
+const hostile = {
+	tokens: [
+		...preloaded.tokens,
+		{ id: 'color.hostile', value: 'red;} body{background:red} :root{x:y' },
+	],
+};
+await writeFile(
+	join(violetRoot, 'adopted.html'),
+	`<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'none'"><button>Adopted</button><script type="module">${runtimeImport} const background = () => getComputedStyle(document.body).backgroundColor; const before = background(); const page = new CSSStyleSheet(); page.replaceSync("button { background: var(--color-action); padding: var(--spacing-md); }"); document.adoptedStyleSheets = [page]; const violet = new VioletRuntime({ nodeId: "brand-dark", source: ${JSON.stringify(hostile)} }); const sheet = violet.adopt(document); await violet.load(); const probe = new VioletRuntime({ nodeId: "probe-a", source: { tokens: [{ id: "probe", value: "a" }] } }); const probeSheet = probe.adopt(document); const frame = document.createElement("iframe"); document.body.append(frame); const frameSheet = probe.adopt(frame.contentDocument); frame.remove(); await probe.switchNode("probe-b", { tokens: [{ id: "probe", value: "b" }] }); document.body.dataset.iframe = [frameSheet !== probeSheet, probeSheet.cssRules[0].style.getPropertyValue("--probe").trim()].join(); document.adoptedStyleSheets = document.adoptedStyleSheets.filter((adopted) => adopted !== probeSheet); document.body.dataset.inline = String(document.documentElement.style.length); document.body.dataset.adopted = String(document.adoptedStyleSheets.includes(sheet)); document.body.dataset.rules = String(sheet.cssRules.length); document.body.dataset.hostile = sheet.cssRules[0].style.getPropertyValue("--color-hostile").trim(); document.body.dataset.background = String(background() === before); document.body.dataset.loaded = String(violet.getAll().length);</script>`
+);
+// The selector contract, written by violet-elements and by violet-runtime: the default preset and
+// a named one, and the preset names each accepts.
+const paritySet = {
+	defaultPreset: 'light',
+	presets: {
+		light: [{ id: 'color.text', value: '#000000' }],
+		dark: [{ id: 'color.text', value: '#ffffff' }],
+	},
+};
+const presetSamples = [
+	'dark',
+	'high-contrast',
+	'night_2',
+	'0dark',
+	'Dark',
+	'-dark',
+	'_dark',
+	'dark mode',
+	'dark"]',
+	'dark.dim',
+	'ünï',
+	'',
+];
+const elementsAccepts = Object.fromEntries(
+	presetSamples.map((name) => [
+		name,
+		validateVioletThemeSet({ defaultPreset: name, presets: { [name]: [] } }).length === 0,
+	])
+);
+await writeFile(
+	join(violetRoot, 'parity.html'),
+	`<!doctype html><meta charset="utf-8"><script type="module">${runtimeImport} const selectors = (sheet) => [...sheet.cssRules].map((rule) => rule.selectorText); const elements = new CSSStyleSheet(); elements.replaceSync(${JSON.stringify(createVioletThemeCss(paritySet))}); const runtime = (preset) => { const violet = new VioletRuntime({ nodeId: "parity", source: { tokens: [{ id: "color.text", value: "#000000" }] } }); return selectors(violet.adopt(document, preset === undefined ? {} : { preset }))[0]; }; const accepts = Object.fromEntries(${JSON.stringify(presetSamples)}.map((name) => { try { runtime(name); return [name, true]; } catch { return [name, false]; } })); window.parity = { elements: selectors(elements), runtime: [runtime(), runtime("dark")], accepts };</script>`
+);
 // ThemeManager follows prefers-color-scheme, prefers-contrast and forced-colors.
 const systemSources = {
 	light: { tokens: [{ id: 'color.text', value: '#000000' }] },
@@ -406,6 +471,42 @@ try {
 	);
 	assert.equal(apiRequests, 1, 'a preloaded source makes no token request');
 
+	const violations = [];
+	page.on('console', (message) => {
+		if (/Content Security Policy/i.test(message.text())) violations.push(message.text());
+	});
+	await page.goto(`${origin}/adopted.html`);
+	await page.waitForSelector('body[data-loaded]');
+	assert.deepEqual(await page.$eval('body', (body) => ({ ...body.dataset })), {
+		iframe: 'true,b',
+		inline: '0',
+		adopted: 'true',
+		rules: '1',
+		// The CSSOM refuses the value as a whole (its braces do not balance): no declaration, no rule.
+		hostile: '',
+		background: 'true',
+		loaded: '5',
+	});
+	const adopted = await style();
+	assert.deepEqual(
+		[adopted.tag, adopted.background, adopted.padding],
+		['BUTTON', 'rgb(53, 32, 100)', '12px']
+	);
+	assert.deepEqual(violations, []);
+	assert.equal(apiRequests, 1, 'an adopted preloaded source makes no token request');
+
+	await page.goto(`${origin}/parity.html`);
+	await page.waitForFunction(() => 'parity' in window);
+	const parity = await page.evaluate(() => window.parity);
+	assert.deepEqual(parity.runtime, parity.elements, "adopt()'s selectors are violet-elements'");
+	assert.equal(parity.elements.length, 2);
+	assert.deepEqual(parity.accepts, elementsAccepts, 'both accept and refuse the same preset names');
+	// The samples hold both outcomes, so agreement is not two validators accepting everything.
+	assert.deepEqual(
+		presetSamples.filter((name) => elementsAccepts[name]),
+		['dark', 'high-contrast', 'night_2', '0dark', 'Dark']
+	);
+
 	const system = await browser.newPage();
 	const theme = async (expected) => {
 		await system.waitForSelector(`body[data-theme="${expected}"]`, { state: 'attached' });
@@ -426,7 +527,10 @@ try {
 	http.close();
 }
 passed(
-	`Chromium ${browserVersion}: exported CSS styles a plain HTML button; the runtime applies the same tokens as custom properties, over HTTP and from a preloaded source with no request`
+	`Chromium ${browserVersion}: exported CSS styles a plain HTML button; the runtime applies the same tokens as custom properties, over HTTP and from a preloaded source with no request, and adopt() applies them as a sheet under a policy forbidding inline styles, refuses a value that tries to end its rule, and still rewrites the document's sheet after an adopted iframe is removed`
+);
+passed(
+	`Chromium ${browserVersion}: adopt() writes violet-elements' theme selectors for the default and a named preset, and both accept and refuse the same preset names`
 );
 passed(
 	`Chromium ${browserVersion}: ThemeManager follows prefers-color-scheme, prefers-contrast: more and forced-colors: active to a high-contrast theme`

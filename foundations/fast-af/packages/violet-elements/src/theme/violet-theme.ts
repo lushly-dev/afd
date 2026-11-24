@@ -1,6 +1,7 @@
 import { FASTElement, attr, css, html } from "@lushly-dev/fast-element";
 
 import { VIOLET_THEME_PRESET_ATTRIBUTE, VIOLET_THEME_ROOT_ATTRIBUTE, type VioletThemePreset } from "./violet-theme-css";
+import { isShadowRoot } from "./violet-theme-nodes";
 import { getVioletThemeDefaultPreset, getVioletThemePresets, installVioletTheme, isVioletThemePreset } from "./violet-theme-runtime";
 
 const styles = css`
@@ -30,7 +31,7 @@ export class VioletTheme extends FASTElement {
     public connectedCallback(): void {
         super.connectedCallback();
         const rootNode = this.getRootNode();
-        installVioletTheme(rootNode instanceof ShadowRoot ? rootNode : this.ownerDocument);
+        installVioletTheme(isShadowRoot(rootNode) ? rootNode : this.ownerDocument);
         this.setAttribute(VIOLET_THEME_ROOT_ATTRIBUTE, "");
         this.applyPreset();
     }

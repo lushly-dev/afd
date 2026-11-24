@@ -1,6 +1,6 @@
 # @lushly-dev/violet-runtime
 
-Web SDK for Violet Design tokens: load a node's resolved tokens from the Violet API, cache them, apply them as CSS custom properties, and switch themes at runtime.
+Web SDK for Violet Design tokens: load a node's resolved tokens from the Violet API, cache them, adopt them as a stylesheet of CSS custom properties, and switch themes at runtime.
 
 ```bash
 npm install @lushly-dev/violet-runtime@preview
@@ -14,6 +14,7 @@ const violet = new VioletRuntime({
 	apiUrl: 'https://violet.example.com', // your Violet deployment
 	apiKey: 'your-api-key',
 });
+violet.adopt(document);
 await violet.load();
 
 const themes = new ThemeManager(violet, {
@@ -28,6 +29,22 @@ await themes.switch('brand-dark');
 
 `apiUrl` is required whenever you pass `apiKey`: there is no default host, so the constructor throws rather than send your key somewhere you did not choose. Without a key, `apiUrl` defaults to the page's own origin.
 
+## Adopting a stylesheet
+
+`adopt(target?)` adopts one constructed stylesheet holding the loaded tokens into the document, or into a shadow root, through `adoptedStyleSheets`, and returns it. A repeated call adds nothing, a document and its shadow roots share one sheet, and every `load()` and `switchNode()` rewrites it, so every root that adopted it changes at once. `unadopt(target?)` takes it out again.
+
+- The selectors are `@lushly-dev/violet-elements`' theme contract: the tokens apply on `:root` and on every element marked `data-violet-theme-root`. `adopt(target, { preset: 'dark' })` narrows them to where `data-violet-theme="dark"` is selected; one runtime adopts as one preset, so create a runtime per preset.
+- No `<style>` element or inline style is written, so a page whose Content Security Policy forbids inline styles needs no exception.
+- Adopted sheets come after the page's own `<style>` and `<link>` sheets in the cascade, so a page rule overriding a token on `:root` needs a more specific selector. `adopt()` appends after the sheets already adopted there, so a page's own adopted override sheet must be adopted after it, or use more specific selectors.
+- The sheet sets the tokens on every `[data-violet-theme-root]` too, so a token set on `body` is overridden again inside such a descendant.
+- In a shadow root, the root's `<style>` elements come before its adopted sheets, so a host's `<style>` that overrides a token on a `[data-violet-theme-root]` child with equal specificity loses to the runtime's sheet. Raise its specificity, or adopt the override after the runtime's sheet.
+- The returned sheet belongs to the runtime: every `load()` and `switchNode()` rewrites it, so an edit made to it lasts until then, and a repeated `adopt()` does not undo it.
+- `adopt()` throws a `TypeError` for a target that is neither a document nor a shadow root, and for a document with no window (one made by `createHTMLDocument` or `DOMParser`, or an iframe's once the iframe is removed). A refused call changes nothing. A sheet that can no longer be rewritten is reported with `console.error` and dropped; the others are still rewritten.
+- Values are written through the CSSOM, as inline properties are, so a value cannot end the rule.
+- Once `adopt()` is called, `autoApply` no longer writes inline properties, and those this runtime's `applyToDocument()` wrote are removed, since they would override the sheet. `removeFromDocument()` undoes only the inline properties the runtime wrote that still hold its value, restoring the value the page had before the first write; a property the page changed since is left as it is.
+
+`applyToDocument()`, `removeFromDocument()` and the `autoApply` option, which write inline properties on the root element, are deprecated in favour of `adopt()` and will be removed in a later release. `autoApply` still defaults to `true` until then, so a runtime that is never adopted keeps its present behaviour.
+
 ## Preloaded tokens
 
 A static build can apply a theme with no token server: pass the resolved tokens as `source` in place of `apiUrl`. The two are either/or: the types refuse both, and so does the constructor.
@@ -39,7 +56,8 @@ const violet = new VioletRuntime({
 	nodeId: 'brand-dark',
 	source: { tokens: themes.nodes['brand-dark'] },
 });
-await violet.load(); // no request; applies the tokens as custom properties
+violet.adopt(document);
+await violet.load(); // no request; writes the tokens into the adopted sheet
 
 await violet.switchNode('brand-light', { tokens: themes.nodes['brand-light'] });
 ```

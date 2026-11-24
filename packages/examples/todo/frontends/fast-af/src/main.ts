@@ -8,7 +8,7 @@ import { applyTheme } from '@afd/example-todo-ui/theme';
 import { defineTodoApp, type TodoApp } from './todo-app';
 import '@afd/example-todo-ui/styles.css';
 
-applyTheme();
+await applyTheme();
 await defineTodoApp();
 const backend = new URLSearchParams(location.search).get('backend') ?? 'http://localhost:3100';
 const session = new TodoSession({ baseUrl: backend.replace(/\/+$/, '') });
