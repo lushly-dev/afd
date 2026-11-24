@@ -134,7 +134,7 @@ impl RegistryRef {
         command: &CommandDefinition,
     ) -> Option<Vec<String>> {
         let requires = command.requires.as_ref()?;
-        let requires = match &context.known {
+        let requires = match &context.server().known {
             Some(known) => known.admitted(requires),
             None => requires.clone(),
         };
@@ -171,6 +171,7 @@ impl RegistryRef {
         // On a server that filters listings by scope, a command the caller may not see looks
         // unknown here, as on `tools/list` (`spec/authorization.md`, M6).
         let visible = context
+            .server()
             .tool_surface
             .as_ref()
             .and_then(|surface| surface.visible.as_ref());

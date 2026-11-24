@@ -1449,7 +1449,7 @@ async fn a_step_approved_up_front_runs_on_the_input_validated_then() {
         confirm_prompt: None,
     };
     let mut context = CommandContext::new();
-    context.up_front_approval = Some(Arc::new(UpFrontApproval::new(
+    context.server_mut().up_front_approval = Some(Arc::new(UpFrontApproval::new(
         "afd-batch",
         "[]".into(),
         false,
@@ -1694,4 +1694,117 @@ async fn a_replaced_context_keeps_the_servers_default_deadline_choice() {
         .await;
     assert!(result.success, "{result:?}");
     assert_eq!(*seen.lock().unwrap(), Some(Some(None)));
+}
+
+/// Reports whether the handler's context carries server state, and which of it.
+struct ServerProbe;
+
+#[async_trait]
+impl CommandHandler for ServerProbe {
+    async fn execute(
+        &self,
+        _input: serde_json::Value,
+        context: CommandContext,
+    ) -> CommandResult<serde_json::Value> {
+        let server = context.server();
+        success(serde_json::json!({
+            "present": context.server.is_some(),
+            "remote": server.remote,
+            "upFront": server.up_front_approval.is_some(),
+            "relayAsks": server.approval_relay.is_some(),
+        }))
+    }
+}
+
+fn server_probe_registry() -> CommandRegistry {
+    let registry = CommandRegistry::new();
+    registry
+        .register(CommandDefinition::new(
+            "server-probe",
+            "Probe",
+            vec![],
+            ServerProbe,
+        ))
+        .unwrap();
+    registry
+}
+
+fn server_context() -> CommandContext {
+    use crate::approval::relay::{ApprovalRelayChannel, UpFrontApproval};
+    let mut context = CommandContext::new();
+    let server = context.server_mut();
+    server.remote = true;
+    server.up_front_approval = Some(Arc::new(UpFrontApproval::new(
+        "afd-batch",
+        "[]".into(),
+        false,
+        vec![],
+        Arc::new(ApprovalRelayChannel::never_asks()),
+    )));
+    context
+}
+
+#[tokio::test]
+async fn an_in_process_call_carries_no_server_state() {
+    let result = server_probe_registry()
+        .execute("server-probe", serde_json::json!({}), None)
+        .await;
+    assert_eq!(result.data.unwrap()["present"], false);
+}
+
+#[tokio::test]
+async fn clearing_the_relay_state_for_the_handler_leaves_other_copies_alone() {
+    // The handler's copy loses the up-front approval; the caller's context, a sibling clone and
+    // the state a middleware layer sees after `next` keep theirs.
+    let registry = server_probe_registry();
+    let seen_after = Arc::new(std::sync::Mutex::new(None));
+    let after = Arc::clone(&seen_after);
+    registry.add_middleware(Arc::new(move |_name, _input, context, next| {
+        let after = Arc::clone(&after);
+        Box::pin(async move {
+            let kept = context.clone();
+            let result = next(context).await;
+            *after.lock().unwrap() = Some(kept.server().up_front_approval.is_some());
+            result
+        })
+    }));
+    let context = server_context();
+    let sibling = context.clone();
+    let result = registry
+        .execute("server-probe", serde_json::json!({}), Some(context.clone()))
+        .await;
+    let data = result.data.unwrap();
+    assert_eq!(
+        data["remote"], true,
+        "the handler keeps the caller's server state"
+    );
+    assert_eq!(data["upFront"], false, "but never the up-front approval");
+    assert!(context.server().up_front_approval.is_some());
+    assert!(sibling.server().up_front_approval.is_some());
+    assert_eq!(*seen_after.lock().unwrap(), Some(true));
+}
+
+#[tokio::test]
+async fn a_replaced_context_keeps_the_calls_server_state() {
+    // An outer layer passes a fresh context; the inner layer still sees the call's server state.
+    let registry = server_probe_registry();
+    registry.add_middleware(Arc::new(|_, _, _context, next| next(CommandContext::new())));
+    let seen = Arc::new(std::sync::Mutex::new(None));
+    let inner = Arc::clone(&seen);
+    registry.add_middleware(Arc::new(move |_, _, context, next| {
+        *inner.lock().unwrap() = Some((
+            context.server().remote,
+            context.server().up_front_approval.is_some(),
+        ));
+        next(context)
+    }));
+    let result = registry
+        .execute(
+            "server-probe",
+            serde_json::json!({}),
+            Some(server_context()),
+        )
+        .await;
+    assert_eq!(*seen.lock().unwrap(), Some((true, true)));
+    assert_eq!(result.data.unwrap()["remote"], true);
 }

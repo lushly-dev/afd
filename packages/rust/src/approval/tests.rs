@@ -1392,7 +1392,7 @@ fn relayed(evidence: relay::RelayEvidence) -> CommandContext {
     let mut context = CommandContext::new()
         .with_actor(agent())
         .with_credentials(credentials("user-1", "app"));
-    context.relay_evidence = Some(Arc::new(evidence));
+    context.server_mut().relay_evidence = Some(Arc::new(evidence));
     context
 }
 
@@ -1573,13 +1573,14 @@ struct Peek(Arc<Mutex<Vec<(bool, bool)>>>);
 impl CommandHandler for Peek {
     async fn execute(&self, _: Value, context: CommandContext) -> CommandResult<Value> {
         let claimable = context
+            .server()
             .approval_relay
             .as_ref()
             .is_some_and(|relay| relay.claim("peek-run"));
         self.0
             .lock()
             .unwrap()
-            .push((context.relay_evidence.is_some(), claimable));
+            .push((context.server().relay_evidence.is_some(), claimable));
         success(json!({}))
     }
 }
@@ -1597,8 +1598,8 @@ async fn the_handler_never_sees_relay_evidence_or_a_claimable_relay() {
         ))
         .unwrap();
     let mut context = CommandContext::new();
-    context.relay_evidence = Some(Arc::new(evidence()));
-    context.approval_relay = Some(Arc::new(relay::ApprovalRelayChannel::asking(
+    context.server_mut().relay_evidence = Some(Arc::new(evidence()));
+    context.server_mut().approval_relay = Some(Arc::new(relay::ApprovalRelayChannel::asking(
         "peek-run",
         Box::new(|| Some(Arc::new(relay::RoundAnswers::default()))),
     )));
@@ -1707,7 +1708,7 @@ async fn a_relayed_approval_counts_only_within_this_middlewares_lifetime() {
             Box::new(move || Some(Arc::clone(&answers))),
         ));
         let mut context = CommandContext::new().with_actor(agent());
-        context.approval_relay = Some(Arc::clone(&channel));
+        context.server_mut().approval_relay = Some(Arc::clone(&channel));
         let result = harness
             .call("todo-delete", json!({ "id": 1 }), context)
             .await;
@@ -1751,7 +1752,7 @@ async fn an_up_front_step_takes_only_an_approval_of_its_own_input_once() {
         Arc::clone(&channel),
     ));
     let mut context = CommandContext::new().with_actor(agent());
-    context.up_front_approval = Some(up_front);
+    context.server_mut().up_front_approval = Some(up_front);
     // Another input (say, a nested call's) does not take the step's approval.
     let other = harness
         .call("todo-delete", json!({ "id": 2 }), context.clone())
@@ -1781,7 +1782,7 @@ async fn the_handler_never_sees_the_up_front_approval() {
             self.0
                 .lock()
                 .unwrap()
-                .push(context.up_front_approval.is_some());
+                .push(context.server().up_front_approval.is_some());
             success(json!(null))
         }
     }
@@ -1796,7 +1797,7 @@ async fn the_handler_never_sees_the_up_front_approval() {
         ))
         .unwrap();
     let mut context = CommandContext::new();
-    context.up_front_approval = Some(Arc::new(relay::UpFrontApproval::new(
+    context.server_mut().up_front_approval = Some(Arc::new(relay::UpFrontApproval::new(
         "afd-batch",
         "[]".into(),
         false,
@@ -1829,7 +1830,7 @@ async fn a_single_command_answer_is_never_an_up_front_approval() {
         confirm_prompt: None,
     };
     let mut context = CommandContext::new().with_actor(agent());
-    context.up_front_approval = Some(Arc::new(relay::UpFrontApproval::new(
+    context.server_mut().up_front_approval = Some(Arc::new(relay::UpFrontApproval::new(
         "afd-batch",
         "[]".into(),
         false,
@@ -1847,7 +1848,7 @@ async fn a_single_command_answer_is_never_an_up_front_approval() {
 /// An approver's call ("Approval evidence from an approver client"), as the MCP server marks it.
 fn approver_context(evidence: Option<&str>) -> CommandContext {
     let mut context = CommandContext::new().with_actor(agent());
-    context.approver = Some(Arc::new(super::approver::ApproverCall::new(
+    context.server_mut().approver = Some(Arc::new(super::approver::ApproverCall::new(
         evidence.map(str::to_owned),
     )));
     context

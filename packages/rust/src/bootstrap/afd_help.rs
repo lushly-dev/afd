@@ -161,7 +161,7 @@ impl CommandHandler for AfdHelpHandler {
             all_commands
         };
 
-        let surface = context.tool_surface.as_ref();
+        let surface = context.server().tool_surface.as_ref();
         let first_class: &[String] = surface
             .and_then(|surface| surface.first_class_tools.as_deref())
             .map_or(&[], Vec::as_slice);

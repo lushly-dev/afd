@@ -252,7 +252,7 @@ impl Call<'_> {
     /// the up-front approval.
     fn up_front_context(&self, up_front: &Arc<UpFrontApproval>) -> CommandContext {
         let mut context = self.step_context();
-        context.up_front_approval = Some(Arc::clone(up_front));
+        context.server_mut().up_front_approval = Some(Arc::clone(up_front));
         context
     }
 }
