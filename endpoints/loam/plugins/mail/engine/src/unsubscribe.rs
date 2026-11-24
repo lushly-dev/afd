@@ -25,7 +25,7 @@ use mail_parser::MessageParser;
 use serde_json::{Value, json};
 use url::Url;
 
-use crate::commands::{command_line_only, store_failure};
+use crate::commands::{released_exposure, store_failure};
 use crate::derive;
 use crate::drafts::{MOST_SUBJECT, address, unsafe_in_subject};
 use crate::engine::Engine;
@@ -33,7 +33,7 @@ use crate::provider::ProviderError;
 use crate::provider::http::{UnsubscribeOutcome, is_allowed_https_url};
 use crate::provider::smtp::{OutgoingMessage, SendOutcome, build_message, new_message_id};
 use crate::read::{
-    MOST_BUDGET, budget, content, fits, integer, parameter, read_exposure, required, too_small,
+    MOST_BUDGET, budget, content, fits, integer, parameter, read_exposure, required,
 };
 use crate::screening::proposer_of;
 use crate::store::{AccountRow, MessageId, OutboundState, StoreError};
@@ -54,6 +54,9 @@ const MAX_MAILTO_BODY: usize = 4096;
 /// Fixed output budget for `mail-unsubscribe-show` (default == max == `MOST_BUDGET`,
 /// matching `mail-draft-show` and step F's F-T6).
 const SHOW_BUDGET: u64 = MOST_BUDGET;
+/// Maximum MCP wire size for a rendered unsubscribe preview: 3.5 MiB, leaving
+/// 0.5 MiB under the 4 MiB ceiling for the envelope (plugin.spec.md, section 6).
+const MAX_PREVIEW_MCP_BYTES: usize = 3_670_016;
 /// Bounded timeout for the best-effort IMAP `APPEND` of a `mailto:` unsubscribe
 /// copy to the account's Sent mailbox.
 const SENT_COPY_TIMEOUT: Duration = Duration::from_secs(10);
@@ -516,6 +519,15 @@ fn preview_changed() -> CommandError {
     .with_suggestion("Read it again with mail-unsubscribe-show and ask the person again.")
 }
 
+fn preview_too_large() -> CommandError {
+    CommandError::new(
+        "PREVIEW_TOO_LARGE",
+        "the unsubscribe preview exceeds what one call can show whole",
+    )
+    .with_retryable(false)
+    .with_suggestion("This message cannot be unsubscribed through a previewed call.")
+}
+
 /// Derives the unsubscribe target and metadata for `message_id` (and optional
 /// `account_id`) directly from the message's held header block. Contacts
 /// nothing over the network.
@@ -706,6 +718,12 @@ pub fn pre_approval_check(engine: &Engine, input: &Value) -> Option<CommandError
     if derived.digest != digest {
         return Some(preview_changed());
     }
+    let preview = preview_json(&derived);
+    if !fits(&preview, SHOW_BUDGET as usize)
+        || crate::reply_size(&success(preview), Some(CommandInterface::Mcp)) > MAX_PREVIEW_MCP_BYTES
+    {
+        return Some(preview_too_large());
+    }
     None
 }
 
@@ -759,8 +777,11 @@ impl CommandHandler for Show {
         }
         let result = preview_json(&derived);
         let limit = budget(&context, SHOW_BUDGET);
-        if !fits(&result, limit) {
-            return failure(too_small(limit));
+        if !fits(&result, limit)
+            || crate::reply_size(&success(result.clone()), Some(CommandInterface::Mcp))
+                > MAX_PREVIEW_MCP_BYTES
+        {
+            return failure(preview_too_large());
         }
         success(result)
     }
@@ -847,13 +868,14 @@ impl CommandHandler for Unsubscribe {
                 .actor
                 .as_ref()
                 .is_some_and(|actor| actor.kind == ActorKind::Human);
-        if !is_terminal_human {
+        let is_approver_mcp = crate::is_approver(&self.engine, &context);
+        if !is_terminal_human && !is_approver_mcp {
             return failure(
                 CommandError::new(
                     "PERSON_REQUIRED",
-                    "`mail-unsubscribe` is a person's command and must be run at a terminal",
+                    "`mail-unsubscribe` is a person's command and must be approved at a terminal or through an approver",
                 )
-                .with_suggestion("Run `loam-mail mail-unsubscribe` at a terminal."),
+                .with_suggestion("Run `loam-mail mail-unsubscribe` at a terminal, or approve it in Loam."),
             );
         }
         let now = context.clock().now();
@@ -1326,7 +1348,7 @@ pub fn unsubscribe(engine: Arc<Engine>) -> CommandDefinition {
     .with_destructive(true)
     .with_confirm_prompt("Unsubscribe from this message's mailing list")
     .with_approval(ApprovalPolicy::Required)
-    .with_expose(command_line_only())
+    .with_expose(released_exposure())
 }
 
 #[cfg(test)]

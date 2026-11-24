@@ -2009,24 +2009,31 @@ tested on scripted SMTP and IMAP servers.
   `outbound` rows.
 - **Recipient rule and preview.** `mail-draft-show` (and create/update results) add `state`,
   `recipientBasis` (`own`, `thread`, `written-to` or `new` per recipient, in parallel arrays) and
-  `replyToDiffers`. Thread participants come only from messages currently shown in the draft's
-  account outside junk and trash that are reachable from the answered message through non-junk/trash
-  `Message-ID`/`In-Reply-To`/`References` links (never from a differing `Reply-To`, never from a
-  junk/trash answered message, and never across a junk bridge). `mail-label` refuses filing mail
-  into a `Sent` mailbox so an agent cannot forge `own` or `written-to` evidence. Before asking for
-  approval at the terminal, the command line strips any pre-supplied `typedRecipients` from JSON
-  input, prints the labelled preview and bases, flags a differing `Reply-To`, and asks the person to
-  type every `new` address verbatim (preserving local-part case) for this send. The engine accepts
-  `mail-draft-send` only from a human over `cli` (`PERSON_REQUIRED` otherwise), and refuses any
-  remaining `new` recipient with `RECIPIENT_NOT_ALLOWED`.
-- **`mail-draft-send`** is a person's command, destructive and held for approval (M18, M29),
-  exposed to `cli` alone. It takes `draft` and `revision` (the command line fills in `revision`
-  only when omitted); a mismatch fails with `PREVIEW_CHANGED`. It atomically checks the revision
-  and recipients, records `outbound` as `sending`, builds an RFC 5322 plain-text message (RFC 2047
-  UTF-8 subject, folded `References`, quoted-printable UTF-8 body, `In-Reply-To` when answering,
-  and no `Bcc:` header on the SMTP wire, preserving local-part case in envelope deduplication), and
-  submits it over SMTP (`smtp.mail.me.com:587` with STARTTLS, `AUTH PLAIN` with `AUTH LOGIN`
-  fallback; plain TCP refused on non-loopback hosts).
+  `replyToDiffers`. Thread participants are classified when a recipient is added to a draft from
+  messages currently shown in the draft's account outside junk and trash that are reachable from the
+  answered message through non-junk/trash `Message-ID`/`In-Reply-To`/`References` links (never from
+  a differing `Reply-To`, never from a junk/trash answered message, and never across a junk bridge).
+  From step F2b (migration 23), each recipient's `basis` is stored with the draft when added (and
+  backfilled on open for pre-migration-23 drafts) so `mail-draft-show` stays stable at an unchanged
+  revision and retained recipients keep their basis across updates; `mail-account-remove` refreshes
+  surviving drafts whose `answers_message_id` is cleared or whose `own` recipient belonged to the
+  removed account, bumping their revision. `mail-label` refuses filing mail into a `Sent` mailbox so
+  an agent cannot forge `own` or `written-to` evidence. Before asking for approval at the terminal,
+  the command line strips any pre-supplied `typedRecipients` from JSON input, prints the labelled
+  preview and bases, flags a differing `Reply-To`, and asks the person to type every `new` address
+  verbatim (preserving local-part case) for this send. The engine accepts `mail-draft-send` from a
+  human over `cli` or an approver over MCP (`PERSON_REQUIRED` otherwise): terminal sends refuse any
+  untyped `new` recipient with `RECIPIENT_NOT_ALLOWED`, while approver-released MCP sends allow
+  `new` recipients marked `"new"` in preview (Q2 (a)).
+- **`mail-draft-send`** is a person's command, destructive and held for approval (M18 amended in
+  F2a/F2b, M29), exposed to `cli` and `mcp` (never `agent` or `palette`). It takes `draft` and
+  `revision` (the command line fills in `revision` only when omitted); a mismatch fails with
+  `PREVIEW_CHANGED` before any hold and again inside the send transaction. It atomically checks the
+  revision and recipients, records `outbound` as `sending`, builds an RFC 5322 plain-text message
+  (RFC 2047 UTF-8 subject, folded `References`, quoted-printable UTF-8 body, `In-Reply-To` when
+  answering, and no `Bcc:` header on the SMTP wire, preserving local-part case in envelope
+  deduplication), and submits it over SMTP (`smtp.mail.me.com:587` with STARTTLS, `AUTH PLAIN` with
+  `AUTH LOGIN` fallback; plain TCP refused on non-loopback hosts).
 - **Handover and sent copy.** A failure before `.\r\n` or an explicit 4xx/5xx complete reply after
   `DATA` marks the attempt `failed` and returns the draft to `open` (452 maps to retryable
   `PROVIDER_LIMIT`, permanent 5xx such as 550/552 maps to non-retryable `PROVIDER_REFUSED`). A drop,
@@ -2067,6 +2074,32 @@ terminal, tested on scripted HTTPS and SMTP doubles.
   non-retryable `SEND_OUTCOME_UNKNOWN`. `mail` submits over SMTP and appends a best-effort `\Seen`
   copy to the sent mailbox, sharing the same handover and `SEND_OUTCOME_UNKNOWN` rules as
   `mail-draft-send`.
+
+**As step F2b built it** (migration 23; `plugin.spec.md` sections 5–8, Q2 (a)):
+
+- **Released over MCP.** `mail-draft-send` and `mail-unsubscribe` are exposed to `cli` and `mcp`
+  (`ApprovalPolicy::Required`, M18 amended) and listed in `mount/loam-app.toml` with
+  `effects = ["external"]`. Non-approver MCP/stdio callers receive `APPROVAL_REQUIRED` with
+  `retryable: false`, a content-free summary, the engine's suggestion and no `approvalToken`;
+  an approver token on MCP 2026-07-28 releases either command once with `_meta["dev.afd/approval"]`.
+  Under Q2 (a), an approver-released `mail-draft-send` allows `new` recipients (marked
+  `"basis": "new"` in `mail-draft-show`); terminal sends continue to require verbatim typing.
+- **Fixed recipient bases (migration 23).** `draft` gains `recipient_bases`, computed and stored
+  when a draft is created (and backfilled on store open for pre-migration-23 rows when no rebuild
+  is running), preserving each retained recipient's basis across `mail-draft-update` while
+  classifying newly added recipients, so `mail-draft-show` stays identical in canonical JSON for an
+  unchanged revision even if sync later changes mailboxes or sent history. `mail-account-remove`
+  refreshes surviving drafts whose `answers_message_id` is cleared and downgrades any `own` or
+  `written-to` recipients whose evidence belonged solely to the removed account (bumping revision),
+  deriving surviving evidence directly from surviving accounts and held sent-mailbox headers.
+- **Preview revision checks and size caps.** `mail-draft-show` accepts optional `revision`
+  (`PREVIEW_CHANGED` on mismatch), and `mail-draft-send` checks state, `revision`, `typedRecipients`
+  validity, non-empty recipients and account existence before the approval middleware holds the
+  call. `mail-unsubscribe` also checks `PREVIEW_TOO_LARGE` before any hold. `mail-draft-create`
+  and `mail-draft-update` measure the rendered preview (with worst-case state/id/basis headroom) against
+  `MOST_BUDGET` and the 3.5 MiB MCP reply cap before committing (`PREVIEW_TOO_LARGE`); both
+  `mail-draft-show` and `mail-unsubscribe-show` return `PREVIEW_TOO_LARGE` when a preview exceeds
+  either cap. Scenarios 1, 2 and 4 run alongside Scenario 3 in `loam-plugins.yml`.
 
 ## 10. Records, proposed stories and reply sets
 
@@ -2244,10 +2277,10 @@ says otherwise.
 | `mail-thread-snooze` | D | Local, undoable | cli, mcp | Step D3: until a time within a year, or until mail arrives in the thread; `mail-thread-list` with `snoozed` lists the snoozed threads ([9.5](#95-drafts-and-sending)) |
 | `mail-draft-create`, `mail-draft-update` | D | Local | cli, mcp | Step D3: an update names the revision it read ([9.5](#95-drafts-and-sending)) |
 | `mail-draft-discard`, `mail-draft-restore` | D | Local, undoable | cli, mcp | A discarded draft is held for 30 days (M29) |
-| `mail-draft-list`, `mail-draft-show` | D | Read | cli, mcp | `mail-draft-show` is the preview of a send (step D3: adds `state`, `recipientBasis` and `replyToDiffers`) |
-| `mail-draft-send` | D | Remote, destructive; a person | cli | Step D3's second part ([9.5](#95-drafts-and-sending)): names the previewed `revision`, enforces the recipient rule, submits over SMTP, appends a sent copy with `Bcc:` and records `outbound` |
-| `mail-unsubscribe-show` | D | Read | cli, mcp | Step D3's third part ([9.5](#95-drafts-and-sending)): previews the exact `List-Unsubscribe` target labelled as content with its `digest`; contacts nothing |
-| `mail-unsubscribe` | D | Remote, destructive; a person | cli | Step D3's third part ([9.5](#95-drafts-and-sending)): names the previewed `digest`, sends RFC 8058 one-click HTTPS POST (no redirects) or RFC 2369 `mailto:` over SMTP, and records `outbound` |
+| `mail-draft-list`, `mail-draft-show` | D, F2b | Read | cli, mcp | `mail-draft-show` is the preview of a send (step D3: adds `state`, `recipientBasis` and `replyToDiffers`; step F2b: fixed stored bases via migration 23, optional `revision` check (`PREVIEW_CHANGED`), `MOST_BUDGET` / 3.5 MiB MCP cap (`PREVIEW_TOO_LARGE`)) |
+| `mail-draft-send` | D, F2b | Remote, destructive; a person (released) | cli, mcp | Step D3's second part ([9.5](#95-drafts-and-sending)): names the previewed `revision`, enforces the recipient rule, submits over SMTP, appends a sent copy with `Bcc:` and records `outbound`. Released over MCP in step F2b (`ApprovalPolicy::Required`, pre-hold + transactional check, Q2 (a) allows `new` recipients on approver-released sends) |
+| `mail-unsubscribe-show` | D, F2b | Read | cli, mcp | Step D3's third part ([9.5](#95-drafts-and-sending)): previews the exact `List-Unsubscribe` target labelled as content with its `digest`; contacts nothing; step F2b enforces `PREVIEW_TOO_LARGE` over budget / 3.5 MiB MCP cap |
+| `mail-unsubscribe` | D, F2b | Remote, destructive; a person (released) | cli, mcp | Step D3's third part ([9.5](#95-drafts-and-sending)): names the previewed `digest`, sends RFC 8058 one-click HTTPS POST (no redirects) or RFC 2369 `mailto:` over SMTP, and records `outbound`. Released over MCP in step F2b (`ApprovalPolicy::Required`, pre-hold + handler digest check) |
 | `mail-policy-show` | D, F4 | Read | cli, mcp | Step D1 ([9.4](#94-the-policy)); step F4 adds `accounts` overrides list and optional `account` filter |
 | `mail-policy-set` | D, F4 | Local; a person | cli | Step D1: held for approval, its summary in numbers alone; returns the numbers before. Step F4: optional `account` and `reset: true` for per-account overrides (M36) |
 | `mail-record-list` | E | Read | cli, mcp | Step E1 ([10.1](#101-records)): newest first, cursor-paged (`proposedAt.record`), filters by `message`, `thread`, `type`, `proposer` and `includeEnded`; `fields` and `passages` labelled as content |
@@ -2340,8 +2373,8 @@ Beside the crate's own codes:
 | `RECORD_NOT_FOUND` | No record has the id named (step E1) |
 | `DRAFT_NOT_FOUND` | No draft has the id named; a discarded draft goes after 30 days (step D3) |
 | `DRAFT_CHANGED` | A change names a revision the draft is no longer at (step D3) |
-| `PREVIEW_CHANGED` | A released command or its preview (`mail-draft-send`, `mail-replyset-send`, `mail-unsubscribe`, `mail-operation-approve`, and their `-show` previews) names a revision or digest that is no longer current since its preview was read (steps D3, E3, F2a) |
-| `PREVIEW_TOO_LARGE` | A draft, reply set or proposal preview would exceed `MOST_BUDGET` or the 3.5 MiB MCP reply cap (steps E3, F2a) |
+| `PREVIEW_CHANGED` | A released command or its preview (`mail-draft-send`, `mail-replyset-send`, `mail-unsubscribe`, `mail-operation-approve`, and their `-show` previews) names a revision or digest that is no longer current since its preview was read (steps D3, E3, F2a, F2b) |
+| `PREVIEW_TOO_LARGE` | A draft, unsubscribe, reply set or proposal preview would exceed `MOST_BUDGET` or the 3.5 MiB MCP reply cap (steps E3, F2a, F2b) |
 | `REPLYSET_NOT_FOUND` | No reply set has the id named (step E3) |
 | `REPLYSET_CHANGED` | `mail-replyset-update` names a revision the reply set is no longer at (step E3) |
 | `REPLYSET_INCOMPLETE` | `mail-replyset-send` attempted while one or more replies have no text (step E3) |

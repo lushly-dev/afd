@@ -235,22 +235,22 @@ async fn a_persons_command_is_neither_listed_nor_callable_over_mcp() {
         "mail-sender-screen",
         "mail-sender-accept",
         "mail-policy-set",
-        "mail-draft-send",
     ] {
         assert!(!listed.contains(person), "{person} is listed: {listed}");
     }
-    // `mail-operation-approve` is released over MCP (step F2a, M18 amended),
-    // held for approval for every caller; non-approvers get no token.
-    assert!(
-        listed.contains("\"mail-operation-approve\""),
-        "mail-operation-approve is not listed: {listed}"
-    );
-    // `mail-unsubscribe-show` is a read (listed); `mail-unsubscribe` and
-    // `mail-replyset-send` are not yet released.
-    assert!(
-        !listed.contains("\"mail-unsubscribe\""),
-        "mail-unsubscribe is listed: {listed}"
-    );
+    // `mail-operation-approve` (F2a), `mail-draft-send` and `mail-unsubscribe`
+    // (F2b) are released over MCP (M18 amended), held for approval for every
+    // caller; non-approvers get no token. `mail-replyset-send` waits for F3.
+    for released in [
+        "\"mail-operation-approve\"",
+        "\"mail-draft-send\"",
+        "\"mail-unsubscribe\"",
+    ] {
+        assert!(
+            listed.contains(released),
+            "{released} is not listed: {listed}"
+        );
+    }
     assert!(
         !listed.contains("\"mail-replyset-send\""),
         "mail-replyset-send is listed: {listed}"
@@ -282,8 +282,6 @@ async fn a_persons_command_is_neither_listed_nor_callable_over_mcp() {
         "mail-sender-screen",
         "mail-sender-accept",
         "mail-policy-set",
-        "mail-draft-send",
-        "mail-unsubscribe",
         "mail-replyset-send",
     ] {
         let call = mcp_body(
@@ -295,16 +293,34 @@ async fn a_persons_command_is_neither_listed_nor_callable_over_mcp() {
         let text = body.to_string();
         assert!(text.contains("COMMAND_NOT_FOUND"), "{person}: {text}");
     }
-    // `mail-operation-approve` is listed over MCP, but never runs without
-    // evidence from the terminal or an approver (and refuses closed/missing
-    // proposals before any hold).
-    let approve_call = mcp_body(
-        "tools/call",
-        json!({ "name": "afd-call", "arguments": { "command": "mail-operation-approve", "input": { "operation": 1, "digest": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" } } }),
-    );
-    let (status, body) = request(&app, "/mcp", sent(Some(&agent)), approve_call).await;
-    assert_eq!(status, 200, "{body}");
-    assert!(body.to_string().contains("PROPOSAL_NOT_OPEN"), "{body}");
+    // `mail-operation-approve`, `mail-draft-send` and `mail-unsubscribe` are
+    // listed over MCP, but never run without evidence from the terminal or an
+    // approver (and refuse missing/closed targets before any hold).
+    for (cmd, input, expected_code) in [
+        (
+            "mail-operation-approve",
+            json!({ "operation": 1, "digest": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" }),
+            "PROPOSAL_NOT_OPEN",
+        ),
+        (
+            "mail-draft-send",
+            json!({ "draft": 1, "revision": 1 }),
+            "DRAFT_NOT_FOUND",
+        ),
+        (
+            "mail-unsubscribe",
+            json!({ "message": 1, "digest": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" }),
+            "MESSAGE_NOT_FOUND",
+        ),
+    ] {
+        let call = mcp_body(
+            "tools/call",
+            json!({ "name": "afd-call", "arguments": { "command": cmd, "input": input } }),
+        );
+        let (status, body) = request(&app, "/mcp", sent(Some(&agent)), call).await;
+        assert_eq!(status, 200, "{cmd}: {body}");
+        assert!(body.to_string().contains(expected_code), "{cmd}: {body}");
+    }
     // Nor by its own name, nor as a step of a batch.
     let direct = mcp_body(
         "tools/call",

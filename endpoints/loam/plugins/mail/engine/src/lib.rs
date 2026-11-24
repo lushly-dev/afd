@@ -258,6 +258,11 @@ fn pre_approval_check(engine: Arc<engine::Engine>) -> afd::CommandMiddleware {
         let input = input.clone();
         let now = context.clock().now();
         Box::pin(async move {
+            if name == drafts::SEND
+                && let Some(error) = drafts::pre_approval_check(&engine, &input, now)
+            {
+                return afd::failure(error);
+            }
             if name == unsubscribe::UNSUBSCRIBE
                 && let Some(error) = unsubscribe::pre_approval_check(&engine, &input)
             {

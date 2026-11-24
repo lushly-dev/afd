@@ -1118,6 +1118,13 @@ pub(super) const MIGRATIONS: &[&str] = &[
     CREATE INDEX proposed_story_member_message
         ON proposed_story_member (message_id);
     ",
+    // 23: fixed recipient bases on drafts (step F2b; plugin.spec.md sections 7 and 8.2).
+    // Computed and stored when a draft is created or new recipients are added so `mail-draft-show`
+    // stays stable for an unchanged revision even if sync later moves messages or adds sent mail.
+    // Pre-existing rows are backfilled on store open by `drafts::backfill_recipient_bases`.
+    "
+    ALTER TABLE draft ADD COLUMN recipient_bases TEXT;
+    ",
 ];
 
 /// Brings `connection` to the newest schema, one migration and one

@@ -376,7 +376,7 @@ fn enforces_m18_m29_person_only_and_digest_binding() {
         .unwrap()
         .to_string();
 
-    // Registry metadata check (M18 & M29).
+    // Registry metadata check (M18 amended, F2b & M29).
     let def = fixture
         .registry
         .list()
@@ -387,9 +387,10 @@ fn enforces_m18_m29_person_only_and_digest_binding() {
     assert_eq!(def.destructive, Some(true));
     assert!(matches!(def.approval, Some(ApprovalPolicy::Required)));
     assert!(def.expose.cli);
-    assert!(!def.expose.mcp && !def.expose.agent && !def.expose.palette);
+    assert!(def.expose.mcp && !def.expose.agent && !def.expose.palette);
 
-    // Agent over MCP cannot call mail-unsubscribe (M18), but CAN read preview.
+    // Agent over MCP is held (M18 amended, F2b): non-approver gets no token;
+    // preview stays open.
     let agent_show = fixture.agent("tok_a", "mail-unsubscribe-show", json!({ "message": msg }));
     assert_eq!(agent_show["success"], true, "{agent_show}");
     let agent_call = fixture.agent(
@@ -398,8 +399,15 @@ fn enforces_m18_m29_person_only_and_digest_binding() {
         json!({ "message": msg, "digest": digest }),
     );
     assert_eq!(
-        agent_call["error"]["code"], "COMMAND_NOT_EXPOSED",
+        agent_call["error"]["code"], "APPROVAL_REQUIRED",
         "{agent_call}"
+    );
+    assert_eq!(agent_call["error"]["retryable"], false, "{agent_call}");
+    assert!(
+        agent_call["error"]["details"]
+            .get("approvalToken")
+            .is_none(),
+        "non-approver must never receive an approval token: {agent_call}"
     );
 
     // Script at CLI gets PERSON_REQUIRED.
