@@ -1,5 +1,0 @@
----
-"@lushly-dev/specimen": minor
----
-
-The native host keeps Chromium's sandbox on, passing `--no-sandbox` only when it runs as root on Linux, when the kernel allows no unprivileged user namespaces, or when `SPECIMEN_CHROMIUM_SANDBOX=0` asks. Under AppArmor's user-namespace restriction (Ubuntu 24.04) it tries the sandbox and, if Chromium cannot start in it, starts once more without; `SPECIMEN_CHROMIUM_SANDBOX=1` keeps the sandbox strict instead. Whenever the sandbox is off, a `specimen-host: ` stderr line says why and how to keep it. A rendered page now reaches only the bench's own origin: each browser context sends other requests, loopback included, through a proxy that refuses them, and the new `network.allow` configuration lists origins a page may reach, each at its effective port alone. The bench refuses a host built before these rules with `HOST_OUTDATED`. Playwright is pinned to 1.64.1, and a project that resolves another release fails at the first render with `PLAYWRIGHT_VERSION_MISMATCH` and the version to install.
