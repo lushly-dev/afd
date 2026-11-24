@@ -279,7 +279,45 @@ fn check_schema(tool: &str) -> Value {
 
 /// Check meta-tool arguments: the parsed arguments, or the validation error.
 pub(crate) fn check_args(tool: &str, args: Value) -> Result<Value, Box<CommandError>> {
-    crate::schema_validation::execute(&check_schema(tool), args)
+    use std::sync::OnceLock;
+    let compiled = match tool {
+        "afd-call" => {
+            static CALL: OnceLock<crate::schema_validation::CompiledSchema> = OnceLock::new();
+            CALL.get_or_init(|| {
+                crate::schema_validation::CompiledSchema::compile(&check_schema("afd-call"))
+                    .expect("afd-call schema compiles")
+            })
+        }
+        "afd-batch" => {
+            static BATCH: OnceLock<crate::schema_validation::CompiledSchema> = OnceLock::new();
+            BATCH.get_or_init(|| {
+                crate::schema_validation::CompiledSchema::compile(&check_schema("afd-batch"))
+                    .expect("afd-batch schema compiles")
+            })
+        }
+        "afd-pipe" => {
+            static PIPE: OnceLock<crate::schema_validation::CompiledSchema> = OnceLock::new();
+            PIPE.get_or_init(|| {
+                crate::schema_validation::CompiledSchema::compile(&check_schema("afd-pipe"))
+                    .expect("afd-pipe schema compiles")
+            })
+        }
+        "afd-discover" => {
+            static DISCOVER: OnceLock<crate::schema_validation::CompiledSchema> = OnceLock::new();
+            DISCOVER.get_or_init(|| {
+                crate::schema_validation::CompiledSchema::compile(&check_schema("afd-discover"))
+                    .expect("afd-discover schema compiles")
+            })
+        }
+        _ => {
+            static DETAIL: OnceLock<crate::schema_validation::CompiledSchema> = OnceLock::new();
+            DETAIL.get_or_init(|| {
+                crate::schema_validation::CompiledSchema::compile(&check_schema("afd-detail"))
+                    .expect("afd-detail schema compiles")
+            })
+        }
+    };
+    compiled.execute(args)
 }
 
 /// Check the arguments of `afd-call`, `afd-discover` or `afd-detail`. Top-level `null` values

@@ -74,7 +74,7 @@
 			"status": "yes",
 			"note": "legacy parameters or additive `register_with_schema`; use `get_tool` for authoritative discovery",
 			"evidence": [
-				"packages/rust/src/schema_validation.rs",
+				"packages/rust/src/schema_validation/mod.rs",
 				"packages/rust/tests/validation_vectors.rs"
 			]
 		},

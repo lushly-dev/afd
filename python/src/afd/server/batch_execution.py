@@ -23,6 +23,7 @@ from afd.core.batch import (
     BatchRequest,
     BatchResult,
     BatchTiming,
+    batch_limit_problems,
     create_batch_result,
     create_failed_batch_result,
 )
@@ -58,25 +59,15 @@ def batch_problems(
                 "code": "too_short",
             }
         )
-    elif count > max_batch_size:
-        problems.append(
-            {
-                "path": "commands",
-                "message": (f"A batch accepts at most {max_batch_size} commands (got {count})"),
-                "code": "too_long",
-            }
-        )
     parallelism = request.options.parallelism if request.options else 1
-    if parallelism > max_batch_parallelism:
-        problems.append(
-            {
-                "path": "options.parallelism",
-                "message": (
-                    f"parallelism must be at most {max_batch_parallelism} (got {parallelism})"
-                ),
-                "code": "less_than_equal",
-            }
+    problems.extend(
+        batch_limit_problems(
+            count,
+            parallelism,
+            max_batch_size=max_batch_size,
+            max_batch_parallelism=max_batch_parallelism,
         )
+    )
     for index, item in enumerate(request.commands):
         if item.command in AFD_META_TOOL_NAMES:
             problems.append(

@@ -195,7 +195,7 @@ async fn shared_validation_vectors() {
             checked += 1;
         }
     }
-    assert_eq!(checked, 108);
-    assert_eq!(rejected, 7);
+    assert_eq!(checked, 116);
+    assert_eq!(rejected, 5);
     eprintln!("Validation vectors: {checked} executions, {rejected} unsupported optional cases rejected at registration");
 }

@@ -687,7 +687,7 @@ async fn test_execute_validates_input_before_the_handler() {
         assert!(error
             .suggestion
             .as_deref()
-            .is_some_and(|suggestion| suggestion.ends_with("Expected fields: title, priority")));
+            .is_some_and(|suggestion| suggestion.ends_with("Expected fields: priority, title")));
     }
     assert!(missing
         .error
@@ -695,7 +695,8 @@ async fn test_execute_validates_input_before_the_handler() {
         .unwrap()
         .suggestion
         .as_deref()
-        .is_some_and(|suggestion| suggestion.starts_with("title: is required")));
+        .is_some_and(|suggestion| suggestion
+            .starts_with("title: Invalid input: expected string, received undefined")));
     assert_eq!(calls.load(Ordering::SeqCst), 0, "the handler must not run");
 }
 
@@ -1110,9 +1111,9 @@ async fn test_validation_failure_matches_typescript() {
     assert_eq!(
         error.suggestion.as_deref(),
         Some(
-            "- title: must be a string, got number\n\
-             - priority: must be one of \"low\", \"medium\", \"high\". \
-             Unknown field(s): typo. Expected fields: title, priority"
+            "- priority: Invalid option: expected one of \"low\"|\"medium\"|\"high\"\n\
+             - title: Invalid input: expected string, received number. \
+             Unknown field(s): typo. Expected fields: priority, title"
         )
     );
     assert_eq!(
@@ -1120,18 +1121,18 @@ async fn test_validation_failure_matches_typescript() {
         serde_json::json!({
             "errors": [
                 {
+                    "path": "priority",
+                    "message": "Invalid option: expected one of \"low\"|\"medium\"|\"high\"",
+                    "code": "invalid_value",
+                },
+                {
                     "path": "title",
-                    "message": "must be a string, got number",
+                    "message": "Invalid input: expected string, received number",
                     "code": "invalid_type",
                     "expected": "string",
                 },
-                {
-                    "path": "priority",
-                    "message": "must be one of \"low\", \"medium\", \"high\"",
-                    "code": "invalid_value",
-                },
             ],
-            "expectedFields": ["title", "priority"],
+            "expectedFields": ["priority", "title"],
             "unexpectedFields": ["typo"],
         })
     );
@@ -1150,8 +1151,9 @@ async fn test_missing_field_failure_matches_typescript() {
     assert_eq!(
         error.suggestion.as_deref(),
         Some(
-            "title: is required. Missing required field(s): title. \
-             Expected fields: title, priority"
+            "title: Invalid input: expected string, received undefined. \
+             Missing required field(s): title. \
+             Expected fields: priority, title"
         )
     );
     assert_eq!(
@@ -1159,11 +1161,11 @@ async fn test_missing_field_failure_matches_typescript() {
         serde_json::json!({
             "errors": [{
                 "path": "title",
-                "message": "is required",
+                "message": "Invalid input: expected string, received undefined",
                 "code": "invalid_type",
                 "expected": "string",
             }],
-            "expectedFields": ["title", "priority"],
+            "expectedFields": ["priority", "title"],
             "missingFields": ["title"],
         })
     );

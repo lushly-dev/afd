@@ -2239,10 +2239,10 @@ domains = ["hello"]
             check_input_schema(&serde_json::json!({"type": "object", "properties": {}})).is_ok()
         );
         assert!(check_input_schema(&serde_json::json!({"type": "string"})).is_err());
-        let with_pattern = serde_json::json!({
+        let with_unsupported = serde_json::json!({
             "type": "object",
-            "properties": { "a": { "type": "string", "pattern": "^a$" } }
+            "properties": { "a": { "type": "array", "uniqueItems": true } }
         });
-        assert!(check_input_schema(&with_pattern).is_err());
+        assert!(check_input_schema(&with_unsupported).is_err());
     }
 }

@@ -238,40 +238,53 @@ async fn structural_issue_order_and_ref_target_defaults() {
     );
 }
 
-#[test]
-fn legacy_registration_rejects_unenforceable_patterns_and_formats() {
-    for schema in [
-        JsonSchema {
-            format: Some("unknown-format".into()),
+#[tokio::test]
+async fn legacy_registration_rejects_invalid_patterns_and_treats_format_as_annotation() {
+    // `format` is treated as an annotation (unblocks schemars-generated schemas; #1762).
+    let format_param = CommandParameter {
+        schema: Some(JsonSchema {
+            schema_type: Some(JsonSchemaType::String),
+            format: Some("email".into()),
             ..Default::default()
-        },
-        JsonSchema {
+        }),
+        ..CommandParameter::required_string("value", "Value")
+    };
+    let registry = CommandRegistry::new();
+    registry
+        .register(CommandDefinition::new(
+            "test-format",
+            "Format annotation",
+            vec![format_param],
+            Echo,
+        ))
+        .unwrap();
+    assert_eq!(
+        registry
+            .execute("test-format", json!({"value": "anything"}), None)
+            .await
+            .data,
+        Some(json!({"value": "anything"}))
+    );
+
+    // Unenforceable regex patterns still fail at registration.
+    let pattern_param = CommandParameter {
+        schema: Some(JsonSchema {
             pattern: Some("(?=x)x".into()),
             ..Default::default()
-        },
-    ] {
-        let keyword = if schema.format.is_some() {
-            "format"
-        } else {
-            "pattern"
-        };
-        let parameter = CommandParameter {
-            schema: Some(schema),
-            ..CommandParameter::required_string("value", "Value")
-        };
-        let registry = CommandRegistry::new();
-        let error = registry
-            .register(CommandDefinition::new(
-                "test-rejected",
-                "Rejected",
-                vec![parameter],
-                Echo,
-            ))
-            .unwrap_err();
-        assert!(error.contains(keyword));
-        assert!(error.contains(&format!("#/properties/value/{keyword}")));
-        assert!(!registry.has("test-rejected"));
-    }
+        }),
+        ..CommandParameter::required_string("value", "Value")
+    };
+    let error = registry
+        .register(CommandDefinition::new(
+            "test-rejected",
+            "Rejected",
+            vec![pattern_param],
+            Echo,
+        ))
+        .unwrap_err();
+    assert!(error.contains("pattern"));
+    assert!(error.contains("#/properties/value/pattern"));
+    assert!(!registry.has("test-rejected"));
 }
 
 #[tokio::test]

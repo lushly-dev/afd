@@ -272,12 +272,13 @@ assert_eq!(request.steps[1].alias, None);
 For the complete required subset of [`spec/validation.md`](../../spec/validation.md), use
 `registry.register_with_schema(command, schema)` with a `serde_json::Value` schema. It supports
 nullable type lists, root and nested boolean/schema `additionalProperties`, local recursive
-`$ref` (`#`, `#/definitions/<name>`, `#/$defs/<name>` only), `definitions`/`$defs`, item and code-point length bounds, numeric and exclusive bounds,
-`enum`, `const`, and defaults. Unsupported optional keywords (`pattern`, `format`, `anyOf`,
+`$ref` (`#`, `#/definitions/<name>`, `#/$defs/<name>` only), `definitions`/`$defs`, item and code-point length bounds, `pattern` (compiled once per schema node with ECMAScript shorthand classes), numeric and exclusive bounds,
+`enum`, `const`, and defaults. `format` is treated as a JSON Schema Draft 2020-12 annotation so
+`schemars`-generated schemas register cleanly. Unsupported optional keywords (`anyOf`,
 `oneOf`, `allOf`, `not`, `multipleOf`) and unknown keywords fail registration, with their location.
-The legacy typed schema remains available; it accepts harmless annotations during deserialization,
-rejects unknown constraints, rejects `format` at registration, and accepts only patterns the Rust
-regex engine can compile.
+Legacy `parameters` are converted to whole JSON Schemas and compiled through the same validator at
+registration (accepting harmless annotations during deserialization, rejecting unknown constraints,
+and compiling `pattern` regexes once).
 
 Use `registry.get_tool(name)` to export the authoritative whole schema. The `afd-schema` and
 `afd-docs` bootstrap commands use that same schema. `command_to_mcp_tool` converts only a legacy
@@ -295,7 +296,7 @@ needing open payloads can register `{"type":"object","additionalProperties":true
 
 Validation reports every issue and suggestion line. Field lists and sibling issues may differ in
 order from TypeScript; array item issues precede their bound issue and unknown-key issues follow
-property issues. Legacy issue wording differs from TypeScript. Whole-schema recursion has an
+property issues. Legacy parameters and whole schemas share the same Zod-style issue wording. Whole-schema recursion has an
 explicit 128-level validation guard, reported as a validation error. The vector loader checks every
 required-subset case through registry execution and verifies unsupported optional cases fail
 registration; it preserves duplicate issues when comparing across languages.
@@ -351,7 +352,7 @@ async fn main() {
     assert_eq!(error.message, "Input validation failed");
     assert_eq!(
         error.suggestion.as_deref(),
-        Some("title: must be a string, got number. Expected fields: title, priority")
+        Some("title: Invalid input: expected string, received number. Expected fields: priority, title")
     );
 
     let mcp = CommandContext::new().with_interface(CommandInterface::Mcp);

@@ -4,12 +4,16 @@ import pytest
 from pydantic import ValidationError
 
 from afd.core.batch import (
+    DEFAULT_MAX_BATCH_PARALLELISM,
+    DEFAULT_MAX_BATCH_SIZE,
     BatchCommand,
     BatchCommandResult,
     BatchOptions,
     BatchRequest,
     BatchTiming,
+    batch_limit_problems,
     calculate_batch_confidence,
+    check_batch_limits,
     create_batch_request,
     create_batch_result,
     create_failed_batch_result,
@@ -464,3 +468,141 @@ class TestBatchReasoning:
         assert "3 commands" in batch.reasoning
         assert "2 succeeded" in batch.reasoning
         assert "1 failed" in batch.reasoning
+
+
+class TestCheckBatchLimits:
+    """Direct unit tests for check_batch_limits and batch_limit_problems (#2316)."""
+
+    def test_within_default_bounds_batch_request_and_dict(self):
+        req = BatchRequest(
+            commands=[BatchCommand(command="todo-list")] * DEFAULT_MAX_BATCH_SIZE,
+            options=BatchOptions(parallelism=DEFAULT_MAX_BATCH_PARALLELISM),
+        )
+        assert check_batch_limits(req) is None
+        raw = {
+            "commands": [{"command": "todo-list"}] * DEFAULT_MAX_BATCH_SIZE,
+            "options": {"parallelism": DEFAULT_MAX_BATCH_PARALLELISM},
+        }
+        assert check_batch_limits(raw) is None
+
+    def test_batch_request_size_exceeds_default_and_custom_ceiling(self):
+        req = BatchRequest(
+            commands=[BatchCommand(command="todo-list")] * (DEFAULT_MAX_BATCH_SIZE + 1)
+        )
+        err = check_batch_limits(req)
+        assert err is not None
+        assert err.code == "INVALID_BATCH_REQUEST"
+        assert err.retryable is False
+        assert err.details is not None
+        assert err.details["count"] == DEFAULT_MAX_BATCH_SIZE + 1
+        assert err.details["maxBatchSize"] == DEFAULT_MAX_BATCH_SIZE
+        assert err.details["errors"] == [
+            {
+                "path": "commands",
+                "message": (
+                    f"A batch accepts at most {DEFAULT_MAX_BATCH_SIZE} commands "
+                    f"(got {DEFAULT_MAX_BATCH_SIZE + 1})"
+                ),
+                "code": "too_long",
+            }
+        ]
+
+        small_req = BatchRequest(commands=[BatchCommand(command="todo-list")] * 4)
+        assert check_batch_limits(small_req, max_batch_size=4) is None
+        custom_err = check_batch_limits(small_req, max_batch_size=3)
+        assert custom_err is not None
+        assert custom_err.details is not None
+        assert custom_err.details["maxBatchSize"] == 3
+        assert custom_err.details["errors"][0]["code"] == "too_long"
+
+    def test_batch_request_parallelism_exceeds_ceiling(self):
+        req = BatchRequest(
+            commands=[BatchCommand(command="todo-list")],
+            options=BatchOptions(parallelism=DEFAULT_MAX_BATCH_PARALLELISM + 1),
+        )
+        err = check_batch_limits(req)
+        assert err is not None
+        assert err.code == "INVALID_BATCH_REQUEST"
+        assert err.retryable is False
+        assert err.details is not None
+        assert err.details["parallelism"] == DEFAULT_MAX_BATCH_PARALLELISM + 1
+        assert err.details["maxBatchParallelism"] == DEFAULT_MAX_BATCH_PARALLELISM
+        assert err.details["errors"] == [
+            {
+                "path": "options.parallelism",
+                "message": (
+                    f"parallelism must be at most {DEFAULT_MAX_BATCH_PARALLELISM} "
+                    f"(got {DEFAULT_MAX_BATCH_PARALLELISM + 1})"
+                ),
+                "code": "less_than_equal",
+            }
+        ]
+
+        custom_err = check_batch_limits(
+            BatchRequest(
+                commands=[BatchCommand(command="todo-list")],
+                options=BatchOptions(parallelism=5),
+            ),
+            max_batch_parallelism=4,
+        )
+        assert custom_err is not None
+        assert custom_err.details is not None
+        assert custom_err.details["parallelism"] == 5
+        assert custom_err.details["maxBatchParallelism"] == 4
+
+    def test_dict_input_integral_float_parallelism(self):
+        raw_over = {
+            "commands": [{"command": "todo-list"}],
+            "options": {"parallelism": 17.0},
+        }
+        err = check_batch_limits(raw_over)
+        assert err is not None
+        assert err.code == "INVALID_BATCH_REQUEST"
+        assert err.details is not None
+        assert err.details["parallelism"] == 17
+        assert err.details["errors"] == [
+            {
+                "path": "options.parallelism",
+                "message": "parallelism must be at most 16 (got 17)",
+                "code": "less_than_equal",
+            }
+        ]
+
+        raw_at_boundary = {
+            "commands": [{"command": "todo-list"}],
+            "options": {"parallelism": 16.0},
+        }
+        assert check_batch_limits(raw_at_boundary) is None
+
+    @pytest.mark.parametrize(
+        "raw_parallelism",
+        [True, False, 17.5, float("inf"), float("-inf"), float("nan"), "17", None],
+    )
+    def test_dict_input_non_integral_or_invalid_parallelism_deferred_to_envelope(
+        self, raw_parallelism
+    ):
+        raw = {
+            "commands": [{"command": "todo-list"}],
+            "options": {"parallelism": raw_parallelism},
+        }
+        assert check_batch_limits(raw) is None
+
+    def test_dict_input_size_exceeds_ceiling_and_non_mapping_returns_none(self):
+        raw = {"commands": [{"command": "todo-list"}] * 6}
+        err = check_batch_limits(raw, max_batch_size=5)
+        assert err is not None
+        assert err.details is not None
+        assert err.details["count"] == 6
+        assert err.details["errors"][0]["code"] == "too_long"
+        assert check_batch_limits("not-a-request") is None  # type: ignore[arg-type]
+
+    def test_batch_limit_problems_matches_server_diagnostics(self):
+        from afd.server.batch_execution import batch_problems
+
+        req = BatchRequest(
+            commands=[BatchCommand(command="todo-list")] * 5,
+            options=BatchOptions(parallelism=4),
+        )
+        assert batch_problems(req, max_batch_size=3, max_batch_parallelism=2) == (
+            batch_limit_problems(5, 4, max_batch_size=3, max_batch_parallelism=2)
+        )

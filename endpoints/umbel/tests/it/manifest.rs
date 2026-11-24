@@ -471,13 +471,14 @@ fn input_schemas_are_objects_the_afd_checker_accepts() {
     };
     invalid(&inline("{ type = \"string\" }"), "commands[0].input_schema");
     invalid(&inline("{ properties = {} }"), "commands[0].input_schema");
-    // `pattern` is a keyword the checker refuses (phase 0 amendments from step 4).
-    let with_pattern = inline(
-        "{ type = \"object\", properties = { a = { type = \"string\", pattern = \"^a$\" } } }",
+    // `uniqueItems` is a keyword the AFD checker refuses (`pattern` is now supported, #1762).
+    let with_unsupported = inline(
+        "{ type = \"object\", properties = { a = { type = \"array\", uniqueItems = true } } }",
     );
-    let error = parse(&with_pattern).unwrap_err();
+    let error = parse(&with_unsupported).unwrap_err();
     assert!(
-        error.message().contains("commands[0].input_schema") && error.message().contains("pattern"),
+        error.message().contains("commands[0].input_schema")
+            && error.message().contains("uniqueItems"),
         "{error}"
     );
     invalid(&inline("3"), "commands[0].input_schema");
@@ -1069,7 +1070,7 @@ fn the_files_a_manifest_names_must_exist_and_be_what_they_claim() {
     write(
         root,
         "schemas/hello-greet.input.json",
-        r#"{"type":"object","properties":{"a":{"type":"string","pattern":"^a$"}}}"#,
+        r#"{"type":"object","properties":{"a":{"type":"array","uniqueItems":true}}}"#,
     );
     load_invalid(root, "commands[0].input_schema");
     write(
