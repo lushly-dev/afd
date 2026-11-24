@@ -20,8 +20,8 @@ The `afd` crate lives in `packages/rust`. It is an in-process library: a validat
 
 | Feature | Default | What it adds |
 |---|---|---|
-| `native` | yes | Deadlines (`CommandContext::timeout_ms`, batch `timeout`, pipeline `timeoutMs`) through `tokio::time::timeout`, and the retry middleware's default wait. Only Tokio's `time` feature is enabled; the application provides the runtime. Without it, a deadline returns `UNSUPPORTED_OPTION` and the retry middleware needs `RetryOptions::sleep`. |
-| `journal-file` | yes | `FileJournalSink`, through blocking `std::fs`. The rest of the journal works without it. |
+| `native` | yes | Deadlines (`CommandContext::timeout_ms`, batch `timeout`, pipeline `timeoutMs`) through `tokio::time::timeout`, the retry middleware's default wait, and with `journal-file` `AsyncFileJournalSink`. Tokio's `time`, `rt` and `sync` features are enabled; the application provides the runtime. Without it, a deadline returns `UNSUPPORTED_OPTION` and the retry middleware needs `RetryOptions::sleep`. |
+| `journal-file` | yes | `FileJournalSink`, through blocking `std::fs`; with `native`, `AsyncFileJournalSink` runs it on Tokio's blocking pool (use it on an async server). `with_sync_data(true)` waits for the device after each append; otherwise a power loss can lose the latest entries. The rest of the journal works without it. |
 | `approval` | yes | `create_approval_middleware`, `ApprovalMiddlewareOptions`, `canonical_json`: HMAC-SHA256 tokens and OS-random nonces. Policies (`with_approval`, `_meta.approval`) need no feature. |
 | `journal-file-shared` | no | `FileJournalSink::shared` and `JournalFileLock`: several sinks and processes append to one file under an exclusive OS lock. Local file systems only. |
 | `wasm` | no | `wasm32-unknown-unknown`: durations through `web-time`, because `std::time::Instant::now()` traps there. |

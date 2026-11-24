@@ -24,10 +24,11 @@ missing_docs = "warn"
 
 [features]
 default = ["native", "journal-file", "approval"]
-# Command, batch and pipeline deadlines through `tokio::time::timeout`, and the retry
-# middleware's default wait (`tokio::time::sleep`). The host application provides the Tokio
+# Command, batch and pipeline deadlines through `tokio::time::timeout`, the retry
+# middleware's default wait (`tokio::time::sleep`), and (with `journal-file`)
+# `AsyncFileJournalSink` on Tokio's blocking pool. The host application provides the Tokio
 # runtime (with its time driver enabled).
-native = ["dep:tokio"]
+native = ["dep:tokio", "tokio/rt", "tokio/sync"]
 # Browser WebAssembly (`wasm32-unknown-unknown`): enables `getrandom/wasm_js` for the approval
 # middleware's nonces; monotonic and wall time use `web-time` automatically on that target.
 wasm = ["getrandom?/wasm_js"]
@@ -81,7 +82,8 @@ ryu-js = "1.0"
 hmac = { version = "0.13", optional = true }
 subtle = { version = "2.5", optional = true }
 
-# Native-only: only `tokio::time::timeout` is used.
+# Native-only: `tokio::time::timeout`, and `spawn_blocking` with a fair `Mutex` for
+# `AsyncFileJournalSink` (`native` adds the `rt` and `sync` features).
 tokio = { version = "1.0", default-features = false, features = ["time"], optional = true }
 
 # `server` feature: the MCP Rust SDK (stateless Streamable HTTP, stdio). 3.9 is the floor: it routes

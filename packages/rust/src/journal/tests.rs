@@ -879,3 +879,180 @@ async fn a_middleware_that_replaces_the_context_cannot_detach_the_tape() {
         assert_eq!(tape.random, expected, "entry {}", entry.seq);
     }
 }
+
+#[cfg(all(feature = "native", feature = "journal-file"))]
+mod async_file_sink {
+    use super::*;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    /// A folder of its own under the temporary folder, removed when dropped.
+    struct Scratch(PathBuf);
+
+    impl Scratch {
+        fn new() -> Self {
+            static COUNTER: AtomicUsize = AtomicUsize::new(0);
+            let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+            Self(std::env::temp_dir().join(format!("afd-journal-async-{}-{n}", std::process::id())))
+        }
+
+        fn path(&self, name: &str) -> PathBuf {
+            self.0.join(name)
+        }
+    }
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn named(command: &str) -> JournalRecord {
+        JournalRecord {
+            command: command.to_string(),
+            ..record()
+        }
+    }
+
+    #[cfg(feature = "journal-file-shared")]
+    fn commands_in(path: &std::path::Path) -> Vec<(u64, String)> {
+        let text = std::fs::read_to_string(path).unwrap();
+        parse_journal(&text)
+            .unwrap()
+            .into_iter()
+            .map(|entry| (entry.seq, entry.command))
+            .collect()
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn appends_keep_the_order_the_calls_arrived_in() {
+        let scratch = Scratch::new();
+        let path = scratch.path("journal.jsonl");
+        let sink = Arc::new(AsyncFileJournalSink::new(&path));
+        // Each append is polled in turn here, so the calls arrive in index order; the blocking
+        // pool runs them on several threads.
+        let calls: Vec<_> = (0..40)
+            .map(|index| {
+                let sink = Arc::clone(&sink);
+                async move { sink.append(named(&format!("call-{index}"))).await }
+            })
+            .collect();
+        let entries = futures_util::future::join_all(calls).await;
+        for (index, entry) in entries.into_iter().enumerate() {
+            let entry = entry.unwrap();
+            assert_eq!(entry.seq, index as u64 + 1);
+            assert_eq!(entry.command, format!("call-{index}"));
+        }
+        let read = sink.read(JournalRange::all()).await.unwrap();
+        assert_eq!(read.len(), 40);
+        assert!(read.windows(2).all(|pair| pair[0].seq + 1 == pair[1].seq));
+    }
+
+    #[tokio::test]
+    async fn a_synced_sink_writes_and_continues_after_reopening() {
+        let scratch = Scratch::new();
+        let path = scratch.path("nested/journal.jsonl");
+        let sink =
+            AsyncFileJournalSink::from_sink(FileJournalSink::new(&path).with_sync_data(true));
+        assert_eq!(sink.path(), path);
+        assert_eq!(sink.append(record()).await.unwrap().seq, 1);
+        assert_eq!(sink.append(record()).await.unwrap().seq, 2);
+        let reopened = AsyncFileJournalSink::new(&path);
+        assert_eq!(reopened.append(record()).await.unwrap().seq, 3);
+        assert_eq!(reopened.read(JournalRange::all()).await.unwrap().len(), 3);
+    }
+
+    #[tokio::test]
+    async fn a_registry_journals_through_it() {
+        let scratch = Scratch::new();
+        let registry = registry();
+        let sink = Arc::new(AsyncFileJournalSink::new(scratch.path("journal.jsonl")));
+        registry.set_journal(JournalRecorder::new(sink.clone()));
+        let result = registry
+            .execute("secret-ping", json!({"note": "hi"}), Some(context()))
+            .await;
+        assert!(result.success);
+        let entries = sink.read(JournalRange::all()).await.unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].command, "secret-ping");
+        assert_eq!(
+            entries[0].tape.as_ref().unwrap().clock,
+            [1_767_225_600_000.0]
+        );
+    }
+
+    #[cfg(feature = "journal-file-shared")]
+    #[tokio::test(flavor = "current_thread")]
+    async fn a_shared_sink_waits_for_its_lock_off_the_async_thread() {
+        // The lock is released only after a timer on this same thread has ticked five times. A
+        // sink that waited on the async thread would stop the timer, and time out.
+        let scratch = Scratch::new();
+        let file = scratch.path("journal.jsonl");
+        let lock_path = scratch.path("lock");
+        let held = FileJournalSink::shared(&file, &lock_path).lock().unwrap();
+        let sink = AsyncFileJournalSink::from_sink(
+            FileJournalSink::shared(&file, &lock_path)
+                .with_lock_timeout(std::time::Duration::from_secs(5)),
+        );
+        let (ticked, ticks_done) = tokio::sync::oneshot::channel::<usize>();
+        let ticker = tokio::spawn(async move {
+            for _ in 0..5 {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+            let _ = ticked.send(5);
+        });
+        let release = tokio::task::spawn_blocking(move || {
+            let ticks = ticks_done.blocking_recv().unwrap();
+            drop(held);
+            ticks
+        });
+        assert_eq!(sink.append(record()).await.unwrap().seq, 1);
+        assert_eq!(release.await.unwrap(), 5, "the async thread kept running");
+        ticker.await.unwrap();
+    }
+
+    #[cfg(feature = "journal-file-shared")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn an_append_its_caller_stopped_waiting_for_is_written_in_its_turn() {
+        // The first append's file call is waiting for the shared lock when its caller gives up.
+        // It still writes, and the next append waits for it.
+        let scratch = Scratch::new();
+        let file = scratch.path("journal.jsonl");
+        let lock_path = scratch.path("lock");
+        let held = FileJournalSink::shared(&file, &lock_path).lock().unwrap();
+        let sink = Arc::new(AsyncFileJournalSink::from_sink(FileJournalSink::shared(
+            &file, &lock_path,
+        )));
+        let first = {
+            let sink = Arc::clone(&sink);
+            tokio::spawn(async move { sink.append(named("abandoned")).await })
+        };
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        first.abort();
+        let second = {
+            let sink = Arc::clone(&sink);
+            tokio::spawn(async move { sink.append(named("next")).await })
+        };
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        drop(held);
+        let next = second.await.unwrap().unwrap();
+        assert_eq!(next.seq, 2);
+        assert_eq!(
+            commands_in(&file),
+            [(1, "abandoned".to_string()), (2, "next".to_string())]
+        );
+    }
+
+    #[cfg(feature = "journal-file-shared")]
+    #[tokio::test]
+    async fn a_shared_synced_sink_creates_its_folder_and_writes() {
+        let scratch = Scratch::new();
+        let file = scratch.path("state/journal.jsonl");
+        let sink = AsyncFileJournalSink::from_sink(
+            FileJournalSink::shared(&file, scratch.path("state/lock")).with_sync_data(true),
+        );
+        assert_eq!(sink.append(record()).await.unwrap().seq, 1);
+        assert_eq!(sink.append(record()).await.unwrap().seq, 2);
+        assert_eq!(commands_in(&file).len(), 2);
+    }
+}

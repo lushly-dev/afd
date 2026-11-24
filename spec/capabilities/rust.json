@@ -205,7 +205,7 @@
 		},
 		"single.journal-replay": {
 			"status": "yes",
-			"note": "(#426): `MemoryJournalSink`, `FileJournalSink` (`journal-file`, plus `journal-file-shared` OS lock), `CommandRegistry::set_journal` and `replay_journal`; matches `spec/wire/journal.jsonl` as JSON values",
+			"note": "(#426): `MemoryJournalSink`, `FileJournalSink` (`journal-file`, plus `journal-file-shared` OS lock; `AsyncFileJournalSink` with `native` runs it off the async threads), `CommandRegistry::set_journal` and `replay_journal`; matches `spec/wire/journal.jsonl` as JSON values",
 			"evidence": ["packages/rust/src/journal.rs", "packages/rust/tests/journal_wire.rs"]
 		},
 		"single.journal-range-last": {
@@ -216,7 +216,7 @@
 		},
 		"single.journal-append-order": {
 			"status": "yes",
-			"note": "with the built-in sinks: the recorder awaits nothing before `append` and the sinks assign `seq` under a mutex; a custom async sink could reorder",
+			"note": "with the built-in sinks: the recorder awaits nothing before `append` and the sinks assign `seq` under a mutex; `AsyncFileJournalSink` takes a fair async lock before each append and holds it until the write returns (#1764); a custom async sink could reorder",
 			"evidence": ["packages/rust/src/journal.rs"]
 		},
 		"middleware.chain": {

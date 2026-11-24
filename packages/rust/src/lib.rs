@@ -37,9 +37,10 @@
 //! ## Features
 //!
 //! - `native` (default): command, batch and pipeline deadlines through
-//!   `tokio::time::timeout`, and the retry middleware's default wait through
-//!   `tokio::time::sleep` (Tokio's `time` feature only; the application
-//!   provides the runtime)
+//!   `tokio::time::timeout`, the retry middleware's default wait through
+//!   `tokio::time::sleep`, and with `journal-file` the `AsyncFileJournalSink` on
+//!   Tokio's blocking pool (Tokio's `time`, `rt` and `sync` features; the
+//!   application provides the runtime)
 //! - `wasm`: browser WebAssembly (`wasm32-unknown-unknown`) randomness for `approval`
 //!   (`getrandom`'s `wasm_js` backend); durations use `web-time` on `wasm32-unknown-unknown`
 //!   automatically without this feature
@@ -305,6 +306,9 @@ pub use handoff::{
 // RE-EXPORTS: Command journal
 // ═══════════════════════════════════════════════════════════════════════════════
 
+#[cfg(all(feature = "native", feature = "journal-file"))]
+#[cfg_attr(docsrs, doc(cfg(all(feature = "native", feature = "journal-file"))))]
+pub use journal::AsyncFileJournalSink;
 #[cfg(feature = "journal-file")]
 #[cfg_attr(docsrs, doc(cfg(feature = "journal-file")))]
 pub use journal::FileJournalSink;
