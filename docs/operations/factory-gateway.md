@@ -111,6 +111,7 @@ in them. [The example](factory-gateway/gateway.example.json) shows the fields in
 | `mergeMethods` | How `pr-merge` merges in each repository: `rebase`, `squash` or `merge` (the default). See [Merges and credit](#merges-and-credit) |
 | `githubApp` | The App's ID and its installation's ID |
 | `allowedVariables` | The repository variables `variable-set` may write; `FACTORY_LANE_HOST` when left out |
+| `cache.graphqlSeconds` | Seconds callers share one read of a repository's issues or pull requests (behind `claim-list`, `gateway-audit` and `gateway-wait`); 15 when left out, 0 to read GitHub every time. A write through the gateway clears it at once |
 
 To change it, copy the installed file, edit the copy and install it:
 

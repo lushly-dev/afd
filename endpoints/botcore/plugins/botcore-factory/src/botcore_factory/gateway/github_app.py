@@ -276,7 +276,18 @@ class GitHubApp:
     def issue(self, repo: str, number: int) -> dict[str, Any] | None:
         data = self._graphql(_ISSUE_QUERY, **_owner_name(repo), number=number)
         node = (data.get("repository") or {}).get("issue")
-        return None if node is None else self._issue_shape(repo, node)
+        if node is None:
+            return None
+        issue = self._issue_shape(repo, node)
+        closing = (node.get("closedByPullRequestsReferences") or {}).get("nodes") or []
+        issue["closedBy"] = sorted(
+            pull["number"]
+            for pull in closing
+            # A pull request the App may not read comes back as null.
+            if pull
+            and (pull.get("repository") or {}).get("nameWithOwner", "").lower() == repo.lower()
+        )
+        return issue
 
     def issues(self, repo: str) -> list[dict[str, Any]]:
         found = {}
@@ -800,8 +811,14 @@ _PULL_FIELDS = """number state title body headRefName headRefOid mergeable merge
     labels(first: 100) { nodes { name } }
     closingIssuesReferences(first: 20) { nodes { number } }"""
 
+#: Only the one-issue read asks who closes it: in a scan it would multiply every page's cost.
+_CLOSED_BY = """closedByPullRequestsReferences(first: 50, includeClosedPrs: true) {
+      nodes { number repository { nameWithOwner } }
+    }"""
 _ISSUE_QUERY = f"""query($owner: String!, $name: String!, $number: Int!) {{
-  repository(owner: $owner, name: $name) {{ issue(number: $number) {{ {_ISSUE_FIELDS} }} }}
+  repository(owner: $owner, name: $name) {{
+    issue(number: $number) {{ {_ISSUE_FIELDS} {_CLOSED_BY} }}
+  }}
 }}"""
 _ISSUES_QUERY = f"""query($owner: String!, $name: String!, $states: [IssueState!],
                    $cursor: String) {{

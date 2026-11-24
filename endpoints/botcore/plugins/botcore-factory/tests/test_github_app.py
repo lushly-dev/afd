@@ -190,6 +190,32 @@ def test_an_issue_with_more_comments_than_one_page_reads_them_all(github):
     assert [c["id"] for c in app.issue(REPO, 5)["comments"]] == [0, 1, 2]
 
 
+def test_one_issue_names_the_pull_requests_that_close_it_in_its_own_repository(github):
+    app, mock, _ = github
+    node = _issue(5) | {
+        "closedByPullRequestsReferences": {
+            "nodes": [
+                {"number": 9, "repository": {"nameWithOwner": REPO}},
+                {"number": 3, "repository": {"nameWithOwner": REPO.upper()}},
+                {"number": 7, "repository": {"nameWithOwner": "someone/fork"}},
+            ]
+        }
+    }
+    mock.graphql.append({"data": {"repository": {"issue": node}}})
+    assert app.issue(REPO, 5)["closedBy"] == [3, 9]
+    query = json.loads(mock.requests[-1].content)["query"]
+    assert "closedByPullRequestsReferences" in query and "includeClosedPrs: true" in query
+
+
+def test_a_scan_does_not_ask_who_closes_each_issue(github):
+    app, mock, _ = github
+    mock.graphql += [_page("issues", [_issue(1)]), _page("issues", [])]
+    app.issues(REPO)
+    for request in mock.requests:
+        if request.url.path == "/graphql":
+            assert "closedByPullRequestsReferences" not in json.loads(request.content)["query"]
+
+
 def test_a_number_that_is_not_an_issue_is_none(github):
     app, mock, _ = github
     mock.graphql.append(

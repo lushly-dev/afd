@@ -44,6 +44,12 @@ class Cutover(_Model):
     lushly_stale_hours: float = Field(4, alias="lushlyStaleHours")
 
 
+class Cache(_Model):
+    #: Seconds callers share one read of a repository's issues or pull requests (the scans
+    #: behind claim-list, gateway-audit and gateway-wait); 0 reads GitHub on every call.
+    graphql_seconds: float = Field(default=15, ge=0, alias="graphqlSeconds")
+
+
 class GitHubAppConfig(_Model):
     """The App the gateway writes as. Neither id is secret; the private key is a file on the
     gateway's machine, passed to ``serve --app-key``."""
@@ -90,6 +96,7 @@ class GatewayConfig(_Model):
     github_app: GitHubAppConfig | None = Field(None, alias="githubApp")
     #: Most milliseconds gateway-wait blocks on one call over MCP.
     wait_max_ms: int = Field(300_000, alias="waitMaxMs")
+    cache: Cache = Field(default_factory=lambda: Cache())
 
     @model_validator(mode="after")
     def _merge_methods_name_served_repositories(self) -> GatewayConfig:

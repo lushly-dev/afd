@@ -85,7 +85,7 @@ def _actor(actor: Actor | None) -> dict[str, Any]:
 
 
 def journal_rows(gateway: Gateway, repo: str) -> list[dict[str, Any]]:
-    heads = {pull["head"]: pull["number"] for pull in gateway.github.pulls(repo)}
+    heads = {pull["head"]: pull["number"] for pull in gateway.scans.cached_pulls(repo)}
     rows = [{**row, "targets": [row["target"]]} for row in gateway.state.get("auditSeed", [])]
     for entry in read_journal(gateway.state.journal_dir):
         if entry.command not in WRITE_COMMANDS:
@@ -111,13 +111,13 @@ def journal_rows(gateway: Gateway, repo: str) -> list[dict[str, Any]]:
 
 def watched(gateway: Gateway, repo: str) -> set[str]:
     targets = set()
-    for issue in gateway.github.issues(repo):
+    for issue in gateway.scans.cached_issues(repo):
         record = read_claim(
             issue["number"], issue.get("comments", []), gateway.config, gateway.now()
         )
         if isinstance(record, Claim):
             targets.add(f"issue#{issue['number']}")
-    for pull in gateway.github.pulls(repo):
+    for pull in gateway.scans.cached_pulls(repo):
         if pull.get("author") == gateway.config.bot:
             targets.add(f"pr#{pull['number']}")
     return targets
@@ -145,11 +145,16 @@ def outside_writes(gateway: Gateway, repo: str, since: str | None) -> list[dict[
         for row in journal_rows(gateway, repo)
         if row["command"] == "branch-push" and row["success"]
     }
-    for pull in gateway.github.pulls(repo):
+    for pull in gateway.scans.cached_pulls(repo):
         ref = f"refs/heads/{pull.get('branch')}"
         ours = pull.get("author") == bot and pull.get("state") == "open" and ref in pushed
-        if ours and gateway.github.ref(repo, ref) != pull["head"]:
-            found.append({"at": None, "kind": "pushed", "target": f"pr#{pull['number']}"})
+        head = gateway.github.ref(repo, ref) if ours else None
+        if ours and head != pull["head"]:
+            # The scan may be from before the gateway's own push or a merge the queue made:
+            # confirm with a fresh read that the pull request is still open at another head.
+            current = gateway.github.pull(repo, pull["number"])
+            if current and gateway.pull_state(current) == "open" and head != current["head"]:
+                found.append({"at": None, "kind": "pushed", "target": f"pr#{pull['number']}"})
     found = [
         {key: value for key, value in row.items() if value is not None}
         for row in found
@@ -252,7 +257,7 @@ def review_get(gateway: Gateway, repo: str, head: str) -> CommandResult[Any]:
 
 def events(gateway: Gateway, repo: str) -> list[dict[str, Any]]:
     found = []
-    for pull in gateway.github.pulls(repo):
+    for pull in gateway.scans.cached_pulls(repo):
         number, state = pull["number"], gateway.pull_state(pull)
         if state == "merged":
             found.append(
@@ -325,9 +330,7 @@ async def gateway_wait(
     found = await asyncio.to_thread(fresh)  # GitHub reads block; keep the event loop free.
     if not found:
         await asyncio.sleep(timeout_ms / 1000)
-        refresh = getattr(gateway.github, "refresh", None)
-        if callable(refresh):
-            refresh()
+        gateway.scans.refresh(repo)  # A wait reads GitHub again, past the shared scans.
         found = await asyncio.to_thread(fresh)
     if not found:
         return success({"events": [], "timedOut": True}, reasoning="Nothing new before the timeout")
