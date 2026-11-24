@@ -1,7 +1,8 @@
 # Loam Mail
 
 Mail as a Loam plugin with an engine of its own: a Rust program that holds a person's mail on
-their machine and serves it as AFD commands. The app over it comes later.
+their machine and serves it as AFD commands, and `mailapp`, the native app over it, so far its
+first slice: [replying to a thread](#the-mail-app).
 
 - [The engine's specification](docs/engine.spec.md): what is being built, and in what steps.
 - [The plugin's specification](docs/plugin.spec.md): mounting in Loam, approvals, taint per account and the native app.
@@ -141,7 +142,8 @@ for the full contract.
    naming the packed mount directory, bearer file, `labels = "per-part"`, `approvals = "shell"`,
    all four released MCP commands' previews (`mail-operation-approve`, `mail-draft-send`,
    `mail-unsubscribe`, and `mail-replyset-send`), `mail-replyset-submit` for fresh-context units,
-   and every other mutation you want exposed (`expose.apps` is set per command):
+   and every other command another app may call, the mail app's among them (`expose.apps` is set
+   per command):
 
    ```toml
    deployment_version = 4
@@ -179,6 +181,19 @@ for the full contract.
 
    [apps.mail.commands."mail-replyset-submit"]
    expose = { agent = true }
+
+   # What the mail app calls: `expose.apps` is set per command, never on the instance.
+   [apps.mail.commands."mail-thread-open"]
+   expose = { agent = true, palette = true, apps = true }
+
+   [apps.mail.commands."mail-draft-show"]
+   expose = { agent = true, palette = true, apps = true }
+
+   [apps.mail.commands."mail-draft-create"]
+   expose = { agent = true, palette = true, apps = true }
+
+   [apps.mail.commands."mail-draft-update"]
+   expose = { agent = true, palette = true, apps = true }
    ```
 
 5. Validate and write the desktop deployment:
@@ -189,3 +204,27 @@ for the full contract.
    ```
 
    `mounts.json` holds the copied bearer and must remain private to the person.
+
+## The mail app
+
+`app/` is `mailapp`, titled Mail, a native Loam app ([the plugin's specification](docs/plugin.spec.md#13-the-native-app)).
+So far it is the send slice of section 13.1: it opens a thread by id (its route, `thread/<id>`, or
+a field), writes a reply to the thread's newest message as a draft, and sends it. Send asks in Loam's
+slot with the draft as `mail-draft-show` shows it; if the draft changed since, it shows the draft
+again and sends nothing. It holds no mail and has no commands of its own: its `calls` grant names
+the mounted instance `mail`'s `mail-thread-open`, `mail-draft-create`, `mail-draft-update`,
+`mail-draft-show` and `mail-draft-send`, which the instance's entry must expose to apps (step 4).
+
+```sh
+pnpm -F "@lushly-dev/loam-app-mail..." -F "!@lushly-dev/loam-host" build
+pnpm -F @lushly-dev/loam-app-mail test
+pnpm -F @lushly-dev/loam-app-mail run pack   # to dist/package
+```
+
+Add it beside the instance, in the same `loam.deployment.toml`:
+
+```toml
+[apps.mailapp]
+app = "mailapp"
+package = "<endpoints/loam/plugins/mail/app/dist/package>"
+```

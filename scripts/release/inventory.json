@@ -1102,6 +1102,27 @@
 			]
 		},
 		{
+			"id": "loam-app-mail",
+			"family": "loam",
+			"protocol": "npm-changesets",
+			"sourceRevision": "403772790c70124e1460e0a4c55425994fb64c9f",
+			"authority": "none: new Loam plugin app authored in lushly-dev/afd on top of this revision, not imported; manifest is private: true and cannot publish; no route, registry identity, deployment or handoff exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["pnpm check", "loam-plugins.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "@lushly-dev/loam-app-mail",
+					"registry": "npm",
+					"manifest": "endpoints/loam/plugins/mail/app/package.json",
+					"format": "npm",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
 			"id": "loam-app-violet",
 			"family": "loam",
 			"protocol": "npm-changesets",

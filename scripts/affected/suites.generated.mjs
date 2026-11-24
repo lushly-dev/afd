@@ -548,6 +548,31 @@ export const SUITES = [
 				]
 			},
 			{
+				"gate": "mailapp",
+				"tools": [],
+				"run": "pnpm -F \"@lushly-dev/loam-app-mail...\" -F \"!@lushly-dev/loam-host\" build"
+			},
+			{
+				"gate": "mailapp",
+				"tools": [],
+				"run": "pnpm -F @lushly-dev/loam-app-mail typecheck"
+			},
+			{
+				"gate": "mailapp",
+				"tools": [],
+				"run": "pnpm -F @lushly-dev/loam-app-mail lint:tokens"
+			},
+			{
+				"gate": "mailapp",
+				"tools": [],
+				"run": "pnpm -F @lushly-dev/loam-app-mail test"
+			},
+			{
+				"gate": "mailapp",
+				"tools": [],
+				"run": "pnpm -F @lushly-dev/loam-app-mail run pack"
+			},
+			{
 				"gate": "violet",
 				"tools": [],
 				"run": "pnpm -F \"@lushly-dev/loam-app-violet...\" -F \"!@lushly-dev/loam-host\" build"

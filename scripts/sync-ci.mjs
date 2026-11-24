@@ -301,24 +301,27 @@ const SUITE_CONFIG = [
 			'Linux, the release-profile test-doubles check, and the Linux scenario run against loam-mail test-world',
 		extract(wf) {
 			requireGate(wf, 'mail');
+			requireGate(wf, 'mailapp');
 			requireGate(wf, 'violet');
 			const mailSteps = extractCargoSteps(wf, 'mail', { gate: 'mail' }).map((step) => ({
 				...step,
 				tools: ['cargo'],
 			}));
-			const violetJob = wf.jobs.violet;
-			if (!violetJob) throw new Error('loam-plugins.yml is missing job "violet"');
-			const violetSteps = violetJob.steps
-				.filter((s) => typeof s.run === 'string' && s.run.startsWith('pnpm '))
-				.map((s) => ({
-					gate: 'violet',
-					tools: s.run.includes('test:specimen') ? ['cargo', 'chromium'] : [],
-					run: s.run,
-				}));
-			if (violetSteps.length === 0) {
-				throw new Error('loam-plugins.yml job "violet" has no pnpm steps');
-			}
-			return [...mailSteps, ...violetSteps];
+			// A plugin app's job: its pnpm steps, under the gate of the same name.
+			const pnpmSteps = (job) => {
+				const found = wf.jobs[job];
+				if (!found) throw new Error(`loam-plugins.yml is missing job "${job}"`);
+				const steps = found.steps
+					.filter((s) => typeof s.run === 'string' && s.run.startsWith('pnpm '))
+					.map((s) => ({
+						gate: job,
+						tools: s.run.includes('test:specimen') ? ['cargo', 'chromium'] : [],
+						run: s.run,
+					}));
+				if (steps.length === 0) throw new Error(`loam-plugins.yml job "${job}" has no pnpm steps`);
+				return steps;
+			};
+			return [...mailSteps, ...pnpmSteps('mailapp'), ...pnpmSteps('violet')];
 		},
 	},
 	{

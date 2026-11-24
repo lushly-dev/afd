@@ -99,6 +99,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       mail: ${{ steps.mail.outputs.run }}
+      mailapp: ${{ steps.mailapp.outputs.run }}
       violet: ${{ steps.violet.outputs.run }}
     env:
       AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.merge_group.base_sha || github.event.before }}
@@ -111,6 +112,8 @@ jobs:
           persist-credentials: false
       - id: mail
         run: node scripts/affected.mjs gate --path endpoints/loam/plugins/mail/engine/ --path endpoints/loam/plugins/mail/scripts/ --path endpoints/loam/plugins/mail/docs/scenarios/ --path packages/rust/ --path .cargo/config.toml --path .github/workflows/loam-plugins.yml --path .github/actions/setup-node-pnpm/
+      - id: mailapp
+        run: node scripts/affected.mjs gate --package @lushly-dev/loam-app-mail --path endpoints/loam/plugins/mail/app/ --path .github/actions/setup-node-pnpm/ --path .github/workflows/loam-plugins.yml
       - id: violet
         run: node scripts/affected.mjs gate --package @lushly-dev/loam-app-violet --path endpoints/loam/plugins/violet/ --except endpoints/loam/plugins/violet/docs/ --path .github/actions/playwright-install/ --path .github/actions/setup-node-pnpm/ --path .github/workflows/loam-plugins.yml
 
@@ -182,6 +185,29 @@ jobs:
             echo "$output" >&2
             exit 1
           fi
+
+  mailapp:
+    name: Mail app (build, typecheck, tests, pack)
+    needs: scope
+    if: needs.scope.outputs.mailapp == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+      - name: Build the mail app and workspace dependencies
+        run: pnpm -F "@lushly-dev/loam-app-mail..." -F "!@lushly-dev/loam-host" build
+      - name: Typecheck
+        run: pnpm -F @lushly-dev/loam-app-mail typecheck
+      - name: Lint tokens
+        run: pnpm -F @lushly-dev/loam-app-mail lint:tokens
+      - name: Tests
+        run: pnpm -F @lushly-dev/loam-app-mail test
+      - name: Pack app
+        run: pnpm -F @lushly-dev/loam-app-mail run pack
 
   violet:
     name: Violet plugin (scenarios, Specimen, pack)
