@@ -1,6 +1,6 @@
 [package]
 name = "afd"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
 # The minimum supported Rust version: `hmac` 0.13 and `sha2` 0.11.0 need 1.85. With dependencies
 # resolved for it (Cargo's `incompatible-rust-versions = "fallback"`), `cargo +1.85.0 check` passes for
