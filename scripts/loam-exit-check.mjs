@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Loam's exit check: `node scripts/loam-exit-check.mjs <loam run id> <ci run id> [--phase 2|3|4]`. Phase 2's, by
- * default, as below; `--phase 3` is phase 3's local part, after this comment's list.
+ * Loam's exit check: `node scripts/loam-exit-check.mjs <loam run id> <ci run id> [--phase 2|3|4 | --phase 6
+ * --milestone m1]`. Phase 2's, by default, as below; `--phase 3` is phase 3's local part, after this comment's list.
  *
  * Step 14 of the phase 2 specification (endpoints/loam/docs/phases/2-scope-projects/spec.md, section 16)
  * runs `loam.yml` and `ci.yml` by `workflow_dispatch` on `main`, which opens every gate, and then this. It
@@ -43,6 +43,17 @@
  * over `P4-` titles. E11 is withdrawn (menus are deferred, section 9) and has no count. P4-E14 reuses phase 3's
  * rows and minimums, and through P3-E12 phase 2's, each with condition 3 over its own prefix. E12's budget is
  * section 14's rows under D115, as above: each printed, at or under its own ceiling, and none OVER.
+ *
+ * `--phase 6 --milestone m1` is step 7 of the phase 6 specification (endpoints/loam/docs/phases/6-hosts/
+ * spec.md, sections 5.3, 19 and 20), the table's `'6-m1'` entry: M1 is reached when P6-E1 to P6-E5, P6-E7 to
+ * P6-E9 and P6-H1 to P6-H8 pass in their places. It checks the same two runs by condition 1 (the desktop
+ * workflow is read only under `--phase 6` without `--milestone`, which is the exit's, step 13), then each of
+ * those rows in the places section 19 names, against loam-exit-check.p6.minimums.json's `m1`, with condition 3
+ * over every `P6-` title in the log, M1's or not. Since D162 the `Hosted development profile` job runs the
+ * frozen lane: "Units" is the `loam` job's unit step for every package but `loam-host` and that job's
+ * "The hosted server's unit suites with coverage" for `loam-host`, each counted on its own; "Host path" is its
+ * "AFD's host path" step and "Hosted" its criterion step. P6-E9's budget is read under D115, as phase
+ * 3's is. No earlier phase's row is read: M1 lists only its own (5.3), and the exit's reuse is step 13's.
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -129,6 +140,19 @@ export const LOCATIONS = {
 		job: LOAM_JOB,
 		step: 'Unit suites with coverage',
 		within: /^endpoints\/loam\/packages\/identity test:\s+\S+\s+src\/mcp-identity\.test\.ts > /,
+	},
+	// Phase 6's section 19, whose frozen lane (D162; its CI split, #2287, 2026-11-23) runs in its own job: `loam-host`'s half of
+	// "Units", P6-E7's `local-db` SQLite contract, and the hosted criterion.
+	hostUnits: {
+		label: 'Units, `loam-host`',
+		job: 'Hosted development profile',
+		step: "The hosted server's unit suites with coverage",
+	},
+	host: { label: 'Host path', job: 'Hosted development profile', step: "AFD's host path" },
+	hosted: {
+		label: 'Hosted',
+		job: 'Hosted development profile',
+		step: 'Hosted criterion against the development profile',
 	},
 };
 
@@ -271,6 +295,47 @@ export const P4_BUDGET_ROWS = [
 ];
 
 /**
+ * Milestone M1's rows: section 19 of endpoints/loam/docs/phases/6-hosts/spec.md, by its "Place" column, for
+ * the rows 5.3 lists. E6 is M4's and every `P6-H` row past H8 M2's or M4's. E8 is this check. Change a row
+ * here only with its spec row.
+ */
+export const P6_M1_ROWS = [
+	// "Units" is two steps since D162: `loam-host`'s suites run in the hosted job, every other package's in the
+	// `loam` job. Each row names the halves its test files are in, so a half that drops its suites fails.
+	{ row: 'E1', in: ['units', 'hostUnits'] },
+	{ row: 'E2', in: ['hostUnits'] },
+	{ row: 'E3', in: ['units', 'hostUnits'] },
+	{ row: 'E4', in: ['units'] },
+	{ row: 'E5', in: ['units', 'hostUnits'] },
+	{ row: 'E7', in: ['host'] },
+	// "The exit step": this check itself, with `--milestone m1`.
+	{ row: 'E8', in: [] },
+	// "Budget; Chromium; Hosted".
+	{ row: 'E9', in: ['budget', 'chromium', 'hosted'] },
+	{ row: 'H1', in: ['hosted'] },
+	{ row: 'H2', in: ['hosted'] },
+	{ row: 'H3', in: ['hosted'] },
+	{ row: 'H4', in: ['hosted'] },
+	{ row: 'H5', in: ['hosted'] },
+	{ row: 'H6', in: ['hosted'] },
+	{ row: 'H7', in: ['hosted'] },
+	{ row: 'H8', in: ['hosted'] },
+];
+
+/**
+ * Section 14's browser rows, which P6-E9 names, by the start of the label the budget script prints: first
+ * paint's two, `late`, `late-hosted`, and the projection validator's chunk, which is the kernel's `apps` chunks
+ * (step 3's measurement). Under D115, as phase 3's: printed once, at or under its own ceiling.
+ */
+export const P6_BUDGET_ROWS = [
+	'JavaScript, minified',
+	'JavaScript, gzip',
+	"The kernel's `late` chunk",
+	"The kernel's `late-hosted` chunk",
+	"The kernel's `apps` chunks",
+];
+
+/**
  * ANSI escapes, as the escape character or in caret notation (`^[[32m`), which `gh run view --log` prints
  * in place of it since November 2026: neither is ever part of a title.
  */
@@ -290,6 +355,8 @@ const ROW_TITLES = {
 	P2: /^(?:P2-[ED]\d+: )+/,
 	P3: /^(?:P3-E\d+: )+/,
 	P4: /^(?:P4-E\d+: )+/,
+	// Every kind of phase 6's section 19, so condition 3 reads a title of a row M1 does not list too.
+	P6: /^(?:P6-[EHMIDX]\d+: )+/,
 };
 const VITEST_STATUS = { '✓': 'pass', '×': 'fail', '↓': 'skip', '□': 'todo' };
 const NODE_STATUS = { '✔': 'pass', '✖': 'fail', '﹣': 'skip' };
@@ -313,7 +380,7 @@ function claimedRows(segments, rowTitle) {
  * whose title claims a row, with its job, step, status and rows. Only a result line counts: Vitest's verbose
  * shape anywhere, node's spec shape in the lean-path step. A status is `pass` only for a passing mark with
  * no retry and no node directive (`# SKIP`, `# TODO`, `# EXPECTED FAILURE`); an unknown mark is its own
- * status, so a change of format fails closed. `prefix` is the phase whose titles it reads, `P2`, `P3` or `P4`;
+ * status, so a change of format fails closed. `prefix` is the phase whose titles it reads, `P2`, `P3`, `P4` or `P6`;
  * each is read alone, so an earlier phase's reading is the same with a later phase's titles in the log.
  */
 export function readTitles(log, prefix = 'P2') {
@@ -449,8 +516,12 @@ export function checkRun(run, workflow, { allowRerun = false } = {}) {
 	const skippedJobs = workflow.skippedJobs ?? [];
 	const canonicalName = (name) => aliases[name] ?? name;
 	const names = run.jobs.map((job) => canonicalName(job.name));
+	// Exactly once each: a job listed twice is not the list, whatever its conclusions.
 	for (const name of workflow.jobs)
 		if (!names.includes(name)) problems.push(`${where}: job "${name}" is missing`);
+	for (const name of new Set(names))
+		if (names.filter((entry) => entry === name).length > 1)
+			problems.push(`${where}: job "${name}" appears more than once`);
 	for (const job of run.jobs) {
 		const canonical = canonicalName(job.name);
 		if (skippedJobs.includes(canonical)) {
@@ -485,6 +556,8 @@ export const MINIMUMS_FILE = 'loam-exit-check.minimums.json';
 export const P3_MINIMUMS_FILE = 'loam-exit-check.p3.minimums.json';
 /** Phase 4's, in the same shape; E14 reads phase 3's file, and through it phase 2's. */
 export const P4_MINIMUMS_FILE = 'loam-exit-check.p4.minimums.json';
+/** Phase 6's, one object per milestone under `minimums`: `{ "minimums": { "m1": { "E1": { "units": n } } } }`. */
+export const P6_MINIMUMS_FILE = 'loam-exit-check.p6.minimums.json';
 export function readMinimums(file = MINIMUMS_FILE) {
 	return JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), file), 'utf8'))
 		.minimums;
@@ -505,7 +578,7 @@ function titleProblems(titles, prefix) {
  * A phase with `budgetRows` reads them under D115 (`readBudgetWithin`); phase 2 holds its own figures
  * (`readBudget`) when checked as itself, and D115's first-paint rows when another phase reuses it. A row with
  * `reuse: <n>` is phase n's whole check, nested under it; `line` is what a row with no place prints. Phase 6's
- * milestones add their own entries here.
+ * milestones are entries of their own, `'6-<milestone>'`, whose minimums are `minimumsKey`'s object in the file.
  */
 export const PHASES = {
 	2: { prefix: 'P2', rows: ROWS, minimumsFile: MINIMUMS_FILE, line: {} },
@@ -523,7 +596,28 @@ export const PHASES = {
 		budgetRows: P4_BUDGET_ROWS,
 		line: { E11: 'withdrawn, menus are deferred (section 9)' },
 	},
+	'6-m1': {
+		prefix: 'P6',
+		rows: P6_M1_ROWS,
+		minimumsFile: P6_MINIMUMS_FILE,
+		minimumsKey: 'm1',
+		budgetRows: P6_BUDGET_ROWS,
+		line: { E8: 'this check, milestone m1' },
+	},
 };
+
+/** A phase's minimums as its file records them: the whole file's, or its milestone's object. */
+function fileMinimums(id) {
+	const { minimumsFile, minimumsKey } = PHASES[id];
+	const minimums = readMinimums(minimumsFile);
+	return minimumsKey === undefined ? minimums : (minimums[minimumsKey] ?? {});
+}
+
+/** The counts observed in the shape the phase's minimums file holds them. */
+export function minimumsShape(id, observed) {
+	const { minimumsKey } = PHASES[id];
+	return minimumsKey === undefined ? observed : { [minimumsKey]: observed };
+}
 
 /** Every place a phase's rows name, its reused phases' included. */
 function placesOf(id) {
@@ -615,13 +709,15 @@ export function checkExit({
 	minimumsByPhase = {},
 	allowRerun = false,
 }) {
-	// A phase this check has no rows for is refused, never read as phase 2's: phase 6's milestones add their own.
+	// A phase this check has no rows for is refused, never read as phase 2's: phase 6 only by a milestone.
 	if (!Object.hasOwn(PHASES, phase))
-		throw new Error(`The exit check has no rows for phase ${phase}`);
+		throw new Error(
+			`The exit check has no rows for phase ${phase}${String(phase) === '6' ? '; phase 6 takes --milestone m1' : ''}`
+		);
 	const given = { ...minimumsByPhase };
 	if (phase2Minimums !== undefined) given[2] = phase2Minimums;
 	if (minimums !== undefined) given[phase] = minimums;
-	const minimumsOf = (id) => given[id] ?? readMinimums(PHASES[id].minimumsFile);
+	const minimumsOf = (id) => given[id] ?? fileMinimums(id);
 	const problems = [
 		...checkRun(loam, WORKFLOWS.loam, { allowRerun }),
 		...checkRun(ci, WORKFLOWS.ci, { allowRerun }),
@@ -681,25 +777,38 @@ export function fetchRuns(loamId, ciId) {
 }
 
 const USAGE =
-	'usage: node scripts/loam-exit-check.mjs <loam run id> <ci run id> [--phase 2|3|4] [--allow-rerun] [--print-minimums]';
+	'usage: node scripts/loam-exit-check.mjs <loam run id> <ci run id> [--phase 2|3|4 | --phase 6 --milestone m1] [--allow-rerun] [--print-minimums]';
 
-/** The arguments, or null when they are not the usage's: two run ids, and each flag at most once. */
+/**
+ * The arguments, or null when they are not the usage's: two run ids, and each flag at most once; `--milestone`
+ * only with `--phase 6`, which needs one until step 13 writes the exit's. Phase 6's milestone is the table's
+ * `'6-<milestone>'`.
+ */
 export function parseArgs(argv) {
-	const rest = [...argv];
-	let phase = 2;
-	const at = rest.indexOf('--phase');
-	if (at !== -1) {
-		const value = rest[at + 1];
-		if (!['2', '3', '4'].includes(value)) return null;
-		phase = Number(value);
-		rest.splice(at, 2);
-		if (rest.includes('--phase')) return null;
-	}
+	// Each flag's value is read where the flag stands in `argv`, before anything is removed, so one flag
+	// never takes a value that followed another.
+	const taken = new Set();
+	const take = (flag, values) => {
+		const at = argv.indexOf(flag);
+		if (at === -1) return undefined;
+		const value = argv[at + 1];
+		taken.add(at).add(at + 1);
+		if (!values.includes(value) || argv.indexOf(flag, at + 1) !== -1) return null;
+		return value;
+	};
+	const phaseValue = take('--phase', ['2', '3', '4', '6']);
+	const milestone = take('--milestone', ['m1']);
+	if (phaseValue === null || milestone === null) return null;
+	const rest = argv.filter((_, index) => !taken.has(index));
+	if ((phaseValue === '6') !== (milestone !== undefined)) return null;
+	const phase =
+		phaseValue === undefined ? 2 : phaseValue === '6' ? `6-${milestone}` : Number(phaseValue);
 	const args = rest.filter((arg) => !arg.startsWith('--'));
 	const flags = rest.filter((arg) => arg.startsWith('--'));
 	const unknown = flags.filter((flag) => !['--allow-rerun', '--print-minimums'].includes(flag));
 	if (args.length !== 2 || args.some((arg) => !/^\d+$/.test(arg)) || unknown.length > 0)
 		return null;
+	if (new Set(flags).size !== flags.length) return null;
 	return {
 		ids: args,
 		phase,
@@ -722,7 +831,7 @@ function main(argv) {
 	console.log(report.join('\n'));
 	if (parsed.printMinimums)
 		console.log(
-			`\nThe counts observed, for ${PHASES[parsed.phase].minimumsFile}:\n${JSON.stringify(observed, null, '\t')}`
+			`\nThe counts observed, for ${PHASES[parsed.phase].minimumsFile}:\n${JSON.stringify(minimumsShape(parsed.phase, observed), null, '\t')}`
 		);
 	if (problems.length > 0) {
 		console.error(`\nThe exit check fails, ${problems.length} problem(s):`);
