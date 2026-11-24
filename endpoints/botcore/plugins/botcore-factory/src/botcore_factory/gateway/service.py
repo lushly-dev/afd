@@ -11,12 +11,13 @@ from __future__ import annotations
 import difflib
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 from afd import CommandResult, error, success
 from botcore.context import current_call
 
 from botcore_factory.gateway import claims as claim_rules
+from botcore_factory.gateway.cache import CachedGitHub
 from botcore_factory.gateway.claims import IN_PROGRESS, PLANNED, Claim, Release, iso, parse_time
 from botcore_factory.gateway.config import GatewayConfig
 from botcore_factory.gateway.github import (
@@ -101,7 +102,14 @@ class Gateway:
         clock: Callable[[], datetime] | None = None,
         contains: Callable[[str, str, str], bool] | None = None,
     ) -> None:
-        self.github = github
+        #: One cache per process: the server wraps its port once and every route shares it.
+        self.scans = (
+            github
+            if isinstance(github, CachedGitHub)
+            else CachedGitHub(github, config.cache.graphql_seconds)
+        )
+        #: The same object, typed as the port it forwards every other call to.
+        self.github = cast(GitHub, self.scans)
         self.config = config
         self.state = state
         self.route = route
@@ -260,8 +268,10 @@ class Gateway:
     def issue_get(self, repo: str, number: int) -> CommandResult[Any]:
         self.repo(repo)
         issue = self.issue_or_refuse(repo, number)
-        record = self.claim(repo, number)
-        pulls = [p["number"] for p in self.github.pulls(repo) if number in p.get("closes", [])]
+        # The issue read carries every comment (the port pages past the last 100), as
+        # claim-list reads them, so the claim needs no second read.
+        record = claim_rules.read_claim(number, issue.get("comments", []), self.config, self.now())
+        pulls = sorted(issue.get("closedBy", []))
         data = {
             "number": number,
             "state": issue["state"],
@@ -319,7 +329,7 @@ class Gateway:
     def claim_list(self, repo: str, stale: bool | None) -> CommandResult[Any]:
         self.repo(repo)
         rows = []
-        for issue in sorted(self.github.issues(repo), key=lambda i: i["number"]):
+        for issue in sorted(self.scans.cached_issues(repo), key=lambda i: i["number"]):
             if issue["state"] != "open":
                 continue
             record = claim_rules.read_claim(
@@ -332,9 +342,14 @@ class Gateway:
         lapsed = sum(row["stale"] for row in rows)
         return success({"claims": rows}, reasoning=f"{len(rows)} claims, {lapsed} lapsed")
 
-    def required_check(self, repo: str, pull: dict[str, Any]) -> dict[str, Any]:
+    def required_check(
+        self, repo: str, pull: dict[str, Any], runs: list[dict[str, Any]] | None = None
+    ) -> dict[str, Any]:
+        """The required check on ``pull``'s head, from ``runs`` when the caller has read them."""
         name = self.config.required_check.name
-        runs = [run for run in self.github.check_runs(repo, pull["head"]) if run["name"] == name]
+        if runs is None:
+            runs = self.github.check_runs(repo, pull["head"])
+        runs = [run for run in runs if run["name"] == name]
         if not runs:
             return {"name": name, "state": "missing"}
         run = runs[-1]
@@ -360,7 +375,8 @@ class Gateway:
     def pr_status(self, repo: str, number: int) -> CommandResult[Any]:
         self.repo(repo)
         pull = self.pull_or_refuse(repo, number)
-        pull["checks"] = self.github.check_runs(repo, pull["head"]) or pull.get("checks", [])
+        runs = self.github.check_runs(repo, pull["head"])
+        pull["checks"] = runs or pull.get("checks", [])
         state = self.pull_state(pull)
         data: dict[str, Any] = {
             "number": number,
@@ -377,7 +393,7 @@ class Gateway:
                 # Open, not queued and no auto-merge after a queued pr-merge: it left the queue.
                 data["mergeQueue"] = self._queued(pull, changed=False)["mergeQueue"]
             data["mergeable"] = MERGEABLE.get(str(pull.get("mergeable") or ""), "pending")
-            data["requiredCheck"] = self.required_check(repo, pull)
+            data["requiredCheck"] = self.required_check(repo, pull, runs)
             data["checks"] = [
                 {key: run.get(key) for key in ("name", "status", "conclusion") if run.get(key)}
                 for run in pull["checks"]

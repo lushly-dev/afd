@@ -1,7 +1,4 @@
 {
-	"cache": {
-		"empty": true
-	},
 	"cutover": {
 		"from": "2030-02-03T08:00:00Z",
 		"legacyUntil": "2030-02-10T00:00:00Z",

@@ -27,7 +27,9 @@ details.outcomeKnown says whether the call could have run.
 - owner: everything, and issue-release with force.
 
 Reads on every route: gateway-status, issue-get, comment-list, claim-list, pr-status,
-review-get.
+review-get. claim-list (and gateway-audit and gateway-wait) answer from a scan of the
+repository that callers share for cache.graphqlSeconds (15): a write through the gateway
+shows at once, and one made elsewhere shows within that time.
 
 ## Claims
 

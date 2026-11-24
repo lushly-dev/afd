@@ -173,6 +173,15 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   - **Found:** `claim-list` (9 to 18 s) and `issue-get` (5 s) scan every open issue or pull
     request on each call, and no read is cached
     ([#2385](https://github.com/lushly-dev/afd/issues/2385)).
+- **Read cache ([#2385](https://github.com/lushly-dev/afd/issues/2385)): merged in [#2394](https://github.com/lushly-dev/afd/pull/2394).**
+  The repository scans behind `claim-list`, `gateway-audit` and `gateway-wait` are shared by
+  every route for `cache.graphqlSeconds` (15), one scan at a time, and dropped by any write
+  through the gateway to that repository; writes that de-duplicate still read GitHub.
+  `issue-get` reads only the issue: its claim from the issue's own comments and `linkedPrs`
+  from GitHub's closing references (all states, so older merged pull requests now count),
+  where it paged every open and 100 closed pull requests. `pr-status` reads check runs once.
+  Conditional REST requests (`ETag`) are not built: REST is the looser budget. Not yet
+  deployed on `random`.
 - **Squash credit, settled 2026-11-20: an App's squash takes the credit.** `pr-merge` squashed
   lushly#2707 as `72adbcc5`, whose author is `lushly-factory-gateway[bot]` and committer GitHub,
   with no line for the owner, who wrote its only commit (`bc996e25`): the gateway's explicit
@@ -231,8 +240,8 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   [#2303](https://github.com/lushly-dev/afd/pull/2303). Both run on `random` since the update
   to `3fe08c00` on 2026-11-23.
 - **Next, in order:** the first merge the App enqueues in AFD, checked for its committer, which closes
-  [#1809](https://github.com/lushly-dev/afd/issues/1809); the read cache
-  ([#2385](https://github.com/lushly-dev/afd/issues/2385)); change 3 redesigned so the host is the only validator (held on
+  [#1809](https://github.com/lushly-dev/afd/issues/1809); the read cache deployed on `random`;
+  change 3 redesigned so the host is the only validator (held on
   `lush/botcore-command-tools`); the lane on `random`
   with its health in `gateway-status`; the factory plugin on the gateway (after
   `feat/factory-lane-loop` lands); Lushly's side ([lushly#2392](https://github.com/lushly-dev/lushly/issues/2392));

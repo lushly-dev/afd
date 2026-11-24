@@ -56,7 +56,11 @@ class MergeMethodNotAllowed(Exception):
 
 
 class GitHub(Protocol):
-    def issue(self, repo: str, number: int) -> dict[str, Any] | None: ...
+    def issue(self, repo: str, number: int) -> dict[str, Any] | None:
+        """One issue; only this read carries ``closedBy``, the numbers of the repository's pull
+        requests, open or closed, that close it (GitHub's closing references)."""
+        ...
+
     def issues(self, repo: str) -> list[dict[str, Any]]: ...
     def pull(self, repo: str, number: int) -> dict[str, Any] | None: ...
     def pulls(self, repo: str) -> list[dict[str, Any]]: ...
@@ -155,7 +159,6 @@ GITHUB_KEYS = {
     "rateLimit",
     "ages",
     "githubUnavailable",
-    "cache",
 }
 
 
@@ -242,7 +245,12 @@ class FakeGitHub:
         return str(val) if val is not None else None
 
     def issue(self, repo: str, number: int) -> dict[str, Any] | None:
-        return copy.deepcopy(self._issue(self._check(repo), number))
+        data = self._check(repo)
+        issue = copy.deepcopy(self._issue(data, number))
+        if issue is not None:
+            pulls = data.get("pullRequests", [])
+            issue["closedBy"] = sorted(p["number"] for p in pulls if number in p.get("closes", []))
+        return issue
 
     def issues(self, repo: str) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = copy.deepcopy(self._check(repo).get("issues", []))
