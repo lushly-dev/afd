@@ -128,10 +128,33 @@ impl Shared {
     }
 }
 
-/// One HTTP surface's recorder. Dropping it ends its writer once the queue is drained.
+/// One HTTP surface's recorder, owned by that surface's router through [`Observer`].
+///
+/// Dropping the last reference closes its channel and blocks to join its `umbel-usage` OS thread
+/// once the queue is drained (draining any queued batches), so the writer never touches a
+/// workspace's SQLite files after its HTTP router or server drops (#2238).
 pub(crate) struct Recorder {
-    sender: Mutex<Sender<Entry>>,
+    sender: Mutex<Option<Sender<Entry>>>,
     shared: Arc<Shared>,
+    writer: Mutex<Option<std::thread::JoinHandle<()>>>,
+}
+
+impl Drop for Recorder {
+    fn drop(&mut self) {
+        self.sender
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take();
+        if let Some(handle) = self
+            .writer
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take()
+            && handle.thread().id() != std::thread::current().id()
+        {
+            let _ = handle.join();
+        }
+    }
 }
 
 impl std::fmt::Debug for Recorder {
@@ -283,12 +306,17 @@ impl Recorder {
         let spawned = std::thread::Builder::new()
             .name("umbel-usage".to_owned())
             .spawn(move || writer.run(receiver, thread_shared));
-        if let Err(error) = spawned {
-            tracing::error!(target: "umbel::usage", %error, "the usage writer could not start; every usage record is dropped and counted");
-        }
+        let writer = match spawned {
+            Ok(handle) => Some(handle),
+            Err(error) => {
+                tracing::error!(target: "umbel::usage", %error, "the usage writer could not start; every usage record is dropped and counted");
+                None
+            }
+        };
         Arc::new(Self {
-            sender: Mutex::new(sender),
+            sender: Mutex::new(Some(sender)),
             shared,
+            writer: Mutex::new(writer),
         })
     }
 
@@ -303,8 +331,9 @@ impl Recorder {
             .sender
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .send(entry);
-        if sent.is_err() {
+            .as_ref()
+            .is_some_and(|sender| sender.send(entry).is_ok());
+        if !sent {
             self.shared.release(std::iter::once(owner));
             self.shared.count_dropped(1);
         }
@@ -541,5 +570,57 @@ mod tests {
                 .unwrap()
                 .contains("canary")
         );
+    }
+
+    #[test]
+    fn dropping_a_recorder_joins_its_writer_before_its_workspace_can_be_removed() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = dir.path().join("state");
+        std::fs::create_dir_all(&state).unwrap();
+        let db_path = state.join("usage").join("usage.sqlite3");
+        let store = Arc::new(crate::shared::usage::SqliteUsage::new(&db_path, 1_000));
+        let finished = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let finished_flag = Arc::clone(&finished);
+        let stall: Stall = Arc::new(move |_| {
+            std::thread::sleep(Duration::from_millis(80));
+            finished_flag.store(true, Ordering::SeqCst);
+            Ok(())
+        });
+        let recorder = Recorder::start(
+            Writer {
+                store: Arc::clone(&store) as Arc<dyn UsageStore>,
+                clock: Arc::new(afd::fixed_clock(1_793_700_000_000)),
+                retention_days: 400,
+                stall: Some(stall),
+            },
+            Limits::default(),
+        );
+        recorder.submit(Entry {
+            record: record(1, "human:ada"),
+            owner: "human:ada".into(),
+        });
+        // Dropping `recorder` must drain and join the writer thread before returning, so the
+        // SQLite store is never touched after the workspace directory is removed (#2238).
+        drop(recorder);
+        assert!(
+            finished.load(Ordering::SeqCst),
+            "Recorder::drop returned before the writer thread finished its in-flight batch"
+        );
+        let page = store
+            .list(&UsageQuery {
+                readable: crate::shared::usage::Readable::All,
+                principal: None,
+                since_ms: None,
+                until_ms: None,
+                before: None,
+                limit: 10,
+                keep_from_ms: 0,
+            })
+            .unwrap();
+        assert_eq!(page.rows.len(), 1);
+        drop(store);
+        let root = dir.path().to_path_buf();
+        drop(dir);
+        assert!(!root.exists());
     }
 }

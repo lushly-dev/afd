@@ -33,7 +33,7 @@ use tokio::process::{Child, Command};
 use tokio::runtime::{Handle, Runtime};
 
 use super::result::map_tool_result;
-use super::transport::{BoundedHttp, ChildTransport, Limit};
+use super::transport::{BoundedHttp, ChildTransport, Limit, StdoutEnd, StdoutEndSlot};
 use crate::plugins::PluginError;
 
 /// At most this many respawns in [`RESPAWN_WINDOW`].
@@ -565,6 +565,7 @@ struct ChildWatch {
     child: Arc<Mutex<Option<Child>>>,
     stderr_tail: Arc<Mutex<StderrTail>>,
     stderr_done: tokio::sync::watch::Receiver<bool>,
+    stdout_end: StdoutEndSlot,
     /// The connect deadline: no wait of the diagnosis runs past it (less [`DIAGNOSIS_MARGIN`]).
     deadline: Instant,
 }
@@ -604,12 +605,17 @@ impl ChildWatch {
             let wait = self.within_deadline(STDERR_DRAIN_WAIT);
             let _ = tokio::time::timeout(wait, self.stderr_done.wait_for(|done| *done)).await;
         }
+        let stdout_end = self
+            .stdout_end
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
         let stderr = self
             .stderr_tail
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .format();
-        format_child_diagnostics(status, stderr.as_deref())
+        format_child_diagnostics(status, stdout_end.as_ref(), stderr.as_deref())
     }
 }
 
@@ -629,17 +635,20 @@ fn format_exit_status(status: std::process::ExitStatus) -> String {
 
 fn format_child_diagnostics(
     status: Option<std::process::ExitStatus>,
+    stdout_end: Option<&StdoutEnd>,
     stderr: Option<&str>,
 ) -> Option<String> {
-    match (status, stderr) {
-        (Some(status), Some(stderr)) => Some(format!(
-            "child {}; stderr: {stderr}",
-            format_exit_status(status)
-        )),
-        (Some(status), None) => Some(format!("child {}", format_exit_status(status))),
-        (None, Some(stderr)) => Some(format!("stderr: {stderr}")),
-        (None, None) => None,
+    let mut parts = Vec::new();
+    if let Some(status) = status {
+        parts.push(format!("child {}", format_exit_status(status)));
     }
+    if let Some(stdout_end) = stdout_end {
+        parts.push(stdout_end.to_string());
+    }
+    if let Some(stderr) = stderr {
+        parts.push(format!("stderr: {stderr}"));
+    }
+    (!parts.is_empty()).then(|| parts.join("; "))
 }
 
 fn append_diagnostics(message: String, detail: Option<String>) -> String {
@@ -730,12 +739,19 @@ fn spawn(
         let _ = stderr_done_tx.send(true);
     });
     let shared_child = Arc::new(Mutex::new(Some(child)));
-    let transport =
-        ChildTransport::new(Arc::clone(&shared_child), stdout, stdin, Arc::clone(limit));
+    let stdout_end: StdoutEndSlot = Arc::new(Mutex::new(None));
+    let transport = ChildTransport::new(
+        Arc::clone(&shared_child),
+        stdout,
+        stdin,
+        Arc::clone(limit),
+        Arc::clone(&stdout_end),
+    );
     let watch = ChildWatch {
         child: shared_child,
         stderr_tail: tail,
         stderr_done: stderr_done_rx,
+        stdout_end,
         deadline,
     };
     Ok((transport, watch))
@@ -773,6 +789,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
 
+    use super::super::transport::StdoutEnd;
     use super::{
         ChildWatch, STDERR_TAIL_BYTES, StderrTail, append_diagnostics, format_child_diagnostics,
     };
@@ -795,6 +812,7 @@ mod tests {
             child: Arc::new(Mutex::new(None)),
             stderr_tail: tail,
             stderr_done,
+            stdout_end: Arc::new(Mutex::new(None)),
             deadline: Instant::now() + Duration::from_secs(10),
         };
         let diagnosis = watch.diagnose(true).await.unwrap();
@@ -812,6 +830,7 @@ mod tests {
             child: Arc::new(Mutex::new(None)),
             stderr_tail: tail,
             stderr_done,
+            stdout_end: Arc::new(Mutex::new(None)),
             deadline: Instant::now() + Duration::from_millis(300),
         };
         let diagnosis = tokio::time::timeout(Duration::from_millis(300), watch.diagnose(true))
@@ -885,9 +904,29 @@ mod tests {
         assert_eq!(
             append_diagnostics(
                 "the handshake failed: eof".to_owned(),
-                format_child_diagnostics(None, Some("boom"))
+                format_child_diagnostics(None, None, Some("boom"))
             ),
             "the handshake failed: eof (stderr: boom)"
+        );
+        assert_eq!(
+            append_diagnostics(
+                "the handshake failed: eof".to_owned(),
+                format_child_diagnostics(None, Some(&StdoutEnd::Eof), Some("boom"))
+            ),
+            "the handshake failed: eof (stdout closed (EOF); stderr: boom)"
+        );
+        assert_eq!(
+            format_child_diagnostics(
+                None,
+                Some(&StdoutEnd::IoError("broken pipe".to_owned())),
+                None
+            )
+            .as_deref(),
+            Some("stdout I/O error: broken pipe")
+        );
+        assert_eq!(
+            format_child_diagnostics(None, Some(&StdoutEnd::LineOverLimit), None).as_deref(),
+            Some("stdout line exceeded max_result_bytes")
         );
     }
 }
