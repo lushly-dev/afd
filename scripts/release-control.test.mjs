@@ -9,6 +9,7 @@ import {
 	mkdtempSync,
 	readFileSync,
 	readlinkSync,
+	realpathSync,
 	rmSync,
 	symlinkSync,
 	writeFileSync,
@@ -52,7 +53,7 @@ import {
 	sourceDigest,
 	tree,
 } from './release-operations/shared.mjs';
-import { inWorktree } from './release-operations/version.mjs';
+import { inWorktree, runChangesetVersion } from './release-operations/version.mjs';
 
 const repository = dirname(dirname(fileURLToPath(import.meta.url)));
 // Windows reports a link's target with backslashes.
@@ -1596,4 +1597,77 @@ test('batch readback in publishPlan succeeds, holds with pending attribution on 
 	const heldError = JSON.parse(readFileSync(errorReceipt, 'utf8'));
 	assert.equal(heldError.state, 'held');
 	assert.equal(heldError.current, '@fixture/b');
+});
+
+test('default versionSelected invoke runs Changesets and prettier formatter under pnpm 12 without rewriting pnpm-lock.yaml or node_modules', (t) => {
+	const f = fixture(t);
+	const repoPkg = JSON.parse(readFileSync(join(repository, 'package.json'), 'utf8'));
+	const lockfile = "lockfileVersion: '9.0'\n# sentinel\n";
+	write(f.root, 'package.json', {
+		name: 'fixture',
+		private: true,
+		packageManager: repoPkg.packageManager,
+	});
+	write(f.root, '.changeset/config.json', {
+		...JSON.parse(readFileSync(join(f.root, '.changeset/config.json'), 'utf8')),
+		changelog: ['@changesets/cli/changelog', null],
+		format: 'prettier',
+	});
+	write(f.root, '.gitignore', 'node_modules\n');
+	write(f.root, 'pnpm-lock.yaml', lockfile);
+	shell(f.root, 'git', [
+		'add',
+		'package.json',
+		'.changeset/config.json',
+		'.gitignore',
+		'pnpm-lock.yaml',
+	]);
+	shell(f.root, 'git', [
+		'-c',
+		'user.name=Fixture',
+		'-c',
+		'user.email=fixture@example.invalid',
+		'commit',
+		'-m',
+		'configure pnpm 12 and prettier formatter',
+	]);
+	// Isolated fixture-local node_modules so a regression can never mutate repository/node_modules.
+	const linkType = process.platform === 'win32' ? 'junction' : 'dir';
+	const nm = join(f.root, 'node_modules');
+	mkdirSync(join(nm, '@changesets'), { recursive: true });
+	mkdirSync(join(nm, '.bin'), { recursive: true });
+	writeFileSync(join(nm, '.sentinel'), 'intact\n');
+	symlinkSync(
+		realpathSync(join(repository, 'node_modules/@changesets/cli')),
+		join(nm, '@changesets/cli'),
+		linkType
+	);
+	const prettierDir = realpathSync(join(repository, 'node_modules/prettier'));
+	symlinkSync(prettierDir, join(nm, 'prettier'), linkType);
+	const prettierBin = join(prettierDir, 'bin/prettier.cjs');
+	writeFileSync(join(nm, '.bin/prettier.cmd'), `@"${process.execPath}" "${prettierBin}" %*\r\n`);
+	writeFileSync(
+		join(nm, '.bin/prettier'),
+		`#!/bin/sh\nexec "${process.execPath}" "${prettierBin}" "$@"\n`
+	);
+	if (process.platform !== 'win32') chmodSync(join(nm, '.bin/prettier'), 0o755);
+
+	const plan = selectRelease({ root: f.root, registryEvidence: f.evidence });
+	const result = versionSelected({
+		root: f.root,
+		plan,
+		inventory: loadInventory(f.root),
+	});
+	assert.ok(result.changed.includes('packages/a/package.json'));
+	assert.ok(result.changed.includes('packages/a/CHANGELOG.md'));
+	assert.equal(result.changed.includes('pnpm-lock.yaml'), false);
+	assert.equal(JSON.parse(readFileSync(join(f.root, 'packages/a/package.json'))).version, '1.0.1');
+	assert.match(readFileSync(join(f.root, 'packages/a/CHANGELOG.md'), 'utf8'), /A release/);
+	assert.equal(readFileSync(join(nm, '.sentinel'), 'utf8'), 'intact\n');
+});
+
+test('runChangesetVersion throws an actionable error when @changesets/cli is missing', (t) => {
+	const dir = mkdtempSync(join(tmpdir(), 'afd-missing-changeset-'));
+	t.after(() => rmSync(dir, { recursive: true, force: true }));
+	assert.throws(() => runChangesetVersion(dir), /Changesets CLI not installed/);
 });

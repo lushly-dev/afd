@@ -6,11 +6,12 @@ import { execTool } from '../release/exec-tool.mjs';
 export const registryUrl = 'https://registry.npmjs.org';
 export const hash = (value) => createHash('sha256').update(value).digest('hex');
 export const json = (file) => JSON.parse(readFileSync(file, 'utf8'));
-export const run = (command, args, cwd) =>
+export const run = (command, args, cwd, options = {}) =>
 	execTool(command, args, {
 		cwd,
 		encoding: 'utf8',
 		stdio: ['ignore', 'pipe', 'pipe'],
+		...options,
 	});
 export { safePath } from '../release/control.mjs';
 /** Repository snapshots have one tracked mirror exception; artifact inputs never opt in. */

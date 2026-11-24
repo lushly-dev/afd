@@ -39,7 +39,7 @@ import {
 	unreleasedBody,
 } from './release/tracks.mjs';
 import { json, run, sourceDigest, tree } from './release-operations/shared.mjs';
-import { inWorktree } from './release-operations/version.mjs';
+import { inWorktree, runChangesetVersion } from './release-operations/version.mjs';
 
 const sha256 = (text) => createHash('sha256').update(text).digest('hex');
 const read = (root, file) => readFileSync(safePath(root, file), 'utf8');
@@ -226,7 +226,7 @@ function bumpStub({ root, track, fragments, invoke }) {
 		);
 		writeFileSync(
 			join(candidate, 'pnpm-workspace.yaml'),
-			`${JSON.stringify({ packages: [track.directory] })}\n`
+			`${JSON.stringify({ packages: [track.directory], verifyDepsBeforeRun: false })}\n`
 		);
 		for (const [file] of tree(candidate, '.changeset'))
 			if (file.endsWith('.md') && !file.endsWith('/README.md') && !selected.has(file))
@@ -274,7 +274,7 @@ export function versionTrack({
 	tracks = TRACKS,
 	date = new Date().toISOString().slice(0, 10),
 	tools = true,
-	invoke = (cwd) => run('pnpm', ['exec', 'changeset', 'version'], cwd),
+	invoke = runChangesetVersion,
 	execute = (command, args, cwd) => run(command, args, cwd),
 }) {
 	const track = tracks[name];

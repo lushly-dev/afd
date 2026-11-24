@@ -9,7 +9,7 @@ import {
 	writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import semver from 'semver';
 import { assertChannelVersions, planRelease, releaseChannel } from '../release/control.mjs';
 import { json, repositoryEntry, run, safePath, sourceDigest, tree } from './shared.mjs';
@@ -47,12 +47,30 @@ export function inWorktree(root, callback) {
 	}
 }
 
-export function versionSelected({
-	root,
-	plan,
-	inventory,
-	invoke = (cwd) => run('pnpm', ['exec', 'changeset', 'version'], cwd),
-}) {
+/**
+ * Run Changesets' version CLI directly from the worktree's installed `node_modules`.
+ * Avoids `pnpm exec`, whose pnpm 12 `verifyDepsBeforeRun` default (`"install"`) sees the
+ * narrowed `pnpm-workspace.yaml`, rewrites `pnpm-lock.yaml`, and mutates the symlinked
+ * parent checkout's `node_modules`. Also disables `verifyDepsBeforeRun` in the child
+ * environment so subprocesses Changesets spawns (such as `@changesets/format` running
+ * `pnpm exec prettier`) cannot trigger an implicit install either.
+ */
+export function runChangesetVersion(cwd) {
+	const cli = resolve(cwd, 'node_modules/@changesets/cli/bin.js');
+	if (!existsSync(cli))
+		throw new Error(`Changesets CLI not installed at ${cli}; run pnpm install first`);
+	return run(process.execPath, [cli, 'version'], cwd, {
+		env: {
+			...process.env,
+			npm_config_verify_deps_before_run: 'false',
+			pnpm_config_verify_deps_before_run: 'false',
+			npm_config_lockfile: 'false',
+			pnpm_config_lockfile: 'false',
+		},
+	});
+}
+
+export function versionSelected({ root, plan, inventory, invoke = runChangesetVersion }) {
 	const current = planRelease({
 		root,
 		inventory,
@@ -88,7 +106,10 @@ export function versionSelected({
 		writeFileSync(configPath, `${JSON.stringify(config, null, '\t')}\n`);
 		writeFileSync(
 			join(candidate, 'pnpm-workspace.yaml'),
-			`${JSON.stringify({ packages: plan.distributions.map((distribution) => dirname(distribution.manifest)) })}\n`
+			`${JSON.stringify({
+				packages: plan.distributions.map((distribution) => dirname(distribution.manifest)),
+				verifyDepsBeforeRun: false,
+			})}\n`
 		);
 		for (const entry of tree(candidate, '.changeset')) {
 			if (entry[0].endsWith('.md') && !entry[0].endsWith('/README.md') && !fragments.has(entry[0]))
