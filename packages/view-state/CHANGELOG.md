@@ -1,5 +1,16 @@
 # @lushly-dev/afd-view-state
 
+## 2.5.0
+
+### Minor Changes
+
+- [#1650](https://github.com/lushly-dev/afd/pull/1650) [`68b0024`](https://github.com/lushly-dev/afd/commit/68b002499c6ccd9194f48e77d5e0046fd8a1b377) Thanks [@Falkicon](https://github.com/Falkicon)! - `ViewStateRegistry.flush()` resolves with `{ failed }`, the IDs whose write failed, instead of nothing, and a failed write is kept and written again by the next flush, unless a newer state for its ID replaced it. Before, a failed write was logged and dropped, so a caller that awaited `flush()` could not tell its state was not stored. `flush()` still never rejects. A `hydrate()` that applies an ID's stored state drops a write kept for it, including one that fails while being written, and a failing ID is logged once until a write of it succeeds. The new `ViewStateFlushResult` type is exported.
+
+### Patch Changes
+
+- Updated dependencies [[`5962565`](https://github.com/lushly-dev/afd/commit/5962565062f2f34331f4c5e1f14b132700736959), [`274fcca`](https://github.com/lushly-dev/afd/commit/274fcca21fdeebb344a19873cea5b37a41cf80ff), [`709e64f`](https://github.com/lushly-dev/afd/commit/709e64f88733aa9879d007efe5654733f3dbd840), [`ea0cd02`](https://github.com/lushly-dev/afd/commit/ea0cd0276bc784c31f9bf923a7c67a97a06cf3dd), [`010b87a`](https://github.com/lushly-dev/afd/commit/010b87a94b39c9ae25985fdb83b3c1aec0825780), [`d676427`](https://github.com/lushly-dev/afd/commit/d6764276fdabede07f7f9eaf33785e046829a7d4), [`67ca558`](https://github.com/lushly-dev/afd/commit/67ca558ab822145a3ec2f5403b4dc94e1425cc4d), [`8c3425d`](https://github.com/lushly-dev/afd/commit/8c3425d880a4894255264a742dc57f447e6fef49), [`f1b4e51`](https://github.com/lushly-dev/afd/commit/f1b4e51fe863dcd3ba8dab509b9e9a1af390b4ce), [`0928fc9`](https://github.com/lushly-dev/afd/commit/0928fc99fa557b4e5dc5b52f25e560c096a2a61a), [`902e5ee`](https://github.com/lushly-dev/afd/commit/902e5ee2cb711bc9f45bf4ffa1b74dc248a0d1eb), [`bb6a71b`](https://github.com/lushly-dev/afd/commit/bb6a71b4b37084b94d52d90c659358afac9389fc), [`68b0024`](https://github.com/lushly-dev/afd/commit/68b002499c6ccd9194f48e77d5e0046fd8a1b377), [`eb45732`](https://github.com/lushly-dev/afd/commit/eb4573252a377e92bcef3ffa7de3e7c38696c876), [`e28d562`](https://github.com/lushly-dev/afd/commit/e28d56294dc9f917e4e2a8e91c76baeb8fd67e1c), [`4da865f`](https://github.com/lushly-dev/afd/commit/4da865ffd7b7d7717e77b7ab83b9101b11ed8019), [`93fe92c`](https://github.com/lushly-dev/afd/commit/93fe92ccbab0660bc4e51bf78004ad0890d55418), [`c9c03be`](https://github.com/lushly-dev/afd/commit/c9c03befb0576648fcabd1ffd29717f41c0293d1), [`e96c2f0`](https://github.com/lushly-dev/afd/commit/e96c2f0022745190659d9ef1eff4e024b69ce5ae), [`641faba`](https://github.com/lushly-dev/afd/commit/641fabaa659ff9fd5eca6e2229e4eb404bd341de), [`619909a`](https://github.com/lushly-dev/afd/commit/619909adbb14f7bb3115ce4e6c6ee485676d069e), [`9c3f9f2`](https://github.com/lushly-dev/afd/commit/9c3f9f24c59c50dcd81298545f133825af2c2554), [`076b364`](https://github.com/lushly-dev/afd/commit/076b3643552fe7bac71b81f78843dc5a973f8772)]:
+  - @lushly-dev/afd-server@2.5.0
+
 ## 2.4.0
 
 ### Patch Changes
