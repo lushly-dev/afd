@@ -69,7 +69,7 @@ const styles = css`
         --_text-primary: var(--color-text-primary, #181b1a);
         --_text-secondary: var(--color-text-secondary, #48534b);
         --_text-muted: var(--color-text-muted, #5e6460);
-        --_focus-ring: var(--color-focus-ring, #146ba0);
+        --_focus-ring: var(--color-focus-ring, #28769e);
         --_radius-sm: var(--radius-sm, 4px);
         --_radius-md: var(--radius-md, 8px);
         --_shadow-floating: var(--shadow-floating, 0 0 0 1px rgba(24, 27, 26, 0.08), 0 4px 12px -2px rgba(24, 27, 26, 0.12), 0 18px 40px -8px rgba(24, 27, 26, 0.20));

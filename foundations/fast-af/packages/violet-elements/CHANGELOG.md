@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Switch Refined Violet selection, focus ring, accent and light primary-button hover/pressed tokens from mint/green (selection, dark focus, light primary hover/pressed) and blue (light focus, accent) to a unified, saturation-balanced Cerulean 235° ramp (`#28769e` light / `#3d92bf` dark focus ring, `#1b5f80` light / `#a1d4f3` dark accent/selected text, `#dfecf4` / `#c0daeb` light and `#162832` dark selected/accent fills, `#2f383e` / `#262e33` light primary hover/pressed), keeping `color.state.success.*` mint/green. Update `violet-source-citation`'s `.link` to read `var(--_text-link, var(--color-accent-text, #1b5f80))` so link text follows `--color-accent-text` and keeps WCAG AA contrast across light, dark and high-contrast themes, and regenerate theme presets, component fallbacks, `custom-elements.json` and Specimen pack records.
+
 - Add `error-text` field errors to `violet-text-field`, `violet-text-area`, `violet-checkbox`, `violet-switch` and `violet-radio` (#1385, #1586). An error renders only while `invalid` is set (and not while disabled or readonly), showing `error-text` or—on the four form-associated controls—falling back to the browser's validation message (`violet-radio` has no native input and displays only `error-text`), replacing supporting text, linking as the control's accessible description and announcing with `role="alert"`. Supporting text on `violet-text-field` and `violet-text-area` no longer turns the danger colour while `invalid`; move error wording from `supporting-text` to `error-text`.
 
 - Resolve five `violet-elements` and `fast-af` issues (#1589, #1581, #1580, #656, #510):

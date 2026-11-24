@@ -93,8 +93,8 @@ describe("Loam's Violet tree", () => {
 		const light = themeNode('light');
 		expect(value(light, 'color.surface.page')).toBe('#f4f0ea');
 		expect(value(light, 'color.action.primary.background')).toBe('#181b1a');
-		expect(value(light, 'color.field.border.focus')).toBe('#146ba0');
-		expect(value(light, 'color.control.selected.background')).toBe('#badecf');
+		expect(value(light, 'color.field.border.focus')).toBe('#28769e');
+		expect(value(light, 'color.control.selected.background')).toBe('#c0daeb');
 		expect(value(light, 'type.title.md.weight')).toBe('600');
 		expect(value(light, 'type.label.sm.size')).toBe('13px');
 		expect(value(light, 'radius.md')).toBe('8px');
@@ -153,10 +153,10 @@ describe("Loam's Violet tree", () => {
 	});
 
 	it('gives the accent tokens a distinct blue hue in every theme (#1577)', () => {
-		expect(value(themeNode('light'), 'color.accent.background')).toBe('#e2edf5');
-		expect(value(themeNode('light'), 'color.accent.text')).toBe('#146ba0');
-		expect(value(themeNode('dark'), 'color.accent.background')).toBe('#182b3a');
-		expect(value(themeNode('dark'), 'color.accent.text')).toBe('#9fd4f5');
+		expect(value(themeNode('light'), 'color.accent.background')).toBe('#dfecf4');
+		expect(value(themeNode('light'), 'color.accent.text')).toBe('#1b5f80');
+		expect(value(themeNode('dark'), 'color.accent.background')).toBe('#162832');
+		expect(value(themeNode('dark'), 'color.accent.text')).toBe('#a1d4f3');
 		expect(value(themeNode('high-contrast'), 'color.accent.background')).toBe('#ffffff');
 		expect(value(themeNode('high-contrast'), 'color.accent.text')).toBe('#004A80');
 		for (const theme of THEMES) {
@@ -382,7 +382,7 @@ describe('DTCG tree files (#1974)', () => {
 		const catalog = await tokensCatalogCommand.handler({}, { db: tree.db, actor: 'test' });
 		expect(catalog.success).toBe(true);
 		expect(catalog.data?.summary.categories).toEqual({
-			color: 112,
+			color: 114,
 			motion: 5,
 			typography: 32,
 			radius: 4,

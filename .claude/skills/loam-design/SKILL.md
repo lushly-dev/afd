@@ -83,8 +83,9 @@ Grotesk) for title steps, `font.family.mono` (IBM Plex Mono) for code; read
 the ids, never a literal stack. Loam ships the faces (`loam-fonts.css`).
 
 The theme is AFD's, Refined (D159), from the AFD site's design system: ink on
-paper, mint for what is chosen, blue focus, rounded buttons and fields. The
-palette the components were first drawn in is Lushly's and lives in Lushly.
+paper, cerulean (OKLCH 235°) for selection, focus and accent (keeping mint for
+success), and rounded buttons and fields. The palette the components were first
+drawn in is Lushly's and lives in Lushly.
 
 ## Color and contrast
 

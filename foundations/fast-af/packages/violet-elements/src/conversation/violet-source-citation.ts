@@ -45,7 +45,7 @@ const styles = css`
     }
 
     .link {
-        color: var(--_text-link, #146ba0);
+        color: var(--_text-link, var(--color-accent-text, #1b5f80));
         text-decoration: none;
         max-inline-size: var(--_citation-max-width);
         overflow: hidden;

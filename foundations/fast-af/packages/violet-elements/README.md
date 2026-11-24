@@ -114,8 +114,9 @@ reads, by token id, with its type:
 ## The Built-In Default Theme
 
 Without a product theme, the components use AFD's default theme set, shared with Loam: Refined,
-from the AFD site's design system (ink on paper, mint for what is chosen, blue focus, rounded
-buttons and fields; Inter, Space Grotesk for headings and IBM Plex Mono, decision D159). The
+from the AFD site's design system (ink on paper, cerulean for selection, focus and accent, mint for
+success, rounded buttons and fields; Inter, Space Grotesk for headings and IBM Plex Mono, decisions
+D159 and D172). The
 package does not ship the typefaces; a page that wants them loads them, and without them each
 stack falls back to the system's faces. A product with its own look installs its own theme set.
 The values are Loam's Violet themes, taken as data, never as a package dependency (decision D50 of

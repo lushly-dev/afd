@@ -15,7 +15,7 @@ const styles = css`
         display: grid;
 
         /* The rail is a well, filled to the value; the thumb is the end of the fill, in its colour. */
-        --_selection-fill: var(--color-control-selected-foreground, #2c5e4b);
+        --_selection-fill: var(--color-control-selected-foreground, #1b5f80);
         --_rail-background: color-mix(in srgb, var(--color-text-primary, #181b1a) 10%, transparent);
         --_danger-border: var(--color-state-danger-border, transparent);
         --_radius-full: var(--radius-round, 9999px);

@@ -51,7 +51,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-focus-ring, #146ba0)",
+				"default": "var(--color-focus-ring, #28769e)",
 				"name": "--_focus-ring"
 			},
 			{

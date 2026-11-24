@@ -222,7 +222,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-foreground, #2c5e4b)",
+				"default": "var(--color-control-selected-foreground, #1b5f80)",
 				"name": "--_selection-fill"
 			},
 			{

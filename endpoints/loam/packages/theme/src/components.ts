@@ -116,7 +116,7 @@ const VALUE_IMPORT = /import\s+(?!type\b)[^"';]+?\s+from\s+"\.\/([\w.-]+)"/g;
 const HOOK_TOKEN_TARGETS: Readonly<Record<string, string>> = {
 	'--_radius-round': '--radius-round',
 	'--_space-xs': '--space-stack-xs',
-	'--_text-link': '--color-focus-ring',
+	'--_text-link': '--color-accent-text',
 };
 
 /**

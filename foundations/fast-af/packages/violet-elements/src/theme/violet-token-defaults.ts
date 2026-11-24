@@ -7,8 +7,8 @@ export const violetActionTokenDefaults: ElementStyles = css`
 
         --_action-primary-background: var(--color-action-primary-background, #181b1a);
         --_action-primary-text: var(--color-action-primary-text, #f4f0ea);
-        --_action-primary-hover: var(--color-action-primary-hover, #2e3a33);
-        --_action-primary-pressed: var(--color-action-primary-pressed, #252e29);
+        --_action-primary-hover: var(--color-action-primary-hover, #2f383e);
+        --_action-primary-pressed: var(--color-action-primary-pressed, #262e33);
         --_action-secondary-background: var(--color-action-secondary-background, rgba(24, 27, 26, 0.07));
         --_action-secondary-text: var(--color-action-secondary-text, #181b1a);
         --_action-secondary-border: var(--color-action-secondary-border, transparent);
@@ -18,7 +18,7 @@ export const violetActionTokenDefaults: ElementStyles = css`
         --_action-danger-text: var(--color-action-danger-text, #ffffff);
         --_action-danger-hover: var(--color-action-danger-hover, #ad2416);
         --_action-danger-pressed: var(--color-action-danger-pressed, #96200f);
-        --_focus-ring: var(--color-focus-ring, #146ba0);
+        --_focus-ring: var(--color-focus-ring, #28769e);
         --_border-subtle: var(--color-border-subtle, rgba(24, 27, 26, 0.10));
         --_text-secondary: var(--color-text-secondary, #48534b);
         --_text-muted: var(--color-text-muted, #5e6460);
@@ -80,7 +80,7 @@ export const violetFieldTokenDefaults: ElementStyles = css`
         --_field-background-readonly: var(--color-field-background-readonly, var(--_surface-subtle));
         --_field-text: var(--color-field-text, var(--color-text-primary, #181b1a));
         --_field-placeholder: var(--color-field-placeholder, var(--_text-muted));
-        --_focus-ring: var(--color-focus-ring, #146ba0);
+        --_focus-ring: var(--color-focus-ring, #28769e);
         --_danger-border: var(--color-field-border-invalid, #c42a1a);
         --_danger-text: var(--color-state-danger-text, #c42a1a);
         --_surface-card: var(--color-surface-card, #f8f9f3);
@@ -164,7 +164,7 @@ export const violetSurfaceTokenDefaults: ElementStyles = css`
         --_text-secondary: var(--color-text-secondary, #48534b);
         --_text-muted: var(--color-text-muted, #5e6460);
         --_border-subtle: var(--color-border-subtle, rgba(24, 27, 26, 0.10));
-        --_focus-ring: var(--color-focus-ring, #146ba0);
+        --_focus-ring: var(--color-focus-ring, #28769e);
         --_danger-border: var(--color-state-danger-border, transparent);
         --_success-border: var(--color-state-success-border, transparent);
         --_shadow-control: var(--shadow-control, 0 0 0 1px rgba(24, 27, 26, 0.05), 0 1px 2px rgba(24, 27, 26, 0.10));

@@ -115,7 +115,7 @@ the ids `<step>.size`, `<step>.line` and `<step>.weight` (for example
 | Focus | `color.focus.ring` | The focus indicator, on every surface |
 | Actions | `color.action.{primary,secondary,danger}.{background,text,hover,pressed}`, `color.action.secondary.border` | Buttons, by weight: one primary per view, secondary for the rest, danger for destructive commands |
 | Selected controls | `color.control.selected.{background,foreground,border}` | A selected item in a list, segmented control or rail |
-| Accent | `color.accent.{background,text}` | Emphasis badges, kept in a blue hue apart from mint selection and status tones |
+| Accent | `color.accent.{background,text}` | Emphasis badges, aligned on the cerulean hue apart from semantic status tones |
 | States | `color.state.{success,warning,danger}.{background,text,border}` | Messages and badges |
 | Fields | `color.field.{background,background.readonly,text,placeholder}`, `color.field.border` and its `.hover`, `.focus`, `.invalid` | Text inputs and the controls built on them |
 | Handles | `shell.color.handle.{rest,hover,active}` | The resize handles between parts; aliases of `color.border.subtle`, `color.border.strong` and `color.focus.ring` |
@@ -131,7 +131,7 @@ its names, with the tints Refined added under `global.ref.color` in `tree/loam.t
 | `color.surface.card` | `#f8f9f3` | `#1b1c1c` | `#ffffff` |
 | `color.surface.subtle` | `#e9e5de` | `#202222` | `#F2F2F2` |
 | `color.surface.floating` | `#ffffff` | `#252727` | `#ffffff` |
-| `color.surface.selected` | `#dfeae3` | `#1b2823` | `#E0E0E0` |
+| `color.surface.selected` | `#dfecf4` | `#162832` | `#E0E0E0` |
 | `color.surface.highlight` | `#ffffff` | `#333333` | `#ffffff` |
 | `color.surface.pressed` | `#d8dcd6` | `rgba(244, 240, 234, 0.14)` | `#E6E6E6` |
 | `color.text.primary` | `#181b1a` | `#f4f0ea` | `#000000` |
@@ -139,24 +139,24 @@ its names, with the tints Refined added under `global.ref.color` in `tree/loam.t
 | `color.text.muted` | `#5e6460` | `#999e9b` | `#3D3D3D` |
 | `color.border.subtle` | `rgba(24, 27, 26, 0.10)` | `rgba(244, 240, 234, 0.10)` | `#595959` |
 | `color.border.strong` | `#6b7d6e` | `#999e9b` | `#000000` |
-| `color.focus.ring` | `#146ba0` | `#a3ebcd` | `#000000` |
-| `color.control.selected.background` | `#badecf` | `#1b2823` | `#E0E0E0` |
-| `color.control.selected.foreground` | `#2c5e4b` | `#a3ebcd` | `#000000` |
-| `color.control.selected.border` | `rgba(44, 94, 75, 0.5)` | `rgba(163, 235, 205, 0.45)` | `#000000` |
-| `color.action.primary.background` / `.hover` / `.pressed` | `#181b1a` / `#2e3a33` / `#252e29` | `#f4f0ea` / `#d8dcd6` / `#bec6bd` | `#000000` / `#333333` / `#4D4D4D` |
+| `color.focus.ring` | `#28769e` | `#3d92bf` | `#000000` |
+| `color.control.selected.background` | `#c0daeb` | `#162832` | `#E0E0E0` |
+| `color.control.selected.foreground` | `#1b5f80` | `#a1d4f3` | `#000000` |
+| `color.control.selected.border` | `rgba(27, 95, 128, 0.5)` | `rgba(61, 146, 191, 0.5)` | `#000000` |
+| `color.action.primary.background` / `.hover` / `.pressed` | `#181b1a` / `#2f383e` / `#262e33` | `#f4f0ea` / `#d8dcd6` / `#bec6bd` | `#000000` / `#333333` / `#4D4D4D` |
 | `color.action.primary.text` | `#f4f0ea` | `#141515` | `#ffffff` |
 | `color.action.secondary.background` / `.hover` / `.pressed` | `rgba(24, 27, 26, 0.07)` / `rgba(24, 27, 26, 0.11)` / `rgba(24, 27, 26, 0.15)` | `rgba(244, 240, 234, 0.09)` / `rgba(244, 240, 234, 0.13)` / `rgba(244, 240, 234, 0.17)` | `#ffffff` / `#E6E6E6` / `#CCCCCC` |
 | `color.action.secondary.text` | `#181b1a` | `#f4f0ea` | `#000000` |
 | `color.action.secondary.border` | `transparent` | `transparent` | `#000000` |
 | `color.action.danger.background` / `.hover` / `.pressed` | `#c42a1a` / `#ad2416` / `#96200f` | as light | `#A30000` / `#8A0000` / `#700000` |
 | `color.action.danger.text` | `#ffffff` | `#ffffff` | `#ffffff` |
-| `color.accent.background` / `.text` | `#e2edf5` / `#146ba0` | `#182b3a` / `#9fd4f5` | `#ffffff` / `#004A80` |
+| `color.accent.background` / `.text` | `#dfecf4` / `#1b5f80` | `#162832` / `#a1d4f3` | `#ffffff` / `#004A80` |
 | `color.state.success.background` / `.text` / `.border` | `#dfeae3` / `#2c5e4b` / `transparent` | `#1b2823` / `#a3ebcd` / `transparent` | `#ffffff` / `#0B5A1E` / `#0B5A1E` |
 | `color.state.warning.background` / `.text` / `.border` | `#f3e8d2` / `#92400e` / `transparent` | `#3a2b18` / `#f3d6a3` / `transparent` | `#ffffff` / `#6B3200` / `#6B3200` |
 | `color.state.danger.background` / `.text` / `.border` | `#f7e4df` / `#c42a1a` / `transparent` | `#3d211d` / `#ffab99` / `transparent` | `#ffffff` / `#A30000` / `#A30000` |
 | `color.state.success.foreground`, `color.state.danger.foreground` | `#2c5e4b` / `#c42a1a` | `#a3ebcd` / `#ff897a` | `#0B5A1E` / `#A30000` |
 | `color.field.background` / `.readonly` | `#ffffff` / `rgba(24, 27, 26, 0.05)` | `rgba(0, 0, 0, 0.26)` / `rgba(244, 240, 234, 0.06)` | `#ffffff` / `#F2F2F2` |
-| `color.field.border` / `.hover` / `.focus` / `.invalid` | `#869089` / `#48534b` / `#146ba0` / `#c42a1a` | `#767b78` / `#999e9b` / `#a3ebcd` / `#ff897a` | `#595959` / `#000000` / `#000000` / `#A30000` |
+| `color.field.border` / `.hover` / `.focus` / `.invalid` | `#869089` / `#48534b` / `#28769e` / `#c42a1a` | `#767b78` / `#999e9b` / `#3d92bf` / `#ff897a` | `#595959` / `#000000` / `#000000` / `#A30000` |
 
 The full set per theme is `dist/loam-theme.json` after `theme:build`.
 
@@ -836,4 +836,15 @@ a fixture in `packages/chrome/specimens/chrome.specimens.ts`, or for what apps a
     change, and still need the same policy; and over URLs on the sandbox origin, which would need each
     host (web, hosted, desktop) to serve fonts there with CORS to an opaque origin. No byte is added to
     first paint or to `fontsBytes`; the view chunk grows by the reader.
+
+- **2026-11-23. Cerulean 235° for selection, focus and accent (D172).** Selection (`color.surface.selected`,
+  `color.control.selected.*`), `color.focus.ring` (and `color.field.border.focus` /
+  `shell.color.handle.active`), `color.accent.*` and light's primary-button hover/pressed tints move off
+  mint/green (selection, dark focus, light primary hover/pressed) and blue (light focus, accent) onto a
+  unified OKLCH 235° cerulean ramp (`ref.color.cerulean.*`), anchored to `#28769e` (light focus) and
+  `#3d92bf` (dark focus, saturation-balanced to light). Primary buttons keep Refined's ink/paper fills,
+  `color.state.success.*` keeps mint/green so selection and focus no longer share a hue with semantic
+  success, and high contrast stays unchanged. Because `color.accent.background` shares `#dfecf4` (light) and
+  `#162832` (dark) with `color.surface.selected`, an accent badge placed on a selected row relies on its
+  text contrast (`#1b5f80` 5.82:1 light, `#a1d4f3` 9.56:1 dark) rather than a distinct pill fill.
 

@@ -113,17 +113,17 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-background, #badecf)",
+				"default": "var(--color-control-selected-background, #c0daeb)",
 				"name": "--_selection-background"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-border, rgba(44, 94, 75, 0.5))",
+				"default": "var(--color-control-selected-border, rgba(27, 95, 128, 0.5))",
 				"name": "--_selection-border"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-foreground, #2c5e4b)",
+				"default": "var(--color-control-selected-foreground, #1b5f80)",
 				"name": "--_selection-text"
 			},
 			{

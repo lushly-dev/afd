@@ -9,10 +9,10 @@
   "color": {
     "accent": {
       "background": {
-        "$value": "{ref.color.blue.950}"
+        "$value": "{ref.color.cerulean.950}"
       },
       "text": {
-        "$value": "{ref.color.blue.200}"
+        "$value": "{ref.color.cerulean.200}"
       }
     },
     "action": {
@@ -56,13 +56,13 @@
     "control": {
       "selected": {
         "background": {
-          "$value": "{ref.color.green.900}"
+          "$value": "{ref.color.cerulean.950}"
         },
         "border": {
-          "$value": "rgba(163, 235, 205, 0.45)"
+          "$value": "rgba(61, 146, 191, 0.5)"
         },
         "foreground": {
-          "$value": "{ref.color.mint}"
+          "$value": "{ref.color.cerulean.200}"
         }
       }
     },
@@ -85,7 +85,7 @@
     },
     "focus": {
       "ring": {
-        "$value": "{ref.color.mint}"
+        "$value": "{ref.color.cerulean.400}"
       }
     },
     "state": {
@@ -137,7 +137,7 @@
         "$value": "rgba(244, 240, 234, 0.14)"
       },
       "selected": {
-        "$value": "{ref.color.green.900}"
+        "$value": "{ref.color.cerulean.950}"
       },
       "subtle": {
         "$value": "{ref.color.charcoal.850}"
