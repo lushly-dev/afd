@@ -127,7 +127,7 @@ Adopt the task the invocation or conversation carries instead of asking what to 
   does not check Chromium, which a Loam, Specimen or FAST-AF suite needs. Before an
   Umbel or Loam mounted run, check free
   disk: one Umbel build took its target directory to 14 GB
-  (`endpoints/umbel/docs/STATUS.md`).
+  (`endpoints/umbel/docs/STATUS.archive-2026-11-sessions-2.md`).
 
 ## 4. Report
 

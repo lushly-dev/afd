@@ -12,7 +12,7 @@
 - **State:** **done 2026-11-03: the exit criterion of section [13](#13-exit-criterion-and-tests) is met** by
   `first-party/tests/exit_curator.rs` through the real `umbel-first-party` binary, with
   `first-party/tests/curator_leaks.rs` beside it (step 7; the evidence per point is in
-  [STATUS.md](../../STATUS.md#phase-4-curator)). **Approved 2026-11-03, under the owner's 2026-10-31
+  [STATUS.md](../../STATUS.archive-2026-11-phase-4-1.md#phase-4-curator)). **Approved 2026-11-03, under the owner's 2026-10-31
   delegation, with the owner's answers of 2026-11-03 (D24)**, after an independent review and a revision
   ([Review response](#review-response)). Written 2026-11-03 by the phase 4 owning agent. It adds decisions [D90 to D105](../../decisions.md), decided with the
   owner's answers, and the architecture amendments they need. The owner chose the recommended option on nine of
@@ -1956,7 +1956,7 @@ eleventh restates, for the owner, the one limit an earlier step stated and nobod
     target's readers since it was drafted) is reached neither by the run's re-check nor by the `erased` notice, and
     is not redacted when its source is forgotten. Its text then stays readable by the readers the record still
     admits, which are never wider than they were. Nothing in phases 3 or 4 decides whether that is accepted. It is
-    listed for the owner in [STATUS.md](../../STATUS.md#phase-4-curator) and not changed here, since closing it
+    listed for the owner in [STATUS.md](../../STATUS.archive-2026-11-phase-4-1.md#phase-4-curator) and not changed here, since closing it
     (a redaction path outside the caller's filter, such as one the host or the knowledge instance runs on a
     forget) changes who may act on a record. **Answered 2026-11-04** by
     [phase 5 decision 11](../5-auth-hosted/spec.md#17-for-the-owner) (D120).

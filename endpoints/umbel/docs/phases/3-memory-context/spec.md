@@ -60,12 +60,12 @@
   file-copy limit stated (5.4), own records only for `memory-confirm` (8.7), and opt-in orphan removal
   (5.4, 8.8). The exclusion attribute was checked with `tmutil` on the owner's Mac; nothing was built.
 - **Done:** this specification. Step 1 (shapes and configuration) implemented 2026-11-02 in the
-  step 1 pull request, open; see [STATUS.md](../../STATUS.md#phase-3-memory-and-context), which also
+  step 1 pull request, open; see [STATUS.md](../../STATUS.archive-2026-11-phase-3-1.md#phase-3-memory-and-context), which also
   records a question for the owner on the envelope version of document and record writes (2.1).
 - **Phase 3 is done (2026-11-03): the exit criterion of section [12](#12-exit-criterion-and-tests) is met**,
   by step 10's `first-party/tests/exit_memory.rs` with `leak_probes.rs`, `poisoning.rs` and `forget_bytes.rs`
   ([Amendments from step 10](#amendments-from-step-10); the run's evidence is in
-  [STATUS.md](../../STATUS.md#phase-3-memory-and-context)).
+  [STATUS.md](../../STATUS.archive-2026-11-phase-3-1.md#phase-3-memory-and-context)).
 - **Not done:** nothing in section [14](#14-implementation-plan)'s plan. Step 2 merged in
   [#733](https://github.com/lushly-dev/afd/pull/733), step 3a in
   [#736](https://github.com/lushly-dev/afd/pull/736), step 3b in

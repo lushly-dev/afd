@@ -117,7 +117,7 @@
   `packs`, `clock` and `log` and not `random`.
 - **Step 8 done 2026-11-01**: `tests/hello_three_ways.rs`, and the exit
   criterion re-run on `main` plus that test. Evidence is in
-  [STATUS.md](../../STATUS.md#phase-1-plugin-contract). Nothing in the
+  [STATUS.md](../../STATUS.archive-2026-11-phases-0-1.md#phase-1-plugin-contract). Nothing in the
   specification changed; the test and `umbel.yml` needed no amendment (the
   workflow already builds the hello component and `hello-mcp` before
   `cargo test --workspace`).

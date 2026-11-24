@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
@@ -458,6 +458,30 @@ test("the repository's own policy covers the documents and summary rows it was w
 		'endpoints/umbel/docs/STATUS.md',
 	])
 		assert.ok(real.files.includes(file), `${file} is checked`);
+	// A status's archive files are checked too, so a frozen line moved there stays frozen.
+	for (const dir of ['endpoints/loam/docs', 'endpoints/umbel/docs']) {
+		const archives = readdirSync(join(here, '..', dir)).filter((name) =>
+			/^STATUS\.archive-.*\.md$/.test(name)
+		);
+		assert.ok(archives.length > 0, `${dir} has archive files`);
+		for (const name of archives)
+			assert.ok(real.files.includes(`${dir}/${name}`), `${dir}/${name} is checked`);
+		// A capped row the index keeps rewritten has its original in an archive: that copy keeps the cap.
+		for (const cap of real.capped.filter((entry) => entry.file === `${dir}/STATUS.md`))
+			for (const name of archives) {
+				const text = readFileSync(join(here, '..', dir, name), 'utf8');
+				if (!text.split('\n').some((line) => line.startsWith(cap.startsWith))) continue;
+				assert.ok(
+					real.capped.some(
+						(entry) =>
+							entry.file === `${dir}/${name}` &&
+							entry.startsWith === cap.startsWith &&
+							entry.max <= cap.max
+					),
+					`${cap.startsWith} is capped in ${dir}/${name} as in ${dir}/STATUS.md`
+				);
+			}
+	}
 	for (const start of [
 		'| Updated |',
 		'| [Decision log](decisions.md) |',
