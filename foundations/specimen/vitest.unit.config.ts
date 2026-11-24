@@ -51,6 +51,7 @@ export default defineConfig({
 				'src/evidence.ts',
 				'src/guide-coverage.ts',
 				'src/guide-source.ts',
+				'src/job-coverage.ts',
 				'src/job-source.ts',
 				'src/jobs.ts',
 				'src/normalize.ts',

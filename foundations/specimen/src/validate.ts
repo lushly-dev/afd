@@ -196,13 +196,34 @@ export function parseContractRequest(value: unknown): ContractRequest {
 	return request;
 }
 
+const COVERAGE_OBLIGATION_SETS = ['schema-partitions@1', 'jobs@1'] as const;
+
 export function parseCoverageRequest(value: unknown): CoverageRequest {
-	const fields = record(value, 'coverage request', ['component', 'filter', 'timeoutMs', 'workers']);
+	const fields = record(value, 'coverage request', [
+		'component',
+		'filter',
+		'obligations',
+		'captures',
+		'timeoutMs',
+		'workers',
+	]);
 	const request: CoverageRequest = {};
 	if (fields.component !== undefined)
 		request.component = text(fields.component, 'coverage request.component');
 	if (fields.filter !== undefined)
 		request.filter = suiteFilter(fields.filter, 'coverage request.filter');
+	if (fields.obligations !== undefined)
+		request.obligations = choice(
+			fields.obligations,
+			'coverage request.obligations',
+			COVERAGE_OBLIGATION_SETS
+		);
+	if (fields.captures !== undefined)
+		request.captures = text(fields.captures, 'coverage request.captures');
+	if (request.obligations === 'jobs@1' && request.captures === undefined)
+		fail('coverage request', 'give captures (a set id or label) when obligations is jobs@1');
+	if (request.captures !== undefined && request.obligations !== 'jobs@1')
+		fail('coverage request', 'captures applies only when obligations is jobs@1');
 	if (fields.timeoutMs !== undefined)
 		request.timeoutMs = integer(fields.timeoutMs, 'coverage request.timeoutMs', 1, 60_000);
 	if (fields.workers !== undefined)

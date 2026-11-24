@@ -589,109 +589,24 @@ export const contractRunSchema = z.strictObject({
 	workers: z.number(),
 	elapsedMs: z.number(),
 });
-export const coverageRequestSchema = z.strictObject({
-	component: z.string().min(1).optional(),
-	filter: suiteRequestSchema.shape.filter,
-	timeoutMs: suiteRequestSchema.shape.timeoutMs,
-	workers: suiteRequestSchema.shape.workers,
-});
-const coverageLevelSchema = z.enum(['verified', 'asserted', 'represented', 'missing', 'unknown']);
-const coverageCountsSchema = z.strictObject({
-	verified: z.number(),
-	asserted: z.number(),
-	represented: z.number(),
-	missing: z.number(),
-	unknown: z.number(),
-});
-export const coverageRunSchema = z.strictObject({
-	obligations: z.string().min(1),
-	complete: z.boolean(),
-	components: z.array(
-		z.strictObject({
-			tag: z.string().min(1),
-			sources: z.array(z.string()),
-			cases: z.number(),
-			obligations: z.array(
-				z.strictObject({
-					id: z.string().min(1),
-					kind: z.enum(['default', 'property', 'slot', 'event', 'command', 'form']),
-					level: coverageLevelSchema,
-					evidence: z.array(
-						z.strictObject({
-							specimen: z.string(),
-							checkpoint: z.string(),
-							target: z.string(),
-							expectations: z.array(z.string()).optional(),
-						})
-					),
-					evidenceCount: z.number(),
-					reason: z.string().optional(),
-					waiver: z.string().optional(),
-				})
-			),
-			counts: coverageCountsSchema,
-			openEnded: z.array(z.string()),
-			unknownToSchema: z.array(z.string()),
-		})
-	),
-	counts: coverageCountsSchema,
-	waived: z.number(),
-	waivers: z.strictObject({
-		version: z.string().nullable(),
-		unused: z.array(
-			z.strictObject({ component: z.string(), obligation: z.string(), reason: z.string() })
-		),
-	}),
-	invalidClaims: z.array(
-		z.strictObject({
-			specimen: z.string(),
-			target: z.string(),
-			obligation: z.string(),
-			reason: z.string(),
-		})
-	),
-	guides: z
-		.strictObject({
-			obligations: z.string().min(1),
-			complete: z.boolean(),
-			statements: z.array(
-				z.strictObject({
-					id: z.string().min(1),
-					kind: z.enum(['usage', 'a11y', 'rule']),
-					tag: z.string().optional(),
-					file: z.string(),
-					level: z.enum(['verified', 'authored']),
-					evidence: z.array(
-						z.strictObject({
-							specimen: z.string(),
-							checkpoint: z.string(),
-							target: z.string(),
-							expectations: z.array(z.string()),
-						})
-					),
-					evidenceCount: z.number(),
-				})
-			),
-			counts: z.strictObject({ verified: z.number(), authored: z.number() }),
-			invalidClaims: z.array(
-				z.strictObject({
-					specimen: z.string(),
-					target: z.string(),
-					obligation: z.string(),
-					reason: z.string(),
-				})
-			),
-		})
-		.optional(),
-	cases: z.strictObject({
-		total: z.number(),
-		passed: z.number(),
-		failed: z.array(z.strictObject({ id: z.string(), message: z.string() })),
-		skipped: z.number(),
-	}),
-	workers: z.number(),
-	elapsedMs: z.number(),
-});
+export const coverageRequestSchema = z
+	.strictObject({
+		component: z.string().min(1).optional(),
+		filter: suiteRequestSchema.shape.filter,
+		obligations: z.enum(['schema-partitions@1', 'jobs@1']).optional(),
+		captures: z.string().min(1).optional(),
+		timeoutMs: suiteRequestSchema.shape.timeoutMs,
+		workers: suiteRequestSchema.shape.workers,
+	})
+	.refine(
+		(value) => value.obligations !== 'jobs@1' || value.captures !== undefined,
+		'Give captures (a set id or label) when obligations is jobs@1.'
+	)
+	.refine(
+		(value) => value.captures === undefined || value.obligations === 'jobs@1',
+		'captures applies only when obligations is jobs@1.'
+	);
+export { coverageRunSchema } from './schema-coverage.js';
 export const matrixRequestSchema = z.strictObject({
 	id: z.string().min(1),
 	// Each axis's values are what the same context field accepts.

@@ -5,6 +5,7 @@ import type {
 	ElementObservation,
 	EvidenceChannel,
 	ExpectationRecord,
+	JobComponentCoverage,
 	Observation,
 } from './types.js';
 
@@ -19,6 +20,9 @@ export const COVERAGE_OBLIGATIONS = 'schema-partitions@1';
 
 /** How a claim names a guide statement: `guide:` and the statement's id. */
 export const GUIDE_PREFIX = 'guide:';
+
+/** How a waiver names a `jobs@1` unreached partition: `unreached:<partition>`. */
+export const UNREACHED_PREFIX = 'unreached:';
 
 /**
  * `represented`: observed in that state. `asserted`: in that state, and a claim's expectations
@@ -58,6 +62,8 @@ export interface ComponentCoverage {
 	openEnded: string[];
 	/** What the schema's sources could not say. */
 	unknownToSchema: string[];
+	/** Present when `obligations` is `'jobs@1'`: job captures reaching this component and unreached partitions. */
+	jobs?: JobComponentCoverage;
 }
 export interface InvalidClaim {
 	specimen: string;
@@ -106,7 +112,7 @@ function attributeOf(member: PropertySchema, isAttribute: boolean): string | und
 }
 
 /** The member's value on this element, or `undefined` when the element does not say. */
-function read(
+export function readObservedMember(
 	element: ElementObservation,
 	member: PropertySchema,
 	attribute: string | undefined
@@ -148,7 +154,7 @@ export function inDefaultState(schema: ComponentSchema): Holds {
 	const finite = schemaMembers(schema).filter(({ member }) => member.values?.length);
 	return (element) =>
 		finite.every(({ member, attribute }) => {
-			const observed = read(element, member, attribute);
+			const observed = readObservedMember(element, member, attribute);
 			return observed === undefined || same(observed, fallbackValue(member));
 		});
 }
@@ -216,7 +222,7 @@ function componentCoverage(
 	);
 	for (const { member, attribute } of finite) {
 		const observable = targets.some(
-			({ element }) => read(element, member, attribute) !== undefined
+			({ element }) => readObservedMember(element, member, attribute) !== undefined
 		);
 		for (const value of member.values ?? []) {
 			const id = `property:${member.name}=${String(value)}`;
@@ -224,13 +230,13 @@ function componentCoverage(
 				obligations.push(
 					unknown(id, 'property', `${member.name} could not be read on any <${schema.tag}>.`)
 				);
-				holds.set(id, (element) => same(read(element, member, attribute), value));
+				holds.set(id, (element) => same(readObservedMember(element, member, attribute), value));
 				continue;
 			}
 			state(
 				id,
 				'property',
-				(element) => same(read(element, member, attribute), value),
+				(element) => same(readObservedMember(element, member, attribute), value),
 				`No case shows ${member.name} as ${String(value)}.`
 			);
 		}
@@ -435,6 +441,8 @@ export function computeCoverage(
 	};
 	const unusedWaivers: CoverageWaivers['entries'] = [];
 	for (const entry of waivers?.entries ?? []) {
+		// `unreached:*` waivers belong to the `jobs@1` obligation set, leaving `schema-partitions@1` unchanged.
+		if (entry.obligation.startsWith(UNREACHED_PREFIX)) continue;
 		const owed = components
 			.find((component) => component.tag === entry.component)
 			?.obligations.find((item) => item.id === entry.obligation);

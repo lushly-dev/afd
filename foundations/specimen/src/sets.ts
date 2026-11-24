@@ -905,28 +905,31 @@ export async function readCaptureSetManifest(
 	return manifest;
 }
 
-/** Read one saved `Observation` from a capture set by `{ set, id }`. */
-export async function readSetCapture(root: string, ref: CaptureRef): Promise<Observation> {
-	const setId = await resolveCaptureSetId(root, ref.set);
-	const manifest = await readCaptureSetManifest(root, setId);
-	const entry = Object.hasOwn(manifest.captures, ref.id) ? manifest.captures[ref.id] : undefined;
+/** Read one saved `Observation` using an already-loaded capture set manifest. */
+export async function readSetCaptureFromManifest(
+	root: string,
+	setId: string,
+	manifest: CaptureSetManifest,
+	id: string
+): Promise<Observation> {
+	const entry = Object.hasOwn(manifest.captures, id) ? manifest.captures[id] : undefined;
 	if (!entry) {
-		const nearest = nearestSpecimenIds(ref.id, Object.keys(manifest.captures));
+		const nearest = nearestSpecimenIds(id, Object.keys(manifest.captures));
 		const hint = nearest.length
-			? `Capture "${ref.id}" is not in set ${setId}. Did you mean ${nearest.join(', ')}?`
-			: `Capture "${ref.id}" is not in set ${setId}; recapture with specimen-capture.`;
-		throw typedError('SPECIMEN_NOT_FOUND', `Capture not found in set ${setId}: ${ref.id}`, hint, {
+			? `Capture "${id}" is not in set ${setId}. Did you mean ${nearest.join(', ')}?`
+			: `Capture "${id}" is not in set ${setId}; recapture with specimen-capture.`;
+		throw typedError('SPECIMEN_NOT_FOUND', `Capture not found in set ${setId}: ${id}`, hint, {
 			set: setId,
-			id: ref.id,
+			id,
 			nearest,
 		});
 	}
 	if (entry.status !== 'captured' || !entry.observation) {
 		throw typedError(
 			'SPECIMEN_NOT_FOUND',
-			`Capture "${ref.id}" is unavailable in set ${setId}: ${entry.reason ?? 'no observation recorded'}`,
+			`Capture "${id}" is unavailable in set ${setId}: ${entry.reason ?? 'no observation recorded'}`,
 			'Fix the specimen or capture it in a supported context with specimen-capture.',
-			{ set: setId, id: ref.id, reason: entry.reason ?? null }
+			{ set: setId, id, reason: entry.reason ?? null }
 		);
 	}
 	const setDir = join(captureSetsDir(root), setId);
@@ -937,6 +940,13 @@ export async function readSetCapture(root: string, ref: CaptureRef): Promise<Obs
 		`Observation path escapes capture set directory: ${entry.observation}`
 	);
 	return JSON.parse(await readFile(obsPath, 'utf8')) as Observation;
+}
+
+/** Read one saved `Observation` from a capture set by `{ set, id }`. */
+export async function readSetCapture(root: string, ref: CaptureRef): Promise<Observation> {
+	const setId = await resolveCaptureSetId(root, ref.set);
+	const manifest = await readCaptureSetManifest(root, setId);
+	return readSetCaptureFromManifest(root, setId, manifest, ref.id);
 }
 
 /** Distinguish a `{ set, id }` capture reference from a raw `Observation`. */
@@ -1020,6 +1030,7 @@ export async function runCaptureSet(
 					id: entry.id,
 					status: 'unavailable',
 					reason,
+					...(entryKind(entry) === 'job' ? { job: entry.id } : {}),
 				},
 			];
 		} else if (entryKind(entry) === 'job' && !host.runJob) {
@@ -1030,6 +1041,7 @@ export async function runCaptureSet(
 					status: 'unavailable',
 					reason:
 						'No job runner plugin is configured (RUNNER_MISSING); configure jobSources and plugins in specimen.config.json.',
+					job: entry.id,
 				},
 			];
 		} else {
@@ -1068,6 +1080,7 @@ export async function runCaptureSet(
 											id: entry.id,
 											status: 'unavailable',
 											reason: `Job specimen '${entry.id}' produced no captures.`,
+											job: entry.id,
 										},
 									];
 					} catch (error) {
@@ -1077,6 +1090,7 @@ export async function runCaptureSet(
 								id: entry.id,
 								status: 'unavailable',
 								reason: error instanceof Error ? error.message : String(error),
+								job: entry.id,
 							},
 						];
 					}

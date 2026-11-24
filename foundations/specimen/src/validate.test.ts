@@ -806,6 +806,22 @@ describe('request parsing agrees with the public schemas', () => {
 			agrees(coverageRequestSchema, parseCoverageRequest, value);
 			agrees(contractRequestSchema, parseContractRequest, value);
 		}
+		const jobsValues = [
+			{ obligations: 'schema-partitions@1' },
+			{ obligations: 'jobs@1', captures: 'main' },
+			{ component: 'example-notice', obligations: 'jobs@1', captures: 'set-0123456789ab' },
+			{ obligations: 'jobs@1' },
+			{ obligations: 'jobs@1', captures: '' },
+			{ obligations: 'jobs@1', captures: 123 },
+			{ captures: 'main' },
+			{ obligations: 'schema-partitions@1', captures: 'main' },
+			{ obligations: 'guides@1' },
+			{ obligations: 'jobs@2', captures: 'main' },
+			{ obligations: 42 },
+		];
+		for (const value of jobsValues) {
+			agrees(coverageRequestSchema, parseCoverageRequest, value);
+		}
 	});
 
 	it('agrees on point, point-move, and point-check requests', () => {

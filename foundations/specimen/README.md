@@ -289,6 +289,8 @@ await claim(combobox, 'guide:combobox.label-required', 'named-by-label', () =>
   expect(input).toHaveAccessibleName('Supplier'));
 ```
 
+A third obligation set, `jobs@1`, answers which job captures in a saved capture set render each component and which finite partitions no job reaches. Pass `obligations: 'jobs@1'` with `captures: '<set-id-or-label>'` (`specimen coverage [TAG] --obligations jobs@1 --captures <set-or-label>`); it reads the saved set without launching a browser, reports `components[].jobs` (`reachedBy`, `unreached`, and `reason` when no job renders the component), and applies `unreached:<partition>` waivers without affecting `schema-partitions@1` or `guides@1`.
+
 The configuration can waive an obligation, with a version and a reason. A waiver excuses an obligation from `complete` without raising its level, and the report lists the version and any entry that matched nothing. None is applied automatically.
 
 ```json

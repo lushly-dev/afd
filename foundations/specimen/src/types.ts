@@ -543,12 +543,31 @@ export interface ContractRun {
 	workers: number;
 	elapsedMs: number;
 }
+export type CoverageObligations = 'schema-partitions@1' | 'jobs@1';
 export interface CoverageRequest {
 	/** One component's tag; defaults to every component the schemas describe. */
 	component?: string;
 	filter?: SuiteFilter;
+	/** Obligation set to evaluate; defaults to `'schema-partitions@1'`. */
+	obligations?: CoverageObligations;
+	/** Capture set id (`set-<12hex>`) or local label holding job captures when `obligations` is `'jobs@1'`. */
+	captures?: string;
 	timeoutMs?: number;
 	workers?: number;
+}
+export interface JobCoverageReach {
+	/** Capture key (`<id>/<step>`). */
+	key: string;
+	/** Capture checkpoint name. */
+	name: string;
+	/** 1-based scenario step number. */
+	step: number;
+}
+export interface JobComponentCoverage {
+	reachedBy: JobCoverageReach[];
+	unreached: string[];
+	/** Present when no job capture in the set renders this component. */
+	reason?: string;
 }
 /** `verified`: a claim's check ran and held. `authored`: only a person says so. */
 export type GuideLevel = 'verified' | 'authored';

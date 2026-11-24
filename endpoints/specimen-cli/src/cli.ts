@@ -76,6 +76,7 @@ const valueOptions = new Set([
 	'runner',
 	'pin-clock',
 	'captures',
+	'obligations',
 	'timeout',
 ]);
 const flagOptions = new Set(['require-visual', 'apply', 'helpers', 'retry', 'no-axe']);
@@ -162,7 +163,17 @@ function validateOptions(parsed: ParsedArguments): void {
 			'flake-cap',
 			'capture',
 		]),
-		coverage: new Set(['root', 'config', 'output', 'file', 'tag', 'match', 'workers']),
+		coverage: new Set([
+			'root',
+			'config',
+			'output',
+			'file',
+			'tag',
+			'match',
+			'workers',
+			'obligations',
+			'captures',
+		]),
 		contract: new Set(['root', 'config', 'output', 'file', 'tag', 'match', 'workers']),
 		suggest: new Set(['root', 'config', 'output', 'gaps', 'out', 'workers']),
 		a11y: new Set([
@@ -686,6 +697,10 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 				} else if (parsed.action === 'coverage') {
 					result = await executeSpecimenCommand(bench, 'specimen-coverage', {
 						...(parsed.positionals[0] ? { component: parsed.positionals[0] } : {}),
+						...(parsed.options.has('obligations')
+							? { obligations: parsed.options.get('obligations') }
+							: {}),
+						...(parsed.options.has('captures') ? { captures: parsed.options.get('captures') } : {}),
 						...suiteInput(parsed),
 					});
 				} else if (parsed.action === 'pack' || parsed.action === 'pack-check') {

@@ -28,11 +28,12 @@ export {
 	selectCompareEntries,
 } from './compare.js';
 export { renderComparePageHtml } from './compare-page.js';
-export type {
-	ComponentCoverage,
-	CoverageEvidence,
-	CoverageLevel,
-	CoverageObligation,
+export {
+	type ComponentCoverage,
+	type CoverageEvidence,
+	type CoverageLevel,
+	type CoverageObligation,
+	UNREACHED_PREFIX,
 } from './coverage.js';
 export { canonicalJson, diffObservations } from './diff.js';
 export {
@@ -42,6 +43,12 @@ export {
 	type GuideSourceRule,
 } from './guide-source.js';
 export type { SpecimenHostError } from './host.js';
+export {
+	computeJobCoverage,
+	JOBS_COVERAGE_OBLIGATIONS,
+	type JobCoverageCapture,
+	readJobCoverageFromSet,
+} from './job-coverage.js';
 export {
 	defineJobSource,
 	type JobSource,

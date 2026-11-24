@@ -5,6 +5,7 @@ import { selectCompareEntries } from './compare.js';
 import { type LoadedConfig, loadConfig, resolveContext } from './config.js';
 import { withGuides } from './guides.js';
 import type { SpecimenHostError } from './host.js';
+import { JOBS_COVERAGE_OBLIGATIONS, readJobCoverageFromSet } from './job-coverage.js';
 import { type JobSource, loadJobSourceModule, parseJobScenarioWithSources } from './job-source.js';
 import {
 	buildJobCaptures,
@@ -730,8 +731,15 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 			return enqueue((client) => client.contract(request));
 		},
 		async coverage(rawRequest = {}) {
-			ensureDiscovered();
+			const snapshot = ensureDiscovered();
 			const request = parseCoverageRequest(rawRequest);
+			if (request.obligations === JOBS_COVERAGE_OBLIGATIONS && request.captures !== undefined) {
+				return readJobCoverageFromSet(snapshot, {
+					...request,
+					obligations: JOBS_COVERAGE_OBLIGATIONS,
+					captures: request.captures,
+				});
+			}
 			return enqueue((client) => client.coverage(request));
 		},
 		async pack(rawRequest = {}) {

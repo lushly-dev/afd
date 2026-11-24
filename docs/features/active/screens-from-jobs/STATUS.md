@@ -53,7 +53,7 @@ Each phase owns one blank-separated line so concurrent pull requests never edit 
 
 - **Phase 5b ([#2040](https://github.com/lushly-dev/afd/issues/2040)) — Verify Slice 2 job review/acceptance scenarios against Design Decisions:** Open (blocked on [#2039](https://github.com/lushly-dev/afd/issues/2039), Design Decisions Phase 4 [#1108](https://github.com/lushly-dev/afd/issues/1108), `specimen-server` `require-human`).
 
-- **Phase 6 ([#2041](https://github.com/lushly-dev/afd/issues/2041)) — `jobs@1` coverage obligation set (Slice 3 exit):** Open (blocked on [#2038](https://github.com/lushly-dev/afd/issues/2038)).
+- **Phase 6 ([#2041](https://github.com/lushly-dev/afd/issues/2041)) — `jobs@1` coverage obligation set (Slice 3 exit):** Done 2026-11-23 (merged in #2388). Added the `jobs@1` component coverage obligation set (`obligations: 'jobs@1'`, `captures: <set-id|label>`, refusing unknown sets with `CAPTURE_SET_NOT_FOUND`) to `specimen-coverage` across `foundations/specimen` (`job-coverage.ts`, AFD-free), `integrations/specimen-afd`, `endpoints/specimen-cli` (`--obligations`, `--captures`), and `endpoints/specimen-server` (MCP schema exposure). Reports `components[].jobs` (`reachedBy` as `{ key, name, step }[]`, `unreached` partitions, and `reason` when no job capture renders a component), applies existing coverage waivers with `unreached:<partition>` without altering `schema-partitions@1` or `guides@1`, and reads saved job captures with zero browser launch. Verified 2026-11-23 against the literal Slice 3 scenario (`11-find-what-no-job-reaches.scenario.yaml`, 3/3 steps) and Specimen unit, Chromium, CLI, AFD, server, and provenance suites.
 
 ## Pre-approval steps (historical)
 
