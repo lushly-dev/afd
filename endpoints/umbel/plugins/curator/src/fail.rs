@@ -107,12 +107,12 @@ pub(crate) fn host(error: &HostError) -> Outcome {
         HostError::KeysMissing => failure(
             "MEMORY_KEYS_MISSING",
             &message,
-            "Restore memory.keys beside memory.sqlite3 from your separate copy; run umbel doctor.",
+            "Restore memory.keys beside memory.sqlite3 from your separate copy; run umbel workspace doctor.",
         ),
         HostError::KeysMismatch => failure(
             "MEMORY_KEYS_MISMATCH",
             &message,
-            "Put back the memory.keys that belongs to this memory.sqlite3; run umbel doctor.",
+            "Put back the memory.keys that belongs to this memory.sqlite3; run umbel workspace doctor.",
         ),
         HostError::Conflict { .. } => failure(
             "CURATOR_CONFLICT",

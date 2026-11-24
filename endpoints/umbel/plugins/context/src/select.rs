@@ -361,9 +361,9 @@ pub(crate) fn select(
     selection.memory_head = found.head.filter(|_| !cx.call().sealed_positions);
     if let Some(code) = found.keys_failed {
         let message = if code == "MEMORY_KEYS_MISSING" {
-            "the memory key file is missing, so no memory record opens and every memory section is left out; restore memory.keys and run umbel doctor"
+            "the memory key file is missing, so no memory record opens and every memory section is left out; restore memory.keys and run umbel workspace doctor"
         } else {
-            "the memory key file is not this database's, so no memory record opens and every memory section is left out; put back its memory.keys and run umbel doctor"
+            "the memory key file is not this database's, so no memory record opens and every memory section is left out; put back its memory.keys and run umbel workspace doctor"
         };
         selection.warnings.push((code, message.to_owned(), None));
     }

@@ -94,9 +94,9 @@ target's. When they do not, it is `needs-promotion`, and only the owner of **eve
 may widen it:
 
 ```text
-umbel curator-candidates
-umbel memory-show '{"id": "mem-..."}'
-umbel curator-promote '{"candidate": "c-...", "contentHash": "sha256:..."}'
+umbel curator candidates
+umbel memory show '{"id": "mem-..."}'
+umbel curator promote '{"candidate": "c-...", "contentHash": "sha256:..."}'
 ```
 
 `curator-promote` asks at the terminal and refuses `--yes` and `--approve`. Pass the content hash

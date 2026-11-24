@@ -113,7 +113,7 @@ pub(crate) fn run(cx: &Cx, call: &Call) -> Result<Outcome, Outcome> {
         "reviews": reviews,
         "confirmAt": {
             "page": Value::Null,
-            "terminal": "umbel ideas-review-apply --review <id> --part <group> --digest <digest>",
+            "terminal": "umbel ideas review-apply review=<id> part=<group> digest=<digest>",
         },
         "pending": pending,
     })))
