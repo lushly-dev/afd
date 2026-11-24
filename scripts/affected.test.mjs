@@ -17,6 +17,7 @@ import {
 	planSuites,
 	pnpmArgs,
 	stepExecution,
+	suiteRemoteOnly,
 	workflowTrigger,
 } from './affected.mjs';
 import { execTool } from './release/exec-tool.mjs';
@@ -1269,5 +1270,41 @@ test('loam-desktop.yml runs on mail engine, mail mount and packages/rust changes
 			`loam-desktop.yml trigger should skip ${file}`
 		);
 		assert.equal(desktopGate([file]), false, `loam-desktop.yml scope gate should skip ${file}`);
+	}
+});
+
+test('loam.yml gates test:webkit to darwin and reports it as remote only on win32 and linux (#2366)', () => {
+	const repoRoot = join(import.meta.dirname, '..');
+	const suite = SUITES.find((entry) => entry.workflow === 'loam.yml');
+	assert.ok(suite, 'loam.yml suite exists');
+	const webkitStep = suite.steps.find((step) => step.run.includes('test:webkit'));
+	assert.ok(webkitStep, 'loam.yml has a test:webkit step');
+	assert.equal(webkitStep.platform, 'darwin');
+
+	const scope = resolveScope({
+		root: repoRoot,
+		files: ['endpoints/loam/packages/chrome/src/elements/styles.ts'],
+		git: () => '',
+	});
+	const runsOn = (platform) =>
+		planSuites(scope, { root: repoRoot, suites: [suite], platform }).map((entry) => entry.step.run);
+
+	assert.ok(
+		runsOn('darwin').some((run) => run.includes('test:webkit')),
+		'darwin runs test:webkit'
+	);
+	assert.equal(suiteRemoteOnly(suite, 'darwin'), '');
+
+	for (const platform of ['win32', 'linux']) {
+		assert.equal(
+			runsOn(platform).some((run) => run.includes('test:webkit')),
+			false,
+			`${platform} skips test:webkit`
+		);
+		assert.ok(
+			runsOn(platform).some((run) => run.includes('test:firefox')),
+			`${platform} still runs test:firefox`
+		);
+		assert.match(suiteRemoteOnly(suite, platform), /test:webkit \(darwin only\)/);
 	}
 });

@@ -202,6 +202,7 @@ function answeredFromRecord(entry: JournalEntry): boolean {
 	const details = entry.result.error?.details as Record<string, unknown> | undefined;
 	return (
 		REPLAY_RECORDED_QUERIES.includes(entry.command) ||
+		entry.command.startsWith('copilot-') ||
 		entry.context?.replay === 'recorded' ||
 		entry.context?.parent !== undefined ||
 		details?.[PAGE_DECIDED] === true
@@ -329,6 +330,7 @@ export function nestedReplay(
 		}
 	}
 	const problems = new Map<string, string>();
+	const rerunning = new Set<string>();
 	let last: JournalEntry | undefined;
 	/** The outer call has finished: every call the record holds for it should have happened. */
 	const finish = (parent: string): void => {
@@ -377,18 +379,27 @@ export function nestedReplay(
 		if (!validated || !sameCall(next, validated.input, inputBytes)) return undefined;
 		queue?.shift();
 		const traceId = next.traceId;
+		const isAction = commandOf.get(parent) === 'notification-act';
+		const isNestedWrite = !isAction && rerunning.has(parent) && command?.mutation === true;
 		if (
 			traceId !== undefined &&
-			commandOf.get(parent) === 'notification-act' &&
+			(isAction || isNestedWrite) &&
 			!answeredFromRecord({ ...next, context: { ...next.context, parent: undefined } })
 		) {
-			// Run again, so its write lands (#2119), and compared whole with its entry once it returns.
+			rerunning.add(traceId);
+			// Run again, so its write (and any nested write inside it, #2325) lands (#2119), and compare whole with its entry.
+			const label = isNestedWrite ? `The nested write '${name}'` : `The notice's action '${name}'`;
 			const done = (result: CommandResult) => {
+				rerunning.delete(traceId);
 				if (!sameJson(stripPaths(result, ignore), stripPaths(next.result, ignore)))
-					problems.set(traceId, `The notice's action '${name}' answered other than its entry`);
+					problems.set(traceId, `${label} answered other than its entry`);
 				finish(traceId);
 			};
-			return { rerun: { traceId, context: nestedTape(next), done } };
+			const context: CommandContext = {
+				...nestedTape(next),
+				...(next.context?.taint !== undefined ? { taint: next.context.taint } : {}),
+			};
+			return { rerun: { traceId, context, done } };
 		}
 		last = next;
 		return next.result;
@@ -539,9 +550,11 @@ export async function replayKernel(
 	// Without the recording store's unsaved-write warnings, everywhere the replay reads an entry: what it compares, what
 	// it answers from a record, and a nested answer (#861).
 	const sorted = entries.map(withoutUnsavedWarning).sort((a, b) => a.seq - b.seq);
-	// A replay stops at the first entry kept truncated (section 11): what it did is not in the journal.
+	// A replay stops at the first entry kept truncated or missing taint context (section 11, #2325): what it did is not in the journal.
 	const cut = sorted.findIndex(
-		(entry) => (entry as JournalEntry & { unreplayable?: unknown }).unreplayable === true
+		(entry) =>
+			(entry as JournalEntry & { unreplayable?: unknown }).unreplayable === true ||
+			entry.contextOmitted?.includes('taint') === true
 	);
 	const ordered = cut === -1 ? sorted : sorted.slice(0, cut);
 	const truncated = cut === -1 ? undefined : (sorted[cut] as JournalEntry);
@@ -845,11 +858,13 @@ export async function replayKernel(
 				code: 'REPLAY_ENTRY_TRUNCATED',
 				message: (truncated as { unredacted?: unknown }).unredacted
 					? `The journal kept seq ${truncated.seq} (${truncated.command}) without its input, since its redaction failed, so the replay stops there`
-					: (truncated as { lossy?: unknown }).lossy
-						? truncated.result.error?.code === 'COMMAND_EXECUTION_ERROR'
-							? `The journal kept seq ${truncated.seq} (${truncated.command}) lossy, since its handler threw (COMMAND_EXECUTION_ERROR), so the replay stops there`
-							: `The journal kept seq ${truncated.seq} (${truncated.command}) at its least, since it could not vouch for its outcome, so the replay stops there`
-						: `The journal kept seq ${truncated.seq} (${truncated.command}) truncated, over loam.limits.journalEntryBytes, so the replay stops there`,
+					: truncated.contextOmitted?.includes('taint')
+						? `The journal omitted taint on seq ${truncated.seq} (${truncated.command}), over the 4 KB context limit, so the replay stops there`
+						: (truncated as { lossy?: unknown }).lossy
+							? truncated.result.error?.code === 'COMMAND_EXECUTION_ERROR'
+								? `The journal kept seq ${truncated.seq} (${truncated.command}) lossy, since its handler threw (COMMAND_EXECUTION_ERROR), so the replay stops there`
+								: `The journal kept seq ${truncated.seq} (${truncated.command}) at its least, since it could not vouch for its outcome, so the replay stops there`
+							: `The journal kept seq ${truncated.seq} (${truncated.command}) truncated, over loam.limits.journalEntryBytes, so the replay stops there`,
 				suggestion: `Replay up to seq ${truncated.seq - 1} only`,
 				details: { seq: truncated.seq, command: truncated.command },
 			});

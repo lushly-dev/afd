@@ -209,6 +209,7 @@ there, a component uses system colors:
 | Text and boundaries | `CanvasText` on `Canvas` |
 | Buttons and field frames | `ButtonText` on `ButtonFace` |
 | The focus indicator, the selected item | `Highlight`, with `HighlightText` on it |
+| Pressed toggles and checked boxes | `SelectedItem`, with `SelectedItemText` on it and `forced-color-adjust: none` (prevents the UA's `Canvas` text backplate from hiding the label or tick) |
 | Disabled | `GrayText` |
 | Links | `LinkText` |
 

@@ -72,6 +72,37 @@ describe('P2-E13: E4: axe in every theme and density', () => {
 		expect(await page.evaluate(() => document.documentElement.dataset.loamTheme)).toBe(
 			'high-contrast'
 		);
+		// #2381: a pressed toolbar toggle uses the SelectedItem / SelectedItemText system pair with
+		// forced-color-adjust: none so the label stays readable against its fill in forced colors.
+		const toggleColors = await page.evaluate(() => {
+			const probe = document.createElement('span');
+			probe.style.setProperty('forced-color-adjust', 'none');
+			probe.style.setProperty('background', 'SelectedItem');
+			probe.style.setProperty('color', 'SelectedItemText');
+			document.body.append(probe);
+			const expected = {
+				background: getComputedStyle(probe).backgroundColor,
+				color: getComputedStyle(probe).color,
+			};
+			probe.remove();
+			const button = document
+				.querySelector('loam-shell')
+				?.shadowRoot?.querySelector('loam-titlebar')
+				?.shadowRoot?.querySelector<HTMLButtonElement>('button[data-toggle="sidebar"]');
+			const style = button ? getComputedStyle(button) : null;
+			return {
+				pressed: button?.getAttribute('aria-pressed'),
+				forcedColorAdjust: style?.forcedColorAdjust,
+				background: style?.backgroundColor,
+				color: style?.color,
+				expected,
+			};
+		});
+		expect(toggleColors.pressed).toBe('true');
+		expect(toggleColors.forcedColorAdjust).toBe('none');
+		expect(toggleColors.background).toBe(toggleColors.expected.background);
+		expect(toggleColors.color).toBe(toggleColors.expected.color);
+		expect(toggleColors.background).not.toBe(toggleColors.color);
 		expect(await axe(page)).toEqual([]);
 		await openPalette(page);
 		expect(await axe(page)).toEqual([]);

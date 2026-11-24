@@ -3,9 +3,27 @@
  * the journal in place of running a call, and the replay's own state. Split from `kernel.ts`, which re-exports it.
  */
 
-import type { Actor, CommandResult } from '@lushly-dev/afd-core';
+import { type Actor, type CommandResult, failure } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { NestedRerunV1 } from './journal-order.js';
+
+/** Finish a re-run nested call on an early return, forwarding `result` to `rerun.done` (#2325). */
+export function finishRerun<T>(
+	rerun: NestedRerunV1['rerun'] | undefined,
+	result: CommandResult<T>
+): CommandResult<T> {
+	rerun?.done(result);
+	return result;
+}
+
+/** Synthesize a failure result for `rerun.done` when `registry.execute` throws during replay (#2325). */
+export function rerunFailure(thrown: unknown): CommandResult<never> {
+	return failure({
+		code: 'COMMAND_EXECUTION_ERROR',
+		message: thrown instanceof Error ? thrown.message : String(thrown),
+		suggestion: 'Inspect the error thrown during replay',
+	});
+}
 
 /** What only `replayKernel` asks of a kernel. */
 export interface KernelPartsInternals {

@@ -45,7 +45,7 @@ import { INTERNAL_COMMANDS, type InboundParts, inboundCache, SHELL_EXPOSE } from
 import { KERNEL_CONTEXT_FIELDS, type KernelCallFields } from './context-fields.js';
 import { kernelFailure, LoamKernelError } from './errors.js';
 import { createJournalOrder, type NestedRerunV1 } from './journal-order.js';
-import type { KernelPartsInternals } from './replay-internals.js';
+import { finishRerun, type KernelPartsInternals, rerunFailure } from './replay-internals.js';
 
 export type { KernelPartsInternals };
 
@@ -1226,12 +1226,12 @@ export async function createKernelParts(
 			const named = mine
 				? ({ kind: 'agent', id: 'copilot' } as Actor)
 				: (lateParts?.agentActor(callOptions.agent) ?? failure(lateFailure ?? lateUnavailable()));
-			if ('success' in named) return named;
+			if ('success' in named) return finishRerun(rerun, named);
 			actor = named;
 		}
 		// A handler's client kept past its traced call (phase 5's 5.3): refused, so none escapes taint.
 		const late = fields.parent === undefined ? undefined : traces.refusal(fields.parent);
-		if (late) return late as CommandResult<T>;
+		if (late) return finishRerun(rerun, late as CommandResult<T>);
 		const traceId = rerun?.traceId ?? `${traceBase}-${++calls}`;
 		if (trace) traces.set(traceId, trace);
 		const owned = apps.contextOf(name, input);
@@ -1299,6 +1299,9 @@ export async function createKernelParts(
 		order.begin(traceId, writes, fields, own, name);
 		try {
 			result = await registry.execute<T>(name, input ?? {}, context);
+		} catch (thrown) {
+			rerun?.done(rerunFailure(thrown));
+			throw thrown;
 		} finally {
 			order.end(traceId);
 			traces.end(traceId);
