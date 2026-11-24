@@ -14,7 +14,9 @@ import type {
 	ImplementationContexts,
 	JobBeforeAction,
 	JobCapturePoint,
+	JobCaptureSelection,
 	JobConfig,
+	JobCreateRequest,
 	JobPin,
 	JobRunRequest,
 	JobScenario,
@@ -253,6 +255,7 @@ export function parseA11yRequest(value: unknown): A11yRequest {
 	const fields = record(value, 'accessibility request', [
 		'id',
 		'filter',
+		'set',
 		'checkpoint',
 		'context',
 		'timeoutMs',
@@ -264,6 +267,7 @@ export function parseA11yRequest(value: unknown): A11yRequest {
 		request.filter = suiteFilter(fields.filter, 'accessibility request.filter');
 	if (request.id !== undefined && request.filter !== undefined)
 		fail('accessibility request', 'give an id or a filter, not both');
+	if (fields.set !== undefined) request.set = text(fields.set, 'accessibility request.set');
 	if (fields.checkpoint !== undefined)
 		request.checkpoint = text(fields.checkpoint, 'accessibility request.checkpoint');
 	if (fields.context !== undefined)
@@ -445,6 +449,7 @@ export function parseCaptureRequest(value: unknown): CaptureRequest {
 	const fields = record(value, 'capture request', [
 		'id',
 		'checkpoint',
+		'set',
 		'context',
 		'screenshot',
 		'timeoutMs',
@@ -452,6 +457,7 @@ export function parseCaptureRequest(value: unknown): CaptureRequest {
 	const request: CaptureRequest = { id: text(fields.id, 'capture request.id') };
 	if (fields.checkpoint !== undefined)
 		request.checkpoint = text(fields.checkpoint, 'capture request.checkpoint');
+	if (fields.set !== undefined) request.set = text(fields.set, 'capture request.set');
 	if (fields.context !== undefined)
 		request.context = parseContext(fields.context, 'capture request.context', true);
 	if (fields.screenshot !== undefined)
@@ -728,6 +734,53 @@ export function parseCheckpointsRequest(value: unknown): CheckpointsRequest {
 		request.timeoutMs = integer(fields.timeoutMs, `${path}.timeoutMs`, 1, 60_000);
 	if (fields.pin !== undefined) request.pin = parseJobPin(fields.pin, `${path}.pin`);
 	return request;
+}
+
+function parseJobCaptureSelection(value: unknown, path: string): number | JobCaptureSelection {
+	if (typeof value === 'number') {
+		return integer(value, path, 1, Number.MAX_SAFE_INTEGER);
+	}
+	const fields = record(value, path, ['step', 'name', 'before']);
+	return {
+		step: integer(fields.step, `${path}.step`, 1, Number.MAX_SAFE_INTEGER),
+		...(fields.name === undefined
+			? {}
+			: { name: text(fields.name, `${path}.name`, JOB_CAPTURE_NAME) }),
+		...(fields.before === undefined
+			? {}
+			: { before: parseJobBefore(fields.before, `${path}.before`) }),
+	};
+}
+
+export function parseJobCreateRequest(value: unknown): JobCreateRequest {
+	const path = 'job create request';
+	const fields = record(value, path, [
+		'id',
+		'title',
+		'scenario',
+		'module',
+		'exportName',
+		'target',
+		'runner',
+		'pin',
+		'captures',
+	]);
+	if (!Array.isArray(fields.captures) || fields.captures.length < 1)
+		fail(`${path}.captures`, 'expected at least one capture step');
+	const captures = fields.captures.map((item, index) =>
+		parseJobCaptureSelection(item, `${path}.captures[${index}]`)
+	);
+	return {
+		id: text(fields.id, `${path}.id`, /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/),
+		...(fields.title === undefined ? {} : { title: text(fields.title, `${path}.title`) }),
+		scenario: text(fields.scenario, `${path}.scenario`),
+		module: text(fields.module, `${path}.module`),
+		exportName: text(fields.exportName, `${path}.exportName`),
+		target: text(fields.target, `${path}.target`),
+		...(fields.runner === undefined ? {} : { runner: text(fields.runner, `${path}.runner`) }),
+		...(fields.pin === undefined ? {} : { pin: parseJobPin(fields.pin, `${path}.pin`) }),
+		captures,
+	};
 }
 
 export function parseJobRunRequest(value: unknown): JobRunRequest {

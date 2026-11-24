@@ -49,6 +49,9 @@ export {
 	parseJobScenarioWithSources,
 } from './job-source.js';
 export {
+	type BuildJobCaptureItemsResult,
+	buildJobCaptureItems,
+	buildJobCaptures,
 	type CheckpointCaptureInput,
 	type FinalizeCheckpointsOptions,
 	type FinalizeJobRunOptions,
@@ -56,8 +59,11 @@ export {
 	finalizeJobRun,
 	isObservationUnchanged,
 	isValidClockPin,
+	readA11yFromSet,
+	readObservationFromSet,
 	resolveJobCapturePlan,
 	resolvePinnedBaseline,
+	slugifyStepDescription,
 	validateJobEntries,
 	withJobValidation,
 } from './jobs.js';

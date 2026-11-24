@@ -14,6 +14,7 @@ import {
 	type Scenario,
 } from '@lushly-dev/afd-testing';
 import {
+	buildJobCaptures as buildSpecimenJobCaptures,
 	defineJobSource,
 	type JobBeforeAction,
 	type JobCapturePoint,
@@ -23,6 +24,7 @@ import {
 	type ResolvedJobCapture,
 	resolveJobCapturePlan,
 	type SpecimenEntry,
+	slugifyStepDescription as slugifySpecimenStepDescription,
 } from '@lushly-dev/specimen';
 import own from '@lushly-dev/specimen-afd-runner/package.json' with { type: 'json' };
 
@@ -33,7 +35,6 @@ const PLUGIN_VERSION = own.version;
 const FORBIDDEN_MERGE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const WINDOWS_DRIVE_PREFIX = /^[a-zA-Z]:/;
 const YAML_EXTENSION = /\.ya?ml$/i;
-const JOB_CAPTURE_NAME = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/;
 
 export type JobScenarioErrorCode =
 	| 'JOB_SCENARIO_INVALID'
@@ -286,129 +287,53 @@ export function parseAfdJobScenario(
 	return toJobScenario(parsed.scenario, options.fixture, filePath);
 }
 
+function wrapSpecimenJobError(error: unknown): never {
+	if (error instanceof JobScenarioError) throw error;
+	const structured = error as Error & {
+		code?: string;
+		suggestion?: string;
+		details?: Record<string, unknown>;
+	};
+	const knownCodes = new Set<JobScenarioErrorCode>([
+		'CAPTURE_STEP_UNKNOWN',
+		'CAPTURE_STEP_AMBIGUOUS',
+		'STEP_HAS_NO_DESCRIPTION',
+		'JOB_SCENARIO_INVALID',
+	]);
+	const code: JobScenarioErrorCode =
+		typeof structured.code === 'string' && knownCodes.has(structured.code as JobScenarioErrorCode)
+			? (structured.code as JobScenarioErrorCode)
+			: 'JOB_SCENARIO_INVALID';
+	throw new JobScenarioError(
+		code,
+		error instanceof Error ? error.message : String(error),
+		structured.suggestion ?? 'Check the scenario steps and capture selections.',
+		structured.details
+	);
+}
+
 /** Convert a step description into a deterministic kebab-case capture checkpoint slug. */
 export function slugifyStepDescription(description: string, fallbackStep?: number): string {
-	const slug = description
-		.normalize('NFKD')
-		.replace(/[\u0300-\u036f]/g, '')
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, '-')
-		.replace(/^-+|-+$/g, '')
-		.slice(0, 128)
-		.replace(/-+$/g, '');
-	if (slug.length > 0) {
-		return slug;
+	try {
+		return slugifySpecimenStepDescription(description, fallbackStep);
+	} catch (error) {
+		wrapSpecimenJobError(error);
 	}
-	if (fallbackStep !== undefined) {
-		return `step-${fallbackStep}`;
-	}
-	throw new JobScenarioError(
-		'STEP_HAS_NO_DESCRIPTION',
-		'Step description contains no alphanumeric characters to form a capture name.',
-		'Add a descriptive text string to the step or pass an explicit capture name.'
-	);
 }
 
 /**
  * Build validated `JobCapturePoint[]` entries from 1-based step selections
- * (used by `specimen-job-create` and job entry validation).
- *
- * Enforces:
- * - `CAPTURE_STEP_UNKNOWN` for out-of-range step numbers.
- * - `STEP_HAS_NO_DESCRIPTION` when a selected step lacks a non-empty `description`.
- * - `CAPTURE_STEP_AMBIGUOUS` when two steps share the selected step's `description`,
- *   when the same step is selected twice, or when two capture names collide.
+ * (delegates to `@lushly-dev/specimen` and wraps errors in `JobScenarioError`).
  */
 export function buildJobCaptures(
 	scenario: JobScenario,
 	selections: readonly (number | JobCaptureSelection)[]
 ): JobCapturePoint[] {
-	if (selections.length === 0) {
-		throw new JobScenarioError(
-			'JOB_SCENARIO_INVALID',
-			'At least one capture step must be selected.',
-			'Pass one or more 1-based step numbers or { step, name?, before? } objects.'
-		);
+	try {
+		return buildSpecimenJobCaptures(scenario, selections);
+	} catch (error) {
+		wrapSpecimenJobError(error);
 	}
-
-	const normalized = selections.map((item) =>
-		typeof item === 'number' ? { step: item } : { ...item }
-	);
-	const seenSteps = new Set<number>();
-	const seenNames = new Set<string>();
-	const points: JobCapturePoint[] = [];
-
-	for (const selection of normalized) {
-		if (!Number.isInteger(selection.step) || selection.step < 1) {
-			throw new JobScenarioError(
-				'CAPTURE_STEP_UNKNOWN',
-				`Capture step ${String(selection.step)} is invalid; steps are numbered from 1.`,
-				`Choose a step number between 1 and ${scenario.steps.length}.`
-			);
-		}
-		const matchedStep = scenario.steps.find((step) => step.step === selection.step);
-		if (!matchedStep) {
-			throw new JobScenarioError(
-				'CAPTURE_STEP_UNKNOWN',
-				`Step ${selection.step} does not exist in scenario '${scenario.job}' (which has ${scenario.steps.length} steps).`,
-				`Choose a step number between 1 and ${scenario.steps.length}, or update the scenario.`
-			);
-		}
-		if (seenSteps.has(matchedStep.step)) {
-			throw new JobScenarioError(
-				'CAPTURE_STEP_AMBIGUOUS',
-				`Step ${matchedStep.step} is selected more than once in captures.`,
-				'Select each scenario step at most once.'
-			);
-		}
-		seenSteps.add(matchedStep.step);
-
-		const description = matchedStep.description;
-		if (typeof description !== 'string' || description.trim() === '') {
-			throw new JobScenarioError(
-				'STEP_HAS_NO_DESCRIPTION',
-				`Step ${matchedStep.step} ('${matchedStep.command}') has no description and cannot be marked for capture.`,
-				`Add a description to step ${matchedStep.step} in the scenario; it does not change the format.`,
-				{ step: matchedStep.step, command: matchedStep.command }
-			);
-		}
-
-		const matchingSteps = scenario.steps.filter((step) => step.description === description);
-		if (matchingSteps.length > 1) {
-			const nums = matchingSteps.map((s) => s.step).join(', ');
-			throw new JobScenarioError(
-				'CAPTURE_STEP_AMBIGUOUS',
-				`Step ${matchedStep.step}'s description "${description}" matches ${matchingSteps.length} steps (${nums}).`,
-				'Give each captured step a unique description in the scenario file.'
-			);
-		}
-
-		const name = selection.name ?? slugifyStepDescription(description, matchedStep.step);
-		if (!JOB_CAPTURE_NAME.test(name)) {
-			throw new JobScenarioError(
-				'JOB_SCENARIO_INVALID',
-				`Capture name '${name}' for step ${matchedStep.step} is invalid; expected /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.`,
-				'Use an alphanumeric capture name containing only letters, digits, dots, underscores, or hyphens.',
-				{ step: matchedStep.step, name }
-			);
-		}
-		if (seenNames.has(name)) {
-			throw new JobScenarioError(
-				'CAPTURE_STEP_AMBIGUOUS',
-				`Capture name '${name}' is produced more than once.`,
-				'Pass distinct explicit capture names or give each captured step a distinct description.'
-			);
-		}
-		seenNames.add(name);
-
-		points.push({
-			after: description,
-			name,
-			...(selection.before && selection.before.length > 0 ? { before: [...selection.before] } : {}),
-		});
-	}
-
-	return points;
 }
 
 function assertJobCaptureDescriptions(entry: SpecimenEntry, scenario: JobScenario): void {

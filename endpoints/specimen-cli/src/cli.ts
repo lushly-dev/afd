@@ -67,6 +67,16 @@ const valueOptions = new Set([
 	'name',
 	'selector',
 	'index',
+	'set',
+	'scenario',
+	'module',
+	'export-name',
+	'target',
+	'title',
+	'runner',
+	'pin-clock',
+	'captures',
+	'timeout',
 ]);
 const flagOptions = new Set(['require-visual', 'apply', 'helpers', 'retry', 'no-axe']);
 function parseArguments(args: string[]): ParsedArguments {
@@ -94,7 +104,7 @@ function parseArguments(args: string[]): ParsedArguments {
 	const action = positionals.shift();
 	if (!action)
 		throw new Error(
-			'Choose a command: list, validate, inspect, render, capture, compare, run, themes, diff, or build'
+			'Choose a command: list, validate, inspect, render, capture, compare, run, themes, diff, build, job-create, or job-run'
 		);
 	return { action, positionals, options, flags };
 }
@@ -112,6 +122,7 @@ function validateOptions(parsed: ParsedArguments): void {
 			'root',
 			'config',
 			'output',
+			'set',
 			'checkpoint',
 			'viewport',
 			'container',
@@ -158,6 +169,7 @@ function validateOptions(parsed: ParsedArguments): void {
 			'root',
 			'config',
 			'output',
+			'set',
 			'checkpoint',
 			'viewport',
 			'container',
@@ -298,6 +310,34 @@ function validateOptions(parsed: ParsedArguments): void {
 		]),
 		'point-move': new Set(['root', 'config', 'output', 'index']),
 		'point-check': new Set(['root', 'config', 'output']),
+		'job-create': new Set([
+			'root',
+			'config',
+			'output',
+			'scenario',
+			'module',
+			'export-name',
+			'target',
+			'title',
+			'runner',
+			'pin-clock',
+			'captures',
+		]),
+		'job-run': new Set([
+			'root',
+			'config',
+			'output',
+			'label',
+			'no-axe',
+			'timeout',
+			'pin-clock',
+			'viewport',
+			'container',
+			'theme',
+			'locale',
+			'reduced-motion',
+			'motion',
+		]),
 	};
 	const known = allowed[parsed.action];
 	if (!known) throw new Error(`Unknown command: ${parsed.action}`);
@@ -380,21 +420,47 @@ function suiteInput(parsed: ParsedArguments): Record<string, unknown> {
 		...(parsed.options.has('capture') ? { capture: parsed.options.get('capture') } : {}),
 	};
 }
-/** A run the stories failed: the command succeeded, but a script calling it must see the failure. */
+/** A run the stories or job failed: the command succeeded, but a script calling it must see the failure. */
 function storiesFailed(result: CommandResult<unknown>): boolean {
 	const data = result.data as
 		| {
 				valid?: boolean;
+				status?: string;
 				cases?: { failed?: unknown[] };
 				outcome?: string | { status?: string };
 				counts?: { failed?: number; errored?: number };
 		  }
 		| undefined;
 	if (data?.counts?.failed || data?.counts?.errored || data?.cases?.failed?.length) return true;
-	if (data?.valid === false) return true;
+	if (data?.valid === false || data?.status === 'failed') return true;
 	const outcome = data?.outcome;
 	if (typeof outcome === 'string') return outcome === 'failed' || outcome === 'failed-after-retry';
 	return outcome?.status === 'failed';
+}
+function parseCapturesOption(raw: string): unknown {
+	const trimmed = raw.trim();
+	if (!trimmed) return [];
+	if (trimmed.startsWith('[')) {
+		try {
+			return JSON.parse(trimmed);
+		} catch (error) {
+			const detail = error instanceof Error ? error.message : String(error);
+			throw new Error(`Invalid JSON for --captures: ${detail}`);
+		}
+	}
+	return trimmed
+		.split(',')
+		.map((part) => part.trim())
+		.filter(Boolean)
+		.map((part) => {
+			const step = Number(part);
+			if (!Number.isInteger(step) || step <= 0) {
+				throw new Error(
+					`Invalid step number in --captures: ${part}; pass positive step numbers or a JSON array`
+				);
+			}
+			return step;
+		});
 }
 const resultCapture = z.object({ success: z.literal(true), data: observationSchema }).passthrough();
 async function readCapture(file: string): Promise<unknown> {
@@ -693,10 +759,53 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 					result = await executeSpecimenCommand(bench, 'specimen-point-check', {
 						id: parsed.positionals[0],
 					});
+				} else if (parsed.action === 'job-create') {
+					const rawCaptures = parsed.options.get('captures');
+					const pinClock = parsed.options.get('pin-clock');
+					result = await executeSpecimenCommand(bench, 'specimen-job-create', {
+						id: parsed.positionals[0],
+						...(parsed.options.has('scenario') ? { scenario: parsed.options.get('scenario') } : {}),
+						...(parsed.options.has('module') ? { module: parsed.options.get('module') } : {}),
+						...(parsed.options.has('export-name')
+							? { exportName: parsed.options.get('export-name') }
+							: {}),
+						...(parsed.options.has('target') ? { target: parsed.options.get('target') } : {}),
+						...(parsed.options.has('title') ? { title: parsed.options.get('title') } : {}),
+						...(parsed.options.has('runner') ? { runner: parsed.options.get('runner') } : {}),
+						...(pinClock !== undefined ? { pin: { clock: pinClock } } : {}),
+						...(rawCaptures !== undefined ? { captures: parseCapturesOption(rawCaptures) } : {}),
+					});
+				} else if (parsed.action === 'job-run') {
+					const rawTimeout = parsed.options.get('timeout');
+					let timeoutMs: number | undefined;
+					if (rawTimeout !== undefined) {
+						const parsedTimeout = Number(rawTimeout);
+						if (!rawTimeout.trim() || !Number.isInteger(parsedTimeout)) {
+							throw new Error('--timeout expects a whole number');
+						}
+						timeoutMs = parsedTimeout;
+					}
+					const mergedContext = { ...context, ...raw };
+					const pinClock = parsed.options.get('pin-clock');
+					result = await executeSpecimenCommand(bench, 'specimen-job-run', {
+						id: parsed.positionals[0],
+						...(Object.keys(mergedContext).length > 0 ? { context: mergedContext } : {}),
+						...(parsed.options.has('label') ? { label: parsed.options.get('label') } : {}),
+						...(parsed.flags.has('no-axe') ? { axe: false } : {}),
+						...(timeoutMs !== undefined ? { timeoutMs } : {}),
+						...(pinClock !== undefined ? { pin: { clock: pinClock } } : {}),
+					});
 				} else if (parsed.action === 'a11y') {
+					const mergedContext = { ...context, ...raw };
+					const set = parsed.options.get('set');
 					result = await executeSpecimenCommand(bench, 'specimen-a11y', {
 						...(parsed.positionals[0] ? { id: parsed.positionals[0] } : {}),
-						context: { ...context, ...raw },
+						...(set !== undefined
+							? {
+									set,
+									...(Object.keys(mergedContext).length > 0 ? { context: mergedContext } : {}),
+								}
+							: { context: mergedContext }),
 						...(parsed.options.has('checkpoint')
 							? { checkpoint: parsed.options.get('checkpoint') }
 							: {}),
@@ -708,9 +817,16 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 						...suiteInput(parsed),
 					});
 				else {
+					const mergedContext = { ...context, ...raw };
+					const set = parsed.options.get('set');
 					const input = {
 						id: parsed.positionals[0],
-						context: { ...context, ...raw },
+						...(set !== undefined
+							? {
+									set,
+									...(Object.keys(mergedContext).length > 0 ? { context: mergedContext } : {}),
+								}
+							: { context: mergedContext }),
 						...(parsed.options.has('checkpoint')
 							? { checkpoint: parsed.options.get('checkpoint') }
 							: {}),
@@ -740,7 +856,7 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 			code: 'SPECIMEN_CLI_ERROR',
 			message,
 			suggestion:
-				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID, capture [IDS...] [--label NAME], compare ID1 ID2..., run ID, themes [ID] [--theme light,dark] [--threshold 0.02], migrate [--files A,B] [--helpers] [--apply], diff LEFT RIGHT, build OUTDIR, pack [TAG], pack-check [TAG], pack-export DIR, point POINTER | ID (--role ROLE [--name NAME] | --selector CSS), point-move POINT_ID DIRECTION [--index N] or point-check POINT_ID; check option values and file paths.',
+				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID [--set SET], capture [IDS...] [--label NAME], compare ID1 ID2..., run ID, a11y [ID] [--set SET], themes [ID] [--theme light,dark] [--threshold 0.02], migrate [--files A,B] [--helpers] [--apply], diff LEFT RIGHT, build OUTDIR, pack [TAG], pack-check [TAG], pack-export DIR, point POINTER | ID (--role ROLE [--name NAME] | --selector CSS), point-move POINT_ID DIRECTION [--index N], point-check POINT_ID, job-create ID --scenario PATH --module PATH --export-name NAME --target ID --captures STEPS, or job-run ID [--label NAME]; check option values and file paths.',
 		});
 	} finally {
 		if (bench) {

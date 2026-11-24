@@ -1,10 +1,19 @@
-import { dirname, resolve } from 'node:path';
+import { readFile, realpath } from 'node:fs/promises';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { BenchWorkerClient } from './bench-worker-client.js';
 import { selectCompareEntries } from './compare.js';
 import { type LoadedConfig, loadConfig, resolveContext } from './config.js';
 import { withGuides } from './guides.js';
+import type { SpecimenHostError } from './host.js';
 import { type JobSource, loadJobSourceModule, parseJobScenarioWithSources } from './job-source.js';
-import { resolveJobCapturePlan, resolvePinnedBaseline, withJobValidation } from './jobs.js';
+import {
+	buildJobCaptures,
+	readA11yFromSet,
+	readObservationFromSet,
+	resolveJobCapturePlan,
+	resolvePinnedBaseline,
+	withJobValidation,
+} from './jobs.js';
 import {
 	checkCommitted,
 	exportPack,
@@ -16,7 +25,14 @@ import {
 import { withPatterns } from './patterns.js';
 import { normalizePointContextInput, readPointFile, specimenNotFoundError } from './point.js';
 import { parsePointer } from './pointer.js';
-import { diffCaptures, selectCaptureEntries } from './sets.js';
+import {
+	assertRealContained,
+	diffCaptures,
+	selectCaptureEntries,
+	specimenDataDir,
+	withFileLock,
+	writeFileAtomic,
+} from './sets.js';
 import { migrateStories, validateDiscovery } from './stories.js';
 import type {
 	A11yRequest,
@@ -37,6 +53,8 @@ import type {
 	DiffRequest,
 	InspectRequest,
 	InspectResult,
+	JobCreateRequest,
+	JobCreateResult,
 	JobRun,
 	JobRunRequest,
 	MatrixRequest,
@@ -79,8 +97,10 @@ import {
 	parseCaptureSetRequest,
 	parseCheckpointsRequest,
 	parseCompareRequest,
+	parseConfig,
 	parseContractRequest,
 	parseCoverageRequest,
+	parseJobCreateRequest,
 	parseJobRunRequest,
 	parseMatrixRequest,
 	parsePackExportRequest,
@@ -129,6 +149,11 @@ export interface SpecimenBench {
 	 * persisting a content-addressed capture set keyed `<id>/<step>` with axe and screenshots.
 	 */
 	captureCheckpoints(request: CheckpointsRequest): Promise<CheckpointsRun>;
+	/**
+	 * Scaffold or update a job specimen entry in `specimen.config.json` from a scenario file,
+	 * copying exact step descriptions and refusing undescribed steps (`STEP_HAS_NO_DESCRIPTION`).
+	 */
+	createJob(request: JobCreateRequest): Promise<JobCreateResult>;
 	/**
 	 * Run a job specimen once in a fresh browser context via its registered `JobDriver` plugin,
 	 * capturing marked steps into a content-addressed capture set keyed `<id>/<step>`.
@@ -234,7 +259,7 @@ export interface SpecimenBench {
 /** What runs a bench's browser work, in this process or a worker: the bench without its file work. */
 export type BenchRuntime = Omit<
 	SpecimenBench,
-	'validate' | 'migrate' | 'pack' | 'packCheck' | 'packExport' | 'diff'
+	'validate' | 'migrate' | 'pack' | 'packCheck' | 'packExport' | 'diff' | 'createJob'
 > & {
 	/** Build the configured pack from two passes over every case, and write nothing. */
 	packBuild(request?: PackBuildRequest): Promise<PackBuildRun>;
@@ -289,12 +314,14 @@ function validateEntries(snapshot: LoadedConfig, target?: ValidationTarget): Val
 export async function createSpecimenBench(options: BenchOptions): Promise<SpecimenBench> {
 	// Validate once, before returning metadata. Either backend receives this exact snapshot,
 	// including resolved module paths and digest, rather than rereading a changed config.
-	let config: LoadedConfig | undefined = await loadConfig(options);
-	for (const entry of config.entries) Object.freeze(entry);
-	Object.freeze(config.entries);
-	Object.freeze(config.config);
-	Object.freeze(config.modules);
-	Object.freeze(config);
+	const freezeConfig = (loaded: LoadedConfig): LoadedConfig => {
+		for (const entry of loaded.entries) Object.freeze(entry);
+		Object.freeze(loaded.entries);
+		Object.freeze(loaded.config);
+		Object.freeze(loaded.modules);
+		return Object.freeze(loaded);
+	};
+	let config: LoadedConfig | undefined = freezeConfig(await loadConfig(options));
 	const executablePath = options.executablePath;
 	const runtimeIsolation = options.runtimeIsolation ?? 'in-process';
 	const inlineJobSources: JobSource[] = [...(options.jobSources ?? [])];
@@ -341,6 +368,14 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		if (closed || !config) throw new Error('Specimen bench is closed');
 		return config;
 	};
+	/**
+	 * Reads the latest config snapshot for an operation accepted before close() started
+	 * draining `pending`. `close()` clears `config` only after `pending` settles.
+	 */
+	const currentConfig = (): LoadedConfig => {
+		if (!config) throw new Error('Specimen bench is closed');
+		return config;
+	};
 	/** Listing and rendering need a discovery without errors. */
 	const ensureDiscovered = (): LoadedConfig => {
 		const snapshot = ensureOpen();
@@ -349,15 +384,20 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		return snapshot;
 	};
 	const enqueue = <T>(operation: (runtime: Backend) => Promise<T>): Promise<T> => {
-		const snapshot = ensureOpen();
+		ensureOpen();
 		const result = pending.then(async () => {
+			const current = currentConfig();
 			if (!backend) {
 				backend =
 					runtimeIsolation === 'process'
-						? new BenchWorkerClient(snapshot, executablePath)
+						? new BenchWorkerClient(current, executablePath)
 						: await (await import('./bench-runtime.js')).createInProcessBench(
-								{ root: snapshot.root, executablePath },
-								snapshot
+								{
+									root: current.root,
+									executablePath,
+									...(inlineJobSources.length > 0 ? { jobSources: inlineJobSources } : {}),
+								},
+								current
 							);
 			}
 			return operation(backend);
@@ -405,8 +445,28 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		async render(rawRequest) {
 			const snapshot = ensureDiscovered();
 			const request = parseCaptureRequest(rawRequest);
-			if (!snapshot.entries.some((entry) => entry.id === request.id))
-				throw new Error(`Specimen not found: ${request.id}`);
+			if (request.set !== undefined) {
+				if (request.screenshot !== undefined) {
+					throw new Error(
+						'A saved capture set already keeps screenshots; omit screenshot when passing set.'
+					);
+				}
+				return readObservationFromSet(snapshot.root, {
+					id: request.id,
+					set: request.set,
+					...(request.checkpoint !== undefined ? { checkpoint: request.checkpoint } : {}),
+				});
+			}
+			const entry = snapshot.entries.find((item) => item.id === request.id);
+			if (!entry) throw new Error(`Specimen not found: ${request.id}`);
+			if (entry.job) {
+				const error: SpecimenHostError = new Error(
+					`Specimen '${entry.id}' is a job specimen and cannot be rendered without a capture set.`
+				);
+				error.code = 'JOB_NEEDS_RUN';
+				error.suggestion = `Run specimen-job-run for '${entry.id}', then call specimen-render with its set and capture checkpoint name.`;
+				throw error;
+			}
 			// Resolve context here too: invalid requests never start a runtime.
 			resolveContext(request.context);
 			return enqueue((client) => client.render(request));
@@ -414,7 +474,11 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		async captureSet(rawRequest = {}) {
 			const snapshot = ensureDiscovered();
 			const request = parseCaptureSetRequest(rawRequest);
-			selectCaptureEntries(snapshot.entries, request, snapshot.root);
+			const includeJobs =
+				(snapshot.jobSourceModules.length > 0 ||
+					(runtimeIsolation !== 'process' && inlineJobSources.length > 0)) &&
+				snapshot.plugins.length > 0;
+			selectCaptureEntries(snapshot.entries, request, snapshot.root, { includeJobs });
 			resolveContext(request.context);
 			return enqueue((client) => client.captureSet(request));
 		},
@@ -433,6 +497,161 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 			resolveContext(request.context);
 			resolvePinnedBaseline(request.pin);
 			return enqueue((client) => client.captureCheckpoints(request));
+		},
+		async createJob(rawRequest) {
+			ensureOpen();
+			const operation = pending.then(async (): Promise<JobCreateResult> => {
+				const snapshot = currentConfig();
+				const request = parseJobCreateRequest(rawRequest);
+				const base = dirname(snapshot.file);
+				const candidateModule = resolve(base, request.module);
+				const relFromRoot = relative(snapshot.root, candidateModule);
+				if (relFromRoot === '..' || relFromRoot.startsWith(`..${sep}`) || isAbsolute(relFromRoot)) {
+					const error: SpecimenHostError = new Error(
+						`Specimen module escapes the configured root: ${request.module}`
+					);
+					error.code = 'JOB_SCENARIO_INVALID';
+					error.suggestion = 'Keep specimen modules inside the configured Specimen project root.';
+					throw error;
+				}
+				try {
+					const resolvedModule = await realpath(candidateModule);
+					const resolvedRel = relative(snapshot.root, resolvedModule);
+					if (
+						resolvedRel === '..' ||
+						resolvedRel.startsWith(`..${sep}`) ||
+						isAbsolute(resolvedRel)
+					) {
+						throw new Error(`Specimen module escapes the configured root: ${request.module}`);
+					}
+				} catch (error) {
+					const wrapped: SpecimenHostError = new Error(
+						`Cannot resolve specimen module '${request.module}': ${error instanceof Error ? error.message : String(error)}`
+					);
+					wrapped.code = 'JOB_SCENARIO_INVALID';
+					wrapped.suggestion = `Verify that '${request.module}' exists inside the project root.`;
+					throw wrapped;
+				}
+				resolvePinnedBaseline(request.pin);
+				const provisionalEntry: SpecimenEntry = {
+					id: request.id,
+					title: request.title ?? request.id,
+					module: request.module,
+					exportName: request.exportName,
+					job: {
+						scenario: request.scenario,
+						target: request.target,
+						...(request.runner !== undefined ? { runner: request.runner } : {}),
+						...(request.pin !== undefined && Object.keys(request.pin).length > 0
+							? { pin: request.pin }
+							: {}),
+						captures: [],
+					},
+				};
+				const scenario = await parseJobScenarioWithSources(await getJobSources(snapshot), {
+					root: snapshot.root,
+					base,
+					entry: provisionalEntry,
+				});
+				const captures = buildJobCaptures(scenario, request.captures);
+				const configEntry = {
+					id: request.id,
+					title: request.title ?? (scenario.name?.trim() || request.id),
+					module: request.module,
+					exportName: request.exportName,
+					job: {
+						scenario: request.scenario,
+						target: request.target,
+						...(request.runner !== undefined ? { runner: request.runner } : {}),
+						...(request.pin !== undefined && Object.keys(request.pin).length > 0
+							? { pin: request.pin }
+							: {}),
+						captures,
+					},
+				};
+				const nonJobCollision = snapshot.entries.find(
+					(item) => item.id === request.id && item.job === undefined
+				);
+				if (nonJobCollision) {
+					const error: SpecimenHostError = new Error(
+						`Specimen '${request.id}' already exists as a non-job specimen and cannot be overwritten as a job.`
+					);
+					error.code = 'NOT_A_JOB';
+					error.suggestion =
+						'Choose a distinct id for the job specimen, or use specimen-list with kind: job to see existing job specimens.';
+					throw error;
+				}
+				const lockPath = join(specimenDataDir(snapshot.root), '.config.lock');
+				await assertRealContained(
+					snapshot.root,
+					lockPath,
+					`Configuration lock escapes root: ${lockPath}`
+				);
+				return withFileLock(lockPath, async () => {
+					const rawConfig = JSON.parse(await readFile(snapshot.file, 'utf8')) as Record<
+						string,
+						unknown
+					>;
+					const currentSpecimens = Array.isArray(rawConfig.specimens)
+						? [...(rawConfig.specimens as Record<string, unknown>[])]
+						: [];
+					const existingIndex = currentSpecimens.findIndex((item) => item.id === request.id);
+					let mergedEntry: Record<string, unknown> = configEntry;
+					if (existingIndex >= 0) {
+						const existing = currentSpecimens[existingIndex];
+						if (!existing || existing.job === undefined) {
+							const error: SpecimenHostError = new Error(
+								`Specimen '${request.id}' already exists as a component specimen and cannot be overwritten as a job.`
+							);
+							error.code = 'NOT_A_JOB';
+							error.suggestion =
+								'Choose a distinct id for the job specimen, or use specimen-list with kind: job to see existing job specimens.';
+							throw error;
+						}
+						mergedEntry = {
+							...existing,
+							...configEntry,
+							title:
+								request.title ??
+								(typeof existing.title === 'string' && existing.title.length > 0
+									? existing.title
+									: configEntry.title),
+						};
+						currentSpecimens[existingIndex] = mergedEntry;
+					} else {
+						currentSpecimens.push(configEntry);
+					}
+					const nextConfig = { ...rawConfig, specimens: currentSpecimens };
+					parseConfig(nextConfig);
+					await assertRealContained(
+						snapshot.root,
+						snapshot.file,
+						`Configuration file escapes root: ${snapshot.file}`
+					);
+					await writeFileAtomic(snapshot.file, `${JSON.stringify(nextConfig, null, 2)}\n`);
+					const reloaded = freezeConfig(await loadConfig(options));
+					config = reloaded;
+					loadedJobSources = undefined;
+					if (backend) {
+						const oldBackend = backend;
+						backend = undefined;
+						await oldBackend.close();
+					}
+					const written =
+						relative(snapshot.root, snapshot.file).replaceAll('\\', '/') || basename(snapshot.file);
+					const persisted = reloaded.entries.find((item) => item.id === request.id);
+					return {
+						written,
+						entry: {
+							...(persisted ?? configEntry),
+							job: configEntry.job,
+							kind: 'job' as const,
+						},
+					};
+				});
+			});
+			pending = operation.catch(() => {});
+			return operation;
 		},
 		async runJob(rawRequest) {
 			const snapshot = ensureDiscovered();
@@ -456,8 +675,17 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 					base: dirname(snapshot.file),
 					entry,
 				}));
-			// Validate capture step descriptions before starting Chromium or a worker.
+			// Validate capture step descriptions and runner presence before starting Chromium or a worker.
 			resolveJobCapturePlan(entry, scenario);
+			if (snapshot.plugins.length === 0) {
+				const error: SpecimenHostError = new Error(
+					`Job specimen '${entry.id}' requires a registered job driver plugin (such as '${entry.job.runner ?? 'afd'}'), but no plugins are configured.`
+				);
+				error.code = 'RUNNER_MISSING';
+				error.suggestion =
+					'Configure a Specimen plugin providing the job driver and command runner (such as @lushly-dev/specimen-afd-runner) in specimen.config.json plugins.';
+				throw error;
+			}
 			resolveContext(request.context);
 			resolvePinnedBaseline(request.pin ?? entry.job.pin);
 			return enqueue((client) => client.runJob({ ...request, scenario }));
@@ -469,8 +697,8 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		async run(rawRequest) {
 			const snapshot = ensureDiscovered();
 			const request = parseCaptureRequest(rawRequest);
-			if (request.checkpoint !== undefined)
-				throw new Error('A run always ends at the after-run checkpoint; omit checkpoint.');
+			if (request.checkpoint !== undefined || request.set !== undefined)
+				throw new Error('A run always ends at the after-run checkpoint; omit checkpoint and set.');
 			if (!snapshot.entries.some((entry) => entry.id === request.id))
 				throw new Error(`Specimen not found: ${request.id}`);
 			resolveContext(request.context);
@@ -521,8 +749,11 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 			return exportPack(snapshot, parsePackExportRequest(rawRequest));
 		},
 		async a11y(rawRequest = {}) {
-			ensureDiscovered();
+			const snapshot = ensureDiscovered();
 			const request = parseA11yRequest(rawRequest);
+			if (request.set !== undefined) {
+				return readA11yFromSet(snapshot.root, { ...request, set: request.set });
+			}
 			return enqueue((client) => client.a11y(request));
 		},
 		async themes(rawRequest = {}) {
@@ -538,7 +769,11 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		async inspect(rawRequest) {
 			const snapshot = ensureDiscovered();
 			const request = parseCaptureRequest(rawRequest);
-			if (request.checkpoint !== undefined || request.screenshot !== undefined)
+			if (
+				request.checkpoint !== undefined ||
+				request.screenshot !== undefined ||
+				request.set !== undefined
+			)
 				throw new Error('Inspection takes an id, a context and a timeout only.');
 			if (!snapshot.entries.some((entry) => entry.id === request.id))
 				throw new Error(`Specimen not found: ${request.id}`);

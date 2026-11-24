@@ -1,12 +1,13 @@
 // One closure over the host process and its bundle: coverage, contracts and packs share its capture.
-import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { readFile, rename, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { RANDOM_SEED } from './baseline.js';
 import type { BenchRuntime } from './bench.js';
+import { captureCheckpointsInRuntime, runJobForCaptureSet, runJobInRuntime } from './bench-jobs.js';
 import { runCompare } from './compare.js';
 import {
 	bundled,
@@ -19,15 +20,15 @@ import {
 import { runContract } from './contract.js';
 import { runCoverage } from './coverage-run.js';
 import { diffObservations } from './diff.js';
-import { browserRuntimePath, checkHostIsolation, chromiumExecutable, HostProcess } from './host.js';
-import { loadJobSourceModule, parseJobScenarioWithSources } from './job-source.js';
 import {
-	type CheckpointCaptureInput,
-	finalizeCheckpointsRun,
-	finalizeJobRun,
-	resolveJobCapturePlan,
-	resolvePinnedBaseline,
-} from './jobs.js';
+	browserRuntimePath,
+	checkHostIsolation,
+	chromiumExecutable,
+	HostProcess,
+	type SpecimenHostError,
+} from './host.js';
+import { type JobSource, loadJobSourceModule } from './job-source.js';
+import { readA11yFromSet, readObservationFromSet } from './jobs.js';
 import { type PackHost, runPack } from './pack-run.js';
 import type { JobDriverResult } from './plugin.js';
 import * as pointRun from './point-run.js';
@@ -42,7 +43,7 @@ import {
 	withBaseline,
 } from './profile.js';
 import { dependencyIdentity, sourceState } from './provenance.js';
-import { assertRealContained, runCaptureSet, specimenDataDir } from './sets.js';
+import { runCaptureSet } from './sets.js';
 import { suggestSpecimens } from './suggest.js';
 import {
 	DEFAULT_FLAKE_CAP,
@@ -111,11 +112,9 @@ import {
 	parseBaselineRequest,
 	parseCaptureRequest,
 	parseCaptureSetRequest,
-	parseCheckpointsRequest,
 	parseCompareRequest,
 	parseContractRequest,
 	parseCoverageRequest,
-	parseJobRunRequest,
 	parseMatrixRequest,
 	parsePackRequest,
 	parseProfileRequest,
@@ -207,10 +206,33 @@ export async function createInProcessBench(
 	const ensureOpen = () => {
 		if (closed) throw new Error('Specimen bench is closed');
 	};
+	const inlineJobSources: JobSource[] = [...(options.jobSources ?? [])];
+	let loadedJobSources: JobSource[] | undefined;
+	const getJobSources = async (): Promise<JobSource[]> => {
+		if (loadedJobSources) return loadedJobSources;
+		const sources: JobSource[] = [...inlineJobSources];
+		for (const modulePath of config.jobSourceModules) {
+			sources.push(...(await loadJobSourceModule(modulePath)));
+		}
+		loadedJobSources = sources;
+		return sources;
+	};
+	const hasJobRunner =
+		(config.jobSourceModules.length > 0 || inlineJobSources.length > 0) &&
+		config.plugins.length > 0;
 	const browserBuild = options.executablePath ? digest(options.executablePath) : null;
 	// Started by the first render; Chromium launches while the first bundle builds.
 	const ensureHost = () =>
 		(host ??= (async () => {
+			if (options.executablePath && !existsSync(options.executablePath)) {
+				const error: SpecimenHostError = new Error(
+					`Chromium executable is missing at ${options.executablePath}.`
+				);
+				error.code = 'BROWSER_UNAVAILABLE';
+				error.suggestion =
+					'Install the browser Specimen uses or point executablePath to an installed Chromium binary.';
+				throw error;
+			}
 			const executable = options.executablePath ?? chromiumExecutable();
 			const process = new HostProcess();
 			try {
@@ -235,6 +257,19 @@ export async function createInProcessBench(
 				return process;
 			} catch (error) {
 				await process.close();
+				const structured = error as SpecimenHostError;
+				const msg = error instanceof Error ? error.message : String(error);
+				if (
+					!structured.code &&
+					!/Specimen host failed to start|is not installed/i.test(msg) &&
+					/(?:spawn|launch|chromium|chrome|browser|ENOENT|cannot find the file|No such file)/i.test(
+						msg
+					)
+				) {
+					structured.code = 'BROWSER_UNAVAILABLE';
+					structured.suggestion =
+						'Install the browser Specimen uses, or run the scenario headless without a browser.';
+				}
 				throw error;
 			}
 		})());
@@ -843,6 +878,15 @@ export async function createInProcessBench(
 				),
 		};
 	};
+	const jobDeps = {
+		config,
+		hostGraceMs: HOST_GRACE,
+		ensureOpen,
+		ensureHost,
+		getJobSources,
+		buildObservation,
+	};
+
 	const captureSetHost = () => ({
 		root: config.root,
 		entries: config.entries,
@@ -880,6 +924,17 @@ export async function createInProcessBench(
 			if (!observation) throw new Error('The render captured no observation.');
 			return observation;
 		},
+		...(hasJobRunner
+			? {
+					runJob: (args: {
+						entry: SpecimenEntry;
+						context: SpecimenContext;
+						axe: boolean;
+						stagingDir: string;
+						timeoutMs?: number;
+					}) => runJobForCaptureSet(jobDeps, args),
+				}
+			: {}),
 	});
 	const api: BenchRuntime = {
 		list(filter) {
@@ -903,7 +958,29 @@ export async function createInProcessBench(
 		},
 		async render(rawRequest) {
 			ensureOpen();
-			return (await capture(parseCaptureRequest(rawRequest))).observation as Observation;
+			const request = parseCaptureRequest(rawRequest);
+			if (request.set !== undefined) {
+				if (request.screenshot !== undefined) {
+					throw new Error(
+						'A saved capture set already keeps screenshots; omit screenshot when passing set.'
+					);
+				}
+				return readObservationFromSet(config.root, {
+					id: request.id,
+					set: request.set,
+					...(request.checkpoint !== undefined ? { checkpoint: request.checkpoint } : {}),
+				});
+			}
+			const found = config.entries.find((item) => item.id === request.id);
+			if (found?.job) {
+				const error: SpecimenHostError = new Error(
+					`Specimen '${found.id}' is a job specimen and cannot be rendered without a capture set.`
+				);
+				error.code = 'JOB_NEEDS_RUN';
+				error.suggestion = `Run specimen-job-run for '${found.id}', then call specimen-render with its set and capture checkpoint name.`;
+				throw error;
+			}
+			return (await capture(request)).observation as Observation;
 		},
 		...pointRun.createPointApi(ensureOpen, { config, capture }),
 		async captureSet(rawRequest: CaptureSetRequest = {}): Promise<CaptureSetRun> {
@@ -916,211 +993,11 @@ export async function createInProcessBench(
 			const request = parseCompareRequest(rawRequest);
 			return runCompare(captureSetHost(), request);
 		},
-		async captureCheckpoints(rawRequest: CheckpointsRequest): Promise<CheckpointsRun> {
-			ensureOpen();
-			const request = parseCheckpointsRequest(rawRequest);
-			const entry = config.entries.find((item) => item.id === request.id);
-			if (!entry) throw new Error(`Specimen not found: ${request.id}`);
-			if (entry.story) {
-				throw new Error(
-					`Multi-checkpoint capture applies to native specimens; '${entry.id}' is a retained story.`
-				);
-			}
-			const context = resolveContext(request.context);
-			const axe = request.axe ?? true;
-			const timeoutMs = request.timeoutMs ?? 30_000;
-			const pinned = resolvePinnedBaseline(request.pin);
-			const clockBaseline: CaptureCheckpoint['baseline']['clock'] =
-				pinned.clock === 'real' ? 'real' : { pinned: pinned.clock };
-			const stagingDir = join(specimenDataDir(config.root), 'tmp', randomUUID());
-			await assertRealContained(
-				config.root,
-				stagingDir,
-				`Staging directory escapes root: ${stagingDir}`
-			);
-			await mkdir(stagingDir, { recursive: true });
-			try {
-				const runtime = await ensureHost();
-				const checkpointsPayload = (request.checkpoints ?? []).map((name) => ({ name }));
-				const [rendered, [source, dependencies]] = await Promise.all([
-					runtime.request(
-						'render',
-						{
-							entry,
-							context,
-							checkpoint: 'mount',
-							timeoutMs,
-							screenshot: null,
-							accessibility: axe,
-							...(pinned.clock !== 'real' ? { pinClock: pinned.clock } : {}),
-							checkpoints: checkpointsPayload,
-							screenshotsDir: stagingDir,
-						},
-						timeoutMs + HOST_GRACE
-					) as Promise<HostRender>,
-					Promise.all([sourceState(config.root), dependencyIdentity(config.root)]),
-				]);
-				const rawCaptures = rendered.captures ?? [];
-				const captures: CheckpointCaptureInput[] = rawCaptures.map((point, index) => {
-					const step = point.step ?? index + 1;
-					const key = point.key ?? `${entry.id}/${step}`;
-					const obs = buildObservation({
-						entry,
-						context,
-						checkpointName: point.name,
-						actionMode: point.name === 'mount' ? 'none' : 'real-input',
-						timeoutMs,
-						clockBaseline,
-						captured: point.captured,
-						snapshot: point.snapshot,
-						screenshot: point.screenshot,
-						axe: axe ? (point.accessibility ?? undefined) : undefined,
-						console: point.console ?? rendered.console,
-						loaded: rendered.loaded,
-						browser: rendered.browser,
-						source,
-						dependencies,
-					});
-					return {
-						key,
-						name: point.name,
-						step,
-						observation: obs,
-						screenshotSource: point.screenshot,
-					};
-				});
-				return await finalizeCheckpointsRun({
-					root: config.root,
-					id: entry.id,
-					context,
-					axe,
-					...(request.pin ? { pin: request.pin } : {}),
-					...(request.label !== undefined ? { label: request.label } : {}),
-					revision: source.revision,
-					dirty: source.dirty,
-					captures,
-				});
-			} finally {
-				await rm(stagingDir, { recursive: true, force: true });
-			}
+		captureCheckpoints(rawRequest: CheckpointsRequest): Promise<CheckpointsRun> {
+			return captureCheckpointsInRuntime(jobDeps, rawRequest);
 		},
-		async runJob(rawRequest: JobRunRequest): Promise<JobRun> {
-			ensureOpen();
-			const request = parseJobRunRequest(rawRequest);
-			const entry = config.entries.find((item) => item.id === request.id);
-			if (!entry) throw new Error(`Specimen not found: ${request.id}`);
-			if (!entry.job) {
-				const error = new Error(`Specimen '${entry.id}' is not a job specimen.`) as Error & {
-					code?: string;
-					suggestion?: string;
-				};
-				error.code = 'NOT_A_JOB';
-				error.suggestion =
-					'Use specimen-list with kind: job to find job specimens, or specimen-render for a component specimen.';
-				throw error;
-			}
-			let scenario = request.scenario;
-			if (!scenario) {
-				const sources = [];
-				for (const modulePath of config.jobSourceModules) {
-					sources.push(...(await loadJobSourceModule(modulePath)));
-				}
-				scenario = await parseJobScenarioWithSources(sources, {
-					root: config.root,
-					base: dirname(config.file),
-					entry,
-				});
-			}
-			const capturePlan = resolveJobCapturePlan(entry, scenario);
-			const context = resolveContext(request.context);
-			const axe = request.axe ?? true;
-			const timeoutMs = request.timeoutMs ?? 30_000;
-			const effectivePin = request.pin ?? entry.job.pin;
-			const pinned = resolvePinnedBaseline(effectivePin);
-			const clockBaseline: CaptureCheckpoint['baseline']['clock'] =
-				pinned.clock === 'real' ? 'real' : { pinned: pinned.clock };
-			const stagingDir = join(specimenDataDir(config.root), 'tmp', randomUUID());
-			await assertRealContained(
-				config.root,
-				stagingDir,
-				`Staging directory escapes root: ${stagingDir}`
-			);
-			await mkdir(stagingDir, { recursive: true });
-			try {
-				const screenshots: Record<string, string> = {};
-				for (const cap of capturePlan) {
-					screenshots[cap.key] = join(stagingDir, `step-${cap.step}.png`);
-				}
-				const runtime = await ensureHost();
-				const [rendered, [source, dependencies]] = await Promise.all([
-					runtime.request(
-						'render',
-						{
-							entry,
-							context,
-							checkpoint: 'mount',
-							timeoutMs,
-							screenshot: null,
-							accessibility: axe,
-							...(pinned.clock !== 'real' ? { pinClock: pinned.clock } : {}),
-							jobRun: {
-								driver: entry.job.runner ?? 'afd',
-								target: entry.job.target,
-								scenario,
-								capturePlan,
-								screenshots,
-							},
-						},
-						timeoutMs + HOST_GRACE
-					) as Promise<HostRender>,
-					Promise.all([sourceState(config.root), dependencyIdentity(config.root)]),
-				]);
-				const driverResult = rendered.jobOutcome;
-				if (!driverResult) {
-					throw new Error(`Job driver returned no outcome for '${entry.id}'.`);
-				}
-				const capturedByKey = new Map<
-					string,
-					{ observation: Observation; screenshotSource: string | null }
-				>();
-				for (const point of rendered.captures ?? []) {
-					const key = point.key ?? (point.step !== null ? `${entry.id}/${point.step}` : point.name);
-					const obs = buildObservation({
-						entry,
-						context,
-						checkpointName: point.name,
-						actionMode: 'real-input',
-						timeoutMs,
-						clockBaseline,
-						captured: point.captured,
-						snapshot: point.snapshot,
-						screenshot: point.screenshot,
-						axe: axe ? (point.accessibility ?? undefined) : undefined,
-						console: point.console ?? rendered.console,
-						loaded: rendered.loaded,
-						browser: rendered.browser,
-						source,
-						dependencies,
-					});
-					capturedByKey.set(key, { observation: obs, screenshotSource: point.screenshot });
-				}
-				return await finalizeJobRun({
-					root: config.root,
-					entry,
-					scenario,
-					capturePlan,
-					driverResult,
-					capturedByKey,
-					context,
-					axe,
-					...(effectivePin ? { pin: effectivePin } : {}),
-					...(request.label !== undefined ? { label: request.label } : {}),
-					revision: source.revision,
-					dirty: source.dirty,
-				});
-			} finally {
-				await rm(stagingDir, { recursive: true, force: true });
-			}
+		runJob(rawRequest: JobRunRequest): Promise<JobRun> {
+			return runJobInRuntime(jobDeps, rawRequest);
 		},
 		async inspect(rawRequest: InspectRequest): Promise<InspectResult> {
 			ensureOpen();
@@ -1392,6 +1269,9 @@ export async function createInProcessBench(
 		async a11y(rawRequest: A11yRequest = {}): Promise<A11yRun> {
 			ensureOpen();
 			const request = parseA11yRequest(rawRequest);
+			if (request.set !== undefined) {
+				return readA11yFromSet(config.root, { ...request, set: request.set });
+			}
 			const entries = request.id
 				? config.entries.filter((entry) => entry.id === request.id)
 				: selectEntries(config.entries, request.filter, config.root);

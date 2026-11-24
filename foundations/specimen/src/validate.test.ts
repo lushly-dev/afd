@@ -17,6 +17,7 @@ import {
 	contractRequestSchema,
 	coverageRequestSchema,
 	jobConfigSchema,
+	jobCreateRequestSchema,
 	jobRunRequestSchema,
 	matrixRequestSchema,
 	pointCheckRequestSchema,
@@ -38,6 +39,7 @@ import {
 	parseContext,
 	parseContractRequest,
 	parseCoverageRequest,
+	parseJobCreateRequest,
 	parseJobRunRequest,
 	parseMatrixRequest,
 	parsePointCheckRequest,
@@ -281,6 +283,7 @@ describe('bench validation matches the Zod schemas', () => {
 			{},
 			null,
 			{ id: 'probe', extra: 1 },
+			...['set-0123456789ab', 'main', '', 3].map((set) => ({ id: 'probe', set })),
 			...['mount', '', 3].map((checkpoint) => ({ id: 'probe', checkpoint })),
 			...['out.png', '', null].map((screenshot) => ({ id: 'probe', screenshot })),
 			...[1, 60_000, 0, 60_001, 2.5, '10'].map((timeoutMs) => ({ id: 'probe', timeoutMs })),
@@ -981,6 +984,90 @@ describe('request parsing agrees with the public schemas', () => {
 			null,
 		];
 		for (const value of jobValues) agrees(jobRunRequestSchema, parseJobRunRequest, value);
+
+		const jobCreateValues: unknown[] = [
+			{
+				id: 'example-keep-a-draft',
+				scenario: '../scenarios/keep-a-draft.scenario.yaml',
+				module: './app.specimens.ts',
+				exportName: 'NotesApp',
+				target: 'app',
+				captures: [
+					3,
+					{
+						step: 4,
+						name: 'conflict-notice',
+						before: [{ action: { fill: 'second-editor', value: ' draft' } }],
+					},
+				],
+			},
+			{
+				id: 'example-keep-a-draft',
+				title: 'Example/Notes/Keep a draft',
+				scenario: './s.yaml',
+				module: './app.ts',
+				exportName: 'App',
+				target: 'app',
+				runner: 'afd',
+				pin: { clock: '2026-03-02T09:00:00Z' },
+				captures: [{ step: 1 }],
+			},
+			{
+				id: 'bad id',
+				scenario: './s.yaml',
+				module: './app.ts',
+				exportName: 'App',
+				target: 'app',
+				captures: [1],
+			},
+			{
+				id: 'empty-captures',
+				scenario: './s.yaml',
+				module: './app.ts',
+				exportName: 'App',
+				target: 'app',
+				captures: [],
+			},
+			{
+				id: 'zero-step',
+				scenario: './s.yaml',
+				module: './app.ts',
+				exportName: 'App',
+				target: 'app',
+				captures: [0],
+			},
+			{
+				id: 'bad-clock',
+				scenario: './s.yaml',
+				module: './app.ts',
+				exportName: 'App',
+				target: 'app',
+				pin: { clock: '2026-02-30T09:00:00Z' },
+				captures: [1],
+			},
+			{
+				id: 'extra-field',
+				scenario: './s.yaml',
+				module: './app.ts',
+				exportName: 'App',
+				target: 'app',
+				captures: [1],
+				extra: true,
+			},
+			null,
+		];
+		for (const value of jobCreateValues)
+			agrees(jobCreateRequestSchema, parseJobCreateRequest, value);
+
+		const a11ySetValues: unknown[] = [
+			{ set: 'set-0123456789ab' },
+			{ set: 'main', id: 'example-keep-a-draft', checkpoint: 'two-editors' },
+			{ set: 'main', id: 'example-keep-a-draft', filter: { match: 'two' } },
+			{ id: 'example-keep-a-draft', filter: { match: 'two' } },
+			{ set: '' },
+			{ set: 42 },
+		];
+		for (const value of a11ySetValues) agrees(a11yRequestSchema, parseA11yRequest, value);
 
 		const jobConfigs = [
 			{

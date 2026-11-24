@@ -332,11 +332,12 @@ export function themeAvailabilityReason(entry: SpecimenEntry, theme: SpecimenThe
 	return null;
 }
 
-/** Select entries for `specimen-capture`, validating explicit ids and skipping jobs/gates by default. */
+/** Select entries for `specimen-capture`, validating explicit ids and skipping gates (and jobs when no job runner is configured) by default. */
 export function selectCaptureEntries(
 	entries: readonly SpecimenEntry[],
 	request: CaptureSetRequest,
-	root: string
+	root: string,
+	options: { includeJobs?: boolean } = {}
 ): { selected: SpecimenEntry[]; skipped: CaptureSetRun['skipped'] } {
 	if (request.ids !== undefined) {
 		const byId = new Map(entries.map((entry) => [entry.id, entry]));
@@ -376,7 +377,11 @@ export function selectCaptureEntries(
 			continue;
 		}
 		if (kind === 'job') {
-			skippedJobs++;
+			if (options.includeJobs) {
+				selected.push(entry);
+			} else {
+				skippedJobs++;
+			}
 			continue;
 		}
 		if (kind === 'gate') {
@@ -388,7 +393,13 @@ export function selectCaptureEntries(
 	const skipped: CaptureSetRun['skipped'] = {
 		jobs: skippedJobs,
 		gates: skippedGates,
-		...(skippedJobs > 0 ? { next: 'specimen-job-run' as const } : {}),
+		...(skippedJobs > 0
+			? {
+					next: 'specimen-job-run' as const,
+					reason:
+						'Job specimens were skipped because no job runner plugin is configured; configure jobSources and plugins or run them with specimen-job-run.',
+				}
+			: {}),
 		...(skippedGates > 0 ? { gatesNext: 'specimen-run' as const } : {}),
 	};
 	return { selected, skipped };
@@ -431,7 +442,7 @@ async function renameWithRetry(source: string, destination: string): Promise<voi
 	}
 }
 
-async function withFileLock<T>(lockPath: string, fn: () => Promise<T>): Promise<T> {
+export async function withFileLock<T>(lockPath: string, fn: () => Promise<T>): Promise<T> {
 	await mkdir(dirname(lockPath), { recursive: true });
 	const deadline = Date.now() + LOCK_TIMEOUT_MS;
 	let acquired = false;
@@ -968,6 +979,14 @@ export interface CaptureSetHost {
 		screenshot: string;
 		timeoutMs?: number;
 	}): Promise<Observation>;
+	/** Optional job execution hook; when provided, `specimen-capture` runs job specimens through the runner into `<id>/<step>` captures. */
+	runJob?: (options: {
+		entry: SpecimenEntry;
+		context: SpecimenContext;
+		axe: boolean;
+		stagingDir: string;
+		timeoutMs?: number;
+	}) => Promise<WriteCaptureSetItem[]>;
 }
 
 /** Orchestrate `specimen-capture`: select entries, check theme support, capture with axe and screenshots, persist set. */
@@ -975,7 +994,9 @@ export async function runCaptureSet(
 	host: CaptureSetHost,
 	request: CaptureSetRequest = {}
 ): Promise<CaptureSetRun> {
-	const { selected, skipped } = selectCaptureEntries(host.entries, request, host.root);
+	const { selected, skipped } = selectCaptureEntries(host.entries, request, host.root, {
+		includeJobs: host.runJob !== undefined,
+	});
 	if (selected.length === 0 && skipped.jobs === 0 && skipped.gates === 0 && request.filter) {
 		throw new Error('No specimen matches the filter.');
 	}
@@ -986,19 +1007,31 @@ export async function runCaptureSet(
 	const stagingDir = join(specimenDataDir(host.root), 'tmp', randomUUID());
 
 	const sourcePromise = host.sourceState();
-	const items: WriteCaptureSetItem[] = new Array<WriteCaptureSetItem>(selected.length);
+	const itemBuckets: WriteCaptureSetItem[][] = new Array<WriteCaptureSetItem[]>(selected.length);
 	const renderIndices: number[] = [];
 
 	for (let i = 0; i < selected.length; i++) {
 		const entry = selected[i] as SpecimenEntry;
 		const reason = themeAvailabilityReason(entry, context.theme);
 		if (reason !== null) {
-			items[i] = {
-				key: entry.id,
-				id: entry.id,
-				status: 'unavailable',
-				reason,
-			};
+			itemBuckets[i] = [
+				{
+					key: entry.id,
+					id: entry.id,
+					status: 'unavailable',
+					reason,
+				},
+			];
+		} else if (entryKind(entry) === 'job' && !host.runJob) {
+			itemBuckets[i] = [
+				{
+					key: entry.id,
+					id: entry.id,
+					status: 'unavailable',
+					reason:
+						'No job runner plugin is configured (RUNNER_MISSING); configure jobSources and plugins in specimen.config.json.',
+				},
+			];
 		} else {
 			renderIndices.push(i);
 		}
@@ -1015,6 +1048,40 @@ export async function runCaptureSet(
 			await host.prepare();
 			await pool(renderIndices, workers, async (index) => {
 				const entry = selected[index] as SpecimenEntry;
+				if (entryKind(entry) === 'job' && host.runJob) {
+					const jobStaging = join(stagingDir, captureStorageStem(entry.id));
+					try {
+						await mkdir(jobStaging, { recursive: true });
+						const jobItems = await host.runJob({
+							entry,
+							context,
+							axe,
+							stagingDir: jobStaging,
+							...(request.timeoutMs !== undefined ? { timeoutMs: request.timeoutMs } : {}),
+						});
+						itemBuckets[index] =
+							jobItems.length > 0
+								? jobItems
+								: [
+										{
+											key: entry.id,
+											id: entry.id,
+											status: 'unavailable',
+											reason: `Job specimen '${entry.id}' produced no captures.`,
+										},
+									];
+					} catch (error) {
+						itemBuckets[index] = [
+							{
+								key: entry.id,
+								id: entry.id,
+								status: 'unavailable',
+								reason: error instanceof Error ? error.message : String(error),
+							},
+						];
+					}
+					return;
+				}
 				const screenshotPath = join(stagingDir, `${captureStorageStem(entry.id)}.png`);
 				try {
 					const renderedObservation = await host.render({
@@ -1048,35 +1115,49 @@ export async function runCaptureSet(
 							: renderedObservation;
 					if (observation.manifest.context.theme !== context.theme) {
 						await rm(screenshotPath, { force: true });
-						items[index] = {
+						itemBuckets[index] = [
+							{
+								key: entry.id,
+								id: entry.id,
+								status: 'unavailable',
+								reason: `Rendered in ${observation.manifest.context.theme} theme only; requested ${context.theme}.`,
+							},
+						];
+						return;
+					}
+					itemBuckets[index] = [
+						{
+							key: entry.id,
+							id: entry.id,
+							status: 'captured',
+							observation,
+							...(observation.manifest.checkpoint.name !== checkpointName
+								? { checkpoint: observation.manifest.checkpoint.name }
+								: {}),
+							screenshotSource: observation.channels.visual.path ? screenshotPath : null,
+						},
+					];
+				} catch (error) {
+					await rm(screenshotPath, { force: true });
+					itemBuckets[index] = [
+						{
 							key: entry.id,
 							id: entry.id,
 							status: 'unavailable',
-							reason: `Rendered in ${observation.manifest.context.theme} theme only; requested ${context.theme}.`,
-						};
-						return;
-					}
-					items[index] = {
-						key: entry.id,
-						id: entry.id,
-						status: 'captured',
-						observation,
-						screenshotSource: observation.channels.visual.path ? screenshotPath : null,
-					};
-				} catch (error) {
-					await rm(screenshotPath, { force: true });
-					items[index] = {
-						key: entry.id,
-						id: entry.id,
-						status: 'unavailable',
-						reason: error instanceof Error ? error.message : String(error),
-					};
+							reason: error instanceof Error ? error.message : String(error),
+						},
+					];
 				}
 			});
 		}
 
+		const items = itemBuckets.flat();
 		const source = await sourcePromise;
-		const firstObs = items.find((item) => item.observation !== undefined)?.observation;
+		const sortedForManifest = [...items].sort((a, b) => compareCodeUnits(a.key, b.key));
+		const firstObs =
+			sortedForManifest.find((item) => item.job === undefined && item.observation !== undefined)
+				?.observation ??
+			sortedForManifest.find((item) => item.observation !== undefined)?.observation;
 		const checkpoint: CaptureSetManifest['checkpoint'] = firstObs
 			? {
 					name: firstObs.manifest.checkpoint.name,

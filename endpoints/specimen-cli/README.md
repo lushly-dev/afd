@@ -2,12 +2,16 @@
 
 **Preview,** like [Specimen](../../foundations/specimen/README.md): the commands can still change. Install it with `npm install @lushly-dev/specimen-cli@preview`, then Chromium's headless shell as [Specimen's install](../../foundations/specimen/README.md#install) describes.
 
-Install `@lushly-dev/specimen-cli` to obtain the `specimen` binary. The commands include `list`, `validate`, `inspect ID`, `render ID`, `capture [IDS...]`, `compare ID1 ID2...`, `run ID`, `themes [ID]`, `migrate`, `diff LEFT.json RIGHT.json`, `build OUTDIR`, `pack [TAG]`, `pack-check [TAG]`, `pack-export DIR`, `point`, `point-move ID TO` and `point-check ID`. Option validation, one CommandResult JSON value on stdout, atomic output files, and exit codes (0 success, 1 failure) are unchanged. `runCli` and `CliIO` are exported for embedding and testing. This endpoint composes Specimen and AFD through `@lushly-dev/specimen-afd`. The inspected application does not need those endpoint dependencies.
+Install `@lushly-dev/specimen-cli` to obtain the `specimen` binary. The commands include `list`, `validate`, `inspect ID`, `render ID`, `capture [IDS...]`, `compare ID1 ID2...`, `run ID`, `a11y [ID]`, `themes [ID]`, `migrate`, `diff LEFT.json RIGHT.json`, `build OUTDIR`, `pack [TAG]`, `pack-check [TAG]`, `pack-export DIR`, `point`, `point-move ID TO`, `point-check ID`, `job-create ID` and `job-run ID`. Option validation, one CommandResult JSON value on stdout, atomic output files, and exit codes (0 success, 1 failure) are unchanged. `runCli` and `CliIO` are exported for embedding and testing. This endpoint composes Specimen and AFD through `@lushly-dev/specimen-afd`. The inspected application does not need those endpoint dependencies.
 
 ```sh
 specimen list --root ./component-project
 specimen validate --root ./component-project --file src/button.stories.ts
 specimen render button --root ./component-project --viewport 375x812
+specimen job-create notes-draft --scenario ./scenarios/keep-a-draft.scenario.yaml --module ./app.specimens.ts --export-name NotesApp --target app --captures 3,4
+specimen job-run notes-draft --label main
+specimen render notes-draft --set main --checkpoint conflict-notice
+specimen a11y --set main
 ```
 
 `validate` checks the retained stories a configuration discovers, statically; `--id ID` or `--file PATH` narrows it to one story or file. A report with errors is still a successful command: `data.valid` is `false` and each issue carries a suggestion.

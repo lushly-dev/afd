@@ -34,6 +34,7 @@ export const contextSchema = recordedContextSchema.extend({
 export const captureRequestSchema = z.strictObject({
 	id: z.string().min(1),
 	checkpoint: z.string().min(1).optional(),
+	set: z.string().min(1).optional(),
 	context: contextSchema.partial().optional(),
 	screenshot: z.string().min(1).optional(),
 	timeoutMs: z.number().int().min(1).max(60_000).optional(),
@@ -296,8 +297,8 @@ export const buildOutputSchema = z
 		files: z.array(z.string()),
 	})
 	.strict();
-/** A retained story's run request: a capture request without a checkpoint, which is `after-run`. */
-export const runRequestSchema = captureRequestSchema.omit({ checkpoint: true });
+/** A retained story's run request: a capture request without a checkpoint or set, which is `after-run`. */
+export const runRequestSchema = captureRequestSchema.omit({ checkpoint: true, set: true });
 export const suiteRequestSchema = z.strictObject({
 	filter: z
 		.strictObject({
@@ -368,20 +369,33 @@ export const suiteRunSchema = z.strictObject({
 	sourcesChanged: z.boolean(),
 });
 
-export const a11yRequestSchema = z.strictObject({
-	id: z.string().min(1).optional(),
-	filter: suiteRequestSchema.shape.filter,
-	checkpoint: z.string().min(1).optional(),
-	context: captureRequestSchema.shape.context,
-	timeoutMs: captureRequestSchema.shape.timeoutMs,
-	workers: suiteRequestSchema.shape.workers,
-});
+export const a11yRequestSchema = z
+	.strictObject({
+		id: z.string().min(1).optional(),
+		filter: suiteRequestSchema.shape.filter,
+		set: z.string().min(1).optional(),
+		checkpoint: z.string().min(1).optional(),
+		context: captureRequestSchema.shape.context,
+		timeoutMs: captureRequestSchema.shape.timeoutMs,
+		workers: suiteRequestSchema.shape.workers,
+	})
+	.refine(
+		(value) => !(value.id !== undefined && value.filter !== undefined),
+		'Give an id for one entry, or a filter, not both.'
+	);
 export const a11yRunSchema = z.strictObject({
 	reports: z.array(
 		z.strictObject({
 			...axeOutcomeShape,
 			id: z.string(),
 			checkpoint: z.string(),
+			job: z
+				.strictObject({
+					name: z.string().min(1),
+					step: z.number().int().positive(),
+					description: z.string().optional(),
+				})
+				.optional(),
 			failures: z.array(
 				z.strictObject({ category: z.enum(['render', 'play']), message: z.string() })
 			),
@@ -1208,6 +1222,7 @@ export const captureSetRunSchema = z.strictObject({
 		gates: z.number().int().nonnegative(),
 		next: z.literal('specimen-job-run').optional(),
 		gatesNext: z.literal('specimen-run').optional(),
+		reason: z.string().min(1).optional(),
 	}),
 });
 const compareDiffChannelSchema = z.enum(['dom', 'a11y', 'layout', 'styles', 'state', 'events']);
@@ -1351,6 +1366,76 @@ const jobScenarioSchema = z
 		(value) => value.steps.every((step, index) => step.step === index + 1),
 		'Job scenario steps must be numbered sequentially starting at 1'
 	);
+
+export const jobCaptureSelectionSchema = z.union([
+	z.number().int().positive(),
+	z.strictObject({
+		step: z.number().int().positive(),
+		name: z
+			.string()
+			.regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/)
+			.optional(),
+		before: z
+			.array(z.strictObject({ action: specimenActionSchema }))
+			.min(1)
+			.optional(),
+	}),
+]);
+
+export const jobCreateRequestSchema = z.strictObject({
+	id: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/),
+	title: z.string().min(1).optional(),
+	scenario: z.string().min(1),
+	module: z.string().min(1),
+	exportName: z.string().min(1),
+	target: z.string().min(1),
+	runner: z.string().min(1).optional(),
+	pin: jobPinSchema.optional(),
+	captures: z.array(jobCaptureSelectionSchema).min(1),
+});
+
+const jobCreateEntryPatternSetupSchema = z
+	.strictObject({
+		library: z.string().min(1).optional(),
+		pattern: z.string().min(1),
+		setup: z.string().min(1),
+	})
+	.optional();
+
+const jobCreateEntryContextsSchema = z
+	.strictObject({
+		viewport: z
+			.strictObject({
+				minWidth: z.number().int().min(1).max(8192).optional(),
+				maxWidth: z.number().int().min(1).max(8192).optional(),
+				minHeight: z.number().int().min(1).max(8192).optional(),
+				maxHeight: z.number().int().min(1).max(8192).optional(),
+			})
+			.optional(),
+		themes: z
+			.array(z.enum(['dark', 'high-contrast', 'light']))
+			.min(1)
+			.max(3)
+			.optional(),
+		reason: z.string().min(1),
+	})
+	.optional();
+
+export const jobCreateResultSchema = z.strictObject({
+	written: z.string().min(1),
+	entry: z.strictObject({
+		id: z.string().min(1),
+		title: z.string().min(1),
+		module: z.string().min(1),
+		exportName: z.string().min(1),
+		kind: z.literal('job'),
+		component: z.string().optional(),
+		themes: themeSupportSchema.optional(),
+		patternSetup: jobCreateEntryPatternSetupSchema,
+		contexts: jobCreateEntryContextsSchema,
+		job: jobConfigSchema,
+	}),
+});
 
 export const jobRunRequestSchema = z.strictObject({
 	id: z.string().min(1),

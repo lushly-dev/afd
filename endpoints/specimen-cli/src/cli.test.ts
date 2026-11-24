@@ -233,6 +233,51 @@ function harness() {
 		point: vi.fn(async () => ({ point: cliSamplePoint })),
 		pointMove: vi.fn(async () => ({ point: { ...cliSamplePoint, id: 'pt-9w4m2c1x5r8k' } })),
 		pointCheck: vi.fn(async () => ({ status: 'current' as const, changed: [] })),
+		createJob: vi.fn(async (request) => ({
+			written: 'specimen.config.json',
+			entry: {
+				id: request.id,
+				title: request.title ?? request.id,
+				module: request.module,
+				exportName: request.exportName,
+				kind: 'job' as const,
+				job: {
+					scenario: request.scenario,
+					target: request.target,
+					...(request.runner ? { runner: request.runner } : {}),
+					...(request.pin ? { pin: request.pin } : {}),
+					captures: [{ after: 'The note opens', name: 'two-editors' }],
+				},
+			},
+		})),
+		runJob: vi.fn(async (request) => ({
+			set: 'set-4f1c0a9e2b7d',
+			label: request.label ?? null,
+			id: request.id,
+			job: 'keep-a-draft',
+			scenario: './scenarios/keep-a-draft.scenario.yaml',
+			status: 'passed' as const,
+			pinned: { clock: '2026-03-02T09:00:00Z', random: 'seeded' as const },
+			counts: { captured: 1, unavailable: 0, axe: { passed: 1, failed: 0, incomplete: 0 } },
+			steps: [
+				{
+					step: 1,
+					description: 'The note opens',
+					command: 'note-open',
+					status: 'passed' as const,
+					capture: { key: `${request.id}/1`, name: 'two-editors', status: 'captured' as const },
+				},
+			],
+			captures: [
+				{
+					key: `${request.id}/1`,
+					name: 'two-editors',
+					step: 1,
+					status: 'captured' as const,
+					screenshot: null,
+				},
+			],
+		})),
 		close: vi.fn(async () => {}),
 	};
 	const createBench = vi.fn(async () => bench);
@@ -1239,5 +1284,176 @@ describe('specimen CLI', () => {
 		expect(
 			await runCli(['--root', root, 'compare', 'toolbar--dense', 'toolbar--airy', '--no-axe'], h.io)
 		).toBe(1);
+	});
+
+	it('dispatches job-create, job-run, render --set, and a11y --set', async () => {
+		const h = harness();
+		const root = await directory();
+
+		// job-create with comma-separated step numbers and pin-clock
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'job-create',
+					'example-keep-a-draft',
+					'--scenario',
+					'./scenarios/keep-a-draft.scenario.yaml',
+					'--module',
+					'./app.specimens.ts',
+					'--export-name',
+					'NotesApp',
+					'--target',
+					'app',
+					'--pin-clock',
+					'2026-03-02T09:00:00Z',
+					'--captures',
+					'3,4',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.createJob).toHaveBeenLastCalledWith({
+			id: 'example-keep-a-draft',
+			scenario: './scenarios/keep-a-draft.scenario.yaml',
+			module: './app.specimens.ts',
+			exportName: 'NotesApp',
+			target: 'app',
+			pin: { clock: '2026-03-02T09:00:00Z' },
+			captures: [3, 4],
+		});
+
+		// job-create with JSON array captures
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'job-create',
+					'example-keep-a-draft',
+					'--scenario',
+					'./scenarios/keep-a-draft.scenario.yaml',
+					'--module',
+					'./app.specimens.ts',
+					'--export-name',
+					'NotesApp',
+					'--target',
+					'app',
+					'--captures',
+					'[{"step":3,"name":"two-editors"}]',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.createJob).toHaveBeenLastCalledWith({
+			id: 'example-keep-a-draft',
+			scenario: './scenarios/keep-a-draft.scenario.yaml',
+			module: './app.specimens.ts',
+			exportName: 'NotesApp',
+			target: 'app',
+			captures: [{ step: 3, name: 'two-editors' }],
+		});
+
+		// job-run passing exits 0 and prints references only
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'job-run',
+					'example-keep-a-draft',
+					'--label',
+					'main',
+					'--theme',
+					'dark',
+					'--timeout',
+					'15000',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.runJob).toHaveBeenLastCalledWith({
+			id: 'example-keep-a-draft',
+			context: { theme: 'dark' },
+			label: 'main',
+			timeoutMs: 15000,
+		});
+		expect(h.output.at(-1) ?? '').not.toContain('"channels"');
+
+		// job-run with status: failed exits 1 while returning valid CommandResult JSON
+		vi.mocked(h.bench.runJob).mockResolvedValueOnce({
+			set: 'set-4f1c0a9e2b7d',
+			label: null,
+			id: 'example-keep-a-draft',
+			job: 'keep-a-draft',
+			scenario: './scenarios/keep-a-draft.scenario.yaml',
+			status: 'failed',
+			pinned: { clock: '2026-03-02T09:00:00Z', random: 'seeded' },
+			counts: { captured: 0, unavailable: 1, axe: { passed: 0, failed: 0, incomplete: 0 } },
+			steps: [{ step: 1, status: 'failed', error: 'Step 1 failed' }],
+			captures: [
+				{
+					key: 'example-keep-a-draft/1',
+					name: 'two-editors',
+					step: 1,
+					status: 'not-taken',
+					reason: 'Step 1 failed; capture not taken.',
+					screenshot: null,
+				},
+			],
+		});
+		expect(await runCli(['--root', root, 'job-run', 'example-keep-a-draft'], h.io)).toBe(1);
+		expect(JSON.parse(h.output.at(-1) ?? '')).toMatchObject({
+			success: true,
+			data: { status: 'failed' },
+		});
+
+		// render --set and a11y --set dispatch cleanly without empty context noise
+		await runCli(
+			[
+				'--root',
+				root,
+				'render',
+				'example-keep-a-draft',
+				'--set',
+				'set-4f1c0a9e2b7d',
+				'--checkpoint',
+				'two-editors',
+			],
+			h.io
+		);
+		expect(h.bench.render).toHaveBeenLastCalledWith({
+			id: 'example-keep-a-draft',
+			set: 'set-4f1c0a9e2b7d',
+			checkpoint: 'two-editors',
+		});
+
+		expect(await runCli(['--root', root, 'a11y', '--set', 'set-4f1c0a9e2b7d'], h.io)).toBe(0);
+		expect(h.bench.a11y).toHaveBeenLastCalledWith({ set: 'set-4f1c0a9e2b7d' });
+
+		// Invalid captures / timeout are refused cleanly
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'job-create',
+					'x',
+					'--scenario',
+					'./s.yaml',
+					'--module',
+					'./a.ts',
+					'--export-name',
+					'A',
+					'--target',
+					'app',
+					'--captures',
+					'0',
+				],
+				h.io
+			)
+		).toBe(1);
+		expect(await runCli(['--root', root, 'job-run', 'x', '--timeout', 'bad'], h.io)).toBe(1);
 	});
 });

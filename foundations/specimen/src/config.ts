@@ -202,7 +202,9 @@ export async function loadConfig(options: BenchOptions): Promise<LoadedConfig> {
 	}
 	const hasJobs = entries.some((entry) => entry.job !== undefined);
 	const jobValidation = hasJobs
-		? await validateJobEntries(entries, loadedJobSources, root, dirname(file))
+		? await validateJobEntries(entries, loadedJobSources, root, dirname(file), undefined, {
+				hasPlugins: plugins.length > 0,
+			})
 		: undefined;
 	const baselines = config.profile?.baselines;
 	return {
