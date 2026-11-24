@@ -30,7 +30,8 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   [For the owner](factory-gateway.proposal.md#for-the-owner) and the App (G0) are still his.
 - **Last verified:** 2026-11-23 (dates in this file are Pacific time): the rate-limit replay
   through the deployed gateway, the gateway updated to `3fe08c00`, then to `36aed322` with
-  the read cache and to `317accc6` with the validation-lag fix, all below. 2026-11-21:
+  the read cache, to `317accc6` with the validation-lag fix and to `dde05aa3` with the lanes'
+  health, all below. 2026-11-21:
   G0's exit, after a restart of `random`, from all three machines; also the rebase-credit test, the variables write
   and the runbook's install script, all below. On 2026-11-20: G0's test writes in Lushly. On 2026-11-19 against `main` at `d742f591`: the gateway runs on `random` as a launch daemon built from that commit. Over the
   tailnet with the owner's token, `factory-gateway call gateway-status` answered as
@@ -386,7 +387,10 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   repository, its report also saying running and recent, shows in `otherHosts[]`; each host's
   report is kept apart, so a stopped host cannot hide a running one and a clean move between
   hosts is not two lanes (Gemini's review). `state.json` is now written to a side
-  file and moved into place. No lane calls it yet. Lushly's lane already runs on
+  file and moved into place. No lane calls it yet. Merged in
+  [#2414](https://github.com/lushly-dev/afd/pull/2414) (`dde05aa`) and deployed on `random` the
+  same day by the runbook's code update, configuration kept: `gateway-status` lists
+  `lushly-dev/afd` and `lushly-dev/lushly`, each `running: false` with `reportedAt: null`. Lushly's lane already runs on
   `random` (`merge-lane.mjs` from `~/github/lushly`, its foreman said on 2026-11-24); AFD has no
   lane running: its sessions merge through the merge queue.
 - 2026-11-14: filed [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392), Lushly's side
