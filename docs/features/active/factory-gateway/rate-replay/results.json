@@ -1,0 +1,117 @@
+{
+	"replays": [
+		{
+			"hour": "2026-11-21T18",
+			"before": [4990, "2026-11-24T03:44:44Z"],
+			"after": [4926, "2026-11-24T03:44:44Z"],
+			"rest": 64,
+			"elapsed": 138,
+			"by": {
+				"claim-list": {
+					"n": 31,
+					"ok": 31,
+					"errors": {},
+					"p50": 14.03,
+					"max": 16.61
+				},
+				"pr-status": {
+					"n": 33,
+					"ok": 33,
+					"errors": {},
+					"p50": 1.28,
+					"max": 1.91
+				},
+				"issue-get": {
+					"n": 18,
+					"ok": 18,
+					"errors": {},
+					"p50": 5.1,
+					"max": 6.42
+				},
+				"comment-list": {
+					"n": 10,
+					"ok": 10,
+					"errors": {},
+					"p50": 0.53,
+					"max": 0.76
+				}
+			}
+		},
+		{
+			"hour": "2026-11-09T23",
+			"before": [4926, "2026-11-24T03:44:44Z"],
+			"after": [4747, "2026-11-24T03:44:44Z"],
+			"rest": 179,
+			"elapsed": 146,
+			"by": {
+				"issue-get": {
+					"n": 14,
+					"ok": 14,
+					"errors": {},
+					"p50": 5.05,
+					"max": 5.56
+				},
+				"claim-list": {
+					"n": 33,
+					"ok": 33,
+					"errors": {},
+					"p50": 9.21,
+					"max": 17.59
+				},
+				"pr-status": {
+					"n": 116,
+					"ok": 103,
+					"errors": {
+						"NOT_FOUND": 13
+					},
+					"p50": 1.29,
+					"max": 1.84
+				}
+			}
+		},
+		{
+			"hour": "2026-11-23T00",
+			"before": [4747, "2026-11-24T03:44:44Z"],
+			"after": [4643, "2026-11-24T03:44:44Z"],
+			"rest": 104,
+			"elapsed": 218,
+			"by": {
+				"pr-status": {
+					"n": 32,
+					"ok": 32,
+					"errors": {},
+					"p50": 1.19,
+					"max": 1.78
+				},
+				"issue-get": {
+					"n": 63,
+					"ok": 63,
+					"errors": {},
+					"p50": 5.17,
+					"max": 6.49
+				},
+				"claim-list": {
+					"n": 46,
+					"ok": 46,
+					"errors": {},
+					"p50": 9.08,
+					"max": 16.14
+				},
+				"comment-list": {
+					"n": 14,
+					"ok": 14,
+					"errors": {},
+					"p50": 0.5,
+					"max": 0.67
+				}
+			}
+		}
+	],
+	"demand": [
+		"2026-11-03: served reads 341, unmapped 64, writes 124 (peak 25/h) | day: 595 REST, 1048 GQL pts | peak REST 16h 112 | peak GQL 16h 324 pts {'write': 25, 'pr-status': 52, 'claim-list': 12, 'issue-get': 8}",
+		"2026-11-07: served reads 373, unmapped 55, writes 111 (peak 21/h) | day: 644 REST, 1073 GQL pts | peak REST 17h 128 | peak GQL 14h 206 pts {'claim-list': 9, 'write': 11, 'pr-status': 30, 'issue-get': 2}",
+		"2026-11-09: served reads 1222, unmapped 97, writes 222 (peak 39/h) | day: 1920 REST, 4450 GQL pts | peak REST 23h 246 | peak GQL 23h 808 pts {'issue-get': 14, 'claim-list': 33, 'pr-status': 116, 'write': 35}",
+		"2026-11-21: served reads 1035, unmapped 433, writes 405 (peak 46/h) | day: 1104 REST, 6787 GQL pts | peak REST 20h 121 | peak GQL 18h 727 pts {'write': 15, 'claim-list': 31, 'pr-status': 33, 'issue-get': 18, 'comment-list': 10}",
+		"2026-11-23: served reads 618, unmapped 136, writes 147 (peak 36/h) | day: 750 REST, 3630 GQL pts | peak REST 00h 127 | peak GQL 00h 1315 pts {'pr-status': 32, 'write': 36, 'issue-get': 63, 'claim-list': 46, 'comment-list': 14}"
+	]
+}

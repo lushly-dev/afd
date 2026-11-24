@@ -28,8 +28,9 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   will run on: botcore's host changes and G1's command skeleton against a fake GitHub, which need
   no GitHub App. The owner's ranking of the jobs, the six questions in
   [For the owner](factory-gateway.proposal.md#for-the-owner) and the App (G0) are still his.
-- **Last verified:** 2026-11-21 (dates in this file are Pacific time): G0's exit, after a
-  restart of `random`, from all three machines; also the rebase-credit test, the variables write
+- **Last verified:** 2026-11-23 (dates in this file are Pacific time): the rate-limit replay
+  through the deployed gateway, and the gateway updated to `3fe08c00`, both below. 2026-11-21:
+  G0's exit, after a restart of `random`, from all three machines; also the rebase-credit test, the variables write
   and the runbook's install script, all below. On 2026-11-20: G0's test writes in Lushly. On 2026-11-19 against `main` at `d742f591`: the gateway runs on `random` as a launch daemon built from that commit. Over the
   tailnet with the owner's token, `factory-gateway call gateway-status` answered as
   `lushly-factory-gateway[bot]` for both repositories with a rate limit of 5000, and `issue-get`
@@ -123,8 +124,55 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   `.github/workflows/` on a throwaway branch succeeded (the branch was then deleted).
   Variables (2026-11-21): as the service account, the App's adapter created, updated and
   deleted `FACTORY_GATEWAY_G0_CHECK` in Lushly, outside `variable-set`, whose only allowed name
-  holds Lushly's live lane host. Not yet tested: the rate limit against a replay of a fleet
-  day's reads; G0's own calls over three days never left the App under 4,991 of 5,000 an hour.
+  holds Lushly's live lane host. G0's own calls over three days never left the App under 4,991
+  of 5,000 an hour (before the replay below).
+- **Rate limit, settled 2026-11-23: the App's budget carries a fleet's busiest hour, REST and
+  GraphQL both read live.** Both limits are hourly, so the busiest hour decides whether a day
+  fits. The scripts and results are in [rate-replay/](rate-replay/README.md).
+  - **Demand:** every `gh` read agents ran in AFD and Lushly on five of the busiest days
+    (2026-11-03, -07, -09, -21 and -23), from the Claude and Codex transcripts on `random` and
+    `macbook-air` (`hero` was unreachable). Polling loops are counted by how long they ran
+    over their sleep. Each read is mapped to the gateway read that answers it: `gh pr view`,
+    `pr checks` and `run view|list` to `pr-status`; `issue view` to `issue-get` or
+    `comment-list`; `issue list`, `pr list` and `search` to `claim-list`.
+  - **Cost per read:** the gateway's own `Gateway` and `GitHubApp` code, run through a metering
+    transport. Its REST counts match `gateway-status` on the deployed gateway. `pr-status` is
+    2 REST calls and 1 GraphQL point on an open pull request, `issue-get` 1 REST and 7 points,
+    `comment-list` 1 point, `claim-list` 16 to 18 points (GitHub's own `rateLimit { cost }`).
+    `claim-list` and `issue-get` grow with the backlog: they page through every open issue or
+    pull request, and the 100 latest closed ones.
+  - **Busiest hours:** priced as if every pull request were open, and every `claim-list` at 18
+    points, they were 246 REST calls (2026-11-09, 23:00) and about 1,315 GraphQL points
+    (2026-11-23, 00:00), of 5,000 an hour each.
+  - **Replay:** those two hours and 2026-11-21's 18:00, 410 reads, went through the deployed
+    gateway with four callers in about 8 minutes, inside one rate window. They used 347 REST
+    calls (4,990 to 4,643; 457 if every pull request had been open, less since many had
+    merged) and about 2,850 GraphQL points at the upper costs. Nothing failed except 13
+    `NOT_FOUND`s, where the replay read a `--limit` value as a number.
+  - **GraphQL read live:** the build that ran the replay (`bc7ae160`) could not report GraphQL's
+    budget. Once the gateway ran `3fe08c00` (below), the App's GraphQL window that held the
+    replay (02:44 to 03:44 UTC) read 4,278 of 5,000. That is at most 722 points for the replay
+    and every other App call in the window, a quarter of the computed 2,850, so the computed
+    figures are upper bounds. Read one at a time afterwards, `claim-list` showed 4 points and
+    `issue-get` and `pr-status` none, though `issue-get` makes four queries: unexplained, and
+    perhaps lag in GitHub's budget reading.
+  - **Not counted:**
+    - `hero`'s sessions;
+    - the Lushly lane's own calls;
+    - `gh` inside scripts and botcore commands;
+    - T3 Code's GitHub tools (`pull_request_*`, the issue tools);
+    - polling in background shells;
+    - loops without `sleep` or `seq`, counted as three passes;
+    - writes, at most 46 an hour;
+    - reads that have no gateway command yet (`gh pr diff`, raw GraphQL, sub-issues, job
+      logs), 91 in the busiest hour for them.
+  - **Margin:** even at the computed costs, and 10 points for each of those 91, the busiest
+    hour would be about 2,200 points. Everything else uncounted would need to add more than
+    twice what `random` and `macbook-air` read together before GraphQL ran out; at the charges
+    read live, several times that.
+  - **Found:** `claim-list` (9 to 18 s) and `issue-get` (5 s) scan every open issue or pull
+    request on each call, and no read is cached
+    ([#2385](https://github.com/lushly-dev/afd/issues/2385)).
 - **Squash credit, settled 2026-11-20: an App's squash takes the credit.** `pr-merge` squashed
   lushly#2707 as `72adbcc5`, whose author is `lushly-factory-gateway[bot]` and committer GitHub,
   with no line for the owner, who wrote its only commit (`bc996e25`): the gateway's explicit
@@ -142,7 +190,8 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   `main`. Two effects: the commit is unsigned, as every rebase merge GitHub makes is, and its
   subject carries no pull request number. AFD is not done: its merge queue squashes every pull
   request, so the gateway must not merge in AFD until
-  [#1809](https://github.com/lushly-dev/afd/issues/1809) moves the queue to rebase.
+  [#1809](https://github.com/lushly-dev/afd/issues/1809) moves the queue to rebase (done in its
+  step 4, below).
 
 - **#1809 step 1, the probe (2026-11-21):** GitHub's rebase merge drops a branch's merges of
   `main` and lands each of its own commits as it is, author kept, unsigned (lushly#2811 into a
@@ -161,24 +210,29 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   co-author's fix by how the queue merges. **Step 4, switched 2026-11-22 with the owner's
   go-ahead and the queue empty:** AFD allows rebase merges only, and the "main merge queue"
   ruleset's `merge_method` is `REBASE` (only that changed, from `SQUASH`; the repository
-  allowed squash merges only before). Still open: the deployed gateway's `mergeMethods` for AFD is still `squash`, where the
-  runbook says `rebase`. Until `reconfigure.sh` sets it, `pr-merge` there is refused
-  (`MERGE_METHOD_NOT_ALLOWED`) when it sets auto-merge on a pull request whose check is still
-  running; one whose check passed is enqueued, which sends no method. Check the first queue
-  rebase for its committer, its signature and whether its subject gains ` (#n)`: botcore's
-  skill-usage audit (`skill_usage/triggers.py`) reads pull request numbers only from subjects on
-  `main`, and without them every change reads `no_pull_request`. Direct rebase merges in Lushly
-  added none,
-  so expect to give the audit another source: GitHub's `commits/{sha}/pulls`, or a subject the
-  fold writes.
+  allowed squash merges only before). The deployed gateway's `mergeMethods` for AFD was set to
+  `rebase` on 2026-11-23, with its code updated to `main` at `3fe08c00` by the runbook's
+  `install.sh` (the replaced file kept as `gateway.json.prev`). The first queue rebases
+  (`da923b15` and three others) kept the owner as author, with the enqueuing account as
+  committer, unsigned and no ` (#n)` in the subject; `main-credit` passed on each push. Without
+  the number botcore's skill-usage audit read every change as `no_pull_request`
+  ([#2023](https://github.com/lushly-dev/afd/issues/2023)): `pnpm branch:squash` now ends the
+  folded subject with the open pull request's number
+  ([#2088](https://github.com/lushly-dev/afd/pull/2088)); the lane's half waits, by the owner's
+  decision of 2026-11-22, until [#1887](https://github.com/lushly-dev/afd/issues/1887) is
+  designed. Not yet seen: the committer of a merge the gateway's App enqueues.
 
 - **Follow-up (2026-11-20, this session):** a merge that closes a claimed issue leaves the
   claim's `status:in-progress` label on the closed issue, and `issue-release` then answers
   `changed: false` without removing it (removed by hand with `issue-label` on lushly#2706).
-  Filed as [#1810](https://github.com/lushly-dev/afd/issues/1810).
-- **Next, in order:** the rest of [#1809](https://github.com/lushly-dev/afd/issues/1809) (the
-  gateway's `mergeMethods` for AFD, and the first queue rebase checked); G0's rate-limit replay;
-  change 3 redesigned so the host is the only validator (held on
+  Filed as [#1810](https://github.com/lushly-dev/afd/issues/1810), fixed in
+  [#2157](https://github.com/lushly-dev/afd/pull/2157). `gateway-status`'s credential ages and
+  GraphQL budget ([#1833](https://github.com/lushly-dev/afd/issues/1833)) landed in
+  [#2303](https://github.com/lushly-dev/afd/pull/2303). Both run on `random` since the update
+  to `3fe08c00` on 2026-11-23.
+- **Next, in order:** the first merge the App enqueues in AFD, checked for its committer, which closes
+  [#1809](https://github.com/lushly-dev/afd/issues/1809); the read cache
+  ([#2385](https://github.com/lushly-dev/afd/issues/2385)); change 3 redesigned so the host is the only validator (held on
   `lush/botcore-command-tools`); the lane on `random`
   with its health in `gateway-status`; the factory plugin on the gateway (after
   `feat/factory-lane-loop` lands); Lushly's side ([lushly#2392](https://github.com/lushly-dev/lushly/issues/2392));
@@ -189,7 +243,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 
 | Milestone | State | Jobs | Process files changed |
 |---|---|---|---|
-| G0: stand it up | In progress: the App created and installed 2026-11-15; the adapter ([#1290](https://github.com/lushly-dev/afd/pull/1290)); the service on `random` with its key, service user and start at boot, installed 2026-11-19; test writes for every write permission 2026-11-20 and 2026-11-21; credit settled 2026-11-21 (rebase, done in Lushly; AFD in [#1809](https://github.com/lushly-dev/afd/issues/1809)); the runbook; exit met 2026-11-21 (`gateway-status` on each route from `random`, `macbook-air` and `hero` after a restart of `random`); open: the rate-limit replay, and the two process checks, which G1 builds, so `process.json` keeps G0 unlanded | — | AFD: `docs/operations/factory-gateway.md` and `SETUP.md` ([#1834](https://github.com/lushly-dev/afd/pull/1834)). Lushly: `SETUP.md` ([lushly#2707](https://github.com/lushly-dev/lushly/pull/2707), [lushly#2782](https://github.com/lushly-dev/lushly/pull/2782), [lushly#2809](https://github.com/lushly-dev/lushly/pull/2809), which names `gateway-status`; merged by the gateway by rebase as `482ee117`, the owner its author) |
+| G0: stand it up | In progress: the App created and installed 2026-11-15; the adapter ([#1290](https://github.com/lushly-dev/afd/pull/1290)); the service on `random` with its key, service user and start at boot, installed 2026-11-19; test writes for every write permission 2026-11-20 and 2026-11-21; credit settled 2026-11-21 (rebase, done in Lushly; AFD in [#1809](https://github.com/lushly-dev/afd/issues/1809)); the runbook; exit met 2026-11-21 (`gateway-status` on each route from `random`, `macbook-air` and `hero` after a restart of `random`); the rate-limit replay 2026-11-23; open: the two process checks, which G1 builds, so `process.json` keeps G0 unlanded | — | AFD: `docs/operations/factory-gateway.md` and `SETUP.md` ([#1834](https://github.com/lushly-dev/afd/pull/1834)). Lushly: `SETUP.md` ([lushly#2707](https://github.com/lushly-dev/lushly/pull/2707), [lushly#2782](https://github.com/lushly-dev/lushly/pull/2782), [lushly#2809](https://github.com/lushly-dev/lushly/pull/2809), which names `gateway-status`; merged by the gateway by rebase as `482ee117`, the owner its author) |
 | G1: one writer (MVP) | In progress since 2026-11-14: botcore host changes ([#1230](https://github.com/lushly-dev/afd/pull/1230)) and the command skeleton against a fake GitHub ([#1232](https://github.com/lushly-dev/afd/pull/1232)), all fifteen jobs passing, both merged 2026-11-15; Lushly side tracked in [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392) | `mvp` (01–11, 15) | — |
 | G2: review as a record | Open | `records` (12) | — |
 | G3: events, not polling | Open | `events` (13–14) | — |
@@ -310,5 +364,5 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 |---|---|---|
 | 2026-11-14 | Proposal session | ~~A Lushly issue tracking Lushly's side of G1 (claim script, lane steps, flake filer, process files and checks), filed when G1 starts~~. Superseded: filed as [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392) on 2026-11-14 |
 | 2026-11-14 | Proposal session | botcore's host changes ([What botcore needs](factory-gateway.proposal.md#what-botcore-needs)) overlap the factory's Phase 1 host changes; whichever starts first does them once for both. Superseded: taken 2026-11-14 by the gateway's G1 session on `random`: the gateway's host changes are done once, for both |
-| 2026-11-18 | Commit-credit session | `lushly-dev/afd` now allows squash merges only, at the owner's direction: a merge commit or rebase merge carried branch commits, co-author lines included, onto `main` unchanged ([#1523](https://github.com/lushly-dev/afd/pull/1523)). A gateway that serves AFD needs `"mergeMethods": {"lushly-dev/afd": "squash"}`. Its default merge commit is now refused with `MERGE_METHOD_NOT_ALLOWED`. Its squashes already give their own commit message ([#1520](https://github.com/lushly-dev/afd/pull/1520)) |
+| 2026-11-18 | Commit-credit session | `lushly-dev/afd` now allows squash merges only, at the owner's direction: a merge commit or rebase merge carried branch commits, co-author lines included, onto `main` unchanged ([#1523](https://github.com/lushly-dev/afd/pull/1523)). A gateway that serves AFD needs `"mergeMethods": {"lushly-dev/afd": "squash"}`. Its default merge commit is now refused with `MERGE_METHOD_NOT_ALLOWED`. Its squashes already give their own commit message ([#1520](https://github.com/lushly-dev/afd/pull/1520)). Superseded: the merge queue rebases since 2026-11-22 ([#1809](https://github.com/lushly-dev/afd/issues/1809)), and the gateway's `mergeMethods` for AFD is `rebase` since 2026-11-23 |
 | 2026-11-21 | Gateway session, from the runbook's review | The install script removes the running code before it builds the new, so a failed build leaves the gateway down: build beside it and switch. Its first-install form and a real key passed in have not run in its present shape. `reconfigure.sh`'s state line can still end its run after the restart. ~~Separately, `gateway-status` does not report the key's age the proposal promises: [#1833](https://github.com/lushly-dev/afd/issues/1833)~~ (merged in [#2303](https://github.com/lushly-dev/afd/pull/2303) on 2026-11-23: `ages { appKey, token }` on every route, plus `rateLimit.graphql` when GitHub supplies the GraphQL budget; `random` serves them after its next `install.sh` update) |
