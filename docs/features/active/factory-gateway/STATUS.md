@@ -28,7 +28,8 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   will run on: botcore's host changes and G1's command skeleton against a fake GitHub, which need
   no GitHub App. The owner's ranking of the jobs, the six questions in
   [For the owner](factory-gateway.proposal.md#for-the-owner) and the App (G0) are still his.
-- **Last verified:** 2026-11-23 (dates in this file are Pacific time): the rate-limit replay
+- **Last verified:** 2026-11-24 (dates in this file are Pacific time): the gateway updated to
+  `6819de18` with the `/heartbeat` route, below. 2026-11-23: the rate-limit replay
   through the deployed gateway, the gateway updated to `3fe08c00`, then to `36aed322` with
   the read cache, to `317accc6` with the validation-lag fix and to `dde05aa3` with the lanes'
   health, all below. 2026-11-21:
@@ -404,6 +405,10 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   the host match must be exact and the read routes' docs said "every route".
   Not closed: Lushly's lane runs as the owner's account, which holds his gateway token and
   `gh` sign-in, so queued code can read those already; a separate OS user (G4) closes it.
+  Merged in [#2427](https://github.com/lushly-dev/afd/pull/2427) (`4136c64`) and deployed on
+  `random` at `6819de18` the same day: `gateway-status` answers with both lanes not yet
+  reported, and `/heartbeat` refuses a call without a token (401). No `/heartbeat` token is
+  issued yet.
 - 2026-11-14: filed [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392), Lushly's side
   of G1 (claim script, lane steps, flake filer, process files and checks), as G1 started.
 
