@@ -1,5 +1,5 @@
 {
-	"$comment": "Draft process manifest for the Factory Gateway (see the proposal's 'Keeping the process current'). The check that reads it is built in G1; until a milestone's 'landed' is true, nothing is enforced for it. Paths are relative to each repository's root.",
+	"$comment": "Draft process manifest for the Factory Gateway (see the proposal's 'Keeping the process current'). scripts/check-process.mjs reads it (AFD's side; Lushly's check is built with Lushly's G1): a milestone's file list is enforced once its 'landed' is true, and the door check always runs, over each repository's door.scope. Paths are relative to each repository's root.",
 	"version": 1,
 	"milestones": {
 		"G0": {
@@ -52,12 +52,20 @@
 					"names": ["issue-claim"]
 				},
 				{
+					"path": "scripts/issue-claim.mjs",
+					"names": ["issue-claim", "issue-release"]
+				},
+				{
 					"path": ".claude/settings.json",
 					"names": ["gh", "git push"]
 				},
 				{
 					"path": ".mcp.json",
 					"names": ["gateway"]
+				},
+				{
+					"path": ".claude/skills/run-fleet/SKILL.md",
+					"names": ["claim-list", "gateway-audit"]
 				}
 			],
 			"lushly": [
@@ -203,26 +211,78 @@
 					"names": ["cell token"]
 				}
 			]
+		},
+		"G5": {
+			"landed": false,
+			"afd": [],
+			"lushly": []
 		}
 	},
 	"door": {
-		"$comment": "gh writes the gateway serves. The door check refuses them in instruction files, skills, runbooks, scripts (text and argument lists), hooks and MCP configuration. GitHub Actions workflows and tests are out of scope: workflows run as GITHUB_TOKEN, not as an agent. Each allowed file may keep its gh writes until the named milestone lands; after that the check fails on it.",
+		"$comment": "GitHub writes the gateway serves (issue-claim, issue-release, issue-label, issue-comment, issue-create, pr-open, verification-record, pr-merge, pr-revert, variable-set; git push, which branch-push serves, is left to the hooks of G1 and G5). scripts/check-process.mjs refuses them in each repository's door.scope: instruction files, skills, runbooks, scripts (text and argument lists), hooks, MCP configuration and the agent tooling's code, comments aside. Out of scope: GitHub Actions workflows and Alfred, which write as GITHUB_TOKEN or their own App, not as an agent; tests; and the gateway itself, which is the door. Each allowed file may keep its writes until the named milestone lands; after that, or once it holds none, the check fails on it.",
 		"patterns": [
-			"gh issue edit",
-			"gh issue comment",
-			"gh issue create",
-			"gh pr create",
-			"gh pr merge",
-			"gh variable set",
-			"gh api .*/labels"
+			"\\bgh(?:[\\s\\\\]+(?:-R|--repo)(?:[\\s\\\\]+|=)\\S+)?[\\s\\\\]+issue[\\s\\\\]+(?:edit|comment|create)\\b",
+			"\\bgh(?:[\\s\\\\]+(?:-R|--repo)(?:[\\s\\\\]+|=)\\S+)?[\\s\\\\]+pr[\\s\\\\]+(?:create|merge|edit|ready|comment)\\b",
+			"\\bgh(?:[\\s\\\\]+(?:-R|--repo)(?:[\\s\\\\]+|=)\\S+)?[\\s\\\\]+variable[\\s\\\\]+set\\b",
+			"\\bgh[\\s\\\\]+api\\b(?!(?:\\\\\\n|[^\\n;&|`])*\\s(?:-X\\s*|--method[\\s=])[Gg][Ee][Tt]\\b)(?=(?:\\\\\\n|[^\\n;&|`])*/(?:issues|pulls|labels|comments|assignees|check-runs|statuses|variables|merges)\\b)(?=(?:\\\\\\n|[^\\n;&|`])*\\s(?:-X\\s*|--method[\\s=])(?:[Pp][Oo][Ss][Tt]|[Pp][Aa][Tt][Cc][Hh]|[Pp][Uu][Tt]|[Dd][Ee][Ll][Ee][Tt][Ee])\\b|(?:\\\\\\n|[^\\n;&|`])*\\s(?:-[fF]|--field|--raw-field|--input)[\\s=])(?:\\\\\\n|[^\\n;&|`])*",
+			"(?:\\bmutation\\b|\\bgh[\\s\\\\]+api[\\s\\\\]+graphql\\b)(?:\\\\\\n|[^\\n])*\\b(?:enqueuePullRequest|mergePullRequest|createPullRequest|updatePullRequest|markPullRequestReadyForReview|revertPullRequest|addLabelsToLabelable|removeLabelsFromLabelable|addAssigneesToAssignable|removeAssigneesFromAssignable|addComment|createIssue|updateIssue)\\b|\\b(?:enqueuePullRequest|mergePullRequest|createPullRequest|updatePullRequest|markPullRequestReadyForReview|revertPullRequest|addLabelsToLabelable|removeLabelsFromLabelable|addAssigneesToAssignable|removeAssigneesFromAssignable|addComment|createIssue|updateIssue)\\s*\\(\\s*input\\s*:"
 		],
 		"argvPatterns": [
-			"[\"']issue[\"'],\\s*[\"'](edit|comment|create)[\"']",
-			"[\"']pr[\"'],\\s*[\"'](create|merge)[\"']",
-			"[\"']variable[\"'],\\s*[\"']set[\"']"
+			"[\"'`]issue[\"'`]\\s*,\\s*[\"'`](?:edit|comment|create)[\"'`]",
+			"[\"'`]pr[\"'`]\\s*,\\s*[\"'`](?:create|merge|edit|ready|comment)[\"'`]",
+			"[\"'`]variable[\"'`]\\s*,\\s*[\"'`]set[\"'`]"
 		],
-		"exclude": [".github/workflows/**", "**/*.test.mjs", "**/tests/**"],
+		"exclude": [
+			".github/workflows/**",
+			"**/*.test.mjs",
+			"**/*.test.ts",
+			"**/tests/**",
+			"endpoints/botcore/plugins/botcore-factory/src/botcore_factory/gateway/**"
+		],
+		"scope": {
+			"afd": [
+				"**/AGENTS.md",
+				"**/SETUP.md",
+				"CONTRIBUTING.md",
+				"**/SKILL.md",
+				"**/skills/**",
+				".claude/**",
+				"**/.mcp.json",
+				"**/docs/operations/**",
+				"lefthook.yml",
+				"package.json",
+				"botcore.toml",
+				"scripts/**",
+				"endpoints/botcore/src/botcore/**",
+				"endpoints/botcore/plugins/*/src/**"
+			]
+		},
 		"allow": [
+			{
+				"repo": "afd",
+				"path": ".claude/skills/triage-issues/references/epics.md",
+				"until": "G1"
+			},
+			{
+				"repo": "afd",
+				"path": "scripts/issue-claim.mjs",
+				"until": "G1"
+			},
+			{
+				"repo": "afd",
+				"path": "endpoints/botcore/plugins/botcore-factory/src/botcore_factory/real_world.py",
+				"until": "G1"
+			},
+			{
+				"repo": "afd",
+				"path": "endpoints/botcore/plugins/botcore-factory/src/botcore_factory/lane_merge.py",
+				"until": "G1"
+			},
+			{
+				"repo": "afd",
+				"path": "endpoints/botcore/plugins/botcore-factory/src/botcore_factory/world.py",
+				"until": "G1"
+			},
 			{
 				"repo": "lushly",
 				"path": "scripts/merge-lane-ci.mjs",

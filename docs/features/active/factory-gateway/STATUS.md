@@ -409,6 +409,26 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   `random` at `6819de18` the same day: `gateway-status` answers with both lanes not yet
   reported, and `/heartbeat` refuses a call without a token (401). No `/heartbeat` token is
   issued yet.
+
+- 2026-11-24: AFD's process check, `scripts/check-process.mjs`, run by the pre-push hook and
+  `pnpm check`. It runs both of the proposal's checks for AFD from `process.json`:
+  - **The manifest:** once a milestone is `landed`, each listed file must name its commands, each
+    as a word of its own, so a script's path does not count.
+  - **The door:** a GitHub write the gateway serves is refused in AFD's agent-facing files
+    (`door.scope.afd`, new, by file type: instruction files, skills, runbooks, scripts, hooks,
+    MCP configuration and Botcore's code, docstrings included). It covers the CLI, the REST
+    API and GraphQL. Comments are not read, and the gateway itself is out of scope.
+  Exemptions expire: an allowed file fails once its milestone lands, or once it holds no write.
+  A scope glob that matches no file fails. Five files that write were not allowed. Each is now
+  allowed until G1, which removes its write: the triage skill's `references/epics.md`,
+  `scripts/issue-claim.mjs`, and the factory's `real_world.py`, `lane_merge.py` and `world.py`.
+  The manifest gained G5, so its exemptions can expire. G1's list gained `scripts/issue-claim.mjs`
+  and `run-fleet`. The manifest is now a factory gate path, so a repair cannot add an exemption.
+  Not covered yet:
+  - the cell hook, which G1 lists once it exists;
+  - Lushly's own check;
+  - proof that `.claude/settings.json` denies `gh` writes. G1's entry asks only that the file
+    name `gh` and `git push`, which a read permission satisfies.
 - 2026-11-14: filed [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392), Lushly's side
   of G1 (claim script, lane steps, flake filer, process files and checks), as G1 started.
 

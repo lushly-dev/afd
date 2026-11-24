@@ -93,6 +93,11 @@ pre-push-checks:
     doc-lines:
       run: node scripts/check-doc-lines.mjs
 
+    # The Factory Gateway's process manifest: landed milestones' files name their commands, and no
+    # instruction file, skill, runbook, script, hook or MCP configuration writes around the gateway.
+    process:
+      run: node scripts/check-process.mjs
+
     vector-drift:
       run: node scripts/check-vector-drift.mjs
 
@@ -160,6 +165,11 @@ check:
     # docs/features/active/merge-conflicts/ says why).
     doc-lines:
       run: node scripts/check-doc-lines.mjs
+
+    # The Factory Gateway's process manifest: landed milestones' files name their commands, and no
+    # instruction file, skill, runbook, script, hook or MCP configuration writes around the gateway.
+    process:
+      run: node scripts/check-process.mjs
 
     vector-drift:
       run: node scripts/check-vector-drift.mjs

@@ -215,6 +215,7 @@ gate_paths = [
     "scripts/review-record.mjs",
     "scripts/provenance-merge.mjs",
     "scripts/release/provenance.mjs",
+    "docs/features/active/factory-gateway/process.json",
     "biome.json",
     "package.json",
     "botcore.toml",
