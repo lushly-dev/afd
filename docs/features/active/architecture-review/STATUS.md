@@ -97,7 +97,7 @@ These keep their own work; this review only cross-references them.
 
 - [#1761](https://github.com/lushly-dev/afd/issues/1761) rust: a public surface that can stay stable, before 0.3.0
 
-- [#1762](https://github.com/lushly-dev/afd/issues/1762) rust: one compiled input validator, built once at registration
+- [#1762](https://github.com/lushly-dev/afd/issues/1762) rust: one compiled input validator, built once at registration; merged in #2464
 
 - [#1763](https://github.com/lushly-dev/afd/issues/1763) rust: split commands.rs and collapse the server-only state on CommandContext
 

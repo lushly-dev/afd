@@ -109,7 +109,6 @@ pub mod similarity;
 pub mod stream_executor;
 pub mod streaming;
 pub mod telemetry;
-mod validation;
 mod wire;
 
 /// A monotonic `Instant` for every supported target.

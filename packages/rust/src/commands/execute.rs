@@ -224,7 +224,12 @@ impl CommandRegistry {
             Arc::clone(&command),
         ));
         let context_fields = Arc::clone(&read_lock(&self.context_fields));
-        if let Err(error) = apply_context_fields(&context_fields, &command.name, &mut context) {
+        if let Err(error) = apply_context_fields(
+            &context_fields.0,
+            &context_fields.1,
+            &command.name,
+            &mut context,
+        ) {
             return failure(*error);
         }
         if let Err(error) = crate::output_budget::apply_output_budget(&command, &mut context) {
@@ -253,7 +258,7 @@ impl CommandRegistry {
             .filter(|recorder| !context.journal_state.replaying && recorder.records(name));
         let recording = journal
             .as_ref()
-            .map(|recorder| recorder.start(&command.name, &input, &mut context, &context_fields));
+            .map(|recorder| recorder.start(&command.name, &input, &mut context, &context_fields.0));
 
         #[cfg(feature = "native")]
         let deadline_signal = effective_timeout_ms.map(|_| match &context.cancellation {
@@ -322,16 +327,29 @@ impl CommandRegistry {
         input: serde_json::Value,
     ) -> Result<serde_json::Value, Box<CommandError>> {
         let max_issues = self.max_validation_issues();
-        let schema = read_lock(&self.commands)
-            .schemas
+        let validator = read_lock(&self.commands)
+            .validators
             .get(&command.name)
             .cloned();
-        match schema {
-            Some(schema) => {
-                crate::schema_validation::execute_with_limit(&schema, input, max_issues)
-            }
+        match validator {
+            Some(validator) => validator.execute_with_limit(input, max_issues),
             None => {
-                crate::validation::validate_input_with_limit(&command.parameters, input, max_issues)
+                let schema = crate::schema_validation::parameters_to_schema(&command.parameters)
+                    .map_err(|error| {
+                        Box::new(CommandError::validation(
+                            &error,
+                            Some("Fix the command's parameter schema before validating input"),
+                        ))
+                    })?;
+                let compiled = crate::schema_validation::CompiledSchema::compile(&schema).map_err(
+                    |error| {
+                        Box::new(CommandError::validation(
+                            &error,
+                            Some("Fix the command's parameter schema before validating input"),
+                        ))
+                    },
+                )?;
+                compiled.execute_with_limit(input, max_issues)
             }
         }
     }

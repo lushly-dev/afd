@@ -123,7 +123,7 @@ fn declarations_are_checked() {
             "reserved meta prefix",
         ),
         (
-            |f| f.schema = json!({"pattern": "^p-"}),
+            |f| f.schema = json!({"uniqueItems": true}),
             "unsupported schema",
         ),
         (|f| f.schema = json!("string"), "unsupported schema"),

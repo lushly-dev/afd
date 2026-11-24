@@ -16,6 +16,7 @@ Example:
     >>> assert request.commands[0].id == "cmd-0"
 """
 
+import math
 from datetime import UTC, datetime
 from typing import Any, Generic, TypeVar
 
@@ -32,6 +33,52 @@ DEFAULT_MAX_BATCH_SIZE = 500
 
 DEFAULT_MAX_BATCH_PARALLELISM = 16
 """Normative default maximum ``options.parallelism`` for one batch request (``spec/execution-controls.md``)."""
+
+
+def _parse_raw_parallelism(raw: Any) -> int:
+    """Extract an integer parallelism from a raw dict option, including finite integral floats.
+
+    Non-integral, boolean, or non-finite values return ``1`` so ``check_batch_limits`` only
+    enforces the upper ceiling and leaves envelope type/floor validation (``Invalid batch
+    request envelope``) to ``BatchRequest.model_validate``.
+    """
+    if isinstance(raw, bool):
+        return 1
+    if isinstance(raw, int):
+        return raw
+    if isinstance(raw, float) and math.isfinite(raw) and raw.is_integer():
+        return int(raw)
+    return 1
+
+
+def batch_limit_problems(
+    count: int,
+    parallelism: int,
+    *,
+    max_batch_size: int = DEFAULT_MAX_BATCH_SIZE,
+    max_batch_parallelism: int = DEFAULT_MAX_BATCH_PARALLELISM,
+) -> list[dict[str, Any]]:
+    """Format ``too_long`` and ``less_than_equal`` issue dicts for batch limit violations."""
+    problems: list[dict[str, Any]] = []
+    if count > max_batch_size:
+        problems.append(
+            {
+                "path": "commands",
+                "message": f"A batch accepts at most {max_batch_size} commands (got {count})",
+                "code": "too_long",
+            }
+        )
+    if parallelism > max_batch_parallelism:
+        problems.append(
+            {
+                "path": "options.parallelism",
+                "message": (
+                    f"parallelism must be at most {max_batch_parallelism} (got {parallelism})"
+                ),
+                "code": "less_than_equal",
+            }
+        )
+    return problems
 
 
 def check_batch_limits(
@@ -53,7 +100,7 @@ def check_batch_limits(
         count = len(commands) if isinstance(commands, list) else 0
         opts = request.get("options")
         raw_p = opts.get("parallelism", 1) if isinstance(opts, dict) else 1
-        parallelism = raw_p if isinstance(raw_p, int) and not isinstance(raw_p, bool) else 1
+        parallelism = _parse_raw_parallelism(raw_p)
     else:
         return None
 
@@ -71,13 +118,12 @@ def check_batch_limits(
             details={
                 "count": count,
                 "maxBatchSize": max_batch_size,
-                "errors": [
-                    {
-                        "path": "commands",
-                        "message": f"A batch accepts at most {max_batch_size} commands (got {count})",
-                        "code": "too_long",
-                    }
-                ],
+                "errors": batch_limit_problems(
+                    count,
+                    0,
+                    max_batch_size=max_batch_size,
+                    max_batch_parallelism=max_batch_parallelism,
+                ),
             },
         )
     if parallelism > max_batch_parallelism:
@@ -90,16 +136,12 @@ def check_batch_limits(
             details={
                 "parallelism": parallelism,
                 "maxBatchParallelism": max_batch_parallelism,
-                "errors": [
-                    {
-                        "path": "options.parallelism",
-                        "message": (
-                            f"parallelism must be at most {max_batch_parallelism} "
-                            f"(got {parallelism})"
-                        ),
-                        "code": "less_than_equal",
-                    }
-                ],
+                "errors": batch_limit_problems(
+                    0,
+                    parallelism,
+                    max_batch_size=max_batch_size,
+                    max_batch_parallelism=max_batch_parallelism,
+                ),
             },
         )
     return None

@@ -47,7 +47,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use crate::commands::CommandContext;
 use crate::errors::{error_codes, CommandError};
@@ -165,9 +165,12 @@ fn meta_key_pattern() -> &'static Regex {
 /// A message naming the field for an empty, reserved or repeated name, a `meta` key without a
 /// reverse-DNS prefix or with a reserved one, a repeated `meta` key, or a schema this
 /// implementation cannot validate.
-pub(crate) fn check_context_fields(fields: &[ContextField]) -> Result<(), String> {
+pub(crate) fn check_context_fields(
+    fields: &[ContextField],
+) -> Result<Vec<Arc<crate::schema_validation::CompiledSchema>>, String> {
     let mut names = HashSet::new();
     let mut meta_keys = HashSet::new();
+    let mut compiled = Vec::with_capacity(fields.len());
     for field in fields {
         let ContextField { name, meta, .. } = field;
         if name.is_empty() {
@@ -202,11 +205,13 @@ pub(crate) fn check_context_fields(fields: &[ContextField]) -> Result<(), String
                 "Meta key '{meta}' of context field '{name}' is declared twice"
             ));
         }
-        crate::schema_validation::compile(&field.schema).map_err(|error| {
-            format!("Context field '{name}' has an unsupported schema: {error}")
-        })?;
+        let validator =
+            crate::schema_validation::CompiledSchema::compile(&field.schema).map_err(|error| {
+                format!("Context field '{name}' has an unsupported schema: {error}")
+            })?;
+        compiled.push(Arc::new(validator));
     }
-    Ok(())
+    Ok(compiled)
 }
 
 /// Validate a call's declared fields on `context.extra`, in place: each present value is
@@ -220,11 +225,12 @@ pub(crate) fn check_context_fields(fields: &[ContextField]) -> Result<(), String
 /// that is required and missing.
 pub(crate) fn apply_context_fields(
     fields: &[ContextField],
+    validators: &[Arc<crate::schema_validation::CompiledSchema>],
     command: &str,
     context: &mut CommandContext,
 ) -> Result<(), Box<CommandError>> {
     let enforce_required = !command.starts_with(AFD_COMMAND_PREFIX);
-    for field in fields {
+    for (field, validator) in fields.iter().zip(validators.iter()) {
         let value = context
             .extra
             .get(&field.name)
@@ -239,7 +245,7 @@ pub(crate) fn apply_context_fields(
             }
             continue;
         };
-        match crate::schema_validation::validate_value(&field.schema, value) {
+        match validator.validate_value(value) {
             Ok(parsed) => {
                 context.extra.insert(field.name.clone(), parsed);
             }
@@ -340,8 +346,11 @@ mod tests {
 
     #[test]
     fn invalid_values_report_paths_and_messages() {
+        let fields = [scope()];
+        let validators = check_context_fields(&fields).unwrap();
         let mut context = CommandContext::new().with_extra("scope", json!({"project": 42}));
-        let error = apply_context_fields(&[scope()], "scope-echo", &mut context).unwrap_err();
+        let error =
+            apply_context_fields(&fields, &validators, "scope-echo", &mut context).unwrap_err();
         let details = error.details.unwrap();
         assert_eq!(details["field"], json!("scope"));
         assert_eq!(details["meta"], json!("dev.example/scope"));
@@ -351,7 +360,8 @@ mod tests {
         );
 
         let mut context = CommandContext::new().with_extra("scope", json!("p-1"));
-        let error = apply_context_fields(&[scope()], "scope-echo", &mut context).unwrap_err();
+        let error =
+            apply_context_fields(&fields, &validators, "scope-echo", &mut context).unwrap_err();
         assert_eq!(error.details.unwrap()["errors"][0]["path"], json!(""));
     }
 }

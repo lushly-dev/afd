@@ -46,6 +46,12 @@ impl Default for ExecutionLimits {
     }
 }
 
+/// Declared context fields paired with their pre-compiled schema validators.
+pub(super) type CompiledContextFields = (
+    Vec<ContextField>,
+    Vec<Arc<crate::schema_validation::CompiledSchema>>,
+);
+
 /// Registry that stores AFD command definitions and dispatches validated executions.
 #[derive(Default)]
 pub struct CommandRegistry {
@@ -53,7 +59,7 @@ pub struct CommandRegistry {
     /// Copied on write, so a call takes the list with one reference count.
     pub(super) middleware: RwLock<Arc<Vec<CommandMiddleware>>>,
     pub(super) journal: RwLock<Option<Arc<JournalRecorder>>>,
-    pub(super) context_fields: RwLock<Arc<Vec<ContextField>>>,
+    pub(super) context_fields: RwLock<Arc<CompiledContextFields>>,
     pub(super) call_grant: RwLock<Option<CallGrant>>,
     limits: RwLock<ExecutionLimits>,
 }
@@ -80,6 +86,9 @@ pub(super) fn call_not_granted() -> CommandError {
 pub(super) struct RegisteredCommands {
     pub(super) by_name: HashMap<String, Arc<CommandDefinition>>,
     pub(super) ordered: Vec<Arc<CommandDefinition>>,
+    /// Compiled input validators for every registered command (both legacy `parameters` and whole
+    /// schemas), built once at registration and shared in an `Arc`.
+    pub(super) validators: HashMap<String, Arc<crate::schema_validation::CompiledSchema>>,
     /// The whole input schemas commands validate with ([`CommandRegistry::register_with_schema`]).
     pub(super) schemas: HashMap<String, Arc<serde_json::Value>>,
     /// The input schemas commands advertise in place of the validation schema
@@ -246,19 +255,17 @@ impl CommandRegistry {
         validate_output_budget(&command)?;
         validate_scopes(&command)?;
         validate_person_gates(&command)?;
-        for parameter in &command.parameters {
-            if let Some(schema) = &parameter.schema {
-                crate::validation::validate_schema_definition(
-                    schema,
-                    &format!("#/properties/{}", parameter.name),
-                )?;
-            }
-        }
+        let schema = crate::schema_validation::parameters_to_schema(&command.parameters)?;
+        let validator = Arc::new(crate::schema_validation::CompiledSchema::compile(&schema)?);
 
         let mut commands = write_lock(&self.commands);
         if commands.by_name.contains_key(&command.name) {
             return Err(format!("Command '{}' is already registered", command.name));
         }
+        commands.validators.insert(command.name.clone(), validator);
+        commands
+            .schemas
+            .insert(command.name.clone(), Arc::new(schema));
         let command = Arc::new(command);
         commands
             .by_name
@@ -291,7 +298,7 @@ impl CommandRegistry {
                 command.name
             ));
         }
-        crate::schema_validation::compile(&schema)?;
+        let validator = Arc::new(crate::schema_validation::CompiledSchema::compile(&schema)?);
         validate_command_name(&command.name)?;
         validate_tool_meta(&command)?;
         validate_output_budget(&command)?;
@@ -301,6 +308,7 @@ impl CommandRegistry {
         if commands.by_name.contains_key(&command.name) {
             return Err(format!("Command '{}' is already registered", command.name));
         }
+        commands.validators.insert(command.name.clone(), validator);
         commands
             .schemas
             .insert(command.name.clone(), Arc::new(schema));
@@ -461,8 +469,8 @@ impl CommandRegistry {
         fields: impl IntoIterator<Item = ContextField>,
     ) -> Result<(), String> {
         let fields: Vec<ContextField> = fields.into_iter().collect();
-        check_context_fields(&fields)?;
-        *write_lock(&self.context_fields) = Arc::new(fields);
+        let validators = check_context_fields(&fields)?;
+        *write_lock(&self.context_fields) = Arc::new((fields, validators));
         Ok(())
     }
 
@@ -502,7 +510,7 @@ impl CommandRegistry {
 
     /// The context fields declared with [`Self::set_context_fields`], in declaration order.
     pub fn context_fields(&self) -> Vec<ContextField> {
-        read_lock(&self.context_fields).as_ref().clone()
+        read_lock(&self.context_fields).0.clone()
     }
 
     /// Get a command by name.
