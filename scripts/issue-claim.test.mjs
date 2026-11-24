@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { claimBody, EXIT_HELD, IN_PROGRESS, run, standingClaims } from './issue-claim.mjs';
 
@@ -65,6 +66,199 @@ function world({ issues = {}, prs = [], onComment, failOn } = {}) {
 	const labels = (n) => store[n].labels.map((l) => l.name);
 	return { deps, writes, lines, labels, store };
 }
+
+// The histories the factory's triage scenario and tests/test_commands.py read too. Each
+// issue's `expected` says what both readers observe, or what each does where they differ.
+const HISTORIES = JSON.parse(
+	readFileSync(
+		new URL(
+			'../docs/features/active/software-factory/scenarios/fixtures/claim-histories.json',
+			import.meta.url
+		),
+		'utf8'
+	)
+);
+const AT = Date.parse(HISTORIES.now);
+
+/** One fixture issue as a fake-gh world, with the fixture's clock and open PRs. */
+function history(number) {
+	const { labels, comments } = HISTORIES.issues.find((issue) => issue.number === number);
+	const w = world({
+		issues: { [number]: { labels, comments: comments.map((c) => c.body), updatedAt: iso(AT) } },
+		prs: HISTORIES.pullRequests.map((pr) => ({
+			number: pr.number,
+			headRefName: pr.branch,
+			closingIssuesReferences: pr.closes.map((n) => ({ number: n })),
+		})),
+	});
+	/** Run the CLI as the session working on `branch`; returns the exit code. */
+	const as = (branch, ...argv) =>
+		run(argv, {
+			...w.deps,
+			now: () => AT,
+			git: () => branch,
+			env: { T3CODE_THREAD_ID: `thread-${branch}` },
+		});
+	const branches = () => standingClaims(w.store[number].comments).map((c) => c.branch);
+	return { ...w, as, branches };
+}
+
+const standingIn = (number) =>
+	standingClaims(HISTORIES.issues.find((issue) => issue.number === number).comments).map(
+		(c) => c.branch
+	);
+
+test('issue-claim check names the standing holder in the factory triage histories', () => {
+	for (const { number, title, expected } of HISTORIES.issues) {
+		const want = expected.cli ?? expected;
+		const w = history(number);
+		const status = w.as('fix/observer', 'check', String(number), '--json');
+		const [row] = JSON.parse(w.lines[0]);
+		const seen = { state: row.state, holder: row.holder?.branch ?? null };
+		assert.deepEqual(seen, { state: want.state, holder: want.holder }, title);
+		assert.equal(status, want.state === 'held' ? EXIT_HELD : 0, title);
+		if (want.leaseUntil) assert.equal(row.holder.leaseUntil, want.leaseUntil, title);
+		if (want.machine) assert.equal(row.holder.machine, want.machine, title);
+		assert.deepEqual(w.writes, [], title);
+	}
+});
+
+test('the holder renews beside a later rival claim and keeps the issue', () => {
+	const w = history(302);
+	assert.equal(w.as('fix/alpha', 'claim', '302', '--hours', '48'), 0);
+	assert.match(w.lines.at(-1), /#302: renewed for fix\/alpha until 2030-01-05T00:00:00Z/);
+	assert.deepEqual(w.branches(), ['fix/alpha', 'fix/bravo', 'fix/alpha']);
+	w.lines.length = 0;
+	assert.equal(w.as('fix/observer', 'check', '302', '--json'), EXIT_HELD);
+	const [row] = JSON.parse(w.lines[0]);
+	assert.equal(row.holder.branch, 'fix/alpha');
+	assert.equal(row.holder.leaseUntil, '2030-01-05T00:00:00Z');
+});
+
+test('a lapsed claim keeps no place: claiming again backs off to the branch that holds', () => {
+	// fix/alpha's first lease ran out and fix/bravo holds. The label was taken off by hand, so
+	// `claim` sees a free issue and writes; its read-back then finds fix/bravo's live claim
+	// ahead of the new one. An old claim of the caller's own does not put it first.
+	const w = history(307);
+	w.store[307].labels = w.store[307].labels.filter((l) => l.name !== IN_PROGRESS);
+	assert.equal(w.as('fix/alpha', 'claim', '307'), EXIT_HELD);
+	assert.match(w.lines.join('\n'), /#307: branch fix\/bravo on workstation.* holds it\./);
+	assert.deepEqual(w.branches(), ['fix/bravo']);
+	assert.ok(w.labels(307).includes(IN_PROGRESS));
+});
+
+test('claim reads back liveness as check does: a claim held open by its branch PR counts', () => {
+	// #312: fix/charlie's lease ran out but its branch has an open PR, so check calls it yours.
+	const own = history(312);
+	assert.equal(own.as('fix/charlie', 'check', '312'), 0);
+	assert.match(own.lines.at(-1), /#312: yours/);
+	assert.equal(own.as('fix/charlie', 'claim', '312'), 0);
+	assert.match(own.lines.at(-1), /#312: renewed for fix\/charlie/);
+	assert.deepEqual(own.branches(), ['fix/charlie', 'fix/bravo', 'fix/charlie']);
+	// #313 with the label taken off by hand: claim sees a free issue and writes, then finds
+	// fix/charlie's PR-backed claim ahead of its own and backs off, as check would report.
+	const other = history(313);
+	other.store[313].labels = other.store[313].labels.filter((l) => l.name !== IN_PROGRESS);
+	assert.equal(other.as('fix/alpha', 'claim', '313'), EXIT_HELD);
+	assert.match(other.lines.join('\n'), /#313: branch fix\/charlie on workstation.* holds it\./);
+	assert.deepEqual(other.branches(), ['fix/charlie']);
+});
+
+test('claim reads back the caller as holding when any of the holding branch claims is its own', () => {
+	// The same session claimed fix/x, another session renewed it; the first session now works on
+	// another branch. check calls the issue its own, so claim renews rather than backing off.
+	const mine = claimBody(
+		{ branch: 'fix/x', machine: 'hero', session: 'thread-a' },
+		iso(NOW + HOUR)
+	);
+	const theirs = claimBody(
+		{ branch: 'fix/x', machine: 'mini', session: 'thread-b' },
+		iso(NOW + 2 * HOUR)
+	);
+	const w = world({
+		issues: { 41: { labels: [IN_PROGRESS, 'execution:bounded'], comments: [mine, theirs] } },
+	});
+	assert.equal(run(['check', '41'], w.deps), 0);
+	assert.match(w.lines.at(-1), /#41: yours/);
+	assert.equal(run(['claim', '41'], w.deps), 0);
+	assert.match(w.lines.at(-1), /#41: renewed for t3\/a/);
+});
+
+test('a release names the remaining holder by its latest lease', () => {
+	const renewed =
+		'<!-- botcore-factory:claim {"branch":"fix/bravo","machine":"laptop","leaseUntil":"2030-01-06T00:00:00Z"} -->';
+	const w = history(302);
+	w.store[302].comments.push({ body: renewed });
+	assert.equal(w.as('fix/alpha', 'release', '302'), 0);
+	assert.match(w.lines.at(-1), /still held by branch fix\/bravo on laptop, lease until 2030-01-06/);
+});
+
+test('a branch that released and claims again goes behind the rival that stayed', () => {
+	const w = history(304); // fix/alpha claimed, fix/bravo claimed, fix/alpha released
+	assert.equal(w.as('fix/alpha', 'claim', '304'), EXIT_HELD);
+	assert.match(w.lines.join('\n'), /#304: held by branch fix\/bravo/);
+	assert.deepEqual(w.writes, []);
+	// Racing past the check (the label taken off by hand), its new claim reads back behind.
+	w.store[304].labels = w.store[304].labels.filter((l) => l.name !== IN_PROGRESS);
+	assert.equal(w.as('fix/alpha', 'claim', '304'), EXIT_HELD);
+	assert.match(w.lines.join('\n'), /#304: branch fix\/bravo on workstation.* holds it\./);
+	assert.deepEqual(w.branches(), ['fix/bravo']);
+});
+
+test('a caller whose own claim lapsed takes it back on an issue an open PR holds', () => {
+	const lapsed = claimBody(
+		{ branch: 't3/a', machine: 'hero', session: 'thread-a' },
+		iso(NOW - HOUR),
+		'status:planned'
+	);
+	const w = world({
+		issues: { 40: { labels: [IN_PROGRESS, 'execution:bounded'], comments: [lapsed] } },
+		prs: [{ number: 77, headRefName: 'fix/other', closingIssuesReferences: [{ number: 40 }] }],
+	});
+	assert.equal(run(['release', '40'], w.deps), 0);
+	assert.match(w.lines.at(-1), /held by open PR #77\. Released your own claim/);
+	assert.deepEqual(standingClaims(w.store[40].comments), []);
+	assert.ok(w.labels(40).includes(IN_PROGRESS), 'the label stays with the PR');
+});
+
+test('releasing either of two live claims leaves the other holding the issue', () => {
+	for (const [leaving, staying, row] of [
+		['fix/bravo', 'fix/alpha', 303],
+		['fix/alpha', 'fix/bravo', 304],
+	]) {
+		const w = history(302);
+		assert.equal(w.as(leaving, 'release', '302'), 0, leaving);
+		// The release command leaves exactly the history the fixture row writes by hand.
+		assert.deepEqual(w.branches(), standingIn(row), leaving);
+		assert.deepEqual(
+			w.writes.map((x) => Object.keys(x).sort().join()),
+			['comment,n'],
+			`${leaving} must not touch the label: it is ${staying}'s`
+		);
+		assert.ok(w.labels(302).includes(IN_PROGRESS), leaving);
+		w.lines.length = 0;
+		assert.equal(w.as('fix/observer', 'check', '302', '--json'), EXIT_HELD, leaving);
+		assert.equal(JSON.parse(w.lines[0])[0].holder.branch, staying, leaving);
+		// The last claim released puts the issue back.
+		assert.equal(w.as(staying, 'release', '302'), 0, staying);
+		assert.deepEqual(w.labels(302), ['execution:bounded', 'area:core', 'status:planned']);
+		assert.equal(w.as('fix/observer', 'check', '302'), 0, staying);
+		assert.match(w.lines.at(-1), /#302: free/);
+	}
+});
+
+test('force ends the holder and the caller, and the label stays with a third live claim', () => {
+	const third =
+		'<!-- botcore-factory:claim {"branch":"fix/charlie-2","machine":"mini","leaseUntil":"2030-01-04T00:00:00Z"} -->';
+	const w = history(302);
+	w.store[302].comments.push({ body: third });
+	assert.equal(w.as('fix/observer', 'release', '302'), EXIT_HELD);
+	assert.deepEqual(w.writes, []);
+	assert.equal(w.as('fix/bravo', 'release', '302', '--force'), 0);
+	assert.deepEqual(w.branches(), ['fix/charlie-2']);
+	assert.ok(w.labels(302).includes(IN_PROGRESS));
+	assert.match(w.lines.at(-1), /still held by branch fix\/charlie-2 on mini/);
+});
 
 test('claim writes the factory format, then the label', () => {
 	const w = world({ issues: { 7: {} } });
@@ -147,6 +341,25 @@ test('a failed write puts back what the call claimed', () => {
 	assert.deepEqual(w.labels(23), ['execution:bounded', 'status:planned']);
 	assert.equal(standingClaims(w.store[22].comments).length, 0);
 	assert.match(w.lines.join('\n'), /HTTP 502[\s\S]*Claimed none of #22 #23\./);
+});
+
+test('undoing a set leaves the label to a claim that landed beside one of its issues', () => {
+	const w = world({
+		issues: { 31: {}, 32: {} },
+		// A cell that read #31 before our label claims it just after us; it does not read back.
+		onComment: (issue) => {
+			if (issue.number === 31 && issue.comments.length === 1)
+				issue.comments.push({ body: factoryClaim('fleet/31', iso(NOW + HOUR)) });
+		},
+		failOn: (args) => args[1] === 'comment' && args[2] === '32',
+	});
+	assert.equal(run(['claim', '31', '32'], w.deps), 1);
+	assert.deepEqual(
+		standingClaims(w.store[31].comments).map((c) => c.branch),
+		['fleet/31']
+	);
+	assert.ok(w.labels(31).includes(IN_PROGRESS));
+	assert.deepEqual(w.labels(32), ['execution:bounded', 'status:planned']);
 });
 
 test('release restores the status the claim replaced', () => {

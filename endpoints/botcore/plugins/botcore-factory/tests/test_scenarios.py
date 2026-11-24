@@ -36,6 +36,7 @@ JOBS = [
     "10-merge-more-in-parallel",
     "12-finish-and-judge-the-dials",
     "14-triage-the-backlog",
+    "14b-identify-the-standing-claimant",
     "17-replace-an-offline-host",
 ]
 

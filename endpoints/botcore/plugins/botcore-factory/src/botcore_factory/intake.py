@@ -62,12 +62,13 @@ def read_backlog(factory: Factory, numbers: Sequence[int] | None = None) -> Back
     github = factory.world.github
     issues = [github.get_issue(n) for n in numbers] if numbers else github.list_issues()
     with_open_pr = frozenset(n for pr in github.open_pull_requests() for n in pr.closes)
+    now = factory.world.clock.now()
     claims = {
-        issue.number: current_claim(github.comments(issue.number))
+        issue.number: current_claim(github.comments(issue.number), now)
         for issue in issues
         if issue.state == "OPEN" and IN_PROGRESS in issue.labels
     }
-    return Backlog(tuple(issues), definitions, with_open_pr, claims, factory.world.clock.now())
+    return Backlog(tuple(issues), definitions, with_open_pr, claims, now)
 
 
 def dispatchable(backlog: Backlog) -> list[int]:

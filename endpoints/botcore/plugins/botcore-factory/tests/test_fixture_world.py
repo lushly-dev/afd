@@ -92,7 +92,7 @@ def test_github_reads_issues_comments_prs_and_variables(backlog):
     assert github.repository() == "example-org/example-repo"
     assert [issue.number for issue in github.list_issues()] == list(range(201, 209))
     assert github.get_issue(204).assignees == ("owner",)
-    assert current_claim(github.comments(208)).branch == "fix/cli-help"
+    assert current_claim(github.comments(208), backlog.world().clock.now()).branch == "fix/cli-help"
     assert github.open_pull_requests() == []
     assert github.get_variable("FACTORY_LANE_HOST") == "workstation"
     with pytest.raises(WorldError):

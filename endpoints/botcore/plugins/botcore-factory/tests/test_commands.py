@@ -7,7 +7,9 @@ import json
 import pytest
 from conftest import REPO_ROOT
 
+from botcore_factory.claims import Claim, claim_body
 from botcore_factory.fixture_world import FixtureGitHub, FixtureWorld
+from botcore_factory.labels import IN_PROGRESS, PLANNED
 from botcore_factory.world import WorldError
 
 
@@ -30,6 +32,33 @@ class FailingGitHub(FixtureGitHub):
 
 def failing(run, *operations):
     return {"github": FailingGitHub(FixtureWorld(run.world_path), *operations)}
+
+
+class RivalClaimsFirst(FixtureGitHub):
+    """The fixture's GitHub with the race the claim protocol leaves open: another branch's claim
+    lands between this caller's read of the issue and its own label. ``fail_claim`` also fails
+    the caller's claim comment, so its registration is undone."""
+
+    def __init__(self, store, rival: Claim, fail_claim: bool = False):
+        super().__init__(store)
+        self.rival, self.fail_claim = rival, fail_claim
+
+    def edit_labels(self, number, add=(), remove=()):
+        if IN_PROGRESS in add:
+            super().add_comment(number, claim_body(self.rival))
+        super().edit_labels(number, add, remove)
+
+    def add_comment(self, number, body):
+        if self.fail_claim and "botcore-factory:claim" in body:
+            raise WorldError("gh add_comment failed: HTTP 502")
+        return super().add_comment(number, body)
+
+
+RIVAL = Claim("t3/session", "laptop", "2030-01-04T00:00:00Z")
+
+
+def labels_of(run, number: int) -> list[str]:
+    return next(i for i in run.world_data()["issues"] if i["number"] == number)["labels"]
 
 
 # issue_check
@@ -288,6 +317,38 @@ async def test_already_claimed_names_the_holding_branch(make_run):
     assert result.error.details["holder"]["machine"] == "workstation"
 
 
+async def test_refused_claim_histories_name_the_holder_and_write_nothing(make_run):
+    """The histories scripts/issue-claim.test.mjs reads too: each row's ``expected`` says what
+    both readers observe, or what each does where they are known to differ."""
+    run = make_run("claim-histories")
+    rows = {
+        issue["number"]: (issue["title"], issue["expected"].get("factory", issue["expected"]))
+        for issue in run.world_data()["issues"]
+    }
+    before = run.snapshot()
+    for number, (title, want) in rows.items():
+        if want["state"] == "free":
+            continue  # The triage scenario registers the free issue after all refusals.
+        result = await run.call("cell_register", branch="fix/observer", issues=[number], route="r")
+        assert result.error.code == "ALREADY_CLAIMED", title
+        holder = result.error.details["holder"] or {}
+        seen = {key: holder.get(key) for key in ("branch", "leaseUntil", "machine")}
+        wanted = {
+            "branch": want["holder"],
+            "leaseUntil": want.get("leaseUntil", seen["leaseUntil"]),
+            "machine": want.get("machine", seen["machine"]),
+        }
+        assert seen == wanted, f"{title}: expected {wanted}, observed {seen}"
+        expired = "expired" in result.error.message
+        assert expired == (want["state"] == "stale" and want["holder"] is not None), title
+        assert "issue-check" in result.error.suggestion, title
+        assert run.snapshot() == before, title
+    report = (await run.call("issue_check")).data
+    stale = {entry["number"]: entry["branch"] for entry in report["staleClaims"]}
+    assert stale == {n: want["holder"] for n, (_, want) in rows.items() if want["state"] == "stale"}
+    assert report["dispatchable"] == [n for n, (_, want) in rows.items() if want["state"] == "free"]
+
+
 async def test_a_failed_claim_write_records_no_cell(make_run):
     run = make_run("backlog")
     host = run.host(**failing(run, "add_comment"))
@@ -297,6 +358,19 @@ async def test_a_failed_claim_write_records_no_cell(make_run):
     issue = next(i for i in run.world_data()["issues"] if i["number"] == 201)
     assert "status:planned" in issue["labels"] and "status:in-progress" not in issue["labels"]
     assert all(cell["branch"] != "fix/w" for cell in run.state()["cells"])
+
+
+async def test_a_failed_registration_leaves_the_label_to_a_claim_that_landed_beside_it(make_run):
+    run = make_run("backlog")
+    host = run.host(github=RivalClaimsFirst(FixtureWorld(run.world_path), RIVAL, fail_claim=True))
+    result = await run.call("cell_register", host, branch="fix/w", issues=[201], route="r")
+    assert result.error.code == "WRITE_FAILED" and result.error.details["left"] == []
+    assert all(cell["branch"] != "fix/w" for cell in run.state()["cells"])
+    # The label is the rival's now: taking it away would hide its live claim from every reader.
+    assert IN_PROGRESS in labels_of(run, 201) and PLANNED not in labels_of(run, 201)
+    refused = await run.call("cell_register", branch="fix/other", issues=[201], route="r")
+    assert refused.error.code == "ALREADY_CLAIMED"
+    assert refused.error.details["holder"]["branch"] == RIVAL.branch
 
 
 class CommentFailsOn(FixtureGitHub):
@@ -526,6 +600,49 @@ async def test_dropping_releases_the_issue_dequeues_and_forgets_the_cell(make_ru
     assert all(c["branch"] != "fix/parser-empty-input" for c in state["cells"])
     assert run.store.read_records()[-1]["kind"] == "dropped"
     assert (await run.call("issue_check")).data["dispatchable"][0] == 101
+
+
+async def test_dropping_a_cell_leaves_the_issue_with_an_earlier_live_claimant(make_run):
+    """A session's claim landed just before the cell's: dropping the cell ends only the cell's
+    claim. The label stays with the session, so the issue is not dispatched a second time."""
+    run = make_run("backlog")
+    host = run.host(github=RivalClaimsFirst(FixtureWorld(run.world_path), RIVAL))
+    assert (await run.call("cell_register", host, branch="fix/w", issues=[201], route="r")).success
+    data = (await run.call("lane_drop", branch="fix/w", reason="Parked")).data
+    assert data["dropped"] is True and data["released"] == [201]
+    assert IN_PROGRESS in labels_of(run, 201) and PLANNED not in labels_of(run, 201)
+    assert 201 not in (await run.call("issue_check")).data["dispatchable"]
+    refused = await run.call("cell_register", branch="fix/other", issues=[201], route="r")
+    assert refused.error.code == "ALREADY_CLAIMED"
+    assert refused.error.details["holder"] == RIVAL.describe()
+    # Once the session's lease runs out the foreman sees it as stale, as any lapsed claim.
+    run.change_world(now="2030-01-05T00:00:00Z")
+    stale = (await run.call("issue_check")).data["staleClaims"]
+    assert {"number": 201, **RIVAL.describe()} in stale
+
+
+async def test_dropping_a_cell_keeps_the_label_for_a_claim_its_open_pull_request_holds(make_run):
+    """A session's lease ran out, but its branch has an open pull request, which the issue-claim
+    CLI reads as holding: the label stays so that reader still sees the claim."""
+    run = make_run("backlog")
+    lapsed = Claim(RIVAL.branch, RIVAL.machine, "2030-01-02T00:00:00Z")
+    host = run.host(github=RivalClaimsFirst(FixtureWorld(run.world_path), lapsed))
+    assert (await run.call("cell_register", host, branch="fix/w", issues=[201], route="r")).success
+    run.change_world(pullRequests=[{"number": 950, "branch": RIVAL.branch, "closes": []}])
+    assert (await run.call("lane_drop", branch="fix/w", reason="Parked")).success
+    assert IN_PROGRESS in labels_of(run, 201) and PLANNED not in labels_of(run, 201)
+
+
+async def test_a_drop_whose_release_comment_fails_leaves_the_issue_held(make_run):
+    """The release comment goes before the label: a failed comment leaves the claim and its
+    label as they were, so the issue is never dispatched under a claim that still stands."""
+    run = make_run("backlog")
+    assert (await run.call("cell_register", branch="fix/w", issues=[201], route="r")).success
+    host = run.host(**failing(run, "add_comment"))
+    result = await run.call("lane_drop", host, branch="fix/w", reason="Parked")
+    assert result.error.code == "WRITE_FAILED"
+    assert IN_PROGRESS in labels_of(run, 201)
+    assert 201 not in (await run.call("issue_check")).data["dispatchable"]
 
 
 async def test_dropping_the_cell_that_filled_the_last_seat_opens_queue_room(make_run):

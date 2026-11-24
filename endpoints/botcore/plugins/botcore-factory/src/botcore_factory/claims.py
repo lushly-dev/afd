@@ -1,10 +1,14 @@
 """Claims live on GitHub: ``status:in-progress`` plus one claim comment per claim.
 
 The comment names the branch, the machine and the lease expiry in a marker a person can read
-past and the plugin parses back. The latest standing claim comment on an issue is its claim: a
-release comment ends the claims of its branch (or every claim, naming none) and leaves an earlier
-claim standing. scripts/issue-claim.mjs writes and reads the same comments for agent sessions;
-change both. Nothing about claims is kept in local state.
+past and the plugin parses back. The earliest standing live claimant holds the issue. A release
+ends the claims of its branch (or every claim, naming none) and leaves other branches standing;
+the label stays while another branch's live claim stands, because it is that holder's.
+scripts/issue-claim.mjs writes and reads the same comments for agent sessions; change both, and
+their shared histories in the software factory's scenarios/fixtures/claim-histories.json. The
+factory gateway (gateway/claims.py) reads the same markers by its own rule: only the comments
+its App wrote, the latest one deciding, since it is their only writer. Nothing about claims is
+kept in local state.
 """
 
 from __future__ import annotations
@@ -71,8 +75,8 @@ def _parse(body: str) -> tuple[str, dict[str, Any]] | None:
     return (match[1], data) if isinstance(data, dict) else None
 
 
-def current_claim(comments: list[Comment]) -> Claim | None:
-    """The latest claim no later release ended.
+def standing_claims(comments: list[Comment]) -> list[Claim]:
+    """The claims no later release ended, oldest first.
 
     A session that loses a claim race releases its own claim; the earlier claim it lost to must
     still stand, so a release ends only its branch's claims.
@@ -101,4 +105,39 @@ def current_claim(comments: list[Comment]) -> Claim | None:
             except ValueError:
                 continue  # A marker with an unreadable lease is not a claim this plugin wrote.
             standing.append(Claim(branch, machine, lease))
-    return standing[-1] if standing else None
+    return standing
+
+
+def _holder(standing: list[Claim], now: datetime) -> Claim | None:
+    # A branch holds its place from its first live claim, and its latest live claim says which
+    # lease and machine to report, so a renewal shows the current expiry. Once that first claim
+    # lapses the branch's place is its next live one: a rival that claimed in between holds.
+    live_by_branch = {claim.branch: claim for claim in standing if not claim.expired(now)}
+    return next(iter(live_by_branch.values()), standing[-1] if standing else None)
+
+
+def current_claim(comments: list[Comment], now: datetime) -> Claim | None:
+    """The earliest standing live claimant, or the latest stale record for intake."""
+    return _holder(standing_claims(comments), now)
+
+
+def live_claim_beside(
+    comments: list[Comment],
+    branch: str,
+    now: datetime,
+    open_pr_branches: frozenset[str] = frozenset(),
+) -> Claim | None:
+    """The live claim that holds the issue once ``branch`` gives up its own, if there is one.
+
+    A lapsed claim whose branch has an open pull request counts here, though not for
+    ``current_claim``: scripts/issue-claim.mjs reads it as live, so a release that took the
+    label away would hide it from that reader.
+    """
+    live = [
+        claim
+        for claim in standing_claims(comments)
+        if claim.branch != branch and (not claim.expired(now) or claim.branch in open_pr_branches)
+    ]
+    if not live:
+        return None
+    return next(claim for claim in reversed(live) if claim.branch == live[0].branch)

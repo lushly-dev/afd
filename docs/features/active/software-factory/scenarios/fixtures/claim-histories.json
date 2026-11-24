@@ -1,0 +1,291 @@
+{
+	"now": "2030-01-03T00:00:00Z",
+	"pullRequests": [
+		{
+			"number": 912,
+			"branch": "fix/charlie",
+			"closes": []
+		}
+	],
+	"issues": [
+		{
+			"number": 301,
+			"title": "One live claim",
+			"labels": ["status:in-progress", "execution:bounded", "area:core"],
+			"comments": [
+				{
+					"body": "<!-- botcore-factory:claim {\"branch\":\"fix/alpha\",\"machine\":\"workstation\",\"leaseUntil\":\"2030-01-04T00:00:00Z\"} -->"
+				}
+			],
+			"expected": {
+				"state": "held",
+				"holder": "fix/alpha"
+			}
+		},
+		{
+			"number": 302,
+			"title": "Two live claims",
+			"labels": ["status:in-progress", "execution:bounded", "area:core"],
+			"comments": [
+				{
+					"body": "<!-- botcore-factory:claim {\"branch\":\"fix/alpha\",\"machine\":\"workstation\",\"leaseUntil\":\"2030-01-04T00:00:00Z\"} -->"
+				},
+				{
+					"body": "<!-- botcore-factory:claim {\"branch\":\"fix/bravo\",\"machine\":\"workstation\",\"leaseUntil\":\"2030-01-04T00:00:00Z\"} -->"
+				}
+			],
+			"expected": {
+				"state": "held",
+				"holder": "fix/alpha"
+			}
+		},
+		{
+			"number": 303,
+			"title": "Later branch released",
+			"labels": ["status:in-progress", "execution:bounded", "area:core"],
+			"comments": [
+				{
+					"body": "<!-- botcore-factory:claim {\"branch\":\"fix/alpha\",\"machine\":\"workstation\",\"leaseUntil\":\"2030-01-04T00:00:00Z\"} -->"
+				},
+				{
+					"body": "<!-- botcore-factory:claim {\"branch\":\"fix/bravo\",\"machine\":\"workstation\",\"leaseUntil\":\"2030-01-04T00:00:00Z\"} -->"
+				},
+				{
+					"body": "<!-- botcore-factory:release {\"branch\":\"fix/bravo\"} -->"
+				}
+			],
+			"expected": {
+				"state": "held",
+				"holder": "fix/alpha"
+			}
+		},
+		{
+			"number": 304,
+			"title": "Earlier branch released",
+			"labels": ["status:in-progress", "execution:bounded", "area:core"],
+			"comments": [
+				{
+					"body": "<!-- botcore-factory:claim {\"branch\":\"fix/alpha\",\"machine\":\"workstation\",\"leaseUntil\":\"2030-01-04T00:00:00Z\"} -->"
+				},
+				{
+					"body": "<!-- botcore-factory:claim {\"branch\":\"fix/bravo\",\"machine\":\"workstation\",\"leaseUntil\":\"2030-01-04T00:00:00Z\"} -->"
+				},
+				{
+					"body": "<!-- botcore-factory:release {\"branch\":\"fix/alpha\"} -->"
+				}
+			],
+			"expected": {
+				"state": "held",
+				"holder": "fix/bravo"
+			}
+		},
+		{
+			"number": 305,
+			"title": "Free issue",
+			"labels": ["status:planned", "execution:bounded", "area:core"],
+			"comments": [],
+			"expected": {
+				"state": "free",
+				"holder": null
+			}
+		},
+		{
+			"number": 306,
+			"title": "Live claim, then an expired one",
+			"labels": ["status:in-progress", "execution:bounded", "area:core"],
+			"comments": [
+				{
+					"body": "<!-- botcore-factory:claim {\"branch\":\"fix/alpha\",\"machine\":\"workstation\",\"leaseUntil\":\"2030-01-04T00:00:00Z\"} -->"
+				},
+				{
+					"body": "<!-- botcore-factory:claim {\"branch\":\"fix/bravo\",\"machine\":\"workstation\",\"leaseUntil\":\"2030-01-02T00:00:00Z\"} -->"
+				}
+			],
+			"expected": {
+				"state": "held",
+				"holder": "fix/alpha"
+			}
+		},
+		{
+			"number": 307,
+			"title": "Expired claim, then a live one",
+			"labels": ["status:in-progress", "execution:bounded", "area:core"],
+			"comments": [
+				{
+					"body": "<!-- botcore-factory:claim {\"branch\":\"fix/alpha\",\"machine\":\"workstation\",\"leaseUntil\":\"2030-01-02T00:00:00Z\"} -->"
+				},
+				{
+					"body": "<!-- botcore-factory:claim {\"branch\":\"fix/bravo\",\"machine\":\"workstation\",\"leaseUntil\":\"2030-01-04T00:00:00Z\"} -->"
+				}
+			],
+			"expected": {
+				"state": "held",
+				"holder": "fix/bravo"
+			}
+		},
+		{
+			"number": 308,
+			"title": "Lease ends at this instant",
+			"labels": ["status:in-progress", "execution:bounded", "area:core"],
+			"comments": [
+				{
+					"body": "<!-- botcore-factory:claim {\"branch\":\"fix/alpha\",\"machine\":\"workstation\",\"leaseUntil\":\"2030-01-03T00:00:00Z\"} -->"
+				}
+			],
+			"expected": {
+				"state": "stale",
+				"holder": "fix/alpha"
+			}
+		},
+		{
+			"number": 309,
+			"title": "Every lease has run out",
+			"labels": ["status:in-progress", "execution:bounded", "area:core"],
+			"comments": [
+				{
+					"body": "<!-- botcore-factory:claim {\"branch\":\"fix/alpha\",\"machine\":\"workstation\",\"leaseUntil\":\"2030-01-01T00:00:00Z\"} -->"
+				},
+				{
+					"body": "<!-- botcore-factory:claim {\"branch\":\"fix/bravo\",\"machine\":\"workstation\",\"leaseUntil\":\"2030-01-02T00:00:00Z\"} -->"
+				}
+			],
+			"expected": {
+				"state": "stale",
+				"holder": "fix/bravo"
+			}
+		},
+		{
+			"number": 310,
+			"title": "Renewed while the first lease runs",
+			"labels": ["status:in-progress", "execution:bounded", "area:core"],
+			"comments": [
+				{
+					"body": "<!-- botcore-factory:claim {\"branch\":\"fix/alpha\",\"machine\":\"workstation\",\"leaseUntil\":\"2030-01-04T00:00:00Z\"} -->"
+				},
+				{
+					"body": "<!-- botcore-factory:claim {\"branch\":\"fix/bravo\",\"machine\":\"workstation\",\"leaseUntil\":\"2030-01-05T00:00:00Z\"} -->"
+				},
+				{
+					"body": "<!-- botcore-factory:claim {\"branch\":\"fix/alpha\",\"machine\":\"laptop\",\"leaseUntil\":\"2030-01-06T00:00:00Z\"} -->"
+				}
+			],
+			"expected": {
+				"state": "held",
+				"holder": "fix/alpha",
+				"leaseUntil": "2030-01-06T00:00:00Z",
+				"machine": "laptop"
+			}
+		},
+		{
+			"number": 311,
+			"title": "Renewed, then the first lease ran out",
+			"labels": ["status:in-progress", "execution:bounded", "area:core"],
+			"comments": [
+				{
+					"body": "<!-- botcore-factory:claim {\"branch\":\"fix/alpha\",\"machine\":\"workstation\",\"leaseUntil\":\"2030-01-02T12:00:00Z\"} -->"
+				},
+				{
+					"body": "<!-- botcore-factory:claim {\"branch\":\"fix/bravo\",\"machine\":\"workstation\",\"leaseUntil\":\"2030-01-05T00:00:00Z\"} -->"
+				},
+				{
+					"body": "<!-- botcore-factory:claim {\"branch\":\"fix/alpha\",\"machine\":\"laptop\",\"leaseUntil\":\"2030-01-06T00:00:00Z\"} -->"
+				}
+			],
+			"expected": {
+				"state": "held",
+				"holder": "fix/bravo",
+				"note": "Shared today, not decided: a renewal is a new claim, so the rival that claimed between holds once the first lease lapses."
+			}
+		},
+		{
+			"number": 312,
+			"title": "Expired claim whose branch has an open PR, then a live one",
+			"labels": ["status:in-progress", "execution:bounded", "area:core"],
+			"comments": [
+				{
+					"body": "<!-- botcore-factory:claim {\"branch\":\"fix/charlie\",\"machine\":\"workstation\",\"leaseUntil\":\"2030-01-02T00:00:00Z\"} -->"
+				},
+				{
+					"body": "<!-- botcore-factory:claim {\"branch\":\"fix/bravo\",\"machine\":\"workstation\",\"leaseUntil\":\"2030-01-04T00:00:00Z\"} -->"
+				}
+			],
+			"expected": {
+				"factory": {
+					"state": "held",
+					"holder": "fix/bravo"
+				},
+				"cli": {
+					"state": "held",
+					"holder": "fix/charlie"
+				},
+				"difference": "Only the CLI keeps an expired claim alive while its branch has an open pull request."
+			}
+		},
+		{
+			"number": 313,
+			"title": "Expired claim whose branch has an open PR",
+			"labels": ["status:in-progress", "execution:bounded", "area:core"],
+			"comments": [
+				{
+					"body": "<!-- botcore-factory:claim {\"branch\":\"fix/charlie\",\"machine\":\"workstation\",\"leaseUntil\":\"2030-01-02T00:00:00Z\"} -->"
+				}
+			],
+			"expected": {
+				"factory": {
+					"state": "stale",
+					"holder": "fix/charlie"
+				},
+				"cli": {
+					"state": "held",
+					"holder": "fix/charlie"
+				},
+				"difference": "Only the CLI keeps an expired claim alive while its branch has an open pull request."
+			}
+		},
+		{
+			"number": 314,
+			"title": "Branch name the CLI does not read",
+			"labels": ["status:in-progress", "execution:bounded", "area:core"],
+			"comments": [
+				{
+					"body": "<!-- botcore-factory:claim {\"branch\":\"fix/#314-timeouts\",\"machine\":\"workstation\",\"leaseUntil\":\"2030-01-04T00:00:00Z\"} -->"
+				}
+			],
+			"expected": {
+				"factory": {
+					"state": "held",
+					"holder": "fix/#314-timeouts"
+				},
+				"cli": {
+					"state": "held",
+					"holder": null
+				},
+				"difference": "The CLI reads only branch and machine names of letters, digits and . : @ / + - _, so it sees this label with no claim; cell-register accepts the name."
+			}
+		},
+		{
+			"number": 315,
+			"title": "Release naming a null branch",
+			"labels": ["status:in-progress", "execution:bounded", "area:core"],
+			"comments": [
+				{
+					"body": "<!-- botcore-factory:claim {\"branch\":\"fix/alpha\",\"machine\":\"workstation\",\"leaseUntil\":\"2030-01-04T00:00:00Z\"} -->"
+				},
+				{
+					"body": "<!-- botcore-factory:release {\"branch\":null} -->"
+				}
+			],
+			"expected": {
+				"factory": {
+					"state": "stale",
+					"holder": null
+				},
+				"cli": {
+					"state": "held",
+					"holder": "fix/alpha"
+				},
+				"difference": "The factory reads a null branch as a release of every claim; the CLI reads it as naming none. Neither writes one."
+			}
+		}
+	]
+}

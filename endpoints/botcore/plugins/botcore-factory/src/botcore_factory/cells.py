@@ -17,7 +17,14 @@ from pathlib import PurePath
 from typing import Any, cast
 
 from botcore_factory import change_report, dials, records
-from botcore_factory.claims import Claim, claim_body, format_time, parse_time, release_body
+from botcore_factory.claims import (
+    Claim,
+    claim_body,
+    format_time,
+    live_claim_beside,
+    parse_time,
+    release_body,
+)
 from botcore_factory.events import answer, emit
 from botcore_factory.intake import Backlog, not_dispatchable_reasons, read_backlog
 from botcore_factory.labels import IN_PROGRESS, PLANNED
@@ -631,8 +638,9 @@ def drop(
 ) -> dict[str, Any]:
     """Dequeue the branch, release its claims and forget the cell; its worktree is left alone.
 
-    Each issue goes back to ``status:planned`` with one release comment. A drop that frees the
-    last seat opens a ``queue-room`` event; the ejections it answers are closed.
+    Each issue gets one release comment and goes back to ``status:planned``, unless another
+    branch's live claim still holds it. A drop that frees the last seat opens a ``queue-room``
+    event; the ejections it answers are closed.
     """
     if not reason.strip():
         raise Refusal("VALIDATION_ERROR", "reason is empty", "Say why the cell is dropped")
@@ -735,14 +743,36 @@ def drop(
     return {"dropped": True, "released": released, "answered": answered}
 
 
+def _open_pr_branches(factory: Factory) -> frozenset[str]:
+    return frozenset(pr.branch for pr in factory.world.github.open_pull_requests() if pr.branch)
+
+
+def _held_beside(factory: Factory, number: int, branch: str, with_pr: frozenset[str]) -> bool:
+    """Whether another branch's live claim holds ``number`` once ``branch`` lets go.
+
+    The label is then that holder's and stays: without it neither this plugin nor
+    scripts/issue-claim.mjs reads the claim, and the issue would be dispatched a second time.
+    ``with_pr`` names the branches with an open pull request, read once per release.
+    """
+    comments = factory.world.github.comments(number)
+    return live_claim_beside(comments, branch, factory.world.clock.now(), with_pr) is not None
+
+
 def _release(factory: Factory, cell: dict[str, Any], reason: str) -> list[int]:
-    """Put each issue the cell claimed back to status:planned, with one release comment."""
+    """Release each issue the cell claimed: one release comment, and status:planned again
+    unless another branch's live claim still holds the issue."""
     released: list[int] = []
     github = factory.world.github
+    with_pr: frozenset[str] | None = None
     for number in cell.get("issues", []):
         try:
-            github.edit_labels(number, add=[PLANNED], remove=[IN_PROGRESS])
+            # The comment first: a label taken off while the claim still stands would let the
+            # issue be dispatched with this cell's claim still ahead of the next one.
             github.add_comment(number, release_body(cell["branch"], reason))
+            if with_pr is None:
+                with_pr = _open_pr_branches(factory)
+            if not _held_beside(factory, number, cell["branch"], with_pr):
+                github.edit_labels(number, add=[PLANNED], remove=[IN_PROGRESS])
         except WorldError as exc:
             raise Refusal(
                 "WRITE_FAILED",
@@ -796,11 +826,15 @@ def _unclaim(factory: Factory, labelled: list[int], commented: list[int], branch
     """Undo a failed registration's claims; what could not be undone is returned."""
     github = factory.world.github
     left: list[str] = []
+    with_pr: frozenset[str] | None = None
     for number in labelled:
         try:
             if number in commented:
                 github.add_comment(number, release_body(branch, "registration failed"))
-            github.edit_labels(number, add=[PLANNED], remove=[IN_PROGRESS])
+            if with_pr is None:
+                with_pr = _open_pr_branches(factory)
+            if not _held_beside(factory, number, branch, with_pr):
+                github.edit_labels(number, add=[PLANNED], remove=[IN_PROGRESS])
         except WorldError:
             left.append(f"#{number}")
     return left
