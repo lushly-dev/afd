@@ -686,8 +686,19 @@ test("Loam's exit tests cannot pass by retry, expected failure, skip, todo or on
 		].map((name) => `packages/server/src/${name}.test.ts`),
 		'packages/server/vitest.config.ts',
 		'scripts/plugin-manifest.test.mjs',
+		// Phase 6's E7, in "AFD's host path": local-db's SQLite contract, the shared cases it registers and its config.
+		'packages/local-db/src/sqlite-adapter.test.ts',
+		'packages/local-db/src/entry.test.ts',
+		'packages/local-db/src/testing.ts',
+		...execFileSync('git', ['ls-files', 'packages/local-db/vitest*.config.ts'], {
+			cwd: repoRoot,
+			encoding: 'utf8',
+		})
+			.split('\n')
+			.filter(Boolean),
 	];
 	assert.ok(files.length > 100, `${files.length} files`);
+	assert.ok(files.includes('packages/local-db/vitest.config.ts'), 'local-db config');
 	const refused = [
 		// it.skip, test.only, describe.todo, it.fails, describe.skipIf, it.runIf, and their chains.
 		/\b(?:it|test|describe|suite|bench)(?:\.\w+)*\.(?:skip|only|todo|fails|skipIf|runIf)\b/,

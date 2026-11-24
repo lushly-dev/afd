@@ -1,0 +1,56 @@
+{
+	"about": "The counts p6-loam-run-log.txt meets exactly, for scripts/loam-exit-check.test.mjs's --phase 6 --milestone m1 cases.",
+	"minimums": {
+		"m1": {
+			"E1": {
+				"units": 1,
+				"hostUnits": 1
+			},
+			"E2": {
+				"hostUnits": 1
+			},
+			"E3": {
+				"units": 1,
+				"hostUnits": 1
+			},
+			"E4": {
+				"units": 2
+			},
+			"E5": {
+				"units": 1,
+				"hostUnits": 2
+			},
+			"E7": {
+				"host": 2
+			},
+			"E9": {
+				"chromium": 1,
+				"hosted": 1
+			},
+			"H1": {
+				"hosted": 1
+			},
+			"H2": {
+				"hosted": 1
+			},
+			"H3": {
+				"hosted": 1
+			},
+			"H4": {
+				"hosted": 1
+			},
+			"H5": {
+				"hosted": 1
+			},
+			"H6": {
+				"hosted": 1
+			},
+			"H7": {
+				"hosted": 1
+			},
+			"H8": {
+				"hosted": 1
+			}
+		}
+	}
+}

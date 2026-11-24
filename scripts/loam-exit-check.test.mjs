@@ -14,12 +14,16 @@ import {
 	checkRun,
 	LOCATIONS,
 	MINIMUMS_FILE,
+	minimumsShape,
 	P3_BUDGET_ROWS,
 	P3_MINIMUMS_FILE,
 	P3_ROWS,
 	P4_BUDGET_ROWS,
 	P4_MINIMUMS_FILE,
 	P4_ROWS,
+	P6_BUDGET_ROWS,
+	P6_M1_ROWS,
+	P6_MINIMUMS_FILE,
 	PHASES,
 	parseArgs,
 	ROWS,
@@ -850,10 +854,12 @@ test('P4-E16: the committed phase 4 minimums name every row and place the table 
 test('P4-E16: `--phase 4` is accepted, and every phase in the table has its rows, prefix and minimums file', () => {
 	assert.equal(parseArgs(['--phase', '4', '1', '2']).phase, 4);
 	for (const [id, phase] of Object.entries(PHASES)) {
-		assert.equal(phase.prefix, `P${id}`);
+		// A phase 6 milestone's key is `6-<milestone>`, its prefix phase 6's.
+		assert.equal(phase.prefix, `P${id.split('-')[0]}`);
 		assert.ok(phase.rows.length > 0, id);
 		assert.match(phase.minimumsFile, /^loam-exit-check\.(?:p\d\.)?minimums\.json$/);
-		for (const { reuse } of phase.rows) if (reuse) assert.ok(Number(reuse) < Number(id), id);
+		for (const { reuse } of phase.rows)
+			if (reuse) assert.ok(Number(reuse) < Number.parseInt(id, 10), id);
 	}
 });
 
@@ -872,4 +878,258 @@ test('checkRun accepts reusable queue job names and skipped pull-request-only jo
 		checkRun(failedPrTitle, WORKFLOWS.ci).join('\n'),
 		/pull-request-only job "Pull request title" is failure, not skipped/
 	);
+});
+
+// Phase 6's milestone M1 (`--phase 6 --milestone m1`), over p6-loam-run.json and p6-loam-run-log.txt: the
+// phase 3 fixture's run with the hosted job's unit and "AFD's host path" steps (D162), and a log with section 14's browser rows and one
+// passing `P6-` title or more in each place section 19 names for M1's rows, in caret notation for colour.
+const p6 = () => ({
+	loam: JSON.parse(fixture('p6-loam-run.json')),
+	ci: JSON.parse(fixture('ci-run.json')),
+	log: fixture('p6-loam-run-log.txt'),
+	phase: '6-m1',
+	minimums: JSON.parse(fixture('p6-minimums.json')).minimums.m1,
+});
+const hosted = (text) =>
+	line(LOCATIONS.hosted, ` ^[[32m✓^[[39m test/hosted/relay.test.ts^[[2m > ^[[22m${text}`);
+
+test('P6-E8: M1 passes all green, with each of its rows where it ran and no other phase read', () => {
+	const { problems, report, observed } = checkExit(p6());
+	assert.deepEqual(problems, []);
+	assert.deepEqual(report.slice(3), [
+		'P6-E1: Units 1; Units, `loam-host` 1',
+		'P6-E2: Units, `loam-host` 1',
+		'P6-E3: Units 1; Units, `loam-host` 1',
+		'P6-E4: Units 2',
+		'P6-E5: Units 1; Units, `loam-host` 2',
+		'P6-E7: Host path 2',
+		'P6-E8: this check, milestone m1',
+		"P6-E9: Bundle budget JavaScript, minified 333058 of 333400, JavaScript, gzip 104911 of 105000, The kernel's `late` chunk 124664 of 125200, The kernel's `late-hosted` chunk 6412 of 6500, The kernel's `apps` chunks 452033 of 452600; Chromium 1; Hosted 1",
+		...['H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'H7', 'H8'].map((row) => `P6-${row}: Hosted 1`),
+	]);
+	assert.deepEqual(observed, p6().minimums);
+	// No desktop run is read for a milestone, and a P2 title in the log is no P6 row.
+	assert.ok(!report.some((entry) => /desktop|P2-/.test(entry)));
+});
+
+test('P6-E8: phase 6 is read only by a milestone the table has, and M1 lists the rows of 5.3', () => {
+	assert.throws(
+		() => checkExit({ ...p6(), phase: 6 }),
+		/no rows for phase 6; phase 6 takes --milestone m1/
+	);
+	assert.throws(() => checkExit({ ...p6(), phase: '6-m2' }), /no rows for phase 6-m2/);
+	assert.deepEqual(
+		P6_M1_ROWS.map(({ row }) => row),
+		['E1', 'E2', 'E3', 'E4', 'E5', 'E7', 'E8', 'E9', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'H7', 'H8']
+	);
+	const spec = readFileSync(join(root, 'endpoints/loam/docs/phases/6-hosts/spec.md'), 'utf8');
+	assert.match(
+		spec,
+		/\*\*M1 is reached\*\* when P6-E1 to P6-E5, P6-E7 to P6-E9 and P6-H1 to P6-H8 pass on `main` in their places/
+	);
+});
+
+test("P6-E8: M1's row table is section 19's Place column", () => {
+	const spec = readFileSync(join(root, 'endpoints/loam/docs/phases/6-hosts/spec.md'), 'utf8');
+	const places = new Map(
+		spec
+			.split('\n')
+			.filter((entry) => /^\| P6-[EH]\d+ \|/.test(entry))
+			.map((entry) => entry.split(' | '))
+			.map(([id, , place]) => {
+				if (/The exit step/.test(place)) return [id.slice(5), []];
+				const keys = [];
+				// "Units" is either half, `units` or `hostUnits` (D162), read as one key here.
+				for (const [pattern, key] of [
+					[/\bBudget\b/, 'budget'],
+					[/\bUnits\b/, 'units'],
+					[/\bChromium\b/, 'chromium'],
+					[/\bHost path\b/, 'host'],
+					[/\bHosted\b/, 'hosted'],
+				])
+					if (pattern.test(place)) keys.push(key);
+				return [id.slice(5), keys.sort()];
+			})
+	);
+	for (const { row, in: keys } of P6_M1_ROWS)
+		assert.deepEqual(
+			[...new Set(keys.map((key) => (key === 'hostUnits' ? 'units' : key)))].sort(),
+			places.get(row),
+			`P6-${row}`
+		);
+	// The places table names each step the check reads, as LOCATIONS spells it, and each job.
+	for (const key of ['units', 'hostUnits', 'chromium', 'host', 'budget', 'hosted']) {
+		assert.ok(spec.includes(`\`${LOCATIONS[key].step}\``), key);
+		assert.ok(spec.includes(`\`${LOCATIONS[key].job}\``), key);
+	}
+});
+
+test('P6-E8: a row with no passing title in its place fails, and a title elsewhere does not count', () => {
+	const input = p6();
+	input.log = without(input.log, 'P6-H8: a crash');
+	assert.deepEqual(problemsOf(input), [
+		'P6-H8: no passing title in Hosted ("Hosted development profile", step "Hosted criterion against the development profile")',
+	]);
+	// The log's stray `P6-E1:` titles, in the hosted step and in `loam-host`'s unit step's console output, are
+	// not E1's units, and one half's titles never stand in for the other's.
+	const e1 = p6();
+	e1.log = without(e1.log, 'a non-https localhost origin');
+	assert.deepEqual(problemsOf(e1), [
+		'P6-E1: no passing title in Units, `loam-host` ("Hosted development profile", step "The hosted server\'s unit suites with coverage")',
+	]);
+	const e1Units = { ...p6(), minimums: { ...p6().minimums, E1: { units: 2, hostUnits: 1 } } };
+	assert.deepEqual(problemsOf(e1Units), [
+		`P6-E1: 1 passing titles in Units, fewer than the 2 ${P6_MINIMUMS_FILE} records`,
+	]);
+});
+
+test('P6-E8: a count below its minimum fails, and so does a place with none recorded', () => {
+	const input = p6();
+	input.minimums.H6.hosted = 2;
+	delete input.minimums.E7;
+	assert.deepEqual(problemsOf(input), [
+		`P6-E7: ${P6_MINIMUMS_FILE} records no minimum for Host path`,
+		`P6-H6: 1 passing titles in Hosted, fewer than the 2 ${P6_MINIMUMS_FILE} records`,
+	]);
+	assert.ok(problemsOf({ ...p6(), minimums: {} }).length >= 15);
+});
+
+test("P6-E8: any P6 title not a plain pass fails, M1's or not, and a chain claims each row", () => {
+	const input = p6();
+	input.log += `${[
+		hosted('P6-H9: the production profile^[[2m (retry x1)^[[22m'),
+		line(
+			LOCATIONS.hosted,
+			' ^[[33m↓^[[39m test/hosted/relay.test.ts^[[2m > ^[[22mP6-H6: idle bindings'
+		),
+		line(
+			LOCATIONS.hosted,
+			' ^[[31m×^[[39m test/hosted/relay.test.ts^[[2m > ^[[22mP6-H6: P6-H7: the scan'
+		),
+	].join('\n')}\n`;
+	assert.deepEqual(problemsOf(input), [
+		'P6-H9 is marked retried in "Hosted development profile", step "Hosted criterion against the development profile": ✓ test/hosted/relay.test.ts > P6-H9: the production profile (retry x1)',
+		'P6-H6 is marked skip in "Hosted development profile", step "Hosted criterion against the development profile": ↓ test/hosted/relay.test.ts > P6-H6: idle bindings',
+		'P6-H6, P6-H7 is marked fail in "Hosted development profile", step "Hosted criterion against the development profile": × test/hosted/relay.test.ts > P6-H6: P6-H7: the scan',
+	]);
+	const chained = readTitles(p6().log, 'P6').find((title) =>
+		title.text.includes('a request with no id')
+	);
+	assert.deepEqual(chained.rows, ['E5', 'H6']);
+});
+
+test('P6-E8: the hosted and host-path steps are read: missing or failed, each fails by name', () => {
+	const input = p6();
+	const hostedJob = job(input.loam, 'Hosted development profile');
+	hostedJob.steps.find((step) => step.name === LOCATIONS.hosted.step).conclusion = 'failure';
+	hostedJob.steps = hostedJob.steps.filter((step) => step.name !== LOCATIONS.host.step);
+	const problems = problemsOf(input);
+	assert.ok(
+		problems.includes('Host path: job "Hosted development profile" has no step "AFD\'s host path"')
+	);
+	assert.ok(
+		problems.includes(
+			'Hosted: step "Hosted criterion against the development profile" is failure, not success'
+		)
+	);
+});
+
+test("P6-E8: P6-E9's budget is D115's: section 14's browser rows present and within their ceilings", () => {
+	const input = p6();
+	assert.deepEqual(readBudgetWithin(input.log, P6_BUDGET_ROWS).problems, []);
+	const missing = { ...p6(), log: without(input.log, "The kernel's `late-hosted` chunk") };
+	assert.deepEqual(problemsOf(missing), [
+		'P6-E9: Bundle budget: no "The kernel\'s `late-hosted` chunk" row in the step\'s log',
+	]);
+	const over = {
+		...p6(),
+		log: input.log.replace(/6,412 {6}of 6,500 {6}99%/, '6,600      of 6,500      OVER'),
+	};
+	assert.deepEqual(problemsOf(over), [
+		'P6-E9: Bundle budget: "The kernel\'s `late-hosted` chunk and its imports, minified" is 6600, over 6500',
+	]);
+	// `late` is its own row: `late-identity` or `late-hosted` never stands in for it.
+	assert.deepEqual(problemsOf({ ...p6(), log: without(input.log, "The kernel's `late` chunk") }), [
+		'P6-E9: Bundle budget: no "The kernel\'s `late` chunk" row in the step\'s log',
+	]);
+});
+
+test('P6-E8: a run whose job list repeats a job is not the list, success or not', () => {
+	const input = p6();
+	input.ci.jobs.push({ ...input.ci.jobs.find((entry) => entry.name === 'TypeScript (Node 22.x)') });
+	input.loam.jobs.push({ ...job(input.loam, 'Hosted development profile') });
+	input.ci.jobs.push({ name: 'Pull request title', conclusion: 'skipped' });
+	input.ci.jobs.push({ name: 'Pull request title', conclusion: 'skipped' });
+	const problems = problemsOf(input);
+	assert.ok(
+		problems.includes(
+			'ci.yml run 42700000002: job "TypeScript (Node 22.x)" appears more than once'
+		),
+		problems.join('\n')
+	);
+	assert.ok(
+		problems.includes('ci.yml run 42700000002: job "Pull request title" appears more than once')
+	);
+	assert.ok(
+		problems.some((problem) =>
+			/job "Hosted development profile" appears more than once/.test(problem)
+		)
+	);
+});
+
+test("P6-E8: the M1 runs are held to condition 1 as phase 2's are", () => {
+	const input = p6();
+	input.ci.headSha = 'different';
+	input.loam.event = 'push';
+	input.loam.attempt = 2;
+	const problems = problemsOf(input);
+	assert.ok(problems.some((problem) => /different commits/.test(problem)));
+	assert.ok(problems.some((problem) => /triggered by push/.test(problem)));
+	assert.ok(problems.some((problem) => /attempt 2/.test(problem)));
+	assert.ok(
+		!problemsOf({ ...input, allowRerun: true }).some((problem) => /attempt 2/.test(problem))
+	);
+});
+
+test('P6-E8: the committed M1 minimums name every row and place M1 reads, each at least 1', () => {
+	const { m1, ...others } = readMinimums(P6_MINIMUMS_FILE);
+	assert.deepEqual(Object.keys(others), []);
+	for (const { row, in: places } of P6_M1_ROWS)
+		for (const key of places)
+			if (LOCATIONS[key].evidence !== 'budget')
+				assert.ok(m1[row]?.[key] >= 1, `P6-${row} ${key}: ${m1[row]?.[key]}`);
+	assert.deepEqual(
+		Object.keys(m1),
+		P6_M1_ROWS.filter(({ in: places }) =>
+			places.some((key) => LOCATIONS[key].evidence !== 'budget')
+		).map(({ row }) => row)
+	);
+	// `--print-minimums` prints the observed counts in the file's own shape, under the milestone.
+	assert.deepEqual(minimumsShape('6-m1', { E1: { units: 3 } }), { m1: { E1: { units: 3 } } });
+	assert.deepEqual(minimumsShape(4, { E1: { units: 3 } }), { E1: { units: 3 } });
+});
+
+test('P6-E8: the arguments: `--phase 6` only with `--milestone m1`, each at most once', () => {
+	assert.deepEqual(parseArgs(['--phase', '6', '--milestone', 'm1', '1', '2', '--print-minimums']), {
+		ids: ['1', '2'],
+		phase: '6-m1',
+		allowRerun: false,
+		printMinimums: true,
+	});
+	for (const argv of [
+		['1', '2', '--phase', '6'],
+		['1', '2', '--milestone', 'm1'],
+		['1', '2', '--phase', '3', '--milestone', 'm1'],
+		['1', '2', '--phase', '6', '--milestone', 'm2'],
+		['1', '2', '--phase', '6', '--milestone'],
+		['1', '2', '--phase', '6', '--milestone', 'm1', '--milestone', 'm1'],
+		['1', '2', '3', '--phase', '6', '--milestone', 'm1'],
+		// A flag's value is the argument after it in argv, never one another flag's removal left beside it.
+		['1', '2', '--milestone', '--phase', '6', 'm1'],
+		['1', '2', '--phase', '--milestone', 'm1', '6'],
+		// Each boolean flag at most once too.
+		['1', '2', '--allow-rerun', '--allow-rerun'],
+		['1', '2', '--phase', '6', '--milestone', 'm1', '--print-minimums', '--print-minimums'],
+	])
+		assert.equal(parseArgs(argv), null, argv.join(' '));
 });

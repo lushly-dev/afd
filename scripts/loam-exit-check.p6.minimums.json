@@ -1,0 +1,60 @@
+{
+	"about": [
+		"The fewest passing titles scripts/loam-exit-check.mjs --phase 6 --milestone m1 accepts for each of M1's rows (phase 6 specification, 5.3 and section 19), by the place its row names, so an exclude, a skipped suite or a deleted file cannot pass unnoticed. P6-E8 is the check itself and E9's budget has no count.",
+		"Each is the count a full run observed. When exit tests are added or removed on purpose, run the check on a run that has them with --phase 6 --milestone m1 --print-minimums, and copy the counts it prints here in the same pull request, saying why each changed."
+	],
+	"observed": "loam.yml run 45289167638 and ci.yml run 45289171400, both workflow_dispatch on main at 4197b2ad, attempt 1, 2026-11-23, after step 7's prep 4 (#2359)",
+	"minimums": {
+		"m1": {
+			"E1": {
+				"units": 73,
+				"hostUnits": 42
+			},
+			"E2": {
+				"hostUnits": 55
+			},
+			"E3": {
+				"units": 6,
+				"hostUnits": 5
+			},
+			"E4": {
+				"units": 30
+			},
+			"E5": {
+				"units": 55,
+				"hostUnits": 81
+			},
+			"E7": {
+				"host": 37
+			},
+			"E9": {
+				"chromium": 1,
+				"hosted": 3
+			},
+			"H1": {
+				"hosted": 9
+			},
+			"H2": {
+				"hosted": 11
+			},
+			"H3": {
+				"hosted": 10
+			},
+			"H4": {
+				"hosted": 9
+			},
+			"H5": {
+				"hosted": 6
+			},
+			"H6": {
+				"hosted": 36
+			},
+			"H7": {
+				"hosted": 2
+			},
+			"H8": {
+				"hosted": 1
+			}
+		}
+	}
+}
