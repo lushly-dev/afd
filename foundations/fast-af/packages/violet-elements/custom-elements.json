@@ -1143,9 +1143,13 @@
                   "type": {
                     "text": "string | null | undefined"
                   }
+                },
+                {
+                  "name": "retried",
+                  "default": "false"
                 }
               ],
-              "description": "Sets an id-list attribute's elements on the inner button as element references, found by id\nin the tree that holds the host. The ids are resolved when the value changes and when the\nbutton connects, so the elements they name should exist by then."
+              "description": "Sets an id-list attribute's elements on the inner button as element references, found by id\nin the tree that holds the host. When a referenced sibling mounts later in the same FAST\nrender batch, retry once on the next Updates tick."
             },
             {
               "kind": "field",
@@ -3618,6 +3622,12 @@
           "kind": "class",
           "description": "Violet color picker built from a swatch trigger, textual value, and standard channel controls.",
           "name": "VioletColorPicker",
+          "cssParts": [
+            {
+              "description": "Error message element shown while invalid.",
+              "name": "error-message"
+            }
+          ],
           "slots": [
             {
               "description": "Optional additional preset content rendered under the built-in swatches.",
@@ -3854,6 +3864,15 @@
             },
             {
               "kind": "field",
+              "name": "displayErrorText",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "readonly": true
+            },
+            {
+              "kind": "field",
               "name": "effectiveDisabled",
               "type": {
                 "text": "boolean"
@@ -3882,6 +3901,16 @@
               "default": "\"\"",
               "attribute": "error-text",
               "reflects": true
+            },
+            {
+              "kind": "method",
+              "name": "errorTextChanged",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
             },
             {
               "kind": "field",
@@ -4820,8 +4849,7 @@
             }
           ],
           "customElement": true,
-          "tagName": "violet-color-picker",
-          "cssParts": []
+          "tagName": "violet-color-picker"
         }
       ],
       "exports": [
@@ -12666,8 +12694,8 @@
               "name": "caret"
             },
             {
-              "description": "Accessible validation error text.",
-              "name": "error-text"
+              "description": "Accessible validation error message.",
+              "name": "error-message"
             },
             {
               "description": "Interactive option row.",
@@ -12730,6 +12758,15 @@
               "privacy": "public",
               "attribute": "control-label",
               "reflects": true
+            },
+            {
+              "kind": "field",
+              "name": "displayErrorText",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "readonly": true
             },
             {
               "kind": "field",
@@ -16698,6 +16735,15 @@
             },
             {
               "kind": "field",
+              "name": "#editorPointerId",
+              "privacy": "private",
+              "type": {
+                "text": "number | null"
+              },
+              "default": "null"
+            },
+            {
+              "kind": "field",
               "name": "#editorRecycleFocusFrame",
               "privacy": "private",
               "type": {
@@ -16739,6 +16785,12 @@
                 "text": "number"
               },
               "default": "0"
+            },
+            {
+              "kind": "field",
+              "name": "#handleEditorPointerEnd",
+              "privacy": "private",
+              "readonly": true
             },
             {
               "kind": "field",
@@ -22049,6 +22101,12 @@
           "kind": "class",
           "description": "Locale-aware date field with calendar popup selection.",
           "name": "VioletDatePicker",
+          "cssParts": [
+            {
+              "description": "Error message element shown while invalid.",
+              "name": "error-message"
+            }
+          ],
           "members": [
             {
               "kind": "field",
@@ -22205,6 +22263,16 @@
               "default": "false",
               "attribute": "disabled",
               "reflects": true
+            },
+            {
+              "kind": "method",
+              "name": "disabledChanged",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
             },
             {
               "kind": "field",
@@ -22578,6 +22646,15 @@
             },
             {
               "kind": "field",
+              "name": "nativeValidationMessage",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "private",
+              "default": "\"\""
+            },
+            {
+              "kind": "field",
               "name": "open",
               "type": {
                 "text": "boolean"
@@ -22636,6 +22713,16 @@
               "default": "false",
               "attribute": "required",
               "reflects": true
+            },
+            {
+              "kind": "method",
+              "name": "requiredChanged",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
             },
             {
               "kind": "method",
@@ -22874,7 +22961,6 @@
           ],
           "customElement": true,
           "tagName": "violet-date-picker",
-          "cssParts": [],
           "slots": []
         }
       ],
@@ -22897,6 +22983,12 @@
           "kind": "class",
           "description": "Shared-calendar date range picker.",
           "name": "VioletDateRangePicker",
+          "cssParts": [
+            {
+              "description": "Error message element shown while invalid.",
+              "name": "error-message"
+            }
+          ],
           "members": [
             {
               "kind": "field",
@@ -23454,7 +23546,6 @@
           ],
           "customElement": true,
           "tagName": "violet-date-range-picker",
-          "cssParts": [],
           "slots": []
         }
       ],
@@ -26052,8 +26143,8 @@
               "name": "browse-button"
             },
             {
-              "description": "Error text element.",
-              "name": "error-text"
+              "description": "Error message element shown while invalid.",
+              "name": "error-message"
             },
             {
               "description": "Overall field wrapper.",
@@ -26208,6 +26299,15 @@
                 "text": "ElementInternals"
               },
               "readonly": true
+            },
+            {
+              "kind": "field",
+              "name": "#invalidFromRejection",
+              "privacy": "private",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false"
             },
             {
               "kind": "field",
@@ -26445,6 +26545,15 @@
             },
             {
               "kind": "field",
+              "name": "displayErrorText",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "readonly": true
+            },
+            {
+              "kind": "field",
               "name": "dragActive",
               "type": {
                 "text": "boolean"
@@ -26527,6 +26636,16 @@
               "default": "\"\"",
               "attribute": "error-text",
               "reflects": true
+            },
+            {
+              "kind": "method",
+              "name": "errorTextChanged",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
             },
             {
               "kind": "field",
@@ -31011,6 +31130,10 @@
           "name": "VioletMenu",
           "cssParts": [
             {
+              "description": "Wrapper around the trigger slot used as the anchor.",
+              "name": "anchor"
+            },
+            {
               "description": "Floating menu panel container.",
               "name": "panel"
             }
@@ -31043,6 +31166,15 @@
               "default": "-1"
             },
             {
+              "kind": "field",
+              "name": "#anchorElement",
+              "privacy": "private",
+              "type": {
+                "text": "HTMLElement | null"
+              },
+              "readonly": true
+            },
+            {
               "kind": "method",
               "name": "#clearTypeAhead",
               "privacy": "private",
@@ -31051,6 +31183,12 @@
                   "text": "void"
                 }
               }
+            },
+            {
+              "kind": "field",
+              "name": "#fallbackPosition",
+              "privacy": "private",
+              "default": "new LazyFallbackPositionController()"
             },
             {
               "kind": "method",
@@ -31188,7 +31326,7 @@
                   "text": "void"
                 }
               },
-              "description": "Positions the panel below (or above) the trigger using fixed coordinates."
+              "description": "Positions the panel below (or above) the trigger using the shared overlay\nstrategy: CSS Anchor Positioning when supported, fixed geometry fallback otherwise."
             },
             {
               "kind": "field",
@@ -31207,6 +31345,16 @@
                 "text": "number"
               },
               "default": "0"
+            },
+            {
+              "kind": "method",
+              "name": "#syncAnchoring",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
             },
             {
               "kind": "method",
@@ -31238,6 +31386,15 @@
                 }
               },
               "description": "Listens for `invoke` events from menu items to auto-close."
+            },
+            {
+              "kind": "field",
+              "name": "anchorName",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "readonly": true
             },
             {
               "kind": "method",
@@ -32586,6 +32743,34 @@
               "default": "1"
             },
             {
+              "kind": "method",
+              "name": "#detachExternalAnchor",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "#el",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "HTMLElement | null"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "selector",
+                  "type": {
+                    "text": "string"
+                  }
+                }
+              ]
+            },
+            {
               "kind": "field",
               "name": "#externalAnchor",
               "privacy": "private",
@@ -32596,12 +32781,54 @@
             },
             {
               "kind": "field",
-              "name": "#externalListenersAttached",
+              "name": "#fallbackPosition",
+              "privacy": "private",
+              "default": "new LazyFallbackPositionController()"
+            },
+            {
+              "kind": "field",
+              "name": "#onTriggerClick",
+              "privacy": "private",
+              "readonly": true
+            },
+            {
+              "kind": "method",
+              "name": "#resolveExternalAnchor",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "#startFallbackPosition",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
+            },
+            {
+              "kind": "field",
+              "name": "#surface",
               "privacy": "private",
               "type": {
-                "text": "boolean"
+                "text": "HTMLElement | null"
               },
-              "default": "false"
+              "readonly": true
+            },
+            {
+              "kind": "method",
+              "name": "#syncAnchoring",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
             },
             {
               "kind": "field",
@@ -32625,14 +32852,13 @@
               }
             },
             {
-              "kind": "method",
-              "name": "detachExternalAnchor",
-              "privacy": "private",
-              "return": {
-                "type": {
-                  "text": "void"
-                }
-              }
+              "kind": "field",
+              "name": "anchorName",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "readonly": true
             },
             {
               "kind": "method",
@@ -32661,12 +32887,6 @@
                   "text": "void"
                 }
               }
-            },
-            {
-              "kind": "field",
-              "name": "handleTriggerClickBound",
-              "privacy": "private",
-              "readonly": true
             },
             {
               "kind": "method",
@@ -32712,8 +32932,8 @@
             },
             {
               "kind": "method",
-              "name": "resolveExternalAnchor",
-              "privacy": "private",
+              "name": "positioningChanged",
+              "privacy": "public",
               "return": {
                 "type": {
                   "text": "void"
@@ -32729,15 +32949,6 @@
                   "text": "void"
                 }
               }
-            },
-            {
-              "kind": "field",
-              "name": "surfaceElement",
-              "type": {
-                "text": "HTMLElement | null"
-              },
-              "privacy": "private",
-              "readonly": true
             },
             {
               "kind": "field",
@@ -32841,6 +33052,13 @@
           "members": [
             {
               "kind": "field",
+              "type": {
+                "text": "number"
+              },
+              "default": "1"
+            },
+            {
+              "kind": "field",
               "name": "accessibleLabel",
               "type": {
                 "text": "string"
@@ -32858,6 +33076,16 @@
               "default": "\"\"",
               "attribute": "label",
               "reflects": true
+            },
+            {
+              "kind": "field",
+              "name": "labelId",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "readonly": true,
+              "default": "`violet-progress-label-${id}`"
             },
             {
               "kind": "field",
@@ -32994,6 +33222,10 @@
           "name": "VioletRadioGroup",
           "cssParts": [
             {
+              "description": "Error message element shown while invalid.",
+              "name": "error-message"
+            },
+            {
               "description": "Field wrapper.",
               "name": "field"
             },
@@ -33072,6 +33304,16 @@
                   }
                 }
               ]
+            },
+            {
+              "kind": "method",
+              "name": "#scheduleAccessibilitySync",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
             },
             {
               "kind": "method",
@@ -33187,6 +33429,15 @@
                   "text": "void"
                 }
               }
+            },
+            {
+              "kind": "field",
+              "name": "displayErrorText",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "readonly": true
             },
             {
               "kind": "field",
@@ -34489,6 +34740,10 @@
           "name": "VioletSegmentedControl",
           "cssParts": [
             {
+              "description": "Error message element shown while invalid.",
+              "name": "error-message"
+            },
+            {
               "description": "Field wrapper.",
               "name": "field"
             },
@@ -34537,6 +34792,16 @@
               "return": {
                 "type": {
                   "text": "VioletSegment[]"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "#scheduleAccessibilitySync",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
                 }
               }
             },
@@ -34619,6 +34884,15 @@
                   "text": "void"
                 }
               }
+            },
+            {
+              "kind": "field",
+              "name": "displayErrorText",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "readonly": true
             },
             {
               "kind": "field",
@@ -35999,6 +36273,695 @@
     },
     {
       "kind": "javascript-module",
+      "path": "src/shared/field-error.ts",
+      "declarations": [
+        {
+          "kind": "function",
+          "name": "resolveFieldErrorText",
+          "return": {
+            "type": {
+              "text": "string"
+            }
+          },
+          "parameters": [
+            {
+              "name": "options",
+              "type": {
+                "text": "FieldErrorOptions"
+              }
+            }
+          ],
+          "description": "Resolves the visible field error message under the shared Violet field-error rule:\nshown only while `invalid` is set and the control is neither disabled nor readonly,\npreferring trimmed `errorText` and falling back to the browser validation message."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "resolveFieldErrorText",
+          "declaration": {
+            "name": "resolveFieldErrorText",
+            "module": "src/shared/field-error.ts"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "src/shared/overlay-anchor.ts",
+      "declarations": [
+        {
+          "kind": "function",
+          "name": "bindOverlayAnchor",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "internalAnchor",
+              "type": {
+                "text": "HTMLElement | null"
+              }
+            },
+            {
+              "name": "externalAnchor",
+              "type": {
+                "text": "HTMLElement | null"
+              }
+            },
+            {
+              "name": "floating",
+              "type": {
+                "text": "HTMLElement | null"
+              }
+            },
+            {
+              "name": "anchorName",
+              "type": {
+                "text": "string"
+              }
+            }
+          ],
+          "description": "Binds one unique CSS anchor name to the internal shadow-DOM anchor and pairs the floating\nsurface to it with `position-anchor`. External light-DOM triggers are left untouched because\nCSS `anchor-name` is tree-scoped across shadow boundaries and external anchoring uses the JS\ngeometry fallback."
+        },
+        {
+          "kind": "function",
+          "name": "createAnchorName",
+          "return": {
+            "type": {
+              "text": "string"
+            }
+          },
+          "parameters": [
+            {
+              "name": "prefix",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "name": "id",
+              "type": {
+                "text": "number"
+              }
+            }
+          ],
+          "description": "Generates a unique CSS dashed-ident anchor name for a component instance."
+        },
+        {
+          "kind": "class",
+          "description": "Thin facade over `FallbackPositionController` that keeps the JS geometry fallback out of the\nstatic bundle on browsers with native CSS Anchor Positioning. The fallback module is imported\nlazily only when CSS Anchor Positioning is unsupported or an external anchor forces JS layout.",
+          "name": "LazyFallbackPositionController",
+          "members": [
+            {
+              "kind": "field",
+              "name": "#controller",
+              "privacy": "private",
+              "type": {
+                "text": "InstanceType<PositioningModule[\"FallbackPositionController\"]> | null"
+              },
+              "default": "null"
+            },
+            {
+              "kind": "field",
+              "name": "#generation",
+              "privacy": "private",
+              "type": {
+                "text": "number"
+              },
+              "default": "0"
+            },
+            {
+              "kind": "method",
+              "name": "start",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "getAnchor",
+                  "type": {
+                    "text": "() => HTMLElement | null"
+                  }
+                },
+                {
+                  "name": "getFloating",
+                  "type": {
+                    "text": "() => HTMLElement | null"
+                  }
+                },
+                {
+                  "name": "getOptions",
+                  "type": {
+                    "text": "() => LazyFallbackOptionsTuple"
+                  }
+                },
+                {
+                  "name": "force",
+                  "default": "false"
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "stop",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "floating",
+                  "optional": true,
+                  "type": {
+                    "text": "HTMLElement | null"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "update",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
+            }
+          ],
+          "cssParts": [],
+          "slots": []
+        },
+        {
+          "kind": "function",
+          "name": "supportsCssAnchorPositioning",
+          "return": {
+            "type": {
+              "text": "boolean"
+            }
+          },
+          "description": "Returns true when the browser supports CSS Anchor Positioning (`anchor-name`, `position-area`,\nand `position-try-fallbacks`) as used by Violet overlay components."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "bindOverlayAnchor",
+          "declaration": {
+            "name": "bindOverlayAnchor",
+            "module": "src/shared/overlay-anchor.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "createAnchorName",
+          "declaration": {
+            "name": "createAnchorName",
+            "module": "src/shared/overlay-anchor.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "LazyFallbackPositionController",
+          "declaration": {
+            "name": "LazyFallbackPositionController",
+            "module": "src/shared/overlay-anchor.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "supportsCssAnchorPositioning",
+          "declaration": {
+            "name": "supportsCssAnchorPositioning",
+            "module": "src/shared/overlay-anchor.ts"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "src/shared/overlay-positioning.ts",
+      "declarations": [
+        {
+          "kind": "function",
+          "name": "clearAnchorName",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "element",
+              "type": {
+                "text": "HTMLElement | null"
+              }
+            },
+            {
+              "name": "anchorName",
+              "type": {
+                "text": "string"
+              }
+            }
+          ],
+          "description": "Removes an anchor name only if the element still holds this component's name."
+        },
+        {
+          "kind": "function",
+          "name": "clearFallbackPosition",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "floating",
+              "type": {
+                "text": "HTMLElement | null"
+              }
+            }
+          ],
+          "description": "Clears inline fallback positioning properties so native CSS anchor positioning applies cleanly."
+        },
+        {
+          "kind": "function",
+          "name": "computeFallbackPosition",
+          "return": {
+            "type": {
+              "text": "ComputedOverlayPosition"
+            }
+          },
+          "parameters": [
+            {
+              "name": "anchorRect",
+              "type": {
+                "text": "Pick<DOMRect, \"top\" | \"bottom\" | \"left\" | \"right\" | \"width\" | \"height\">"
+              }
+            },
+            {
+              "name": "floatingRect",
+              "type": {
+                "text": "Pick<DOMRect, \"width\" | \"height\">"
+              }
+            },
+            {
+              "name": "viewport",
+              "type": {
+                "text": "{ width: number; height: number }"
+              }
+            },
+            {
+              "name": "options",
+              "default": "{}",
+              "type": {
+                "text": "OverlayPositionOptions"
+              }
+            }
+          ],
+          "description": "Computes viewport-clamped `position: fixed` coordinates for a floating overlay\nrelative to an anchor, flipping to the opposite side when overflowing the viewport."
+        },
+        {
+          "kind": "class",
+          "description": "Keeps a floating overlay positioned in browsers without CSS Anchor Positioning,\nrepositioning on scroll and resize while open.",
+          "name": "FallbackPositionController",
+          "members": [
+            {
+              "kind": "field",
+              "name": "#active",
+              "privacy": "private",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false"
+            },
+            {
+              "kind": "field",
+              "name": "#getAnchor",
+              "privacy": "private",
+              "type": {
+                "text": "(() => HTMLElement | null) | null"
+              },
+              "default": "null"
+            },
+            {
+              "kind": "field",
+              "name": "#getFloating",
+              "privacy": "private",
+              "type": {
+                "text": "(() => HTMLElement | null) | null"
+              },
+              "default": "null"
+            },
+            {
+              "kind": "field",
+              "name": "#getOptions",
+              "privacy": "private",
+              "type": {
+                "text": "(() => OverlayPositionOptions) | null"
+              },
+              "default": "null"
+            },
+            {
+              "kind": "field",
+              "name": "#handleReposition",
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
+              "name": "#rafId",
+              "privacy": "private",
+              "type": {
+                "text": "number"
+              },
+              "default": "0"
+            },
+            {
+              "kind": "method",
+              "name": "start",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "getAnchor",
+                  "type": {
+                    "text": "() => HTMLElement | null"
+                  }
+                },
+                {
+                  "name": "getFloating",
+                  "type": {
+                    "text": "() => HTMLElement | null"
+                  }
+                },
+                {
+                  "name": "getOptions",
+                  "type": {
+                    "text": "() => OverlayPositionOptions"
+                  }
+                },
+                {
+                  "name": "forceFallback",
+                  "default": "false"
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "stop",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "floating",
+                  "optional": true,
+                  "type": {
+                    "text": "HTMLElement | null"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "update",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
+            }
+          ],
+          "cssParts": [],
+          "slots": []
+        },
+        {
+          "kind": "function",
+          "name": "normalizePlacement",
+          "return": {
+            "type": {
+              "text": "OverlayPlacement"
+            }
+          },
+          "parameters": [
+            {
+              "name": "value",
+              "type": {
+                "text": "string | null | undefined"
+              }
+            },
+            {
+              "name": "fallback",
+              "default": "\"below\"",
+              "type": {
+                "text": "OverlayPlacement"
+              }
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "positionFloatingFallback",
+          "return": {
+            "type": {
+              "text": "ComputedOverlayPosition"
+            }
+          },
+          "parameters": [
+            {
+              "name": "anchor",
+              "type": {
+                "text": "HTMLElement"
+              }
+            },
+            {
+              "name": "floating",
+              "type": {
+                "text": "HTMLElement"
+              }
+            },
+            {
+              "name": "options",
+              "default": "{}",
+              "type": {
+                "text": "OverlayPositionOptions"
+              }
+            }
+          ],
+          "description": "Applies JS fallback coordinates to a floating element anchored to `anchor`."
+        },
+        {
+          "kind": "function",
+          "name": "resolveCssLengthPx",
+          "return": {
+            "type": {
+              "text": "number"
+            }
+          },
+          "parameters": [
+            {
+              "name": "rawValue",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "name": "element",
+              "type": {
+                "text": "HTMLElement"
+              }
+            },
+            {
+              "name": "fallbackPx",
+              "default": "8"
+            }
+          ],
+          "description": "Resolves a pre-read CSS length string (such as `\"0.5rem\"`, `\".5rem\"`, `\"12px\"`, `\"1in\"`, or\n`\"calc(0.5rem + 2px)\"`) into CSS pixels, preserving explicit zero values."
+        },
+        {
+          "kind": "function",
+          "name": "startLazyFallback",
+          "return": {
+            "type": {
+              "text": "FallbackPositionController"
+            }
+          },
+          "parameters": [
+            {
+              "name": "existing",
+              "type": {
+                "text": "FallbackPositionController | null"
+              }
+            },
+            {
+              "name": "getAnchor",
+              "type": {
+                "text": "() => HTMLElement | null"
+              }
+            },
+            {
+              "name": "getFloating",
+              "type": {
+                "text": "() => HTMLElement | null"
+              }
+            },
+            {
+              "name": "getOptions",
+              "type": {
+                "text": "() => LazyFallbackOptionsTuple"
+              }
+            },
+            {
+              "name": "force",
+              "type": {
+                "text": "boolean"
+              }
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "syncAnchorNames",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "options",
+              "type": {
+                "text": "{\n    internalAnchor: HTMLElement | null;\n    externalAnchor: HTMLElement | null;\n    floating: HTMLElement | null;\n    anchorName: string;\n}"
+              }
+            }
+          ],
+          "description": "Binds one unique CSS anchor name to the internal shadow-DOM anchor and pairs the floating\nsurface to it with `position-anchor`, leaving external light-DOM triggers untouched."
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "clearAnchorName",
+          "declaration": {
+            "name": "clearAnchorName",
+            "module": "src/shared/overlay-positioning.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "clearFallbackPosition",
+          "declaration": {
+            "name": "clearFallbackPosition",
+            "module": "src/shared/overlay-positioning.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "computeFallbackPosition",
+          "declaration": {
+            "name": "computeFallbackPosition",
+            "module": "src/shared/overlay-positioning.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "createAnchorName",
+          "declaration": {
+            "name": "createAnchorName",
+            "module": "src/shared/overlay-positioning.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "FallbackPositionController",
+          "declaration": {
+            "name": "FallbackPositionController",
+            "module": "src/shared/overlay-positioning.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "normalizePlacement",
+          "declaration": {
+            "name": "normalizePlacement",
+            "module": "src/shared/overlay-positioning.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "OverlayAlign",
+          "declaration": {
+            "name": "OverlayAlign",
+            "module": "src/shared/overlay-positioning.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "OverlayPlacement",
+          "declaration": {
+            "name": "OverlayPlacement",
+            "module": "src/shared/overlay-positioning.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "positionFloatingFallback",
+          "declaration": {
+            "name": "positionFloatingFallback",
+            "module": "src/shared/overlay-positioning.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "resolveCssLengthPx",
+          "declaration": {
+            "name": "resolveCssLengthPx",
+            "module": "src/shared/overlay-positioning.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "startLazyFallback",
+          "declaration": {
+            "name": "startLazyFallback",
+            "module": "src/shared/overlay-positioning.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "supportsCssAnchorPositioning",
+          "declaration": {
+            "name": "supportsCssAnchorPositioning",
+            "module": "src/shared/overlay-positioning.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "syncAnchorNames",
+          "declaration": {
+            "name": "syncAnchorNames",
+            "module": "src/shared/overlay-positioning.ts"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
       "path": "src/skeleton/violet-skeleton.ts",
       "declarations": [
         {
@@ -36500,6 +37463,15 @@
             },
             {
               "kind": "field",
+              "name": "displayErrorText",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "readonly": true
+            },
+            {
+              "kind": "field",
               "name": "effectiveDisabled",
               "type": {
                 "text": "boolean"
@@ -36526,6 +37498,16 @@
               "default": "\"\"",
               "attribute": "error-text",
               "reflects": true
+            },
+            {
+              "kind": "method",
+              "name": "errorTextChanged",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
             },
             {
               "kind": "field",
@@ -37542,6 +38524,15 @@
             },
             {
               "kind": "field",
+              "name": "displayErrorText",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "readonly": true
+            },
+            {
+              "kind": "field",
               "name": "effectiveDisabled",
               "type": {
                 "text": "boolean"
@@ -37560,6 +38551,16 @@
               "default": "\"\"",
               "attribute": "error-text",
               "reflects": true
+            },
+            {
+              "kind": "method",
+              "name": "errorTextChanged",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
             },
             {
               "kind": "field",
@@ -39906,6 +40907,15 @@
               "default": "1"
             },
             {
+              "kind": "field",
+              "name": "#activeAnchorElement",
+              "privacy": "private",
+              "type": {
+                "text": "HTMLElement | null"
+              },
+              "readonly": true
+            },
+            {
               "kind": "method",
               "name": "#clearTriggerAria",
               "privacy": "private",
@@ -39953,6 +40963,12 @@
             },
             {
               "kind": "field",
+              "name": "#fallbackPosition",
+              "privacy": "private",
+              "default": "new LazyFallbackPositionController()"
+            },
+            {
+              "kind": "field",
               "name": "#handleToggle",
               "privacy": "private"
             },
@@ -39967,6 +40983,15 @@
               }
             },
             {
+              "kind": "field",
+              "name": "#internalAnchorElement",
+              "privacy": "private",
+              "type": {
+                "text": "HTMLElement | null"
+              },
+              "readonly": true
+            },
+            {
               "kind": "method",
               "name": "#resolveExternalAnchor",
               "privacy": "private",
@@ -39979,6 +41004,26 @@
             {
               "kind": "method",
               "name": "#showTip",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "#startFallbackPosition",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "#syncAnchoring",
               "privacy": "private",
               "return": {
                 "type": {
@@ -40033,6 +41078,15 @@
                   "text": "void"
                 }
               }
+            },
+            {
+              "kind": "field",
+              "name": "anchorName",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "readonly": true
             },
             {
               "kind": "field",
@@ -40156,6 +41210,16 @@
               "default": "\"below\"",
               "attribute": "positioning",
               "reflects": true
+            },
+            {
+              "kind": "method",
+              "name": "positioningChanged",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
             },
             {
               "kind": "method",
@@ -42725,6 +43789,12 @@
           "kind": "class",
           "description": "Native-backed time field with Violet shell styling.",
           "name": "VioletTimePicker",
+          "cssParts": [
+            {
+              "description": "Error message element shown while invalid.",
+              "name": "error-message"
+            }
+          ],
           "members": [
             {
               "kind": "field",
@@ -42806,6 +43876,16 @@
               "default": "false",
               "attribute": "disabled",
               "reflects": true
+            },
+            {
+              "kind": "method",
+              "name": "disabledChanged",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
             },
             {
               "kind": "field",
@@ -43055,6 +44135,15 @@
               "reflects": true
             },
             {
+              "kind": "field",
+              "name": "nativeValidationMessage",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "private",
+              "default": "\"\""
+            },
+            {
               "kind": "method",
               "name": "reportValidity",
               "privacy": "public",
@@ -43074,6 +44163,16 @@
               "default": "false",
               "attribute": "required",
               "reflects": true
+            },
+            {
+              "kind": "method",
+              "name": "requiredChanged",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
             },
             {
               "kind": "field",
@@ -43096,6 +44195,16 @@
               "default": "\"60\"",
               "attribute": "step",
               "reflects": true
+            },
+            {
+              "kind": "method",
+              "name": "stepChanged",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
             },
             {
               "kind": "field",
@@ -43300,7 +44409,6 @@
           ],
           "customElement": true,
           "tagName": "violet-time-picker",
-          "cssParts": [],
           "slots": []
         }
       ],
@@ -43731,6 +44839,15 @@
             },
             {
               "kind": "field",
+              "name": "#activeAnchorElement",
+              "privacy": "private",
+              "type": {
+                "text": "HTMLElement | null"
+              },
+              "readonly": true
+            },
+            {
+              "kind": "field",
               "name": "#anchorElement",
               "privacy": "private",
               "type": {
@@ -43805,6 +44922,12 @@
                 "text": "boolean"
               },
               "default": "false"
+            },
+            {
+              "kind": "field",
+              "name": "#fallbackPosition",
+              "privacy": "private",
+              "default": "new LazyFallbackPositionController()"
             },
             {
               "kind": "field",
@@ -43891,6 +45014,26 @@
               }
             },
             {
+              "kind": "method",
+              "name": "#startFallbackPosition",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "#syncAnchoring",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
+            },
+            {
               "kind": "field",
               "name": "#tooltipElement",
               "privacy": "private",
@@ -43927,6 +45070,15 @@
                   "text": "void"
                 }
               }
+            },
+            {
+              "kind": "field",
+              "name": "anchorName",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "readonly": true
             },
             {
               "kind": "field",
@@ -44001,6 +45153,16 @@
               "default": "\"above\"",
               "attribute": "positioning",
               "reflects": true
+            },
+            {
+              "kind": "method",
+              "name": "positioningChanged",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
             },
             {
               "kind": "method",
@@ -44567,8 +45729,8 @@
           "name": "VioletTree",
           "cssParts": [
             {
-              "description": "Error text element.",
-              "name": "error-text"
+              "description": "Error message element shown while invalid.",
+              "name": "error-message"
             },
             {
               "description": "Outer field wrapper.",
@@ -44837,6 +45999,15 @@
             },
             {
               "kind": "field",
+              "name": "displayErrorText",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "readonly": true
+            },
+            {
+              "kind": "field",
               "name": "errorText",
               "type": {
                 "text": "string"
@@ -44936,6 +46107,17 @@
                   }
                 }
               ]
+            },
+            {
+              "kind": "field",
+              "name": "invalid",
+              "type": {
+                "text": "boolean"
+              },
+              "privacy": "public",
+              "default": "false",
+              "attribute": "invalid",
+              "reflects": true
             },
             {
               "kind": "field",
@@ -45047,6 +46229,14 @@
               },
               "default": "\"\"",
               "fieldName": "errorText"
+            },
+            {
+              "name": "invalid",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "fieldName": "invalid"
             },
             {
               "name": "value",

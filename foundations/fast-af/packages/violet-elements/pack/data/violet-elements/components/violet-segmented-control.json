@@ -37,7 +37,8 @@
 				"name": "error-text",
 				"property": "errorText",
 				"rules": [
-					"taxonomy.error-text"
+					"taxonomy.error-text",
+					"taxonomy.error-text.not-for"
 				],
 				"type": "string"
 			},
@@ -161,11 +162,12 @@
 		"field.aria-label",
 		"field.label",
 		"field.supporting-text",
+		"form.error-text",
 		"form.participation",
-		"form.required-error",
 		"import.root",
 		"taxonomy.disabled",
 		"taxonomy.error-text",
+		"taxonomy.error-text.not-for",
 		"taxonomy.invalid",
 		"taxonomy.label",
 		"taxonomy.name",

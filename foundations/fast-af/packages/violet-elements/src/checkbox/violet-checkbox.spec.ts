@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { cdp, page, userEvent } from "vitest/browser";
+import { cdp, page, server, userEvent } from "vitest/browser";
+
+const isChromium = server.browser === "chromium";
 
 import "./violet-checkbox";
 import type { VioletCheckbox } from "./violet-checkbox";
@@ -333,7 +335,7 @@ describe("violet-checkbox", () => {
             expect(checkbox.controlAriaLabel).toBe("Accept terms");
         });
 
-        it("exposes the label once in the accessibility tree and keeps supporting text as description (#1578)", async () => {
+        it.runIf(isChromium)("exposes the label once in the accessibility tree and keeps supporting text as description (#1578)", async () => {
             document.body.innerHTML = `
                 <table>
                     <thead><tr><th>Violet</th><th>Native</th></tr></thead>

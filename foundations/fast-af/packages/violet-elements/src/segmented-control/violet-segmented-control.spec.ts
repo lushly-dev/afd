@@ -178,6 +178,7 @@ describe("violet-segmented-control", () => {
 
         await userEvent.tab();
         await userEvent.keyboard("{End}");
+        await nextFrame();
         await userEvent.tab();
         expect(document.activeElement?.id).toBe("after");
 

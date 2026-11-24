@@ -11,6 +11,7 @@ type VioletTreeStoryArgs = {
     supportingText: string;
     errorText: string;
     value: string;
+    invalid?: boolean;
 };
 
 function renderTree(args: VioletTreeStoryArgs): string {
@@ -22,6 +23,7 @@ function renderTree(args: VioletTreeStoryArgs): string {
                 supporting-text="${args.supportingText}"
                 error-text="${args.errorText}"
                 value="${args.value}"
+                ${args.invalid ? "invalid" : ""}
             >
                 <violet-tree-item value="operations" expanded>
                     Operations
@@ -164,5 +166,16 @@ export const Framed: Story = {
         supportingText: "Optional contained surface when the tree needs its own boundary.",
         errorText: "",
         value: "propagation",
+    },
+};
+
+export const Invalid: Story = {
+    args: {
+        label: "Operations tree",
+        appearance: "framed",
+        supportingText: "Choose an active branch.",
+        errorText: "Select an operational branch before continuing.",
+        value: "",
+        invalid: true,
     },
 };

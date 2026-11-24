@@ -27,7 +27,7 @@
 			{
 				"basis": "authored",
 				"id": "select.error",
-				"text": "The rendered error message is linked to the trigger as its description, after the supporting text."
+				"text": "While invalid, the rendered error message replaces the supporting text and is linked to the trigger as its description."
 			}
 		]
 	},
@@ -49,7 +49,8 @@
 				"name": "error-text",
 				"property": "errorText",
 				"rules": [
-					"taxonomy.error-text"
+					"taxonomy.error-text",
+					"taxonomy.error-text.not-for"
 				],
 				"type": "string"
 			},
@@ -191,13 +192,14 @@
 		"field.label-required",
 		"field.placeholder",
 		"field.supporting-text",
+		"form.error-text",
 		"form.invalid",
 		"form.participation",
-		"form.required-error",
 		"import.root",
 		"options.children",
 		"taxonomy.disabled",
 		"taxonomy.error-text",
+		"taxonomy.error-text.not-for",
 		"taxonomy.invalid",
 		"taxonomy.label",
 		"taxonomy.name",

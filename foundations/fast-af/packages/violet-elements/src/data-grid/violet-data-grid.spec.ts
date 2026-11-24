@@ -1257,6 +1257,10 @@ describe("violet-data-grid", () => {
             composed: true,
             clipboardData,
         });
+        // Firefox ignores clipboardData in synthetic ClipboardEvent constructors and creates a read-only one.
+        if (event.clipboardData !== clipboardData) {
+            Object.defineProperty(event, "clipboardData", { value: clipboardData });
+        }
         scroll.dispatchEvent(event);
 
         expect(event.defaultPrevented).toBe(true);
@@ -2742,9 +2746,11 @@ describe("violet-data-grid", () => {
       focus: { rowId: "black-currant", columnId: "commonName" },
     };
     const clipboardData = new DataTransfer();
-    grid.shadowRoot?.querySelector(".table-scroll")?.dispatchEvent(
-      new ClipboardEvent("copy", { bubbles: true, cancelable: true, composed: true, clipboardData }),
-    );
+    const copyEvent = new ClipboardEvent("copy", { bubbles: true, cancelable: true, composed: true, clipboardData });
+    if (copyEvent.clipboardData !== clipboardData) {
+      Object.defineProperty(copyEvent, "clipboardData", { value: clipboardData });
+    }
+    grid.shadowRoot?.querySelector(".table-scroll")?.dispatchEvent(copyEvent);
     expect(clipboardData.getData("text/plain")).toBe("Black currant");
   });
 

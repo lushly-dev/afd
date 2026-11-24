@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cdp, userEvent } from "vitest/browser";
+import { cdp, server, userEvent } from "vitest/browser";
+
+const isChromium = server.browser === "chromium";
 
 import "../button/violet-button";
 import "./violet-menu";
@@ -89,15 +91,19 @@ describe("violet-menu", () => {
         expect(trigger?.getAttribute("aria-haspopup")).toBe("menu");
         expect(trigger?.getAttribute("aria-expanded")).toBe("false");
         // The panel is in the menu's shadow root: the trigger names the host, whose shadow root
-        // forwards the reference to the panel.
-        expect(trigger?.getAttribute("aria-controls")).toBe(menu.id);
+        // forwards the reference to the panel when referenceTarget is supported.
+        if ("referenceTarget" in ShadowRoot.prototype) {
+            expect(trigger?.getAttribute("aria-controls")).toBe(menu.id);
+        }
         // A closed popover is not rendered, so the relationship shows in the tree once it opens.
         (trigger as HTMLElement).click();
         await untilOpen(menu);
-        await vi.waitFor(async () => {
-            const controls = (await accessibleNode("button", "Open")).controls;
-            expect(controls.map(node => `${node.role?.value}: ${node.name?.value}`)).toEqual(["menu: Actions"]);
-        });
+        if (isChromium) {
+            await vi.waitFor(async () => {
+                const controls = (await accessibleNode("button", "Open")).controls;
+                expect(controls.map(node => `${node.role?.value}: ${node.name?.value}`)).toEqual(["menu: Actions"]);
+            });
+        }
     });
 
     it("forwards menu trigger aria relationships to a violet-button control", async () => {
@@ -115,10 +121,12 @@ describe("violet-menu", () => {
         expect(control?.getAttribute("aria-expanded")).toBe("false");
         control?.click();
         await untilOpen(menu);
-        await vi.waitFor(async () => {
-            const controls = (await accessibleNode("button", "Open")).controls;
-            expect(controls.map(node => `${node.role?.value}: ${node.name?.value}`)).toEqual(["menu: Actions"]);
-        });
+        if (isChromium) {
+            await vi.waitFor(async () => {
+                const controls = (await accessibleNode("button", "Open")).controls;
+                expect(controls.map(node => `${node.role?.value}: ${node.name?.value}`)).toEqual(["menu: Actions"]);
+            });
+        }
 
         expect(trigger?.getAttribute("aria-expanded")).toBe("true");
         expect(trigger?.ariaExpanded).toBe("true");

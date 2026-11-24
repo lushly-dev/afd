@@ -1,4 +1,4 @@
-import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, Updates, attr, css, html, observable } from "@lushly-dev/fast-element";
 
 import { violetActionTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -171,13 +171,19 @@ const template = html<VioletButton>`
 
 /** The id-list attributes the button forwards, and the inner button's element-reference property for each. */
 const REFERENCES = {
+    "aria-labelledby": "ariaLabelledby",
+    "aria-describedby": "ariaDescribedby",
+    "aria-errormessage": "ariaErrormessage",
+    "aria-controls": "ariaControls",
+} as const;
+const REFERENCE_DOM_PROPERTIES = {
     "aria-labelledby": "ariaLabelledByElements",
     "aria-describedby": "ariaDescribedByElements",
     "aria-errormessage": "ariaErrorMessageElements",
     "aria-controls": "ariaControlsElements",
 } as const;
 type ReferenceAttribute = keyof typeof REFERENCES;
-type ElementReferences = Record<(typeof REFERENCES)[ReferenceAttribute], Element[] | null>;
+type ElementReferences = Record<(typeof REFERENCE_DOM_PROPERTIES)[ReferenceAttribute], Element[] | null>;
 
 /**
  * Violet reusable button primitive.
@@ -310,10 +316,10 @@ export class VioletButton extends FASTElement {
 
     /**
      * Sets an id-list attribute's elements on the inner button as element references, found by id
-     * in the tree that holds the host. The ids are resolved when the value changes and when the
-     * button connects, so the elements they name should exist by then.
+     * in the tree that holds the host. When a referenced sibling mounts later in the same FAST
+     * render batch, retry once on the next Updates tick.
      */
-    #forwardReference(name: ReferenceAttribute, value: string | null | undefined): void {
+    #forwardReference(name: ReferenceAttribute, value: string | null | undefined, retried = false): void {
         const control = this.shadowRoot?.querySelector("button");
         if (!control) {
             return;
@@ -325,7 +331,15 @@ export class VioletButton extends FASTElement {
             root instanceof Document || root instanceof ShadowRoot
                 ? ids.map(id => root.getElementById(id)).filter(element => element !== null)
                 : [];
-        (control as unknown as ElementReferences)[REFERENCES[name]] = elements.length > 0 ? elements : null;
+        (control as unknown as ElementReferences)[REFERENCE_DOM_PROPERTIES[name]] = elements.length > 0 ? elements : null;
+
+        if (!retried && elements.length < ids.length) {
+            Updates.enqueue(() => {
+                if (this[REFERENCES[name]] === value) {
+                    this.#forwardReference(name, value, true);
+                }
+            });
+        }
     }
 
     #forwardAriaAttribute(name: string, value: string | null | undefined): void {

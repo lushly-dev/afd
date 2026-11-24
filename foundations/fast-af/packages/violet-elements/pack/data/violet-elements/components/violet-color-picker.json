@@ -44,12 +44,13 @@
 				"name": "error-text",
 				"property": "errorText",
 				"rules": [
-					"taxonomy.error-text"
+					"taxonomy.error-text",
+					"taxonomy.error-text.not-for"
 				],
 				"type": "string"
 			},
 			{
-				"basis": "declared",
+				"basis": "observed",
 				"default": false,
 				"name": "invalid",
 				"property": "invalid",
@@ -196,11 +197,6 @@
 	"gaps": [
 		{
 			"kind": "unobserved",
-			"name": "invalid",
-			"section": "attributes"
-		},
-		{
-			"kind": "unobserved",
 			"name": "size",
 			"section": "attributes"
 		}
@@ -212,10 +208,12 @@
 		"field.label",
 		"field.label-required",
 		"field.supporting-text",
+		"form.error-text",
 		"form.invalid",
 		"import.root",
 		"taxonomy.disabled",
 		"taxonomy.error-text",
+		"taxonomy.error-text.not-for",
 		"taxonomy.invalid",
 		"taxonomy.label",
 		"taxonomy.name",

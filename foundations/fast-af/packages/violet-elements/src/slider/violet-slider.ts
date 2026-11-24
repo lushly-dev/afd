@@ -2,6 +2,7 @@ import { FASTElement, attr, css, html, when } from "@lushly-dev/fast-element";
 
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
+import { resolveFieldErrorText } from "../shared/field-error";
 
 export type VioletSliderOrientation = "horizontal" | "vertical";
 
@@ -222,7 +223,7 @@ const styles = css`
     }
 
     .error {
-        color: var(--color-state-danger-foreground, #c42a1a);
+        color: var(--_danger-text);
         margin-block-start: var(--_space-field-gap);
     }
 
@@ -282,8 +283,8 @@ const template = html<VioletSlider>`
                 ?disabled="${x => x.effectiveDisabled}"
                 ?required="${x => x.required}"
                 aria-label="${x => x.label || x.getAttribute("aria-label") || ""}"
-                aria-describedby="${x => x.describedByIds}"
-                aria-invalid="${x => x.invalid ? "true" : "false"}"
+                aria-describedby="${x => x.describedByIds || null}"
+                aria-invalid="${x => (!x.effectiveDisabled && x.invalid) ? "true" : "false"}"
                 aria-orientation="${x => x.orientation}"
                 aria-valuetext="${x => x.valueText || null}"
                 @pointerdown="${(x, c) => x.handlePointerDown(c.event as PointerEvent)}"
@@ -299,15 +300,15 @@ const template = html<VioletSlider>`
             </div>
         </div>
         ${when(
-            x => Boolean(x.supportingText),
+            x => Boolean(x.supportingText) && !x.displayErrorText,
             html<VioletSlider>`
                 <p class="supporting" id="${x => x.supportingTextId}" part="supporting-text">${x => x.supportingText}</p>
             `,
         )}
         ${when(
-            x => Boolean(x.validationMessageText),
+            x => Boolean(x.displayErrorText),
             html<VioletSlider>`
-                <p class="error" id="${x => x.errorTextId}" part="error-message">${x => x.validationMessageText}</p>
+                <p class="error" id="${x => x.errorTextId}" part="error-message" role="alert">${x => x.displayErrorText}</p>
             `,
         )}
     </div>
@@ -457,6 +458,12 @@ export class VioletSlider extends FASTElement {
         }
     }
 
+    public errorTextChanged(): void {
+        if (this.$fastController.isConnected) {
+            this.#syncFormState();
+        }
+    }
+
     public minChanged(): void {
         if (this.$fastController.isConnected) {
             this.#syncValue();
@@ -497,14 +504,23 @@ export class VioletSlider extends FASTElement {
         }
     }
 
+    public get displayErrorText(): string {
+        return resolveFieldErrorText({
+            invalid: this.invalid,
+            disabled: this.effectiveDisabled,
+            errorText: this.errorText,
+        });
+    }
+
     public get validationMessageText(): string {
-        return this.invalid ? this.errorText || "Please choose a valid value." : "";
+        return this.displayErrorText;
     }
 
     public get describedByIds(): string {
-        return [this.supportingText ? this.supportingTextId : "", this.validationMessageText ? this.errorTextId : ""]
-            .filter(Boolean)
-            .join(" ");
+        if (this.displayErrorText) {
+            return this.errorTextId;
+        }
+        return this.supportingText ? this.supportingTextId : "";
     }
 
     public get controlStyle(): string {
@@ -613,7 +629,7 @@ export class VioletSlider extends FASTElement {
         this.#internals.setFormValue(this.value);
 
         if (this.invalid) {
-            this.#internals.setValidity({ customError: true }, this.validationMessageText);
+            this.#internals.setValidity({ customError: true }, this.displayErrorText || "Please choose a valid value.");
             return;
         }
 

@@ -3,6 +3,11 @@ import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-eleme
 import "../icon/violet-icon";
 import "../icon-button/violet-icon-button";
 import { registerSystemCloseIcon } from "../icon/generated";
+import {
+    LazyFallbackPositionController,
+    bindOverlayAnchor,
+    createAnchorName,
+} from "../shared/overlay-anchor";
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
 registerSystemCloseIcon();
@@ -28,13 +33,12 @@ const styles = css`
 
     .anchor {
         display: inline-block;
-        anchor-name: --violet-teaching-tip-anchor;
     }
 
     .tip {
         box-sizing: border-box;
         position: fixed;
-        position-anchor: --violet-teaching-tip-anchor;
+        inset: unset;
         margin: 0;
         padding: 0;
         border: var(--_tip-border-width) solid var(--_tip-border-color);
@@ -66,28 +70,31 @@ const styles = css`
         }
     }
 
-    :host([positioning="above"]) .tip {
-        position-area: block-start center;
-        margin-block-end: var(--_tip-gap);
-        position-try-fallbacks: flip-block;
-    }
+    @supports (anchor-name: --violet-anchor) and (position-area: block-end center) and (position-try-fallbacks: flip-block) {
+        :host([positioning="above"]) .tip {
+            position-area: block-start center;
+            margin-block-end: var(--_tip-gap);
+            position-try-fallbacks: flip-block;
+        }
 
-    :host([positioning="below"]) .tip {
-        position-area: block-end center;
-        margin-block-start: var(--_tip-gap);
-        position-try-fallbacks: flip-block;
-    }
+        :host([positioning="below"]) .tip,
+        :host(:not([positioning])) .tip {
+            position-area: block-end center;
+            margin-block-start: var(--_tip-gap);
+            position-try-fallbacks: flip-block;
+        }
 
-    :host([positioning="before"]) .tip {
-        position-area: center left;
-        margin-inline-end: var(--_tip-gap);
-        position-try-fallbacks: flip-inline;
-    }
+        :host([positioning="before"]) .tip {
+            position-area: center left;
+            margin-inline-end: var(--_tip-gap);
+            position-try-fallbacks: flip-inline;
+        }
 
-    :host([positioning="after"]) .tip {
-        position-area: center right;
-        margin-inline-start: var(--_tip-gap);
-        position-try-fallbacks: flip-inline;
+        :host([positioning="after"]) .tip {
+            position-area: center right;
+            margin-inline-start: var(--_tip-gap);
+            position-try-fallbacks: flip-inline;
+        }
     }
 
     .header {
@@ -231,10 +238,12 @@ export class VioletTeachingTip extends FASTElement {
 
     public readonly tipId: string;
     public readonly titleId: string;
+    public readonly anchorName: string;
 
     #triggerElement: Element | null = null;
     #externalAnchor: HTMLElement | null = null;
     #externalListenersAttached = false;
+    #fallbackPosition = new LazyFallbackPositionController();
 
     public constructor() {
         super();
@@ -251,10 +260,19 @@ export class VioletTeachingTip extends FASTElement {
         violetTeachingTipId += 1;
         this.tipId = `violet-teaching-tip-${id}`;
         this.titleId = `violet-teaching-tip-title-${id}`;
+        this.anchorName = createAnchorName("violet-teaching-tip", id);
     }
 
     get #tipElement(): HTMLElement | null {
         return this.shadowRoot?.querySelector(".tip") ?? null;
+    }
+
+    get #internalAnchorElement(): HTMLElement | null {
+        return this.shadowRoot?.querySelector(".anchor") ?? null;
+    }
+
+    get #activeAnchorElement(): HTMLElement | null {
+        return this.#externalAnchor ?? this.#internalAnchorElement;
     }
 
     public show(): void {
@@ -274,6 +292,7 @@ export class VioletTeachingTip extends FASTElement {
         }
 
         this.#resolveExternalAnchor();
+        this.#syncAnchoring();
         this.#syncTriggerAria();
 
         if (this.open) {
@@ -289,6 +308,7 @@ export class VioletTeachingTip extends FASTElement {
             tip.removeEventListener("toggle", this.#handleToggle);
         }
 
+        this.#fallbackPosition.stop(tip);
         this.#detachExternalListeners();
     }
 
@@ -306,6 +326,12 @@ export class VioletTeachingTip extends FASTElement {
         this.#syncTriggerAria();
     }
 
+    public positioningChanged(): void {
+        if (this.open) {
+            this.#fallbackPosition.update();
+        }
+    }
+
     public anchorChanged(): void {
         if (!this.$fastController.isConnected) {
             return;
@@ -313,13 +339,24 @@ export class VioletTeachingTip extends FASTElement {
 
         this.#detachExternalListeners();
         this.#resolveExternalAnchor();
-        this.#syncTriggerAria();
+        this.#syncAnchoring();
+        if (!this.#externalListenersAttached) {
+            this.handleSlotChange();
+        } else {
+            this.#syncTriggerAria();
+        }
+        if (this.open) {
+            this.#startFallbackPosition();
+        }
     }
 
     public handleSlotChange(): void {
+        if (this.#externalListenersAttached) {
+            return;
+        }
         const slot = this.shadowRoot?.querySelector("slot:not([name])") as HTMLSlotElement | null;
         const assigned = slot?.assignedElements({ flatten: true }) ?? [];
-        if (this.#triggerElement instanceof HTMLElement && !this.#externalListenersAttached) {
+        if (this.#triggerElement instanceof HTMLElement) {
             this.#clearTriggerAria(this.#triggerElement);
         }
         this.#triggerElement = assigned[0] ?? null;
@@ -350,12 +387,31 @@ export class VioletTeachingTip extends FASTElement {
         const toggle = event as ToggleEvent;
         const isOpen = toggle.newState === "open";
         this.open = isOpen;
+        if (isOpen) {
+            this.#syncAnchoring();
+            this.#startFallbackPosition();
+        } else {
+            this.#fallbackPosition.stop(this.#tipElement);
+        }
         this.#syncTriggerAria();
         this.$emit("open-change", { open: isOpen });
         if (!isOpen) {
             this.$emit("dismiss");
         }
     };
+
+    #syncAnchoring(): void {
+        bindOverlayAnchor(this.#internalAnchorElement, this.#externalAnchor, this.#tipElement, this.anchorName);
+    }
+
+    #startFallbackPosition(): void {
+        this.#fallbackPosition.start(
+            () => this.#activeAnchorElement,
+            () => this.#tipElement,
+            () => [this.positioning, "below", "center", getComputedStyle(this).getPropertyValue("--_tip-gap"), this, 8],
+            Boolean(this.#externalAnchor),
+        );
+    }
 
     #resolveExternalAnchor(): void {
         if (!this.anchor) {
@@ -367,9 +423,11 @@ export class VioletTeachingTip extends FASTElement {
             return;
         }
 
+        if (this.#triggerElement instanceof HTMLElement && this.#triggerElement !== external) {
+            this.#clearTriggerAria(this.#triggerElement);
+        }
         this.#externalAnchor = external;
         this.#triggerElement = external;
-        external.style.setProperty("anchor-name", "--violet-teaching-tip-anchor");
         this.#externalListenersAttached = true;
     }
 
@@ -379,7 +437,9 @@ export class VioletTeachingTip extends FASTElement {
         }
 
         this.#clearTriggerAria(this.#externalAnchor);
-        this.#externalAnchor.style.removeProperty("anchor-name");
+        if (this.#triggerElement === this.#externalAnchor) {
+            this.#triggerElement = null;
+        }
         this.#externalAnchor = null;
         this.#externalListenersAttached = false;
     }
@@ -426,6 +486,8 @@ export class VioletTeachingTip extends FASTElement {
             tip.toggleAttribute("popover-open", true);
             tip.style.display = "block";
         }
+        this.#syncAnchoring();
+        this.#startFallbackPosition();
     }
 
     #hideTip(): void {
@@ -434,6 +496,7 @@ export class VioletTeachingTip extends FASTElement {
             return;
         }
 
+        this.#fallbackPosition.stop(tip);
         try {
             tip.hidePopover();
         } catch {

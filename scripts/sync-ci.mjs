@@ -48,7 +48,7 @@ const SUITE_CONFIG = [
 		workflow: 'fast-af.yml',
 		tools: ['chromium'],
 		remote:
-			'fast-element on Firefox and WebKit (daily), and its upstream test:ci documentation checks',
+			'fast-element on Firefox and WebKit (daily) and its upstream test:ci documentation checks, and violet-elements on Firefox and WebKit (run locally with pnpm -F @lushly-dev/violet-elements test:browser:all)',
 		extract(wf) {
 			requireGate(wf, 'runtime');
 			requireGate(wf, 'components');
@@ -69,9 +69,13 @@ const SUITE_CONFIG = [
 			);
 			requireStepRun(wf, 'components', 'theme:build');
 			const compLint = findStep(wf, 'components', (s) => s.run.includes('violet-elements lint'));
-			const compBrowser = findStep(wf, 'components', (s) =>
-				s.run.includes('violet-elements test:browser')
+			const compBrowser = findStep(
+				wf,
+				'components',
+				(s) => s.run === 'pnpm -F @lushly-dev/violet-elements test:browser'
 			);
+			requireStepRun(wf, 'components', 'violet-elements test:browser:firefox');
+			requireStepRun(wf, 'components', 'violet-elements test:browser:webkit');
 			requireStepRun(wf, 'components', 'tests/consumers/fast-af/verify-artifacts.mjs');
 			return [
 				{ gate: 'runtime', run: runtimeBuild.run },

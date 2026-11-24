@@ -239,7 +239,7 @@ async function renderGrid(columnId: RichColumnId): Promise<{
   // pointer clicks aimed at the editor trigger (headless Linux Chromium hides them).
   grid.columns = [
     { id: "commonName", label: "Plant", width: "6rem", value: (row: TestRow) => row.commonName },
-    { ...column, width: "18rem" },
+    { ...column, width: "15rem" },
   ] as VioletDataGridColumn[];
   grid.rows = [
     {

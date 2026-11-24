@@ -7,6 +7,7 @@ import { registerSystemCalendarIcon } from "../icon/generated/icons/system-calen
 import { formatDisplayDate, parseIsoDate } from "../date-time/violet-date-utils";
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
+import { resolveFieldErrorText } from "../shared/field-error";
 import {
     findEnclosingDialog,
     hideManualPopover,
@@ -197,7 +198,7 @@ const styles = css`
     }
 
     .error {
-        color: var(--color-state-danger-foreground, #c42a1a);
+        color: var(--_danger-text);
         margin-block-start: var(--_space-field-gap);
     }
 
@@ -248,7 +249,7 @@ const template = html<VioletDatePicker>`
                     ?disabled="${x => x.effectiveDisabled}"
                     ?required="${x => x.required}"
                     aria-describedby="${x => x.describedBy || null}"
-                    aria-invalid="${x => x.invalid ? "true" : "false"}"
+                    aria-invalid="${x => (!x.effectiveDisabled && x.invalid) ? "true" : "false"}"
                     @input="${(x, c) => x.handleInput(c.event)}"
                     @change="${(x, c) => x.handleCommit(c.event)}"
                     @keydown="${(x, c) => x.handleInputKeydown(c.event as KeyboardEvent)}"
@@ -292,12 +293,12 @@ const template = html<VioletDatePicker>`
             </div>
         </div>
         ${when(
-            x => Boolean(x.supportingText),
+            x => Boolean(x.supportingText) && !x.displayErrorText,
             html<VioletDatePicker>`<p class="supporting" part="supporting-text" id="${x => x.supportingId}">${x => x.supportingText}</p>`,
         )}
         ${when(
             x => Boolean(x.displayErrorText),
-            html<VioletDatePicker>`<p class="error" part="error-message" id="${x => x.errorId}">${x => x.displayErrorText}</p>`,
+            html<VioletDatePicker>`<p class="error" part="error-message" id="${x => x.errorId}" role="alert">${x => x.displayErrorText}</p>`,
         )}
     </div>
 `;
@@ -309,6 +310,7 @@ const template = html<VioletDatePicker>`
  * @fires input - Emitted when the date value changes while editing or selecting.
  * @fires change - Emitted when the date value is committed.
  * @fires open-change - Emitted when the calendar popup opens or closes.
+ * @csspart error-message - Error message element shown while invalid.
  */
 export class VioletDatePicker extends FASTElement {
     public static readonly formAssociated = true;
@@ -453,19 +455,34 @@ export class VioletDatePicker extends FASTElement {
     }
 
     public get describedBy(): string {
-        const ids = [
-            this.supportingText ? this.supportingId : "",
-            this.displayErrorText ? this.errorId : "",
-        ].filter(Boolean);
-        return ids.join(" ");
+        if (this.displayErrorText) {
+            return this.errorId;
+        }
+        return this.supportingText ? this.supportingId : "";
     }
 
+    @observable
+    private nativeValidationMessage = "";
+
     public get displayErrorText(): string {
-        return this.validationMessageText || this.errorText;
+        return resolveFieldErrorText({
+            invalid: this.invalid,
+            disabled: this.effectiveDisabled,
+            errorText: this.errorText,
+            fallbackValidationMessage: this.nativeValidationMessage,
+        });
     }
 
     public valueChanged(): void {
         this.#syncInputElement();
+        this.#syncFormState();
+    }
+
+    public disabledChanged(): void {
+        this.#syncFormState();
+    }
+
+    public requiredChanged(): void {
         this.#syncFormState();
     }
 
@@ -707,26 +724,36 @@ export class VioletDatePicker extends FASTElement {
     }
 
     #syncFormState(): void {
+        if (this.effectiveDisabled) {
+            this.nativeValidationMessage = "";
+            this.validationMessageText = "";
+            this.#internals.setFormValue(null);
+            this.#internals.setValidity({});
+            return;
+        }
+
         const input = this.inputElement;
         const valueMissing = this.required && !this.value;
-        const customError = this.invalid ? this.errorText || "Select a valid date." : "";
+        const trimmedError = (this.errorText ?? "").trim();
+        const customError = this.invalid ? trimmedError || "Select a valid date." : "";
         const nativeBadInput = this.value ? !parseIsoDate(this.value) : false;
 
         const parsedValue = this.value && !nativeBadInput;
         const rangeUnderflow = Boolean(parsedValue && parseIsoDate(this.min) && this.value < this.min);
         const rangeOverflow = Boolean(parsedValue && parseIsoDate(this.max) && this.value > this.max);
 
-        this.validationMessageText =
-            customError ||
-            (valueMissing
-                ? "Please choose a date."
-                : nativeBadInput
-                  ? "Enter a valid date."
-                  : rangeUnderflow
-                    ? `Choose a date on or after ${this.min}.`
-                    : rangeOverflow
-                      ? `Choose a date on or before ${this.max}.`
-                      : "");
+        const constraintMessage = valueMissing
+            ? "Please choose a date."
+            : nativeBadInput
+              ? "Enter a valid date."
+              : rangeUnderflow
+                ? `Choose a date on or after ${this.min}.`
+                : rangeOverflow
+                  ? `Choose a date on or before ${this.max}.`
+                  : "";
+
+        this.nativeValidationMessage = constraintMessage;
+        this.validationMessageText = customError || constraintMessage;
 
         this.#internals.setFormValue(this.value || null);
         this.#internals.setValidity(

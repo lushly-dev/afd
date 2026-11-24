@@ -364,12 +364,21 @@
       "layer": "foundation",
       "path": "foundations/fast-af/packages/element/packages/fast-element",
       "publication_state": "preview"
-    },
+    }
+  ],
+  "retired_units": [
     {
       "name": "@lushly-dev/violet-elements",
-      "layer": "foundation",
+      "family": "violet-elements",
+      "layer": "integration",
       "path": "foundations/fast-af/packages/violet-elements",
-      "publication_state": "preview"
+      "upstream_prefix": "packages/violet-elements",
+      "upstream_paths": [
+        "vitest.config.ts"
+      ],
+      "publication_state": "preview",
+      "retired_on": "2026-11-23",
+      "reason": "AFD-authored component library whose upstream was private and never published; moved to its own integration unit outside per-file FAST-AF provenance and inside the size gate (#1783)"
     }
   ],
   "interpretation": "upstream-selected.json describes upstream bytes only. adaptations.json records upstream to staged and staged to imported transitions for every imported file. Imported paths are foundations/fast-af/ plus the upstream path, except the violet Vitest config derived from the upstream root config",

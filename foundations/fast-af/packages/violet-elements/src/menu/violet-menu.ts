@@ -1,5 +1,10 @@
 import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
 
+import {
+    LazyFallbackPositionController,
+    bindOverlayAnchor,
+    createAnchorName,
+} from "../shared/overlay-anchor";
 import { violetActionTokenDefaults } from "../theme/violet-token-defaults";
 import type { VioletMenuItem } from "./violet-menu-item";
 
@@ -29,8 +34,13 @@ const styles = css`
         --_panel-border-color: var(--violet-menu-border-color, transparent);
     }
 
+    .anchor {
+        display: inline-flex;
+    }
+
     .panel {
         box-sizing: border-box;
+        position: fixed;
         min-inline-size: var(--_panel-min-inline);
         max-inline-size: var(--_panel-max-inline);
         max-block-size: min(var(--_panel-max-block), 80vh);
@@ -49,6 +59,14 @@ const styles = css`
         font-size: var(--_control-type-size);
         line-height: var(--_type-body-line);
         z-index: var(--_layer-popover);
+    }
+
+    @supports (anchor-name: --violet-anchor) and (position-area: block-end span-inline-end) and (position-try-fallbacks: flip-block) {
+        .panel {
+            position-area: block-end span-inline-end;
+            margin-block-start: var(--_panel-gap);
+            position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
+        }
     }
 
     .panel::backdrop {
@@ -78,11 +96,13 @@ const styles = css`
 /* ------------------------------------------------------------------ */
 
 const template = html<VioletMenu>`
-    <slot
-        name="trigger"
-        @click="${x => x.handleTriggerClick()}"
-        @keydown="${(x, c) => x.handleTriggerKeydown(c.event as KeyboardEvent)}"
-    ></slot>
+    <span class="anchor" part="anchor">
+        <slot
+            name="trigger"
+            @click="${x => x.handleTriggerClick()}"
+            @keydown="${(x, c) => x.handleTriggerKeydown(c.event as KeyboardEvent)}"
+        ></slot>
+    </span>
     <div
         class="panel"
         part="panel"
@@ -114,6 +134,7 @@ const template = html<VioletMenu>`
  * @fires open-change - Emitted when the menu opens or closes. Detail: `{ open: boolean }`.
  * @slot trigger - The button element that toggles the menu. Must be a focusable element.
  * @slot - Menu content: `<violet-menu-item>` elements and optional `<hr>` separators.
+ * @csspart anchor - Wrapper around the trigger slot used as the anchor.
  * @csspart panel - Floating menu panel container.
  */
 export class VioletMenu extends FASTElement {
@@ -133,17 +154,20 @@ export class VioletMenu extends FASTElement {
      * Unique ID for the menu panel, used for anchor positioning.
      */
     public readonly panelId: string;
+    public readonly anchorName: string;
 
     #id: number;
     #activeIndex = -1;
     #searchBuffer = "";
     #searchTimer = 0;
+    #fallbackPosition = new LazyFallbackPositionController();
 
     public constructor() {
         super();
         this.#id = violetMenuId;
         violetMenuId += 1;
         this.panelId = `violet-menu-panel-${this.#id}`;
+        this.anchorName = createAnchorName("violet-menu", this.#id);
         this.open = false;
         this.label = "";
     }
@@ -154,11 +178,13 @@ export class VioletMenu extends FASTElement {
 
     public connectedCallback(): void {
         super.connectedCallback();
+        this.#syncAnchoring();
         this.#syncTriggerAria();
     }
 
     public disconnectedCallback(): void {
         this.#clearTypeAhead();
+        this.#fallbackPosition.stop(this.#panel);
         super.disconnectedCallback();
     }
 
@@ -300,6 +326,7 @@ export class VioletMenu extends FASTElement {
         this.open = isOpen;
 
         if (isOpen) {
+            this.#syncAnchoring();
             this.#positionPanel();
             // Focus first item on next frame so the panel is rendered, unless a keyboard open
             // (or a key pressed since) already placed focus; the toggle event is async and
@@ -310,6 +337,7 @@ export class VioletMenu extends FASTElement {
                 }
             });
         } else {
+            this.#fallbackPosition.stop(this.#panel);
             this.#activeIndex = -1;
             this.#clearTypeAhead();
         }
@@ -370,35 +398,24 @@ export class VioletMenu extends FASTElement {
         return Array.from(this.querySelectorAll("violet-menu-item"));
     }
 
+    get #anchorElement(): HTMLElement | null {
+        return this.shadowRoot?.querySelector(".anchor") ?? null;
+    }
+
+    #syncAnchoring(): void {
+        bindOverlayAnchor(this.#anchorElement, null, this.#panel, this.anchorName);
+    }
+
     /**
-     * Positions the panel below (or above) the trigger using fixed coordinates.
+     * Positions the panel below (or above) the trigger using the shared overlay
+     * strategy: CSS Anchor Positioning when supported, fixed geometry fallback otherwise.
      */
     #positionPanel(): void {
-        const panel = this.#panel;
-        if (!panel) {
-            return;
-        }
-
-        const rect = (this.#trigger ?? this).getBoundingClientRect();
-        const gap = Number.parseFloat(
-            getComputedStyle(this).getPropertyValue("--_panel-gap"),
-        ) || 4;
-
-        panel.style.position = "fixed";
-        panel.style.top = `${rect.bottom + gap}px`;
-        panel.style.left = `${rect.left}px`;
-
-        // Flip if overflowing viewport
-        requestAnimationFrame(() => {
-            const panelRect = panel.getBoundingClientRect();
-            if (panelRect.bottom > window.innerHeight) {
-                panel.style.top = `${rect.top - panelRect.height - gap}px`;
-            }
-
-            if (panelRect.right > window.innerWidth) {
-                panel.style.left = `${rect.right - panelRect.width}px`;
-            }
-        });
+        this.#fallbackPosition.start(
+            () => this.#trigger ?? this.#anchorElement ?? this,
+            () => this.#panel,
+            () => ["below", "below", "start", getComputedStyle(this).getPropertyValue("--_panel-gap"), this, 4],
+        );
     }
 
     /**

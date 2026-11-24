@@ -289,10 +289,11 @@ describe('P2-E9: the projects section', () => {
 		// Meanwhile an indeterminate `violet-progress` shows and names the read in text (#863).
 		const progress = region(page).locator('violet-progress');
 		expect(await progress.getAttribute('value')).toBe('');
+		const labelId = await progress.locator('.label').getAttribute('id');
+		expect(labelId).toBeTruthy();
 		expect(await progress.locator('.label').textContent()).toBe('Loading the summaries…');
-		expect(await progress.locator('progress').getAttribute('aria-label')).toBe(
-			'Loading the summaries…'
-		);
+		expect(await progress.locator('progress').getAttribute('aria-labelledby')).toBe(labelId);
+		expect(await progress.locator('progress').getAttribute('aria-label')).toBeNull();
 		expect(await axe(page), 'home while loading').toEqual([]);
 		// Still loading once axe ends, so it checked the bar rather than the loaded home.
 		expect(await region(page).getAttribute('aria-busy')).toBe('true');

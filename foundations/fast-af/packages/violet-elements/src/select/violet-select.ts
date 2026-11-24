@@ -11,6 +11,7 @@ import {
 } from "../listbox/violet-selection-helpers";
 import type { VioletOption } from "../option/violet-option";
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
+import { resolveFieldErrorText } from "../shared/field-error";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
 
 let violetSelectCount = 0;
@@ -178,7 +179,7 @@ const styles = css`
     }
 
     .error {
-        color: var(--color-state-danger-foreground, #c42a1a);
+        color: var(--_danger-text);
         margin-block-start: var(--_space-field-gap);
     }
 
@@ -230,7 +231,7 @@ const template = html<VioletSelect>`
                 aria-controls="${x => x.listboxId}"
                 aria-labelledby="${x => x.label ? `${x.labelId} ${x.valueId}` : x.valueId}"
                 aria-describedby="${x => x.describedBy || null}"
-                aria-invalid="${x => x.invalid ? "true" : "false"}"
+                aria-invalid="${x => (!x.effectiveDisabled && x.invalid) ? "true" : "false"}"
                 @click="${x => x.handleTriggerClick()}"
                 @keydown="${(x, c) => x.handleTriggerKeydown(c.event as KeyboardEvent)}"
             >
@@ -256,7 +257,7 @@ const template = html<VioletSelect>`
         </div>
 
         ${when(
-            x => Boolean(x.supportingText),
+            x => Boolean(x.supportingText) && !x.displayErrorText,
             html<VioletSelect>`
                 <p class="supporting" part="supporting-text" id="${x => x.supportingId}">${x => x.supportingText}</p>
             `
@@ -264,7 +265,7 @@ const template = html<VioletSelect>`
         ${when(
             x => Boolean(x.displayErrorText),
             html<VioletSelect>`
-                <p class="error" part="error-message" id="${x => x.errorId}">${x => x.displayErrorText}</p>
+                <p class="error" part="error-message" id="${x => x.errorId}" role="alert">${x => x.displayErrorText}</p>
             `
         )}
     </div>
@@ -463,15 +464,19 @@ export class VioletSelect extends FASTElement {
     }
 
     public get describedBy(): string {
-        return [this.supportingText ? this.supportingId : "", this.displayErrorText ? this.errorId : ""]
-            .filter(Boolean)
-            .join(" ");
+        if (this.displayErrorText) {
+            return this.errorId;
+        }
+        return this.supportingText ? this.supportingId : "";
     }
 
     public get displayErrorText(): string {
-        return !this.effectiveDisabled && (this.invalid || (this.required && !this.value))
-            ? this.errorText || "Please select an option."
-            : "";
+        return resolveFieldErrorText({
+            invalid: this.invalid,
+            disabled: this.effectiveDisabled,
+            errorText: this.errorText,
+            fallbackValidationMessage: this.required && !this.value ? "Please select an option." : "",
+        });
     }
 
     public formStateRestoreCallback(state: File | string | FormData | null): void {
@@ -814,8 +819,8 @@ export class VioletSelect extends FASTElement {
         }
 
         const control = this.shadowRoot?.querySelector(".trigger") as HTMLButtonElement | null;
-        const message = this.displayErrorText || this.errorText || "Please select an option.";
-        const invalid = !this.effectiveDisabled && Boolean(this.displayErrorText);
+        const message = this.displayErrorText || (this.errorText ?? "").trim() || "Please select an option.";
+        const invalid = !this.effectiveDisabled && this.invalid;
 
         this.validationMessageText = this.displayErrorText;
         this.#internals.ariaInvalid = invalid ? "true" : "false";

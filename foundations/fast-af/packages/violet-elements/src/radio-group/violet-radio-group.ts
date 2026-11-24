@@ -1,10 +1,11 @@
-import { FASTElement, attr, css, html, observable, when } from "@lushly-dev/fast-element";
+import { FASTElement, Updates, attr, css, html, observable, when } from "@lushly-dev/fast-element";
 
 import "../radio/violet-radio";
 import type { VioletRadio } from "../radio/violet-radio";
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
 import { logicalArrowKey } from "../foundations/violet-direction";
+import { resolveFieldErrorText } from "../shared/field-error";
 
 export type VioletRadioGroupOrientation = "horizontal" | "vertical";
 
@@ -53,7 +54,7 @@ const styles = css`
 
     .error {
         margin: 0;
-        color: var(--color-state-danger-foreground, #c42a1a);
+        color: var(--_danger-text);
         font-size: var(--_control-caption-size);
         line-height: var(--_type-caption-line);
         margin-block-start: var(--_space-stack-xs);
@@ -72,15 +73,15 @@ const template = html<VioletRadioGroup>`
             <slot @slotchange="${x => x.handleSlotChange()}"></slot>
         </div>
         ${when(
-            x => Boolean(x.supportingText),
+            x => Boolean(x.supportingText) && !x.displayErrorText,
             html<VioletRadioGroup>`
                 <p class="supporting" part="supporting-text">${x => x.supportingText}</p>
             `,
         )}
         ${when(
-            x => Boolean(x.validationMessageText),
+            x => Boolean(x.displayErrorText),
             html<VioletRadioGroup>`
-                <p class="error" part="error-message">${x => x.validationMessageText}</p>
+                <p class="error" part="error-message" role="alert">${x => x.displayErrorText}</p>
             `,
         )}
     </div>
@@ -96,6 +97,7 @@ const template = html<VioletRadioGroup>`
  * @csspart label - Group label text element.
  * @csspart group - Layout wrapper for slotted radios.
  * @csspart supporting-text - Supporting text element.
+ * @csspart error-message - Error message element shown while invalid.
  */
 export class VioletRadioGroup extends FASTElement {
     public static readonly formAssociated = true;
@@ -245,11 +247,11 @@ export class VioletRadioGroup extends FASTElement {
     }
 
     public labelChanged(): void {
-        this.#syncAccessibilityState();
+        this.#scheduleAccessibilitySync();
     }
 
     public supportingTextChanged(): void {
-        this.#syncAccessibilityState();
+        this.#scheduleAccessibilitySync();
     }
 
     public errorTextChanged(): void {
@@ -374,6 +376,15 @@ export class VioletRadioGroup extends FASTElement {
         return null;
     }
 
+    public get displayErrorText(): string {
+        return resolveFieldErrorText({
+            invalid: this.invalid,
+            disabled: this.effectiveDisabled,
+            errorText: this.errorText,
+            fallbackValidationMessage: this.required && !this.value ? "Please select an option." : "",
+        });
+    }
+
     #syncAccessibilityState(): void {
         this.#internals.ariaDisabled = this.effectiveDisabled ? "true" : "false";
         this.#internals.ariaOrientation = this.orientation;
@@ -391,8 +402,20 @@ export class VioletRadioGroup extends FASTElement {
             this.#internals.ariaLabel = this.getAttribute("aria-label") || this.label || null;
         }
 
-        this.#internals.ariaDescribedByElements = supportingElement instanceof Element ? [supportingElement] : null;
+        const captionElement =
+            errorElement instanceof Element
+                ? errorElement
+                : supportingElement instanceof Element
+                  ? supportingElement
+                  : null;
+        this.#internals.ariaDescribedByElements = captionElement ? [captionElement] : null;
         this.#internals.ariaErrorMessageElements = errorElement instanceof Element ? [errorElement] : null;
+    }
+
+    #scheduleAccessibilitySync(): void {
+        // Attribute change callbacks run before FAST queues template binding updates, so a
+        // nested enqueue guarantees the caption swap has patched the shadow DOM first.
+        Updates.enqueue(() => Updates.enqueue(() => this.#syncAccessibilityState()));
     }
 
     #syncFormState(): void {
@@ -402,29 +425,31 @@ export class VioletRadioGroup extends FASTElement {
             this.validationMessageText = "";
             this.#internals.setValidity({});
             this.#internals.ariaInvalid = "false";
+            this.#scheduleAccessibilitySync();
             return;
         }
 
         if (this.invalid) {
-            this.validationMessageText = this.errorText || "Please select a valid option.";
-            this.#internals.setValidity({ customError: true }, this.validationMessageText);
+            this.validationMessageText = this.displayErrorText;
+            this.#internals.setValidity({ customError: true }, this.displayErrorText || "Please select a valid option.");
             this.#internals.ariaInvalid = "true";
-            this.#syncAccessibilityState();
+            this.#scheduleAccessibilitySync();
             return;
         }
 
+        this.validationMessageText = "";
+
         if (this.required && !this.value) {
-            this.validationMessageText = this.errorText || "Please select an option.";
-            this.#internals.setValidity({ valueMissing: true }, this.validationMessageText);
-            this.#internals.ariaInvalid = "true";
-            this.#syncAccessibilityState();
+            this.#internals.setValidity({ valueMissing: true }, (this.errorText ?? "").trim() || "Please select an option.");
+            this.#internals.ariaInvalid = "false";
+            this.#scheduleAccessibilitySync();
             return;
         }
 
         this.validationMessageText = "";
         this.#internals.setValidity({});
         this.#internals.ariaInvalid = "false";
-        this.#syncAccessibilityState();
+        this.#scheduleAccessibilitySync();
     }
 
     handleRadioChange = (event: Event): void => {

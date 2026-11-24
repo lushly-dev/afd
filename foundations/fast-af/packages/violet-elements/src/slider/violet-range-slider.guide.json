@@ -30,7 +30,7 @@
     },
     {
       "id": "range-slider.validation",
-      "text": "The required attribute has no effect on validity. Only the invalid attribute makes it invalid, showing error-text or the built-in \"Please choose a valid range.\"",
+      "text": "The required attribute has no effect on validity. Only the invalid attribute makes it invalid, and error-text is shown only while invalid is set.",
       "members": [
         "required",
         "invalid",

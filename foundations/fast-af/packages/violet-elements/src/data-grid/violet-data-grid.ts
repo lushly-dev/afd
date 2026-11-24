@@ -451,7 +451,8 @@ export class VioletDataGrid extends FASTElement {
   #rowMeasurementFrame: number | null = null;
     #pointerSelectionSession: VioletDataGridPointerSelectionSession<VioletDataGridCellLocation> =
         clearedPointerSelectionSession();
-    #suppressNextGridClick = false;
+    #suppressNextGridClick = false; #editorPointerId: number | null = null;
+    readonly #handleEditorPointerEnd = (e: PointerEvent): void => { if (e.pointerId === this.#editorPointerId) this.#editorPointerId = null; };
     #nativeCopyPending = false;
     #fillSession: VioletDataGridFillSession<VioletDataGridCellRange> = clearedFillSession();
     #columnResizeReturnTarget: HTMLElement | null = null;
@@ -592,6 +593,8 @@ export class VioletDataGrid extends FASTElement {
     });
     this.ownerDocument.addEventListener("focusin", this.#handleFocusIntent, true);
     this.ownerDocument.addEventListener("pointerdown", this.#handleFocusIntent, true);
+    this.ownerDocument.addEventListener("pointerup", this.#handleEditorPointerEnd, true);
+    this.ownerDocument.addEventListener("pointercancel", this.#handleEditorPointerEnd, true);
     window.addEventListener("resize", this.#handleViewportResize);
         this.#virtualizerCleanup ??= this.#rowVirtualizer._didMount();
         this.hasToolbarSlotContent = this.querySelector('[slot="toolbar"]') !== null;
@@ -609,6 +612,9 @@ export class VioletDataGrid extends FASTElement {
     this.#hostAriaObserver = null;
     this.ownerDocument.removeEventListener("focusin", this.#handleFocusIntent, true);
     this.ownerDocument.removeEventListener("pointerdown", this.#handleFocusIntent, true);
+    this.ownerDocument.removeEventListener("pointerup", this.#handleEditorPointerEnd, true);
+    this.ownerDocument.removeEventListener("pointercancel", this.#handleEditorPointerEnd, true);
+    this.#editorPointerId = null;
     window.removeEventListener("resize", this.#handleViewportResize);
         if (this.#virtualizerFrame !== null) {
             cancelAnimationFrame(this.#virtualizerFrame);
@@ -1466,11 +1472,13 @@ export class VioletDataGrid extends FASTElement {
     }
 
     public handleGridPointerDown(event: PointerEvent): boolean {
+        if (this.isEditorEvent(event) || this.isEditorElement(event.target)) {
+            this.#editorPointerId = event.pointerId;
+            return true;
+        }
         if (
             this.focusMode !== "cell" ||
             event.button !== 0 ||
-            this.isEditorEvent(event) ||
-            this.isEditorElement(event.target) ||
             this.isInteractiveCellWidgetEvent(event) ||
             this.isInteractiveCellWidgetTarget(event.target)
         ) {
@@ -1492,11 +1500,8 @@ export class VioletDataGrid extends FASTElement {
             this.beginFillDrag(event);
             return false;
         }
-
         const location = this.locationFromEvent(event) ?? this.locationFromTarget(event.target);
-        if (!location) {
-            return true;
-        }
+        if (!location) return true;
 
         const scrollContainer = this.getScrollContainer();
 
@@ -1545,6 +1550,7 @@ export class VioletDataGrid extends FASTElement {
 
     public handleGridPointerUp(event: PointerEvent): void {
         if (isFillPointerEventForSession(this.#fillSession, event.pointerId)) {
+            if (event.isTrusted && (event.clientX || event.clientY)) this.handleFillPointerMove(event);
             this.handleFillPointerUp();
             return;
         }
@@ -1628,7 +1634,7 @@ export class VioletDataGrid extends FASTElement {
         }
     const sessionId = this.#editingSession?.id ?? null;
     const relatedTarget = (event as FocusEvent).relatedTarget;
-    if (this.isTargetWithinEditingOwnership(relatedTarget)) {
+    if (this.isTargetWithinEditingOwnership(relatedTarget) || (this.#editorPointerId !== null && (!relatedTarget || relatedTarget === this.getScrollContainer()))) {
       return;
     }
     // A concrete outside target is an intentional focus transfer. Resolve it
@@ -1667,7 +1673,7 @@ export class VioletDataGrid extends FASTElement {
         return;
       }
 
-            if (currentEditor?.matches?.(":focus-within")) {
+            if (this.#editorPointerId !== null || currentEditor?.matches?.(":focus-within") || (currentEditor as { open?: boolean } | null)?.open) {
                 return;
             }
 

@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { cdp } from "vitest/browser";
+import { cdp, server } from "vitest/browser";
+
+const isChromium = server.browser === "chromium";
 
 import "./violet-carousel";
 import type { VioletCarousel } from "./violet-carousel";
@@ -140,7 +142,7 @@ describe("violet-carousel", () => {
         });
     });
 
-    describe("coarse pointer sizing (#1569)", () => {
+    if (isChromium) describe("coarse pointer sizing (#1569)", () => {
         async function emulateCoarsePointer(coarse: boolean): Promise<void> {
             const session = cdp() as unknown as { send(method: string, params?: object): Promise<unknown> };
             if (coarse) {

@@ -337,7 +337,7 @@ const styles = css`
     .add-upload::part(label),
     .add-upload::part(selection),
     .add-upload::part(supporting-text),
-    .add-upload::part(error-text),
+    .add-upload::part(error-message),
     .add-upload::part(button-copy) {
         display: none;
     }

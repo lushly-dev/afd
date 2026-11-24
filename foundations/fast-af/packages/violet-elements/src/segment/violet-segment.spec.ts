@@ -107,7 +107,13 @@ describe("violet-segment", () => {
         const segment = await renderSegment();
         const details = trackSelectRequests(segment);
 
+        // Ensure the test frame owns focus before sending keyboard input (Firefox headless iframes).
+        window.focus();
         segment.focus();
+        await nextFrame();
+        if (document.activeElement !== segment) {
+            await userEvent.tab();
+        }
         await userEvent.keyboard(keys);
 
         expect(details).toEqual([{ value: "day" }]);

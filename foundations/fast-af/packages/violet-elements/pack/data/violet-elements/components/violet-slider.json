@@ -15,7 +15,7 @@
 			{
 				"basis": "authored",
 				"id": "slider.error",
-				"text": "The error text, shown while invalid, is linked to the input as its description after the supporting text."
+				"text": "The error text, shown while invalid, replaces the supporting text and is linked to the input as its description."
 			}
 		]
 	},
@@ -37,7 +37,8 @@
 				"name": "error-text",
 				"property": "errorText",
 				"rules": [
-					"taxonomy.error-text"
+					"taxonomy.error-text",
+					"taxonomy.error-text.not-for"
 				],
 				"type": "string"
 			},
@@ -299,11 +300,13 @@
 		"field.input-change",
 		"field.label",
 		"field.supporting-text",
+		"form.error-text",
 		"form.invalid",
 		"form.participation",
 		"import.root",
 		"taxonomy.disabled",
 		"taxonomy.error-text",
+		"taxonomy.error-text.not-for",
 		"taxonomy.invalid",
 		"taxonomy.label",
 		"taxonomy.max",
@@ -336,7 +339,7 @@
 		{
 			"basis": "authored",
 			"id": "slider.validation",
-			"text": "The required attribute has no effect on validity. Only invalid makes it invalid, and the error text (default \"Please choose a valid value.\") is shown only while invalid is set."
+			"text": "The required attribute has no effect on validity. Only invalid makes it invalid, and error-text is shown only while invalid is set."
 		},
 		{
 			"basis": "authored",

@@ -134,6 +134,21 @@ describe('ceiling-raises: the parser reads every row of what it guards', () => {
 		});
 	});
 
+	it('reads CRLF-formatted ceiling sources, decision rows, and spec sections', () => {
+		const crlfBudget = BUDGET(344_000).replaceAll('\n', '\r\n');
+		expect(parseCeilings(crlfBudget, 'CEILINGS')).toEqual({
+			rows: { jsMinified: 344_000, jsGzip: 108_800 },
+		});
+		const crlfDecisions = D161('2026-11-30').replaceAll('\n', '\r\n');
+		expect(decisionRow(crlfDecisions, 'D161')).toBe(
+			'| D161 | 2026-11-21 | D115 ends on 2026-11-30 |'
+		);
+		const crlfSpec = SECTION('jsMinified rises to 344,000').replaceAll('\n', '\r\n');
+		expect(sectionText(crlfSpec, '24-the-budget-and-the-rule')).toBe(
+			'### 2.4 The budget, and the rule\n\njsMinified rises to 344,000\n'
+		);
+	});
+
 	it('counts a raise, an added and a removed row, and leaves a lowering and an unchanged row out', () => {
 		expect(ceilingChanges({ a: 10, b: 10, c: 10, d: 10 }, { a: 11, b: 9, c: 10, e: 5 })).toEqual([
 			{ row: 'a', from: 10, to: 11 },

@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { cdp } from "vitest/browser";
+import { cdp, server } from "vitest/browser";
+
+const isChromium = server.browser === "chromium";
 
 import "./violet-toast";
 import type { VioletToast } from "./violet-toast";
@@ -73,14 +75,14 @@ describe("violet-toast", () => {
     });
 
     it("closes itself after its timeout by default, keeping its dismiss button", async () => {
-        const toast = await renderToast(`<violet-toast open timeout="20">Saved.</violet-toast>`);
+        const toast = await renderToast(`<violet-toast open timeout="80">Saved.</violet-toast>`);
         expect(toast.dismissible).toBe(true);
         const reasons: string[] = [];
         toast.addEventListener("dismiss", event =>
             reasons.push((event as CustomEvent<{ reason: string }>).detail.reason),
         );
 
-        await new Promise(resolve => window.setTimeout(resolve, 60));
+        await new Promise(resolve => window.setTimeout(resolve, 160));
 
         expect(toast.open).toBe(false);
         expect(reasons).toEqual(["timeout"]);
@@ -118,7 +120,7 @@ describe("violet-toast", () => {
         expect(toast.open).toBe(false);
     });
 
-    describe("under forced colours", () => {
+    if (isChromium) describe("under forced colours", () => {
         afterEach(async () => {
             await emulateForcedColors(false);
         });

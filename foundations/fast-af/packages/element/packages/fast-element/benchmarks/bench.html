@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>fast-element benchmark</title>
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            margin: 0;
+            padding: 8px;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        td {
+            padding: 2px 6px;
+            border-bottom: 1px solid #ddd;
+        }
+        tr.selected {
+            background: #ffe082;
+        }
+    </style>
+</head>
+<body>
+    <div id="mount"></div>
+    <script type="module">
+        const params = new URLSearchParams(location.search);
+        const variant = params.get("variant") || "current";
+        const fast = await import(`/variant/${variant}/index.js`);
+        const { FASTElement, FASTElementDefinition, Observable, Updates, html, repeat, observable } = fast;
+
+        const ADJECTIVES = [
+            "pretty", "large", "big", "small", "tall", "short", "long", "handsome",
+            "plain", "quaint", "clean", "elegant", "easy", "angry", "crazy", "helpful",
+            "mushy", "odd", "unsightly", "adorable", "important", "inexpensive", "cheap",
+            "expensive", "fancy",
+        ];
+        const COLOURS = [
+            "red", "yellow", "blue", "green", "pink", "brown", "purple", "brown",
+            "white", "black", "orange",
+        ];
+        const NOUNS = [
+            "table", "chair", "house", "bbq", "desk", "car", "pony", "cookie",
+            "sandwich", "burger", "pizza", "mouse", "keyboard",
+        ];
+
+        class BenchRow {
+            constructor(id, label) {
+                this.id = id;
+                this.label = label;
+            }
+        }
+        Observable.defineProperty(BenchRow.prototype, "label");
+
+        let nextId = 1;
+        function buildData(count) {
+            const rows = new Array(count);
+            for (let i = 0; i < count; i++) {
+                rows[i] = new BenchRow(
+                    nextId++,
+                    `${ADJECTIVES[i % ADJECTIVES.length]} ${COLOURS[i % COLOURS.length]} ${NOUNS[i % NOUNS.length]}`,
+                );
+            }
+            return rows;
+        }
+
+        const rowTemplate = html`
+            <tr class="${(x, c) => (c.parent.selected === x.id ? "selected" : "")}">
+                <td class="id">${x => x.id}</td>
+                <td class="label"><a href="#">${x => x.label}</a></td>
+                <td class="action"><button type="button">x</button></td>
+            </tr>
+        `;
+
+        const tableTemplate = html`
+            <table>
+                <tbody>
+                    ${repeat(x => x.rows, rowTemplate)}
+                </tbody>
+            </table>
+        `;
+
+        class BenchTable extends FASTElement {
+            rows = [];
+            selected = 0;
+        }
+        observable(BenchTable.prototype, "rows");
+        observable(BenchTable.prototype, "selected");
+        FASTElement.define(BenchTable, {
+            name: "bench-table",
+            template: tableTemplate,
+        });
+
+        // Scoped-registry host with child custom element inside repeat.
+        class ScopedChip extends FASTElement {
+            label = "";
+        }
+        observable(ScopedChip.prototype, "label");
+
+        const scopedRowTemplate = html`
+            <tr>
+                <td class="id">${x => x.id}</td>
+                <td class="label"><scoped-chip :label="${x => x.label}"></scoped-chip></td>
+            </tr>
+        `;
+        const scopedTableTemplate = html`
+            <table>
+                <tbody>
+                    ${repeat(x => x.rows, scopedRowTemplate)}
+                </tbody>
+            </table>
+        `;
+
+        let scopedSupported = false;
+        try {
+            const probe = document.createElement("div");
+            const testRegistry = new CustomElementRegistry();
+            const sr = probe.attachShadow({ mode: "open", customElementRegistry: testRegistry });
+            scopedSupported = sr.customElementRegistry === testRegistry;
+        } catch {
+            scopedSupported = false;
+        }
+
+        let scopedReady = false;
+        if (scopedSupported) {
+            const scopedRegistry = new CustomElementRegistry();
+            const chipDef = await FASTElementDefinition.compose(ScopedChip, {
+                name: "scoped-chip",
+                template: html`<span>${x => x.label}</span>`,
+            });
+            chipDef.define(scopedRegistry);
+
+            class BenchScopedTable extends FASTElement {
+                rows = [];
+            }
+            observable(BenchScopedTable.prototype, "rows");
+            await FASTElement.define(BenchScopedTable, {
+                name: "bench-scoped-table",
+                template: scopedTableTemplate,
+                shadowOptions: { mode: "open", customElementRegistry: scopedRegistry },
+            });
+            scopedReady = true;
+        }
+
+        const mount = document.getElementById("mount");
+
+        function doubleRaf() {
+            return new Promise(resolve => {
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => resolve());
+                });
+            });
+        }
+
+        async function settle() {
+            await Updates.next();
+            await doubleRaf();
+        }
+
+        async function runScenario(name) {
+            mount.innerHTML = "";
+            nextId = 1;
+
+            if (name === "scoped-create-1k") {
+                if (!scopedReady) {
+                    return { skipped: true, jsMs: 0, paintMs: 0, rowCount: 0 };
+                }
+                const el = document.createElement("bench-scoped-table");
+                mount.append(el);
+                await settle();
+                const data = buildData(1000);
+                const t0 = performance.now();
+                el.rows = data;
+                Updates.process();
+                const jsMs = performance.now() - t0;
+                await doubleRaf();
+                const paintMs = performance.now() - t0;
+                const rowCount = el.shadowRoot.querySelectorAll("tr").length;
+                if (rowCount !== 1000) {
+                    throw new Error(`scoped-create-1k: expected 1000 rows, got ${rowCount}`);
+                }
+                const chips = el.shadowRoot.querySelectorAll("scoped-chip");
+                if (chips.length !== 1000) {
+                    throw new Error(`scoped-create-1k: expected 1000 scoped-chip elements, got ${chips.length}`);
+                }
+                let upgradedChips = 0;
+                for (const chip of chips) {
+                    if (chip.shadowRoot) {
+                        upgradedChips++;
+                        const rendered = chip.shadowRoot.textContent?.trim() ?? "";
+                        if (!rendered || rendered === "undefined") {
+                            throw new Error(`scoped-create-1k: upgraded chip rendered invalid label '${rendered}'`);
+                        }
+                    }
+                }
+                if (upgradedChips > 0 && upgradedChips !== 1000) {
+                    throw new Error(`scoped-create-1k: partial scoped upgrade (${upgradedChips}/1000)`);
+                }
+                el.remove();
+                return { jsMs, paintMs, rowCount, upgradedChips };
+            }
+
+            const el = document.createElement("bench-table");
+            mount.append(el);
+            await settle();
+
+            let trigger;
+            let expectedRows;
+
+            switch (name) {
+                case "create-1k": {
+                    const data = buildData(1000);
+                    trigger = () => { el.rows = data; };
+                    expectedRows = 1000;
+                    break;
+                }
+                case "create-10k": {
+                    const data = buildData(10000);
+                    trigger = () => { el.rows = data; };
+                    expectedRows = 10000;
+                    break;
+                }
+                case "append-1k": {
+                    el.rows = buildData(1000);
+                    await settle();
+                    const extra = buildData(1000);
+                    trigger = () => { el.rows.push(...extra); };
+                    expectedRows = 2000;
+                    break;
+                }
+                case "replace-1k": {
+                    el.rows = buildData(1000);
+                    await settle();
+                    const replacement = buildData(1000);
+                    trigger = () => { el.rows = replacement; };
+                    expectedRows = 1000;
+                    break;
+                }
+                case "update-10th": {
+                    el.rows = buildData(1000);
+                    await settle();
+                    trigger = () => {
+                        for (let i = 0; i < el.rows.length; i += 10) {
+                            el.rows[i].label += " !!!";
+                        }
+                    };
+                    expectedRows = 1000;
+                    break;
+                }
+                case "swap-rows": {
+                    el.rows = buildData(1000);
+                    await settle();
+                    trigger = () => {
+                        const tmp = el.rows[1];
+                        el.rows.splice(1, 1, el.rows[998]);
+                        el.rows.splice(998, 1, tmp);
+                    };
+                    expectedRows = 1000;
+                    break;
+                }
+                case "select-row": {
+                    el.rows = buildData(1000);
+                    await settle();
+                    const targetId = el.rows[500].id;
+                    trigger = () => { el.selected = targetId; };
+                    expectedRows = 1000;
+                    break;
+                }
+                case "clear-1k": {
+                    el.rows = buildData(1000);
+                    await settle();
+                    trigger = () => { el.rows = []; };
+                    expectedRows = 0;
+                    break;
+                }
+                default:
+                    throw new Error(`Unknown scenario: ${name}`);
+            }
+
+            const t0 = performance.now();
+            trigger();
+            Updates.process();
+            const jsMs = performance.now() - t0;
+            await doubleRaf();
+            const paintMs = performance.now() - t0;
+
+            const rowNodes = el.shadowRoot.querySelectorAll("tr");
+            const rowCount = rowNodes.length;
+            if (rowCount !== expectedRows) {
+                throw new Error(`${name}: expected ${expectedRows} rows, got ${rowCount}`);
+            }
+            if (expectedRows > 0) {
+                const firstLabel = rowNodes[0].querySelector("td.label a")?.textContent?.trim() ?? "";
+                if (!firstLabel || firstLabel.includes("undefined")) {
+                    throw new Error(`${name}: invalid rendered label "${firstLabel}"`);
+                }
+                if (name === "update-10th" && !firstLabel.endsWith(" !!!")) {
+                    throw new Error(`${name}: expected updated label ending with ' !!!', got "${firstLabel}"`);
+                }
+            }
+            el.remove();
+            return { jsMs, paintMs, rowCount };
+        }
+
+        window.__bench = { runScenario, variant };
+    </script>
+</body>
+</html>

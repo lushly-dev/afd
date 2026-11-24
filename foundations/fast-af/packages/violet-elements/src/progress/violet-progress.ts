@@ -2,6 +2,8 @@ import { FASTElement, Observable, attr, css, html, when } from "@lushly-dev/fast
 
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 
+let violetProgressId = 0;
+
 const styles = css`
     ${violetFieldTokenDefaults}
 
@@ -133,13 +135,13 @@ const styles = css`
 
 const template = html<VioletProgress>`
     ${when(
-        x => Boolean(x.label) || x.showValueLabel,
+        x => Boolean((x.label ?? "").trim()) || x.showValueLabel,
         html<VioletProgress>`
             <div class="header" part="header">
                 ${when(
-                    x => Boolean(x.label),
+                    x => Boolean((x.label ?? "").trim()),
                     html<VioletProgress>`
-                        <p class="label" part="label">${x => x.label}</p>
+                        <p class="label" part="label" id="${x => x.labelId}">${x => x.label}</p>
                     `
                 )}
                 ${when(
@@ -156,7 +158,8 @@ const template = html<VioletProgress>`
         part="progress"
         max="${x => x.normalizedMax}"
         value="${x => x.progressValueAttribute}"
-        aria-label="${x => x.accessibleLabel}"
+        aria-labelledby="${x => (x.label ?? "").trim() ? x.labelId : null}"
+        aria-label="${x => (x.label ?? "").trim() ? null : "Progress"}"
         aria-valuetext="${x => x.valueText || null}"
     ></progress>
 `;
@@ -176,8 +179,13 @@ export class VioletProgress extends FASTElement {
     declare public max: string;
     declare public valueText: string;
 
+    public readonly labelId: string;
+
     public constructor() {
         super();
+        const id = violetProgressId;
+        violetProgressId += 1;
+        this.labelId = `violet-progress-label-${id}`;
         this.label = "";
         this.value = "0";
         this.max = "100";

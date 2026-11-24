@@ -13,6 +13,7 @@ import {
     saturationGradient,
 } from "./violet-color-utils";
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
+import { resolveFieldErrorText } from "../shared/field-error";
 
 export type VioletColorPickerSize = "compact" | "natural" | "comfortable";
 
@@ -398,7 +399,7 @@ const styles = css`
     }
 
     .error {
-        color: var(--color-state-danger-foreground, #c42a1a);
+        color: var(--_danger-text);
         margin-block-start: var(--_space-field-gap);
     }
 
@@ -561,12 +562,12 @@ const template = html<VioletColorPicker>`
             </div>
         </div>
         ${when(
-            x => Boolean(x.supportingText) && !x.isInvalid,
+            x => Boolean(x.supportingText) && !x.displayErrorText,
             html<VioletColorPicker>`<p class="supporting" part="supporting-text" id="${x => x.supportingId}">${x => x.supportingText}</p>`,
         )}
         ${when(
-            x => Boolean(x.isInvalid && x.errorText),
-            html<VioletColorPicker>`<p class="error" part="error-text" id="${x => x.errorId}">${x => x.errorText}</p>`,
+            x => Boolean(x.displayErrorText),
+            html<VioletColorPicker>`<p class="error" part="error-message" id="${x => x.errorId}" role="alert">${x => x.displayErrorText}</p>`,
         )}
     </div>
 `;
@@ -578,6 +579,7 @@ const template = html<VioletColorPicker>`
  * @fires input - Emitted when the selected color changes.
  * @fires change - Emitted when a committed color differs, ignoring case, from the last committed or author-set value.
  * @slot presets - Optional additional preset content rendered under the built-in swatches.
+ * @csspart error-message - Error message element shown while invalid.
  */
 export class VioletColorPicker extends FASTElement {
     public static readonly formAssociated = true;
@@ -718,6 +720,12 @@ export class VioletColorPicker extends FASTElement {
         }
     }
 
+    public errorTextChanged(): void {
+        if (this.$fastController.isConnected) {
+            this.#syncFormState();
+        }
+    }
+
     public get form(): HTMLFormElement | null {
         return this.#internals.form;
     }
@@ -746,16 +754,19 @@ export class VioletColorPicker extends FASTElement {
         return normalizeHexColor(this.value) ?? "";
     }
 
+    public get displayErrorText(): string {
+        return resolveFieldErrorText({
+            invalid: this.invalid,
+            disabled: this.effectiveDisabled,
+            errorText: this.errorText,
+        });
+    }
+
     public get describedBy(): string {
-        const ids: string[] = [];
-
-        if (this.isInvalid && this.errorText) {
-            ids.push(this.errorId);
-        } else if (this.supportingText) {
-            ids.push(this.supportingId);
+        if (this.displayErrorText) {
+            return this.errorId;
         }
-
-        return ids.join(" ");
+        return this.supportingText ? this.supportingId : "";
     }
 
     public get labelledBy(): string {
@@ -791,11 +802,11 @@ export class VioletColorPicker extends FASTElement {
     }
 
     public get ariaInvalidText(): string {
-        return this.isInvalid ? "true" : "false";
+        return this.invalid && !this.effectiveDisabled ? "true" : "false";
     }
 
     public get isInvalid(): boolean {
-        return this.invalid || this.validationInvalid;
+        return !this.effectiveDisabled && this.invalid;
     }
 
     public get swatchSize(): "compact" | "natural" | "comfortable" {
@@ -1061,19 +1072,18 @@ export class VioletColorPicker extends FASTElement {
         if (this.invalid) {
             this.validationInvalid = true;
             this.setAttribute("data-invalid", "");
-            this.#internals.setValidity({ customError: true }, this.errorText || "The selected color is invalid.");
-            return;
-        }
-
-        if (this.required && !this.value) {
-            this.validationInvalid = true;
-            this.setAttribute("data-invalid", "");
-            this.#internals.setValidity({ valueMissing: true }, this.errorText || "Select a color.");
+            this.#internals.setValidity({ customError: true }, (this.errorText ?? "").trim() || "The selected color is invalid.");
             return;
         }
 
         this.validationInvalid = false;
         this.removeAttribute("data-invalid");
+
+        if (this.required && !this.value) {
+            this.#internals.setValidity({ valueMissing: true }, (this.errorText ?? "").trim() || "Select a color.");
+            return;
+        }
+
         this.#internals.setValidity({});
     }
 

@@ -1,4 +1,19 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { server } from "vitest/browser";
+
+const isWebKit = server.browser === "webkit";
+
+// WebKit's ElementInternals ARIA element-array getters filter out shadow-tree targets to [] when
+// read back, while still distinguishing an assigned array ([]) from null; Chromium and Firefox
+// return the shadow elements directly.
+function expectInternalsElements(actual: readonly Element[] | null | undefined, expected: Element | null): void {
+    expect(expected).toBeTruthy();
+    if (isWebKit) {
+        expect(actual).toEqual([]);
+    } else {
+        expect(actual).toEqual([expected]);
+    }
+}
 
 import "./violet-radio";
 import type { VioletRadio } from "./violet-radio";
@@ -118,7 +133,7 @@ describe("violet-radio", () => {
                 await nextFrame();
 
                 const supportingEl = radio.shadowRoot?.querySelector('[part~="supporting-text"]') as HTMLElement | null;
-                expect(internals?.ariaDescribedByElements).toEqual([supportingEl]);
+                expectInternalsElements(internals?.ariaDescribedByElements, supportingEl);
 
                 radio.invalid = true;
                 await nextFrame();
@@ -129,7 +144,7 @@ describe("violet-radio", () => {
                 expect(error?.getAttribute("role")).toBe("alert");
                 expect(supportingEl?.hasAttribute("hidden")).toBe(true);
                 expect(internals?.ariaInvalid).toBe("true");
-                expect(internals?.ariaDescribedByElements).toEqual([error]);
+                expectInternalsElements(internals?.ariaDescribedByElements, error);
 
                 radio.invalid = false;
                 await nextFrame();
@@ -138,7 +153,7 @@ describe("violet-radio", () => {
                 expect(radio.shadowRoot?.querySelector(".error")).toBeNull();
                 expect(supportingEl?.hasAttribute("hidden")).toBe(false);
                 expect(internals?.ariaInvalid).toBe("false");
-                expect(internals?.ariaDescribedByElements).toEqual([supportingEl]);
+                expectInternalsElements(internals?.ariaDescribedByElements, supportingEl);
             } finally {
                 spy.mockRestore();
             }
@@ -249,7 +264,7 @@ describe("violet-radio", () => {
                 const error = radio.shadowRoot?.querySelector('[part~="error-message"]') as HTMLElement | null;
                 expect(radio.getAttribute("aria-describedby")).toBe("radio-host-hint");
                 expect(internals?.ariaDescribedByElements).toBeNull();
-                expect(internals?.ariaErrorMessageElements).toEqual([error]);
+                expectInternalsElements(internals?.ariaErrorMessageElements, error);
 
                 radio.invalid = false;
                 await nextFrame();
@@ -261,7 +276,7 @@ describe("violet-radio", () => {
                 await nextFrame();
                 await nextFrame();
                 const restoredError = radio.shadowRoot?.querySelector('[part~="error-message"]') as HTMLElement | null;
-                expect(internals?.ariaDescribedByElements).toEqual([restoredError]);
+                expectInternalsElements(internals?.ariaDescribedByElements, restoredError);
                 expect(internals?.ariaErrorMessageElements).toBeNull();
             } finally {
                 spy.mockRestore();

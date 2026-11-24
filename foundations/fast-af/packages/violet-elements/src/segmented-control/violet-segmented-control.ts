@@ -5,6 +5,7 @@ import type { VioletSegment } from "../segment/violet-segment";
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
 import { logicalArrowKey } from "../foundations/violet-direction";
+import { resolveFieldErrorText } from "../shared/field-error";
 
 const styles = css`
     ${violetFieldTokenDefaults}
@@ -60,7 +61,7 @@ const styles = css`
     }
 
     .error {
-        color: var(--color-state-danger-foreground, #c42a1a);
+        color: var(--_danger-text);
         margin-block-start: var(--_space-stack-2xs);
     }
 
@@ -87,15 +88,15 @@ const template = html<VioletSegmentedControl>`
             <slot @slotchange="${x => x.handleSlotChange()}"></slot>
         </div>
         ${when(
-            x => Boolean(x.supportingText),
+            x => Boolean(x.supportingText) && !x.displayErrorText,
             html<VioletSegmentedControl>`
                 <p class="supporting" part="supporting-text">${x => x.supportingText}</p>
             `,
         )}
         ${when(
-            x => Boolean(x.validationMessageText),
+            x => Boolean(x.displayErrorText),
             html<VioletSegmentedControl>`
-                <p class="error" part="error-message">${x => x.validationMessageText}</p>
+                <p class="error" part="error-message" role="alert">${x => x.displayErrorText}</p>
             `,
         )}
     </div>
@@ -111,6 +112,7 @@ const template = html<VioletSegmentedControl>`
  * @csspart label - Group label text element.
  * @csspart group - Segmented surface wrapper.
  * @csspart supporting-text - Supporting text element.
+ * @csspart error-message - Error message element shown while invalid.
  */
 export class VioletSegmentedControl extends FASTElement {
     public static readonly formAssociated = true;
@@ -245,11 +247,11 @@ export class VioletSegmentedControl extends FASTElement {
     }
 
     public labelChanged(): void {
-        this.#syncAccessibilityState();
+        this.#scheduleAccessibilitySync();
     }
 
     public supportingTextChanged(): void {
-        this.#syncAccessibilityState();
+        this.#scheduleAccessibilitySync();
     }
 
     public errorTextChanged(): void {
@@ -369,39 +371,53 @@ export class VioletSegmentedControl extends FASTElement {
         this.#syncFormState();
     }
 
+    public get displayErrorText(): string {
+        return resolveFieldErrorText({
+            invalid: this.invalid,
+            disabled: this.effectiveDisabled,
+            errorText: this.errorText,
+            fallbackValidationMessage: this.required && !this.value ? "Please choose an option." : "",
+        });
+    }
+
     #syncAccessibilityState(): void {
-        const descriptions: string[] = [];
-        if (this.supportingText) {
-            descriptions.push("supporting-text");
-        }
-        if (this.invalid && this.validationMessageText) {
-            descriptions.push("error-message");
-        }
+        const captionPart = this.displayErrorText
+            ? "error-message"
+            : this.supportingText
+              ? "supporting-text"
+              : null;
+        const captionElement = captionPart ? this.shadowRoot?.querySelector(`[part="${captionPart}"]`) : null;
 
         this.#internals.ariaLabel = this.label || null;
         this.#internals.ariaDisabled = this.effectiveDisabled ? "true" : null;
         this.#internals.ariaRequired = this.required ? "true" : null;
-        this.#internals.ariaInvalid = this.invalid ? "true" : null;
-        this.#internals.ariaDescribedByElements = descriptions
-            .map(part => this.shadowRoot?.querySelector(`[part="${part}"]`))
-            .filter((element): element is Element => element instanceof Element);
+        this.#internals.ariaInvalid = !this.effectiveDisabled && this.invalid ? "true" : null;
+        this.#internals.ariaDescribedByElements = captionElement instanceof Element ? [captionElement] : null;
+    }
+
+    #scheduleAccessibilitySync(): void {
+        // Attribute change callbacks run before FAST queues template binding updates, so a
+        // nested enqueue guarantees the caption swap has patched the shadow DOM first.
+        Updates.enqueue(() => Updates.enqueue(() => this.#syncAccessibilityState()));
     }
 
     #syncFormState(): void {
-        if (this.invalid) {
-            this.validationMessageText = this.errorText || "Please choose an option.";
-        } else if (this.required && !this.value) {
-            this.validationMessageText = this.errorText || "Please choose an option.";
-        } else {
+        if (this.effectiveDisabled) {
             this.validationMessageText = "";
+            this.#internals.setValidity({});
+            this.#internals.setFormValue(null);
+            this.#scheduleAccessibilitySync();
+            return;
         }
 
+        this.validationMessageText = this.displayErrorText;
         const shouldBeInvalid = this.invalid || (this.required && !this.value);
         if (shouldBeInvalid) {
             // `invalid` is the author's verdict, so it fails validation whatever the value is.
+            const validationMessage = this.displayErrorText || (this.errorText ?? "").trim() || "Please choose an option.";
             this.#internals.setValidity(
                 { customError: this.invalid, valueMissing: this.required && !this.value },
-                this.validationMessageText,
+                validationMessage,
                 // A failed form submission focuses the group's Tab stop. The anchor must itself be focusable,
                 // which a delegating segment host is not, so it is the segment's button.
                 this.#tabStop()?.shadowRoot?.querySelector("button") ?? undefined,
@@ -411,6 +427,7 @@ export class VioletSegmentedControl extends FASTElement {
         }
 
         this.#internals.setFormValue(this.value || null, this.value || null);
+        this.#scheduleAccessibilitySync();
     }
 
     #ownedSegments(): VioletSegment[] {

@@ -14,7 +14,7 @@ fails when it is not the report the records give.
 | No accessibility statement | 31 |
 | No role, observed or authored | 45 |
 | No example that mounts again on its own | 3 |
-| An attribute no case showed set | 28 |
+| An attribute no case showed set | 27 |
 | A slot no case showed filled or empty | 0 |
 
 ## By component
@@ -34,7 +34,7 @@ fails when it is not the report the records give.
 | `violet-chat-composer` | summary, usage, a11y-statement, role | `label` | - |
 | `violet-chat-suggestions` | summary, usage, a11y-statement | - | - |
 | `violet-checkbox` | role | - | - |
-| `violet-color-picker` | - | `invalid`, `size` | - |
+| `violet-color-picker` | - | `size` | - |
 | `violet-color-swatch` | summary, usage, a11y-statement | - | - |
 | `violet-combobox` | - | `open-on-focus`, `value` | - |
 | `violet-conversation-thread` | summary, usage, a11y-statement, role | - | - |
@@ -50,7 +50,7 @@ fails when it is not the report the records give.
 | `violet-dialog` | - | `no-backdrop`, `padding` | - |
 | `violet-empty-state` | role | - | - |
 | `violet-file-explorer` | summary, usage, a11y-statement, role, example | `load-error` | - |
-| `violet-file-upload` | - | `invalid`, `required`, `size` | - |
+| `violet-file-upload` | - | `required`, `size` | - |
 | `violet-gantt` | summary, usage, a11y-statement, role | `aria-label`, `locale` | - |
 | `violet-icon-button` | - | `type` | - |
 | `violet-icon` | role | - | - |
@@ -84,4 +84,4 @@ fails when it is not the report the records give.
 | `violet-tool-call-card` | summary, usage, a11y-statement, role | `tool-call-id` | - |
 | `violet-tool-result-card` | summary, usage, a11y-statement, role | - | - |
 | `violet-tooltip` | - | `anchor`, `open` | - |
-| `violet-tree` | role | `error-text` | - |
+| `violet-tree` | role | - | - |

@@ -32,7 +32,7 @@
     },
     {
       "id": "radio-group.error",
-      "text": "The rendered error message is linked to the group as its error message, and the supporting text as its description.",
+      "text": "While invalid, the rendered error message replaces the supporting text and is linked to the group as both its description and its error message.",
       "members": [
         "error-text",
         "supporting-text"

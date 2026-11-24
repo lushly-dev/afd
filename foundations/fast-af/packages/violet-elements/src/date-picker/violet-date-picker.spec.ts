@@ -1,5 +1,17 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cdp, userEvent } from "vitest/browser";
+import { cdp, server, userEvent } from "vitest/browser";
+
+const isChromium = server.browser === "chromium";
+const isWebKit = server.browser === "webkit";
+// Chromium and Firefox advance MM/DD/YYYY segments on flat digit entry; WebKit on Windows degrades
+// <input type="date"> to text and Linux WebKitGTK does not auto-advance date segments on flat digits.
+const supportsSegmentedDateInput =
+    !isWebKit &&
+    (() => {
+        const probe = document.createElement("input");
+        probe.type = "date";
+        return probe.type === "date";
+    })();
 
 import type { VioletCalendar } from "../calendar/violet-calendar";
 import "./violet-date-picker";
@@ -94,7 +106,7 @@ describe("violet-date-picker", () => {
     });
 
     // The input reads "" while incomplete, as the default does, so a reset must write it anyway.
-    it("clears an incomplete entry on form reset", async () => {
+    it.runIf(supportsSegmentedDateInput)("clears an incomplete entry on form reset", async () => {
         document.body.innerHTML = `<form><violet-date-picker label="Due" name="when"></violet-date-picker></form>`;
         await customElements.whenDefined("violet-date-picker");
         await nextFrame();
@@ -118,7 +130,7 @@ describe("violet-date-picker", () => {
 
     // #712: the input reads "" while a segment is incomplete, and a :value binding wrote that "" back,
     // erasing the segments already entered.
-    it("keeps the other segments while one is re-entered", async () => {
+    it.runIf(supportsSegmentedDateInput)("keeps the other segments while one is re-entered", async () => {
         document.body.innerHTML = `<violet-date-picker label="Due" value="2026-03-15"></violet-date-picker>`;
         await customElements.whenDefined("violet-date-picker");
         await nextFrame();
@@ -194,7 +206,9 @@ describe("violet-date-picker", () => {
             });
             const input = getInput(invalid);
             expect(input.getAttribute("aria-invalid")).toBe("true");
-            expect(input.getAttribute("aria-describedby")).toBe(`${invalid.supportingId} ${invalid.errorId}`);
+            expect(input.getAttribute("aria-describedby")).toBe(invalid.errorId);
+            expect(invalid.shadowRoot?.getElementById(invalid.supportingId)).toBeNull();
+            expect(invalid.shadowRoot?.getElementById(invalid.errorId)?.getAttribute("role")).toBe("alert");
             expect(invalid.shadowRoot?.getElementById(invalid.errorId)?.textContent?.trim()).toBe("Pick a Monday.");
         });
 
@@ -544,7 +558,7 @@ describe("violet-date-picker", () => {
 
             const presses: Array<{ input: string; press: Press }> = [
                 { input: "mouse click", press: click },
-                { input: "touch tap", press: tap },
+                ...(isChromium ? [{ input: "touch tap", press: tap }] : []),
             ];
 
             it.each(presses)("stays open for a $input on the heading and a disabled day in a tabindex=-1 wrapper", async ({ press }) => {
@@ -572,7 +586,7 @@ describe("violet-date-picker", () => {
                 await expectPressesKeepItOpen(picker, press);
             });
 
-            it("still closes on Shift+Tab after a tap on a disabled day, which sends no click", async () => {
+            it.runIf(isChromium)("still closes on Shift+Tab after a tap on a disabled day, which sends no click", async () => {
                 const wrapper = document.createElement("div");
                 wrapper.tabIndex = 0;
                 wrapper.setAttribute("aria-label", "Form");
@@ -928,7 +942,7 @@ describe("violet-date-picker", () => {
             expect(getInput(picker).value).toBe("");
         });
 
-        it("lets a real keyboard type a date into the native input", async () => {
+        it.runIf(supportsSegmentedDateInput)("lets a real keyboard type a date into the native input", async () => {
             const picker = await renderDatePicker(element => {
                 element.value = "";
                 element.min = "";

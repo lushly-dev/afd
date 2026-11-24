@@ -221,8 +221,13 @@ describe("violet-color-picker", () => {
         expect(input.value).toBe("#1670ca");
         expect(picker.value).toBe("#1670ca");
 
-        input.select();
+        // Flush FAST's queued :value binding before clearing so its rAF batch cannot rewrite "#1670ca"
+        // back into the cleared field between clear() and the next keystrokes.
+        await nextFrame();
+        await nextFrame();
+        await userEvent.clear(input);
         await userEvent.keyboard("#246{Enter}");
+        await nextFrame();
         expect(picker.value).toBe("#224466");
         expect(input.value).toBe("#224466");
         expect(events).toEqual([

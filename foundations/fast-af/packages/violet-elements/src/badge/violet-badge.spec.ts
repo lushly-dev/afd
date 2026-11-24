@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { cdp } from "vitest/browser";
+import { cdp, server } from "vitest/browser";
+
+const isChromium = server.browser === "chromium";
 
 import { applyVioletThemePreset, installVioletTheme, loadVioletBuiltInTheme } from "../theme/violet-theme-runtime";
 import "./violet-badge";
@@ -143,7 +145,7 @@ describe("violet-badge", () => {
         expect(badge.getAttribute("aria-label")).toBe("Saved");
     });
 
-    describe("under forced colours", () => {
+    if (isChromium) describe("under forced colours", () => {
         afterEach(async () => {
             await emulateForcedColors(false);
         });

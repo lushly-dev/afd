@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { cdp } from "vitest/browser";
+import { cdp, server } from "vitest/browser";
+
+const isChromium = server.browser === "chromium";
 
 import "./violet-card";
 import type { VioletCard } from "./violet-card";
@@ -220,7 +222,7 @@ describe("violet-card", () => {
         });
     });
 
-    describe("under forced colours", () => {
+    if (isChromium) describe("under forced colours", () => {
         afterEach(async () => {
             await emulateForcedColors(false);
         });

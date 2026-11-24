@@ -24,9 +24,10 @@
     },
     {
       "id": "tree.not-form",
-      "text": "It is not form-associated: a form does not receive its value and there is no invalid attribute. Read value or listen for change; error-text shows whenever it is set.",
+      "text": "It is not form-associated: a form does not receive its value. Read value or listen for change; set invalid with error-text to show an error.",
       "members": [
         "value",
+        "invalid",
         "error-text"
       ]
     },

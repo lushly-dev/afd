@@ -49,6 +49,8 @@ export const PROVENANCE_FAMILIES = {
 	'fast-af': {
 		directory: 'foundations/fast-af/provenance',
 		paths: ['foundations/fast-af', 'tests/consumers/fast-af'],
+		// violet-elements is AFD-authored and retired from per-file FAST-AF provenance (#1783).
+		exclude: ['foundations/fast-af/packages/violet-elements'],
 	},
 };
 
@@ -210,14 +212,20 @@ export const isRemoved = (file) => file.import_classification === REMOVED;
 
 /** The family's files Git sees on disk, tracked or untracked but not ignored, outside its records. */
 export function provenancePaths(root, family) {
-	const { directory, paths } = PROVENANCE_FAMILIES[family];
+	const { directory, paths, exclude = [] } = PROVENANCE_FAMILIES[family];
 	return execFileSync(
 		'git',
 		['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', ...paths],
 		{ cwd: root, encoding: 'utf8' }
 	)
 		.split('\0')
-		.filter((path) => path && !path.startsWith(`${directory}/`) && existsSync(join(root, path)));
+		.filter(
+			(path) =>
+				path &&
+				!path.startsWith(`${directory}/`) &&
+				!exclude.some((prefix) => path === prefix || path.startsWith(`${prefix}/`)) &&
+				existsSync(join(root, path))
+		);
 }
 
 /** Records Changesets' edits for every family this repository carries; returns the paths. */

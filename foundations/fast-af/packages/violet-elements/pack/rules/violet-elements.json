@@ -185,9 +185,22 @@
 			"appliesTo": {
 				"tags": [
 					"violet-checkbox",
+					"violet-color-picker",
+					"violet-combobox",
+					"violet-data-grid-pill-select",
+					"violet-date-picker",
+					"violet-date-range-picker",
+					"violet-file-upload",
+					"violet-radio-group",
+					"violet-range-slider",
+					"violet-segmented-control",
+					"violet-select",
+					"violet-slider",
 					"violet-switch",
 					"violet-text-area",
-					"violet-text-field"
+					"violet-text-field",
+					"violet-time-picker",
+					"violet-tree"
 				]
 			},
 			"basis": "authored",
@@ -236,19 +249,6 @@
 			"basis": "authored",
 			"id": "form.participation",
 			"text": "Form-associated: submits under its name attribute, submits nothing while disabled or inside <fieldset disabled>, restores its initial state on form reset, and exposes checkValidity(), reportValidity() and validity."
-		},
-		{
-			"appliesTo": {
-				"tags": [
-					"violet-combobox",
-					"violet-radio-group",
-					"violet-segmented-control",
-					"violet-select"
-				]
-			},
-			"basis": "authored",
-			"id": "form.required-error",
-			"text": "With the required attribute and no value, the error message is rendered from the first render, before any interaction. The error-text attribute replaces the built-in wording."
 		},
 		{
 			"appliesTo": {
@@ -830,7 +830,17 @@
 			},
 			"basis": "authored",
 			"id": "taxonomy.error-text",
-			"text": "Explicit validation copy rendered while invalid (older controls may also show it on required failure). Not for: helper copy; browser-generated validation text passthrough without component-owned UI; non-validation warnings."
+			"text": "Provides explicit validation copy that a component renders only while invalid is set (not from required alone, nor while disabled or readonly)."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"error-text"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.error-text.not-for",
+			"text": "Do not use error-text for: helper copy; browser-generated validation text passthrough without component-owned UI; non-validation warnings."
 		},
 		{
 			"appliesTo": {

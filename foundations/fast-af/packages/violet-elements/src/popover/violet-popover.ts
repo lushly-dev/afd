@@ -1,5 +1,10 @@
 import { FASTElement, attr, css, html } from "@lushly-dev/fast-element";
 
+import {
+    LazyFallbackPositionController,
+    bindOverlayAnchor,
+    createAnchorName,
+} from "../shared/overlay-anchor";
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
 let violetPopoverId = 0;
@@ -24,13 +29,11 @@ const styles = css`
 
     .anchor {
         display: inline-block;
-        anchor-name: --violet-popover-anchor;
     }
 
     .surface {
         box-sizing: border-box;
         position: fixed;
-        position-anchor: --violet-popover-anchor;
         inset: unset;
         margin: 0;
         min-inline-size: var(--_popover-min-inline);
@@ -46,11 +49,9 @@ const styles = css`
 
         opacity: 0;
         transform: translateY(calc(var(--_space-sm) * -0.5)) scale(0.98);
-        transition:
-            opacity var(--_duration-fast) var(--_easing-standard),
-            transform var(--_duration-fast) var(--_easing-standard),
-            display var(--_duration-fast) var(--_easing-standard) allow-discrete,
-            overlay var(--_duration-fast) var(--_easing-standard) allow-discrete;
+        transition: opacity, transform, display allow-discrete, overlay allow-discrete;
+        transition-duration: var(--_duration-fast);
+        transition-timing-function: var(--_easing-standard);
     }
 
     .surface:popover-open {
@@ -63,28 +64,31 @@ const styles = css`
         }
     }
 
-    :host([positioning="above"]) .surface {
-        position-area: block-start center;
-        margin-block-end: var(--_popover-gap);
-        position-try-fallbacks: flip-block;
-    }
+    @supports (anchor-name: --a) and (position-area: block-end center) and (position-try-fallbacks: flip-block) {
+        .surface {
+            position-area: block-end center;
+            margin-block-start: var(--_popover-gap);
+            position-try-fallbacks: flip-block;
+        }
 
-    :host([positioning="below"]) .surface {
-        position-area: block-end center;
-        margin-block-start: var(--_popover-gap);
-        position-try-fallbacks: flip-block;
-    }
+        :host([positioning="above"]) .surface {
+            position-area: block-start center;
+            margin-block: 0 var(--_popover-gap);
+        }
 
-    :host([positioning="before"]) .surface {
-        position-area: center left;
-        margin-inline-end: var(--_popover-gap);
-        position-try-fallbacks: flip-inline;
-    }
+        :host([positioning="before"]) .surface {
+            position-area: center left;
+            margin-block-start: 0;
+            margin-inline-end: var(--_popover-gap);
+            position-try-fallbacks: flip-inline;
+        }
 
-    :host([positioning="after"]) .surface {
-        position-area: center right;
-        margin-inline-start: var(--_popover-gap);
-        position-try-fallbacks: flip-inline;
+        :host([positioning="after"]) .surface {
+            position-area: center right;
+            margin-block-start: 0;
+            margin-inline-start: var(--_popover-gap);
+            position-try-fallbacks: flip-inline;
+        }
     }
 
     .surface::backdrop {
@@ -102,20 +106,7 @@ const styles = css`
     }
 `;
 
-const template = html<VioletPopover>`
-    <span class="anchor" part="anchor">
-        <slot name="trigger" @click="${x => x.handleTriggerClick()}"></slot>
-    </span>
-    <div
-        class="surface"
-        part="surface"
-        id="${x => x.surfaceId}"
-        popover="auto"
-        @toggle="${(x, c) => x.handleToggle(c.event as ToggleEvent)}"
-    >
-        <slot></slot>
-    </div>
-`;
+const template = html<VioletPopover>`<span class="anchor" part="anchor"><slot name="trigger" @click="${x => x.handleTriggerClick()}"></slot></span><div class="surface" part="surface" id="${x => x.surfaceId}" popover="auto" @toggle="${(x, c) => x.handleToggle(c.event as ToggleEvent)}"><slot></slot></div>`;
 
 /**
  * Generic anchored floating surface.
@@ -133,15 +124,17 @@ export class VioletPopover extends FASTElement {
     declare public anchor: string;
 
     public readonly surfaceId: string;
+    public readonly anchorName: string;
 
     #externalAnchor: HTMLElement | null = null;
-    #externalListenersAttached = false;
+    #fallbackPosition = new LazyFallbackPositionController();
 
     public constructor() {
         super();
         const id = violetPopoverId;
         violetPopoverId += 1;
         this.surfaceId = `violet-popover-${id}`;
+        this.anchorName = createAnchorName("violet-popover", id);
         this.open = false;
         this.positioning = "below";
         this.anchor = "";
@@ -149,7 +142,8 @@ export class VioletPopover extends FASTElement {
 
     public connectedCallback(): void {
         super.connectedCallback();
-        this.resolveExternalAnchor();
+        this.#resolveExternalAnchor();
+        this.#syncAnchoring();
 
         if (this.open) {
             this.show();
@@ -158,7 +152,8 @@ export class VioletPopover extends FASTElement {
 
     public disconnectedCallback(): void {
         super.disconnectedCallback();
-        this.detachExternalAnchor();
+        this.#fallbackPosition.stop(this.#surface);
+        this.#detachExternalAnchor();
     }
 
     public openChanged(): void {
@@ -173,27 +168,37 @@ export class VioletPopover extends FASTElement {
         }
     }
 
+    public positioningChanged(): void {
+        if (this.open) {
+            this.#fallbackPosition.update();
+        }
+    }
+
     public anchorChanged(): void {
         if (!this.$fastController.isConnected) {
             return;
         }
 
-        this.detachExternalAnchor();
-        this.resolveExternalAnchor();
+        this.#detachExternalAnchor();
+        this.#resolveExternalAnchor();
+        this.#syncAnchoring();
+        if (this.open) {
+            this.#startFallbackPosition();
+        }
     }
 
     public show(): void {
-        this.surfaceElement?.showPopover();
+        this.#surface?.showPopover();
     }
 
     public hide(): void {
-        if (this.surfaceElement?.matches(":popover-open")) {
-            this.surfaceElement.hidePopover();
+        if (this.#surface?.matches(":popover-open")) {
+            this.#surface.hidePopover();
         }
     }
 
     public toggle(): void {
-        this.surfaceElement?.togglePopover();
+        this.#surface?.togglePopover();
     }
 
     public handleTriggerClick(): void {
@@ -203,14 +208,39 @@ export class VioletPopover extends FASTElement {
     public handleToggle(event: ToggleEvent): void {
         const isOpen = event.newState === "open";
         this.open = isOpen;
+        if (isOpen) {
+            this.#syncAnchoring();
+            this.#startFallbackPosition();
+        } else {
+            this.#fallbackPosition.stop(this.#surface);
+        }
         this.$emit("open-change", { open: isOpen });
     }
 
-    private get surfaceElement(): HTMLElement | null {
-        return this.shadowRoot?.querySelector(".surface") ?? null;
+    #startFallbackPosition(): void {
+        this.#fallbackPosition.start(
+            () => this.#externalAnchor ?? this.#el(".anchor"),
+            () => this.#surface,
+            () => [this.positioning, "below", "center", getComputedStyle(this).getPropertyValue("--_popover-gap"), this, 8],
+            // CSS anchor-name is tree-scoped, so an external light-DOM anchor cannot be
+            // resolved by position-anchor inside this shadow root; use the geometry fallback.
+            Boolean(this.#externalAnchor),
+        );
     }
 
-    private resolveExternalAnchor(): void {
+    #el(selector: string): HTMLElement | null {
+        return this.shadowRoot?.querySelector(selector) ?? null;
+    }
+
+    get #surface(): HTMLElement | null {
+        return this.#el(".surface");
+    }
+
+    #syncAnchoring(): void {
+        bindOverlayAnchor(this.#el(".anchor"), this.#externalAnchor, this.#surface, this.anchorName);
+    }
+
+    #resolveExternalAnchor(): void {
         if (!this.anchor) {
             return;
         }
@@ -221,24 +251,20 @@ export class VioletPopover extends FASTElement {
         }
 
         this.#externalAnchor = element;
-        element.style.setProperty("anchor-name", "--violet-popover-anchor");
-        element.addEventListener("click", this.handleTriggerClickBound);
-        this.#externalListenersAttached = true;
+        element.addEventListener("click", this.#onTriggerClick);
     }
 
-    private detachExternalAnchor(): void {
-        if (!this.#externalListenersAttached || !this.#externalAnchor) {
+    #detachExternalAnchor(): void {
+        if (!this.#externalAnchor) {
             return;
         }
 
-        this.#externalAnchor.removeEventListener("click", this.handleTriggerClickBound);
-        this.#externalAnchor.style.removeProperty("anchor-name");
+        this.#externalAnchor.removeEventListener("click", this.#onTriggerClick);
         this.#externalAnchor = null;
-        this.#externalListenersAttached = false;
     }
 
-    private readonly handleTriggerClickBound = (): void => {
-        this.handleTriggerClick();
+    readonly #onTriggerClick = (): void => {
+        this.toggle();
     };
 }
 

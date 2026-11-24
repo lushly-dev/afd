@@ -263,10 +263,11 @@ describe("violet-option", () => {
         // Author overrides on the host select propagate through the shadow listbox without being clobbered.
         select.style.setProperty("--violet-option-active-background", "rgb(12, 34, 56)");
         select.style.setProperty("--violet-option-active-ring", "rgb(200, 10, 20)");
-        await nextFrame();
-        computed = getComputedStyle(control(optMedium));
-        expect(computed.backgroundColor).toBe("rgb(12, 34, 56)");
-        expect(computed.boxShadow).toContain("rgb(200, 10, 20)");
+        await vi.waitFor(() => {
+            computed = getComputedStyle(control(optMedium));
+            expect(computed.backgroundColor).toBe("rgb(12, 34, 56)");
+            expect(computed.boxShadow).toContain("rgb(200, 10, 20)");
+        });
     });
 
     it.each(["light", "dark", "high-contrast"])(

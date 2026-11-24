@@ -44,7 +44,8 @@
 				"name": "error-text",
 				"property": "errorText",
 				"rules": [
-					"taxonomy.error-text"
+					"taxonomy.error-text",
+					"taxonomy.error-text.not-for"
 				],
 				"type": "string"
 			},
@@ -266,12 +267,14 @@
 		"field.label",
 		"field.label-required",
 		"field.supporting-text",
+		"form.error-text",
 		"form.invalid",
 		"form.participation",
 		"import.root",
 		"overlay.open-change",
 		"taxonomy.disabled",
 		"taxonomy.error-text",
+		"taxonomy.error-text.not-for",
 		"taxonomy.invalid",
 		"taxonomy.label",
 		"taxonomy.locale",
@@ -292,7 +295,7 @@
 		{
 			"basis": "authored",
 			"id": "date-picker.value",
-			"text": "value is an ISO date, YYYY-MM-DD, or empty, and the form receives it under name. min and max use the same format; a date outside them is invalid with a built-in message."
+			"text": "value is an ISO date, YYYY-MM-DD, or empty, and the form receives it under name. min and max use the same format; a date outside them fails validation, and its message shows while invalid is set."
 		},
 		{
 			"basis": "authored",

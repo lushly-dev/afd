@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cdp, userEvent } from "vitest/browser";
+import { cdp, server, userEvent } from "vitest/browser";
+
+const isChromium = server.browser === "chromium";
 
 import "./violet-icon-button";
 import type { VioletIconButton } from "./violet-icon-button";
@@ -153,7 +155,7 @@ describe("violet-icon-button", () => {
         expect(slot.assignedElements()[0]?.textContent).toBe("+");
     });
 
-    describe("under forced colours", () => {
+    if (isChromium) describe("under forced colours", () => {
         async function emulateForcedColors(active: boolean): Promise<void> {
             const session = cdp() as unknown as { send(method: string, params?: object): Promise<unknown> };
             await session.send("Emulation.setEmulatedMedia", {

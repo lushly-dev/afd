@@ -111,7 +111,7 @@ jobs:
           done
 
   components:
-    name: violet-elements Chromium suite, generated artifacts and packed consumers
+    name: violet-elements browser suites, generated artifacts and packed consumers
     needs: scope
     if: needs.scope.outputs.components == 'true'
     runs-on: ubuntu-latest
@@ -135,9 +135,14 @@ jobs:
       - uses: ./.github/actions/playwright-install
         with:
           package: '@lushly-dev/violet-elements'
+          browsers: chromium firefox webkit
         timeout-minutes: 10
-      - name: Component browser suite with coverage thresholds
+      - name: Component browser suite with coverage thresholds (Chromium)
         run: pnpm -F @lushly-dev/violet-elements test:browser
+      - name: Component browser suite (Firefox)
+        run: pnpm -F @lushly-dev/violet-elements test:browser:firefox
+      - name: Component browser suite (WebKit)
+        run: pnpm -F @lushly-dev/violet-elements test:browser:webkit
       - name: Packed-artifact consumers outside the workspace
         run: node tests/consumers/fast-af/verify-artifacts.mjs --browser chromium --output "$RUNNER_TEMP/fast-af-receipt"
       - name: Upload consumer receipt

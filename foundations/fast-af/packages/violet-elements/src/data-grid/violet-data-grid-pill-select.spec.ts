@@ -101,8 +101,9 @@ describe("violet-data-grid-pill-select", () => {
 
         expect(element.shadowRoot?.activeElement).toBe(trigger);
         expect(trigger?.getAttribute("aria-invalid")).toBe("true");
+        expect(trigger?.getAttribute("aria-describedby")).toBe(messageId);
         expect(messageId).toBeTruthy();
-        const alert = element.shadowRoot?.querySelector('[part="error-text"][role="alert"]');
+        const alert = element.shadowRoot?.querySelector('[part="error-message"][role="alert"]');
         expect(alert?.id).toBe(messageId);
         expect(alert?.textContent?.trim()).toBe(
             "Choose a supported planting method."
@@ -110,19 +111,20 @@ describe("violet-data-grid-pill-select", () => {
 
         element.errorText = "Choose a different planting method.";
         await nextFrame();
-        expect(element.shadowRoot?.querySelector('[part="error-text"][role="alert"]')?.textContent?.trim()).toBe(
+        expect(element.shadowRoot?.querySelector('[part="error-message"][role="alert"]')?.textContent?.trim()).toBe(
             "Choose a different planting method."
         );
 
         element.errorText = "";
         await nextFrame();
-        expect(element.shadowRoot?.querySelector('[part="error-text"][role="alert"]')).toBeNull();
+        expect(element.shadowRoot?.querySelector('[part="error-message"][role="alert"]')).toBeNull();
         expect(trigger?.hasAttribute("aria-errormessage")).toBe(false);
+        expect(trigger?.hasAttribute("aria-describedby")).toBe(false);
 
         element.errorText = "Choose a listed planting method.";
         await nextFrame();
         const revalidatedAlert = element.shadowRoot?.querySelector(
-            '[part="error-text"][role="alert"]'
+            '[part="error-message"][role="alert"]'
         );
         expect(revalidatedAlert?.id).toBe(trigger?.getAttribute("aria-errormessage"));
         expect(revalidatedAlert?.textContent?.trim()).toBe("Choose a listed planting method.");
