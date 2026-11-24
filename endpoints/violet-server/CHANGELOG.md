@@ -1,5 +1,13 @@
 # @lushly-dev/violet-server
 
+## 0.3.0-preview.7
+
+### Patch Changes
+
+- Updated dependencies [[`6ef7e7d`](https://github.com/lushly-dev/afd/commit/6ef7e7d9cc3747e909421c19ad988250be6a16b4), [`6ef7e7d`](https://github.com/lushly-dev/afd/commit/6ef7e7d9cc3747e909421c19ad988250be6a16b4)]:
+  - @lushly-dev/violet-afd@0.3.0-preview.7
+  - @lushly-dev/violet-core@0.3.0-preview.7
+
 ## 0.3.0-preview.6
 
 ### Minor Changes

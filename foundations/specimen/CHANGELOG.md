@@ -34,6 +34,12 @@
   toolchain (#1805). The host's code and its `rust-version`, 1.97, are unchanged; of the published files, only the
   README's build note changes.
 
+## 2.2.0-preview.11
+
+### Patch Changes
+
+- [#2449](https://github.com/lushly-dev/afd/pull/2449) [`6ef7e7d`](https://github.com/lushly-dev/afd/commit/6ef7e7d9cc3747e909421c19ad988250be6a16b4) Thanks [@Falkicon](https://github.com/Falkicon)! - `motion: 'settled'` also zeroes `--violet-duration-fast`, `--violet-duration-base` and `--violet-duration-slow`, the motion tokens of `@lushly-dev/violet-elements`' token interface version 4 ([#1786](https://github.com/lushly-dev/afd/issues/1786)), beside the unprefixed names earlier versions read.
+
 ## 2.2.0-preview.10
 
 ### Minor Changes

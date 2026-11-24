@@ -84,6 +84,35 @@
 - Type-check component specs in CI and local verify; type segment queries correctly. Stories are excluded from this check and type-checked separately by Specimen.
 - Run four stories at once in `test:stories` (Specimen's `test.workers`, default 2), for both the story contract and the pack check. No published file changes.
 
+## 0.2.0-preview.7
+
+### Minor Changes
+
+- [#2449](https://github.com/lushly-dev/afd/pull/2449) [`6ef7e7d`](https://github.com/lushly-dev/afd/commit/6ef7e7d9cc3747e909421c19ad988250be6a16b4) Thanks [@Falkicon](https://github.com/Falkicon)! - **Breaking (preview minor): every token property takes the `violet-` prefix ([#1786](https://github.com/lushly-dev/afd/issues/1786)).** `tokens/interface.json` moves to `contractVersion` 4 and gains `"cssPrefix": "violet"`: a token's property is now `--violet-` and its id with `.` replaced by `-`, the name `@lushly-dev/violet-runtime`'s `tokenCustomProperty(id, 'violet')` gives and `@lushly-dev/violet-core`'s CSS exporter writes with `prefix: 'violet'`, so Violet's own output themes the components with no remapping. The ids, types and values are unchanged. The components, their literal fallbacks, the generated theme sheet and `violetTokenProperty()` all use the new names; `VIOLET_CSS_PREFIX` is exported from the root and `./theme-css`. The package still takes no Violet dependency: `theme:build` copies violet-runtime's naming rule into its generated sources.
+
+  | Before (version 3)                  | From version 4                                         |
+  | ----------------------------------- | ------------------------------------------------------ |
+  | `--color-surface-page`              | `--violet-color-surface-page`                          |
+  | `--color-action-primary-background` | `--violet-color-action-primary-background`             |
+  | `--font-family-body`                | `--violet-font-family-body`                            |
+  | `--size-target-natural`             | `--violet-size-target-natural`                         |
+  | `--space-layout-sm`                 | `--violet-space-layout-sm`                             |
+  | `--z-index-modal`                   | `--violet-z-index-modal`                               |
+  | `--<id with . as ->`, any token     | `--violet-<id with . as ->`, `violetTokenProperty(id)` |
+
+  The components' own knobs (`--violet-target-size`, `--violet-icon-size`, `--violet-font-family`, `--violet-card-background` and the rest) keep their names.
+
+  - **Deprecated, removed in the next preview release:** for this release the generated stylesheet ends with an alias block that declares each old name as a `var()` of the new one (`--color-surface-page: var(--violet-color-surface-page)`) on `:root` and every `[data-violet-theme-root]`, so a hand-written `var(--color-x)` keeps following the active preset, scoped roots included. Move those reads to `--violet-*` now.
+  - **Not aliased:** setting an old name (`--color-surface-page: …` on a host or root) no longer reaches the components; set the `--violet-` property instead. A product that writes its own theme properties regenerates them with the prefix (violet-core `prefix: 'violet'`, violet-runtime `cssPrefix: VIOLET_CSS_PREFIX`) or names them with `violetTokenProperty`.
+  - A product's build that checks a set with `findVioletThemeSetGaps` gets the new names in each gap's `property`.
+
+### Patch Changes
+
+- [#2454](https://github.com/lushly-dev/afd/pull/2454) [`8950ee2`](https://github.com/lushly-dev/afd/commit/8950ee20fdac28960b6ece1c4d7648f73c5f5505) Thanks [@Falkicon](https://github.com/Falkicon)! - Fix three `violet-elements` bugs:
+  - `violet-data-grid`: preserve cell focus in Firefox when a queued `renderedRows.splice` flushes after a same-frame focus transition back into the grid ([#2383](https://github.com/lushly-dev/afd/issues/2383)).
+  - `violet-color-picker`: sync the hex `<input>` imperatively via `syncHexInputValue()` instead of a deferred `:value` binding so same-frame edits after a 6-digit preview are not overwritten on the next animation frame, and programmatic `value` updates display the normalized hex value (or empty for invalid values) ([#2382](https://github.com/lushly-dev/afd/issues/2382)).
+  - `violet-data-grid`: guard custom `cellTemplate` interactive widgets in `handleGridCopy` and `handleGridPaste` so native clipboard events pass through ([#2368](https://github.com/lushly-dev/afd/issues/2368)).
+
 ## 0.2.0-preview.6
 
 ### Minor Changes
@@ -92,15 +121,15 @@
 
   - **Breaking (preview minor):** `./dist/*` is no longer exported, so deep imports of the build layout stop resolving. Move them to the subpaths:
 
-    | Before | After |
-    | --- | --- |
-    | `import "@lushly-dev/violet-elements/dist/button/violet-button.js"` | `import "@lushly-dev/violet-elements/button/define"` |
-    | `import "@lushly-dev/violet-elements/dist/conversation/violet-message.js"` | `import "@lushly-dev/violet-elements/message/define"` |
-    | `import type { VioletListbox } from "@lushly-dev/violet-elements/dist/listbox/violet-listbox.js"` | `import type { VioletListbox } from "@lushly-dev/violet-elements/listbox"` |
-    | `import "@lushly-dev/violet-elements/dist/theme/violet-theme.js"` | `import "@lushly-dev/violet-elements/theme/define"` |
+    | Before                                                                                                            | After                                                                                      |
+    | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+    | `import "@lushly-dev/violet-elements/dist/button/violet-button.js"`                                               | `import "@lushly-dev/violet-elements/button/define"`                                       |
+    | `import "@lushly-dev/violet-elements/dist/conversation/violet-message.js"`                                        | `import "@lushly-dev/violet-elements/message/define"`                                      |
+    | `import type { VioletListbox } from "@lushly-dev/violet-elements/dist/listbox/violet-listbox.js"`                 | `import type { VioletListbox } from "@lushly-dev/violet-elements/listbox"`                 |
+    | `import "@lushly-dev/violet-elements/dist/theme/violet-theme.js"`                                                 | `import "@lushly-dev/violet-elements/theme/define"`                                        |
     | `import { registerSystemCloseIcon } from "@lushly-dev/violet-elements/dist/icon/generated/icons/system-close.js"` | `import { registerSystemCloseIcon } from "@lushly-dev/violet-elements/icons/system-close"` |
-    | `import { registerVioletIcon } from "@lushly-dev/violet-elements/dist/icon/icon-registry.js"` | `import { registerVioletIcon } from "@lushly-dev/violet-elements/icon-registry"` |
-    | `import { violetThemeCssText } from "@lushly-dev/violet-elements/dist/theme/violet-theme-builtin.js"` | `import { violetThemeCssText } from "@lushly-dev/violet-elements/theme-builtin"` |
+    | `import { registerVioletIcon } from "@lushly-dev/violet-elements/dist/icon/icon-registry.js"`                     | `import { registerVioletIcon } from "@lushly-dev/violet-elements/icon-registry"`           |
+    | `import { violetThemeCssText } from "@lushly-dev/violet-elements/dist/theme/violet-theme-builtin.js"`             | `import { violetThemeCssText } from "@lushly-dev/violet-elements/theme-builtin"`           |
 
   - **Breaking (preview minor):** a class module no longer registers its element. Code that imported a class by name (`import { VioletButton } from …`) from an element module and relied on the import to register it imports `<name>/define` as well. The dialog, teaching tip, carousel, tree item, date, date-range, time and color pickers, file explorer, data grid and attachment cell register their system icons when defined, not when their module loads.
   - A scoped registry holds the element defined into it, but the elements that element creates in its own shadow root are still created in the global registry; full isolation is a follow-up ([#2437](https://github.com/lushly-dev/afd/issues/2437)).

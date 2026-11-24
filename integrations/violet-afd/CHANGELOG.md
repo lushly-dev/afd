@@ -1,5 +1,11 @@
 # @lushly-dev/violet-afd
 
+## 0.3.0-preview.7
+
+### Patch Changes
+
+- [#2449](https://github.com/lushly-dev/afd/pull/2449) [`6ef7e7d`](https://github.com/lushly-dev/afd/commit/6ef7e7d9cc3747e909421c19ad988250be6a16b4) Thanks [@Falkicon](https://github.com/Falkicon)! - `interface.check` accepts the `cssPrefix` of `@lushly-dev/violet-elements`' token interface version 4, and the specimen role map (`SPECIMEN_INTERFACE`) is checked against that version: its ids are unchanged, only their properties moved under the `violet-` prefix ([#1786](https://github.com/lushly-dev/afd/issues/1786)).
+
 ## 0.3.0-preview.6
 
 ### Minor Changes
