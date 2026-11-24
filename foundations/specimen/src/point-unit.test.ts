@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -334,6 +334,38 @@ describe('point helpers and pure contracts (§4.0–§4.4)', () => {
 		}
 		expect((caught as { code?: string }).code).toBe('NO_SUCH_LEVEL');
 		expect((caught as { suggestion?: string }).suggestion).toContain('0..2');
+	});
+
+	it('hashes files named under a symlinked root by either spelling (#2416)', async () => {
+		const realRoot = await realpath(await tempDir('specimen-point-real-'));
+		await mkdir(join(realRoot, 'src'), { recursive: true });
+		await writeFile(join(realRoot, 'src', 'a.ts'), 'export const a = 1;\n');
+		const linkParent = await tempDir('specimen-point-link-');
+		const linkedRoot = join(linkParent, 'root');
+		await symlink(realRoot, linkedRoot, process.platform === 'win32' ? 'junction' : 'dir');
+
+		const viaLink = await computeSourceDigests(linkedRoot, [join(linkedRoot, 'src', 'a.ts')]);
+		expect(Object.keys(viaLink)).toEqual(['src/a.ts']);
+		const viaReal = await computeSourceDigests(linkedRoot, [join(realRoot, 'src', 'a.ts')]);
+		expect(viaReal).toEqual(viaLink);
+		const both = await computeSourceDigests(linkedRoot, [
+			join(linkedRoot, 'src', 'a.ts'),
+			join(realRoot, 'src', 'a.ts'),
+		]);
+		expect(both).toEqual(viaLink);
+		const overridden = await computeSourceDigests(linkedRoot, [join(linkedRoot, 'src', 'a.ts')], {
+			[join(linkedRoot, 'src', 'a.ts')]: 'abcd',
+		});
+		expect(overridden).toEqual({ 'src/a.ts': 'abcd' });
+
+		// A root reached through a link inside its own real path keys files from the root as given.
+		const innerLink = join(realRoot, 'self');
+		await symlink(realRoot, innerLink, process.platform === 'win32' ? 'junction' : 'dir');
+		const viaInner = await computeSourceDigests(innerLink, [
+			join(innerLink, 'src', 'a.ts'),
+			join(realRoot, 'src', 'a.ts'),
+		]);
+		expect(viaInner).toEqual(viaLink);
 	});
 
 	it('hashes source files, detects file and identity staleness, and persists points safely under .specimen/points', async () => {
