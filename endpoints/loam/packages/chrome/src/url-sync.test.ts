@@ -608,3 +608,64 @@ describe("P2-E8: an app the kernel will not open in the route's project (N4)", (
 		expect(host.route).toBe('not-found');
 	});
 });
+
+describe('P2-E8: Navigation API promise rejections', () => {
+	it('silences AbortError when a later navigation supersedes an earlier one', async () => {
+		const { host, sync, timers } = await fixture('acme', {
+			scope: { project: ATLAS.id },
+			project: ATLAS,
+			section: 'projects',
+		});
+		const unhandled: unknown[] = [];
+		const onUnhandled = (reason: unknown) => unhandled.push(reason);
+		process.on('unhandledRejection', onUnhandled);
+		try {
+			const navigate = vi.fn(() => ({
+				committed: Promise.reject(new DOMException('Navigation was aborted', 'AbortError')),
+				finished: Promise.reject(new DOMException('Navigation was aborted', 'AbortError')),
+			}));
+			const view = host.ownerDocument.defaultView as unknown as {
+				navigation: { navigate: typeof navigate };
+			};
+			view.navigation.navigate = navigate;
+			await host.kernel?.call('scope-set', { project: BEACON.id });
+			sync.changed(event({ command: 'scope-set', scopeChanged: {} as never, mainChanged: 'push' }));
+			await timers();
+			expect(navigate).toHaveBeenCalledTimes(1);
+			expect(unhandled).toEqual([]);
+			expect(reported).toEqual([]);
+		} finally {
+			process.off('unhandledRejection', onUnhandled);
+		}
+	});
+
+	it('reports non-AbortError navigation rejections once through reportError', async () => {
+		const { host, sync, timers } = await fixture('acme', {
+			scope: { project: ATLAS.id },
+			project: ATLAS,
+			section: 'projects',
+		});
+		const unhandled: unknown[] = [];
+		const onUnhandled = (reason: unknown) => unhandled.push(reason);
+		process.on('unhandledRejection', onUnhandled);
+		try {
+			const failure = new DOMException('Navigation blocked', 'SecurityError');
+			const navigate = vi.fn(() => ({
+				committed: Promise.reject(failure),
+				finished: Promise.reject(failure),
+			}));
+			const view = host.ownerDocument.defaultView as unknown as {
+				navigation: { navigate: typeof navigate };
+			};
+			view.navigation.navigate = navigate;
+			await host.kernel?.call('scope-set', { project: BEACON.id });
+			sync.changed(event({ command: 'scope-set', scopeChanged: {} as never, mainChanged: 'push' }));
+			await timers();
+			expect(navigate).toHaveBeenCalledTimes(1);
+			expect(unhandled).toEqual([]);
+			expect(reported.splice(0)).toEqual([failure]);
+		} finally {
+			process.off('unhandledRejection', onUnhandled);
+		}
+	});
+});

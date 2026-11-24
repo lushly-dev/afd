@@ -627,3 +627,131 @@ async fn a_streamed_command_still_sees_its_budget_and_a_bad_ask_is_refused() {
         error_codes::VALIDATION_ERROR
     );
 }
+
+#[tokio::test]
+async fn a_journaled_over_budget_streamed_call_replays_without_a_difference() {
+    use crate::journal::{
+        replay_journal, JournalRecorder, MemoryJournalSink, ReplayJournalOptions, ReplayStatus,
+    };
+    use crate::output_budget::AFD_OUTPUT_BUDGET_META_KEY;
+
+    let make_registry = || {
+        let registry = CommandRegistry::new();
+        let items: Vec<Value> = (0..200).map(|index| json!({ "index": index })).collect();
+        let handler = Handler {
+            data: Some(Value::Array(items)),
+            ..Handler::default()
+        };
+        registry
+            .register(
+                CommandDefinition::new("item-list", "List items", vec![], handler)
+                    .with_output_budget(100, 200),
+            )
+            .unwrap();
+        registry
+    };
+
+    let sink = Arc::new(MemoryJournalSink::new());
+    let recorded_registry = make_registry();
+    recorded_registry.set_journal(JournalRecorder::new(sink.clone()));
+
+    let chunks = collect(recorded_registry.execute_stream(
+        "item-list",
+        json!({}),
+        None,
+        StreamExecutorOptions::new(),
+    ))
+    .await;
+    assert_eq!(chunks.len(), 201);
+    assert!(matches!(chunks.last(), Some(StreamChunk::Complete(_))));
+
+    let entries = sink.entries();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].output_budget, Some(100));
+    assert!(entries[0].result.success);
+    assert!(
+        !entries[0]
+            .result
+            .metadata
+            .as_ref()
+            .is_some_and(|meta| meta.extra.contains_key(AFD_OUTPUT_BUDGET_META_KEY)),
+        "a streamed call has no B6 output-budget report"
+    );
+
+    let replay_registry = make_registry();
+    let report = replay_journal(&replay_registry, &entries, ReplayJournalOptions::default()).await;
+    assert!(!report.diverged, "{report:?}");
+    assert_eq!(report.same, 1);
+    assert_eq!(report.entries[0].status, ReplayStatus::Same);
+    assert!(report.entries[0].replayed.as_ref().unwrap().success);
+}
+
+#[tokio::test]
+async fn a_journaled_budgeted_non_streamed_call_still_runs_the_budget_check_on_replay() {
+    use crate::journal::{
+        replay_journal, JournalRecorder, MemoryJournalSink, ReplayJournalOptions, ReplayStatus,
+    };
+    use crate::output_budget::AFD_OUTPUT_BUDGET_META_KEY;
+
+    let sink = Arc::new(MemoryJournalSink::new());
+    let recorded_registry = CommandRegistry::new();
+    recorded_registry
+        .register(
+            CommandDefinition::new(
+                "item-list",
+                "List items",
+                vec![],
+                Handler {
+                    data: Some(json!(["ok"])),
+                    ..Handler::default()
+                },
+            )
+            .with_output_budget(100, 200),
+        )
+        .unwrap();
+    recorded_registry.set_journal(JournalRecorder::new(sink.clone()));
+
+    let result = recorded_registry
+        .execute("item-list", json!({}), None)
+        .await;
+    assert!(result.success);
+    let entries = sink.entries();
+    assert_eq!(entries.len(), 1);
+    assert!(entries[0]
+        .result
+        .metadata
+        .as_ref()
+        .is_some_and(|meta| meta.extra.contains_key(AFD_OUTPUT_BUDGET_META_KEY)));
+
+    // If the handler now exceeds the budget on replay, B5 still catches it.
+    let replay_registry = CommandRegistry::new();
+    let items: Vec<Value> = (0..200).map(|index| json!({ "index": index })).collect();
+    replay_registry
+        .register(
+            CommandDefinition::new(
+                "item-list",
+                "List items",
+                vec![],
+                Handler {
+                    data: Some(Value::Array(items)),
+                    ..Handler::default()
+                },
+            )
+            .with_output_budget(100, 200),
+        )
+        .unwrap();
+    let report = replay_journal(&replay_registry, &entries, ReplayJournalOptions::default()).await;
+    assert!(report.diverged);
+    assert_eq!(report.entries[0].status, ReplayStatus::Different);
+    assert_eq!(
+        report.entries[0]
+            .replayed
+            .as_ref()
+            .unwrap()
+            .error
+            .as_ref()
+            .unwrap()
+            .code,
+        error_codes::OUTPUT_BUDGET_EXCEEDED
+    );
+}

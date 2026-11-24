@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { SourceMap } from 'node:module';
 import { tmpdir } from 'node:os';
-import { join, sep } from 'node:path';
+import { basename, dirname, join, sep } from 'node:path';
 import { chromium } from 'playwright';
 import { build, normalizePath, type Plugin } from 'vite';
 import { expect, it, vi } from 'vitest';
@@ -263,18 +263,74 @@ export const Probe = { render() {
 					await bench.close();
 				}
 			}
-			const edited = source.replace('21 * 2', '42 * 2');
-			await writeFile(file, edited);
-			let changed = '';
+			// Vite registers files outside `root` via `watcher.add(file)` asynchronously; wait until
+			// chokidar lists the file, then rewrite and retry a monotonic mtime touch only while the
+			// watcher has not yet observed the change (on macOS FSEvents, `getWatched()` updates before
+			// `initWatch` finishes attaching).
 			await vi.waitFor(
-				async () => {
-					changed = await readModule(`${server.url}${path}`);
-					expect(responseMap(changed).sourcesContent).toEqual([edited]);
+				() => {
+					const watched = server.server.watcher.getWatched();
+					expect(watched[dirname(file)]).toContain(basename(file));
 				},
-				// The watcher's event and Vite's invalidation; a shared machine's file events have taken over
-				// 4 s, which a 3 s wait failed on while the server was right.
 				{ timeout: 15_000 }
 			);
+			let lastMtime = (await stat(file)).mtimeMs;
+			const edited = source.replace('21 * 2', '42 * 2');
+			let changed = '';
+			let onChange: ((changedPath: string) => void) | undefined;
+			let retryTimer: ReturnType<typeof setTimeout> | undefined;
+			let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
+			try {
+				const watchedChange = new Promise<void>((resolve, reject) => {
+					let settled = false;
+					const finish = () => {
+						if (settled) return;
+						settled = true;
+						clearTimeout(retryTimer);
+						clearTimeout(deadlineTimer);
+						resolve();
+					};
+					onChange = (changedPath: string) => {
+						if (normalizePath(changedPath) === normalizePath(file)) finish();
+					};
+					server.server.watcher.on('change', onChange);
+					let retries = 0;
+					const scheduleRetry = () => {
+						if (settled || retries >= 5) return;
+						retryTimer = setTimeout(async () => {
+							if (settled) return;
+							retries++;
+							lastMtime = Math.max(Date.now(), lastMtime + 1000);
+							// Set atime > mtime so chokidar's `at <= mt || mt !== prevStats.mtimeMs`
+							// emits once for the new mtime and ignores duplicate trailing events.
+							await utimes(file, new Date(lastMtime + 1000), new Date(lastMtime)).catch(() => {});
+							scheduleRetry();
+						}, 1_500);
+					};
+					deadlineTimer = setTimeout(() => {
+						if (settled) return;
+						settled = true;
+						clearTimeout(retryTimer);
+						reject(new Error(`Timed out waiting for Vite watcher change event on ${file}`));
+					}, 15_000);
+					scheduleRetry();
+				});
+				await writeFile(file, edited);
+				await watchedChange;
+				await vi.waitFor(
+					async () => {
+						changed = await readModule(`${server.url}${path}`);
+						expect(responseMap(changed).sourcesContent).toEqual([edited]);
+					},
+					// The watcher's event and Vite's invalidation; a shared machine's file events have taken over
+					// 4 s, which a 3 s wait failed on while the server was right.
+					{ timeout: 15_000 }
+				);
+			} finally {
+				clearTimeout(retryTimer);
+				clearTimeout(deadlineTimer);
+				if (onChange) server.server.watcher.off('change', onChange);
+			}
 			expect(changed).not.toBe(first);
 			expect(await answerFrom(changed)).toBe(84);
 			const revalidated = await fetch(`${server.url}${path}`, {
@@ -310,7 +366,8 @@ export const Probe = { render() {
 			await server.close();
 			await rm(root, { recursive: true, force: true });
 		}
-	}
+	},
+	60_000
 );
 
 it.each(['typescript', 'external', 'inline'] as const)(
@@ -359,5 +416,6 @@ it.each(['typescript', 'external', 'inline'] as const)(
 			await server.close();
 			await rm(root, { recursive: true, force: true });
 		}
-	}
+	},
+	60_000
 );

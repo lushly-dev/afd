@@ -875,11 +875,11 @@
       "upstream_sha256": "ddc2168f8868ca4d9e977230eee607f3cd926454dffb4b32eb94cb350151352b",
       "staged_path": "packages/specimen/src/lifecycle.test.ts",
       "staged_sha256": "ddc2168f8868ca4d9e977230eee607f3cd926454dffb4b32eb94cb350151352b",
-      "current_import_sha256": "18add2bdb5ee8d445ecf29362de5286678f53bdf6e028d6afdf2cafe06048c08",
+      "current_import_sha256": "48f2137e394050fff5fd44b82fd576b5c1be39150ca9d4cef5757073294933ec",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; Teardown after the dependency optimizer's last write: per-build Rolldown write tracking so the bench server's root is removed only once no optimizer write is running, and again after a later one (#809); Support the native host and its prebuilt package on Windows x64; Allow 15 s for the lifecycle test's file-watch invalidation; 3 s failed on a loaded shared Mac; Split host target resolution errors into TARGET_NOT_FOUND and TARGET_AMBIGUOUS (#2046)"
+      "import_reason": "Imported exact staged candidate bytes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; Teardown after the dependency optimizer's last write: per-build Rolldown write tracking so the bench server's root is removed only once no optimizer write is running, and again after a later one (#809); Support the native host and its prebuilt package on Windows x64; Allow 15 s for the lifecycle test's file-watch invalidation; 3 s failed on a loaded shared Mac; Split host target resolution errors into TARGET_NOT_FOUND and TARGET_AMBIGUOUS (#2046); Wait for Vite watcher registration and event-driven change notice with bounded mtime retry in lifecycle.test.ts (#2365)"
     },
     {
       "path": "foundations/specimen/src/normalize.test.ts",

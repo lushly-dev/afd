@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 - **`DirectClient` `timeout_ms`** ([#1599](https://github.com/lushly-dev/afd/issues/1599)): `0` is no deadline, as `CommandRegistry::execute` reads it (it timed out at once), and a caller's deadline replaces the registry's `default_timeout_ms` for the call (the default applied too).
+- **Journal replay of streamed budgeted calls** ([#2361](https://github.com/lushly-dev/afd/issues/2361)): `replay_journal` now skips the B5 output-budget result check when replaying a successful budgeted entry that carries no B6 `dev.afd/outputBudget` report (buffered `execute_stream`, B7), matching TypeScript and C++ so over-budget streamed calls replay without falsely diverging while normal budgeted calls still run B5.
 
 ## [0.3.0] - 2026-11-24
 
