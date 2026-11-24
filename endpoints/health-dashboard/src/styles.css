@@ -1,16 +1,16 @@
 /* Page styles over violet-elements' runtime theme tokens (fallbacks match its light preset). */
 :root {
 	color-scheme: light dark;
-	--page-bg: var(--color-surface-page, #fbfaf6);
-	--card-bg: var(--color-surface-card, #ffffff);
-	--subtle-bg: var(--color-surface-subtle, #f0efe6);
-	--text: var(--color-text-primary, #18181b);
-	--text-secondary: var(--color-text-secondary, #414651);
-	--border: var(--color-border-subtle, rgba(28, 26, 13, 0.1));
-	--border-strong: var(--color-border-strong, rgba(28, 26, 13, 0.3));
-	--focus: var(--color-focus-ring, rgba(24, 24, 27, 0.5));
-	--radius: var(--radius-md, 4px);
-	--gap: var(--space-layout-sm, 16px);
+	--page-bg: var(--violet-color-surface-page, #fbfaf6);
+	--card-bg: var(--violet-color-surface-card, #ffffff);
+	--subtle-bg: var(--violet-color-surface-subtle, #f0efe6);
+	--text: var(--violet-color-text-primary, #18181b);
+	--text-secondary: var(--violet-color-text-secondary, #414651);
+	--border: var(--violet-color-border-subtle, rgba(28, 26, 13, 0.1));
+	--border-strong: var(--violet-color-border-strong, rgba(28, 26, 13, 0.3));
+	--focus: var(--violet-color-focus-ring, rgba(24, 24, 27, 0.5));
+	--radius: var(--violet-radius-md, 4px);
+	--gap: var(--violet-space-layout-sm, 16px);
 }
 
 * {
@@ -22,7 +22,7 @@ body {
 	background: var(--page-bg);
 	color: var(--text);
 	font-family: "Montserrat", "Segoe UI", system-ui, sans-serif;
-	font-size: var(--type-body-md-size, 14px);
+	font-size: var(--violet-type-body-md-size, 14px);
 	line-height: 1.5;
 }
 
@@ -105,7 +105,7 @@ pre {
 	gap: 0.75rem;
 	padding: 1.25rem;
 	border: 1px solid var(--border);
-	border-radius: var(--radius-lg, 8px);
+	border-radius: var(--violet-radius-lg, 8px);
 	background: var(--card-bg);
 }
 
@@ -135,14 +135,14 @@ pre {
 
 .verdict {
 	padding: 0.75rem 1rem;
-	border: 2px solid var(--color-state-danger-border, #d92d20);
+	border: 2px solid var(--violet-color-state-danger-border, #d92d20);
 	border-radius: var(--radius);
-	background: var(--color-state-danger-background, #fef3f2);
+	background: var(--violet-color-state-danger-background, #fef3f2);
 }
 
 .verdict[data-passed="true"] {
-	border-color: var(--color-state-success-border, #079455);
-	background: var(--color-state-success-background, #ecfdf3);
+	border-color: var(--violet-color-state-success-border, #079455);
+	background: var(--violet-color-state-success-background, #ecfdf3);
 }
 
 .verdict-label {

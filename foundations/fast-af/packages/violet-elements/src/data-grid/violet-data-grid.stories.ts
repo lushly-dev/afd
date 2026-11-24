@@ -179,7 +179,7 @@ function statusOptionStyle(value: string): string {
         case "gray":
             return "background:#606672;color:#f6f7fa;border-color:transparent;";
         default:
-            return "background:color-mix(in srgb, var(--color-surface-subtle, #e9e5de) 86%, white);color:var(--color-text-primary, #181b1a);border-color:color-mix(in srgb, var(--color-border-subtle, rgba(24, 27, 26, 0.10)) 80%, transparent);";
+            return "background:color-mix(in srgb, var(--violet-color-surface-subtle, #e9e5de) 86%, white);color:var(--violet-color-text-primary, #181b1a);border-color:color-mix(in srgb, var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10)) 80%, transparent);";
     }
 }
 

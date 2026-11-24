@@ -45,7 +45,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-success-text, #2c5e4b)",
+				"default": "var(--violet-color-state-success-text, #2c5e4b)",
 				"name": "--_success-text"
 			},
 			{

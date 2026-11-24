@@ -24,7 +24,7 @@ const styles = css`
         /* A chosen row is the selected surface, with no ring. */
         --_tree-row-background-selected: var(
             --violet-tree-row-background-selected,
-            var(--color-surface-selected, var(--_surface-subtle))
+            var(--violet-color-surface-selected, var(--_surface-subtle))
         );
         --_tree-row-background-hover: var(--violet-tree-row-background-hover, var(--_surface-subtle));
         --_tree-row-border-selected: var(--violet-tree-row-border-selected, transparent);
@@ -44,7 +44,7 @@ const styles = css`
             var(--_tree-row-padding-inline) + (var(--_tree-level, 1) - 1) * var(--_tree-indent-step)
         );
         border-radius: var(--_tree-row-radius);
-        color: var(--color-text-primary, #181b1a);
+        color: var(--violet-color-text-primary, #181b1a);
         cursor: pointer;
         font-size: var(--_control-body-size);
         line-height: var(--_type-body-line);

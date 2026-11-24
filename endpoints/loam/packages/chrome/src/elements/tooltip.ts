@@ -35,16 +35,16 @@ const styles = css`
 		margin: 0;
 		position-area: inline-end;
 		position-try-fallbacks: flip-inline, flip-block;
-		max-inline-size: var(--shell-size-sidebar-default);
-		padding-block: var(--size-space-sm);
-		padding-inline: var(--size-space-md);
+		max-inline-size: var(--violet-shell-size-sidebar-default);
+		padding-block: var(--violet-size-space-sm);
+		padding-inline: var(--violet-size-space-md);
 		border: 0;
-		border-radius: var(--radius-md);
-		background: var(--color-surface-floating);
-		box-shadow: var(--shadow-floating);
-		color: var(--color-text-primary);
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
+		border-radius: var(--violet-radius-md);
+		background: var(--violet-color-surface-floating);
+		box-shadow: var(--violet-shadow-floating);
+		color: var(--violet-color-text-primary);
+		font-size: var(--violet-type-label-sm-size);
+		line-height: var(--violet-type-label-sm-line);
 		overflow: visible;
 	}
 	:host([placement='above']) {

@@ -1,7 +1,8 @@
+import { tokenCustomProperty } from '@lushly-dev/violet-runtime/property';
 import { UnsafeCssValueError, checkCssToken } from '../../css/token-value.js';
 import type { ResolvedToken } from '../../types/token.js';
 import type { TransformOptions, Transformer } from '../transformer.js';
-import { groupByCategory, tokenIdToKebab } from '../transformer.js';
+import { groupByCategory } from '../transformer.js';
 
 /**
  * CSS Transformer
@@ -23,7 +24,9 @@ export const cssTransformer: Transformer = {
 		} = options;
 
 		const prefixPart = prefix ? `${prefix}-` : '';
-		const varNameOf = (tokenId: string) => `--${prefixPart}${tokenIdToKebab(tokenId)}`;
+		// The same name violet-runtime and violet-elements write (`cssPrefix: 'violet'` gives the
+		// properties the components read).
+		const varNameOf = (tokenId: string) => tokenCustomProperty(tokenId, prefix);
 		// Only point at variables this export defines; otherwise use the value.
 		const exported = new Set(tokens.map((token) => token.id));
 		// Every name and value is checked here, for stores written before writes were checked (#1325)

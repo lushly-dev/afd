@@ -38,12 +38,12 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--color-surface-subtle, #e9e5de)",
+				"default": "var(--violet-color-surface-subtle, #e9e5de)",
 				"name": "--_surface-hover"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-surface-pressed, #d8dcd6)",
+				"default": "var(--violet-color-surface-pressed, #d8dcd6)",
 				"name": "--_surface-pressed"
 			}
 		],

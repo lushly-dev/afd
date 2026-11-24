@@ -15,6 +15,8 @@ import type { CommandContext, CommandDefinition } from '../registry.js';
 const TokenInterfaceSchema = z.object({
 	contractVersion: z.number().int().nonnegative(),
 	package: z.string().optional(),
+	/** The prefix of every property (`violet` from contract version 4): `--<cssPrefix>-<kebab id>` */
+	cssPrefix: z.string().optional(),
 	tokens: z.record(
 		z.string().min(1),
 		z.object({

@@ -67,54 +67,54 @@ const styles = [
 	quietButton,
 	css`
 		.sign-in {
-			border-color: var(--color-action-secondary-border);
+			border-color: var(--violet-color-action-secondary-border);
 		}
 		:host {
 			display: block;
 			overflow: auto;
-			padding: var(--space-layout-md);
-			background: var(--color-surface-page);
-			color: var(--color-text-primary);
+			padding: var(--violet-space-layout-md);
+			background: var(--violet-color-surface-page);
+			color: var(--violet-color-text-primary);
 		}
 		:host([busy]) .landing {
 			display: none;
 		}
 		.landing {
 			display: grid;
-			gap: var(--space-stack-sm);
-			max-inline-size: var(--shell-size-main-min);
+			gap: var(--violet-space-stack-sm);
+			max-inline-size: var(--violet-shell-size-main-min);
 			margin-inline: auto;
-			margin-block-start: var(--space-layout-md);
+			margin-block-start: var(--violet-space-layout-md);
 		}
 		h1 {
 			margin: 0;
-			font-size: var(--type-title-md-size);
-			line-height: var(--type-title-md-line);
-			font-weight: var(--type-title-md-weight);
+			font-size: var(--violet-type-title-md-size);
+			line-height: var(--violet-type-title-md-line);
+			font-weight: var(--violet-type-title-md-weight);
 		}
 		p {
 			margin: 0;
-			color: var(--color-text-secondary);
-			font-size: var(--type-body-md-size);
-			line-height: var(--type-body-md-line);
+			color: var(--violet-color-text-secondary);
+			font-size: var(--violet-type-body-md-size);
+			line-height: var(--violet-type-body-md-line);
 		}
 		kbd {
 			font: inherit;
-			font-weight: var(--weight-semibold);
-			color: var(--color-text-primary);
+			font-weight: var(--violet-weight-semibold);
+			color: var(--violet-color-text-primary);
 		}
 		a {
-			color: var(--color-text-primary);
+			color: var(--violet-color-text-primary);
 			text-decoration: underline;
-			text-underline-offset: var(--size-space-xs);
-			border-radius: var(--radius-sm);
+			text-underline-offset: var(--violet-size-space-xs);
+			border-radius: var(--violet-radius-sm);
 		}
 		a:hover {
-			text-decoration-thickness: var(--size-space-xs);
+			text-decoration-thickness: var(--violet-size-space-xs);
 		}
 		a:focus-visible {
-			outline: var(--shell-size-focus) solid var(--color-focus-ring);
-			outline-offset: var(--size-space-xs);
+			outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+			outline-offset: var(--violet-size-space-xs);
 		}
 		@media (forced-colors: active) {
 			:host,

@@ -115,7 +115,7 @@ describe("violet runtime theme", () => {
 
         expect(runtimeSheets()).toEqual([own, sheet]);
         expect(document.querySelectorAll("style[data-violet-theme]")).toHaveLength(0);
-        expect(getComputedStyle(document.documentElement).getPropertyValue("--color-accent-background").trim()).toBe(builtInAccentBackground);
+        expect(getComputedStyle(document.documentElement).getPropertyValue("--violet-color-accent-background").trim()).toBe(builtInAccentBackground);
     });
 
     it("adopts the runtime sheet into a shadow root when requested, shared with its document", () => {
@@ -154,9 +154,9 @@ describe("violet runtime theme", () => {
         expect(frameSheet).not.toBe(pageSheet);
         expect([...frameDocument.adoptedStyleSheets]).toEqual([frameSheet]);
         const frameRoot = () => frameWindow.getComputedStyle(frameDocument.documentElement);
-        expect(frameRoot().getPropertyValue("--color-accent-background").trim()).toBe(builtInAccentBackground);
+        expect(frameRoot().getPropertyValue("--violet-color-accent-background").trim()).toBe(builtInAccentBackground);
         applyVioletThemePreset(frameDocument, "dark");
-        expect(frameRoot().getPropertyValue("--color-accent-background").trim()).not.toBe(builtInAccentBackground);
+        expect(frameRoot().getPropertyValue("--violet-color-accent-background").trim()).not.toBe(builtInAccentBackground);
 
         // A shadow root in the frame's document adopts the frame's sheet, and a set change reaches both documents.
         const host = frameDocument.createElement("div");
@@ -167,7 +167,7 @@ describe("violet runtime theme", () => {
         expect(sheetText(frameSheet)).toBe(parsed(createVioletThemeCss(productSet)));
         expect(sheetText(pageSheet)).toBe(parsed(createVioletThemeCss(productSet)));
         applyVioletThemePreset(frameDocument, "meadow");
-        expect(frameRoot().getPropertyValue("--color-brand-leaf").trim()).toBe("#2f6b3a");
+        expect(frameRoot().getPropertyValue("--violet-color-brand-leaf").trim()).toBe("#2f6b3a");
         resetVioletThemeSet();
         expect(sheetText(frameSheet)).toBe(parsed(violetThemeCssText));
     });
@@ -206,10 +206,10 @@ describe("violet runtime theme", () => {
         expect(violetThemeBuiltInSet.defaultPreset).toBe(VIOLET_THEME_DEFAULT_PRESET);
         expect(builtInAccentBackground).toMatch(/^#[0-9a-f]{6}$/);
         expect(violetThemeCssText).toBe(createVioletThemeCss(violetThemeBuiltInSet));
-        expect(violetThemeCssText.startsWith(":root,\n[data-violet-theme-root]\n{\n  --color-accent-background: #dfecf4;")).toBe(true);
+        expect(violetThemeCssText.startsWith(":root,\n[data-violet-theme-root]\n{\n  --violet-color-accent-background: #dfecf4;")).toBe(true);
         expect(violetThemeCssText).toContain(':root[data-violet-theme="dark"],\n[data-violet-theme-root][data-violet-theme="dark"]\n{');
         expect(violetThemeDeclarations).toBe(violetThemeDeclarationsByPreset.light);
-        expect(violetThemeDeclarations).toContain('  --font-family-body: "Inter", system-ui, sans-serif;');
+        expect(violetThemeDeclarations).toContain('  --violet-font-family-body: "Inter", system-ui, sans-serif;');
         expect(VIOLET_THEME_DEFAULT_PRESET).toBe("light");
     });
 
@@ -246,7 +246,7 @@ describe("violet runtime theme", () => {
         expect(shadowRoot.adoptedStyleSheets).toHaveLength(1);
         expect(sheetText(shadowRoot.adoptedStyleSheets[0]!)).toBe(parsed(violetThemeCssText));
         expect(runtimeSheets()).toEqual([]);
-        expect(getComputedStyle(scope).getPropertyValue("--color-accent-background").trim()).not.toBe(builtInAccentBackground);
+        expect(getComputedStyle(scope).getPropertyValue("--violet-color-accent-background").trim()).not.toBe(builtInAccentBackground);
     });
 
     it("reflects preset changes on violet-theme hosts", () => {
@@ -280,9 +280,9 @@ describe("a product's replacement theme set", () => {
 
         expect(runtimeSheets()).toEqual([sheet]);
         expect(sheetText(sheet)).toBe(parsed(createVioletThemeCss(productSet)));
-        expect(sheetText(sheet)).not.toContain("--color-action-danger-background");
+        expect(sheetText(sheet)).not.toContain("--violet-color-action-danger-background");
         expect(sheetText(sheet)).toContain('[data-violet-theme-root][data-violet-theme="night-garden"]');
-        expect(getComputedStyle(document.documentElement).getPropertyValue("--color-brand-leaf").trim()).toBe("#2f6b3a");
+        expect(getComputedStyle(document.documentElement).getPropertyValue("--violet-color-brand-leaf").trim()).toBe("#2f6b3a");
         expect(getVioletThemePresets()).toEqual(["meadow", "night-garden"]);
         expect(getVioletThemeDefaultPreset()).toBe("meadow");
         expect(getVioletThemePreset(document)).toBe("meadow");
@@ -300,9 +300,9 @@ describe("a product's replacement theme set", () => {
 
         const root = getComputedStyle(document.documentElement);
         expect(getVioletThemePreset(document)).toBe("night-garden");
-        expect(root.getPropertyValue("--color-surface-page").trim()).toBe("#101410");
+        expect(root.getPropertyValue("--violet-color-surface-page").trim()).toBe("#101410");
         // A preset inherits what it does not set from the default.
-        expect(root.getPropertyValue("--font-family-body").trim()).toBe("Georgia, serif");
+        expect(root.getPropertyValue("--violet-font-family-body").trim()).toBe("Georgia, serif");
         expect(() => applyVioletThemePreset(document, "dark")).toThrow(/installed presets are meadow, night-garden/);
     });
 
@@ -315,10 +315,10 @@ describe("a product's replacement theme set", () => {
         applyVioletThemeRoot(plain);
         document.body.append(section, scope, plain);
 
-        expect(getComputedStyle(section).getPropertyValue("--color-text-primary").trim()).toBe("#e6eee0");
-        expect(getComputedStyle(scope).getPropertyValue("--color-text-primary").trim()).toBe("#e6eee0");
+        expect(getComputedStyle(section).getPropertyValue("--violet-color-text-primary").trim()).toBe("#e6eee0");
+        expect(getComputedStyle(scope).getPropertyValue("--violet-color-text-primary").trim()).toBe("#e6eee0");
         expect(plain.getAttribute(VIOLET_THEME_PRESET_ATTRIBUTE)).toBe("meadow");
-        expect(getComputedStyle(plain).getPropertyValue("--color-text-primary").trim()).toBe("#1f2a1c");
+        expect(getComputedStyle(plain).getPropertyValue("--violet-color-text-primary").trim()).toBe("#1f2a1c");
         expect(warn).not.toHaveBeenCalled();
     });
 
@@ -351,7 +351,7 @@ describe("a product's replacement theme set", () => {
 
         expect([...shadowRoot.adoptedStyleSheets]).toEqual([scoped]);
         expect(sheetText(scoped)).toBe(parsed(createVioletThemeCss(productSet)));
-        expect(getComputedStyle(scope).getPropertyValue("--color-brand-leaf").trim()).toBe("#2f6b3a");
+        expect(getComputedStyle(scope).getPropertyValue("--violet-color-brand-leaf").trim()).toBe("#2f6b3a");
         resetVioletThemeSet();
         expect(sheetText(scoped)).toBe(parsed(violetThemeCssText));
     });
@@ -494,7 +494,7 @@ describe("the runtime sheet's targets", () => {
 
         expect(runtimeSheets()).toEqual([pageSheet]);
         expect(sheetText(pageSheet)).toBe(parsed(createVioletThemeCss(productSet)));
-        expect(getComputedStyle(document.documentElement).getPropertyValue("--color-brand-leaf").trim()).toBe("#2f6b3a");
+        expect(getComputedStyle(document.documentElement).getPropertyValue("--violet-color-brand-leaf").trim()).toBe("#2f6b3a");
         // Chromium still writes a removed iframe's sheet, so its removal is no failure to report.
         expect(error).not.toHaveBeenCalled();
     });
@@ -521,5 +521,51 @@ describe("the runtime sheet's targets", () => {
         expect(replacement).not.toBe(frameSheet);
         expect(sheetText(replacement)).toBe(parsed(violetThemeCssText));
         broken.mockRestore();
+    });
+});
+
+// The alias block (#1786, phase 4) names the properties before contract version 4 on purpose, so
+// these lines are marked for the codemod to leave. Removed with the block in the next release.
+describe("the deprecated alias block", () => {
+    const OLD_PAGE = "--color-surface-page"; // violet-prefix: keep
+    const OLD_LEAF = "--color-brand-leaf"; // violet-prefix: keep
+
+    afterEach(() => {
+        resetVioletThemeSet();
+        clearRuntimeTheme();
+    });
+
+    it("ends the sheet with each id of every preset once, under its old name, on the default selectors", () => {
+        const css = createVioletThemeCss(productSet);
+        const block = css.slice(css.lastIndexOf(":root,\n[data-violet-theme-root]\n{"));
+        expect(block.split("\n").slice(3, -1)).toEqual([
+            "  --color-surface-page: var(--violet-color-surface-page);", // violet-prefix: keep
+            "  --color-text-primary: var(--violet-color-text-primary);", // violet-prefix: keep
+            "  --font-family-body: var(--violet-font-family-body);", // violet-prefix: keep
+            "  --color-brand-leaf: var(--violet-color-brand-leaf);", // violet-prefix: keep
+        ]);
+        expect(css.indexOf(block)).toBeGreaterThan(css.indexOf('[data-violet-theme="night-garden"]'));
+        expect(violetThemeCssText).toContain("  --color-action-danger-background: var(--violet-color-action-danger-background);"); // violet-prefix: keep
+    });
+
+    it("resolves an old name to its preset's value on the document and in each scoped root", () => {
+        installVioletThemeSet(productSet);
+        const root = () => getComputedStyle(document.documentElement);
+        expect(root().getPropertyValue(OLD_PAGE).trim()).toBe("#f4f7ee");
+        expect(root().getPropertyValue(OLD_LEAF).trim()).toBe("#2f6b3a");
+
+        const scope = document.createElement("section");
+        document.body.append(scope);
+        applyVioletThemeRoot(scope, "night-garden");
+        // Declared on the scoped root too, so it computes from that root's own preset, not the page's.
+        expect(getComputedStyle(scope).getPropertyValue(OLD_PAGE).trim()).toBe("#101410");
+        const child = document.createElement("p");
+        scope.append(child);
+        expect(getComputedStyle(child).getPropertyValue(OLD_PAGE).trim()).toBe("#101410");
+
+        applyVioletThemePreset(document, "night-garden");
+        expect(root().getPropertyValue(OLD_PAGE).trim()).toBe("#101410");
+        // An id only the default preset sets is inherited, under either name.
+        expect(root().getPropertyValue(OLD_LEAF).trim()).toBe("#2f6b3a");
     });
 });

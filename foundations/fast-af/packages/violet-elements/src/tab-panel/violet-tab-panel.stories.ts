@@ -15,7 +15,7 @@ function renderPanel(args: VioletTabPanelStoryArgs): VioletTabPanel {
     panel.tabIndex = 0;
     panel.innerHTML = `
         <div style="display:grid;gap:12px;">
-            <h3 style="margin:0;font:600 1rem/1.2 var(--font-family-heading);">${args.heading}</h3>
+            <h3 style="margin:0;font:600 1rem/1.2 var(--violet-font-family-heading);">${args.heading}</h3>
             <p style="margin:0;">${args.body}</p>
         </div>
     `;

@@ -276,7 +276,7 @@ export const Horizontal: Story = {
         const p = document.createElement("p");
         p.style.margin = "0";
         p.style.fontSize = "13px";
-        p.style.color = "var(--color-text-secondary)";
+        p.style.color = "var(--violet-color-text-secondary)";
         p.textContent = "A horizontal card with a thumbnail image beside the content area.";
         content.append(h3, p);
 

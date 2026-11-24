@@ -45,22 +45,22 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--color-state-danger-background, #f7e4df)",
+				"default": "var(--violet-color-state-danger-background, #f7e4df)",
 				"name": "--_danger-bg"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-danger-text, #c42a1a)",
+				"default": "var(--violet-color-state-danger-text, #c42a1a)",
 				"name": "--_danger-text-local"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-success-background, #dfeae3)",
+				"default": "var(--violet-color-state-success-background, #dfeae3)",
 				"name": "--_success-bg"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-success-text, #2c5e4b)",
+				"default": "var(--violet-color-state-success-text, #2c5e4b)",
 				"name": "--_success-text"
 			},
 			{
@@ -80,17 +80,17 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-tool-name-size, var(--type-label-sm-size, 13px))",
+				"default": "var(--violet-tool-name-size, var(--violet-type-label-sm-size, 13px))",
 				"name": "--_tool-name-size"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-warning-background, #f3e8d2)",
+				"default": "var(--violet-color-state-warning-background, #f3e8d2)",
 				"name": "--_warning-bg"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-warning-text, #92400e)",
+				"default": "var(--violet-color-state-warning-text, #92400e)",
 				"name": "--_warning-text"
 			},
 			{

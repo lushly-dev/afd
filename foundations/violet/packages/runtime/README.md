@@ -45,6 +45,19 @@ await themes.switch('brand-dark');
 
 `applyToDocument()`, `removeFromDocument()` and the `autoApply` option, which write inline properties on the root element, are deprecated in favour of `adopt()` and will be removed in a later release. `autoApply` still defaults to `true` until then, so a runtime that is never adopted keeps its present behaviour.
 
+## Custom property names
+
+A token's property is `--`, the runtime's `cssPrefix` and `-` when it has one, then the id with each `.` replaced by `-`. The default prefix is empty (`color.surface.page` is `--color-surface-page`). `@lushly-dev/violet-elements` reads its interface's ids under the prefix `violet` (token interface version 4), so a runtime that themes those components passes it:
+
+```ts
+import { VIOLET_CSS_PREFIX, VioletRuntime } from '@lushly-dev/violet-runtime';
+
+const violet = new VioletRuntime({ nodeId: 'brand-dark', source, cssPrefix: VIOLET_CSS_PREFIX });
+violet.adopt(document); // --violet-color-surface-page, ..., on violet-elements' selectors
+```
+
+`tokenCustomProperty(id, prefix)` is the rule itself, from the root or from `@lushly-dev/violet-runtime/property`, which imports nothing. It is the one rule every Violet writer uses: this runtime, `@lushly-dev/violet-core`'s CSS exporter (`prefix: 'violet'` writes the same names), Loam's theme, and violet-elements, which copies the file at build time since it takes no Violet dependency.
+
 ## Preloaded tokens
 
 A static build can apply a theme with no token server: pass the resolved tokens as `source` in place of `apiUrl`. The two are either/or: the types refuse both, and so does the constructor.

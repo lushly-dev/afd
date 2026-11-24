@@ -33,7 +33,8 @@
 	},
 	"dependencies": {
 		"@lushly-dev/violet-afd": "workspace:*",
-		"@lushly-dev/violet-core": "workspace:*"
+		"@lushly-dev/violet-core": "workspace:*",
+		"@lushly-dev/violet-runtime": "workspace:*"
 	},
 	"devDependencies": {
 		"@lushly-dev/loam-kernel": "workspace:*",

@@ -10,19 +10,19 @@ phase 0 specification owns the chrome's exact grid and markup.
 ```css
 :host {
 	display: block;
-	background: var(--color-surface-card);
-	color: var(--color-text-primary);
-	padding: var(--space-layout-sm);
-	font-size: var(--type-body-md-size);
-	line-height: var(--type-body-md-line);
-	font-weight: var(--type-body-md-weight);
-	border-inline-end: 1px solid var(--color-border-subtle);
+	background: var(--violet-color-surface-card);
+	color: var(--violet-color-text-primary);
+	padding: var(--violet-space-layout-sm);
+	font-size: var(--violet-type-body-md-size);
+	line-height: var(--violet-type-body-md-line);
+	font-weight: var(--violet-type-body-md-weight);
+	border-inline-end: 1px solid var(--violet-color-border-subtle);
 }
 ```
 
-- Bars (title bar, rail, tab bar, status bar) take `--color-surface-subtle`
-  and `--color-text-secondary`; main takes `--color-surface-page` and
-  `--space-layout-md`.
+- Bars (title bar, rail, tab bar, status bar) take `--violet-color-surface-subtle`
+  and `--violet-color-text-secondary`; main takes `--violet-color-surface-page` and
+  `--violet-space-layout-md`.
 - Parts take no `box-shadow` and no `border-radius`.
 
 ## The shell's tracks
@@ -34,11 +34,11 @@ through CSSOM:
 :host {
 	display: grid;
 	grid-template-columns:
-		var(--shell-size-rail) var(--_sidebar-width)
-		minmax(var(--shell-size-main-min), 1fr) var(--_inspector-width);
+		var(--violet-shell-size-rail) var(--_sidebar-width)
+		minmax(var(--violet-shell-size-main-min), 1fr) var(--_inspector-width);
 	grid-template-rows:
-		var(--shell-size-titlebar) 1fr var(--_panel-height)
-		var(--shell-size-statusbar);
+		var(--violet-shell-size-titlebar) 1fr var(--_panel-height)
+		var(--violet-shell-size-statusbar);
 }
 ```
 
@@ -51,9 +51,9 @@ Read the three parts of one step together:
 
 ```css
 .label {
-	font-size: var(--type-label-sm-size);
-	line-height: var(--type-label-sm-line);
-	font-weight: var(--type-label-sm-weight);
+	font-size: var(--violet-type-label-sm-size);
+	line-height: var(--violet-type-label-sm-line);
+	font-weight: var(--violet-type-label-sm-weight);
 }
 ```
 
@@ -61,8 +61,8 @@ Read the three parts of one step together:
 
 ```css
 :host(:focus-visible) {
-	outline: var(--shell-size-focus) solid var(--color-focus-ring);
-	outline-offset: var(--size-space-xs);
+	outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+	outline-offset: var(--violet-size-space-xs);
 }
 
 @media (forced-colors: active) {
@@ -72,7 +72,7 @@ Read the three parts of one step together:
 }
 ```
 
-`--shell-size-focus` is 3px in high contrast. Only the chrome may read it.
+`--violet-shell-size-focus` is 3px in high contrast. Only the chrome may read it.
 
 ## A neutral item in its states
 
@@ -84,35 +84,35 @@ A rail entry, list row or status item:
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	min-inline-size: var(--size-target-comfortable);
-	min-block-size: var(--size-target-comfortable);
-	border-radius: var(--radius-md);
-	color: var(--color-text-secondary);
+	min-inline-size: var(--violet-size-target-comfortable);
+	min-block-size: var(--violet-size-target-comfortable);
+	border-radius: var(--violet-radius-md);
+	color: var(--violet-color-text-secondary);
 	background: transparent;
-	transition: background-color var(--duration-fast) var(--easing-standard);
+	transition: background-color var(--violet-duration-fast) var(--violet-easing-standard);
 }
 
 .item:hover {
-	background: var(--color-action-secondary-hover);
+	background: var(--violet-color-action-secondary-hover);
 }
 
 .item:active {
-	background: var(--color-action-secondary-pressed);
+	background: var(--violet-color-action-secondary-pressed);
 }
 
 .item[aria-current='page'] {
-	background: var(--color-control-selected-background);
-	color: var(--color-control-selected-foreground);
+	background: var(--violet-color-control-selected-background);
+	color: var(--violet-color-control-selected-foreground);
 }
 
 /* Selection is not color alone: a start-edge bar. */
 .item[aria-current='page']::before {
 	content: '';
 	position: absolute;
-	inset-block: var(--size-space-sm);
+	inset-block: var(--violet-size-space-sm);
 	inset-inline-start: 0;
-	inline-size: var(--size-space-xs);
-	background: var(--color-control-selected-foreground);
+	inline-size: var(--violet-size-space-xs);
+	background: var(--violet-color-control-selected-foreground);
 }
 
 :host([disabled]) .item {
@@ -134,8 +134,8 @@ A rail entry, list row or status item:
 ```
 
 - On a part (not a subtle bar) the hover background is
-  `--color-surface-subtle`.
-- Targets: `--size-target-natural` in the title bar, `--size-target-compact`
+  `--violet-color-surface-subtle`.
+- Targets: `--violet-size-target-natural` in the title bar, `--violet-size-target-compact`
   in the status bar.
 
 ## A resize handle
@@ -143,8 +143,8 @@ A rail entry, list row or status item:
 ```css
 :host {
 	position: relative;
-	inline-size: var(--shell-size-handle);
-	background: var(--shell-color-handle-rest);
+	inline-size: var(--violet-shell-size-handle);
+	background: var(--violet-shell-color-handle-rest);
 	cursor: col-resize;
 	touch-action: none;
 }
@@ -154,21 +154,21 @@ A rail entry, list row or status item:
 	content: '';
 	position: absolute;
 	inset-block: 0;
-	inset-inline: calc((var(--size-target-compact) - var(--shell-size-handle)) / -2);
+	inset-inline: calc((var(--violet-size-target-compact) - var(--violet-shell-size-handle)) / -2);
 }
 
 :host(:hover) {
-	background: var(--shell-color-handle-hover);
+	background: var(--violet-shell-color-handle-hover);
 }
 
 :host(:focus-visible),
 :host([data-dragging]) {
-	background: var(--shell-color-handle-active);
+	background: var(--violet-shell-color-handle-active);
 }
 
 :host(:focus-visible) {
-	outline: var(--shell-size-focus) solid var(--color-focus-ring);
-	outline-offset: var(--size-space-xs);
+	outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+	outline-offset: var(--violet-size-space-xs);
 }
 
 @media (forced-colors: active) {
@@ -195,16 +195,16 @@ handle has role `separator`, `aria-orientation`, and `aria-valuenow`,
 
 ```css
 .drawer {
-	background: var(--color-surface-floating);
-	box-shadow: var(--shadow-floating);
-	padding: var(--space-layout-sm);
+	background: var(--violet-color-surface-floating);
+	box-shadow: var(--violet-shadow-floating);
+	padding: var(--violet-space-layout-sm);
 	opacity: 0;
-	transition: opacity var(--duration-fast) var(--easing-standard);
+	transition: opacity var(--violet-duration-fast) var(--violet-easing-standard);
 }
 
 .drawer[open] {
 	opacity: 1;
-	transition: opacity var(--duration-base) var(--easing-emphasized);
+	transition: opacity var(--violet-duration-base) var(--violet-easing-emphasized);
 }
 
 /* A dialog has no previous style when it opens, so give it one. */
@@ -217,7 +217,7 @@ handle has role `separator`, `aria-orientation`, and `aria-valuenow`,
 @media (prefers-reduced-motion: reduce) {
 	.drawer,
 	.drawer[open] {
-		transition: opacity var(--duration-fast) var(--easing-standard);
+		transition: opacity var(--violet-duration-fast) var(--violet-easing-standard);
 	}
 }
 
@@ -240,29 +240,29 @@ ids; a Loam field reads all of them:
 
 ```css
 .frame {
-	border: 1px solid var(--color-field-border);
-	border-radius: var(--radius-md);
-	background: var(--color-field-background);
-	color: var(--color-field-text);
+	border: 1px solid var(--violet-color-field-border);
+	border-radius: var(--violet-radius-md);
+	background: var(--violet-color-field-background);
+	color: var(--violet-color-field-text);
 }
 
 .frame:hover {
-	border-color: var(--color-field-border-hover);
+	border-color: var(--violet-color-field-border-hover);
 }
 
 .frame:focus-within {
-	border-color: var(--color-field-border-focus);
-	outline: var(--shell-size-focus) solid var(--color-focus-ring);
-	outline-offset: var(--size-space-xs);
+	border-color: var(--violet-color-field-border-focus);
+	outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+	outline-offset: var(--violet-size-space-xs);
 }
 
 :host([invalid]) .frame {
-	border-color: var(--color-field-border-invalid);
+	border-color: var(--violet-color-field-border-invalid);
 }
 ```
 
 Invalid also sets `aria-invalid="true"` and shows `error-text` in
-`part="error-message"` using `--color-state-danger-text` (replacing supporting
+`part="error-message"` using `--violet-color-state-danger-text` (replacing supporting
 text while invalid).
 
 ## Icons
@@ -285,7 +285,7 @@ renders the fallback glyph.
 
 ```css
 .item violet-icon {
-	--violet-icon-size: var(--size-line-sm);
+	--violet-icon-size: var(--violet-size-line-sm);
 }
 ```
 

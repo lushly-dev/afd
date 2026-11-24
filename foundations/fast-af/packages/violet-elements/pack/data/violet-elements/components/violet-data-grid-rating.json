@@ -46,12 +46,12 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--color-focus-ring, #28769e)",
+				"default": "var(--violet-color-focus-ring, #28769e)",
 				"name": "--_focus-ring"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--radius-md, 8px)",
+				"default": "var(--violet-radius-md, 8px)",
 				"name": "--_radius-md"
 			},
 			{
@@ -61,7 +61,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-warning-text, #92400E)",
+				"default": "var(--violet-color-state-warning-text, #92400E)",
 				"name": "--_rating-filled"
 			},
 			{
@@ -71,27 +71,27 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--size-font-sm, 12px)",
+				"default": "var(--violet-size-font-sm, 12px)",
 				"name": "--_size-font-sm"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-surface-page, #f4f0ea)",
+				"default": "var(--violet-color-surface-page, #f4f0ea)",
 				"name": "--_surface-page"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-surface-subtle, #e9e5de)",
+				"default": "var(--violet-color-surface-subtle, #e9e5de)",
 				"name": "--_surface-subtle"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-text-muted, #5e6460)",
+				"default": "var(--violet-color-text-muted, #5e6460)",
 				"name": "--_text-muted"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-text-secondary, #48534b)",
+				"default": "var(--violet-color-text-secondary, #48534b)",
 				"name": "--_text-secondary"
 			}
 		],

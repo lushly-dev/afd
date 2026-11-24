@@ -13,32 +13,32 @@ const styles = css`
         display: inline;
         --_text-font-size: var(--_body-size);
         --_text-line-height: var(--_body-line);
-        --_text-font-weight: var(--type-body-md-weight, 400);
+        --_text-font-weight: var(--violet-type-body-md-weight, 400);
         --_text-color: var(--_text-primary);
     }
 
     :host([variant="label"]) {
-        --_text-font-size: var(--type-label-sm-size, 13px);
-        --_text-line-height: var(--type-label-sm-line, 16px);
-        --_text-font-weight: var(--type-label-sm-weight, 500);
+        --_text-font-size: var(--violet-type-label-sm-size, 13px);
+        --_text-line-height: var(--violet-type-label-sm-line, 16px);
+        --_text-font-weight: var(--violet-type-label-sm-weight, 500);
     }
 
     :host([variant="caption"]) {
         --_text-font-size: var(--_caption-size);
         --_text-line-height: var(--_caption-line);
-        --_text-font-weight: var(--type-caption-xs-weight, 400);
+        --_text-font-weight: var(--violet-type-caption-xs-weight, 400);
     }
 
     :host([variant="title-sm"]) {
-        --_text-font-size: var(--type-title-sm-size, 18px);
-        --_text-line-height: var(--type-title-sm-line, 24px);
-        --_text-font-weight: var(--type-title-sm-weight, 600);
+        --_text-font-size: var(--violet-type-title-sm-size, 18px);
+        --_text-line-height: var(--violet-type-title-sm-line, 24px);
+        --_text-font-weight: var(--violet-type-title-sm-weight, 600);
     }
 
     :host([variant="title-md"]) {
-        --_text-font-size: var(--type-title-md-size, 24px);
-        --_text-line-height: var(--type-title-md-line, 32px);
-        --_text-font-weight: var(--type-title-md-weight, 600);
+        --_text-font-size: var(--violet-type-title-md-size, 24px);
+        --_text-line-height: var(--violet-type-title-md-line, 32px);
+        --_text-font-weight: var(--violet-type-title-md-weight, 600);
     }
 
     :host([tone="secondary"]) {
@@ -50,15 +50,15 @@ const styles = css`
     }
 
     :host([tone="success"]) {
-        --_text-color: var(--color-state-success-text);
+        --_text-color: var(--violet-color-state-success-text);
     }
 
     :host([tone="warning"]) {
-        --_text-color: var(--color-state-warning-text);
+        --_text-color: var(--violet-color-state-warning-text);
     }
 
     :host([tone="danger"]) {
-        --_text-color: var(--color-state-danger-text);
+        --_text-color: var(--violet-color-state-danger-text);
     }
 
     .root {
@@ -74,7 +74,7 @@ const styles = css`
     /* Headings keep the display face. */
     :host([variant="title-sm"]) .root,
     :host([variant="title-md"]) .root {
-        font-family: var(--font-family-heading, var(--violet-font-family, var(--font-family-body)));
+        font-family: var(--violet-font-family-heading, var(--violet-font-family, var(--violet-font-family-body)));
         letter-spacing: -0.01em;
     }
 

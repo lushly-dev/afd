@@ -802,7 +802,7 @@ export class LoamShell extends FASTElement {
 		this.#setState('--_inspector-width', layout.inspector.width);
 		this.#setState('--_panel-height', layout.panel.height);
 		const rail =
-			Number.parseFloat(getComputedStyle(this).getPropertyValue('--shell-size-rail')) || 48;
+			Number.parseFloat(getComputedStyle(this).getPropertyValue('--violet-shell-size-rail')) || 48;
 		const presentation = presentLayout(layout, this.#layoutClass, { width: this.#width, rail });
 		this.presentation = presentation;
 		this.dataset.layoutClass = presentation.layoutClass;

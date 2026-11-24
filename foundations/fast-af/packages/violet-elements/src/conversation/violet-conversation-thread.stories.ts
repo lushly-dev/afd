@@ -50,7 +50,7 @@ export const Overview: Story = {
         thread.busy = args.busy;
         thread.empty = args.empty;
         thread.style.blockSize = "160px";
-        thread.style.border = "1px solid var(--color-border-subtle)";
+        thread.style.border = "1px solid var(--violet-color-border-subtle)";
         thread.style.borderRadius = "8px";
 
         thread.append(
@@ -80,7 +80,7 @@ export const Empty: Story = {
         thread.busy = args.busy;
         thread.empty = args.empty;
         thread.style.blockSize = "300px";
-        thread.style.border = "1px solid var(--color-border-subtle)";
+        thread.style.border = "1px solid var(--violet-color-border-subtle)";
         thread.style.borderRadius = "8px";
 
         const emptyContent = document.createElement("div");
@@ -107,7 +107,7 @@ export const Busy: Story = {
         const thread = document.createElement("violet-conversation-thread") as VioletConversationThread;
         thread.busy = args.busy;
         thread.style.blockSize = "300px";
-        thread.style.border = "1px solid var(--color-border-subtle)";
+        thread.style.border = "1px solid var(--violet-color-border-subtle)";
         thread.style.borderRadius = "8px";
 
         thread.append(
@@ -133,7 +133,7 @@ export const LongConversation: Story = {
     render: () => {
         const thread = document.createElement("violet-conversation-thread") as VioletConversationThread;
         thread.style.blockSize = "400px";
-        thread.style.border = "1px solid var(--color-border-subtle)";
+        thread.style.border = "1px solid var(--violet-color-border-subtle)";
         thread.style.borderRadius = "8px";
 
         const exchanges = [

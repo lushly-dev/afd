@@ -19,6 +19,7 @@ export {
 } from './check.js';
 export {
 	COMPONENT_EXPORT_SOURCE,
+	COMPONENT_EXPORT_VERSION,
 	type ComponentExport,
 	compareInterface,
 	type Fallback,

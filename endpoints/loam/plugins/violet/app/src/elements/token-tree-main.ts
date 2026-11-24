@@ -16,15 +16,15 @@ const styles = css`
 	:host {
 		display: grid;
 		align-content: start;
-		gap: var(--space-stack-md);
-		padding: var(--space-layout-md);
-		background: var(--color-surface-page);
+		gap: var(--violet-space-stack-md);
+		padding: var(--violet-space-layout-md);
+		background: var(--violet-color-surface-page);
 		block-size: 100%;
 		box-sizing: border-box;
 	}
 	.list {
 		display: grid;
-		gap: var(--space-stack-xs);
+		gap: var(--violet-space-stack-xs);
 		margin: 0;
 		padding: 0;
 		list-style: none;
@@ -33,10 +33,10 @@ const styles = css`
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: var(--space-stack-xs) var(--space-inline-md);
-		border: 1px solid var(--color-border-subtle);
-		border-radius: var(--radius-md);
-		background: var(--color-surface-card);
+		padding: var(--violet-space-stack-xs) var(--violet-space-inline-md);
+		border: 1px solid var(--violet-color-border-subtle);
+		border-radius: var(--violet-radius-md);
+		background: var(--violet-color-surface-card);
 	}
 `;
 

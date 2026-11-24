@@ -49,7 +49,7 @@ export interface OAuthPageOptions {
 
 export class LoamOAuthPage extends AccountElement {
 	static override extra =
-		`:host{padding:var(--space-layout-md);background:var(--color-surface-page);min-block-size:100dvh;}.section{margin-inline:auto;}.scopes{margin:0;padding-inline-start:var(--space-layout-md);}`;
+		`:host{padding:var(--violet-space-layout-md);background:var(--violet-color-surface-page);min-block-size:100dvh;}.section{margin-inline:auto;}.scopes{margin:0;padding-inline-start:var(--violet-space-layout-md);}`;
 }
 const OAUTH_PAGE = 'loam-oauth-page';
 

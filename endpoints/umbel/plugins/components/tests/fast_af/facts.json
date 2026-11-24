@@ -420,7 +420,7 @@
 				"name": "--_border-strong"
 			},
 			"field": "default",
-			"answer": "var(--color-border-strong, #6b7d6e)"
+			"answer": "var(--violet-color-border-strong, #6b7d6e)"
 		},
 		{
 			"id": "text-field-before",

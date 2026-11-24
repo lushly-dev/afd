@@ -19,18 +19,18 @@ export const styles = css`
 		inline-size: 100%;
 		block-size: 100dvh;
 		overflow: hidden;
-		background: var(--color-surface-page);
-		color: var(--color-text-primary);
-		font-family: var(--font-family-body);
-		font-size: var(--type-body-md-size);
-		line-height: var(--type-body-md-line);
-		font-weight: var(--type-body-md-weight);
+		background: var(--violet-color-surface-page);
+		color: var(--violet-color-text-primary);
+		font-family: var(--violet-font-family-body);
+		font-size: var(--violet-type-body-md-size);
+		line-height: var(--violet-type-body-md-line);
+		font-weight: var(--violet-type-body-md-weight);
 		grid-template-columns: auto auto minmax(0, 1fr) auto;
 		grid-template-rows: auto minmax(0, 1fr) auto auto auto;
 	}
 	:host([data-panel='inline']) {
 		grid-template-rows:
-			auto minmax(var(--shell-size-panel-min), 1fr) minmax(0, var(--_panel-height))
+			auto minmax(var(--violet-shell-size-panel-min), 1fr) minmax(0, var(--_panel-height))
 			auto auto;
 	}
 	:host([data-panel='maximized']) {
@@ -108,27 +108,27 @@ export const styles = css`
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		min-inline-size: var(--size-target-compact);
-		min-block-size: var(--size-target-compact);
-		padding-inline: var(--size-space-xs);
+		min-inline-size: var(--violet-size-target-compact);
+		min-block-size: var(--violet-size-target-compact);
+		padding-inline: var(--violet-size-space-xs);
 		border: 1px solid transparent;
-		border-radius: var(--radius-sm);
+		border-radius: var(--violet-radius-sm);
 		background: transparent;
 		color: inherit;
 		font: inherit;
 		cursor: pointer;
 	}
 	.project-home:hover {
-		background: var(--color-action-secondary-hover);
-		color: var(--color-text-primary);
+		background: var(--violet-color-action-secondary-hover);
+		color: var(--violet-color-text-primary);
 	}
 	.project-home:active {
-		background: var(--color-action-secondary-pressed);
-		color: var(--color-text-primary);
+		background: var(--violet-color-action-secondary-pressed);
+		color: var(--violet-color-text-primary);
 	}
 	.project-home:focus-visible {
-		outline: var(--shell-size-focus) solid var(--color-focus-ring);
-		outline-offset: calc(-1 * var(--shell-size-focus));
+		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+		outline-offset: calc(-1 * var(--violet-shell-size-focus));
 	}
 	@media (forced-colors: active) {
 		:host {

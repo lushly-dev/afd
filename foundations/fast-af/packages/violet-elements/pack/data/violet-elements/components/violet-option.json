@@ -83,17 +83,17 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--violet-control-caption-size, var(--type-caption-xs-size, 12px))",
+				"default": "var(--violet-control-caption-size, var(--violet-type-caption-xs-size, 12px))",
 				"name": "--_control-caption-size"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--size-focus-ring-width, 2px)",
+				"default": "var(--violet-size-focus-ring-width, 2px)",
 				"name": "--_focus-ring-width"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-foreground, #1b5f80)",
+				"default": "var(--violet-color-control-selected-foreground, #1b5f80)",
 				"name": "--_option-mark"
 			},
 			{
@@ -113,22 +113,22 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-surface-subtle, #e9e5de)",
+				"default": "var(--violet-color-surface-subtle, #e9e5de)",
 				"name": "--_surface-active"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-surface-subtle, #e9e5de)",
+				"default": "var(--violet-color-surface-subtle, #e9e5de)",
 				"name": "--_surface-hover"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-surface-selected, #dfecf4)",
+				"default": "var(--violet-color-surface-selected, #dfecf4)",
 				"name": "--_surface-selected"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--type-caption-xs-line, 16px)",
+				"default": "var(--violet-type-caption-xs-line, 16px)",
 				"name": "--_type-caption-line"
 			},
 			{

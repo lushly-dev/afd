@@ -57,7 +57,7 @@ export const RequiredField = {
 };
 
 export const ScopedTheme = {
-  render: () => mount('<violet-theme><div data-theme-panel style="padding:20px;background:var(--color-surface-page);color:var(--color-text-primary)"><violet-button appearance="secondary">Scoped action</violet-button><violet-text-field label="Scoped field" value="Violet"></violet-text-field></div></violet-theme>'),
+  render: () => mount('<violet-theme><div data-theme-panel style="padding:20px;background:var(--violet-color-surface-page);color:var(--violet-color-text-primary)"><violet-button appearance="secondary">Scoped action</violet-button><violet-text-field label="Scoped field" value="Violet"></violet-text-field></div></violet-theme>'),
 };
 
 export const ResponsiveAlert = {

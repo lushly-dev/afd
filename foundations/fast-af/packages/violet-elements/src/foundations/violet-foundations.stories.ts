@@ -449,8 +449,8 @@ function renderFoundationsOverview(): HTMLElement {
       .foundations {
         display: grid;
         gap: 1.5rem;
-        color: var(--color-text-primary, #181b1a);
-        font-family: var(--font-family-body);
+        color: var(--violet-color-text-primary, #181b1a);
+        font-family: var(--violet-font-family-body);
       }
 
       .hero,
@@ -458,21 +458,21 @@ function renderFoundationsOverview(): HTMLElement {
         display: grid;
         gap: 0.9rem;
         padding: 1.5rem;
-        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
+        border: 1px solid var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
         border-radius: 18px;
-        background: var(--color-surface-card, #f8f9f3);
-        box-shadow: var(--shadow-card, 0 0 0 1px rgba(24, 27, 26, 0.06), 0 1px 2px rgba(24, 27, 26, 0.06), 0 4px 10px -2px rgba(24, 27, 26, 0.06));
+        background: var(--violet-color-surface-card, #f8f9f3);
+        box-shadow: var(--violet-shadow-card, 0 0 0 1px rgba(24, 27, 26, 0.06), 0 1px 2px rgba(24, 27, 26, 0.06), 0 4px 10px -2px rgba(24, 27, 26, 0.06));
       }
 
       .hero {
         background:
           radial-gradient(circle at top left, rgba(220, 232, 255, 0.9), transparent 28%),
-          linear-gradient(180deg, var(--color-surface-card, #f8f9f3) 0%, var(--color-surface-page, #f4f0ea) 100%);
+          linear-gradient(180deg, var(--violet-color-surface-card, #f8f9f3) 0%, var(--violet-color-surface-page, #f4f0ea) 100%);
       }
 
       .eyebrow {
         margin: 0;
-        color: var(--color-text-secondary, #48534b);
+        color: var(--violet-color-text-secondary, #48534b);
         font-size: 0.78rem;
         font-weight: 700;
         letter-spacing: 0.08em;
@@ -487,7 +487,7 @@ function renderFoundationsOverview(): HTMLElement {
       }
 
       h1 {
-        font: 600 clamp(2.3rem, 4vw, 3.6rem)/0.95 var(--font-family-heading);
+        font: 600 clamp(2.3rem, 4vw, 3.6rem)/0.95 var(--violet-font-family-heading);
       }
 
       .hero-copy,
@@ -495,7 +495,7 @@ function renderFoundationsOverview(): HTMLElement {
       .token-description,
       .component-why,
       .component-shape {
-        color: var(--color-text-secondary, #48534b);
+        color: var(--violet-color-text-secondary, #48534b);
         font-size: 0.98rem;
         line-height: 1.55;
       }
@@ -519,8 +519,8 @@ function renderFoundationsOverview(): HTMLElement {
         gap: 0.8rem;
         padding: 1rem;
         border-radius: 14px;
-        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
-        background: var(--color-surface-card, #f8f9f3);
+        border: 1px solid var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
+        background: var(--violet-color-surface-card, #f8f9f3);
       }
 
       .token-grid {
@@ -534,14 +534,14 @@ function renderFoundationsOverview(): HTMLElement {
         gap: 0.55rem;
         padding: 0.9rem;
         border-radius: 12px;
-        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
-        background: var(--color-surface-page, #f4f0ea);
+        border: 1px solid var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
+        background: var(--violet-color-surface-page, #f4f0ea);
       }
 
       .swatch {
         block-size: 3.25rem;
         border-radius: 10px;
-        border: 1px solid var(--color-border-strong, #6b7d6e);
+        border: 1px solid var(--violet-color-border-strong, #6b7d6e);
       }
 
       .token-header {
@@ -567,18 +567,18 @@ function renderFoundationsOverview(): HTMLElement {
         width: fit-content;
         padding: 0.18rem 0.5rem;
         border-radius: 999px;
-        background: var(--color-surface-subtle, #e9e5de);
-        color: var(--color-text-secondary, #48534b);
+        background: var(--violet-color-surface-subtle, #e9e5de);
+        color: var(--violet-color-text-secondary, #48534b);
         font-size: 0.78rem;
       }
 
       .status-chip[data-status="done"] {
-        background: var(--color-surface-selected, #dfecf4);
-        color: var(--color-text-primary, #181b1a);
+        background: var(--violet-color-surface-selected, #dfecf4);
+        color: var(--violet-color-text-primary, #181b1a);
       }
 
       .status-chip[data-status="next"] {
-        border: 1px solid var(--color-border-strong, #6b7d6e);
+        border: 1px solid var(--violet-color-border-strong, #6b7d6e);
       }
 
       .component-list,
@@ -586,7 +586,7 @@ function renderFoundationsOverview(): HTMLElement {
         display: grid;
         gap: 0.35rem;
         padding-left: 1rem;
-        color: var(--color-text-secondary, #48534b);
+        color: var(--violet-color-text-secondary, #48534b);
       }
 
       .family-grid {
@@ -759,16 +759,16 @@ function renderAppliedSystem(): HTMLElement {
     <style>
       :host, [data-story="violet-foundations-applied"] {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
-        color: var(--color-text-primary, #181b1a);
-        font-family: var(--font-family-body);
-        background: var(--color-surface-page, #f4f0ea);
+        color: var(--violet-color-text-primary, #181b1a);
+        font-family: var(--violet-font-family-body);
+        background: var(--violet-color-surface-page, #f4f0ea);
       }
 
       .system {
         display: grid;
         gap: 1.5rem;
         padding: 1.25rem;
-        color: var(--color-text-primary, #181b1a);
+        color: var(--violet-color-text-primary, #181b1a);
       }
 
       .hero {
@@ -776,11 +776,11 @@ function renderAppliedSystem(): HTMLElement {
         gap: 0.75rem;
         padding: 1.5rem;
         border-radius: 20px;
-        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
+        border: 1px solid var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
         background:
           radial-gradient(circle at top left, rgba(220, 232, 255, 0.92), transparent 26%),
-          linear-gradient(180deg, var(--color-surface-card, #f8f9f3) 0%, var(--color-surface-page, #f4f0ea) 100%);
-        box-shadow: var(--shadow-card, 0 0 0 1px rgba(24, 27, 26, 0.06), 0 1px 2px rgba(24, 27, 26, 0.06), 0 4px 10px -2px rgba(24, 27, 26, 0.06));
+          linear-gradient(180deg, var(--violet-color-surface-card, #f8f9f3) 0%, var(--violet-color-surface-page, #f4f0ea) 100%);
+        box-shadow: var(--violet-shadow-card, 0 0 0 1px rgba(24, 27, 26, 0.06), 0 1px 2px rgba(24, 27, 26, 0.06), 0 4px 10px -2px rgba(24, 27, 26, 0.06));
       }
 
       .eyebrow,
@@ -789,7 +789,7 @@ function renderAppliedSystem(): HTMLElement {
       .field-label,
       .helper,
       .menu-label {
-        color: var(--color-text-secondary, #48534b);
+        color: var(--violet-color-text-secondary, #48534b);
       }
 
       .eyebrow {
@@ -808,7 +808,7 @@ function renderAppliedSystem(): HTMLElement {
       }
 
       h1 {
-        font: 600 clamp(2rem, 4vw, 3rem)/0.95 var(--font-family-heading);
+        font: 600 clamp(2rem, 4vw, 3rem)/0.95 var(--violet-font-family-heading);
       }
 
       .panel-grid {
@@ -824,9 +824,9 @@ function renderAppliedSystem(): HTMLElement {
         gap: 0.85rem;
         padding: 1rem;
         border-radius: 18px;
-        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
-        background: var(--color-surface-card, #f8f9f3);
-        box-shadow: var(--shadow-card, 0 0 0 1px rgba(24, 27, 26, 0.06), 0 1px 2px rgba(24, 27, 26, 0.06), 0 4px 10px -2px rgba(24, 27, 26, 0.06));
+        border: 1px solid var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
+        background: var(--violet-color-surface-card, #f8f9f3);
+        box-shadow: var(--violet-shadow-card, 0 0 0 1px rgba(24, 27, 26, 0.06), 0 1px 2px rgba(24, 27, 26, 0.06), 0 4px 10px -2px rgba(24, 27, 26, 0.06));
       }
 
       .preview-bar {
@@ -843,52 +843,52 @@ function renderAppliedSystem(): HTMLElement {
       .tab-row {
         display: flex;
         flex-wrap: wrap;
-        gap: var(--space-inline-sm, 4px);
+        gap: var(--violet-space-inline-sm, 4px);
         align-items: center;
       }
 
       .button {
         display: inline-flex;
         align-items: center;
-        gap: var(--space-inline-sm, 4px);
+        gap: var(--violet-space-inline-sm, 4px);
         min-block-size: 2.5rem;
         padding: 0 1rem;
-        border-radius: var(--radius-md, 8px);
-        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
-        background: var(--color-surface-card, #f8f9f3);
-        color: var(--color-text-primary, #181b1a);
+        border-radius: var(--violet-radius-md, 8px);
+        border: 1px solid var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
+        background: var(--violet-color-surface-card, #f8f9f3);
+        color: var(--violet-color-text-primary, #181b1a);
         font: inherit;
       }
 
       .button.primary {
-        background: var(--color-surface-selected, #dfecf4);
-        border-color: var(--color-border-strong, #6b7d6e);
+        background: var(--violet-color-surface-selected, #dfecf4);
+        border-color: var(--violet-color-border-strong, #6b7d6e);
       }
 
       .field {
         display: grid;
-        gap: var(--space-stack-xs, 4px);
+        gap: var(--violet-space-stack-xs, 4px);
       }
 
       .text-field {
         inline-size: min(100%, 22rem);
         min-block-size: 2.75rem;
         padding: 0 0.95rem;
-        border-radius: var(--radius-md, 8px);
-        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
-        background: var(--color-surface-page, #f4f0ea);
-        color: var(--color-text-primary, #181b1a);
+        border-radius: var(--violet-radius-md, 8px);
+        border: 1px solid var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
+        background: var(--violet-color-surface-page, #f4f0ea);
+        color: var(--violet-color-text-primary, #181b1a);
         font: inherit;
       }
 
       .choice {
         display: inline-flex;
         align-items: center;
-        gap: var(--space-inline-sm, 4px);
+        gap: var(--violet-space-inline-sm, 4px);
       }
 
       .choice input {
-        accent-color: var(--color-focus-ring, #28769e);
+        accent-color: var(--violet-color-focus-ring, #28769e);
       }
 
       .switch {
@@ -896,8 +896,8 @@ function renderAppliedSystem(): HTMLElement {
         inline-size: 3rem;
         block-size: 1.75rem;
         border-radius: 999px;
-        background: var(--color-surface-selected, #dfecf4);
-        border: 1px solid var(--color-border-strong, #6b7d6e);
+        background: var(--violet-color-surface-selected, #dfecf4);
+        border: 1px solid var(--violet-color-border-strong, #6b7d6e);
       }
 
       .switch::after {
@@ -908,29 +908,29 @@ function renderAppliedSystem(): HTMLElement {
         inline-size: 1.3rem;
         block-size: 1.3rem;
         border-radius: 50%;
-        background: var(--color-surface-card, #f8f9f3);
-        box-shadow: var(--shadow-card, 0 0 0 1px rgba(24, 27, 26, 0.06), 0 1px 2px rgba(24, 27, 26, 0.06), 0 4px 10px -2px rgba(24, 27, 26, 0.06));
+        background: var(--violet-color-surface-card, #f8f9f3);
+        box-shadow: var(--violet-shadow-card, 0 0 0 1px rgba(24, 27, 26, 0.06), 0 1px 2px rgba(24, 27, 26, 0.06), 0 4px 10px -2px rgba(24, 27, 26, 0.06));
       }
 
       .tab-row {
         padding-block-end: 0.3rem;
-        border-block-end: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
+        border-block-end: 1px solid var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
       }
 
       .tab {
         padding: 0.6rem 0.85rem;
-        border-radius: var(--radius-md, 8px);
-        color: var(--color-text-secondary, #48534b);
+        border-radius: var(--violet-radius-md, 8px);
+        color: var(--violet-color-text-secondary, #48534b);
       }
 
       .tab.active {
-        background: var(--color-surface-selected, #dfecf4);
-        color: var(--color-text-primary, #181b1a);
+        background: var(--violet-color-surface-selected, #dfecf4);
+        color: var(--violet-color-text-primary, #181b1a);
       }
 
       .slider {
         inline-size: min(100%, 20rem);
-        accent-color: var(--color-focus-ring, #28769e);
+        accent-color: var(--violet-color-focus-ring, #28769e);
       }
 
       .card h3 {
@@ -939,8 +939,8 @@ function renderAppliedSystem(): HTMLElement {
 
       .menu {
         max-inline-size: 20rem;
-        background: var(--color-surface-floating, #ffffff);
-        box-shadow: var(--shadow-floating, 0 0 0 1px rgba(24, 27, 26, 0.08), 0 4px 12px -2px rgba(24, 27, 26, 0.12), 0 18px 40px -8px rgba(24, 27, 26, 0.20));
+        background: var(--violet-color-surface-floating, #ffffff);
+        box-shadow: var(--violet-shadow-floating, 0 0 0 1px rgba(24, 27, 26, 0.08), 0 4px 12px -2px rgba(24, 27, 26, 0.12), 0 18px 40px -8px rgba(24, 27, 26, 0.20));
       }
 
       .menu-list {
@@ -952,13 +952,13 @@ function renderAppliedSystem(): HTMLElement {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: var(--space-inline-md, 8px);
+        gap: var(--violet-space-inline-md, 8px);
         padding: 0.7rem 0.8rem;
         border-radius: 12px;
       }
 
       .menu-item.active {
-        background: var(--color-surface-selected, #dfecf4);
+        background: var(--violet-color-surface-selected, #dfecf4);
       }
 
       .grid-frame {
@@ -1104,8 +1104,8 @@ function renderRadiusLab(): HTMLElement {
     <style>
       :host, [data-story="violet-radius-lab"] {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
-        color: var(--color-text-primary, #181b1a);
-        font-family: var(--font-family-body);
+        color: var(--violet-color-text-primary, #181b1a);
+        font-family: var(--violet-font-family-body);
         background: #f8f9fa;
         display: block;
         min-block-size: 100vh;
@@ -1146,7 +1146,7 @@ function renderRadiusLab(): HTMLElement {
 
       .tool-title {
         margin: 0;
-        font: 600 0.75rem/1.3 var(--font-family-mono);
+        font: 600 0.75rem/1.3 var(--violet-font-family-mono);
         text-transform: uppercase;
         letter-spacing: 0.06em;
         color: #57606a;
@@ -1191,7 +1191,7 @@ function renderRadiusLab(): HTMLElement {
       }
 
       .token-id {
-        font: 400 0.78rem/1.3 var(--font-family-mono);
+        font: 400 0.78rem/1.3 var(--violet-font-family-mono);
         color: #24292f;
       }
 
@@ -1216,7 +1216,7 @@ function renderRadiusLab(): HTMLElement {
         border: 1px solid #c8d0db;
         background: #ffffff;
         color: #24292f;
-        font: 0.75rem/1.3 var(--font-family-mono);
+        font: 0.75rem/1.3 var(--violet-font-family-mono);
         text-align: end;
         font-variant-numeric: tabular-nums;
       }
@@ -1244,7 +1244,7 @@ function renderRadiusLab(): HTMLElement {
         border: 1px solid #d0d7e2;
         background: #ffffff;
         color: #57606a;
-        font: 0.75rem/1.2 var(--font-family-body);
+        font: 0.75rem/1.2 var(--violet-font-family-body);
         cursor: pointer;
       }
 
@@ -1269,7 +1269,7 @@ function renderRadiusLab(): HTMLElement {
         border-block-start: 1px solid #e1e4e8;
         background: #f6f8fa;
         color: #24292f;
-        font: 0.72rem/1.4 var(--font-family-mono);
+        font: 0.72rem/1.4 var(--violet-font-family-mono);
         resize: vertical;
       }
 
@@ -1302,7 +1302,7 @@ function renderRadiusLab(): HTMLElement {
       }
 
       .section-title h3 {
-        font: 600 0.75rem/1.3 var(--font-family-mono);
+        font: 600 0.75rem/1.3 var(--violet-font-family-mono);
         text-transform: uppercase;
         letter-spacing: 0.06em;
         color: #57606a;
@@ -1318,12 +1318,12 @@ function renderRadiusLab(): HTMLElement {
         gap: 0.75rem;
         padding: 0.8rem;
         border: 1px solid #e2e6ed;
-        border-radius: var(--radius-md, 8px);
-        background: var(--color-surface-card, #f8f9f3);
+        border-radius: var(--violet-radius-md, 8px);
+        background: var(--violet-color-surface-card, #f8f9f3);
       }
 
       .preview-note {
-        color: var(--color-text-secondary, #48534b);
+        color: var(--violet-color-text-secondary, #48534b);
         font-size: 0.76rem;
         line-height: 1.4;
       }
@@ -1331,36 +1331,36 @@ function renderRadiusLab(): HTMLElement {
       .button {
         display: inline-flex;
         align-items: center;
-        gap: var(--space-inline-sm, 4px);
+        gap: var(--violet-space-inline-sm, 4px);
         min-block-size: 2.15rem;
         padding: 0 0.8rem;
-        border-radius: var(--radius-md, 8px);
-        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
-        background: var(--color-surface-card, #f8f9f3);
-        color: var(--color-text-primary, #181b1a);
-        font: 0.86rem/1.2 var(--font-family-body);
+        border-radius: var(--violet-radius-md, 8px);
+        border: 1px solid var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
+        background: var(--violet-color-surface-card, #f8f9f3);
+        color: var(--violet-color-text-primary, #181b1a);
+        font: 0.86rem/1.2 var(--violet-font-family-body);
       }
 
       .button.primary {
-        background: var(--color-surface-selected, #dfecf4);
-        border-color: var(--color-border-strong, #6b7d6e);
+        background: var(--violet-color-surface-selected, #dfecf4);
+        border-color: var(--violet-color-border-strong, #6b7d6e);
       }
 
       .preview-field {
         inline-size: 8rem;
         min-block-size: 2rem;
         padding: 0 0.65rem;
-        border-radius: var(--radius-sm, 4px);
-        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
-        background: var(--color-surface-card, #f8f9f3);
-        color: var(--color-text-primary, #181b1a);
+        border-radius: var(--violet-radius-sm, 4px);
+        border: 1px solid var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
+        background: var(--violet-color-surface-card, #f8f9f3);
+        color: var(--violet-color-text-primary, #181b1a);
         font: inherit;
       }
 
       .chip-row {
         display: flex;
         flex-wrap: wrap;
-        gap: var(--space-inline-sm, 4px);
+        gap: var(--violet-space-inline-sm, 4px);
       }
 
       .chip {
@@ -1369,15 +1369,15 @@ function renderRadiusLab(): HTMLElement {
         justify-content: center;
         min-block-size: 1.8rem;
         padding: 0 0.65rem;
-        border-radius: var(--radius-sm, 4px);
-        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
-        background: var(--color-surface-page, #f4f0ea);
+        border-radius: var(--violet-radius-sm, 4px);
+        border: 1px solid var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
+        background: var(--violet-color-surface-page, #f4f0ea);
         font-size: 0.82rem;
       }
 
       .pill-chip {
-        border-radius: var(--radius-round, 9999px);
-        background: var(--color-surface-selected, #dfecf4);
+        border-radius: var(--violet-radius-round, 9999px);
+        background: var(--violet-color-surface-selected, #dfecf4);
       }
 
       .round-button {
@@ -1386,11 +1386,11 @@ function renderRadiusLab(): HTMLElement {
         justify-content: center;
         inline-size: 1.9rem;
         block-size: 1.9rem;
-        border-radius: var(--radius-round, 9999px);
-        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
-        background: var(--color-surface-selected, #dfecf4);
-        color: var(--color-text-primary, #181b1a);
-        font: 600 0.74rem/1 var(--font-family-body);
+        border-radius: var(--violet-radius-round, 9999px);
+        border: 1px solid var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
+        background: var(--violet-color-surface-selected, #dfecf4);
+        color: var(--violet-color-text-primary, #181b1a);
+        font: 600 0.74rem/1 var(--violet-font-family-body);
       }
 
       .shape-set {
@@ -1404,7 +1404,7 @@ function renderRadiusLab(): HTMLElement {
       }
 
       .shape-row h3 {
-        font: 600 0.75rem/1.3 var(--font-family-mono);
+        font: 600 0.75rem/1.3 var(--violet-font-family-mono);
         text-transform: uppercase;
         letter-spacing: 0.06em;
         color: #57606a;
@@ -1414,21 +1414,21 @@ function renderRadiusLab(): HTMLElement {
       .shape-panel,
       .shape-menu {
         padding: 0.85rem;
-        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
-        background: var(--color-surface-card, #f8f9f3);
+        border: 1px solid var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
+        background: var(--violet-color-surface-card, #f8f9f3);
       }
 
       .shape-card {
-        border-radius: var(--radius-lg, 12px);
+        border-radius: var(--violet-radius-lg, 12px);
       }
 
       .shape-panel {
-        border-radius: var(--radius-md, 8px);
+        border-radius: var(--violet-radius-md, 8px);
       }
 
       .shape-menu {
-        border-radius: var(--radius-lg, 12px);
-        box-shadow: var(--shadow-floating, 0 0 0 1px rgba(24, 27, 26, 0.08), 0 4px 12px -2px rgba(24, 27, 26, 0.12), 0 18px 40px -8px rgba(24, 27, 26, 0.20));
+        border-radius: var(--violet-radius-lg, 12px);
+        box-shadow: var(--violet-shadow-floating, 0 0 0 1px rgba(24, 27, 26, 0.08), 0 4px 12px -2px rgba(24, 27, 26, 0.12), 0 18px 40px -8px rgba(24, 27, 26, 0.20));
       }
 
       .surface-stack {
@@ -1664,8 +1664,8 @@ function renderSpacingLab(): HTMLElement {
     <style>
       :host, [data-story="violet-spacing-lab"] {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
-        color: var(--color-text-primary, #181b1a);
-        font-family: var(--font-family-body);
+        color: var(--violet-color-text-primary, #181b1a);
+        font-family: var(--violet-font-family-body);
         background: #f8f9fa;
         display: block;
         min-block-size: 100vh;
@@ -1706,7 +1706,7 @@ function renderSpacingLab(): HTMLElement {
       .section-title h3,
       .shape-row h3 {
         margin: 0;
-        font: 600 0.75rem/1.3 var(--font-family-mono);
+        font: 600 0.75rem/1.3 var(--violet-font-family-mono);
         text-transform: uppercase;
         letter-spacing: 0.06em;
         color: #57606a;
@@ -1751,7 +1751,7 @@ function renderSpacingLab(): HTMLElement {
       }
 
       .token-id {
-        font: 400 0.78rem/1.3 var(--font-family-mono);
+        font: 400 0.78rem/1.3 var(--violet-font-family-mono);
         color: #24292f;
       }
 
@@ -1776,7 +1776,7 @@ function renderSpacingLab(): HTMLElement {
         border: 1px solid #c8d0db;
         background: #ffffff;
         color: #24292f;
-        font: 0.75rem/1.3 var(--font-family-mono);
+        font: 0.75rem/1.3 var(--violet-font-family-mono);
         text-align: end;
         font-variant-numeric: tabular-nums;
       }
@@ -1804,7 +1804,7 @@ function renderSpacingLab(): HTMLElement {
         border: 1px solid #d0d7e2;
         background: #ffffff;
         color: #57606a;
-        font: 0.75rem/1.2 var(--font-family-body);
+        font: 0.75rem/1.2 var(--violet-font-family-body);
         cursor: pointer;
       }
 
@@ -1824,7 +1824,7 @@ function renderSpacingLab(): HTMLElement {
         border-block-start: 1px solid #e1e4e8;
         background: #f6f8fa;
         color: #24292f;
-        font: 0.72rem/1.4 var(--font-family-mono);
+        font: 0.72rem/1.4 var(--violet-font-family-mono);
         resize: vertical;
       }
 
@@ -1864,8 +1864,8 @@ function renderSpacingLab(): HTMLElement {
         gap: 0.75rem;
         padding: 0.8rem;
         border: 1px solid #e2e6ed;
-        border-radius: var(--radius-md, 8px);
-        background: var(--color-surface-page, #f4f0ea);
+        border-radius: var(--violet-radius-md, 8px);
+        background: var(--violet-color-surface-page, #f4f0ea);
       }
 
       .button {
@@ -1874,15 +1874,15 @@ function renderSpacingLab(): HTMLElement {
         justify-content: center;
         min-block-size: 2rem;
         padding: 0 0.75rem;
-        border-radius: var(--radius-md, 8px);
-        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
-        background: var(--color-surface-card, #f8f9f3);
-        color: var(--color-text-primary, #181b1a);
-        font: 0.84rem/1.2 var(--font-family-body);
+        border-radius: var(--violet-radius-md, 8px);
+        border: 1px solid var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
+        background: var(--violet-color-surface-card, #f8f9f3);
+        color: var(--violet-color-text-primary, #181b1a);
+        font: 0.84rem/1.2 var(--violet-font-family-body);
       }
 
       .button.primary {
-        background: var(--color-surface-selected, #dfecf4);
+        background: var(--violet-color-surface-selected, #dfecf4);
       }
 
       .inline-row-sm,
@@ -1892,11 +1892,11 @@ function renderSpacingLab(): HTMLElement {
       }
 
       .inline-row-sm {
-        gap: var(--space-inline-sm, 4px);
+        gap: var(--violet-space-inline-sm, 4px);
       }
 
       .inline-row-md {
-        gap: var(--space-inline-md, 8px);
+        gap: var(--violet-space-inline-md, 8px);
       }
 
       .stack-xs,
@@ -1905,30 +1905,30 @@ function renderSpacingLab(): HTMLElement {
       }
 
       .stack-xs {
-        gap: var(--space-stack-xs, 4px);
+        gap: var(--violet-space-stack-xs, 4px);
       }
 
       .stack-sm {
-        gap: var(--space-stack-sm, 8px);
+        gap: var(--violet-space-stack-sm, 8px);
       }
 
       .spacing-card {
         display: grid;
         padding: 0.85rem;
         border: 1px solid #e2e6ed;
-        border-radius: var(--radius-md, 8px);
-        background: var(--color-surface-card, #f8f9f3);
+        border-radius: var(--violet-radius-md, 8px);
+        background: var(--violet-color-surface-card, #f8f9f3);
       }
 
       .mini-label {
-        font: 600 0.72rem/1.25 var(--font-family-body);
-        color: var(--color-text-secondary, #48534b);
+        font: 600 0.72rem/1.25 var(--violet-font-family-body);
+        color: var(--violet-color-text-secondary, #48534b);
       }
 
       .mini-copy {
         font-size: 0.82rem;
         line-height: 1.4;
-        color: var(--color-text-secondary, #48534b);
+        color: var(--violet-color-text-secondary, #48534b);
       }
 
       .rule {
@@ -2011,9 +2011,9 @@ function renderSpacingLab(): HTMLElement {
 
               <div class="shape-row stack-sm">
                 <h3>Layout spacing</h3>
-                <div class="spacing-card" style="display:grid; gap: var(--space-layout-sm, 12px);">
+                <div class="spacing-card" style="display:grid; gap: var(--violet-space-layout-sm, 12px);">
                   <div class="spacing-card" style="padding: 0.7rem;">Compact region</div>
-                  <div class="spacing-card" style="padding: 0.7rem; gap: var(--space-layout-md, 24px); display:grid;">
+                  <div class="spacing-card" style="padding: 0.7rem; gap: var(--violet-space-layout-md, 24px); display:grid;">
                     <div class="mini-label">Major region</div>
                     <div class="mini-copy">Layout spacing should read larger than component stack spacing.</div>
                   </div>
@@ -2142,8 +2142,8 @@ function renderDensityLab(): HTMLElement {
     <style>
       :host, [data-story="violet-density-lab"] {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
-        color: var(--color-text-primary, #181b1a);
-        font-family: var(--font-family-body);
+        color: var(--violet-color-text-primary, #181b1a);
+        font-family: var(--violet-font-family-body);
         background: #f8f9fa;
         display: block;
         min-block-size: 100vh;
@@ -2185,7 +2185,7 @@ function renderDensityLab(): HTMLElement {
       .shape-row h3,
       .density-label {
         margin: 0;
-        font: 600 0.75rem/1.3 var(--font-family-mono);
+        font: 600 0.75rem/1.3 var(--violet-font-family-mono);
         text-transform: uppercase;
         letter-spacing: 0.06em;
         color: #57606a;
@@ -2226,7 +2226,7 @@ function renderDensityLab(): HTMLElement {
       }
 
       .token-id {
-        font: 400 0.78rem/1.3 var(--font-family-mono);
+        font: 400 0.78rem/1.3 var(--violet-font-family-mono);
         color: #24292f;
       }
 
@@ -2251,7 +2251,7 @@ function renderDensityLab(): HTMLElement {
         border: 1px solid #c8d0db;
         background: #ffffff;
         color: #24292f;
-        font: 0.75rem/1.3 var(--font-family-mono);
+        font: 0.75rem/1.3 var(--violet-font-family-mono);
         text-align: end;
         font-variant-numeric: tabular-nums;
       }
@@ -2279,7 +2279,7 @@ function renderDensityLab(): HTMLElement {
         border: 1px solid #d0d7e2;
         background: #ffffff;
         color: #57606a;
-        font: 0.75rem/1.2 var(--font-family-body);
+        font: 0.75rem/1.2 var(--violet-font-family-body);
         cursor: pointer;
       }
 
@@ -2299,7 +2299,7 @@ function renderDensityLab(): HTMLElement {
         border-block-start: 1px solid #e1e4e8;
         background: #f6f8fa;
         color: #24292f;
-        font: 0.72rem/1.4 var(--font-family-mono);
+        font: 0.72rem/1.4 var(--violet-font-family-mono);
         resize: vertical;
       }
 
@@ -2339,8 +2339,8 @@ function renderDensityLab(): HTMLElement {
         gap: 0.75rem;
         padding: 0.8rem;
         border: 1px solid #e2e6ed;
-        border-radius: var(--radius-md, 8px);
-        background: var(--color-surface-page, #f4f0ea);
+        border-radius: var(--violet-radius-md, 8px);
+        background: var(--violet-color-surface-page, #f4f0ea);
       }
 
       .density-row {
@@ -2348,32 +2348,32 @@ function renderDensityLab(): HTMLElement {
         gap: 0.6rem;
         padding: 0.8rem;
         border: 1px solid rgba(24, 27, 26, 0.08);
-        border-radius: var(--radius-md, 8px);
-        background: var(--color-surface-card, #f8f9f3);
+        border-radius: var(--violet-radius-md, 8px);
+        background: var(--violet-color-surface-card, #f8f9f3);
       }
 
       .density-row[data-density="compact"] {
-        --violet-target-size: var(--size-target-compact);
-        --violet-control-type-size: calc(var(--type-body-md-size, 14px) - 1px);
-        --violet-control-label-size: calc(var(--type-label-sm-size, 13px) - 1px);
-        --violet-control-body-size: calc(var(--type-body-md-size, 14px) - 1px);
-        --violet-control-caption-size: calc(var(--type-caption-xs-size, 12px) - 1px);
+        --violet-target-size: var(--violet-size-target-compact);
+        --violet-control-type-size: calc(var(--violet-type-body-md-size, 14px) - 1px);
+        --violet-control-label-size: calc(var(--violet-type-label-sm-size, 13px) - 1px);
+        --violet-control-body-size: calc(var(--violet-type-body-md-size, 14px) - 1px);
+        --violet-control-caption-size: calc(var(--violet-type-caption-xs-size, 12px) - 1px);
       }
 
       .density-row[data-density="natural"] {
-        --violet-target-size: var(--size-target-natural);
-        --violet-control-type-size: var(--type-body-md-size, 14px);
-        --violet-control-label-size: var(--type-label-sm-size, 13px);
-        --violet-control-body-size: var(--type-body-md-size, 14px);
-        --violet-control-caption-size: var(--type-caption-xs-size, 12px);
+        --violet-target-size: var(--violet-size-target-natural);
+        --violet-control-type-size: var(--violet-type-body-md-size, 14px);
+        --violet-control-label-size: var(--violet-type-label-sm-size, 13px);
+        --violet-control-body-size: var(--violet-type-body-md-size, 14px);
+        --violet-control-caption-size: var(--violet-type-caption-xs-size, 12px);
       }
 
       .density-row[data-density="comfortable"] {
-        --violet-target-size: var(--size-target-comfortable);
-        --violet-control-type-size: var(--type-body-md-size, 14px);
-        --violet-control-label-size: var(--type-label-sm-size, 13px);
-        --violet-control-body-size: var(--type-body-md-size, 14px);
-        --violet-control-caption-size: var(--type-caption-xs-size, 12px);
+        --violet-target-size: var(--violet-size-target-comfortable);
+        --violet-control-type-size: var(--violet-type-body-md-size, 14px);
+        --violet-control-label-size: var(--violet-type-label-sm-size, 13px);
+        --violet-control-body-size: var(--violet-type-body-md-size, 14px);
+        --violet-control-caption-size: var(--violet-type-caption-xs-size, 12px);
       }
 
       .density-head {
@@ -2384,7 +2384,7 @@ function renderDensityLab(): HTMLElement {
       }
 
       .density-note {
-        color: var(--color-text-secondary, #48534b);
+        color: var(--violet-color-text-secondary, #48534b);
         font-size: 0.85rem;
         line-height: 1.4;
       }
@@ -2400,13 +2400,13 @@ function renderDensityLab(): HTMLElement {
         gap: 0.5rem;
         padding: 0.8rem;
         border: 1px dashed rgba(24, 27, 26, 0.16);
-        border-radius: var(--radius-md, 8px);
+        border-radius: var(--violet-radius-md, 8px);
         background: rgba(255, 255, 255, 0.55);
       }
 
       .pointer-chip-row {
         display: flex;
-        gap: var(--space-inline-sm);
+        gap: var(--violet-space-inline-sm);
         flex-wrap: wrap;
       }
 
@@ -2415,10 +2415,10 @@ function renderDensityLab(): HTMLElement {
         align-items: center;
         min-block-size: 1.7rem;
         padding: 0 0.5rem;
-        border-radius: var(--radius-round, 9999px);
-        background: var(--color-surface-subtle, #e9e5de);
-        color: var(--color-text-secondary, #48534b);
-        font: 500 0.75rem/1.2 var(--font-family-body);
+        border-radius: var(--violet-radius-round, 9999px);
+        background: var(--violet-color-surface-subtle, #e9e5de);
+        color: var(--violet-color-text-secondary, #48534b);
+        font: 500 0.75rem/1.2 var(--violet-font-family-body);
       }
 
       @container (min-width: 56rem) {
@@ -2634,10 +2634,10 @@ function renderTypographyLab(): HTMLElement {
     <style>
       :host, [data-story="violet-typography-lab"] {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
-        --font-family-title: var(--font-family-heading);
-        --font-family-eyebrow: var(--font-family-body);
-        color: var(--color-text-primary, #181b1a);
-        font-family: var(--font-family-body);
+        --font-family-title: var(--violet-font-family-heading);
+        --font-family-eyebrow: var(--violet-font-family-body);
+        color: var(--violet-color-text-primary, #181b1a);
+        font-family: var(--violet-font-family-body);
         background: #f8f9fa;
         display: block;
         min-block-size: 100vh;
@@ -2785,7 +2785,7 @@ function renderTypographyLab(): HTMLElement {
         border: 1px solid #d0d7e2;
         background: #ffffff;
         color: #57606a;
-        font: 0.75rem/1.2 var(--font-family-body);
+        font: 0.75rem/1.2 var(--violet-font-family-body);
         cursor: pointer;
       }
 
@@ -2845,49 +2845,49 @@ function renderTypographyLab(): HTMLElement {
 
       .preview-stage {
         display: grid;
-        gap: var(--space-layout-sm, 12px);
+        gap: var(--violet-space-layout-sm, 12px);
         padding: 0.9rem;
         border: 1px solid #e2e6ed;
-        border-radius: var(--radius-md, 8px);
-        background: var(--color-surface-page, #f4f0ea);
+        border-radius: var(--violet-radius-md, 8px);
+        background: var(--violet-color-surface-page, #f4f0ea);
       }
 
       .preview-block {
         display: grid;
-        gap: var(--space-stack-xs, 4px);
+        gap: var(--violet-space-stack-xs, 4px);
         padding: 0.85rem;
         border: 1px solid #e6e9ef;
-        border-radius: var(--radius-md, 8px);
-        background: var(--color-surface-card, #f8f9f3);
+        border-radius: var(--violet-radius-md, 8px);
+        background: var(--violet-color-surface-card, #f8f9f3);
       }
 
       .type-sample {
         margin: 0;
-        color: var(--color-text-primary, #181b1a);
+        color: var(--violet-color-text-primary, #181b1a);
       }
 
       .type-caption {
         font-family: var(--font-family-eyebrow);
-        font-size: var(--type-caption-xs-size);
-        line-height: var(--type-caption-xs-line);
-        font-weight: var(--type-caption-xs-weight);
-        color: var(--color-text-secondary, #48534b);
+        font-size: var(--violet-type-caption-xs-size);
+        line-height: var(--violet-type-caption-xs-line);
+        font-weight: var(--violet-type-caption-xs-weight);
+        color: var(--violet-color-text-secondary, #48534b);
         text-transform: uppercase;
         letter-spacing: 0.14em;
       }
 
       .type-label {
-        font-family: var(--font-family-body);
-        font-size: var(--type-label-sm-size);
-        line-height: var(--type-label-sm-line);
-        font-weight: var(--type-label-sm-weight);
+        font-family: var(--violet-font-family-body);
+        font-size: var(--violet-type-label-sm-size);
+        line-height: var(--violet-type-label-sm-line);
+        font-weight: var(--violet-type-label-sm-weight);
       }
 
       .type-body {
-        font-family: var(--font-family-body);
-        font-size: var(--type-body-md-size);
-        line-height: var(--type-body-md-line);
-        font-weight: var(--type-body-md-weight);
+        font-family: var(--violet-font-family-body);
+        font-size: var(--violet-type-body-md-size);
+        line-height: var(--violet-type-body-md-line);
+        font-weight: var(--violet-type-body-md-weight);
       }
 
       .type-title-sm,
@@ -2897,28 +2897,28 @@ function renderTypographyLab(): HTMLElement {
       }
 
       .type-title-sm {
-        font-size: var(--type-title-sm-size);
-        line-height: var(--type-title-sm-line);
-        font-weight: var(--type-title-sm-weight);
+        font-size: var(--violet-type-title-sm-size);
+        line-height: var(--violet-type-title-sm-line);
+        font-weight: var(--violet-type-title-sm-weight);
       }
 
       .type-title-md {
-        font-size: var(--type-title-md-size);
-        line-height: var(--type-title-md-line);
-        font-weight: var(--type-title-md-weight);
+        font-size: var(--violet-type-title-md-size);
+        line-height: var(--violet-type-title-md-line);
+        font-weight: var(--violet-type-title-md-weight);
       }
 
       .type-mono {
-        font-family: var(--font-family-mono);
-        font-size: var(--type-label-sm-size);
-        line-height: var(--type-label-sm-line);
-        font-weight: var(--weight-medium, 500);
-        color: var(--color-text-secondary, #48534b);
+        font-family: var(--violet-font-family-mono);
+        font-size: var(--violet-type-label-sm-size);
+        line-height: var(--violet-type-label-sm-line);
+        font-weight: var(--violet-weight-medium, 500);
+        color: var(--violet-color-text-secondary, #48534b);
       }
 
       .meta-row {
         display: flex;
-        gap: var(--space-inline-sm, 4px);
+        gap: var(--violet-space-inline-sm, 4px);
         flex-wrap: wrap;
       }
 
@@ -2927,30 +2927,30 @@ function renderTypographyLab(): HTMLElement {
         align-items: center;
         padding: 0.2rem 0.45rem;
         border: 1px solid #d8dee8;
-        border-radius: var(--radius-round, 9999px);
-        background: var(--color-surface-subtle, #e9e5de);
-        color: var(--color-text-secondary, #48534b);
-        font-family: var(--font-family-mono);
-        font-size: var(--type-caption-xs-size);
-        line-height: var(--type-caption-xs-line);
-        font-weight: var(--type-caption-xs-weight);
+        border-radius: var(--violet-radius-round, 9999px);
+        background: var(--violet-color-surface-subtle, #e9e5de);
+        color: var(--violet-color-text-secondary, #48534b);
+        font-family: var(--violet-font-family-mono);
+        font-size: var(--violet-type-caption-xs-size);
+        line-height: var(--violet-type-caption-xs-line);
+        font-weight: var(--violet-type-caption-xs-weight);
       }
 
       .mono-panel {
         display: grid;
-        gap: var(--space-stack-xs, 4px);
+        gap: var(--violet-space-stack-xs, 4px);
         padding: 0.75rem;
-        border-radius: var(--radius-md, 8px);
-        background: var(--color-surface-subtle, #e9e5de);
+        border-radius: var(--violet-radius-md, 8px);
+        background: var(--violet-color-surface-subtle, #e9e5de);
       }
 
       .mono-code {
-        font-family: var(--font-family-mono);
-        font-size: var(--type-caption-xs-size);
-        line-height: var(--type-caption-xs-line);
-        font-weight: var(--weight-medium, 500);
+        font-family: var(--violet-font-family-mono);
+        font-size: var(--violet-type-caption-xs-size);
+        line-height: var(--violet-type-caption-xs-line);
+        font-weight: var(--violet-weight-medium, 500);
         white-space: pre-wrap;
-        color: var(--color-text-primary, #181b1a);
+        color: var(--violet-color-text-primary, #181b1a);
       }
 
       @container (min-width: 56rem) {
@@ -3166,8 +3166,8 @@ function renderSurfaceLab(): HTMLElement {
     <style>
       :host, [data-story="violet-surface-lab"] {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
-        color: var(--color-text-primary, #181b1a);
-        font-family: var(--font-family-body);
+        color: var(--violet-color-text-primary, #181b1a);
+        font-family: var(--violet-font-family-body);
         background: #ffffff;
         display: block;
         min-block-size: 100vh;
@@ -3208,7 +3208,7 @@ function renderSurfaceLab(): HTMLElement {
       .section-title h3,
       .shape-row h3 {
         margin: 0;
-        font: 600 0.75rem/1.3 var(--font-family-mono);
+        font: 600 0.75rem/1.3 var(--violet-font-family-mono);
         text-transform: uppercase;
         letter-spacing: 0.06em;
         color: #57606a;
@@ -3252,7 +3252,7 @@ function renderSurfaceLab(): HTMLElement {
       }
 
       .token-id {
-        font: 400 0.78rem/1.3 var(--font-family-mono);
+        font: 400 0.78rem/1.3 var(--violet-font-family-mono);
         color: #24292f;
       }
 
@@ -3285,7 +3285,7 @@ function renderSurfaceLab(): HTMLElement {
         border: 1px solid #c8d0db;
         background: #ffffff;
         color: #24292f;
-        font: 0.75rem/1.3 var(--font-family-mono);
+        font: 0.75rem/1.3 var(--violet-font-family-mono);
       }
 
       .tool-input:focus-visible {
@@ -3311,7 +3311,7 @@ function renderSurfaceLab(): HTMLElement {
         border: 1px solid #d0d7e2;
         background: #ffffff;
         color: #57606a;
-        font: 0.75rem/1.2 var(--font-family-body);
+        font: 0.75rem/1.2 var(--violet-font-family-body);
         cursor: pointer;
       }
 
@@ -3331,7 +3331,7 @@ function renderSurfaceLab(): HTMLElement {
         border-block-start: 1px solid #e1e4e8;
         background: #f6f8fa;
         color: #24292f;
-        font: 0.72rem/1.4 var(--font-family-mono);
+        font: 0.72rem/1.4 var(--violet-font-family-mono);
         resize: vertical;
       }
 
@@ -3382,63 +3382,63 @@ function renderSurfaceLab(): HTMLElement {
 
       .surface-stage {
         display: grid;
-        gap: var(--space-stack-sm, 8px);
+        gap: var(--violet-space-stack-sm, 8px);
         padding: 0.9rem;
         border: 1px solid #e2e6ed;
-        border-radius: var(--radius-md, 8px);
-        background: var(--color-surface-page, #f4f0ea);
+        border-radius: var(--violet-radius-md, 8px);
+        background: var(--violet-color-surface-page, #f4f0ea);
       }
 
       .surface-card {
         display: grid;
-        gap: var(--space-stack-xs, 4px);
+        gap: var(--violet-space-stack-xs, 4px);
         padding: 0.9rem;
         border: 1px solid #e2e6ed;
-        border-radius: var(--radius-md, 8px);
-        background: var(--color-surface-card, #f8f9f3);
+        border-radius: var(--violet-radius-md, 8px);
+        background: var(--violet-color-surface-card, #f8f9f3);
       }
 
       .surface-subtle {
         display: grid;
-        gap: var(--space-stack-xs, 4px);
+        gap: var(--violet-space-stack-xs, 4px);
         padding: 0.75rem;
-        border-radius: var(--radius-md, 8px);
-        background: var(--color-surface-subtle, #e9e5de);
+        border-radius: var(--violet-radius-md, 8px);
+        background: var(--violet-color-surface-subtle, #e9e5de);
       }
 
       .surface-selected {
         display: grid;
-        gap: var(--space-stack-xs, 4px);
+        gap: var(--violet-space-stack-xs, 4px);
         padding: 0.75rem;
-        border-radius: var(--radius-md, 8px);
-        background: var(--color-surface-selected, #dfecf4);
+        border-radius: var(--violet-radius-md, 8px);
+        background: var(--violet-color-surface-selected, #dfecf4);
       }
 
       .surface-floating {
         display: grid;
-        gap: var(--space-stack-xs, 4px);
+        gap: var(--violet-space-stack-xs, 4px);
         padding: 0.85rem;
-        border-radius: var(--radius-lg, 12px);
+        border-radius: var(--violet-radius-lg, 12px);
         border: 1px solid #e2e6ed;
-        background: var(--color-surface-floating, #ffffff);
-        box-shadow: var(--shadow-floating, 0 0 0 1px rgba(24, 27, 26, 0.08), 0 4px 12px -2px rgba(24, 27, 26, 0.12), 0 18px 40px -8px rgba(24, 27, 26, 0.20));
+        background: var(--violet-color-surface-floating, #ffffff);
+        box-shadow: var(--violet-shadow-floating, 0 0 0 1px rgba(24, 27, 26, 0.08), 0 4px 12px -2px rgba(24, 27, 26, 0.12), 0 18px 40px -8px rgba(24, 27, 26, 0.20));
         max-inline-size: 18rem;
       }
 
       .mini-label {
-        font: 600 0.72rem/1.25 var(--font-family-body);
-        color: var(--color-text-secondary, #48534b);
+        font: 600 0.72rem/1.25 var(--violet-font-family-body);
+        color: var(--violet-color-text-secondary, #48534b);
       }
 
       .mini-copy {
         font-size: 0.82rem;
         line-height: 1.4;
-        color: var(--color-text-secondary, #48534b);
+        color: var(--violet-color-text-secondary, #48534b);
       }
 
       .surface-layout {
         display: grid;
-        gap: var(--space-layout-sm, 12px);
+        gap: var(--violet-space-layout-sm, 12px);
       }
 
       @container (min-width: 56rem) {
@@ -3633,10 +3633,10 @@ function renderTextAndStructureLab(): HTMLElement {
     <style>
       :host, [data-story="violet-text-structure-lab"] {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
-        --font-family-title: var(--font-family-heading);
-        --font-family-eyebrow: var(--font-family-body);
-        color: var(--color-text-primary, #181b1a);
-        font-family: var(--font-family-body);
+        --font-family-title: var(--violet-font-family-heading);
+        --font-family-eyebrow: var(--violet-font-family-body);
+        color: var(--violet-color-text-primary, #181b1a);
+        font-family: var(--violet-font-family-body);
         background: #f8f9fa;
         display: block;
         min-block-size: 100vh;
@@ -3788,7 +3788,7 @@ function renderTextAndStructureLab(): HTMLElement {
         border: 1px solid #d0d7e2;
         background: #ffffff;
         color: #57606a;
-        font: 0.75rem/1.2 var(--font-family-body);
+        font: 0.75rem/1.2 var(--violet-font-family-body);
         cursor: pointer;
       }
 
@@ -3848,68 +3848,68 @@ function renderTextAndStructureLab(): HTMLElement {
 
       .preview-stage {
         display: grid;
-        gap: var(--space-layout-sm, 12px);
+        gap: var(--violet-space-layout-sm, 12px);
         padding: 0.9rem;
         border: 1px solid #e2e6ed;
-        border-radius: var(--radius-md, 8px);
-        background: var(--color-surface-page, #f4f0ea);
+        border-radius: var(--violet-radius-md, 8px);
+        background: var(--violet-color-surface-page, #f4f0ea);
       }
 
       .preview-block {
         display: grid;
-        gap: var(--space-stack-xs, 4px);
+        gap: var(--violet-space-stack-xs, 4px);
         padding: 0.85rem;
-        border-radius: var(--radius-md, 8px);
-        background: var(--color-surface-card, #f8f9f3);
+        border-radius: var(--violet-radius-md, 8px);
+        background: var(--violet-color-surface-card, #f8f9f3);
       }
 
       .text-card {
-        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
+        border: 1px solid var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
       }
 
       .text-heading {
         font-family: var(--font-family-title);
-        font-size: var(--type-title-sm-size, 18px);
-        line-height: var(--type-title-sm-line, 24px);
-        font-weight: var(--type-title-sm-weight, 600);
-        color: var(--color-text-primary, #181b1a);
+        font-size: var(--violet-type-title-sm-size, 18px);
+        line-height: var(--violet-type-title-sm-line, 24px);
+        font-weight: var(--violet-type-title-sm-weight, 600);
+        color: var(--violet-color-text-primary, #181b1a);
       }
 
       .text-body {
-        font-family: var(--font-family-body);
-        font-size: var(--type-body-md-size, 14px);
-        line-height: var(--type-body-md-line, 20px);
-        font-weight: var(--type-body-md-weight, 400);
-        color: var(--color-text-primary, #181b1a);
+        font-family: var(--violet-font-family-body);
+        font-size: var(--violet-type-body-md-size, 14px);
+        line-height: var(--violet-type-body-md-line, 20px);
+        font-weight: var(--violet-type-body-md-weight, 400);
+        color: var(--violet-color-text-primary, #181b1a);
       }
 
       .text-secondary {
-        font-family: var(--font-family-body);
-        font-size: var(--type-body-md-size, 14px);
-        line-height: var(--type-body-md-line, 20px);
-        color: var(--color-text-secondary, #48534b);
+        font-family: var(--violet-font-family-body);
+        font-size: var(--violet-type-body-md-size, 14px);
+        line-height: var(--violet-type-body-md-line, 20px);
+        color: var(--violet-color-text-secondary, #48534b);
       }
 
       .text-muted {
-        font-family: var(--font-family-body);
-        font-size: var(--type-caption-xs-size, 12px);
-        line-height: var(--type-caption-xs-line, 16px);
-        color: var(--color-text-muted, #5e6460);
+        font-family: var(--violet-font-family-body);
+        font-size: var(--violet-type-caption-xs-size, 12px);
+        line-height: var(--violet-type-caption-xs-line, 16px);
+        color: var(--violet-color-text-muted, #5e6460);
       }
 
       .eyebrow {
         font-family: var(--font-family-eyebrow);
-        font-size: var(--type-caption-xs-size, 12px);
-        line-height: var(--type-caption-xs-line, 16px);
-        font-weight: var(--type-caption-xs-weight, 400);
+        font-size: var(--violet-type-caption-xs-size, 12px);
+        line-height: var(--violet-type-caption-xs-line, 16px);
+        font-weight: var(--violet-type-caption-xs-weight, 400);
         letter-spacing: 0.14em;
         text-transform: uppercase;
-        color: var(--color-text-secondary, #48534b);
+        color: var(--violet-color-text-secondary, #48534b);
       }
 
       .structure-stack {
         display: grid;
-        gap: var(--space-stack-sm, 8px);
+        gap: var(--violet-space-stack-sm, 8px);
       }
 
       .rule-subtle,
@@ -3919,30 +3919,30 @@ function renderTextAndStructureLab(): HTMLElement {
       }
 
       .rule-subtle {
-        background: var(--color-border-subtle, rgba(24, 27, 26, 0.10));
+        background: var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
       }
 
       .rule-strong {
-        background: var(--color-border-strong, #6b7d6e);
+        background: var(--violet-color-border-strong, #6b7d6e);
       }
 
       .selected-row {
         display: grid;
-        gap: var(--space-stack-xs, 4px);
+        gap: var(--violet-space-stack-xs, 4px);
         padding: 0.75rem;
-        border: 1px solid var(--color-border-strong, #6b7d6e);
-        border-radius: var(--radius-md, 8px);
-        background: var(--color-surface-selected, #dfecf4);
+        border: 1px solid var(--violet-color-border-strong, #6b7d6e);
+        border-radius: var(--violet-radius-md, 8px);
+        background: var(--violet-color-surface-selected, #dfecf4);
       }
 
       .focused-field {
         display: grid;
-        gap: var(--space-stack-xs, 4px);
+        gap: var(--violet-space-stack-xs, 4px);
         padding: 0.7rem 0.75rem;
-        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
-        border-radius: var(--radius-md, 8px);
-        background: var(--color-surface-card, #f8f9f3);
-        box-shadow: 0 0 0 2px var(--color-focus-ring, #28769e);
+        border: 1px solid var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
+        border-radius: var(--violet-radius-md, 8px);
+        background: var(--violet-color-surface-card, #f8f9f3);
+        box-shadow: 0 0 0 2px var(--violet-color-focus-ring, #28769e);
       }
 
       .pill {
@@ -3950,13 +3950,13 @@ function renderTextAndStructureLab(): HTMLElement {
         align-items: center;
         align-self: start;
         padding: 0.2rem 0.45rem;
-        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
-        border-radius: var(--radius-round, 9999px);
-        background: var(--color-surface-subtle, #e9e5de);
-        color: var(--color-text-secondary, #48534b);
-        font-family: var(--font-family-mono);
-        font-size: var(--type-caption-xs-size, 12px);
-        line-height: var(--type-caption-xs-line, 16px);
+        border: 1px solid var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
+        border-radius: var(--violet-radius-round, 9999px);
+        background: var(--violet-color-surface-subtle, #e9e5de);
+        color: var(--violet-color-text-secondary, #48534b);
+        font-family: var(--violet-font-family-mono);
+        font-size: var(--violet-type-caption-xs-size, 12px);
+        line-height: var(--violet-type-caption-xs-line, 16px);
         font-weight: 500;
       }
 
@@ -4177,9 +4177,9 @@ function renderElevationLab(): HTMLElement {
     <style>
       :host, [data-story="violet-elevation-lab"] {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
-        --font-family-title: var(--font-family-heading);
-        color: var(--color-text-primary, #181b1a);
-        font-family: var(--font-family-body);
+        --font-family-title: var(--violet-font-family-heading);
+        color: var(--violet-color-text-primary, #181b1a);
+        font-family: var(--violet-font-family-body);
         background: #f8f9fa;
         display: block;
         min-block-size: 100vh;
@@ -4322,7 +4322,7 @@ function renderElevationLab(): HTMLElement {
         border: 1px solid #d0d7e2;
         background: #ffffff;
         color: #57606a;
-        font: 0.75rem/1.2 var(--font-family-body);
+        font: 0.75rem/1.2 var(--violet-font-family-body);
         cursor: pointer;
       }
 
@@ -4382,70 +4382,70 @@ function renderElevationLab(): HTMLElement {
 
       .preview-stage {
         display: grid;
-        gap: var(--space-layout-sm, 12px);
+        gap: var(--violet-space-layout-sm, 12px);
         padding: 1rem;
-        border-radius: var(--radius-md, 8px);
-        background: var(--color-surface-page, #f4f0ea);
-        background: linear-gradient(180deg, var(--color-surface-card, #f8f9f3) 0%, var(--color-surface-page, #f4f0ea) 100%);
+        border-radius: var(--violet-radius-md, 8px);
+        background: var(--violet-color-surface-page, #f4f0ea);
+        background: linear-gradient(180deg, var(--violet-color-surface-card, #f8f9f3) 0%, var(--violet-color-surface-page, #f4f0ea) 100%);
       }
 
       .elevation-card,
       .elevation-floating,
       .elevation-control {
         display: grid;
-        gap: var(--space-stack-xs, 4px);
+        gap: var(--violet-space-stack-xs, 4px);
         padding: 0.95rem;
-        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
-        border-radius: var(--radius-md, 8px);
-        background: var(--color-surface-card, #f8f9f3);
+        border: 1px solid var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
+        border-radius: var(--violet-radius-md, 8px);
+        background: var(--violet-color-surface-card, #f8f9f3);
       }
 
       .elevation-card {
-        box-shadow: var(--shadow-card);
+        box-shadow: var(--violet-shadow-card);
       }
 
       .elevation-control {
-        box-shadow: var(--shadow-control);
+        box-shadow: var(--violet-shadow-control);
       }
 
       .elevation-floating {
         max-inline-size: 20rem;
         justify-self: start;
-        box-shadow: var(--shadow-floating);
-        background: var(--color-surface-floating, #ffffff);
+        box-shadow: var(--violet-shadow-floating);
+        background: var(--violet-color-surface-floating, #ffffff);
       }
 
       .elevation-stack {
         display: grid;
-        gap: var(--space-layout-sm, 12px);
+        gap: var(--violet-space-layout-sm, 12px);
       }
 
       .text-heading {
         font-family: var(--font-family-title);
-        font-size: var(--type-title-sm-size, 18px);
-        line-height: var(--type-title-sm-line, 24px);
-        font-weight: var(--type-title-sm-weight, 600);
-        color: var(--color-text-primary, #181b1a);
+        font-size: var(--violet-type-title-sm-size, 18px);
+        line-height: var(--violet-type-title-sm-line, 24px);
+        font-weight: var(--violet-type-title-sm-weight, 600);
+        color: var(--violet-color-text-primary, #181b1a);
       }
 
       .text-body {
-        font-family: var(--font-family-body);
-        font-size: var(--type-body-md-size, 14px);
-        line-height: var(--type-body-md-line, 20px);
-        color: var(--color-text-secondary, #48534b);
+        font-family: var(--violet-font-family-body);
+        font-size: var(--violet-type-body-md-size, 14px);
+        line-height: var(--violet-type-body-md-line, 20px);
+        color: var(--violet-color-text-secondary, #48534b);
       }
 
       .surface-note {
-        font-family: var(--font-family-body);
-        font-size: var(--type-caption-xs-size, 12px);
-        line-height: var(--type-caption-xs-line, 16px);
-        color: var(--color-text-muted, #5e6460);
+        font-family: var(--violet-font-family-body);
+        font-size: var(--violet-type-caption-xs-size, 12px);
+        line-height: var(--violet-type-caption-xs-line, 16px);
+        color: var(--violet-color-text-muted, #5e6460);
       }
 
       .control-strip {
         display: flex;
         flex-wrap: wrap;
-        gap: var(--space-inline-sm, 4px);
+        gap: var(--violet-space-inline-sm, 4px);
       }
 
       .control-button,
@@ -4456,18 +4456,18 @@ function renderElevationLab(): HTMLElement {
         justify-content: center;
         min-block-size: 2.3rem;
         padding: 0.55rem 0.82rem;
-        border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
-        border-radius: var(--radius-md, 8px);
-        background: var(--color-surface-card, #f8f9f3);
-        color: var(--color-text-primary, #181b1a);
-        box-shadow: var(--shadow-control);
-        font-family: var(--font-family-body);
-        font-size: var(--type-body-md-size, 14px);
-        line-height: var(--type-body-md-line, 20px);
+        border: 1px solid var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
+        border-radius: var(--violet-radius-md, 8px);
+        background: var(--violet-color-surface-card, #f8f9f3);
+        color: var(--violet-color-text-primary, #181b1a);
+        box-shadow: var(--violet-shadow-control);
+        font-family: var(--violet-font-family-body);
+        font-size: var(--violet-type-body-md-size, 14px);
+        line-height: var(--violet-type-body-md-line, 20px);
       }
 
       .control-chip {
-        border-radius: var(--radius-round, 9999px);
+        border-radius: var(--violet-radius-round, 9999px);
         padding-inline: 0.85rem;
       }
 
@@ -4477,7 +4477,7 @@ function renderElevationLab(): HTMLElement {
         block-size: 1.65rem;
         min-block-size: 1.65rem;
         padding: 0.12rem;
-        border-radius: var(--radius-round, 9999px);
+        border-radius: var(--violet-radius-round, 9999px);
       }
 
       .control-toggle::after {
@@ -4688,9 +4688,9 @@ function renderMotionLab(): HTMLElement {
     <style>
       :host, [data-story="violet-motion-lab"] {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
-        --font-family-title: var(--font-family-heading);
-        color: var(--color-text-primary, #181b1a);
-        font-family: var(--font-family-body);
+        --font-family-title: var(--violet-font-family-heading);
+        color: var(--violet-color-text-primary, #181b1a);
+        font-family: var(--violet-font-family-body);
         background: #f8f9fa;
         display: block;
         min-block-size: 100vh;
@@ -4833,7 +4833,7 @@ function renderMotionLab(): HTMLElement {
         border: 1px solid #d0d7e2;
         background: #ffffff;
         color: #57606a;
-        font: 0.75rem/1.2 var(--font-family-body);
+        font: 0.75rem/1.2 var(--violet-font-family-body);
         cursor: pointer;
       }
 
@@ -4893,10 +4893,10 @@ function renderMotionLab(): HTMLElement {
 
       .preview-stage {
         display: grid;
-        gap: var(--space-layout-sm, 12px);
+        gap: var(--violet-space-layout-sm, 12px);
         padding: 1rem;
-        border-radius: var(--radius-md, 8px);
-        background: var(--color-surface-page, #f4f0ea);
+        border-radius: var(--violet-radius-md, 8px);
+        background: var(--violet-color-surface-page, #f4f0ea);
         min-inline-size: 0;
       }
 
@@ -4904,7 +4904,7 @@ function renderMotionLab(): HTMLElement {
       .motion-tab-row {
         display: flex;
         flex-wrap: wrap;
-        gap: var(--space-inline-sm, 4px);
+        gap: var(--violet-space-inline-sm, 4px);
       }
 
       .motion-button,
@@ -4914,40 +4914,40 @@ function renderMotionLab(): HTMLElement {
         justify-content: center;
         min-block-size: 2.35rem;
         padding: 0.55rem 0.88rem;
-        border-radius: var(--radius-md, 8px);
+        border-radius: var(--violet-radius-md, 8px);
         border: 1px solid transparent;
-        font-family: var(--font-family-body);
-        font-size: var(--type-body-md-size, 14px);
-        line-height: var(--type-body-md-line, 20px);
+        font-family: var(--violet-font-family-body);
+        font-size: var(--violet-type-body-md-size, 14px);
+        line-height: var(--violet-type-body-md-line, 20px);
         transition:
-          transform var(--duration-fast, 120ms) var(--easing-standard, cubic-bezier(0.2, 0, 0, 1)),
-          box-shadow var(--duration-base, 180ms) var(--easing-standard, cubic-bezier(0.2, 0, 0, 1)),
-          background-color var(--duration-fast, 120ms) var(--easing-standard, cubic-bezier(0.2, 0, 0, 1)),
-          border-color var(--duration-fast, 120ms) var(--easing-standard, cubic-bezier(0.2, 0, 0, 1)),
-          color var(--duration-fast, 120ms) var(--easing-standard, cubic-bezier(0.2, 0, 0, 1));
+          transform var(--violet-duration-fast, 120ms) var(--violet-easing-standard, cubic-bezier(0.2, 0, 0, 1)),
+          box-shadow var(--violet-duration-base, 180ms) var(--violet-easing-standard, cubic-bezier(0.2, 0, 0, 1)),
+          background-color var(--violet-duration-fast, 120ms) var(--violet-easing-standard, cubic-bezier(0.2, 0, 0, 1)),
+          border-color var(--violet-duration-fast, 120ms) var(--violet-easing-standard, cubic-bezier(0.2, 0, 0, 1)),
+          color var(--violet-duration-fast, 120ms) var(--violet-easing-standard, cubic-bezier(0.2, 0, 0, 1));
       }
 
       .motion-button.primary {
-        background: var(--color-action-primary-background);
-        color: var(--color-action-primary-text);
-        box-shadow: var(--shadow-control);
+        background: var(--violet-color-action-primary-background);
+        color: var(--violet-color-action-primary-text);
+        box-shadow: var(--violet-shadow-control);
       }
 
       .motion-button.secondary {
-        background: var(--color-action-secondary-background);
-        color: var(--color-action-secondary-text);
-        border-color: var(--color-action-secondary-border);
-        box-shadow: var(--shadow-control);
+        background: var(--violet-color-action-secondary-background);
+        color: var(--violet-color-action-secondary-text);
+        border-color: var(--violet-color-action-secondary-border);
+        box-shadow: var(--violet-shadow-control);
       }
 
       .motion-button.is-active {
         transform: translateY(-1px);
-        box-shadow: var(--shadow-card);
+        box-shadow: var(--violet-shadow-card);
       }
 
       .focus-shell {
         display: grid;
-        gap: var(--space-stack-xs, 4px);
+        gap: var(--violet-space-stack-xs, 4px);
       }
 
       .focus-field {
@@ -4955,33 +4955,33 @@ function renderMotionLab(): HTMLElement {
         align-items: center;
         min-block-size: 2.7rem;
         padding: 0.72rem 0.85rem;
-        border-radius: var(--radius-md, 8px);
-        border: 1px solid var(--color-field-border);
-        background: var(--color-field-background);
+        border-radius: var(--violet-radius-md, 8px);
+        border: 1px solid var(--violet-color-field-border);
+        background: var(--violet-color-field-background);
         transition:
-          box-shadow var(--duration-base, 180ms) var(--easing-standard, cubic-bezier(0.2, 0, 0, 1)),
-          border-color var(--duration-base, 180ms) var(--easing-standard, cubic-bezier(0.2, 0, 0, 1)),
-          transform var(--duration-fast, 120ms) var(--easing-standard, cubic-bezier(0.2, 0, 0, 1));
+          box-shadow var(--violet-duration-base, 180ms) var(--violet-easing-standard, cubic-bezier(0.2, 0, 0, 1)),
+          border-color var(--violet-duration-base, 180ms) var(--violet-easing-standard, cubic-bezier(0.2, 0, 0, 1)),
+          transform var(--violet-duration-fast, 120ms) var(--violet-easing-standard, cubic-bezier(0.2, 0, 0, 1));
       }
 
       .focus-field.is-active {
-        border-color: color-mix(in srgb, var(--color-focus-ring) 48%, var(--color-field-border));
-        box-shadow: 0 0 0 2px var(--color-focus-ring);
+        border-color: color-mix(in srgb, var(--violet-color-focus-ring) 48%, var(--violet-color-field-border));
+        box-shadow: 0 0 0 2px var(--violet-color-focus-ring);
         transform: translateY(-1px);
       }
 
       .motion-tab {
         background: transparent;
-        color: var(--color-text-secondary);
+        color: var(--violet-color-text-secondary);
         border-color: transparent;
-        border-bottom-color: var(--color-border-subtle);
+        border-bottom-color: var(--violet-color-border-subtle);
         border-radius: 0;
         padding-inline: 0.2rem 0.35rem;
       }
 
       .motion-tab.is-active {
-        color: var(--color-text-primary);
-        border-bottom-color: var(--color-action-primary-background);
+        color: var(--violet-color-text-primary);
+        border-bottom-color: var(--violet-color-action-primary-background);
         transform: translateY(-1px);
       }
 
@@ -4990,26 +4990,26 @@ function renderMotionLab(): HTMLElement {
         gap: 0.4rem;
         max-inline-size: 16rem;
         padding: 0.85rem;
-        border-radius: var(--radius-lg, 12px);
-        background: var(--color-surface-floating);
-        box-shadow: var(--shadow-floating);
+        border-radius: var(--violet-radius-lg, 12px);
+        background: var(--violet-color-surface-floating);
+        box-shadow: var(--violet-shadow-floating);
         opacity: 0;
         transform: translateY(8px) scale(0.985);
       }
 
       .menu-shell.is-active {
-        animation: menu-enter var(--duration-slow, 280ms) var(--easing-emphasized, cubic-bezier(0.16, 1, 0.3, 1)) forwards;
+        animation: menu-enter var(--violet-duration-slow, 280ms) var(--violet-easing-emphasized, cubic-bezier(0.16, 1, 0.3, 1)) forwards;
       }
 
       .menu-item {
         padding: 0.58rem 0.72rem;
-        border-radius: var(--radius-md, 8px);
+        border-radius: var(--violet-radius-md, 8px);
         background: #fff;
-        border: 1px solid var(--color-border-subtle);
+        border: 1px solid var(--violet-color-border-subtle);
       }
 
       .menu-item.active {
-        background: var(--color-surface-selected);
+        background: var(--violet-color-surface-selected);
       }
 
       .scroll-shell {
@@ -5017,51 +5017,51 @@ function renderMotionLab(): HTMLElement {
         gap: 0;
         block-size: 12rem;
         overflow: auto;
-        border: 1px solid var(--color-border-subtle);
-        border-radius: var(--radius-lg, 12px);
-        background: var(--color-surface-card);
+        border: 1px solid var(--violet-color-border-subtle);
+        border-radius: var(--violet-radius-lg, 12px);
+        background: var(--violet-color-surface-card);
       }
 
       .scroll-bar {
         position: sticky;
         inset-block-start: 0;
-        z-index: var(--z-index-raised, 1);
+        z-index: var(--violet-z-index-raised, 1);
         display: flex;
         align-items: center;
         justify-content: space-between;
         padding: 0.7rem 0.85rem;
-        background: color-mix(in srgb, var(--color-surface-card) 92%, white);
+        background: color-mix(in srgb, var(--violet-color-surface-card) 92%, white);
         border-bottom: 1px solid rgba(24, 27, 26, 0.06);
         transition:
-          transform var(--duration-base, 180ms) var(--easing-emphasized, cubic-bezier(0.16, 1, 0.3, 1)),
-          box-shadow var(--duration-base, 180ms) var(--easing-emphasized, cubic-bezier(0.16, 1, 0.3, 1)),
-          background-color var(--duration-base, 180ms) var(--easing-standard, cubic-bezier(0.2, 0, 0, 1));
+          transform var(--violet-duration-base, 180ms) var(--violet-easing-emphasized, cubic-bezier(0.16, 1, 0.3, 1)),
+          box-shadow var(--violet-duration-base, 180ms) var(--violet-easing-emphasized, cubic-bezier(0.16, 1, 0.3, 1)),
+          background-color var(--violet-duration-base, 180ms) var(--violet-easing-standard, cubic-bezier(0.2, 0, 0, 1));
       }
 
       .scroll-shell.is-bumped .scroll-bar {
         transform: translateY(1px);
-        box-shadow: var(--shadow-control);
-        background: color-mix(in srgb, var(--color-surface-card) 84%, white);
+        box-shadow: var(--violet-shadow-control);
+        background: color-mix(in srgb, var(--violet-color-surface-card) 84%, white);
       }
 
       .scroll-content {
         display: grid;
-        gap: var(--space-stack-sm, 8px);
+        gap: var(--violet-space-stack-sm, 8px);
         padding: 0.8rem;
       }
 
       .scroll-item {
         padding: 0.72rem 0.78rem;
-        border: 1px solid var(--color-border-subtle);
-        border-radius: var(--radius-md, 8px);
+        border: 1px solid var(--violet-color-border-subtle);
+        border-radius: var(--violet-radius-md, 8px);
         background: #fff;
       }
 
       .surface-note {
-        font-family: var(--font-family-body);
-        font-size: var(--type-caption-xs-size, 12px);
-        line-height: var(--type-caption-xs-line, 16px);
-        color: var(--color-text-muted, #5e6460);
+        font-family: var(--violet-font-family-body);
+        font-size: var(--violet-type-caption-xs-size, 12px);
+        line-height: var(--violet-type-caption-xs-line, 16px);
+        color: var(--violet-color-text-muted, #5e6460);
       }
 
       @keyframes menu-enter {
@@ -5389,9 +5389,9 @@ function renderActionAndStateLab(): HTMLElement {
     <style>
       :host, [data-story="violet-action-state-lab"] {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
-        --font-family-title: var(--font-family-heading);
-        color: var(--color-text-primary, #181b1a);
-        font-family: var(--font-family-body);
+        --font-family-title: var(--violet-font-family-heading);
+        color: var(--violet-color-text-primary, #181b1a);
+        font-family: var(--violet-font-family-body);
         background: #f8f9fa;
         display: block;
         min-block-size: 100vh;
@@ -5513,7 +5513,7 @@ function renderActionAndStateLab(): HTMLElement {
         border: 1px solid #d0d7e2;
         background: #ffffff;
         color: #57606a;
-        font: 0.75rem/1.2 var(--font-family-body);
+        font: 0.75rem/1.2 var(--violet-font-family-body);
         cursor: pointer;
       }
 
@@ -5559,20 +5559,20 @@ function renderActionAndStateLab(): HTMLElement {
       .preview-panel { gap: 0.75rem; }
 
       .preview-stage {
-        gap: var(--space-layout-sm, 12px);
+        gap: var(--violet-space-layout-sm, 12px);
         padding: 1rem;
-        border-radius: var(--radius-md, 8px);
-        background: linear-gradient(180deg, var(--color-surface-card, #f8f9f3) 0%, var(--color-surface-page, #f4f0ea) 100%);
+        border-radius: var(--violet-radius-md, 8px);
+        background: linear-gradient(180deg, var(--violet-color-surface-card, #f8f9f3) 0%, var(--violet-color-surface-page, #f4f0ea) 100%);
       }
 
       .action-stack,
       .state-stack {
-        gap: var(--space-layout-sm, 12px);
+        gap: var(--violet-space-layout-sm, 12px);
       }
 
       .button-row {
         display: flex;
-        gap: var(--space-inline-sm, 4px);
+        gap: var(--violet-space-inline-sm, 4px);
         flex-wrap: wrap;
       }
 
@@ -5582,64 +5582,64 @@ function renderActionAndStateLab(): HTMLElement {
         justify-content: center;
         min-block-size: 2.1rem;
         padding: 0 0.8rem;
-        border-radius: var(--radius-md, 8px);
-        font: 500 var(--type-label-sm-size, 13px)/var(--type-label-sm-line, 16px) var(--font-family-body);
+        border-radius: var(--violet-radius-md, 8px);
+        font: 500 var(--violet-type-label-sm-size, 13px)/var(--violet-type-label-sm-line, 16px) var(--violet-font-family-body);
         border: 1px solid transparent;
       }
 
       .action-button.primary {
-        background: var(--color-action-primary-background);
-        color: var(--color-action-primary-text);
+        background: var(--violet-color-action-primary-background);
+        color: var(--violet-color-action-primary-text);
       }
 
-      .action-button.primary.hover { background: var(--color-action-primary-hover); }
-      .action-button.primary.pressed { background: var(--color-action-primary-pressed); }
+      .action-button.primary.hover { background: var(--violet-color-action-primary-hover); }
+      .action-button.primary.pressed { background: var(--violet-color-action-primary-pressed); }
 
       .action-button.secondary {
-        background: var(--color-action-secondary-background);
-        color: var(--color-action-secondary-text);
-        border-color: var(--color-action-secondary-border);
+        background: var(--violet-color-action-secondary-background);
+        color: var(--violet-color-action-secondary-text);
+        border-color: var(--violet-color-action-secondary-border);
       }
 
-      .action-button.secondary.hover { background: var(--color-action-secondary-hover); }
-      .action-button.secondary.pressed { background: var(--color-action-secondary-pressed); }
+      .action-button.secondary.hover { background: var(--violet-color-action-secondary-hover); }
+      .action-button.secondary.pressed { background: var(--violet-color-action-secondary-pressed); }
 
       .state-card {
         display: grid;
-        gap: var(--space-stack-xs, 4px);
+        gap: var(--violet-space-stack-xs, 4px);
         padding: 0.85rem;
-        border-radius: var(--radius-md, 8px);
+        border-radius: var(--violet-radius-md, 8px);
       }
 
       .state-card.success {
-        background: var(--color-state-success-background);
-        color: var(--color-state-success-text);
-        border: 1px solid var(--color-state-success-border);
+        background: var(--violet-color-state-success-background);
+        color: var(--violet-color-state-success-text);
+        border: 1px solid var(--violet-color-state-success-border);
       }
 
       .state-card.warning {
-        background: var(--color-state-warning-background);
-        color: var(--color-state-warning-text);
-        border: 1px solid var(--color-state-warning-border);
+        background: var(--violet-color-state-warning-background);
+        color: var(--violet-color-state-warning-text);
+        border: 1px solid var(--violet-color-state-warning-border);
       }
 
       .state-card.danger {
-        background: var(--color-state-danger-background);
-        color: var(--color-state-danger-text);
-        border: 1px solid var(--color-state-danger-border);
+        background: var(--violet-color-state-danger-background);
+        color: var(--violet-color-state-danger-text);
+        border: 1px solid var(--violet-color-state-danger-border);
       }
 
       .text-heading {
-        font-family: var(--font-family-heading);
-        font-size: var(--type-title-sm-size, 18px);
-        line-height: var(--type-title-sm-line, 24px);
-        font-weight: var(--type-title-sm-weight, 600);
+        font-family: var(--violet-font-family-heading);
+        font-size: var(--violet-type-title-sm-size, 18px);
+        line-height: var(--violet-type-title-sm-line, 24px);
+        font-weight: var(--violet-type-title-sm-weight, 600);
       }
 
       .text-body {
-        font-family: var(--font-family-body);
-        font-size: var(--type-body-md-size, 14px);
-        line-height: var(--type-body-md-line, 20px);
+        font-family: var(--violet-font-family-body);
+        font-size: var(--violet-type-body-md-size, 14px);
+        line-height: var(--violet-type-body-md-line, 20px);
       }
 
       @container (min-width: 56rem) {
@@ -5862,8 +5862,8 @@ function renderFormInputLab(): HTMLElement {
     <style>
       :host, [data-story="violet-form-input-lab"] {
         ${buildRegistryCssVars(violetTokenRegistry.tokens)}
-        color: var(--color-text-primary, #181b1a);
-        font-family: var(--font-family-body);
+        color: var(--violet-color-text-primary, #181b1a);
+        font-family: var(--violet-font-family-body);
         background: #f8f9fa;
         display: block;
         min-block-size: 100vh;
@@ -5983,7 +5983,7 @@ function renderFormInputLab(): HTMLElement {
         border: 1px solid #d0d7e2;
         background: #ffffff;
         color: #57606a;
-        font: 0.75rem/1.2 var(--font-family-body);
+        font: 0.75rem/1.2 var(--violet-font-family-body);
         cursor: pointer;
       }
 
@@ -6029,31 +6029,31 @@ function renderFormInputLab(): HTMLElement {
       .preview-panel { gap: 0.75rem; }
 
       .preview-stage {
-        gap: var(--space-layout-sm, 12px);
+        gap: var(--violet-space-layout-sm, 12px);
         padding: 1rem;
-        border-radius: var(--radius-md, 8px);
-        background: linear-gradient(180deg, var(--color-surface-card, #f8f9f3) 0%, var(--color-surface-page, #f4f0ea) 100%);
+        border-radius: var(--violet-radius-md, 8px);
+        background: linear-gradient(180deg, var(--violet-color-surface-card, #f8f9f3) 0%, var(--violet-color-surface-page, #f4f0ea) 100%);
       }
 
-      .field-stack { gap: var(--space-layout-sm, 12px); }
+      .field-stack { gap: var(--violet-space-layout-sm, 12px); }
 
       .field-shell {
         display: grid;
-        gap: var(--space-stack-xs, 4px);
+        gap: var(--violet-space-stack-xs, 4px);
       }
 
       .field-label {
-        font: 500 var(--type-label-sm-size, 13px)/var(--type-label-sm-line, 16px) var(--font-family-body);
-        color: var(--color-text-secondary, #48534b);
+        font: 500 var(--violet-type-label-sm-size, 13px)/var(--violet-type-label-sm-line, 16px) var(--violet-font-family-body);
+        color: var(--violet-color-text-secondary, #48534b);
       }
 
       .field-control,
       .field-area {
-        border-radius: var(--radius-md, 8px);
-        background: var(--color-field-background);
-        color: var(--color-field-text);
-        border: 1px solid var(--color-field-border);
-        font: 400 var(--type-body-md-size, 14px)/var(--type-body-md-line, 20px) var(--font-family-body);
+        border-radius: var(--violet-radius-md, 8px);
+        background: var(--violet-color-field-background);
+        color: var(--violet-color-field-text);
+        border: 1px solid var(--violet-color-field-border);
+        font: 400 var(--violet-type-body-md-size, 14px)/var(--violet-type-body-md-line, 20px) var(--violet-font-family-body);
       }
 
       .field-control {
@@ -6069,32 +6069,32 @@ function renderFormInputLab(): HTMLElement {
       }
 
       .field-placeholder {
-        color: var(--color-field-placeholder);
+        color: var(--violet-color-field-placeholder);
       }
 
       .field-hover .field-control {
-        border-color: var(--color-field-border-hover);
+        border-color: var(--violet-color-field-border-hover);
       }
 
       .field-focus .field-control {
-        border-color: var(--color-field-border-focus);
-        box-shadow: 0 0 0 2px var(--color-field-border-focus);
+        border-color: var(--violet-color-field-border-focus);
+        box-shadow: 0 0 0 2px var(--violet-color-field-border-focus);
       }
 
       /* A read-only field's line is the strong border: the resting one is under 3:1 on this fill. */
       .field-readonly .field-control {
-        background: var(--color-field-background-readonly);
-        border-color: var(--color-border-strong);
+        background: var(--violet-color-field-background-readonly);
+        border-color: var(--violet-color-border-strong);
       }
 
       .field-invalid .field-control {
-        border-color: var(--color-field-border-invalid);
-        box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-field-border-invalid) 55%, transparent);
+        border-color: var(--violet-color-field-border-invalid);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--violet-color-field-border-invalid) 55%, transparent);
       }
 
       .field-note {
-        font: 400 var(--type-caption-xs-size, 12px)/var(--type-caption-xs-line, 16px) var(--font-family-body);
-        color: var(--color-text-muted);
+        font: 400 var(--violet-type-caption-xs-size, 12px)/var(--violet-type-caption-xs-line, 16px) var(--violet-font-family-body);
+        color: var(--violet-color-text-muted);
       }
 
       @container (min-width: 56rem) {
@@ -6325,8 +6325,8 @@ function renderPaletteLab(): HTMLElement {
         min-block-size: 100vh;
         padding: 0;
         background: #fff;
-        color: var(--color-text-primary);
-        font-family: var(--font-family-body);
+        color: var(--violet-color-text-primary);
+        font-family: var(--violet-font-family-body);
       }
 
       .palette-lab *, .palette-lab *::before, .palette-lab *::after {
@@ -6368,8 +6368,8 @@ function renderPaletteLab(): HTMLElement {
 
       .palette-title {
         margin: 0.15rem 0 0;
-        color: var(--color-text-primary);
-        font-family: var(--font-family-heading);
+        color: var(--violet-color-text-primary);
+        font-family: var(--violet-font-family-heading);
         font-size: 1.25rem;
         line-height: 1.1;
       }
@@ -6400,7 +6400,7 @@ function renderPaletteLab(): HTMLElement {
 
       .token-id {
         margin: 0;
-        color: var(--color-text-primary);
+        color: var(--violet-color-text-primary);
         font-family: "IBM Plex Mono", monospace;
         font-size: 0.98rem;
         font-weight: 500;
@@ -6408,7 +6408,7 @@ function renderPaletteLab(): HTMLElement {
 
       .token-help {
         margin-top: 0.22rem;
-        color: var(--color-text-secondary);
+        color: var(--violet-color-text-secondary);
         font-size: 0.92rem;
         line-height: 1.3;
       }
@@ -6434,7 +6434,7 @@ function renderPaletteLab(): HTMLElement {
         border: 1px solid rgba(24, 27, 26, 0.16);
         border-radius: 0.28rem;
         background: #fff;
-        color: var(--color-text-primary);
+        color: var(--violet-color-text-primary);
         font-family: "IBM Plex Mono", monospace;
         font-size: 0.94rem;
       }
@@ -6456,21 +6456,21 @@ function renderPaletteLab(): HTMLElement {
         border-radius: 0.28rem;
         padding: 0.42rem 0.68rem;
         background: #fff;
-        color: var(--color-text-primary);
-        font: 500 0.94rem var(--font-family-body);
+        color: var(--violet-color-text-primary);
+        font: 500 0.94rem var(--violet-font-family-body);
         cursor: pointer;
       }
 
       .tool-button.primary {
-        background: var(--color-action-primary-background);
-        border-color: var(--color-action-primary-background);
-        color: var(--color-action-primary-text);
+        background: var(--violet-color-action-primary-background);
+        border-color: var(--violet-color-action-primary-background);
+        color: var(--violet-color-action-primary-text);
       }
 
       .copy-status {
         margin: 0;
         padding: 0 1rem 0.7rem;
-        color: var(--color-text-secondary);
+        color: var(--violet-color-text-secondary);
         font-size: 0.88rem;
         line-height: 1.35;
       }
@@ -6490,7 +6490,7 @@ function renderPaletteLab(): HTMLElement {
 
       .preview-panel {
         border: 1px solid rgba(24, 27, 26, 0.1);
-        border-radius: var(--radius-md);
+        border-radius: var(--violet-radius-md);
         background: #fff;
         overflow: hidden;
       }
@@ -6507,7 +6507,7 @@ function renderPaletteLab(): HTMLElement {
 
       .swatch-card {
         border: 1px solid rgba(24, 27, 26, 0.1);
-        border-radius: var(--radius-md);
+        border-radius: var(--violet-radius-md);
         background: #fff;
         overflow: hidden;
       }
@@ -6524,14 +6524,14 @@ function renderPaletteLab(): HTMLElement {
       }
 
       .swatch-name {
-        color: var(--color-text-primary);
+        color: var(--violet-color-text-primary);
         font-family: "IBM Plex Mono", monospace;
         font-size: 0.92rem;
         font-weight: 500;
       }
 
       .swatch-value {
-        color: var(--color-text-secondary);
+        color: var(--violet-color-text-secondary);
         font-size: 0.9rem;
       }
 
@@ -6546,7 +6546,7 @@ function renderPaletteLab(): HTMLElement {
         gap: 0.45rem;
         min-block-size: 8rem;
         padding: 0.9rem;
-        border-radius: var(--radius-md);
+        border-radius: var(--violet-radius-md);
         border: 1px solid rgba(24, 27, 26, 0.08);
       }
 
@@ -6578,7 +6578,7 @@ function renderPaletteLab(): HTMLElement {
         justify-content: center;
         min-block-size: 3.25rem;
         padding: 0.6rem 0.75rem;
-        border-radius: var(--radius-round);
+        border-radius: var(--violet-radius-round);
         border: 1px solid rgba(24, 27, 26, 0.08);
         font-size: 0.92rem;
         font-weight: 500;
@@ -6794,8 +6794,8 @@ function renderReferenceKitLab(): HTMLElement {
         min-block-size: 100vh;
         padding: 0;
         background: #fff;
-        color: var(--color-text-primary);
-        font-family: var(--font-family-body);
+        color: var(--violet-color-text-primary);
+        font-family: var(--violet-font-family-body);
       }
 
       .reference-kit-lab *, .reference-kit-lab *::before, .reference-kit-lab *::after {
@@ -6831,14 +6831,14 @@ function renderReferenceKitLab(): HTMLElement {
 
       .kit-title {
         margin: 0.16rem 0 0.3rem;
-        font-family: var(--font-family-heading);
+        font-family: var(--violet-font-family-heading);
         font-size: 1.24rem;
         line-height: 1.12;
       }
 
       .kit-note {
         margin: 0;
-        color: var(--color-text-secondary);
+        color: var(--violet-color-text-secondary);
         font-size: 0.95rem;
         line-height: 1.45;
       }
@@ -6873,13 +6873,13 @@ function renderReferenceKitLab(): HTMLElement {
       .kit-why,
       .kit-validates {
         margin: 0;
-        color: var(--color-text-secondary);
+        color: var(--violet-color-text-secondary);
         font-size: 0.92rem;
         line-height: 1.35;
       }
 
       .kit-validates strong {
-        color: var(--color-text-primary);
+        color: var(--violet-color-text-primary);
         font-weight: 600;
       }
 
@@ -6899,8 +6899,8 @@ function renderReferenceKitLab(): HTMLElement {
 
       .kit-panel {
         border: 1px solid rgba(24, 27, 26, 0.1);
-        border-radius: var(--radius-md);
-        background: var(--color-surface-page);
+        border-radius: var(--violet-radius-md);
+        background: var(--violet-color-surface-page);
         overflow: hidden;
       }
 
@@ -6920,7 +6920,7 @@ function renderReferenceKitLab(): HTMLElement {
       .toggle-row {
         display: flex;
         flex-wrap: wrap;
-        gap: var(--space-inline-sm);
+        gap: var(--violet-space-inline-sm);
       }
 
       .demo-button,
@@ -6929,30 +6929,30 @@ function renderReferenceKitLab(): HTMLElement {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        gap: var(--space-inline-sm);
+        gap: var(--violet-space-inline-sm);
         min-block-size: 2.4rem;
         padding: 0.58rem 0.92rem;
-        border-radius: var(--radius-md);
+        border-radius: var(--violet-radius-md);
         border: 1px solid transparent;
-        font: 500 var(--type-body-md-size)/var(--type-body-md-line) var(--font-family-body);
+        font: 500 var(--violet-type-body-md-size)/var(--violet-type-body-md-line) var(--violet-font-family-body);
       }
 
       .demo-button.primary {
-        background: var(--color-action-primary-background);
-        color: var(--color-action-primary-text);
-        box-shadow: var(--shadow-card);
+        background: var(--violet-color-action-primary-background);
+        color: var(--violet-color-action-primary-text);
+        box-shadow: var(--violet-shadow-card);
       }
 
       .demo-button.secondary {
-        background: var(--color-action-secondary-background);
-        color: var(--color-action-secondary-text);
-        border-color: var(--color-action-secondary-border);
+        background: var(--violet-color-action-secondary-background);
+        color: var(--violet-color-action-secondary-text);
+        border-color: var(--violet-color-action-secondary-border);
       }
 
       .demo-button.quiet {
         background: transparent;
-        color: var(--color-text-secondary);
-        border-color: var(--color-border-subtle);
+        color: var(--violet-color-text-secondary);
+        border-color: var(--violet-color-border-subtle);
       }
 
       .field-shell {
@@ -6962,7 +6962,7 @@ function renderReferenceKitLab(): HTMLElement {
 
       .field-label {
         margin: 0;
-        color: var(--color-text-secondary);
+        color: var(--violet-color-text-secondary);
         font-size: 0.92rem;
         font-weight: 500;
       }
@@ -6972,15 +6972,15 @@ function renderReferenceKitLab(): HTMLElement {
         align-items: center;
         min-block-size: 2.7rem;
         padding: 0.7rem 0.82rem;
-        border: 1px solid var(--color-field-border);
-        border-radius: var(--radius-md);
-        background: var(--color-field-background);
+        border: 1px solid var(--violet-color-field-border);
+        border-radius: var(--violet-radius-md);
+        background: var(--violet-color-field-background);
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
       }
 
       .field-helper {
         margin: 0;
-        color: var(--color-text-muted);
+        color: var(--violet-color-text-muted);
         font-size: 0.88rem;
       }
 
@@ -6992,7 +6992,7 @@ function renderReferenceKitLab(): HTMLElement {
       .demo-slider,
       .demo-checkbox,
       .demo-radio {
-        border: 1px solid var(--color-border-subtle);
+        border: 1px solid var(--violet-color-border-subtle);
       }
 
       .control-grid {
@@ -7005,8 +7005,8 @@ function renderReferenceKitLab(): HTMLElement {
         display: grid;
         gap: 0.55rem;
         padding: 0.8rem;
-        border-radius: var(--radius-md);
-        background: var(--color-surface-card);
+        border-radius: var(--violet-radius-md);
+        background: var(--violet-color-surface-card);
       }
 
       .demo-checkbox,
@@ -7022,22 +7022,22 @@ function renderReferenceKitLab(): HTMLElement {
       }
 
       .demo-checkbox.checked {
-        background: var(--color-control-selected-background);
-        border-color: var(--color-control-selected-border);
-        box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--color-control-selected-foreground) 28%, white);
+        background: var(--violet-color-control-selected-background);
+        border-color: var(--violet-color-control-selected-border);
+        box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--violet-color-control-selected-foreground) 28%, white);
       }
 
       .demo-radio.checked {
-        box-shadow: inset 0 0 0 4px var(--color-control-selected-foreground);
+        box-shadow: inset 0 0 0 4px var(--violet-color-control-selected-foreground);
       }
 
       .switch-track {
         position: relative;
         inline-size: 2.55rem;
         block-size: 1.45rem;
-        border-radius: var(--radius-round);
-        background: var(--color-control-selected-background);
-        border: 1px solid var(--color-control-selected-border);
+        border-radius: var(--violet-radius-round);
+        background: var(--violet-color-control-selected-background);
+        border: 1px solid var(--violet-color-control-selected-border);
       }
 
       .switch-track::after {
@@ -7049,29 +7049,29 @@ function renderReferenceKitLab(): HTMLElement {
         block-size: 1.05rem;
         border-radius: 999px;
         background: #fff;
-        box-shadow: var(--shadow-card);
+        box-shadow: var(--violet-shadow-card);
       }
 
       .demo-tab {
         background: transparent;
-        color: var(--color-text-secondary);
+        color: var(--violet-color-text-secondary);
         border-color: transparent;
-        border-bottom-color: var(--color-border-subtle);
+        border-bottom-color: var(--violet-color-border-subtle);
         border-radius: 0;
         padding-inline: 0.1rem 0.35rem;
       }
 
       .demo-tab.active {
-        color: var(--color-text-primary);
-        border-bottom-color: var(--color-action-primary-background);
+        color: var(--violet-color-text-primary);
+        border-bottom-color: var(--violet-color-action-primary-background);
         font-weight: 600;
       }
 
       .demo-slider {
         position: relative;
         block-size: 0.4rem;
-        border-radius: var(--radius-round);
-        background: color-mix(in srgb, var(--color-action-primary-background) 18%, white);
+        border-radius: var(--violet-radius-round);
+        background: color-mix(in srgb, var(--violet-color-action-primary-background) 18%, white);
       }
 
       .demo-slider::before {
@@ -7080,7 +7080,7 @@ function renderReferenceKitLab(): HTMLElement {
         inset: 0;
         inline-size: 58%;
         border-radius: inherit;
-        background: var(--color-action-primary-background);
+        background: var(--violet-color-action-primary-background);
       }
 
       .demo-slider::after {
@@ -7093,8 +7093,8 @@ function renderReferenceKitLab(): HTMLElement {
         block-size: 1rem;
         border-radius: 999px;
         background: #fff;
-        border: 2px solid var(--color-action-primary-background);
-        box-shadow: var(--shadow-card);
+        border: 2px solid var(--violet-color-action-primary-background);
+        box-shadow: var(--violet-shadow-card);
       }
 
       .surface-grid {
@@ -7107,22 +7107,22 @@ function renderReferenceKitLab(): HTMLElement {
         display: grid;
         gap: 0.55rem;
         padding: 1rem;
-        border-radius: var(--radius-lg);
-        background: var(--color-surface-card);
-        box-shadow: var(--shadow-card);
+        border-radius: var(--violet-radius-lg);
+        background: var(--violet-color-surface-card);
+        box-shadow: var(--violet-shadow-card);
       }
 
       .demo-card h4,
       .demo-menu h4 {
         margin: 0;
-        font: var(--type-title-sm-weight) var(--type-title-sm-size)/var(--type-title-sm-line) var(--font-family-heading);
-        color: var(--color-text-primary);
+        font: var(--violet-type-title-sm-weight) var(--violet-type-title-sm-size)/var(--violet-type-title-sm-line) var(--violet-font-family-heading);
+        color: var(--violet-color-text-primary);
       }
 
       .demo-card p,
       .demo-menu p {
         margin: 0;
-        color: var(--color-text-secondary);
+        color: var(--violet-color-text-secondary);
         font-size: 0.95rem;
         line-height: 1.45;
       }
@@ -7131,9 +7131,9 @@ function renderReferenceKitLab(): HTMLElement {
         display: grid;
         gap: 0.35rem;
         padding: 0.85rem;
-        border-radius: var(--radius-lg);
-        background: var(--color-surface-floating);
-        box-shadow: var(--shadow-floating);
+        border-radius: var(--violet-radius-lg);
+        background: var(--violet-color-surface-floating);
+        box-shadow: var(--violet-shadow-floating);
       }
 
       .demo-menu-item {
@@ -7141,19 +7141,19 @@ function renderReferenceKitLab(): HTMLElement {
         align-items: center;
         min-block-size: 2.4rem;
         padding: 0.58rem 0.78rem;
-        border-radius: var(--radius-md);
+        border-radius: var(--violet-radius-md);
         background: #fff;
       }
 
       .demo-menu-item.active {
-        background: var(--color-surface-selected);
+        background: var(--violet-color-surface-selected);
       }
 
       .data-grid-shell {
         padding: 0.9rem;
-        border-radius: var(--radius-lg);
-        background: var(--color-surface-card);
-        box-shadow: var(--shadow-card);
+        border-radius: var(--violet-radius-lg);
+        background: var(--violet-color-surface-card);
+        box-shadow: var(--violet-shadow-card);
       }
     </style>
 
@@ -7233,8 +7233,8 @@ function renderReferenceKitLab(): HTMLElement {
                   <h4>Seedling card</h4>
                   <p>Cards reconcile surface, spacing, type, and action emphasis outside of dense data views.</p>
                   <div class="compact-row">
-                    <span class="demo-chip" style="background: var(--color-surface-subtle); border-radius: var(--radius-round); padding: 0.4rem 0.7rem;">Date planted</span>
-                    <span class="demo-chip" style="background: var(--color-surface-selected); border-radius: var(--radius-round); padding: 0.4rem 0.7rem;">Selected</span>
+                    <span class="demo-chip" style="background: var(--violet-color-surface-subtle); border-radius: var(--violet-radius-round); padding: 0.4rem 0.7rem;">Date planted</span>
+                    <span class="demo-chip" style="background: var(--violet-color-surface-selected); border-radius: var(--violet-radius-round); padding: 0.4rem 0.7rem;">Selected</span>
                   </div>
                 </article>
 

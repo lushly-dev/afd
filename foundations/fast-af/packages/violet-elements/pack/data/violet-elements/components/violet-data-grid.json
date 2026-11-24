@@ -166,17 +166,17 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-data-grid-active-cell-ring-width, var(--size-focus-ring-width, 2px))",
+				"default": "var(--violet-data-grid-active-cell-ring-width, var(--violet-size-focus-ring-width, 2px))",
 				"name": "--_active-cell-ring-width"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-border-strong, #6b7d6e)",
+				"default": "var(--violet-color-border-strong, #6b7d6e)",
 				"name": "--_border-strong"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-border-subtle, rgba(24, 27, 26, 0.10))",
+				"default": "var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10))",
 				"name": "--_border-subtle"
 			},
 			{
@@ -186,32 +186,32 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-background, #c0daeb)",
+				"default": "var(--violet-color-control-selected-background, #c0daeb)",
 				"name": "--_control-selected-background"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-border, rgba(27, 95, 128, 0.5))",
+				"default": "var(--violet-color-control-selected-border, rgba(27, 95, 128, 0.5))",
 				"name": "--_control-selected-border"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-foreground, #1b5f80)",
+				"default": "var(--violet-color-control-selected-foreground, #1b5f80)",
 				"name": "--_control-selected-foreground"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-danger-background, #f7e4df)",
+				"default": "var(--violet-color-state-danger-background, #f7e4df)",
 				"name": "--_error-background"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-danger-border, transparent)",
+				"default": "var(--violet-color-state-danger-border, transparent)",
 				"name": "--_error-border"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-danger-text, #c42a1a)",
+				"default": "var(--violet-color-state-danger-text, #c42a1a)",
 				"name": "--_error-text"
 			},
 			{
@@ -226,17 +226,17 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-focus-ring, #28769e)",
+				"default": "var(--violet-color-focus-ring, #28769e)",
 				"name": "--_focus-ring"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--z-index-raised, 1)",
+				"default": "var(--violet-z-index-raised, 1)",
 				"name": "--_layer-raised"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--z-index-sticky, 10)",
+				"default": "var(--violet-z-index-sticky, 10)",
 				"name": "--_layer-sticky"
 			},
 			{
@@ -251,7 +251,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--radius-md, 8px)",
+				"default": "var(--violet-radius-md, 8px)",
 				"name": "--_radius-md"
 			},
 			{
@@ -276,82 +276,82 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--shadow-card, 0 0 0 1px rgba(24, 27, 26, 0.06), 0 1px 2px rgba(24, 27, 26, 0.06), 0 4px 10px -2px rgba(24, 27, 26, 0.06))",
+				"default": "var(--violet-shadow-card, 0 0 0 1px rgba(24, 27, 26, 0.06), 0 1px 2px rgba(24, 27, 26, 0.06), 0 4px 10px -2px rgba(24, 27, 26, 0.06))",
 				"name": "--_shadow-card"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--space-inline-md, 8px)",
+				"default": "var(--violet-space-inline-md, 8px)",
 				"name": "--_space-inline-md"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--space-inline-sm, 4px)",
+				"default": "var(--violet-space-inline-sm, 4px)",
 				"name": "--_space-inline-sm"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--space-stack-sm, 8px)",
+				"default": "var(--violet-space-stack-sm, 8px)",
 				"name": "--_space-stack-sm"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--space-stack-xs, 4px)",
+				"default": "var(--violet-space-stack-xs, 4px)",
 				"name": "--_space-stack-xs"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-surface-card, #f8f9f3)",
+				"default": "var(--violet-color-surface-card, #f8f9f3)",
 				"name": "--_surface-card"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-surface-floating, #ffffff)",
+				"default": "var(--violet-color-surface-floating, #ffffff)",
 				"name": "--_surface-floating"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-surface-page, #f4f0ea)",
+				"default": "var(--violet-color-surface-page, #f4f0ea)",
 				"name": "--_surface-page"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-surface-selected, #dfecf4)",
+				"default": "var(--violet-color-surface-selected, #dfecf4)",
 				"name": "--_surface-selected"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-surface-subtle, #e9e5de)",
+				"default": "var(--violet-color-surface-subtle, #e9e5de)",
 				"name": "--_surface-subtle"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--size-target-comfortable, 44px)",
+				"default": "var(--violet-size-target-comfortable, 44px)",
 				"name": "--_target-size-comfortable"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--size-target-compact, 24px)",
+				"default": "var(--violet-size-target-compact, 24px)",
 				"name": "--_target-size-compact"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--size-target-natural, 32px)",
+				"default": "var(--violet-size-target-natural, 32px)",
 				"name": "--_target-size-natural"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-text-muted, #5e6460)",
+				"default": "var(--violet-color-text-muted, #5e6460)",
 				"name": "--_text-muted"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-text-primary, #181b1a)",
+				"default": "var(--violet-color-text-primary, #181b1a)",
 				"name": "--_text-primary"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-text-secondary, #48534b)",
+				"default": "var(--violet-color-text-secondary, #48534b)",
 				"name": "--_text-secondary"
 			},
 			{

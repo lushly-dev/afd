@@ -47,9 +47,9 @@ export const dateText = (value: number | undefined): string => {
 export const STYLES = `
 	:host {
 		display: block;
-		color: var(--color-text-primary);
-		font-size: var(--type-body-md-size);
-		line-height: var(--type-body-md-line);
+		color: var(--violet-color-text-primary);
+		font-size: var(--violet-type-body-md-size);
+		line-height: var(--violet-type-body-md-line);
 	}
 	h1,
 	h2,
@@ -58,149 +58,149 @@ export const STYLES = `
 		margin: 0;
 	}
 	h1 {
-		font-size: var(--type-title-md-size);
-		line-height: var(--type-title-md-line);
-		font-weight: var(--type-title-md-weight);
+		font-size: var(--violet-type-title-md-size);
+		line-height: var(--violet-type-title-md-line);
+		font-weight: var(--violet-type-title-md-weight);
 	}
 	h2 {
-		font-size: var(--type-title-sm-size);
-		line-height: var(--type-title-sm-line);
-		font-weight: var(--type-title-sm-weight);
+		font-size: var(--violet-type-title-sm-size);
+		line-height: var(--violet-type-title-sm-line);
+		font-weight: var(--violet-type-title-sm-weight);
 	}
 	h3,
 	legend,
 	label {
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
-		font-weight: var(--type-label-sm-weight);
+		font-size: var(--violet-type-label-sm-size);
+		line-height: var(--violet-type-label-sm-line);
+		font-weight: var(--violet-type-label-sm-weight);
 	}
 	.section {
 		display: grid;
-		gap: var(--space-stack-md);
+		gap: var(--violet-space-stack-md);
 	}
 	.columns {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
-		gap: var(--space-layout-md);
+		gap: var(--violet-space-layout-md);
 	}
 	@media (min-width: 40rem) {
 		.columns {
-			grid-template-columns: minmax(var(--shell-size-sidebar-min), var(--shell-size-sidebar-default)) minmax(0, 1fr);
+			grid-template-columns: minmax(var(--violet-shell-size-sidebar-min), var(--violet-shell-size-sidebar-default)) minmax(0, 1fr);
 		}
 	}
 	[role='tree'],
 	[role='group'],
 	.list {
 		display: grid;
-		gap: var(--space-stack-xs);
+		gap: var(--violet-space-stack-xs);
 		margin: 0;
 		padding: 0;
 		list-style: none;
 	}
 	[role='group'] {
-		padding-inline-start: var(--space-inline-md);
+		padding-inline-start: var(--violet-space-inline-md);
 	}
 	[role='treeitem'] > .label {
 		display: flex;
 		align-items: center;
-		min-block-size: var(--size-target-natural);
-		padding-inline: var(--size-space-md);
-		border-inline-start: var(--size-space-xs) solid transparent;
-		border-radius: var(--radius-md);
+		min-block-size: var(--violet-size-target-natural);
+		padding-inline: var(--violet-size-space-md);
+		border-inline-start: var(--violet-size-space-xs) solid transparent;
+		border-radius: var(--violet-radius-md);
 		cursor: pointer;
 	}
 	[role='treeitem'][aria-expanded] > .label {
-		color: var(--color-text-secondary);
+		color: var(--violet-color-text-secondary);
 		cursor: default;
 	}
 	[role='treeitem'][aria-selected='true'] > .label {
-		border-inline-start-color: var(--color-control-selected-foreground);
-		background: var(--color-control-selected-background);
-		color: var(--color-control-selected-foreground);
+		border-inline-start-color: var(--violet-color-control-selected-foreground);
+		background: var(--violet-color-control-selected-background);
+		color: var(--violet-color-control-selected-foreground);
 	}
 	[role='treeitem']:not([aria-expanded]) > .label:hover {
-		background: var(--color-surface-subtle);
+		background: var(--violet-color-surface-subtle);
 	}
 	[role='tablist'] {
 		display: flex;
 		flex-wrap: wrap;
-		gap: var(--space-inline-sm);
-		border-block-end: 1px solid var(--color-border-subtle);
+		gap: var(--violet-space-inline-sm);
+		border-block-end: 1px solid var(--violet-color-border-subtle);
 	}
 	[role='tab'] {
-		min-block-size: var(--size-target-natural);
-		padding-inline: var(--size-space-md);
+		min-block-size: var(--violet-size-target-natural);
+		padding-inline: var(--violet-size-space-md);
 		border: 0;
-		border-block-end: var(--size-space-xs) solid transparent;
+		border-block-end: var(--violet-size-space-xs) solid transparent;
 		background: none;
-		color: var(--color-text-secondary);
+		color: var(--violet-color-text-secondary);
 		font: inherit;
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
-		font-weight: var(--type-label-sm-weight);
+		font-size: var(--violet-type-label-sm-size);
+		line-height: var(--violet-type-label-sm-line);
+		font-weight: var(--violet-type-label-sm-weight);
 		cursor: pointer;
 	}
 	[role='tab'][aria-selected='true'] {
-		border-block-end-color: var(--color-focus-ring);
-		color: var(--color-text-primary);
-		font-weight: var(--weight-semibold);
+		border-block-end-color: var(--violet-color-focus-ring);
+		color: var(--violet-color-text-primary);
+		font-weight: var(--violet-weight-semibold);
 	}
 	[role='tabpanel'],
 	.fields {
 		display: grid;
-		gap: var(--space-stack-md);
+		gap: var(--violet-space-stack-md);
 	}
 	.field {
 		display: grid;
-		gap: var(--space-stack-xs);
-		padding-block-end: var(--space-stack-md);
-		border-block-end: 1px solid var(--color-border-subtle);
+		gap: var(--violet-space-stack-xs);
+		padding-block-end: var(--violet-space-stack-md);
+		border-block-end: 1px solid var(--violet-color-border-subtle);
 	}
 	.field[data-target] {
-		border-inline-start: var(--size-space-xs) solid var(--color-focus-ring);
-		padding-inline-start: var(--space-inline-md);
+		border-inline-start: var(--violet-size-space-xs) solid var(--violet-color-focus-ring);
+		padding-inline-start: var(--violet-space-inline-md);
 	}
 	.row {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: var(--space-inline-sm);
+		gap: var(--violet-space-inline-sm);
 	}
 	form {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: end;
-		gap: var(--space-inline-sm);
+		gap: var(--violet-space-inline-sm);
 	}
 	label {
 		display: grid;
-		gap: var(--space-stack-xs);
+		gap: var(--violet-space-stack-xs);
 	}
 	.grow {
 		flex: 1 1 auto;
 	}
 	.note,
 	.from {
-		color: var(--color-text-secondary);
+		color: var(--violet-color-text-secondary);
 	}
 	.control {
 		display: grid;
-		gap: var(--space-stack-xs);
+		gap: var(--violet-space-stack-xs);
 		justify-items: start;
 	}
 	.control textarea,
 	.control input:not([type='checkbox']) {
-		inline-size: min(100%, var(--shell-size-main-min));
+		inline-size: min(100%, var(--violet-shell-size-main-min));
 		box-sizing: border-box;
 	}
 	.error {
-		color: var(--color-state-danger-text);
+		color: var(--violet-color-state-danger-text);
 	}
 	.error:empty {
 		display: none;
 	}
 	[aria-invalid='true'] {
-		border-color: var(--color-field-border-invalid);
+		border-color: var(--violet-color-field-border-invalid);
 	}
 	.status:empty {
 		display: none;
@@ -208,55 +208,55 @@ export const STYLES = `
 	input,
 	select,
 	textarea {
-		min-block-size: var(--size-target-natural);
-		padding-inline: var(--size-space-sm);
-		border: 1px solid var(--color-field-border);
-		border-radius: var(--radius-md);
-		background: var(--color-field-background);
-		color: var(--color-text-primary);
+		min-block-size: var(--violet-size-target-natural);
+		padding-inline: var(--violet-size-space-sm);
+		border: 1px solid var(--violet-color-field-border);
+		border-radius: var(--violet-radius-md);
+		background: var(--violet-color-field-background);
+		color: var(--violet-color-text-primary);
 		font: inherit;
 	}
 	fieldset {
 		display: grid;
-		gap: var(--space-stack-xs);
+		gap: var(--violet-space-stack-xs);
 		margin: 0;
-		padding: var(--size-space-sm) var(--size-space-md);
-		border: 1px solid var(--color-border-strong);
-		border-radius: var(--radius-md);
+		padding: var(--violet-size-space-sm) var(--violet-size-space-md);
+		border: 1px solid var(--violet-color-border-strong);
+		border-radius: var(--violet-radius-md);
 	}
 	label.check {
 		display: flex;
 		align-items: center;
-		gap: var(--space-inline-sm);
-		font-size: var(--type-body-md-size);
-		line-height: var(--type-body-md-line);
-		font-weight: var(--type-body-md-weight);
+		gap: var(--violet-space-inline-sm);
+		font-size: var(--violet-type-body-md-size);
+		line-height: var(--violet-type-body-md-line);
+		font-weight: var(--violet-type-body-md-weight);
 	}
 	input[type='checkbox'] {
-		inline-size: var(--size-target-compact);
-		block-size: var(--size-target-compact);
-		min-block-size: var(--size-target-compact);
+		inline-size: var(--violet-size-target-compact);
+		block-size: var(--violet-size-target-compact);
+		min-block-size: var(--violet-size-target-compact);
 		margin: 0;
 		padding: 0;
-		accent-color: var(--color-action-primary-background);
+		accent-color: var(--violet-color-action-primary-background);
 	}
 	.action {
-		min-block-size: var(--size-target-natural);
-		padding-inline: var(--size-space-md);
-		border: 1px solid var(--color-action-secondary-border);
-		border-radius: var(--radius-md);
-		background: var(--color-action-secondary-background);
-		color: var(--color-action-secondary-text);
+		min-block-size: var(--violet-size-target-natural);
+		padding-inline: var(--violet-size-space-md);
+		border: 1px solid var(--violet-color-action-secondary-border);
+		border-radius: var(--violet-radius-md);
+		background: var(--violet-color-action-secondary-background);
+		color: var(--violet-color-action-secondary-text);
 		font: inherit;
 		cursor: pointer;
 	}
 	.action:hover {
-		background: var(--color-action-secondary-hover);
+		background: var(--violet-color-action-secondary-hover);
 	}
 	.action.primary {
-		border-color: var(--color-action-primary-background);
-		background: var(--color-action-primary-background);
-		color: var(--color-action-primary-text);
+		border-color: var(--violet-color-action-primary-background);
+		background: var(--violet-color-action-primary-background);
+		color: var(--violet-color-action-primary-text);
 	}
 	.action[aria-disabled='true'] {
 		cursor: not-allowed;
@@ -269,8 +269,8 @@ export const STYLES = `
 	select:focus-visible,
 	textarea:focus-visible,
 	h1:focus-visible {
-		outline: var(--shell-size-focus) solid var(--color-focus-ring);
-		outline-offset: var(--size-space-xs);
+		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+		outline-offset: var(--violet-size-space-xs);
 	}
 	[role='treeitem']:focus-visible {
 		outline: none;

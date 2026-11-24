@@ -29,7 +29,7 @@ const styles = css`
         /* A tooltip is the one inverted surface: the primary action's fill and text. */
         --_tooltip-background: var(
             --violet-tooltip-background,
-            var(--color-action-primary-background, var(--_surface-card))
+            var(--violet-color-action-primary-background, var(--_surface-card))
         );
         --_tooltip-shadow: var(--violet-tooltip-shadow, var(--_shadow-card));
         --_tooltip-border-color: var(--violet-tooltip-border-color, transparent);
@@ -51,7 +51,7 @@ const styles = css`
         border-radius: var(--_tooltip-radius);
         background: var(--_tooltip-background);
         box-shadow: var(--_tooltip-shadow);
-        color: var(--color-action-primary-text, #f4f0ea);
+        color: var(--violet-color-action-primary-text, #f4f0ea);
         font-family: inherit;
         font-size: var(--_tooltip-font-size);
         line-height: var(--_tooltip-line-height);

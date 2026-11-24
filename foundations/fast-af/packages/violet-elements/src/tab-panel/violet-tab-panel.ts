@@ -17,7 +17,7 @@ const styles = css`
 
     /* violet-tabs makes each panel a tab stop, so a focused panel shows the theme's ring. */
     :host(:focus-visible) {
-        outline: var(--size-focus-ring-width, 2px) solid var(--_focus-ring);
+        outline: var(--violet-size-focus-ring-width, 2px) solid var(--_focus-ring);
         outline-offset: 2px;
     }
 

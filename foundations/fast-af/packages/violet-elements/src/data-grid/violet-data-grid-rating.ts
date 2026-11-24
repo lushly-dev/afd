@@ -24,18 +24,18 @@ const styles = css`
         min-inline-size: 0;
         max-inline-size: 100%;
         color: var(--_rating-filled);
-        font-family: var(--violet-data-grid-font-family, var(--violet-font-family, var(--font-family-body)));
+        font-family: var(--violet-data-grid-font-family, var(--violet-font-family, var(--violet-font-family-body)));
 
-        --_surface-page: var(--color-surface-page, #f4f0ea);
-        --_surface-subtle: var(--color-surface-subtle, #e9e5de);
-        --_text-secondary: var(--color-text-secondary, #48534b);
-        --_text-muted: var(--color-text-muted, #5e6460);
-        --_focus-ring: var(--color-focus-ring, #28769e);
-        --_rating-filled: var(--color-state-warning-text, #92400E);
+        --_surface-page: var(--violet-color-surface-page, #f4f0ea);
+        --_surface-subtle: var(--violet-color-surface-subtle, #e9e5de);
+        --_text-secondary: var(--violet-color-text-secondary, #48534b);
+        --_text-muted: var(--violet-color-text-muted, #5e6460);
+        --_focus-ring: var(--violet-color-focus-ring, #28769e);
+        --_rating-filled: var(--violet-color-state-warning-text, #92400E);
         --_rating-empty: color-mix(in srgb, var(--_text-muted) 36%, transparent);
         --_rating-hover: color-mix(in srgb, var(--_rating-filled) 82%, var(--_surface-page));
-        --_radius-md: var(--radius-md, 8px);
-        --_size-font-sm: var(--size-font-sm, 12px);
+        --_radius-md: var(--violet-radius-md, 8px);
+        --_size-font-sm: var(--violet-size-font-sm, 12px);
     }
 
     :host([disabled]) {

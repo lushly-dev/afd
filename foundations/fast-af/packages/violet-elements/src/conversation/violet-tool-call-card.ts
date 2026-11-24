@@ -10,14 +10,14 @@ const styles = css`
         display: block;
         --_tool-font-size: var(--violet-tool-font-size, var(--_caption-size));
         --_tool-line-height: var(--violet-tool-line-height, var(--_caption-line));
-        --_tool-name-size: var(--violet-tool-name-size, var(--type-label-sm-size, 13px));
+        --_tool-name-size: var(--violet-tool-name-size, var(--violet-type-label-sm-size, 13px));
         --_tool-icon-size: var(--violet-tool-name-size, var(--_body-size));
-        --_warning-bg: var(--color-state-warning-background, #f3e8d2);
-        --_warning-text: var(--color-state-warning-text, #92400e);
-        --_success-bg: var(--color-state-success-background, #dfeae3);
-        --_success-text: var(--color-state-success-text, #2c5e4b);
-        --_danger-bg: var(--color-state-danger-background, #f7e4df);
-        --_danger-text-local: var(--color-state-danger-text, #c42a1a);
+        --_warning-bg: var(--violet-color-state-warning-background, #f3e8d2);
+        --_warning-text: var(--violet-color-state-warning-text, #92400e);
+        --_success-bg: var(--violet-color-state-success-background, #dfeae3);
+        --_success-text: var(--violet-color-state-success-text, #2c5e4b);
+        --_danger-bg: var(--violet-color-state-danger-background, #f7e4df);
+        --_danger-text-local: var(--violet-color-state-danger-text, #c42a1a);
     }
 
     /* A command the agent ran is a band; its state is the badge, not an outline. */
@@ -53,7 +53,7 @@ const styles = css`
 
     /* The command's name, in the mono face. */
     .name {
-        font-family: var(--font-family-mono, "IBM Plex Mono", ui-monospace, Consolas, monospace);
+        font-family: var(--violet-font-family-mono, "IBM Plex Mono", ui-monospace, Consolas, monospace);
         font-size: var(--_tool-name-size);
         font-weight: 500;
         color: var(--_text-primary);
@@ -126,7 +126,7 @@ const styles = css`
     }
 
     .approval-tool-name {
-        font-family: var(--font-family-mono, "IBM Plex Mono", ui-monospace, Consolas, monospace);
+        font-family: var(--violet-font-family-mono, "IBM Plex Mono", ui-monospace, Consolas, monospace);
         font-size: var(--_tool-name-size);
         font-weight: 500;
         line-height: var(--_body-line);

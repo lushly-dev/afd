@@ -21,9 +21,9 @@ const template = html<LoamResizeHandle>`<span class="bar" part="bar"></span>`;
 const styles = css`
 	:host {
 		position: relative;
-		z-index: var(--z-index-raised);
+		z-index: var(--violet-z-index-raised);
 		display: block;
-		background: var(--shell-color-handle-rest);
+		background: var(--violet-shell-color-handle-rest);
 		touch-action: none;
 		outline: none;
 	}
@@ -40,18 +40,18 @@ const styles = css`
 	}
 	.bar {
 		position: absolute;
-		background: var(--shell-color-handle-rest);
-		transition: background-color var(--duration-fast) var(--easing-standard);
+		background: var(--violet-shell-color-handle-rest);
+		transition: background-color var(--violet-duration-fast) var(--violet-easing-standard);
 	}
 	:host([aria-orientation='vertical']) .bar {
 		inset-block: 0;
-		inset-inline-start: calc(var(--shell-size-handle) / -2 + 1px / 2);
-		inline-size: var(--shell-size-handle);
+		inset-inline-start: calc(var(--violet-shell-size-handle) / -2 + 1px / 2);
+		inline-size: var(--violet-shell-size-handle);
 	}
 	:host([aria-orientation='horizontal']) .bar {
 		inset-inline: 0;
-		inset-block-start: calc(var(--shell-size-handle) / -2 + 1px / 2);
-		block-size: var(--shell-size-handle);
+		inset-block-start: calc(var(--violet-shell-size-handle) / -2 + 1px / 2);
+		block-size: var(--violet-shell-size-handle);
 	}
 	:host::after {
 		content: '';
@@ -59,24 +59,24 @@ const styles = css`
 	}
 	:host([aria-orientation='vertical'])::after {
 		inset-block: 0;
-		inset-inline-start: calc(var(--size-target-compact) / -2 + 1px / 2);
-		inline-size: var(--size-target-compact);
+		inset-inline-start: calc(var(--violet-size-target-compact) / -2 + 1px / 2);
+		inline-size: var(--violet-size-target-compact);
 	}
 	:host([aria-orientation='horizontal'])::after {
 		inset-inline: 0;
-		inset-block-start: calc(var(--size-target-compact) / -2 + 1px / 2);
-		block-size: var(--size-target-compact);
+		inset-block-start: calc(var(--violet-size-target-compact) / -2 + 1px / 2);
+		block-size: var(--violet-size-target-compact);
 	}
 	:host(:hover) .bar {
-		background: var(--shell-color-handle-hover);
+		background: var(--violet-shell-color-handle-hover);
 	}
 	:host([data-dragging]) .bar,
 	:host(:focus-visible) .bar {
-		background: var(--shell-color-handle-active);
+		background: var(--violet-shell-color-handle-active);
 	}
 	:host(:focus-visible) .bar {
-		outline: var(--shell-size-focus) solid var(--color-focus-ring);
-		outline-offset: var(--size-space-xs);
+		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+		outline-offset: var(--violet-size-space-xs);
 	}
 	@media (forced-colors: active) {
 		:host,

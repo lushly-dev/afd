@@ -23,7 +23,7 @@ const rootTheme = (page: Page) =>
 		theme: document.documentElement.dataset.loamTheme,
 		density: document.documentElement.dataset.loamDensity ?? 'comfortable',
 		surface: getComputedStyle(document.documentElement)
-			.getPropertyValue('--color-surface-page')
+			.getPropertyValue('--violet-color-surface-page')
 			.trim(),
 	}));
 

@@ -987,10 +987,12 @@ describe('P2-E13: E2: the host context', () => {
 		await agentCall(page, 'appearance-set', { theme: 'dark' });
 		await expect.poll(background).not.toBe(light);
 		const shellSurface = await page.evaluate(() =>
-			getComputedStyle(document.documentElement).getPropertyValue('--color-surface-page').trim()
+			getComputedStyle(document.documentElement)
+				.getPropertyValue('--violet-color-surface-page')
+				.trim()
 		);
 		const viewSurface = await inner.evaluate(() =>
-			document.documentElement.style.getPropertyValue('--color-surface-page').trim()
+			document.documentElement.style.getPropertyValue('--violet-color-surface-page').trim()
 		);
 		expect(viewSurface).toBe(shellSurface);
 		await opened.context.close();
@@ -1062,9 +1064,11 @@ describe('P2-E13: E2: the host context', () => {
 		expect(context.containerDimensions.width).toBeGreaterThan(0);
 		expect(context.containerDimensions.height).toBeGreaterThan(0);
 		expect(Object.keys(context['dev.loam/tokens']).length).toBe(119);
-		expect(context['dev.loam/tokens']['--color-surface-page']).not.toBe('');
+		expect(context['dev.loam/tokens']['--violet-color-surface-page']).not.toBe('');
 		expect(
-			Object.keys(context['dev.loam/tokens']).some((name) => name.startsWith('--shell-'))
+			Object.keys(context['dev.loam/tokens']).some(
+				(name) => name.startsWith('--violet-shell-') || name.startsWith('--shell-')
+			)
 		).toBe(false);
 		// `styles` carries only `css.fonts`, the shell's faces with each file inline; `variables` stays omitted (6.2).
 		// They come with ui/initialize, or in a host-context-changed when the first view asks before they are read.
@@ -1272,7 +1276,7 @@ describe('P2-E13: E2: conformance with @modelcontextprotocol/ext-apps', () => {
 		);
 		expect(state.failed).toBeUndefined();
 		expect(['light', 'dark']).toContain(state.hostContext.theme);
-		expect(state.hostContext['dev.loam/tokens']['--color-surface-page']).not.toBe('');
+		expect(state.hostContext['dev.loam/tokens']['--violet-color-surface-page']).not.toBe('');
 		expect(state.hostCapabilities).toHaveProperty('serverTools');
 		expect(state.called.isError).toBe(false);
 		expect(state.called.structuredContent.data).toEqual({ answered: true });

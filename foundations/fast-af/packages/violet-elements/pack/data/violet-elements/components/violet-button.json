@@ -170,12 +170,12 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--space-inline-sm, 4px)",
+				"default": "var(--violet-space-inline-sm, 4px)",
 				"name": "--_space-inline-sm"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--space-stack-sm, 8px)",
+				"default": "var(--violet-space-stack-sm, 8px)",
 				"name": "--_space-stack-sm"
 			}
 		],

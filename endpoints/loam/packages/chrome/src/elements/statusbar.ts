@@ -18,18 +18,18 @@ const styles = [
 			display: flex;
 			align-items: center;
 			justify-content: space-between;
-			gap: var(--space-inline-sm);
-			block-size: var(--shell-size-statusbar);
-			padding-inline: var(--space-inline-md);
-			background: var(--color-surface-subtle);
-			color: var(--color-text-secondary);
-			border-block-start: 1px solid var(--color-border-subtle);
+			gap: var(--violet-space-inline-sm);
+			block-size: var(--violet-shell-size-statusbar);
+			padding-inline: var(--violet-space-inline-md);
+			background: var(--violet-color-surface-subtle);
+			color: var(--violet-color-text-secondary);
+			border-block-start: 1px solid var(--violet-color-border-subtle);
 			overflow: hidden;
 		}
 		.start,
 		.end {
 			display: inline-flex;
-			gap: var(--space-inline-sm);
+			gap: var(--violet-space-inline-sm);
 			min-inline-size: 0;
 		}
 		.end {

@@ -12,7 +12,7 @@ const styles = css`
         display: block;
         --_result-font-size: var(--violet-result-font-size, var(--_caption-size));
         --_result-line-height: var(--violet-result-line-height, var(--_caption-line));
-        --_success-text: var(--color-state-success-text, #2c5e4b);
+        --_success-text: var(--violet-color-state-success-text, #2c5e4b);
     }
 
     /* What came back is a line under the command; opened, its output sits in a well. */
@@ -65,7 +65,7 @@ const styles = css`
     }
 
     :host([state="output-error"]) .status-icon {
-        color: var(--color-state-danger-text, #c42a1a);
+        color: var(--violet-color-state-danger-text, #c42a1a);
     }
 
     .summary-text {

@@ -38,23 +38,23 @@ const styles = css`
     }
 
     :host([color="accent"]) {
-        --_badge-bg: var(--color-accent-background, #dfecf4);
-        --_badge-text: var(--color-accent-text, #1b5f80);
+        --_badge-bg: var(--violet-color-accent-background, #dfecf4);
+        --_badge-text: var(--violet-color-accent-text, #1b5f80);
     }
 
     :host([color="success"]) {
-        --_badge-bg: var(--color-state-success-background, #dfeae3);
-        --_badge-text: var(--color-state-success-text, #2c5e4b);
+        --_badge-bg: var(--violet-color-state-success-background, #dfeae3);
+        --_badge-text: var(--violet-color-state-success-text, #2c5e4b);
     }
 
     :host([color="warning"]) {
-        --_badge-bg: var(--color-state-warning-background, #f3e8d2);
-        --_badge-text: var(--color-state-warning-text, #92400E);
+        --_badge-bg: var(--violet-color-state-warning-background, #f3e8d2);
+        --_badge-text: var(--violet-color-state-warning-text, #92400E);
     }
 
     :host([color="danger"]) {
-        --_badge-bg: var(--color-state-danger-background, #f7e4df);
-        --_badge-text: var(--color-state-danger-text, #c42a1a);
+        --_badge-bg: var(--violet-color-state-danger-background, #f7e4df);
+        --_badge-text: var(--violet-color-state-danger-text, #c42a1a);
     }
 
     .badge {

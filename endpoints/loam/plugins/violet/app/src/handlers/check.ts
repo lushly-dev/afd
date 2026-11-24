@@ -3,6 +3,7 @@
  * `violet-violation-list`, `violet-interface-check`) and shared preview/apply staging helpers (spec §6.3).
  */
 import { type AppCallContextV1, type CommandResult, failure, success } from '@lushly-dev/loam-sdk';
+import { tokenCustomProperty, VIOLET_CSS_PREFIX } from '@lushly-dev/violet-runtime/property';
 import { resolveInterface } from '../interface.js';
 import {
 	checkCssTokenValue,
@@ -300,7 +301,8 @@ export function createCheckHandlers(port: VioletPort = defaultPort) {
 							? String(token.resolvedValue)
 							: JSON.stringify(token.resolvedValue);
 					properties.push({
-						name: `--${token.id.replaceAll('.', '-')}`,
+						// The names the shared components and Loam's chrome read (#1786).
+						name: tokenCustomProperty(token.id, VIOLET_CSS_PREFIX),
 						value,
 					});
 				}

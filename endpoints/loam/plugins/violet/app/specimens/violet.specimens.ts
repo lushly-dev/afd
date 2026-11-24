@@ -67,61 +67,61 @@ const EXAMPLE_NODES = [
 ];
 
 const DARK_PREVIEW_PROPERTIES = [
-	{ name: '--color-surface-page', value: '#121214' },
-	{ name: '--color-surface-card', value: '#1a1a1f' },
-	{ name: '--color-surface-subtle', value: '#23232a' },
-	{ name: '--color-text-primary', value: '#ececf1' },
-	{ name: '--color-text-secondary', value: '#c4c4d0' },
-	{ name: '--color-text-muted', value: '#a4a4b2' },
-	{ name: '--color-action-primary-background', value: '#5b3fd1' },
-	{ name: '--color-action-primary-text', value: '#ffffff' },
-	{ name: '--color-action-secondary-background', value: '#26262e' },
-	{ name: '--color-action-secondary-border', value: '#525260' },
-	{ name: '--color-action-secondary-text', value: '#ececf1' },
-	{ name: '--color-field-background', value: '#1a1a1f' },
-	{ name: '--color-field-text', value: '#ececf1' },
-	{ name: '--color-field-border', value: '#525260' },
-	{ name: '--color-field-placeholder', value: '#a4a4b2' },
-	{ name: '--color-accent-background', value: '#1e3a52' },
-	{ name: '--color-accent-text', value: '#c7e6ff' },
-	{ name: '--color-state-success-background', value: '#1b3d2f' },
-	{ name: '--color-state-success-text', value: '#c2f0dc' },
-	{ name: '--color-control-selected-background', value: '#1b3d2f' },
-	{ name: '--color-control-selected-foreground', value: '#c2f0dc' },
-	{ name: '--color-control-selected-border', value: '#6cc49e' },
-	{ name: '--color-border-strong', value: '#727282' },
-	{ name: '--color-border-subtle', value: '#3a3a44' },
-	{ name: '--color-focus-ring', value: '#9d8af2' },
-	{ name: '--size-focus-ring-width', value: '2px' },
+	{ name: '--violet-color-surface-page', value: '#121214' },
+	{ name: '--violet-color-surface-card', value: '#1a1a1f' },
+	{ name: '--violet-color-surface-subtle', value: '#23232a' },
+	{ name: '--violet-color-text-primary', value: '#ececf1' },
+	{ name: '--violet-color-text-secondary', value: '#c4c4d0' },
+	{ name: '--violet-color-text-muted', value: '#a4a4b2' },
+	{ name: '--violet-color-action-primary-background', value: '#5b3fd1' },
+	{ name: '--violet-color-action-primary-text', value: '#ffffff' },
+	{ name: '--violet-color-action-secondary-background', value: '#26262e' },
+	{ name: '--violet-color-action-secondary-border', value: '#525260' },
+	{ name: '--violet-color-action-secondary-text', value: '#ececf1' },
+	{ name: '--violet-color-field-background', value: '#1a1a1f' },
+	{ name: '--violet-color-field-text', value: '#ececf1' },
+	{ name: '--violet-color-field-border', value: '#525260' },
+	{ name: '--violet-color-field-placeholder', value: '#a4a4b2' },
+	{ name: '--violet-color-accent-background', value: '#1e3a52' },
+	{ name: '--violet-color-accent-text', value: '#c7e6ff' },
+	{ name: '--violet-color-state-success-background', value: '#1b3d2f' },
+	{ name: '--violet-color-state-success-text', value: '#c2f0dc' },
+	{ name: '--violet-color-control-selected-background', value: '#1b3d2f' },
+	{ name: '--violet-color-control-selected-foreground', value: '#c2f0dc' },
+	{ name: '--violet-color-control-selected-border', value: '#6cc49e' },
+	{ name: '--violet-color-border-strong', value: '#727282' },
+	{ name: '--violet-color-border-subtle', value: '#3a3a44' },
+	{ name: '--violet-color-focus-ring', value: '#9d8af2' },
+	{ name: '--violet-size-focus-ring-width', value: '2px' },
 ];
 
 const HC_PREVIEW_PROPERTIES = [
-	{ name: '--color-surface-page', value: '#ffffff' },
-	{ name: '--color-surface-card', value: '#ffffff' },
-	{ name: '--color-surface-subtle', value: '#f0f0f2' },
-	{ name: '--color-text-primary', value: '#000000' },
-	{ name: '--color-text-secondary', value: '#1b1b1f' },
-	{ name: '--color-text-muted', value: '#3d3d45' },
-	{ name: '--color-action-primary-background', value: '#1d1070' },
-	{ name: '--color-action-primary-text', value: '#ffffff' },
-	{ name: '--color-action-secondary-background', value: '#ffffff' },
-	{ name: '--color-action-secondary-border', value: '#000000' },
-	{ name: '--color-action-secondary-text', value: '#000000' },
-	{ name: '--color-field-background', value: '#ffffff' },
-	{ name: '--color-field-text', value: '#000000' },
-	{ name: '--color-field-border', value: '#000000' },
-	{ name: '--color-field-placeholder', value: '#3d3d45' },
-	{ name: '--color-accent-background', value: '#e2edf5' },
-	{ name: '--color-accent-text', value: '#0c3f66' },
-	{ name: '--color-state-success-background', value: '#dfeae3' },
-	{ name: '--color-state-success-text', value: '#184232' },
-	{ name: '--color-control-selected-background', value: '#1d1070' },
-	{ name: '--color-control-selected-foreground', value: '#ffffff' },
-	{ name: '--color-control-selected-border', value: '#000000' },
-	{ name: '--color-border-strong', value: '#000000' },
-	{ name: '--color-border-subtle', value: '#3d3d45' },
-	{ name: '--color-focus-ring', value: '#1d1070' },
-	{ name: '--size-focus-ring-width', value: '3px' },
+	{ name: '--violet-color-surface-page', value: '#ffffff' },
+	{ name: '--violet-color-surface-card', value: '#ffffff' },
+	{ name: '--violet-color-surface-subtle', value: '#f0f0f2' },
+	{ name: '--violet-color-text-primary', value: '#000000' },
+	{ name: '--violet-color-text-secondary', value: '#1b1b1f' },
+	{ name: '--violet-color-text-muted', value: '#3d3d45' },
+	{ name: '--violet-color-action-primary-background', value: '#1d1070' },
+	{ name: '--violet-color-action-primary-text', value: '#ffffff' },
+	{ name: '--violet-color-action-secondary-background', value: '#ffffff' },
+	{ name: '--violet-color-action-secondary-border', value: '#000000' },
+	{ name: '--violet-color-action-secondary-text', value: '#000000' },
+	{ name: '--violet-color-field-background', value: '#ffffff' },
+	{ name: '--violet-color-field-text', value: '#000000' },
+	{ name: '--violet-color-field-border', value: '#000000' },
+	{ name: '--violet-color-field-placeholder', value: '#3d3d45' },
+	{ name: '--violet-color-accent-background', value: '#e2edf5' },
+	{ name: '--violet-color-accent-text', value: '#0c3f66' },
+	{ name: '--violet-color-state-success-background', value: '#dfeae3' },
+	{ name: '--violet-color-state-success-text', value: '#184232' },
+	{ name: '--violet-color-control-selected-background', value: '#1d1070' },
+	{ name: '--violet-color-control-selected-foreground', value: '#ffffff' },
+	{ name: '--violet-color-control-selected-border', value: '#000000' },
+	{ name: '--violet-color-border-strong', value: '#000000' },
+	{ name: '--violet-color-border-subtle', value: '#3d3d45' },
+	{ name: '--violet-color-focus-ring', value: '#1d1070' },
+	{ name: '--violet-size-focus-ring-width', value: '3px' },
 ];
 
 function stubContext(): AppContextV1 {
@@ -418,7 +418,7 @@ function editorFixture(
 
 					if (options.scopedFrame && inspector) {
 						const probe = document.createElement('div');
-						probe.style.setProperty('background-color', 'var(--color-surface-card)');
+						probe.style.setProperty('background-color', 'var(--violet-color-surface-card)');
 						wrapper.append(probe);
 						const expectedCardBg = getComputedStyle(probe).backgroundColor;
 						probe.remove();
@@ -429,10 +429,10 @@ function editorFixture(
 						wrapper.dataset.nodesColBg = nodesCol ? getComputedStyle(nodesCol).backgroundColor : '';
 						wrapper.dataset.inspectorBg = getComputedStyle(inspector).backgroundColor;
 						wrapper.dataset.previewPageProp = previewRoot
-							? getComputedStyle(previewRoot).getPropertyValue('--color-surface-page').trim()
+							? getComputedStyle(previewRoot).getPropertyValue('--violet-color-surface-page').trim()
 							: '';
 						wrapper.dataset.docRootOverride = document.documentElement.style
-							.getPropertyValue('--color-surface-page')
+							.getPropertyValue('--violet-color-surface-page')
 							.trim();
 					}
 				})(),

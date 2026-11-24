@@ -3,6 +3,7 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs';
+import { type ResolvedToken, cssTransformer } from '@lushly-dev/violet-core';
 import { createMemoryDatabase } from '@lushly-dev/violet-core/engine';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { nodeCreateCommand } from '../node/create.js';
@@ -152,4 +153,39 @@ describe('interface.check command', () => {
 		const present = ids.filter((id) => id === 'color.surface.page' || id === 'size.focus.width');
 		expect(result.data?.missing).toHaveLength(2 * (ids.length - present.length));
 	});
+
+	// Target item 3: Violet's own output drives the components with no remapping
+	it.skipIf(!existsSync(published))(
+		'is what violet-core’s CSS exporter writes under the interface’s cssPrefix',
+		() => {
+			const tokenInterface: {
+				cssPrefix: string;
+				tokens: Record<string, { property: string }>;
+			} = JSON.parse(readFileSync(published, 'utf8'));
+			expect(tokenInterface.cssPrefix).toBe('violet');
+			const ids = Object.keys(tokenInterface.tokens);
+			const css = cssTransformer.transform(
+				ids.map(
+					(id) =>
+						({
+							id,
+							value: '1px',
+							resolvedValue: '1px',
+							metadata: {
+								category: 'custom',
+								tier: 'semantic',
+								status: 'stable',
+								platforms: [],
+								tags: [],
+							},
+							resolvedAt: 'test',
+							inheritanceChain: ['test'],
+						}) as unknown as ResolvedToken,
+				),
+				{ prefix: tokenInterface.cssPrefix },
+			);
+			const written = [...css.matchAll(/^\s*(--[A-Za-z0-9_-]+):/gm)].map((match) => match[1]);
+			expect(written.sort()).toEqual(ids.map((id) => tokenInterface.tokens[id]?.property).sort());
+		},
+	);
 });

@@ -155,8 +155,8 @@ export const RichContent: Story = {
         kbd.style.padding = "2px 4px";
         kbd.style.borderRadius = "3px";
         kbd.style.fontSize = "11px";
-        kbd.style.border = "1px solid var(--color-border-subtle)";
-        kbd.style.background = "var(--color-surface-subtle)";
+        kbd.style.border = "1px solid var(--violet-color-border-subtle)";
+        kbd.style.background = "var(--violet-color-surface-subtle)";
         content.append(strong, kbd);
         tooltip.append(content);
 

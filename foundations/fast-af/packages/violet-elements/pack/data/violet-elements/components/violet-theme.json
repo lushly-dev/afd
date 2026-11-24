@@ -47,12 +47,12 @@
 		{
 			"basis": "observed",
 			"from": "foundations-theme--dark-scoped-preset",
-			"html": "<violet-theme data-violet-theme=\"dark\" data-violet-theme-root preset=\"dark\" style=\"--color-action-primary-background: #0c5a4d; --color-action-primary-hover: #0c5a4d; --color-action-primary-pressed: #0c5a4d; --color-action-primary-text: #ffffff;\"><div style=\"display: grid; gap: 0.75rem; padding: 1rem; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-text-primary);\"><strong>Dark scoped theme</strong><violet-button appearance=\"primary\" type=\"button\">Scoped action</violet-button><violet-button appearance=\"secondary\" type=\"button\">Secondary action</violet-button></div></violet-theme>"
+			"html": "<violet-theme data-violet-theme=\"dark\" data-violet-theme-root preset=\"dark\" style=\"--violet-color-action-primary-background: #0c5a4d; --violet-color-action-primary-hover: #0c5a4d; --violet-color-action-primary-pressed: #0c5a4d; --violet-color-action-primary-text: #ffffff;\"><div style=\"display: grid; gap: 0.75rem; padding: 1rem; border: 1px solid var(--violet-color-border-subtle); border-radius: var(--violet-radius-md); background: var(--violet-color-surface-card); color: var(--violet-color-text-primary);\"><strong>Dark scoped theme</strong><violet-button appearance=\"primary\" type=\"button\">Scoped action</violet-button><violet-button appearance=\"secondary\" type=\"button\">Secondary action</violet-button></div></violet-theme>"
 		},
 		{
 			"basis": "observed",
 			"from": "foundations-theme--overview",
-			"html": "<violet-theme data-violet-theme=\"light\" data-violet-theme-root preset=\"light\" style=\"--color-action-primary-background: #0c5a4d; --color-action-primary-hover: #0c5a4d; --color-action-primary-pressed: #0c5a4d; --color-action-primary-text: #ffffff;\"><div style=\"display: grid; gap: 0.75rem; padding: 1rem; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-text-primary);\"><strong>Light scoped theme</strong><violet-button appearance=\"primary\" type=\"button\">Scoped action</violet-button><violet-button appearance=\"secondary\" type=\"button\">Secondary action</violet-button></div></violet-theme>"
+			"html": "<violet-theme data-violet-theme=\"light\" data-violet-theme-root preset=\"light\" style=\"--violet-color-action-primary-background: #0c5a4d; --violet-color-action-primary-hover: #0c5a4d; --violet-color-action-primary-pressed: #0c5a4d; --violet-color-action-primary-text: #ffffff;\"><div style=\"display: grid; gap: 0.75rem; padding: 1rem; border: 1px solid var(--violet-color-border-subtle); border-radius: var(--violet-radius-md); background: var(--violet-color-surface-card); color: var(--violet-color-text-primary);\"><strong>Light scoped theme</strong><violet-button appearance=\"primary\" type=\"button\">Scoped action</violet-button><violet-button appearance=\"secondary\" type=\"button\">Secondary action</violet-button></div></violet-theme>"
 		}
 	],
 	"format": 1,
@@ -83,12 +83,12 @@
 		{
 			"basis": "authored",
 			"id": "theme.box",
-			"text": "The host is display: contents and paints nothing: give a child background var(--color-surface-page) and color var(--color-text-primary), or a dark subtree shows the light page behind it."
+			"text": "The host is display: contents and paints nothing: give a child background var(--violet-color-surface-page) and color var(--violet-color-text-primary), or a dark subtree shows the light page behind it."
 		},
 		{
 			"basis": "authored",
 			"id": "theme.override",
-			"text": "Token custom properties set on it, such as --color-action-primary-background, override that token for its subtree only."
+			"text": "Token custom properties set on it, such as --violet-color-action-primary-background, override that token for its subtree only."
 		}
 	]
 }

@@ -26,7 +26,7 @@ const styles = css`
         --_panel-min-inline: var(--violet-listbox-min-inline-size, 14rem);
         --_panel-max-block: var(--violet-listbox-max-block-size, 18rem);
         /* The surface block has no inline spacing; the panel's padding is the menu's and the select popup's. */
-        --_space-inline-sm: var(--space-inline-sm, 4px);
+        --_space-inline-sm: var(--violet-space-inline-sm, 4px);
         --_panel-padding: var(--violet-listbox-padding, var(--_space-inline-sm));
     }
 

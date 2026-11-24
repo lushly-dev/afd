@@ -4,7 +4,7 @@
  * (`adopt()`, the one runtime theming path; lushly-dev/afd#1786).
  */
 import themeJson from '@lushly-dev/loam-theme/loam-theme.json';
-import { VioletRuntime } from '@lushly-dev/violet-runtime';
+import { VIOLET_CSS_PREFIX, VioletRuntime } from '@lushly-dev/violet-runtime';
 
 const nodes = (themeJson as { nodes: Record<string, { id: string; value: string | number }[]> })
 	.nodes;
@@ -57,6 +57,8 @@ async function compare(properties: readonly TokenProbe[]) {
 	const runtime = new VioletRuntime({
 		nodeId: 'loam/dark',
 		source: { tokens: nodes['loam/dark'] ?? [] },
+		// Loam's contract names every property under the components' prefix (version 2).
+		cssPrefix: VIOLET_CSS_PREFIX,
 	});
 	const sheet = runtime.adopt(document);
 	await runtime.load();

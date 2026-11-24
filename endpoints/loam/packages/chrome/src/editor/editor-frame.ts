@@ -78,7 +78,7 @@ const styles = css`
 		flex: 1 1 auto;
 		flex-direction: column;
 		min-block-size: 0;
-		color: var(--color-text-primary);
+		color: var(--violet-color-text-primary);
 	}
 	:host([hidden]),
 	[hidden] {
@@ -91,43 +91,43 @@ const styles = css`
 	}
 	.loading {
 		margin: 0;
-		padding: var(--space-layout-md);
-		color: var(--color-text-secondary);
-		font-size: var(--type-body-md-size);
-		line-height: var(--type-body-md-line);
+		padding: var(--violet-space-layout-md);
+		color: var(--violet-color-text-secondary);
+		font-size: var(--violet-type-body-md-size);
+		line-height: var(--violet-type-body-md-line);
 	}
 	/* Not on [hidden], which the same specificity would otherwise lose to: a working frame shows no Close. */
 	.failed:not([hidden]) {
 		display: grid;
 		justify-items: start;
-		gap: var(--space-stack-md);
-		padding-block-end: var(--space-layout-md);
+		gap: var(--violet-space-stack-md);
+		padding-block-end: var(--violet-space-layout-md);
 		overflow: auto;
 	}
 	.close {
-		min-block-size: var(--size-target-natural);
-		margin-inline: var(--space-layout-md);
-		padding-inline: var(--space-inline-md);
-		border: 1px solid var(--color-action-secondary-border);
-		border-radius: var(--radius-md);
-		background: var(--color-action-secondary-background);
-		color: var(--color-action-secondary-text);
+		min-block-size: var(--violet-size-target-natural);
+		margin-inline: var(--violet-space-layout-md);
+		padding-inline: var(--violet-space-inline-md);
+		border: 1px solid var(--violet-color-action-secondary-border);
+		border-radius: var(--violet-radius-md);
+		background: var(--violet-color-action-secondary-background);
+		color: var(--violet-color-action-secondary-text);
 		font: inherit;
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
-		font-weight: var(--type-label-sm-weight);
+		font-size: var(--violet-type-label-sm-size);
+		line-height: var(--violet-type-label-sm-line);
+		font-weight: var(--violet-type-label-sm-weight);
 		cursor: pointer;
-		transition: background-color var(--duration-fast) var(--easing-standard);
+		transition: background-color var(--violet-duration-fast) var(--violet-easing-standard);
 	}
 	.close:hover {
-		background: var(--color-action-secondary-hover);
+		background: var(--violet-color-action-secondary-hover);
 	}
 	.close:active {
-		background: var(--color-action-secondary-pressed);
+		background: var(--violet-color-action-secondary-pressed);
 	}
 	.close:focus-visible {
-		outline: var(--shell-size-focus) solid var(--color-focus-ring);
-		outline-offset: var(--size-space-xs);
+		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+		outline-offset: var(--violet-size-space-xs);
 	}
 	@media (prefers-reduced-motion: reduce) {
 		.close {

@@ -40,7 +40,7 @@ const meta = {
                     size="${args.size}"
                     label="Selected color ${args.value}"
                 ></violet-color-swatch>
-                <span style="font: 500 14px/20px var(--font-family-body);">${args.value}</span>
+                <span style="font: 500 14px/20px var(--violet-font-family-body);">${args.value}</span>
             </div>
         `;
     },

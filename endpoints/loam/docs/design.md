@@ -9,8 +9,8 @@
 | Read first | [STATUS.md](STATUS.md), then the [phase 0 specification](phases/0-kernel-chrome/spec.md), sections 2 and 5 to 7 |
 
 Every rule here names the tokens it uses, by contract id (`color.surface.page`).
-The custom property is `--` and the id with `.` replaced by `-`
-(`--color-surface-page`). Values are the light theme in comfortable density
+The custom property is `--violet-` and the id with `.` replaced by `-`
+(`--violet-color-surface-page`; see [the `violet-` prefix](#the-violet-prefix)). Values are the light theme in comfortable density
 unless a rule says otherwise; the [token reference](#the-token-layer-and-the-contract)
 gives every theme.
 
@@ -42,13 +42,14 @@ Three layers, read in one direction:
 
 | Layer | Ids | Who reads it |
 | --- | --- | --- |
-| Primitives | `ref.color.<family>.<step>`, `ref.space.<px>` | Only the tree's semantic tokens. No export contains them, and the lint fails any component that reads or sets a `--ref-*` property |
-| Component ids | 108 ids under `color.*`, `size.*`, `space.*`, `radius.*`, `shadow.*`, `duration.*`, `easing.*`, `type.*`, `weight.*`, `z-index.*` | The shared `violet-elements` components and every Loam component |
+| Primitives | `ref.color.<family>.<step>`, `ref.space.<px>` | Only the tree's semantic tokens. No export contains them, and the lint fails any component that reads or sets a `--violet-ref-*` or `--ref-*` property |
+| Component ids | 119 ids under `color.*`, `size.*`, `space.*`, `radius.*`, `shadow.*`, `duration.*`, `easing.*`, `type.*`, `weight.*`, `z-index.*` | The shared `violet-elements` components and every Loam component |
 | Shell ids | 19 ids under `shell.size.*` and `shell.color.*` | `@lushly-dev/loam-chrome` only; the lint fails a shell id read or set anywhere else |
 
-- **The contract** is version 1: 127 ids, each with its custom property, type
-  and kind (`component` or `shell`), in `contract/tokens.json`. Version 1 is
-  `violet-elements`' registry with no rename, so no component's CSS changes.
+- **The contract** is version 2: 138 ids, each with its custom property, type
+  and kind (`component` or `shell`), in `contract/tokens.json`. Version 1 was
+  `violet-elements`' registry with no rename; version 2 keeps its ids and moves
+  every property under the `violet-` prefix.
 - **Themes and density** are attributes on `document.documentElement`, set by
   the chrome from `appearance-get`'s `resolved` and `density`:
   `data-loam-theme` is `light`, `dark` or `high-contrast`, and
@@ -66,6 +67,39 @@ Three layers, read in one direction:
   with `theme:check --write`, review the diff, and record it here. A new
   component id also needs its literal fallback in `violet-elements` (D38).
   Add a semantic id for a new role rather than reusing one whose role differs.
+
+### The `violet-` prefix
+
+Since 2026-11-24 ([#1786](https://github.com/lushly-dev/afd/issues/1786),
+contract version 2, `violet-elements`' token interface version 4), every
+token's custom property is `--violet-` and the id with `.` replaced by `-`:
+violet-runtime's `tokenCustomProperty(id, 'violet')`, the one naming rule
+the runtime, Violet's CSS exporter (`prefix: 'violet'`), `violet-elements`
+and this theme share. Violet's own output now drives the components and the
+chrome with no remapping.
+
+- **`shell.*` stays Loam's.** Its ids are not in the components' interface,
+  only the chrome reads them, and the lint still fails them anywhere else.
+  They take the same rule (`shell.size.rail` is `--violet-shell-size-rail`):
+  the prefix names Violet's naming, not who owns the id.
+- **Loam keeps its own sheet.** `loam-theme.css` still carries every theme,
+  the shell and compact density on `data-loam-theme` and
+  `data-loam-density`, with the new names; `violet-elements`' generated sheet
+  is not installed by the chrome.
+- **Migrating.** Read `var(--violet-<id>)` where Loam read `var(--<id>)`:
+  `var(--color-surface-page)` <!-- violet-prefix: keep -->
+  becomes `var(--violet-color-surface-page)`, `var(--shell-size-focus)` <!-- violet-prefix: keep -->
+  becomes `var(--violet-shell-size-focus)`. The components' own knobs
+  (`--violet-icon-size`, `--violet-target-size`, `--violet-font-family`) keep
+  their names. `node scripts/codemods/violet-prefix.mjs` moved Loam, the
+  components, the site's FAST-AF pages, the health dashboard and the
+  examples; `--check` reports any old name left in its plan's paths.
+  `loam-lint-tokens` fails an unprefixed read as `unknown-property`, since
+  the contract no longer lists it.
+- **For one preview release,** `violet-elements`' generated sheet also
+  declares each old name as a `var()` of the new one, so a hand-written read
+  outside Loam keeps working; Loam's sheet has no such aliases, and the
+  block is removed in the release after.
 
 ## The type ramp
 
@@ -270,7 +304,7 @@ equal are at their floors, and are shown so the scale reads whole:
 | panel (`loam-panel`) | block `--_panel-height`, default `shell.size.panel.default` (240px) | at least `shell.size.panel.min` (120px); rendered at most main's height less that minimum | Output, logs, terminals |
 | status bar (`loam-statusbar`) | block `shell.size.statusbar` (24px in both) | fixed | Status items; targets `size.target.compact` (24px) |
 | tab bar (`loam-tabbar`) | block `shell.size.tabbar` (56px, 48px) | fixed | Entries; targets `size.target.comfortable` (44px, 32px) |
-| drawer (compact class) | inline `min(85vw, var(--shell-size-drawer-max))` (at most 320px) | | The sidebar or inspector |
+| drawer (compact class) | inline `min(85vw, var(--violet-shell-size-drawer-max))` (at most 320px) | | The sidebar or inspector |
 | sheet (compact class) | block between `40dvh` and `80dvh` | | The panel |
 
 - A bar is never smaller than the targets it holds: 40 ≥ 32 and 32 ≥ 28 in
@@ -379,8 +413,8 @@ boundary on main's side, so it is inside the part's landmark.
 
 ### Focus
 
-- **Indicator:** `outline: var(--shell-size-focus) solid var(--color-focus-ring)`
-  with `outline-offset: var(--size-space-xs)`. `shell.size.focus` is 2px, and
+- **Indicator:** `outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring)`
+  with `outline-offset: var(--violet-size-space-xs)`. `shell.size.focus` is 2px, and
   3px in high contrast. `color.focus.ring` meets 3:1 on every surface in
   every theme.
 - **Only on `:focus-visible`.** A pointer press does not show the ring.
@@ -486,7 +520,7 @@ root (spec 5.3, D33):
 | --- | --- | --- |
 | `expanded` | ≥ 1024px | Every open part inline. If they would leave main narrower than `shell.size.main.min`, the inspector becomes a non-modal overlay drawer from inline-end, then the sidebar from inline-start, without changing state |
 | `medium` | 640 to 1023px | Sidebar and panel inline; an open inspector is a non-modal overlay drawer from inline-end |
-| `compact` | < 640px | The rail becomes the tab bar at the bottom (`shell.size.tabbar`) and the status bar hides. The sidebar or inspector is a modal drawer (`<dialog>`, `showModal()`), `min(85vw, var(--shell-size-drawer-max))` wide; the panel is a bottom sheet above the tab bar, `40dvh` to `80dvh` high |
+| `compact` | < 640px | The rail becomes the tab bar at the bottom (`shell.size.tabbar`) and the status bar hides. The sidebar or inspector is a modal drawer (`<dialog>`, `showModal()`), `min(85vw, var(--violet-shell-size-drawer-max))` wide; the panel is a bottom sheet above the tab bar, `40dvh` to `80dvh` high |
 
 - **Breakpoints** are written as lengths in `@media` conditions (640px,
   1024px), which cannot read custom properties. The lint does not check
@@ -849,4 +883,6 @@ a fixture in `packages/chrome/specimens/chrome.specimens.ts`, or for what apps a
   success, and high contrast stays unchanged. Because `color.accent.background` shares `#dfecf4` (light) and
   `#162832` (dark) with `color.surface.selected`, an accent badge placed on a selected row relies on its
   text contrast (`#1b5f80` 5.82:1 light, `#a1d4f3` 9.56:1 dark) rather than a distinct pill fill.
-
+- **2026-11-24. The `violet-` prefix (#1786).** Contract version 2: every
+  property moves to `--violet-<id>` with the same ids, the rule shared with
+  Violet's runtime and exporter ([the `violet-` prefix](#the-violet-prefix)).

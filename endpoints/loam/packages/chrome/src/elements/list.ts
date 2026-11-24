@@ -91,50 +91,50 @@ const styles = css`
 		display: none;
 	}
 	violet-listbox::part(control):focus-visible {
-		outline: var(--shell-size-focus) solid var(--color-focus-ring);
-		outline-offset: var(--size-space-xs);
+		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+		outline-offset: var(--violet-size-space-xs);
 	}
 	/* Focus stays on the list, so the active row is where the keyboard is (design.md, focus). */
 	violet-listbox:focus-within violet-option[data-active]::part(control) {
-		outline: var(--shell-size-focus) solid var(--color-focus-ring);
-		outline-offset: calc(-1 * var(--shell-size-focus));
+		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+		outline-offset: calc(-1 * var(--violet-shell-size-focus));
 	}
 	/* Selected: the control colors and a start-edge bar, since color alone is not enough. */
 	violet-option[selected]::part(control) {
-		border-inline-start: var(--size-space-xs) solid var(--color-control-selected-foreground);
-		background: var(--color-control-selected-background);
-		color: var(--color-control-selected-foreground);
+		border-inline-start: var(--violet-size-space-xs) solid var(--violet-color-control-selected-foreground);
+		background: var(--violet-color-control-selected-background);
+		color: var(--violet-color-control-selected-foreground);
 	}
 	h3 {
-		margin: 0 0 var(--space-stack-xs);
-		color: var(--color-text-secondary);
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
-		font-weight: var(--weight-semibold);
+		margin: 0 0 var(--violet-space-stack-xs);
+		color: var(--violet-color-text-secondary);
+		font-size: var(--violet-type-label-sm-size);
+		line-height: var(--violet-type-label-sm-line);
+		font-weight: var(--violet-weight-semibold);
 	}
 	:host([heading]:not([heading=''])) {
-		margin-block-end: var(--space-stack-md);
+		margin-block-end: var(--violet-space-stack-md);
 	}
 	.item-title {
-		font-size: var(--type-body-md-size);
-		line-height: var(--type-body-md-line);
+		font-size: var(--violet-type-body-md-size);
+		line-height: var(--violet-type-body-md-line);
 	}
 	.item-description {
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
+		font-size: var(--violet-type-label-sm-size);
+		line-height: var(--violet-type-label-sm-line);
 	}
 	p {
 		margin: 0;
-		color: var(--color-text-secondary);
-		font-size: var(--type-body-md-size);
-		line-height: var(--type-body-md-line);
+		color: var(--violet-color-text-secondary);
+		font-size: var(--violet-type-body-md-size);
+		line-height: var(--violet-type-body-md-line);
 	}
 	.failure p {
-		color: var(--color-state-danger-text);
+		color: var(--violet-color-state-danger-text);
 	}
 	.failure .suggestion {
-		margin-block-start: var(--space-stack-xs);
-		color: var(--color-text-secondary);
+		margin-block-start: var(--violet-space-stack-xs);
+		color: var(--violet-color-text-secondary);
 	}
 	@media (forced-colors: active) {
 		h3,

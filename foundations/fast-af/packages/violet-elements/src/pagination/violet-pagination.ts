@@ -22,9 +22,9 @@ const styles = css`
     :host {
         display: inline-flex;
         max-inline-size: 100%;
-        --_space-xs: var(--space-stack-xs, 4px);
-        --_space-layout-sm: var(--space-layout-sm, 12px);
-        --_text-primary: var(--color-text-primary, #181b1a);
+        --_space-xs: var(--violet-space-stack-xs, 4px);
+        --_space-layout-sm: var(--violet-space-layout-sm, 12px);
+        --_text-primary: var(--violet-color-text-primary, #181b1a);
     }
 
     .nav {
@@ -56,7 +56,7 @@ const styles = css`
         font-family: inherit;
         font-size: var(--_control-body-size);
         font-variant-numeric: tabular-nums;
-        font-weight: var(--type-body-md-weight, 400);
+        font-weight: var(--violet-type-body-md-weight, 400);
         line-height: var(--_type-body-line);
     }
 

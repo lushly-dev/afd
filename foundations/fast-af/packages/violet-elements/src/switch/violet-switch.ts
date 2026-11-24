@@ -11,13 +11,13 @@ const styles = css`
     :host {
         display: inline-grid;
 
-        --_selection-background: var(--color-control-selected-background, #c0daeb);
-        --_selection-text: var(--color-control-selected-foreground, #1b5f80);
-        --_selection-border: var(--color-control-selected-border, rgba(27, 95, 128, 0.5));
-        --_surface-card: var(--color-surface-card, #f8f9f3);
-        --_border-strong: var(--color-border-strong, #6b7d6e);
-        --_radius-sm: var(--radius-sm, 4px);
-        --_size-font-md: var(--size-font-md, 14px);
+        --_selection-background: var(--violet-color-control-selected-background, #c0daeb);
+        --_selection-text: var(--violet-color-control-selected-foreground, #1b5f80);
+        --_selection-border: var(--violet-color-control-selected-border, rgba(27, 95, 128, 0.5));
+        --_surface-card: var(--violet-color-surface-card, #f8f9f3);
+        --_border-strong: var(--violet-color-border-strong, #6b7d6e);
+        --_radius-sm: var(--violet-radius-sm, 4px);
+        --_size-font-md: var(--violet-size-font-md, 14px);
         /*
          * A slide key, not an outlined pill: a filled slot as tall as one line of text, and a
          * squared key the size of a checkbox that crosses it and shows a tick when it is on.
@@ -35,8 +35,8 @@ const styles = css`
             (var(--_track-padding) * 2) -
             (var(--_track-border-width) * 2)
         );
-        --_type-body-line: var(--type-body-md-line, 20px);
-        --_type-caption-line: var(--type-caption-xs-line, 16px);
+        --_type-body-line: var(--violet-type-body-md-line, 20px);
+        --_type-caption-line: var(--violet-type-caption-xs-line, 16px);
     }
 
     :host([inline]) {
@@ -209,7 +209,7 @@ const styles = css`
     }
 
     .label {
-        color: var(--color-text-primary, #181b1a);
+        color: var(--violet-color-text-primary, #181b1a);
         font-size: var(--_control-body-size);
         line-height: var(--_type-body-line);
     }

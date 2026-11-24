@@ -82,7 +82,7 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var( --violet-tooltip-background, var(--color-action-primary-background, var(--_surface-card)) )",
+				"default": "var( --violet-tooltip-background, var(--violet-color-action-primary-background, var(--_surface-card)) )",
 				"name": "--_tooltip-background"
 			},
 			{

@@ -549,6 +549,12 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * a nested ask's turn waiting, the kernel's answers for a mounted command, the per-part schema cut).
  */
 export const CEILINGS = Object.freeze({
+	// Raised under D115 by #1786's phase 4, the `violet-` prefix on every token property (seven bytes per name in the
+	// chrome's and components' CSS and `loam-theme.css`), each to its measurement against `main` at `56a536413` plus
+	// about 300 bytes. Measured: `jsMinified` 349,561; `jsGzip` 109,972; `cssMinified` 12,261; `signInMinified` 11,947;
+	// `accountMenuMinified` 5,636; `accountMinified` 40,050; `surfacesMinified` 102,268; `viewMinified` 29,762;
+	// `switcherMinified` 11,730; `editorMinified` 36,676; `embedMinified` 6,178; `settingsMinified` 52,816;
+	// `editorMoveMinified` 6,092; `overlaysMinified` 11,302; `inboxMinified` 12,366.
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
 	// fast-element: measured against `main` at `38d883d9` on the same machine, first paint 299,415 to 303,018
 	// (+3,603) and 92,996 to 94,579 gzip (+1,583), the runtime's DOM sink guards on every entrypoint and its
@@ -648,7 +654,7 @@ export const CEILINGS = Object.freeze({
 	// Raised under D115 by #2253/#2300 (`observeGate` + `gateRefusal` provenance in `journal-provenance.ts` and
 	// `observeThrows` + thrown `COMMAND_EXECUTION_ERROR` lossy marking in `kernel.ts`/`journal-redact.ts`): combined
 	// build measured 347,192 against `main` at `99359760a`; set to 347,600.
-	jsMinified: 347_600,
+	jsMinified: 349_900,
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
@@ -683,11 +689,11 @@ export const CEILINGS = Object.freeze({
 	// measured 109,066; set to 109,500 under D115.
 	// #2253/#2300 (`observeGate`/`gateRefusal` and `observeThrows` throw tracking) merged on `main` at `2b134a73`:
 	// measured 109,491; set to 109,900 under D115.
-	jsGzip: 109_900,
+	jsGzip: 110_300,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
 	// stylesheet `index.html` links; measured 10,251, plus a margin.
-	cssMinified: 10_500,
+	cssMinified: 12_600,
 	// AFD's typefaces (D159): six latin woff2 files, Inter 400, 500 and 600, Space Grotesk 600 and IBM Plex Mono
 	// 400 and 500, 115,268 bytes, which first paint's text asks for; plus a margin.
 	fontsBytes: 116_000,
@@ -816,8 +822,8 @@ export const CEILINGS = Object.freeze({
 	authMinified: 73_200,
 	// #1484 (Refined field well in `sign-in.ts` and Refined key shadows/transitions in `action-styles.ts`):
 	// measured 11,129 against `main` at `a5e79aab`; set to 11,600 under D115.
-	signInMinified: 11_600,
-	accountMenuMinified: 5_400,
+	signInMinified: 12_300,
+	accountMenuMinified: 6_000,
 	// Phase 3's step 7, against `main` at `0ab76415`: 25,727 to 30,973 (+5,246), the OAuth login and consent pages and the
 	// agents tab; set to 31,500 under D115. After its review's fixes, 31,705 (single sign-on on the login page, `prompt`
 	// honoured, only web addresses followed, an owner's removal shown as such); set to 32,300.
@@ -826,7 +832,7 @@ export const CEILINGS = Object.freeze({
 	// review's fixes and re-check 39,283 (+7,448 in all): each tab named by `ownerTitle` (its own `owner-title` chunk, with
 	// `shell-name`), the app's settings delivered through `surface-calls` (1,700, shared with `surfaces`), the change of
 	// person and main's gate, the view's teardown and the wait for the app surfaces; set to 39,900 under D115.
-	accountMinified: 39_900,
+	accountMinified: 40_400,
 	urlMinified: 6_400,
 	// Step 2 too: 396,210 of 395,700, the stage B reader of the projection's `copilot`; set to 397,000.
 	// Phase 4's step 1 on top: 417,099, the manifest validator's `ui.settings`; set to 417,500.
@@ -871,7 +877,7 @@ export const CEILINGS = Object.freeze({
 	// measured 99,613 against `main` at `a5e79aab`; set to 100,100 under D115.
 	// #2235 (explicit empty value and element-identity option tracking in `violet-option`/`violet-listbox`,
 	// imported by `surfaces`): measured 100,335 against `main` at `44e711eb`; set to 100,800 under D115.
-	surfacesMinified: 100_800,
+	surfacesMinified: 102_600,
 	// Raised from 25,105 to 25,900 by AFD #1190 (D115): `dev.loam/tokens` reads the contract's component
 	// ids, which grew from 108 to 115 with violet-elements' token interface; measured 25,793, plus a margin.
 	// Raised from 25,900 to 26,100 by the Refined design (D115): the interface's contract version 2 gives Loam's
@@ -885,7 +891,7 @@ export const CEILINGS = Object.freeze({
 	// (`fonts.ts`: the shell's `@font-face` rules, each same-origin file read once as a `data:` URL, with its
 	// review's timeout, type check and retry); measured 28,754 against `main` at `2e63c766` (26,891, +1,863), plus
 	// a margin. No font byte enters a chunk.
-	viewMinified: 28_900,
+	viewMinified: 30_100,
 	consoleMinified: 91_222,
 	// Phase 6's step 11b (10.8): the dispatcher, the direct registry's MCP tool surface (the tool router, the meta-tools,
 	// the bootstrap tools' describers) and what it shares with `apps`; 36,799, and 37,624 merged with step 5, plus a margin.
@@ -895,7 +901,7 @@ export const CEILINGS = Object.freeze({
 	// within the 41,500 ceiling.
 	inboundMinified: 41_500,
 	mountMinified: 238_268,
-	switcherMinified: 11_600,
+	switcherMinified: 12_100,
 	switcherColdMinified: 45_163,
 	// Raised from 3,126 to 3,490 by AFD #1054: an Escape is the dialog's while a modal dialog that does not hold
 	// the tooltip's entry is open, so the tooltip looks for one through the shadow roots; measured against `main`
@@ -911,24 +917,24 @@ export const CEILINGS = Object.freeze({
 	// `main` at `aca2a3397` measured 51,616, plus a margin.
 	sectionsMinified: 52_100,
 	// Phase 4's step 5: 35,479, a failed save's toast sticky when unseen (above); set to 35,600.
-	editorMinified: 36_500,
+	editorMinified: 37_000,
 	// #1484 (`violet-select` replacing native `<select>` in `documents-section.ts`, plus Refined field/button styles):
 	// measured 72,452 against `main` at `a5e79aab` (vs 54,560 before #1484); set to 73,000 under D115.
 	documentsMinified: 73_000,
 	newMinified: 17_366,
-	embedMinified: 6_096,
+	embedMinified: 6_500,
 	// Phase 4's step 9, measured in one tree against `main` at `0ab76415`: 47,028 to 50,336 (+3,308: `loam-experiments-section` and its words); set to 50,800 under
 	// D115.
 	// Phase 5's step 3 merged on top, the combined build: 51,470 (+1,134: approval health beside the autonomy rules); set
 	// to 52,000 under D115.
 	// Bug batch #2097/#2098: 52,214 (separate read counters, `#showing` commit guard, atomic chrome paint, and stale-safe `settingsHashTarget`); set to 52,500 under D115.
-	settingsMinified: 52_500,
+	settingsMinified: 53_200,
 	// #1484 (Refined primary/secondary `.action` key styles and transitions in `LoamEditorHeld`):
 	// measured 5,476 against `main` at `a5e79aab`; set to 5,900 under D115.
-	editorMoveMinified: 5_900,
-	overlaysMinified: 11_000,
+	editorMoveMinified: 6_400,
+	overlaysMinified: 11_700,
 	// Phase 5's step 5: 12,050 (the preview's lines), set to 12,300 under D115.
-	inboxMinified: 12_300,
+	inboxMinified: 12_700,
 });
 
 /** Group a module id by the package it belongs to. */

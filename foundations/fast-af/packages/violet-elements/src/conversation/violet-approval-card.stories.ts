@@ -125,7 +125,7 @@ export const AllStates: Story = {
         for (const [state, summaryText, detailText] of configs) {
             const label = document.createElement("span");
             label.style.fontSize = "11px";
-            label.style.color = "var(--color-text-muted, #5e6460)";
+            label.style.color = "var(--violet-color-text-muted, #5e6460)";
             label.textContent = state;
 
             const el = document.createElement("violet-approval-card") as VioletApprovalCard;

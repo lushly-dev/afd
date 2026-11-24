@@ -20,7 +20,7 @@ export const SPECIMEN_INTERFACE = {
 	package: '@lushly-dev/violet-elements',
 	path: 'tokens/interface.json',
 	/** The interface's `contractVersion` the map was last checked against */
-	contractVersion: 3,
+	contractVersion: 4,
 } as const;
 
 /** A component specimen and the interface token each of its roles draws from */

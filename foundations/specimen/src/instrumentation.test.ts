@@ -411,3 +411,16 @@ describe('installInstrumentation multi-document motion settling', () => {
 		expect(root.adoptedStyleSheets).toEqual([appSheet]);
 	});
 });
+
+describe('installInstrumentation settled motion rules', () => {
+	it("zeroes Violet's motion tokens under the violet- prefix and the unprefixed names (#1786)", () => {
+		const primary = new FakeDocument({ defaultView: true });
+		installFakeDom(primary);
+		installInstrumentation().setMotionMode('settled');
+		const sheet = primary.adoptedStyleSheets?.[0] as FakeSheet | undefined;
+		for (const step of ['fast', 'base', 'slow']) {
+			expect(sheet?.cssText).toContain(`--violet-duration-${step}: 0ms !important;`);
+			expect(sheet?.cssText).toContain(`--duration-${step}: 0ms !important;`);
+		}
+	});
+});

@@ -1,5 +1,5 @@
 :host {
-	color: var(--color-text-primary);
+	color: var(--violet-color-text-primary);
 }
 
 @media (forced-colors: active) {

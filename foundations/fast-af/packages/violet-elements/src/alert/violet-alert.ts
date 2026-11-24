@@ -33,21 +33,21 @@ const styles = css`
     }
 
     :host([tone="success"]) {
-        --_alert-surface: var(--color-state-success-background, #dfeae3);
-        --_alert-border: var(--color-state-success-border, transparent);
-        --_alert-emphasis: var(--color-state-success-text, #2c5e4b);
+        --_alert-surface: var(--violet-color-state-success-background, #dfeae3);
+        --_alert-border: var(--violet-color-state-success-border, transparent);
+        --_alert-emphasis: var(--violet-color-state-success-text, #2c5e4b);
     }
 
     :host([tone="warning"]) {
-        --_alert-surface: var(--color-state-warning-background, #f3e8d2);
-        --_alert-border: var(--color-state-warning-border, transparent);
-        --_alert-emphasis: var(--color-state-warning-text, #92400E);
+        --_alert-surface: var(--violet-color-state-warning-background, #f3e8d2);
+        --_alert-border: var(--violet-color-state-warning-border, transparent);
+        --_alert-emphasis: var(--violet-color-state-warning-text, #92400E);
     }
 
     :host([tone="danger"]) {
-        --_alert-surface: var(--color-state-danger-background, #f7e4df);
-        --_alert-border: var(--color-state-danger-border, transparent);
-        --_alert-emphasis: var(--color-state-danger-text, #c42a1a);
+        --_alert-surface: var(--violet-color-state-danger-background, #f7e4df);
+        --_alert-border: var(--violet-color-state-danger-border, transparent);
+        --_alert-emphasis: var(--violet-color-state-danger-text, #c42a1a);
     }
 
     .frame {
@@ -144,7 +144,7 @@ const styles = css`
     /* The button is centred on the title's line and sits out to the alert's inset. */
     .dismiss {
         flex: 0 0 auto;
-        margin-block-start: calc((var(--_alert-title-line) - var(--size-target-natural, 32px)) / 2);
+        margin-block-start: calc((var(--_alert-title-line) - var(--violet-size-target-natural, 32px)) / 2);
         margin-inline-end: calc(var(--_space-stack-xs) * -1);
         color: var(--_alert-emphasis);
     }

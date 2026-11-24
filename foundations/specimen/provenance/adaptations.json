@@ -394,11 +394,11 @@
       "upstream_sha256": "51256ea34cacf0c76f439d6ac1585e89d5987622b9a5893cfd01e44868e40ec9",
       "staged_path": "packages/specimen/experiments/fast-af.fixture.mjs",
       "staged_sha256": "51256ea34cacf0c76f439d6ac1585e89d5987622b9a5893cfd01e44868e40ec9",
-      "current_import_sha256": "319ccd55b04f54fdb572bbf1d41a4ffbe61d3f609a1c0658e5ce77ae65ce17f3",
+      "current_import_sha256": "127a2687fa097a36c8ac91d5ddc044f9c22b4c0821fcd9a5e79b9314eb131063",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; link the current @lushly-dev/fast-element identity alongside the former alias to the same runtime for updated monorepo probes"
+      "import_reason": "Imported exact staged candidate bytes; link the current @lushly-dev/fast-element identity alongside the former alias to the same runtime for updated monorepo probes; The violet- prefix (#1786 phase 4): motion: 'settled' also zeroes violet-elements' --violet-duration-* motion tokens (token interface version 4) beside the unprefixed names; the fast-af experiment fixture reads the prefixed theme properties"
     },
     {
       "path": "foundations/specimen/experiments/lushly.fixture.mjs",
@@ -767,11 +767,11 @@
       "upstream_sha256": "32b4a8408c9a6b47e3edb298db02e958de5b08a9173c74bf895240f6397cb456",
       "staged_path": "packages/specimen/src/browser/instrumentation.ts",
       "staged_sha256": "32b4a8408c9a6b47e3edb298db02e958de5b08a9173c74bf895240f6397cb456",
-      "current_import_sha256": "3cd0132ce8bb585fb27db46c55bbc2f78b87fa1940a8a72bea2cf1bedf898190",
+      "current_import_sha256": "5e2dfc59ee9c912c0a8a43e19d308a4c71bf3e6e8b33b289d2adc079de27afae",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Fix motion: 'settled' instrumentation throwing on multi-document scoped-registry shadow roots (#2384)"
+      "import_reason": "Fix motion: 'settled' instrumentation throwing on multi-document scoped-registry shadow roots (#2384); The violet- prefix (#1786 phase 4): motion: 'settled' also zeroes violet-elements' --violet-duration-* motion tokens (token interface version 4) beside the unprefixed names"
     },
     {
       "path": "foundations/specimen/src/browser/page-errors.ts",
@@ -5921,11 +5921,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "c809179473f5f024a7eb1cc374fd65e630f5345fdd8d72c3dc440d013015e3d2",
+      "current_import_sha256": "4538f23860fa8c051fc81bce96aab9745de7b9a655d0db2e070181e760af74f1",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Fix motion: 'settled' instrumentation throwing on multi-document scoped-registry shadow roots (#2384)"
+      "import_reason": "Fix motion: 'settled' instrumentation throwing on multi-document scoped-registry shadow roots (#2384); The violet- prefix (#1786 phase 4): motion: 'settled' also zeroes violet-elements' --violet-duration-* motion tokens (token interface version 4) beside the unprefixed names; the fast-af experiment fixture reads the prefixed theme properties"
     }
   ]
 }

@@ -53,12 +53,12 @@ const styles = [
 			display: flex;
 			flex-direction: column;
 			box-sizing: border-box;
-			background: var(--color-surface-card);
-			color: var(--color-text-primary);
+			background: var(--violet-color-surface-card);
+			color: var(--violet-color-text-primary);
 		}
 		:host([mode='inline']),
 		:host([mode='maximized']) {
-			border-block-start: 1px solid var(--color-border-subtle);
+			border-block-start: 1px solid var(--violet-color-border-subtle);
 		}
 		::slotted([slot='handle']) {
 			position: absolute;
@@ -66,12 +66,12 @@ const styles = [
 			inset-block-start: 0;
 		}
 		:host([mode='sheet']) {
-			z-index: var(--z-index-overlay);
+			z-index: var(--violet-z-index-overlay);
 			block-size: clamp(40dvh, var(--_panel-height), 80dvh);
-			background: var(--color-surface-floating);
-			box-shadow: var(--shadow-floating);
-			border-start-start-radius: var(--radius-lg);
-			border-start-end-radius: var(--radius-lg);
+			background: var(--violet-color-surface-floating);
+			box-shadow: var(--violet-shadow-floating);
+			border-start-start-radius: var(--violet-radius-lg);
+			border-start-end-radius: var(--violet-radius-lg);
 		}
 		.body {
 			flex: 1;
@@ -87,15 +87,15 @@ const styles = [
 			overflow: auto;
 		}
 		.body:focus-visible {
-			outline: var(--shell-size-focus) solid var(--color-focus-ring);
-			outline-offset: calc(-1 * var(--shell-size-focus));
+			outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+			outline-offset: calc(-1 * var(--violet-shell-size-focus));
 		}
 		/* An app's view keeps its own height: the body scrolls, never a view squeezed into a scroller of its own. */
 		::slotted(:not(loam-copilot-panel)) {
 			flex-shrink: 0;
 		}
 		::slotted(loam-copilot-panel) {
-			flex: 1 0 var(--shell-size-panel-min);
+			flex: 1 0 var(--violet-shell-size-panel-min);
 			block-size: auto;
 		}
 		[hidden] {

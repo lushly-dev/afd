@@ -69,6 +69,7 @@ export const testFiles = [
 	'scripts/components-brief-hook.test.mjs',
 	'scripts/issue-labels.test.mjs',
 	'scripts/issue-claim.test.mjs',
+	'scripts/codemods/violet-prefix.test.mjs',
 	'scripts/release/exec-tool.test.mjs',
 	'tests/consumers/pnpm.test.mjs',
 ];

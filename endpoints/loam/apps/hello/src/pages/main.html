@@ -6,29 +6,29 @@
 		<style>
 			body {
 				margin: 0;
-				padding: var(--space-layout-md);
-				background: var(--color-surface-page);
-				color: var(--color-text-primary);
-				font-family: var(--font-family-body);
-				font-size: var(--type-body-md-size);
-				line-height: var(--type-body-md-line);
+				padding: var(--violet-space-layout-md);
+				background: var(--violet-color-surface-page);
+				color: var(--violet-color-text-primary);
+				font-family: var(--violet-font-family-body);
+				font-size: var(--violet-type-body-md-size);
+				line-height: var(--violet-type-body-md-line);
 			}
 			h1 {
-				margin-block: 0 var(--space-stack-md);
-				font-size: var(--type-title-md-size);
-				line-height: var(--type-title-md-line);
-				font-weight: var(--type-title-md-weight);
+				margin-block: 0 var(--violet-space-stack-md);
+				font-size: var(--violet-type-title-md-size);
+				line-height: var(--violet-type-title-md-line);
+				font-weight: var(--violet-type-title-md-weight);
 			}
 			form {
 				display: flex;
 				flex-wrap: wrap;
 				align-items: end;
-				gap: var(--space-inline-sm);
-				margin-block-end: var(--space-stack-md);
+				gap: var(--violet-space-inline-sm);
+				margin-block-end: var(--violet-space-stack-md);
 			}
 			label {
 				display: grid;
-				gap: var(--space-stack-xs);
+				gap: var(--violet-space-stack-xs);
 			}
 			/*
 			 * As violet-text-field and violet-button draw them (Refined, D159): the field is a well, its 3:1 rule
@@ -38,48 +38,48 @@
 			input,
 			button {
 				box-sizing: border-box;
-				min-block-size: var(--size-target-comfortable);
-				padding-inline: max(var(--space-inline-md), calc(var(--size-target-comfortable) * 0.375));
-				border-radius: var(--radius-md);
+				min-block-size: var(--violet-size-target-comfortable);
+				padding-inline: max(var(--violet-space-inline-md), calc(var(--violet-size-target-comfortable) * 0.375));
+				border-radius: var(--violet-radius-md);
 				font: inherit;
 			}
 			input {
-				border: 1px solid var(--color-border-subtle);
-				background: var(--color-field-background);
+				border: 1px solid var(--violet-color-border-subtle);
+				background: var(--violet-color-field-background);
 				box-shadow:
-					inset 0 1px 0 var(--color-field-border),
-					var(--shadow-well);
-				color: var(--color-field-text);
+					inset 0 1px 0 var(--violet-color-field-border),
+					var(--violet-shadow-well);
+				color: var(--violet-color-field-text);
 			}
 			input:hover {
 				box-shadow:
-					inset 0 1px 0 var(--color-field-border-hover),
-					var(--shadow-well);
+					inset 0 1px 0 var(--violet-color-field-border-hover),
+					var(--violet-shadow-well);
 			}
 			input:focus-visible {
-				border-color: var(--color-field-border-focus);
+				border-color: var(--violet-color-field-border-focus);
 			}
 			button {
 				border: 1px solid transparent;
-				background: var(--color-action-primary-background);
-				box-shadow: var(--shadow-control);
-				color: var(--color-action-primary-text);
-				font-weight: var(--weight-medium);
+				background: var(--violet-color-action-primary-background);
+				box-shadow: var(--violet-shadow-control);
+				color: var(--violet-color-action-primary-text);
+				font-weight: var(--violet-weight-medium);
 				cursor: pointer;
 			}
 			button:hover {
-				background: var(--color-action-primary-hover);
+				background: var(--violet-color-action-primary-hover);
 			}
 			button:active {
-				background: var(--color-action-primary-pressed);
+				background: var(--violet-color-action-primary-pressed);
 				box-shadow: none;
 			}
 			:focus-visible {
-				outline: var(--size-focus-ring-width) solid var(--color-focus-ring);
+				outline: var(--violet-size-focus-ring-width) solid var(--violet-color-focus-ring);
 				outline-offset: 1px;
 			}
 			p {
-				margin-block: 0 var(--space-stack-sm);
+				margin-block: 0 var(--violet-space-stack-sm);
 			}
 			@media (forced-colors: active) {
 				body {

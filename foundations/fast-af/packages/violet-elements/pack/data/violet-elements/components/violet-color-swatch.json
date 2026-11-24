@@ -106,7 +106,7 @@
 		{
 			"basis": "observed",
 			"from": "components-color-swatch--overview",
-			"html": "<div style=\"display:flex;align-items:center;gap:12px;\">\n                <violet-color-swatch label=\"Selected color #146ba0\" shape=\"square\" size=\"natural\" value=\"#146ba0\"></violet-color-swatch>\n                <span style=\"font: 500 14px/20px var(--font-family-body);\">#146ba0</span>\n            </div>"
+			"html": "<div style=\"display:flex;align-items:center;gap:12px;\">\n                <violet-color-swatch label=\"Selected color #146ba0\" shape=\"square\" size=\"natural\" value=\"#146ba0\"></violet-color-swatch>\n                <span style=\"font: 500 14px/20px var(--violet-font-family-body);\">#146ba0</span>\n            </div>"
 		},
 		{
 			"basis": "observed",

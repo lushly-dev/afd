@@ -122,7 +122,7 @@ async function mountCards(page: Page): Promise<void> {
 		holder.setAttribute('role', 'complementary');
 		holder.setAttribute('aria-label', 'Cards under test');
 		holder.style.cssText =
-			'position:fixed;inset-inline-end:0;inset-block-start:0;inline-size:360px;block-size:600px;background:var(--color-surface-page)';
+			'position:fixed;inset-inline-end:0;inset-block-start:0;inline-size:360px;block-size:600px;background:var(--violet-color-surface-page)';
 		const panel = document.createElement('loam-copilot-panel') as HTMLElement & {
 			kernel: unknown;
 			submit(text: string): Promise<void>;

@@ -31,7 +31,7 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--color-state-danger-text, #c42a1a)",
+				"default": "var(--violet-color-state-danger-text, #c42a1a)",
 				"name": "--_danger-text"
 			},
 			{
@@ -78,7 +78,7 @@
 		{
 			"basis": "observed",
 			"from": "conversation-message-status--all-statuses",
-			"html": "<div style=\"display: flex; flex-direction: column; gap: 16px;\"><div><span style=\"font-size: 11px; color: var(--color-text-muted, #5e6460); display: block; margin-block-end: 4px;\">submitted</span><violet-message-status status=\"submitted\"></violet-message-status></div><div><span style=\"font-size: 11px; color: var(--color-text-muted, #5e6460); display: block; margin-block-end: 4px;\">streaming</span><violet-message-status status=\"streaming\"></violet-message-status></div><div><span style=\"font-size: 11px; color: var(--color-text-muted, #5e6460); display: block; margin-block-end: 4px;\">error</span><violet-message-status status=\"error\"></violet-message-status></div><div><span style=\"font-size: 11px; color: var(--color-text-muted, #5e6460); display: block; margin-block-end: 4px;\">cancelled</span><violet-message-status status=\"cancelled\"></violet-message-status></div><div><span style=\"font-size: 11px; color: var(--color-text-muted, #5e6460); display: block; margin-block-end: 4px;\">retrying</span><violet-message-status status=\"retrying\"></violet-message-status></div></div>"
+			"html": "<div style=\"display: flex; flex-direction: column; gap: 16px;\"><div><span style=\"font-size: 11px; color: var(--violet-color-text-muted, #5e6460); display: block; margin-block-end: 4px;\">submitted</span><violet-message-status status=\"submitted\"></violet-message-status></div><div><span style=\"font-size: 11px; color: var(--violet-color-text-muted, #5e6460); display: block; margin-block-end: 4px;\">streaming</span><violet-message-status status=\"streaming\"></violet-message-status></div><div><span style=\"font-size: 11px; color: var(--violet-color-text-muted, #5e6460); display: block; margin-block-end: 4px;\">error</span><violet-message-status status=\"error\"></violet-message-status></div><div><span style=\"font-size: 11px; color: var(--violet-color-text-muted, #5e6460); display: block; margin-block-end: 4px;\">cancelled</span><violet-message-status status=\"cancelled\"></violet-message-status></div><div><span style=\"font-size: 11px; color: var(--violet-color-text-muted, #5e6460); display: block; margin-block-end: 4px;\">retrying</span><violet-message-status status=\"retrying\"></violet-message-status></div></div>"
 		},
 		{
 			"basis": "observed",

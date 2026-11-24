@@ -31,40 +31,40 @@ const styles = css`
 		box-sizing: border-box;
 		display: inline-flex;
 		align-items: center;
-		gap: var(--size-space-sm);
-		min-block-size: var(--size-target-compact);
+		gap: var(--violet-size-space-sm);
+		min-block-size: var(--violet-size-target-compact);
 		padding-block: 0;
-		padding-inline: var(--space-inline-sm);
+		padding-inline: var(--violet-space-inline-sm);
 		border: 1px solid transparent;
-		border-radius: var(--radius-sm);
+		border-radius: var(--violet-radius-sm);
 		background: transparent;
-		color: var(--color-text-secondary);
+		color: var(--violet-color-text-secondary);
 		font: inherit;
-		font-size: var(--type-caption-xs-size);
-		line-height: var(--type-caption-xs-line);
-		font-weight: var(--type-caption-xs-weight);
+		font-size: var(--violet-type-caption-xs-size);
+		line-height: var(--violet-type-caption-xs-line);
+		font-weight: var(--violet-type-caption-xs-weight);
 		white-space: nowrap;
 		cursor: pointer;
-		transition: background-color var(--duration-fast) var(--easing-standard);
+		transition: background-color var(--violet-duration-fast) var(--violet-easing-standard);
 	}
 	.label {
-		color: var(--color-text-muted);
+		color: var(--violet-color-text-muted);
 	}
 	.action:not([aria-disabled='true']):hover {
-		background: var(--color-action-secondary-hover);
-		color: var(--color-text-primary);
+		background: var(--violet-color-action-secondary-hover);
+		color: var(--violet-color-text-primary);
 	}
 	.action:not([aria-disabled='true']):hover .label,
 	.action:not([aria-disabled='true']):active .label {
-		color: var(--color-text-secondary);
+		color: var(--violet-color-text-secondary);
 	}
 	.action:not([aria-disabled='true']):active {
-		background: var(--color-action-secondary-pressed);
-		color: var(--color-text-primary);
+		background: var(--violet-color-action-secondary-pressed);
+		color: var(--violet-color-text-primary);
 	}
 	.action:focus-visible {
-		outline: var(--shell-size-focus) solid var(--color-focus-ring);
-		outline-offset: calc(-1 * var(--shell-size-focus));
+		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+		outline-offset: calc(-1 * var(--violet-shell-size-focus));
 	}
 	.action[aria-disabled='true'] {
 		opacity: 0.55;

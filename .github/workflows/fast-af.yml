@@ -11,6 +11,7 @@ on:
       - 'tests/consumers/fast-af/**'
       - 'scripts/release/exec-tool.mjs'
       - 'scripts/codemods/split-define.mjs'
+      - 'foundations/violet/packages/runtime/src/property.ts'
       - '.github/workflows/fast-af.yml'
       - '.github/workflows/queue.yml'
       - '.github/actions/setup-node-pnpm/**'
@@ -26,6 +27,7 @@ on:
       - 'tests/consumers/fast-af/**'
       - 'scripts/release/exec-tool.mjs'
       - 'scripts/codemods/split-define.mjs'
+      - 'foundations/violet/packages/runtime/src/property.ts'
       - '.github/workflows/fast-af.yml'
       - '.github/workflows/queue.yml'
       - '.github/actions/setup-node-pnpm/**'
@@ -77,7 +79,7 @@ jobs:
       - id: runtime
         run: node scripts/affected.mjs gate --package @lushly-dev/fast-element --path .github/workflows/fast-af.yml --path .github/actions/setup-node-pnpm/ --path .github/actions/playwright-install/
       - id: components
-        run: node scripts/affected.mjs gate --package @lushly-dev/violet-elements --path tests/consumers/fast-af/ --path scripts/release/exec-tool.mjs --path .github/workflows/fast-af.yml --path .github/actions/setup-node-pnpm/ --path .github/actions/playwright-install/
+        run: node scripts/affected.mjs gate --package @lushly-dev/violet-elements --path foundations/violet/packages/runtime/src/property.ts --path tests/consumers/fast-af/ --path scripts/release/exec-tool.mjs --path .github/workflows/fast-af.yml --path .github/actions/setup-node-pnpm/ --path .github/actions/playwright-install/
 
   runtime:
     name: fast-element build, migration rules and browser suites

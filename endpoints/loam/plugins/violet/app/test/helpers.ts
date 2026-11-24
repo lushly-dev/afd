@@ -6,17 +6,17 @@
 export const PINNED_INTERFACE = {
 	contractVersion: 1,
 	tokens: {
-		'color.surface.page': { property: '--color-surface-page', type: 'color' },
-		'color.text.primary': { property: '--color-text-primary', type: 'color' },
-		'color.text.muted': { property: '--color-text-muted', type: 'color' },
+		'color.surface.page': { property: '--violet-color-surface-page', type: 'color' },
+		'color.text.primary': { property: '--violet-color-text-primary', type: 'color' },
+		'color.text.muted': { property: '--violet-color-text-muted', type: 'color' },
 		'color.action.primary.background': {
-			property: '--color-action-primary-background',
+			property: '--violet-color-action-primary-background',
 			type: 'color',
 		},
-		'color.field.border': { property: '--color-field-border', type: 'color' },
-		'size.focus-ring.width': { property: '--size-focus-ring-width', type: 'dimension' },
+		'color.field.border': { property: '--violet-color-field-border', type: 'color' },
+		'size.focus-ring.width': { property: '--violet-size-focus-ring-width', type: 'dimension' },
 		'color.action.danger.background': {
-			property: '--color-action-danger-background',
+			property: '--violet-color-action-danger-background',
 			type: 'color',
 		},
 	},

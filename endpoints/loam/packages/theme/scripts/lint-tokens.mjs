@@ -15,7 +15,7 @@
  *   alias `--_name`.
  * - private-alias: a private alias neither declared in the same stylesheet from a contract id
  *   (or from another such alias) nor listed in the package's state properties.
- * - primitive: any `ref.*` token (`--ref-*`).
+ * - primitive: any `ref.*` token (`--violet-ref-*`, or `--ref-*` as written before the prefix).
  * - shell-token: a `shell.*` token outside `@lushly-dev/loam-chrome`.
  *
  * The contract is the theme's `dist/contract.json` (theme:build writes it). The linted package
@@ -26,8 +26,14 @@
 import { existsSync, globSync, readFileSync, realpathSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { tokenCustomProperty, VIOLET_CSS_PREFIX } from '@lushly-dev/violet-runtime/property';
 
 export const CHROME_PACKAGE = '@lushly-dev/loam-chrome';
+// The properties of `shell.*` and `ref.*` ids, named by the one rule the theme uses (`--violet-shell-*`).
+const SHELL = `${tokenCustomProperty('shell', VIOLET_CSS_PREFIX)}-`;
+const REF = `${tokenCustomProperty('ref', VIOLET_CSS_PREFIX)}-`;
+/** Whether `name` is a primitive: a `ref.*` property under the prefix, or one written before it. */
+const isPrimitive = (name) => name.startsWith(REF) || name.startsWith('--ref-');
 
 const NAMED_COLORS = new Set(
 	`aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet
@@ -214,18 +220,18 @@ export function lintStylesheet(css, { properties, allowShell, stateProperties = 
 			index: offset + match.index + match[0].indexOf('--'),
 		}));
 		for (const { name, index } of references) {
-			if (name.startsWith('--ref-'))
+			if (isPrimitive(name))
 				report('primitive', index, `${name} is a primitive; read a semantic token instead`);
 			else if (name.startsWith('--_')) aliasUses.push({ name, index });
 			else if (!properties.has(name))
 				report('unknown-property', index, `${name} is not in the token contract`);
-			else if (name.startsWith('--shell-') && !allowShell)
+			else if (name.startsWith(SHELL) && !allowShell)
 				report('shell-token', index, `${name} is a shell token, read only by ${CHROME_PACKAGE}`);
 		}
 		const { property, propertyOffset } = declaration;
-		if (property.startsWith('--ref-'))
+		if (isPrimitive(property))
 			report('primitive', propertyOffset, `${property} is a primitive; no component may set it`);
-		else if (property.startsWith('--shell-') && !allowShell)
+		else if (property.startsWith(SHELL) && !allowShell)
 			report(
 				'shell-token',
 				propertyOffset,
@@ -277,7 +283,7 @@ export function lintStylesheet(css, { properties, allowShell, stateProperties = 
 				sources.some(
 					(source) =>
 						sound.has(source) ||
-						(properties.has(source) && (allowShell || !source.startsWith('--shell-')))
+						(properties.has(source) && (allowShell || !source.startsWith(SHELL)))
 				)
 			) {
 				sound.add(name);

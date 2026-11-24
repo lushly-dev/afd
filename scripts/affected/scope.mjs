@@ -136,6 +136,13 @@ export const EXTRA_INPUTS = [
 		packages: ['@lushly-dev/specimen-fast-af'],
 		ownTests: true,
 	},
+	// violet-elements' theme:build copies violet-runtime's naming rule into its generated sources
+	// (Loam D50: no Violet dependency), and its gate's regenerate-and-diff step checks the copy.
+	{
+		prefix: 'foundations/violet/packages/runtime/src/property.ts',
+		packages: ['@lushly-dev/violet-elements'],
+		ownTests: true,
+	},
 	// violet-afd's interface.test.ts reads violet-elements' published token interface by path.
 	{
 		prefix: 'foundations/fast-af/packages/violet-elements/tokens/interface.json',

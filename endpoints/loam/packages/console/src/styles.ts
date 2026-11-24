@@ -7,8 +7,8 @@ export const consoleStyles = css`
 		display: block;
 		box-sizing: border-box;
 		container-type: inline-size;
-		padding: var(--space-layout-md);
-		color: var(--color-text-primary);
+		padding: var(--violet-space-layout-md);
+		color: var(--violet-color-text-primary);
 		--violet-listbox-min-inline-size: 0;
 	}
 	/* Over .group and the rest, which set display at the same specificity. */
@@ -26,38 +26,38 @@ export const consoleStyles = css`
 		padding: 0;
 	}
 	h1 {
-		font-size: var(--type-title-md-size);
-		line-height: var(--type-title-md-line);
-		font-weight: var(--type-title-md-weight);
+		font-size: var(--violet-type-title-md-size);
+		line-height: var(--violet-type-title-md-line);
+		font-weight: var(--violet-type-title-md-weight);
 		overflow-wrap: anywhere;
 	}
 	h2 {
-		font-size: var(--type-title-sm-size);
-		line-height: var(--type-title-sm-line);
-		font-weight: var(--type-title-sm-weight);
+		font-size: var(--violet-type-title-sm-size);
+		line-height: var(--violet-type-title-sm-line);
+		font-weight: var(--violet-type-title-sm-weight);
 		overflow-wrap: anywhere;
 	}
 	/* minmax(0, 1fr), so an unbroken name wraps at 320 CSS pixels and does not widen the rest (WCAG 1.4.10). */
 	.stack {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
-		gap: var(--space-layout-md);
+		gap: var(--violet-space-layout-md);
 	}
 	.group {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
-		gap: var(--space-stack-sm);
+		gap: var(--violet-space-stack-sm);
 		align-content: start;
 		min-inline-size: 0;
 	}
 	.secondary {
-		color: var(--color-text-secondary);
+		color: var(--violet-color-text-secondary);
 		overflow-wrap: anywhere;
 	}
 	.name {
-		color: var(--color-text-secondary);
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
+		color: var(--violet-color-text-secondary);
+		font-size: var(--violet-type-label-sm-size);
+		line-height: var(--violet-type-label-sm-line);
 		overflow-wrap: anywhere;
 	}
 	.notice,
@@ -74,30 +74,30 @@ export const consoleStyles = css`
 	 * forced colors, below.
 	 */
 	.notice {
-		padding: var(--space-layout-sm);
+		padding: var(--violet-space-layout-sm);
 		border: 1px solid transparent;
-		border-radius: var(--radius-lg);
-		background: var(--color-surface-card);
-		box-shadow: var(--shadow-card);
+		border-radius: var(--violet-radius-lg);
+		background: var(--violet-color-surface-card);
+		box-shadow: var(--violet-shadow-card);
 	}
 	.failure {
-		border-color: var(--color-state-danger-border);
-		background: var(--color-state-danger-background);
+		border-color: var(--violet-color-state-danger-border);
+		background: var(--violet-color-state-danger-background);
 		box-shadow: none;
-		color: var(--color-state-danger-text);
+		color: var(--violet-color-state-danger-text);
 	}
 	.command-flag {
-		font-weight: var(--weight-semibold);
+		font-weight: var(--violet-weight-semibold);
 	}
 	.instance {
 		display: flex;
 		flex-wrap: wrap;
-		gap: var(--space-stack-xs) var(--space-layout-md);
+		gap: var(--violet-space-stack-xs) var(--violet-space-layout-md);
 	}
 	.instance dt {
-		color: var(--color-text-secondary);
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
+		color: var(--violet-color-text-secondary);
+		font-size: var(--violet-type-label-sm-size);
+		line-height: var(--violet-type-label-sm-line);
 	}
 	.instance dd {
 		overflow-wrap: anywhere;
@@ -105,7 +105,7 @@ export const consoleStyles = css`
 	.columns {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
-		gap: var(--space-layout-md);
+		gap: var(--violet-space-layout-md);
 		align-items: start;
 	}
 	@container (min-inline-size: 720px) {
@@ -116,27 +116,27 @@ export const consoleStyles = css`
 	.fields {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
-		gap: var(--space-layout-sm);
+		gap: var(--violet-space-layout-sm);
 	}
 	.actions {
 		display: flex;
 		align-items: center;
-		gap: var(--space-inline-md);
-		min-block-size: var(--size-target-natural);
+		gap: var(--violet-space-inline-md);
+		min-block-size: var(--violet-size-target-natural);
 	}
 	.result {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
-		gap: var(--space-stack-sm);
+		gap: var(--violet-space-stack-sm);
 	}
 	.labels {
 		display: flex;
 		flex-wrap: wrap;
-		gap: var(--space-stack-xs) var(--space-inline-md);
+		gap: var(--violet-space-stack-xs) var(--violet-space-inline-md);
 		list-style: none;
-		color: var(--color-text-secondary);
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
+		color: var(--violet-color-text-secondary);
+		font-size: var(--violet-type-label-sm-size);
+		line-height: var(--violet-type-label-sm-line);
 	}
 	.labels li {
 		overflow-wrap: anywhere;
@@ -147,49 +147,49 @@ export const consoleStyles = css`
 	.output {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
-		gap: var(--space-stack-sm);
-		padding: var(--space-layout-sm);
+		gap: var(--violet-space-stack-sm);
+		padding: var(--violet-space-layout-sm);
 		border: 1px solid transparent;
-		border-radius: var(--radius-lg);
-		background: var(--color-surface-card);
-		box-shadow: var(--shadow-card);
+		border-radius: var(--violet-radius-lg);
+		background: var(--violet-color-surface-card);
+		box-shadow: var(--violet-shadow-card);
 		overflow: auto;
 	}
 	.output pre {
 		margin: 0;
-		font-family: var(--font-family-mono);
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
+		font-family: var(--violet-font-family-mono);
+		font-size: var(--violet-type-label-sm-size);
+		line-height: var(--violet-type-label-sm-line);
 		white-space: pre-wrap;
 		overflow-wrap: anywhere;
 	}
 	/* The adapters' classes, under 'classes' styling (step 0b): state colors, and weight as well as color. */
 	.afd-status-success {
-		color: var(--color-state-success-text);
+		color: var(--violet-color-state-success-text);
 	}
 	.afd-status-failure {
-		color: var(--color-state-danger-text);
+		color: var(--violet-color-state-danger-text);
 	}
 	.afd-status-warning {
-		color: var(--color-state-warning-text);
+		color: var(--violet-color-state-warning-text);
 	}
 	.afd-status-info {
-		color: var(--color-text-secondary);
+		color: var(--violet-color-text-secondary);
 	}
 	.afd-status-muted {
-		color: var(--color-text-muted);
+		color: var(--violet-color-text-muted);
 	}
 	.afd-status-neutral {
 		color: inherit;
 	}
 	.afd-bold {
-		font-weight: var(--weight-semibold);
+		font-weight: var(--violet-weight-semibold);
 	}
 	violet-text-field[invalid]::part(error-message),
 	violet-text-area[invalid]::part(error-message),
 	violet-checkbox[invalid]::part(error-message),
 	violet-select[invalid]::part(error-message) {
-		color: var(--color-state-danger-text);
+		color: var(--violet-color-state-danger-text);
 	}
 	violet-text-field::part(label),
 	violet-text-area::part(label),
@@ -209,27 +209,27 @@ export const consoleStyles = css`
 		overflow-wrap: anywhere;
 	}
 	violet-listbox::part(control):focus-visible {
-		outline: var(--size-space-xs) solid var(--color-focus-ring);
-		outline-offset: var(--size-space-xs);
+		outline: var(--violet-size-space-xs) solid var(--violet-color-focus-ring);
+		outline-offset: var(--violet-size-space-xs);
 	}
 	violet-listbox:focus-within violet-option[data-active]::part(control),
 	violet-select violet-option[data-active]::part(control) {
-		outline: var(--size-space-xs) solid var(--color-focus-ring);
-		outline-offset: calc(-1 * var(--size-space-xs));
+		outline: var(--violet-size-space-xs) solid var(--violet-color-focus-ring);
+		outline-offset: calc(-1 * var(--violet-size-space-xs));
 	}
 	violet-listbox violet-option[selected]::part(control) {
-		border-inline-start: var(--size-space-xs) solid var(--color-control-selected-foreground);
-		background: var(--color-control-selected-background);
-		color: var(--color-control-selected-foreground);
+		border-inline-start: var(--violet-size-space-xs) solid var(--violet-color-control-selected-foreground);
+		background: var(--violet-color-control-selected-background);
+		color: var(--violet-color-control-selected-foreground);
 	}
 	.row-title {
-		font-size: var(--type-body-md-size);
-		line-height: var(--type-body-md-line);
+		font-size: var(--violet-type-body-md-size);
+		line-height: var(--violet-type-body-md-line);
 		overflow-wrap: anywhere;
 	}
 	.row-flag {
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
+		font-size: var(--violet-type-label-sm-size);
+		line-height: var(--violet-type-label-sm-line);
 	}
 	@media (forced-colors: active) {
 		:host,

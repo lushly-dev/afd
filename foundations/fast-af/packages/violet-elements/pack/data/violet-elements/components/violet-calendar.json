@@ -105,7 +105,7 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-foreground, #1b5f80)",
+				"default": "var(--violet-color-control-selected-foreground, #1b5f80)",
 				"name": "--_calendar-accent"
 			},
 			{
@@ -130,12 +130,12 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-background, #c0daeb)",
+				"default": "var(--violet-color-control-selected-background, #c0daeb)",
 				"name": "--_calendar-selected-background"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-border, rgba(27, 95, 128, 0.5))",
+				"default": "var(--violet-color-control-selected-border, rgba(27, 95, 128, 0.5))",
 				"name": "--_calendar-selected-border"
 			},
 			{

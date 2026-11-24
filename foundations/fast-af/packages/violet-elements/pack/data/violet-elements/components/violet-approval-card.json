@@ -40,32 +40,32 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-danger-background, #f7e4df)",
+				"default": "var(--violet-color-state-danger-background, #f7e4df)",
 				"name": "--_danger-bg-subtle"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-danger-text, #c42a1a)",
+				"default": "var(--violet-color-state-danger-text, #c42a1a)",
 				"name": "--_danger-text"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-success-background, #dfeae3)",
+				"default": "var(--violet-color-state-success-background, #dfeae3)",
 				"name": "--_success-bg-subtle"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-success-text, #2c5e4b)",
+				"default": "var(--violet-color-state-success-text, #2c5e4b)",
 				"name": "--_success-text"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-warning-background, #f3e8d2)",
+				"default": "var(--violet-color-state-warning-background, #f3e8d2)",
 				"name": "--_warning-bg-subtle"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-warning-text, #92400e)",
+				"default": "var(--violet-color-state-warning-text, #92400e)",
 				"name": "--_warning-text"
 			},
 			{
@@ -123,7 +123,7 @@
 		{
 			"basis": "observed",
 			"from": "conversation-approval-card--all-states",
-			"html": "<div style=\"display: flex; flex-direction: column; gap: 16px; max-inline-size: 500px;\"><span style=\"font-size: 11px; color: var(--color-text-muted, #5e6460);\">pending</span><violet-approval-card state=\"pending\"><span slot=\"summary\">Update the watering schedule for all raised beds.</span><span slot=\"detail\">This will modify automated timers for 8 garden zones.</span></violet-approval-card><span style=\"font-size: 11px; color: var(--color-text-muted, #5e6460);\">approved</span><violet-approval-card state=\"approved\"><span slot=\"summary\">Watering schedule updated for all raised beds.</span></violet-approval-card><span style=\"font-size: 11px; color: var(--color-text-muted, #5e6460);\">denied</span><violet-approval-card state=\"denied\"><span slot=\"summary\">Delete the entire compost tracking history.</span><span slot=\"detail\">This would remove 2 years of composting data.</span></violet-approval-card></div>"
+			"html": "<div style=\"display: flex; flex-direction: column; gap: 16px; max-inline-size: 500px;\"><span style=\"font-size: 11px; color: var(--violet-color-text-muted, #5e6460);\">pending</span><violet-approval-card state=\"pending\"><span slot=\"summary\">Update the watering schedule for all raised beds.</span><span slot=\"detail\">This will modify automated timers for 8 garden zones.</span></violet-approval-card><span style=\"font-size: 11px; color: var(--violet-color-text-muted, #5e6460);\">approved</span><violet-approval-card state=\"approved\"><span slot=\"summary\">Watering schedule updated for all raised beds.</span></violet-approval-card><span style=\"font-size: 11px; color: var(--violet-color-text-muted, #5e6460);\">denied</span><violet-approval-card state=\"denied\"><span slot=\"summary\">Delete the entire compost tracking history.</span><span slot=\"detail\">This would remove 2 years of composting data.</span></violet-approval-card></div>"
 		},
 		{
 			"basis": "observed",

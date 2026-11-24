@@ -1959,7 +1959,7 @@ describe("violet-data-grid", () => {
       },
     ];
     const grid = await renderVirtualGrid({ rows, columns, height: 320 });
-    grid.style.setProperty("--size-target-natural", "52px");
+    grid.style.setProperty("--violet-size-target-natural", "52px");
 
     await nextFrames(4);
 

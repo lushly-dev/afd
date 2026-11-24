@@ -32,6 +32,9 @@
 // Main client
 export { VioletRuntime, type VioletAdoptOptions } from './client.js';
 
+// Custom property names, shared with violet-core, violet-elements and Loam
+export { VIOLET_CSS_PREFIX, tokenCustomProperty } from './property.js';
+
 // Theme management
 export { ThemeManager, type ThemeManagerOptions } from './theme.js';
 

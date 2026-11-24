@@ -180,7 +180,7 @@ errors = ["NODE_NOT_FOUND", "TOKEN_NOT_FOUND", "OPERATION_NOT_ALLOWED"]
 [[commands]]
 name = "violet-theme-preview"
 title = "Preview a theme"
-description = "Return the custom properties a preview of a node applies (--color-text-primary: #1b1b1f), and any value refused as unsafe to draw."
+description = "Return the custom properties a preview of a node applies (--violet-color-text-primary: #1b1b1f), and any value refused as unsafe to draw."
 category = "violet"
 effects = ["inspect"]
 input_schema = "schemas/violet-theme-preview.input.json"

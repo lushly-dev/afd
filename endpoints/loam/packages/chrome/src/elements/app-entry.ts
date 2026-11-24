@@ -53,27 +53,27 @@ const styles = css`
 		display: none;
 	}
 	.entry {
-		border-inline-start-width: var(--size-space-xs);
+		border-inline-start-width: var(--violet-size-space-xs);
 		cursor: pointer;
 		transition:
-			background-color var(--duration-fast) var(--easing-standard),
-			color var(--duration-fast) var(--easing-standard);
+			background-color var(--violet-duration-fast) var(--violet-easing-standard),
+			color var(--violet-duration-fast) var(--violet-easing-standard);
 	}
 	.icon {
 		position: relative;
 		display: inline-flex;
 		flex: none;
-		inline-size: var(--size-line-md);
-		block-size: var(--size-line-md);
+		inline-size: var(--violet-size-line-md);
+		block-size: var(--violet-size-line-md);
 	}
 	.entry:not([aria-disabled]):active {
-		background: var(--color-action-secondary-pressed);
-		color: var(--color-text-primary);
+		background: var(--violet-color-action-secondary-pressed);
+		color: var(--violet-color-text-primary);
 	}
 	.entry[aria-current='page'] {
-		background: var(--color-control-selected-background);
-		color: var(--color-control-selected-foreground);
-		border-inline-start-color: var(--color-control-selected-foreground);
+		background: var(--violet-color-control-selected-background);
+		color: var(--violet-color-control-selected-foreground);
+		border-inline-start-color: var(--violet-color-control-selected-foreground);
 	}
 	.entry[aria-busy='true'] {
 		cursor: progress;
@@ -87,13 +87,13 @@ const styles = css`
 		position: absolute;
 		inset-block-start: 0;
 		inset-inline-end: 0;
-		inline-size: var(--size-space-sm);
-		block-size: var(--size-space-sm);
-		border-radius: var(--radius-round);
+		inline-size: var(--violet-size-space-sm);
+		block-size: var(--violet-size-space-sm);
+		border-radius: var(--violet-radius-round);
 		background: currentColor;
 	}
 	:host([variant='rail']) .entry {
-		inline-size: var(--size-target-comfortable);
+		inline-size: var(--violet-size-target-comfortable);
 	}
 	@media (forced-colors: active) {
 		.entry:not([aria-disabled]):hover,

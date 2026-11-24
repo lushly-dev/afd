@@ -58,8 +58,8 @@ describe("violet-token-defaults", () => {
     afterEach(() => {
         document.body.innerHTML = "";
         document.body.style.fontFamily = "";
-        document.documentElement.style.removeProperty("--font-family-body");
-        document.documentElement.style.removeProperty("--font-family-heading");
+        document.documentElement.style.removeProperty("--violet-font-family-body");
+        document.documentElement.style.removeProperty("--violet-font-family-heading");
         document.documentElement.style.removeProperty("--violet-font-family");
         document.adoptedStyleSheets = [];
     });
@@ -123,10 +123,10 @@ describe("violet-token-defaults", () => {
         expect(getComputedStyle(toolSummary).fontFamily).toContain("Georgia");
     });
 
-    it("honors --font-family-body, --violet-font-family, and --violet-data-grid-font-family in precedence order (#512)", async () => {
+    it("honors --violet-font-family-body, --violet-font-family, and --violet-data-grid-font-family in precedence order (#512)", async () => {
         const host = document.createElement("div");
         host.style.fontFamily = "Times, serif";
-        host.style.setProperty("--font-family-body", "Arial, sans-serif");
+        host.style.setProperty("--violet-font-family-body", "Arial, sans-serif");
         host.innerHTML = `<violet-button>Save</violet-button><violet-data-grid></violet-data-grid>`;
         document.body.append(host);
         await Promise.all([
@@ -138,11 +138,11 @@ describe("violet-token-defaults", () => {
         const button = host.querySelector("violet-button") as HTMLElement;
         const grid = host.querySelector("violet-data-grid") as HTMLElement;
 
-        // --font-family-body alone overrides the inherited host font.
+        // --violet-font-family-body alone overrides the inherited host font.
         expect(getComputedStyle(button).fontFamily).toContain("Arial");
         expect(getComputedStyle(grid).fontFamily).toContain("Arial");
 
-        // --violet-font-family overrides --font-family-body.
+        // --violet-font-family overrides --violet-font-family-body.
         host.style.setProperty("--violet-font-family", "Georgia, serif");
         await nextFrame();
         expect(getComputedStyle(button).fontFamily).toContain("Georgia");
@@ -165,7 +165,7 @@ describe("violet-token-defaults", () => {
                 theme.setAttribute("preset", mode);
                 document.body.append(theme);
                 await vi.waitFor(() => {
-                    expect(getComputedStyle(theme).getPropertyValue("--color-field-background").trim()).not.toBe("");
+                    expect(getComputedStyle(theme).getPropertyValue("--violet-color-field-background").trim()).not.toBe("");
                 });
                 root = theme;
             }

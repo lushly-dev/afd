@@ -71,13 +71,13 @@ const styles = css`
     :host([tone="error"]) .surface {
         padding: var(--_space-sm) var(--_space-md);
         border-color: var(--_danger-border);
-        background: var(--color-state-danger-background, #f7e4df);
+        background: var(--violet-color-state-danger-background, #f7e4df);
     }
 
     :host([tone="success"]) .surface {
         padding: var(--_space-sm) var(--_space-md);
         border-color: var(--_success-border);
-        background: var(--color-state-success-background, #dfeae3);
+        background: var(--violet-color-state-success-background, #dfeae3);
     }
 
     :host([tone="muted"]) .surface {

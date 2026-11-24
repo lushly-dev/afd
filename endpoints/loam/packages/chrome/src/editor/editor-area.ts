@@ -20,7 +20,7 @@ const styles = css`
 		flex: 1 1 auto;
 		flex-direction: column;
 		min-block-size: 0;
-		color: var(--color-text-primary);
+		color: var(--violet-color-text-primary);
 	}
 	:host([hidden]),
 	[hidden] {
@@ -51,7 +51,7 @@ const styles = css`
 	}
 	/* Between groups: not before the first live one, whatever a held group before it is (G-N7). */
 	::slotted(loam-editor-group:not([data-lead]):not([data-held])) {
-		border-inline-start: 1px solid var(--color-border-subtle);
+		border-inline-start: 1px solid var(--violet-color-border-subtle);
 	}
 	@media (forced-colors: active) {
 		::slotted(loam-editor-group:not([data-lead]):not([data-held])) {

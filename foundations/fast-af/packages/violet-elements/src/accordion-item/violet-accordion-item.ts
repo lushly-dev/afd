@@ -10,8 +10,8 @@ const styles = css`
     :host {
         display: block;
 
-        --_target-size-natural: var(--size-target-natural, 32px);
-        --_target-size-comfortable: var(--size-target-comfortable, 44px);
+        --_target-size-natural: var(--violet-size-target-natural, 32px);
+        --_target-size-comfortable: var(--violet-size-target-comfortable, 44px);
         --_auto-target-size: var(--_target-size-natural);
         --_target-size: var(--violet-target-size, var(--_auto-target-size));
         --_control-body-size: var(--violet-control-body-size, var(--_body-size));

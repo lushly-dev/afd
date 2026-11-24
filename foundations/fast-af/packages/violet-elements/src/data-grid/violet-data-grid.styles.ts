@@ -4,47 +4,47 @@ export const styles = css`
     :host {
         display: block;
         container-type: inline-size;
-        color: var(--color-text-primary, #181b1a);
-        font-family: var(--violet-data-grid-font-family, var(--violet-font-family, var(--font-family-body)));
+        color: var(--violet-color-text-primary, #181b1a);
+        font-family: var(--violet-data-grid-font-family, var(--violet-font-family, var(--violet-font-family-body)));
 
-        --_surface-page: var(--color-surface-page, #f4f0ea);
-        --_surface-card: var(--color-surface-card, #f8f9f3);
-        --_surface-subtle: var(--color-surface-subtle, #e9e5de);
-        --_surface-selected: var(--color-surface-selected, #dfecf4);
-        --_control-selected-background: var(--color-control-selected-background, #c0daeb);
-        --_control-selected-foreground: var(--color-control-selected-foreground, #1b5f80);
-        --_control-selected-border: var(--color-control-selected-border, rgba(27, 95, 128, 0.5));
-        --_surface-floating: var(--color-surface-floating, #ffffff);
-        --_text-primary: var(--color-text-primary, #181b1a);
-        --_text-secondary: var(--color-text-secondary, #48534b);
-        --_text-muted: var(--color-text-muted, #5e6460);
-        --_border-subtle: var(--color-border-subtle, rgba(24, 27, 26, 0.10));
-        --_border-strong: var(--color-border-strong, #6b7d6e);
-        --_focus-ring: var(--color-focus-ring, #28769e);
-        --_error-background: var(--color-state-danger-background, #f7e4df);
-        --_error-border: var(--color-state-danger-border, transparent);
-        --_error-text: var(--color-state-danger-text, #c42a1a);
+        --_surface-page: var(--violet-color-surface-page, #f4f0ea);
+        --_surface-card: var(--violet-color-surface-card, #f8f9f3);
+        --_surface-subtle: var(--violet-color-surface-subtle, #e9e5de);
+        --_surface-selected: var(--violet-color-surface-selected, #dfecf4);
+        --_control-selected-background: var(--violet-color-control-selected-background, #c0daeb);
+        --_control-selected-foreground: var(--violet-color-control-selected-foreground, #1b5f80);
+        --_control-selected-border: var(--violet-color-control-selected-border, rgba(27, 95, 128, 0.5));
+        --_surface-floating: var(--violet-color-surface-floating, #ffffff);
+        --_text-primary: var(--violet-color-text-primary, #181b1a);
+        --_text-secondary: var(--violet-color-text-secondary, #48534b);
+        --_text-muted: var(--violet-color-text-muted, #5e6460);
+        --_border-subtle: var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
+        --_border-strong: var(--violet-color-border-strong, #6b7d6e);
+        --_focus-ring: var(--violet-color-focus-ring, #28769e);
+        --_error-background: var(--violet-color-state-danger-background, #f7e4df);
+        --_error-border: var(--violet-color-state-danger-border, transparent);
+        --_error-text: var(--violet-color-state-danger-text, #c42a1a);
         --_active-cell-ring: var(--violet-data-grid-active-cell-ring, color-mix(in srgb, var(--_focus-ring) 82%, transparent));
-        --_active-cell-ring-width: var(--violet-data-grid-active-cell-ring-width, var(--size-focus-ring-width, 2px));
-        --_space-inline-sm: var(--space-inline-sm, 4px);
-        --_space-inline-md: var(--space-inline-md, 8px);
-        --_space-stack-xs: var(--space-stack-xs, 4px);
-        --_space-stack-sm: var(--space-stack-sm, 8px);
-        --_radius-md: var(--radius-md, 8px);
-        --_shadow-card: var(--shadow-card, 0 0 0 1px rgba(24, 27, 26, 0.06), 0 1px 2px rgba(24, 27, 26, 0.06), 0 4px 10px -2px rgba(24, 27, 26, 0.06));
+        --_active-cell-ring-width: var(--violet-data-grid-active-cell-ring-width, var(--violet-size-focus-ring-width, 2px));
+        --_space-inline-sm: var(--violet-space-inline-sm, 4px);
+        --_space-inline-md: var(--violet-space-inline-md, 8px);
+        --_space-stack-xs: var(--violet-space-stack-xs, 4px);
+        --_space-stack-sm: var(--violet-space-stack-sm, 8px);
+        --_radius-md: var(--violet-radius-md, 8px);
+        --_shadow-card: var(--violet-shadow-card, 0 0 0 1px rgba(24, 27, 26, 0.06), 0 1px 2px rgba(24, 27, 26, 0.06), 0 4px 10px -2px rgba(24, 27, 26, 0.06));
         /* Stacking layers. Declared here rather than inherited: an undefined
            custom property makes the z-index declaration invalid at
            computed-value time, so it is dropped and the element falls back to
            z-index auto — a sticky header then scrolls behind the rows instead
            of above them. Values match violet-token-defaults. */
-        --_layer-raised: var(--z-index-raised, 1);
-        --_layer-sticky: var(--z-index-sticky, 10);
+        --_layer-raised: var(--violet-z-index-raised, 1);
+        --_layer-sticky: var(--violet-z-index-sticky, 10);
         --_focus-outline-offset: 2px;
         --_type-meta-size: 0.875rem;
         --_type-cell-size: 0.9375rem;
-        --_target-size-compact: var(--size-target-compact, 24px);
-        --_target-size-natural: var(--size-target-natural, 32px);
-        --_target-size-comfortable: var(--size-target-comfortable, 44px);
+        --_target-size-compact: var(--violet-size-target-compact, 24px);
+        --_target-size-natural: var(--violet-size-target-natural, 32px);
+        --_target-size-comfortable: var(--violet-size-target-comfortable, 44px);
         --_row-target-size: var(--_target-size-natural);
         --_column-resizer-target-size: var(--_target-size-compact);
         --_filter-max-inline: min(24rem, 100%);

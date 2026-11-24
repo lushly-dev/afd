@@ -51,13 +51,13 @@ const styles = (side: SidePart) => [
 			position: relative;
 			display: block;
 			box-sizing: border-box;
-			background: var(--color-surface-card);
-			color: var(--color-text-primary);
+			background: var(--violet-color-surface-card);
+			color: var(--violet-color-text-primary);
 		}
 		:host([mode='overlay']) {
-			z-index: var(--z-index-overlay);
-			background: var(--color-surface-floating);
-			box-shadow: var(--shadow-floating);
+			z-index: var(--violet-z-index-overlay);
+			background: var(--violet-color-surface-floating);
+			box-shadow: var(--violet-shadow-floating);
 		}
 		:host([mode='drawer']) {
 			display: contents;
@@ -81,28 +81,28 @@ const styles = (side: SidePart) => [
 			position: fixed;
 			inset-block: 0;
 			margin: 0;
-			inline-size: min(85vw, var(--shell-size-drawer-max));
+			inline-size: min(85vw, var(--violet-shell-size-drawer-max));
 			max-inline-size: none;
 			block-size: 100dvh;
 			max-block-size: none;
 			padding: 0;
 			border: 0;
-			background: var(--color-surface-floating);
-			box-shadow: var(--shadow-floating);
-			color: var(--color-text-primary);
+			background: var(--violet-color-surface-floating);
+			box-shadow: var(--violet-shadow-floating);
+			color: var(--violet-color-text-primary);
 			font: inherit;
 			opacity: 0;
 			transition:
-				opacity var(--duration-fast) var(--easing-standard),
-				display var(--duration-fast) var(--easing-standard) allow-discrete,
-				overlay var(--duration-fast) var(--easing-standard) allow-discrete;
+				opacity var(--violet-duration-fast) var(--violet-easing-standard),
+				display var(--violet-duration-fast) var(--violet-easing-standard) allow-discrete,
+				overlay var(--violet-duration-fast) var(--violet-easing-standard) allow-discrete;
 		}
 		.drawer[open] {
 			opacity: 1;
 			transition:
-				opacity var(--duration-base) var(--easing-emphasized),
-				display var(--duration-base) var(--easing-emphasized) allow-discrete,
-				overlay var(--duration-base) var(--easing-emphasized) allow-discrete;
+				opacity var(--violet-duration-base) var(--violet-easing-emphasized),
+				display var(--violet-duration-base) var(--violet-easing-emphasized) allow-discrete,
+				overlay var(--violet-duration-base) var(--violet-easing-emphasized) allow-discrete;
 		}
 		@starting-style {
 			.drawer[open] {
@@ -110,12 +110,12 @@ const styles = (side: SidePart) => [
 			}
 		}
 		.drawer::backdrop {
-			background: color-mix(in srgb, var(--color-surface-page) 60%, transparent);
+			background: color-mix(in srgb, var(--violet-color-surface-page) 60%, transparent);
 		}
 		@media (prefers-reduced-motion: reduce) {
 			.drawer,
 			.drawer[open] {
-				transition-duration: var(--duration-fast);
+				transition-duration: var(--violet-duration-fast);
 			}
 		}
 		@media (forced-colors: active) {
@@ -133,7 +133,7 @@ const styles = (side: SidePart) => [
 	side === 'sidebar'
 		? css`
 				:host([mode='inline']) {
-					border-inline-end: 1px solid var(--color-border-subtle);
+					border-inline-end: 1px solid var(--violet-color-border-subtle);
 				}
 				::slotted([slot='handle']) {
 					inset-inline-end: 0;
@@ -150,7 +150,7 @@ const styles = (side: SidePart) => [
 			`
 		: css`
 				:host([mode='inline']) {
-					border-inline-start: 1px solid var(--color-border-subtle);
+					border-inline-start: 1px solid var(--violet-color-border-subtle);
 				}
 				::slotted([slot='handle']) {
 					inset-inline-start: 0;

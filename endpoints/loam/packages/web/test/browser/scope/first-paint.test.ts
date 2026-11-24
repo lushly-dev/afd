@@ -195,8 +195,9 @@ describe('P2-E1: one first paint', () => {
 		// build measured 345,762 against `main` at `88cd5f02b`), the violet-elements bug sweep (#1436's
 		// `radius.round` in the field token block, measured 346,220 against `main` at `bc316e8e`), and #2253/#2300
 		// (`observeGate`/`gateRefusal` provenance and `observeThrows` throw tracking in `@lushly-dev/loam-kernel`,
-		// combined build measured 347,192 against `main` at `99359760a`).
-		expect(javascript).toBeLessThanOrEqual(347_600);
+		// combined build measured 347,192 against `main` at `99359760a`), and #1786's phase 4 (the `violet-` prefix on
+		// every token property, measured 349,561 against `main` at `56a536413`).
+		expect(javascript).toBeLessThanOrEqual(349_900);
 		expect(javascript).toBe(budgetRow());
 		// Stage B still runs in every deployment: `late` loads after the mark, on the empty shell too.
 		await expect

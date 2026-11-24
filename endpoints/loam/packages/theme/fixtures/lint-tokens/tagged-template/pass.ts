@@ -6,9 +6,9 @@ const label = `a #ffffff template that is not CSS, 12px`;
 export const styles = css`
 	:host {
 		display: ${display};
-		padding: var(--space-inline-md);
-		color: var(--color-text-primary);
+		padding: var(--violet-space-inline-md);
+		color: var(--violet-color-text-primary);
 	}
-	${css`:host { gap: var(--size-space-sm); }`}
+	${css`:host { gap: var(--violet-size-space-sm); }`}
 `;
 export { label };

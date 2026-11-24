@@ -17,32 +17,32 @@ const css = String.raw;
 export const EDITOR_STYLES = css`
 	body {
 		margin: 0;
-		padding: var(--space-layout-md);
-		background: var(--color-surface-page);
-		color: var(--color-text-primary);
-		font-family: var(--font-family-body);
-		font-size: var(--type-body-md-size);
-		line-height: var(--type-body-md-line);
-		font-weight: var(--type-body-md-weight);
+		padding: var(--violet-space-layout-md);
+		background: var(--violet-color-surface-page);
+		color: var(--violet-color-text-primary);
+		font-family: var(--violet-font-family-body);
+		font-size: var(--violet-type-body-md-size);
+		line-height: var(--violet-type-body-md-line);
+		font-weight: var(--violet-type-body-md-weight);
 	}
 
 	main {
 		display: grid;
-		gap: var(--space-stack-md);
+		gap: var(--violet-space-stack-md);
 	}
 
 	h1 {
 		margin: 0;
-		font-size: var(--type-title-sm-size);
-		line-height: var(--type-title-sm-line);
-		font-weight: var(--type-title-sm-weight);
+		font-size: var(--violet-type-title-sm-size);
+		line-height: var(--violet-type-title-sm-line);
+		font-weight: var(--violet-type-title-sm-weight);
 	}
 
 	.summary,
 	.empty,
 	.status {
 		margin: 0;
-		color: var(--color-text-secondary);
+		color: var(--violet-color-text-secondary);
 	}
 
 	.status:empty {
@@ -50,96 +50,96 @@ export const EDITOR_STYLES = css`
 	}
 
 	.status[data-tone='danger'] {
-		color: var(--color-state-danger-text);
+		color: var(--violet-color-state-danger-text);
 	}
 
 	form {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: end;
-		gap: var(--space-inline-sm);
+		gap: var(--violet-space-inline-sm);
 	}
 
 	label {
 		display: grid;
 		flex: 1 1 auto;
-		gap: var(--space-stack-xs);
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
-		font-weight: var(--type-label-sm-weight);
+		gap: var(--violet-space-stack-xs);
+		font-size: var(--violet-type-label-sm-size);
+		line-height: var(--violet-type-label-sm-line);
+		font-weight: var(--violet-type-label-sm-weight);
 	}
 
 	input {
 		box-sizing: border-box;
 		min-inline-size: 0;
 		inline-size: 100%;
-		min-block-size: var(--size-target-natural);
-		padding-inline: max(var(--space-inline-md), calc(var(--size-target-natural) * 0.375));
-		border: 1px solid var(--color-border-subtle);
-		border-radius: var(--radius-md);
-		background: var(--color-field-background);
+		min-block-size: var(--violet-size-target-natural);
+		padding-inline: max(var(--violet-space-inline-md), calc(var(--violet-size-target-natural) * 0.375));
+		border: 1px solid var(--violet-color-border-subtle);
+		border-radius: var(--violet-radius-md);
+		background: var(--violet-color-field-background);
 		box-shadow:
-			inset 0 1px 0 var(--color-field-border),
-			var(--shadow-well);
-		color: var(--color-field-text);
+			inset 0 1px 0 var(--violet-color-field-border),
+			var(--violet-shadow-well);
+		color: var(--violet-color-field-text);
 		font: inherit;
-		font-size: var(--type-body-md-size);
-		line-height: var(--type-body-md-line);
-		font-weight: var(--type-body-md-weight);
+		font-size: var(--violet-type-body-md-size);
+		line-height: var(--violet-type-body-md-line);
+		font-weight: var(--violet-type-body-md-weight);
 	}
 
 	input::placeholder {
-		color: var(--color-field-placeholder);
+		color: var(--violet-color-field-placeholder);
 	}
 
 	input:hover {
 		box-shadow:
-			inset 0 1px 0 var(--color-field-border-hover),
-			var(--shadow-well);
+			inset 0 1px 0 var(--violet-color-field-border-hover),
+			var(--violet-shadow-well);
 	}
 
 	input:focus-visible {
-		border-color: var(--color-field-border-focus);
+		border-color: var(--violet-color-field-border-focus);
 	}
 
 	input[aria-invalid='true'] {
-		border-color: var(--color-field-border-invalid);
+		border-color: var(--violet-color-field-border-invalid);
 	}
 
 	button {
 		box-sizing: border-box;
-		min-block-size: var(--size-target-natural);
-		padding-inline: max(var(--space-inline-md), calc(var(--size-target-natural) * 0.375));
-		border: 1px solid var(--color-action-secondary-border);
-		border-radius: var(--radius-md);
-		background: var(--color-action-secondary-background);
-		color: var(--color-action-secondary-text);
+		min-block-size: var(--violet-size-target-natural);
+		padding-inline: max(var(--violet-space-inline-md), calc(var(--violet-size-target-natural) * 0.375));
+		border: 1px solid var(--violet-color-action-secondary-border);
+		border-radius: var(--violet-radius-md);
+		background: var(--violet-color-action-secondary-background);
+		color: var(--violet-color-action-secondary-text);
 		font: inherit;
-		font-weight: var(--weight-medium);
+		font-weight: var(--violet-weight-medium);
 		cursor: pointer;
 	}
 
 	button:hover {
-		background: var(--color-action-secondary-hover);
+		background: var(--violet-color-action-secondary-hover);
 	}
 
 	button:active {
-		background: var(--color-action-secondary-pressed);
+		background: var(--violet-color-action-secondary-pressed);
 	}
 
 	button.add {
 		border-color: transparent;
-		background: var(--color-action-primary-background);
-		box-shadow: var(--shadow-control);
-		color: var(--color-action-primary-text);
+		background: var(--violet-color-action-primary-background);
+		box-shadow: var(--violet-shadow-control);
+		color: var(--violet-color-action-primary-text);
 	}
 
 	button.add:hover {
-		background: var(--color-action-primary-hover);
+		background: var(--violet-color-action-primary-hover);
 	}
 
 	button.add:active {
-		background: var(--color-action-primary-pressed);
+		background: var(--violet-color-action-primary-pressed);
 		box-shadow: none;
 	}
 
@@ -150,13 +150,13 @@ export const EDITOR_STYLES = css`
 	}
 
 	:focus-visible {
-		outline: var(--size-focus-ring-width) solid var(--color-focus-ring);
+		outline: var(--violet-size-focus-ring-width) solid var(--violet-color-focus-ring);
 		outline-offset: 1px;
 	}
 
 	ul {
 		display: grid;
-		gap: var(--space-stack-xs);
+		gap: var(--violet-space-stack-xs);
 		margin: 0;
 		padding: 0;
 		list-style: none;
@@ -165,24 +165,24 @@ export const EDITOR_STYLES = css`
 	li {
 		display: flex;
 		align-items: center;
-		gap: var(--space-inline-sm);
+		gap: var(--violet-space-inline-sm);
 	}
 
 	button.item {
 		display: flex;
 		flex: 1 1 auto;
 		align-items: center;
-		gap: var(--space-inline-sm);
-		padding-inline: var(--size-space-md);
+		gap: var(--violet-space-inline-sm);
+		padding-inline: var(--violet-size-space-md);
 		border-color: transparent;
 		background: transparent;
-		color: var(--color-text-primary);
-		font-weight: var(--type-body-md-weight);
+		color: var(--violet-color-text-primary);
+		font-weight: var(--violet-type-body-md-weight);
 		text-align: start;
 	}
 
 	button.item:hover {
-		background: var(--color-action-secondary-hover);
+		background: var(--violet-color-action-secondary-hover);
 	}
 
 	.box {
@@ -190,22 +190,22 @@ export const EDITOR_STYLES = css`
 		flex: none;
 		place-items: center;
 		box-sizing: border-box;
-		inline-size: var(--size-line-md);
-		block-size: var(--size-line-md);
-		border: 1px solid var(--color-field-border);
-		border-radius: var(--radius-sm);
-		background: var(--color-field-background);
-		color: var(--color-action-primary-text);
-		font-weight: var(--weight-semibold);
+		inline-size: var(--violet-size-line-md);
+		block-size: var(--violet-size-line-md);
+		border: 1px solid var(--violet-color-field-border);
+		border-radius: var(--violet-radius-sm);
+		background: var(--violet-color-field-background);
+		color: var(--violet-color-action-primary-text);
+		font-weight: var(--violet-weight-semibold);
 	}
 
 	button.item[aria-checked='true'] .box {
-		border-color: var(--color-action-primary-background);
-		background: var(--color-action-primary-background);
+		border-color: var(--violet-color-action-primary-background);
+		background: var(--violet-color-action-primary-background);
 	}
 
 	button.item[aria-checked='true'] .text {
-		color: var(--color-text-secondary);
+		color: var(--violet-color-text-secondary);
 		text-decoration: line-through;
 	}
 

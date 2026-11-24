@@ -138,8 +138,8 @@ const styles = css`
 	:host {
 		display: block;
 		flex: 1 1 auto;
-		padding: var(--space-layout-md);
-		color: var(--color-text-primary);
+		padding: var(--violet-space-layout-md);
+		color: var(--violet-color-text-primary);
 	}
 	:host([hidden]) {
 		display: none;
@@ -147,72 +147,72 @@ const styles = css`
 	.held {
 		display: grid;
 		justify-items: start;
-		gap: var(--space-stack-md);
+		gap: var(--violet-space-stack-md);
 	}
 	p {
 		margin: 0;
-		font-size: var(--type-body-md-size);
-		line-height: var(--type-body-md-line);
+		font-size: var(--violet-type-body-md-size);
+		line-height: var(--violet-type-body-md-line);
 	}
 	.actions {
 		display: flex;
 		flex-wrap: wrap;
-		gap: var(--space-inline-sm);
+		gap: var(--violet-space-inline-sm);
 	}
 	.action {
 		box-sizing: border-box;
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		min-block-size: var(--size-target-natural);
-		min-inline-size: var(--size-target-natural);
+		min-block-size: var(--violet-size-target-natural);
+		min-inline-size: var(--violet-size-target-natural);
 		padding-block: 0;
-		padding-inline: var(--size-space-lg);
-		border: 1px solid var(--color-action-secondary-border);
-		border-radius: var(--radius-md);
-		background: var(--color-action-secondary-background);
-		color: var(--color-action-secondary-text);
+		padding-inline: var(--violet-size-space-lg);
+		border: 1px solid var(--violet-color-action-secondary-border);
+		border-radius: var(--violet-radius-md);
+		background: var(--violet-color-action-secondary-background);
+		color: var(--violet-color-action-secondary-text);
 		font: inherit;
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
-		font-weight: var(--type-label-sm-weight);
+		font-size: var(--violet-type-label-sm-size);
+		line-height: var(--violet-type-label-sm-line);
+		font-weight: var(--violet-type-label-sm-weight);
 		cursor: pointer;
 		transition:
-			background-color var(--duration-fast) var(--easing-standard),
-			color var(--duration-fast) var(--easing-standard),
-			border-color var(--duration-fast) var(--easing-standard),
-			box-shadow var(--duration-fast) var(--easing-standard);
+			background-color var(--violet-duration-fast) var(--violet-easing-standard),
+			color var(--violet-duration-fast) var(--violet-easing-standard),
+			border-color var(--violet-duration-fast) var(--violet-easing-standard),
+			box-shadow var(--violet-duration-fast) var(--violet-easing-standard);
 	}
 	.action:not(:disabled):hover {
-		background: var(--color-action-secondary-hover);
+		background: var(--violet-color-action-secondary-hover);
 	}
 	.action:not(:disabled):active {
-		background: var(--color-action-secondary-pressed);
+		background: var(--violet-color-action-secondary-pressed);
 	}
 	.action.primary {
 		border-color: transparent;
-		background: var(--color-action-primary-background);
-		color: var(--color-action-primary-text);
-		box-shadow: var(--shadow-control);
+		background: var(--violet-color-action-primary-background);
+		color: var(--violet-color-action-primary-text);
+		box-shadow: var(--violet-shadow-control);
 	}
 	.action.primary:not(:disabled):hover {
-		background: var(--color-action-primary-hover);
+		background: var(--violet-color-action-primary-hover);
 	}
 	.action.primary:not(:disabled):active {
-		background: var(--color-action-primary-pressed);
+		background: var(--violet-color-action-primary-pressed);
 		box-shadow: none;
 	}
 	.action:disabled {
 		opacity: 0.55;
-		border-color: var(--color-action-secondary-border);
+		border-color: var(--violet-color-action-secondary-border);
 		cursor: not-allowed;
-		background: var(--color-action-secondary-background);
-		color: var(--color-action-secondary-text);
+		background: var(--violet-color-action-secondary-background);
+		color: var(--violet-color-action-secondary-text);
 		box-shadow: none;
 	}
 	.action:focus-visible {
-		outline: var(--shell-size-focus) solid var(--color-focus-ring);
-		outline-offset: var(--size-space-xs);
+		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+		outline-offset: var(--violet-size-space-xs);
 	}
 	@media (prefers-reduced-motion: reduce) {
 		.action {

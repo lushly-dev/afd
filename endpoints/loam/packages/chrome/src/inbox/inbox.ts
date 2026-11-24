@@ -95,9 +95,9 @@ const waiting = (notice: NotificationV1): boolean =>
 const STYLES = `
 	:host {
 		display: block;
-		color: var(--color-text-primary);
-		font-size: var(--type-body-md-size);
-		line-height: var(--type-body-md-line);
+		color: var(--violet-color-text-primary);
+		font-size: var(--violet-type-body-md-size);
+		line-height: var(--violet-type-body-md-line);
 	}
 	h1,
 	h2,
@@ -105,62 +105,62 @@ const STYLES = `
 		margin: 0;
 	}
 	h1 {
-		font-size: var(--type-title-md-size);
-		line-height: var(--type-title-md-line);
-		font-weight: var(--type-title-md-weight);
+		font-size: var(--violet-type-title-md-size);
+		line-height: var(--violet-type-title-md-line);
+		font-weight: var(--violet-type-title-md-weight);
 	}
 	h2 {
-		font-size: var(--type-title-sm-size);
-		line-height: var(--type-title-sm-line);
-		font-weight: var(--type-label-sm-weight);
+		font-size: var(--violet-type-title-sm-size);
+		line-height: var(--violet-type-title-sm-line);
+		font-weight: var(--violet-type-label-sm-weight);
 	}
 	.section,
 	.notice {
 		display: grid;
-		gap: var(--space-stack-sm);
+		gap: var(--violet-space-stack-sm);
 	}
 	.section {
-		gap: var(--space-stack-md);
+		gap: var(--violet-space-stack-md);
 	}
 	.row {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: var(--space-inline-sm);
+		gap: var(--violet-space-inline-sm);
 	}
 	ul {
 		display: grid;
-		gap: var(--space-stack-sm);
+		gap: var(--violet-space-stack-sm);
 		margin: 0;
 		padding: 0;
 		list-style: none;
 	}
 	.notice {
-		padding: var(--size-space-md);
-		border: 1px solid var(--color-border-subtle);
-		border-inline-start: var(--size-space-xs) solid transparent;
-		border-radius: var(--radius-md);
-		background: var(--color-surface-card);
+		padding: var(--violet-size-space-md);
+		border: 1px solid var(--violet-color-border-subtle);
+		border-inline-start: var(--violet-size-space-xs) solid transparent;
+		border-radius: var(--violet-radius-md);
+		background: var(--violet-color-surface-card);
 	}
 	.notice[data-unread] {
-		border-inline-start-color: var(--color-action-primary-background);
+		border-inline-start-color: var(--violet-color-action-primary-background);
 	}
 	.notice[data-unread] h2 {
-		font-weight: var(--weight-semibold);
+		font-weight: var(--violet-weight-semibold);
 	}
 	.notice:focus-visible,
 	h1:focus-visible {
-		outline: var(--shell-size-focus) solid var(--color-focus-ring);
-		outline-offset: var(--shell-size-focus);
+		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+		outline-offset: var(--violet-shell-size-focus);
 	}
 	.notice[data-target] {
-		border-color: var(--color-focus-ring);
+		border-color: var(--violet-color-focus-ring);
 	}
 	.meta,
 	.empty {
-		color: var(--color-text-secondary);
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
+		color: var(--violet-color-text-secondary);
+		font-size: var(--violet-type-label-sm-size);
+		line-height: var(--violet-type-label-sm-line);
 	}
 	.body {
 		overflow-wrap: anywhere;
@@ -170,43 +170,43 @@ const STYLES = `
 		display: none;
 	}
 	.action {
-		min-block-size: var(--size-target-natural);
-		padding-inline: var(--size-space-md);
-		border: 1px solid var(--color-action-secondary-border);
-		border-radius: var(--radius-md);
-		background: var(--color-action-secondary-background);
-		color: var(--color-action-secondary-text);
+		min-block-size: var(--violet-size-target-natural);
+		padding-inline: var(--violet-size-space-md);
+		border: 1px solid var(--violet-color-action-secondary-border);
+		border-radius: var(--violet-radius-md);
+		background: var(--violet-color-action-secondary-background);
+		color: var(--violet-color-action-secondary-text);
 		font: inherit;
 		cursor: pointer;
 	}
 	.action:hover {
-		background: var(--color-action-secondary-hover);
+		background: var(--violet-color-action-secondary-hover);
 	}
 	.action[aria-disabled='true'] {
 		cursor: progress;
 		opacity: 0.6;
 	}
 	.action.primary {
-		border-color: var(--color-action-primary-background);
-		background: var(--color-action-primary-background);
-		color: var(--color-action-primary-text);
+		border-color: var(--violet-color-action-primary-background);
+		background: var(--violet-color-action-primary-background);
+		color: var(--violet-color-action-primary-text);
 	}
 	.action.danger {
-		border-color: var(--color-action-danger-background);
-		background: var(--color-action-danger-background);
-		color: var(--color-action-danger-text);
+		border-color: var(--violet-color-action-danger-background);
+		background: var(--violet-color-action-danger-background);
+		color: var(--violet-color-action-danger-text);
 	}
 	.action.danger:hover {
-		background: var(--color-action-danger-hover);
+		background: var(--violet-color-action-danger-hover);
 	}
 	.action:focus-visible,
 	a:focus-visible {
-		outline: var(--shell-size-focus) solid var(--color-focus-ring);
-		outline-offset: var(--shell-size-focus);
+		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+		outline-offset: var(--violet-shell-size-focus);
 	}
 	a {
 		color: inherit;
-		font-weight: var(--weight-semibold);
+		font-weight: var(--violet-weight-semibold);
 	}
 	@media (forced-colors: active) {
 		.notice[data-unread] {

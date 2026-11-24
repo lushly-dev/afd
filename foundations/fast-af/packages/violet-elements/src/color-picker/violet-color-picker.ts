@@ -131,7 +131,7 @@ const styles = css`
         white-space: nowrap;
         font-size: var(--_control-body-size);
         line-height: var(--_type-body-line);
-        color: var(--color-text-primary, #181b1a);
+        color: var(--violet-color-text-primary, #181b1a);
     }
 
     .trigger-value.placeholder {
@@ -220,7 +220,7 @@ const styles = css`
         font-size: var(--_control-body-size);
         line-height: var(--_type-body-line);
         font-weight: 600;
-        color: var(--color-text-primary, #181b1a);
+        color: var(--violet-color-text-primary, #181b1a);
     }
 
     .hex-field {

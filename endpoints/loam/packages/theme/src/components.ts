@@ -16,10 +16,15 @@ import type { Contract, ResolvedTree, Token } from './outputs.js';
 import { THEMES, type ThemeName, themeNode } from './tree/index.js';
 
 export const COMPONENT_EXPORT_SOURCE = 'loam';
+/**
+ * The export's own format version, which `violet-elements`' `theme:build` checks. It lists ids and
+ * values, no properties, so the contract's version 2 (the `violet-` prefix) left it at 1.
+ */
+export const COMPONENT_EXPORT_VERSION = 1;
 
 /** `foundations/fast-af/packages/violet-elements/tokens/violet-theme.export.json`. */
 export interface ComponentExport {
-	contractVersion: Contract['contractVersion'];
+	contractVersion: typeof COMPONENT_EXPORT_VERSION;
 	source: typeof COMPONENT_EXPORT_SOURCE;
 	/** Per theme, at comfortable density, every component id (no `shell.*`) in id order. */
 	presets: Record<ThemeName, Token[]>;
@@ -34,7 +39,7 @@ export function renderComponentExport(resolved: ResolvedTree, contract: Contract
 			.filter(([id]) => contract.tokens[id]?.kind === 'component')
 			.map(([id, value]) => ({ id, value }));
 	}
-	return { contractVersion: contract.contractVersion, source: COMPONENT_EXPORT_SOURCE, presets };
+	return { contractVersion: COMPONENT_EXPORT_VERSION, source: COMPONENT_EXPORT_SOURCE, presets };
 }
 
 /** `violet-elements`' `tokens/interface.json`. */
@@ -114,9 +119,9 @@ const VALUE_IMPORT = /import\s+(?!type\b)[^"';]+?\s+from\s+"\.\/([\w.-]+)"/g;
  * token (mirrors `HOOKS` in `violet-private-properties.spec.ts`, tracked in #1436).
  */
 const HOOK_TOKEN_TARGETS: Readonly<Record<string, string>> = {
-	'--_radius-round': '--radius-round',
-	'--_space-xs': '--space-stack-xs',
-	'--_text-link': '--color-accent-text',
+	'--_radius-round': '--violet-radius-round',
+	'--_space-xs': '--violet-space-stack-xs',
+	'--_text-link': '--violet-color-accent-text',
 };
 
 /**

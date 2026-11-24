@@ -75,7 +75,11 @@ export interface VioletBaseConfig {
 	 */
 	autoApply?: boolean;
 
-	/** CSS selector prefix for variables (default: empty) */
+	/**
+	 * Prefix for the custom properties written (default: empty, `--color-surface-page`). Pass
+	 * `VIOLET_CSS_PREFIX` (`'violet'`, `--violet-color-surface-page`) to drive
+	 * `@lushly-dev/violet-elements`, which reads its interface's ids under that prefix.
+	 */
 	cssPrefix?: string;
 
 	/** Fetch timeout in milliseconds (default: 10000). Use 0 to disable. Unused with a preloaded source */

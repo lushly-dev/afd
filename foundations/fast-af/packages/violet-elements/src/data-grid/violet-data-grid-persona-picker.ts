@@ -38,21 +38,21 @@ const styles = css`
         min-inline-size: 0;
         max-inline-size: 100%;
         color: var(--_text-primary);
-        font-family: var(--violet-data-grid-font-family, var(--violet-font-family, var(--font-family-body)));
+        font-family: var(--violet-data-grid-font-family, var(--violet-font-family, var(--violet-font-family-body)));
 
-        --_surface-page: var(--color-surface-page, #f4f0ea);
-        --_surface-card: var(--color-surface-card, #f8f9f3);
-        --_surface-floating: var(--color-surface-floating, #ffffff);
-        --_surface-subtle: var(--color-surface-subtle, #e9e5de);
-        --_border-subtle: var(--color-border-subtle, rgba(24, 27, 26, 0.10));
-        --_border-strong: var(--color-border-strong, #6b7d6e);
-        --_text-primary: var(--color-text-primary, #181b1a);
-        --_text-secondary: var(--color-text-secondary, #48534b);
-        --_focus-ring: var(--color-focus-ring, #28769e);
-        --_radius-md: var(--radius-md, 8px);
-        --_shadow-floating: var(--shadow-floating, 0 0 0 1px rgba(24, 27, 26, 0.08), 0 4px 12px -2px rgba(24, 27, 26, 0.12), 0 18px 40px -8px rgba(24, 27, 26, 0.20));
-        --_size-font-md: var(--size-font-md, 14px);
-        --_size-font-sm: var(--size-font-sm, 12px);
+        --_surface-page: var(--violet-color-surface-page, #f4f0ea);
+        --_surface-card: var(--violet-color-surface-card, #f8f9f3);
+        --_surface-floating: var(--violet-color-surface-floating, #ffffff);
+        --_surface-subtle: var(--violet-color-surface-subtle, #e9e5de);
+        --_border-subtle: var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
+        --_border-strong: var(--violet-color-border-strong, #6b7d6e);
+        --_text-primary: var(--violet-color-text-primary, #181b1a);
+        --_text-secondary: var(--violet-color-text-secondary, #48534b);
+        --_focus-ring: var(--violet-color-focus-ring, #28769e);
+        --_radius-md: var(--violet-radius-md, 8px);
+        --_shadow-floating: var(--violet-shadow-floating, 0 0 0 1px rgba(24, 27, 26, 0.08), 0 4px 12px -2px rgba(24, 27, 26, 0.12), 0 18px 40px -8px rgba(24, 27, 26, 0.20));
+        --_size-font-md: var(--violet-size-font-md, 14px);
+        --_size-font-sm: var(--violet-size-font-sm, 12px);
     }
 
     :host([disabled]) {

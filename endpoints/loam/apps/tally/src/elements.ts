@@ -15,15 +15,15 @@ interface Held {
 const cardStyles = css`
 	:host {
 		display: block;
-		padding: var(--space-layout-sm);
+		padding: var(--violet-space-layout-sm);
 		/* A card is a surface step with the card shadow, no drawn edge (Refined, D159); forced colors draws the border. */
 		border: 1px solid transparent;
-		border-radius: var(--radius-lg);
-		background: var(--color-surface-card);
-		box-shadow: var(--shadow-card);
-		color: var(--color-text-primary);
-		font-size: var(--type-title-md-size);
-		line-height: var(--type-title-md-line);
+		border-radius: var(--violet-radius-lg);
+		background: var(--violet-color-surface-card);
+		box-shadow: var(--violet-shadow-card);
+		color: var(--violet-color-text-primary);
+		font-size: var(--violet-type-title-md-size);
+		line-height: var(--violet-type-title-md-line);
 	}
 	@media (forced-colors: active) {
 		:host {
@@ -47,19 +47,19 @@ const mainTemplate = html<TallyMain>`
 const mainStyles = css`
 	:host {
 		display: grid;
-		gap: var(--space-stack-md);
+		gap: var(--violet-space-stack-md);
 		justify-items: start;
 		align-content: start;
-		padding: var(--space-layout-md);
+		padding: var(--violet-space-layout-md);
 	}
 	h1,
 	p {
 		margin: 0;
 	}
 	h1 {
-		font-size: var(--type-title-md-size);
-		line-height: var(--type-title-md-line);
-		font-weight: var(--type-title-md-weight);
+		font-size: var(--violet-type-title-md-size);
+		line-height: var(--violet-type-title-md-line);
+		font-weight: var(--violet-type-title-md-weight);
 	}
 `;
 
@@ -111,11 +111,11 @@ const historyTemplate = html<TallyHistory>`
 const historyStyles = css`
 	:host {
 		display: block;
-		color: var(--color-text-secondary);
+		color: var(--violet-color-text-secondary);
 	}
 	ol {
 		margin: 0;
-		padding-inline-start: var(--space-layout-sm);
+		padding-inline-start: var(--violet-space-layout-sm);
 	}
 	p {
 		margin: 0;

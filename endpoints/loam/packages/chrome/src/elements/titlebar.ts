@@ -120,21 +120,21 @@ const styles = [
 		:host {
 			display: flex;
 			align-items: center;
-			gap: var(--space-inline-sm);
-			block-size: var(--shell-size-titlebar);
-			padding-inline: var(--space-inline-md);
-			background: var(--color-surface-subtle);
-			color: var(--color-text-secondary);
-			border-block-end: 1px solid var(--color-border-subtle);
+			gap: var(--violet-space-inline-sm);
+			block-size: var(--violet-shell-size-titlebar);
+			padding-inline: var(--violet-space-inline-md);
+			background: var(--violet-color-surface-subtle);
+			color: var(--violet-color-text-secondary);
+			border-block-end: 1px solid var(--violet-color-border-subtle);
 			overflow: hidden;
 			container-type: inline-size;
 		}
 		.name {
-			padding-inline-end: var(--space-inline-md);
-			color: var(--color-text-primary);
-			font-size: var(--type-label-sm-size);
-			line-height: var(--type-label-sm-line);
-			font-weight: var(--weight-semibold);
+			padding-inline-end: var(--violet-space-inline-md);
+			color: var(--violet-color-text-primary);
+			font-size: var(--violet-type-label-sm-size);
+			line-height: var(--violet-type-label-sm-line);
+			font-weight: var(--violet-weight-semibold);
 		}
 		.spacer {
 			flex: 1;
@@ -143,26 +143,26 @@ const styles = [
 			position: relative;
 		}
 		.count {
-			color: var(--color-text-primary);
-			font-weight: var(--weight-semibold);
+			color: var(--violet-color-text-primary);
+			font-weight: var(--violet-weight-semibold);
 		}
 		.toggles {
 			display: inline-flex;
-			gap: var(--space-inline-sm);
+			gap: var(--violet-space-inline-sm);
 		}
 		.actor {
-			font-size: var(--type-label-sm-size);
-			line-height: var(--type-label-sm-line);
-			color: var(--color-text-secondary);
+			font-size: var(--violet-type-label-sm-size);
+			line-height: var(--violet-type-label-sm-line);
+			color: var(--violet-color-text-secondary);
 			overflow: hidden;
 			text-overflow: ellipsis;
 			white-space: nowrap;
 		}
 		kbd {
 			font: inherit;
-			font-size: var(--type-caption-xs-size);
-			line-height: var(--type-caption-xs-line);
-			color: var(--color-text-secondary);
+			font-size: var(--violet-type-caption-xs-size);
+			line-height: var(--violet-type-caption-xs-line);
+			color: var(--violet-color-text-secondary);
 		}
 		@container (max-width: 560px) {
 			.search span,

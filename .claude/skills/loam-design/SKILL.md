@@ -17,7 +17,9 @@ the [phase 0 specification](../../../endpoints/loam/docs/phases/0-kernel-chrome/
 sections 2 and 5 to 7.
 
 Rules name tokens by contract id (`color.surface.page`); the custom property
-is `--` and the id with `.` replaced by `-` (`--color-surface-page`).
+is `--violet-` and the id with `.` replaced by `-` (`--violet-color-surface-page`,
+`--violet-shell-size-focus`), since contract version 2. An unprefixed name is
+not in the contract and fails the lint.
 
 ## Files
 
@@ -135,7 +137,7 @@ regions: `space.layout.*`.
 | panel | `--_panel-height`; `shell.size.panel.{default,min}` 240, 120 | `color.surface.card` |
 | status bar | `shell.size.statusbar` (24 in both); targets `size.target.compact` | `color.surface.subtle` |
 | tab bar | `shell.size.tabbar` (56, 48); targets `size.target.comfortable` | `color.surface.subtle` |
-| drawer, sheet, palette | drawer `min(85vw, var(--shell-size-drawer-max))`; sheet `40dvh` to `80dvh` | `color.surface.floating`, `shadow.floating` (palette also `radius.lg`) |
+| drawer, sheet, palette | drawer `min(85vw, var(--violet-shell-size-drawer-max))`; sheet `40dvh` to `80dvh` | `color.surface.floating`, `shadow.floating` (palette also `radius.lg`) |
 
 - Parts abut, flat and square, with a `1px` `color.border.subtle` line
   between inline parts. Only floating layers take a shadow.
@@ -171,8 +173,8 @@ determinate `violet-progress`, never `violet-spinner` or an indeterminate
 
 ## Focus and state
 
-- Focus: `outline: var(--shell-size-focus) solid var(--color-focus-ring)`,
-  `outline-offset: var(--size-space-xs)`, on `:focus-visible` only. 2px, 3px
+- Focus: `outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring)`,
+  `outline-offset: var(--violet-size-space-xs)`, on `:focus-visible` only. 2px, 3px
   in high contrast. Never clipped; never removed without an equal
   replacement. F6 and Shift+F6 move between parts; modals trap focus and
   return it.

@@ -77,9 +77,9 @@ const STAGE_CSS = `
 		min-width: 0;
 		min-height: 100%;
 		padding: var(--space-5);
-		background: var(--color-surface-page);
-		color: var(--color-text-primary);
-		font-family: var(--font-family-body);
+		background: var(--violet-color-surface-page);
+		color: var(--violet-color-text-primary);
+		font-family: var(--violet-font-family-body);
 		line-height: 1.5;
 	}
 `;

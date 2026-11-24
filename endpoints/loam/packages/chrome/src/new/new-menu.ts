@@ -144,47 +144,47 @@ const styles = css`
 	violet-menu {
 		display: block;
 		block-size: 100%;
-		--violet-menu-background: var(--color-surface-floating);
-		--violet-menu-shadow: var(--shadow-floating);
-		--violet-menu-border-color: var(--color-border-subtle);
-		--violet-menu-radius: var(--radius-lg);
-		--violet-menu-padding: var(--size-space-xs);
-		--violet-menu-gap: var(--size-space-xs);
-		--violet-menu-min-inline-size: calc(var(--shell-size-sidebar-min) * 1.1);
+		--violet-menu-background: var(--violet-color-surface-floating);
+		--violet-menu-shadow: var(--violet-shadow-floating);
+		--violet-menu-border-color: var(--violet-color-border-subtle);
+		--violet-menu-radius: var(--violet-radius-lg);
+		--violet-menu-padding: var(--violet-size-space-xs);
+		--violet-menu-gap: var(--violet-size-space-xs);
+		--violet-menu-min-inline-size: calc(var(--violet-shell-size-sidebar-min) * 1.1);
 	}
 	violet-menu::part(panel) {
 		pointer-events: auto;
-		color: var(--color-text-primary);
+		color: var(--violet-color-text-primary);
 	}
 	/*
 	 * violet-menu-item reads two surfaces that are not contract ids, whose white fallbacks fail contrast in
 	 * dark: the hover's and the pressed state's contract colors stand in, as the palette's options do.
 	 */
 	violet-menu-item {
-		--color-surface-highlight: var(--color-surface-subtle);
-		--color-surface-pressed: var(--color-action-secondary-pressed);
-		font-size: var(--type-body-md-size);
-		line-height: var(--type-body-md-line);
+		--violet-color-surface-highlight: var(--violet-color-surface-subtle);
+		--violet-color-surface-pressed: var(--violet-color-action-secondary-pressed);
+		font-size: var(--violet-type-body-md-size);
+		line-height: var(--violet-type-body-md-line);
 	}
 	violet-menu-item::part(control) {
-		min-block-size: var(--size-target-natural);
-		color: var(--color-text-primary);
+		min-block-size: var(--violet-size-target-natural);
+		color: var(--violet-color-text-primary);
 	}
 	violet-menu-item::part(control):focus-visible {
-		outline: var(--shell-size-focus) solid var(--color-focus-ring);
-		outline-offset: calc(-1 * var(--shell-size-focus));
+		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+		outline-offset: calc(-1 * var(--violet-shell-size-focus));
 	}
 	violet-menu-item[disabled]::part(control) {
 		opacity: 1;
-		color: var(--color-text-secondary);
+		color: var(--violet-color-text-secondary);
 	}
 	.heading {
-		padding-block: var(--space-stack-xs) 0;
-		padding-inline: var(--space-inline-md);
-		color: var(--color-text-secondary);
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
-		font-weight: var(--weight-semibold);
+		padding-block: var(--violet-space-stack-xs) 0;
+		padding-inline: var(--violet-space-inline-md);
+		color: var(--violet-color-text-secondary);
+		font-size: var(--violet-type-label-sm-size);
+		line-height: var(--violet-type-label-sm-line);
+		font-weight: var(--violet-weight-semibold);
 	}
 	@media (forced-colors: active) {
 		.heading,

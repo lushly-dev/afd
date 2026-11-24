@@ -20,7 +20,7 @@ describe("a built-in theme chunk that fails to load", () => {
             if (fail) {
                 throw new Error("chunk failed");
             }
-            return { violetThemeCssText: ":root { --color-surface-page: #fff; }" };
+            return { violetThemeCssText: ":root { --violet-color-surface-page: #fff; }" };
         });
         setVioletBuiltInThemeImporterForTesting(importer);
         const error = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -39,9 +39,9 @@ describe("a built-in theme chunk that fails to load", () => {
 
         fail = false;
         installVioletTheme(document);
-        await expect(loadVioletBuiltInTheme()).resolves.toBe(":root { --color-surface-page: #fff; }");
+        await expect(loadVioletBuiltInTheme()).resolves.toBe(":root { --violet-color-surface-page: #fff; }");
         expect(importer).toHaveBeenCalledTimes(3);
-        expect(sheetText(sheet)).toBe(":root { --color-surface-page: #fff; }");
+        expect(sheetText(sheet)).toBe(":root { --violet-color-surface-page: #fff; }");
 
         await new Promise(resolve => setTimeout(resolve, 0));
         window.removeEventListener("unhandledrejection", unhandled);
@@ -54,7 +54,7 @@ describe("a built-in theme chunk that fails to load", () => {
             if (!initialized) {
                 throw new ReferenceError("Cannot access 'violetThemeCssText' before initialization");
             }
-            return Promise.resolve({ violetThemeCssText: ":root { --color-surface-page: #f4f0ea; }" });
+            return Promise.resolve({ violetThemeCssText: ":root { --violet-color-surface-page: #f4f0ea; }" });
         });
         setVioletBuiltInThemeImporterForTesting(importer);
         const error = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -65,9 +65,9 @@ describe("a built-in theme chunk that fails to load", () => {
         expect(importer).not.toHaveBeenCalled();
         initialized = true;
 
-        await expect(loadVioletBuiltInTheme()).resolves.toBe(":root { --color-surface-page: #f4f0ea; }");
+        await expect(loadVioletBuiltInTheme()).resolves.toBe(":root { --violet-color-surface-page: #f4f0ea; }");
         expect(importer).toHaveBeenCalledTimes(1);
-        expect(sheetText(sheet)).toBe(":root { --color-surface-page: #f4f0ea; }");
+        expect(sheetText(sheet)).toBe(":root { --violet-color-surface-page: #f4f0ea; }");
         expect(error).not.toHaveBeenCalled();
     });
 
@@ -84,7 +84,7 @@ describe("a built-in theme chunk that fails to load", () => {
                     // every top-level `await FASTElement.define(...)` in the bundle resolves.
                     return Promise.resolve(undefined as unknown as { violetThemeCssText: string });
                 }
-                return Promise.resolve({ violetThemeCssText: ":root { --color-surface-page: #141a18; }" });
+                return Promise.resolve({ violetThemeCssText: ":root { --violet-color-surface-page: #141a18; }" });
             });
             setVioletBuiltInThemeImporterForTesting(importer);
             const error = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -97,9 +97,9 @@ describe("a built-in theme chunk that fails to load", () => {
             await Promise.resolve();
             initialized = true;
 
-            await expect(loadVioletBuiltInTheme()).resolves.toBe(":root { --color-surface-page: #141a18; }");
+            await expect(loadVioletBuiltInTheme()).resolves.toBe(":root { --violet-color-surface-page: #141a18; }");
             expect(importer).toHaveBeenCalledTimes(2);
-            expect(sheetText(sheet)).toBe(":root { --color-surface-page: #141a18; }");
+            expect(sheetText(sheet)).toBe(":root { --violet-color-surface-page: #141a18; }");
             expect(error).not.toHaveBeenCalled();
         },
     );

@@ -194,7 +194,13 @@ assert.deepEqual(Object.keys(core.exports), [
 	'./engine',
 	'./neon',
 ]);
-assert.deepEqual(Object.keys(core.dependencies), ['zod']);
+// The runtime holds the one custom property naming rule the CSS exporter shares (#1786); it has no
+// dependencies of its own (asserted below), so core still installs only zod beside it.
+assert.deepEqual(Object.keys(core.dependencies), [RUNTIME, 'zod']);
+assert(
+	semver.satisfies(VERSION, core.dependencies[RUNTIME]),
+	`core's runtime range ${core.dependencies[RUNTIME]} rejects ${VERSION}`
+);
 assert.deepEqual(Object.keys(core.optionalDependencies), ['better-sqlite3']);
 // Neon/ws are optional peers, so an installing integration's copies satisfy ./neon in strict layouts.
 assert.deepEqual(Object.keys(core.peerDependencies).sort(), ['@neondatabase/serverless', 'ws']);
@@ -237,7 +243,7 @@ for (const manifest of [core, runtime, afd, cli, server]) {
 	assert(!JSON.stringify(manifest).includes('workspace:'), `${manifest.name} leaks workspace:`);
 }
 passed(
-	`packed manifests: core needs only zod (storage drivers optional), no AFD text in its files; integration peers core ${CORE_PEER} and depends on afd-core ^2.2.0; binaries preserved; all at ${VERSION}`
+	`packed manifests: core needs only zod and the dependency-free runtime (storage drivers optional), no AFD text in its files; integration peers core ${CORE_PEER} and depends on afd-core ^2.2.0; binaries preserved; all at ${VERSION}`
 );
 
 // ---- Violet only: native core without optional drivers, and runtime ---------------------------
@@ -498,8 +504,19 @@ try {
 	await page.goto(`${origin}/parity.html`);
 	await page.waitForFunction(() => 'parity' in window);
 	const parity = await page.evaluate(() => window.parity);
-	assert.deepEqual(parity.runtime, parity.elements, "adopt()'s selectors are violet-elements'");
-	assert.equal(parity.elements.length, 2);
+	// violet-elements' sheet ends with the deprecated alias block (#1786, phase 4), on the default
+	// preset's selectors; the selector contract is the rules before it. Drop this with the block.
+	assert.equal(parity.elements.length, 3);
+	assert.equal(
+		parity.elements[2],
+		parity.elements[0],
+		'the alias block sits on the default selectors'
+	);
+	assert.deepEqual(
+		parity.runtime,
+		parity.elements.slice(0, 2),
+		"adopt()'s selectors are violet-elements'"
+	);
 	assert.deepEqual(parity.accepts, elementsAccepts, 'both accept and refuse the same preset names');
 	// The samples hold both outcomes, so agreement is not two validators accepting everything.
 	assert.deepEqual(

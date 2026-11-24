@@ -12,7 +12,7 @@ const styles = css`
 
         --_segment-selected-background: var(
             --violet-segment-selected-background,
-            var(--color-surface-highlight, var(--_surface-card))
+            var(--violet-color-surface-highlight, var(--_surface-card))
         );
         --_segment-selected-border: var(--violet-segment-selected-border, transparent);
         --_segment-selected-shadow: var(--violet-segment-selected-shadow, var(--_shadow-control));
@@ -46,7 +46,7 @@ const styles = css`
     }
 
     .button:hover {
-        color: var(--color-text-primary, #181b1a);
+        color: var(--violet-color-text-primary, #181b1a);
     }
 
     .button:focus-visible {
@@ -58,7 +58,7 @@ const styles = css`
         background: var(--_segment-selected-background);
         border-color: var(--_segment-selected-border);
         box-shadow: var(--_segment-selected-shadow);
-        color: var(--color-text-primary, #181b1a);
+        color: var(--violet-color-text-primary, #181b1a);
     }
 
     :host([disabled]) .button,
