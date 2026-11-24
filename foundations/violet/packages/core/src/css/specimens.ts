@@ -1,9 +1,15 @@
 /**
- * Component specimens (#37, #118, #498): the components the Specimens view
- * draws, the roles each one takes from a token, and how a role's value becomes
- * CSS. Every declaration comes from an allow-list validator, so a value that
- * does not parse draws nothing. `specimen.set` checks maps against these
- * lists, and `specimen.get` reports which roles pass.
+ * Specimen roles (#37, #118, #498): how a role's value becomes CSS. Every
+ * declaration comes from an allow-list validator, so a value that does not
+ * parse draws nothing.
+ *
+ * Which components are drawn, which roles each takes and the token each role
+ * draws from by default belong to the components' token interface, so they
+ * live in `@lushly-dev/violet-afd` (`SPECIMEN_INTERFACE_MAP`, #1786), which maps
+ * each role to an id in `@lushly-dev/violet-elements`' `tokens/interface.json`.
+ * The component model below is the one this package invented before that,
+ * with `<component>.<role>` token ids no interface uses; it is deprecated and
+ * kept for one preview release.
  */
 import {
 	safeCssColor,
@@ -72,7 +78,7 @@ export const SPECIMEN_ROLES: Record<string, (value: unknown) => string | null> =
 	'ring.offset': (v) => declaration('outline-offset', safeCssLength(v)),
 };
 
-/** Every role, in drawing order; each component takes the subset in its `roles` */
+/** Every role, in drawing order; each component specimen takes a subset */
 export const SPECIMEN_ROLE_NAMES = Object.keys(SPECIMEN_ROLES);
 
 /** The roles of the button, input and card specimens */
@@ -89,7 +95,11 @@ const BOX_ROLES = [
 	'shadow',
 ];
 
-/** A component specimen: the sample's text, its roles and the role it cannot be drawn without */
+/**
+ * A component specimen: the sample's text, its roles and the role it cannot be drawn without.
+ * @deprecated Use `InterfaceSpecimen` from `@lushly-dev/violet-afd`, whose roles name the
+ * interface token each one draws from (#1786).
+ */
 export interface SpecimenComponent {
 	label: string;
 	/** The roles this component takes, in drawing order; each is a key of `SPECIMEN_ROLES` */
@@ -98,7 +108,12 @@ export interface SpecimenComponent {
 	required: string;
 }
 
-/** The components drawn */
+/**
+ * The components drawn before #1786.
+ * @deprecated Use `SPECIMEN_INTERFACE_MAP` from `@lushly-dev/violet-afd`, which takes the
+ * same components and roles from the components' token interface; this copy is no longer
+ * read by `specimen.get` or `specimen.set`.
+ */
 export const SPECIMEN_COMPONENTS: Record<string, SpecimenComponent> = {
 	button: { label: 'Button', roles: BOX_ROLES, required: 'background' },
 	input: { label: 'Input text', roles: BOX_ROLES, required: 'background' },
@@ -137,16 +152,23 @@ export const SPECIMEN_COMPONENTS: Record<string, SpecimenComponent> = {
 /**
  * The role the button, input and card need for their specimens to be drawn.
  * @deprecated Other components need other roles; read
- * `SPECIMEN_COMPONENTS[component].required`.
+ * `SPECIMEN_INTERFACE_MAP[component].required` from `@lushly-dev/violet-afd` (#1786).
  */
 export const SPECIMEN_REQUIRED_ROLE = 'background';
 
-/** The token the naming convention gives a role: `<component>.<role>` */
+/**
+ * The token the old naming convention gave a role: `<component>.<role>`.
+ * @deprecated No interface id has this shape, so `specimen.get` no longer falls back to it;
+ * read the interface id with `specimenInterfaceToken` from `@lushly-dev/violet-afd` (#1786).
+ */
 export function conventionToken(component: string, role: string): string {
 	return `${component}.${role}`;
 }
 
-/** Whether a component specimen takes a role */
+/**
+ * Whether a component specimen takes a role.
+ * @deprecated Use `specimenTakesRole` from `@lushly-dev/violet-afd` (#1786).
+ */
 export function specimenComponentHasRole(component: string, role: string): boolean {
 	return (
 		Object.hasOwn(SPECIMEN_COMPONENTS, component) &&

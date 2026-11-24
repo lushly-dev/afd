@@ -162,8 +162,11 @@ contract between Violet's token engine and these components. Today a theme reach
 [#1786](https://github.com/lushly-dev/afd/issues/1786) narrows this to one source and one runtime
 path:
 
-- Violet's engine, exporting against `interface.json`, becomes the only producer. Violet's
-  specimens take their component model from `interface.json` instead of a second hard-coded one.
+- Violet's engine, exporting against `interface.json`, becomes the only producer.
+- Violet's specimens take their component model from `interface.json` (done): `@lushly-dev/violet-afd`
+  maps each specimen role to the interface id its component reads (`SPECIMEN_INTERFACE_MAP`), and
+  its `model.test.ts` reads this file, so removing or retyping a mapped id, or changing
+  `contractVersion`, fails that test until the map is checked again.
 - The stylesheet becomes the only runtime path, installed through `adoptedStyleSheets` so that a
   page's Content Security Policy can forbid inline styles. `violet-runtime`'s inline
   `applyToDocument` is deprecated in favour of the same stylesheet.

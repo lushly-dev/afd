@@ -1,14 +1,11 @@
-import {
-	SPECIMEN_COMPONENTS,
-	specimenComponentHasRole,
-	specimenRoleDeclaration,
-} from '@lushly-dev/violet-core/css';
+import { specimenRoleDeclaration } from '@lushly-dev/violet-core/css';
 import { InheritanceResolutionError, resolveNodeTokenMap } from '@lushly-dev/violet-core/engine';
 import { type SpecimenMap, SpecimenMapSchema } from '@lushly-dev/violet-core/types';
 import { z } from 'zod';
 import { ErrorCodes, type Warning, failure, success } from '../../types/command-result.js';
 import { contextId, contextNow } from '../context-sources.js';
 import type { CommandContext, CommandDefinition } from '../registry.js';
+import { SPECIMEN_INTERFACE_MAP, specimenRolesOf, specimenTakesRole } from './model.js';
 import { KNOWN_COMPONENTS, treeRootOf, treeTokenIds } from './shared.js';
 
 /**
@@ -78,8 +75,8 @@ function changedRoles(before: SpecimenMap, after: SpecimenMap): string[] {
  * specimen.set command
  *
  * Store which token draws each role of each component specimen, for systems
- * whose component tokens are not named `<component>.<role>` (#118). The map is
- * kept once per tree, on its root. Components and roles must be ones the
+ * whose tokens do not use the ids the components read from their token
+ * interface (#118, #1786). The map is kept once per tree, on its root. Components and roles must be ones the
  * Specimens view draws, and every token must be defined in the tree.
  */
 export const specimenSetCommand: CommandDefinition<typeof InputSchema, Output> = {
@@ -104,7 +101,7 @@ export const specimenSetCommand: CommandDefinition<typeof InputSchema, Output> =
 		}
 
 		const unknownComponents = Object.keys(input.map).filter(
-			(component) => !has(SPECIMEN_COMPONENTS, component),
+			(component) => !has(SPECIMEN_INTERFACE_MAP, component),
 		);
 		if (unknownComponents.length > 0) {
 			return failure({
@@ -115,7 +112,7 @@ export const specimenSetCommand: CommandDefinition<typeof InputSchema, Output> =
 		}
 		const unknownRoles = Object.entries(input.map).flatMap(([component, roles]) =>
 			Object.keys(roles)
-				.filter((role) => !specimenComponentHasRole(component, role))
+				.filter((role) => !specimenTakesRole(component, role))
 				.map((role) => ({ component, role })),
 		);
 		if (unknownRoles.length > 0) {
@@ -124,10 +121,7 @@ export const specimenSetCommand: CommandDefinition<typeof InputSchema, Output> =
 				code: ErrorCodes.VALIDATION_ERROR,
 				message: `Role(s) the component does not take: ${unknownRoles.map(({ component, role }) => `${component}.${role}`).join(', ')}`,
 				suggestion: components
-					.map(
-						(component) =>
-							`${component} roles are: ${SPECIMEN_COMPONENTS[component].roles.join(', ')}`,
-					)
+					.map((component) => `${component} roles are: ${specimenRolesOf(component).join(', ')}`)
 					.join('; '),
 			});
 		}
@@ -200,7 +194,7 @@ export const specimenSetCommand: CommandDefinition<typeof InputSchema, Output> =
 			{ rootId: tree.rootId, map: after, changed, updatedAt: empty ? null : now },
 			{
 				reasoning: empty
-					? `Removed the specimen map from '${tree.rootId}'; specimens use the naming convention`
+					? `Removed the specimen map from '${tree.rootId}'; specimens use the interface ids`
 					: `Stored the specimen map on '${tree.rootId}': ${changed.length} role(s) changed`,
 				sources: [{ type: 'node', id: tree.rootId, title: tree.rootId }],
 				...(warnings.length > 0 ? { warnings } : {}),
@@ -224,8 +218,8 @@ export const specimenSetCommand: CommandDefinition<typeof InputSchema, Output> =
 			},
 		},
 		{
-			description: 'Go back to the naming convention for the button border',
-			input: { nodeId: 'global', map: { button: { border: null } } },
+			description: 'Go back to the interface id for the button background',
+			input: { nodeId: 'global', map: { button: { background: null } } },
 		},
 		{
 			description: 'Remove the whole map',

@@ -31,6 +31,8 @@ import { recordCheckSnapshot } from '../commands/analyze/snapshot.js';
 import { setCommand as constraintsSetCommand } from '../commands/constraints/set.js';
 import { nodeCreateCommand } from '../commands/node/create.js';
 import type { CommandContext, Database } from '../commands/registry.js';
+import { SPECIMEN_INTERFACE_MAP } from '../commands/specimen/model.js';
+import { specimenSetCommand } from '../commands/specimen/set.js';
 import { tokenAddCommand } from '../commands/token/add.js';
 import { tokenCopyCommand } from '../commands/token/copy.js';
 import { tokenOverrideCommand } from '../commands/token/override.js';
@@ -833,6 +835,26 @@ export async function seedRealisticSystem(
 	await run(
 		'constraints global',
 		constraintsSetCommand.handler({ nodeId: 'global', constraints }, context),
+		false,
+	);
+	// The catalog names its component tokens <component>.<role>, not the components'
+	// interface ids, so the specimens draw through a stored map (#1786)
+	const catalogIds = new Set(catalog.map((spec) => spec.id));
+	const specimenMap = Object.fromEntries(
+		Object.entries(SPECIMEN_INTERFACE_MAP)
+			.map(([component, specimen]) => [
+				component,
+				Object.fromEntries(
+					Object.keys(specimen.roles)
+						.filter((role) => catalogIds.has(`${component}.${role}`))
+						.map((role) => [role, `${component}.${role}`]),
+				),
+			])
+			.filter(([, roles]) => Object.keys(roles).length > 0),
+	);
+	await run(
+		'specimen map global',
+		specimenSetCommand.handler({ nodeId: 'global', map: specimenMap }, context),
 		false,
 	);
 

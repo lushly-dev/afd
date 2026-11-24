@@ -60,9 +60,9 @@ describe('specimen.get and specimen.set (#118)', () => {
 			['global', 'btn.bg', '#0F6CBD'],
 			['global', 'btn.fg', '#FFFFFF'],
 			['global', 'btn.corner', '4px'],
-			['global', 'card.background', '#FAFAFA'],
+			['global', 'color.surface.card', '#FAFAFA'],
 			['product', 'btn.pad', '12px'],
-			['mixin', 'focus.ring', '#000000'],
+			['mixin', 'color.focus.ring', '#000000'],
 			['other', 'other.bg', '#000000'],
 		]) {
 			await tokenAddCommand.handler({ nodeId, tokenId, value }, context);
@@ -72,9 +72,15 @@ describe('specimen.get and specimen.set (#118)', () => {
 		await storeUnchecked('theme', 'override', 'btn.bg', 'url(javascript:alert(1))');
 	});
 
-	it('falls back to the naming convention without a stored map', async () => {
+	it('draws from the components interface ids without a stored map (#1786)', async () => {
 		const data = await get('product');
-		expect(data).toMatchObject({ rootId: 'global', map: {}, stored: false, updatedAt: null });
+		expect(data).toMatchObject({
+			rootId: 'global',
+			map: {},
+			stored: false,
+			updatedAt: null,
+			interface: { package: '@lushly-dev/violet-elements', contractVersion: 3 },
+		});
 		expect(data.components.map((entry) => [entry.component, entry.drawn])).toEqual([
 			['button', false],
 			['input', false],
@@ -82,16 +88,44 @@ describe('specimen.get and specimen.set (#118)', () => {
 			['text', false],
 			['link', false],
 			['checkbox', false],
-			// focus.ring comes from the mixin product includes
+			// color.focus.ring comes from the mixin product includes
 			['focus', true],
+		]);
+		expect(data.components.map((entry) => entry.element)).toEqual([
+			'violet-button',
+			'violet-text-field',
+			'violet-card',
+			'violet-text',
+			null,
+			'violet-checkbox',
+			null,
 		]);
 		expect(role(data, 'card', 'background')).toEqual({
 			role: 'background',
-			tokenId: 'card.background',
-			source: 'convention',
+			tokenId: 'color.surface.card',
+			source: 'interface',
+			interfaceTokenId: 'color.surface.card',
 			resolves: true,
 			valid: true,
 			value: '#FAFAFA',
+		});
+		// No interface id carries the button's border, so it is drawn only through a map
+		expect(role(data, 'button', 'border')).toEqual({
+			role: 'border',
+			tokenId: null,
+			source: 'unmapped',
+			interfaceTokenId: null,
+			resolves: false,
+			valid: false,
+		});
+		// The old <component>.<role> convention is gone: card.radius is not read
+		await tokenAddCommand.handler(
+			{ nodeId: 'global', tokenId: 'card.radius', value: '4px' },
+			context,
+		);
+		expect(role(await get('product'), 'card', 'radius')).toMatchObject({
+			tokenId: 'radius.lg',
+			resolves: false,
 		});
 	});
 
@@ -117,12 +151,16 @@ describe('specimen.get and specimen.set (#118)', () => {
 			source: 'map',
 			valid: true,
 		});
-		// Unmapped roles keep the convention
+		// Roles the map leaves out keep the interface id
 		expect(role(product, 'button', 'radius')).toMatchObject({
-			tokenId: 'button.radius',
-			source: 'convention',
+			tokenId: 'radius.md',
+			source: 'interface',
+			interfaceTokenId: 'radius.md',
 			resolves: false,
 			valid: false,
+		});
+		expect(role(product, 'button', 'background')).toMatchObject({
+			interfaceTokenId: 'color.action.primary.background',
 		});
 		// btn.pad is defined on product, so it does not resolve on the root
 		expect(role(await get('global'), 'button', 'padding.x')).toMatchObject({ resolves: false });
@@ -184,28 +222,45 @@ describe('specimen.get and specimen.set (#118)', () => {
 		// Another tree's token is not known here
 		expect(await code({ button: { background: 'other.bg' } })).toBe('TOKEN_NOT_FOUND');
 		// A mixed-in node's token is
-		expect(await code({ button: { border: 'focus.ring' } })).toBeUndefined();
+		expect(await code({ button: { border: 'color.focus.ring' } })).toBeUndefined();
 		// Prototype keys are not roles
 		expect(await code({ button: { constructor: 'btn.bg' } })).toBe('VALIDATION_ERROR');
 		expect(await context.db.getSpecimenMap('other')).toBeNull();
 	});
 
-	it('draws the text block, link, checkbox and focus ring by convention (#498)', async () => {
+	it('draws the text block, link, checkbox and focus ring from the interface (#498, #1786)', async () => {
 		for (const [tokenId, value] of [
-			['text.foreground', '#242424'],
-			['text.font.family', 'Segoe UI, sans-serif'],
-			['text.line.height', '1.5'],
-			['link.foreground', '#0F6CBD'],
+			['color.text.primary', '#242424'],
+			['font.family.body', 'Segoe UI, sans-serif'],
+			['type.body.md.line', '1.5'],
+			['color.accent.text', '#0F6CBD'],
 			['link.underline', 'underline dotted 1px'],
-			['link.underline.offset', '0.2em'],
-			['checkbox.background', '#FFFFFF'],
-			['checkbox.size', '16px'],
-			['focus.ring.width', '-2px'],
-			['focus.ring.offset', '-2px'],
+			['link.offset', '0.2em'],
+			['color.control.selected.background', '#FFFFFF'],
+			['checkbox.box', '16px'],
+			['size.focus-ring.width', '-2px'],
+			['focus.offset', '-2px'],
 		]) {
 			await tokenAddCommand.handler({ nodeId: 'global', tokenId, value }, context);
 		}
-		await storeUnchecked('global', 'add', 'checkbox.check', 'url(javascript:alert(1))');
+		await storeUnchecked(
+			'global',
+			'add',
+			'color.control.selected.foreground',
+			'url(javascript:alert(1))',
+		);
+		// Roles no interface id carries are drawn through the map
+		await specimenSetCommand.handler(
+			{
+				nodeId: 'global',
+				map: {
+					link: { underline: 'link.underline', 'underline.offset': 'link.offset' },
+					checkbox: { size: 'checkbox.box' },
+					focus: { 'ring.offset': 'focus.offset' },
+				},
+			},
+			context,
+		);
 		const data = await get('product');
 		const component = (name: string) => data.components.find((entry) => entry.component === name);
 
@@ -248,15 +303,15 @@ describe('specimen.get and specimen.set (#118)', () => {
 		for (const name of ['text', 'link', 'checkbox', 'focus']) {
 			expect(component(name)?.drawn, name).toBe(true);
 		}
-		for (const [name, roleName] of [
-			['text', 'font.family'],
-			['text', 'line.height'],
-			['link', 'underline'],
-			['link', 'underline.offset'],
-			['checkbox', 'size'],
+		for (const [name, roleName, source] of [
+			['text', 'font.family', 'interface'],
+			['text', 'line.height', 'interface'],
+			['link', 'underline', 'map'],
+			['link', 'underline.offset', 'map'],
+			['checkbox', 'size', 'map'],
 		]) {
 			expect(role(data, name, roleName), `${name}.${roleName}`).toMatchObject({
-				source: 'convention',
+				source,
 				valid: true,
 			});
 		}
@@ -265,7 +320,10 @@ describe('specimen.get and specimen.set (#118)', () => {
 		expect(role(data, 'focus', 'ring.width')).toMatchObject({ resolves: true, valid: false });
 		// An outline offset may be negative; a width may not
 		expect(role(data, 'focus', 'ring.offset')).toMatchObject({ resolves: true, valid: true });
-		expect(role(data, 'focus', 'ring')).toMatchObject({ tokenId: 'focus.ring', valid: true });
+		expect(role(data, 'focus', 'ring')).toMatchObject({
+			tokenId: 'color.focus.ring',
+			valid: true,
+		});
 
 		// Without the mixin, the root has no focus ring to draw
 		const root = await get('global');
