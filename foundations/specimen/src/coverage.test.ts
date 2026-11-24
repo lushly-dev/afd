@@ -351,4 +351,28 @@ describe('specimen-coverage', () => {
 			'No schema describes fixture-none'
 		);
 	});
+
+	it('keeps explicit schema-partitions@1 identical to the default and refuses unknown capture sets for jobs@1', async () => {
+		const explicit = await bench.coverage({
+			component: 'fixture-simple',
+			filter: { ids: ['claimed-open', 'claimed-closed'] },
+			obligations: 'schema-partitions@1',
+		});
+		const implicit = await bench.coverage({
+			component: 'fixture-simple',
+			filter: { ids: ['claimed-open', 'claimed-closed'] },
+		});
+		const stripTiming = ({ elapsedMs: _, ...rest }: CoverageRun) => rest;
+		expect(stripTiming(explicit)).toEqual(stripTiming(implicit));
+		expect(explicit.components[0]?.jobs).toBeUndefined();
+		await expect(
+			bench.coverage({
+				component: 'fixture-simple',
+				obligations: 'jobs@1',
+				captures: 'does-not-exist',
+			})
+		).rejects.toMatchObject({
+			code: 'CAPTURE_SET_NOT_FOUND',
+		});
+	});
 });

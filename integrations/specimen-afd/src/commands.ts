@@ -543,7 +543,7 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		...common,
 		name: 'specimen-coverage',
 		description:
-			"Run the selected cases and report each component's required partitions, from its schema, at the level those runs earn: represented, asserted, verified, missing or unknown. Unknown never counts as covered, and only verified counts toward complete.",
+			"Run the selected cases and report each component's required partitions, from its schema, at the level those runs earn: represented, asserted, verified, missing or unknown. Unknown never counts as covered, and only verified counts toward complete. With obligations: 'jobs@1' and captures (a capture set id or label), read recorded job captures from that set without launching a browser and report components[].jobs (reachedBy, unreached, and reason when no job renders a component), applying unreached:<partition> waivers.",
 		mutation: false,
 		input: coverageRequestSchema,
 		output: coverageRunSchema,
@@ -552,7 +552,7 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				() => bench.coverage(input),
 				coverageRunSchema,
 				'SPECIMEN_COVERAGE_FAILED',
-				'Configure a custom elements manifest that describes the component, and use specimen-list to check the filter.'
+				'Configure a custom elements manifest that describes the component, and use specimen-list to check the filter or verify the capture set id/label.'
 			),
 	});
 	const matrix = defineCommand({

@@ -1456,4 +1456,84 @@ describe('specimen CLI', () => {
 		).toBe(1);
 		expect(await runCli(['--root', root, 'job-run', 'x', '--timeout', 'bad'], h.io)).toBe(1);
 	});
+
+	it('dispatches coverage with --obligations jobs@1 and --captures, and rejects invalid combinations', async () => {
+		const h = harness();
+		const root = await directory();
+		vi.mocked(h.bench.coverage).mockResolvedValueOnce({
+			obligations: 'jobs@1',
+			complete: false,
+			components: [
+				{
+					tag: 'example-notice',
+					sources: ['manifest'],
+					cases: 1,
+					obligations: [],
+					counts: { verified: 0, asserted: 0, represented: 1, missing: 1, unknown: 0 },
+					openEnded: [],
+					unknownToSchema: ['commands'],
+					jobs: {
+						reachedBy: [{ key: 'example-keep-a-draft/4', name: 'conflict-notice', step: 4 }],
+						unreached: ['variant=error'],
+					},
+				},
+			],
+			counts: { verified: 0, asserted: 0, represented: 1, missing: 1, unknown: 0 },
+			waived: 0,
+			waivers: { version: null, unused: [] },
+			invalidClaims: [],
+			cases: { total: 1, passed: 1, failed: [], skipped: 0 },
+			workers: 1,
+			elapsedMs: 1,
+		});
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'coverage',
+					'example-notice',
+					'--obligations',
+					'jobs@1',
+					'--captures',
+					'main',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.coverage).toHaveBeenLastCalledWith({
+			component: 'example-notice',
+			obligations: 'jobs@1',
+			captures: 'main',
+		});
+		expect(JSON.parse(h.output.at(-1) ?? '')).toMatchObject({
+			success: true,
+			data: {
+				obligations: 'jobs@1',
+				components: [
+					{
+						tag: 'example-notice',
+						jobs: {
+							reachedBy: [{ key: 'example-keep-a-draft/4', name: 'conflict-notice', step: 4 }],
+							unreached: ['variant=error'],
+						},
+					},
+				],
+			},
+		});
+
+		// Missing --captures with --obligations jobs@1 fails validation.
+		expect(await runCli(['--root', root, 'coverage', '--obligations', 'jobs@1'], h.io)).toBe(1);
+		expect(JSON.parse(h.output.at(-1) ?? '')).toMatchObject({
+			success: false,
+			error: { code: 'VALIDATION_ERROR' },
+		});
+
+		// --captures without --obligations jobs@1 fails validation.
+		expect(await runCli(['--root', root, 'coverage', '--captures', 'main'], h.io)).toBe(1);
+		expect(JSON.parse(h.output.at(-1) ?? '')).toMatchObject({
+			success: false,
+			error: { code: 'VALIDATION_ERROR' },
+		});
+	});
 });

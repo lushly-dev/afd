@@ -142,6 +142,13 @@ export const EXTRA_INPUTS = [
 		packages: ['@lushly-dev/violet-afd'],
 		ownTests: true,
 	},
+	// specimen-afd-runner's slice3.browser.test.ts reads the canonical Job 11 scenario YAML by path.
+	{
+		prefix:
+			'docs/features/active/screens-from-jobs/scenarios/11-find-what-no-job-reaches.scenario.yaml',
+		packages: ['@lushly-dev/specimen-afd-runner'],
+		ownTests: true,
+	},
 ];
 
 export const DEFAULT_BASES = ['origin/main', 'main'];

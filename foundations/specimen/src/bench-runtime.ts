@@ -27,6 +27,7 @@ import {
 	HostProcess,
 	type SpecimenHostError,
 } from './host.js';
+import { JOBS_COVERAGE_OBLIGATIONS, readJobCoverageFromSet } from './job-coverage.js';
 import { type JobSource, loadJobSourceModule } from './job-source.js';
 import { readA11yFromSet, readObservationFromSet } from './jobs.js';
 import { type PackHost, runPack } from './pack-run.js';
@@ -1255,7 +1256,15 @@ export async function createInProcessBench(
 		},
 		async coverage(rawRequest: CoverageRequest = {}): Promise<CoverageRun> {
 			ensureOpen();
-			return runCoverage(caseHost(), parseCoverageRequest(rawRequest));
+			const request = parseCoverageRequest(rawRequest);
+			if (request.obligations === JOBS_COVERAGE_OBLIGATIONS && request.captures !== undefined) {
+				return readJobCoverageFromSet(config, {
+					...request,
+					obligations: JOBS_COVERAGE_OBLIGATIONS,
+					captures: request.captures,
+				});
+			}
+			return runCoverage(caseHost(), request);
 		},
 		async packBuild(rawRequest: PackBuildRequest = {}): Promise<PackBuildRun> {
 			ensureOpen();

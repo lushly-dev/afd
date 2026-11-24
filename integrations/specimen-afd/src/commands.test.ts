@@ -1653,4 +1653,114 @@ describe('specimen commands', () => {
 			expect(res.error?.suggestion, item.code).toContain(item.expectedSuggestionContains);
 		}
 	});
+
+	it('exposes jobs@1 obligations and captures on specimen-coverage, validates coupling, and passes CAPTURE_SET_NOT_FOUND', async () => {
+		const instance = bench();
+		const commands = createSpecimenCommands(instance);
+		const covCmd = commands.find((command) => command.name === 'specimen-coverage');
+		expect(covCmd?.mutation).toBe(false);
+		expect(covCmd?.description).toContain('jobs@1');
+		expect(covCmd?.description).toContain('unreached:<partition>');
+
+		// Rejects jobs@1 without captures, captures without jobs@1, and unknown obligation sets.
+		for (const bad of [
+			{ obligations: 'jobs@1' },
+			{ captures: 'main' },
+			{ obligations: 'schema-partitions@1', captures: 'main' },
+			{ obligations: 'unknown@1', captures: 'main' },
+		]) {
+			const res = await executeSpecimenCommand(instance, 'specimen-coverage', bad);
+			expect(res.success, JSON.stringify(bad)).toBe(false);
+			expect(res.error?.code, JSON.stringify(bad)).toBe('VALIDATION_ERROR');
+		}
+		expect(instance.coverage).not.toHaveBeenCalled();
+
+		vi.mocked(instance.coverage).mockResolvedValueOnce({
+			obligations: 'jobs@1',
+			complete: false,
+			components: [
+				{
+					tag: 'example-notice',
+					sources: ['manifest'],
+					cases: 1,
+					obligations: [
+						{
+							id: 'unreached:variant=warning',
+							kind: 'property',
+							level: 'represented',
+							evidence: [
+								{
+									specimen: 'example-keep-a-draft/4',
+									checkpoint: 'conflict-notice',
+									target: 'root/example-notice:1',
+								},
+							],
+							evidenceCount: 1,
+						},
+						{
+							id: 'unreached:variant=error',
+							kind: 'property',
+							level: 'missing',
+							evidence: [],
+							evidenceCount: 0,
+							reason: 'No job capture shows variant as error.',
+						},
+					],
+					counts: { verified: 0, asserted: 0, represented: 1, missing: 1, unknown: 0 },
+					openEnded: [],
+					unknownToSchema: ['commands'],
+					jobs: {
+						reachedBy: [{ key: 'example-keep-a-draft/4', name: 'conflict-notice', step: 4 }],
+						unreached: ['variant=error'],
+					},
+				},
+			],
+			counts: { verified: 0, asserted: 0, represented: 1, missing: 1, unknown: 0 },
+			waived: 0,
+			waivers: { version: null, unused: [] },
+			invalidClaims: [],
+			cases: { total: 1, passed: 1, failed: [], skipped: 0 },
+			workers: 1,
+			elapsedMs: 1,
+		});
+
+		const ok = await executeSpecimenCommand(instance, 'specimen-coverage', {
+			component: 'example-notice',
+			obligations: 'jobs@1',
+			captures: 'main',
+		});
+		expect(ok.success).toBe(true);
+		expect(instance.coverage).toHaveBeenCalledWith({
+			component: 'example-notice',
+			obligations: 'jobs@1',
+			captures: 'main',
+		});
+		expect(ok.data).toMatchObject({
+			obligations: 'jobs@1',
+			components: [
+				{
+					tag: 'example-notice',
+					jobs: {
+						reachedBy: [{ key: 'example-keep-a-draft/4', name: 'conflict-notice', step: 4 }],
+						unreached: ['variant=error'],
+					},
+				},
+			],
+		});
+
+		vi.mocked(instance.coverage).mockRejectedValueOnce(
+			Object.assign(new Error('Capture set not found: nope'), {
+				code: 'CAPTURE_SET_NOT_FOUND',
+				suggestion:
+					'Run specimen-capture with label "nope" first; labels are local pointers, not git refs.',
+			})
+		);
+		const missing = await executeSpecimenCommand(instance, 'specimen-coverage', {
+			obligations: 'jobs@1',
+			captures: 'nope',
+		});
+		expect(missing.success).toBe(false);
+		expect(missing.error?.code).toBe('CAPTURE_SET_NOT_FOUND');
+		expect(missing.error?.suggestion).toContain('specimen-capture');
+	});
 });

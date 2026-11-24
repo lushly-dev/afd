@@ -16,7 +16,7 @@ specimen a11y --set main
 
 `validate` checks the retained stories a configuration discovers, statically; `--id ID` or `--file PATH` narrows it to one story or file. A report with errors is still a successful command: `data.valid` is `false` and each issue carries a suggestion.
 
-`coverage [TAG]` runs the selected cases and reports each component's required partitions at the level those runs earn. `--file`, `--tag`, `--match` and `--workers` narrow it.
+`coverage [TAG]` runs the selected cases and reports each component's required partitions at the level those runs earn. `--file`, `--tag`, `--match` and `--workers` narrow it. With `--obligations jobs@1 --captures SET` (a set id or local label), it reads recorded job captures from that set with no browser and reports `components[].jobs` (`reachedBy`, `unreached`, and `reason` when no job renders a component), applying `unreached:<partition>` waivers.
 
 `pack [TAG]` builds the configured library's component pack (Specimen's `pack` key) from two passes over every case and writes its committed records; `TAG` rebuilds one record from the cases the last full build indexed. `--allow-failed A,B` names cases allowed to fail, and `--workers N` limits how many run at once. `pack-check [TAG]` builds the same way, writes nothing, and exits 1 when a committed record differs or a case failed: the drift check. `pack-export DIR` writes the exported form from the committed records with no browser, with `--revision SHA` recorded in its catalog, and refuses when the manifest or a guide file says something the records do not.
 

@@ -5,7 +5,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { commandToolAnnotations } from '@lushly-dev/afd-core';
-import { createSpecimenBench } from '@lushly-dev/specimen';
+import { createSpecimenBench, writeCaptureSet } from '@lushly-dev/specimen';
+import { CAPTURE_VERSION, NORMALIZATION_VERSION } from '@lushly-dev/specimen/types';
 import { createSpecimenCommands } from '@lushly-dev/specimen-afd';
 import { runCli } from '@lushly-dev/specimen-cli';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -301,6 +302,247 @@ describe('Specimen MCP endpoint', () => {
 			error: {
 				code: 'JOB_NEEDS_RUN',
 				suggestion: expect.stringContaining('specimen-job-run'),
+			},
+		});
+	});
+
+	it('exposes jobs@1 specimen-coverage schema and evaluates set-backed jobs@1 coverage with waivers and CAPTURE_SET_NOT_FOUND over MCP', async () => {
+		await writeFile(
+			join(root, 'custom-elements.json'),
+			JSON.stringify({
+				schemaVersion: '1.0.0',
+				modules: [
+					{
+						path: 'src/components.ts',
+						declarations: [
+							{
+								tagName: 'example-notice',
+								members: [
+									{
+										kind: 'field',
+										name: 'variant',
+										attribute: 'variant',
+										type: { text: "'warning' | 'error'" },
+									},
+								],
+							},
+							{
+								tagName: 'example-chip',
+								members: [
+									{
+										kind: 'field',
+										name: 'size',
+										attribute: 'size',
+										type: { text: "'small' | 'medium'" },
+									},
+								],
+							},
+						],
+					},
+				],
+			}),
+			'utf8'
+		);
+		await writeFile(
+			join(root, 'specimen.config.json'),
+			JSON.stringify({
+				manifest: './custom-elements.json',
+				specimens: [{ id: 'cheap', title: 'Test/Cheap', module: './case.ts', exportName: 'Cheap' }],
+				coverage: {
+					waivers: {
+						version: '2026-11-23',
+						entries: [
+							{
+								component: 'example-chip',
+								obligation: 'unreached:size=small',
+								reason: 'Small chips appear only in a settings dialog no job opens.',
+							},
+						],
+					},
+				},
+			}),
+			'utf8'
+		);
+		await writeCaptureSet(root, {
+			kind: 'job',
+			context: {
+				viewport: { width: 1280, height: 720 },
+				theme: 'light',
+				locale: 'en-US',
+				reducedMotion: 'no-preference',
+				motion: 'natural',
+			},
+			checkpoint: {
+				name: 'conflict-notice',
+				actionMode: 'real-input',
+				baseline: { clock: 'real', random: { source: 'seeded', seed: 1 }, storage: 'empty' },
+			},
+			browser: { name: 'chromium', version: '130.0.0.0' },
+			axe: false,
+			revision: 'abc1234',
+			dirty: false,
+			label: 'main',
+			skipped: { jobs: 0, gates: 0 },
+			entries: [
+				{
+					key: 'example-keep-a-draft/4',
+					id: 'example-keep-a-draft',
+					status: 'captured',
+					checkpoint: 'conflict-notice',
+					step: 4,
+					job: 'keep-a-draft',
+					observation: {
+						manifest: {
+							captureVersion: CAPTURE_VERSION,
+							normalizationVersion: NORMALIZATION_VERSION,
+							specimenId: 'example-keep-a-draft',
+							capturedUtc: '2026-11-23T00:00:00.000Z',
+							bench: { name: '@lushly-dev/specimen', version: '2.2.0', plugins: [] },
+							driver: { name: 'host', emulates: ['viewport'] },
+							checkpoint: {
+								name: 'conflict-notice',
+								actionMode: 'real-input',
+								ready: { steps: [], outcome: 'ready', deadlineMs: 10_000 },
+								baseline: {
+									clock: 'real',
+									random: { source: 'seeded', seed: 1 },
+									storage: 'empty',
+								},
+							},
+							source: { revision: 'abc1234', digest: 'deadbeef', dirty: false },
+							dependencies: 'lock',
+							browser: {
+								name: 'chromium',
+								version: '130.0.0.0',
+								platform: 'linux-x64',
+								build: null,
+							},
+							job: { name: 'keep-a-draft', step: 4, description: 'Another writer saves the note' },
+							context: {
+								viewport: { width: 1280, height: 720 },
+								theme: 'light',
+								locale: 'en-US',
+								reducedMotion: 'no-preference',
+								motion: 'natural',
+								pixelRatio: 1,
+								observed: {
+									width: 1280,
+									height: 720,
+									media: true,
+									colorScheme: 'light',
+									contrast: 'no-preference',
+									reducedMotion: 'no-preference',
+									language: 'en-US',
+									devicePixelRatio: 1,
+								},
+								resources: { fonts: [], remote: [] },
+							},
+						},
+						channels: {
+							dom: { raw: '<div></div>', normalized: '<div></div>' },
+							a11y: { snapshot: '', axe: 'not-run' },
+							events: { declared: [], history: [] },
+							evidence: {
+								expectations: [],
+								claims: [],
+								commands: [],
+								formData: [],
+								validity: [],
+								attributesSet: [],
+							},
+							elements: [
+								{
+									ref: 'root/example-notice:1',
+									tag: 'example-notice',
+									attributes: { variant: 'warning' },
+									box: { x: 0, y: 0, width: 100, height: 24 },
+									scroll: { width: 100, height: 24, clientWidth: 100, clientHeight: 24 },
+									styles: {},
+									state: {},
+								},
+								{
+									ref: 'root/example-chip:1',
+									tag: 'example-chip',
+									attributes: { size: 'medium' },
+									box: { x: 0, y: 0, width: 60, height: 20 },
+									scroll: { width: 60, height: 20, clientWidth: 60, clientHeight: 20 },
+									styles: {},
+									state: {},
+								},
+							],
+							console: { errors: [], warnings: [] },
+							visual: { path: null },
+						},
+						completeness: {
+							dom: { status: 'complete', scope: 'dom', reasons: [] },
+							a11y: { status: 'partial', scope: 'a11y', reasons: ['AXE_NOT_RUN'] },
+							layout: { status: 'complete', scope: 'layout', reasons: [] },
+							styles: { status: 'complete', scope: 'styles', reasons: [] },
+							tokens: { status: 'unsupported', scope: 'tokens', reasons: [] },
+							events: { status: 'not-requested', scope: 'events', reasons: [] },
+							visual: { status: 'not-requested', scope: 'visual', reasons: [] },
+						},
+					},
+				},
+			],
+		});
+
+		const client = await connect();
+		const { tools } = await client.listTools();
+		const coverageTool = tools.find((tool) => tool.name === 'specimen-coverage');
+		expect(coverageTool?.annotations).toEqual({ readOnlyHint: true });
+		expect(coverageTool?.inputSchema).toMatchObject({
+			properties: {
+				obligations: { enum: ['schema-partitions@1', 'jobs@1'] },
+				captures: { type: 'string' },
+			},
+		});
+
+		const noticeRes = await client.callTool({
+			name: 'specimen-coverage',
+			arguments: { component: 'example-notice', obligations: 'jobs@1', captures: 'main' },
+		});
+		expect(noticeRes.isError).toBe(false);
+		expect(envelope(noticeRes as CallToolResult)).toMatchObject({
+			success: true,
+			data: {
+				obligations: 'jobs@1',
+				components: [
+					{
+						tag: 'example-notice',
+						jobs: {
+							reachedBy: [{ key: 'example-keep-a-draft/4', name: 'conflict-notice', step: 4 }],
+							unreached: ['variant=error'],
+						},
+					},
+				],
+			},
+		});
+
+		const chipRes = await client.callTool({
+			name: 'specimen-coverage',
+			arguments: { component: 'example-chip', obligations: 'jobs@1', captures: 'main' },
+		});
+		expect(chipRes.isError).toBe(false);
+		expect(envelope(chipRes as CallToolResult)).toMatchObject({
+			success: true,
+			data: {
+				waived: 1,
+				complete: true,
+				components: [{ tag: 'example-chip', jobs: { unreached: [] } }],
+			},
+		});
+
+		const missingSet = await client.callTool({
+			name: 'specimen-coverage',
+			arguments: { obligations: 'jobs@1', captures: 'no-such-set' },
+		});
+		expect(missingSet.isError).toBe(true);
+		expect(envelope(missingSet as CallToolResult)).toMatchObject({
+			success: false,
+			error: {
+				code: 'CAPTURE_SET_NOT_FOUND',
+				suggestion: expect.stringContaining('specimen-capture'),
 			},
 		});
 	});
