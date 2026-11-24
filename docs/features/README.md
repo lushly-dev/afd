@@ -167,7 +167,7 @@ feature-name/
 
 > **Plan files and `.gitignore`.** `.gitignore` ignores `*.plan.md` everywhere except `docs/features/active/` (and `PLAN/` and `archive/`). A `*.plan.md` written under `proposed/` or `complete/` is silently left out of commits; `git status` does not list it. Name plans outside `active/` without the `.plan` suffix, for example `complete/<feature>/plan.md`, and check that `git status` shows any new plan file before committing.
 
-A status file exists so that an agent never has to scan the codebase to learn what is current: it names what is done with evidence, what is not, and what future sessions must know. The [Umbel status](../../endpoints/umbel/docs/STATUS.md) is the reference shape. Each step has its own line there, made before the step starts, and no sentence says which steps are done or next: a line every step rewrites puts every open pull request in conflict. Each file's "How to keep this file" has its rules.
+A status file exists so that an agent never has to scan the codebase to learn what is current: it names what is done with evidence, what is not, and what future sessions must know. The [Umbel status](../../endpoints/umbel/docs/STATUS.md) is the reference shape. Each step has its own line there, made before the step starts, and no sentence says which steps are done or next: a line every step rewrites puts every open pull request in conflict. Each file's "How to keep this file" has its rules. A status stays an index of what is current: when its history outgrows a few screens, its finished phases' detail, merged step lines, closed follow-ups and session log move verbatim to dated `STATUS.archive-*.md` files beside it, each at most about 45 KB so one read holds it, as Loam's and Umbel's did on 2026-11-23.
 
 ## Jobs first
 
