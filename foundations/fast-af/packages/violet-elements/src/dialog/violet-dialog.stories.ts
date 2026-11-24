@@ -144,6 +144,8 @@ export const Overview: Story = {
         await waitFor(() => {
             expect(dialog.open).toBe(false);
             expect(element.open).toBe(false);
+            // Settle the close fade-out (display ... allow-discrete) before Specimen runs axe.
+            expect(getComputedStyle(dialog).display).toBe("none");
         });
     },
 };
@@ -207,15 +209,25 @@ export const Alert: Story = {
             throw new Error("Expected violet-dialog and trigger button to render.");
         }
 
+        const dialog = element.shadowRoot?.querySelector("dialog") as HTMLDialogElement | null;
+        if (!dialog) {
+            throw new Error("Expected native dialog in shadow DOM.");
+        }
+
         await userEvent.click(trigger);
 
         await waitFor(() => {
-            const dialog = element.shadowRoot?.querySelector("dialog") as HTMLDialogElement | null;
-            expect(dialog?.getAttribute("role")).toBe("alertdialog");
-            expect(dialog?.getAttribute("closedby")).toBe("closerequest");
+            expect(dialog.getAttribute("role")).toBe("alertdialog");
+            expect(dialog.getAttribute("closedby")).toBe("closerequest");
         });
 
         element.hide();
+
+        await waitFor(() => {
+            expect(dialog.open).toBe(false);
+            expect(element.open).toBe(false);
+            expect(getComputedStyle(dialog).display).toBe("none");
+        });
     },
 };
 

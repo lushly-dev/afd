@@ -108,9 +108,6 @@ async function tabStops(grid: VioletDataGrid, shift = false): Promise<Element[]>
             stops.push(element);
         }
     }
-    // Flush FAST's queued active-cell row update from tabbing through the grid so a subsequent
-    // focus change in Firefox does not collide with tbody splicing on the following frame.
-    await nextFrame();
     return stops;
 }
 
@@ -129,6 +126,32 @@ describe("violet-data-grid column headers in the keyboard model (real key presse
         const backward = await tabStops(grid, true);
         expect(backward).toEqual([cell(grid, "a", "name"), document.getElementById("before")]);
         expect(backward.filter(isHeaderStop)).toEqual([]);
+    });
+
+    it("preserves cell focus across a queued row splice after same-frame refocus (#2383)", async () => {
+        const grid = await renderBetweenButtons("cell");
+        const after = document.getElementById("after") as HTMLButtonElement;
+        const firstCell = cell(grid, "a", "name");
+
+        // Focusing an inactive cell queues renderedRows.splice + recheckCellFocusAfterRender.
+        // Leaving and returning to the cell before the frame flushes must keep focus on the cell.
+        firstCell.focus();
+        after.focus();
+        firstCell.focus();
+
+        await nextFrame();
+        await nextFrame();
+
+        expect(focused(grid)).toBe(cell(grid, "a", "name"));
+
+        // Intentional departure to an outside control before the frame flushes must not be stolen back.
+        cell(grid, "b", "name").focus();
+        after.focus();
+
+        await nextFrame();
+        await nextFrame();
+
+        expect(document.activeElement).toBe(after);
     });
 
     it("adds one roving header Tab stop in row mode, in either direction", async () => {

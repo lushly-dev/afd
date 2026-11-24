@@ -10980,6 +10980,53 @@
         },
         {
           "kind": "function",
+          "name": "mergePendingCellFocusRecovery",
+          "return": {
+            "type": {
+              "text": "PendingCellFocusRecovery"
+            }
+          },
+          "parameters": [
+            {
+              "name": "previous",
+              "type": {
+                "text": "PendingCellFocusRecovery | null"
+              }
+            },
+            {
+              "name": "hadGridCellFocus",
+              "type": {
+                "text": "boolean"
+              }
+            },
+            {
+              "name": "focusGeneration",
+              "type": {
+                "text": "number"
+              }
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "recoverGridCellFocusAfterRender",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "options",
+              "type": {
+                "text": "{\n    grid: HTMLElement;\n    ownerDocument: Document;\n    shadowRoot: ShadowRoot | null;\n    pending: PendingCellFocusRecovery;\n    focusGeneration: number;\n    gridCellFocusGeneration: number;\n    activeCell: HTMLTableCellElement | null;\n    parkFocusOnScrollContainer: () => void;\n}"
+              }
+            }
+          ],
+          "description": "Recovers grid cell focus after FAST's RepeatBehavior splices tbody (which silently drops focus\nto `document.body` in Firefox, #2383), including same-frame leave-and-return transitions, while\nnever stealing intentional focus that moved elsewhere."
+        },
+        {
+          "kind": "function",
           "name": "scrollCellIntoScrollContainer",
           "return": {
             "type": {
@@ -11070,6 +11117,22 @@
           "name": "isGridCellElementNode",
           "declaration": {
             "name": "isGridCellElementNode",
+            "module": "src/data-grid/violet-data-grid-focus-recovery.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "mergePendingCellFocusRecovery",
+          "declaration": {
+            "name": "mergePendingCellFocusRecovery",
+            "module": "src/data-grid/violet-data-grid-focus-recovery.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "recoverGridCellFocusAfterRender",
+          "declaration": {
+            "name": "recoverGridCellFocusAfterRender",
             "module": "src/data-grid/violet-data-grid-focus-recovery.ts"
           }
         },
@@ -17386,6 +17449,15 @@
             },
             {
               "kind": "field",
+              "name": "#gridCellFocusGeneration",
+              "privacy": "private",
+              "type": {
+                "text": "number"
+              },
+              "default": "0"
+            },
+            {
+              "kind": "field",
               "name": "#handleEditorPointerEnd",
               "privacy": "private",
               "readonly": true
@@ -17511,6 +17583,15 @@
                 "text": "boolean"
               },
               "default": "false"
+            },
+            {
+              "kind": "field",
+              "name": "#pendingCellFocusRecovery",
+              "privacy": "private",
+              "type": {
+                "text": "PendingCellFocusRecovery | null"
+              },
+              "default": "null"
             },
             {
               "kind": "field",
@@ -21166,6 +21247,12 @@
                   "name": "focusGeneration",
                   "type": {
                     "text": "number"
+                  }
+                },
+                {
+                  "name": "didSpliceRenderedRows",
+                  "type": {
+                    "text": "boolean"
                   }
                 }
               ]

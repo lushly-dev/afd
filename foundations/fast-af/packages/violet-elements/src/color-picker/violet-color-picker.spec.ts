@@ -221,10 +221,6 @@ describe("violet-color-picker", () => {
         expect(input.value).toBe("#1670ca");
         expect(picker.value).toBe("#1670ca");
 
-        // Flush FAST's queued :value binding before clearing so its rAF batch cannot rewrite "#1670ca"
-        // back into the cleared field between clear() and the next keystrokes.
-        await nextFrame();
-        await nextFrame();
         await userEvent.clear(input);
         await userEvent.keyboard("#246{Enter}");
         await nextFrame();
@@ -235,6 +231,29 @@ describe("violet-color-picker", () => {
             { type: "input", value: "#224466" },
             { type: "change", value: "#224466" },
         ]);
+    });
+
+    it("does not overwrite a same-frame hex edit on the next animation frame (#2382)", async () => {
+        const picker = await renderPicker();
+        const input = await openEditor(picker);
+
+        // Enter a valid 6-digit hex (updates `picker.value`) and immediately edit in the same frame.
+        input.value = "#1670ca";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        expect(picker.value).toBe("#1670ca");
+
+        input.value = "#24";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+
+        await nextFrame();
+        await nextFrame();
+
+        expect(input.value).toBe("#24");
+
+        // Programmatic value updates display the normalized hex value in the field.
+        picker.value = "#ABC";
+        await nextFrame();
+        expect(input.value).toBe("#aabbcc");
     });
 
     it("emits change once when an edited hex field is committed and blurred", async () => {

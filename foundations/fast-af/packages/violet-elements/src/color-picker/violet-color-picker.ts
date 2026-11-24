@@ -468,7 +468,6 @@ const template = html<VioletColorPicker>`
                         spellcheck="false"
                         autocapitalize="off"
                         autocomplete="off"
-                        :value="${x => x.value}"
                         ?disabled="${x => x.effectiveDisabled}"
                         ?required="${x => x.required}"
                         aria-invalid="${x => x.invalid ? "true" : "false"}"
@@ -1083,6 +1082,8 @@ export class VioletColorPicker extends FASTElement {
         this.#internals.setValidity({});
     }
 
+    // Writes `hexDraft` to the native input imperatively rather than through a `:value` binding
+    // so FAST's deferred rAF flush cannot overwrite same-frame edits after a 6-digit preview (#2382).
     private syncHexInputValue(): void {
         const input = this.hexInputElement;
 

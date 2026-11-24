@@ -88,3 +88,70 @@ export function suspendRovingCellTabStops(
         }
     }, 0);
 }
+
+export interface PendingCellFocusRecovery {
+    hadGridCellFocus: boolean;
+    focusGeneration: number;
+}
+
+export function mergePendingCellFocusRecovery(
+    previous: PendingCellFocusRecovery | null,
+    hadGridCellFocus: boolean,
+    focusGeneration: number,
+): PendingCellFocusRecovery {
+    return {
+        hadGridCellFocus: hadGridCellFocus || Boolean(previous?.hadGridCellFocus),
+        focusGeneration: previous ? Math.min(focusGeneration, previous.focusGeneration) : focusGeneration,
+    };
+}
+
+/**
+ * Recovers grid cell focus after FAST's RepeatBehavior splices tbody (which silently drops focus
+ * to `document.body` in Firefox, #2383), including same-frame leave-and-return transitions, while
+ * never stealing intentional focus that moved elsewhere.
+ */
+export function recoverGridCellFocusAfterRender(options: {
+    grid: HTMLElement;
+    ownerDocument: Document;
+    shadowRoot: ShadowRoot | null;
+    pending: PendingCellFocusRecovery;
+    focusGeneration: number;
+    gridCellFocusGeneration: number;
+    activeCell: HTMLTableCellElement | null;
+    parkFocusOnScrollContainer: () => void;
+}): void {
+    const {
+        grid,
+        ownerDocument,
+        shadowRoot,
+        pending,
+        focusGeneration,
+        gridCellFocusGeneration,
+        activeCell,
+        parkFocusOnScrollContainer,
+    } = options;
+    const focusBelongsToGridCell =
+        (pending.hadGridCellFocus && focusGeneration === pending.focusGeneration) ||
+        (gridCellFocusGeneration > pending.focusGeneration && focusGeneration === gridCellFocusGeneration);
+    if (!focusBelongsToGridCell) {
+        return;
+    }
+
+    const shadowActive = shadowRoot?.activeElement;
+    if (
+        shadowActive?.isConnected &&
+        (!isGridCellElementNode(shadowActive) || (activeCell && shadowActive === activeCell))
+    ) {
+        return;
+    }
+
+    if (!isDocumentFocusAvailableForGrid(grid, ownerDocument)) {
+        return;
+    }
+
+    if (activeCell) {
+        activeCell.focus({ preventScroll: true });
+    } else {
+        parkFocusOnScrollContainer();
+    }
+}
