@@ -1,5 +1,11 @@
 # @lushly-dev/specimen-fast-af
 
+## 0.1.0-preview.5
+
+### Patch Changes
+
+- [#2344](https://github.com/lushly-dev/afd/pull/2344) [`a3fef49`](https://github.com/lushly-dev/afd/commit/a3fef49f6b1cc0e6b2e23844a477861ee4004d9f) Thanks [@Falkicon](https://github.com/Falkicon)! - `fast-element`'s version now names the Microsoft FAST Element release it carries: the next preview is `3.1.4-preview.0` instead of `3.0.1-preview.3` ([#1790](https://github.com/lushly-dev/afd/issues/1790)). Later releases on the 3.1.4 line count on from it (`.1`, `.2`) and need no release of the packages that build on it. `violet-elements` and `specimen-fast-af` release with this one, because their published `fast-element` peers (`^3.0.1-preview.2` and `^3.0.1-preview`) do not accept the 3.1.4 line; their new peers start at `^3.1.4-preview.0`.
+
 ## 0.1.0-preview.4
 
 ### Patch Changes

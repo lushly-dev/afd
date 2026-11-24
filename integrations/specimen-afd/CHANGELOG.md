@@ -1,5 +1,39 @@
 # @lushly-dev/specimen-afd
 
+## 2.2.0-preview.7
+
+### Minor Changes
+
+- [#2289](https://github.com/lushly-dev/afd/pull/2289) [`46cc092`](https://github.com/lushly-dev/afd/commit/46cc0929a6a95f79f3ec2d12e5e65c7aa6e938e2) Thanks [@Falkicon](https://github.com/Falkicon)! - Add Design Decisions Phase 1 content-addressed capture sets (`specimen-capture` with per-capture content hashes, local pointer labels under `.specimen/`, axe enabled by default with orthogonal `incomplete` counts, default job/gate skipping, and compact ids/counts output) and typed set-backed `specimen-diff` (`{ set, id }` references with `CAPTURES_INCOMPARABLE`, `CAPTURE_SET_NOT_FOUND`, and `SPECIMEN_NOT_FOUND` errors) ([#2209](https://github.com/lushly-dev/afd/issues/2209)).
+
+- [#2340](https://github.com/lushly-dev/afd/pull/2340) [`841511f`](https://github.com/lushly-dev/afd/commit/841511f230c35cf5721ecfd9092cca51be21649d) Thanks [@Falkicon](https://github.com/Falkicon)! - Add Design Decisions Phase 2 side-by-side variant comparison (`specimen-compare` capturing 2–8 variants with axe into a `compare` set, diffing each against the first, refusing unknown ids with `SPECIMEN_NOT_FOUND` and theme-excluded variants with `VARIANT_UNAVAILABLE`, plus the self-contained `compare.html?set=` viewer across CLI, MCP server, dev server, and static builds) ([#2210](https://github.com/lushly-dev/afd/issues/2210)).
+
+- [#2376](https://github.com/lushly-dev/afd/pull/2376) [`a3fa421`](https://github.com/lushly-dev/afd/commit/a3fa4215af37fc5ea49a55b1bf0fb8409b9ce4d4) Thanks [@Falkicon](https://github.com/Falkicon)! - Implement Screens from Jobs Phase 4 ([#2038](https://github.com/lushly-dev/afd/issues/2038)):
+
+  - **`@lushly-dev/specimen`:** Add `bench.createJob()` (`buildJobCaptures`, `slugifyStepDescription`, `jobCreateRequestSchema`, `jobCreateResultSchema`) to write and reload job specimens in `specimen.config.json` from bare step numbers or `{ step, name?, before? }` selections; add set-backed `bench.render({ id, set, checkpoint? })` (`readObservationFromSet`) and `bench.a11y({ set })` (`readA11yFromSet`) that read recorded observations and axe outcomes without launching a browser or replaying steps (reporting `not-run` with reason for untaken captures and refusing live job render without `set` via `JOB_NEEDS_RUN`); extend `bench.captureSet()` / `runCaptureSet()` to execute job specimens through the configured runner into `<id>/<step>` captures or skip them with an actionable reason; tag missing/failed browser launches with `BROWSER_UNAVAILABLE` and missing job runner plugins with `RUNNER_MISSING`.
+  - **`@lushly-dev/specimen-afd`:** Expose `specimen-job-create` and `specimen-job-run` (`mutation: true`, references-only output), extend `specimen-list`, `specimen-validate`, `specimen-render`, `specimen-a11y`, and `specimen-capture` for job specimens, and surface all 8 job error/validation codes (`NOT_A_JOB`, `JOB_NEEDS_RUN`, `CAPTURE_STEP_UNKNOWN`, `CAPTURE_STEP_AMBIGUOUS`, `STEP_HAS_NO_DESCRIPTION`, `JOB_SCENARIO_INVALID`, `RUNNER_MISSING`, `BROWSER_UNAVAILABLE` suggesting `afd scenario run`).
+  - **`@lushly-dev/specimen-cli`:** Add `job-create` and `job-run` verbs and `--set` support on `render` and `a11y`, exiting non-zero when a job run fails (`status: 'failed'`).
+
+- [#2388](https://github.com/lushly-dev/afd/pull/2388) [`41ee564`](https://github.com/lushly-dev/afd/commit/41ee564db1b41cde5be8497d8c7d3657c57b11c2) Thanks [@Falkicon](https://github.com/Falkicon)! - Implement Screens from Jobs Phase 6 ([#2041](https://github.com/lushly-dev/afd/issues/2041)):
+
+  - **`@lushly-dev/specimen`:** Add the `jobs@1` component coverage obligation set (`JOBS_COVERAGE_OBLIGATIONS`, `UNREACHED_PREFIX`, `computeJobCoverage`, `readJobCoverageFromSet`) to `bench.coverage()` (`obligations: 'jobs@1'`, `captures: <set-id|label>`), reading recorded job captures from a named capture set with zero browser launch, refusing unknown sets with `CAPTURE_SET_NOT_FOUND`, returning `components[].jobs` with `reachedBy` (`{ key, name, step }[]`), `unreached` partitions, and `reason` when no job renders a component, and applying `unreached:<partition>` coverage waivers while leaving `schema-partitions@1` and `guides@1` behavior and outputs unchanged.
+  - **`@lushly-dev/specimen-afd`:** Extend `specimen-coverage`'s schema and description with `obligations: 'jobs@1'` and `captures` (propagating `CAPTURE_SET_NOT_FOUND` with suggestion) and expose the extended schema through `endpoints/specimen-server`.
+  - **`@lushly-dev/specimen-cli`:** Add `--obligations` and `--captures` options to `specimen coverage`.
+
+- [#2326](https://github.com/lushly-dev/afd/pull/2326) [`9582383`](https://github.com/lushly-dev/afd/commit/9582383fbb1ef44bb1f84ec77858967cbc67af15) Thanks [@Falkicon](https://github.com/Falkicon)! - Add Specimen Phase 2 support for Screens from Jobs ([#2037](https://github.com/lushly-dev/afd/issues/2037)):
+
+  - Keep multiple named checkpoints from a single fresh render as a content-addressed capture set (`set-<12hex>`) keyed `<id>/<step>` with axe and a screenshot per capture (`bench.captureCheckpoints()`).
+  - Add strict ISO-8601 `pin.clock` pinning `Date` and positive-delay timers alongside seeded `Math.random` (while keeping Specimen's own settle/axe waits on real timers) and reporting `pinned` in capture results so consecutive runs of clock-dependent screens produce identical sets.
+  - Extend configuration parsing and `specimen-list` (plus CLI `--kind`) to accept `job` entries and `kind` (`'job' | 'component'`) without failing schema validation.
+  - Record `unchanged` (compared against the previous marked capture in the same run) and `not-taken` / `unavailable` capture states, refusing captures after any failed step (including under `continueOnFailure`).
+  - Expose AFD-free plugin points for Node-side scenario parsing/validation (`JobSource` / `defineJobSource`) and in-page driving (`JobDriver` on `SpecimenPlugin` via `bench.runJob()`).
+
+- [#2353](https://github.com/lushly-dev/afd/pull/2353) [`9935976`](https://github.com/lushly-dev/afd/commit/99359760a6aee0ff07f8733626d38e8c59d16b69) Thanks [@Falkicon](https://github.com/Falkicon)! - Add `specimen-point`, `specimen-point-move`, and `specimen-point-check` (and matching `SpecimenBench` methods, CLI subcommands `point` / `point-move` / `point-check`, and warm-bench MCP tools in `endpoints/specimen-server`) to resolve `specimen:` pointer URIs or named targets through the shared two-step climb, persist bounded point records in `.specimen/points/pt-<12>.json` with zero-build CEM component/source info and loaded-file digests, move across relative levels (`parent`, `child`, `next`, `previous`, `component`), and detect stale references (`POINT_STALE`, `NO_SUCH_LEVEL`, `POINT_NOT_FOUND`, nearest-id `SPECIMEN_NOT_FOUND`) ([#2043](https://github.com/lushly-dev/afd/issues/2043)).
+
+### Patch Changes
+
+- [#2203](https://github.com/lushly-dev/afd/pull/2203) [`9dcf903`](https://github.com/lushly-dev/afd/commit/9dcf9038ebe57186ea429851d840eec24f6022e9) Thanks [@Falkicon](https://github.com/Falkicon)! - Add static pattern files (`pattern.json` Zod and draft 2020-12 JSON Schema exported at `@lushly-dev/specimen/pattern.schema.json`), the 9 ASCII format-2 identifier forms, `PatternTarget` role sets and mutually exclusive name matchers, `BenchConfig` `patterns`/`patternSources` (offline local pack directory and `./pack` package resolution) and manifest-less app `pack` configuration (`dependencies`, `localElements`, `themeStylesheet`), `guideComponentSchema` `implements`/`contexts`, static `parameters.specimen.{patternSetup,contexts}` extraction in `specimen-host`, and browserless `specimen-validate` portability and cross-reference checks ([#2144](https://github.com/lushly-dev/afd/issues/2144)).
+
 ## 2.2.0-preview.6
 
 ### Minor Changes
