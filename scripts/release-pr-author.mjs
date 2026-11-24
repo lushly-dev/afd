@@ -7,24 +7,22 @@
  * must name one author: a rebasing queue (#1809) lands the commit as it is, so its author is who
  * `main` credits, and a squashing one adds a `Co-authored-by:` line for a branch commit whose
  * author is not the pull request's, which `ci-ok` refuses (`scripts/commit-credit.mjs
- * --merge-group`). The Changesets action commits with whatever identity git already has, and with
- * `github-actions[bot]` when it has none. That matches a pull request GITHUB_TOKEN opened. It does
- * not match one the release App opened, which every release would then fail on (#1624). Even when
- * they match, a squash gains a line naming the bot author itself (#1590's squash, 2026-11-20),
- * which credits nobody else and which `commit-credit.mjs` allows.
+ * --merge-group`). `scripts/release-version-pr.mjs` uses `resolveAuthor` before committing and
+ * `verifyAuthor` afterwards for each route's branch (`changeset-release/npm-main` and
+ * `changeset-release/npm-prerelease`). Even when they match, a squash gains a line naming the bot
+ * author itself (#1590's squash, 2026-11-20), which credits nobody else and which
+ * `commit-credit.mjs` allows.
  *
- * The identity follows the pull request, not the token: the action force-pushes a new commit to
- * the open version pull request on every push to `main`, and that pull request keeps the author
- * it was opened by, whichever token updates it.
+ * The identity follows the pull request, not the token: the release workflow force-pushes a new
+ * commit to each open version pull request on every push to `main`, and that pull request keeps
+ * the author it was opened by, whichever token updates it.
  *
- *   node scripts/release-pr-author.mjs             Actions (release.yml), before the Changesets
- *                                                  action: reads the open version pull request,
- *                                                  or the App's bot user when there is none and
- *                                                  APP_SLUG is set, then sets user.name and
- *                                                  user.email in this checkout
- *   node scripts/release-pr-author.mjs --verify    after it: reads the pull request back and
- *                                                  fails if GitHub credits a commit on it to
- *                                                  anyone but its author
+ *   node scripts/release-pr-author.mjs             reads the open version pull request, or the
+ *                                                  App's bot user when there is none and APP_SLUG
+ *                                                  is set, then sets user.name and user.email in
+ *                                                  this checkout
+ *   node scripts/release-pr-author.mjs --verify    reads the pull request back and fails if GitHub
+ *                                                  credits a commit on it to anyone but its author
  *
  * Exit 0 set or agreed, 1 a commit is by someone else, 2 a failed read (the identity is left as it
  * was, and the step fails).
@@ -35,8 +33,8 @@ import { pathToFileURL } from 'node:url';
 /** The account GITHUB_TOKEN acts as. */
 export const ACTIONS_BOT = { login: 'github-actions[bot]', id: 41898282, type: 'Bot' };
 
-/** The branch the Changesets action pushes the version pull request from. */
-export const releaseBranch = (base) => `changeset-release/${base}`;
+/** The branch the release workflow pushes the version pull request from. */
+export const releaseBranch = (base, route = '') => `changeset-release/${route || base}`;
 
 /** The address GitHub ties to an account: a commit made with it is that account's. */
 export function identity({ login, id }) {
@@ -95,9 +93,12 @@ async function read(path, token) {
 }
 
 /** The open version pull request's author, or null when none is open. */
-export async function openVersionPr({ repository, base, token }, get = read) {
+export async function openVersionPr(
+	{ repository, base, branch = releaseBranch(base), token },
+	get = read
+) {
 	const owner = repository.split('/')[0];
-	const head = encodeURIComponent(`${owner}:${releaseBranch(base)}`);
+	const head = encodeURIComponent(`${owner}:${branch}`);
 	const found = await get(
 		`/repos/${repository}/pulls?state=open&base=${encodeURIComponent(base)}&head=${head}`,
 		token
@@ -126,22 +127,43 @@ export async function prCommits({ repository, number, token }, get = read) {
 	}));
 }
 
-function facts(env) {
-	const { GH_TOKEN, GITHUB_REPOSITORY, GITHUB_REF_NAME, APP_SLUG } = env;
+function flagValue(args, name) {
+	const index = args.indexOf(name);
+	if (index < 0) return '';
+	const value = args[index + 1];
+	if (!value || value.startsWith('--')) throw new Error(`Missing value for ${name}`);
+	return value;
+}
+
+function facts(env, args = []) {
+	const {
+		GH_TOKEN,
+		GITHUB_REPOSITORY,
+		GITHUB_REF_NAME,
+		APP_SLUG,
+		RELEASE_PR_BRANCH,
+		RELEASE_ROUTE,
+	} = env;
 	if (!GH_TOKEN || !GITHUB_REPOSITORY || !GITHUB_REF_NAME) {
 		throw new Error('GH_TOKEN, GITHUB_REPOSITORY and GITHUB_REF_NAME must be set');
 	}
+	const explicitBranch = flagValue(args, '--branch') || RELEASE_PR_BRANCH || '';
+	const route = flagValue(args, '--route') || RELEASE_ROUTE || '';
 	return {
 		repository: GITHUB_REPOSITORY,
 		base: GITHUB_REF_NAME,
+		branch: explicitBranch || releaseBranch(GITHUB_REF_NAME, route),
 		token: GH_TOKEN,
 		appSlug: APP_SLUG || '',
 	};
 }
 
 /** Reads what decides the identity, then chooses it. The App is asked for only when it will open the pull request. */
-export async function resolveAuthor({ repository, base, token, appSlug }, get = read) {
-	const openPr = await openVersionPr({ repository, base, token }, get);
+export async function resolveAuthor(
+	{ repository, base, branch = releaseBranch(base), token, appSlug },
+	get = read
+) {
+	const openPr = await openVersionPr({ repository, base, branch, token }, get);
 	const app = !openPr && appSlug ? await appBot({ slug: appSlug, token }, get) : null;
 	return chooseAuthor({ openPr, app });
 }
@@ -149,8 +171,11 @@ export async function resolveAuthor({ repository, base, token, appSlug }, get = 
 const gitConfig = (key, value) => execFileSync('git', ['config', key, value], { stdio: 'inherit' });
 
 /** Sets the identity in this checkout. A failed read throws before anything is set. */
-export async function setAuthor(env, { get = read, git = gitConfig, log = console.log } = {}) {
-	const chosen = await resolveAuthor(facts(env), get);
+export async function setAuthor(
+	env,
+	{ args = [], get = read, git = gitConfig, log = console.log } = {}
+) {
+	const chosen = await resolveAuthor(facts(env, args), get);
 	if (chosen.warning) log(`::warning::${chosen.warning}`);
 	git('user.name', chosen.name);
 	git('user.email', chosen.email);
@@ -163,9 +188,9 @@ export async function setAuthor(env, { get = read, git = gitConfig, log = consol
  * rebase would land them under someone who did not open it, and a squash would name them in a
  * Co-authored-by line.
  */
-export async function verifyAuthor(env, { get = read, log = console.log } = {}) {
-	const { repository, base, token } = facts(env);
-	const openPr = await openVersionPr({ repository, base, token }, get);
+export async function verifyAuthor(env, { args = [], get = read, log = console.log } = {}) {
+	const { repository, base, branch, token } = facts(env, args);
+	const openPr = await openVersionPr({ repository, base, branch, token }, get);
 	if (!openPr) {
 		log('release-pr-author: no version pull request is open; nothing to check');
 		return [];
@@ -189,21 +214,22 @@ const VERIFY_FIX = [
 	'Each would land under an author who did not open the pull request (a squashing queue adds a',
 	'Co-authored-by line for each, which ci-ok refuses).',
 	'The next push to main rewrites the commit with the identity this workflow reads then; if it',
-	'still differs, the Changesets action no longer commits with the identity git holds, or a',
+	'still differs, the version PR script no longer commits with the resolved identity, or a',
 	'person opened the pull request (close it, delete its branch, and let this workflow open one).',
 ].join('\n');
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+	const args = process.argv.slice(2);
 	try {
-		if (process.argv.includes('--verify')) {
-			const problems = await verifyAuthor(process.env);
+		if (args.includes('--verify')) {
+			const problems = await verifyAuthor(process.env, { args });
 			if (problems.length > 0) {
 				for (const problem of problems) console.log(`::error::${problem}`);
 				console.error(`release-pr-author: ${problems.join('\n')}\n${VERIFY_FIX}`);
 				process.exitCode = 1;
 			}
 		} else {
-			await setAuthor(process.env);
+			await setAuthor(process.env, { args });
 		}
 	} catch (error) {
 		console.error(`release-pr-author: ${error.message}`);

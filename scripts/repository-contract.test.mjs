@@ -69,15 +69,18 @@ test('release documentation and workflow agree with root scripts', () => {
 	assert.match(ship, /fragment in `\.changeset\/` by hand \(`pnpm changeset` prompts\)/);
 
 	const qualityGate = release.indexOf('run: pnpm check');
-	const publishAction = release.search(/uses: changesets\/action@[0-9a-f]{40} # v2\./);
+	const versionMain = release.indexOf('run: node scripts/release-version-pr.mjs --route npm-main');
+	const versionPre = release.indexOf(
+		'run: node scripts/release-version-pr.mjs --route npm-prerelease'
+	);
 	assert.ok(qualityGate >= 0, 'release workflow must run pnpm check');
-	assert.ok(publishAction > qualityGate, 'quality gate must finish before Changesets can publish');
-	// The action only opens the version PR: publication and tags belong to the guarded scripts,
-	// and v2 pushes tags unless told not to.
-	const actionStep = release.slice(publishAction, release.indexOf('\n\n', publishAction));
-	assert.doesNotMatch(actionStep, /publish-script:/);
-	assert.match(actionStep, /push-git-tags: false/);
-	assert.match(actionStep, /create-github-releases: false/);
+	assert.ok(
+		versionMain > qualityGate && versionPre > qualityGate,
+		'quality gate must finish before version PR steps'
+	);
+	// Publication and tags belong exclusively to the guarded scripts; never to changesets/action.
+	assert.doesNotMatch(release, /uses: changesets\/action@/);
+	assert.doesNotMatch(release, /publish-script:/);
 });
 
 test('publish workflows check the tag against the manifest before publishing', () => {

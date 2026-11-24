@@ -12,7 +12,15 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import semver from 'semver';
 import { assertChannelVersions, planRelease, releaseChannel } from '../release/control.mjs';
-import { json, repositoryEntry, run, safePath, sourceDigest, tree } from './shared.mjs';
+import {
+	json,
+	PNPM_NO_INSTALL_ENV,
+	repositoryEntry,
+	run,
+	safePath,
+	sourceDigest,
+	tree,
+} from './shared.mjs';
 
 /** Preserve Changesets' git-backed changelog behavior, restricting only its workspace inputs. */
 export function inWorktree(root, callback) {
@@ -62,10 +70,7 @@ export function runChangesetVersion(cwd) {
 	return run(process.execPath, [cli, 'version'], cwd, {
 		env: {
 			...process.env,
-			npm_config_verify_deps_before_run: 'false',
-			pnpm_config_verify_deps_before_run: 'false',
-			npm_config_lockfile: 'false',
-			pnpm_config_lockfile: 'false',
+			...PNPM_NO_INSTALL_ENV,
 		},
 	});
 }
