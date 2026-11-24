@@ -341,9 +341,12 @@
 			"evidence": ["packages/rust/src/streaming.rs"]
 		},
 		"exec.stream-executor": {
-			"status": "no",
-			"note": "(planned per D6)",
-			"evidence": ["packages/rust/src/streaming.rs"]
+			"status": "yes",
+			"note": "(#1601): `execute_stream` and `CommandRegistry::execute_stream` return a lazy `Stream` that runs to completion, then chunks; `StreamExecutorOptions::timeout_ms` needs `native`",
+			"evidence": [
+				"packages/rust/src/stream_executor.rs",
+				"packages/rust/src/stream_executor/tests.rs"
+			]
 		},
 		"exec.timeout-progress": {
 			"status": "partial",
