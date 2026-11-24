@@ -747,11 +747,11 @@
       "path": "docs/operations/model-routing.md",
       "upstream_sha256": "0857e34d7b43ed79f566f7d8e6ffefffe42354da9ce3f87f55924e3840905815",
       "staged_sha256": "0857e34d7b43ed79f566f7d8e6ffefffe42354da9ce3f87f55924e3840905815",
-      "current_import_sha256": "dde935a5c2668caa13614f54b8f69a5b502d2cfedb1e36595ff8923c44f44665",
+      "current_import_sha256": "01f9827fc7761e2a043fb8ae06c677caffb0914202d31a4bb16ea8bdcbc7da31",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Point at AFD's development model routing, the single copy, after the Fable 5.2 routes; Point the development routing summary at GPT-6.2 Sol's trial and Astra's owner-started trial; Model routing: Opus 5.5 default and two-model first review with GPT-6.2 Astra"
+      "import_reason": "Point at AFD's development model routing, the single copy, after the Fable 5.2 routes; Point the development routing summary at GPT-6.2 Sol's trial and Astra's owner-started trial; Model routing: Opus 5.5 default and two-model first review with GPT-6.2 Astra; Model routing 2026-11-23: Gemini 4 Neon co-default, 3-model review triangle, retire GPT-6.2 Sol and Fable low/medium"
     },
     {
       "path": "hatch_build.py",
