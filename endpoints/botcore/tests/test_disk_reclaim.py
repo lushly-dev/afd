@@ -145,20 +145,252 @@ def test_low_space_strips_pressure_patterns_and_younger_output(
 def test_aged_folders_wait_for_rust_builds(
     repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
 ) -> None:
-    cache = repo["tmp"] / "cache" / "slot1"
-    cache.mkdir(parents=True)
-    (cache / "big").write_bytes(b"r" * 4096)
-    for path in (cache / "big", cache):
-        age(path)
+    """Scoped busy protection: an unrelated `cargo` process does not block evicting stale
+    aged folders, while recently-touched dirs, held `.cargo-lock` dirs, and dirs named on a
+    process command line stay protected."""
+    root = repo["tmp"] / "cache"
+    stale = root / "stale"
+    recent = root / "recent"
+    locked = root / "locked"
+    named = root / "named"
+    for folder in (stale, recent, locked, named):
+        folder.mkdir(parents=True)
+        (folder / "big").write_bytes(b"r" * 4096)
+    for folder in (stale, locked, named):
+        age(folder / "big")
+        age(folder)
+    five_min_ago = time.time() - 300
+    age(recent / "big", five_min_ago)
+    age(recent, five_min_ago)
+    lock_file = locked / ".cargo-lock"
+    lock_file.write_bytes(b"")
+    age(lock_file)
+    age(locked)
+
+    # max_gb = 0 makes all four eligible so we can verify each scoped guard independently.
     text = repo["settings"].read_text(encoding="utf-8")
-    text += f'\n[[aged]]\npath = {json.dumps(str(cache.parent) + "/*")}\nmax_age_days = 7\n'
+    text += f'\n[[aged]]\npath = {json.dumps(str(root) + "/*")}\nmax_gb = 0\n'
     repo["settings"].write_text(text, encoding="utf-8")
-    cargo = Processes(cmdlines=["/home/u/.cargo/bin/cargo build --release"], method="test")
-    monkeypatch.setattr(reclaim, "running_processes", lambda: cargo)
-    assert outcomes(run_reclaim(apply=True, tier=0))[str(cache)] == "skipped"
+
+    cargo_procs = Processes(
+        cmdlines=[
+            "/home/u/.cargo/bin/cargo build --release",
+            f"/home/u/.cargo/bin/rustc --out-dir {named / 'debug' / 'deps'}",
+        ],
+        method="test",
+    )
+    monkeypatch.setattr(reclaim, "running_processes", lambda: cargo_procs)
+    with RunLock(lock_file):
+        # Refresh mtime to match what report_aged sees (RunLock writes a sibling .json, not lock).
+        (locked / ".cargo-lock.json").unlink(missing_ok=True)
+        age(locked)
+        first = run_reclaim(apply=True, tier=0)
+    by_target = {a["target"]: a for a in first["actions"] if a["kind"] == "aged"}
+    assert by_target[str(stale)]["outcome"] == "done"
+    assert not stale.exists()
+    assert by_target[str(recent)]["outcome"] == "skipped"
+    assert "modified recently" in by_target[str(recent)]["detail"]
+    assert by_target[str(locked)]["outcome"] == "skipped"
+    assert "lock" in by_target[str(locked)]["detail"]
+    assert by_target[str(named)]["outcome"] == "skipped"
+    assert "process" in by_target[str(named)]["detail"]
+    assert recent.exists() and locked.exists() and named.exists()
+
+    # Once cargo and the lock are gone, the remaining folders can be evicted.
     monkeypatch.setattr(reclaim, "running_processes", lambda: Processes(method="test"))
-    assert outcomes(run_reclaim(apply=True, tier=0))[str(cache)] == "done"
-    assert not cache.exists() and cache.parent.exists()
+    second = outcomes(run_reclaim(apply=True, tier=0))
+    assert second[str(recent)] == "done"
+    assert second[str(locked)] == "done"
+    assert second[str(named)] == "done"
+    assert root.exists()
+
+
+def test_aged_bucket_eviction_prunes_empty_buckets_and_keeps_populated_ones(
+    repo: dict[str, Path], state: Path,  # noqa: F811
+) -> None:
+    root = repo["tmp"] / "cargo-build"
+    fresh = root / "ab" / "0305f56e9b9616"
+    stale_in_shared = root / "ab" / "11223344556677"
+    stale_alone = root / "cd" / "deadbeef001122"
+    for folder in (fresh, stale_in_shared, stale_alone):
+        (folder / "debug" / "deps").mkdir(parents=True)
+        (folder / "debug" / "deps" / "x.rlib").write_bytes(b"x" * 4096)
+    for folder in (stale_in_shared, stale_alone):
+        for p in (folder / "debug" / "deps" / "x.rlib", folder / "debug" / "deps",
+                  folder / "debug", folder):
+            age(p)
+
+    text = repo["settings"].read_text(encoding="utf-8")
+    text += f'\n[[aged]]\npath = {json.dumps(str(root) + "/*")}\nmax_age_days = 7\n'
+    repo["settings"].write_text(text, encoding="utf-8")
+
+    data = run_reclaim(apply=True, tier=0)
+    res = outcomes(data)
+    assert res[str(stale_in_shared)] == "done"
+    assert res[str(stale_alone)] == "done"
+    assert str(fresh) not in res
+    assert fresh.exists() and (root / "ab").exists()
+    assert not stale_in_shared.exists()
+    assert not stale_alone.exists()
+    assert not (root / "cd").exists()
+
+
+def test_low_space_pressure_escalates_aged_folders_and_stops_when_recovered(
+    repo: dict[str, Path], state: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+) -> None:
+    now = time.time()
+    root = repo["tmp"] / "cargo-build"
+
+    def make_ws(rel: str, hours_ago: float) -> Path:
+        folder = root / rel
+        folder.mkdir(parents=True)
+        (folder / "blob").write_bytes(b"x" * 4096)
+        when = now - hours_ago * 3600
+        age(folder / "blob", when)
+        age(folder, when)
+        return folder
+
+    oldest = make_ws("aa/11111111111111", 5 * 24)  # 5 days (< 7d configured)
+    mid = make_ws("bb/22222222222222", 2 * 24)  # 2 days
+    six_h_plus = make_ws("cc/33333333333333", 10)  # 10 hours
+    under_6h = make_ws("dd/44444444444444", 3)  # 3 hours
+    active = make_ws("ee/55555555555555", 0.25)  # 15 minutes (< 1h safety floor)
+
+    mount = mount_point(root)
+    text = repo["settings"].read_text(encoding="utf-8")
+    text += (
+        f"\n[[volume]]\nmount = {json.dumps(str(mount))}\nlow_space_gb = 1000000\n"
+        f'\n[[aged]]\npath = {json.dumps(str(root) + "/*")}\nmax_age_days = 7\n'
+    )
+    repo["settings"].write_text(text, encoding="utf-8")
+
+    # Dry run previews all pressure steps without deleting anything.
+    dry = run_reclaim(apply=False, tier=0)
+    dry_steps = {a["target"]: a["step"] for a in dry["actions"] if a["kind"] == "aged"}
+    assert dry_steps == {
+        str(oldest): "pressure-1.0d",
+        str(mid): "pressure-1.0d",
+        str(six_h_plus): "pressure-0.25d",
+        str(under_6h): "pressure-oldest",
+    }
+    assert str(active) not in dry_steps
+    assert oldest.exists()
+
+    # Apply with simulated recovery once `oldest` is deleted: stops immediately, keeping `mid`+.
+    real_volume_state = reclaim.volume_state
+
+    def recovering_volume(mnt: Path, expected_id, low_space_gb):
+        vs = real_volume_state(mnt, expected_id, low_space_gb)
+        if not oldest.exists() and low_space_gb is not None:
+            vs.free_bytes = int((low_space_gb + 10) * 1024**3)
+        return vs
+
+    monkeypatch.setattr(reclaim, "volume_state", recovering_volume)
+    recovered = run_reclaim(apply=True, tier=0)
+    aged_done = [a for a in recovered["actions"] if a["kind"] == "aged" and a["outcome"] == "done"]
+    assert [a["target"] for a in aged_done] == [str(oldest)]
+    assert not oldest.exists() and not (root / "aa").exists()
+    assert mid.exists() and six_h_plus.exists() and under_6h.exists() and active.exists()
+    assert not [a for a in recovered["actions"] if a["kind"] == "strip"]
+
+    # Apply while volume stays persistently low: escalates through 1.0d, 0.25d, pressure-oldest,
+    # while leaving the 15-minute-old `active` folder untouched.
+    monkeypatch.setattr(reclaim, "volume_state", real_volume_state)
+    full = run_reclaim(apply=True, tier=0)
+    steps_done = {
+        a["target"]: a["step"]
+        for a in full["actions"]
+        if a["kind"] == "aged" and a["outcome"] == "done"
+    }
+    assert steps_done == {
+        str(mid): "pressure-1.0d",
+        str(six_h_plus): "pressure-0.25d",
+        str(under_6h): "pressure-oldest",
+    }
+    assert not mid.exists() and not six_h_plus.exists() and not under_6h.exists()
+    assert active.exists()
+
+
+def test_forced_pressure_and_max_gb_only_aged_escalation(
+    repo: dict[str, Path], state: Path,  # noqa: F811
+) -> None:
+    now = time.time()
+    root = repo["tmp"] / "aged-pressure"
+
+    def make_entry(name: str, hours_ago: float) -> Path:
+        folder = root / name
+        folder.mkdir(parents=True)
+        (folder / "f").write_bytes(b"x" * 4096)
+        when = now - hours_ago * 3600
+        age(folder / "f", when)
+        age(folder, when)
+        return folder
+
+    day_old = make_entry("day-old", 30)
+    ten_h = make_entry("ten-h", 10)
+    three_h = make_entry("three-h", 3)
+
+    # Forced pressure on a non-low volume runs 1.0d and 0.25d steps, but not pressure-oldest (<6h).
+    base_settings = repo["settings"].read_text(encoding="utf-8")
+    repo["settings"].write_text(
+        base_settings + f'\n[[aged]]\npath = {json.dumps(str(root) + "/*")}\nmax_age_days = 7\n',
+        encoding="utf-8",
+    )
+    forced = run_reclaim(apply=True, tier=0, pressure=True)
+    forced_steps = {
+        a["target"]: a["step"]
+        for a in forced["actions"]
+        if a["kind"] == "aged" and a["outcome"] == "done"
+    }
+    assert forced_steps == {str(day_old): "pressure-1.0d", str(ten_h): "pressure-0.25d"}
+    assert not day_old.exists() and not ten_h.exists() and three_h.exists()
+
+    # A max_gb-only [[aged]] entry (no max_age_days) also escalates under low space.
+    capped_root = repo["tmp"] / "capped-only"
+    capped_old = capped_root / "stale"
+    capped_old.mkdir(parents=True)
+    (capped_old / "f").write_bytes(b"x" * 4096)
+    when = now - 36 * 3600
+    age(capped_old / "f", when)
+    age(capped_old, when)
+    mount = mount_point(capped_root)
+    repo["settings"].write_text(
+        base_settings
+        + f"\n[[volume]]\nmount = {json.dumps(str(mount))}\nlow_space_gb = 1000000\n"
+        + f'\n[[aged]]\npath = {json.dumps(str(capped_root) + "/*")}\nmax_gb = 500\n',
+        encoding="utf-8",
+    )
+    low_run = run_reclaim(apply=True, tier=0)
+    capped_actions = [a for a in low_run["actions"] if a["kind"] == "aged"]
+    assert [(a["target"], a["step"], a["outcome"]) for a in capped_actions] == [
+        (str(capped_old), "pressure-1.0d", "done"),
+    ]
+    assert not capped_old.exists()
+
+
+def test_is_locked_probes_without_modifying_file(tmp_path: Path) -> None:
+    from botcore.commands.disk.lock import is_locked
+
+    missing = tmp_path / "absent"
+    assert is_locked(missing) is False
+    assert not missing.exists()
+
+    target = tmp_path / ".cargo-lock"
+    target.write_bytes(b"")
+    old_mtime = time.time() - 5 * 86400
+    age(target, old_mtime)
+    before = target.stat().st_mtime
+    assert is_locked(target) is False
+    assert target.stat().st_mtime == before
+
+    with RunLock(target):
+        assert is_locked(target) is True
+    assert is_locked(target) is False
+
+    if sys.platform != "win32":
+        link = tmp_path / "link-lock"
+        link.symlink_to(target)
+        assert is_locked(link) is True
 
 
 def test_tier_0_never_strips(repo: dict[str, Path], state: Path) -> None:  # noqa: F811

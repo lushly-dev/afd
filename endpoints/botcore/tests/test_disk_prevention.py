@@ -244,14 +244,93 @@ def test_cargo_build_dir_per_workspace_needs_an_aged_folder(
 
     [problem] = check(place)["problems"]
     entry = suggested_entry(problem)
-    assert entry == {"path": str(root / "*"), "max_age_days": 7}
+    assert entry == {
+        "path": str(root / "*"),
+        "max_age_days": cargo.SUGGESTED_AGE_DAYS,
+        "max_gb": cargo.suggested_max_gb(root),
+    }
+    assert entry["max_age_days"] == 2
 
     covered = MachineSettings(aged=[AgedFolder(**entry)])
     result = check(place, covered)
     assert result["arrangement"] == "moved out of the worktrees" and not result["problems"]
     assert result["settings"][0]["covered_by"] == str(root / "*")
+    double_glob = MachineSettings(aged=[AgedFolder(path=str(root / "*" / "*"), max_age_days=2)])
+    assert not check(place, double_glob)["problems"]
     (root / "ab").mkdir(parents=True)  # a hash bucket: still Cargo's alone
     assert check(place)["settings"][0]["aged"] == str(root / "*")
+
+
+def test_cargo_suggested_max_gb_scales_with_volume_size(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from types import SimpleNamespace
+
+    gib = 1024**3
+    for total_gb, expected in [(100, 40), (250, 50), (500, 100), (1000, 150), (4000, 150)]:
+        monkeypatch.setattr(
+            cargo.shutil,
+            "disk_usage",
+            lambda _p, total=total_gb * gib: SimpleNamespace(total=total, used=0, free=total),
+        )
+        assert cargo.suggested_max_gb(tmp_path / "missing" / "cargo-build") == expected
+
+    def fail(_p):
+        raise OSError("unavailable")
+
+    monkeypatch.setattr(cargo.shutil, "disk_usage", fail)
+    assert cargo.suggested_max_gb(tmp_path / "cargo-build") == cargo.SUGGESTED_MAX_GB
+
+
+def test_cargo_only_recognizes_non_hash_cargo_dirs_and_rejects_unrelated_content(
+    cargo_home: Path, place: Path, tmp_path: Path,
+) -> None:
+    root = tmp_path / "Dev" / "cargo-build"
+    (root / "ab" / "0305f56e9b9616").mkdir(parents=True)
+    (root / "afd-p4" / "debug" / ".fingerprint").mkdir(parents=True)
+    (root / "afd-lock").mkdir(parents=True)
+    (root / "afd-lock" / ".cargo-lock").write_bytes(b"")
+    (root / "afd-wasm" / "wasm32-wasip2" / "release" / ".fingerprint").mkdir(parents=True)
+    (root / "CACHEDIR.TAG").write_text("Signature: 8a477f597d28d172789f06886806bc55\n", "utf-8")
+    write_config(cargo_home, f"build-dir = {json.dumps(str(root) + '/{workspace-path-hash}')}")
+
+    assert cargo._cargo_only(root) is True
+    assert check(place)["settings"][0]["aged"] == str(root / "*")
+
+    # Adding an unrelated directory or file rejects the folder so setup won't suggest clearing it.
+    (root / "photos" / "2026").mkdir(parents=True)
+    assert cargo._cargo_only(root) is False
+    assert check(place)["settings"][0]["aged"] is None
+
+    (root / "photos" / "2026").rmdir()
+    (root / "photos").rmdir()
+    (root / "notes.txt").write_text("keep", encoding="utf-8")
+    assert cargo._cargo_only(root) is False
+    (root / "notes.txt").unlink()
+
+    # Non-Cargo project directories holding their own caches or target/ must be rejected.
+    rust_proj = root / "my-crate"
+    (rust_proj / "target" / "debug" / ".fingerprint").mkdir(parents=True)
+    (rust_proj / "target" / "CACHEDIR.TAG").write_text("tag\n", encoding="utf-8")
+    (rust_proj / "target" / ".cargo-lock").write_bytes(b"")
+    (rust_proj / "Cargo.toml").write_text("[package]\nname = 'x'\n", encoding="utf-8")
+    assert cargo._cargo_only(root) is False
+    (rust_proj / "Cargo.toml").unlink()  # even without Cargo.toml, `target/` alone is rejected
+    assert cargo._cargo_only(root) is False
+
+    import shutil
+
+    shutil.rmtree(rust_proj)
+    py_proj = root / "my-python-app"
+    (py_proj / ".pytest_cache").mkdir(parents=True)
+    (py_proj / ".pytest_cache" / "CACHEDIR.TAG").write_text("tag\n", encoding="utf-8")
+    assert cargo._cargo_only(root) is False
+
+    shutil.rmtree(py_proj)
+    git_dir = root / "checkout"
+    (git_dir / ".git").mkdir(parents=True)
+    (git_dir / "CACHEDIR.TAG").write_text("tag\n", encoding="utf-8")
+    assert cargo._cargo_only(root) is False
 
 
 @pytest.mark.parametrize("rule", [

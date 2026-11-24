@@ -20,18 +20,20 @@ from __future__ import annotations
 
 import json
 import os
-import re
+import shutil
 import tomllib
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from botcore.commands.disk.caches import unsafe_aged_root
+from botcore.commands.disk.caches import HASH_BUCKET, parse_aged_pattern, unsafe_aged_root
 from botcore.commands.disk.git import GitError, list_worktrees, path_key
-from botcore.commands.disk.scan import is_dir, is_file
+from botcore.commands.disk.scan import exists, is_dir, is_file, is_link
 from botcore.commands.disk.settings import MachineSettings, expand, t3_worktree_roots
 from botcore.commands.disk.steps import doing, each
 
-SUGGESTED_AGE_DAYS = 7
+SUGGESTED_AGE_DAYS = 2
+SUGGESTED_MAX_GB = 150
+MIN_SUGGESTED_MAX_GB = 40
 KINDS = ("target-dir", "build-dir")
 # Each overrides every config file's key of its kind; the first one set wins
 ENVIRONMENT = {
@@ -40,10 +42,23 @@ ENVIRONMENT = {
 }
 CONFIG_NAMES = ("config", "config.toml")
 MAX_INCLUDE_DEPTH = 10
-HASH_BUCKET = re.compile(r"^[0-9a-f]{2}$")  # {workspace-path-hash} is `<2 hex>/<rest>`
 SYSTEM_FILES = {".DS_Store", "Thumbs.db", "desktop.ini"}  # left by file browsers
+CARGO_MARKERS = ("CACHEDIR.TAG", ".cargo-lock", ".rustc_info.json")
 _WORKSPACE = "{workspace-root}"
 _PER_WORKSPACE = "{workspace-path-hash}"
+
+
+def suggested_max_gb(root: Path) -> int:
+    """Default size cap for a per-workspace Cargo build folder: 20% of its volume, clamped to
+    `[MIN_SUGGESTED_MAX_GB, SUGGESTED_MAX_GB]`."""
+    current = Path(os.path.abspath(root))
+    while not exists(current) and current.parent != current:
+        current = current.parent
+    try:
+        total_gb = shutil.disk_usage(current).total / 1024**3
+    except OSError:
+        return SUGGESTED_MAX_GB
+    return int(round(min(SUGGESTED_MAX_GB, max(MIN_SUGGESTED_MAX_GB, total_gb * 0.20))))
 
 
 @dataclass(frozen=True)
@@ -58,6 +73,7 @@ class Placement:
     per_workspace: bool = False  # one subfolder per workspace under root (a hash template)
     aged: str | None = None  # the [[aged]] entry that would clear it, when root is Cargo's alone
     covered_by: str | None = None  # the machine settings' [[aged]] path that clears it
+    suggested_max_gb: int | None = None  # recommended max_gb cap for `aged`
 
     @property
     def problem(self) -> str | None:  # noqa: PLR0911 - one message per arrangement
@@ -81,9 +97,11 @@ class Placement:
             return (f"{where} puts build output under {self.root}, which also holds other "
                     "things (or is a drive's top folder, the home folder or Cargo's own): point "
                     "it at a folder of its own, then give that folder's `/*` an [[aged]] entry")
+        max_gb = self.suggested_max_gb if self.suggested_max_gb is not None else SUGGESTED_MAX_GB
         return (f"{where} puts build output under {self.root}, which no [[aged]] folder clears, "
                 "so it outlives the worktrees. Add to the machine settings:\n"
-                f"[[aged]]\npath = {json.dumps(self.aged)}\nmax_age_days = {SUGGESTED_AGE_DAYS}")
+                f"[[aged]]\npath = {json.dumps(self.aged)}\n"
+                f"max_age_days = {SUGGESTED_AGE_DAYS}\nmax_gb = {max_gb}")
 
 
 def cargo_home() -> Path:
@@ -197,11 +215,55 @@ def _place(kind: str, source: str, value: str, base: Path | None, place: Path) -
     if relative_to_build:
         return Placement(kind, source, value, "unknown")
     if per_workspace and not prefix.endswith(("/", "\\")):
-        root, aged = os.path.dirname(resolved), None  # a name prefix: [[aged]] names folders
+        # a name prefix: [[aged]] names folders
+        root, aged, cap = os.path.dirname(resolved), None, None
     else:
         root = resolved
         aged = str(Path(root) / "*") if per_workspace and _cargo_only(Path(root)) else None
-    return Placement(kind, source, value, "moved", root, per_workspace, aged)
+        cap = suggested_max_gb(Path(root)) if aged is not None else None
+    return Placement(kind, source, value, "moved", root, per_workspace, aged, None, cap)
+
+
+def _looks_like_cargo_dir(folder: Path) -> bool:
+    """Whether `folder` holds recognizable Cargo target/build-dir artifacts and not a project
+    checkout or unrelated user files."""
+    if os.path.lexists(folder / ".git"):
+        return False
+    try:
+        children = list(each("reading", folder, os.scandir(folder)))
+    except OSError:
+        return False
+    allowed_top_files = SYSTEM_FILES | set(CARGO_MARKERS)
+    has_marker = False
+    subdirs: list[Path] = []
+    for child in children:
+        if is_link(child):
+            return False
+        if not child.is_dir(follow_symlinks=False):
+            if child.name not in allowed_top_files:
+                return False
+            if child.name in CARGO_MARKERS:
+                has_marker = True
+        else:
+            subdirs.append(Path(child.path))
+    if has_marker:
+        return True
+    cargo_sub_markers = (".cargo-lock", ".rustc_info.json")
+    for sub in subdirs:
+        if sub.name == "target":
+            continue  # a Rust project's `target/` directory, not a build-dir itself
+        if is_dir(sub / ".fingerprint") or any(is_file(sub / name) for name in cargo_sub_markers):
+            return True
+        try:
+            grandchildren = list(each("reading", sub, os.scandir(sub)))
+        except OSError:
+            continue
+        for grandchild in grandchildren:
+            if is_link(grandchild) or not grandchild.is_dir(follow_symlinks=False):
+                continue
+            if is_dir(Path(grandchild.path) / ".fingerprint"):
+                return True
+    return False
 
 
 def _cargo_only(root: Path) -> bool:
@@ -218,12 +280,17 @@ def _cargo_only(root: Path) -> bool:
         children = list(each("reading", root, os.scandir(root)))
     except OSError:
         return False
+    allowed_files = SYSTEM_FILES | {"CACHEDIR.TAG"}
     for child in children:
-        if child.name in SYSTEM_FILES and not child.is_symlink():
+        if (
+            child.name in allowed_files
+            and not is_link(child)
+            and not child.is_dir(follow_symlinks=False)
+        ):
             continue
-        if child.is_symlink() or not child.is_dir(follow_symlinks=False):
+        if is_link(child) or not child.is_dir(follow_symlinks=False):
             return False
-        if not (HASH_BUCKET.match(child.name) or is_file(Path(child.path) / "CACHEDIR.TAG")):
+        if not (HASH_BUCKET.match(child.name) or _looks_like_cargo_dir(Path(child.path))):
             return False
     return True
 
@@ -238,15 +305,13 @@ def _covered_by(
     for aged in settings.aged:
         if aged.max_age_days is None and aged.max_gb is None:
             continue  # it never makes anything eligible
-        text = aged.path.rstrip()
-        wildcard = text.endswith(("/*", "\\*"))
-        base = expand(text[:-2] if wildcard else text)
-        if not base.is_absolute() or unsafe_aged_root(base, protected):
+        base, depth, raw = parse_aged_pattern(aged.path)
+        if not raw.strip() or not base.is_absolute() or unsafe_aged_root(base, protected):
             continue  # the planner refuses it
         key = path_key(base)
-        if found.per_workspace and wildcard and key == root:
+        if found.per_workspace and depth in (1, 2) and key == root:
             return aged.path
-        if aged.max_gb is not None and (key == root or (wildcard and key == path_key(
+        if aged.max_gb is not None and (key == root or (depth == 1 and key == path_key(
                 os.path.dirname(found.root or "")))):
             return aged.path
     return None

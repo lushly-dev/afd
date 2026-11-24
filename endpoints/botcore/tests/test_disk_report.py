@@ -624,6 +624,60 @@ def test_aged_folders_by_age_and_size(tmp_path: Path) -> None:
     assert {Path(e["path"]).name for e in rows_ if e["eligible"]} == {"old", "mid"}
 
 
+def test_aged_descends_into_cargo_hash_buckets_and_preserves_non_buckets(tmp_path: Path) -> None:
+    from botcore.commands.disk.settings import MachineSettings
+
+    now = time.time()
+    root = tmp_path / "cargo-build"
+
+    def make_tree(rel: str, days_ago: float) -> Path:
+        folder = root / rel
+        leaf = folder / "debug" / "deps"
+        leaf.mkdir(parents=True)
+        artifact = leaf / "crate.rlib"
+        artifact.write_bytes(b"x" * 4096)
+        when = now - days_ago * 86400
+        for p in (artifact, leaf, leaf.parent, folder):
+            os.utime(p, (when, when))
+        return folder
+
+    fresh_ws = make_tree("ab/0305f56e9b9616", 0.05)
+    stale_ws = make_tree("ab/11223344556677", 5.0)
+    other_stale = make_tree("cd/deadbeef001122", 4.0)
+    manual_dir = make_tree("afd-p4", 5.0)
+    # Non-bucket 2-hex folder holding regular files must stay a single entry.
+    non_bucket = root / "01"
+    non_bucket.mkdir(parents=True)
+    (non_bucket / "archive.tar").write_bytes(b"a" * 1024)
+    os.utime(non_bucket / "archive.tar", (now - 5 * 86400, now - 5 * 86400))
+    os.utime(non_bucket, (now - 5 * 86400, now - 5 * 86400))
+    # Empty 2-hex bucket stays an entry itself so it can age out.
+    empty_bucket = root / "ef"
+    empty_bucket.mkdir()
+    os.utime(empty_bucket, (now - 5 * 86400, now - 5 * 86400))
+
+    settings = MachineSettings(aged=[{"path": f"{root}/*", "max_age_days": 3}])
+    entries = {
+        e["path"]: e
+        for e in caches.report_aged(settings, now, time.monotonic() + 60)[0]["entries"]
+    }
+    assert str(root / "ab") not in entries
+    assert str(fresh_ws) in entries and not entries[str(fresh_ws)]["eligible"]
+    assert str(stale_ws) in entries and entries[str(stale_ws)]["eligible"]
+    assert str(other_stale) in entries and entries[str(other_stale)]["eligible"]
+    assert str(manual_dir) in entries and entries[str(manual_dir)]["eligible"]
+    assert str(non_bucket) in entries and entries[str(non_bucket)]["eligible"]
+    assert str(empty_bucket) in entries and entries[str(empty_bucket)]["eligible"]
+
+    # Explicit `/*/*` pattern also lists the leaf workspace directories.
+    double = MachineSettings(aged=[{"path": f"{root}/*/*", "max_age_days": 3}])
+    double_paths = {
+        e["path"]
+        for e in caches.report_aged(double, now, time.monotonic() + 60)[0]["entries"]
+    }
+    assert {str(fresh_ws), str(stale_ws), str(other_stale)} <= double_paths
+
+
 def test_home_and_roots_are_never_aged_folders() -> None:
     assert caches.unsafe_aged_root(Path.home()) is not None
     assert caches.unsafe_aged_root(Path(Path.home().anchor)) is not None

@@ -27,6 +27,7 @@ from typing import Any
 from afd import CommandResult, error, success
 
 from botcore.commands.disk import schedule
+from botcore.commands.disk.caches import aged_base
 from botcore.commands.disk.cargo import cargo_check, cargo_roots
 from botcore.commands.disk.git import GitError, list_worktrees, path_key
 from botcore.commands.disk.lock import waited_lock
@@ -1090,8 +1091,7 @@ def job_folders(settings: MachineSettings) -> Iterator[Path]:
     yield from new(expand(root) for root in settings.worktree_roots)
     yield from new(t3_worktree_roots(settings)[0])  # (it names T3 Code's settings itself)
     for aged in settings.aged:
-        text = aged.path.rstrip()
-        yield from new([expand(text[:-2] if text.endswith(("/*", "\\*")) else text)])
+        yield from new([aged_base(aged.path)])
     yield from new(cargo_roots(settings))
 
 

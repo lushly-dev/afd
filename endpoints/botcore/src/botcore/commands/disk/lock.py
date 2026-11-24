@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 import socket
+import stat
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -54,6 +55,47 @@ def _unlock(fd: int) -> None:
     import fcntl
 
     fcntl.flock(fd, fcntl.LOCK_UN)
+
+
+def is_locked(path: Path) -> bool:
+    """Whether another process currently holds a kernel lock on `path`.
+
+    Never creates or modifies `path`. Returns False if `path` does not exist; returns True
+    if the lock is held or if the file cannot be probed safely (fail-safe).
+    """
+    if os.name == "nt":
+        try:
+            info = os.lstat(path)
+        except FileNotFoundError:
+            return False
+        except OSError:
+            return True
+        if (
+            stat.S_ISLNK(info.st_mode)
+            or getattr(info, "st_file_attributes", 0) & getattr(
+                stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400
+            )
+            or not stat.S_ISREG(info.st_mode)
+        ):
+            return True
+        flags = os.O_RDWR
+    else:
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    try:
+        fd = os.open(path, flags)
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return True
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return True
+        if not _try_lock(fd):
+            return True
+        _unlock(fd)
+        return False
+    finally:
+        os.close(fd)
 
 
 @contextmanager
