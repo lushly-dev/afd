@@ -1,0 +1,160 @@
+{
+	"tool_version": 1,
+	"observed_at": "2026-11-24T01:43:25.120998+00:00",
+	"scope_asked": "https://www.googleapis.com/auth/gmail.readonly",
+	"complete": true,
+	"errors": [],
+	"refresh_token": {
+		"issued_at": "2026-11-24T01:43:20.642681+00:00",
+		"age_hours": 0.0,
+		"outcome": "ok",
+		"scope": ["https://www.googleapis.com/auth/gmail.readonly"]
+	},
+	"profile": {
+		"messages_total": 18247,
+		"threads_total": 17372
+	},
+	"labels": {
+		"by_type": {
+			"system": 14,
+			"user": 2
+		},
+		"system": [
+			"CATEGORY_FORUMS",
+			"CATEGORY_PERSONAL",
+			"CATEGORY_PROMOTIONS",
+			"CATEGORY_SOCIAL",
+			"CATEGORY_UPDATES",
+			"CHAT",
+			"DRAFT",
+			"IMPORTANT",
+			"INBOX",
+			"SENT",
+			"SPAM",
+			"STARRED",
+			"TRASH",
+			"UNREAD"
+		]
+	},
+	"list": {
+		"ids": 5000,
+		"pages": 10,
+		"page_size": 500,
+		"seconds": 3.34,
+		"ids_per_second": 1494.9,
+		"reached_end": false,
+		"threads": 4943
+	},
+	"fetch": {
+		"asked": 200,
+		"fetched_raw": 200,
+		"workers": 1,
+		"seconds": 151.49,
+		"rate_note": "each message costs a raw and a metadata call; a sync makes the raw call alone",
+		"messages_per_second_both_calls": 1.32,
+		"raw_call_seconds_mean": 0.233,
+		"raw_bytes": 10578322,
+		"sizes": {
+			"<=1024KiB": 62,
+			"<=64KiB": 138
+		},
+		"failures": {},
+		"metadata_headers_against_raw": {
+			"<=1024KiB:same": 14,
+			"<=1024KiB:values_differ": 48,
+			"<=64KiB:same": 70,
+			"<=64KiB:values_differ": 68
+		}
+	},
+	"list_large": {
+		"ids": 20,
+		"pages": 1,
+		"page_size": 500,
+		"seconds": 0.25,
+		"ids_per_second": 81.6,
+		"reached_end": false
+	},
+	"fetch_large": {
+		"asked": 20,
+		"fetched_raw": 20,
+		"workers": 1,
+		"seconds": 32.41,
+		"rate_note": "each message costs a raw and a metadata call; a sync makes the raw call alone",
+		"messages_per_second_both_calls": 0.62,
+		"raw_call_seconds_mean": 1.411,
+		"raw_bytes": 116104810,
+		"sizes": {
+			"<=16384KiB": 19,
+			"<=4096KiB": 1
+		},
+		"failures": {},
+		"metadata_headers_against_raw": {
+			"<=16384KiB:values_differ": 19,
+			"<=4096KiB:values_differ": 1
+		}
+	},
+	"history": [
+		{
+			"start": "current",
+			"behind_current": 0,
+			"stopped_at_page_cap": false,
+			"pages": 1,
+			"records": 0,
+			"messages_added": 0
+		},
+		{
+			"start": "newest_sampled",
+			"behind_current": 28,
+			"stopped_at_page_cap": false,
+			"pages": 1,
+			"records": 0,
+			"messages_added": 0
+		},
+		{
+			"start": "oldest_sampled",
+			"behind_current": 12300,
+			"stopped_at_page_cap": false,
+			"pages": 2,
+			"records": 678,
+			"messages_added": 202
+		},
+		{
+			"start": "one",
+			"behind_current": 2384408,
+			"error": {
+				"http": 404,
+				"status": "NOT_FOUND",
+				"reason": "notFound"
+			},
+			"pages": 0,
+			"records": 0,
+			"messages_added": 0
+		}
+	],
+	"quota": {
+		"units_are": "Google's published cost per method multiplied by the calls counted; not reported by Gmail",
+		"calls": {
+			"profile": 1,
+			"labels.list": 1,
+			"messages.list": 11,
+			"messages.get.raw": 232,
+			"messages.get.metadata": 220,
+			"history.list": 5
+		},
+		"units": 2327,
+		"seconds_in_calls": 123.18,
+		"retries": {
+			"403:rateLimitExceeded": 12
+		},
+		"first_sync_estimate": {
+			"messages": 18247,
+			"list_units": 185,
+			"raw_get_units": 91235
+		}
+	},
+	"not_run": {
+		"label_change_scope": "needs gmail.modify and the owner's approval",
+		"batch_modify_to_trash": "changes the mailbox; needs gmail.modify and the owner's approval",
+		"sent_copy_without_append": "sends a message; needs gmail.send and the owner's approval"
+	}
+}
