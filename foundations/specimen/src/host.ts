@@ -133,8 +133,16 @@ export function chromiumExecutable(): string {
 	};
 	const shell = browsers.browsers.find((browser) => browser.name === 'chromium-headless-shell');
 	const directory = SHELL_DIRECTORIES[`${process.platform}-${process.arch}`];
-	if (!shell || !directory)
-		throw new Error(`Specimen's native host does not support ${process.platform}-${process.arch}`);
+	if (!shell || !directory) {
+		const suggestion =
+			'Install Chromium on a supported platform, or run the scenario headless without a browser.';
+		const error: SpecimenHostError = new Error(
+			`Specimen's native host does not support ${process.platform}-${process.arch}`
+		);
+		error.code = 'BROWSER_UNAVAILABLE';
+		error.suggestion = suggestion;
+		throw error;
+	}
 	const configured = process.env.PLAYWRIGHT_BROWSERS_PATH;
 	const cache =
 		process.platform === 'darwin'
@@ -153,9 +161,14 @@ export function chromiumExecutable(): string {
 	);
 	if (!existsSync(executable)) {
 		const version = PLAYWRIGHT_VERSION;
-		throw new Error(
+		const suggestion = `Install the browser Specimen uses with \`npx playwright@${version} install --only-shell chromium\`, or run the scenario headless without a browser.`;
+		const error: SpecimenHostError = new Error(
 			`Chromium headless shell ${shell.revision}, for Playwright ${version}, is missing at ${executable}; install it with \`npx playwright@${version} install --only-shell chromium\` (in the AFD repository, \`pnpm -F @lushly-dev/specimen exec playwright install chromium\`)`
 		);
+		error.code = 'BROWSER_UNAVAILABLE';
+		error.suggestion = suggestion;
+		error.details = { executable, revision: shell.revision, playwrightVersion: version };
+		throw error;
 	}
 	return executable;
 }

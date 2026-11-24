@@ -25,6 +25,10 @@ import {
 	inspectRequestSchema,
 	inspectResultSchema,
 	jobConfigSchema,
+	jobCreateRequestSchema,
+	jobCreateResultSchema,
+	jobRunRequestSchema,
+	jobRunSchema,
 	matrixRequestSchema,
 	matrixRunSchema,
 	migrateRequestSchema,
@@ -82,6 +86,10 @@ import type {
 	DiffRequest,
 	InspectRequest,
 	InspectResult,
+	JobCreateRequest,
+	JobCreateResult,
+	JobRun,
+	JobRunRequest,
 	MatrixRequest,
 	MatrixRun,
 	MigrateRequest,
@@ -258,6 +266,8 @@ export interface SpecimenCommandBench {
 	point(request: PointRequest): Promise<PointResult>;
 	pointMove(request: PointMoveRequest): Promise<PointResult>;
 	pointCheck(request: PointCheckRequest): Promise<PointCheckResult>;
+	createJob(request: JobCreateRequest): Promise<JobCreateResult>;
+	runJob(request: JobRunRequest): Promise<JobRun>;
 }
 
 /** One story by id, or a suite by filter; the handler tells them apart. */
@@ -378,7 +388,7 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		...common,
 		name: 'specimen-validate',
 		description:
-			'Validate retained stories, guides, and pattern files statically with no browser: identity, schema, portability, cross-references, and what only running story modules can settle',
+			'Validate retained stories, job specimens, guides, and pattern files statically with no browser: identity, schema, portability, job scenario capture points, cross-references, and what only running story modules can settle',
 		mutation: false,
 		input: validateInput,
 		output: validateOutput,
@@ -393,7 +403,8 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 	const render = defineCommand({
 		...common,
 		name: 'specimen-render',
-		description: 'Capture one specimen in an isolated browser context',
+		description:
+			'Capture one specimen in an isolated browser context, or read a saved capture from a capture set when set is provided. Refuses live rendering of a job specimen without set via JOB_NEEDS_RUN.',
 		mutation: false,
 		input: renderInput,
 		output: observationSchema,
@@ -436,7 +447,7 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		...common,
 		name: 'specimen-a11y',
 		description:
-			'Run an accessibility check at a checkpoint, on one entry by id or those a filter selects: violations, what axe could not decide, and the exceptions that applied, each with its reason and what it excused. A story keeps its effective policy. A failing check is a successful command: read data.counts and each report.',
+			'Run an accessibility check at a checkpoint, on one entry by id or those a filter selects, or read recorded axe results from a capture set (passing set) without launching a browser or replaying job steps. Untaken job captures report status not-run with their reason. A story keeps its effective policy. A failing check is a successful command: read data.counts and each report.',
 		mutation: false,
 		input: a11yRequestSchema,
 		output: a11yRunSchema,
@@ -596,7 +607,7 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		...common,
 		name: 'specimen-capture',
 		description:
-			'Capture specimens in one context and checkpoint into a content-addressed capture set under .specimen/sets/, with axe enabled by default. Returns set id, revision, counts, unavailable ids and skipped counts only (never observations). A label is a local name for a set, not a git ref; capture main from a checkout of main.',
+			'Capture specimens in one context and checkpoint into a content-addressed capture set under .specimen/sets/, with axe enabled by default. Runs job specimens through the configured job runner when available, or skips them with a reason otherwise. Returns set id, revision, counts, unavailable ids and skipped counts only (never observations). A label is a local name for a set, not a git ref; capture main from a checkout of main.',
 		mutation: true,
 		input: captureSetRequestSchema,
 		output: captureSetRunSchema,
@@ -736,6 +747,47 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				'Run specimen-point to create a fresh point if the stored point is missing or unreadable.'
 			),
 	});
+	const jobCreate = defineCommand({
+		...common,
+		name: 'specimen-job-create',
+		description:
+			'Register or update a job specimen in specimen.config.json from a scenario file and step selections. Captures accept 1-based step numbers (defaulting name to a deterministic slug of the step description) or { step, name?, before? } objects; refuses undescribed steps with STEP_HAS_NO_DESCRIPTION and refuses overwriting a non-job specimen with NOT_A_JOB.',
+		mutation: true,
+		input: jobCreateRequestSchema,
+		output: jobCreateResultSchema,
+		handler: async (input) =>
+			result(
+				() => bench.createJob(input),
+				jobCreateResultSchema,
+				'SPECIMEN_JOB_CREATE_FAILED',
+				'Check the scenario path, module path, exportName, target, and step numbers, then run specimen-job-create again.'
+			),
+	});
+	const jobRun = defineCommand({
+		...common,
+		name: 'specimen-job-run',
+		description:
+			'Run a job specimen once in an isolated browser context, execute its scenario steps through the app command runner, and write taken captures to a content-addressed capture set keyed <id>/<step>. Capture points match exact scenario step descriptions. Returns set id, step outcomes, and capture references only (never raw observations); a failing scenario step is still a successful command—read data.status and each step capture. Inspect a capture with specimen-render (passing set and checkpoint) or check accessibility with specimen-a11y (passing set).',
+		mutation: true,
+		input: jobRunRequestSchema.omit({ scenario: true }),
+		output: jobRunSchema,
+		handler: async (input) => {
+			const outcome = await result(
+				() => bench.runJob(input),
+				jobRunSchema,
+				'SPECIMEN_JOB_RUN_FAILED',
+				'Use specimen-list (kind: "job") and specimen-validate to verify the job specimen, runner plugin, and browser installation.'
+			);
+			if (!outcome.success && outcome.error?.code === 'BROWSER_UNAVAILABLE') {
+				return failure({
+					...outcome.error,
+					suggestion:
+						"Install the browser Specimen uses; or run the scenario headless with afd scenario run, or in the app's own test.",
+				});
+			}
+			return outcome;
+		},
+	});
 	return [
 		list,
 		render,
@@ -761,6 +813,8 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		point,
 		pointMove,
 		pointCheck,
+		jobCreate,
+		jobRun,
 	] as const;
 }
 
@@ -809,6 +863,8 @@ export async function executeSpecimenCommand(
 		point,
 		pointMove,
 		pointCheck,
+		jobCreate,
+		jobRun,
 	] = createSpecimenCommands(bench);
 	switch (name) {
 		case 'specimen-list':
@@ -859,12 +915,16 @@ export async function executeSpecimenCommand(
 			return execute(pointMove, input);
 		case 'specimen-point-check':
 			return execute(pointCheck, input);
+		case 'specimen-job-create':
+			return execute(jobCreate, input);
+		case 'specimen-job-run':
+			return execute(jobRun, input);
 		default:
 			return failure({
 				code: 'COMMAND_NOT_FOUND',
 				message: `Unknown command: ${name}`,
 				suggestion:
-					'Use specimen list, validate, inspect, render, capture, compare, run, themes, migrate, diff, build, point, point-move, or point-check.',
+					'Use specimen list, validate, inspect, render, capture, compare, run, themes, migrate, diff, build, point, point-move, point-check, job-create, or job-run.',
 			});
 	}
 }

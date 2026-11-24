@@ -60,7 +60,7 @@ describe('Specimen MCP endpoint', () => {
 		try {
 			const definitions = createSpecimenCommands(bench).filter((command) => command.expose?.mcp);
 			const { tools } = await client.listTools();
-			expect(tools).toHaveLength(24);
+			expect(tools).toHaveLength(26);
 			expect(tools).toEqual(
 				definitions.map((command) => ({
 					name: command.name,
@@ -69,6 +69,14 @@ describe('Specimen MCP endpoint', () => {
 					annotations: commandToolAnnotations(command),
 				}))
 			);
+			expect(tools.find((tool) => tool.name === 'specimen-job-create')?.annotations).toEqual({
+				readOnlyHint: false,
+				destructiveHint: false,
+			});
+			expect(tools.find((tool) => tool.name === 'specimen-job-run')?.annotations).toEqual({
+				readOnlyHint: false,
+				destructiveHint: false,
+			});
 			expect(tools.find((tool) => tool.name === 'specimen-capture')?.annotations).toEqual({
 				readOnlyHint: false,
 				destructiveHint: false,
@@ -181,6 +189,118 @@ describe('Specimen MCP endpoint', () => {
 				code: 'SPECIMEN_NOT_FOUND',
 				message: expect.stringContaining('cheep'),
 				suggestion: expect.stringContaining('cheap'),
+			},
+		});
+		const notAJob = await client.callTool({
+			name: 'specimen-job-run',
+			arguments: { id: 'cheap' },
+		});
+		expect(notAJob.isError).toBe(true);
+		expect(envelope(notAJob as CallToolResult)).toMatchObject({
+			success: false,
+			error: {
+				code: 'NOT_A_JOB',
+				suggestion: expect.stringContaining('specimen-list'),
+			},
+		});
+	});
+
+	it('creates a job specimen over MCP and reflects it immediately in specimen-list, specimen-validate, and JOB_NEEDS_RUN on the same server session', async () => {
+		await writeFile(
+			join(root, 'job-source.mjs'),
+			`export default {
+	id: 'json-source',
+	async parseScenario(ctx) {
+		return JSON.parse(await ctx.read(ctx.scenarioPath));
+	},
+};\n`,
+			'utf8'
+		);
+		await writeFile(
+			join(root, 'keep-a-draft.scenario.json'),
+			JSON.stringify({
+				job: 'keep-a-draft',
+				steps: [
+					{ step: 1, command: 'note-create', description: 'A note is created' },
+					{ step: 2, command: 'note-open', description: 'The note opens beside itself' },
+				],
+			}),
+			'utf8'
+		);
+		await writeFile(
+			join(root, 'dummy-plugin.mjs'),
+			`export default { id: 'dummy-runner' };\n`,
+			'utf8'
+		);
+		await writeFile(
+			join(root, 'specimen.config.json'),
+			JSON.stringify({
+				plugins: ['./dummy-plugin.mjs'],
+				jobSources: ['./job-source.mjs'],
+				specimens: [{ id: 'cheap', title: 'Test/Cheap', module: './case.ts', exportName: 'Cheap' }],
+			}),
+			'utf8'
+		);
+
+		const client = await connect();
+		const created = await client.callTool({
+			name: 'specimen-job-create',
+			arguments: {
+				id: 'example-keep-a-draft',
+				scenario: './keep-a-draft.scenario.json',
+				module: './case.ts',
+				exportName: 'Cheap',
+				target: 'app',
+				captures: [2],
+			},
+		});
+		expect(created.isError).toBe(false);
+		expect(envelope(created as CallToolResult)).toMatchObject({
+			success: true,
+			data: {
+				written: 'specimen.config.json',
+				entry: {
+					id: 'example-keep-a-draft',
+					kind: 'job',
+					job: {
+						captures: [
+							{ after: 'The note opens beside itself', name: 'the-note-opens-beside-itself' },
+						],
+					},
+				},
+			},
+		});
+
+		const jobs = await client.callTool({
+			name: 'specimen-list',
+			arguments: { kind: 'job' },
+		});
+		expect(jobs.isError).toBe(false);
+		expect(envelope(jobs as CallToolResult)).toMatchObject({
+			success: true,
+			data: { specimens: [{ id: 'example-keep-a-draft', kind: 'job' }] },
+		});
+
+		const validated = await client.callTool({
+			name: 'specimen-validate',
+			arguments: { id: 'example-keep-a-draft' },
+		});
+		expect(validated.isError).toBe(false);
+		expect(envelope(validated as CallToolResult)).toMatchObject({
+			success: true,
+			data: { valid: true, checked: 1, issues: [] },
+		});
+
+		const needsRun = await client.callTool({
+			name: 'specimen-render',
+			arguments: { id: 'example-keep-a-draft' },
+		});
+		expect(needsRun.isError).toBe(true);
+		expect(envelope(needsRun as CallToolResult)).toMatchObject({
+			success: false,
+			error: {
+				code: 'JOB_NEEDS_RUN',
+				suggestion: expect.stringContaining('specimen-job-run'),
 			},
 		});
 	});

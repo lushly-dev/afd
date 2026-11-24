@@ -1,19 +1,25 @@
-import { mkdtemp, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { createSpecimenBench } from './bench.js';
 import { installPinnedClock, parsePinnedClock } from './browser/clock.js';
 import { defineJobSource, parseJobScenarioWithSources } from './job-source.js';
 import {
+	buildJobCaptures,
 	finalizeCheckpointsRun,
 	finalizeJobRun,
 	isObservationUnchanged,
 	isValidClockPin,
+	readA11yFromSet,
+	readObservationFromSet,
 	resolveJobCapturePlan,
 	resolvePinnedBaseline,
+	slugifyStepDescription,
 	validateJobEntries,
 	withJobValidation,
 } from './jobs.js';
+import { jobCreateResultSchema } from './schema.js';
 import { readCaptureSetManifest, readSetCapture, SET_ID_PATTERN } from './sets.js';
 import {
 	CAPTURE_VERSION,
@@ -662,5 +668,410 @@ describe('job capture plan, validation, and unchanged/not-taken states', () => {
 				dirty: null,
 			})
 		).rejects.toMatchObject({ code: 'JOB_SCENARIO_INVALID' });
+	});
+
+	it('slugifies step descriptions, builds job captures, and reads observations and a11y from sets without launching a browser', async () => {
+		expect(slugifyStepDescription('The note opens beside itself')).toBe(
+			'the-note-opens-beside-itself'
+		);
+		expect(slugifyStepDescription('  Save & Close (Draft #2)!  ')).toBe('save-close-draft-2');
+		expect(slugifyStepDescription('***', 3)).toBe('step-3');
+
+		const built = buildJobCaptures(sampleScenario, [
+			3,
+			{
+				step: 4,
+				name: 'conflict-notice',
+				before: [{ action: { fill: 'second-editor', value: ' draft' } }],
+			},
+		]);
+		expect(built).toEqual([
+			{ after: 'The note opens beside itself', name: 'the-note-opens-beside-itself' },
+			{
+				after: 'Another writer saves the note',
+				name: 'conflict-notice',
+				before: [{ action: { fill: 'second-editor', value: ' draft' } }],
+			},
+		]);
+
+		expect(() => buildJobCaptures(sampleScenario, [99])).toThrow(
+			expect.objectContaining({ code: 'CAPTURE_STEP_UNKNOWN' })
+		);
+		expect(() =>
+			buildJobCaptures(
+				{
+					job: 'no-desc',
+					steps: [{ step: 1, command: 'note-create' }],
+				},
+				[1]
+			)
+		).toThrow(
+			expect.objectContaining({
+				code: 'STEP_HAS_NO_DESCRIPTION',
+				suggestion: expect.stringContaining('description'),
+			})
+		);
+		expect(() =>
+			buildJobCaptures(
+				{
+					job: 'dup-desc',
+					steps: [
+						{ step: 1, command: 'a', description: 'Same step' },
+						{ step: 2, command: 'b', description: 'Same step' },
+					],
+				},
+				[1]
+			)
+		).toThrow(expect.objectContaining({ code: 'CAPTURE_STEP_AMBIGUOUS' }));
+
+		// Persist a set with both a passing and failing axe observation, plus a failing run with untaken captures.
+		const root = await scratchDir();
+		const plan = resolveJobCapturePlan(sampleEntry, sampleScenario);
+		const passObs = makeObservation('<main><button>Save</button></main>', {
+			checkpoint: 'two-editors',
+		});
+		passObs.manifest.specimenId = sampleEntry.id;
+		passObs.channels.a11y.axe = {
+			status: 'passed',
+			policy: 'error',
+			violations: [],
+			incomplete: 0,
+			incompleteChecks: [],
+			exceptions: [],
+		};
+		const failObs = makeObservation('<main><button></button></main>', {
+			checkpoint: 'conflict-notice',
+		});
+		failObs.manifest.specimenId = sampleEntry.id;
+		failObs.channels.a11y.axe = {
+			status: 'failed',
+			policy: 'error',
+			violations: [
+				{
+					id: 'button-name',
+					impact: 'critical',
+					help: 'Buttons must have discernible text',
+					targets: ['button'],
+					details: [],
+				},
+			],
+			incomplete: 0,
+			incompleteChecks: [],
+			exceptions: [],
+		};
+
+		const passedRun = await finalizeJobRun({
+			root,
+			entry: sampleEntry,
+			scenario: sampleScenario,
+			capturePlan: plan,
+			driverResult: {
+				status: 'passed',
+				steps: [
+					{ step: 1, status: 'passed' },
+					{ step: 2, status: 'passed' },
+					{ step: 3, status: 'passed' },
+					{ step: 4, status: 'passed', actions: 1 },
+				],
+			},
+			capturedByKey: new Map([
+				['example-keep-a-draft/3', { observation: passObs, screenshotSource: null }],
+				['example-keep-a-draft/4', { observation: failObs, screenshotSource: null }],
+			]),
+			context: passObs.manifest.context,
+			axe: true,
+			revision: 'abc1234',
+			dirty: false,
+			label: 'passing',
+		});
+
+		const readBack = await readObservationFromSet(root, {
+			id: 'example-keep-a-draft',
+			set: passedRun.set,
+			checkpoint: 'conflict-notice',
+		});
+		expect(readBack.manifest.set).toBe(passedRun.set);
+		expect(readBack.manifest.job).toEqual({
+			name: 'keep-a-draft',
+			step: 4,
+			description: 'Another writer saves the note',
+		});
+		expect(readBack.manifest.checkpoint.name).toBe('conflict-notice');
+
+		const a11yFromSet = await readA11yFromSet(root, { set: passedRun.set });
+		expect(a11yFromSet.counts).toEqual({ total: 2, passed: 1, warning: 0, failed: 1, notRun: 0 });
+		expect(a11yFromSet.reports[0]).toMatchObject({
+			id: 'example-keep-a-draft',
+			checkpoint: 'two-editors',
+			status: 'passed',
+			job: { name: 'keep-a-draft', step: 3, description: 'The note opens beside itself' },
+		});
+		expect(a11yFromSet.reports[1]).toMatchObject({
+			id: 'example-keep-a-draft',
+			checkpoint: 'conflict-notice',
+			status: 'failed',
+			job: { name: 'keep-a-draft', step: 4, description: 'Another writer saves the note' },
+			violations: [{ id: 'button-name' }],
+		});
+
+		const failedRun = await finalizeJobRun({
+			root,
+			entry: sampleEntry,
+			scenario: sampleScenario,
+			capturePlan: plan,
+			driverResult: {
+				status: 'failed',
+				steps: [
+					{ step: 1, status: 'passed' },
+					{ step: 2, status: 'failed', error: 'Step 2 boom' },
+					{ step: 3, status: 'skipped' },
+					{ step: 4, status: 'skipped' },
+				],
+			},
+			capturedByKey: new Map(),
+			context: passObs.manifest.context,
+			axe: true,
+			revision: 'abc1234',
+			dirty: false,
+			label: 'failing',
+		});
+		const failedA11y = await readA11yFromSet(root, { set: failedRun.set });
+		expect(failedA11y.counts).toEqual({ total: 2, passed: 0, warning: 0, failed: 0, notRun: 2 });
+		expect(failedA11y.reports[0]).toMatchObject({
+			id: 'example-keep-a-draft',
+			checkpoint: 'two-editors',
+			status: 'not-run',
+			reason: expect.stringContaining('not taken'),
+		});
+		expect(failedA11y.reports[1]).toMatchObject({
+			id: 'example-keep-a-draft',
+			checkpoint: 'conflict-notice',
+			status: 'not-run',
+			reason: expect.stringContaining('not taken'),
+		});
+
+		// Missing explicit ID, missing checkpoint, or unsupported filter fields refuse instead of silently passing.
+		await expect(
+			readA11yFromSet(root, { set: passedRun.set, id: 'does-not-exist' })
+		).rejects.toMatchObject({ code: 'SPECIMEN_NOT_FOUND' });
+		await expect(
+			readA11yFromSet(root, { set: passedRun.set, checkpoint: 'no-such-checkpoint' })
+		).rejects.toMatchObject({ code: 'SPECIMEN_NOT_FOUND' });
+		await expect(
+			readA11yFromSet(root, { set: passedRun.set, filter: { tags: ['smoke'] } })
+		).rejects.toThrow(/filter\.tags/);
+	});
+
+	it('creates and updates job specimens via bench.createJob and enforces JOB_NEEDS_RUN, NOT_A_JOB, RUNNER_MISSING, and zero-browser set reads', async () => {
+		const root = await scratchDir();
+		await mkdir(join(root, 'scenarios'), { recursive: true });
+		await writeFile(join(root, 'app.ts'), 'export const NotesApp = {};\n', 'utf8');
+		await writeFile(
+			join(root, 'scenarios/keep-a-draft.scenario.json'),
+			JSON.stringify(sampleScenario),
+			'utf8'
+		);
+		await writeFile(
+			join(root, 'scenarios/no-desc.scenario.json'),
+			JSON.stringify({ job: 'no-desc', steps: [{ step: 1, command: 'note-create' }] }),
+			'utf8'
+		);
+		await writeFile(
+			join(root, 'specimen.config.json'),
+			JSON.stringify({
+				specimens: [
+					{ id: 'plain-button', title: 'Button', module: './app.ts', exportName: 'NotesApp' },
+				],
+			}),
+			'utf8'
+		);
+		const jsonSource = defineJobSource({
+			id: 'json-test-source',
+			async parseScenario(ctx) {
+				return JSON.parse(await ctx.read(ctx.scenarioPath)) as JobScenario;
+			},
+		});
+
+		const bench = await createSpecimenBench({
+			root,
+			jobSources: [jsonSource],
+			executablePath: join(root, 'does-not-exist-chromium'),
+		});
+		try {
+			// Creating a job specimen with bare step number derives deterministic slug name.
+			const created = await bench.createJob({
+				id: 'example-keep-a-draft',
+				scenario: './scenarios/keep-a-draft.scenario.json',
+				module: './app.ts',
+				exportName: 'NotesApp',
+				target: 'app',
+				captures: [3],
+			});
+			expect(created.written).toBe('specimen.config.json');
+			expect(created.entry.kind).toBe('job');
+			expect(created.entry.job?.captures).toEqual([
+				{ after: 'The note opens beside itself', name: 'the-note-opens-beside-itself' },
+			]);
+
+			// bench.list and bench.validate immediately reflect the newly created job specimen;
+			// with no plugins configured, validate surfaces a deferred RUNNER_MISSING issue.
+			expect(bench.list({ kind: 'job' }).map((e) => e.id)).toEqual(['example-keep-a-draft']);
+			expect(bench.validate({ id: 'example-keep-a-draft' })).toMatchObject({
+				valid: true,
+				checked: 1,
+				issues: [{ severity: 'deferred', code: 'RUNNER_MISSING', field: 'plugins' }],
+			});
+
+			// Updating an existing job specimen replaces its job block while preserving existing specimen fields (like themes).
+			const preUpdate = JSON.parse(await readFile(join(root, 'specimen.config.json'), 'utf8'));
+			preUpdate.specimens[1].themes = { supported: ['light'], reason: 'light only' };
+			await writeFile(join(root, 'specimen.config.json'), JSON.stringify(preUpdate, null, 2));
+			const updated = await bench.createJob({
+				id: 'example-keep-a-draft',
+				scenario: './scenarios/keep-a-draft.scenario.json',
+				module: './app.ts',
+				exportName: 'NotesApp',
+				target: 'app',
+				pin: { clock: '2026-03-02T09:00:00Z' },
+				captures: [
+					{ step: 3, name: 'two-editors' },
+					{
+						step: 4,
+						name: 'conflict-notice',
+						before: [{ action: { fill: 'second-editor', value: ' draft' } }],
+					},
+				],
+			});
+			expect(updated.written).toBe('specimen.config.json');
+			expect(jobCreateResultSchema.parse(updated).entry.themes).toEqual({
+				supported: ['light'],
+				basis: 'declared',
+				reason: 'light only',
+			});
+			const savedConfig = JSON.parse(await readFile(join(root, 'specimen.config.json'), 'utf8'));
+			expect(savedConfig.specimens).toHaveLength(2);
+			expect(savedConfig.specimens[1].themes).toEqual({
+				supported: ['light'],
+				reason: 'light only',
+			});
+
+			// Refuses undescribed step with STEP_HAS_NO_DESCRIPTION.
+			await expect(
+				bench.createJob({
+					id: 'example-no-desc',
+					scenario: './scenarios/no-desc.scenario.json',
+					module: './app.ts',
+					exportName: 'NotesApp',
+					target: 'app',
+					captures: [1],
+				})
+			).rejects.toMatchObject({
+				code: 'STEP_HAS_NO_DESCRIPTION',
+				suggestion: expect.stringContaining('description'),
+			});
+
+			// Refuses overwriting a component specimen with NOT_A_JOB.
+			await expect(
+				bench.createJob({
+					id: 'plain-button',
+					scenario: './scenarios/keep-a-draft.scenario.json',
+					module: './app.ts',
+					exportName: 'NotesApp',
+					target: 'app',
+					captures: [3],
+				})
+			).rejects.toMatchObject({ code: 'NOT_A_JOB' });
+
+			// Refuses rendering a job specimen without a capture set via JOB_NEEDS_RUN.
+			await expect(bench.render({ id: 'example-keep-a-draft' })).rejects.toMatchObject({
+				code: 'JOB_NEEDS_RUN',
+				suggestion: expect.stringContaining('specimen-job-run'),
+			});
+
+			// Refuses running a component specimen as a job via NOT_A_JOB.
+			await expect(bench.runJob({ id: 'plain-button' })).rejects.toMatchObject({
+				code: 'NOT_A_JOB',
+				suggestion: expect.stringContaining('specimen-list'),
+			});
+
+			// Refuses running a job specimen without a configured runner plugin via RUNNER_MISSING.
+			await expect(bench.runJob({ id: 'example-keep-a-draft' })).rejects.toMatchObject({
+				code: 'RUNNER_MISSING',
+				suggestion: expect.stringContaining('plugins'),
+			});
+
+			// Reading from a persisted set via bench.render and bench.a11y requires NO browser at all.
+			const plan = resolveJobCapturePlan(updated.entry, sampleScenario);
+			const obs = makeObservation('<main>Saved</main>', { checkpoint: 'two-editors' });
+			obs.manifest.specimenId = 'example-keep-a-draft';
+			obs.channels.a11y.axe = {
+				status: 'passed',
+				policy: 'error',
+				violations: [],
+				incomplete: 0,
+				incompleteChecks: [],
+				exceptions: [],
+			};
+			const saved = await finalizeJobRun({
+				root,
+				entry: updated.entry,
+				scenario: sampleScenario,
+				capturePlan: plan,
+				driverResult: {
+					status: 'passed',
+					steps: [
+						{ step: 1, status: 'passed' },
+						{ step: 2, status: 'passed' },
+						{ step: 3, status: 'passed' },
+						{ step: 4, status: 'passed' },
+					],
+				},
+				capturedByKey: new Map([
+					['example-keep-a-draft/3', { observation: obs, screenshotSource: null }],
+				]),
+				context: obs.manifest.context,
+				axe: true,
+				revision: null,
+				dirty: null,
+			});
+			const renderedFromSet = await bench.render({
+				id: 'example-keep-a-draft',
+				set: saved.set,
+				checkpoint: 'two-editors',
+			});
+			expect(renderedFromSet.manifest.set).toBe(saved.set);
+			expect(renderedFromSet.manifest.job?.step).toBe(3);
+
+			const a11yFromSet = await bench.a11y({ set: saved.set });
+			expect(a11yFromSet.counts.total).toBe(2);
+			expect(a11yFromSet.counts.passed).toBe(1);
+			expect(a11yFromSet.counts.notRun).toBe(1);
+
+			// An accepted createJob drains cleanly when close() runs concurrently,
+			// while a createJob called after close() rejects immediately.
+			const drainingCreate = bench.createJob({
+				id: 'example-keep-a-draft',
+				scenario: './scenarios/keep-a-draft.scenario.json',
+				module: './app.ts',
+				exportName: 'NotesApp',
+				target: 'app',
+				captures: [3],
+			});
+			const closePromise = bench.close();
+			await expect(
+				bench.createJob({
+					id: 'example-after-close',
+					scenario: './scenarios/keep-a-draft.scenario.json',
+					module: './app.ts',
+					exportName: 'NotesApp',
+					target: 'app',
+					captures: [3],
+				})
+			).rejects.toThrow('closed');
+			expect((await drainingCreate).entry.id).toBe('example-keep-a-draft');
+			await closePromise;
+		} finally {
+			await bench.close();
+		}
 	});
 });

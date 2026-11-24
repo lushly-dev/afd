@@ -859,4 +859,112 @@ describe('capture set storage, runCaptureSet and diffCaptures', () => {
 			/escapes root/
 		);
 	});
+
+	it('runs job specimens through host.runJob during specimen-capture when configured and skips them with reason otherwise', async () => {
+		const root = await scratchDir();
+		const componentEntry: SpecimenEntry = {
+			id: 'toolbar--dense',
+			title: 'Toolbar/Dense',
+			module: './t.ts',
+			exportName: 'Dense',
+		};
+		const jobEntry: SpecimenEntry = {
+			id: 'notes-keep-a-draft',
+			title: 'Notes/Keep a draft',
+			module: './n.ts',
+			exportName: 'Notes',
+			job: {
+				scenario: './keep-a-draft.scenario.yaml',
+				target: 'app',
+				captures: [{ after: 'The note opens', name: 'two-editors' }],
+			},
+		};
+
+		// Without runJob configured, specimen-capture skips job entries with an actionable reason.
+		const skippedRun = await runCaptureSet(
+			{
+				root,
+				entries: [componentEntry, jobEntry],
+				workers: 1,
+				prepare: async () => {},
+				sourceState: async () => ({ revision: '1111111', dirty: false }),
+				render: async ({ entry }) => {
+					const obs = makeObservation();
+					obs.manifest.specimenId = entry.id;
+					return obs;
+				},
+			},
+			{ label: 'no-runner' }
+		);
+		expect(skippedRun.counts.captured).toBe(1);
+		expect(skippedRun.skipped).toMatchObject({
+			jobs: 1,
+			gates: 0,
+			next: 'specimen-job-run',
+			reason: expect.stringContaining('runner'),
+		});
+
+		// With runJob configured, specimen-capture executes job specimens and stores <id>/<step> captures.
+		const jobObs = makeObservation();
+		jobObs.manifest.specimenId = jobEntry.id;
+		jobObs.manifest.checkpoint.name = 'two-editors';
+		jobObs.manifest.job = { name: 'keep-a-draft', step: 3, description: 'The note opens' };
+		const runJob = vi.fn(async ({ entry }: { entry: SpecimenEntry }) => [
+			{
+				key: `${entry.id}/3`,
+				id: entry.id,
+				status: 'captured' as const,
+				observation: jobObs,
+				checkpoint: 'two-editors',
+				step: 3,
+				job: 'keep-a-draft',
+			},
+		]);
+		const withRunner = await runCaptureSet(
+			{
+				root,
+				entries: [componentEntry, jobEntry],
+				workers: 1,
+				prepare: async () => {},
+				sourceState: async () => ({ revision: '1111111', dirty: false }),
+				render: async ({ entry }) => {
+					const obs = makeObservation();
+					obs.manifest.specimenId = entry.id;
+					return obs;
+				},
+				runJob,
+			},
+			{ label: 'with-runner' }
+		);
+		expect(runJob).toHaveBeenCalledTimes(1);
+		expect(withRunner.counts.captured).toBe(2);
+		expect(withRunner.skipped).toEqual({ jobs: 0, gates: 0 });
+		const savedJobCapture = await readSetCapture(root, {
+			set: 'with-runner',
+			id: 'notes-keep-a-draft/3',
+		});
+		expect(savedJobCapture.manifest.job?.step).toBe(3);
+
+		// Job-first entry ordering produces the exact same set id and preserves the component's 'mount' checkpoint.
+		const jobFirst = await runCaptureSet(
+			{
+				root,
+				entries: [jobEntry, componentEntry],
+				workers: 1,
+				prepare: async () => {},
+				sourceState: async () => ({ revision: '1111111', dirty: false }),
+				render: async ({ entry }) => {
+					const obs = makeObservation();
+					obs.manifest.specimenId = entry.id;
+					return obs;
+				},
+				runJob,
+			},
+			{ label: 'job-first' }
+		);
+		expect(jobFirst.set).toBe(withRunner.set);
+		const jobFirstManifest = await readCaptureSetManifest(root, 'job-first');
+		expect(jobFirstManifest.checkpoint.name).toBe('mount');
+		expect(jobFirstManifest.captures['notes-keep-a-draft/3']?.checkpoint).toBe('two-editors');
+	});
 });

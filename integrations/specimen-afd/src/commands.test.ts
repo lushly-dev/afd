@@ -365,6 +365,57 @@ function bench(): SpecimenCommandBench {
 		point: vi.fn(async () => ({ point: samplePoint })),
 		pointMove: vi.fn(async () => ({ point: { ...samplePoint, id: 'pt-9w4m2c1x5r8k' } })),
 		pointCheck: vi.fn(async () => ({ status: 'current' as const, changed: [] })),
+		createJob: vi.fn(async (request) => ({
+			written: 'specimen.config.json',
+			entry: {
+				id: request.id,
+				title: request.title ?? request.id,
+				module: request.module,
+				exportName: request.exportName,
+				kind: 'job' as const,
+				job: {
+					scenario: request.scenario,
+					target: request.target,
+					...(request.runner ? { runner: request.runner } : {}),
+					...(request.pin ? { pin: request.pin } : {}),
+					captures: [{ after: 'The note opens beside itself', name: 'two-editors' }],
+				},
+			},
+		})),
+		runJob: vi.fn(async (request) => ({
+			set: 'set-4f1c0a9e2b7d',
+			label: request.label ?? null,
+			id: request.id,
+			job: 'keep-a-draft',
+			scenario: './scenarios/keep-a-draft.scenario.yaml',
+			status: 'passed' as const,
+			pinned: { clock: '2026-03-02T09:00:00Z', random: 'seeded' as const },
+			counts: { captured: 1, unavailable: 0, axe: { passed: 1, failed: 0, incomplete: 0 } },
+			steps: [
+				{
+					step: 1,
+					description: 'A note is created',
+					command: 'document-create',
+					status: 'passed' as const,
+				},
+				{
+					step: 2,
+					description: 'The note opens beside itself',
+					command: 'editor-open-beside',
+					status: 'passed' as const,
+					capture: { key: `${request.id}/2`, name: 'two-editors', status: 'captured' as const },
+				},
+			],
+			captures: [
+				{
+					key: `${request.id}/2`,
+					name: 'two-editors',
+					step: 2,
+					status: 'captured' as const,
+					screenshot: `.specimen/sets/set-4f1c0a9e2b7d/screenshots/${request.id}__2.png`,
+				},
+			],
+		})),
 	};
 }
 
@@ -452,6 +503,8 @@ describe('specimen commands', () => {
 			'specimen-point',
 			'specimen-point-move',
 			'specimen-point-check',
+			'specimen-job-create',
+			'specimen-job-run',
 		]);
 		for (const command of commands) {
 			expect(command.expose).toEqual({ mcp: true, cli: true });
@@ -1460,6 +1513,144 @@ describe('specimen commands', () => {
 			});
 		} finally {
 			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it('exposes specimen-job-create and specimen-job-run with mutation metadata, references-only output, and all 8 job error codes', async () => {
+		const instance = bench();
+		const commands = createSpecimenCommands(instance);
+		const byName = (name: string) => commands.find((command) => command.name === name);
+		expect(byName('specimen-job-create')?.mutation).toBe(true);
+		expect(byName('specimen-job-run')?.mutation).toBe(true);
+
+		const created = await executeSpecimenCommand(instance, 'specimen-job-create', {
+			id: 'example-keep-a-draft',
+			scenario: './scenarios/keep-a-draft.scenario.yaml',
+			module: './app.specimens.ts',
+			exportName: 'NotesApp',
+			target: 'app',
+			captures: [3, { step: 4, name: 'conflict-notice' }],
+		});
+		expect(created.success).toBe(true);
+		expect(created.data).toMatchObject({
+			written: 'specimen.config.json',
+			entry: { id: 'example-keep-a-draft', kind: 'job' },
+		});
+
+		const ran = await executeSpecimenCommand(instance, 'specimen-job-run', {
+			id: 'example-keep-a-draft',
+			label: 'main',
+		});
+		expect(ran.success).toBe(true);
+		expect(ran.data).toMatchObject({
+			set: 'set-4f1c0a9e2b7d',
+			status: 'passed',
+			captures: [{ key: 'example-keep-a-draft/2', status: 'captured' }],
+		});
+		// References only: never raw observations in specimen-job-run output.
+		expect(JSON.stringify(ran)).not.toContain('"channels"');
+		expect(JSON.stringify(ran)).not.toContain('"normalized"');
+
+		// Public specimen-job-run schema refuses internal inline `scenario` overrides.
+		const inlineScenario = await executeSpecimenCommand(instance, 'specimen-job-run', {
+			id: 'example-keep-a-draft',
+			scenario: { job: 'spoofed', steps: [{ step: 1, command: 'noop' }] },
+		});
+		expect(inlineScenario.success).toBe(false);
+		expect(inlineScenario.error?.code).toBe('VALIDATION_ERROR');
+
+		// All 8 job error codes pass through with actionable suggestions.
+		const errorCases: Array<{
+			cmd: string;
+			input: Record<string, unknown>;
+			method: 'createJob' | 'runJob' | 'render';
+			code: string;
+			suggestion: string;
+			expectedSuggestionContains: string;
+		}> = [
+			{
+				cmd: 'specimen-job-run',
+				input: { id: 'button' },
+				method: 'runJob',
+				code: 'NOT_A_JOB',
+				suggestion: 'Use specimen-list with kind: job.',
+				expectedSuggestionContains: 'specimen-list',
+			},
+			{
+				cmd: 'specimen-render',
+				input: { id: 'example-keep-a-draft' },
+				method: 'render',
+				code: 'JOB_NEEDS_RUN',
+				suggestion: 'Run specimen-job-run first, then pass set to specimen-render.',
+				expectedSuggestionContains: 'specimen-job-run',
+			},
+			{
+				cmd: 'specimen-job-run',
+				input: { id: 'example-keep-a-draft' },
+				method: 'runJob',
+				code: 'CAPTURE_STEP_UNKNOWN',
+				suggestion: 'Run specimen-validate to inspect scenario step descriptions.',
+				expectedSuggestionContains: 'specimen-validate',
+			},
+			{
+				cmd: 'specimen-job-run',
+				input: { id: 'example-keep-a-draft' },
+				method: 'runJob',
+				code: 'CAPTURE_STEP_AMBIGUOUS',
+				suggestion: 'Make step descriptions unique in the scenario.',
+				expectedSuggestionContains: 'unique',
+			},
+			{
+				cmd: 'specimen-job-create',
+				input: {
+					id: 'example-no-desc',
+					scenario: './s.yaml',
+					module: './app.ts',
+					exportName: 'App',
+					target: 'app',
+					captures: [1],
+				},
+				method: 'createJob',
+				code: 'STEP_HAS_NO_DESCRIPTION',
+				suggestion: 'Add a description to step 1 in the scenario.',
+				expectedSuggestionContains: 'description',
+			},
+			{
+				cmd: 'specimen-job-run',
+				input: { id: 'example-keep-a-draft' },
+				method: 'runJob',
+				code: 'JOB_SCENARIO_INVALID',
+				suggestion: 'Fix the scenario YAML syntax and schema.',
+				expectedSuggestionContains: 'scenario',
+			},
+			{
+				cmd: 'specimen-job-run',
+				input: { id: 'example-keep-a-draft' },
+				method: 'runJob',
+				code: 'RUNNER_MISSING',
+				suggestion: 'Add the runner plugin to specimen.config.json plugins.',
+				expectedSuggestionContains: 'plugins',
+			},
+			{
+				cmd: 'specimen-job-run',
+				input: { id: 'example-keep-a-draft' },
+				method: 'runJob',
+				code: 'BROWSER_UNAVAILABLE',
+				suggestion: 'Install Chromium.',
+				expectedSuggestionContains: 'afd scenario run',
+			},
+		];
+
+		for (const item of errorCases) {
+			const error = Object.assign(new Error(`Simulated ${item.code}`), {
+				code: item.code,
+				suggestion: item.suggestion,
+			});
+			vi.mocked(instance[item.method]).mockRejectedValueOnce(error);
+			const res = await executeSpecimenCommand(instance, item.cmd, item.input);
+			expect(res.success, item.code).toBe(false);
+			expect(res.error?.code, item.code).toBe(item.code);
+			expect(res.error?.suggestion, item.code).toContain(item.expectedSuggestionContains);
 		}
 	});
 });
