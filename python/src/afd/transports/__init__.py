@@ -18,7 +18,7 @@ Example:
     >>> transport = create_transport("streamable-http", "http://localhost:3100/mcp")
 """
 
-from typing import Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from afd.transports.base import (
     ConnectionError,
@@ -32,16 +32,58 @@ from afd.transports.base import (
     TransportError,
     TransportState,
 )
-from afd.transports.fastmcp import FastMCPTransport
-from afd.transports.http import HttpTransport
-from afd.transports.mock import MockTransport
-from afd.transports.sse import SseTransport
-from afd.transports.streamable_http import (
-    ElicitationHandler,
-    ElicitationRequest,
-    ElicitationResponse,
-    StreamableHttpTransport,
-)
+
+if TYPE_CHECKING:
+    from afd.transports.fastmcp import FastMCPTransport
+    from afd.transports.http import HttpTransport
+    from afd.transports.mock import MockTransport
+    from afd.transports.sse import SseTransport
+    from afd.transports.streamable_http import (
+        ElicitationHandler,
+        ElicitationRequest,
+        ElicitationResponse,
+        StreamableHttpTransport,
+    )
+
+# Transport implementations load lazily so importing ``afd.transports`` (for
+# example ``from afd.transports import MockTransport`` in ``afd.testing``) does
+# not pull in optional ``client``/``server`` dependencies like ``httpx`` or ``mcp``.
+_LAZY_EXPORTS: dict[str, tuple[str, str | None]] = {
+    "FastMCPTransport": ("afd.transports.fastmcp", "server"),
+    "MockTransport": ("afd.transports.mock", None),
+    "HttpTransport": ("afd.transports.http", "client"),
+    "SseTransport": ("afd.transports.sse", "client"),
+    "StreamableHttpTransport": ("afd.transports.streamable_http", "client"),
+    "ElicitationHandler": ("afd.transports.streamable_http", "client"),
+    "ElicitationRequest": ("afd.transports.streamable_http", "client"),
+    "ElicitationResponse": ("afd.transports.streamable_http", "client"),
+}
+
+
+def __getattr__(name: str) -> Any:
+    target = _LAZY_EXPORTS.get(name)
+    if target is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module_name, extra = target
+    import importlib
+
+    try:
+        module = importlib.import_module(module_name)
+    except ModuleNotFoundError as exc:
+        if extra is not None:
+            raise ModuleNotFoundError(
+                f"afd.transports.{name} requires the '{extra}' extra: "
+                f"pip install 'afd[{extra}]' ({exc})",
+                name=exc.name,
+            ) from exc
+        raise
+    value = getattr(module, name)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(_LAZY_EXPORTS))
 
 
 def create_transport(
@@ -64,11 +106,14 @@ def create_transport(
         Transport instance.
     """
     if transport_type == "streamable-http":
-        return StreamableHttpTransport(url, headers=headers, timeout=timeout)
+        cls = __getattr__("StreamableHttpTransport")
+        return cls(url, headers=headers, timeout=timeout)
     if transport_type == "http":
-        return HttpTransport(url, headers=headers, timeout=timeout)
+        cls = __getattr__("HttpTransport")
+        return cls(url, headers=headers, timeout=timeout)
     elif transport_type == "sse":
-        return SseTransport(url, headers=headers, timeout=timeout)
+        cls = __getattr__("SseTransport")
+        return cls(url, headers=headers, timeout=timeout)
     else:
         raise ValueError(f"Unsupported transport type: {transport_type}")
 

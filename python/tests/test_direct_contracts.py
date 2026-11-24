@@ -6,7 +6,7 @@ import time
 import pytest
 
 from afd import success
-from afd.direct import CommandParameter, DirectCallContext, DirectClient, SimpleRegistry
+from afd.direct import DirectCallContext, DirectClient, DirectCommandParameter, SimpleRegistry
 
 
 @pytest.mark.parametrize(
@@ -33,7 +33,7 @@ async def test_shallow_invalid_types_do_not_execute(kind, value):
         calls.append(value)
         return success(value)
 
-    registry.register("value-record", record, parameters=[CommandParameter("value", kind)])
+    registry.register("value-record", record, parameters=[DirectCommandParameter("value", kind)])
     result = await DirectClient(registry).call("value-record", {"value": value})
     assert result.error.code == "VALIDATION_ERROR"
     assert calls == []
@@ -56,7 +56,7 @@ async def test_valid_shallow_types(kind, value):
     async def record(value):
         return success(value)
 
-    registry.register("value-record", record, parameters=[CommandParameter("value", kind)])
+    registry.register("value-record", record, parameters=[DirectCommandParameter("value", kind)])
     result = await DirectClient(registry).call("value-record", {"value": value})
     assert result.success
     assert result.data == value

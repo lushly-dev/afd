@@ -1,5 +1,18 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
+
+/**
+ * Provider SDK versions declared by this fixture's `package.json` manifest pins.
+ * Receipt package versions describe the fixture manifest, not npm installation provenance.
+ */
+const FIXTURE_MANIFEST = JSON.parse(
+	readFileSync(new URL('./package.json', import.meta.url), 'utf8')
+);
+const PROVIDER_VERSIONS = {
+	convex: FIXTURE_MANIFEST.dependencies.convex,
+	convexAuth: FIXTURE_MANIFEST.dependencies['@convex-dev/auth'],
+};
 
 export class ConfigurationError extends Error {
 	constructor(missing) {
@@ -346,7 +359,7 @@ export function createReceipt({
 		status: requiredPassed && cleanupPassed && oauthConfigured ? 'passed' : 'partial',
 		revision,
 		deploymentOrigin: deploymentUrl.origin,
-		provider: { convex: '1.32.0', convexAuth: '0.0.95', oauthConfigured },
+		provider: { ...PROVIDER_VERSIONS, oauthConfigured },
 		runtime: runtimeReceipt(runtime),
 		assertions,
 		cleanup,

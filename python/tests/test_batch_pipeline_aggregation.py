@@ -353,7 +353,7 @@ class TestStreamingStepsAreRejected:
     @pytest.mark.asyncio
     async def test_direct_client_pipe_rejects_a_streaming_step(self):
         from afd.direct import DirectClient, SimpleRegistry
-        from afd.direct import PipelineStep as DirectStep
+        from afd.direct import DirectPipelineStep as DirectStep
 
         calls: list = []
         registry = SimpleRegistry()

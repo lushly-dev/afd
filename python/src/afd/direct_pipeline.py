@@ -8,6 +8,7 @@ resolution and the result. ``afd.direct`` re-exports the pipeline types.
 from __future__ import annotations
 
 import time
+import warnings
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
@@ -40,8 +41,8 @@ from afd.core.result import CommandResult, coerce_command_result, failure, succe
 
 
 @dataclass
-class PipelineStep:
-    """A step in a command pipeline.
+class DirectPipelineStep:
+    """A step in a direct-client command pipeline.
 
     Attributes:
         command: Command name to execute
@@ -62,8 +63,8 @@ class PipelineStep:
 
 
 @dataclass
-class PipelineStepResult:
-    """Result of a single pipeline step."""
+class DirectPipelineStepResult:
+    """Result of a single direct-client pipeline step."""
 
     command: str
     alias: str | None
@@ -73,8 +74,8 @@ class PipelineStepResult:
 
 
 @dataclass
-class PipelineResult:
-    """Result of executing a command pipeline.
+class DirectPipelineResult:
+    """Result of executing a direct-client command pipeline.
 
     Attributes:
         success: True if all steps succeeded
@@ -85,33 +86,33 @@ class PipelineResult:
     """
 
     success: bool
-    steps: list[PipelineStepResult]
+    steps: list[DirectPipelineStepResult]
     outputs: dict[str, Any]
     final: CommandResult[Any] | None
     total_duration_ms: float
 
 
 async def run_direct_pipeline(
-    steps: list[PipelineStep | dict[str, Any]],
+    steps: list[DirectPipelineStep | dict[str, Any]],
     input: dict[str, Any] | None,
     *,
     call: Callable[[str, dict[str, Any] | None], Awaitable[Any]],
     debug: Callable[[str], None],
     trace_id: str,
     start_time: float,
-) -> PipelineResult:
+) -> DirectPipelineResult:
     """Run ``steps`` with ``call``; see ``DirectClient.pipe`` for the semantics.
 
     ``start_time`` is the ``time.perf_counter()`` reading the pipeline's duration counts from.
     """
     debug(f"[{trace_id}] Starting pipeline with {len(steps)} steps")
 
-    # Normalize steps to PipelineStep objects
+    # Normalize steps to DirectPipelineStep objects
     normalized_steps = []
     for step in steps:
         if isinstance(step, dict):
             normalized_steps.append(
-                PipelineStep(
+                DirectPipelineStep(
                     command=step.get("command", ""),
                     input=step.get("input"),
                     alias=step.get("as") or step.get("alias"),
@@ -125,7 +126,7 @@ async def run_direct_pipeline(
     invalid = _validate_steps(normalized_steps, input)
     if invalid is not None:
         debug(f"[{trace_id}] Pipeline rejected: {invalid.message}")
-        return PipelineResult(
+        return DirectPipelineResult(
             success=False,
             steps=[],
             outputs={},
@@ -140,7 +141,7 @@ async def run_direct_pipeline(
         debug(f"[{trace_id}] Pipeline rejected: step {streaming} sets stream")
         return _reject_streaming_step(normalized_steps, streaming, start_time)
 
-    step_results: list[PipelineStepResult] = []
+    step_results: list[DirectPipelineStepResult] = []
     outputs: dict[str, Any] = {}
     prev_result: CommandResult[Any] | None = None
     all_success = True
@@ -157,7 +158,7 @@ async def run_direct_pipeline(
             if not should_run:
                 debug(f"[{trace_id}] Skipped due to condition: {step.when}")
                 step_results.append(
-                    PipelineStepResult(
+                    DirectPipelineStepResult(
                         command=step.command,
                         alias=step.alias,
                         result=success(
@@ -193,7 +194,7 @@ async def run_direct_pipeline(
         step_duration = (time.perf_counter() - step_start) * 1000
 
         step_results.append(
-            PipelineStepResult(
+            DirectPipelineStepResult(
                 command=step.command,
                 alias=step.alias,
                 result=result,
@@ -228,7 +229,7 @@ async def run_direct_pipeline(
 
     debug(f"[{trace_id}] Pipeline complete in {total_duration:.2f}ms, success={all_success}")
 
-    return PipelineResult(
+    return DirectPipelineResult(
         success=all_success,
         steps=step_results,
         outputs=outputs,
@@ -253,20 +254,20 @@ def _evaluate_condition(
 
 
 def _reject_streaming_step(
-    steps: list[PipelineStep],
+    steps: list[DirectPipelineStep],
     failed_index: int,
     start_time: float,
-) -> PipelineResult:
+) -> DirectPipelineResult:
     """Fail the streaming step with UNSUPPORTED_OPTION and skip the others, as
     ``afd-pipe`` does. No command runs."""
     error = _stream_unsupported_error(failed_index)
     skipped = success(
         {"skipped": True, "reason": f"Pipeline rejected: step {failed_index} sets stream: true"}
     )
-    return PipelineResult(
+    return DirectPipelineResult(
         success=False,
         steps=[
-            PipelineStepResult(
+            DirectPipelineStepResult(
                 command=step.command,
                 alias=step.alias,
                 result=failure(error) if index == failed_index else skipped,
@@ -282,7 +283,7 @@ def _reject_streaming_step(
 
 
 def _validate_steps(
-    steps: list[PipelineStep],
+    steps: list[DirectPipelineStep],
     pipeline_input: dict[str, Any] | None = None,
 ) -> CommandError | None:
     """Reject over-deep inputs and malformed conditions before any step runs."""
@@ -321,3 +322,23 @@ def _validate_steps(
                     details={"stepIndex": index},
                 )
     return None
+
+
+_DEPRECATED_NAMES = {
+    "PipelineStep": DirectPipelineStep,
+    "PipelineStepResult": DirectPipelineStepResult,
+    "PipelineResult": DirectPipelineResult,
+}
+
+
+def __getattr__(name: str) -> Any:
+    target = _DEPRECATED_NAMES.get(name)
+    if target is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    warnings.warn(
+        f"afd.direct_pipeline.{name} is deprecated and will be removed in the next minor "
+        f"release; use afd.direct_pipeline.{target.__name__} instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return target

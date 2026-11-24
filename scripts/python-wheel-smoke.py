@@ -28,6 +28,39 @@ async def check(extra: str) -> None:
 
         assert find_spec("httpx") is None
         assert find_spec("mcp") is None
+        # Star import must succeed on a base install without pulling in optional extras.
+        namespace: dict[str, object] = {}
+        exec("from afd import *", namespace)
+        assert "CommandResult" in namespace
+        assert "DirectContext" in namespace
+        assert "McpClient" not in namespace
+    elif extra == "testing":
+        from importlib.util import find_spec
+
+        assert find_spec("httpx") is None
+        assert find_spec("mcp") is None
+
+        from afd import testing as afd_testing
+        from afd.testing import assert_success
+        from afd.testing.fixtures import MockServer
+        from afd.testing.scenarios import evaluate_result, parse_scenario
+
+        server = MockServer()
+
+        @server.command("smoke-ping")
+        async def smoke_ping(input):
+            return success({"status": "pong"})
+
+        res = await server.execute("smoke-ping", {})
+        assert_success(res)
+        parsed = parse_scenario(
+            "name: Smoke\ndescription: Smoke\njob: smoke\nsteps:\n"
+            "  - command: smoke-ping\n    expect:\n      success: true\n"
+            "      data:\n        status: pong\n"
+        )
+        assert parsed.success is True
+        assert evaluate_result({"success": True, "data": {"status": "pong"}}, parsed.scenario.steps[0].expect).passed
+        assert afd_testing is not None
     elif extra == "client":
         from afd import McpClient
         from afd.transports import HttpTransport, SseTransport

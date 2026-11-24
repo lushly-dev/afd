@@ -97,11 +97,11 @@ jobs:
 
       # Each extra gets a fresh venv with only the wheel and that extra's
       # dependencies, so an import that needs an uninstalled extra fails here.
-      - name: Install smoke test (base, client, server, cli)
+      - name: Install smoke test (base, client, server, cli, testing)
         run: |
           set -euo pipefail
           wheel=$(ls dist/afd-*.whl)
-          for extra in base client server cli; do
+          for extra in base client server cli testing; do
             echo "::group::afd[$extra]"
             venv="$RUNNER_TEMP/afd-smoke-$extra"
             uv venv "$venv"

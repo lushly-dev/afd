@@ -19,6 +19,7 @@ from afd.testing.scenarios.types import (
     Scenario,
     Step,
     Verification,
+    find_expectation_problems,
     matcher_problem,
 )
 
@@ -257,7 +258,13 @@ def _parse_expectation(raw: Any, step_num: int, file_path: str) -> Expectation |
 
     # Parse data assertions
     raw_data = raw.get("data")
-    data = raw_data if isinstance(raw_data, dict) else None
+    if raw_data is not None and not isinstance(raw_data, dict):
+        return ParseError(
+            success=False,
+            error=f"Step {step_num} 'expect.data' must be an object",
+            path=file_path,
+        )
+    data = raw_data
 
     # Reasoning
     reasoning = raw.get("reasoning")
@@ -268,13 +275,22 @@ def _parse_expectation(raw: Any, step_num: int, file_path: str) -> Expectation |
     confidence = raw.get("confidence")
     confidence = None if not isinstance(confidence, (int, float)) else float(confidence)
 
-    return Expectation(
+    expectation = Expectation(
         success=raw["success"],
         data=data,
         error=error,
         reasoning=reasoning,
         confidence=confidence,
     )
+    problems = find_expectation_problems(expectation)
+    if problems:
+        return ParseError(
+            success=False,
+            error=f"Step {step_num}: {'; '.join(problems)}",
+            path=file_path,
+        )
+
+    return expectation
 
 
 def _parse_fixture(raw: Any) -> FixtureConfig | ParseError | None:

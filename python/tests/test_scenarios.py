@@ -8,6 +8,8 @@ import tempfile
 from datetime import UTC, datetime
 from io import StringIO
 
+import pytest
+
 from afd.testing.scenarios import (
     AssertionResult,
     Expectation,
@@ -15,6 +17,7 @@ from afd.testing.scenarios import (
     # Executor
     InProcessExecutor,
     InProcessExecutorConfig,
+    InvalidExpectationError,
     # Types
     Scenario,
     ScenarioResult,
@@ -34,6 +37,7 @@ from afd.testing.scenarios import (
     create_verbose_reporter,
     # Evaluator
     evaluate_result,
+    find_expectation_problems,
     get_value_at_path,
     # Type guards
     is_assertion_matcher,
@@ -1382,3 +1386,309 @@ class TestSummaryFactory:
         err = create_step_error("command_failed", "Oops")
         assert err.type == "command_failed"
         assert err.message == "Oops"
+
+
+# ============================================================================
+# Lists of Objects & Strict Matcher Parity Tests (#2428)
+# ============================================================================
+
+
+class TestArraysHoldingObjects:
+    """Mirrors packages/testing/src/runner/evaluator.test.ts 'arrays holding objects'."""
+
+    VIOLATIONS = {
+        "success": True,
+        "data": {
+            "violations": [
+                {"number": 203, "rule": "several execution profiles: keep one execution profile"},
+                {"number": 207, "rule": "execution:expert-escalation unassigned"},
+            ],
+            "staleClaims": [
+                {"number": 208, "branch": "fix/cli-help", "expiresAt": "2026-11-20T00:00:00Z"},
+            ],
+            "ids": [1, 2],
+        },
+    }
+
+    def _check(self, data: dict):
+        return evaluate_result(self.VIOLATIONS, Expectation(success=True, data=data))
+
+    def test_match_item_by_item_checking_only_named_fields(self):
+        result = self._check(
+            {
+                "violations": [
+                    {"number": 203, "rule": {"contains": "one execution"}},
+                    {"number": 207},
+                ],
+                "staleClaims": [{"number": 208, "branch": "fix/cli-help"}],
+            }
+        )
+        assert result.passed is True
+        assert [a.path for a in result.assertions] == [
+            "success",
+            "data.violations[0].number",
+            "data.violations[0].rule",
+            "data.violations[1].number",
+            "data.staleClaims[0].number",
+            "data.staleClaims[0].branch",
+        ]
+
+    def test_fail_on_wrong_field_or_matcher_naming_item(self):
+        result = self._check(
+            {
+                "violations": [
+                    {"number": 203, "rule": {"contains": "two"}},
+                    {"number": 207},
+                ]
+            }
+        )
+        assert result.passed is False
+        failed = [a for a in result.assertions if not a.passed]
+        assert [a.path for a in failed] == ["data.violations[0].rule"]
+
+    def test_fail_on_different_length_still_checking_shared_items(self):
+        result = self._check({"violations": [{"number": 203}]})
+        assert result.passed is False
+        failed = [a for a in result.assertions if not a.passed]
+        assert [(a.path, a.matcher) for a in failed] == [("data.violations", "length")]
+        assert failed[0].description == "\u2717 data.violations.length equals 1 (got 2)"
+        assert any(a.path == "data.violations[0].number" for a in result.assertions)
+
+    def test_fail_when_actual_is_not_a_list(self):
+        result = evaluate_result(
+            {"success": True, "data": {"violations": "none"}},
+            Expectation(success=True, data={"violations": [{"number": 203}]}),
+        )
+        assert result.passed is False
+
+    def test_plain_lists_and_equals_matcher_compare_whole(self):
+        assert self._check({"ids": [1, 2]}).passed is True
+        assert self._check({"ids": [2, 1]}).passed is False
+        literal = self._check({"violations": {"equals": [{"number": 203}, {"number": 207}]}})
+        assert literal.passed is False
+
+    def test_reject_malformed_matcher_inside_item(self):
+        with pytest.raises(
+            InvalidExpectationError,
+            match=r"Invalid assertion at data\.violations\[0\]\.rule: 'contains' expects a string",
+        ):
+            self._check({"violations": [{"rule": {"contains": 1}}, {}]})
+
+
+class TestStrictMatchers:
+    """Mirrors packages/testing/src/types/matchers.test.ts."""
+
+    ALICE = {
+        "success": True,
+        "data": {
+            "user": {"name": "Alice", "tags": ["a"]},
+            "count": 3,
+            "settings": {"exists": True},
+        },
+    }
+
+    def test_is_assertion_matcher_throws_on_mixed_keys(self):
+        assert is_assertion_matcher({"exists": True}) is True
+        assert is_assertion_matcher({"gte": 1, "lte": 5}) is True
+        assert is_assertion_matcher({"equals": {"any": "value"}}) is True
+        assert is_assertion_matcher({}) is False
+        assert is_assertion_matcher(["exists"]) is False
+        with pytest.raises(
+            ValueError,
+            match=r"Invalid assertion at data\.user: 'exists' is a matcher key but 'name' is not",
+        ):
+            is_assertion_matcher({"exists": True, "name": "Bob"}, "data.user")
+
+    def test_deep_equal_does_not_treat_bool_as_int(self):
+        assert (
+            evaluate_result(
+                {"success": True, "data": {"flag": 1}},
+                Expectation(success=True, data={"flag": True}),
+            ).passed
+            is False
+        )
+        assert (
+            evaluate_result(
+                {"success": True, "data": {"flag": True}},
+                Expectation(success=True, data={"flag": 1}),
+            ).passed
+            is False
+        )
+
+    def test_checks_error_suggestions_with_string_or_matcher(self):
+        actual = {
+            "success": False,
+            "error": {
+                "code": "NOT_FOUND",
+                "message": "missing",
+                "suggestion": "Use todo-list first",
+            },
+        }
+        assert (
+            evaluate_result(
+                actual, Expectation(success=False, error={"suggestion": "todo-list"})
+            ).passed
+            is True
+        )
+        assert (
+            evaluate_result(
+                actual, Expectation(success=False, error={"suggestion": {"contains": "todo-get"}})
+            ).passed
+            is False
+        )
+
+    def test_find_expectation_problems_returns_empty_for_valid_expectations(self):
+        assert (
+            find_expectation_problems(
+                Expectation(
+                    success=True,
+                    data={
+                        "id": {"exists": True},
+                        "n": {"between": [1, 2]},
+                        "s": {"matches": "^a"},
+                        "t": "x",
+                    },
+                )
+            )
+            == []
+        )
+        assert (
+            find_expectation_problems(
+                Expectation(success=False, error={"suggestion": {"contains": "todo-list"}})
+            )
+            == []
+        )
+
+    def test_rejects_mixed_matcher_and_field_keys_in_evaluate_result(self):
+        with pytest.raises(InvalidExpectationError):
+            evaluate_result(
+                self.ALICE,
+                Expectation(success=True, data={"user": {"exists": True, "name": "Bob"}}),
+            )
+
+    def test_rejects_typo_next_to_real_matcher(self):
+        with pytest.raises(InvalidExpectationError, match="'matchs'"):
+            evaluate_result(
+                self.ALICE,
+                Expectation(
+                    success=True,
+                    data={"user": {"name": {"contains": "Ali", "matchs": "^Z"}}},
+                ),
+            )
+
+    def test_fails_lone_typo_instead_of_passing(self):
+        result = evaluate_result(
+            self.ALICE,
+            Expectation(success=True, data={"user": {"name": {"matchs": "^A"}}}),
+        )
+        assert result.passed is False
+
+    def test_equals_matcher_for_literal_objects_that_look_like_matchers(self):
+        result = evaluate_result(
+            self.ALICE,
+            Expectation(
+                success=True,
+                data={"count": {"equals": 3}, "settings": {"equals": {"exists": True}}},
+            ),
+        )
+        assert result.passed is True
+        assert [a.path for a in result.assertions if a.matcher == "equals"] == [
+            "success",
+            "data.count",
+            "data.settings",
+        ]
+        assert (
+            evaluate_result(
+                self.ALICE,
+                Expectation(success=True, data={"count": {"equals": 4}}),
+            ).passed
+            is False
+        )
+
+    def test_rejects_wrong_matcher_value_types(self):
+        with pytest.raises(InvalidExpectationError, match="'gte' expects a number"):
+            evaluate_result(
+                self.ALICE,
+                Expectation(
+                    success=True,
+                    data={"count": {"gte": "2"}, "user": {"tags": {"length": -1}}},
+                ),
+            )
+
+    def test_find_expectation_problems_lists_every_problem(self):
+        problems = find_expectation_problems(
+            Expectation(
+                success=True,
+                data={
+                    "a": {"exists": "yes"},
+                    "b": {"between": [5, 1]},
+                    "c": {"matches": "["},
+                    "d": {"contains": 3},
+                    "e": {"nested": {"lte": "x"}},
+                },
+                error={"code": "X"},
+            )
+        )
+        assert problems == [
+            "Invalid assertion at data.a: 'exists' expects true or false",
+            "Invalid assertion at data.b: 'between' expects [min, max] with min <= max",
+            "Invalid assertion at data.c: 'matches' is not a valid regular expression",
+            "Invalid assertion at data.d: 'contains' expects a string",
+            "Invalid assertion at data.e.nested: 'lte' expects a number",
+            "'error' assertions are only checked when 'success' is false",
+        ]
+
+    def test_find_expectation_problems_rejects_data_on_failure_and_bad_suggestion(self):
+        assert find_expectation_problems(
+            Expectation(success=False, data={"id": 1}, error={"suggestion": {"text": "x"}})
+        ) == [
+            "'data' assertions are only checked when 'success' is true",
+            "'error.suggestion' must be a string or a matcher object",
+        ]
+        assert (
+            "Invalid assertion at error.suggestion"
+            in find_expectation_problems(
+                Expectation(
+                    success=False,
+                    error={"suggestion": {"contains": "a", "other": 1}},
+                )
+            )[0]
+        )
+
+    def test_parse_scenario_rejects_malformed_data_matchers_at_parse_time(self):
+        base = """
+name: Strict data check
+description: Reject bad data assertions at parse time
+job: strict-data
+steps:
+  - command: demo-run
+    expect:
+      success: true
+      data:
+        {body}
+"""
+        for body, needle in (
+            ("user: { exists: true, name: Bob }", "'exists' is a matcher key"),
+            ("title: { contains: 3 }", "'contains' expects a string"),
+            ("title: { matches: '[' }", "not a valid regular expression"),
+            ("items: [{ rule: { contains: 1 } }]", "data.items[0].rule"),
+        ):
+            parsed = parse_scenario(base.format(body=body))
+            assert parsed.success is False, body
+            assert needle in parsed.error, parsed.error
+
+        data_on_failure = parse_scenario(
+            """
+name: Bad failure
+description: Data on failure
+job: bad-failure
+steps:
+  - command: demo-run
+    expect:
+      success: false
+      data:
+        id: 1
+"""
+        )
+        assert data_on_failure.success is False
+        assert "'data' assertions are only checked when 'success' is true" in data_on_failure.error
