@@ -29,8 +29,8 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   no GitHub App. The owner's ranking of the jobs, the six questions in
   [For the owner](factory-gateway.proposal.md#for-the-owner) and the App (G0) are still his.
 - **Last verified:** 2026-11-23 (dates in this file are Pacific time): the rate-limit replay
-  through the deployed gateway, the gateway updated to `3fe08c00` and then to `36aed322` with
-  the read cache, all below. 2026-11-21:
+  through the deployed gateway, the gateway updated to `3fe08c00`, then to `36aed322` with
+  the read cache and to `317accc6` with the validation-lag fix, all below. 2026-11-21:
   G0's exit, after a restart of `random`, from all three machines; also the rebase-credit test, the variables write
   and the runbook's install script, all below. On 2026-11-20: G0's test writes in Lushly. On 2026-11-19 against `main` at `d742f591`: the gateway runs on `random` as a launch daemon built from that commit. Over the
   tailnet with the owner's token, `factory-gateway call gateway-status` answered as
@@ -239,10 +239,12 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 - **Validation lag ([#2401](https://github.com/lushly-dev/afd/issues/2401)), found 2026-11-23:**
   that `pr-merge`, a second after its `verification-record`, was refused as
   `VALIDATION_MISSING`: GitHub's check-runs list had not yet listed the run, and the lane
-  records and merges in that order every time. Fixed on `lush/gateway-validation-lag`: the
+  records and merges in that order every time. Fixed in
+  [#2403](https://github.com/lushly-dev/afd/pull/2403): the
   gateway keeps its own record of each validation for a week and lets it decide (only it
   writes `factory/verification`); a failure is kept before its check run, a pass after.
-  GitHub's list answers for heads with no record in that week. Not yet deployed on `random`.
+  GitHub's list answers for heads with no record in that week. Deployed on `random` on
+  2026-11-23 at `317accc6`, configuration kept; `gateway-status` answered after.
 
 - **Follow-up (2026-11-20, this session):** a merge that closes a claimed issue leaves the
   claim's `status:in-progress` label on the closed issue, and `issue-release` then answers
@@ -252,9 +254,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   GraphQL budget ([#1833](https://github.com/lushly-dev/afd/issues/1833)) landed in
   [#2303](https://github.com/lushly-dev/afd/pull/2303). Both run on `random` since the update
   to `3fe08c00` on 2026-11-23.
-- **Next, in order:** the validation-lag fix
-  ([#2401](https://github.com/lushly-dev/afd/issues/2401)) merged and deployed on `random`;
-  change 3 redesigned so the host is the only validator (held on
+- **Next, in order:** change 3 redesigned so the host is the only validator (held on
   `lush/botcore-command-tools`); the lane on `random`
   with its health in `gateway-status`; the factory plugin on the gateway (after
   `feat/factory-lane-loop` lands); Lushly's side ([lushly#2392](https://github.com/lushly-dev/lushly/issues/2392));
