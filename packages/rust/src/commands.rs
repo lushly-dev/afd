@@ -2090,7 +2090,7 @@ impl CommandRegistry {
 // EXECUTION HELPERS
 
 /// Standard `COMMAND_CANCELLED` error (`spec/execution-controls.md`).
-fn command_cancelled_error(name: &str) -> CommandError {
+pub(crate) fn command_cancelled_error(name: &str) -> CommandError {
     CommandError::new(
         error_codes::COMMAND_CANCELLED,
         format!(

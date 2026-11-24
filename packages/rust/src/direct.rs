@@ -135,7 +135,8 @@ impl DirectClient {
         context: Option<CommandContext>,
     ) -> CommandResult<Value> {
         let mut context = context.unwrap_or_default();
-        let timeout = context.timeout_ms;
+        // `0` means no deadline, as `CommandRegistry::execute` reads it.
+        let timeout = context.timeout_ms.filter(|&ms| ms > 0);
         if timeout.is_some() && !cfg!(feature = "native") {
             return failure(
                 CommandError::new(
@@ -154,8 +155,22 @@ impl DirectClient {
         context
             .actor
             .get_or_insert_with(|| Actor::new(ActorKind::Human));
-        // The outer deadline owns both attempts and the decision, rather than restarting it.
-        context.timeout_ms = None;
+        // The outer deadline owns both attempts and the decision, rather than restarting it. It
+        // fires a child of the caller's signal, which the command sees, so work it spawned and a
+        // loop that does not await stop at the deadline; the caller's own signal is not fired.
+        if context.timeout_ms.is_some() {
+            // The caller chose the deadline (or none): the registry's default does not apply.
+            context.timeout_ms = None;
+            context.default_timeout_override = Some(None);
+        }
+        let deadline_signal = timeout.map(|_| {
+            let signal = context.cancellation().map_or_else(
+                crate::cancellation::CancellationSignal::new,
+                crate::cancellation::CancellationSignal::child,
+            );
+            context = std::mem::take(&mut context).with_cancellation(signal.clone());
+            signal
+        });
         #[cfg(feature = "native")]
         let started = tokio::time::Instant::now();
         let expired = || {
@@ -170,7 +185,12 @@ impl DirectClient {
                 false
             }
         };
-        let timed_out = || failure(CommandError::timeout(name, timeout.unwrap_or_default()));
+        let timed_out = || {
+            if let Some(signal) = &deadline_signal {
+                signal.cancel();
+            }
+            failure(CommandError::timeout(name, timeout.unwrap_or_default()))
+        };
         let run = async {
             let result = public_result(
                 self.registry
@@ -194,9 +214,25 @@ impl DirectClient {
                     expires_at: pending.expires_at,
                     reason: pending.reason,
                 };
-                let answer = AssertUnwindSafe(async { hook(request).await })
-                    .catch_unwind()
-                    .await;
+                let asked = AssertUnwindSafe(async { hook(request).await }).catch_unwind();
+                // A cancelled call stops waiting for the person, as TypeScript's does.
+                let answer = match context.cancellation().cloned() {
+                    Some(signal) => {
+                        let cancelled = signal.cancelled();
+                        futures_util::pin_mut!(asked, cancelled);
+                        match futures_util::future::select(asked, cancelled).await {
+                            futures_util::future::Either::Left((answer, _)) => answer,
+                            futures_util::future::Either::Right(_) => {
+                                return if expired() {
+                                    timed_out()
+                                } else {
+                                    failure(crate::commands::command_cancelled_error(name))
+                                };
+                            }
+                        }
+                    }
+                    None => asked.await,
+                };
                 if expired() {
                     return timed_out();
                 }
@@ -220,7 +256,7 @@ impl DirectClient {
                 run,
             )
             .await
-            .unwrap_or_else(|_| failure(CommandError::timeout(name, timeout)));
+            .unwrap_or_else(|_| timed_out());
         }
         run.await
     }

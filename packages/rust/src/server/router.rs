@@ -47,8 +47,8 @@ use serde_json::{json, Map, Value};
 use crate::commands::Visibility;
 use crate::contexts::{not_in_context_error, ContextScope};
 use crate::{
-    error_codes, execute_pipeline, failure, BatchRequest, CommandContext, CommandDefinition,
-    CommandError, CommandExecutor, CommandResult, PipelineRequest, TaskSupport,
+    error_codes, execute_pipeline_with_cancellation, failure, BatchRequest, CommandContext,
+    CommandDefinition, CommandError, CommandExecutor, CommandResult, PipelineRequest, TaskSupport,
 };
 
 use super::approver::{self, ApproverDecision};
@@ -834,7 +834,25 @@ impl Call<'_> {
             Decision::Ask(response) => return Ok(response),
             Decision::Internal => return Err(confirmation_internal()),
         }
-        let run = |base: CommandContext| {
+        let run = |mut base: CommandContext| {
+            // The pipeline's deadline fires a child of the call's own signal, so a step still
+            // running at the deadline (and work it spawned) can stop; the call's signal is not
+            // fired by it.
+            // Without a deadline, the call's own signal, which only stops later steps.
+            let has_deadline = request
+                .options
+                .as_ref()
+                .is_some_and(|options| options.timeout_ms.is_some());
+            let deadline_signal = if has_deadline {
+                let signal = base.cancellation().map_or_else(
+                    crate::cancellation::CancellationSignal::new,
+                    crate::cancellation::CancellationSignal::child,
+                );
+                base = base.with_cancellation(signal.clone());
+                Some(signal)
+            } else {
+                base.cancellation().cloned()
+            };
             let registry = Arc::clone(&self.server.inner.registry);
             let executor: CommandExecutor = Arc::new(move |command, input, step| {
                 let registry = Arc::clone(&registry);
@@ -845,7 +863,9 @@ impl Call<'_> {
                 Box::pin(async move { registry.execute(&command, input, Some(context)).await })
             });
             let request = &request;
-            async move { execute_pipeline(request, &executor, None).await }
+            async move {
+                execute_pipeline_with_cancellation(request, &executor, None, deadline_signal).await
+            }
         };
         let result = match self.pipeline_up_front(&request) {
             None => run(self.step_context()).await,

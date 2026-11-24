@@ -67,6 +67,16 @@ is a separate architectural PR. Per-call contexts/tool surfaces and server deadl
 remain the matrix's existing gaps. Focused regressions cover this candidate; full
 validation and landing belong to the lane.
 
+## Rust runtime (#546's split issues)
+
+- Middleware signature and per-call allocation ([#1764](https://github.com/lushly-dev/afd/issues/1764)): merged in #2328; the async-safe file journal sink in #2431.
+
+- Built-in middleware ([#1600](https://github.com/lushly-dev/afd/issues/1600)): merged in #2356; tracing middleware is N/A, as in C++.
+
+- Stream executor ([#1601](https://github.com/lushly-dev/afd/issues/1601)): merged in #2438.
+
+- Cancellation signal for deadlines ([#1599](https://github.com/lushly-dev/afd/issues/1599)): the registry, batch and pre-cancel guard landed with #2221; `DirectClient` and pipeline deadlines fire the command's signal, and pipelines stop at a cancelled call: #2441.
+
 ## Historical checkpoints
 
 The plan's 2026-10-10 stabilization candidate is now merged (#367), and its first releases are
