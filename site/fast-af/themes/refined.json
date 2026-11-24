@@ -56,8 +56,10 @@
 		"color.state.danger.background": "@red-wash",
 		"color.state.danger.border": "transparent",
 		"shadow.control": "0 0 0 1px @ink/0.05, 0 1px 2px @ink/0.10",
+		"shadow.well": "inset 0 2px 3px -1px @black/0.1",
 		"shadow.card": "0 0 0 1px @ink/0.06, 0 1px 2px @ink/0.06, 0 4px 10px -2px @ink/0.06",
 		"shadow.floating": "0 0 0 1px @ink/0.08, 0 4px 12px -2px @ink/0.12, 0 18px 40px -8px @ink/0.20",
+		"color.accent.background": "@mint-wash",
 		"color.control.selected.background": "@mint-soft",
 		"color.control.selected.border": "@mint-ink/0.5",
 		"color.surface.selected": "@mint-wash",
@@ -74,6 +76,7 @@
 		"color.state.warning.border": "transparent",
 		"color.state.danger.border": "transparent",
 		"shadow.control": "0 0 0 1px @paper/0.07, 0 1px 2px @black/0.40",
+		"shadow.well": "inset 0 2px 3px -1px @black/0.28",
 		"shadow.card": "0 0 0 1px @paper/0.07, 0 1px 2px @black/0.32, 0 6px 14px -2px @black/0.30",
 		"shadow.floating": "0 0 0 1px @paper/0.13, 0 6px 16px -2px @black/0.45, 0 22px 48px -8px @black/0.60"
 	},
