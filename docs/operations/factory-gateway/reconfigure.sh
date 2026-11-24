@@ -28,7 +28,10 @@ cp -p $ROOT/etc/gateway.json $ROOT/etc/gateway.json.prev
 install -o root -g _factorygw -m 0640 "$NEW" $ROOT/etc/gateway.json
 launchctl kickstart -k system/$LABEL
 sleep 15
-launchctl print system/$LABEL | grep -E "^\s*(state|pid) =" | head -2
+# Read whole, then filtered: a pipe that closes early, or a state line not printed, would
+# otherwise end the script before the log and the mirrors.
+STATE=$(launchctl print system/$LABEL 2>&1 || true)
+grep -E '^\s*(state|pid) =' <<<"$STATE" | head -2 || echo "launchd reports no state for $LABEL"
 echo "--- log"
 tail -8 $ROOT/log/gateway.log
 echo "--- mirrors"

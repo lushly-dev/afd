@@ -14,7 +14,7 @@ topic tells a caller how to use it. What is built and what is not is in the
 | GitHub App | `lushly-factory-gateway`, App ID `5777732`, installation `182417554` on `lushly-dev`, limited to `lushly-dev/afd` and `lushly-dev/lushly`. Its writes appear as `lushly-factory-gateway[bot]` |
 | Service | The launch daemon `dev.lushly.factory-gateway`, which runs `factory-gateway-admin serve` and is set to start at boot ([Restart and boot](#restart-and-boot)) |
 | Account | `_factorygw` (user and group 450): hidden, no login shell, no home |
-| Code | `/Library/FactoryGateway/app`, owned by root so the service cannot change what it runs: the source (`src`), its own Python (`python`), the environment (`venv`) and `REVISION`, the commit of `main` it was built from |
+| Code | `/Library/FactoryGateway/app`, a link to the release that runs, in `/Library/FactoryGateway/releases`. Each release is named for its commit and the time it was built, and holds the source (`src`), its own Python (`python`), the environment (`venv`) and `REVISION`, the commit of `main` it was built from. All of it is owned by root so the service cannot change what it runs. `app.last-good` links to the last release that answered after an install, and `.install.lock` is held while one runs |
 | State | `/Library/FactoryGateway/data`, the service's alone: `state.json`, the journal, `tokens.json`, uploads and one bare mirror per repository |
 | Configuration | `/Library/FactoryGateway/etc/gateway.json` (root's, readable by the service) and `app.pem`, the App's private key (the service's, mode 0600; the gateway refuses to start if anyone else can read it) |
 | Log | `/Library/FactoryGateway/log/gateway.log`, readable by the service only: `sudo tail` it |
@@ -158,8 +158,10 @@ git show $FILES/dev.lushly.factory-gateway.plist > "$STAGE/dev.lushly.factory-ga
 cp "$(command -v uv)" "$STAGE/uv"
 ```
 
-Then install it as root. The daemon is down for the minute or two the build takes; callers see
-`GATEWAY_UNAVAILABLE` and retry.
+Then install it as root. The new code is built beside the running one, which keeps serving. The
+daemon is down only for its restart, in which callers see `GATEWAY_UNAVAILABLE` and retry: seconds
+when its mirrors are current, minutes on a first start, which fetches each repository's history
+before it listens.
 
 ```bash
 sudo bash "$STAGE/install.sh" "$STAGE"
@@ -169,13 +171,47 @@ The script installs what is staged and keeps the rest: with no key file passed a
 `gateway.json` staged, the installed key and configuration stay. It always keeps `data` (state,
 journal, tokens, mirrors) and the owner's token. Then [check it](#check-it).
 
-It checks a key or configuration it is given before it stops the daemon, so a bad one changes
-nothing. After that it removes the old code and builds the new: if the build fails (it
-downloads Python packages), the gateway stays down until the script runs again and succeeds.
-The new code checks a staged configuration once more before it is installed. One the new code
-refuses is left out: the daemon starts on the installed file and the script ends as a failure.
-A configuration that needs fields only the new code knows is refused by the first check, so
-update the code first and [change the configuration](#change-the-configuration) after.
+It builds the new code in a release of its own. That code then checks the configuration it
+will read (the staged `gateway.json`, or the installed one when none is staged) and a key file
+passed to it; an installed key is not read again. The staged launch daemon must parse and name
+the address and port the daemon binds. The owner's token is issued if there is none. If the
+build fails (it downloads Python packages) or a check does, the script removes the new release
+and ends with the old code still running; a first install has by then created the account and
+the directories. One install runs at a time: a run that finds `.install.lock` held ends, and
+one killed with `kill -9` leaves it for you to remove.
+
+Only then does it stop the daemon, switch `app` to the new release, install what was staged
+and start the daemon again. The switch counts once the daemon's address answers HTTP. The script
+waits up to 15 minutes while launchd shows the daemon running, and ends sooner once launchd shows
+it not running for 10 seconds or running under another process (it exited and launchd started it
+again). It then keeps the new release, the last one that answered before it and the one `app`
+pointed at, and removes the rest. A run that fails before the switch removes its own release.
+One that fails after it leaves its release, which a later run that succeeds removes once `app`
+no longer points at it.
+
+If the daemon does not answer or does not start, the script prints its state, the end of its
+log and the command that goes back, and ends as a failure. Going back is a switch to the release
+that answered last (`app.last-good`, which a failed run never replaces), then a start that
+works whether or not launchd still holds the daemon:
+
+```bash
+ls /Library/FactoryGateway/releases
+GOOD=/Library/FactoryGateway/releases/<the release>
+sudo ln -sfh "$GOOD" /Library/FactoryGateway/app && sudo ln -sfh "$GOOD" /Library/FactoryGateway/app.last-good
+sudo launchctl kickstart -k system/dev.lushly.factory-gateway 2>/dev/null ||
+  sudo launchctl bootstrap system /Library/LaunchDaemons/dev.lushly.factory-gateway.plist
+```
+
+Files the failed run installed stay installed. `etc/gateway.json.prev` and the launch daemon's
+`.prev` are the ones the last good release ran with, since a run after a failed one does not
+replace them (`reconfigure.sh` also writes `gateway.json.prev`, with the file it
+replaced): [Change the configuration](#change-the-configuration) puts the configuration
+back. For the launch daemon, `bootout` the service, copy the `.prev` over the plist and
+`bootstrap` it. A replaced key has no copy. The first update from an install before releases
+moves the old `app` aside as `app.legacy` and removes it once the new release answers; until
+then, going back is
+`sudo rm /Library/FactoryGateway/app && sudo mv /Library/FactoryGateway/app.legacy /Library/FactoryGateway/app`,
+then the same start.
 
 The launch daemon in the repository carries `random`'s tailnet address. If that address
 changes, change it there first; an edited copy on the machine is replaced by the next update
@@ -204,8 +240,10 @@ that stages the file.
    sudo bash "$STAGE/install.sh" "$STAGE" ~/Downloads/<the key>.pem
    ```
 
-   The script creates the account, builds the code, checks and installs the configuration and
-   the key, starts the daemon and has the owner's account write the owner's token. It refuses
+   The script creates the account, builds the code, checks the configuration, the key and
+   the launch daemon, has the owner's account write the owner's token, then installs them
+   and starts the daemon. Its first start fetches each repository's history before it
+   answers. It refuses
    to go on if another account holds the service's ID or sits in its group. Delete the
    downloaded key afterwards.
 
