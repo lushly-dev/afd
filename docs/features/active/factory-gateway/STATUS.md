@@ -38,7 +38,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   (afd#1550, lushly#2392) and `pr-status` (#1627) read the real GitHub.
 - **Done:** the proposal, jobs and manifest (#1222); botcore's host changes 1, 2, 5 and 6
   ([#1230](https://github.com/lushly-dev/afd/pull/1230), merged 2026-11-15); the G1 command
-  skeleton in `botcore-factory` against a fake GitHub, all fifteen jobs passing
+  skeleton in `botcore-factory` against a fake GitHub, all fifteen jobs of 2026-11-15 passing
   ([#1232](https://github.com/lushly-dev/afd/pull/1232), merged 2026-11-15); the commit-credit
   check in both repositories' `ci-ok` ([afd#1250](https://github.com/lushly-dev/afd/pull/1250),
   [lushly#2403](https://github.com/lushly-dev/lushly/pull/2403)).
@@ -254,9 +254,10 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   GraphQL budget ([#1833](https://github.com/lushly-dev/afd/issues/1833)) landed in
   [#2303](https://github.com/lushly-dev/afd/pull/2303). Both run on `random` since the update
   to `3fe08c00` on 2026-11-23.
-- **Next, in order:** merge botcore's change 3 (below; the gateway serves no MCP yet, so its
-  callers keep the CLI); the lane on `random`
-  with its health in `gateway-status`; the factory plugin on the gateway (after
+- **Next, in order:** the lanes reporting their health: Lushly's `merge-lane.mjs`, which runs
+  on `random` already, calling `lane-heartbeat` (Lushly's side,
+  [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392), coordinated with its
+  foreman), and botcore's lane once it runs for AFD; the factory plugin on the gateway (after
   `feat/factory-lane-loop` lands); Lushly's side ([lushly#2392](https://github.com/lushly-dev/lushly/issues/2392));
   the process files and the two process checks.
 - **Not done:** every milestone below.
@@ -266,7 +267,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | Milestone | State | Jobs | Process files changed |
 |---|---|---|---|
 | G0: stand it up | In progress: the App created and installed 2026-11-15; the adapter ([#1290](https://github.com/lushly-dev/afd/pull/1290)); the service on `random` with its key, service user and start at boot, installed 2026-11-19; test writes for every write permission 2026-11-20 and 2026-11-21; credit settled 2026-11-21 (rebase, done in Lushly; AFD in [#1809](https://github.com/lushly-dev/afd/issues/1809)); the runbook; exit met 2026-11-21 (`gateway-status` on each route from `random`, `macbook-air` and `hero` after a restart of `random`); the rate-limit replay 2026-11-23; open: the two process checks, which G1 builds, so `process.json` keeps G0 unlanded | — | AFD: `docs/operations/factory-gateway.md` and `SETUP.md` ([#1834](https://github.com/lushly-dev/afd/pull/1834)). Lushly: `SETUP.md` ([lushly#2707](https://github.com/lushly-dev/lushly/pull/2707), [lushly#2782](https://github.com/lushly-dev/lushly/pull/2782), [lushly#2809](https://github.com/lushly-dev/lushly/pull/2809), which names `gateway-status`; merged by the gateway by rebase as `482ee117`, the owner its author) |
-| G1: one writer (MVP) | In progress since 2026-11-14: botcore host changes ([#1230](https://github.com/lushly-dev/afd/pull/1230)) and the command skeleton against a fake GitHub ([#1232](https://github.com/lushly-dev/afd/pull/1232)), all fifteen jobs passing, both merged 2026-11-15; Lushly side tracked in [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392) | `mvp` (01–11, 15) | — |
+| G1: one writer (MVP) | In progress since 2026-11-14: botcore host changes ([#1230](https://github.com/lushly-dev/afd/pull/1230)) and the command skeleton against a fake GitHub ([#1232](https://github.com/lushly-dev/afd/pull/1232)), all fifteen jobs passing, both merged 2026-11-15; job 16 (a stopped lane) added and passing 2026-11-24; Lushly side tracked in [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392) | `mvp` (01–11, 15, 16) | — |
 | G2: review as a record | Open | `records` (12) | — |
 | G3: events, not polling | Open | `events` (13–14) | — |
 | G4: no credential outside the door | Open | unit tests and the exit | — |
@@ -370,6 +371,24 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   reads the catalog schema. The tests pass on SDK 2.3.0 and 1.30.0, over each SDK's in-memory
   client too. Reviewed by Opus and Gemini 4 Neon; their findings applied, the type-ignore
   blocker among them. The annotations are hints: `-call` still reaches every command.
+- 2026-11-24: botcore's change 3 merged in [#2409](https://github.com/lushly-dev/afd/pull/2409)
+  (`b62d874`), its content checked against the reviewed head. The gateway serves no MCP yet,
+  so its callers keep the CLI.
+- 2026-11-24: the lane's health in `gateway-status`, the gateway's side (job 16, "See a stopped
+  lane instead of waiting on it", added for the owner's 2026-11-15 decision). `lane-heartbeat`
+  (`/lane` and `/owner`) keeps each host's own report for a repository's lane (host, running,
+  queued, `last_merge_at`) with the time it arrived, in `state.json`; `gateway-status` lists
+  every served repository in `lanes[]`, `running` only while a report says so and is younger than
+  `laneStaleMinutes` (5; the lane steps every 5 seconds). One entry per repository, since each
+  has its own lane, where the proposal had one `lane`. Not a GitHub write: it spends no write
+  budget, and it is not journaled (the journal is never pruned:
+  [#2413](https://github.com/lushly-dev/afd/issues/2413)). A second host reporting for the same
+  repository, its report also saying running and recent, shows in `otherHosts[]`; each host's
+  report is kept apart, so a stopped host cannot hide a running one and a clean move between
+  hosts is not two lanes (Gemini's review). `state.json` is now written to a side
+  file and moved into place. No lane calls it yet. Lushly's lane already runs on
+  `random` (`merge-lane.mjs` from `~/github/lushly`, its foreman said on 2026-11-24); AFD has no
+  lane running: its sessions merge through the merge queue.
 - 2026-11-14: filed [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392), Lushly's side
   of G1 (claim script, lane steps, flake filer, process files and checks), as G1 started.
 

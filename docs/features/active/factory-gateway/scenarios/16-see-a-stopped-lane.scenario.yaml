@@ -1,0 +1,57 @@
+# JTBD scenario for the Factory Gateway. Runs against the lane endpoint; the data is invented.
+# The clock cannot move between steps: the fixture's lane last reported at 09:48, twelve minutes
+# before the fixture's now (10:00), past the five minutes after which a lane counts as stopped.
+name: See a stopped lane instead of waiting on it
+description: >-
+  When the lane on the always-on machine stops or hangs, I want gateway-status to say so, with
+  where it ran and when it last reported, so that a branch handed to it is not left waiting on a
+  lane that is not there and the owner restarts it instead of wondering why nothing merges.
+job: see-a-stopped-lane
+tags: [mvp]
+fixture:
+  file: fixtures/lane.json
+  base: gateway.json
+steps:
+  - description: A lane that has not reported for twelve minutes reads as stopped, with its last report
+    command: gateway-status
+    input: {}
+    expect:
+      success: true
+      data:
+        lanes:
+          - repo: example-org/example-repo
+            host: build-mac
+            running: false
+            stale: true
+            queued: 2
+            lastMergeAt: "2030-02-03T09:30:00Z"
+            reportedAt: "2030-02-03T09:48:00Z"
+  - description: The lane reports in from its loop
+    command: lane-heartbeat
+    input:
+      repo: example-org/example-repo
+      host: build-mac
+      running: true
+      queued: 1
+      last_merge_at: "2030-02-03T09:55:00Z"
+    expect:
+      success: true
+      data:
+        lane:
+          repo: example-org/example-repo
+          running: true
+          stale: false
+          reportedAt: "2030-02-03T10:00:00Z"
+  - description: gateway-status now shows it running, with what it reported
+    command: gateway-status
+    input: {}
+    expect:
+      success: true
+      data:
+        lanes:
+          - repo: example-org/example-repo
+            host: build-mac
+            running: true
+            stale: false
+            queued: 1
+            lastMergeAt: "2030-02-03T09:55:00Z"

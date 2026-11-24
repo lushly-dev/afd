@@ -23,7 +23,7 @@ details.outcomeKnown says whether the call could have run.
 - foreman: reads, claims, issue-label, issue-comment, issue-create, pr-revert, variable-set,
   gateway-audit, gateway-wait. No push, pr-merge or verification-record.
 - lane: reads, claims, issue-comment, issue-create, branch-push, pr-open,
-  verification-record, pr-merge, pr-revert, gateway-wait.
+  verification-record, pr-merge, pr-revert, gateway-wait, lane-heartbeat.
 - owner: everything, and issue-release with force.
 
 Reads on every route: gateway-status, issue-get, comment-list, claim-list, pr-status,
@@ -76,10 +76,19 @@ issue in closes[] is held by another branch: stop, and let the foreman lane-drop
    queued false and autoMerge false on two reads a minute apart means it left the queue.
    cancel takes it out of the queue too and answers what GitHub then shows (STILL_QUEUED if
    it is still set to merge). NOT_QUEUED: GitHub took the request and shows nothing for it.
-   Not yet tried on GitHub: the App adding a pull request to a merge queue. A queue that
-   squashes a pull request the App opened may credit the owner as a co-author, which a base
-   that refuses co-authors (AFD's ci-ok) removes from the queue; AFD's queue rebases
-   (lushly-dev/afd#1809), which keeps each commit's author.
+   The App queued a pull request in AFD on 2026-11-23: the queue's rebase kept the owner as
+   author with the bot as committer (lushly-dev/afd#1809). A queue that squashes a pull
+   request the App opened may credit the owner as a co-author, which a base that refuses
+   co-authors (AFD's ci-ok) removes from the queue.
+6. lane-heartbeat {host, running, queued, last_merge_at?}: from the lane's loop, every minute
+   or so. gateway-status lists each repository's lane in lanes[] {repo, host, running, stale,
+   queued, lastMergeAt, reportedAt, otherHosts[]?}: running only while a report says so and
+   is younger than laneStaleMinutes (5), so a lane that stopped or hangs reads as not
+   running instead of leaving handed-over branches waiting. A lane that never reported (or not
+   for a week) has reportedAt null. Each host's report is kept apart: the newest recent one
+   that says running is shown, and otherHosts[] {host, reportedAt} lists any other host whose
+   recent report also says running, so two lanes may both be merging. Heartbeats are not
+   journaled and spend no write budget.
 
 ## Reading GitHub settled
 

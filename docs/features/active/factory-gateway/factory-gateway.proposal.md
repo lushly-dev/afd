@@ -26,7 +26,8 @@ the claims themselves.
   mergeability for an App's pull requests. G0 settles these.
 - **Jobs:** fifteen, written as scenarios, checked ([Checks](#checks)) and walked by three readers
   who did not write them ([Walking the paths](#walking-the-paths)). The owner ranks them next
-  ([For the owner](#for-the-owner)).
+  ([For the owner](#for-the-owner)). A sixteenth, seeing a stopped lane, was added on
+  2026-11-24 for his decision that `gateway-status` reports the lane.
 - **Progress:** [STATUS.md](STATUS.md).
 
 ## Decisions
@@ -47,7 +48,7 @@ The owner's answers of 2026-11-15.
 |---|---|---|
 | Credit | Work reaching GitHub is credited to the owner as its main contributor; agents are listed as supporting (an email-free `Assisted-by:` trailer), never as author or co-author | `branch-push` refuses a commit whose author is not one of the owner's emails (`COMMIT_AUTHOR_NOT_OWNER`); `pr-merge` uses each repository's merge method (merge commits in AFD, which keep the original authors); G0 reads how GitHub credits an App's squash merge in Lushly, and rebase merging is enabled there only if it credits the App. Updated 2026-11-21, after G0 read it: a squash by the App credits the bot and a rebase merge keeps the commit's author, so by the owner's decision the gateway rebase-merges one commit he authored, in both repositories (AFD allows only squash merges since 2026-11-18, and its merge queue moves to rebase in [#1809](https://github.com/lushly-dev/afd/issues/1809)). Both repositories' `ci-ok` refuse agent authors and co-authors (afd#1250, lushly#2403) |
 | Sessions and `main` | Interactive sessions hand their branches to the lane through the gateway instead of merging them themselves; a documentation-only pull request may still merge directly | The `/session` route gains `branch-push` to `refs/factory/queue/<branch>` in G1, and the prepare-PR skills in both repositories default to handing off. The part of G5 that keeps `main` from moving under a running validation lands in G1; the rest of G5 is unchanged |
-| Where the lane runs | `random`, beside the gateway, instead of the Mac, which is not always on | `gateway-status` reports the lane (`lane { host, running, queued, lastMergeAt }`), so a stopped lane is seen rather than stalling every handoff; the lane's validation checkouts need space on `random`'s dev drive |
+| Where the lane runs | `random`, beside the gateway, instead of the Mac, which is not always on | `gateway-status` reports the lane (`lanes[] { repo, host, running, stale, queued, lastMergeAt, reportedAt, otherHosts[]? }`, one per repository), so a stopped lane is seen rather than stalling every handoff; the lane's validation checkouts need space on `random`'s dev drive |
 | Other people | Nothing is set up for other people until there are other people; G4 stays the last milestone | G4's separate operating-system users are for the agents and validation on the owner's machines, not for other people, and need no second GitHub account |
 
 ## The problem
@@ -369,7 +370,7 @@ O owner.
 
 | Command | Routes | Input | Result `data` | Refusals | From |
 |---|---|---|---|---|---|
-| `gateway-status` | all | — | `host`, `writes[]` (this route's write commands), `identity`, `app`, `repos[]`, `rateLimit { remaining, resetAt, graphql? { remaining, resetAt } }`, `ages { appKey, token, readOnlyToken? }` (`appKey`: seconds since the key file was modified; `token`: seconds left on the current installation token; `readOnlyToken` enters with the cells' read-only token in G1), `journal { bytes, oldest }`, `lastEvent?`, `lane { host, running, queued, lastMergeAt }` (G1) | — | G0 |
+| `gateway-status` | all | — | `host`, `writes[]` (this route's write commands), `identity`, `app`, `repos[]`, `rateLimit { remaining, resetAt, graphql? { remaining, resetAt } }`, `ages { appKey, token, readOnlyToken? }` (`appKey`: seconds since the key file was modified; `token`: seconds left on the current installation token; `readOnlyToken` enters with the cells' read-only token in G1), `journal { bytes, oldest }`, `lastEvent?`, `lanes[] { repo, host, running, stale, queued, lastMergeAt, reportedAt, otherHosts[]? }` (G1; one per repository, each lane's own `lane-heartbeat`, `running` false once the report is `laneStaleMinutes` old) | — | G0 |
 | `issue-get` | all | `number` | `state`, `title`, `labels[]`, `assignees[]`, `claim?`, `author { login, association }`, `body { trust, text }`, `linkedPrs[]` | `NOT_FOUND` | G1 |
 | `comment-list` | all | `number`, `limit?`, `cursor?` | `comments[] { id, author, association, trust, text, at }`, `nextCursor?` | `NOT_FOUND` | G1 |
 | `claim-list` | all | `stale?` | `claims[] { number, holder { branch, machine }, leaseUntil, stale, legacy, labelMatches }` | — | G1 |
@@ -388,6 +389,7 @@ O owner.
 | `gateway-audit` | F O | `issue?`, `pr?`, `since?`, `actor?`, `limit?`, `cursor?` | `entries[] { seq, timestamp, command, actor, target, success }`, `outside[] { at, kind, target, by, label? }`, `nextCursor?` | — | G1 |
 | `review-record` | C O | `branch`, `head`, `lanes[] { lane, model, effort, verdict, fixed, deferred }` | `record { head, verdict, lanes }`; recording the same head again replaces it | `SECRET_IN_BODY` | G2 |
 | `review-get` | all | `head` | `verdict`, `lanes[]`, `recordedAt` | `NOT_FOUND` | G2 |
+| `lane-heartbeat` | L O | `host`, `running`, `queued`, `last_merge_at?` | `lane` (as `gateway-status` lists it) | `VALIDATION_ERROR` (a time without its zone), `SECRET_IN_BODY` | G1 |
 | `gateway-wait` | F L O | `consumer`, `kinds[]?`, `timeout_ms?` | `events[] { id, kind, target, at, sharedAccount?, detail? }`, or `{ events: [], timedOut: true }` | — | G3 |
 
 Every write can also be refused with `WRITE_BUDGET_EXCEEDED`.
@@ -426,7 +428,7 @@ must pass, the process it changes and its exit.
   2026-11-15: the `/session` route's queue push and sessions handing off to the lane by default;
   the lane on `random`, reported in `gateway-status`; `COMMIT_AUTHOR_NOT_OWNER` and each
   repository's merge method.
-- **Jobs:** `mvp` (01 to 11, and 15).
+- **Jobs:** `mvp` (01 to 11, 15 and 16).
 - **Process** (the manifest's G1 entry):
   - AFD: `AGENTS.md` (factory agents reach GitHub through the gateway, never `gh` writes);
     `triage-issues`; `prepare-pr` lane mode, the default for sessions; the factory's `run-fleet`; botcore's `factory` docs
@@ -568,6 +570,7 @@ runs against.
 | 13 | 12 | Record a review once and show it on the pull request as a check | records |
 | 14 | 13 | Wake on what happened on GitHub instead of polling | events |
 | 15 | 14 | Treat a GitHub Actions outage as a stall, not a failure | events |
+| 16 | 16 | See a stopped lane instead of waiting on it (added 2026-11-24 for the owner's 2026-11-15 decision that `gateway-status` reports the lane) | mvp |
 
 ### What writing them changed
 

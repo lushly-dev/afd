@@ -37,6 +37,10 @@ VERIFICATION = "factory/verification"
 #: How long the gateway keeps its own verification records. GitHub's list of check runs lags
 #: the write that created one (#2401); a merge follows its record within minutes.
 VERIFICATION_DAYS = 7
+#: How long a host's lane report counts after its last heartbeat: gateway-status shows a
+#: stopped lane by its last report for that long, then as never reported; the next heartbeat
+#: for the repository drops it from state.json.
+LANE_REPORT_DAYS = 7
 REVIEW = "factory/review"
 QUEUE_PREFIX = "refs/factory/queue/"
 HEADS_PREFIX = "refs/heads/"
@@ -264,9 +268,90 @@ class Gateway:
                     "token": ages.get("token"),
                 },
                 "journal": {"bytes": size, "oldest": oldest},
+                "lanes": [self._lane(repo) for repo in self.config.repositories],
             },
             reasoning=f"{host} on {self.config.app}, writing as {self.config.bot}",
         )
+
+    def lane_heartbeat(
+        self, repo: str, host: str, running: bool, queued: int, last_merge_at: str | None
+    ) -> CommandResult[Any]:
+        """Keep what a repository's lane on ``host`` says of itself, as of now; gateway-status
+        reports it. Each host's report is kept apart, so one host cannot hide another's."""
+        self.repo(repo)
+        self.text(host=host)
+        merged = None if last_merge_at is None else _time_or_none(last_merge_at)
+        if last_merge_at is not None and merged is None:
+            raise refuse(
+                "VALIDATION_ERROR",
+                f"last_merge_at {last_merge_at!r} is not an ISO 8601 time with its zone",
+                "Send the time of the lane's last merge as ISO 8601 with its zone, or leave it out",
+            )
+        now = self.now().astimezone(UTC)
+        report: dict[str, Any] = {
+            "host": host,
+            "running": running,
+            "queued": queued,
+            "lastMergeAt": None if merged is None else iso(merged.astimezone(UTC)),
+            "reportedAt": iso(now),
+            "by": _actor().get("id") or self.route,
+        }
+        lanes = dict(self.state.get("lanes", {}))
+        kept = {
+            name: row
+            for name, row in (lanes.get(repo) or {}).items()
+            if (at := _time_or_none(str(row.get("reportedAt")))) is not None
+            and now - at < timedelta(days=LANE_REPORT_DAYS)
+        }
+        kept[host] = report
+        lanes[repo] = kept
+        self.state.put("lanes", lanes)
+        return success(
+            {"lane": self._lane(repo)},
+            reasoning=f"The {repo} lane on {host} is {'running' if running else 'not running'}, "
+            f"{queued} queued",
+        )
+
+    def _lane(self, repo: str) -> dict[str, Any]:
+        """A repository's lane as gateway-status shows it. Of the hosts that reported, the
+        newest report that says running and is younger than ``laneStaleMinutes``, else the
+        newest report of all; running only in the first case. ``otherHosts`` lists any other
+        host whose recent report also says running: two lanes would both merge."""
+        now = self.now()
+        reports = [
+            row
+            for row in (self.state.get("lanes", {}).get(repo) or {}).values()
+            if (at := _time_or_none(str(row.get("reportedAt")))) is not None
+            and now - at < timedelta(days=LANE_REPORT_DAYS)
+        ]
+        if not reports:
+            return {"repo": repo, "running": False, "stale": True, "reportedAt": None}
+        reports.sort(key=lambda row: str(row.get("reportedAt")), reverse=True)
+        live = [row for row in reports if row.get("running") and self._fresh(row, now)]
+        shown = live[0] if live else reports[0]
+        lane = {
+            "repo": repo,
+            "host": shown.get("host"),
+            "running": bool(live),
+            "stale": not self._fresh(shown, now),
+            "queued": shown.get("queued"),
+            "lastMergeAt": shown.get("lastMergeAt"),
+            "reportedAt": shown.get("reportedAt"),
+        }
+        others = [
+            {"host": row.get("host"), "reportedAt": row.get("reportedAt")} for row in live[1:]
+        ]
+        if others:
+            lane["otherHosts"] = others
+        return lane
+
+    def _fresh(self, report: dict[str, Any], now: datetime) -> bool:
+        """Whether ``report`` is younger than ``laneStaleMinutes``. One from the future (the
+        clock moved back) is not: it cannot vouch for now."""
+        reported = report.get("reportedAt")
+        at = _time_or_none(reported) if isinstance(reported, str) else None
+        limit = timedelta(minutes=self.config.lane_stale_minutes)
+        return at is not None and at <= now and now - at < limit
 
     def issue_get(self, repo: str, number: int) -> CommandResult[Any]:
         self.repo(repo)
@@ -1218,3 +1303,12 @@ class Gateway:
 
 def _verification_key(repo: str, head: str) -> str:
     return f"{repo.lower()}@{head.lower()}"
+
+
+def _time_or_none(value: str) -> datetime | None:
+    """``value`` as a time with its zone, or None when it is not one."""
+    try:
+        at = parse_time(value)
+    except ValueError:
+        return None
+    return at if at is not None and at.tzinfo is not None else None

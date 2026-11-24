@@ -48,7 +48,13 @@ def build_gateway_host(
     for command, handler in make_commands(route, lambda: gateway, name).items():
         host.register(command, handler, POLICIES[command])
     host.middleware = [
-        create_journal_middleware(DailyJournalSink(state.journal_dir), record_failures=True)
+        create_journal_middleware(
+            DailyJournalSink(state.journal_dir),
+            record_failures=True,
+            # A lane reports every minute or so; state.json keeps its last report and who sent
+            # it, and the journal, which gateway-audit and gateway-wait read whole, stays small.
+            filter=lambda command: not command.startswith("auth-") and command != "lane-heartbeat",
+        )
     ]
     host.docs = {"gateway": DOCS}
     return host

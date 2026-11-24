@@ -41,6 +41,7 @@ ROUTES = {
     "13-wake-on-what-happened": "foreman",
     "14-an-outage-is-a-stall": "lane",
     "15-hand-over-through-the-gateway": "cell",
+    "16-see-a-stopped-lane": "lane",
 }
 
 

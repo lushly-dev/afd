@@ -111,6 +111,7 @@ in them. [The example](factory-gateway/gateway.example.json) shows the fields in
 | `mergeMethods` | How `pr-merge` merges in each repository: `rebase`, `squash` or `merge` (the default). See [Merges and credit](#merges-and-credit) |
 | `githubApp` | The App's ID and its installation's ID |
 | `allowedVariables` | The repository variables `variable-set` may write; `FACTORY_LANE_HOST` when left out |
+| `laneStaleMinutes` | Minutes after its last `lane-heartbeat` that a repository's lane reads as not running in `gateway-status`; 5 when left out |
 | `cache.graphqlSeconds` | Seconds callers share one read of a repository's issues or pull requests (behind `claim-list`, `gateway-audit` and `gateway-wait`); 15 when left out, 0 to read GitHub every time. A write through the gateway clears it at once |
 
 To change it, copy the installed file, edit the copy and install it:
@@ -251,6 +252,8 @@ did not author, and how it merges decides who authors the commit on `main`.
 | `FORBIDDEN`: "This token opens /cell, not /lane" | A token used on another route | Use the token's own route, or issue one for the route |
 | `GITHUB_UNAVAILABLE` | GitHub did not answer, or one of the App's rate limits is spent | Retry. `gateway-status` shows both GitHub's REST (`rateLimit`) and GraphQL (`rateLimit.graphql`) budgets and when each resets |
 | `GITHUB_REFUSED` | GitHub refused the write; the message is GitHub's own | Fix what it names: a permission the App lacks, a rule on the branch |
+| `gateway-status` shows a lane with `running: false` | With `stale: true`, the lane's loop stopped, hangs, or cannot reach the gateway; `reportedAt` is its last report (`null`: it never reported). With `stale: false`, the lane reported itself stopped | Check the lane on the host it names (its own status command there) and start it again |
+| A lane in `gateway-status` carries `otherHosts` | Another host's recent report for the same repository also says running: two lanes may both be merging | Stop the lane that should not run, on the host `host` or `otherHosts` names |
 | `VALIDATION_MISSING` from `pr-merge` | No passed `verification-record` for that exact head: none was made, the last one failed, or the branch was pushed again after its validation | Validate the head and record it, then merge. A record counts at once; the gateway keeps its own for a week, then reads the check run from GitHub |
 | `MERGE_METHOD_NOT_ALLOWED` | `mergeMethods` names a method the repository does not allow | [Merges and credit](#merges-and-credit) |
 | The daemon exits at once, again and again | A configuration it refuses, a key others can read, or the tailnet address is not up | The log names it |

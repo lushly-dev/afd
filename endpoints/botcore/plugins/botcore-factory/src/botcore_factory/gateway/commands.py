@@ -30,6 +30,8 @@ from botcore_factory.gateway.service import (
 Sha = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{40}$")]
 Repo = Annotated[str, StringConstraints(pattern=r"^[\w.-]+/[\w.-]+$")]
 Name = Annotated[str, StringConstraints(min_length=1, max_length=255)]
+#: A machine's name: one word, no spaces or line breaks.
+HostName = Annotated[str, StringConstraints(pattern=r"^\S{1,255}$")]
 
 
 class Holder(BaseModel):
@@ -82,6 +84,7 @@ ROUTES: dict[str, tuple[str, ...]] = {
         "pr-merge",
         "pr-revert",
         "gateway-wait",
+        "lane-heartbeat",
     ),
 }
 ROUTES["owner"] = tuple(dict.fromkeys([*ROUTES["foreman"], *ROUTES["lane"], *ROUTES["cell"]]))
@@ -94,6 +97,8 @@ POLICIES: dict[str, CommandPolicy] = {
     "review-record": CommandPolicy(("history-write",)),
     # Marks events delivered to its consumer.
     "gateway-wait": CommandPolicy(("history-write",)),
+    # Keeps the lane's own report; nothing reaches GitHub.
+    "lane-heartbeat": CommandPolicy(("history-write",)),
 }
 #: The commands gateway-status reports as this route's writes.
 WRITES = records.WRITE_COMMANDS
@@ -128,7 +133,7 @@ def _reads_claims_and_issues(route: str, get: Callable[[], Gateway], host: str) 
 
     async def gateway_status() -> CommandResult[Any]:
         """Report this route's host, its write commands, the bot identity, repositories,
-        rate limit (REST and GraphQL), credential ages and journal."""
+        rate limit (REST and GraphQL), credential ages, journal and each repository's lane."""
         writes = sorted(name for name in ROUTES[route] if name in WRITES)
         return await run(lambda: get().status(host, writes))
 
@@ -442,6 +447,25 @@ def _lane_and_records(get: Callable[[], Gateway]) -> dict[str, Any]:
         except GitHubRefused as exc:
             return refused_by_github(exc)
 
+    async def lane_heartbeat(
+        repo: Repo,
+        host: HostName,
+        running: bool,
+        queued: Annotated[int, Field(ge=0)],
+        last_merge_at: str | None = None,
+    ) -> CommandResult[Any]:
+        """Report the lane's own state from its loop, so gateway-status shows a lane that
+        stopped reporting as not running.
+
+        Args:
+            repo: owner/name of a repository this gateway serves.
+            host: The machine the lane runs on.
+            running: Whether the lane's loop is running (false once it is asked to stop).
+            queued: Branches waiting in the lane's queue.
+            last_merge_at: When the lane last merged, ISO 8601; left out before its first merge.
+        """
+        return await write(lambda: get().lane_heartbeat(repo, host, running, queued, last_merge_at))
+
     return {
         "branch-push": branch_push,
         "pr-open": pr_open,
@@ -453,6 +477,7 @@ def _lane_and_records(get: Callable[[], Gateway]) -> dict[str, Any]:
         "review-record": review_record,
         "review-get": review_get,
         "gateway-wait": gateway_wait,
+        "lane-heartbeat": lane_heartbeat,
     }
 
 

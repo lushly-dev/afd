@@ -1,0 +1,14 @@
+{
+	"lanes": {
+		"example-org/example-repo": {
+			"build-mac": {
+				"host": "build-mac",
+				"running": true,
+				"queued": 2,
+				"lastMergeAt": "2030-02-03T09:30:00Z",
+				"reportedAt": "2030-02-03T09:48:00Z",
+				"by": "lane@build-mac"
+			}
+		}
+	}
+}
