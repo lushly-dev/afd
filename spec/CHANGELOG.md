@@ -87,6 +87,116 @@ in the same pull request.
 
 ## 1.0-rc
 
+[`command-metadata.md`](./command-metadata.md), "Implementation status": record the Python MCP
+Tasks implementation (`TaskSupport`, `TaskStore`, `InMemoryTaskStore`, `TaskOptions`, `tasks/*`,
+`McpClient` task polling, and the shared todo `--suite tasks --mode modern` acceptance suite
+passing across TypeScript, Rust and Python; #1972). Additive status update, so the version stays.
+
+[`command-metadata.md`](./command-metadata.md), "Implementation status", and
+[`error-codes.md`](./error-codes.md), "MCP client": record the TypeScript MCP Tasks implementation
+(`TaskSupport`, `TaskStore`, `tasks/*`, client polling, and the shared todo `--suite tasks`
+acceptance suite across TypeScript and Rust) and add `MISSING_CLIENT_CAPABILITY` (`-32021`,
+non-retryable) for servers requiring an undeclared client capability such as
+`io.modelcontextprotocol/tasks`. Additive, so the version stays.
+
+[`mcp-resources.md`](./mcp-resources.md), "Implementation status", and
+[`vectors/mcp-resources.json`](./vectors/mcp-resources.json), `catalogFailures`: record that TypeScript's
+`SkillCatalog` enforces the S2 RFC 3986 §6.2.2 manifest boundary alongside Rust (`rmcp`), and add
+the `%2e%2e/x.md`, `refs/%2E`, and `%41.md` beside `A.md` cases to `catalogFailures` (#1984).
+
+[`journal.md`](./journal.md), "Replay", and [`error-codes.md`](./error-codes.md), "Middleware and
+telemetry": document `JOURNAL_RESULT_UNSERIALIZABLE` for TypeScript journal entries whose live
+result could not be serialized to JSON and how `replayJournal` reports them (#865). Additive, so
+the version stays.
+
+[`command-metadata.md`](./command-metadata.md), "Approvals": the support table marks Rust's
+`CommandRegistry::execute` as holding a declared approval policy without the approval middleware,
+so all four languages now enforce `APPROVAL_UNAVAILABLE`
+([#1886](https://github.com/lushly-dev/afd/issues/1886)). Additive, so the version stays.
+
+[`validation.md`](./validation.md) states that a boolean schema may appear wherever a schema may ([#2047](https://github.com/lushly-dev/afd/issues/2047)):
+
+- **`true`** is `{}`: it accepts any value, and an absent required property under it is reported as `nonoptional`.
+- **`false`** is `not: {}`: it accepts no value, with an `invalid_type` issue and `expected: "never"`.
+- **What stays as it was:** `additionalProperties: false` keeps its `unrecognized_keys` rule, and the root of an input schema stays an object.
+- **New vector case:** `vectors/validation.json` adds `boolean-schemas`. TypeScript generates it from `z.unknown()` and `z.never()` and rewrites their schemas to `true` and `false`.
+
+[`pipeline-variables.md`](./pipeline-variables.md) now states that a reference to a successful step with no `data` is absent, while a step whose `data` is `null` resolves to `null`.
+
+[`vectors/pipeline-variables.json`](./vectors/pipeline-variables.json) also adds two steps that succeeded, one with `null` data and one with none ([#1961](https://github.com/lushly-dev/afd/issues/1961)). The out-of-bounds index case moves to `$steps[5]`.
+
+Behaviour change: in all four languages, a boolean schema is now validated wherever a schema may appear, and a step that succeeded with `null` data resolves to `null`. Before, Python and Rust refused `true` and `false` except as `additionalProperties`, C++ reported `false` as `invalid_value`, and Python read a `null`-data step as absent. The two vector files gain cases for these: `boolean-schemas`, and the null-data and no-data steps.
+
+Move TypeScript (#2128), Python (#2129), Rust (#2130), and C++ batch limits and validation issue cap (#2131) from `gaps` to executed in `spec/vectors/execution-controls.json` and `spec/execution-controls.md`, leaving only C++ single-command deadlines and cancellation tracked in #1766.
+
+Regenerate `spec/vectors/validation.json` to replace `issue-count-uncapped` with `issue-count-capped`, pinning the default `maxValidationIssues = 100` cap, `details.truncated`, `details.limit`, `details.totalErrors`, and truncation suggestion notice across all four languages.
+
+Promote `spec/output-budgets.json` to `spec/vectors/output-budgets.json` now that all four languages (TypeScript, Python, Rust and C++) implement B1–B8 and load the shared vectors (#1993). Add `dev.afd/outputBudget` to the `meta` argument description of all five meta-tools in `spec/meta-tools.json`, update `spec/context-fields.md`, `spec/output-budgets.md`, `spec/protocol-conformance.md` and `spec/vectors/README.md`, and move the feature documentation to `docs/features/complete/output-budgets/`.
+
+The CommandResult envelope and local `$ref` follow one rule for schema resources ([#1910](https://github.com/lushly-dev/afd/issues/1910)):
+
+- **[`command-metadata.md`](./command-metadata.md#structured-results):** an output schema keeps its definitions inside `data` only when it starts a schema resource, meaning a string `$id` that is not a bare fragment. This is the validators' test; before, any `$id` counted. In any other output schema, a `"$ref": "#"` that named its root becomes `"#/properties/data"` (in every schema position, draft-07 `dependencies` included), since `#` names the envelope once `data` is nested in it.
+- **New vector:** [`vectors/output-schema.json`](./vectors/output-schema.json) holds the envelope each language builds.
+- **[`validation.md`](./validation.md):** a `$ref` of `#/$defs/<name>` or `#/definitions/<name>` takes exactly one JSON Pointer token. A deeper pointer fails at registration, such as one that reaches into a nested `$id` subschema and would resolve its references in the wrong resource.
+
+[`pipeline-variables.md`](./pipeline-variables.md), "Limits", says exactly how the expansion budget is counted, so all four implementations reach the same verdict at its boundaries ([#1722](https://github.com/lushly-dev/afd/issues/1722)):
+
+- **Template values:** each one costs a value, and literal strings and object keys also cost their characters.
+- **References:** a resolved reference costs a value, and an unresolved one costs a value only in an array.
+- **Repeats:** a referenced value is charged in full only when the step input has already expanded it. An object or array counts as the same by its location, so `$prev` and `$steps[N]` naming one step reach the same values. TypeScript compares objects by identity, so in-process data sharing one object counts once there. A non-empty string counts as the same when it is equal.
+- **Cycles:** a reference may pass through circular in-process step data, but copying a cycle into a step input fails as nested too deep.
+- **Characters:** counted in UTF-16 code units.
+- **Error details:** the failure is `{ stepIndex, limit }`, where `limit` is `"depth"`, `"nodes"` or `"chars"`.
+
+The conformance minimum adds three cases: a referenced value nested 65 levels deep, repeated fan-out over the value budget, and one large reference under it.
+
+[`pipeline-variables.md`](./pipeline-variables.md) now names the exact whitespace set forbidden in
+pipeline reference keys and step aliases ([#1962](https://github.com/lushly-dev/afd/issues/1962)):
+JavaScript's `\s` (ECMAScript `WhiteSpace` and `LineTerminator`, 25 code points: `U+0009`–`U+000D`,
+`U+0020`, `U+00A0`, `U+1680`, `U+2000`–`U+200A`, `U+2028`, `U+2029`, `U+202F`, `U+205F`, `U+3000`
+and `U+FEFF`). Characters outside this set (such as `U+001C`–`U+001F` and `U+0085`) are allowed in
+keys and aliases; `U+00A0` and `U+FEFF` are whitespace.
+
+[`vectors/pipeline-variables.json`](./vectors/pipeline-variables.json) adds keys and vectors for
+`U+0085`, `U+001C`, `U+00A0` and `U+FEFF` (both reference resolution and `$exists` conditions).
+
+Behaviour change: Python and Rust now use the explicit 25-code-point ECMAScript `\s` class for
+pipeline reference keys and aliases, matching TypeScript and C++. Before, Python's `re` `\s` treated
+`U+001C`–`U+001F` and `U+0085` as whitespace and omitted `U+FEFF`, while Rust's `regex` `\s` treated
+`U+0085` as whitespace and omitted `U+FEFF`. `spec/vectors/pipeline-variables.json` adds cases for
+these characters.
+
+[`vectors/approval-tokens.json`](./vectors/approval-tokens.json) adds `tokenDelivery` vectors pinning Approvals rule 6 ([`command-metadata.md`](./command-metadata.md#approvals), [#1665](https://github.com/lushly-dev/afd/issues/1665)): MCP calls omit `details.approvalToken` by default unless the server opts in, while non-MCP calls include it unless opted out. All four implementations load and pass them. [`vectors/dispatch.json`](./vectors/dispatch.json) removes Rust's `approvalUnavailable` gap now that all four implementations refuse unadmitted gated commands with `APPROVAL_UNAVAILABLE` ([#1886](https://github.com/lushly-dev/afd/issues/1886)). Additive, so the version stays.
+
+Behaviour change: Rust and Python approval middleware now omit `details.approvalToken` on MCP calls by default unless the server opts in (`with_include_token(true)` / `include_token=True`), matching TypeScript and C++, and Rust aligns MCP relay fallback opt-in with the other implementations.
+
+Align `spec/mcp-resources.md` R3 and R4 with MCP authorization's per-caller resource providers (`list_for`/`read_for`, #1880): modern-era `resources/list` and provider-backed `resources/read` results carry `cacheScope: "private"` whenever a `ResourceProvider` is attached on a server that supports per-caller providers and authorization is configured or the request carries verified credentials, while static `SkillCatalog` reads, `resources/templates/list`, `skills/*`, `resources/directory/read`, and unauthenticated or skills-only servers keep `cacheScope: "public"` (#1905).
+
+Promote `spec/mcp-resources.json` to `spec/vectors/mcp-resources.json` now that TypeScript, Python, Rust and C++ all load and pass every case (`#1986`, closing `#1554`).
+
+`spec/error-codes.md` updates the TypeScript MCP client `OUTCOME_UNKNOWN` entry to cover single `call()` requests not positively declared read-only (`_meta.mutation: false`), in addition to `batch` and `pipeline` (#1750).
+
+Define the specification-authored vs. mechanically generated vector provenance rule in `spec/vectors/README.md`, establish AFD's nine-code validation issue catalog in `spec/validation.md` with advisory issue wording, and add the CI drift and behaviour-change changeset guard (`scripts/check-vector-drift.mjs`) (#1734).
+
+Define server default deadlines (`30000` ms), cooperative cancellation propagation, batch ceilings (`maxBatchSize = 500`, `maxBatchParallelism = 16`) and the non-silent validation issue cap (`maxValidationIssues = 100`) in `spec/execution-controls.md`, with specification-authored vectors in `spec/vectors/execution-controls.json` loaded by all four languages (#1737).
+
+Add the shared protocol conformance case file (`spec/protocol-conformance.json`) covering discovery, exposure and D4 hiding, batch, pipe, contexts in both MCP eras, and JSON Schema validation against `spec/schema/{result,batch,pipeline,stream}.json`, plus packed-artifact verification in `.github/workflows/release.yml` (#1739).
+
+[`wire/README.md`](./wire/README.md), "Contract": state that `data` on a `CommandResult`, a
+pipeline step and a pipeline result is the exception to "unset fields are omitted, never `null`":
+`data` set to `null` is sent as `"data": null`, and only `data` never set is omitted, as
+TypeScript already sends it. Python now does too (#2073). Clarifies the existing TypeScript
+behaviour, so the version stays.
+
+[`plugin-manifest.md`](./plugin-manifest.md) and both core schemas
+([`plugin-manifest.core.v1.json`](./plugin-manifest.core.v1.json),
+[`plugin-manifest.core.v2.json`](./plugin-manifest.core.v2.json)) add `"non-human"` to `approval`
+on commands and mounted tools (K3, C7, [#1329](https://github.com/lushly-dev/afd/issues/1329)).
+`"non-human"` maps to a conditional AFD approval policy that lets a direct `Human` caller run
+without holding and holds every other caller (agents, services, scripts, tests, agents acting
+`on_behalf_of` a human, and absent actors). Additive, so the contract version stays: existing
+manifests and profiles that restrict `approval` (such as Loam's `["none"]`) are unchanged.
+
 [`command-metadata.md`](./command-metadata.md)'s reporting rules name `afd-help`: like `_meta` and `afd-detail`, it omits empty command-metadata arrays: `requires`, and in its `full` format `tags` and `examples` ([#1480](https://github.com/lushly-dev/afd/issues/1480)).
 
 [`authorization.md`](./authorization.md), "TypeScript", and [`error-codes.md`](./error-codes.md):
