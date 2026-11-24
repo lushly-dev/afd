@@ -1,6 +1,7 @@
 /**
  * E7's page: computed values of the component tokens for `loam/dark` from the stylesheet, and
- * from `VioletRuntime` with `loam-theme.json`'s preloaded source.
+ * from `VioletRuntime` with `loam-theme.json`'s preloaded source, adopted as a stylesheet
+ * (`adopt()`, the one runtime theming path; lushly-dev/afd#1786).
  */
 import themeJson from '@lushly-dev/loam-theme/loam-theme.json';
 import { VioletRuntime } from '@lushly-dev/violet-runtime';
@@ -57,10 +58,14 @@ async function compare(properties: readonly TokenProbe[]) {
 		nodeId: 'loam/dark',
 		source: { tokens: nodes['loam/dark'] ?? [] },
 	});
+	const sheet = runtime.adopt(document);
 	await runtime.load();
 	const applied = read(properties);
-	runtime.removeFromDocument();
-	return { stylesheet, light, applied };
+	// Applied through the adopted sheet alone: nothing inline.
+	const inline = root.style.length;
+	const adopted = document.adoptedStyleSheets.includes(sheet);
+	runtime.unadopt(document);
+	return { stylesheet, light, applied, inline, adopted };
 }
 
 (window as unknown as { loamVioletRuntime: typeof compare }).loamVioletRuntime = compare;

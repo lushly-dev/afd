@@ -27,6 +27,11 @@
       "import": "./dist/theme/violet-theme-css.js",
       "default": "./dist/theme/violet-theme-css.js"
     },
+    "./theme-runtime": {
+      "types": "./dist/theme/violet-theme-runtime.d.ts",
+      "import": "./dist/theme/violet-theme-runtime.js",
+      "default": "./dist/theme/violet-theme-runtime.js"
+    },
     "./dist/*": "./dist/*",
     "./custom-elements.json": "./custom-elements.json",
     "./tokens/*": "./tokens/*",

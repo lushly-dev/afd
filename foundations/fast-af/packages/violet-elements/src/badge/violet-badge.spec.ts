@@ -86,9 +86,7 @@ describe("violet-badge", () => {
 
     describe("accent colour across presets (#1577)", () => {
         afterEach(() => {
-            for (const node of document.querySelectorAll('style[data-violet-theme="runtime"]')) {
-                node.remove();
-            }
+            document.adoptedStyleSheets = [];
             document.documentElement.removeAttribute("data-violet-theme");
         });
 

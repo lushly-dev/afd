@@ -11,7 +11,7 @@
     },
     {
       "id": "theme.scope-install",
-      "text": "Connecting it installs the theme stylesheet into its document, or into the shadow root it sits in, so a scoped preset needs no separate installVioletTheme() call."
+      "text": "Connecting it adopts the theme stylesheet into its document or enclosing shadow root, so a scoped preset needs no installVioletTheme() call, and a page whose CSP forbids inline styles needs no exception."
     },
     {
       "id": "theme.box",

@@ -30,7 +30,7 @@
  */
 
 // Main client
-export { VioletRuntime } from './client.js';
+export { VioletRuntime, type VioletAdoptOptions } from './client.js';
 
 // Theme management
 export { ThemeManager, type ThemeManagerOptions } from './theme.js';

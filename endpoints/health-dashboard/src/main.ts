@@ -6,7 +6,7 @@ import { applyTheme } from './app/theme';
 import { reportRequests } from './report/url';
 import './styles.css';
 
-applyTheme();
+await applyTheme();
 registerStatusIcons();
 await defineHealthDashboard();
 const app = document.querySelector<HealthDashboard>('health-dashboard');

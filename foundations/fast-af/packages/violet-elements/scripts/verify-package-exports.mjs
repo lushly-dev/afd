@@ -7,7 +7,8 @@
  *    the shipped source maps embed their sources instead of pointing at an unpacked ../../src);
  *  - per-element imports such as `@lushly-dev/violet-elements/dist/button/violet-button.js`
  *    resolve at runtime through the `exports` map and resolve to their `.d.ts` for TypeScript;
- *  - the existing entries (`.`, `custom-elements.json`, `tokens/*`, `package.json`) still resolve;
+ *  - the existing entries (`.`, `theme-css`, `theme-runtime`, `custom-elements.json`, `tokens/*`,
+ *    `package.json`) still resolve;
  *  - non-published paths (`src/*`, `scripts/*`) stay blocked;
  *  - every shipped source map carries `sourcesContent`.
  *
@@ -102,6 +103,7 @@ try {
     [`${packageName}/tokens/violet-theme.export.json`]: "tokens/violet-theme.export.json",
     [`${packageName}/tokens/interface.json`]: "tokens/interface.json",
     [`${packageName}/theme-css`]: "dist/theme/violet-theme-css.js",
+    [`${packageName}/theme-runtime`]: "dist/theme/violet-theme-runtime.js",
   };
   for (const [specifier, expected] of Object.entries(mustResolve)) {
     const actual = resolveRuntime(specifier);
@@ -126,11 +128,11 @@ try {
     check(resolved === `dist/${element}.d.ts`, `TypeScript should resolve ${element}.js to its .d.ts, got ${resolved}`);
   }
 
-  {
-    const { resolvedModule } = ts.resolveModuleName(`${packageName}/theme-css`, path.join(consumer, "index.ts"), options, ts.sys);
+  for (const entry of ["theme-css", "theme-runtime"]) {
+    const { resolvedModule } = ts.resolveModuleName(`${packageName}/${entry}`, path.join(consumer, "index.ts"), options, ts.sys);
     const resolved =
       resolvedModule && path.relative(installed, resolvedModule.resolvedFileName).split(path.sep).join("/");
-    check(resolved === "dist/theme/violet-theme-css.d.ts", `TypeScript should resolve theme-css to its .d.ts, got ${resolved}`);
+    check(resolved === `dist/theme/violet-${entry}.d.ts`, `TypeScript should resolve ${entry} to its .d.ts, got ${resolved}`);
   }
 
   // A product's build checks its theme set in plain Node: theme-css and the interface must import

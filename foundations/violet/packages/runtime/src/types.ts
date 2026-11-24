@@ -65,7 +65,14 @@ export interface VioletBaseConfig {
 	/** Cache TTL in seconds (default: 3600 = 1 hour) */
 	cacheTtl?: number;
 
-	/** Auto-apply tokens as CSS variables on load (default: true) */
+	/**
+	 * Auto-apply tokens as inline CSS variables on load (default: true). Ignored once `adopt()`
+	 * has been called.
+	 *
+	 * @deprecated Inline properties override every stylesheet and cannot be scoped. Call
+	 * `adopt()` after constructing the runtime instead; it keeps its sheet current on every load
+	 * and switch. To be removed in a later release.
+	 */
 	autoApply?: boolean;
 
 	/** CSS selector prefix for variables (default: empty) */

@@ -82,7 +82,8 @@ Ajv validator, so the shipped page needs no `eval`.
 
 - FAST-AF only: `@lushly-dev/fast-element` and `@lushly-dev/violet-elements` (file
   upload, select, badge, alert, empty state, button, icon) with violet-elements'
-  built-in light and dark theme, applied through a constructed stylesheet. The page
+  built-in light and dark theme, which `installVioletTheme()` adopts as a constructed
+  stylesheet (no inline style, so the page's policy can forbid inline styles). The page
   follows `prefers-color-scheme`.
 - No AFD dependency: the page runs no commands and has no server.
 - Violet's token engine and runtime (`foundations/violet`) are not used. A Violet theme

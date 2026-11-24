@@ -33,6 +33,63 @@ const DEFAULT_CONFIG: Required<Omit<VioletHttpConfig, 'nodeId' | 'apiKey' | 'sou
 };
 
 /**
+ * The selector contract of `@lushly-dev/violet-elements`' generated theme stylesheet
+ * (`src/theme/violet-theme-css.ts` there): a theme applies on `:root` and on every element marked
+ * `data-violet-theme-root`, and a preset other than the default adds `[data-violet-theme="<preset>"]`
+ * to both. It is reproduced here, not imported: violet-runtime must not depend on violet-elements
+ * (Loam decision D50), so a change to that contract is made in both places.
+ */
+const THEME_ROOT_ATTRIBUTE = 'data-violet-theme-root';
+const THEME_PRESET_ATTRIBUTE = 'data-violet-theme';
+/** violet-elements' preset name rule. */
+const PRESET_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
+
+function themeSelector(preset: string | null): string {
+	if (preset === null) return `:root,\n[${THEME_ROOT_ATTRIBUTE}]`;
+	const selected = `[${THEME_PRESET_ATTRIBUTE}="${preset}"]`;
+	return `:root${selected},\n[${THEME_ROOT_ATTRIBUTE}]${selected}`;
+}
+
+/** Options for `VioletRuntime.adopt()`. */
+export interface VioletAdoptOptions {
+	/**
+	 * Apply the tokens only where this preset is selected, with `data-violet-theme="<preset>"` on
+	 * the root element or on a `data-violet-theme-root` element. Omitted, they apply as the default
+	 * preset: on `:root` and every theme root, whatever preset is selected.
+	 */
+	preset?: string;
+}
+
+/** By node type, so a document from another window (an iframe's) counts too. */
+function isDocument(target: unknown): target is Document {
+	return (target as Node | null)?.nodeType === 9;
+}
+
+/** By node type, so a shadow root from another window counts too. */
+function isShadowRoot(target: unknown): target is ShadowRoot {
+	return (target as Node | null)?.nodeType === 11 && 'host' in (target as object);
+}
+
+/**
+ * The document `target` belongs to, which must have a window: a constructed sheet is made by a
+ * window's `CSSStyleSheet` and can be adopted only within the document it was made for.
+ */
+function ownerDocumentOf(
+	target: Document | ShadowRoot,
+): Document & { defaultView: Window & typeof globalThis } {
+	let ownerDocument: Document;
+	if (isDocument(target)) ownerDocument = target;
+	else if (isShadowRoot(target)) ownerDocument = target.ownerDocument;
+	else throw new TypeError('VioletRuntime: the target must be a Document or a ShadowRoot.');
+	if (ownerDocument.defaultView === null) {
+		throw new TypeError(
+			'VioletRuntime: this document has no window; a constructed stylesheet cannot be adopted into it.',
+		);
+	}
+	return ownerDocument as Document & { defaultView: Window & typeof globalThis };
+}
+
+/**
  * Convert a glob pattern (where `*` matches any characters) into an anchored,
  * fully escaped RegExp. All other characters are matched literally.
  */
@@ -92,8 +149,8 @@ function sourceTokens(source: VioletTokenSource, nodeId: string): Token[] {
  * // Get a specific token
  * const primary = violet.get("color.brand.primary");
  *
- * // Apply to document as CSS variables
- * violet.applyToDocument();
+ * // Adopt one stylesheet holding them, kept current on every switch
+ * violet.adopt(document);
  *
  * // Switch to different theme
  * await violet.switchNode("xbox-web-light");
@@ -118,6 +175,23 @@ export class VioletRuntime {
 	 * result if no newer request has started since (latest request wins).
 	 */
 	private generation = 0;
+	/** The preset `adopt()` applies the tokens as (null for the default); undefined until it is called. */
+	private adoptedPreset: string | null | undefined = undefined;
+	/** This runtime's stylesheet for each owner document it adopted into. */
+	private sheets = new WeakMap<Document, CSSStyleSheet>();
+	/** Every sheet in `sheets`, held weakly, to rewrite on every load and switch. */
+	private sheetRefs = new Set<WeakRef<CSSStyleSheet>>();
+	/** The document each sheet in `sheets` was made for, to forget a sheet that cannot be written. */
+	private sheetDocuments = new WeakMap<CSSStyleSheet, Document>();
+	/**
+	 * The inline properties `applyToDocument()` wrote, on which element, as each read back, so
+	 * `removeFromDocument()` removes those and nothing else: not the page's own, and nothing at
+	 * all once `adopt()` is the path.
+	 */
+	private appliedInline: {
+		root: HTMLElement;
+		properties: Map<string, { written: string; previous: { value: string; priority: string } }>;
+	} | null = null;
 
 	constructor(config: VioletConfig) {
 		if (config.source !== undefined) {
@@ -157,8 +231,9 @@ export class VioletRuntime {
 	}
 
 	/**
-	 * Load tokens from the preloaded source, or from API or cache.
-	 * Automatically applies tokens if autoApply is enabled.
+	 * Load tokens from the preloaded source, or from API or cache, and write them into every
+	 * sheet `adopt()` made. Applies them as inline properties if autoApply is enabled and
+	 * `adopt()` was never called.
 	 */
 	async load(): Promise<Token[]> {
 		await this.init();
@@ -177,9 +252,7 @@ export class VioletRuntime {
 			this.emit('load', { tokens });
 		}
 
-		if (this.config.autoApply) {
-			this.applyToDocument();
-		}
+		this.applyLoaded();
 
 		return tokens;
 	}
@@ -216,36 +289,120 @@ export class VioletRuntime {
 	}
 
 	/**
+	 * Adopt one constructed stylesheet holding the loaded tokens as custom properties into
+	 * `target` (the document by default, or a shadow root), appending it once, and return it.
+	 * Its selectors are `@lushly-dev/violet-elements`' theme contract: `:root` and every
+	 * `[data-violet-theme-root]`, narrowed to `[data-violet-theme="<preset>"]` when `preset` is
+	 * given. A document and its shadow roots share one sheet per runtime; each `load()` and
+	 * `switchNode()` rewrites it, so every root that adopted it changes at once.
+	 *
+	 * No `<style>` element or inline style is written, so a page whose Content Security Policy
+	 * forbids inline styles needs no exception. Once called, autoApply no longer writes inline
+	 * properties, and those this runtime's `applyToDocument()` wrote are removed, since they would
+	 * override the sheet; no other inline property is touched.
+	 *
+	 * The returned sheet is the runtime's: each load and switch rewrites it, so an edit made to it
+	 * lasts only until then, and a repeated `adopt()` does not undo one.
+	 *
+	 * Throws when given a preset other than the one an earlier call gave: create another runtime
+	 * for another preset. Throws a `TypeError` when `target` is neither a document nor a shadow
+	 * root, or its document has no window (one made by `createHTMLDocument` or `DOMParser`, or an
+	 * iframe's once the iframe is removed). A refused call changes nothing.
+	 */
+	adopt(target: Document | ShadowRoot = document, options: VioletAdoptOptions = {}): CSSStyleSheet {
+		const preset = options.preset ?? null;
+		if (preset !== null && !PRESET_NAME.test(preset)) {
+			throw new Error(
+				`VioletRuntime: the preset name "${preset}" must be letters, digits, '-' and '_', starting with a letter or digit.`,
+			);
+		}
+		if (this.adoptedPreset !== undefined && this.adoptedPreset !== preset) {
+			throw new Error(
+				`VioletRuntime: this runtime adopts its tokens as ${this.adoptedPreset === null ? 'the default preset' : `preset "${this.adoptedPreset}"`}, not ${preset === null ? 'the default preset' : `"${preset}"`}. Create another VioletRuntime for another preset.`,
+			);
+		}
+		const ownerDocument = ownerDocumentOf(target);
+		const existing = this.sheets.get(ownerDocument);
+		// A constructed sheet can be adopted only within the document it was made for.
+		const sheet = existing ?? new ownerDocument.defaultView.CSSStyleSheet();
+		if (existing === undefined) this.writeSheet(sheet, preset);
+		if (!target.adoptedStyleSheets.includes(sheet)) {
+			target.adoptedStyleSheets = [...target.adoptedStyleSheets, sheet];
+		}
+		// Recorded only once adopted, so a refused adoption leaves no state behind.
+		if (existing === undefined) {
+			this.sheets.set(ownerDocument, sheet);
+			this.sheetDocuments.set(sheet, ownerDocument);
+			this.pruneSheetRefs();
+			this.sheetRefs.add(new WeakRef(sheet));
+		}
+		if (this.adoptedPreset === undefined) {
+			this.adoptedPreset = preset;
+			this.removeFromDocument();
+		}
+		return sheet;
+	}
+
+	/** Remove this runtime's sheet from `target`'s adopted sheets, if it is there. */
+	unadopt(target: Document | ShadowRoot = document): void {
+		if (!isDocument(target) && !isShadowRoot(target)) {
+			throw new TypeError('VioletRuntime: the target must be a Document or a ShadowRoot.');
+		}
+		const sheet = this.sheets.get(isDocument(target) ? target : target.ownerDocument);
+		if (sheet !== undefined && target.adoptedStyleSheets.includes(sheet)) {
+			target.adoptedStyleSheets = target.adoptedStyleSheets.filter((adopted) => adopted !== sheet);
+		}
+	}
+
+	/**
 	 * Apply tokens to document as CSS custom properties.
+	 *
+	 * @deprecated Inline properties override every stylesheet and need the document's own style
+	 * attribute, so they cannot be scoped to a subtree or shadow root. Use `adopt()`, which
+	 * adopts one stylesheet with violet-elements' selectors and keeps it current. To be removed
+	 * in a later release.
 	 */
 	applyToDocument(): void {
 		if (typeof document === 'undefined') return;
 
 		const root = document.documentElement;
 		const prefix = this.config.cssPrefix;
+		if (this.appliedInline?.root !== root) this.appliedInline = { root, properties: new Map() };
+		const { properties } = this.appliedInline;
 
 		for (const token of this.tokens.values()) {
 			if (typeof token.value === 'string' || typeof token.value === 'number') {
 				const varName = this.tokenToCssVar(token.id, prefix);
+				// The page's own value before the first write, restored by removeFromDocument().
+				const previous = properties.get(varName)?.previous ?? {
+					value: root.style.getPropertyValue(varName),
+					priority: root.style.getPropertyPriority(varName),
+				};
 				root.style.setProperty(varName, String(token.value));
+				properties.set(varName, { written: root.style.getPropertyValue(varName), previous });
 			}
 		}
 	}
 
 	/**
 	 * Remove tokens from document.
+	 *
+	 * Undoes only what `applyToDocument()` wrote: a property that still holds the written value
+	 * gets back the value the page had before the first write (or is removed if it had none), and a
+	 * property the page has changed since is left as it is.
+	 *
+	 * @deprecated Removes what `applyToDocument()` wrote. With `adopt()`, use `unadopt()`. To be
+	 * removed in a later release.
 	 */
 	removeFromDocument(): void {
-		if (typeof document === 'undefined') return;
+		const applied = this.appliedInline;
+		if (applied === null) return;
+		this.appliedInline = null;
 
-		const root = document.documentElement;
-		const prefix = this.config.cssPrefix;
-
-		for (const token of this.tokens.values()) {
-			if (typeof token.value === 'string' || typeof token.value === 'number') {
-				const varName = this.tokenToCssVar(token.id, prefix);
-				root.style.removeProperty(varName);
-			}
+		for (const [varName, { written, previous }] of applied.properties) {
+			if (applied.root.style.getPropertyValue(varName) !== written) continue;
+			if (previous.value === '') applied.root.style.removeProperty(varName);
+			else applied.root.style.setProperty(varName, previous.value, previous.priority);
 		}
 	}
 
@@ -283,9 +440,7 @@ export class VioletRuntime {
 			this.emit('load', { tokens });
 		}
 
-		if (this.config.autoApply) {
-			this.applyToDocument();
-		}
+		this.applyLoaded();
 
 		this.emit('theme:change', {
 			from: previousNodeId,
@@ -396,6 +551,67 @@ export class VioletRuntime {
 		throw new Error(
 			`VioletRuntime: switchNode("${nodeId}") needs a source, because this runtime applies preloaded tokens and holds none for "${nodeId}". Call switchNode("${nodeId}", { tokens }).`,
 		);
+	}
+
+	/**
+	 * After a load or switch: rewrite the adopted sheets, or apply inline when never adopted. A
+	 * sheet that cannot be written is logged and dropped, so it does not stop the others, and its
+	 * document's next `adopt()` makes a new one.
+	 */
+	private applyLoaded(): void {
+		const preset = this.adoptedPreset;
+		if (preset !== undefined) {
+			for (const ref of this.sheetRefs) {
+				const sheet = ref.deref();
+				if (sheet === undefined) {
+					this.sheetRefs.delete(ref);
+					continue;
+				}
+				try {
+					this.writeSheet(sheet, preset);
+				} catch (error) {
+					console.error(
+						'VioletRuntime: an adopted sheet could not be rewritten and is no longer updated',
+						error,
+					);
+					this.sheetRefs.delete(ref);
+					const ownerDocument = this.sheetDocuments.get(sheet);
+					if (ownerDocument !== undefined && this.sheets.get(ownerDocument) === sheet) {
+						this.sheets.delete(ownerDocument);
+					}
+				}
+			}
+		} else if (this.config.autoApply) {
+			this.applyToDocument();
+		}
+	}
+
+	/** Drop the references to sheets that have been collected. */
+	private pruneSheetRefs(): void {
+		for (const ref of this.sheetRefs) {
+			if (ref.deref() === undefined) this.sheetRefs.delete(ref);
+		}
+	}
+
+	/**
+	 * Write the loaded tokens into `sheet` as one rule, selected as `preset` (null for the
+	 * default). Each value goes through the CSSOM's `setProperty`, as `applyToDocument()` writes
+	 * it, never into stylesheet text, so a value cannot end the rule.
+	 */
+	private writeSheet(sheet: CSSStyleSheet, preset: string | null): void {
+		// The selector is fixed once adopt() has run, so the rule is made once and its
+		// declarations replaced after that.
+		if (sheet.cssRules.length !== 1) {
+			sheet.replaceSync(`${themeSelector(preset)} {}`);
+		}
+		const rule = sheet.cssRules[0] as CSSStyleRule;
+		rule.style.cssText = '';
+		const prefix = this.config.cssPrefix;
+		for (const token of this.tokens.values()) {
+			if (typeof token.value === 'string' || typeof token.value === 'number') {
+				rule.style.setProperty(this.tokenToCssVar(token.id, prefix), String(token.value));
+			}
+		}
 	}
 
 	/**

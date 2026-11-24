@@ -13,8 +13,11 @@ function bundle(code = 'console.log(1);', css = 'body{margin:0}') {
 	} as Record<string, { type: string; fileName: string; source?: string; code?: string }>;
 }
 
-const run = (files: ReturnType<typeof bundle>) =>
-	(singleFile().generateBundle as (options: unknown, bundle: unknown) => void)({}, files);
+const hook = singleFile().generateBundle as {
+	order: string;
+	handler: (options: unknown, bundle: unknown) => void;
+};
+const run = (files: ReturnType<typeof bundle>) => hook.handler({}, files);
 const hash = (text: string) => `'sha256-${createHash('sha256').update(text).digest('base64')}'`;
 
 describe('single-file plugin', () => {
@@ -32,6 +35,13 @@ describe('single-file plugin', () => {
 
 	it('refuses code that would end the inline element early', () => {
 		expect(() => run(bundle('"</script>"'))).toThrow(/closing script/);
+	});
+
+	it("inlines after Vite has rewritten each dynamic import's preload marker", () => {
+		expect(hook.order).toBe('post');
+		expect(() => run(bundle('__vitePreload(() => import("./a.js"), __VITE_PRELOAD__);'))).toThrow(
+			/preload marker/
+		);
 	});
 
 	it('refuses an unexpected bundle shape', () => {

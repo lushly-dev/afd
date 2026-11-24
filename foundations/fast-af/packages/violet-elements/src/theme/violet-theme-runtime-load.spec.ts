@@ -2,11 +2,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { installVioletTheme, loadVioletBuiltInTheme, setVioletBuiltInThemeImporterForTesting } from "./violet-theme-runtime";
 
+/** A sheet's rules as the browser serializes them; empty for a sheet with no rules. */
+function sheetText(sheet: CSSStyleSheet): string {
+    return [...sheet.cssRules].map(rule => rule.cssText).join("\n");
+}
+
 describe("a built-in theme chunk that fails to load", () => {
     afterEach(() => {
-        document.querySelectorAll('style[data-violet-theme="runtime"]').forEach(node => {
-            node.remove();
-        });
+        document.adoptedStyleSheets = [];
         setVioletBuiltInThemeImporterForTesting(() => import("./violet-theme-builtin"));
         vi.restoreAllMocks();
     });
@@ -24,11 +27,12 @@ describe("a built-in theme chunk that fails to load", () => {
         const unhandled = vi.fn();
         window.addEventListener("unhandledrejection", unhandled);
 
-        const style = installVioletTheme(document);
+        const sheet = installVioletTheme(document);
         await vi.waitFor(() =>
             expect(error).toHaveBeenCalledWith(expect.stringMatching(/failed to load; the next install retries/), expect.any(Error)),
         );
-        expect(style.textContent).toBe("");
+        expect(sheet.cssRules).toHaveLength(0);
+        expect([...document.adoptedStyleSheets]).toEqual([sheet]);
         // Not cached: an explicit call tries again, and fails again while the chunk is missing.
         await expect(loadVioletBuiltInTheme()).rejects.toThrow("chunk failed");
         expect(importer).toHaveBeenCalledTimes(2);
@@ -37,7 +41,7 @@ describe("a built-in theme chunk that fails to load", () => {
         installVioletTheme(document);
         await expect(loadVioletBuiltInTheme()).resolves.toBe(":root { --color-surface-page: #fff; }");
         expect(importer).toHaveBeenCalledTimes(3);
-        expect(style.textContent).toBe(":root { --color-surface-page: #fff; }");
+        expect(sheetText(sheet)).toBe(":root { --color-surface-page: #fff; }");
 
         await new Promise(resolve => setTimeout(resolve, 0));
         window.removeEventListener("unhandledrejection", unhandled);
@@ -57,13 +61,13 @@ describe("a built-in theme chunk that fails to load", () => {
 
         // Simulates a single-file bundle where <violet-theme> upgrades synchronously before the
         // inlined violet-theme-builtin const bindings finish initializing later in the same turn.
-        const style = installVioletTheme(document);
+        const sheet = installVioletTheme(document);
         expect(importer).not.toHaveBeenCalled();
         initialized = true;
 
         await expect(loadVioletBuiltInTheme()).resolves.toBe(":root { --color-surface-page: #f4f0ea; }");
         expect(importer).toHaveBeenCalledTimes(1);
-        expect(style.textContent).toBe(":root { --color-surface-page: #f4f0ea; }");
+        expect(sheetText(sheet)).toBe(":root { --color-surface-page: #f4f0ea; }");
         expect(error).not.toHaveBeenCalled();
     });
 
@@ -85,7 +89,7 @@ describe("a built-in theme chunk that fails to load", () => {
             setVioletBuiltInThemeImporterForTesting(importer);
             const error = vi.spyOn(console, "error").mockImplementation(() => {});
 
-            const style = installVioletTheme(document);
+            const sheet = installVioletTheme(document);
             // Simulate subsequent `await FASTElement.define(...)` microtasks finishing before the
             // bottom of the bundle initializes `violetThemeBuiltin`.
             await Promise.resolve();
@@ -95,7 +99,7 @@ describe("a built-in theme chunk that fails to load", () => {
 
             await expect(loadVioletBuiltInTheme()).resolves.toBe(":root { --color-surface-page: #141a18; }");
             expect(importer).toHaveBeenCalledTimes(2);
-            expect(style.textContent).toBe(":root { --color-surface-page: #141a18; }");
+            expect(sheetText(sheet)).toBe(":root { --color-surface-page: #141a18; }");
             expect(error).not.toHaveBeenCalled();
         },
     );

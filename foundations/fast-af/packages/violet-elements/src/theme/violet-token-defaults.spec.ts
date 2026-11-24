@@ -61,9 +61,7 @@ describe("violet-token-defaults", () => {
         document.documentElement.style.removeProperty("--font-family-body");
         document.documentElement.style.removeProperty("--font-family-heading");
         document.documentElement.style.removeProperty("--violet-font-family");
-        for (const node of document.querySelectorAll('style[data-violet-theme="runtime"]')) {
-            node.remove();
-        }
+        document.adoptedStyleSheets = [];
     });
 
     it("inherits the host font family when no Violet theme or override is set (#512)", async () => {

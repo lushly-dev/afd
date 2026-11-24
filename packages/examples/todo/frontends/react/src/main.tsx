@@ -10,7 +10,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 
-applyTheme();
+await applyTheme();
 const backend = new URLSearchParams(location.search).get('backend') ?? 'http://localhost:3100';
 const session = new TodoSession({ baseUrl: backend.replace(/\/+$/, '') });
 const root = document.getElementById('root');

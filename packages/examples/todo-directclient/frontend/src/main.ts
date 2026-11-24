@@ -13,7 +13,7 @@ import { defineTodoCopilot, type TodoCopilot } from './todo-copilot';
 import '@afd/example-todo-ui/styles.css';
 import './copilot.css';
 
-applyTheme();
+await applyTheme();
 await Promise.all([defineTodoApp(), defineTodoCopilot()]);
 const backend = (new URLSearchParams(location.search).get('backend') ?? location.origin).replace(
 	/\/+$/,
