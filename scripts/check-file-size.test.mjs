@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
@@ -130,6 +130,70 @@ test('explicit staged-file mode still checks only supplied paths', (t) => {
 	const result = runCheck(root, [join(source, 'small.ts')]);
 	assert.equal(result.status, 0);
 	assert.doesNotMatch(result.stderr, /large\.ts/);
+});
+
+test('both modes check site/, spec/ and .claude/ scripts but skip the vendored site bundles and docs/', (t) => {
+	const root = makeRoot(t);
+	const files = {
+		vendored: 'site/js/vendor/bundle.js',
+		prototype: 'docs/features/demo/prototype/large.mjs',
+		site: 'site/js/large.js',
+		spec: 'spec/vectors/large.mjs',
+		skill: '.claude/skills/demo/scripts/large.mjs',
+	};
+	for (const rel of Object.values(files)) {
+		mkdirSync(join(root, dirname(rel)), { recursive: true });
+		writeFileSync(join(root, rel), fixture(1501));
+	}
+
+	for (const rel of [files.vendored, files.prototype]) {
+		const skipped = runCheck(root, [rel]);
+		assert.equal(skipped.status, 0, `${rel}: ${skipped.stderr}`);
+	}
+	for (const rel of [files.site, files.spec, files.skill]) {
+		const checked = runCheck(root, [rel]);
+		assert.equal(checked.status, 1, rel);
+	}
+	const full = runCheck(root);
+	assert.equal(full.status, 1);
+	assert.match(full.stderr, /3 file size violation/);
+	assert.doesNotMatch(full.stderr, /bundle\.js|prototype/);
+});
+
+test('a full scan skips nested checkouts under .claude/worktrees and the .agents/skills link', (t) => {
+	const root = makeRoot(t);
+	const nested = '.claude/worktrees/x/packages/demo/src/large.ts';
+	mkdirSync(join(root, dirname(nested)), { recursive: true });
+	writeFileSync(join(root, nested), fixture(1501));
+	const skill = '.claude/skills/demo/scripts/large.mjs';
+	mkdirSync(join(root, dirname(skill)), { recursive: true });
+	writeFileSync(join(root, skill), fixture(1501));
+	mkdirSync(join(root, '.agents'), { recursive: true });
+	symlinkSync(join(root, '.claude', 'skills'), join(root, '.agents', 'skills'), 'dir');
+
+	const full = runCheck(root);
+	assert.equal(full.status, 1);
+	assert.match(full.stderr, /1 file size violation/);
+	assert.doesNotMatch(full.stderr, /worktrees/);
+	assert.equal(runCheck(root, [nested]).status, 0);
+});
+
+test('a grandfathered entry outside the checked roots fails a full scan', (t) => {
+	const root = makeRoot(t);
+	mkdirSync(join(root, 'docs'), { recursive: true });
+	writeFileSync(join(root, 'docs', 'big.mjs'), fixture(1600));
+	mkdirSync(join(root, 'scripts', 'policy'), { recursive: true });
+	writeFileSync(
+		join(root, 'scripts', 'policy', 'file-size-limits.json'),
+		JSON.stringify({
+			warn: 500,
+			limit: 1500,
+			grandfathered: [{ file: 'docs/big.mjs', lines: 1600, reason: 'Outside the roots' }],
+		})
+	);
+	const result = runCheck(root);
+	assert.equal(result.status, 1);
+	assert.match(result.stderr, /docs\/big\.mjs/);
 });
 
 test('upstream fast-element is skipped while AFD-authored code in imported families is checked', (t) => {
