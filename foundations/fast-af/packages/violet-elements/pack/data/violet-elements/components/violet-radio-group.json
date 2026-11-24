@@ -15,7 +15,7 @@
 			{
 				"basis": "authored",
 				"id": "radio-group.error",
-				"text": "The rendered error message is linked to the group as its error message, and the supporting text as its description."
+				"text": "While invalid, the rendered error message replaces the supporting text and is linked to the group as both its description and its error message."
 			}
 		]
 	},
@@ -39,7 +39,8 @@
 				"name": "error-text",
 				"property": "errorText",
 				"rules": [
-					"taxonomy.error-text"
+					"taxonomy.error-text",
+					"taxonomy.error-text.not-for"
 				],
 				"type": "string"
 			},
@@ -179,12 +180,13 @@
 		"field.aria-label",
 		"field.label",
 		"field.supporting-text",
+		"form.error-text",
 		"form.invalid",
 		"form.participation",
-		"form.required-error",
 		"import.root",
 		"taxonomy.disabled",
 		"taxonomy.error-text",
+		"taxonomy.error-text.not-for",
 		"taxonomy.invalid",
 		"taxonomy.label",
 		"taxonomy.name",

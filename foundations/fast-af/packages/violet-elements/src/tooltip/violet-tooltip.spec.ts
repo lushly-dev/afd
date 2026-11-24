@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cdp, userEvent } from "vitest/browser";
+import { cdp, server, userEvent } from "vitest/browser";
+
+const isChromium = server.browser === "chromium";
 
 import "../button/violet-button";
 import "./violet-tooltip";
@@ -77,14 +79,20 @@ describe("violet-tooltip", () => {
         const trigger = tooltip.querySelector("button") as HTMLButtonElement;
 
         expect(trigger.getAttribute("aria-description")).toBe("Copies the link");
-        await vi.waitFor(async () => {
-            expect((await accessibleNode("button", "Share")).description?.value).toBe("Copies the link");
-        });
+        if (isChromium) {
+            await vi.waitFor(async () => {
+                expect((await accessibleNode("button", "Share")).description?.value).toBe("Copies the link");
+            });
+        }
 
         tooltip.content = "Copies a short link";
-        await vi.waitFor(async () => {
-            expect((await accessibleNode("button", "Share")).description?.value).toBe("Copies a short link");
-        });
+        await nextFrame();
+        expect(trigger.getAttribute("aria-description")).toBe("Copies a short link");
+        if (isChromium) {
+            await vi.waitFor(async () => {
+                expect((await accessibleNode("button", "Share")).description?.value).toBe("Copies a short link");
+            });
+        }
     });
 
     it("describes its trigger with slotted content and keeps the trigger's own references", async () => {
@@ -99,26 +107,31 @@ describe("violet-tooltip", () => {
         const content = tooltip.querySelector('[slot="content"]') as HTMLElement;
 
         expect(trigger.getAttribute("aria-describedby")).toBe(`share-note ${content.id}`);
-        await vi.waitFor(async () => {
-            expect((await accessibleNode("button", "Share")).description?.value).toBe(
-                "Anyone with the link can view. Copies the link"
-            );
-        });
+        if (isChromium) {
+            await vi.waitFor(async () => {
+                expect((await accessibleNode("button", "Share")).description?.value).toBe(
+                    "Anyone with the link can view. Copies the link"
+                );
+            });
+        }
 
         content.remove();
         await vi.waitFor(() => expect(trigger.getAttribute("aria-describedby")).toBe("share-note"));
     });
 
     it("describes a violet-button trigger's inner button", async () => {
-        await renderTooltip(`
+        const tooltip = await renderTooltip(`
             <violet-tooltip content="Saves without closing">
                 <violet-button>Save</violet-button>
             </violet-tooltip>
         `);
 
-        await vi.waitFor(async () => {
-            expect((await accessibleNode("button", "Save")).description?.value).toBe("Saves without closing");
-        });
+        expect(tooltip.querySelector("violet-button")?.getAttribute("aria-description")).toBe("Saves without closing");
+        if (isChromium) {
+            await vi.waitFor(async () => {
+                expect((await accessibleNode("button", "Save")).description?.value).toBe("Saves without closing");
+            });
+        }
     });
 
     it("shows again on hover after Escape closes it", async () => {
@@ -150,7 +163,7 @@ describe("violet-tooltip", () => {
 
     it("supports an external anchor trigger by id", async () => {
         const tooltip = await renderTooltip(`
-            <button id="outside-anchor" type="button">Anchor</button>
+            <button id="outside-anchor" type="button" style="anchor-name:--author-tip;">Anchor</button>
             <violet-tooltip anchor="outside-anchor" content="Helpful details"></violet-tooltip>
         `);
 
@@ -158,11 +171,15 @@ describe("violet-tooltip", () => {
         anchor?.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
         await nextFrame();
 
-        expect(anchor?.style.getPropertyValue("anchor-name")).toBe("--violet-tooltip-anchor");
+        expect(anchor?.style.getPropertyValue("anchor-name")).toBe("--author-tip");
+        expect(tooltip.anchorName).toMatch(/^--violet-tooltip-anchor-\d+$/);
         expect(tooltip.open).toBe(true);
-        await vi.waitFor(async () => {
-            expect((await accessibleNode("button", "Anchor")).description?.value).toBe("Helpful details");
-        });
+        expect(anchor?.getAttribute("aria-description")).toBe("Helpful details");
+        if (isChromium) {
+            await vi.waitFor(async () => {
+                expect((await accessibleNode("button", "Anchor")).description?.value).toBe("Helpful details");
+            });
+        }
 
         tooltip.anchor = "";
         await nextFrame();

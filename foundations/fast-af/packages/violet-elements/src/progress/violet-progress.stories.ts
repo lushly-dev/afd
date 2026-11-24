@@ -46,8 +46,12 @@ export const Overview: Story = {
     play: async ({ canvasElement }) => {
         const progress = canvasElement.querySelector("violet-progress");
         const native = progress?.shadowRoot?.querySelector("progress");
+        const label = progress?.shadowRoot?.querySelector(".label");
 
-        await expect(native?.getAttribute("aria-label")).toBe("Uploading field imagery");
+        await expect(label?.id).toBeTruthy();
+        await expect(label?.textContent?.trim()).toBe("Uploading field imagery");
+        await expect(native?.getAttribute("aria-labelledby")).toBe(label?.id);
+        await expect(native?.hasAttribute("aria-label")).toBe(false);
         await expect(progress?.shadowRoot?.querySelector(".value-label")?.textContent?.trim()).toBe("48%");
     },
 };

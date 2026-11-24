@@ -37,7 +37,8 @@
 				"name": "error-text",
 				"property": "errorText",
 				"rules": [
-					"taxonomy.error-text"
+					"taxonomy.error-text",
+					"taxonomy.error-text.not-for"
 				],
 				"type": "string"
 			},
@@ -315,10 +316,12 @@
 	"rules": [
 		"event.input-once",
 		"field.supporting-text",
+		"form.error-text",
 		"form.invalid",
 		"import.root",
 		"taxonomy.disabled",
 		"taxonomy.error-text",
+		"taxonomy.error-text.not-for",
 		"taxonomy.invalid",
 		"taxonomy.label",
 		"taxonomy.label-end",
@@ -357,7 +360,7 @@
 		{
 			"basis": "authored",
 			"id": "range-slider.validation",
-			"text": "The required attribute has no effect on validity. Only the invalid attribute makes it invalid, showing error-text or the built-in \"Please choose a valid range.\""
+			"text": "The required attribute has no effect on validity. Only the invalid attribute makes it invalid, and error-text is shown only while invalid is set."
 		},
 		{
 			"basis": "authored",

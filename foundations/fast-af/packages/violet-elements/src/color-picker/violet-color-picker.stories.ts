@@ -9,6 +9,7 @@ type VioletColorPickerStoryArgs = {
     size: "compact" | "natural" | "comfortable";
     disabled: boolean;
     required: boolean;
+    invalid?: boolean;
 };
 
 function renderPicker(args: VioletColorPickerStoryArgs): HTMLElement {
@@ -26,6 +27,7 @@ function renderPicker(args: VioletColorPickerStoryArgs): HTMLElement {
     picker.size = args.size;
     picker.disabled = args.disabled;
     picker.required = args.required;
+    picker.invalid = Boolean(args.invalid);
 
     form.append(picker);
     surface.append(form);
@@ -142,9 +144,11 @@ export const Invalid: Story = {
         size: "natural",
         disabled: false,
         required: true,
+        invalid: true,
     },
     play: async ({ canvasElement }) => {
         const picker = await openPickerForReview(canvasElement);
+        expect(picker.invalid).toBe(true);
         expect(picker.checkValidity()).toBe(false);
     },
 };

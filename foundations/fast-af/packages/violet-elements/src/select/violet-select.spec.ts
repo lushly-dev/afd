@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cdp, userEvent } from "vitest/browser";
+import { cdp, server, userEvent } from "vitest/browser";
+
+const isChromium = server.browser === "chromium";
 
 import "../option/violet-option";
 import "../option-group/violet-option-group";
@@ -392,10 +394,12 @@ describe("violet-select", () => {
 
             await vi.waitFor(() => expect(displayed(valueFirst)).toEqual(displayed(optionsFirst)));
             expect(displayed(valueFirst)).toEqual({ text: "Label B", name: "Propagation Label B" });
-            await vi.waitFor(
-                async () => expect(await triggerNames()).toEqual(["Propagation Label B", "Propagation Label B"]),
-                { timeout: 5000 }
-            );
+            if (isChromium) {
+                await vi.waitFor(
+                    async () => expect(await triggerNames()).toEqual(["Propagation Label B", "Propagation Label B"]),
+                    { timeout: 5000 }
+                );
+            }
         });
 
         it("follows options added inside a group", async () => {
@@ -414,9 +418,11 @@ describe("violet-select", () => {
 
             option.textContent = "Renamed B";
             await vi.waitFor(() => expect(displayed(select)).toEqual({ text: "Renamed B", name: "Propagation Renamed B" }));
-            await vi.waitFor(async () => expect(await triggerNames()).toEqual(["Propagation Renamed B"]), {
-                timeout: 5000,
-            });
+            if (isChromium) {
+                await vi.waitFor(async () => expect(await triggerNames()).toEqual(["Propagation Renamed B"]), {
+                    timeout: 5000,
+                });
+            }
 
             (option.firstChild as Text).data = "Edited B";
             await vi.waitFor(() => expect(displayed(select).text).toBe("Edited B"));

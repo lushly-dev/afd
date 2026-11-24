@@ -366,16 +366,22 @@ describe("violet-combobox", () => {
         it("links supporting and error text through aria-describedby", async () => {
             const combobox = await renderCombobox();
             combobox.supportingText = "Where the seed came from.";
+            await nextFrame();
+
+            const input = getInput(combobox);
+            expect(input.getAttribute("aria-describedby")).toBe(combobox.supportingId);
+            expect(input.getAttribute("aria-invalid")).toBe("false");
+
             combobox.invalid = true;
             combobox.errorText = "Pick a known source.";
             await nextFrame();
 
-            const input = getInput(combobox);
-            expect(input.getAttribute("aria-describedby")).toBe(`${combobox.supportingId} ${combobox.errorId}`);
+            expect(input.getAttribute("aria-describedby")).toBe(combobox.errorId);
             expect(input.getAttribute("aria-invalid")).toBe("true");
-            expect(combobox.shadowRoot?.getElementById(combobox.errorId)?.textContent?.trim()).toBe(
-                "Pick a known source."
-            );
+            expect(combobox.shadowRoot?.getElementById(combobox.supportingId)).toBeNull();
+            const error = combobox.shadowRoot?.getElementById(combobox.errorId);
+            expect(error?.getAttribute("role")).toBe("alert");
+            expect(error?.textContent?.trim()).toBe("Pick a known source.");
         });
     });
 
@@ -1007,9 +1013,7 @@ describe("violet-combobox", () => {
             expect(combobox.checkValidity()).toBe(false);
             expect(combobox.validity.valueMissing).toBe(true);
             expect(combobox.validationMessage).toBe("A source is needed.");
-            expect(combobox.shadowRoot?.getElementById(combobox.errorId)?.textContent?.trim()).toBe(
-                "A source is needed."
-            );
+            expect(combobox.shadowRoot?.getElementById(combobox.errorId)).toBeNull();
 
             combobox.selectValue("reserve");
             await nextFrame();

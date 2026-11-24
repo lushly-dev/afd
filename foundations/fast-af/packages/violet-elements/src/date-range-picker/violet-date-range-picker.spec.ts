@@ -215,7 +215,9 @@ describe("violet-date-range-picker", () => {
             });
 
             expect(getTrigger(picker).getAttribute("aria-invalid")).toBe("true");
-            expect(getTrigger(picker).getAttribute("aria-describedby")).toBe(`${picker.supportingId} ${picker.errorId}`);
+            expect(getTrigger(picker).getAttribute("aria-describedby")).toBe(picker.errorId);
+            expect(picker.shadowRoot?.getElementById(picker.supportingId)).toBeNull();
+            expect(picker.shadowRoot?.getElementById(picker.errorId)?.getAttribute("role")).toBe("alert");
             expect(picker.shadowRoot?.getElementById(picker.errorId)?.textContent?.trim()).toBe("Pick dates in season.");
         });
     });
@@ -745,20 +747,23 @@ describe("violet-date-range-picker", () => {
             expect(picker.checkValidity()).toBe(false);
         });
 
-        it("derives the displayed error text from invalid, required and errorText", async () => {
+        it("shows displayed error text only while invalid and not disabled", async () => {
             const picker = await renderDateRangePicker();
             expect(picker.displayErrorText).toBe("");
 
             picker.invalid = true;
-            expect(picker.displayErrorText).toBe("Choose a valid date range.");
+            expect(picker.displayErrorText).toBe("");
             picker.errorText = "Pick dates in season.";
             expect(picker.displayErrorText).toBe("Pick dates in season.");
 
+            picker.disabled = true;
+            expect(picker.displayErrorText).toBe("");
+            picker.disabled = false;
+
             picker.invalid = false;
-            picker.errorText = "";
             picker.required = true;
             picker.end = "";
-            expect(picker.displayErrorText).toBe("Please choose a start and end date.");
+            expect(picker.displayErrorText).toBe("");
 
             picker.end = "2026-03-27";
             expect(picker.displayErrorText).toBe("");

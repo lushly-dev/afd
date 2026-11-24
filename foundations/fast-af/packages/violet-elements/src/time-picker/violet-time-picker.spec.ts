@@ -1,5 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { server, userEvent } from "vitest/browser";
+
+const isWebKit = server.browser === "webkit";
+// Chromium and Firefox provide segmented HH:MM editing on native <input type="time">; WebKit on
+// Windows degrades <input type="time"> to text and Linux WebKitGTK differs on partial segment entry.
+const supportsSegmentedTimeInput =
+    !isWebKit &&
+    (() => {
+        const probe = document.createElement("input");
+        probe.type = "time";
+        return probe.type === "time";
+    })();
 
 import "./violet-time-picker";
 import type { VioletTimePicker } from "./violet-time-picker";
@@ -70,7 +81,7 @@ describe("violet-time-picker", () => {
     });
 
     // The input reads "" while incomplete, as the default does, so a reset must write it anyway.
-    it("clears an incomplete entry on form reset", async () => {
+    it.runIf(supportsSegmentedTimeInput)("clears an incomplete entry on form reset", async () => {
         document.body.innerHTML = `<form><violet-time-picker label="Start" name="when"></violet-time-picker></form>`;
         await customElements.whenDefined("violet-time-picker");
         await nextFrame();
@@ -79,7 +90,7 @@ describe("violet-time-picker", () => {
         const input = picker.shadowRoot?.querySelector("input") as HTMLInputElement;
 
         await userEvent.click(input, { position: { x: 8, y: input.clientHeight / 2 } });
-        await userEvent.keyboard("1");
+        await userEvent.keyboard("10");
         await nextFrame();
         expect(picker.value).toBe("");
         expect(input.validity.badInput).toBe(true);
@@ -94,7 +105,7 @@ describe("violet-time-picker", () => {
 
     // #712: the input reads "" while a segment is incomplete, and a :value binding wrote that "" back,
     // erasing the segments already entered.
-    it("keeps the other segments while one is re-entered", async () => {
+    it.runIf(supportsSegmentedTimeInput)("keeps the other segments while one is re-entered", async () => {
         const picker = await renderTimePicker(element => {
             element.value = "09:30";
         });
@@ -176,7 +187,9 @@ describe("violet-time-picker", () => {
                 element.invalid = true;
             });
             expect(getInput(invalid).getAttribute("aria-invalid")).toBe("true");
-            expect(getInput(invalid).getAttribute("aria-describedby")).toBe(`${invalid.supportingId} ${invalid.errorId}`);
+            expect(getInput(invalid).getAttribute("aria-describedby")).toBe(invalid.errorId);
+            expect(invalid.shadowRoot?.getElementById(invalid.supportingId)).toBeNull();
+            expect(invalid.shadowRoot?.getElementById(invalid.errorId)?.getAttribute("role")).toBe("alert");
             expect(invalid.shadowRoot?.getElementById(invalid.errorId)?.textContent?.trim()).toBe("Outside business hours.");
         });
 
@@ -238,26 +251,58 @@ describe("violet-time-picker", () => {
             expect(picker.value).toBe("10:45:30");
         });
 
-        it("forwards the step so the native input flags times off the step", async () => {
+        it("forwards the step and propagates stepMismatch on the host across dynamic step changes", async () => {
             const picker = await renderTimePicker(element => {
+                element.min = "09:00";
                 element.step = "900";
                 element.value = "09:30";
             });
 
-            expect(getInput(picker).validity.stepMismatch).toBe(false);
-            getInput(picker).value = "09:31";
-            expect(getInput(picker).validity.stepMismatch).toBe(true);
+            const native = getInput(picker);
+            expect(native.getAttribute("step")).toBe("900");
+            expect(picker.checkValidity()).toBe(true);
+            expect(picker.validity.stepMismatch).toBe(false);
+
+            picker.value = "09:31";
+            await nextFrame();
+            expect(picker.validity.stepMismatch).toBe(true);
+            expect(picker.checkValidity()).toBe(false);
+            if (native.type === "time") {
+                expect(native.validity.stepMismatch).toBe(true);
+            }
+
+            // While invalid without author error-text, the host surfaces the step constraint message.
+            picker.invalid = true;
+            await nextFrame();
+            expect(picker.displayErrorText).toBe("Choose a valid time increment.");
+
+            // Dynamic step update resolves stepMismatch and clears the fallback error.
+            picker.step = "60";
+            await nextFrame();
+            expect(picker.validity.stepMismatch).toBe(false);
+            expect(picker.displayErrorText).toBe("");
+
+            // Tightening step back to 900 re-triggers stepMismatch on the host.
+            picker.step = "900";
+            await nextFrame();
+            expect(picker.validity.stepMismatch).toBe(true);
+            expect(picker.displayErrorText).toBe("Choose a valid time increment.");
         });
 
         it("forwards min and max so the native input flags times outside the range", async () => {
             const picker = await renderTimePicker();
+            const native = getInput(picker);
+            expect(native.getAttribute("min")).toBe("06:00");
+            expect(native.getAttribute("max")).toBe("21:00");
 
-            getInput(picker).value = "05:00";
-            expect(getInput(picker).validity.rangeUnderflow).toBe(true);
-            getInput(picker).value = "22:00";
-            expect(getInput(picker).validity.rangeOverflow).toBe(true);
-            getInput(picker).value = "12:00";
-            expect(getInput(picker).validity.valid).toBe(true);
+            if (native.type === "time") {
+                native.value = "05:00";
+                expect(native.validity.rangeUnderflow).toBe(true);
+                native.value = "22:00";
+                expect(native.validity.rangeOverflow).toBe(true);
+                native.value = "12:00";
+                expect(native.validity.valid).toBe(true);
+            }
         });
     });
 
@@ -338,9 +383,49 @@ describe("violet-time-picker", () => {
                 expect(picker.validationMessage, value).toBe("Enter a valid time.");
             }
 
-            for (const value of ["00:00", "23:59", "12:34:56"]) {
+            for (const value of ["00:00", "23:59"]) {
                 picker.value = value;
                 expect(picker.validity.valid, value).toBe(true);
+            }
+
+            // Seconds are valid time-of-day syntax (not badInput), and pass step validation when step="1" or fractional step="0.1" / ".5".
+            picker.value = "12:34:56";
+            expect(picker.validity.badInput, "12:34:56").toBe(false);
+            expect(picker.validity.stepMismatch, "12:34:56 at default step=60").toBe(true);
+            picker.step = "1";
+            expect(picker.validity.valid, "12:34:56 at step=1").toBe(true);
+            for (const fractionalStep of ["0.1", ".5"]) {
+                picker.step = fractionalStep;
+                expect(picker.validity.stepMismatch, `12:34:56 at step=${fractionalStep}`).toBe(false);
+                expect(picker.checkValidity(), `12:34:56 at step=${fractionalStep}`).toBe(true);
+                await nextFrame();
+                const nativeFractional = getInput(picker);
+                if (nativeFractional.type === "time") {
+                    expect(
+                        nativeFractional.validity.stepMismatch,
+                        `native 12:34:56 at step=${fractionalStep}`,
+                    ).toBe(false);
+                }
+            }
+
+            // Nonpositive or malformed step values (including hex, leading plus/space, and padded " any ") fall back to the 60s default, matching native <input type="time">; exact "any" disables step checks.
+            for (const badStep of ["0", "bogus", "0x10", " any ", "+1", " 1"]) {
+                picker.step = badStep;
+                await nextFrame();
+                expect(picker.validity.stepMismatch, `12:34:56 at step=${badStep}`).toBe(true);
+                expect(picker.checkValidity(), `12:34:56 at step=${badStep}`).toBe(false);
+                const native = getInput(picker);
+                if (native.type === "time") {
+                    expect(native.validity.stepMismatch, `native 12:34:56 at step=${badStep}`).toBe(true);
+                }
+            }
+            picker.step = "any";
+            await nextFrame();
+            expect(picker.validity.stepMismatch, "12:34:56 at step=any").toBe(false);
+            expect(picker.checkValidity(), "12:34:56 at step=any").toBe(true);
+            const native = getInput(picker);
+            if (native.type === "time") {
+                expect(native.validity.stepMismatch, "native 12:34:56 at step=any").toBe(false);
             }
         });
 

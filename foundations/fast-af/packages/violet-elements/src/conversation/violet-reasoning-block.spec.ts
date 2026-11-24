@@ -88,7 +88,12 @@ describe("violet-reasoning-block", () => {
         const block = await renderBlock();
         const toggle = toggleOf(block);
 
+        window.focus();
         toggle.focus();
+        if (block.shadowRoot?.activeElement !== toggle) {
+            await nextFrame();
+            toggle.focus();
+        }
 
         expect(block.shadowRoot?.activeElement).toBe(toggle);
         expect(toggle.tagName).toBe("BUTTON");

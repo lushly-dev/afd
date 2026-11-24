@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { cdp, userEvent } from "vitest/browser";
+import { cdp, server, userEvent } from "vitest/browser";
+
+const isChromium = server.browser === "chromium";
 
 import "../tab-panel/violet-tab-panel";
 import type { VioletTabPanel } from "../tab-panel/violet-tab-panel";
@@ -256,7 +258,9 @@ describe("violet-tabs", () => {
             const tablist = tabs.shadowRoot?.querySelector('[role="tablist"]') as HTMLElement;
 
             expect(tablist.getAttribute("aria-label")).toBe("Account settings");
-            expect(await tablistName()).toBe("Account settings");
+            if (isChromium) {
+                expect(await tablistName()).toBe("Account settings");
+            }
         });
 
         it("follows label as it changes", async () => {
@@ -288,12 +292,16 @@ describe("violet-tabs", () => {
     // #1584: each panel is a tab stop, and a focused panel drew no focus indicator.
     describe("a focused panel", () => {
         afterEach(async () => {
-            await emulateForcedColors(false);
+            if (isChromium) {
+                await emulateForcedColors(false);
+            }
         });
 
-        for (const forcedColors of [false, true]) {
+        for (const forcedColors of isChromium ? [false, true] : [false]) {
             it(`shows the focus ring${forcedColors ? " under forced colours" : ""}`, async () => {
-                await emulateForcedColors(forcedColors);
+                if (isChromium) {
+                    await emulateForcedColors(forcedColors);
+                }
                 const { tabItems, panels } = await renderTabs();
                 tabItems[0]?.focus();
                 await userEvent.tab();

@@ -8,6 +8,7 @@ import "../icon-button/violet-icon-button";
 import "../icon/violet-icon";
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
+import { resolveFieldErrorText } from "../shared/field-error";
 
 export type VioletFileUploadAppearance = "button" | "dropzone";
 export type VioletFileUploadSize = "compact" | "natural" | "comfortable";
@@ -322,7 +323,7 @@ const styles = css`
     }
 
     .error {
-        color: var(--color-state-danger-text, #c42a1a);
+        color: var(--_danger-text);
     }
 
     @media (forced-colors: active) {
@@ -511,9 +512,14 @@ const template = html<VioletFileUpload>`
         <p class="supporting" part="supporting-text" id="${x => x.supportingId}" ?hidden="${x => !x.showSupportingText}">
             ${x => x.supportingText}
         </p>
-        <p class="error" part="error-text" id="${x => x.errorId}" ?hidden="${x => !x.showErrorText}">
-            ${x => x.effectiveErrorText}
-        </p>
+        ${when(
+            x => x.showErrorText,
+            html<VioletFileUpload>`
+                <p class="error" part="error-message" id="${x => x.errorId}" role="alert">
+                    ${x => x.effectiveErrorText}
+                </p>
+            `,
+        )}
     </div>
 `;
 
@@ -536,7 +542,7 @@ let violetFileUploadCount = 0;
  * @csspart file-item - Individual selected-file row.
  * @csspart remove-button - Remove action for a selected file.
  * @csspart supporting-text - Supporting text element.
- * @csspart error-text - Error text element.
+ * @csspart error-message - Error message element shown while invalid.
  */
 export class VioletFileUpload extends FASTElement {
     public static readonly formAssociated = true;
@@ -550,6 +556,7 @@ export class VioletFileUpload extends FASTElement {
     #defaultFiles: File[];
     #dragDepth: number;
     #lastNativeSelectionKey: string;
+    #invalidFromRejection: boolean;
 
     declare public label: string;
     declare public supportingText: string;
@@ -590,6 +597,7 @@ export class VioletFileUpload extends FASTElement {
         this.#defaultFiles = [];
         this.#dragDepth = 0;
         this.#lastNativeSelectionKey = "";
+        this.#invalidFromRejection = false;
 
         this.label = "";
         this.supportingText = "";
@@ -637,7 +645,15 @@ export class VioletFileUpload extends FASTElement {
     }
 
     public invalidChanged(): void {
+        if (!this.invalid) {
+            this.customValidationMessage = "";
+            this.#invalidFromRejection = false;
+        }
         this.#syncHostState();
+        this.#syncFormState();
+    }
+
+    public errorTextChanged(): void {
         this.#syncFormState();
     }
 
@@ -662,6 +678,10 @@ export class VioletFileUpload extends FASTElement {
     public formResetCallback(): void {
         this.files = [...this.#defaultFiles];
         this.customValidationMessage = "";
+        if (this.#invalidFromRejection) {
+            this.#invalidFromRejection = false;
+            this.invalid = false;
+        }
         this.dragActive = false;
         this.#lastNativeSelectionKey = "";
         this.#clearNativeInputValue();
@@ -706,10 +726,18 @@ export class VioletFileUpload extends FASTElement {
 
         if (validationMessage) {
             this.customValidationMessage = validationMessage;
+            if (!this.invalid) {
+                this.#invalidFromRejection = true;
+                this.invalid = true;
+            }
             return false;
         }
 
         this.customValidationMessage = "";
+        if (this.#invalidFromRejection) {
+            this.#invalidFromRejection = false;
+            this.invalid = false;
+        }
         this.#lastNativeSelectionKey = this.#selectionIdentity(nextFiles);
         this.files = nextFiles;
         this.#clearNativeInputValue();
@@ -721,6 +749,10 @@ export class VioletFileUpload extends FASTElement {
     public clearFiles(): void {
         this.files = [];
         this.customValidationMessage = "";
+        if (this.#invalidFromRejection) {
+            this.#invalidFromRejection = false;
+            this.invalid = false;
+        }
         this.#lastNativeSelectionKey = "";
         this.#clearNativeInputValue();
         this.$emit("input", { files: [] });
@@ -735,6 +767,10 @@ export class VioletFileUpload extends FASTElement {
 
         this.files = this.files.filter((_, currentIndex) => currentIndex !== index);
         this.customValidationMessage = "";
+        if (this.#invalidFromRejection) {
+            this.#invalidFromRejection = false;
+            this.invalid = false;
+        }
         this.#lastNativeSelectionKey = this.#selectionIdentity(this.files);
         this.#clearNativeInputValue();
         this.$emit("remove", { file, index, files: [...this.files] });
@@ -935,17 +971,19 @@ export class VioletFileUpload extends FASTElement {
         return this.showErrorText ? this.errorId : null;
     }
 
+    public get displayErrorText(): string {
+        return this.effectiveErrorText;
+    }
+
     public get effectiveErrorText(): string {
         Observable.trackVolatile();
-        if (this.customValidationMessage) {
-            return this.customValidationMessage;
-        }
-
-        if (this.invalid) {
-            return this.errorText || "There is a problem with the selected file.";
-        }
-
-        return "";
+        const rejection = (this.customValidationMessage ?? "").trim();
+        return resolveFieldErrorText({
+            invalid: this.invalid,
+            disabled: this.effectiveDisabled,
+            errorText: rejection || this.errorText,
+            fallbackValidationMessage: this.errorText,
+        });
     }
 
     public get showErrorText(): boolean {
@@ -1067,7 +1105,7 @@ export class VioletFileUpload extends FASTElement {
     }
 
     #syncHostState(): void {
-        this.toggleAttribute("data-invalid", this.invalid || Boolean(this.customValidationMessage));
+        this.toggleAttribute("data-invalid", !this.effectiveDisabled && this.invalid);
         this.toggleAttribute("data-drag-active", this.dragActive);
     }
 
@@ -1076,10 +1114,20 @@ export class VioletFileUpload extends FASTElement {
             return;
         }
 
+        if (this.effectiveDisabled) {
+            this.#internals.ariaInvalid = "false";
+            this.#internals.setValidity({});
+            this.#internals.setFormValue(null);
+            return;
+        }
+
         const files = this.files ?? [];
         const valueMissing = this.required && files.length === 0;
-        const customError = Boolean(this.customValidationMessage) || this.invalid;
-        const validationMessage = this.customValidationMessage || (this.invalid ? this.errorText || "Invalid file selection." : "") || (valueMissing ? "Select a file to continue." : "");
+        const customError = this.invalid;
+        const validationMessage =
+            this.effectiveErrorText ||
+            (this.invalid ? "Invalid file selection." : "") ||
+            (valueMissing ? "Select a file to continue." : "");
         // The browse button's own button anchors validation, so a failed form submission focuses it, not the
         // hidden file input. The anchor must itself be focusable, which a delegating host is not.
         const browse = this.shadowRoot?.querySelector('[part~="browse-button"]');

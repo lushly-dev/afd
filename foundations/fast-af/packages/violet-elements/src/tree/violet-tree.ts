@@ -4,6 +4,7 @@ import "../tree-item/violet-tree-item";
 import { VioletTreeItem } from "../tree-item/violet-tree-item";
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { logicalArrowKey } from "../foundations/violet-direction";
+import { resolveFieldErrorText } from "../shared/field-error";
 
 let violetTreeId = 0;
 
@@ -77,7 +78,7 @@ const styles = css`
     }
 
     .error {
-        color: var(--color-state-danger-foreground, #c42a1a);
+        color: var(--_danger-text);
         margin-block-start: var(--_space-stack-2xs);
     }
 
@@ -108,12 +109,13 @@ const template = html<VioletTree>`
                 aria-label="${x => (x.label ? null : x.ariaLabel)}"
                 aria-labelledby="${x => (x.label ? x.labelId : null)}"
                 aria-describedby="${x => x.describedBy}"
+                aria-invalid="${x => (x.invalid ? "true" : "false")}"
             >
                 <slot @slotchange="${x => x.handleSlotChange()}"></slot>
             </div>
         </div>
         ${when(
-            x => Boolean(x.supportingText),
+            x => Boolean(x.supportingText) && !x.displayErrorText,
             html<VioletTree>`
                 <p class="supporting" part="supporting-text" id="${x => x.supportingTextId}">
                     ${x => x.supportingText}
@@ -121,10 +123,10 @@ const template = html<VioletTree>`
             `,
         )}
         ${when(
-            x => Boolean(x.errorText),
+            x => Boolean(x.displayErrorText),
             html<VioletTree>`
-                <p class="error" part="error-text" id="${x => x.errorTextId}">
-                    ${x => x.errorText}
+                <p class="error" part="error-message" id="${x => x.errorTextId}" role="alert">
+                    ${x => x.displayErrorText}
                 </p>
             `,
         )}
@@ -143,7 +145,7 @@ const template = html<VioletTree>`
  * @csspart surface - Bordered tree surface.
  * @csspart tree - Internal treeview container.
  * @csspart supporting-text - Supporting text element.
- * @csspart error-text - Error text element.
+ * @csspart error-message - Error message element shown while invalid.
  */
 export class VioletTree extends FASTElement {
     @observable
@@ -152,6 +154,7 @@ export class VioletTree extends FASTElement {
     declare public label: string;
     declare public supportingText: string;
     declare public errorText: string;
+    declare public invalid: boolean;
     declare public value: string;
     declare public ariaLabel: string;
     declare public appearance: "plain" | "framed";
@@ -170,6 +173,7 @@ export class VioletTree extends FASTElement {
         this.label = "";
         this.supportingText = "";
         this.errorText = "";
+        this.invalid = false;
         this.value = "";
         this.ariaLabel = "Tree";
         this.appearance = "plain";
@@ -187,12 +191,18 @@ export class VioletTree extends FASTElement {
         return `violet-tree-error-${this.#id}`;
     }
 
-    public get describedBy(): string | null {
-        const ids = [this.supportingText ? this.supportingTextId : "", this.errorText ? this.errorTextId : ""].filter(
-            Boolean,
-        );
+    public get displayErrorText(): string {
+        return resolveFieldErrorText({
+            invalid: this.invalid,
+            errorText: this.errorText,
+        });
+    }
 
-        return ids.length ? ids.join(" ") : null;
+    public get describedBy(): string | null {
+        if (this.displayErrorText) {
+            return this.errorTextId;
+        }
+        return this.supportingText ? this.supportingTextId : null;
     }
 
     public connectedCallback(): void {
@@ -519,6 +529,7 @@ export class VioletTree extends FASTElement {
 attr(VioletTree.prototype, "label");
 attr({ attribute: "supporting-text" })(VioletTree.prototype, "supportingText");
 attr({ attribute: "error-text" })(VioletTree.prototype, "errorText");
+attr({ mode: "boolean" })(VioletTree.prototype, "invalid");
 attr(VioletTree.prototype, "value");
 attr({ attribute: "aria-label", mode: "fromView" })(VioletTree.prototype, "ariaLabel");
 attr(VioletTree.prototype, "appearance");

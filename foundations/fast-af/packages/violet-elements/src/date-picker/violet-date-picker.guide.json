@@ -4,7 +4,7 @@
   "usage": [
     {
       "id": "date-picker.value",
-      "text": "value is an ISO date, YYYY-MM-DD, or empty, and the form receives it under name. min and max use the same format; a date outside them is invalid with a built-in message.",
+      "text": "value is an ISO date, YYYY-MM-DD, or empty, and the form receives it under name. min and max use the same format; a date outside them fails validation, and its message shows while invalid is set.",
       "members": [
         "value",
         "min",

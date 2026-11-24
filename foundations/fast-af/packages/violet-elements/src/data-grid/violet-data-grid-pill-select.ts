@@ -1,6 +1,7 @@
 import { attr, css, FASTElement, html, observable, repeat, when } from "@lushly-dev/fast-element";
 
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
+import { resolveFieldErrorText } from "../shared/field-error";
 import type { VioletDataGridEditorOption } from "./violet-data-grid";
 import { safeCssValue } from "./violet-data-grid-css";
 
@@ -201,6 +202,14 @@ const styles = css`
     }
 
     .error-text {
+        display: block;
+        color: var(--_danger-text);
+        font-size: var(--_control-caption-size);
+        line-height: var(--_type-caption-line);
+        margin-block-start: var(--_space-field-gap);
+    }
+
+    :host([error-announcement="external"]) .error-text {
         position: absolute;
         inline-size: 1px;
         block-size: 1px;
@@ -228,7 +237,8 @@ const template = html<VioletDataGridPillSelect>`
             aria-controls="${x => x.panelId}"
             aria-expanded="${x => String(x.open)}"
             aria-invalid="${x => x.invalid ? "true" : null}"
-            aria-errormessage="${x => x.invalid && x.errorText ? x.errorTextId : null}"
+            aria-describedby="${x => x.displayErrorText ? x.errorTextId : null}"
+            aria-errormessage="${x => x.displayErrorText ? x.errorTextId : null}"
             @click="${x => x.handleTriggerClick()}"
             @keydown="${(x, c) => x.handleTriggerKeydown(c.event as KeyboardEvent)}"
         >
@@ -244,15 +254,15 @@ const template = html<VioletDataGridPillSelect>`
         </button>
 
         ${when(
-            x => x.invalid && Boolean(x.errorText),
+            x => Boolean(x.displayErrorText),
             html<VioletDataGridPillSelect>`
                 <span
                     class="error-text"
-                    part="error-text"
+                    part="error-message"
                     role="${x => x.errorAnnouncement === "self" ? "alert" : null}"
                     id="${x => x.errorTextId}"
                 >
-                    ${x => x.errorText}
+                    ${x => x.displayErrorText}
                 </span>
             `
         )}
@@ -313,7 +323,7 @@ const template = html<VioletDataGridPillSelect>`
  * @fires change - Emitted when the selected option is committed.
  * @attr error-announcement - Selects whether this component or an integrating surface announces validation errors.
  * @csspart base - Root wrapper for the pill select.
- * @csspart error-text - Accessible validation error text.
+ * @csspart error-message - Accessible validation error message.
  * @csspart trigger - Trigger button that opens the option list.
  * @csspart pill - Visible selected-value pill.
  * @csspart caret - Caret icon inside the pill.
@@ -419,6 +429,13 @@ export class VioletDataGridPillSelect extends FASTElement {
 
     public get panelId(): string {
         return `${this.localName}-panel-${this.instanceId}`;
+    }
+
+    public get displayErrorText(): string {
+        return resolveFieldErrorText({
+            invalid: this.invalid,
+            errorText: this.errorText,
+        });
     }
 
     public get errorTextId(): string {

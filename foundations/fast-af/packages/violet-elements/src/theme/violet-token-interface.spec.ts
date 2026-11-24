@@ -37,6 +37,8 @@ const CONTRACT_DIGESTS: Readonly<Record<number, string>> = {
 const UNRESOLVED_ALLOWED: Readonly<Record<string, string>> = {
     // The foundations story's registry renders the export's own references as `var(--<ref>)`.
     "../foundations/token-registry.ts: var(${tokenIdToCssVar(value.ref)})": "renders the export's references",
+    // Standard CSS Anchor Positioning property, not a theme token.
+    '../shared/overlay-positioning.ts: getPropertyValue("anchor-name")': "reads standard CSS anchor-name property",
 };
 
 const CALL = /\b(var|getPropertyValue)\(\s*/g;

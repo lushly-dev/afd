@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { cdp, userEvent } from "vitest/browser";
+import { cdp, server, userEvent } from "vitest/browser";
+
+const isChromium = server.browser === "chromium";
 
 import "./violet-file-upload";
 import "../theme/violet-theme";
@@ -260,7 +262,7 @@ describe("violet-file-upload", () => {
         },
     );
 
-    describe("under forced colours", () => {
+    if (isChromium) describe("under forced colours", () => {
         afterEach(async () => {
             await emulateForcedColors(false);
         });

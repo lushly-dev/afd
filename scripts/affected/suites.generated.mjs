@@ -28,7 +28,7 @@ export const SUITES = [
 		"tools": [
 			"chromium"
 		],
-		"remote": "fast-element on Firefox and WebKit (daily), and its upstream test:ci documentation checks",
+		"remote": "fast-element on Firefox and WebKit (daily) and its upstream test:ci documentation checks, and violet-elements on Firefox and WebKit (run locally with pnpm -F @lushly-dev/violet-elements test:browser:all)",
 		"steps": [
 			{
 				"gate": "runtime",

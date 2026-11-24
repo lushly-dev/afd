@@ -2,6 +2,7 @@ import { FASTElement, attr, css, html, when } from "@lushly-dev/fast-element";
 
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
+import { resolveFieldErrorText } from "../shared/field-error";
 
 export type VioletRangeSliderOrientation = "horizontal" | "vertical";
 
@@ -261,7 +262,7 @@ const styles = css`
     }
 
     .error {
-        color: var(--color-state-danger-foreground, #c42a1a);
+        color: var(--_danger-text);
         margin-block-start: var(--_space-field-gap);
     }
 
@@ -326,8 +327,8 @@ const template = html<VioletRangeSlider>`
                 aria-valuemin="${x => x.min}"
                 aria-valuemax="${x => x.valueEnd}"
                 aria-valuenow="${x => x.valueStart}"
-                aria-describedby="${x => x.describedByIds}"
-                aria-invalid="${x => x.invalid ? "true" : "false"}"
+                aria-describedby="${x => x.describedByIds || null}"
+                aria-invalid="${x => (!x.effectiveDisabled && x.invalid) ? "true" : "false"}"
                 aria-orientation="${x => x.orientation}"
                 @pointerdown="${(x, c) => x.handlePointerDown(c.event as PointerEvent, "start")}"
                 @input="${(x, c) => x.handleInput(c.event)}"
@@ -348,8 +349,8 @@ const template = html<VioletRangeSlider>`
                 aria-valuemin="${x => x.valueStart}"
                 aria-valuemax="${x => x.max}"
                 aria-valuenow="${x => x.valueEnd}"
-                aria-describedby="${x => x.describedByIds}"
-                aria-invalid="${x => x.invalid ? "true" : "false"}"
+                aria-describedby="${x => x.describedByIds || null}"
+                aria-invalid="${x => (!x.effectiveDisabled && x.invalid) ? "true" : "false"}"
                 aria-orientation="${x => x.orientation}"
                 @pointerdown="${(x, c) => x.handlePointerDown(c.event as PointerEvent, "end")}"
                 @input="${(x, c) => x.handleInput(c.event)}"
@@ -365,15 +366,15 @@ const template = html<VioletRangeSlider>`
             </div>
         </div>
         ${when(
-            x => Boolean(x.supportingText),
+            x => Boolean(x.supportingText) && !x.displayErrorText,
             html<VioletRangeSlider>`
                 <p class="supporting" id="${x => x.supportingTextId}" part="supporting-text">${x => x.supportingText}</p>
             `,
         )}
         ${when(
-            x => Boolean(x.validationMessageText),
+            x => Boolean(x.displayErrorText),
             html<VioletRangeSlider>`
-                <p class="error" id="${x => x.errorTextId}" part="error-message">${x => x.validationMessageText}</p>
+                <p class="error" id="${x => x.errorTextId}" part="error-message" role="alert">${x => x.displayErrorText}</p>
             `,
         )}
     </div>
@@ -557,6 +558,12 @@ export class VioletRangeSlider extends FASTElement {
         }
     }
 
+    public errorTextChanged(): void {
+        if (this.$fastController.isConnected) {
+            this.#syncFormState();
+        }
+    }
+
     public invalidChanged(): void {
         if (this.$fastController.isConnected) {
             this.#syncHostAttributes();
@@ -570,8 +577,16 @@ export class VioletRangeSlider extends FASTElement {
         }
     }
 
+    public get displayErrorText(): string {
+        return resolveFieldErrorText({
+            invalid: this.invalid,
+            disabled: this.effectiveDisabled,
+            errorText: this.errorText,
+        });
+    }
+
     public get validationMessageText(): string {
-        return this.invalid ? this.errorText || "Please choose a valid range." : "";
+        return this.displayErrorText;
     }
 
     /**
@@ -584,9 +599,11 @@ export class VioletRangeSlider extends FASTElement {
     }
 
     public get describedByIds(): string {
-        return [this.supportingText ? this.supportingTextId : "", this.validationMessageText ? this.errorTextId : ""]
-            .filter(Boolean)
-            .join(" ");
+        return this.displayErrorText
+            ? this.errorTextId
+            : this.supportingText
+              ? this.supportingTextId
+              : "";
     }
 
     public get value(): string {
@@ -740,7 +757,10 @@ export class VioletRangeSlider extends FASTElement {
         this.#internals.setFormValue(formData);
 
         if (this.invalid) {
-            this.#internals.setValidity({ customError: true }, this.validationMessageText);
+            this.#internals.setValidity(
+                { customError: true },
+                this.displayErrorText || "Please choose a valid range.",
+            );
             return;
         }
 

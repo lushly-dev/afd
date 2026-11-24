@@ -1,6 +1,6 @@
 import { html, Updates } from "@lushly-dev/fast-element";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { server, userEvent } from "vitest/browser";
 import type { VioletListbox } from "../listbox/violet-listbox";
 
 import "./violet-data-grid-reference-picker";
@@ -86,6 +86,7 @@ async function openPicker(element: VioletDataGridReferencePicker) {
   // would rename the trigger after that, so the locator matches nothing and the click
   // times out (#1199). Settle pending renders first.
   await Updates.next();
+  await nextFrame();
   const trigger = shadowElement<HTMLButtonElement>(element, ".trigger");
   await userEvent.click(trigger);
   await vi.waitFor(() => {
@@ -255,6 +256,7 @@ describe("violet-data-grid-reference-picker", () => {
     );
     expect(getComputedStyle(scroller).overflow).toBe("auto");
     expect(shadowElement<HTMLElement>(element, ".panel").matches(":popover-open")).toBe(true);
+    await nextFrame();
     await userEvent.click(shadowElement<HTMLElement>(listbox.options[0], ".control"));
     await vi.waitFor(() => {
       expect(element.selectedValues).toEqual(["record-gh-04", "record-cedar-5"]);
@@ -335,6 +337,7 @@ describe("violet-data-grid-reference-picker", () => {
     expect(element.open).toBe(true);
     await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
     await vi.waitFor(() => expect(element.open).toBe(false));
+    await Updates.next();
     expect(document.activeElement).toBe(before);
     expect(search.isConnected).toBe(false);
   });
@@ -351,7 +354,11 @@ describe("violet-data-grid-reference-picker", () => {
     await userEvent.click(outside);
     await nextFrame();
     expect(element.open).toBe(false);
-    expect(document.activeElement).toBe(outside);
+    if (server.browser !== "webkit") {
+      expect(document.activeElement).toBe(outside);
+    } else {
+      expect(element.matches(":focus-within")).toBe(false);
+    }
     expect(change).toHaveBeenCalledTimes(1);
     const trigger = shadowElement<HTMLButtonElement>(element, ".trigger");
     trigger.focus();

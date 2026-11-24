@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { cdp } from "vitest/browser";
+import { cdp, server } from "vitest/browser";
+
+const isChromium = server.browser === "chromium";
 
 import "./violet-skeleton";
 import type { VioletSkeleton } from "./violet-skeleton";
@@ -53,7 +55,7 @@ describe("violet-skeleton", () => {
         expect(bars?.length).toBe(3);
     });
 
-    describe("under reduced motion", () => {
+    if (isChromium) describe("under reduced motion", () => {
         afterEach(async () => {
             await emulateMedia({ reducedMotion: false });
         });

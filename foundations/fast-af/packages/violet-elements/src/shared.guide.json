@@ -359,26 +359,27 @@
       }
     },
     {
-      "id": "form.required-error",
-      "text": "With the required attribute and no value, the error message is rendered from the first render, before any interaction. The error-text attribute replaces the built-in wording.",
-      "appliesTo": {
-        "tags": [
-          "violet-combobox",
-          "violet-radio-group",
-          "violet-segmented-control",
-          "violet-select"
-        ]
-      }
-    },
-    {
       "id": "form.error-text",
       "text": "Shows an error only while invalid is set (not from required alone, nor while disabled or readonly), using error-text or the browser's validation message. Replaces supporting text, describes the control, and uses role alert.",
       "appliesTo": {
         "tags": [
           "violet-checkbox",
+          "violet-color-picker",
+          "violet-combobox",
+          "violet-data-grid-pill-select",
+          "violet-date-picker",
+          "violet-date-range-picker",
+          "violet-file-upload",
+          "violet-radio-group",
+          "violet-range-slider",
+          "violet-segmented-control",
+          "violet-select",
+          "violet-slider",
           "violet-switch",
           "violet-text-area",
-          "violet-text-field"
+          "violet-text-field",
+          "violet-time-picker",
+          "violet-tree"
         ]
       }
     },

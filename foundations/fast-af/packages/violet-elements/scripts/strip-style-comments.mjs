@@ -64,19 +64,35 @@ for (const file of files(dist)) {
 		const open = match.index + match[0].length;
 		if (open <= from) continue;
 		const close = templateEnd(code, open);
-		const text = code.slice(open, close).replace(comment, (found, at, whole) => {
-			// Remove only a comment alone on its line that spans no interpolation: a `/*` inside a
-			// CSS string sits after code, and code after a comment would move columns.
-			const before = whole.slice(whole.lastIndexOf('\n', at - 1) + 1, at);
-			const after = whole.slice(at + found.length).match(/^[^\n]*/)[0];
-			if (before.trim() !== '' || after.trim() !== '' || found.includes('${')) {
-				throw new Error(
-					`${file}: a style comment that is not alone on its line, or spans \${}: ${found.trim().slice(0, 60)}`
-				);
-			}
-			comments++;
-			return '\n'.repeat(found.split('\n').length - 1);
-		});
+		const text = code
+			.slice(open, close)
+			.replace(comment, (found, at, whole) => {
+				// Remove only a comment alone on its line that spans no interpolation: a `/*` inside a
+				// CSS string sits after code, and code after a comment would move columns.
+				const before = whole.slice(whole.lastIndexOf('\n', at - 1) + 1, at);
+				const after = whole.slice(at + found.length).match(/^[^\n]*/)[0];
+				if (before.trim() !== '' || after.trim() !== '' || found.includes('${')) {
+					throw new Error(
+						`${file}: a style comment that is not alone on its line, or spans \${}: ${found.trim().slice(0, 60)}`
+					);
+				}
+				comments++;
+				return '\n'.repeat(found.split('\n').length - 1);
+			})
+			.replace(/[^\n]+/g, (line) => {
+				// Compact plain CSS lines (skipping lines with `${` interpolations)
+				// while preserving every newline so line numbers remain intact.
+				if (line.includes('${')) {
+					return line;
+				}
+				if (line.includes('"') || line.includes("'")) {
+					return line.trim().replace(/\s+\{$/, '{');
+				}
+				return line
+					.trim()
+					.replace(/\s*([{};,])\s*/g, '$1')
+					.replace(/:\s+/g, ':');
+			});
 		out += code.slice(from, open) + text;
 		from = close;
 	}

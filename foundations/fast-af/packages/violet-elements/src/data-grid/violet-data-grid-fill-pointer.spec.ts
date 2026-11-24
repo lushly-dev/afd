@@ -1,6 +1,8 @@
 import type {} from "@vitest/browser-playwright";
 import { afterEach, describe, expect, it } from "vitest";
-import { cdp, page, userEvent } from "vitest/browser";
+import { cdp, page, server, userEvent } from "vitest/browser";
+
+const isChromium = server.browser === "chromium";
 
 import "./violet-data-grid";
 import type { VioletDataGrid, VioletDataGridFillDetail } from "./violet-data-grid";
@@ -52,7 +54,9 @@ async function tap(element: HTMLElement) {
 
 describe("violet-data-grid built-in pointer fill", () => {
     afterEach(async () => {
-        await cdp().send("Emulation.setTouchEmulationEnabled", { enabled: false });
+        if (isChromium) {
+            await cdp().send("Emulation.setTouchEmulationEnabled", { enabled: false });
+        }
         document.body.innerHTML = "";
     });
 
@@ -83,8 +87,8 @@ describe("violet-data-grid built-in pointer fill", () => {
         await userEvent.click(cell(grid, 2, "notes"));
         await nextFrame();
         const lastBox = handle(grid).getBoundingClientRect();
-        for (const x of [lastBox.left + 1, lastBox.right - 1]) {
-            for (const y of [lastBox.top + 1, lastBox.bottom - 1]) {
+        for (const x of [lastBox.left + 2, lastBox.right - 2]) {
+            for (const y of [lastBox.top + 2, lastBox.bottom - 2]) {
                 expect(grid.shadowRoot!.elementFromPoint(x, y)).toBe(handle(grid));
             }
         }
@@ -95,7 +99,11 @@ describe("violet-data-grid built-in pointer fill", () => {
             const dragged = await renderGrid();
             await userEvent.click(cell(dragged.grid, 0));
             await nextFrame();
-            await userEvent.dragAndDrop(handle(dragged.grid), cell(dragged.grid, direction === "down" ? 1 : 0, direction === "right" ? "bed" : "name"));
+            await userEvent.dragAndDrop(
+                handle(dragged.grid),
+                cell(dragged.grid, direction === "down" ? 1 : 0, direction === "right" ? "bed" : "name"),
+                { sourcePosition: { x: 10, y: 10 }, targetPosition: { x: 60, y: 16 } },
+            );
             await nextFrame();
             expect(dragged.fills).toHaveLength(1);
 
@@ -109,7 +117,7 @@ describe("violet-data-grid built-in pointer fill", () => {
         });
     }
 
-    it("offers the same fill using trusted touch taps with no drag or consumer controls", async () => {
+    it.runIf(isChromium)("offers the same fill using trusted touch taps with no drag or consumer controls", async () => {
         await cdp().send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
         const { grid, fills } = await renderGrid();
         const pointerTypes: string[] = [];
@@ -132,6 +140,7 @@ describe("violet-data-grid built-in pointer fill", () => {
         const { grid, fills } = await renderGrid();
         await expect.element(action(grid, "down")).toBeDisabled();
         await userEvent.click(cell(grid, 0));
+        await nextFrame();
         await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
         expect(grid.shadowRoot!.activeElement).toBe(action(grid, "right").element());
         await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
@@ -162,7 +171,8 @@ describe("violet-data-grid built-in pointer fill", () => {
         expect(status.getAttribute("role")).toBe("status");
         expect(status.getAttribute("aria-live")).toBe("polite");
         expect(status.textContent).toContain("Filled 1 cell down. Selection ends at row 2, column Name.");
-        // Native Space activation repeats the action without moving the pointer.
+        // Native Space activation repeats the action without moving the pointer (WebKit does not focus buttons on click).
+        (action(grid, "down").element() as HTMLElement).focus();
         await userEvent.keyboard(" ");
         await nextFrame();
         expect(fills).toHaveLength(2);

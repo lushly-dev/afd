@@ -3,6 +3,7 @@ import { FASTElement, Observable, attr, css, html, observable, when } from "@lus
 import "../option/violet-option";
 import type { VioletOption } from "../option/violet-option";
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
+import { resolveFieldErrorText } from "../shared/field-error";
 import {
     getEnabledOptions,
     getNextEnabledIndex,
@@ -176,7 +177,7 @@ const styles = css`
     }
 
     .error {
-        color: var(--color-state-danger-foreground, #c42a1a);
+        color: var(--_danger-text);
         margin-block-start: var(--_space-field-gap);
     }
 
@@ -230,7 +231,7 @@ const template = html<VioletCombobox>`
                     aria-controls="${x => x.listboxId}"
                     aria-labelledby="${x => (x.label ? x.labelId : null)}"
                     aria-describedby="${x => x.describedBy || null}"
-                    aria-invalid="${x => x.invalid ? "true" : "false"}"
+                    aria-invalid="${x => (!x.effectiveDisabled && x.invalid) ? "true" : "false"}"
                     @focus="${x => x.handleInputFocus()}"
                     @focusout="${(x, c) => x.handleFocusOut(c.event as FocusEvent)}"
                     @input="${(x, c) => x.handleInput(c.event)}"
@@ -260,7 +261,7 @@ const template = html<VioletCombobox>`
         </div>
 
         ${when(
-            x => Boolean(x.supportingText),
+            x => Boolean(x.supportingText) && !x.displayErrorText,
             html<VioletCombobox>`
                 <p class="supporting" part="supporting-text" id="${x => x.supportingId}">${x => x.supportingText}</p>
             `
@@ -268,7 +269,7 @@ const template = html<VioletCombobox>`
         ${when(
             x => Boolean(x.displayErrorText),
             html<VioletCombobox>`
-                <p class="error" part="error-message" id="${x => x.errorId}">${x => x.displayErrorText}</p>
+                <p class="error" part="error-message" id="${x => x.errorId}" role="alert">${x => x.displayErrorText}</p>
             `
         )}
     </div>
@@ -466,16 +467,20 @@ export class VioletCombobox extends FASTElement {
     }
 
     public get describedBy(): string {
-        return [this.supportingText ? this.supportingId : "", this.displayErrorText ? this.errorId : ""]
-            .filter(Boolean)
-            .join(" ");
+        if (this.displayErrorText) {
+            return this.errorId;
+        }
+        return this.supportingText ? this.supportingId : "";
     }
 
     public get displayErrorText(): string {
         const submittedValue = this.selectedOptionValue || this.value;
-        return !this.effectiveDisabled && (this.invalid || (this.required && !submittedValue.trim()))
-            ? this.errorText || "Please choose an option."
-            : "";
+        return resolveFieldErrorText({
+            invalid: this.invalid,
+            disabled: this.effectiveDisabled,
+            errorText: this.errorText,
+            fallbackValidationMessage: this.required && !submittedValue.trim() ? "Please choose an option." : "",
+        });
     }
 
     public formStateRestoreCallback(state: File | string | FormData | null): void {
@@ -509,7 +514,8 @@ export class VioletCombobox extends FASTElement {
                 ? null
                 : (this.options.find(
                       option =>
-                          !isOptionDisabled(option) && normalizeMatchText(option.labelText) === normalizeMatchText(this.value)
+                          !isOptionDisabled(option) &&
+                          normalizeMatchText(option.labelText ?? option.textContent ?? "") === normalizeMatchText(this.value)
                   ) ?? null));
         const selected = selectedByValue ?? selectedByLabel;
 
@@ -820,9 +826,9 @@ export class VioletCombobox extends FASTElement {
         }
 
         const control = this.shadowRoot?.querySelector('input[role="combobox"]') as HTMLInputElement | null;
-        const message = this.displayErrorText || this.errorText || "Please choose an option.";
+        const message = this.displayErrorText || (this.errorText ?? "").trim() || "Please choose an option.";
         const submittedValue = this.effectiveDisabled ? "" : this.selectedOptionValue || this.value;
-        const invalid = !this.effectiveDisabled && Boolean(this.displayErrorText);
+        const invalid = !this.effectiveDisabled && this.invalid;
 
         this.validationMessageText = this.displayErrorText;
         this.#internals.ariaInvalid = invalid ? "true" : "false";

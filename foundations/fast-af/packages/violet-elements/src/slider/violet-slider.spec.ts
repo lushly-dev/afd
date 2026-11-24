@@ -16,6 +16,7 @@ async function renderSlider(options: {
     step?: string;
     orientation?: "horizontal" | "vertical";
     invalid?: boolean;
+    errorText?: string;
 } = {}): Promise<VioletSlider> {
     document.body.innerHTML = "";
 
@@ -28,6 +29,7 @@ async function renderSlider(options: {
     slider.step = options.step ?? "5";
     slider.orientation = options.orientation ?? "horizontal";
     slider.invalid = options.invalid ?? false;
+    slider.errorText = options.errorText ?? "";
 
     document.body.append(slider);
 
@@ -75,13 +77,15 @@ describe("violet-slider", () => {
         const slider = await renderSlider({
             orientation: "vertical",
             invalid: true,
+            errorText: "Keep moisture within the target band.",
         });
 
         const input = slider.shadowRoot?.querySelector('input[type="range"]') as HTMLInputElement | null;
 
         expect(input?.getAttribute("aria-orientation")).toBe("vertical");
         expect(input?.getAttribute("aria-invalid")).toBe("true");
-        expect(input?.getAttribute("aria-describedby")).toContain("supporting");
-        expect(input?.getAttribute("aria-describedby")).toContain("error");
+        expect(input?.getAttribute("aria-describedby")).toBe(slider.errorTextId);
+        expect(slider.shadowRoot?.getElementById(slider.supportingTextId)).toBeNull();
+        expect(slider.shadowRoot?.getElementById(slider.errorTextId)?.getAttribute("role")).toBe("alert");
     });
 });

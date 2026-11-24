@@ -5,6 +5,7 @@ import { registerSystemClockIcon } from "../icon/generated/icons/system-clock";
 import { parseTimeValue } from "../date-time/violet-date-utils";
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
+import { resolveFieldErrorText } from "../shared/field-error";
 
 export type VioletTimePickerSize = "compact" | "natural" | "comfortable";
 
@@ -142,7 +143,7 @@ const styles = css`
     }
 
     .error {
-        color: var(--color-state-danger-foreground, #c42a1a);
+        color: var(--_danger-text);
         margin-block-start: var(--_space-field-gap);
     }
 
@@ -182,7 +183,7 @@ const template = html<VioletTimePicker>`
                 ?disabled="${x => x.effectiveDisabled}"
                 ?required="${x => x.required}"
                 aria-describedby="${x => x.describedBy || null}"
-                aria-invalid="${x => x.invalid ? "true" : "false"}"
+                aria-invalid="${x => (!x.effectiveDisabled && x.invalid) ? "true" : "false"}"
                 @input="${(x, c) => x.handleInput(c.event)}"
                 @change="${(x, c) => x.handleCommit(c.event)}"
             />
@@ -191,12 +192,12 @@ const template = html<VioletTimePicker>`
             </span>
         </div>
         ${when(
-            x => Boolean(x.supportingText),
+            x => Boolean(x.supportingText) && !x.displayErrorText,
             html<VioletTimePicker>`<p class="supporting" part="supporting-text" id="${x => x.supportingId}">${x => x.supportingText}</p>`,
         )}
         ${when(
             x => Boolean(x.displayErrorText),
-            html<VioletTimePicker>`<p class="error" part="error-message" id="${x => x.errorId}">${x => x.displayErrorText}</p>`,
+            html<VioletTimePicker>`<p class="error" part="error-message" id="${x => x.errorId}" role="alert">${x => x.displayErrorText}</p>`,
         )}
     </div>
 `;
@@ -207,6 +208,7 @@ const template = html<VioletTimePicker>`
  * @summary Time picker wrapper around the native time input for form and keyboard parity.
  * @fires input - Emitted when the time value changes while editing.
  * @fires change - Emitted when the time value is committed.
+ * @csspart error-message - Error message element shown while invalid.
  */
 export class VioletTimePicker extends FASTElement {
     public static readonly formAssociated = true;
@@ -291,15 +293,22 @@ export class VioletTimePicker extends FASTElement {
     }
 
     public get describedBy(): string {
-        const ids = [
-            this.supportingText ? this.supportingId : "",
-            this.displayErrorText ? this.errorId : "",
-        ].filter(Boolean);
-        return ids.join(" ");
+        if (this.displayErrorText) {
+            return this.errorId;
+        }
+        return this.supportingText ? this.supportingId : "";
     }
 
+    @observable
+    private nativeValidationMessage = "";
+
     public get displayErrorText(): string {
-        return this.validationMessageText || this.errorText;
+        return resolveFieldErrorText({
+            invalid: this.invalid,
+            disabled: this.effectiveDisabled,
+            errorText: this.errorText,
+            fallbackValidationMessage: this.nativeValidationMessage,
+        });
     }
 
     public get stepValue(): string {
@@ -308,6 +317,18 @@ export class VioletTimePicker extends FASTElement {
 
     public valueChanged(): void {
         this.#syncInputElement();
+        this.#syncFormState();
+    }
+
+    public disabledChanged(): void {
+        this.#syncFormState();
+    }
+
+    public requiredChanged(): void {
+        this.#syncFormState();
+    }
+
+    public stepChanged(): void {
         this.#syncFormState();
     }
 
@@ -378,10 +399,19 @@ export class VioletTimePicker extends FASTElement {
     }
 
     #syncFormState(): void {
+        if (this.effectiveDisabled) {
+            this.nativeValidationMessage = "";
+            this.validationMessageText = "";
+            this.#internals.setFormValue(null);
+            this.#internals.setValidity({});
+            return;
+        }
+
         const input = this.inputElement;
         const valueMissing = this.required && !this.value;
         const badInput = this.value ? !parseTimeValue(this.value) : false;
-        const customError = this.invalid ? this.errorText || "Enter a valid time." : "";
+        const trimmedError = (this.errorText ?? "").trim();
+        const customError = this.invalid ? trimmedError || "Enter a valid time." : "";
 
         const toSeconds = (time: string): number | null => {
             const parsed = parseTimeValue(time);
@@ -392,18 +422,39 @@ export class VioletTimePicker extends FASTElement {
         const max = toSeconds(this.max);
         const rangeUnderflow = current !== null && min !== null && current < min;
         const rangeOverflow = current !== null && max !== null && current > max;
+        const rawStep = this.stepValue ?? "";
+        const isAnyStep = rawStep.toLowerCase() === "any";
+        const parsedStep =
+            !isAnyStep && /^(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(rawStep)
+                ? Number(rawStep)
+                : Number.NaN;
+        const stepSeconds = isAnyStep
+            ? Number.NaN
+            : Number.isFinite(parsedStep) && parsedStep > 0
+              ? parsedStep
+              : 60;
+        const stepBase = min ?? 0;
+        const delta = current !== null ? current - stepBase : 0;
+        const stepMismatch =
+            current !== null &&
+            Number.isFinite(stepSeconds) &&
+            stepSeconds > 0 &&
+            Math.abs(delta - Math.round(delta / stepSeconds) * stepSeconds) > 1e-6;
 
-        this.validationMessageText =
-            customError ||
-            (valueMissing
-                ? "Please choose a time."
-                : badInput
-                  ? "Enter a valid time."
-                  : rangeUnderflow
-                    ? `Choose a time at or after ${this.min}.`
-                    : rangeOverflow
-                      ? `Choose a time at or before ${this.max}.`
-                      : "");
+        const constraintMessage = valueMissing
+            ? "Please choose a time."
+            : badInput
+              ? "Enter a valid time."
+              : rangeUnderflow
+                ? `Choose a time at or after ${this.min}.`
+                : rangeOverflow
+                  ? `Choose a time at or before ${this.max}.`
+                  : stepMismatch
+                    ? "Choose a valid time increment."
+                    : "";
+
+        this.nativeValidationMessage = constraintMessage;
+        this.validationMessageText = customError || constraintMessage;
 
         this.#internals.setFormValue(this.value || null);
         this.#internals.setValidity(
@@ -412,6 +463,7 @@ export class VioletTimePicker extends FASTElement {
                 badInput,
                 rangeUnderflow,
                 rangeOverflow,
+                stepMismatch,
                 customError: Boolean(customError),
             },
             this.validationMessageText,

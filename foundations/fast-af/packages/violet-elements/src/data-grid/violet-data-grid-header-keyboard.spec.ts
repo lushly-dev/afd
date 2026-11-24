@@ -108,6 +108,9 @@ async function tabStops(grid: VioletDataGrid, shift = false): Promise<Element[]>
             stops.push(element);
         }
     }
+    // Flush FAST's queued active-cell row update from tabbing through the grid so a subsequent
+    // focus change in Firefox does not collide with tbody splicing on the following frame.
+    await nextFrame();
     return stops;
 }
 
@@ -158,6 +161,7 @@ describe("violet-data-grid column headers in the keyboard model (real key presse
         expect(focused(grid)).toBe(headerTarget(grid, "name"));
         await userEvent.keyboard("{ArrowRight}{ArrowRight}");
         expect(focused(grid)).toBe(header(grid, "bed"));
+        await nextFrame();
 
         await userEvent.tab();
         expect(document.activeElement?.id).toBe("after");

@@ -184,6 +184,9 @@ describe("violet-text-field", () => {
 
         it("emits change with the committed value when focus leaves", async () => {
             const { field } = await renderField();
+            const after = document.createElement("button");
+            after.textContent = "After";
+            document.body.append(after);
             const events: Event[] = [];
             field.addEventListener("change", event => events.push(event));
 

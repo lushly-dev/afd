@@ -1,11 +1,4 @@
-import {
-  attr,
-  FASTElement,
-  html,
-  observable,
-  repeat,
-  when,
-} from "@lushly-dev/fast-element";
+import { attr, FASTElement, html, observable, repeat, Updates, when } from "@lushly-dev/fast-element";
 import { violetGanttStyles } from "./violet-gantt.styles";
 import {
   ganttClippedGeometry,
@@ -1283,16 +1276,15 @@ export class VioletGantt extends FASTElement {
     if (this.#focusFrame !== null) cancelAnimationFrame(this.#focusFrame);
     this.#focusFrame = requestAnimationFrame(() => {
       this.#focusFrame = null;
-      const rows =
-        this.shadowRoot?.querySelectorAll<HTMLElement>(".row[data-row-id]") ??
-        [];
-      const row = [...rows].find(
-        (candidate) => candidate.dataset.rowId === rowId
-      );
-      if (row) {
-        row.focus();
-        this.#pendingFocusRowId = null;
-      }
+      void Updates.next().then(() => {
+        if (this.#pendingFocusRowId !== rowId || !this.$fastController.isConnected) return;
+        const rows = this.shadowRoot?.querySelectorAll<HTMLElement>(".row[data-row-id]") ?? [];
+        const row = [...rows].find((candidate) => candidate.dataset.rowId === rowId);
+        if (row) {
+          row.focus();
+          this.#pendingFocusRowId = null;
+        }
+      });
     });
   }
 

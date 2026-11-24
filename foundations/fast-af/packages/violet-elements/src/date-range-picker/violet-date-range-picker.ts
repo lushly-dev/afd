@@ -6,6 +6,7 @@ import "../icon/violet-icon";
 import { registerSystemCalendarIcon } from "../icon/generated/icons/system-calendar";
 import { formatDisplayDate } from "../date-time/violet-date-utils";
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
+import { resolveFieldErrorText } from "../shared/field-error";
 import {
     findEnclosingDialog,
     hideManualPopover,
@@ -175,7 +176,7 @@ const styles = css`
     }
 
     .error {
-        color: var(--color-state-danger-foreground, #c42a1a);
+        color: var(--_danger-text);
         margin-block-start: var(--_space-field-gap);
     }
 
@@ -219,7 +220,7 @@ const template = html<VioletDateRangePicker>`
                 aria-controls="${x => x.panelId}"
                 aria-labelledby="${x => x.labelledBy}"
                 aria-describedby="${x => x.describedBy || null}"
-                aria-invalid="${x => x.invalid ? "true" : "false"}"
+                aria-invalid="${x => (!x.disabled && x.invalid) ? "true" : "false"}"
                 @click="${x => x.toggleOpen()}"
                 @keydown="${(x, c) => x.handleTriggerKeydown(c.event as KeyboardEvent)}"
             >
@@ -251,12 +252,12 @@ const template = html<VioletDateRangePicker>`
             </div>
         </div>
         ${when(
-            x => Boolean(x.supportingText),
+            x => Boolean(x.supportingText) && !x.displayErrorText,
             html<VioletDateRangePicker>`<p class="supporting" part="supporting-text" id="${x => x.supportingId}">${x => x.supportingText}</p>`,
         )}
         ${when(
             x => Boolean(x.displayErrorText),
-            html<VioletDateRangePicker>`<p class="error" part="error-message" id="${x => x.errorId}">${x => x.displayErrorText}</p>`,
+            html<VioletDateRangePicker>`<p class="error" part="error-message" id="${x => x.errorId}" role="alert">${x => x.displayErrorText}</p>`,
         )}
     </div>
 `;
@@ -268,6 +269,7 @@ const template = html<VioletDateRangePicker>`
  * @fires input - Emitted when the partial or complete range changes.
  * @fires change - Emitted when the partial or complete range changes.
  * @fires open-change - Emitted when the calendar popup opens or closes.
+ * @csspart error-message - Error message element shown while invalid.
  */
 export class VioletDateRangePicker extends FASTElement {
     @observable
@@ -366,23 +368,19 @@ export class VioletDateRangePicker extends FASTElement {
     }
 
     public get describedBy(): string {
-        const ids = [
-            this.supportingText ? this.supportingId : "",
-            this.displayErrorText ? this.errorId : "",
-        ].filter(Boolean);
-        return ids.join(" ");
+        return this.displayErrorText
+            ? this.errorId
+            : this.supportingText
+              ? this.supportingId
+              : "";
     }
 
     public get displayErrorText(): string {
-        if (this.invalid) {
-            return this.errorText || "Choose a valid date range.";
-        }
-
-        if (this.required && (!this.start || !this.end)) {
-            return this.errorText || "Please choose a start and end date.";
-        }
-
-        return this.errorText;
+        return resolveFieldErrorText({
+            invalid: this.invalid,
+            disabled: this.disabled,
+            errorText: this.errorText,
+        });
     }
 
     public get startDisplay(): string {

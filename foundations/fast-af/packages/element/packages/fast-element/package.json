@@ -172,6 +172,7 @@
     "doc:path-exports:check": "node ./scripts/check-path-exports-docs.js --check",
     "doc:exports:ci": "node ./scripts/run-api-extractor.js ci",
     "build": "pnpm run build:tsc && pnpm run test:exports && pnpm run test:types && pnpm run build:rollup && pnpm run doc && pnpm run doc:exports",
+    "bench": "node benchmarks/bench.mjs",
     "build:fixtures": "node scripts/declarative/build-fixtures.js",
     "build:fixtures:webui": "node scripts/declarative/build-fixtures-with-webui.js",
     "build:rollup": "rollup -c",

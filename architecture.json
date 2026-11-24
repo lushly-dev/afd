@@ -150,8 +150,8 @@
 		},
 		{
 			"manifest": "foundations/fast-af/packages/violet-elements/package.json",
-			"family": "fast-af",
-			"layer": "foundation"
+			"family": "violet-elements",
+			"layer": "integration"
 		},
 		{
 			"manifest": "foundations/violet/packages/core/package.json",
@@ -465,12 +465,6 @@
 		}
 	},
 	"buildTimeExemptions": [
-		{
-			"from": "@lushly-dev/violet-elements",
-			"to": "@lushly-dev/specimen-fast-af",
-			"reason": "violet-elements is currently classified under foundations/fast-af and uses specimen-fast-af for Specimen story/guide builds; moves out of foundation in #1783",
-			"issue": "#1783"
-		},
 		{
 			"from": "@afd/example-todo",
 			"to": "umbel",

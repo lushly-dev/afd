@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cdp, page } from "vitest/browser";
+import { cdp, page, server } from "vitest/browser";
+
+const isChromium = server.browser === "chromium";
 
 import "../button/violet-button";
 import { clearVioletIconRegistryForTesting } from "../icon/icon-registry";
@@ -90,7 +92,7 @@ describe("violet-alert", () => {
         expect(handler).toHaveBeenCalledTimes(1);
     });
 
-    describe("under forced colours", () => {
+    if (isChromium) describe("under forced colours", () => {
         afterEach(async () => {
             await emulateForcedColors(false);
         });

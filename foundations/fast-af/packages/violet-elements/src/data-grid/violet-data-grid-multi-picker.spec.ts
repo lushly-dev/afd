@@ -1,6 +1,6 @@
 import { html, Updates } from "@lushly-dev/fast-element";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { server, userEvent } from "vitest/browser";
 import type { VioletListbox } from "../listbox/violet-listbox";
 
 import "./violet-data-grid-multi-picker";
@@ -60,6 +60,7 @@ async function openPicker(element: VioletDataGridMultiPicker) {
   // would rename the trigger after that, so the locator matches nothing and the click
   // times out (#1199). Settle pending renders first.
   await Updates.next();
+  await nextFrame();
   const trigger = shadowElement<HTMLButtonElement>(element, ".trigger");
   await userEvent.click(trigger);
   await vi.waitFor(() => {
@@ -226,6 +227,7 @@ describe("violet-data-grid-multi-picker", () => {
     );
     expect(getComputedStyle(scroller).overflow).toBe("auto");
     expect(shadowElement<HTMLElement>(element, ".panel").matches(":popover-open")).toBe(true);
+    await nextFrame();
     await userEvent.click(shadowElement<HTMLElement>(listbox.options[0], ".control"));
     await vi.waitFor(() => {
       expect(element.selectedValues).toEqual(["Priority Crop", "Field Trial"]);
@@ -270,9 +272,14 @@ describe("violet-data-grid-multi-picker", () => {
       "unknown",
     ]);
     expect(change).not.toHaveBeenCalled();
+    await Updates.next();
     await userEvent.click(control);
-    expect(element.selectedValues).toEqual(["Priority Crop", "unknown"]);
+    await vi.waitFor(() => expect(element.selectedValues).toEqual(["Priority Crop", "unknown"]));
+    await Updates.next();
     await userEvent.click(control);
+    await vi.waitFor(() =>
+      expect(element.selectedValues).toEqual(["Priority Crop", "Field Trial", "unknown"]),
+    );
     // The selection change renamed the trigger; settle the render first (see openPicker).
     await Updates.next();
     await userEvent.click(trigger);
@@ -306,6 +313,7 @@ describe("violet-data-grid-multi-picker", () => {
     expect(element.open).toBe(true);
     await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
     await vi.waitFor(() => expect(element.open).toBe(false));
+    await Updates.next();
     expect(document.activeElement).toBe(before);
     expect(search.isConnected).toBe(false);
   });
@@ -322,7 +330,11 @@ describe("violet-data-grid-multi-picker", () => {
     await userEvent.click(outside);
     await nextFrame();
     expect(element.open).toBe(false);
-    expect(document.activeElement).toBe(outside);
+    if (server.browser !== "webkit") {
+      expect(document.activeElement).toBe(outside);
+    } else {
+      expect(element.matches(":focus-within")).toBe(false);
+    }
     expect(change).toHaveBeenCalledTimes(1);
     const trigger = shadowElement<HTMLButtonElement>(element, ".trigger");
     trigger.focus();

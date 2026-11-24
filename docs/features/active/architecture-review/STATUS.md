@@ -157,9 +157,9 @@ These keep their own work; this review only cross-references them.
 
 - [#1782](https://github.com/lushly-dev/afd/issues/1782) boundaries: build-time edges, sub-layers in the endpoint families, examples in scope, stale entries out; merged in #2296
 
-- [#1783](https://github.com/lushly-dev/afd/issues/1783) violet-elements: its own unit, outside FAST-AF's upstream provenance and inside the size gate
+- [#1783](https://github.com/lushly-dev/afd/issues/1783) violet-elements: its own unit, outside FAST-AF's upstream provenance and inside the size gate; merged in #2347
 
-- [#1784](https://github.com/lushly-dev/afd/issues/1784) violet-elements: Firefox and WebKit in the suite, an anchor-positioning fallback, a unique anchor per popover
+- [#1784](https://github.com/lushly-dev/afd/issues/1784) violet-elements: Firefox and WebKit in the suite, an anchor-positioning fallback, a unique anchor per popover; merged in #2347
 
 - [#1785](https://github.com/lushly-dev/afd/issues/1785) violet-elements: per-component exports and define modules, so one import registers one component
 

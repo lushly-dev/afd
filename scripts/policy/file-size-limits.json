@@ -100,12 +100,12 @@
 		},
 		{
 			"file": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid.ts",
-			"lines": 4422,
+			"lines": 4418,
 			"reason": "Pre-existing violet-elements file over 1,500 lines when AFD-authored code in imported families joined the size gate (#1802); tracked by #504 and #1783"
 		},
 		{
 			"file": "foundations/fast-af/packages/violet-elements/src/gantt/violet-gantt.ts",
-			"lines": 2144,
+			"lines": 2136,
 			"reason": "Pre-existing violet-elements file over 1,500 lines when AFD-authored code in imported families joined the size gate (#1802); tracked by #504 and #1783"
 		},
 		{

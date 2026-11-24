@@ -54,7 +54,8 @@
 				"name": "error-text",
 				"property": "errorText",
 				"rules": [
-					"taxonomy.error-text"
+					"taxonomy.error-text",
+					"taxonomy.error-text.not-for"
 				],
 				"type": "string"
 			},
@@ -226,11 +227,13 @@
 	],
 	"import": "@lushly-dev/violet-elements",
 	"rules": [
+		"form.error-text",
 		"import.root",
 		"taxonomy.control-label",
 		"taxonomy.error-announcement",
 		"taxonomy.error-announcement.not-for",
 		"taxonomy.error-text",
+		"taxonomy.error-text.not-for",
 		"taxonomy.invalid",
 		"taxonomy.placeholder",
 		"taxonomy.value",

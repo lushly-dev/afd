@@ -581,7 +581,7 @@
 		},
 		{
 			"id": "violet-elements",
-			"family": "fast-af",
+			"family": "violet-elements",
 			"protocol": "npm-changesets",
 			"sourceRevision": "5e64a6a5e7d459643fa62d0fe8ea22146afc4db1",
 			"authority": "github: lushly-dev/afd",

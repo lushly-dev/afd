@@ -216,6 +216,8 @@ test("recording keeps the envelope's bytes, which hold no adaptations digest (#1
 	write(root, `${directory}/adaptations.json`, `${JSON.stringify({ files: [] }, null, 2)}\n`);
 	write(root, `${directory}/provenance.json`, ENVELOPE);
 	write(root, 'foundations/fast-af/src/a.ts', 'export const a = 1;\n');
+	// violet-elements retired from per-file FAST-AF provenance (#1783) and is excluded.
+	write(root, 'foundations/fast-af/packages/violet-elements/src/b.ts', 'export const b = 2;\n');
 	execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: root });
 	assert.deepEqual(recordProvenance(root, 'fast-af', 'Added'), ['foundations/fast-af/src/a.ts']);
 	assert.equal(read(root, `${directory}/adaptations.json`).files[0].import_reason, 'Added');

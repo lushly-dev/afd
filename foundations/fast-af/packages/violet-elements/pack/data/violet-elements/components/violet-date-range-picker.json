@@ -36,7 +36,8 @@
 				"name": "error-text",
 				"property": "errorText",
 				"rules": [
-					"taxonomy.error-text"
+					"taxonomy.error-text",
+					"taxonomy.error-text.not-for"
 				],
 				"type": "string"
 			},
@@ -254,11 +255,13 @@
 		"field.label",
 		"field.label-required",
 		"field.supporting-text",
+		"form.error-text",
 		"import.root",
 		"overlay.open-change",
 		"taxonomy.disabled",
 		"taxonomy.end",
 		"taxonomy.error-text",
+		"taxonomy.error-text.not-for",
 		"taxonomy.invalid",
 		"taxonomy.label",
 		"taxonomy.locale",

@@ -10,7 +10,7 @@
 			{
 				"basis": "authored",
 				"id": "time-picker.errors",
-				"text": "The shown error, built-in or error-text, is linked to the native input as its description after supporting-text, so it is read when the field is focused."
+				"text": "While invalid, the shown error (error-text or the native validation message) replaces supporting-text and is linked to the native input as its description."
 			}
 		]
 	},
@@ -32,7 +32,8 @@
 				"name": "error-text",
 				"property": "errorText",
 				"rules": [
-					"taxonomy.error-text"
+					"taxonomy.error-text",
+					"taxonomy.error-text.not-for"
 				],
 				"type": "string"
 			},
@@ -232,11 +233,13 @@
 		"field.label",
 		"field.label-required",
 		"field.supporting-text",
+		"form.error-text",
 		"form.invalid",
 		"form.participation",
 		"import.root",
 		"taxonomy.disabled",
 		"taxonomy.error-text",
+		"taxonomy.error-text.not-for",
 		"taxonomy.invalid",
 		"taxonomy.label",
 		"taxonomy.max",
@@ -256,7 +259,7 @@
 		{
 			"basis": "authored",
 			"id": "time-picker.value",
-			"text": "value is a 24-hour \"HH:MM\" or \"HH:MM:SS\" string whatever the display format, and the form receives it under name. Any other string is invalid with \"Enter a valid time.\""
+			"text": "value is a 24-hour \"HH:MM\" or \"HH:MM:SS\" string whatever the display format, and the form receives it under name. Any other string fails validation, and its message shows while invalid is set."
 		},
 		{
 			"basis": "authored",
@@ -266,7 +269,7 @@
 		{
 			"basis": "authored",
 			"id": "time-picker.range",
-			"text": "min and max are times within one day; a value outside them is invalid with \"Choose a time at or after/before ...\". A range that crosses midnight is not supported."
+			"text": "min and max are times within one day; a value outside them fails validation, and its message shows while invalid is set. A range that crosses midnight is not supported."
 		},
 		{
 			"basis": "authored",

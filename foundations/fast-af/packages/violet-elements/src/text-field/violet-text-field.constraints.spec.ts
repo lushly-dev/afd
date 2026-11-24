@@ -129,7 +129,12 @@ describe("violet-text-field native constraints", () => {
             },
         });
 
-        expect(input(field).type).toBe("date");
+        expect(input(field).getAttribute("type")).toBe("date");
+        const probe = document.createElement("input");
+        probe.type = "date";
+        if (probe.type === "date") {
+            expect(input(field).type).toBe("date");
+        }
     });
 
     it("reports range violations through ElementInternals and blocks submission", async () => {

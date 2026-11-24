@@ -122,7 +122,7 @@
 		{
 			"basis": "observed",
 			"from": "components-popover--external-anchor",
-			"html": "<div style=\"display:flex;align-items:center;gap:var(--space-layout-sm);\">\n            <violet-button appearance=\"secondary\" id=\"popover-anchor\" style=\"anchor-name: --violet-popover-anchor;\" type=\"button\">Anchor outside</violet-button>\n            <violet-popover anchor=\"popover-anchor\" positioning=\"after\">\n                <div style=\"display:grid;gap:var(--space-stack-xs);\">\n                    <strong style=\"margin:0;\">Field note</strong>\n                    <p style=\"margin:0;\">This panel is anchored to an external trigger element.</p>\n                </div>\n            </violet-popover>\n        </div>"
+			"html": "<div style=\"display:flex;align-items:center;gap:var(--space-layout-sm);\">\n            <violet-button appearance=\"secondary\" id=\"popover-anchor\" type=\"button\">Anchor outside</violet-button>\n            <violet-popover anchor=\"popover-anchor\" positioning=\"after\">\n                <div style=\"display:grid;gap:var(--space-stack-xs);\">\n                    <strong style=\"margin:0;\">Field note</strong>\n                    <p style=\"margin:0;\">This panel is anchored to an external trigger element.</p>\n                </div>\n            </violet-popover>\n        </div>"
 		},
 		{
 			"basis": "observed",

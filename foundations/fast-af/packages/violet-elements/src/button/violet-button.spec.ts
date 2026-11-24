@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cdp, userEvent } from "vitest/browser";
+import { cdp, server, userEvent } from "vitest/browser";
+
+const isChromium = server.browser === "chromium";
 
 import "./violet-button";
 import type { VioletButton } from "./violet-button";
@@ -239,10 +241,12 @@ describe("violet-button", () => {
         const native = control(document.querySelector("violet-button") as VioletButton) as unknown as References;
 
         expect(native.ariaControlsElements).toEqual([document.getElementById("save-panel")]);
-        await vi.waitFor(async () => {
-            const node = await accessibleNode("button", "Save");
-            expect(node.description?.value).toBe("Saves a copy you can restore.");
-        });
+        if (isChromium) {
+            await vi.waitFor(async () => {
+                const node = await accessibleNode("button", "Save");
+                expect(node.description?.value).toBe("Saves a copy you can restore.");
+            });
+        }
     });
 
     it("resolves references set as properties and clears them", async () => {
@@ -256,22 +260,27 @@ describe("violet-button", () => {
 
         button.ariaDescribedby = "draft-hint";
         expect(native.ariaDescribedByElements).toEqual([document.getElementById("draft-hint")]);
-        await vi.waitFor(async () => {
-            expect((await accessibleNode("button", "Keep")).description?.value).toBe("Keeps your changes.");
-        });
+        if (isChromium) {
+            await vi.waitFor(async () => {
+                expect((await accessibleNode("button", "Keep")).description?.value).toBe("Keeps your changes.");
+            });
+        }
 
         button.ariaDescribedby = null;
         expect(native.ariaDescribedByElements ?? []).toEqual([]);
     });
 
     it("forwards aria-description to the native control", async () => {
-        await renderButton(el => {
+        const button = await renderButton(el => {
             el.setAttribute("aria-description", "Opens in a new window.");
         }, "Preview");
 
-        await vi.waitFor(async () => {
-            expect((await accessibleNode("button", "Preview")).description?.value).toBe("Opens in a new window.");
-        });
+        expect(control(button).getAttribute("aria-description")).toBe("Opens in a new window.");
+        if (isChromium) {
+            await vi.waitFor(async () => {
+                expect((await accessibleNode("button", "Preview")).description?.value).toBe("Opens in a new window.");
+            });
+        }
     });
 
     it("forwards aria-pressed to the native control", async () => {
@@ -302,10 +311,12 @@ describe("violet-button", () => {
 
         expect(button.ariaKeyShortcuts).toBe("Meta+K");
         expect(native.getAttribute("aria-keyshortcuts")).toBe("Meta+K");
-        await vi.waitFor(async () => {
-            const node = await accessibleNode("button", "Search");
-            expect(node.properties?.find(property => property.name === "keyshortcuts")?.value.value).toBe("Meta+K");
-        });
+        if (isChromium) {
+            await vi.waitFor(async () => {
+                const node = await accessibleNode("button", "Search");
+                expect(node.properties?.find(property => property.name === "keyshortcuts")?.value.value).toBe("Meta+K");
+            });
+        }
 
         button.ariaKeyShortcuts = "Control+S";
         await nextFrame();
@@ -346,6 +357,8 @@ describe("violet-button", () => {
         }
 
         it("sets data-appearance and fills with the danger action tokens", async () => {
+            // Move any leftover virtual pointer away from (0, 0) so the button mounts in its resting state.
+            await userEvent.hover(document.documentElement, { position: { x: 400, y: 400 } });
             const button = await renderButton(el => {
                 el.setAttribute("appearance", "danger");
             }, "Delete");

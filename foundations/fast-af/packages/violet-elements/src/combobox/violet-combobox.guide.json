@@ -54,7 +54,7 @@
     },
     {
       "id": "combobox.error",
-      "text": "The rendered error message is linked to the input as its description, after the supporting text.",
+      "text": "While invalid, the rendered error message replaces the supporting text and is linked to the input as its description.",
       "members": [
         "error-text"
       ]

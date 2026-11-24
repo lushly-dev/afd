@@ -1,5 +1,10 @@
 import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
 
+import {
+    LazyFallbackPositionController,
+    bindOverlayAnchor,
+    createAnchorName,
+} from "../shared/overlay-anchor";
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
 let violetTooltipId = 0;
@@ -32,13 +37,12 @@ const styles = css`
 
     .anchor {
         display: inline-block;
-        anchor-name: --violet-tooltip-anchor;
     }
 
     .tooltip {
         box-sizing: border-box;
         position: fixed;
-        position-anchor: --violet-tooltip-anchor;
+        inset: unset;
         margin: 0;
         /* The position area is as wide as the anchor, so the tip sizes to its text, up to the maximum. */
         inline-size: max-content;
@@ -74,28 +78,31 @@ const styles = css`
         }
     }
 
-    :host([positioning="above"]) .tooltip {
-        position-area: block-start center;
-        margin-block-end: var(--_tooltip-gap);
-        position-try-fallbacks: flip-block;
-    }
+    @supports (anchor-name: --violet-anchor) and (position-area: block-end center) and (position-try-fallbacks: flip-block) {
+        :host([positioning="above"]) .tooltip,
+        :host(:not([positioning])) .tooltip {
+            position-area: block-start center;
+            margin-block-end: var(--_tooltip-gap);
+            position-try-fallbacks: flip-block;
+        }
 
-    :host([positioning="below"]) .tooltip {
-        position-area: block-end center;
-        margin-block-start: var(--_tooltip-gap);
-        position-try-fallbacks: flip-block;
-    }
+        :host([positioning="below"]) .tooltip {
+            position-area: block-end center;
+            margin-block-start: var(--_tooltip-gap);
+            position-try-fallbacks: flip-block;
+        }
 
-    :host([positioning="before"]) .tooltip {
-        position-area: center left;
-        margin-inline-end: var(--_tooltip-gap);
-        position-try-fallbacks: flip-inline;
-    }
+        :host([positioning="before"]) .tooltip {
+            position-area: center left;
+            margin-inline-end: var(--_tooltip-gap);
+            position-try-fallbacks: flip-inline;
+        }
 
-    :host([positioning="after"]) .tooltip {
-        position-area: center right;
-        margin-inline-start: var(--_tooltip-gap);
-        position-try-fallbacks: flip-inline;
+        :host([positioning="after"]) .tooltip {
+            position-area: center right;
+            margin-inline-start: var(--_tooltip-gap);
+            position-try-fallbacks: flip-inline;
+        }
     }
 
     @media (forced-colors: active) {
@@ -144,12 +151,14 @@ export class VioletTooltip extends FASTElement {
     declare public anchor: string;
 
     public readonly tooltipId: string;
+    public readonly anchorName: string;
 
     #showTimeout: ReturnType<typeof setTimeout> | null = null;
     #hideTimeout: ReturnType<typeof setTimeout> | null = null;
     #triggerElement: Element | null = null;
     #externalAnchor: HTMLElement | null = null;
     #externalListenersAttached = false;
+    #fallbackPosition = new LazyFallbackPositionController();
     /** The ids this tooltip added to its trigger's aria-describedby, so it removes only those. */
     #describedByIds: string[] = [];
     /** The aria-description this tooltip set on its trigger. */
@@ -165,6 +174,7 @@ export class VioletTooltip extends FASTElement {
         const id = violetTooltipId;
         violetTooltipId += 1;
         this.tooltipId = `violet-tooltip-${id}`;
+        this.anchorName = createAnchorName("violet-tooltip", id);
     }
 
     get #tooltipElement(): HTMLElement | null {
@@ -173,6 +183,10 @@ export class VioletTooltip extends FASTElement {
 
     get #anchorElement(): HTMLElement | null {
         return this.shadowRoot?.querySelector(".anchor") ?? null;
+    }
+
+    get #activeAnchorElement(): HTMLElement | null {
+        return this.#externalAnchor ?? this.#anchorElement;
     }
 
     public connectedCallback(): void {
@@ -194,6 +208,7 @@ export class VioletTooltip extends FASTElement {
         }
 
         this.#resolveExternalAnchor();
+        this.#syncAnchoring();
 
         if (this.open) {
             this.#showTooltip();
@@ -203,6 +218,7 @@ export class VioletTooltip extends FASTElement {
     public disconnectedCallback(): void {
         super.disconnectedCallback();
         this.#clearTimers();
+        this.#fallbackPosition.stop(this.#tooltipElement);
         this.#detachExternalListeners();
     }
 
@@ -218,12 +234,22 @@ export class VioletTooltip extends FASTElement {
         }
     }
 
+    public positioningChanged(): void {
+        if (this.open) {
+            this.#fallbackPosition.update();
+        }
+    }
+
     public anchorChanged(): void {
         if (this.$fastController.isConnected) {
             this.#detachExternalListeners();
             this.#resolveExternalAnchor();
+            this.#syncAnchoring();
             if (!this.#externalListenersAttached) {
                 this.handleSlotChange();
+            }
+            if (this.open) {
+                this.#startFallbackPosition();
             }
         }
     }
@@ -290,6 +316,10 @@ export class VioletTooltip extends FASTElement {
         this.#description = null;
     }
 
+    #syncAnchoring(): void {
+        bindOverlayAnchor(this.#anchorElement, this.#externalAnchor, this.#tooltipElement, this.anchorName);
+    }
+
     #resolveExternalAnchor(): void {
         if (!this.anchor) {
             return;
@@ -303,7 +333,6 @@ export class VioletTooltip extends FASTElement {
         this.#clearDescription();
         this.#externalAnchor = external;
         this.#triggerElement = external;
-        external.style.setProperty("anchor-name", "--violet-tooltip-anchor");
         this.syncDescription();
 
         external.addEventListener("mouseenter", this.#handleMouseEnter);
@@ -323,7 +352,6 @@ export class VioletTooltip extends FASTElement {
         this.#triggerElement.removeEventListener("focusin", this.#handleFocusIn);
         this.#triggerElement.removeEventListener("focusout", this.#handleFocusOut);
         this.#clearDescription();
-        this.#externalAnchor.style.removeProperty("anchor-name");
         this.#externalAnchor = null;
         this.#triggerElement = null;
         this.#externalListenersAttached = false;
@@ -390,6 +418,17 @@ export class VioletTooltip extends FASTElement {
             tooltip.toggleAttribute("popover-open", true);
             tooltip.style.display = "block";
         }
+        this.#syncAnchoring();
+        this.#startFallbackPosition();
+    }
+
+    #startFallbackPosition(): void {
+        this.#fallbackPosition.start(
+            () => this.#activeAnchorElement,
+            () => this.#tooltipElement,
+            () => [this.positioning, "above", "center", getComputedStyle(this).getPropertyValue("--_tooltip-gap"), this, 8],
+            Boolean(this.#externalAnchor),
+        );
     }
 
     #hideTooltip(): void {
@@ -398,6 +437,7 @@ export class VioletTooltip extends FASTElement {
             return;
         }
 
+        this.#fallbackPosition.stop(tooltip);
         try {
             tooltip.hidePopover();
         } catch {

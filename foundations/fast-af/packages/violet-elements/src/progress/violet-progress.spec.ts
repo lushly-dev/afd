@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { cdp } from "vitest/browser";
+import { cdp, server } from "vitest/browser";
+
+const isChromium = server.browser === "chromium";
 
 import "./violet-progress";
 import type { VioletProgress } from "./violet-progress";
@@ -38,13 +40,57 @@ describe("violet-progress", () => {
         document.body.innerHTML = "";
     });
 
-    it("renders a determinate native progress element", async () => {
+    it("renders a determinate native progress element named by its label", async () => {
         const progress = await renderProgress();
         const native = progress.shadowRoot?.querySelector("progress") as HTMLProgressElement | null;
+        const label = progress.shadowRoot?.querySelector(".label") as HTMLElement | null;
 
-        expect(native?.getAttribute("aria-label")).toBe("Uploading field imagery");
+        expect(label?.id).toBe(progress.labelId);
+        expect(label?.textContent?.trim()).toBe("Uploading field imagery");
+        expect(native?.getAttribute("aria-labelledby")).toBe(progress.labelId);
+        expect(native?.hasAttribute("aria-label")).toBe(false);
         expect(native?.getAttribute("value")).toBe("48");
         expect(progress.shadowRoot?.querySelector(".value-label")?.textContent?.trim()).toBe("48%");
+    });
+
+    it("falls back to aria-label='Progress' when no label is set, and toggles cleanly", async () => {
+        const progress = await renderProgress(`<violet-progress value="25" max="100"></violet-progress>`);
+        const native = progress.shadowRoot?.querySelector("progress") as HTMLProgressElement | null;
+
+        expect(progress.shadowRoot?.querySelector(".label")).toBeNull();
+        expect(native?.hasAttribute("aria-labelledby")).toBe(false);
+        expect(native?.getAttribute("aria-label")).toBe("Progress");
+
+        progress.label = "Syncing records";
+        await nextFrame();
+        const label = progress.shadowRoot?.querySelector(".label") as HTMLElement | null;
+        expect(label?.id).toBe(progress.labelId);
+        expect(native?.getAttribute("aria-labelledby")).toBe(progress.labelId);
+        expect(native?.hasAttribute("aria-label")).toBe(false);
+
+        progress.label = "";
+        await nextFrame();
+        expect(native?.hasAttribute("aria-labelledby")).toBe(false);
+        expect(native?.getAttribute("aria-label")).toBe("Progress");
+
+        progress.label = "   ";
+        await nextFrame();
+        expect(progress.shadowRoot?.querySelector(".label")).toBeNull();
+        expect(native?.hasAttribute("aria-labelledby")).toBe(false);
+        expect(native?.getAttribute("aria-label")).toBe("Progress");
+    });
+
+    it("assigns distinct label ids to multiple progress bars on one page", async () => {
+        document.body.innerHTML = `
+            <violet-progress label="First upload" value="20"></violet-progress>
+            <violet-progress label="Second upload" value="80"></violet-progress>
+        `;
+        await customElements.whenDefined("violet-progress");
+        await nextFrame();
+        const [first, second] = Array.from(document.querySelectorAll("violet-progress")) as VioletProgress[];
+        expect(first.labelId).not.toBe(second.labelId);
+        expect(first.shadowRoot?.querySelector("progress")?.getAttribute("aria-labelledby")).toBe(first.labelId);
+        expect(second.shadowRoot?.querySelector("progress")?.getAttribute("aria-labelledby")).toBe(second.labelId);
     });
 
     it("has a fill colour with no theme installed", async () => {
@@ -70,7 +116,7 @@ describe("violet-progress", () => {
         expect(progress.shadowRoot?.querySelector(".value-label")?.textContent?.trim()).toBe("50%");
     });
 
-    describe("under reduced motion", () => {
+    if (isChromium) describe("under reduced motion", () => {
         afterEach(async () => {
             await emulateMedia({ reducedMotion: false });
         });

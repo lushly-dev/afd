@@ -64,6 +64,21 @@ test("FAST-AF provenance records are bound by hash and match each unit's release
 		const classified = architecture.units.find((item) => item.manifest === manifestPath);
 		assert.deepEqual([classified?.family, classified?.layer], ['fast-af', unit.layer], unit.name);
 	}
+	for (const unit of provenance.retired_units ?? []) {
+		const manifestPath = `${unit.path}/package.json`;
+		const owner = inventory.units.find((item) =>
+			item.distributions.some((distribution) => distribution.name === unit.name)
+		);
+		assert.equal(owner?.family, unit.family, unit.name);
+		assert.equal(owner?.distributions[0].manifest, manifestPath, unit.name);
+		const classified = architecture.units.find((item) => item.manifest === manifestPath);
+		assert.deepEqual([classified?.family, classified?.layer], [unit.family, unit.layer], unit.name);
+		assert.deepEqual(
+			adaptations.files.filter((file) => file.path.startsWith(`${unit.path}/`)),
+			[],
+			`retired unit ${unit.name} must have no per-file rows in adaptations.json`
+		);
+	}
 });
 
 test('upstream license and notice files are imported verbatim', () => {
@@ -118,11 +133,22 @@ test('every imported FAST-AF file is present, recorded and unchanged since revie
 			assert.equal(file.staged_sha256, file.upstream_sha256, file.path);
 		assert(file.import_reason && file.stage_reason, `${file.path} needs reasons`);
 	}
+	const retiredUpstream = (provenance.retired_units ?? [])
+		.map((unit) => unit.upstream_prefix)
+		.filter(Boolean);
+	const retiredExact = new Set(
+		(provenance.retired_units ?? []).flatMap((unit) => unit.upstream_paths ?? [])
+	);
+	const isRetiredUpstream = (path) =>
+		retiredExact.has(path) ||
+		retiredUpstream.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
 	const accounted = new Set(adaptations.files.map((file) => file.upstream_path).filter(Boolean));
 	assert.deepEqual(
-		upstream.files.map((file) => file.path).filter((path) => !accounted.has(path)),
+		upstream.files
+			.map((file) => file.path)
+			.filter((path) => !isRetiredUpstream(path) && !accounted.has(path)),
 		[],
-		'every selected upstream file maps to an import'
+		'every non-retired selected upstream file maps to an import'
 	);
 });
 
@@ -137,35 +163,8 @@ test('upstream Git object ids match the bytes of every file imported unchanged',
 		assert.equal(blob(bytes), byPath.get(file.upstream_path).git_blob, file.path);
 		checked++;
 	}
-	// Most of the import still matches upstream; the 79 story files now import Specimen's helpers,
-	// the label-in-name change (#971) reached six more files, five of them specs, the Lushly
-	// repairs (#1191, merged in #1194) reached the data grid, its cell templates and its spec, and
-	// the token interface (#1190) adapted the files that hard-coded a typeface or read the
-	// generated theme, the Specimen preview and the grid's sizing spec, and the bounded bug fixes
-	// (#1158, #1160-#1167) adapted 13 component and spec files, the cross-root ARIA references
-	// (#1159) six more, the preview prerelease (#1192) changed fast-element's README install line,
-	// and the type alias values (#1147) changed the manifest: 613 together. Microsoft FAST Element
-	// 3.0.2-3.1.4, taken into fast-element, changed 85 more: 528. Scoping hydrated views and
-	// disconnecting a replaced controller changed five more, a command spec, the scoped mixin, the
-	// hydration runtime, render and view: 523. The runtime cleanup (#1385) removed 23 of them and
-	// changed 19 more, among them `index.ts` and `fast-element.ts`, which match Microsoft's again,
-	// not fast-af's: 481. violet-select's late options (#499) adapted its spec: 480. The Refined
-	// design (#1430) restyled 23 components that still matched upstream, and its private-alias
-	// fixes (#1436) the carousel and the reasoning block's spec: 455. AFD's theme as the built-in
-	// default (D159, #1430) rewrote the literal fallbacks of the gantt's styles and the tab panel,
-	// gave the message status its danger colour, took the message media's fallbacks to AFD's values
-	// and added a read-only spec to the text area: 450. The form control hosts (#1385) adapted the
-	// grid's keyboard resize spec: 449. Slotted content under forced colours (#1575) adapted the
-	// alert's, the card's and the dialog's specs: 446. Removing Lushly's look outside tokens
-	// (#1492) adapted the color swatch's spec and the raw palette reference: 444. The accessibility
-	// fixes (#1576, #1583, #1584, #1585, #1588) adapted the icon registry and the icon's, the
-	// skeleton's and the tabs' specs: 440. The violet-elements bug batch (#657, #1582, #1587, #2072)
-	// adapted violet-data-grid-pill-select's spec: 439. The violet-elements bug batch (#512, #1171,
-	// #1569, #1602, #1963) adapted the accordion's, carousel's and icon-button's specs: 436. The
-	// area:fast-af bug batch (#1577, #1578, #1579, #1377, #1197) adapted the radio's spec: 435. The
-	// bug sweep (#2183, #1172, #1436, #1424, #712) adapted the option hosts' selection helpers and the
-	// time picker's spec: 433. The fast-af planned batch (#510, #656, #1580, #1581, #1589) adapted the
-	// data-grid's header keyboard spec and target helpers: 431. A removed file's record is kept but
-	// not counted.
-	assert(checked > 430, `only ${checked} unchanged upstream files`);
+	// After retiring violet-elements from per-file FAST-AF provenance (#1783), 294 non-violet
+	// files (fast-element and root files) remain verbatim copies of the selected upstream import.
+	// A removed file's record is kept but not counted.
+	assert(checked >= 294, `only ${checked} unchanged upstream files`);
 });

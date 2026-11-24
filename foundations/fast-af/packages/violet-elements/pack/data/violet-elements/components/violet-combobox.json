@@ -27,7 +27,7 @@
 			{
 				"basis": "authored",
 				"id": "combobox.error",
-				"text": "The rendered error message is linked to the input as its description, after the supporting text."
+				"text": "While invalid, the rendered error message replaces the supporting text and is linked to the input as its description."
 			}
 		]
 	},
@@ -49,7 +49,8 @@
 				"name": "error-text",
 				"property": "errorText",
 				"rules": [
-					"taxonomy.error-text"
+					"taxonomy.error-text",
+					"taxonomy.error-text.not-for"
 				],
 				"type": "string"
 			},
@@ -216,13 +217,14 @@
 		"field.placeholder",
 		"field.supporting-text",
 		"field.value-attribute",
+		"form.error-text",
 		"form.invalid",
 		"form.participation",
-		"form.required-error",
 		"import.root",
 		"options.children",
 		"taxonomy.disabled",
 		"taxonomy.error-text",
+		"taxonomy.error-text.not-for",
 		"taxonomy.invalid",
 		"taxonomy.label",
 		"taxonomy.name",

@@ -191,7 +191,7 @@ export const Invalid: Story = {
         await waitFor(() => {
             expect(trigger.hasAttribute("aria-invalid")).toBe(false);
             expect(trigger.hasAttribute("aria-errormessage")).toBe(false);
-            expect(shadow.querySelector('[part="error-text"]')).toBeNull();
+            expect(shadow.querySelector('[part="error-message"]')).toBeNull();
         });
     },
 };

@@ -73,12 +73,13 @@
 				"name": "error-text",
 				"property": "errorText",
 				"rules": [
-					"taxonomy.error-text"
+					"taxonomy.error-text",
+					"taxonomy.error-text.not-for"
 				],
 				"type": "string"
 			},
 			{
-				"basis": "declared",
+				"basis": "observed",
 				"default": false,
 				"name": "invalid",
 				"property": "invalid",
@@ -326,17 +327,12 @@
 		},
 		{
 			"basis": "observed",
-			"from": "components-file-upload--overview",
-			"html": "<div style=\"max-inline-size: 38rem;\"><form><violet-file-upload accept=\".pdf,.jpg,.jpeg,.png\" appearance=\"button\" error-text=\"Add a valid file before continuing.\" label=\"Upload field maps\" max-file-size max-files name=\"field-maps\" size=\"natural\" supporting-text=\"Accepted formats: PDF, JPG, or PNG.\"></violet-file-upload></form></div>"
+			"from": "components-file-upload--invalid",
+			"html": "<div style=\"max-inline-size: 38rem;\"><form><violet-file-upload accept=\".pdf,.jpg,.jpeg,.png\" appearance=\"dropzone\" data-invalid error-text=\"Add a valid file before continuing.\" invalid label=\"Upload field maps\" max-file-size max-files=\"2\" multiple name=\"field-maps\" size=\"natural\" supporting-text=\"Accepted formats: PDF, JPG, or PNG.\"></violet-file-upload></form></div>"
 		}
 	],
 	"format": 1,
 	"gaps": [
-		{
-			"kind": "unobserved",
-			"name": "invalid",
-			"section": "attributes"
-		},
 		{
 			"kind": "unobserved",
 			"name": "required",
@@ -351,6 +347,7 @@
 	"import": "@lushly-dev/violet-elements",
 	"rules": [
 		"field.label-required",
+		"form.error-text",
 		"form.invalid",
 		"form.participation",
 		"import.root",
@@ -358,6 +355,7 @@
 		"taxonomy.appearance",
 		"taxonomy.disabled",
 		"taxonomy.error-text",
+		"taxonomy.error-text.not-for",
 		"taxonomy.invalid",
 		"taxonomy.label",
 		"taxonomy.max-file-size",
