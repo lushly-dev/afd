@@ -69,9 +69,21 @@ again.
 
 ## Callers and tokens
 
-A caller needs the URL, its route and a token for that route. The five routes are `cell`,
-`session`, `foreman`, `lane` and `owner`; the proposal says what each may do, and a token opens
-only its own route. The gateway keeps a digest of each token, never the token.
+A caller needs the URL, its route and a token for that route. The routes are `cell`,
+`session`, `foreman`, `lane`, `owner` and `heartbeat`; the proposal says what each may do, and a
+token opens only its own route. `heartbeat` serves only `gateway-status` and `lane-heartbeat`, for
+the host its actor names (`--actor lane-heartbeat@<host>`), and takes no uploads (no route that
+cannot push does). It is the token a lane's loop reads: the lane runs queued branches' code as
+its own process, and that code can read whatever the lane can. Keep its file outside the
+repository and the lane's worktrees, mode 0600, and read it only inside the call.
+
+What such code could do with it: mark its own host's lane running or stopped until the real
+lane's next heartbeat corrects it (the token is bound to that host, so it cannot add another
+to `otherHosts`), and read `gateway-status` (rate limits, credential ages, the App and the
+repositories). `token issue --route heartbeat` refuses an actor that names no host. It adds
+nothing more, but it takes nothing away either: while the lane runs as the owner's own account,
+that code can also read the owner's gateway token and `gh` sign-in. Only a separate OS user
+for the lane (G4) closes that. The gateway keeps a digest of each token, never the token.
 
 The owner's token was written at install to `~/.config/factory-gateway/owner.token` on `random`,
 mode 0600. Issue any other token on `random`, straight into a file only its user can read, so it

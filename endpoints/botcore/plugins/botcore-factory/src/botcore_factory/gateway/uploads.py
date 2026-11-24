@@ -198,6 +198,16 @@ class BundleUploads:
     def receive(
         self, route: str, actor: Actor, data: bytes, params: dict[str, Any]
     ) -> CommandResult[Any]:
+        from botcore_factory.gateway.commands import ROUTES
+
+        # An upload is only ever pushed: a route that cannot push may not store one either.
+        if "branch-push" not in ROUTES.get(route, ()):
+            pushing = ", ".join(name for name, served in ROUTES.items() if "branch-push" in served)
+            return error(
+                "FORBIDDEN",
+                f"/{route} cannot push, so it takes no uploads",
+                suggestion=f"Upload on the route that will push the bundle: one of {pushing}",
+            )
         repo = params.get("repo", "")
         if repo not in self.gateway.config.repositories:
             served = ", ".join(self.gateway.config.repositories)

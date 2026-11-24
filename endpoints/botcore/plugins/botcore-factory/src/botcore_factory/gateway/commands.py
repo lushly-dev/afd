@@ -88,6 +88,9 @@ ROUTES: dict[str, tuple[str, ...]] = {
     ),
 }
 ROUTES["owner"] = tuple(dict.fromkeys([*ROUTES["foreman"], *ROUTES["lane"], *ROUTES["cell"]]))
+#: A lane's health report only. A lane runs queued branches' own code as its own process, so
+#: any token it holds can be read by that code: this route's token cannot push, merge or claim.
+ROUTES["heartbeat"] = ("gateway-status", "lane-heartbeat")
 
 _READ = CommandPolicy(("inspect",))
 _WRITE = CommandPolicy(("service", "history-write"))

@@ -1,4 +1,4 @@
-"""The gateway as one process: its five routes over HTTP, sharing one state and one GitHub.
+"""The gateway as one process: its routes over HTTP, sharing one state and one GitHub.
 
 ``build_gateway_app(data_dir, config, github)`` builds a host per route on the
 ``remote-caller`` profile, the bundle upload handler, and botcore's HTTP surface behind the
@@ -47,8 +47,9 @@ def build_gateway_app(
     clock: Callable[[], datetime] | None = None,
     max_upload_bytes: int = MAX_UPLOAD_BYTES,
 ) -> Any:
-    """The Starlette app serving ``/cell``, ``/session``, ``/foreman``, ``/lane`` and
-    ``/owner``. Every route's host shares one ``GatewayState``, whose lock serialises writes."""
+    """The Starlette app serving ``/cell``, ``/session``, ``/foreman``, ``/lane``,
+    ``/owner`` and ``/heartbeat``. Every route's host shares one ``GatewayState``, whose lock
+    serialises writes."""
     data_dir.mkdir(parents=True, exist_ok=True)
     state = GatewayState(data_dir)
     if not isinstance(github, CachedGitHub):  # One cache, so every route shares its scans.
@@ -76,5 +77,10 @@ def build_gateway_app(
         refresh_main=getattr(github, "fetch_main", None),
     )
     return create_host_http_app(
-        hosts, token_store(data_dir), uploads=uploads, max_upload_bytes=max_upload_bytes
+        hosts,
+        token_store(data_dir),
+        uploads=uploads,
+        max_upload_bytes=max_upload_bytes,
+        # Only a route that pushes takes an upload; the rest are refused before the body.
+        upload_routes=frozenset(r for r, served in ROUTES.items() if "branch-push" in served),
     )

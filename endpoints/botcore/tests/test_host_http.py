@@ -231,6 +231,27 @@ def test_a_server_without_an_upload_handler_takes_no_uploads(tmp_path):
     assert response.status_code == 404
 
 
+def test_a_route_not_named_for_uploads_is_refused_without_reaching_the_handler(tmp_path):
+    tokens = TokenStore(tmp_path / "t.json")
+    hosts = {"lane": make_host(tmp_path, "gw-lane"), "cell": make_host(tmp_path, "gw-cell")}
+    received: list[str] = []
+
+    async def record(route, actor, data, params):
+        received.append(route)
+        return success({})
+
+    app = create_host_http_app(hosts, tokens, uploads=record, upload_routes=frozenset({"cell"}))
+    _, lane = tokens.issue("lane", "service", "lane")
+    _, cell = tokens.issue("cell", "agent", "cell-3")
+    client = TestClient(app)
+
+    response = client.post("/lane/uploads", headers=auth(lane), content=b"x")
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "NOT_FOUND"
+    assert client.post("/cell/uploads", headers=auth(cell), content=b"x").json()["success"]
+    assert received == ["cell"]
+
+
 # ── Binding ─────────────────────────────────────────────────────────────
 
 
