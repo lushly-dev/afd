@@ -66,7 +66,8 @@ struct ContextScope; // contexts.hpp
 
 struct CommandContext {
     std::optional<std::string> trace_id;
-    /// A per-call timeout, in milliseconds (`DirectClient` enforces it).
+    /// A per-call timeout, in milliseconds (`CommandRegistry::execute` and `DirectClient` enforce
+    /// it).
     std::optional<double> timeout_ms;
     /// The surface the call came through. TypeScript's `context.interface`.
     std::optional<Interface> surface;
@@ -135,6 +136,15 @@ struct CommandContext {
     /// Internal raw `_meta["dev.afd/outputBudget"]` value set by `afd::mcp_stdio` when trusted
     /// code did not set `output_budget_ask`. Leave unset; validated in `CommandRegistry::execute`.
     std::shared_ptr<const detail::RawOutputBudgetAsk> output_budget_meta_ask;
+    /// Internal server-level default timeout in milliseconds set by `afd::mcp_stdio`
+    /// (`spec/execution-controls.md`, `defaultTimeoutMs`). Used by `CommandRegistry::execute`
+    /// when `timeout_ms` is unset, and excluded from journal context digests so enabling the
+    /// server default does not change hashes. Leave unset.
+    std::optional<double> default_timeout_ms;
+    /// Internal flag set by `DirectClient` or `afd::mcp_stdio` when it has already armed the
+    /// call's deadline on `cancellation`, so `CommandRegistry::execute` does not stack a second
+    /// deadline on top. Leave unset.
+    bool deadline_armed = false;
 };
 
 /// Defaults for `with_context_defaults`.

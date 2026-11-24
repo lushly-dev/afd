@@ -467,6 +467,90 @@ const Json* default_of(const Json& root, const Json& property) {
     return nullptr;
 }
 
+// Deep-copies a JSON value using an explicit heap stack so pass-through schema branches
+// (boolean `true`, untyped `{}`, arrays without `items`, open objects) never recurse on the
+// C++/Wasm call stack when copying deep subtrees (#2404).
+Json copy_json_iterative(const Json& root) {
+    if (!root.is_array() && !root.is_object()) {
+        return root;
+    }
+    struct CopyFrame {
+        const Json* source = nullptr;
+        Json built;
+        bool is_array = false;
+        std::size_t next_index = 0;
+        Json::const_iterator next_it{};
+        std::string key_in_parent;
+        bool parent_is_array = false;
+    };
+    const auto make_frame = [](const Json& source, std::string key_in_parent,
+                               bool parent_is_array) {
+        CopyFrame frame;
+        frame.source = &source;
+        frame.is_array = source.is_array();
+        frame.built = frame.is_array ? Json::array() : Json::object();
+        if (frame.is_array) {
+            frame.built.get_ref<Json::array_t&>().reserve(source.size());
+        } else {
+            frame.next_it = source.begin();
+        }
+        frame.key_in_parent = std::move(key_in_parent);
+        frame.parent_is_array = parent_is_array;
+        return frame;
+    };
+
+    std::vector<CopyFrame> stack;
+    stack.push_back(make_frame(root, std::string(), false));
+
+    while (!stack.empty()) {
+        CopyFrame& frame = stack.back();
+        if (frame.is_array) {
+            if (frame.next_index < frame.source->size()) {
+                const Json& child = (*frame.source)[frame.next_index++];
+                if (child.is_array() || child.is_object()) {
+                    if (child.empty()) {
+                        frame.built.push_back(child.is_array() ? Json::array() : Json::object());
+                    } else {
+                        stack.push_back(make_frame(child, std::string(), true));
+                    }
+                } else {
+                    frame.built.push_back(child);
+                }
+                continue;
+            }
+        } else {
+            if (frame.next_it != frame.source->end()) {
+                const auto it = frame.next_it++;
+                const Json& child = it.value();
+                if (child.is_array() || child.is_object()) {
+                    if (child.empty()) {
+                        frame.built[it.key()] = child.is_array() ? Json::array() : Json::object();
+                    } else {
+                        stack.push_back(make_frame(child, it.key(), false));
+                    }
+                } else {
+                    frame.built[it.key()] = child;
+                }
+                continue;
+            }
+        }
+
+        Json finished = std::move(frame.built);
+        std::string key = std::move(frame.key_in_parent);
+        const bool parent_is_array = frame.parent_is_array;
+        stack.pop_back();
+        if (stack.empty()) {
+            return finished;
+        }
+        if (parent_is_array) {
+            stack.back().built.push_back(std::move(finished));
+        } else {
+            stack.back().built[std::move(key)] = std::move(finished);
+        }
+    }
+    return Json();
+}
+
 class Validator {
 public:
     Validator(const Json& root, std::vector<ValidationIssue>& issues)
@@ -522,7 +606,7 @@ public:
                     deliver(target, nullptr);
                     return;
                 }
-                deliver(target, current_value);
+                deliver(target, copy_json_iterative(current_value));
                 return;
             }
 
@@ -603,7 +687,7 @@ public:
                 const auto items = schema->find("items");
                 if (items == schema->end()) {
                     check_array_bounds(*schema, current_value.size(), current_path);
-                    deliver(target, current_value);
+                    deliver(target, copy_json_iterative(current_value));
                     return;
                 }
                 Frame array_frame;
@@ -689,7 +773,7 @@ public:
                         break;
                     }
                     if (const Json* fallback = default_of(*frame.resource, it.value())) {
-                        frame.parsed[it.key()] = *fallback;
+                        frame.parsed[it.key()] = copy_json_iterative(*fallback);
                     }
                 }
                 if (pushed) {
@@ -734,13 +818,14 @@ public:
                 }
                 if (frame.additional == nullptr) {
                     if (frame.properties == nullptr) {
-                        frame.parsed[it.key()] = it.value(); // no declared shape: keep everything
+                        frame.parsed[it.key()] =
+                            copy_json_iterative(it.value()); // no declared shape: keep everything
                     }
                     continue; // declared shape: strip undeclared members, as Zod does
                 }
                 if (frame.additional->is_boolean()) {
                     if (frame.additional->get<bool>()) {
-                        frame.parsed[it.key()] = it.value();
+                        frame.parsed[it.key()] = copy_json_iterative(it.value());
                     } else {
                         frame.unknown.push_back(it.key());
                     }
@@ -935,7 +1020,7 @@ Expected<CompiledSchema> CompiledSchema::compile(const Json& schema) {
     if (!check_schema(schema, schema, "", 0, error, visited)) {
         return unexpected(error);
     }
-    return CompiledSchema(std::make_shared<const Json>(schema));
+    return CompiledSchema(std::make_shared<const Json>(copy_json_iterative(schema)));
 }
 
 Expected<Json, ValidationFailure> CompiledSchema::validate(const Json& input,

@@ -608,4 +608,64 @@ CommandResult detail(const std::vector<const Listed*>& commands, const Json& arg
                  started);
 }
 
+std::optional<std::string> first_class_fault(const CommandRegistry& registry,
+                                             const StdioServerOptions& options) {
+    const auto& names = options.first_class_tools;
+    const bool hybrid = options.tool_strategy == ToolStrategy::hybrid;
+    if (!names) {
+        if (hybrid) {
+            return std::string("ToolStrategy::hybrid needs first_class_tools: the names of the "
+                               "commands to list as their own tools");
+        }
+        return std::nullopt;
+    }
+    if (!hybrid) {
+        return "first_class_tools is only valid with ToolStrategy::hybrid (got " +
+               std::string(tool_strategy_name(options.tool_strategy)) +
+               "): set the strategy to hybrid, or remove first_class_tools";
+    }
+    if (names->empty()) {
+        return std::string("first_class_tools is empty: a hybrid server with no first-class "
+                           "tools is the lazy strategy, so use ToolStrategy::lazy, or name the "
+                           "commands to list");
+    }
+    const auto listed_anyway = [](std::string_view name) {
+        return std::find(std::begin(afd_meta_tool_names), std::end(afd_meta_tool_names), name) !=
+                   std::end(afd_meta_tool_names) ||
+               std::find(std::begin(afd_context_command_names), std::end(afd_context_command_names),
+                         name) != std::end(afd_context_command_names);
+    };
+    std::set<std::string> seen;
+    for (std::size_t index = 0; index < names->size(); ++index) {
+        const std::string& entry = (*names)[index];
+        const std::string quoted = "first-class tool '" + entry + "'";
+        if (index >= max_first_class_tools) {
+            return quoted + " is beyond the cap of " + std::to_string(max_first_class_tools) +
+                   " first-class tools: remove it, or use the individual or grouped strategy "
+                   "to list more tools";
+        }
+        if (listed_anyway(entry)) {
+            return quoted + " is already listed by the hybrid strategy (meta-tools and context "
+                            "tools always are): remove it";
+        }
+        if (!seen.insert(entry).second) {
+            return quoted + " appears more than once: each tool is listed once";
+        }
+        const auto command = registry.get(entry);
+        if (!command) {
+            const bool bootstrap = std::find(std::begin(afd_bootstrap_command_names),
+                                             std::end(afd_bootstrap_command_names),
+                                             entry) != std::end(afd_bootstrap_command_names);
+            return quoted + " is not a registered command" +
+                   (bootstrap ? ": call afd::register_bootstrap_commands to register it"
+                              : ": register it, or remove it");
+        }
+        if (!is_exposed_to(command->definition.expose, Interface::mcp)) {
+            return quoted + " is not exposed to MCP (expose.mcp is not true), so it cannot be "
+                            "listed: expose it, or remove it";
+        }
+    }
+    return std::nullopt;
+}
+
 } // namespace afd::mcp::surface

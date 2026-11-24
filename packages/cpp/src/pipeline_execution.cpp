@@ -19,10 +19,6 @@ namespace {
 
 constexpr std::size_t max_condition_depth = 128;
 
-double round2(double ms) {
-    return std::round(ms * 100) / 100;
-}
-
 // --- references ---------------------------------------------------------------------------
 
 enum class SourceKind { prev, first, input, index, alias };
@@ -585,7 +581,7 @@ PipelineResult finish(const PipelineRequest& request, std::vector<StepResult> st
         }
     }
     metadata.confidence = any_success ? minimum : 0;
-    metadata.execution_time_ms = round2(elapsed_ms);
+    metadata.execution_time_ms = detail::round2(elapsed_ms);
     metadata.total_steps = static_cast<std::int64_t>(request.steps.size());
     result.steps = std::move(steps);
     return result;
@@ -1015,7 +1011,7 @@ PipelineResult execute_pipeline(const Json& raw_request, const CommandExecutor& 
             }
         }
 
-        const double elapsed = round2(clock->steady_ms() - step_start);
+        const double elapsed = detail::round2(clock->steady_ms() - step_start);
         if (result.success) {
             StepResult success = step_result(i, step, StepStatus::success);
             success.data = result.data;

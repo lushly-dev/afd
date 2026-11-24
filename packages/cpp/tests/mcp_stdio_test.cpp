@@ -806,6 +806,7 @@ public:
 
     void send(std::string_view line) { input_.push(std::string(line) + "\n"); }
     void close() { input_.close(); }
+    bool wait_drained() { return input_.wait_drained(); }
 
     /// Waits up to five seconds for the server to write `text`.
     bool wait_for(std::string_view text) { return output_.wait_for(text); }
@@ -824,15 +825,24 @@ private:
             closed_ = true;
             changed_.notify_all();
         }
+        bool wait_drained() {
+            std::unique_lock lock(mutex_);
+            return drained_.wait_for(lock, std::chrono::seconds(5),
+                                     [&] { return position_ >= data_.size() || closed_; });
+        }
 
     protected:
         int_type underflow() override {
             std::unique_lock lock(mutex_);
             changed_.wait(lock, [&] { return position_ < data_.size() || closed_; });
             if (position_ >= data_.size()) {
+                drained_.notify_all();
                 return traits_type::eof();
             }
             current_ = data_[position_++];
+            if (position_ >= data_.size()) {
+                drained_.notify_all();
+            }
             setg(&current_, &current_, &current_ + 1);
             return traits_type::to_int_type(current_);
         }
@@ -840,6 +850,7 @@ private:
     private:
         std::mutex mutex_;
         std::condition_variable changed_;
+        std::condition_variable drained_;
         std::string data_;
         std::size_t position_ = 0;
         bool closed_ = false;
@@ -973,13 +984,15 @@ TEST_CASE("a call cancelled while its question waits is not answered") {
 }
 
 TEST_CASE("notifications/cancelled cancels the call it names, which gets no reply") {
+    auto started = std::make_shared<std::atomic<bool>>(false);
     auto saw_cancel = std::make_shared<std::atomic<bool>>(false);
     afd::CommandRegistry registry;
     REQUIRE_FALSE(registry.register_command(
         {.name = "job-wait",
          .description = "Wait until cancelled",
          .handler =
-             [saw_cancel](const Json&, afd::CommandContext& context) {
+             [started, saw_cancel](const Json&, afd::CommandContext& context) {
+                 started->store(true, std::memory_order_release);
                  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
                  while (!context.cancellation.is_cancelled() &&
                         std::chrono::steady_clock::now() < deadline) {
@@ -990,18 +1003,216 @@ TEST_CASE("notifications/cancelled cancels the call it names, which gets no repl
              },
          .expose = {.mcp = true}}));
     auto server = make_server(registry);
-    std::istringstream in(
-        R"({"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"job-wait"}})"
-        "\n"
-        R"({"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":7}})"
-        "\n"
-        R"({"jsonrpc":"2.0","id":8,"method":"ping"})"
-        "\n");
-    std::ostringstream out;
-    server->serve(in, out);
+    ClientPipe pipe;
+    std::thread serving([&] { server->serve(pipe.in(), pipe.out()); });
+    struct PipeGuard {
+        ClientPipe& pipe;
+        std::thread& thread;
+        ~PipeGuard() {
+            pipe.close();
+            if (thread.joinable()) {
+                thread.join();
+            }
+        }
+    } const guard{pipe, serving};
+    pipe.send(R"({"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"job-wait"}})");
+    const auto wait_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (!started->load(std::memory_order_acquire) &&
+           std::chrono::steady_clock::now() < wait_deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    REQUIRE(started->load(std::memory_order_acquire));
+    pipe.send(R"({"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":7}})");
+    pipe.send(R"({"jsonrpc":"2.0","id":8,"method":"ping"})");
+    const bool pinged = pipe.wait_for(R"("id":8)");
+    pipe.close();
+    serving.join();
+    CHECK(pinged);
     CHECK(*saw_cancel);
-    CHECK(out.str().find(R"("id":7)") == std::string::npos);
-    CHECK(out.str().find(R"("id":8)") != std::string::npos);
+    for (const auto& line : pipe.written()) {
+        CHECK(line["id"] != 7);
+    }
+}
+
+TEST_CASE("a queued request cancelled before it starts never runs its handler (#1766)") {
+    auto first_started = std::make_shared<std::atomic<bool>>(false);
+    auto release_first = std::make_shared<std::atomic<bool>>(false);
+    auto queued_ran = std::make_shared<std::atomic<bool>>(false);
+    afd::CommandRegistry registry;
+    REQUIRE_FALSE(registry.register_command(
+        {.name = "job-block",
+         .description = "Block until released",
+         .handler =
+             [first_started, release_first](const Json&, afd::CommandContext&) {
+                 first_started->store(true, std::memory_order_release);
+                 const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+                 while (!release_first->load(std::memory_order_acquire) &&
+                        std::chrono::steady_clock::now() < deadline) {
+                     std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                 }
+                 return afd::success(Json{{"blocked", true}});
+             },
+         .expose = {.mcp = true}}));
+    REQUIRE_FALSE(
+        registry.register_command({.name = "job-delete",
+                                   .description = "Mutation that never polls cancellation",
+                                   .handler =
+                                       [queued_ran](const Json&, afd::CommandContext&) {
+                                           queued_ran->store(true, std::memory_order_release);
+                                           return afd::success(Json{{"deleted", true}});
+                                       },
+                                   .mutation = true,
+                                   .expose = {.mcp = true}}));
+    auto server = make_server(registry);
+    ClientPipe pipe;
+    std::thread serving([&] { server->serve(pipe.in(), pipe.out()); });
+    struct PipeGuard {
+        ClientPipe& pipe;
+        std::shared_ptr<std::atomic<bool>> release;
+        std::thread& thread;
+        ~PipeGuard() {
+            release->store(true, std::memory_order_release);
+            pipe.close();
+            if (thread.joinable()) {
+                thread.join();
+            }
+        }
+    } const guard{pipe, release_first, serving};
+    pipe.send(R"({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"job-block"}})");
+    const auto wait_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (!first_started->load(std::memory_order_acquire) &&
+           std::chrono::steady_clock::now() < wait_deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    REQUIRE(first_started->load(std::memory_order_acquire));
+    // Queue id 2 while id 1 is still running, cancel id 2, then queue id 3 behind it.
+    // Waiting for the reader thread to drain the pipe through id 3 guarantees route() has
+    // already processed id 2 and its cancellation before we release id 1.
+    pipe.send(R"({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"job-delete"}})");
+    pipe.send(R"({"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":2}})");
+    pipe.send(R"({"jsonrpc":"2.0","id":3,"method":"ping"})");
+    REQUIRE(pipe.wait_drained());
+    release_first->store(true, std::memory_order_release);
+    const bool pinged = pipe.wait_for(R"("id":3)");
+    pipe.close();
+    serving.join();
+    CHECK(pinged);
+    CHECK_FALSE(queued_ran->load(std::memory_order_acquire));
+    bool saw_1 = false;
+    bool saw_3 = false;
+    for (const auto& line : pipe.written()) {
+        CHECK(line["id"] != 2);
+        saw_1 = saw_1 || line["id"] == 1;
+        saw_3 = saw_3 || line["id"] == 3;
+    }
+    CHECK(saw_1);
+    CHECK(saw_3);
+}
+
+TEST_CASE("StdioServerOptions::default_timeout_ms validates, enforces, overrides, and guards "
+          "confirmation (#1766)") {
+    auto clock = std::make_shared<afd::ManualClock>();
+    int confirmed_runs = 0;
+    afd::CommandRegistry registry({.clock = clock});
+    REQUIRE_FALSE(
+        registry.register_command({.name = "job-slow",
+                                   .description = "Advances clock without polling cancellation",
+                                   .handler =
+                                       [clock](const Json&, afd::CommandContext&) {
+                                           clock->advance(50);
+                                           return afd::success(Json{{"done", true}});
+                                       },
+                                   .expose = {.mcp = true}}));
+    REQUIRE_FALSE(
+        registry.register_command({.name = "job-confirm",
+                                   .description = "Requires confirmation",
+                                   .handler =
+                                       [&confirmed_runs](const Json&, afd::CommandContext&) {
+                                           ++confirmed_runs;
+                                           return afd::success(Json{{"ran", true}});
+                                       },
+                                   .mutation = true,
+                                   .confirm_prompt = "Run job-confirm?",
+                                   .expose = {.mcp = true}}));
+
+    // Negative and non-finite defaults fail creation.
+    CHECK_FALSE(afd::mcp::StdioServer::create(registry, {.default_timeout_ms = -1.0}).has_value());
+    CHECK_FALSE(afd::mcp::StdioServer::create(
+                    registry, {.default_timeout_ms = std::numeric_limits<double>::infinity()})
+                    .has_value());
+    CHECK_FALSE(afd::mcp::StdioServer::create(
+                    registry, {.default_timeout_ms = std::numeric_limits<double>::quiet_NaN()})
+                    .has_value());
+
+    const std::string call =
+        R"({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"job-slow"}})";
+
+    // Positive default_timeout_ms times out a late handler that never polls cancellation.
+    auto timed =
+        afd::mcp::StdioServer::create(registry, {.clock = clock, .default_timeout_ms = 25});
+    REQUIRE(timed.has_value());
+    const auto timed_reply = (*timed)->handle_message(call);
+    REQUIRE(timed_reply.has_value());
+    const Json timed_body = body(Json::parse(*timed_reply)["result"]);
+    CHECK_FALSE(timed_body["success"].get<bool>());
+    CHECK(timed_body["error"]["code"] == "TIMEOUT");
+
+    // 0 and std::nullopt both disable the default deadline.
+    for (const std::optional<double> disabled :
+         {std::optional<double>(0.0), std::optional<double>(std::nullopt)}) {
+        auto unlimited = afd::mcp::StdioServer::create(
+            registry, {.clock = clock, .default_timeout_ms = disabled});
+        REQUIRE(unlimited.has_value());
+        const auto ok_reply = (*unlimited)->handle_message(call);
+        REQUIRE(ok_reply.has_value());
+        CHECK(body(Json::parse(*ok_reply)["result"])["success"].get<bool>());
+    }
+
+    // context_hook can override default_timeout_ms (both tightening and disabling with 0).
+    auto tightened = afd::mcp::StdioServer::create(
+        registry, {.clock = clock,
+                   .context_hook = [](afd::CommandContext& ctx,
+                                      const afd::mcp::RequestInfo&) { ctx.timeout_ms = 10.0; },
+                   .default_timeout_ms = 500.0});
+    REQUIRE(tightened.has_value());
+    const auto tight_reply = (*tightened)->handle_message(call);
+    REQUIRE(tight_reply.has_value());
+    const Json tight_body = body(Json::parse(*tight_reply)["result"]);
+    CHECK_FALSE(tight_body["success"].get<bool>());
+    CHECK(tight_body["error"]["code"] == "TIMEOUT");
+    CHECK(tight_body["error"]["details"]["timeoutMs"] == 10);
+
+    auto disabled_by_hook = afd::mcp::StdioServer::create(
+        registry, {.clock = clock,
+                   .context_hook = [](afd::CommandContext& ctx,
+                                      const afd::mcp::RequestInfo&) { ctx.timeout_ms = 0.0; },
+                   .default_timeout_ms = 10.0});
+    REQUIRE(disabled_by_hook.has_value());
+    const auto hook_ok = (*disabled_by_hook)->handle_message(call);
+    REQUIRE(hook_ok.has_value());
+    CHECK(body(Json::parse(*hook_ok)["result"])["success"].get<bool>());
+
+    // 2025 in-band confirmation answered affirmatively AFTER default_timeout_ms expires must
+    // return TIMEOUT and never invoke the mutation handler.
+    auto confirm_server =
+        afd::mcp::StdioServer::create(registry, {.confirmations = ConfirmationMode::require_human,
+                                                 .clock = clock,
+                                                 .default_timeout_ms = 25.0});
+    REQUIRE(confirm_server.has_value());
+    REQUIRE((*confirm_server)->handle_message(initialize_with_elicitation).has_value());
+    const std::string confirm_call =
+        R"({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"job-confirm"}})";
+    const auto late_confirm =
+        (*confirm_server)
+            ->handle_message(confirm_call, [clock](const Json&) -> std::optional<Json> {
+                clock->advance(30);
+                return Json{{"action", "accept"}, {"content", {{"confirm", true}}}};
+            });
+    REQUIRE(late_confirm.has_value());
+    const Json confirm_body = body(Json::parse(*late_confirm)["result"]);
+    CHECK_FALSE(confirm_body["success"].get<bool>());
+    CHECK(confirm_body["error"]["code"] == "TIMEOUT");
+    CHECK(confirmed_runs == 0);
 }
 
 // --- Contexts (spec/tool-strategies.md, "Contexts") ---------------------------------------------

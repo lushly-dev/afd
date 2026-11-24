@@ -92,6 +92,9 @@ enum class ToolStrategy {
 /// The most first-class tools a hybrid server lists (spec/tool-strategies.md, H5).
 inline constexpr std::size_t max_first_class_tools = 8;
 
+/// Default per-command deadline in milliseconds (`spec/execution-controls.md`, `defaultTimeoutMs`).
+inline constexpr double default_command_timeout_ms = 30000.0;
+
 /// The strategy's name, as `afd-help` reports it: `individual`, `grouped`, `lazy` or `hybrid`.
 std::string_view tool_strategy_name(ToolStrategy strategy) noexcept;
 
@@ -255,6 +258,12 @@ struct StdioServerOptions {
     /// skill at startup, and serves `skills/list`, `skills/get`, skill files as resources, and
     /// (when `directory_read` is true) `resources/directory/read`.
     std::optional<SkillCatalog> skills;
+    /// Default per-command deadline in milliseconds (`spec/execution-controls.md`,
+    /// `defaultTimeoutMs`). Applied when `context_hook` leaves `CommandContext::timeout_ms` unset,
+    /// without mutating `CommandContext::timeout_ms` or journal context digests. Set to
+    /// `std::nullopt` or `0` to disable the default deadline. Negative or non-finite values fail
+    /// `StdioServer::create`.
+    std::optional<double> default_timeout_ms = default_command_timeout_ms;
 };
 
 /// Sends a request (`{"method", "params"}`) to the client and returns its `result`, or

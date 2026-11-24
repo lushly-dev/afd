@@ -150,11 +150,9 @@ prove that queued work cannot start. Started commands that ignore cancellation c
 - [`vectors/execution-controls.json`](./vectors/execution-controls.json) pins the defaults,
   deadlines, cancellation propagation, batch size/parallelism limits and validation issue cap.
   TypeScript ([#2128](https://github.com/lushly-dev/afd/issues/2128)), Python
-  ([#2129](https://github.com/lushly-dev/afd/issues/2129)) and Rust
-  ([#2130](https://github.com/lushly-dev/afd/issues/2130)) execute every case; C++
-  ([#2131](https://github.com/lushly-dev/afd/issues/2131)) executes batch cancellation, batch limits
-  and the validation issue cap, with per-call/default registry deadlines and single-command
-  cancellation tracked in [#1766](https://github.com/lushly-dev/afd/issues/1766) under epic
-  [#1551](https://github.com/lushly-dev/afd/issues/1551).
+  ([#2129](https://github.com/lushly-dev/afd/issues/2129)), Rust
+  ([#2130](https://github.com/lushly-dev/afd/issues/2130)) and C++
+  ([#2131](https://github.com/lushly-dev/afd/issues/2131),
+  [#1766](https://github.com/lushly-dev/afd/issues/1766)) execute every case.
 - [`vectors/batch-controls.json`](./vectors/batch-controls.json) pins serial batch and pipeline
   control cases across all four languages.

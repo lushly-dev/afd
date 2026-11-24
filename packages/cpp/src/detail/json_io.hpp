@@ -6,13 +6,16 @@
 
 #include "afd/actor.hpp"
 #include "afd/batch.hpp"
+#include "afd/command.hpp"
 #include "afd/errors.hpp"
 #include "afd/json.hpp"
 #include "afd/metadata.hpp"
 #include "afd/pipeline.hpp"
 #include "afd/result.hpp"
+#include "afd/similarity.hpp"
 #include "afd/streaming.hpp"
 
+#include <cmath>
 #include <cstdint>
 #include <initializer_list>
 #include <optional>
@@ -270,5 +273,39 @@ inline void merge_extra(Json& object, const Json& extra) {
 
 /// A number in JavaScript's `String(number)` form, for messages such as "timed out after 1500ms".
 std::string format_number(double value);
+
+/// JavaScript's `Number.MAX_SAFE_INTEGER` (2^53 - 1).
+inline constexpr std::int64_t max_safe_integer = 9007199254740991;
+inline constexpr double max_safe_integer_double = 9007199254740991.0;
+
+/// Node timers fire immediately above 2^31 - 1 ms, so TypeScript caps per-command timeouts there.
+inline constexpr double max_timeout_ms = 2147483647.0;
+
+/// Rounds a millisecond duration to two decimal places (matches TypeScript batch/pipeline timing).
+inline double round2(double ms) {
+    return std::round(ms * 100) / 100;
+}
+
+/// Serializes a command's examples array for `afd-help`, `afd-detail` and MCP tool `_meta`.
+inline Json examples_json(const std::vector<CommandExample>& examples) {
+    Json out = Json::array();
+    for (const auto& example : examples) {
+        out.push_back(Json{{"title", example.title}, {"input", example.input}});
+    }
+    return out;
+}
+
+/// Shared late-finish `TIMEOUT` result (`spec/execution-controls.md`, #1766).
+inline CommandResult command_timed_out(std::string_view name, double timeout_ms) {
+    return failure(create_error(
+        error_codes::TIMEOUT,
+        "Command '" + truncate_name(name) + "' timed out after " + format_number(timeout_ms) + "ms",
+        {.suggestion =
+             "Retry with a larger timeout. The command was signalled to abort but may have "
+             "completed, so check its effect before retrying a mutation.",
+         .retryable = true,
+         .details =
+             Json{{"command", std::string(name)}, {"timeoutMs", wire::number(timeout_ms)}}}));
+}
 
 } // namespace afd::detail

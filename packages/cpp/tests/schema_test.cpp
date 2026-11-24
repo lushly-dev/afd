@@ -565,3 +565,101 @@ TEST_CASE("a command's input schema must be an object, though booleans may sit b
         CHECK(refused->find("must be a JSON Schema object") != std::string::npos);
     }
 }
+
+TEST_CASE("pass-through schema branches copy deep subtrees iteratively without stack overflow "
+          "(#2404)") {
+    // Build a 256-level nested JSON tree (the parse_bounded default depth limit), mixing objects,
+    // arrays, scalars and empty containers so every branch of iterative copying is exercised.
+    // Built fresh via move for each sub-case so the test itself never invokes nlohmann::json's
+    // recursive copy constructor under Emscripten's 64 KiB Wasm stack.
+    const auto make_deep = []() {
+        afd::Json value = afd::Json{{"leaf", 42},
+                                    {"empty_arr", afd::Json::array()},
+                                    {"empty_obj", afd::Json::object()},
+                                    {"flag", true}};
+        for (int i = 0; i < 256; ++i) {
+            if (i % 2 == 0) {
+                afd::Json obj = afd::Json::object();
+                obj["child"] = std::move(value);
+                value = std::move(obj);
+            } else {
+                afd::Json arr = afd::Json::array();
+                arr.push_back(std::move(value));
+                value = std::move(arr);
+            }
+        }
+        return value;
+    };
+
+    const auto verify_deep = [](const afd::Json& value) {
+        const afd::Json* cursor = &value;
+        for (int i = 255; i >= 0; --i) {
+            if (i % 2 == 0) {
+                REQUIRE(cursor->is_object());
+                REQUIRE(cursor->contains("child"));
+                cursor = &(*cursor)["child"];
+            } else {
+                REQUIRE(cursor->is_array());
+                REQUIRE(cursor->size() == 1);
+                cursor = &(*cursor)[0];
+            }
+        }
+        REQUIRE(cursor->is_object());
+        CHECK((*cursor)["leaf"] == 42);
+        CHECK((*cursor)["empty_arr"].is_array());
+        CHECK((*cursor)["empty_arr"].empty());
+        CHECK((*cursor)["empty_obj"].is_object());
+        CHECK((*cursor)["empty_obj"].empty());
+        CHECK((*cursor)["flag"] == true);
+    };
+
+    // 1. Boolean `true` schema.
+    const afd::Json deep = make_deep();
+    const auto bool_true = compile(afd::Json(true));
+    const auto bool_res = bool_true.validate(deep);
+    REQUIRE(bool_res.has_value());
+    verify_deep(*bool_res);
+
+    // 2. Untyped `{}` schema.
+    const auto untyped = compile(afd::Json::object());
+    const auto untyped_res = untyped.validate(deep);
+    REQUIRE(untyped_res.has_value());
+    verify_deep(*untyped_res);
+
+    // 3. Array without `items`.
+    const auto open_array = compile({{"type", "array"}});
+    const auto arr_res = open_array.validate(deep);
+    REQUIRE(arr_res.has_value());
+    verify_deep(*arr_res);
+
+    // 4. Object with no declared `properties` and no `additionalProperties`.
+    const auto open_object = compile({{"type", "object"}});
+    afd::Json wrapped_open = afd::Json::object();
+    wrapped_open["payload"] = make_deep();
+    const auto obj_res = open_object.validate(wrapped_open);
+    REQUIRE(obj_res.has_value());
+    REQUIRE(obj_res->contains("payload"));
+    verify_deep((*obj_res)["payload"]);
+
+    // 5. Object with `additionalProperties: true`.
+    const auto add_true = compile({{"type", "object"},
+                                   {"properties", {{"known", {{"type", "string"}}}}},
+                                   {"additionalProperties", true}});
+    afd::Json wrapped_add = afd::Json::object();
+    wrapped_add["known"] = "ok";
+    wrapped_add["extra"] = make_deep();
+    const auto add_res = add_true.validate(wrapped_add);
+    REQUIRE(add_res.has_value());
+    CHECK((*add_res)["known"] == "ok");
+    REQUIRE(add_res->contains("extra"));
+    verify_deep((*add_res)["extra"]);
+
+    // 6. Deeply nested `default` value copied both at `CompiledSchema::compile` and at validation.
+    afd::Json default_schema = {{"type", "object"},
+                                {"properties", {{"fallback", {{"default", make_deep()}}}}}};
+    const auto with_default = compile(default_schema);
+    const auto def_res = with_default.validate(afd::Json::object());
+    REQUIRE(def_res.has_value());
+    REQUIRE(def_res->contains("fallback"));
+    verify_deep((*def_res)["fallback"]);
+}

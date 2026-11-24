@@ -169,11 +169,12 @@
 			"evidence": ["packages/cpp/tests/registry_test.cpp"]
 		},
 		"single.cancellation": {
-			"status": "partial",
-			"note": "cooperative `CancellationToken` on batch/direct execution; per-call/default registry deadlines and single-command cancellation tracked in #1766",
+			"status": "yes",
+			"note": "cooperative `CancellationToken` on registry, direct, stdio, batch and pipeline execution; `CommandRegistry::execute` enforces pre-dispatch/pre-handler `COMMAND_CANCELLED` and `timeout_ms` (`TIMEOUT`), `StdioServerOptions::default_timeout_ms` defaults to 30000 ms, and queued cancelled stdio requests never run (#1766)",
 			"evidence": [
 				"packages/cpp/include/afd/runtime.hpp",
-				"packages/cpp/tests/execution_controls_vectors_test.cpp"
+				"packages/cpp/tests/execution_controls_vectors_test.cpp",
+				"packages/cpp/tests/mcp_stdio_test.cpp"
 			]
 		},
 		"single.clock-random": {

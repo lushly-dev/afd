@@ -1308,3 +1308,53 @@ test('loam.yml gates test:webkit to darwin and reports it as remote only on win3
 		assert.match(suiteRemoteOnly(suite, platform), /test:webkit \(darwin only\)/);
 	}
 });
+
+test('stepExecution expands cargo fmt --all --check per crate on Windows (#1636)', () => {
+	const crates = ['umbel', 'umbel-sdk', 'umbel-store'];
+	const win = stepExecution('cargo fmt --all --check', {
+		platform: 'win32',
+		cwd: '/fake/umbel',
+		workspaceCrates: (dir) => {
+			assert.equal(dir, '/fake/umbel');
+			return crates;
+		},
+	});
+	assert.deepEqual(win, {
+		kind: 'execFiles',
+		commands: [
+			{ file: 'cargo', args: ['fmt', '-p', 'umbel', '--check'] },
+			{ file: 'cargo', args: ['fmt', '-p', 'umbel-sdk', '--check'] },
+			{ file: 'cargo', args: ['fmt', '-p', 'umbel-store', '--check'] },
+		],
+	});
+	// Non-Windows keeps the single workspace invocation.
+	assert.deepEqual(
+		stepExecution('cargo fmt --all --check', {
+			platform: 'linux',
+			workspaceCrates: () => {
+				throw new Error('should not query metadata on linux');
+			},
+		}),
+		{ kind: 'shell', command: 'cargo fmt --all --check' }
+	);
+	// Single-crate cargo fmt --check is untouched on Windows.
+	assert.deepEqual(
+		stepExecution('cargo fmt --check', {
+			platform: 'win32',
+			workspaceCrates: () => {
+				throw new Error('should not query metadata without --all');
+			},
+		}),
+		{ kind: 'shell', command: 'cargo fmt --check' }
+	);
+	// Empty workspace metadata fails loudly rather than silently passing.
+	assert.throws(
+		() =>
+			stepExecution('cargo fmt --all --check', {
+				platform: 'win32',
+				cwd: '/fake/empty',
+				workspaceCrates: () => [],
+			}),
+		/no workspace crates/
+	);
+});

@@ -14,6 +14,7 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
@@ -29,6 +30,7 @@
 #include "detail/canonical_json.hpp"
 #include "detail/exceptions.hpp"
 #include "detail/hmac.hpp"
+#include "detail/json_io.hpp"
 #include "detail/output_budget.hpp"
 #include "detail/sha256.hpp"
 #include "mcp_stdio/resources.hpp"
@@ -361,11 +363,14 @@ struct StdioServer::State {
     std::shared_ptr<ContextStack> session = std::make_shared<ContextStack>();
     // Validated opt-in resources and Agent Skills catalog (R1-R6, S1-S7).
     surface::ResourceService resource_service;
+    // Whether the caller explicitly supplied `options.clock` (if not, leave `context.clock` unset
+    // so the registry's own clock applies).
+    bool configured_clock = false;
 
     State(const CommandRegistry& source, StdioServerOptions settings, std::string secret,
-          surface::ResourceService resources)
+          surface::ResourceService resources, bool has_configured_clock)
         : registry(source), options(std::move(settings)), key(std::move(secret)),
-          resource_service(std::move(resources)) {}
+          resource_service(std::move(resources)), configured_clock(has_configured_clock) {}
 
     [[nodiscard]] std::int64_t now() const { return options.clock->wall_ms(); }
 
@@ -756,9 +761,16 @@ struct StdioServer::State {
         context.trace_id = "trace-" + std::to_string(options.clock->wall_ms()) + "-" +
                            random_uuid(random).substr(0, 8);
         context.cancellation = cancellation;
+        if (configured_clock) {
+            context.clock = options.clock;
+        }
         if (options.context_hook) {
             options.context_hook(context, info);
         }
+        // Carry the server default separately from `context.timeout_ms` so default server
+        // deadlines do not alter `JournalContextDigest` hashes (spec/journal.md, #1766).
+        context.default_timeout_ms = options.default_timeout_ms;
+        context.deadline_armed = false;
         // Transport-owned: context_hook cannot move MCP off Interface::mcp or forge approvals.
         context.surface = Interface::mcp;
         context.approval.reset();
@@ -908,9 +920,36 @@ struct StdioServer::State {
                                 (info.modern || static_cast<bool>(ask));
         Round round = info.modern ? modern_round(params, binding) : Round{};
 
+        // Arm one absolute deadline across the confirmation wait and retry so a late affirmative
+        // answer on a 2025 connection cannot start a mutation after the deadline expired (#1766).
+        CommandContext call_ctx = context;
+        const std::optional<double> requested_timeout =
+            call_ctx.timeout_ms.has_value() ? call_ctx.timeout_ms : call_ctx.default_timeout_ms;
+        const std::optional<double> timeout =
+            requested_timeout && std::isfinite(*requested_timeout) && *requested_timeout > 0
+                ? std::optional<double>(
+                      (std::min)(std::ceil(*requested_timeout), detail::max_timeout_ms))
+                : std::nullopt;
+        const double reported_timeout_ms = timeout ? *requested_timeout : 0.0;
+        std::optional<CancellationSource> deadline;
+        if (timeout) {
+            const std::shared_ptr<const Clock> deadline_clock =
+                call_ctx.clock ? call_ctx.clock : options.clock;
+            deadline.emplace(call_ctx.cancellation, deadline_clock->steady_ms() + *timeout,
+                             deadline_clock);
+            call_ctx.cancellation = deadline->token();
+            call_ctx.deadline_armed = true;
+        }
+
         for (int rounds = 0;; ++rounds) {
-            Attempt next = attempt(name, arguments, bound, valid, context, command, gated,
+            if (deadline && deadline->token().deadline_passed()) {
+                return tool_result(detail::command_timed_out(name, reported_timeout_ms));
+            }
+            Attempt next = attempt(name, arguments, bound, valid, call_ctx, command, gated,
                                    acknowledged, can_elicit, round, binding, how);
+            if (deadline && deadline->token().deadline_passed()) {
+                return tool_result(detail::command_timed_out(name, reported_timeout_ms));
+            }
             if (next.complete) {
                 return std::move(*next.complete);
             }
@@ -927,6 +966,9 @@ struct StdioServer::State {
             for (const auto& [key_name, request] :
                  (*next.input_required)["inputRequests"].items()) {
                 const auto answer = ask_in_band(request, info, ask);
+                if (deadline && deadline->token().deadline_passed()) {
+                    return tool_result(detail::command_timed_out(name, reported_timeout_ms));
+                }
                 if (!answer) {
                     // Cancelled (serve sends no reply then), or the client went away, timed out
                     // or answered with an error: nobody declined, so do not say so.
@@ -1832,72 +1874,6 @@ std::string_view tool_strategy_name(ToolStrategy strategy) noexcept {
     return "grouped";
 }
 
-namespace {
-
-/// The first-class set checked against the strategy and the registry (spec/tool-strategies.md,
-/// H1, H2 and H5). Every message names the offending entry or option.
-std::optional<std::string> first_class_fault(const CommandRegistry& registry,
-                                             const StdioServerOptions& options) {
-    const auto& names = options.first_class_tools;
-    const bool hybrid = options.tool_strategy == ToolStrategy::hybrid;
-    if (!names) {
-        if (hybrid) {
-            return std::string("ToolStrategy::hybrid needs first_class_tools: the names of the "
-                               "commands to list as their own tools");
-        }
-        return std::nullopt;
-    }
-    if (!hybrid) {
-        return "first_class_tools is only valid with ToolStrategy::hybrid (got " +
-               std::string(tool_strategy_name(options.tool_strategy)) +
-               "): set the strategy to hybrid, or remove first_class_tools";
-    }
-    if (names->empty()) {
-        return std::string("first_class_tools is empty: a hybrid server with no first-class "
-                           "tools is the lazy strategy, so use ToolStrategy::lazy, or name the "
-                           "commands to list");
-    }
-    const auto listed_anyway = [](std::string_view name) {
-        return std::find(std::begin(afd_meta_tool_names), std::end(afd_meta_tool_names), name) !=
-                   std::end(afd_meta_tool_names) ||
-               std::find(std::begin(afd_context_command_names), std::end(afd_context_command_names),
-                         name) != std::end(afd_context_command_names);
-    };
-    std::set<std::string> seen;
-    for (std::size_t index = 0; index < names->size(); ++index) {
-        const std::string& entry = (*names)[index];
-        const std::string quoted = "first-class tool '" + entry + "'";
-        if (index >= max_first_class_tools) {
-            return quoted + " is beyond the cap of " + std::to_string(max_first_class_tools) +
-                   " first-class tools: remove it, or use the individual or grouped strategy "
-                   "to list more tools";
-        }
-        if (listed_anyway(entry)) {
-            return quoted + " is already listed by the hybrid strategy (meta-tools and context "
-                            "tools always are): remove it";
-        }
-        if (!seen.insert(entry).second) {
-            return quoted + " appears more than once: each tool is listed once";
-        }
-        const auto command = registry.get(entry);
-        if (!command) {
-            const bool bootstrap = std::find(std::begin(afd_bootstrap_command_names),
-                                             std::end(afd_bootstrap_command_names),
-                                             entry) != std::end(afd_bootstrap_command_names);
-            return quoted + " is not a registered command" +
-                   (bootstrap ? ": call afd::register_bootstrap_commands to register it"
-                              : ": register it, or remove it");
-        }
-        if (!is_exposed_to(command->definition.expose, Interface::mcp)) {
-            return quoted + " is not exposed to MCP (expose.mcp is not true), so it cannot be "
-                            "listed: expose it, or remove it";
-        }
-    }
-    return std::nullopt;
-}
-
-} // namespace
-
 Expected<std::unique_ptr<StdioServer>> StdioServer::create(const CommandRegistry& registry,
                                                            StdioServerOptions options) {
     std::string secret = options.state_secret;
@@ -1919,7 +1895,17 @@ Expected<std::unique_ptr<StdioServer>> StdioServer::create(const CommandRegistry
     if (options.tools_list_ttl_ms && *options.tools_list_ttl_ms < 0) {
         return unexpected(std::string("tools_list_ttl_ms must not be negative"));
     }
-    if (auto fault = first_class_fault(registry, options)) {
+    if (options.default_timeout_ms) {
+        const double timeout_value = *options.default_timeout_ms;
+        if (!std::isfinite(timeout_value) || timeout_value < 0.0) {
+            return unexpected(
+                std::string("default_timeout_ms must be a positive finite number, 0, or unset"));
+        }
+        if (timeout_value == 0.0) {
+            options.default_timeout_ms.reset();
+        }
+    }
+    if (auto fault = surface::first_class_fault(registry, options)) {
         return unexpected(std::move(*fault));
     }
     if (!options.contexts.empty()) {
@@ -1974,12 +1960,14 @@ Expected<std::unique_ptr<StdioServer>> StdioServer::create(const CommandRegistry
     }
     options.resources.reset();
     options.skills.reset();
+    const bool has_configured_clock = options.clock != nullptr;
     if (!options.clock) {
         options.clock = std::make_shared<SystemClock>();
     }
     options.state_secret.clear();
-    return std::unique_ptr<StdioServer>(new StdioServer(std::make_unique<State>(
-        registry, std::move(options), std::move(secret), std::move(*resource_service))));
+    return std::unique_ptr<StdioServer>(new StdioServer(
+        std::make_unique<State>(registry, std::move(options), std::move(secret),
+                                std::move(*resource_service), has_configured_clock)));
 }
 
 StdioServer::StdioServer(std::unique_ptr<State> state) : state_(std::move(state)) {}
@@ -2220,11 +2208,13 @@ void StdioServer::serve(std::istream& in, std::ostream& out) {
             }
             line = std::move(connection.queue.front());
             connection.queue.pop_front();
+            // A request cancelled while waiting in the queue must never run its handler or receive
+            // a reply (#1766).
+            if (line.cancelled) {
+                continue;
+            }
             connection.current_id = line.id;
             connection.current_cancel = std::make_shared<CancellationSource>();
-            if (line.cancelled) {
-                connection.current_cancel->cancel();
-            }
             token = connection.current_cancel->token();
         }
         const auto reply =
