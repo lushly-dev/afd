@@ -1,8 +1,8 @@
-import { SPECIMEN_COMPONENTS } from '@lushly-dev/violet-core/css';
 import type { Node, OperationRecord } from '@lushly-dev/violet-core/types';
 import { selectSubtree } from '../node/scope.js';
 import type { Database } from '../registry.js';
 import { collectDefinitions } from '../token/definitions.js';
+import { SPECIMEN_INTERFACE_COMPONENTS } from './model.js';
 
 /** A live node and the root of its tree, where the specimen map is stored */
 export async function treeRootOf(
@@ -28,4 +28,4 @@ export async function treeTokenIds(db: Database, rootId: string): Promise<Set<st
 }
 
 /** Known components, for error suggestions */
-export const KNOWN_COMPONENTS = Object.keys(SPECIMEN_COMPONENTS);
+export const KNOWN_COMPONENTS = SPECIMEN_INTERFACE_COMPONENTS;

@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { analyzeTrendsCommand } from '../commands/analyze/trends.js';
 import { nodesGraphCommand } from '../commands/node/graph.js';
 import type { CommandContext } from '../commands/registry.js';
+import { specimenGetCommand } from '../commands/specimen/get.js';
 import { tokensMatrixCommand } from '../commands/token/matrix.js';
 import { buildTokenCatalog, hsl, seedRealisticSystem } from './realistic-system.js';
 
@@ -176,6 +177,17 @@ describe('realistic demo system', () => {
 		expect(recorded).toEqual([0, 2, 1, 3, 4]);
 		// The Android text trial opens an issue that is fixed before the planted problems land
 		expect(result.data?.summary.history).toMatchObject({ lastOpen: 4, introduced: 5, fixed: 1 });
+	});
+
+	it('maps its <component>.<role> tokens so the specimens draw (#1786)', async () => {
+		const result = await specimenGetCommand.handler({ nodeId: 'xbox-dark' }, context);
+		if (!result.success || !result.data) throw new Error(result.error?.message);
+		expect(result.data.stored).toBe(true);
+		const drawn = result.data.components
+			.filter((entry) => entry.drawn)
+			.map((entry) => entry.component);
+		expect(drawn).toEqual(expect.arrayContaining(['button', 'input', 'card', 'link', 'checkbox']));
+		expect(result.data.map.button).toMatchObject({ background: 'button.background' });
 	});
 
 	it('converts HSL to hex', () => {

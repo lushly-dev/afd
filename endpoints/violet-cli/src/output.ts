@@ -866,7 +866,7 @@ export interface SpecimenData {
 		drawn: boolean;
 		roles: Array<{
 			role: string;
-			tokenId: string;
+			tokenId: string | null;
 			source: string;
 			resolves: boolean;
 			valid: boolean;
@@ -886,7 +886,8 @@ export function formatSpecimen(data: SpecimenData): string {
 			.map((role) => [
 				entry.component,
 				role.role,
-				role.tokenId,
+				// Only roles that resolve or are mapped are listed, and those have a token
+				role.tokenId ?? '',
 				role.source,
 				role.value === undefined ? chalk.dim('not on this node') : String(role.value),
 				role.valid ? '✓' : chalk.yellow('✗'),
@@ -899,7 +900,7 @@ export function formatSpecimen(data: SpecimenData): string {
 			: chalk.dim('No component role resolves on this node'),
 		'',
 		chalk.dim(
-			`${data.stored ? `map stored on ${data.rootId}` : `no map on ${data.rootId}: naming convention <component>.<role>`} · drawn on ${data.nodeId}: ${drawn.length > 0 ? drawn.join(', ') : 'none'}`,
+			`${data.stored ? `map stored on ${data.rootId}` : `no map on ${data.rootId}: the violet-elements interface ids`} · drawn on ${data.nodeId}: ${drawn.length > 0 ? drawn.join(', ') : 'none'}`,
 		),
 	];
 	return lines.join('\n');

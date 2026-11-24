@@ -1367,6 +1367,10 @@ describe('CLI behaviour', () => {
 		});
 
 		it('maps specimen roles to tokens and shows what draws', async () => {
+			await run('specimen', 'get', 'next');
+			expect(logs.join('\n')).toContain('no map on global: the violet-elements interface ids');
+
+			logs.length = 0;
 			await run('specimen', 'set', 'next', 'button.background=btn.bg', 'button.border=btn.bg');
 			expect(logs.join('\n')).toContain("Stored the specimen map on 'global'");
 

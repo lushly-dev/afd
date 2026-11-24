@@ -7,6 +7,7 @@ import { specimenGetCommand } from './get.js';
 import { specimenSetCommand } from './set.js';
 
 export * from './get.js';
+export * from './model.js';
 export * from './set.js';
 
 /**

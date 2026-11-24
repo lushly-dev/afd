@@ -1,13 +1,10 @@
-import {
-	SPECIMEN_COMPONENTS,
-	conventionToken,
-	specimenRoleDeclaration,
-} from '@lushly-dev/violet-core/css';
+import { specimenRoleDeclaration } from '@lushly-dev/violet-core/css';
 import { InheritanceResolutionError, resolveNodeTokenMap } from '@lushly-dev/violet-core/engine';
 import { SpecimenMapSchema } from '@lushly-dev/violet-core/types';
 import { z } from 'zod';
 import { ErrorCodes, failure, success } from '../../types/command-result.js';
 import type { CommandContext, CommandDefinition } from '../registry.js';
+import { SPECIMEN_INTERFACE, SPECIMEN_INTERFACE_MAP } from './model.js';
 import { treeRootOf } from './shared.js';
 
 /**
@@ -19,10 +16,16 @@ const InputSchema = z.object({
 
 const RoleSchema = z.object({
 	role: z.string(),
-	/** The token that draws the role on this node */
-	tokenId: z.string(),
-	/** From the stored map, or the `<component>.<role>` naming convention */
-	source: z.enum(['map', 'convention']),
+	/** The token that draws the role on this node; null when neither the map nor the interface names one */
+	tokenId: z.string().nullable(),
+	/**
+	 * From the stored map; from the components' interface (`interface.json`), when the map
+	 * leaves the role out; or `unmapped`, when no interface id carries the role and the map
+	 * does not name one
+	 */
+	source: z.enum(['map', 'interface', 'unmapped']),
+	/** The interface token id the component reads for the role, whether or not the map overrides it */
+	interfaceTokenId: z.string().nullable(),
 	/** The token resolves on the node */
 	resolves: z.boolean(),
 	/** Its value passes the role's CSS validator, so the role is drawn */
@@ -43,11 +46,15 @@ const OutputSchema = z.object({
 	stored: z.boolean(),
 	updatedAt: z.string().nullable(),
 	updatedBy: z.string().nullable(),
+	/** The components' token interface the unmapped roles are drawn from */
+	interface: z.object({ package: z.string(), contractVersion: z.number() }),
 	/** Every component the Specimens view draws, with each role on this node */
 	components: z.array(
 		z.object({
 			component: z.string(),
 			label: z.string(),
+			/** The violet-elements component the specimen samples, when one draws it on its own */
+			element: z.string().nullable(),
 			/** The role the specimen cannot be drawn without */
 			required: z.string(),
 			/** Drawn on this node: its required role resolves to a valid value */
@@ -60,11 +67,40 @@ const OutputSchema = z.object({
 type Output = z.infer<typeof OutputSchema>;
 
 /**
+ * A role on a node: the stored map's token, else the interface id, and whether it
+ * resolves there and passes the role's validator
+ */
+function roleOnNode(
+	role: string,
+	mapped: string | null,
+	interfaceTokenId: string | null,
+	tokens: Awaited<ReturnType<typeof resolveNodeTokenMap>>,
+): z.infer<typeof RoleSchema> {
+	const tokenId = mapped ?? interfaceTokenId;
+	const token = tokenId === null ? undefined : tokens.get(tokenId);
+	const value = token?.resolvedValue;
+	let source: z.infer<typeof RoleSchema>['source'] = 'unmapped';
+	if (mapped) source = 'map';
+	else if (interfaceTokenId) source = 'interface';
+	return {
+		role,
+		tokenId,
+		source,
+		interfaceTokenId,
+		resolves: Boolean(token),
+		valid: value !== undefined && specimenRoleDeclaration(role, value) !== null,
+		...(value !== undefined ? { value } : {}),
+	};
+}
+
+/**
  * specimen.get command
  *
  * The specimen role map of a node's tree (#118) and, for each component the
- * Specimens view draws, which token draws each role on the node, whether it
- * resolves there, and whether its value passes the role's CSS validator.
+ * Specimens view draws, which token draws each role on the node (the stored
+ * map's, or else the id the component reads from its token interface, #1786),
+ * whether it resolves there, and whether its value passes the role's CSS
+ * validator.
  */
 export const specimenGetCommand: CommandDefinition<typeof InputSchema, Output> = {
 	name: 'specimen.get',
@@ -101,24 +137,19 @@ export const specimenGetCommand: CommandDefinition<typeof InputSchema, Output> =
 
 		const record = await db.getSpecimenMap(tree.rootId);
 		const map = record?.map ?? {};
-		const components = Object.entries(SPECIMEN_COMPONENTS).map(([component, specimen]) => {
-			const { label, required } = specimen;
-			const roles = specimen.roles.map((role) => {
-				const mapped = map[component]?.[role];
-				const tokenId = mapped ?? conventionToken(component, role);
-				const token = tokens.get(tokenId);
-				const value = token?.resolvedValue;
-				return {
+		const components = Object.entries(SPECIMEN_INTERFACE_MAP).map(([component, specimen]) => {
+			const { label, element, required } = specimen;
+			const stored = Object.hasOwn(map, component) ? map[component] : {};
+			const roles = Object.entries(specimen.roles).map(([role, interfaceTokenId]) =>
+				roleOnNode(
 					role,
-					tokenId,
-					source: mapped ? ('map' as const) : ('convention' as const),
-					resolves: Boolean(token),
-					valid: value !== undefined && specimenRoleDeclaration(role, value) !== null,
-					...(value !== undefined ? { value } : {}),
-				};
-			});
+					Object.hasOwn(stored, role) ? stored[role] : null,
+					interfaceTokenId,
+					tokens,
+				),
+			);
 			const drawn = roles.some((entry) => entry.role === required && entry.valid);
-			return { component, label, required, drawn, roles };
+			return { component, label, element, required, drawn, roles };
 		});
 
 		const drawn = components.filter((entry) => entry.drawn).map((entry) => entry.component);
@@ -130,10 +161,14 @@ export const specimenGetCommand: CommandDefinition<typeof InputSchema, Output> =
 				stored: Boolean(record),
 				updatedAt: record?.updatedAt ?? null,
 				updatedBy: record?.updatedBy ?? null,
+				interface: {
+					package: SPECIMEN_INTERFACE.package,
+					contractVersion: SPECIMEN_INTERFACE.contractVersion,
+				},
 				components,
 			},
 			{
-				reasoning: `${record ? `Stored map on '${tree.rootId}'` : `No stored map on '${tree.rootId}', so the naming convention`}; ${
+				reasoning: `${record ? `Stored map on '${tree.rootId}'` : `No stored map on '${tree.rootId}', so the ${SPECIMEN_INTERFACE.package} interface ids`}; ${
 					drawn.length > 0 ? `draws ${drawn.join(', ')}` : 'draws no component'
 				} on '${input.nodeId}'`,
 			},

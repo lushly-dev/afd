@@ -185,8 +185,9 @@ duplicate node (15), and an export format Violet does not write (10).
 **Left out, with reasons.** Webhooks, API keys, `doctor` and `validate` are server operations, not
 design work. `analyze.health`, `analyze.trends` and `analyze.snapshot` serve a manager watching
 many trees over time; a person with two trees does not need them first. `specimen.get` and
-`specimen.set` map component roles to tokens for systems not named `<component>.<role>`; both
-trees use the interface's names. `token.subtract`, `token.copy` and mixins are not used by either
+`specimen.set` map component roles to tokens for systems that do not use the components'
+interface ids; both trees use the interface's names, which specimens draw from without a map
+([#1786](https://github.com/lushly-dev/afd/issues/1786)). `token.subtract`, `token.copy` and mixins are not used by either
 tree today *(inferred from `buildLoamTree`, which writes only `add` and `override`)*. Each can
 return as a job when the owner ranks one.
 

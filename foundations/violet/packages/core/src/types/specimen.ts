@@ -3,8 +3,8 @@ import { z } from 'zod';
 /**
  * Which token draws each role of each component specimen (#118):
  * `{ button: { background: 'btn.bg', ... } }`. Stored once per tree, on its
- * root. Roles without an entry fall back to the naming convention,
- * `<component>.<role>`.
+ * root. Roles without an entry draw from the token id their component reads
+ * in the components' interface (#1786).
  */
 export const SpecimenMapSchema = z.record(z.string(), z.record(z.string(), z.string().min(1)));
 
