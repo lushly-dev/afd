@@ -5741,11 +5741,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "f761dac6185af343deae871202e032c64f101abd40b16eeac370ff86fe52ea43",
+      "current_import_sha256": "cd9433a6eba17a457a846879c04b8b5786079ef89d4fff49ec974569efc41cc2",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Implement Pointing Slice 1.3 commands (specimen-point, specimen-point-move, specimen-point-check) for #2043"
+      "import_reason": "Implement Pointing Slice 1.3 commands (specimen-point, specimen-point-move, specimen-point-check) for #2043; Hash point sources named under a symlinked root (#2416)"
     },
     {
       "path": "foundations/specimen/src/point.test.ts",
@@ -5765,11 +5765,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "d585daee94a5615080d1552f4eb75cdbb9d7e82b2a9086ba62ae27abf2222c3c",
+      "current_import_sha256": "f5fa6f1669685d8477015eed37eeaf1b700128aaca15caf30193ccc87aa0ba13",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Implement Pointing Slice 1.3 commands (specimen-point, specimen-point-move, specimen-point-check) for #2043"
+      "import_reason": "Implement Pointing Slice 1.3 commands (specimen-point, specimen-point-move, specimen-point-check) for #2043; Hash point sources named under a symlinked root (#2416)"
     },
     {
       "path": "foundations/specimen/src/point-run.ts",

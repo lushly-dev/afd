@@ -618,6 +618,13 @@ export async function computeSourceDigests(
 	overrides?: Readonly<Record<string, string>>
 ): Promise<Record<string, string>> {
 	const realRoot = await realpath(root);
+	// Candidates may be spelt under the root as given or under its real path (macOS's /var is
+	// /private/var); take the relative path against either, the given spelling first, since a
+	// root linked inside its own real path would otherwise key a file by the link's path.
+	// resolveCanonicalInside still checks containment against the real root before anything is read.
+	const lexicalRoot = resolve(normalizeHostPath(root));
+	const relativeToRoot = (absolute: string): string | null =>
+		toPosixRelative(lexicalRoot, absolute) ?? toPosixRelative(realRoot, absolute);
 	const overrideByRel = new Map<string, string>();
 	if (overrides) {
 		for (const [overridePath, value] of Object.entries(overrides)) {
@@ -635,7 +642,7 @@ export async function computeSourceDigests(
 		if (!candidate) continue;
 		const normalized = normalizeHostPath(candidate);
 		const absolute = isAbsolute(normalized) ? resolve(normalized) : resolve(realRoot, normalized);
-		const rel = toPosixRelative(realRoot, absolute);
+		const rel = relativeToRoot(absolute);
 		if (!rel || rel.startsWith('node_modules/') || rel.includes('/node_modules/')) continue;
 		if (!seen.has(rel)) seen.set(rel, absolute);
 	}
