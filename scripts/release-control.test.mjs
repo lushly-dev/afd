@@ -1671,3 +1671,70 @@ test('runChangesetVersion throws an actionable error when @changesets/cli is mis
 	t.after(() => rmSync(dir, { recursive: true, force: true }));
 	assert.throws(() => runChangesetVersion(dir), /Changesets CLI not installed/);
 });
+
+test('packSelected under pnpm 12 does not rewrite pnpm-lock.yaml or mutate node_modules (#2405)', (t) => {
+	const f = fixture(t);
+	const outDir = join(dirname(f.root), 'packed-pnpm12');
+	const probePath = join(outDir, 'prepack-probe.json');
+	const lockfile =
+		"lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      nonexistent-pkg-xyz: 1.0.0\n";
+	write(f.root, 'package.json', {
+		name: 'fixture',
+		private: true,
+		packageManager: 'pnpm@12.22.0',
+	});
+	write(
+		f.root,
+		'packages/a/prepack.mjs',
+		`import { readFileSync, writeFileSync } from 'node:fs';
+writeFileSync(
+	${JSON.stringify(probePath)},
+	JSON.stringify({
+		lockfile: readFileSync('../../pnpm-lock.yaml', 'utf8'),
+		verify: process.env.pnpm_config_verify_deps_before_run,
+		lock: process.env.pnpm_config_lockfile,
+	})
+);
+`
+	);
+	write(f.root, 'packages/a/package.json', {
+		name: '@fixture/a',
+		version: '1.0.0',
+		files: ['index.js'],
+		scripts: { prepack: 'node prepack.mjs' },
+	});
+	write(f.root, '.gitignore', 'node_modules/\n');
+	write(f.root, 'pnpm-lock.yaml', lockfile);
+	shell(f.root, 'git', [
+		'add',
+		'package.json',
+		'packages/a/package.json',
+		'packages/a/prepack.mjs',
+		'.gitignore',
+		'pnpm-lock.yaml',
+	]);
+	shell(f.root, 'git', [
+		'-c',
+		'user.name=Fixture',
+		'-c',
+		'user.email=fixture@example.invalid',
+		'commit',
+		'-m',
+		'configure pnpm 12 with prepack and lockfile',
+	]);
+	const nm = join(f.root, 'node_modules');
+	mkdirSync(nm, { recursive: true });
+	writeFileSync(join(nm, '.sentinel'), 'intact\n');
+
+	const plan = {
+		distributions: [{ name: '@fixture/a', version: '1.0.0', manifest: 'packages/a/package.json' }],
+	};
+	const results = packSelected({ root: f.root, plan, outputDirectory: outDir });
+	assert.equal(results.length, 1);
+	const probe = JSON.parse(readFileSync(probePath, 'utf8'));
+	assert.equal(probe.verify, 'false');
+	assert.equal(probe.lock, 'false');
+	assert.equal(probe.lockfile, lockfile);
+	assert.equal(readFileSync(join(f.root, 'pnpm-lock.yaml'), 'utf8'), lockfile);
+	assert.equal(readFileSync(join(nm, '.sentinel'), 'utf8'), 'intact\n');
+});

@@ -98,6 +98,8 @@ describe('the reads', () => {
 			],
 		]);
 		assert.equal(releaseBranch('main'), 'changeset-release/main');
+		assert.equal(releaseBranch('main', 'npm-main'), 'changeset-release/npm-main');
+		assert.equal(releaseBranch('main', 'npm-prerelease'), 'changeset-release/npm-prerelease');
 	});
 
 	it('answers null when no version pull request is open, and fails on anything but a list', async () => {
@@ -232,6 +234,31 @@ describe('setAuthor, the step before the Changesets action', () => {
 			/must be set/
 		);
 		assert.deepEqual(written, []);
+	});
+	it('supports --branch, --route, RELEASE_PR_BRANCH, RELEASE_ROUTE, and rejects missing flag values', async () => {
+		for (const [args, env, expectedHead] of [
+			[['--route', 'npm-prerelease'], {}, 'lushly-dev%3Achangeset-release%2Fnpm-prerelease'],
+			[['--branch', 'changeset-release/custom'], {}, 'lushly-dev%3Achangeset-release%2Fcustom'],
+			[[], { RELEASE_ROUTE: 'npm-main' }, 'lushly-dev%3Achangeset-release%2Fnpm-main'],
+			[
+				[],
+				{ RELEASE_PR_BRANCH: 'changeset-release/env-branch' },
+				'lushly-dev%3Achangeset-release%2Fenv-branch',
+			],
+		]) {
+			const world = github();
+			await setAuthor({ ...ENV, ...env }, { args, get: world.get, git: () => {}, log: () => {} });
+			assert.equal(
+				world.asked[0],
+				`/repos/lushly-dev/afd/pulls?state=open&base=main&head=${expectedHead}`
+			);
+		}
+		for (const badArgs of [['--branch'], ['--route'], ['--branch', '--verify']]) {
+			await assert.rejects(
+				setAuthor(ENV, { args: badArgs, get: github().get, git: () => {}, log: () => {} }),
+				/Missing value for/
+			);
+		}
 	});
 });
 
@@ -410,41 +437,43 @@ describe('release.yml', () => {
 		assert.ok(index >= 0, `release.yml has a step named "${name}"`);
 		return index;
 	};
-	const SET = 'Set the release pull request author';
-	const ACTION = 'Create selected release PR';
-	const CHECK = 'Check the release pull request author';
+	const MAIN_PR = 'Update npm-main release PR';
+	const PRE_PR = 'Update npm-prerelease release PR';
 	const condition = (name) => /^\s+if: (.+)$/m.exec(steps[at(name)].text)?.[1];
 
-	it('sets the author straight before the Changesets action commits, and checks it straight after', () => {
-		assert.ok(at('Create release pull request token') < at(SET));
-		assert.equal(at(SET) + 1, at(ACTION));
-		assert.equal(at(ACTION) + 1, at(CHECK));
+	it('updates npm-main and npm-prerelease version PRs after the release PR token and tag push', () => {
+		assert.ok(at('Configure release tag author') < at(MAIN_PR));
+		assert.ok(at('Push release tags and create GitHub Releases') < at(MAIN_PR));
+		assert.ok(at('Create release pull request token') < at(MAIN_PR));
+		assert.ok(at('Create release pull request token') < at(PRE_PR));
 	});
 
-	it('sets the author after the tag author, which a publishing run sets for its tags', () => {
-		assert.ok(at('Configure release tag author') < at(SET));
-		assert.ok(at('Push release tags and create GitHub Releases') < at(SET));
-	});
-
-	it('runs both steps whenever the Changesets action runs, and lets neither fail quietly', () => {
-		assert.equal(condition(ACTION), "steps.selection.outputs.selectable == 'true'");
-		for (const name of [SET, CHECK]) {
-			assert.equal(condition(name), condition(ACTION));
+	it('gates each route on its own selection output, runs npm-prerelease independently of npm-main, and lets neither fail quietly', () => {
+		assert.equal(condition(MAIN_PR), "steps.selection.outputs.npm_main == 'true'");
+		assert.equal(
+			condition(PRE_PR),
+			"${{ !cancelled() && steps.selection.outcome == 'success' && steps.selection.outputs.npm_prerelease == 'true' }}"
+		);
+		for (const name of [MAIN_PR, PRE_PR]) {
 			assert.doesNotMatch(steps[at(name)].text, /continue-on-error/);
 		}
 	});
 
-	it("names the App only when the App's token opens the pull request", () => {
-		const author = steps[at(SET)].text;
-		assert.match(author, /run: node scripts\/release-pr-author\.mjs\n/);
-		assert.match(
-			author,
-			/APP_SLUG: \$\{\{ steps\.pr-token\.outputs\.token != '' && steps\.pr-token\.outputs\.app-slug \|\| '' \}\}/
-		);
-		assert.match(
-			steps[at(ACTION)].text,
-			/github-token: \$\{\{ steps\.pr-token\.outputs\.token \|\| secrets\.GITHUB_TOKEN \}\}/
-		);
-		assert.match(steps[at(CHECK)].text, /run: node scripts\/release-pr-author\.mjs --verify\n/);
+	it("passes the App token and slug to each route's version PR step", () => {
+		for (const [name, route] of [
+			[MAIN_PR, 'npm-main'],
+			[PRE_PR, 'npm-prerelease'],
+		]) {
+			const step = steps[at(name)].text;
+			assert.match(
+				step,
+				new RegExp(`run: node scripts/release-version-pr\\.mjs --route ${route}\\n`)
+			);
+			assert.match(
+				step,
+				/APP_SLUG: \$\{\{ steps\.pr-token\.outputs\.token != '' && steps\.pr-token\.outputs\.app-slug \|\| '' \}\}/
+			);
+			assert.match(step, /PR_TOKEN: \$\{\{ steps\.pr-token\.outputs\.token \}\}/);
+		}
 	});
 });

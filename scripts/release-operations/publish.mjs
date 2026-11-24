@@ -30,6 +30,7 @@ import {
 	hash,
 	isNodeModulesSegment,
 	json,
+	PNPM_NO_INSTALL_ENV,
 	readRegistry,
 	registryNames,
 	registryUrl,
@@ -161,7 +162,9 @@ export function packSelected({
 	plan,
 	outputDirectory,
 	pack = (directory, destination) =>
-		run('pnpm', ['pack', '--pack-destination', destination], directory),
+		run('pnpm', ['pack', '--pack-destination', destination], directory, {
+			env: { ...process.env, ...PNPM_NO_INSTALL_ENV },
+		}),
 }) {
 	mkdirSync(outputDirectory, { recursive: true });
 	const all = discoverDistributions(root);

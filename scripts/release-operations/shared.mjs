@@ -4,6 +4,17 @@ import { isAbsolute, join } from 'node:path';
 import { execTool } from '../release/exec-tool.mjs';
 
 export const registryUrl = 'https://registry.npmjs.org';
+/**
+ * Environment overrides that prevent pnpm 12's `verifyDepsBeforeRun` (default `"install"`)
+ * and implicit lockfile updates from mutating `pnpm-lock.yaml` or symlinked `node_modules`
+ * inside a disposable `inWorktree` checkout (#2396, #2405).
+ */
+export const PNPM_NO_INSTALL_ENV = Object.freeze({
+	npm_config_verify_deps_before_run: 'false',
+	pnpm_config_verify_deps_before_run: 'false',
+	npm_config_lockfile: 'false',
+	pnpm_config_lockfile: 'false',
+});
 export const hash = (value) => createHash('sha256').update(value).digest('hex');
 export const json = (file) => JSON.parse(readFileSync(file, 'utf8'));
 export const run = (command, args, cwd, options = {}) =>

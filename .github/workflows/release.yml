@@ -17,8 +17,8 @@ on:
 # only the exact failed claim its approval names.
 concurrency: ${{ github.workflow }}-${{ github.ref }}${{ github.event_name == 'workflow_dispatch' && '-recovery' || '' }}
 
-# `pnpm install` installs the lefthook git hooks, and the Changesets action pushes the release
-# branch: the pre-push hook would run package tests against unbuilt output on the runner.
+# `pnpm install` installs the lefthook git hooks, and the version PR script pushes its release
+# branches: the pre-push hook would run package tests against unbuilt output on the runner.
 env:
   LEFTHOOK: '0'
 
@@ -252,11 +252,12 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
-      - name: Select pending release batch
+      - name: Select pending release batches
         id: selection
         run: |
-          node scripts/release-control.mjs select --output "$RUNNER_TEMP/npm-selection.json"
-          node --input-type=module -e 'import fs from "node:fs"; const selection = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/npm-selection.json`)); fs.appendFileSync(process.env.GITHUB_OUTPUT, `selectable=${selection.selectable}\n`);'
+          node scripts/release-control.mjs select --route npm-main --output "$RUNNER_TEMP/npm-selection-main.json"
+          node scripts/release-control.mjs select --route npm-prerelease --output "$RUNNER_TEMP/npm-selection-prerelease.json"
+          node --input-type=module -e 'import fs from "node:fs"; const main = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/npm-selection-main.json`)); const pre = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/npm-selection-prerelease.json`)); fs.appendFileSync(process.env.GITHUB_OUTPUT, `npm_main=${main.selectable}\nnpm_prerelease=${pre.selectable}\nany=${main.selectable || pre.selectable}\n`);'
 
       # A pull request opened or updated with GITHUB_TOKEN starts no workflows, so the release pull
       # request would never get `ci-ok`, the check main requires. The release App's token starts them.
@@ -264,7 +265,7 @@ jobs:
       # pull request needs its checks started by hand (close and reopen it).
       - name: Create release pull request token
         id: pr-token
-        if: steps.selection.outputs.selectable == 'true' && vars.RELEASE_TAG_APP_CLIENT_ID != ''
+        if: steps.selection.outputs.any == 'true' && vars.RELEASE_TAG_APP_CLIENT_ID != ''
         continue-on-error: true
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
@@ -274,44 +275,34 @@ jobs:
           permission-pull-requests: write
 
       - name: Warn when the release pull request will start no checks
-        if: steps.selection.outputs.selectable == 'true' && steps.pr-token.outputs.token == ''
+        if: steps.selection.outputs.any == 'true' && steps.pr-token.outputs.token == ''
         run: echo "::warning::No release App token; the release pull request is opened with GITHUB_TOKEN and starts no workflows. Close and reopen it to run its checks, or give the App Pull requests write access."
 
-      # The version commit and its pull request name one author: main's merge queue rebases
-      # (#1809), so the commit lands as it is and its author is who main credits (#1624). The
-      # Changesets action commits with the identity git already has, so this gives it the version
-      # pull request's author: the open pull request's, or the account whose token will open one.
-      - name: Set the release pull request author
-        if: steps.selection.outputs.selectable == 'true'
-        run: node scripts/release-pr-author.mjs
+      # Stable (`npm-main`) and preview (`npm-prerelease`) releases keep independent version PR
+      # branches (`changeset-release/npm-main` and `changeset-release/npm-prerelease`) so queued
+      # preview fragments never block or overwrite a main-track version PR (#2406). Each step
+      # versions inside a disposable worktree, commits as that PR's author (`release-pr-author.mjs`),
+      # pushes the branch, updates or opens the PR, and verifies commit authorship straight after.
+      # `npm-prerelease` checks `steps.selection.outcome == 'success'` rather than the default
+      # `success()` so a queued (branch-locked) `npm-main` PR cannot skip the preview PR update,
+      # while any failure in either step still fails the job.
+      - name: Update npm-main release PR
+        id: pr-main
+        if: steps.selection.outputs.npm_main == 'true'
+        run: node scripts/release-version-pr.mjs --route npm-main
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_TOKEN: ${{ steps.pr-token.outputs.token }}
           APP_SLUG: ${{ steps.pr-token.outputs.token != '' && steps.pr-token.outputs.app-slug || '' }}
 
-      # Publication is independent of pending fragments held in other families.
-      - name: Create selected release PR
-        if: steps.selection.outputs.selectable == 'true'
-        id: changesets
-        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
-        # v2 defaults to pushing through the GitHub API and to pushing git tags; keep v1's git
-        # push, and leave every tag to scripts/release-finalize.mjs.
-        with:
-          version-script: pnpm version-packages
-          create-github-releases: false
-          push-git-tags: false
-          push-with-git-cli: true
-          pr-title: 'chore: release packages'
-          commit-message: 'chore: release packages'
-          github-token: ${{ steps.pr-token.outputs.token || secrets.GITHUB_TOKEN }}
-
-      # The same property read back from GitHub: the pull request's author, whom the commit names. It
-      # fails when the pull request changed hands between the two steps above, or when the action
-      # stops committing with the identity git holds.
-      - name: Check the release pull request author
-        if: steps.selection.outputs.selectable == 'true'
-        run: node scripts/release-pr-author.mjs --verify
+      - name: Update npm-prerelease release PR
+        id: pr-prerelease
+        if: ${{ !cancelled() && steps.selection.outcome == 'success' && steps.selection.outputs.npm_prerelease == 'true' }}
+        run: node scripts/release-version-pr.mjs --route npm-prerelease
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_TOKEN: ${{ steps.pr-token.outputs.token }}
+          APP_SLUG: ${{ steps.pr-token.outputs.token != '' && steps.pr-token.outputs.app-slug || '' }}
 
   recover:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
