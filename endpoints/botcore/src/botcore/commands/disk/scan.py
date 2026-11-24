@@ -16,6 +16,7 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 from xml.parsers.expat import ExpatError
 
 from botcore.commands.disk.steps import command, doing, each
@@ -89,12 +90,14 @@ def mount_point(path: Path) -> Path:
     return current
 
 
-def _darwin_diskutil_info(mount: Path) -> dict | None:
+def _darwin_diskutil_info(mount: Path) -> dict[str, Any] | None:
     try:
         with command("asking about the volume", mount, allow=30):
             done = subprocess.run(
                 ["diskutil", "info", "-plist", str(mount)],
-                capture_output=True, timeout=30, check=False,
+                capture_output=True,
+                timeout=30,
+                check=False,
             )
         if done.returncode != 0:
             return None
@@ -110,7 +113,7 @@ def _darwin_diskutil_info(mount: Path) -> dict | None:
     return info if isinstance(info, dict) else None
 
 
-def _darwin_snapshot_group_id(info: dict) -> str | None:
+def _darwin_snapshot_group_id(info: dict[str, Any]) -> str | None:
     """Stable identifier for a macOS sealed APFS boot snapshot (`/`).
 
     On macOS 11+, `/` mounts a read-only APFS snapshot whose `VolumeUUID` equals
@@ -169,7 +172,10 @@ def _linux_volume_id(mount: Path) -> str | None:
         with command("asking about the volume", mount, allow=30):
             done = subprocess.run(
                 ["findmnt", "-n", "-o", "UUID", "--mountpoint", str(mount)],
-                capture_output=True, text=True, timeout=30, check=False,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
             )
     except (OSError, subprocess.TimeoutExpired):
         return None
@@ -184,7 +190,10 @@ def _windows_volume_id(mount: Path) -> str | None:
     root = str(mount)
     if not root.endswith("\\"):
         root += "\\"
-    kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+    windll = getattr(ctypes, "windll", None)
+    if windll is None:
+        return None
+    kernel32 = windll.kernel32
     if not kernel32.GetVolumeNameForVolumeMountPointW(root, buffer, len(buffer)):
         return None
     return buffer.value or None
@@ -230,7 +239,7 @@ class VolumeState:
             return False
         return self.free_bytes < self.low_space_gb * 1024**3
 
-    def as_dict(self) -> dict:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "mount": self.mount,
             "mounted": self.mounted,
@@ -294,13 +303,20 @@ class Processes:
     ok: bool = True
 
 
-def _run_lines(args: list[str], timeout: float = 60, ok_codes: tuple[int, ...] = (0,)):
+def _run_lines(
+    args: list[str], timeout: float = 60, ok_codes: tuple[int, ...] = (0,)
+) -> list[str] | None:
     """A command's output lines, or None when it could not run or failed."""
     try:
         with command(f"running {args[0]}", allow=timeout):
             done = subprocess.run(
-                args, capture_output=True, text=True, encoding="utf-8",
-                errors="replace", timeout=timeout, check=False,
+                args,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout,
+                check=False,
             )
     except (OSError, subprocess.TimeoutExpired):
         return None
@@ -428,7 +444,10 @@ def reflog_time(path: Path) -> float | None:
 
 
 def last_activity(
-    worktree: Path, admin: Path | None, changed: list[str], build_dirs: list[Path],
+    worktree: Path,
+    admin: Path | None,
+    changed: list[str],
+    build_dirs: list[Path],
 ) -> float | None:
     """The newest of git's records for the worktree, changed files and build-output folders."""
     times: list[float] = []
@@ -487,16 +506,18 @@ def is_link(entry: os.DirEntry[str]) -> bool:
     """A symlink, or on Windows any reparse point (junctions included)."""
     if entry.is_symlink():
         return True
-    if os.name == "nt":
+    if sys.platform == "win32":
         try:
-            attributes = entry.stat(follow_symlinks=False).st_file_attributes  # type: ignore[attr-defined]
+            attributes = entry.stat(follow_symlinks=False).st_file_attributes
         except OSError:
             return True
-        return bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)  # type: ignore[attr-defined]
+        return bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
     return False
 
 
-def _match(rel: str, compiled: list[tuple[re.Pattern[str], DiskRegenerable]]):
+def _match(
+    rel: str, compiled: list[tuple[re.Pattern[str], DiskRegenerable]]
+) -> DiskRegenerable | None:
     for regex, entry in compiled:
         if regex.match(rel):
             return entry
@@ -508,7 +529,9 @@ def _holds_checkout(folder: str) -> bool:
 
 
 def find_candidates(
-    worktree: Path, entries: list[DiskRegenerable], deadline: float,
+    worktree: Path,
+    entries: list[DiskRegenerable],
+    deadline: float,
 ) -> tuple[list[Candidate], bool]:
     """Paths under worktree that entries name: (candidates, whether the walk saw everything).
 

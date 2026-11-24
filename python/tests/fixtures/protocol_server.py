@@ -21,7 +21,11 @@ server = create_server(
     bootstrap=True,
     # The hybrid fixture lists a context-scoped pair and one universal command; the commands
     # below are registered after the server is created, which the check allows.
-    **({"first_class_tools": ["alpha-run", "beta-run", "probe-read"]} if sys.argv[2] == "hybrid" else {}),
+    **(
+        {"first_class_tools": ["alpha-run", "beta-run", "probe-read"]}
+        if sys.argv[2] == "hybrid"
+        else {}
+    ),
 )
 writes = 0
 

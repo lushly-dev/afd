@@ -11,7 +11,8 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from afd import CommandResult, error, success
+from afd import Actor, CommandResult, error, success
+from afd.core.journal import JournalEntry
 
 from botcore_factory.gateway.claims import Claim, iso, parse_time, read_claim
 from botcore_factory.gateway.service import REVIEW, Gateway, refuse
@@ -43,7 +44,7 @@ EVENT_KINDS = (
 _PULL_COMMANDS = {"pr-open", "pr-merge"}
 
 
-def _targets(entry, heads: dict[str, int]) -> list[str]:
+def _targets(entry: JournalEntry, heads: dict[str, int]) -> list[str]:
     """What a journaled write touched, from its input and result."""
     data = entry.input if isinstance(entry.input, dict) else {}
     result = _result(entry).get("data")
@@ -66,24 +67,24 @@ def _targets(entry, heads: dict[str, int]) -> list[str]:
     return []
 
 
-def _result(entry) -> dict:
-    result = entry.result
+def _result(entry: JournalEntry) -> dict[str, Any]:
+    result: Any = entry.result
     if hasattr(result, "model_dump"):
         result = result.model_dump(mode="json", exclude_none=True)
     return result if isinstance(result, dict) else {}
 
 
-def _actor(actor) -> dict:
+def _actor(actor: Actor | None) -> dict[str, Any]:
     if actor is None:
         return {}
-    row = {"kind": actor.kind, "id": actor.id}
+    row: dict[str, Any] = {"kind": actor.kind, "id": actor.id}
     if actor.on_behalf_of:
         row["onBehalfOf"] = actor.on_behalf_of
         row["onBehalfOfAsserted"] = True  # The caller's word; the token names only id and kind.
     return {key: value for key, value in row.items() if value is not None}
 
 
-def journal_rows(gateway: Gateway, repo: str) -> list[dict]:
+def journal_rows(gateway: Gateway, repo: str) -> list[dict[str, Any]]:
     heads = {pull["head"]: pull["number"] for pull in gateway.github.pulls(repo)}
     rows = [{**row, "targets": [row["target"]]} for row in gateway.state.get("auditSeed", [])]
     for entry in read_journal(gateway.state.journal_dir):
@@ -122,7 +123,7 @@ def watched(gateway: Gateway, repo: str) -> set[str]:
     return targets
 
 
-def outside_writes(gateway: Gateway, repo: str, since: str | None) -> list[dict]:
+def outside_writes(gateway: Gateway, repo: str, since: str | None) -> list[dict[str, Any]]:
     """Writes GitHub reports on watched targets that did not come through the gateway."""
     targets, bot, start = watched(gateway, repo), gateway.config.bot, parse_time(since)
     found = []
@@ -152,12 +153,17 @@ def outside_writes(gateway: Gateway, repo: str, since: str | None) -> list[dict]
     found = [
         {key: value for key, value in row.items() if value is not None}
         for row in found
-        if start is None or row.get("at") is None or parse_time(row["at"]) >= start
+        if start is None
+        or row.get("at") is None
+        or (parsed := parse_time(row["at"])) is None
+        or parsed >= start
     ]
     return sorted(found, key=lambda row: row.get("at") or "")
 
 
-def gateway_audit(gateway: Gateway, repo: str, filters: dict, limit: int, cursor: str | None):
+def gateway_audit(
+    gateway: Gateway, repo: str, filters: dict[str, Any], limit: int, cursor: str | None
+) -> CommandResult[Any]:
     gateway.repo(repo)
     try:
         start = parse_time(filters.get("since"))
@@ -173,7 +179,7 @@ def gateway_audit(gateway: Gateway, repo: str, filters: dict, limit: int, cursor
     for row in journal_rows(gateway, repo):
         if wanted and not wanted & set(row["targets"]):
             continue
-        if start and parse_time(row["timestamp"]) < start:
+        if start and (ts := parse_time(row["timestamp"])) is not None and ts < start:
             continue
         if filters.get("actor") and row["actor"].get("id") != filters["actor"]:
             continue
@@ -199,7 +205,9 @@ def gateway_audit(gateway: Gateway, repo: str, filters: dict, limit: int, cursor
 # ── review records (G2) ────────────────────────────────────────────────────
 
 
-def review_record(gateway: Gateway, repo: str, branch: str, head: str, lanes: list[dict]):
+def review_record(
+    gateway: Gateway, repo: str, branch: str, head: str, lanes: list[dict[str, Any]]
+) -> CommandResult[Any]:
     gateway.repo(repo)
     gateway.text(
         **{f"lanes[{i}]": " ".join(str(v) for v in lane.values()) for i, lane in enumerate(lanes)}
@@ -223,7 +231,7 @@ def review_record(gateway: Gateway, repo: str, branch: str, head: str, lanes: li
     )
 
 
-def review_get(gateway: Gateway, repo: str, head: str) -> CommandResult:
+def review_get(gateway: Gateway, repo: str, head: str) -> CommandResult[Any]:
     gateway.repo(repo)
     record = gateway.state.get("reviews", {}).get(head)
     if record is None:
@@ -242,7 +250,7 @@ def review_get(gateway: Gateway, repo: str, head: str) -> CommandResult:
 # ── events (G3) ────────────────────────────────────────────────────────────
 
 
-def events(gateway: Gateway, repo: str) -> list[dict]:
+def events(gateway: Gateway, repo: str) -> list[dict[str, Any]]:
     found = []
     for pull in gateway.github.pulls(repo):
         number, state = pull["number"], gateway.pull_state(pull)
@@ -292,7 +300,9 @@ def events(gateway: Gateway, repo: str) -> list[dict]:
     return sorted(found, key=lambda event: event.get("at") or "")
 
 
-async def gateway_wait(gateway: Gateway, repo: str, consumer: str, kinds, timeout_ms: int):
+async def gateway_wait(
+    gateway: Gateway, repo: str, consumer: str, kinds: list[str] | None, timeout_ms: int
+) -> CommandResult[Any]:
     gateway.repo(repo)
     unknown = sorted(set(kinds or ()) - set(EVENT_KINDS))
     if unknown:
@@ -305,7 +315,7 @@ async def gateway_wait(gateway: Gateway, repo: str, consumer: str, kinds, timeou
     delivered = dict(gateway.state.get("delivered", {}))
     seen = set(delivered.get(consumer, []))
 
-    def fresh() -> list[dict]:
+    def fresh() -> list[dict[str, Any]]:
         return [
             event
             for event in events(gateway, repo)

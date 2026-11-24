@@ -14,7 +14,8 @@ from afd.server.journal import create_journal_middleware
 from botcore.context import ExecutionContext
 from botcore.host import CommandHost
 
-from botcore_factory.gateway.commands import POLICIES, ROUTES, make_commands
+from botcore_factory.gateway.commands import POLICIES, make_commands
+from botcore_factory.gateway.commands import ROUTES as ROUTES
 from botcore_factory.gateway.config import GatewayConfig
 from botcore_factory.gateway.docs import DOCS
 from botcore_factory.gateway.github import GitHub

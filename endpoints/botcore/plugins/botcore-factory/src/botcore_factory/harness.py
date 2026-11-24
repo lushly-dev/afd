@@ -24,6 +24,7 @@ import os
 import shutil
 import sys
 from pathlib import Path
+from typing import Any
 
 from afd import CommandResult, error, success
 from botcore.context import ExecutionContext
@@ -40,7 +41,7 @@ def _paths(run_dir: Path) -> tuple[Path, Path]:
     return run_dir / "world.json", run_dir / "state"
 
 
-def apply_fixture(run_dir: Path, arguments: dict) -> CommandResult:
+def apply_fixture(run_dir: Path, arguments: dict[str, Any]) -> CommandResult[Any]:
     """Write the run's world and seed its lane state from a merged fixture."""
     fixture = arguments.get("fixture")
     if not isinstance(fixture, dict):
@@ -62,7 +63,9 @@ def apply_fixture(run_dir: Path, arguments: dict) -> CommandResult:
     )
 
 
-def call(command: str, arguments: dict, run_dir: Path, target: Path) -> CommandResult:
+def call(
+    command: str, arguments: dict[str, Any], run_dir: Path, target: Path
+) -> CommandResult[Any]:
     if command == APPLY:
         return apply_fixture(run_dir, arguments)
     world_path, state_base = _paths(run_dir)

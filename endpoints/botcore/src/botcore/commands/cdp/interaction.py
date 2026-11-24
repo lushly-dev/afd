@@ -127,8 +127,13 @@ async def cdp_click(  # noqa: PLR0913
             await locator.click(**click_opts)
 
         return {
-            "selector": selector, "x": x, "y": y, "button": button,
-            "double": double, "modifiers": modifiers or None, "deep": deep,
+            "selector": selector,
+            "x": x,
+            "y": y,
+            "button": button,
+            "double": double,
+            "modifiers": modifiers or None,
+            "deep": deep,
         }
 
     result = await _with_session_page(_action)
@@ -183,9 +188,7 @@ async def cdp_scroll(
                 if not scrolled:
                     raise ValueError(f"Element not found in shadow DOM: {selector}")
             else:
-                await page.locator(selector).scroll_into_view_if_needed(
-                    timeout=DEFAULT_TIMEOUT_MS
-                )
+                await page.locator(selector).scroll_into_view_if_needed(timeout=DEFAULT_TIMEOUT_MS)
             result_data["scrolledIntoView"] = True
 
         if x is not None or y is not None:

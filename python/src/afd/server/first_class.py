@@ -84,9 +84,7 @@ def check_first_class_tools(
         command = commands.get(name)
         if command is None:
             hint = (
-                " Set bootstrap=True to register it."
-                if name in AFD_BOOTSTRAP_COMMAND_NAMES
-                else ""
+                " Set bootstrap=True to register it." if name in AFD_BOOTSTRAP_COMMAND_NAMES else ""
             )
             raise ValueError(
                 f"first_class_tools entry '{name}' is not a registered command. Register it, "

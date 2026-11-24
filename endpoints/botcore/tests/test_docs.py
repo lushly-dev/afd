@@ -208,8 +208,7 @@ async def test_docs_preflight_combines_pipeline_results() -> None:
     assert data["checks"]["agents"]["needs_update"] is False
     assert data["step_count"] == 2
     assert result.suggestions == [
-        "Run changeset_create to record this change, or update the CHANGELOG.md named:"
-        " CHANGELOG.md"
+        "Run changeset_create to record this change, or update the CHANGELOG.md named: CHANGELOG.md"
     ]
 
 

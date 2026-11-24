@@ -116,7 +116,13 @@ class TestBatchItemsAreCoerced:
 
         result = await server.call_tool(
             "afd-pipe",
-            {"steps": [{"command": "todo-create"}, {"command": "todo-raw"}, {"command": "todo-create"}]},
+            {
+                "steps": [
+                    {"command": "todo-create"},
+                    {"command": "todo-raw"},
+                    {"command": "todo-create"},
+                ]
+            },
         )
 
         assert [step.status for step in result.steps] == [
@@ -408,10 +414,19 @@ class TestBatchStopsDrainSiblings:
             calls.append("queued")
             return success({})
 
-        task = asyncio.create_task(server.call_tool("afd-batch", {
-            "commands": [{"command": "work-fail"}, {"command": "work-finish"}, {"command": "work-queued"}],
-            "options": {"parallelism": 2, "stopOnError": True},
-        }))
+        task = asyncio.create_task(
+            server.call_tool(
+                "afd-batch",
+                {
+                    "commands": [
+                        {"command": "work-fail"},
+                        {"command": "work-finish"},
+                        {"command": "work-queued"},
+                    ],
+                    "options": {"parallelism": 2, "stopOnError": True},
+                },
+            )
+        )
         await asyncio.wait_for(failure_returned.wait(), 1)
         # Let asyncio.wait observe the completed failure while the sibling stays
         # blocked. No queued command may start when the slot becomes available.
@@ -446,11 +461,25 @@ class TestBatchStopsDrainSiblings:
             finally:
                 sibling_cancelled.set()
 
-        result = await asyncio.wait_for(server.call_tool("afd-batch", {
-            "commands": [{"command": "work-fail"}, {"command": "work-block"}, {"command": "work-block"}],
-            "options": {"parallelism": 2, "stopOnError": True, "timeoutMs": 20.5},
-        }), 1)
-        assert [item.result.error.code for item in result.results] == ["WRITE_FAILED", "BATCH_TIMEOUT", "BATCH_TIMEOUT"]
+        result = await asyncio.wait_for(
+            server.call_tool(
+                "afd-batch",
+                {
+                    "commands": [
+                        {"command": "work-fail"},
+                        {"command": "work-block"},
+                        {"command": "work-block"},
+                    ],
+                    "options": {"parallelism": 2, "stopOnError": True, "timeoutMs": 20.5},
+                },
+            ),
+            1,
+        )
+        assert [item.result.error.code for item in result.results] == [
+            "WRITE_FAILED",
+            "BATCH_TIMEOUT",
+            "BATCH_TIMEOUT",
+        ]
         assert sibling_cancelled.is_set()
 
     @pytest.mark.asyncio
@@ -530,9 +559,7 @@ class TestBatchCaps:
         writes: list = []
         server = _server(writes, max_batch_size=3)
 
-        result = await server.call_tool(
-            "afd-batch", {"commands": [{"command": "todo-create"}] * 4}
-        )
+        result = await server.call_tool("afd-batch", {"commands": [{"command": "todo-create"}] * 4})
 
         assert result.error.code == "INVALID_BATCH_REQUEST"
         assert result.error.details["errors"][0]["path"] == "commands"

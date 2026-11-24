@@ -61,6 +61,8 @@ Cargo.lock
 !endpoints/loam/plugins/mail/engine/Cargo.lock
 # And Loam's desktop host (phase 6 specification, section 2)
 !endpoints/loam/packages/desktop/src-tauri/Cargo.lock
+# The Rust AFD crate's CI lockfile (#1765; excluded from crates.io publish by Cargo for libraries)
+!packages/rust/Cargo.lock
 
 # C++ (CMake build trees; see packages/cpp)
 /packages/cpp/build/

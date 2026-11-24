@@ -245,10 +245,7 @@ def consent_hint(path: str, platform: str | None = None) -> str | None:
         place = "this folder"
     else:
         # the path may lead to one of those places by a link: following it would be a read
-        return (
-            f"If macOS is asking at the screen whether {program} may read it, allow it "
-            "there"
-        )
+        return f"If macOS is asking at the screen whether {program} may read it, allow it there"
     return (
         f"macOS asks at the screen before a scheduled program reads {place}: allow "
         f"{program} when it asks. Full Disk Access under System Settings, Privacy & "

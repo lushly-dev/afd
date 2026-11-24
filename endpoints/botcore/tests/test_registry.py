@@ -35,6 +35,7 @@ def test_reset_client_clears_cache() -> None:
 
 async def test_client_calls_registered_command() -> None:
     """Client can call a command registered on the global registry."""
+
     @registry.command(name="test.ping", description="Ping for testing")
     async def _ping() -> dict:
         return success(data={"pong": True})

@@ -13,11 +13,14 @@ use crate::result::{failure, success_with, CommandResult, ResultOptions};
 
 use super::{bootstrap_expose, RegistryRef, BOOTSTRAP_CATEGORY, BOOTSTRAP_TAGS};
 
+/// Input arguments for `afd-help`.
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct HelpInput {
+    /// Optional substring or category filter.
     #[serde(default)]
     pub filter: Option<String>,
+    /// Output verbosity (`"brief"` or `"full"`).
     #[serde(default = "default_format")]
     pub format: String,
 }
@@ -26,18 +29,24 @@ fn default_format() -> String {
     "brief".to_string()
 }
 
+/// Summary of one command returned by `afd-help`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CommandInfo {
+    /// Command name.
     pub name: String,
     /// The display label when set (`full` format only).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
+    /// Human- and agent-readable description.
     pub description: String,
+    /// Optional command category.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
+    /// Optional tags (`full` format only).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tags: Option<Vec<String>>,
+    /// Whether the command mutates state (`full` format only).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mutation: Option<bool>,
     /// `destructive` when set (`full` format only).
@@ -61,14 +70,19 @@ pub struct CommandInfo {
     pub first_class: Option<bool>,
 }
 
+/// Output payload returned by `afd-help`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HelpOutput {
     /// The AFD contract version this crate implements ([`crate::CONTRACT_VERSION`]).
     pub contract_version: String,
+    /// Matching commands.
     pub commands: Vec<CommandInfo>,
+    /// Total number of matching commands.
     pub total: usize,
+    /// Whether a filter was applied.
     pub filtered: bool,
+    /// Matching commands grouped by category.
     pub grouped_by_category: HashMap<String, Vec<CommandInfo>>,
     /// How the MCP server lists its tools: `individual`, `grouped`, `lazy` or `hybrid`. Left out
     /// when `afd-help` does not run behind an MCP server.

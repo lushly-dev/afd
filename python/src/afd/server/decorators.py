@@ -7,13 +7,13 @@ Example:
     >>> from afd.server import define_command
     >>> from afd import success
     >>> from pydantic import BaseModel
-    >>> 
+    >>>
     >>> class GreetInput(BaseModel):
     ...     name: str
-    ...     
+    ...
     >>> class GreetOutput(BaseModel):
     ...     message: str
-    >>> 
+    >>>
     >>> @define_command(
     ...     name="greet",
     ...     description="Greet someone",
@@ -25,19 +25,13 @@ Example:
 """
 
 import inspect
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from functools import wraps
 from typing import (
     Any,
-    Callable,
-    Dict,
-    List,
     Literal,
-    Optional,
-    Sequence,
-    Type,
     TypeVar,
-    Union,
 )
 
 from pydantic import BaseModel
@@ -62,13 +56,13 @@ from afd.server.validation import _input_validation_failure
 
 TInput = TypeVar("TInput", bound=BaseModel)
 TOutput = TypeVar("TOutput")
-ExampleInput = Union[CommandExample, Dict[str, Any]]
+ExampleInput = CommandExample | dict[str, Any]
 
 
 @dataclass
 class CommandMetadata:
     """Metadata for a decorated command.
-    
+
     Attributes:
         name: Command name (e.g., "item-create").
         description: Human-readable description.
@@ -78,64 +72,64 @@ class CommandMetadata:
         mutation: Whether this command modifies state.
         examples: Example inputs for documentation.
     """
-    
+
     name: str
     description: str
-    category: Optional[str] = None
-    input_schema: Optional[Union[Type[BaseModel], Dict[str, Any]]] = None
-    output_schema: Optional[Type[BaseModel]] = None
-    tags: List[str] = field(default_factory=list)
+    category: str | None = None
+    input_schema: type[BaseModel] | dict[str, Any] | None = None
+    output_schema: type[BaseModel] | None = None
+    tags: list[str] = field(default_factory=list)
     mutation: bool = False
-    examples: List[CommandExample] = field(default_factory=list)
-    requires: List[str] = field(default_factory=list)
-    contexts: List[str] = field(default_factory=list)
+    examples: list[CommandExample] = field(default_factory=list)
+    requires: list[str] = field(default_factory=list)
+    contexts: list[str] = field(default_factory=list)
     handoff: bool = False
-    handoff_protocol: Optional[str] = None
-    expose: Optional[ExposeOptions] = None
-    destructive: Optional[bool] = None
-    confirm_prompt: Optional[str] = None
-    undoable: Optional[bool] = None
-    approval: Optional[ApprovalPolicy] = None
-    version: Optional[str] = None
-    title: Optional[str] = None
-    errors: Optional[List[str]] = None
-    execution_time: Optional[Literal["instant", "fast", "slow", "long-running"]] = None
-    task: Optional[TaskSupport] = None
-    tool_meta: Optional[Dict[str, Any]] = None
-    advertised_input_schema: Optional[Dict[str, Any]] = None
-    output_budget: Optional[OutputBudget] = None
-    scopes: List[str] = field(default_factory=list)
+    handoff_protocol: str | None = None
+    expose: ExposeOptions | None = None
+    destructive: bool | None = None
+    confirm_prompt: str | None = None
+    undoable: bool | None = None
+    approval: ApprovalPolicy | None = None
+    version: str | None = None
+    title: str | None = None
+    errors: list[str] | None = None
+    execution_time: Literal["instant", "fast", "slow", "long-running"] | None = None
+    task: TaskSupport | None = None
+    tool_meta: dict[str, Any] | None = None
+    advertised_input_schema: dict[str, Any] | None = None
+    output_budget: OutputBudget | None = None
+    scopes: list[str] = field(default_factory=list)
 
 
 def define_command(
     name: str,
     description: str,
-    category: Optional[str] = None,
-    input_schema: Optional[Union[Type[BaseModel], Dict[str, Any]]] = None,
-    output_schema: Optional[Type[BaseModel]] = None,
-    tags: Optional[List[str]] = None,
+    category: str | None = None,
+    input_schema: type[BaseModel] | dict[str, Any] | None = None,
+    output_schema: type[BaseModel] | None = None,
+    tags: list[str] | None = None,
     mutation: bool = False,
-    examples: Optional[List[ExampleInput]] = None,
-    requires: Optional[List[str]] = None,
-    contexts: Optional[List[str]] = None,
+    examples: list[ExampleInput] | None = None,
+    requires: list[str] | None = None,
+    contexts: list[str] | None = None,
     handoff: bool = False,
-    handoff_protocol: Optional[str] = None,
-    expose: Optional[ExposeOptions] = None,
-    destructive: Optional[bool] = None,
-    confirm_prompt: Optional[str] = None,
-    undoable: Optional[bool] = None,
-    approval: Optional[ApprovalPolicy] = None,
-    version: Optional[str] = None,
-    title: Optional[str] = None,
-    errors: Optional[List[str]] = None,
-    execution_time: Optional[Literal["instant", "fast", "slow", "long-running"]] = None,
-    task: Optional[TaskSupport] = None,
-    tool_meta: Optional[Dict[str, Any]] = None,
-    advertised_input_schema: Optional[Dict[str, Any]] = None,
-    output_budget: Optional[Union[OutputBudget, Dict[str, Any]]] = None,
-    scopes: Optional[Sequence[str]] = None,
+    handoff_protocol: str | None = None,
+    expose: ExposeOptions | None = None,
+    destructive: bool | None = None,
+    confirm_prompt: str | None = None,
+    undoable: bool | None = None,
+    approval: ApprovalPolicy | None = None,
+    version: str | None = None,
+    title: str | None = None,
+    errors: list[str] | None = None,
+    execution_time: Literal["instant", "fast", "slow", "long-running"] | None = None,
+    task: TaskSupport | None = None,
+    tool_meta: dict[str, Any] | None = None,
+    advertised_input_schema: dict[str, Any] | None = None,
+    output_budget: OutputBudget | dict[str, Any] | None = None,
+    scopes: Sequence[str] | None = None,
     _stacklevel: int = 2,
-) -> Callable:
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorator to define a command with metadata.
 
     The decorated function becomes a command handler that can be registered
@@ -184,10 +178,14 @@ def define_command(
         ...     # Implementation
         ...     pass
     """
-    
+
     # Advisory, as in TypeScript's defineCommand: the command still registers.
     warn_invalid_command_name(name, stacklevel=_stacklevel)
-    if approval is not None and approval not in ("required", "not-required") and not callable(approval):
+    if (
+        approval is not None
+        and approval not in ("required", "not-required")
+        and not callable(approval)
+    ):
         raise TypeError(
             f"Command '{name}' has an invalid approval policy: "
             "use 'required', 'not-required' or a function"
@@ -205,7 +203,7 @@ def define_command(
     if input_schema is not None:
         check_schema(_advertised_schema(input_schema))
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         # Build tags list, adding handoff tags if needed
         effective_tags = list(tags or [])
         if handoff and "handoff" not in effective_tags:
@@ -217,7 +215,7 @@ def define_command(
         accepts_context = _accepts_context(func)
 
         # Attach metadata to the function
-        func.__afd_command__ = CommandMetadata(
+        cmd_metadata = CommandMetadata(
             name=name,
             description=description,
             category=category,
@@ -245,35 +243,42 @@ def define_command(
             advertised_input_schema=checked_advertised,
             output_budget=normalized_output_budget,
         )
-        
+        func.__afd_command__ = cmd_metadata  # type: ignore[attr-defined]
+
         @wraps(func)
-        async def wrapper(raw_input: Any, context: Optional[Any] = None) -> CommandResult:
+        async def wrapper(raw_input: Any, context: Any | None = None) -> CommandResult[Any]:
             """Wrapper that validates input and calls the handler."""
             try:
                 validated_input = validate_command_input(input_schema, raw_input)
             except (PydanticValidationError, SchemaValidationError) as exc:
+                if input_schema is None:
+                    raise
                 return _input_validation_failure(
                     input_schema, {} if raw_input is None else raw_input, exc
                 )
 
             return await validated_handler(validated_input, context)
 
-        async def validated_handler(validated_input: Any, context: Optional[Any] = None) -> CommandResult:
+        async def validated_handler(
+            validated_input: Any, context: Any | None = None
+        ) -> CommandResult[Any]:
             if accepts_context:
-                return await func(validated_input, context)
-            return await func(validated_input)
+                result: CommandResult[Any] = await func(validated_input, context)
+                return result
+            result = await func(validated_input)
+            return result
 
-        wrapper.__afd_validated_handler__ = validated_handler
+        wrapper.__afd_validated_handler__ = validated_handler  # type: ignore[attr-defined]
         # Copy metadata to wrapper
-        wrapper.__afd_command__ = func.__afd_command__
-        
+        wrapper.__afd_command__ = cmd_metadata  # type: ignore[attr-defined]
+
         return wrapper
-    
+
     return decorator
 
 
 def validate_command_input(
-    input_schema: Optional[Union[Type[BaseModel], Dict[str, Any]]],
+    input_schema: type[BaseModel] | dict[str, Any] | None,
     raw_input: Any,
     *,
     max_issues: int | None = None,
@@ -309,11 +314,13 @@ def _present_input(parsed: Any, raw: Any) -> Any:
     if isinstance(parsed, dict) and isinstance(raw, dict):
         return {key: _present_input(value, raw[key]) for key, value in parsed.items() if key in raw}
     if isinstance(parsed, list) and isinstance(raw, list):
-        return [_present_input(value, original) for value, original in zip(parsed, raw, strict=True)]
+        return [
+            _present_input(value, original) for value, original in zip(parsed, raw, strict=True)
+        ]
     return parsed
 
 
-def _advertised_schema(input_schema: Union[Type[BaseModel], Dict[str, Any]]) -> Dict[str, Any]:
+def _advertised_schema(input_schema: type[BaseModel] | dict[str, Any]) -> dict[str, Any]:
     if isinstance(input_schema, dict):
         return input_schema
     if not isinstance(input_schema, type) or not issubclass(input_schema, BaseModel):
@@ -321,7 +328,7 @@ def _advertised_schema(input_schema: Union[Type[BaseModel], Dict[str, Any]]) -> 
     return input_schema.model_json_schema()
 
 
-def _accepts_context(func: Callable) -> bool:
+def _accepts_context(func: Callable[..., Any]) -> bool:
     """Check if function accepts a context parameter."""
     try:
         params = list(inspect.signature(func).parameters)
@@ -330,35 +337,37 @@ def _accepts_context(func: Callable) -> bool:
     return "context" in params or len(params) > 1
 
 
-def has_command_metadata(func: Callable) -> bool:
+def has_command_metadata(func: Callable[..., Any]) -> bool:
     """Check if a function has command metadata attached."""
     return hasattr(func, "__afd_command__")
 
 
-def get_command_metadata(func: Callable) -> Optional[CommandMetadata]:
+def get_command_metadata(func: Callable[..., Any]) -> CommandMetadata | None:
     """Get command metadata from a decorated function."""
     return getattr(func, "__afd_command__", None)
 
 
-def command_to_definition(func: Callable) -> Optional[CommandDefinition]:
+def command_to_definition(func: Callable[..., Any]) -> CommandDefinition | None:
     """Convert a decorated function to a CommandDefinition.
-    
+
     Args:
         func: Function decorated with @define_command.
-    
+
     Returns:
         CommandDefinition if the function has metadata, None otherwise.
     """
     metadata = get_command_metadata(func)
     if not metadata:
         return None
-    
+
     # Generate parameters from the advertised schema when given, else the validation schema (V1).
     parameters = []
     param_source = (
         metadata.advertised_input_schema
         if metadata.advertised_input_schema is not None
-        else (_advertised_schema(metadata.input_schema) if metadata.input_schema is not None else None)
+        else (
+            _advertised_schema(metadata.input_schema) if metadata.input_schema is not None else None
+        )
     )
     if param_source:
         raw_properties = param_source.get("properties")
@@ -371,7 +380,7 @@ def command_to_definition(func: Callable) -> Optional[CommandDefinition]:
                 parameters.append(
                     CommandParameter(
                         name=prop_name,
-                        type="any" if prop_schema else "never",
+                        type="any" if prop_schema else "never",  # type: ignore[arg-type]
                         description=f"Parameter {prop_name}",
                         required=prop_name in required,
                     )
@@ -384,15 +393,17 @@ def command_to_definition(func: Callable) -> Optional[CommandDefinition]:
                 json_type = " | ".join(_json_schema_type(item) for item in raw_type) or "string"
             else:
                 json_type = _json_schema_type(raw_type)
-            parameters.append(CommandParameter(
-                name=prop_name,
-                type=json_type,
-                description=prop_schema.get("description", f"Parameter {prop_name}"),
-                required=prop_name in required,
-                default=prop_schema.get("default"),
-                enum=prop_schema.get("enum"),
-                schema=prop_schema,
-            ))
+            parameters.append(
+                CommandParameter(
+                    name=prop_name,
+                    type=json_type,  # type: ignore[arg-type]
+                    description=prop_schema.get("description", f"Parameter {prop_name}"),
+                    required=prop_name in required,
+                    default=prop_schema.get("default"),
+                    enum=prop_schema.get("enum"),
+                    schema=prop_schema,
+                )
+            )
 
     # The output side of the model (serialization aliases, computed fields): what `data` holds.
     returns_schema = (
@@ -407,7 +418,9 @@ def command_to_definition(func: Callable) -> Optional[CommandDefinition]:
         handler=func,
         category=metadata.category,
         parameters=parameters,
-        input_schema=_advertised_schema(metadata.input_schema) if metadata.input_schema is not None else None,
+        input_schema=_advertised_schema(metadata.input_schema)
+        if metadata.input_schema is not None
+        else None,
         returns=returns_schema,
         tags=metadata.tags,
         mutation=metadata.mutation,
@@ -448,11 +461,11 @@ def _json_schema_type(pydantic_type: str) -> str:
 
 
 def _normalize_examples(
-    examples: List[ExampleInput],
-    input_schema: Optional[Union[Type[BaseModel], Dict[str, Any]]],
-) -> List[CommandExample]:
+    examples: list[ExampleInput],
+    input_schema: type[BaseModel] | dict[str, Any] | None,
+) -> list[CommandExample]:
     """Normalize examples and validate their inputs eagerly."""
-    normalized: List[CommandExample] = []
+    normalized: list[CommandExample] = []
 
     for example in examples:
         if isinstance(example, CommandExample):
@@ -464,9 +477,7 @@ def _normalize_examples(
                 raw_title = example.get("title")
                 title = str(raw_title) if raw_title is not None else None
                 raw_description = example.get("description")
-                description = (
-                    str(raw_description) if raw_description is not None else None
-                )
+                description = str(raw_description) if raw_description is not None else None
                 input_value = example.get("input", {})
             else:
                 title = None
@@ -488,8 +499,8 @@ def _normalize_examples(
 
 def _normalize_example_input(
     input_value: Any,
-    input_schema: Optional[Union[Type[BaseModel], Dict[str, Any]]],
-) -> Dict[str, Any]:
+    input_schema: type[BaseModel] | dict[str, Any] | None,
+) -> dict[str, Any]:
     """Validate example input against the declared schema when present."""
     if isinstance(input_value, BaseModel):
         raw_input: Any = input_value.model_dump(mode="json")

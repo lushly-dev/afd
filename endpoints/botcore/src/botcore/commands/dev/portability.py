@@ -174,7 +174,10 @@ async def dev_check_paths(
                 continue
 
             for pattern_name, pattern_info in PATH_PATTERNS.items():
-                matches = pattern_info["pattern"].findall(line)
+                pattern = pattern_info["pattern"]
+                if not isinstance(pattern, re.Pattern):
+                    continue
+                matches = pattern.findall(line)
                 if not matches:
                     continue
 

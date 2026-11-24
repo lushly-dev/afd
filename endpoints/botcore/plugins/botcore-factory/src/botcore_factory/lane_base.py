@@ -16,6 +16,7 @@ from __future__ import annotations
 import contextlib
 import os
 import re
+from typing import Any
 
 from botcore_factory import dials, records
 from botcore_factory.claims import format_time, parse_time
@@ -95,12 +96,12 @@ EXCUSED_CAUSES = {
 }
 
 
-def counted_ejections(cell: dict) -> int:
+def counted_ejections(cell: dict[str, Any]) -> int:
     """The ejections that count toward ``cells.maxEjections``: all but the excused ones."""
     return max(0, int(cell.get("ejections", 0)) - int(cell.get("excused", 0)))
 
 
-def count_ejection(cell: dict, attempt: int, cause: str, at: str) -> None:
+def count_ejection(cell: dict[str, Any], attempt: int, cause: str, at: str) -> None:
     """Count one ejection on the cell; one whose cause is excused is counted as excused."""
     excuse = EXCUSED_CAUSES.get(cause)
     cell["ejections"] = int(cell.get("ejections", 0)) + 1
@@ -110,7 +111,7 @@ def count_ejection(cell: dict, attempt: int, cause: str, at: str) -> None:
     cell["lastEjection"] = {"attempt": attempt, "cause": cause, "at": at, "excused": excuse}
 
 
-def ejection_detail(cell: dict, limit: int) -> str:
+def ejection_detail(cell: dict[str, Any], limit: int) -> str:
     return (
         f"{counted_ejections(cell)} ejections count ({cell.get('excused', 0)} of "
         f"{cell.get('ejections', 0)} excused); cells.maxEjections is {limit}"
@@ -173,7 +174,7 @@ def log_path(branch: str, attempt: int, kind: str = "") -> str:
     return f"attempts/{safe}-{attempt}{'-' + kind if kind else ''}.log"
 
 
-def open_index(queue: list[dict], exclude: dict | None = None) -> int:
+def open_index(queue: list[dict[str, Any]], exclude: dict[str, Any] | None = None) -> int:
     """Where a branch may join at the front: after any branch already merging, never ahead."""
     index = 0
     for entry in queue:
@@ -188,7 +189,7 @@ def open_index(queue: list[dict], exclude: dict | None = None) -> int:
 class StepBase:
     """One step over the lane's state, under the state lock."""
 
-    def __init__(self, factory: Factory, state: dict) -> None:
+    def __init__(self, factory: Factory, state: dict[str, Any]) -> None:
         self.factory = factory
         self.world = factory.world
         self.config = factory.config
@@ -198,26 +199,26 @@ class StepBase:
         self.at = format_time(self.now)
         self.actions: list[str] = []
         self._base: str | None = None
-        self._blocked_on_host_lock: dict | None = None
+        self._blocked_on_host_lock: dict[str, Any] | None = None
         self._cleaned_slots: set[str] = set()
         for entry in [*state["queue"], *state["held"]]:  # Entries a fixture or recovery wrote.
             entry.setdefault("attempt", 1)
             entry.setdefault("state", "queued" if entry in state["queue"] else "held")
             entry.setdefault("issues", (self.cell(entry["branch"]) or {}).get("issues", []))
 
-    def record(self, kind: str, **fields) -> None:
+    def record(self, kind: str, **fields: Any) -> None:
         self.factory.store.append_record(
             records.make(kind, self.at, self.lane.get("runId"), **fields)
         )
 
-    def event(self, kind: str, **fields) -> dict:
+    def event(self, kind: str, **fields: Any) -> dict[str, Any]:
         self.actions.append(f"event {kind} {fields.get('branch', '')}".rstrip())
         return emit(self.state, self.at, kind, **fields)
 
-    def dial(self, key: str):
+    def dial(self, key: str) -> Any:
         return dials.value(self.state["dials"], key)
 
-    def cell(self, branch: str) -> dict | None:
+    def cell(self, branch: str) -> dict[str, Any] | None:
         return next((c for c in self.state["cells"] if c.get("branch") == branch), None)
 
     def minutes(self, since: str | None) -> float:
@@ -237,7 +238,7 @@ class StepBase:
                 raise LaneTrouble(f"Fetching origin failed: {exc}") from exc
         return self._base
 
-    def current_run(self) -> dict | None:
+    def current_run(self) -> dict[str, Any] | None:
         run_id = self.lane.get("runId")
         return next((run for run in self.state["runs"] if run.get("id") == run_id), None)
 
@@ -252,7 +253,7 @@ class StepBase:
             lock.release(hold_id, self.world.github.repository(), self.host_lock_pid())
 
     def requeue(
-        self, entry: dict, reason: str, *, front: bool = True, detail: str | None = None
+        self, entry: dict[str, Any], reason: str, *, front: bool = True, detail: str | None = None
     ) -> None:
         """Validate it again: its validation was lost, or the base moved since it started.
 
@@ -281,7 +282,7 @@ class StepBase:
 
     def eject(
         self,
-        entry: dict,
+        entry: dict[str, Any],
         cause: str,
         text: str,
         log: str | None = None,

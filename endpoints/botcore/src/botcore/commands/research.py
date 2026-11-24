@@ -15,8 +15,6 @@ from afd.core.streaming import (
     create_data_chunk,
     create_error_chunk,
     create_progress_chunk,
-    is_complete_chunk,
-    is_error_chunk,
 )
 
 # Model and reasoning effort per research mode. The single place to change models.
@@ -254,11 +252,13 @@ def research_result(chunk: StreamChunk) -> CommandResult[dict] | None:
 
     Returns None for progress and data chunks.
     """
-    if is_error_chunk(chunk):
+    from afd.core.streaming import CompleteChunk, ErrorChunk
+
+    if isinstance(chunk, ErrorChunk):
         err = chunk.error
         return error(err.code, err.message, suggestion=err.suggestion)
-    if is_complete_chunk(chunk):
-        data = chunk.data
+    if isinstance(chunk, CompleteChunk):
+        data = chunk.data if isinstance(chunk.data, dict) else {}
         return success(
             data=data,
             reasoning=chunk.reasoning,

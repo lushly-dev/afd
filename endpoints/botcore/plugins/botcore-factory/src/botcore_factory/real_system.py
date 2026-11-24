@@ -11,13 +11,14 @@ import shutil
 import socket
 import subprocess
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from botcore_factory.claims import parse_time
 from botcore_factory.real_run import Run, make_runner, path_env, resolve_program, run_process
-from botcore_factory.world import TAIL_LINES, Completed, Plan, WorldError, nvmrc_version
+from botcore_factory.world import TAIL_LINES, Clock, Completed, Plan, WorldError, nvmrc_version
 
 GIB = 1024**3
 _VERSION = re.compile(r"\d+\.\d+\.\d+")
@@ -120,11 +121,14 @@ class LocalMachine:
             for line in Path("/proc/meminfo").read_text().splitlines()
             if ":" in line
         )
-        kib = lambda key: int(info[key].split()[0]) * 1024  # noqa: E731
+
+        def kib(key: str) -> int:
+            return int(info[key].split()[0]) * 1024
+
         return kib("MemTotal"), kib("MemAvailable")
 
 
-def node_roots(environ, home: Path) -> list[Path]:
+def node_roots(environ: Mapping[str, str], home: Path) -> list[Path]:
     """Where fnm, nvm and nvm-windows keep the Node versions they installed, most specific
     first."""
     roots = []
@@ -145,7 +149,7 @@ def node_roots(environ, home: Path) -> list[Path]:
     return roots + _nvm_windows_roots(environ)
 
 
-def _nvm_windows_roots(environ) -> list[Path]:
+def _nvm_windows_roots(environ: Mapping[str, str]) -> list[Path]:
     """nvm-windows keeps each version as ``<root>/v<version>``: ``NVM_HOME``, the directory
     holding the version its ``NVM_SYMLINK`` points at, and its default under ``APPDATA``."""
     roots = []
@@ -235,7 +239,7 @@ class T3Plans:
     and when the window resets; the share elapsed follows from the window's length and the clock.
     """
 
-    def __init__(self, clock, caches: Path | None = None) -> None:
+    def __init__(self, clock: Clock, caches: Path | None = None) -> None:
         self.clock = clock
         self.caches = caches or Path.home() / ".t3" / "caches"
 
@@ -281,7 +285,7 @@ class OsProcesses:
     is killed unless it is still the process that started then (pid and start time)."""
 
     def __init__(self) -> None:
-        self._running: dict[str, tuple[subprocess.Popen, str, tuple[str, ...], int]] = {}
+        self._running: dict[str, tuple[subprocess.Popen[bytes], str, tuple[str, ...], int]] = {}
 
     def alive(self, pid: int, started_at: float | None = None) -> bool:
         if not _exists(pid):
@@ -317,7 +321,7 @@ class OsProcesses:
     ) -> Completed:
         return run_process(args, cwd=cwd, timeout=timeout)
 
-    def start_job(self, steps: Sequence[dict], cwd: str, log: str, *, label: str) -> str:
+    def start_job(self, steps: Sequence[dict[str, Any]], cwd: str, log: str, *, label: str) -> str:
         """``python -m botcore_factory.job`` in its own group, its output appended to ``log``."""
         args = (sys.executable, "-m", "botcore_factory.job", json.dumps({"steps": list(steps)}))
         start = _size(log)  # This job's output starts here; an earlier one may precede it.
@@ -356,7 +360,7 @@ class OsProcesses:
             self.terminate(int(pid), float(started))
 
     def start_detached(self, args: Sequence[str], cwd: str, log: str) -> int:
-        options: dict = {}
+        options: dict[str, Any] = {}
         if sys.platform == "win32":
             options["creationflags"] = (
                 subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
@@ -375,7 +379,7 @@ class OsProcesses:
         return True
 
 
-def new_group() -> dict:
+def new_group() -> dict[str, Any]:
     """Popen options that start a process in its own group, to kill as a tree."""
     if sys.platform == "win32":
         return {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
@@ -411,7 +415,9 @@ def kill_tree(pid: int) -> None:
                 os.kill(child, 9)
 
 
-def _spawn(args: Sequence[str], cwd: str, log: str, options: dict) -> subprocess.Popen:
+def _spawn(
+    args: Sequence[str], cwd: str, log: str, options: dict[str, Any]
+) -> subprocess.Popen[bytes]:
     Path(log).parent.mkdir(parents=True, exist_ok=True)
     with open(log, "ab") as output:
         try:
@@ -455,7 +461,9 @@ def _read_from(log: str, start: int) -> str:
         return ""
 
 
-def _kernel32():
+def _kernel32() -> Any:
+    if sys.platform != "win32":
+        raise WorldError("kernel32 is only available on Windows")
     import ctypes
 
     return ctypes.WinDLL("kernel32", use_last_error=True)

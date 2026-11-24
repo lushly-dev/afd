@@ -27,8 +27,9 @@ is omitted from an object, and becomes ``None`` in a list.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Optional, Tuple
+from typing import Any
 
 from afd.core.wire import to_wire
 
@@ -61,9 +62,9 @@ class PipelineResolutionLimitError(ValueError):
 class _Absent:
     """Sentinel for an unresolved reference."""
 
-    _instance: Optional["_Absent"] = None
+    _instance: _Absent | None = None
 
-    def __new__(cls) -> "_Absent":
+    def __new__(cls) -> _Absent:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
@@ -94,7 +95,7 @@ _REFERENCE_RE = re.compile(
     re.DOTALL,
 )
 
-PathSegment = Tuple[str, Optional[int]]
+PathSegment = tuple[str, int | None]
 """A path segment: a key, optionally followed by an array index (``items[2]``)."""
 
 
@@ -110,12 +111,12 @@ class VariableReference:
     """
 
     root: str
-    index: Optional[int] = None
-    alias: Optional[str] = None
-    path: Tuple[PathSegment, ...] = ()
+    index: int | None = None
+    alias: str | None = None
+    path: tuple[PathSegment, ...] = ()
 
 
-def parse_path(path: str) -> Optional[Tuple[PathSegment, ...]]:
+def parse_path(path: str) -> tuple[PathSegment, ...] | None:
     """Parse a dotted path into segments, or return None if it is malformed."""
     segments = []
     for part in path.split("."):
@@ -127,7 +128,7 @@ def parse_path(path: str) -> Optional[Tuple[PathSegment, ...]]:
     return tuple(segments)
 
 
-def parse_reference(value: str) -> Optional[VariableReference]:
+def parse_reference(value: str) -> VariableReference | None:
     """Parse a reference string.
 
     Returns:
@@ -140,7 +141,7 @@ def parse_reference(value: str) -> Optional[VariableReference]:
     if match is None:
         return None
 
-    path: Tuple[PathSegment, ...] = ()
+    path: tuple[PathSegment, ...] = ()
     if match.group("path") is not None:
         parsed = parse_path(match.group("path"))
         if parsed is None:
@@ -169,9 +170,9 @@ def json_view(value: Any) -> Any:
 class _Unviewable:
     """Sentinel for data that has no JSON view: a cycle, or a value that cannot be converted."""
 
-    _instance: Optional["_Unviewable"] = None
+    _instance: _Unviewable | None = None
 
-    def __new__(cls) -> "_Unviewable":
+    def __new__(cls) -> _Unviewable:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
@@ -216,8 +217,8 @@ def _walk_view(root: Any) -> Any:
     # The view of every container converted so far, by the id of its source: a container reached
     # twice, or a cycle, shares one view, so the walk is linear and reuse counts once, as in
     # TypeScript.
-    views: dict = {id(root): view}
-    stack: list = [(root, view)]
+    views: dict[int, Any] = {id(root): view}
+    stack: list[tuple[Any, Any]] = [(root, view)]
     while stack:
         source, target = stack.pop()
         items = source.items() if isinstance(source, dict) else enumerate(source)
@@ -243,7 +244,7 @@ def _index(current: Any, index: int) -> Any:
     return ABSENT
 
 
-def follow_path(view: Any, path: Tuple[PathSegment, ...]) -> Any:
+def follow_path(view: Any, path: tuple[PathSegment, ...]) -> Any:
     """Follow path segments through JSON data (dicts, lists and scalars only).
 
     Returns:
@@ -367,8 +368,8 @@ class _Budget:
         self.chars = MAX_RESOLVED_CHARS
         # Containers already expanded, by identity (held, so an id is never reused while
         # resolving), and non-empty strings, by value.
-        self.seen_containers: dict = {}
-        self.seen_strings: set = set()
+        self.seen_containers: dict[int, Any] = {}
+        self.seen_strings: set[str] = set()
 
     def node(self, charge: bool = True) -> None:
         if not charge:
@@ -409,7 +410,7 @@ class _Budget:
 
 
 def _copy_resolved(
-    value: Any, depth: int, budget: _Budget, charge: bool, ancestors: Optional[set] = None
+    value: Any, depth: int, budget: _Budget, charge: bool, ancestors: set[int] | None = None
 ) -> Any:
     """Copy a referenced value, at most 64 levels deep, charging it when it is a repeat.
 
@@ -443,9 +444,7 @@ def _copy_resolved(
 def _resolve_bounded(value: Any, lookup: RootLookup, depth: int, budget: _Budget) -> Any:
     if isinstance(value, str):
         reference = (
-            parse_reference(value)
-            if value.startswith("$") and not value.startswith("$$")
-            else None
+            parse_reference(value) if value.startswith("$") and not value.startswith("$$") else None
         )
         if reference is None:
             literal = unescape_literal(value)

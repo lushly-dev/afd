@@ -28,13 +28,16 @@ import json
 import os
 import time
 import uuid
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
+from typing import Any, TypeVar
 
 from botcore_factory.claims import format_time, parse_time
 from botcore_factory.state import _replace
 from botcore_factory.world import Clock, Processes, WorldError
+
+_T = TypeVar("_T")
 
 LOCK_VERSION = 1
 LOCK_DIR_ENV = "LUSHLY_FACTORY_HOST_LOCK_DIR"
@@ -51,15 +54,15 @@ MUTEX_TIMEOUT_SECONDS = 30.0
 EPOCH_TOLERANCE_SECONDS = 2
 
 
-def default_lock_dir(env: dict[str, str] | None = None) -> Path:
-    env = os.environ if env is None else env
-    override = env.get(LOCK_DIR_ENV)
+def default_lock_dir(env: Mapping[str, str] | None = None) -> Path:
+    source: Mapping[str, str] = os.environ if env is None else env
+    override = source.get(LOCK_DIR_ENV)
     if override:
         return Path(override)
     return Path.home() / ".cache" / "lushly-factory"
 
 
-def empty_lock_state() -> dict:
+def empty_lock_state() -> dict[str, Any]:
     return {"version": LOCK_VERSION, "owner": None, "waiters": []}
 
 
@@ -84,16 +87,16 @@ def _is_int(value: object) -> bool:
 
 
 def _is_alive(processes: Processes, pid: object, started_at_epoch: object) -> bool:
-    if not _is_int(pid) or pid <= 0:
+    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0:
         return False
     started: float | None = None
     if isinstance(started_at_epoch, (int, float)) and not isinstance(started_at_epoch, bool):
         started = float(started_at_epoch)
-    return processes.alive(int(pid), started)
+    return processes.alive(pid, started)
 
 
 def _same_lane(
-    entry: dict, lane: str, repository: str, pid: int, started_epoch: int | None
+    entry: dict[str, Any], lane: str, repository: str, pid: int, started_epoch: int | None
 ) -> bool:
     if (
         entry.get("lane") != lane
@@ -102,12 +105,12 @@ def _same_lane(
     ):
         return False
     recorded = entry.get("startedAtEpoch")
-    if _is_int(recorded) and started_epoch is not None:
-        return abs(int(recorded) - started_epoch) <= EPOCH_TOLERANCE_SECONDS
+    if isinstance(recorded, int) and not isinstance(recorded, bool) and started_epoch is not None:
+        return abs(recorded - started_epoch) <= EPOCH_TOLERANCE_SECONDS
     return True
 
 
-def validate_lock_state(raw: object, source: str) -> dict:
+def validate_lock_state(raw: object, source: str) -> dict[str, Any]:
     """Validate and normalize a decoded ``validation-lock.json`` object; fail closed on bad data."""
     if not isinstance(raw, dict):
         raise WorldError(f"Host validation lock at {source} is not a JSON object")
@@ -133,12 +136,12 @@ def validate_lock_state(raw: object, source: str) -> dict:
 
 
 def prune_lock_state(
-    data: dict,
+    data: dict[str, Any],
     processes: Processes,
     now: datetime,
     *,
     waiter_ttl: float = WAITER_TTL_SECONDS,
-) -> dict:
+) -> dict[str, Any]:
     """Drop dead holds, dead owners (once all job PIDs are gone), and dead or expired waiters."""
     state = copy.deepcopy(data)
     owner = state.get("owner")
@@ -159,7 +162,7 @@ def prune_lock_state(
         else:
             state["owner"] = None
 
-    live_waiters: list[dict] = []
+    live_waiters: list[dict[str, Any]] = []
     for waiter in state.get("waiters") or []:
         if not _is_alive(processes, waiter.get("pid"), waiter.get("startedAtEpoch")):
             continue
@@ -177,8 +180,8 @@ def prune_lock_state(
 
 
 def _blocker_for(
-    state: dict, lane: str, repository: str, pid: int, started_epoch: int | None
-) -> dict | None:
+    state: dict[str, Any], lane: str, repository: str, pid: int, started_epoch: int | None
+) -> dict[str, Any] | None:
     """Deterministic blocker summary when ``(lane, repository, pid)`` may not take a new hold."""
     owner = state.get("owner")
     if isinstance(owner, dict) and not _same_lane(owner, lane, repository, pid, started_epoch):
@@ -201,7 +204,7 @@ def _blocker_for(
 
 
 def _upsert_waiter(
-    state: dict,
+    state: dict[str, Any],
     lane: str,
     repository: str,
     pid: int,
@@ -230,7 +233,7 @@ def _upsert_waiter(
 
 
 def _remove_waiter(
-    state: dict, lane: str, repository: str, pid: int, started_epoch: int | None
+    state: dict[str, Any], lane: str, repository: str, pid: int, started_epoch: int | None
 ) -> None:
     state["waiters"] = [
         waiter
@@ -240,7 +243,7 @@ def _remove_waiter(
 
 
 def apply_check_available(
-    data: dict,
+    data: dict[str, Any],
     processes: Processes,
     now: datetime,
     *,
@@ -249,7 +252,7 @@ def apply_check_available(
     register_waiter: bool = True,
     lane: str = DEFAULT_LANE,
     waiter_ttl: float = WAITER_TTL_SECONDS,
-) -> tuple[dict, dict | None]:
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
     state = prune_lock_state(data, processes, now, waiter_ttl=waiter_ttl)
     started_epoch = _epoch(processes.start_time(pid))
     blocker = _blocker_for(state, lane, repository, pid, started_epoch)
@@ -259,7 +262,7 @@ def apply_check_available(
 
 
 def apply_try_acquire(
-    data: dict,
+    data: dict[str, Any],
     processes: Processes,
     now: datetime,
     *,
@@ -268,7 +271,7 @@ def apply_try_acquire(
     pid: int,
     lane: str = DEFAULT_LANE,
     waiter_ttl: float = WAITER_TTL_SECONDS,
-) -> tuple[dict, dict | None]:
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
     state = prune_lock_state(data, processes, now, waiter_ttl=waiter_ttl)
     started_epoch = _epoch(processes.start_time(pid))
     now_str = format_time(now)
@@ -300,7 +303,7 @@ def apply_try_acquire(
 
 
 def apply_set_job(
-    data: dict,
+    data: dict[str, Any],
     processes: Processes,
     now: datetime,
     *,
@@ -308,7 +311,7 @@ def apply_set_job(
     caller: tuple[str, str, int],
     job: tuple[int | None, float | None],
     waiter_ttl: float = WAITER_TTL_SECONDS,
-) -> dict:
+) -> dict[str, Any]:
     lane, repository, pid = caller
     job_pid, job_started_at = job
     state = prune_lock_state(data, processes, now, waiter_ttl=waiter_ttl)
@@ -324,7 +327,7 @@ def apply_set_job(
 
 
 def apply_release(
-    data: dict,
+    data: dict[str, Any],
     processes: Processes,
     now: datetime,
     *,
@@ -333,7 +336,7 @@ def apply_release(
     pid: int,
     lane: str = DEFAULT_LANE,
     waiter_ttl: float = WAITER_TTL_SECONDS,
-) -> dict:
+) -> dict[str, Any]:
     state = prune_lock_state(data, processes, now, waiter_ttl=waiter_ttl)
     started_epoch = _epoch(processes.start_time(pid))
     owner = state.get("owner")
@@ -347,7 +350,7 @@ def apply_release(
 
 
 def apply_reconcile(
-    data: dict,
+    data: dict[str, Any],
     processes: Processes,
     now: datetime,
     *,
@@ -356,7 +359,7 @@ def apply_reconcile(
     active_hold_ids: Sequence[str],
     lane: str = DEFAULT_LANE,
     waiter_ttl: float = WAITER_TTL_SECONDS,
-) -> dict:
+) -> dict[str, Any]:
     state = prune_lock_state(data, processes, now, waiter_ttl=waiter_ttl)
     started_epoch = _epoch(processes.start_time(pid))
     owner = state.get("owner")
@@ -371,7 +374,7 @@ def apply_reconcile(
 
 
 def apply_withdraw_waiter(
-    data: dict,
+    data: dict[str, Any],
     processes: Processes,
     now: datetime,
     *,
@@ -379,7 +382,7 @@ def apply_withdraw_waiter(
     pid: int,
     lane: str = DEFAULT_LANE,
     waiter_ttl: float = WAITER_TTL_SECONDS,
-) -> dict:
+) -> dict[str, Any]:
     state = prune_lock_state(data, processes, now, waiter_ttl=waiter_ttl)
     started_epoch = _epoch(processes.start_time(pid))
     _remove_waiter(state, lane, repository, pid, started_epoch)
@@ -418,7 +421,12 @@ class ValidationLock:
     def mutex_path(self) -> Path:
         return self.directory / MUTEX_FILENAME
 
-    def _mutate(self, transform, *, write_if_absent: bool = False):
+    def _mutate(
+        self,
+        transform: Callable[[dict[str, Any], datetime], tuple[dict[str, Any], _T]],
+        *,
+        write_if_absent: bool = False,
+    ) -> _T:
         with self._mutex():
             before = self._read()
             after, result = transform(before, self.clock.now())
@@ -433,7 +441,7 @@ class ValidationLock:
         *,
         register_waiter: bool = True,
         lane: str = DEFAULT_LANE,
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         return self._mutate(
             lambda data, now: apply_check_available(
                 data,
@@ -449,7 +457,7 @@ class ValidationLock:
 
     def try_acquire(
         self, hold_id: str, repository: str, pid: int, *, lane: str = DEFAULT_LANE
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         return self._mutate(
             lambda data, now: apply_try_acquire(
                 data,
@@ -546,7 +554,7 @@ class ValidationLock:
             )
         )
 
-    def status(self) -> dict:
+    def status(self) -> dict[str, Any]:
         return prune_lock_state(
             self._read(), self.processes, self.clock.now(), waiter_ttl=self.waiter_ttl
         )
@@ -557,7 +565,7 @@ class ValidationLock:
             with contextlib.suppress(OSError):
                 os.chmod(self.directory, 0o700)
 
-    def _read(self) -> dict:
+    def _read(self) -> dict[str, Any]:
         raw_text = ""
         for attempt in range(20):
             try:
@@ -583,7 +591,7 @@ class ValidationLock:
             ) from exc
         return validate_lock_state(raw, str(self.lock_path))
 
-    def _write(self, state: dict) -> None:
+    def _write(self, state: dict[str, Any]) -> None:
         self._ensure_dir()
         temporary = self.directory / f"{LOCK_FILENAME}.{os.getpid()}.{uuid.uuid4().hex}.tmp"
         try:
@@ -594,7 +602,7 @@ class ValidationLock:
                 temporary.unlink()
             raise WorldError(f"Cannot write host validation lock {self.lock_path}: {exc}") from exc
 
-    def _read_mutex(self, path: Path | None = None) -> dict | None:
+    def _read_mutex(self, path: Path | None = None) -> dict[str, Any] | None:
         target = self.mutex_path if path is None else path
         try:
             data = json.loads(target.read_text(encoding="utf-8"))
@@ -602,7 +610,7 @@ class ValidationLock:
             return None
         return data if isinstance(data, dict) else None
 
-    def _holder_alive(self, holder: dict) -> bool:
+    def _holder_alive(self, holder: dict[str, Any]) -> bool:
         started = holder.get("startedAtEpoch")
         if started is None:
             started = holder.get("startedAt")

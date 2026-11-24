@@ -39,9 +39,9 @@ def print_result(result: CommandResult[Any], *, json_output: bool = False) -> No
     import json
 
     if json_output:
-        from afd.core.wire import to_wire
-
         import click
+
+        from afd.core.wire import to_wire
 
         click.echo(json.dumps(to_wire(result), indent=2))
         return
@@ -51,7 +51,7 @@ def print_result(result: CommandResult[Any], *, json_output: bool = False) -> No
         success = result.get("success", False)
     else:
         success = getattr(result, "success", False)
-    
+
     if success:
         _print_success_result(result)
     else:
@@ -88,7 +88,9 @@ def _print_success_result(result: CommandResult[Any]) -> None:
             syntax = Syntax(json_str, "json", theme="monokai", line_numbers=False)
             console.print(Panel(syntax, title="[green]✓ Success[/green]", border_style="green"))
         else:
-            console.print(Panel(plain(data), title="[green]✓ Success[/green]", border_style="green"))
+            console.print(
+                Panel(plain(data), title="[green]✓ Success[/green]", border_style="green")
+            )
     else:
         console.print("[green]✓ Command completed successfully[/green]")
 
@@ -114,7 +116,7 @@ def _print_success_result(result: CommandResult[Any]) -> None:
 def _print_error_result(result: CommandResult[Any]) -> None:
     """Print an error result with rich formatting."""
     error = _get_attr(result, "error", {})
-    
+
     if isinstance(error, dict):
         code = error.get("code", "UNKNOWN_ERROR")
         message = error.get("message", "An unknown error occurred")
@@ -137,21 +139,21 @@ def _create_confidence_bar(confidence: float, width: int = 10) -> str:
     """Create a visual confidence bar."""
     filled = int(confidence * width)
     empty = width - filled
-    
+
     if confidence >= 0.8:
         color = "green"
     elif confidence >= 0.5:
         color = "yellow"
     else:
         color = "red"
-    
+
     return f"[{color}]{'█' * filled}{'░' * empty}[/{color}]"
 
 
 def _print_plan(plan: list[dict[str, Any]]) -> None:
     """Print execution plan as a tree."""
     tree = Tree("[bold]📋 Execution Plan[/bold]")
-    
+
     for step in plan:
         if isinstance(step, dict):
             status = step.get("status", "pending")
@@ -159,7 +161,7 @@ def _print_plan(plan: list[dict[str, Any]]) -> None:
         else:
             status = getattr(step, "status", "pending")
             description = getattr(step, "description", "Unknown step")
-        
+
         status_icons = {
             "pending": "⏳",
             "in_progress": "🔄",
@@ -170,7 +172,7 @@ def _print_plan(plan: list[dict[str, Any]]) -> None:
         icon = status_icons.get(str(status), "•")
 
         tree.add(Text.assemble(f"{icon} ", plain(description)))
-    
+
     console.print(tree)
 
 
@@ -180,7 +182,7 @@ def _print_alternatives(alternatives: list[dict[str, Any]]) -> None:
     table.add_column("Option", style="cyan")
     table.add_column("Reason", style="dim")
     table.add_column("Confidence", justify="right")
-    
+
     for alt in alternatives[:5]:  # Limit to 5
         if isinstance(alt, dict):
             reason = alt.get("reason", "")
@@ -190,17 +192,17 @@ def _print_alternatives(alternatives: list[dict[str, Any]]) -> None:
             reason = getattr(alt, "reason", "")
             confidence = getattr(alt, "confidence", None)
             data = getattr(alt, "data", None)
-        
+
         confidence_str = f"{confidence:.0%}" if confidence is not None else "-"
-        
+
         # Truncate data for display
         if isinstance(data, dict):
             data_str = str(data)[:50] + "..." if len(str(data)) > 50 else str(data)
         else:
             data_str = str(data)[:50]
-        
+
         table.add_row(plain(data_str), plain(reason), confidence_str)
-    
+
     console.print(table)
 
 

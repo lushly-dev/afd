@@ -10,7 +10,7 @@ SPEC_VERSION = Path(__file__).resolve().parents[2] / "spec" / "VERSION"
 
 
 def test_contract_version_matches_spec():
-    assert afd.CONTRACT_VERSION == SPEC_VERSION.read_text(encoding="utf-8").strip()
+    assert SPEC_VERSION.read_text(encoding="utf-8").strip() == afd.CONTRACT_VERSION
 
 
 def test_contract_version_is_major_minor():

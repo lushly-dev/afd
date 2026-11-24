@@ -10,7 +10,7 @@ context fields (spec/context-fields.md): ``scope`` kept in ``context``, then a
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -63,7 +63,7 @@ CONTEXT_FIELDS = [
 
 
 def _iso(ms: float) -> str:
-    moment = datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(milliseconds=ms)
+    moment = datetime(1970, 1, 1, tzinfo=UTC) + timedelta(milliseconds=ms)
     return moment.strftime("%Y-%m-%dT%H:%M:%S.") + f"{moment.microsecond // 1000:03d}Z"
 
 

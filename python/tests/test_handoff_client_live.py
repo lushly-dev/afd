@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any, Callable, List
+from collections.abc import Callable
+from typing import Any
 
 import pytest
 
@@ -52,10 +53,10 @@ class _Recorder:
     """Collects everything a connection reports."""
 
     def __init__(self) -> None:
-        self.messages: List[Any] = []
-        self.disconnects: List[tuple] = []
-        self.errors: List[Exception] = []
-        self.states: List[HandoffConnectionState] = []
+        self.messages: list[Any] = []
+        self.disconnects: list[tuple] = []
+        self.errors: list[Exception] = []
+        self.states: list[HandoffConnectionState] = []
 
     def options(self, **overrides: Any) -> HandoffConnectionOptions:
         values: dict = {
@@ -74,7 +75,7 @@ class _WsServer:
     def __init__(self, behaviour, process_request=None) -> None:
         self._behaviour = behaviour
         self._process_request = process_request
-        self.requests: List[Any] = []
+        self.requests: list[Any] = []
         self.open_connections = 0
         self.connections = 0
         self.port = 0
@@ -88,10 +89,8 @@ class _WsServer:
         finally:
             self.open_connections -= 1
 
-    async def __aenter__(self) -> "_WsServer":
-        self._server = serve(
-            self._handler, "127.0.0.1", 0, process_request=self._process_request
-        )
+    async def __aenter__(self) -> _WsServer:
+        self._server = serve(self._handler, "127.0.0.1", 0, process_request=self._process_request)
         server = await self._server.__aenter__()
         self.port = server.sockets[0].getsockname()[1]
         return self
@@ -131,9 +130,7 @@ class TestWebSocketConnection:
         recorder = _Recorder()
         async with _WsServer(_hold_open) as server:
             conn = await connect_handoff(
-                server.handoff(
-                    credentials={"token": "s3cret-token", "headers": {"X-Room": "42"}}
-                ),
+                server.handoff(credentials={"token": "s3cret-token", "headers": {"X-Room": "42"}}),
                 recorder.options(),
             )
             await conn.close()
@@ -163,11 +160,11 @@ class TestWebSocketConnection:
                 await connection.send(message)
 
         recorder = _Recorder()
-        closed: List[bool] = []
+        closed: list[bool] = []
         async with _WsServer(echo) as server:
             conn = await connect_handoff(server.handoff(), recorder.options())
             conn.on_close(lambda: closed.append(True))
-            extra: List[Any] = []
+            extra: list[Any] = []
             conn.on_message(extra.append)
             await conn.send({"n": 1})
             await _until(lambda: recorder.messages)
@@ -189,7 +186,7 @@ class TestWebSocketConnection:
             await connection.send("2")
             await connection.wait_closed()
 
-        seen: List[Any] = []
+        seen: list[Any] = []
 
         def on_message(message: Any) -> None:
             seen.append(message)
@@ -197,7 +194,9 @@ class TestWebSocketConnection:
                 raise ValueError("callback bug")
 
         async with _WsServer(send_two) as server:
-            conn = await connect_handoff(server.handoff(), HandoffConnectionOptions(on_message=on_message))
+            conn = await connect_handoff(
+                server.handoff(), HandoffConnectionOptions(on_message=on_message)
+            )
             await _until(lambda: len(seen) == 2)
             await conn.close()
 
@@ -226,8 +225,8 @@ class TestReconnectingWebSocket:
             else:
                 await connection.wait_closed()
 
-        messages: List[Any] = []
-        reconnects: List[int] = []
+        messages: list[Any] = []
+        reconnects: list[int] = []
         async with _WsServer(first_closes) as server:
             conn = await create_reconnecting_handoff(
                 None,
@@ -266,14 +265,17 @@ class TestReconnectingWebSocket:
                 await connection.send("back")
                 await connection.wait_closed()
 
-        messages: List[Any] = []
-        errors: List[Exception] = []
+        messages: list[Any] = []
+        errors: list[Exception] = []
         async with _WsServer(first_closes, process_request=reject_second) as server:
             conn = await create_reconnecting_handoff(
                 None,
                 server.handoff(),
                 ReconnectionOptions(
-                    backoff_ms=10, max_attempts=5, on_message=messages.append, on_error=errors.append
+                    backoff_ms=10,
+                    max_attempts=5,
+                    on_message=messages.append,
+                    on_error=errors.append,
                 ),
             )
             await _until(lambda: messages == ["back"])
@@ -334,7 +336,7 @@ class _MockConnection:
 class TestReconnectLogic:
     @pytest.mark.asyncio
     async def test_one_failed_attempt_does_not_stick_in_reconnecting(self):
-        created: List[_MockConnection] = []
+        created: list[_MockConnection] = []
         calls = {"n": 0}
 
         async def handler(handoff, options):
@@ -359,9 +361,9 @@ class TestReconnectLogic:
 
     @pytest.mark.asyncio
     async def test_all_attempts_failing_ends_failed(self):
-        failed: List[bool] = []
+        failed: list[bool] = []
         calls = {"n": 0}
-        first: List[_MockConnection] = []
+        first: list[_MockConnection] = []
 
         async def handler(handoff, options):
             calls["n"] += 1
@@ -388,7 +390,7 @@ class TestReconnectLogic:
 
     @pytest.mark.asyncio
     async def test_stale_disconnect_from_an_old_connection_is_ignored(self):
-        created: List[_MockConnection] = []
+        created: list[_MockConnection] = []
 
         async def handler(handoff, options):
             connection = _MockConnection(options)
@@ -415,7 +417,7 @@ class TestReconnectLogic:
     @pytest.mark.asyncio
     async def test_connection_opened_after_close_is_closed(self):
         entered = asyncio.Event()
-        created: List[_MockConnection] = []
+        created: list[_MockConnection] = []
 
         async def handler(handoff, options):
             connection = _MockConnection(options)
@@ -460,7 +462,7 @@ class TestReconnectLogic:
 
 async def _sse_server(respond):
     """A raw HTTP server; ``respond(headers, writer)`` writes the response."""
-    requests: List[dict] = []
+    requests: list[dict] = []
 
     async def handle(reader, writer):
         head = await reader.readuntil(b"\r\n\r\n")

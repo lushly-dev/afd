@@ -10,8 +10,8 @@ exactly these.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
-from typing import Annotated, Literal
+from collections.abc import Awaitable, Callable
+from typing import Annotated, Any, Literal
 
 from afd import CommandResult
 from botcore.host import CommandPolicy
@@ -99,20 +99,22 @@ POLICIES: dict[str, CommandPolicy] = {
 WRITES = records.WRITE_COMMANDS
 
 
-def _raise(exc: Exception) -> CommandResult:
+def _raise(exc: Exception) -> CommandResult[Any]:
     raise exc
 
 
-async def _run(body: Callable[[], CommandResult]) -> CommandResult:
+async def _run(body: Callable[[], CommandResult[Any]]) -> CommandResult[Any]:
     # GitHub calls block; a thread keeps an HTTP or MCP host's event loop free.
     return await asyncio.to_thread(guard, body)
 
 
-def _writer(get: Callable[[], Gateway]):
+def _writer(
+    get: Callable[[], Gateway],
+) -> Callable[[Callable[[], CommandResult[Any]]], Awaitable[CommandResult[Any]]]:
     """Run a write under the gateway's one lock: read, decide and write as one step."""
 
-    async def write(body: Callable[[], CommandResult]) -> CommandResult:
-        def locked() -> CommandResult:
+    async def write(body: Callable[[], CommandResult[Any]]) -> CommandResult[Any]:
+        def locked() -> CommandResult[Any]:
             with get().state.lock:
                 return body()
 
@@ -121,16 +123,16 @@ def _writer(get: Callable[[], Gateway]):
     return write
 
 
-def _reads_claims_and_issues(route: str, get: Callable[[], Gateway], host: str) -> dict:
+def _reads_claims_and_issues(route: str, get: Callable[[], Gateway], host: str) -> dict[str, Any]:
     run, write = _run, _writer(get)
 
-    async def gateway_status() -> CommandResult:
+    async def gateway_status() -> CommandResult[Any]:
         """Report this route's host, its write commands, the bot identity, repositories,
         rate limit (REST and GraphQL), credential ages and journal."""
         writes = sorted(name for name in ROUTES[route] if name in WRITES)
         return await run(lambda: get().status(host, writes))
 
-    async def issue_get(repo: Repo, number: int) -> CommandResult:
+    async def issue_get(repo: Repo, number: int) -> CommandResult[Any]:
         """Read an issue: typed facts, its claim, and its body labelled as content.
 
         Args:
@@ -144,7 +146,7 @@ def _reads_claims_and_issues(route: str, get: Callable[[], Gateway], host: str) 
         number: int,
         limit: Annotated[int, Field(ge=1, le=100)] = 50,
         cursor: str | None = None,
-    ) -> CommandResult:
+    ) -> CommandResult[Any]:
         """Read an issue's comments in pages, each labelled as content.
 
         Args:
@@ -155,7 +157,7 @@ def _reads_claims_and_issues(route: str, get: Callable[[], Gateway], host: str) 
         """
         return await run(lambda: get().comment_list(repo, number, limit, cursor))
 
-    async def claim_list(repo: Repo, stale: bool | None = None) -> CommandResult:
+    async def claim_list(repo: Repo, stale: bool | None = None) -> CommandResult[Any]:
         """List the claims GitHub records, rebuilt from the bot's comments.
 
         Args:
@@ -164,7 +166,7 @@ def _reads_claims_and_issues(route: str, get: Callable[[], Gateway], host: str) 
         """
         return await run(lambda: get().claim_list(repo, stale))
 
-    async def pr_status(repo: Repo, number: int) -> CommandResult:
+    async def pr_status(repo: Repo, number: int) -> CommandResult[Any]:
         """Read where a pull request stands, settled: merged, closed or open, mergeability,
         the required check and, where main has a merge queue, its place in it.
 
@@ -179,7 +181,7 @@ def _reads_claims_and_issues(route: str, get: Callable[[], Gateway], host: str) 
         numbers: Annotated[list[int], Field(min_length=1, max_length=20)],
         holder: Holder,
         lease_hours: Annotated[float, Field(gt=0, le=168)] | None = None,
-    ) -> CommandResult:
+    ) -> CommandResult[Any]:
         """Claim issues for a holder, all or none; claiming again as the same holder renews.
 
         Args:
@@ -192,7 +194,9 @@ def _reads_claims_and_issues(route: str, get: Callable[[], Gateway], host: str) 
             lambda: get().issue_claim(repo, numbers, holder.model_dump(), lease_hours)
         )
 
-    async def issue_release(repo: Repo, number: int, holder: Holder, reason: Name) -> CommandResult:
+    async def issue_release(
+        repo: Repo, number: int, holder: Holder, reason: Name
+    ) -> CommandResult[Any]:
         """Release a claim the holder holds; a retry of a done release changes nothing.
 
         Args:
@@ -207,7 +211,7 @@ def _reads_claims_and_issues(route: str, get: Callable[[], Gateway], host: str) 
 
     async def issue_release_owner(
         repo: Repo, number: int, holder: Holder, reason: Name, force: bool = False
-    ) -> CommandResult:
+    ) -> CommandResult[Any]:
         """Release a claim; with force, the owner frees an issue whoever holds it.
 
         Args:
@@ -223,7 +227,7 @@ def _reads_claims_and_issues(route: str, get: Callable[[], Gateway], host: str) 
 
     async def issue_label(
         repo: Repo, number: int, add: list[str] | None = None, remove: list[str] | None = None
-    ) -> CommandResult:
+    ) -> CommandResult[Any]:
         """Add or remove labels the repository defines; returns the labels before and after.
 
         Args:
@@ -236,7 +240,7 @@ def _reads_claims_and_issues(route: str, get: Callable[[], Gateway], host: str) 
 
     async def issue_comment(
         repo: Repo, number: int, body: str, dedupe_key: Name | None = None
-    ) -> CommandResult:
+    ) -> CommandResult[Any]:
         """Comment on an issue once: a retry with the same dedupe_key finds the comment.
 
         Args:
@@ -253,7 +257,7 @@ def _reads_claims_and_issues(route: str, get: Callable[[], Gateway], host: str) 
         body: str,
         labels: list[str] | None = None,
         dedupe_key: Name | None = None,
-    ) -> CommandResult:
+    ) -> CommandResult[Any]:
         """File an issue once: an open issue filed with the same dedupe_key is returned.
 
         Args:
@@ -279,10 +283,10 @@ def _reads_claims_and_issues(route: str, get: Callable[[], Gateway], host: str) 
     }
 
 
-def _lane_and_records(get: Callable[[], Gateway]) -> dict:
+def _lane_and_records(get: Callable[[], Gateway]) -> dict[str, Any]:
     run, write = _run, _writer(get)
 
-    async def branch_push(repo: Repo, ref: Name, head: Sha, bundle: Name) -> CommandResult:
+    async def branch_push(repo: Repo, ref: Name, head: Sha, bundle: Name) -> CommandResult[Any]:
         """Push one ref from an uploaded git bundle; cells and sessions push only
         refs/factory/queue/<branch>, which hands the branch to the lane.
 
@@ -300,7 +304,7 @@ def _lane_and_records(get: Callable[[], Gateway]) -> dict:
 
     async def pr_open(
         repo: Repo, branch: Name, title: Name, body: str, closes: list[int] | None = None
-    ) -> CommandResult:
+    ) -> CommandResult[Any]:
         """Open the branch's pull request, or update the open one; the gateway writes the
         closing lines.
 
@@ -315,7 +319,7 @@ def _lane_and_records(get: Callable[[], Gateway]) -> dict:
 
     async def verification_record(
         repo: Repo, head: Sha, result: Literal["passed", "failed"], summary: str
-    ) -> CommandResult:
+    ) -> CommandResult[Any]:
         """Record the lane's validation of a head, published as the factory/verification check.
 
         Args:
@@ -326,7 +330,9 @@ def _lane_and_records(get: Callable[[], Gateway]) -> dict:
         """
         return await write(lambda: get().verification_record(repo, head, result, summary))
 
-    async def pr_merge(repo: Repo, number: int, head: Sha, cancel: bool = False) -> CommandResult:
+    async def pr_merge(
+        repo: Repo, number: int, head: Sha, cancel: bool = False
+    ) -> CommandResult[Any]:
         """Merge a pull request at the head the lane validated, at once or by auto-merge bound
         to that head, by the repository's merge method; cancel turns auto-merge off. Where main
         has a merge queue the pull request is queued instead (state queued, with mergeQueue),
@@ -342,7 +348,7 @@ def _lane_and_records(get: Callable[[], Gateway]) -> dict:
 
     async def pr_revert(
         repo: Repo, numbers: Annotated[list[int], Field(min_length=1, max_length=10)], reason: str
-    ) -> CommandResult:
+    ) -> CommandResult[Any]:
         """Open a revert pull request for each merged pull request, or return the open one.
 
         Args:
@@ -352,7 +358,7 @@ def _lane_and_records(get: Callable[[], Gateway]) -> dict:
         """
         return await write(lambda: get().pr_revert(repo, numbers, reason))
 
-    async def variable_set(repo: Repo, name: Name, value: str) -> CommandResult:
+    async def variable_set(repo: Repo, name: Name, value: str) -> CommandResult[Any]:
         """Set a repository variable the gateway is allowed to set (FACTORY_LANE_HOST).
 
         Args:
@@ -370,7 +376,7 @@ def _lane_and_records(get: Callable[[], Gateway]) -> dict:
         actor: str | None = None,
         limit: Annotated[int, Field(ge=1, le=200)] = 50,
         cursor: str | None = None,
-    ) -> CommandResult:
+    ) -> CommandResult[Any]:
         """List the gateway's writes with the caller that made each, and writes to factory
         work that did not come through the gateway.
 
@@ -391,7 +397,7 @@ def _lane_and_records(get: Callable[[], Gateway]) -> dict:
         branch: Name,
         head: Sha,
         lanes: Annotated[list[ReviewLane], Field(min_length=1)],
-    ) -> CommandResult:
+    ) -> CommandResult[Any]:
         """Record review lanes' verdicts for a head; recording the same head replaces it.
 
         Args:
@@ -403,7 +409,7 @@ def _lane_and_records(get: Callable[[], Gateway]) -> dict:
         rows = [lane.model_dump() for lane in lanes]
         return await write(lambda: records.review_record(get(), repo, branch, head, rows))
 
-    async def review_get(repo: Repo, head: Sha) -> CommandResult:
+    async def review_get(repo: Repo, head: Sha) -> CommandResult[Any]:
         """Read the review recorded for an exact head.
 
         Args:
@@ -417,7 +423,7 @@ def _lane_and_records(get: Callable[[], Gateway]) -> dict:
         consumer: Name,
         kinds: list[str] | None = None,
         timeout_ms: Annotated[int, Field(ge=0, le=300_000)] = 30_000,
-    ) -> CommandResult:
+    ) -> CommandResult[Any]:
         """Return events this consumer has not seen, waiting up to timeout_ms for one.
 
         Args:
@@ -450,7 +456,9 @@ def _lane_and_records(get: Callable[[], Gateway]) -> dict:
     }
 
 
-def make_commands(route: str, get: Callable[[], Gateway], host: str) -> dict[str, Callable]:
+def make_commands(
+    route: str, get: Callable[[], Gateway], host: str
+) -> dict[str, Callable[..., Any]]:
     """The commands ``route`` serves; ``get`` returns that route's Gateway."""
     handlers = {**_reads_claims_and_issues(route, get, host), **_lane_and_records(get)}
     return {name: handlers[name] for name in ROUTES[route]}

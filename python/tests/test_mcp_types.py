@@ -36,7 +36,6 @@ from afd.core.mcp_types import (
     tool_result,
 )
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # CONSTANTS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -505,9 +504,7 @@ class TestInitializeResultHelper:
         assert result.server_info.version == "2.0.0"
 
     def test_with_capabilities(self):
-        result = initialize_result(
-            "srv", "1.0", capabilities={"tools": {"listChanged": True}}
-        )
+        result = initialize_result("srv", "1.0", capabilities={"tools": {"listChanged": True}})
         assert result.capabilities["tools"]["listChanged"] is True
 
 
@@ -556,28 +553,17 @@ class TestPackageExports:
 
     def test_import_from_afd(self):
         from afd import (
-            MCP_PROTOCOL_VERSION,
-            TextContent,
-            McpRequest,
             text_content,
-            mcp_request,
-            tool_call_params,
-            tool_result,
-            mcp_response,
-            mcp_error_response,
-            initialize_params,
-            initialize_result,
         )
+
         # Verify they are callable / usable
         tc = text_content("test")
         assert tc.text == "test"
 
     def test_import_from_afd_core(self):
         from afd.core import (
-            TextContent,
-            McpRequest,
-            text_content,
             mcp_request,
         )
+
         req = mcp_request("tools/list")
         assert req.method == "tools/list"

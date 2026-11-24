@@ -190,7 +190,9 @@ class GitHubApp:
 
     # ── transport ─────────────────────────────────────────────────────────
 
-    def _send(self, method: str, url: str, *, auth: str | None = None, **kwargs) -> httpx.Response:
+    def _send(
+        self, method: str, url: str, *, auth: str | None = None, **kwargs: Any
+    ) -> httpx.Response:
         headers = {"Authorization": auth or f"Bearer {self.token()}"}
         try:
             response = self._http.request(method, url, headers=headers, **kwargs)
@@ -200,7 +202,15 @@ class GitHubApp:
             raise GitHubUnavailable(f"{method} {_path(url)} answered {response.status_code}")
         return response
 
-    def _call(self, method: str, url: str, *, ok=(200, 201, 204), none=(), **kwargs):
+    def _call(
+        self,
+        method: str,
+        url: str,
+        *,
+        ok: tuple[int, ...] = (200, 201, 204),
+        none: tuple[int, ...] = (),
+        **kwargs: Any,
+    ) -> Any:
         """The decoded body; None for a status in ``none``; GitHubRefused for any other."""
         response = self._send(method, url, **kwargs)
         if response.status_code in none:
@@ -209,11 +219,13 @@ class GitHubApp:
             raise GitHubRefused(response.status_code, _message(response))
         return response.json() if response.content else None
 
-    def _pages(self, url: str, params: dict | None = None, limit: int | None = None):
+    def _pages(
+        self, url: str, params: dict[str, Any] | None = None, limit: int | None = None
+    ) -> list[dict[str, Any]]:
         """Every item a paginated REST list returns, following its Link header."""
-        items: list = []
+        items: list[dict[str, Any]] = []
         next_url: str | None = url
-        query = {"per_page": 100, **(params or {})}
+        query: dict[str, Any] | None = {"per_page": 100, **(params or {})}
         while next_url and (limit is None or len(items) < limit):
             response = self._send("GET", next_url, params=query)
             if response.status_code != 200:
@@ -226,7 +238,7 @@ class GitHubApp:
             query = None  # The next link carries the query.
         return items if limit is None else items[:limit]
 
-    def _graphql(self, query: str, **variables) -> dict:
+    def _graphql(self, query: str, **variables: Any) -> dict[str, Any]:
         body = self._call("POST", "/graphql", json={"query": query, "variables": variables})
         errors = body.get("errors") or []
         if errors:
@@ -235,14 +247,16 @@ class GitHubApp:
                 raise GitHubUnavailable("GraphQL answered RATE_LIMITED")
             if body.get("data") is None or kinds != {"NOT_FOUND"}:
                 raise GitHubRefused(200, "; ".join(e.get("message", "") for e in errors))
-        return body.get("data") or {}
+        return dict(body.get("data") or {})
 
-    def _graph_pages(self, query: str, path: tuple[str, ...], limit: int | None, **variables):
-        nodes: list = []
-        cursor = None
+    def _graph_pages(
+        self, query: str, path: tuple[str, ...], limit: int | None, **variables: Any
+    ) -> list[dict[str, Any]]:
+        nodes: list[dict[str, Any]] = []
+        cursor: str | None = None
         while limit is None or len(nodes) < limit:
             data = self._graphql(query, cursor=cursor, **variables)
-            connection = data
+            connection: Any = data
             for key in path:
                 connection = (connection or {}).get(key)
             if connection is None:
@@ -259,12 +273,12 @@ class GitHubApp:
     def now(self) -> str | None:
         return None  # The gateway's own clock.
 
-    def issue(self, repo, number):
+    def issue(self, repo: str, number: int) -> dict[str, Any] | None:
         data = self._graphql(_ISSUE_QUERY, **_owner_name(repo), number=number)
         node = (data.get("repository") or {}).get("issue")
         return None if node is None else self._issue_shape(repo, node)
 
-    def issues(self, repo):
+    def issues(self, repo: str) -> list[dict[str, Any]]:
         found = {}
         for states, limit in ((["OPEN"], None), (["CLOSED"], RECENT_CLOSED)):
             nodes = self._graph_pages(
@@ -274,7 +288,7 @@ class GitHubApp:
                 found[node["number"]] = self._issue_shape(repo, node)
         return [found[number] for number in sorted(found)]
 
-    def _issue_shape(self, repo: str, node: dict) -> dict:
+    def _issue_shape(self, repo: str, node: dict[str, Any]) -> dict[str, Any]:
         comments = node["comments"]
         rows = [_comment_shape(c) for c in comments["nodes"]]
         if comments["pageInfo"]["hasPreviousPage"]:
@@ -293,12 +307,12 @@ class GitHubApp:
             "comments": rows,
         }
 
-    def pull(self, repo, number):
+    def pull(self, repo: str, number: int) -> dict[str, Any] | None:
         data = self._graphql(_PULL_QUERY, **_owner_name(repo), number=number)
         node = (data.get("repository") or {}).get("pullRequest")
         return None if node is None else _pull_shape(node, self.bot)
 
-    def pulls(self, repo):
+    def pulls(self, repo: str) -> list[dict[str, Any]]:
         found = {}
         for states, limit in ((["OPEN"], None), (["CLOSED", "MERGED"], RECENT_CLOSED)):
             nodes = self._graph_pages(
@@ -312,25 +326,26 @@ class GitHubApp:
                 found[node["number"]] = _pull_shape(node, self.bot)
         return [found[number] for number in sorted(found)]
 
-    def repo_labels(self, repo):
+    def repo_labels(self, repo: str) -> list[str]:
         return [label["name"] for label in self._pages(f"/repos/{repo}/labels")]
 
-    def comments(self, repo, number):
+    def comments(self, repo: str, number: int) -> list[dict[str, Any]]:
         rows = self._pages(f"/repos/{repo}/issues/{number}/comments")
         return [_rest_comment(row) for row in rows]
 
-    def ref(self, repo, ref):
+    def ref(self, repo: str, ref: str) -> str | None:
         body = self._call("GET", f"/repos/{repo}/git/ref/{_short(ref)}", none=(404,))
         if not isinstance(body, dict) or not isinstance(body.get("object"), dict):
             return None  # A list is GitHub's prefix match: no ref by that exact name.
-        return body["object"].get("sha")
+        sha = body["object"].get("sha")
+        return str(sha) if sha is not None else None
 
-    def has_commit(self, repo, sha):
+    def has_commit(self, repo: str, sha: str) -> bool:
         if not re.fullmatch(r"[0-9a-f]{40}", sha or ""):
             return False
         return self._call("GET", f"/repos/{repo}/commits/{sha}", none=(404, 422)) is not None
 
-    def on_main(self, repo, sha):
+    def on_main(self, repo: str, sha: str) -> bool:
         if not re.fullmatch(r"[0-9a-f]{40}", sha or ""):
             return False
         body = self._call(
@@ -341,18 +356,18 @@ class GitHubApp:
         )
         return body is not None and body.get("status") in {"identical", "behind"}
 
-    def check_runs(self, repo, head):
+    def check_runs(self, repo: str, head: str) -> list[dict[str, Any]]:
         rows = self._pages(f"/repos/{repo}/commits/{head}/check-runs")
         runs = [_check_shape(row) for row in rows]
         return sorted(runs, key=lambda run: (run.get("queuedAt") or "", run["id"]))
 
-    def variable(self, repo, name):
+    def variable(self, repo: str, name: str) -> str | None:
         body = self._call(
             "GET", f"/repos/{repo}/actions/variables/{quote(name, safe='')}", none=(404,)
         )
-        return None if body is None else body["value"]
+        return None if body is None else str(body["value"])
 
-    def issue_events(self, repo):
+    def issue_events(self, repo: str) -> list[dict[str, Any]]:
         rows = self._pages(f"/repos/{repo}/issues/events", limit=FEED_SIZE)
         return [
             {
@@ -366,7 +381,7 @@ class GitHubApp:
             for row in rows
         ]
 
-    def comment_feed(self, repo):
+    def comment_feed(self, repo: str) -> list[dict[str, Any]]:
         rows = self._pages(
             f"/repos/{repo}/issues/comments",
             {"sort": "updated", "direction": "desc"},
@@ -382,7 +397,7 @@ class GitHubApp:
             for row in rows
         ]
 
-    def actions_status(self):
+    def actions_status(self) -> dict[str, Any] | None:
         """GitHub's own unresolved incident touching Actions, or None (also when unknown)."""
         try:
             response = httpx.get(STATUS_API, timeout=10.0, follow_redirects=False)
@@ -395,11 +410,11 @@ class GitHubApp:
                 return {"incident": incident.get("name"), "since": incident.get("created_at")}
         return None
 
-    def rate_limit(self):
+    def rate_limit(self) -> dict[str, Any]:
         body = self._call("GET", "/rate_limit")
         resources = body.get("resources") if isinstance(body, dict) else None
         result = _budget(resources.get("core")) if isinstance(resources, dict) else None
-        if result is None:
+        if result is None or not isinstance(resources, dict):
             raise GitHubUnavailable("the rate-limit answer was malformed")
         graphql = _budget(resources.get("graphql"))
         if graphql is not None:
@@ -408,20 +423,20 @@ class GitHubApp:
 
     # ── writes, all as the App's bot ──────────────────────────────────────
 
-    def set_labels(self, repo, number, labels):
+    def set_labels(self, repo: str, number: int, labels: list[str]) -> None:
         self._call("PUT", f"/repos/{repo}/issues/{number}/labels", json={"labels": list(labels)})
 
-    def add_comment(self, repo, number, body):
+    def add_comment(self, repo: str, number: int, body: str) -> dict[str, Any]:
         row = self._call("POST", f"/repos/{repo}/issues/{number}/comments", json={"body": body})
         return _rest_comment(row)
 
-    def create_issue(self, repo, title, body, labels):
+    def create_issue(self, repo: str, title: str, body: str, labels: list[str]) -> int:
         row = self._call(
             "POST", f"/repos/{repo}/issues", json={"title": title, "body": body, "labels": labels}
         )
-        return row["number"]
+        return int(row["number"])
 
-    def update_ref(self, repo, ref, head, expected=None):
+    def update_ref(self, repo: str, ref: str, head: str, expected: str | None = None) -> None:
         """Push ``head`` from the mirror to ``ref``, only if GitHub still has ``expected``
         there (None: only if the ref does not exist)."""
         mirror = uploads.mirror_path(self.data_dir, repo)
@@ -494,15 +509,15 @@ class GitHubApp:
             "GIT_CONFIG_VALUE_1": "false",
         }
 
-    def create_pull(self, repo, branch, title, body):
+    def create_pull(self, repo: str, branch: str, title: str, body: str) -> int:
         row = self._call(
             "POST",
             f"/repos/{repo}/pulls",
             json={"head": branch, "base": "main", "title": title, "body": body},
         )
-        return row["number"]
+        return int(row["number"])
 
-    def update_pull(self, repo, number, *, title, body):
+    def update_pull(self, repo: str, number: int, *, title: str, body: str) -> None:
         self._call("PATCH", f"/repos/{repo}/pulls/{number}", json={"title": title, "body": body})
 
     def _squash_body(self, repo: str, number: int, method: str) -> str | None:
@@ -511,7 +526,7 @@ class GitHubApp:
             return None
         return squash_body(self._pages(f"/repos/{repo}/pulls/{number}/commits"))
 
-    def merge_pull(self, repo, number, head, method):
+    def merge_pull(self, repo: str, number: int, head: str, method: str) -> str:
         sent = {"sha": head, "merge_method": method}
         body = self._squash_body(repo, number, method)
         if body is not None:
@@ -525,9 +540,9 @@ class GitHubApp:
         if response.status_code != 200:
             raise GitHubRefused(response.status_code, _message(response))
         merged = self.pull(repo, number) or {}
-        return merged.get("mergedAt") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        return str(merged.get("mergedAt") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
 
-    def enable_auto_merge(self, repo, number, head, method):
+    def enable_auto_merge(self, repo: str, number: int, head: str, method: str) -> None:
         node = self._node_id(repo, number)
         body = self._squash_body(repo, number, method)
         try:
@@ -550,10 +565,10 @@ class GitHubApp:
                 raise HeadMoved(current) from None
             raise
 
-    def disable_auto_merge(self, repo, number):
+    def disable_auto_merge(self, repo: str, number: int) -> None:
         self._graphql(_DISABLE_AUTO_MERGE, id=self._node_id(repo, number))
 
-    def enqueue_pull(self, repo, number, head):
+    def enqueue_pull(self, repo: str, number: int, head: str) -> dict[str, Any]:
         try:
             data = self._graphql(_ENQUEUE, id=self._node_id(repo, number), head=head)
             entry = (data.get("enqueuePullRequest") or {}).get("mergeQueueEntry")
@@ -567,19 +582,19 @@ class GitHubApp:
             raise
         return {"state": entry.get("state"), "position": entry.get("position")}
 
-    def dequeue_pull(self, repo, number):
+    def dequeue_pull(self, repo: str, number: int) -> None:
         data = self._graphql(_DEQUEUE, id=self._node_id(repo, number))
         if data.get("dequeuePullRequest") is None:
             raise GitHubRefused(200, f"GitHub did not take #{number} out of the merge queue")
 
-    def create_revert(self, repo, number, title, body):
+    def create_revert(self, repo: str, number: int, title: str, body: str) -> int:
         data = self._graphql(_REVERT, id=self._node_id(repo, number), title=title, body=body)
-        return data["revertPullRequest"]["revertPullRequest"]["number"]
+        return int(data["revertPullRequest"]["revertPullRequest"]["number"])
 
     def _node_id(self, repo: str, number: int) -> str:
-        return self._call("GET", f"/repos/{repo}/pulls/{number}")["node_id"]
+        return str(self._call("GET", f"/repos/{repo}/pulls/{number}")["node_id"])
 
-    def create_check_run(self, repo, head, run):
+    def create_check_run(self, repo: str, head: str, run: dict[str, Any]) -> None:
         self._call(
             "POST",
             f"/repos/{repo}/check-runs",
@@ -592,7 +607,7 @@ class GitHubApp:
             },
         )
 
-    def set_variable(self, repo, name, value):
+    def set_variable(self, repo: str, name: str, value: str) -> None:
         response = self._send(
             "PATCH",
             f"/repos/{repo}/actions/variables/{quote(name, safe='')}",
@@ -609,7 +624,7 @@ class GitHubApp:
 # ── shapes ─────────────────────────────────────────────────────────────────
 
 
-def _login(user: dict | None) -> str | None:
+def _login(user: dict[str, Any] | None) -> str | None:
     """A login as REST spells it: GraphQL drops a bot's ``[bot]`` suffix, so add it back."""
     if not user:
         return None
@@ -618,7 +633,7 @@ def _login(user: dict | None) -> str | None:
     return f"{login}[bot]" if bot and login and not login.endswith("[bot]") else login
 
 
-def _comment_shape(node: dict) -> dict:
+def _comment_shape(node: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": node["databaseId"],
         "author": _login(node.get("author")),
@@ -627,7 +642,7 @@ def _comment_shape(node: dict) -> dict:
     }
 
 
-def _rest_comment(row: dict) -> dict:
+def _rest_comment(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": row["id"],
         "author": _login(row.get("user")),
@@ -636,7 +651,7 @@ def _rest_comment(row: dict) -> dict:
     }
 
 
-def _pull_shape(node: dict, bot: str) -> dict:
+def _pull_shape(node: dict[str, Any], bot: str) -> dict[str, Any]:
     mergeable = node.get("mergeable") or "UNKNOWN"
     if mergeable != "CONFLICTING" and node.get("mergeStateStatus") == "BLOCKED":
         mergeable = "BLOCKED"
@@ -679,7 +694,7 @@ def _pull_shape(node: dict, bot: str) -> dict:
     return shape
 
 
-def _check_shape(row: dict) -> dict:
+def _check_shape(row: dict[str, Any]) -> dict[str, Any]:
     status = row["status"]
     return {
         "id": row["id"],
@@ -693,18 +708,18 @@ def _check_shape(row: dict) -> dict:
     }
 
 
-def _target(issue: dict) -> str:
+def _target(issue: dict[str, Any]) -> str:
     kind = "pr" if issue.get("pull_request") else "issue"
     return f"{kind}#{issue.get('number')}"
 
 
-def _comment_target(row: dict) -> str:
+def _comment_target(row: dict[str, Any]) -> str:
     number = int(row["issue_url"].rsplit("/", 1)[1])
     kind = "pr" if "/pull/" in (row.get("html_url") or "") else "issue"
     return f"{kind}#{number}"
 
 
-def _owner_name(repo: str) -> dict:
+def _owner_name(repo: str) -> dict[str, Any]:
     owner, _, name = repo.partition("/")
     return {"owner": owner, "name": name}
 
@@ -747,7 +762,7 @@ def _epoch(stamp: str) -> float:
     return datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC).timestamp()
 
 
-def _budget(resource: Any) -> dict | None:
+def _budget(resource: Any) -> dict[str, Any] | None:
     if not isinstance(resource, dict):
         return None
     remaining = resource.get("remaining")

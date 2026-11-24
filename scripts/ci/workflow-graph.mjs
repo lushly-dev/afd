@@ -304,6 +304,7 @@ export const WORKFLOW_GRAPH = {
 		extra: [
 			'foundations/fast-af/packages/element/packages/fast-element/**',
 			'foundations/fast-af/packages/violet-elements/**',
+			'tests/consumers/pnpm.mjs',
 			'tests/consumers/specimen/**',
 			'tests/consumers/pnpm.mjs',
 			'scripts/release/exec-tool.mjs',

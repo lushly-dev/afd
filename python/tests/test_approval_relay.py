@@ -117,7 +117,7 @@ def _answer(prompts, *answers):
 def _yes(params):
     schema = params.requested_schema
     properties = schema.get("properties") if isinstance(schema, dict) else schema.properties
-    return {name: True for name in properties}
+    return dict.fromkeys(properties, True)
 
 
 def body(result):
@@ -161,7 +161,12 @@ async def test_a_declined_call_does_not_run(mode, action):
 async def test_every_single_command_route_asks(mode):
     calls, prompts = [], []
     via_call = await _call(
-        _server(calls), mode, prompts, "accept", tool="afd-call", arguments={"command": "todo-clear"}
+        _server(calls),
+        mode,
+        prompts,
+        "accept",
+        tool="afd-call",
+        arguments={"command": "todo-clear"},
     )
     assert via_call["success"] is True
     grouped = _server(calls, tool_strategy="grouped")
@@ -233,7 +238,10 @@ async def test_a_command_run_inside_another_cannot_ask():
     result = await _call(server, "auto", prompts, "accept", tool="todo-tidy")
     error = result["error"]
     assert error["code"] == "APPROVAL_REQUIRED"
-    assert "could not be asked from inside afd-batch, afd-pipe or another command" in error["suggestion"]
+    assert (
+        "could not be asked from inside afd-batch, afd-pipe or another command"
+        in error["suggestion"]
+    )
     assert prompts == []
     assert calls == []
 
@@ -248,7 +256,9 @@ def _mcp_context():
 
 
 async def _ask(server, tool="todo-clear", arguments=None):
-    async with Client(server._create_mcp_server(), elicitation_callback=_answer([], "accept")) as client:
+    async with Client(
+        server._create_mcp_server(), elicitation_callback=_answer([], "accept")
+    ) as client:
         asked = await client.session.call_tool(tool, arguments or {}, allow_input_required=True)
     assert type(asked).__name__ == "InputRequiredResult", asked
     return asked
@@ -258,7 +268,9 @@ async def _retry(server, state, responses, tool="todo-clear", arguments=None):
     """The retry's result, or the ``MCPError`` the SDK refused it with."""
     from mcp import MCPError
 
-    async with Client(server._create_mcp_server(), elicitation_callback=_answer([], "accept")) as client:
+    async with Client(
+        server._create_mcp_server(), elicitation_callback=_answer([], "accept")
+    ) as client:
         try:
             return await client.session.call_tool(
                 tool,
@@ -338,7 +350,9 @@ async def test_an_expired_approval_is_asked_again():
     clock = fixed_clock(1_000_000)
     server, approve = _gated_server(tool_strategy="individual", confirmation_key=KEY)
 
-    @server.command(name="todo-clear", description="Clear", mutation=True, approval="required", expose=MCP)
+    @server.command(
+        name="todo-clear", description="Clear", mutation=True, approval="required", expose=MCP
+    )
     async def clear(input):
         calls.append("clear")
         return success({})
@@ -364,15 +378,17 @@ async def test_a_batch_is_approved_up_front_before_any_step_runs(mode):
             {"command": "todo-purge", "input": {"old": True}},
         ]
     }
-    result = await _call(_server(calls), mode, prompts, "accept", tool="afd-batch", arguments=request)
+    result = await _call(
+        _server(calls), mode, prompts, "accept", tool="afd-batch", arguments=request
+    )
     assert result["success"] is True
     assert sorted(calls) == ["clear:done", "get", "purge:True"]
     assert len(prompts) == 1
     assert prompts[0].startswith(
         "This batch includes 2 steps that need your approval. Approving lets each run once, "
         "exactly as shown; if you do not approve, nothing in the batch runs.\n\n"
-        "Step 2: Clear done\nCommand: todo-clear\nInput: {\"scope\":\"done\"}\n\n"
-        "Step 3: Run todo-purge\nCommand: todo-purge\nInput: {\"old\":true}"
+        'Step 2: Clear done\nCommand: todo-clear\nInput: {"scope":"done"}\n\n'
+        'Step 3: Run todo-purge\nCommand: todo-purge\nInput: {"old":true}'
     )
 
 
@@ -385,7 +401,9 @@ async def test_a_declined_batch_runs_nothing(mode):
             {"command": "todo-clear", "input": {}},
         ]
     }
-    result = await _call(_server(calls), mode, prompts, "decline", tool="afd-batch", arguments=request)
+    result = await _call(
+        _server(calls), mode, prompts, "decline", tool="afd-batch", arguments=request
+    )
     assert result["success"] is False
     assert result["error"]["code"] == "APPROVAL_REQUIRED"
     assert result["error"]["details"]["reason"] == "declined"
@@ -395,7 +413,9 @@ async def test_a_declined_batch_runs_nothing(mode):
 async def test_a_batch_without_gated_steps_never_asks():
     calls, prompts = [], []
     request = {"commands": [{"command": "todo-purge", "input": {"old": False}}]}
-    result = await _call(_server(calls), "auto", prompts, "accept", tool="afd-batch", arguments=request)
+    result = await _call(
+        _server(calls), "auto", prompts, "accept", tool="afd-batch", arguments=request
+    )
     assert result["success"] is True
     assert prompts == []
 
@@ -407,10 +427,16 @@ async def test_a_pipeline_resolves_its_input_and_asks_once(mode):
         "input": {"scope": "done"},
         "steps": [
             {"command": "todo-get", "input": {"id": "a"}},
-            {"command": "todo-clear", "input": {"scope": "$input.scope"}, "when": {"$exists": "$prev"}},
+            {
+                "command": "todo-clear",
+                "input": {"scope": "$input.scope"},
+                "when": {"$exists": "$prev"},
+            },
         ],
     }
-    result = await _call(_server(calls), mode, prompts, "accept", tool="afd-pipe", arguments=request)
+    result = await _call(
+        _server(calls), mode, prompts, "accept", tool="afd-pipe", arguments=request
+    )
     assert [step["status"] for step in result["steps"]] == ["success", "success"], result
     assert calls == ["get", "clear:done"]
     assert "This pipeline includes a step that needs your approval" in prompts[0]
@@ -426,7 +452,9 @@ async def test_a_gated_step_reading_an_earlier_step_runs_nothing():
             {"command": "todo-purge", "input": {"old": "$prev.old"}},
         ]
     }
-    result = await _call(_server(calls), "auto", prompts, "accept", tool="afd-pipe", arguments=request)
+    result = await _call(
+        _server(calls), "auto", prompts, "accept", tool="afd-pipe", arguments=request
+    )
     [refusal] = result["steps"]
     assert refusal["status"] == "failure"
     error = refusal["error"]
@@ -446,7 +474,10 @@ async def test_too_many_gated_steps_run_nothing():
     }
     server = _server(calls, max_batch_size=50)
     result = await _call(server, "auto", prompts, "accept", tool="afd-batch", arguments=request)
-    assert result["error"]["details"] == {"reason": "too-many-approvals", "limit": MAX_UP_FRONT_APPROVALS}
+    assert result["error"]["details"] == {
+        "reason": "too-many-approvals",
+        "limit": MAX_UP_FRONT_APPROVALS,
+    }
     assert prompts == []
     assert calls == []
 
@@ -499,8 +530,12 @@ def test_an_unknown_relay_mode_is_rejected():
 @pytest.mark.parametrize("mode", MODES)
 async def test_two_identical_gated_steps_need_two_approvals_and_both_run(mode):
     calls, prompts = [], []
-    request = {"commands": [{"command": "todo-clear", "input": {}}, {"command": "todo-clear", "input": {}}]}
-    result = await _call(_server(calls), mode, prompts, "accept", tool="afd-batch", arguments=request)
+    request = {
+        "commands": [{"command": "todo-clear", "input": {}}, {"command": "todo-clear", "input": {}}]
+    }
+    result = await _call(
+        _server(calls), mode, prompts, "accept", tool="afd-batch", arguments=request
+    )
     assert result["success"] is True
     assert calls == ["clear:all", "clear:all"]
     assert "2 steps that need your approval" in prompts[0]
@@ -511,14 +546,19 @@ async def test_a_gated_command_hidden_from_mcp_is_never_named():
     server = _server(calls)
 
     @server.command(
-        name="todo-secret", description="Hidden", mutation=True, approval="required",
+        name="todo-secret",
+        description="Hidden",
+        mutation=True,
+        approval="required",
         expose=ExposeOptions(mcp=False),
     )
     async def secret(input):
         calls.append("secret")
         return success({})
 
-    request = {"commands": [{"command": "todo-secret", "input": {}}, {"command": "todo-get", "input": {}}]}
+    request = {
+        "commands": [{"command": "todo-secret", "input": {}}, {"command": "todo-get", "input": {}}]
+    }
     result = await _call(server, "auto", prompts, "accept", tool="afd-batch", arguments=request)
     assert result["results"][0]["result"]["error"]["code"] == "COMMAND_NOT_FOUND"
     assert prompts == []
@@ -530,7 +570,11 @@ async def test_a_command_run_by_a_batch_steps_handler_cannot_take_its_approval()
     server = _server(calls)
 
     @server.command(
-        name="todo-tidy", description="Tidy", mutation=True, approval="required", expose=MCP,
+        name="todo-tidy",
+        description="Tidy",
+        mutation=True,
+        approval="required",
+        expose=MCP,
     )
     async def tidy(input):
         nested = await server.execute("todo-clear", {}, _mcp_context())
@@ -568,12 +612,16 @@ async def test_a_policy_that_raises_up_front_runs_nothing():
     def broken(input, context):
         raise RuntimeError("policy failed")
 
-    @server.command(name="todo-break", description="Broken policy", mutation=True, approval=broken, expose=MCP)
+    @server.command(
+        name="todo-break", description="Broken policy", mutation=True, approval=broken, expose=MCP
+    )
     async def breaks(input):
         calls.append("break")
         return success({})
 
-    request = {"commands": [{"command": "todo-get", "input": {}}, {"command": "todo-break", "input": {}}]}
+    request = {
+        "commands": [{"command": "todo-get", "input": {}}, {"command": "todo-break", "input": {}}]
+    }
     result = await _call(server, "auto", prompts, "accept", tool="afd-batch", arguments=request)
     assert all(item["result"]["success"] is False for item in result["results"]), result
     assert calls == []
@@ -586,7 +634,9 @@ async def test_a_2025_client_that_gives_no_answer_is_not_said_to_decline():
     async def fails(context, params):
         raise RuntimeError("client went away")
 
-    async with Client(_server(calls)._create_mcp_server(), mode="legacy", elicitation_callback=fails) as client:
+    async with Client(
+        _server(calls)._create_mcp_server(), mode="legacy", elicitation_callback=fails
+    ) as client:
         result = body(await client.call_tool("todo-clear", {}))
     error = result["error"]
     assert error["code"] == "APPROVAL_REQUIRED"
@@ -604,15 +654,24 @@ async def test_input_not_known_for_every_step_reference(reference):
             {"command": "todo-clear", "input": {"scope": reference}},
         ]
     }
-    result = await _call(_server(calls), "auto", prompts, "accept", tool="afd-pipe", arguments=request)
+    result = await _call(
+        _server(calls), "auto", prompts, "accept", tool="afd-pipe", arguments=request
+    )
     assert result["steps"][0]["error"]["details"]["reason"] == "input-not-known"
     assert calls == []
 
 
 async def test_a_step_reading_an_earlier_step_without_a_policy_runs():
     calls, prompts = [], []
-    request = {"steps": [{"command": "todo-get", "input": {}}, {"command": "todo-get", "input": {"id": "$prev.id"}}]}
-    result = await _call(_server(calls), "auto", prompts, "accept", tool="afd-pipe", arguments=request)
+    request = {
+        "steps": [
+            {"command": "todo-get", "input": {}},
+            {"command": "todo-get", "input": {"id": "$prev.id"}},
+        ]
+    }
+    result = await _call(
+        _server(calls), "auto", prompts, "accept", tool="afd-pipe", arguments=request
+    )
     assert [step["status"] for step in result["steps"]] == ["success", "success"]
     assert prompts == []
 
@@ -622,7 +681,10 @@ async def test_a_spent_batch_approval_is_asked_again_saying_why():
     server = _server(calls, confirmation_key=KEY)
     request = {"commands": [{"command": "todo-clear", "input": {}}]}
     asked = await _ask(server, "afd-batch", request)
-    assert body(await _retry(server, asked.request_state, APPROVE, "afd-batch", request))["success"] is True
+    assert (
+        body(await _retry(server, asked.request_state, APPROVE, "afd-batch", request))["success"]
+        is True
+    )
     again = await _retry(server, asked.request_state, APPROVE, "afd-batch", request)
     assert again.input_requests["approval"].params.message.startswith(
         "The earlier approval expired, was already used or no longer matches"
@@ -662,7 +724,7 @@ def _notes(calls):
 def _shown(message):
     """``add:<id>`` for each ``note-add`` step a question shows."""
     return [
-        f"add:{json.loads(line[len('Input: '):])['id']}"
+        f"add:{json.loads(line[len('Input: ') :])['id']}"
         for line in message.splitlines()
         if line.startswith("Input: ") and '"id"' in line
     ]
@@ -753,7 +815,12 @@ async def test_two_steps_sent_alike_each_run_on_their_own_approved_input(mode):
     calls, prompts = [], []
     step = {"command": "note-add", "input": {"text": "milk"}}
     result = await _call(
-        _notes(calls), mode, prompts, "accept", tool="afd-batch", arguments={"commands": [step, step]}
+        _notes(calls),
+        mode,
+        prompts,
+        "accept",
+        tool="afd-batch",
+        arguments={"commands": [step, step]},
     )
     assert result["success"] is True, result
     shown = _shown(prompts[0])
@@ -765,7 +832,9 @@ async def test_an_approved_input_does_not_run_in_another_request():
     calls = []
     server = _notes(calls)
     asked = await _ask(server, "afd-batch", NOTES)
-    other = {"commands": [NOTES["commands"][0], {"command": "note-add", "input": {"text": "bleach"}}]}
+    other = {
+        "commands": [NOTES["commands"][0], {"command": "note-add", "input": {"text": "bleach"}}]
+    }
     retried = await _retry(server, asked.request_state, APPROVE, "afd-batch", other)
     # Refused, or asked again about the new request: either way nothing ran.
     assert _refused(retried) or type(retried).__name__ == "InputRequiredResult"
@@ -820,7 +889,11 @@ def _items(calls, *, gated_server=True):
         return success({"removed": input["id"]})
 
     @server.command(
-        name="item-touch", description="Touch an item", mutation=True, input_schema=Existing, expose=MCP
+        name="item-touch",
+        description="Touch an item",
+        mutation=True,
+        input_schema=Existing,
+        expose=MCP,
     )
     async def touch(input):
         calls.append(f"touch:{input.id}")

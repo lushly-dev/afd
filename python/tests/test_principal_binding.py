@@ -15,7 +15,9 @@ from afd.server import (
 )
 
 CASES = json.loads(
-    (Path(__file__).resolve().parents[2] / "spec" / "authorization.json").read_text(encoding="utf-8")
+    (Path(__file__).resolve().parents[2] / "spec" / "authorization.json").read_text(
+        encoding="utf-8"
+    )
 )["principalBindings"]
 
 
@@ -68,7 +70,9 @@ def test_refuses_credentials_it_could_not_bind():
         ("i", None, "c"),
         ("i", "s", ""),
     ):
-        with pytest.raises(IncompleteCredentials, match="^credentials lack an issuer, subject or client id$"):
+        with pytest.raises(
+            IncompleteCredentials, match="^credentials lack an issuer, subject or client id$"
+        ):
             PrincipalCredentials(issuer=issuer, subject=subject, client_id=client_id)
     with pytest.raises(TypeError):
         principal_binding({"kind": "agent"})

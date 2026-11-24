@@ -10,17 +10,17 @@ import copy
 import json
 import logging
 from collections.abc import Awaitable, Callable, Iterator, Mapping, Sequence
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from afd.core.actor import Actor
 from afd.core.clock import Clock, system_clock
 from afd.core.commands import CommandContext, CommandDefinition
 from afd.core.errors import CommandError, ErrorCodes
-from afd.core.result import CommandResult, failure
+from afd.core.result import failure
 from afd.core.similarity import truncate_name
 from afd.server.approval_relay import bind_approval_relay
 from afd.server.auth import credentials_actor
@@ -113,7 +113,7 @@ def is_created_task_sentinel(value: Any) -> bool:
 def iso_timestamp(ms: int) -> str:
     """Format epoch milliseconds as UTC ISO-8601 with millisecond precision (``...Z``)."""
     seconds, millis = divmod(int(ms), 1000)
-    dt = datetime.fromtimestamp(seconds, tz=timezone.utc)
+    dt = datetime.fromtimestamp(seconds, tz=UTC)
     return f"{dt.strftime('%Y-%m-%dT%H:%M:%S')}.{millis:03d}Z"
 
 
@@ -197,9 +197,7 @@ def task_limit_error() -> CommandError:
     )
 
 
-def composite_task_error(
-    tool: Literal["afd-batch", "afd-pipe"], command_name: str
-) -> CommandError:
+def composite_task_error(tool: Literal["afd-batch", "afd-pipe"], command_name: str) -> CommandError:
     shown = truncate_name(command_name)
     return CommandError(
         code=(
@@ -352,8 +350,8 @@ def _get_wire_models() -> tuple[Any, Any, Any, Any]:
 
 
 def _wire_create_task(record: TaskRecord) -> Any:
-    _, _, WireCreateTaskResult, _ = _get_wire_models()
-    return WireCreateTaskResult(
+    _, _, wire_create_task_result, _ = _get_wire_models()
+    return wire_create_task_result(
         taskId=record.id,
         status="working",
         statusMessage=record.status_message,
@@ -365,7 +363,7 @@ def _wire_create_task(record: TaskRecord) -> Any:
 
 
 def _wire_detailed_task(record: TaskRecord) -> Any:
-    _, _, _, WireDetailedTask = _get_wire_models()
+    _, _, _, wire_detailed_task = _get_wire_models()
     result_payload: dict[str, Any] | None = None
     error_payload: dict[str, Any] | None = None
     if record.status == "completed":
@@ -380,7 +378,7 @@ def _wire_detailed_task(record: TaskRecord) -> Any:
             if record.error is not None
             else _internal_error_object().to_wire()
         )
-    return WireDetailedTask(
+    return wire_detailed_task(
         taskId=record.id,
         status=record.status,
         statusMessage=record.status_message,
@@ -447,9 +445,7 @@ class TaskRuntime:
     @property
     def serves_tasks(self) -> bool:
         """Whether at least one MCP-exposed command declares ``task`` as optional or required."""
-        return any(
-            cmd.task in ("optional", "required") for cmd in self._get_exposed_commands()
-        )
+        return any(cmd.task in ("optional", "required") for cmd in self._get_exposed_commands())
 
     @property
     def _hook_identifies_callers(self) -> bool:
@@ -525,7 +521,9 @@ class TaskRuntime:
         outcome = current_hook_outcome()
         admitted = self._admitted_credentials()
         default_actor = (
-            credentials_actor(admitted) if admitted is not None else (self._actor or Actor(kind="agent"))
+            credentials_actor(admitted)
+            if admitted is not None
+            else (self._actor or Actor(kind="agent"))
         )
         actor = (
             outcome.actor_at_start
@@ -541,10 +539,8 @@ class TaskRuntime:
             raise _internal_rpc_error() from None
 
         now = int(self._clock.now())
-        try:
+        with suppress(Exception):
             await self.store.expire(now)
-        except Exception:
-            pass
 
         if admitted is not None:
             expires_at_seconds: int | None = admitted.expires_at
@@ -616,7 +612,7 @@ class TaskRuntime:
                 progress_event.clear()
                 msg = progress_state["message"]
                 progress_state["message"] = None
-                return msg
+                return str(msg) if msg is not None else None
 
             if admitted is not None:
                 task_credentials = _clone_verified_credentials(admitted) or admitted
@@ -738,10 +734,8 @@ class TaskRuntime:
                 at=now,
             )
         elif outcome_payload == "ttl-ended":
-            try:
+            with suppress(Exception):
                 await self.store.expire(now)
-            except Exception:
-                pass
             return
         else:
             # 'lost': another process or server shutdown ended it; write nothing.
@@ -776,9 +770,10 @@ class TaskRuntime:
         if initial_stop is not None:
             return ("stopped", initial_stop, "not-started")
 
-        exec_task = asyncio.create_task(
-            self._execute_command(command_name, command_input, task_context)
-        )
+        async def _run_command() -> Any:
+            return await self._execute_command(command_name, command_input, task_context)
+
+        exec_task: asyncio.Task[Any] = asyncio.create_task(_run_command())
         running.exec_task = exec_task
         exec_task.add_done_callback(_consume_task_exception)
 
@@ -800,14 +795,12 @@ class TaskRuntime:
                     return ("stopped", due, "finished")
                 final_msg = take_progress()
                 if final_msg is not None:
-                    try:
+                    with suppress(Exception):
                         await self.store.update(
                             task_id,
                             owner,
                             TaskProgressChange(message=final_msg, at=int(self._clock.now())),
                         )
-                    except Exception:
-                        pass
                 return ("finished", result, "finished")
 
             now = int(self._clock.now())
@@ -818,18 +811,14 @@ class TaskRuntime:
             if running.reason is None:
                 msg = take_progress()
                 if msg is not None:
-                    try:
+                    with suppress(Exception):
                         await self.store.update(
                             task_id, owner, TaskProgressChange(message=msg, at=now)
                         )
-                    except Exception:
-                        pass
                 heartbeat = getattr(self.store, "heartbeat", None)
                 if callable(heartbeat):
-                    try:
+                    with suppress(Exception):
                         await heartbeat(task_id, owner, now)
-                    except Exception:
-                        pass
                 try:
                     current = await self.store.get(task_id, owner)
                     if current is None or is_task_expired(current, now):
@@ -940,7 +929,9 @@ class TaskRuntime:
 
         admitted = self._admitted_credentials()
         default_actor = (
-            credentials_actor(admitted) if admitted is not None else (self._actor or Actor(kind="agent"))
+            credentials_actor(admitted)
+            if admitted is not None
+            else (self._actor or Actor(kind="agent"))
         )
         if self._run_context_hook is not None:
             outcome = await self._run_context_hook(method, ctx)
@@ -957,11 +948,7 @@ class TaskRuntime:
                     message=outcome.refusal.message,
                     data=data,
                 )
-            actor = (
-                outcome.actor_at_start
-                if outcome.actor_at_start is not None
-                else default_actor
-            )
+            actor = outcome.actor_at_start if outcome.actor_at_start is not None else default_actor
         else:
             actor = default_actor
 
@@ -1051,7 +1038,7 @@ class TaskRuntime:
         """Build the ``mcp.server.extension.Extension`` binding ``tasks/*`` and ``tools/call``."""
         from mcp.server.extension import Extension, MethodBinding
 
-        TaskIdParams, UpdateTaskParams, _, _ = _get_wire_models()
+        task_id_params, update_task_params, _, _ = _get_wire_models()
         runtime = self
 
         class _AfdTasksExtension(Extension):
@@ -1061,19 +1048,19 @@ class TaskRuntime:
                 return (
                     MethodBinding(
                         method="tasks/get",
-                        params_type=TaskIdParams,
+                        params_type=task_id_params,
                         handler=runtime.handle_get,
                         protocol_versions=None,
                     ),
                     MethodBinding(
                         method="tasks/update",
-                        params_type=UpdateTaskParams,
+                        params_type=update_task_params,
                         handler=runtime.handle_update,
                         protocol_versions=None,
                     ),
                     MethodBinding(
                         method="tasks/cancel",
-                        params_type=TaskIdParams,
+                        params_type=task_id_params,
                         handler=runtime.handle_cancel,
                         protocol_versions=None,
                     ),
@@ -1097,10 +1084,8 @@ class TaskRuntime:
 
 def _consume_task_exception(task: asyncio.Task[Any]) -> None:
     if not task.cancelled():
-        try:
+        with suppress(Exception):
             task.exception()
-        except Exception:
-            pass
 
 
 __all__ = [

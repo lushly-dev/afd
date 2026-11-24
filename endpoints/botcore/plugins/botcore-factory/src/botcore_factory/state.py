@@ -34,7 +34,7 @@ import json
 import os
 import re
 import time
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -108,15 +108,15 @@ def repository_key(repository: str) -> str:
     return repository.replace("/", "--").lower()
 
 
-def default_base(env: dict[str, str] | None = None) -> Path:
-    env = os.environ if env is None else env
-    override = env.get(DATA_DIR_ENV)
+def default_base(env: Mapping[str, str] | None = None) -> Path:
+    source: Mapping[str, str] = os.environ if env is None else env
+    override = source.get(DATA_DIR_ENV)
     if override:
         return Path(override)
     return Path(platformdirs.user_data_dir(APP_NAME, appauthor=False))
 
 
-def empty_state() -> dict:
+def empty_state() -> dict[str, Any]:
     state = copy.deepcopy(STATE_SECTIONS)
     state["lane"] = dict(LANE_DEFAULTS)
     state["version"] = SCHEMA_VERSION
@@ -124,7 +124,7 @@ def empty_state() -> dict:
 
 
 def trim_state(
-    state: dict,
+    state: dict[str, Any],
     *,
     max_closed_events: int = MAX_CLOSED_EVENTS,
     max_finished_runs: int = MAX_FINISHED_RUNS,
@@ -346,7 +346,7 @@ class StateStore:
     def records_summary_path(self) -> Path:
         return self.root / "records-summary.json"
 
-    def read(self) -> dict:
+    def read(self) -> dict[str, Any]:
         """The current state; an absent file is the empty state."""
         try:
             raw = self.state_path.read_text(encoding="utf-8")
@@ -366,7 +366,7 @@ class StateStore:
         return state
 
     @contextlib.contextmanager
-    def update(self, reason: str) -> Iterator[dict]:
+    def update(self, reason: str) -> Iterator[dict[str, Any]]:
         """Lock, read, yield the state to change, trim bounded sections, then write if changed.
 
         A caller that refuses leaves the state unchanged, and nothing is written or logged.
@@ -384,23 +384,23 @@ class StateStore:
                 self._write(state)
                 self.log({"kind": "state", "reason": reason})
 
-    def log(self, record: dict) -> None:
+    def log(self, record: dict[str, Any]) -> None:
         """Append one record to the log; the log is never rewritten."""
         self._append(self.log_path, {"at": self._now(), **record})
 
-    def read_log(self) -> list[dict]:
+    def read_log(self) -> list[dict[str, Any]]:
         return self._read_lines(self.log_path)
 
     @property
     def records_path(self) -> Path:
         return self.root / "records.jsonl"
 
-    def append_record(self, record: dict) -> None:
+    def append_record(self, record: dict[str, Any]) -> None:
         """Append one measurement record and incrementally advance the record summary."""
         self._append(self.records_path, record)
         self._sync_record_summary(strict_persist=True)
 
-    def read_records(self) -> list[dict]:
+    def read_records(self) -> list[dict[str, Any]]:
         return self._read_lines(self.records_path)
 
     def record_summary(self) -> dict[str, Any]:
@@ -415,12 +415,12 @@ class StateStore:
         info = self.record_summary()["branches"].get(branch)
         return info.get("firstEnqueuedAt") if info else None
 
-    def last_ejection(self, branch: str) -> dict | None:
+    def last_ejection(self, branch: str) -> dict[str, Any] | None:
         info = self.record_summary()["branches"].get(branch)
         ejection = info.get("lastEjection") if info else None
         return copy.deepcopy(ejection) if isinstance(ejection, dict) else None
 
-    def summarize_run(self, run_id: str, started_at: str | None, stopped_at: str) -> dict:
+    def summarize_run(self, run_id: str, started_at: str | None, stopped_at: str) -> dict[str, Any]:
         run_acc = self.record_summary()["runs"].get(run_id)
         return _build_run_summary(run_acc, started_at, stopped_at)
 
@@ -499,7 +499,7 @@ class StateStore:
         self._persist_record_summary(summary, strict=strict_persist)
         return summary
 
-    def _append(self, path: Path, record: dict) -> None:
+    def _append(self, path: Path, record: dict[str, Any]) -> None:
         line = json.dumps(record, sort_keys=True)
         self.root.mkdir(parents=True, exist_ok=True)
         existed = path.exists()
@@ -510,7 +510,7 @@ class StateStore:
         if not existed:
             fsync_dir(self.root)
 
-    def _read_lines(self, path: Path) -> list[dict]:
+    def _read_lines(self, path: Path) -> list[dict[str, Any]]:
         try:
             lines = path.read_text(encoding="utf-8").splitlines()
         except FileNotFoundError:
@@ -523,7 +523,7 @@ class StateStore:
     def _now(self) -> str:
         return self.clock.now().isoformat().replace("+00:00", "Z")
 
-    def _write(self, state: dict) -> None:
+    def _write(self, state: dict[str, Any]) -> None:
         atomic_write_text(self.state_path, json.dumps(state, indent=2, sort_keys=True) + "\n")
 
     @contextlib.contextmanager
@@ -555,14 +555,14 @@ class StateStore:
             if mine is not None:
                 unlink_if_unchanged(self.lock_path, mine)
 
-    def _holder(self) -> dict | None:
+    def _holder(self) -> dict[str, Any] | None:
         try:
             snapshot = read_lock_snapshot(self.lock_path)
         except OSError:
             return None
         return snapshot.holder() if snapshot is not None else None
 
-    def _stale_snapshot(self) -> tuple[LockSnapshot, dict | None] | None:
+    def _stale_snapshot(self) -> tuple[LockSnapshot, dict[str, Any] | None] | None:
         try:
             snapshot = read_lock_snapshot(self.lock_path)
         except OSError:

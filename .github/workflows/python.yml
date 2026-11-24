@@ -81,7 +81,13 @@ jobs:
         run: uv sync --frozen --all-extras
 
       - name: Lint
-        run: uv run ruff check --select F821,F841,B904 src
+        run: uv run ruff check src tests
+
+      - name: Format check
+        run: uv run ruff format --check src tests
+
+      - name: Type check
+        run: uv run mypy src
 
       - name: Test
         run: uv run pytest -q

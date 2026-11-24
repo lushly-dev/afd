@@ -79,7 +79,10 @@ class TestSseCallTool:
     @pytest.mark.asyncio
     async def test_call_tool_returns_parsed_json(self, monkeypatch):
         t = SseTransport("http://localhost:3100/sse")
-        _mock_sse_session(monkeypatch, tool_response={"content": [{"type": "text", "text": "{\"id\": \"42\"}"}], "isError": False})
+        _mock_sse_session(
+            monkeypatch,
+            tool_response={"content": [{"type": "text", "text": '{"id": "42"}'}], "isError": False},
+        )
 
         await t.connect()
         result = await t.call_tool("todo-get", {"id": "42"})
@@ -89,7 +92,10 @@ class TestSseCallTool:
     @pytest.mark.asyncio
     async def test_call_tool_raises_tool_execution_error(self, monkeypatch):
         t = SseTransport("http://localhost:3100/sse")
-        _mock_sse_session(monkeypatch, tool_response={"isError": True, "content": [{"type": "text", "text": "Nope"}]})
+        _mock_sse_session(
+            monkeypatch,
+            tool_response={"isError": True, "content": [{"type": "text", "text": "Nope"}]},
+        )
 
         await t.connect()
         with pytest.raises(ToolExecutionError, match="Nope"):
@@ -155,7 +161,9 @@ class TestSseCallbacks:
         def on_error(exc):
             errors.append(str(exc))
 
-        t = SseTransport("http://localhost:3100/sse", on_error=on_error, on_close=lambda: closes.append(True))
+        t = SseTransport(
+            "http://localhost:3100/sse", on_error=on_error, on_close=lambda: closes.append(True)
+        )
         _mock_sse_session(monkeypatch, init_error=RuntimeError("boom"))
 
         with pytest.raises(TransportError, match="boom"):
@@ -212,7 +220,10 @@ def _mock_sse_session(
 
         async def call_tool(self, name, arguments=None, **options):
             _ = name, arguments, options
-            payload = tool_response or {"content": [{"type": "text", "text": "{}"}], "isError": False}
+            payload = tool_response or {
+                "content": [{"type": "text", "text": "{}"}],
+                "isError": False,
+            }
             return _FakeCallToolResult(payload)
 
         async def list_tools(self):
@@ -225,4 +236,6 @@ def _mock_sse_session(
         yield (object(), object())
 
     monkeypatch.setitem(sys.modules, "mcp.client.sse", SimpleNamespace(sse_client=fake_sse_client))
-    monkeypatch.setitem(sys.modules, "mcp.client.session", SimpleNamespace(ClientSession=FakeClientSession))
+    monkeypatch.setitem(
+        sys.modules, "mcp.client.session", SimpleNamespace(ClientSession=FakeClientSession)
+    )

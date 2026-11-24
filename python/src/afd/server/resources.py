@@ -90,9 +90,7 @@ class ResourceCaller:
 class _LegacyResourceProvider(Protocol):
     def list(self) -> Sequence[ResourceEntry]: ...
 
-    def read(
-        self, uri: str
-    ) -> ResourceContents | None | Awaitable[ResourceContents | None]: ...
+    def read(self, uri: str) -> ResourceContents | None | Awaitable[ResourceContents | None]: ...
 
 
 @runtime_checkable
@@ -533,11 +531,7 @@ class ResourceService:
         entries = self._entries_of(caller)
         entry = next((item for item in entries if item.uri == uri), None)
         if entry is not None and entry.content is not None:
-            raw = (
-                bytes(entry.content)
-                if isinstance(entry.content, bytearray)
-                else entry.content
-            )
+            raw = bytes(entry.content) if isinstance(entry.content, bytearray) else entry.content
             return _content_model(uri, entry.mime_type, _bytes_of(raw)), True
 
         read_fn = getattr(self._provider, "read", None)
@@ -548,9 +542,7 @@ class ResourceService:
         if contents is None:
             raise _not_found(uri)
         if not isinstance(contents, ResourceContents):
-            raise TypeError(
-                f'resource "{uri}": read() must return ResourceContents or None'
-            )
+            raise TypeError(f'resource "{uri}": read() must return ResourceContents or None')
         if contents.meta is not None:
             if not isinstance(contents.meta, Mapping):
                 raise ValueError(f'resource "{uri}": _meta must be a mapping')
@@ -559,9 +551,7 @@ class ResourceService:
                 if reason is not None:
                     raise ValueError(f'resource "{uri}": {reason}')
         raw_content = (
-            bytes(contents.content)
-            if isinstance(contents.content, bytearray)
-            else contents.content
+            bytes(contents.content) if isinstance(contents.content, bytearray) else contents.content
         )
         data = _bytes_of(raw_content)
         if entry is not None and entry.size is not None and entry.size != len(data):
@@ -703,11 +693,7 @@ class ResourceService:
         service = self
 
         def _current_caller() -> ResourceCaller:
-            creds = (
-                get_admitted_credentials()
-                if get_admitted_credentials is not None
-                else None
-            )
+            creds = get_admitted_credentials() if get_admitted_credentials is not None else None
             return ResourceCaller(credentials=creds)
 
         async def handle_list_resources(

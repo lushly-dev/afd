@@ -13,6 +13,8 @@ from __future__ import annotations
 import contextlib
 import re
 import time
+from collections.abc import Callable
+from typing import Any
 
 from botcore_factory.records import make
 from botcore_factory.runtime import Factory, Refusal
@@ -44,19 +46,19 @@ POLL_SECONDS = 0.25
 _ID = re.compile(r"ev-(\d+)")
 
 
-def view(event: dict) -> dict:
+def view(event: dict[str, Any]) -> dict[str, Any]:
     return {key: event[key] for key in EVENT_FIELDS if key in event}
 
 
-def is_open(event: dict) -> bool:
+def is_open(event: dict[str, Any]) -> bool:
     return bool(event.get("open", True))
 
 
-def open_events(state: dict) -> list[dict]:
+def open_events(state: dict[str, Any]) -> list[dict[str, Any]]:
     return [event for event in state["events"] if is_open(event)]
 
 
-def emit(state: dict, at: str, kind: str, **fields) -> dict:
+def emit(state: dict[str, Any], at: str, kind: str, **fields: Any) -> dict[str, Any]:
     """Add an open event to ``state`` and return it."""
     numbers = [int(m[1]) for e in state["events"] if (m := _ID.fullmatch(str(e.get("id"))))]
     number = max([state.get("eventSeq", 0), *numbers]) + 1
@@ -67,7 +69,7 @@ def emit(state: dict, at: str, kind: str, **fields) -> dict:
     return event
 
 
-def answer(state: dict, action: str, at: str, *, branch: str | None = None) -> list[str]:
+def answer(state: dict[str, Any], action: str, at: str, *, branch: str | None = None) -> list[str]:
     """Close the open events ``action`` answers (for ``branch`` when given); their ids."""
     closed = []
     for event in state["events"]:
@@ -82,8 +84,13 @@ def answer(state: dict, action: str, at: str, *, branch: str | None = None) -> l
 
 
 def lane_wait(
-    factory: Factory, consumer: str, timeout_ms: int | None, status, keep=None, guard=None
-) -> dict:
+    factory: Factory,
+    consumer: str,
+    timeout_ms: int | None,
+    status: Callable[[], dict[str, Any]],
+    keep: Callable[[], None] | None = None,
+    guard: Callable[[dict[str, Any]], None] | None = None,
+) -> dict[str, Any]:
     """The open events ``consumer`` has not been given, each with a compact status, or a timeout.
 
     ``status`` computes the compact status; it is called once, after delivery is recorded, so a
@@ -103,7 +110,7 @@ def lane_wait(
         )
     deadline = None if timeout_ms is None else time.monotonic() + timeout_ms / 1000
 
-    def pending_for_consumer(event: dict) -> bool:
+    def pending_for_consumer(event: dict[str, Any]) -> bool:
         return is_open(event) and consumer not in event.get("deliveredTo", [])
 
     while True:
@@ -131,7 +138,7 @@ def lane_wait(
         time.sleep(POLL_SECONDS if remaining is None else min(POLL_SECONDS, remaining))
 
 
-def event_resolve(factory: Factory, event_id: str, note: str) -> dict:
+def event_resolve(factory: Factory, event_id: str, note: str) -> dict[str, Any]:
     if not note.strip():
         raise Refusal(
             "VALIDATION_ERROR",
@@ -154,7 +161,7 @@ def event_resolve(factory: Factory, event_id: str, note: str) -> dict:
     return {"resolved": True, "id": event_id, "wasOpen": was_open}
 
 
-def lane_pause(factory: Factory, reason: str | None) -> dict:
+def lane_pause(factory: Factory, reason: str | None) -> dict[str, Any]:
     with factory.store.update(f"lane-pause: {reason}" if reason else "lane-pause") as state:
         state["lane"]["paused"] = True
         state["lane"]["pauseReason"] = reason or state["lane"].get("pauseReason")
@@ -172,7 +179,7 @@ def lane_pause(factory: Factory, reason: str | None) -> dict:
     return {"paused": True, "pauseReason": state["lane"]["pauseReason"]}
 
 
-def lane_resume(factory: Factory, reason: str | None) -> dict:
+def lane_resume(factory: Factory, reason: str | None) -> dict[str, Any]:
     """Resume the lane; this answers its open ``lane-error`` events."""
     at = _now(factory)
     with factory.store.update(f"lane-resume: {reason}" if reason else "lane-resume") as state:

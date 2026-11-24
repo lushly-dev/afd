@@ -17,36 +17,31 @@ Example:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import inspect
-import json
 import logging
+from collections.abc import AsyncGenerator, Callable, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import (
     Any,
-    AsyncGenerator,
-    Callable,
-    Dict,
-    List,
     Literal,
-    Optional,
-    Sequence,
 )
 
 from pydantic import ValidationError
 
-from afd.core.result import CommandResult, error as result_error, success
+from afd.core.result import CommandResult, success
+from afd.core.result import error as result_error
+from afd.transports._mcp_protocol import _HttpBasedTransport
 from afd.transports.base import (
     JsonRpcError,
     ToolExecutionError,
-    ToolNotFoundError,
     ToolInfo,
+    ToolNotFoundError,
     TransportError,
     TransportState,
     _TaskSeed,
 )
-from afd.transports._mcp_protocol import _HttpBasedTransport
-
 from afd.transports.streamable_http import (  # noqa: F401 - re-exported
     ElicitationHandler,
     ElicitationRequest,
@@ -73,16 +68,16 @@ class TaskInfo:
     created_at: str
     last_updated_at: str
     ttl_ms: int
-    status_message: Optional[str] = None
-    poll_interval_ms: Optional[int] = None
+    status_message: str | None = None
+    poll_interval_ms: int | None = None
 
 
 @dataclass
 class DetailedTask(TaskInfo):
     """Detailed MCP task state returned by ``tasks/get`` (SEP-2663)."""
 
-    result: Optional[Dict[str, Any]] = None
-    error: Optional[Dict[str, Any]] = None
+    result: dict[str, Any] | None = None
+    error: dict[str, Any] | None = None
 
 
 TaskProgressCallback = Callable[[TaskInfo], None]
@@ -126,18 +121,18 @@ class McpClientConfig:
     """
 
     url: str = ""
-    endpoint: Optional[str] = None
-    transport: Optional[Literal["streamable-http", "sse", "http"]] = None
+    endpoint: str | None = None
+    transport: Literal["streamable-http", "sse", "http"] | None = None
     protocol_mode: Literal["auto", "legacy", "modern"] = "auto"
     auto_reconnect: bool = True
     max_reconnect_attempts: int = 5
     reconnect_delay: float = 1.0
-    headers: Dict[str, str] = field(default_factory=dict)
+    headers: dict[str, str] = field(default_factory=dict)
     timeout: float = 30.0
     client_name: str = "afd-python-client"
     client_version: str = "0.2.0"
     debug: bool = False
-    on_elicitation: Optional[ElicitationHandler] = None
+    on_elicitation: ElicitationHandler | None = None
     max_stream_event_bytes: int = 1024 * 1024
     tasks: bool = False
 
@@ -181,10 +176,10 @@ class ClientStatus:
     """
 
     state: TransportState = TransportState.DISCONNECTED
-    url: Optional[str] = None
-    server_info: Optional[Dict[str, Any]] = None
-    capabilities: Optional[Dict[str, Any]] = None
-    connected_at: Optional[datetime] = None
+    url: str | None = None
+    server_info: dict[str, Any] | None = None
+    capabilities: dict[str, Any] | None = None
+    connected_at: datetime | None = None
     reconnect_attempts: int = 0
     tools_count: int = 0
     pending_requests: int = 0
@@ -213,9 +208,9 @@ class McpClient:
 
     def __init__(
         self,
-        config: Optional[McpClientConfig] = None,
+        config: McpClientConfig | None = None,
         *,
-        transport: Optional[Any] = None,
+        transport: Any | None = None,
     ) -> None:
         """Initialize the client.
 
@@ -226,13 +221,13 @@ class McpClient:
         self._config = config or McpClientConfig()
         self._transport = transport
         self._owns_transport = transport is None
-        self._tools: List[ToolInfo] = []
-        self._connected_at: Optional[datetime] = None
+        self._tools: list[ToolInfo] = []
+        self._connected_at: datetime | None = None
         self._reconnect_attempts = 0
-        self._event_handlers: Dict[str, List[Callable[..., None]]] = {}
+        self._event_handlers: dict[str, list[Callable[..., None]]] = {}
         self._generation = 0
         self._active = False
-        self._reconnect_task: Optional[asyncio.Task] = None
+        self._reconnect_task: asyncio.Task | None = None
         self._active_task_polls: set[asyncio.Event] = set()
         self._state = TransportState.DISCONNECTED
 
@@ -268,7 +263,7 @@ class McpClient:
             if generation != self._generation or not self._active:
                 return
             self._tools = tools
-            self._connected_at = datetime.now(timezone.utc)
+            self._connected_at = datetime.now(UTC)
             self._set_state(TransportState.CONNECTED)
             self._emit("connected")
         except BaseException as exc:
@@ -308,13 +303,13 @@ class McpClient:
 
     # ── Tool queries ──────────────────────────────────────────────────────
 
-    async def list_tools(self) -> List[ToolInfo]:
+    async def list_tools(self) -> list[ToolInfo]:
         """Refresh and return the list of available tools."""
         self._require_connected()
         self._tools = await self._request("list_tools")
         return self._tools
 
-    def get_tools(self) -> List[ToolInfo]:
+    def get_tools(self) -> list[ToolInfo]:
         """Return the cached tools list (no network call)."""
         return list(self._tools)
 
@@ -324,7 +319,7 @@ class McpClient:
         self,
         task_id: str,
         *,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
     ) -> DetailedTask:
         """Fetch the current state of an MCP task via ``tasks/get``."""
         self._require_connected()
@@ -335,7 +330,7 @@ class McpClient:
         self,
         task_id: str,
         *,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
     ) -> None:
         """Request cooperative cancellation of an MCP task via ``tasks/cancel``."""
         self._require_connected()
@@ -344,11 +339,11 @@ class McpClient:
     async def call(
         self,
         name: str,
-        args: Optional[Dict[str, Any]] = None,
+        args: dict[str, Any] | None = None,
         *,
-        timeout: Optional[float] = None,
-        cancel: Optional[asyncio.Event] = None,
-        on_task_progress: Optional[TaskProgressCallback] = None,
+        timeout: float | None = None,
+        cancel: asyncio.Event | None = None,
+        on_task_progress: TaskProgressCallback | None = None,
     ) -> CommandResult:
         """Call a command and return a ``CommandResult``.
 
@@ -418,7 +413,7 @@ class McpClient:
                 message=str(exc),
                 suggestion="Check the server connection and try again",
             )
-        except asyncio.TimeoutError as exc:
+        except TimeoutError as exc:
             return result_error(
                 code="TIMEOUT",
                 message=str(exc) or "MCP request timed out",
@@ -441,11 +436,11 @@ class McpClient:
     async def call_tool(
         self,
         name: str,
-        args: Optional[Dict[str, Any]] = None,
+        args: dict[str, Any] | None = None,
         *,
-        timeout: Optional[float] = None,
-        cancel: Optional[asyncio.Event] = None,
-        on_task_progress: Optional[TaskProgressCallback] = None,
+        timeout: float | None = None,
+        cancel: asyncio.Event | None = None,
+        on_task_progress: TaskProgressCallback | None = None,
     ) -> Any:
         """Call a tool and return the raw result (no CommandResult wrapping).
 
@@ -466,9 +461,7 @@ class McpClient:
         total_timeout = self._config.timeout if timeout is None else timeout
         loop = asyncio.get_running_loop()
         deadline = loop.time() + total_timeout
-        raw = await self._request_with_timeout(
-            "call_tool", name, args or {}, timeout=timeout
-        )
+        raw = await self._request_with_timeout("call_tool", name, args or {}, timeout=timeout)
         if isinstance(raw, _TaskSeed) and self._config.tasks:
             return await self._poll_task(
                 raw.payload,
@@ -482,13 +475,13 @@ class McpClient:
 
     async def _poll_task(
         self,
-        initial: Dict[str, Any],
+        initial: dict[str, Any],
         *,
         tool_name: str,
         deadline: float,
         total_timeout: float,
-        cancel: Optional[asyncio.Event],
-        on_task_progress: Optional[TaskProgressCallback],
+        cancel: asyncio.Event | None,
+        on_task_progress: TaskProgressCallback | None,
     ) -> Any:
         import math
 
@@ -502,7 +495,7 @@ class McpClient:
         last_status = info.status
         last_message = info.status_message
 
-        def cancelled_payload() -> Dict[str, Any]:
+        def cancelled_payload() -> dict[str, Any]:
             return {
                 "success": False,
                 "error": {
@@ -518,10 +511,8 @@ class McpClient:
                 return
 
             async def _send_cancel() -> None:
-                try:
+                with contextlib.suppress(Exception):
                     await self.cancel_task(task_id, timeout=5.0)
-                except Exception:
-                    pass
 
             task = asyncio.create_task(_send_cancel())
             task.add_done_callback(lambda done: done.cancelled() or done.exception())
@@ -532,10 +523,8 @@ class McpClient:
                     item.cancel()
                     item.add_done_callback(lambda done: done.cancelled() or done.exception())
                 elif not item.cancelled():
-                    try:
+                    with contextlib.suppress(Exception):
                         item.exception()
-                    except Exception:
-                        pass
 
         try:
             if on_task_progress is not None:
@@ -551,18 +540,14 @@ class McpClient:
                 remaining_before_wait = deadline - loop.time()
                 if remaining_before_wait <= 0:
                     cancel_best_effort()
-                    raise asyncio.TimeoutError(
-                        f"MCP task '{task_id}' timed out after {total_timeout}s"
-                    )
+                    raise TimeoutError(f"MCP task '{task_id}' timed out after {total_timeout}s")
 
                 wait_s = min(poll_interval_s, remaining_before_wait)
                 waiters = [asyncio.create_task(disconnect_abort.wait())]
                 if cancel is not None:
                     waiters.append(asyncio.create_task(cancel.wait()))
                 try:
-                    await asyncio.wait(
-                        waiters, timeout=wait_s, return_when=asyncio.FIRST_COMPLETED
-                    )
+                    await asyncio.wait(waiters, timeout=wait_s, return_when=asyncio.FIRST_COMPLETED)
                 finally:
                     _cleanup_tasks(waiters)
 
@@ -575,17 +560,13 @@ class McpClient:
                 remaining = deadline - loop.time()
                 if remaining <= 0:
                     cancel_best_effort()
-                    raise asyncio.TimeoutError(
-                        f"MCP task '{task_id}' timed out after {total_timeout}s"
-                    )
+                    raise TimeoutError(f"MCP task '{task_id}' timed out after {total_timeout}s")
 
                 poll_task: asyncio.Task[DetailedTask] = asyncio.create_task(
                     self.get_task(task_id, timeout=remaining)
                 )
                 abort_waiter = asyncio.create_task(disconnect_abort.wait())
-                cancel_waiter = (
-                    asyncio.create_task(cancel.wait()) if cancel is not None else None
-                )
+                cancel_waiter = asyncio.create_task(cancel.wait()) if cancel is not None else None
                 race: list[asyncio.Task[Any]] = [poll_task, abort_waiter]
                 if cancel_waiter is not None:
                     race.append(cancel_waiter)
@@ -595,7 +576,9 @@ class McpClient:
                         race, timeout=remaining, return_when=asyncio.FIRST_COMPLETED
                     )
                 finally:
-                    to_clean = [w for w in (abort_waiter, cancel_waiter) if w is not None]
+                    to_clean: list[asyncio.Task[Any]] = [
+                        w for w in (abort_waiter, cancel_waiter) if w is not None
+                    ]
                     if poll_task not in done:
                         to_clean.append(poll_task)
                     _cleanup_tasks(to_clean)
@@ -607,21 +590,19 @@ class McpClient:
                     if disconnect_abort.is_set():
                         raise TransportError("Client disconnected")
                     cancel_best_effort()
-                    raise asyncio.TimeoutError(
-                        f"MCP task '{task_id}' timed out after {total_timeout}s"
-                    )
+                    raise TimeoutError(f"MCP task '{task_id}' timed out after {total_timeout}s")
 
                 try:
                     detailed = poll_task.result()
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     cancel_best_effort()
-                    raise asyncio.TimeoutError(
+                    raise TimeoutError(
                         f"MCP task '{task_id}' timed out after {total_timeout}s"
                     ) from None
                 except TransportError as exc:
                     if isinstance(exc.cause, asyncio.TimeoutError):
                         cancel_best_effort()
-                        raise asyncio.TimeoutError(
+                        raise TimeoutError(
                             f"MCP task '{task_id}' timed out after {total_timeout}s"
                         ) from exc
                     if cancel is not None and cancel.is_set():
@@ -682,8 +663,8 @@ class McpClient:
 
     async def batch(
         self,
-        commands: Sequence[Dict[str, Any]],
-        options: Optional[Dict[str, Any]] = None,
+        commands: Sequence[dict[str, Any]],
+        options: dict[str, Any] | None = None,
     ) -> Any:
         """Execute a batch of commands via the ``afd-batch`` tool.
 
@@ -695,21 +676,25 @@ class McpClient:
             Batch result from the server.
         """
         self._require_connected()
-        normalized_commands: list[Dict[str, Any]] = []
+        normalized_commands: list[dict[str, Any]] = []
         for command in commands:
             payload = dict(command)
             if "command" not in payload and "name" in payload:
                 payload["command"] = payload.pop("name")
             normalized_commands.append(payload)
-        return await self._request("call_tool", "afd-batch", {
-            "commands": normalized_commands,
-            "options": options or {},
-        })
+        return await self._request(
+            "call_tool",
+            "afd-batch",
+            {
+                "commands": normalized_commands,
+                "options": options or {},
+            },
+        )
 
     async def pipe(
         self,
-        steps: Sequence[Dict[str, Any]],
-        options: Optional[Dict[str, Any]] = None,
+        steps: Sequence[dict[str, Any]],
+        options: dict[str, Any] | None = None,
     ) -> Any:
         """Execute a pipeline via the ``afd-pipe`` tool.
 
@@ -721,22 +706,26 @@ class McpClient:
             Pipeline result from the server.
         """
         self._require_connected()
-        return await self._request("call_tool", "afd-pipe", {
-            "steps": list(steps),
-            "options": options or {},
-        })
+        return await self._request(
+            "call_tool",
+            "afd-pipe",
+            {
+                "steps": list(steps),
+                "options": options or {},
+            },
+        )
 
     # ── Streaming ─────────────────────────────────────────────────────────
 
     async def stream(
         self,
         name: str,
-        args: Optional[Dict[str, Any]] = None,
+        args: dict[str, Any] | None = None,
         *,
-        timeout: Optional[float] = None,
-        cancel: Optional[asyncio.Event] = None,
+        timeout: float | None = None,
+        cancel: asyncio.Event | None = None,
         idle_timeout: Any = ...,
-    ) -> AsyncGenerator[Dict[str, Any], None]:
+    ) -> AsyncGenerator[dict[str, Any], None]:
         """Stream a command's results from the server's ``POST /stream/<command>``.
 
         The URL is the client's without a trailing ``/sse``, ``/message``,
@@ -766,12 +755,15 @@ class McpClient:
         from afd.client_stream import stream_error_chunk, stream_over_http
 
         if not self.is_connected():
-            yield stream_error_chunk({
-                "code": "NOT_CONNECTED",
-                "message": "The client is not connected",
-                "suggestion": "Call connect() before stream()",
-                "retryable": False,
-            }, 0)
+            yield stream_error_chunk(
+                {
+                    "code": "NOT_CONNECTED",
+                    "message": "The client is not connected",
+                    "suggestion": "Call connect() before stream()",
+                    "retryable": False,
+                },
+                0,
+            )
             return
         from afd.transports._mcp_protocol import derive_stream_url
 
@@ -856,15 +848,19 @@ class McpClient:
         # Built-in SSE transports report an idle server close as well as calls
         # failing. HTTP failures are detected by _request(). Injected transports
         # keep their existing callbacks/API.
-        if hasattr(self._transport, "set_callbacks"):
-            transport = self._transport
+        transport = self._transport
+        if transport is not None and hasattr(transport, "set_callbacks"):
             transport.set_callbacks(
                 on_close=lambda: self._connection_lost(transport),
                 on_error=lambda exc: self._connection_lost(transport, exc),
             )
 
-    def _connection_lost(self, transport: Any, exc: Optional[Exception] = None) -> None:
-        if not self._active or transport is not self._transport or self._state != TransportState.CONNECTED:
+    def _connection_lost(self, transport: Any, exc: Exception | None = None) -> None:
+        if (
+            not self._active
+            or transport is not self._transport
+            or self._state != TransportState.CONNECTED
+        ):
             return
         self._abort_task_polls()
         self._clear_connection()
@@ -881,7 +877,7 @@ class McpClient:
         return await self._request_kw(method, *args)
 
     async def _request_with_timeout(
-        self, method: str, *args: Any, timeout: Optional[float] = None
+        self, method: str, *args: Any, timeout: float | None = None
     ) -> Any:
         """Invoke a transport method, enforcing ``timeout`` even on transports that omit it."""
         transport = self._transport
@@ -903,7 +899,11 @@ class McpClient:
         try:
             return await fn(*args, **kwargs)
         except TransportError as exc:
-            if not isinstance(exc, (ToolExecutionError, ToolNotFoundError, JsonRpcError)) and transport.state != TransportState.CONNECTED:
+            if (
+                not isinstance(exc, (ToolExecutionError, ToolNotFoundError, JsonRpcError))
+                and transport is not None
+                and transport.state != TransportState.CONNECTED
+            ):
                 self._connection_lost(transport, exc)
             raise
 
@@ -912,15 +912,13 @@ class McpClient:
         self._reconnect_task = None
         if task is not None and task is not asyncio.current_task():
             task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await task
-            except asyncio.CancelledError:
-                pass
 
     async def _attempt_reconnect(self) -> bool:
         """Restore discovery after loss; never replay an in-flight command."""
         generation = self._generation
-        last_error: Optional[Exception] = None
+        last_error: Exception | None = None
         if not self._config.auto_reconnect or not self._active:
             return False
         try:
@@ -934,25 +932,30 @@ class McpClient:
                 if not self._active or generation != self._generation:
                     return False
                 try:
-                    await self._transport.disconnect()
+                    if self._transport is not None:
+                        await self._transport.disconnect()
                     # Reuse injected transports, which may not have a URL config.
                     if self._owns_transport:
                         self._transport = _create_transport(self._config)
+                    transport = self._transport
+                    if transport is None:
+                        return False
                     self._bind_transport_events()
-                    await self._transport.connect()
-                    tools = await self._transport.list_tools()
+                    await transport.connect()
+                    tools = await transport.list_tools()
                     if not self._active or generation != self._generation:
-                        await self._transport.disconnect()
+                        await transport.disconnect()
                         return False
                     self._tools = tools
-                    self._connected_at = datetime.now(timezone.utc)
+                    self._connected_at = datetime.now(UTC)
                     self._reconnect_attempts = 0
                     self._set_state(TransportState.CONNECTED)
                     self._emit("connected")
                     return True
                 except Exception as exc:
                     last_error = exc
-                    await self._transport.disconnect()
+                    if self._transport is not None:
+                        await self._transport.disconnect()
             self._clear_connection()
             self._set_state(TransportState.ERROR)
             self._emit("error", last_error or TransportError("Max reconnection attempts reached"))
@@ -969,8 +972,10 @@ class McpClient:
         return ClientStatus(
             state=state,
             url=self._config.resolved_url if state != TransportState.DISCONNECTED else None,
-            server_info=getattr(self._transport, '_server_info', None) if self._transport else None,
-            capabilities=getattr(self._transport, '_capabilities', None) if self._transport else None,
+            server_info=getattr(self._transport, "_server_info", None) if self._transport else None,
+            capabilities=getattr(self._transport, "_capabilities", None)
+            if self._transport
+            else None,
             connected_at=self._connected_at,
             reconnect_attempts=self._reconnect_attempts,
             tools_count=len(self._tools),
@@ -981,9 +986,7 @@ class McpClient:
     def _require_connected(self) -> None:
         """Raise if not connected."""
         if not self.is_connected():
-            raise RuntimeError(
-                "Client not connected. Call connect() first."
-            )
+            raise RuntimeError("Client not connected. Call connect() first.")
 
     def _debug(self, message: str) -> None:
         """Debug logging."""
@@ -996,7 +999,7 @@ class McpClient:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-def _parse_command_result(data: Dict[str, Any]) -> CommandResult:
+def _parse_command_result(data: dict[str, Any]) -> CommandResult:
     """Parse a CommandResult dict, keeping sources, plan, metadata and the rest."""
     try:
         return CommandResult.model_validate(data)
@@ -1039,7 +1042,7 @@ def _accepts_keyword(fn: Any, keyword: str) -> bool:
     return False
 
 
-def _normalize_poll_interval(poll_interval_ms: Optional[int]) -> float:
+def _normalize_poll_interval(poll_interval_ms: int | None) -> float:
     import math
 
     if (
@@ -1052,19 +1055,20 @@ def _normalize_poll_interval(poll_interval_ms: Optional[int]) -> float:
     return 0.25
 
 
-def _parse_task_info(raw: Dict[str, Any]) -> TaskInfo:
+def _parse_task_info(raw: dict[str, Any]) -> TaskInfo:
+    raw_ttl = raw.get("ttlMs") if raw.get("ttlMs") is not None else raw.get("ttl_ms", 0)
     return TaskInfo(
         task_id=str(raw.get("taskId") or raw.get("task_id") or ""),
         status=raw.get("status", "working"),
         status_message=raw.get("statusMessage", raw.get("status_message")),
         created_at=str(raw.get("createdAt") or raw.get("created_at") or ""),
         last_updated_at=str(raw.get("lastUpdatedAt") or raw.get("last_updated_at") or ""),
-        ttl_ms=int(raw.get("ttlMs") if raw.get("ttlMs") is not None else raw.get("ttl_ms", 0)),
+        ttl_ms=int(raw_ttl if raw_ttl is not None else 0),
         poll_interval_ms=raw.get("pollIntervalMs", raw.get("poll_interval_ms")),
     )
 
 
-def _parse_detailed_task(raw: Dict[str, Any]) -> DetailedTask:
+def _parse_detailed_task(raw: dict[str, Any]) -> DetailedTask:
     base = _parse_task_info(raw)
     return DetailedTask(
         task_id=base.task_id,
@@ -1124,13 +1128,13 @@ def _create_transport(config: McpClientConfig) -> Any:
 def create_client(
     url: str,
     *,
-    transport: Optional[Literal["streamable-http", "sse", "http"]] = None,
+    transport: Literal["streamable-http", "sse", "http"] | None = None,
     protocol_mode: Literal["auto", "legacy", "modern"] = "auto",
     auto_reconnect: bool = True,
-    headers: Optional[Dict[str, str]] = None,
+    headers: dict[str, str] | None = None,
     timeout: float = 30.0,
     debug: bool = False,
-    on_elicitation: Optional[ElicitationHandler] = None,
+    on_elicitation: ElicitationHandler | None = None,
     tasks: bool = False,
 ) -> McpClient:
     """Create an McpClient with sensible defaults.
@@ -1154,14 +1158,16 @@ def create_client(
         >>> await client.connect()
         >>> result = await client.call("ping")
     """
-    return McpClient(McpClientConfig(
-        url=url,
-        transport=transport,
-        protocol_mode=protocol_mode,
-        auto_reconnect=auto_reconnect,
-        headers=headers or {},
-        timeout=timeout,
-        debug=debug,
-        on_elicitation=on_elicitation,
-        tasks=tasks,
-    ))
+    return McpClient(
+        McpClientConfig(
+            url=url,
+            transport=transport,
+            protocol_mode=protocol_mode,
+            auto_reconnect=auto_reconnect,
+            headers=headers or {},
+            timeout=timeout,
+            debug=debug,
+            on_elicitation=on_elicitation,
+            tasks=tasks,
+        )
+    )

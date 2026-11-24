@@ -4,7 +4,7 @@ Each rule of the spec has a test here, for the core resolver
 (``afd.core.pipeline``), the ``afd-pipe`` server tool and ``DirectClient.pipe``.
 """
 
-from typing import Any, Dict, List
+from typing import Any
 
 import pytest
 from pydantic import BaseModel
@@ -39,24 +39,32 @@ def _step(index: int, data: Any, *, alias: str = None, status: StepStatus = Step
     return StepResult(index=index, alias=alias, command=f"cmd-{index}", status=status, data=data)
 
 
-def _context(*steps: StepResult, pipeline_input: Dict[str, Any] = None) -> PipelineContext:
+def _context(*steps: StepResult, pipeline_input: dict[str, Any] = None) -> PipelineContext:
     context = PipelineContext(pipeline_input=pipeline_input, steps=list(steps))
     successful = [step for step in steps if step.status == StepStatus.SUCCESS]
     context.previous_result = successful[-1] if successful else None
     return context
 
 
-def _nested(levels: int) -> Dict[str, Any]:
+def _nested(levels: int) -> dict[str, Any]:
     """An object whose containers nest ``levels`` deep (the object itself is level 1)."""
-    value: Dict[str, Any] = {}
+    value: dict[str, Any] = {}
     for _ in range(levels - 1):
         value = {"a": value}
     return value
 
 
 CONTEXT = _context(
-    _step(0, {"user": {"id": 7, "tags": ["a", "b"], "_id": "u7"}, "items": [10, 20, 30]}, alias="first"),
-    _step(1, {"id": "todo-1", "title": "Buy milk", "count": 3, "done": False, "note": None}, alias="todo"),
+    _step(
+        0,
+        {"user": {"id": 7, "tags": ["a", "b"], "_id": "u7"}, "items": [10, 20, 30]},
+        alias="first",
+    ),
+    _step(
+        1,
+        {"id": "todo-1", "title": "Buy milk", "count": 3, "done": False, "note": None},
+        alias="todo",
+    ),
     pipeline_input={"userId": 42, "filters": {"status": "open"}},
 )
 
@@ -70,14 +78,20 @@ class TestReferenceForms:
     @pytest.mark.parametrize(
         ("reference", "expected"),
         [
-            ("$prev", {"id": "todo-1", "title": "Buy milk", "count": 3, "done": False, "note": None}),
+            (
+                "$prev",
+                {"id": "todo-1", "title": "Buy milk", "count": 3, "done": False, "note": None},
+            ),
             ("$prev.title", "Buy milk"),
             ("$prev.note", None),
             ("$first.user.id", 7),
             ("$first.user.tags[1]", "b"),
             ("$first.items.2", 30),
             ("$steps[0].user.tags.0", "a"),
-            ("$steps[1]", {"id": "todo-1", "title": "Buy milk", "count": 3, "done": False, "note": None}),
+            (
+                "$steps[1]",
+                {"id": "todo-1", "title": "Buy milk", "count": 3, "done": False, "note": None},
+            ),
             ("$steps.todo.id", "todo-1"),
             ("$steps.first.items[0]", 10),
             ("$input", {"userId": 42, "filters": {"status": "open"}}),
@@ -316,15 +330,25 @@ class TestConditions:
     def test_comparisons(self):
         assert evaluate_condition({"$gte": ["$prev.count", 3]}, CONTEXT) is True
         assert evaluate_condition({"$lt": ["$prev.count", 3]}, CONTEXT) is False
-        assert evaluate_condition(
-            {"$and": [{"$exists": "$prev.id"}, {"$or": [{"$eq": ["$prev.done", True]}, {"$lte": ["$prev.count", 5]}]}]},
-            CONTEXT,
-        ) is True
+        assert (
+            evaluate_condition(
+                {
+                    "$and": [
+                        {"$exists": "$prev.id"},
+                        {"$or": [{"$eq": ["$prev.done", True]}, {"$lte": ["$prev.count", 5]}]},
+                    ]
+                },
+                CONTEXT,
+            )
+            is True
+        )
 
     def test_dunder_condition_is_not_an_oracle(self):
         context = _context(_step(0, Profile(name="Ada")))
         assert evaluate_condition({"$exists": "$prev.__class__"}, context) is False
-        assert evaluate_condition({"$eq": ["$prev.__class__.__name__", "Profile"]}, context) is False
+        assert (
+            evaluate_condition({"$eq": ["$prev.__class__.__name__", "Profile"]}, context) is False
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -334,10 +358,10 @@ class TestConditions:
 
 class _Recorder:
     def __init__(self, data: Any = None):
-        self.calls: List[tuple] = []
+        self.calls: list[tuple] = []
         self.data = data
 
-    async def __call__(self, command: str, payload: Dict[str, Any]) -> CommandResult:
+    async def __call__(self, command: str, payload: dict[str, Any]) -> CommandResult:
         self.calls.append((command, payload))
         return success(self.data if self.data is not None else payload)
 
@@ -365,7 +389,9 @@ class TestExecutePipelineLimits:
     @pytest.mark.asyncio
     async def test_64_level_step_input_is_accepted(self):
         executor = _Recorder()
-        request = PipelineRequest(steps=[PipelineStep(command="deep", input=_nested(MAX_INPUT_DEPTH))])
+        request = PipelineRequest(
+            steps=[PipelineStep(command="deep", input=_nested(MAX_INPUT_DEPTH))]
+        )
 
         result = await execute_pipeline(request, executor)
 
@@ -410,9 +436,7 @@ class TestExecutePipelineLimits:
         request = PipelineRequest(
             steps=[
                 PipelineStep(command="one"),
-                PipelineStep.model_construct(
-                    command="two", when={"$gt": ["$prev.count", "many"]}
-                ),
+                PipelineStep.model_construct(command="two", when={"$gt": ["$prev.count", "many"]}),
             ]
         )
 
@@ -426,7 +450,11 @@ class TestExecutePipelineLimits:
     async def test_input_reference_uses_request_input(self):
         executor = _Recorder()
         request = PipelineRequest(
-            steps=[PipelineStep(command="one", input={"user": "$input.userId", "none": "$input.missing"})],
+            steps=[
+                PipelineStep(
+                    command="one", input={"user": "$input.userId", "none": "$input.missing"}
+                )
+            ],
             input={"userId": 5},
         )
 
@@ -450,9 +478,9 @@ class TestExecutePipelineLimits:
 
     @pytest.mark.asyncio
     async def test_prev_skips_failed_steps(self):
-        calls: List[tuple] = []
+        calls: list[tuple] = []
 
-        async def executor(command: str, payload: Dict[str, Any]) -> CommandResult:
+        async def executor(command: str, payload: dict[str, Any]) -> CommandResult:
             calls.append((command, payload))
             if command == "fails":
                 return failure(CommandError(code="BOOM", message="failed"))
@@ -520,7 +548,7 @@ class TestExpansionLimits:
 
     def test_the_character_budget_boundary_counts_utf16_code_units(self):
         # The key "s" is one character; an astral character is two code units.
-        fits = "x" * (MAX_RESOLVED_CHARS - 3) + "\U0001F600"
+        fits = "x" * (MAX_RESOLVED_CHARS - 3) + "\U0001f600"
         assert resolve_variables({"s": fits}, _context()) == {"s": fits}
         assert self._limit({"s": fits + "x"}, _context()) == "chars"
 
@@ -542,7 +570,7 @@ class TestExpansionLimits:
         assert resolve_variables({"a": "$prev.shallow"}, context) == {"a": 1}
 
     def test_circular_step_data_fails_on_depth_when_copied(self):
-        data: Dict[str, Any] = {"v": 1}
+        data: dict[str, Any] = {"v": 1}
         data["self"] = data
         context = _context(_step(0, data))
 
@@ -602,8 +630,10 @@ class TestExpansionLimits:
 
     @pytest.mark.asyncio
     async def test_afd_pipe_and_direct_client_fail_the_step(self):
-        fan_out = {"steps": [{"command": "message-echo", "input": {"v": ["$input.big"] * 200}}],
-                   "input": {"big": list(range(1_000))}}
+        fan_out = {
+            "steps": [{"command": "message-echo", "input": {"v": ["$input.big"] * 200}}],
+            "input": {"big": list(range(1_000))},
+        }
         piped = await _echo_server().call_tool("afd-pipe", fan_out)
 
         assert piped.steps[0].error.code == "VALIDATION_ERROR"
@@ -672,7 +702,15 @@ class TestAfdPipe:
         server = _echo_server()
 
         result = await server.call_tool(
-            "afd-pipe", {"steps": [{"command": "message-echo", "input": {"ctx": "$input", "trace": "$input.trace_id"}}]}
+            "afd-pipe",
+            {
+                "steps": [
+                    {
+                        "command": "message-echo",
+                        "input": {"ctx": "$input", "trace": "$input.trace_id"},
+                    }
+                ]
+            },
         )
 
         assert result.data == {}
@@ -682,7 +720,8 @@ class TestAfdPipe:
         server = _echo_server()
 
         result = await server.call_tool(
-            "afd-pipe", {"steps": [{"command": "message-echo", "input": _nested(MAX_INPUT_DEPTH + 1)}]}
+            "afd-pipe",
+            {"steps": [{"command": "message-echo", "input": _nested(MAX_INPUT_DEPTH + 1)}]},
         )
 
         assert result.steps[0].error.code == "VALIDATION_ERROR"
@@ -755,7 +794,11 @@ class TestDirectClientPipe:
         result = await self._client().pipe(
             [
                 {"command": "user-get", "as": "user"},
-                {"command": "echo", "input": {"n": 1}, "when": {"$eq": ["$steps.user.name", "Ada"]}},
+                {
+                    "command": "echo",
+                    "input": {"n": 1},
+                    "when": {"$eq": ["$steps.user.name", "Ada"]},
+                },
                 {"command": "echo", "input": {"n": 2}, "when": {"$exists": "$steps.user.nope"}},
                 {"command": "echo", "input": {"n": 3}, "when": "$steps.user.active"},
             ]
@@ -803,7 +846,11 @@ class TestNullStepData:
                 PipelineStep(command="none-get", as_="none"),
                 PipelineStep(
                     command="echo",
-                    input={"a": "$steps.empty", "b": "$steps.none", "c": ["$steps.empty", "$steps.none"]},
+                    input={
+                        "a": "$steps.empty",
+                        "b": "$steps.none",
+                        "c": ["$steps.empty", "$steps.none"],
+                    },
                 ),
             ]
         )
@@ -826,7 +873,10 @@ class TestNullStepData:
             return success(kwargs)
 
         result = await DirectClient(registry).pipe(
-            [{"command": "null-get"}, {"command": "echo", "input": {"item": "$prev", "when": "$first"}}]
+            [
+                {"command": "null-get"},
+                {"command": "echo", "input": {"item": "$prev", "when": "$first"}},
+            ]
         )
 
         assert result.final.data == {"item": None, "when": None}
@@ -915,6 +965,4 @@ class TestKeyWhitespace:
         assert evaluate_condition({"$exists": f"$prev.{key}"}, context) is False
         assert reads_step_data({"x": f"$prev.{key}"}) is False
         assert reads_step_data({"x": f"$steps.{alias}"}) is False
-        assert resolve_variables({"x": f"$prev.deep{ch}k"}, context) == {
-            "x": f"$prev.deep{ch}k"
-        }
+        assert resolve_variables({"x": f"$prev.deep{ch}k"}, context) == {"x": f"$prev.deep{ch}k"}

@@ -36,11 +36,14 @@ def _make_client(reg=None):
 async def test_batch_all_succeed():
     """Batch of 3 succeeding commands."""
     client = _make_client()
-    result = await batch_execute(client, [
-        ("add", {"a": 1, "b": 2}),
-        ("greet", {"name": "Alice"}),
-        ("add", {"a": 10, "b": 20}),
-    ])
+    result = await batch_execute(
+        client,
+        [
+            ("add", {"a": 1, "b": 2}),
+            ("greet", {"name": "Alice"}),
+            ("add", {"a": 10, "b": 20}),
+        ],
+    )
 
     assert result.success is True
     assert result.summary.total == 3
@@ -54,11 +57,15 @@ async def test_batch_all_succeed():
 async def test_batch_failure_continues():
     """Batch with failure, stop_on_error=False continues."""
     client = _make_client()
-    result = await batch_execute(client, [
-        ("add", {"a": 1, "b": 1}),
-        ("fail-cmd", {}),
-        ("greet", {"name": "Bob"}),
-    ], stop_on_error=False)
+    result = await batch_execute(
+        client,
+        [
+            ("add", {"a": 1, "b": 1}),
+            ("fail-cmd", {}),
+            ("greet", {"name": "Bob"}),
+        ],
+        stop_on_error=False,
+    )
 
     assert result.summary.total == 3
     assert result.summary.success_count == 2
@@ -69,11 +76,15 @@ async def test_batch_failure_continues():
 async def test_batch_failure_stops():
     """Batch with failure, stop_on_error=True stops."""
     client = _make_client()
-    result = await batch_execute(client, [
-        ("add", {"a": 1, "b": 1}),
-        ("fail-cmd", {}),
-        ("greet", {"name": "Bob"}),
-    ], stop_on_error=True)
+    result = await batch_execute(
+        client,
+        [
+            ("add", {"a": 1, "b": 1}),
+            ("fail-cmd", {}),
+            ("greet", {"name": "Bob"}),
+        ],
+        stop_on_error=True,
+    )
 
     # Should stop after failure — only 2 results
     assert len(result.results) == 2
@@ -93,9 +104,12 @@ async def test_batch_empty():
 async def test_batch_result_has_timing():
     """BatchResult has timing information."""
     client = _make_client()
-    result = await batch_execute(client, [
-        ("add", {"a": 1, "b": 2}),
-    ])
+    result = await batch_execute(
+        client,
+        [
+            ("add", {"a": 1, "b": 2}),
+        ],
+    )
 
     assert result.timing.total_ms >= 0
     assert result.timing.average_ms >= 0
@@ -106,10 +120,13 @@ async def test_batch_result_has_timing():
 async def test_batch_result_has_confidence():
     """BatchResult has computed confidence."""
     client = _make_client()
-    result = await batch_execute(client, [
-        ("add", {"a": 1, "b": 2}),
-        ("greet", {"name": "Test"}),
-    ])
+    result = await batch_execute(
+        client,
+        [
+            ("add", {"a": 1, "b": 2}),
+            ("greet", {"name": "Test"}),
+        ],
+    )
 
     assert isinstance(result.confidence, float)
     assert 0 <= result.confidence <= 1

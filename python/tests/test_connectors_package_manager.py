@@ -1,20 +1,17 @@
 """Tests for afd.connectors.package_manager module."""
 
 import json
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from afd.connectors.package_manager import (
     Dependency,
-    PackageManager,
     PackageManagerConnector,
     PackageManagerConnectorOptions,
     detect_package_manager,
 )
-from afd.platform import ExecErrorCode, ExecResult, create_exec_result
-
+from afd.platform import ExecErrorCode, create_exec_result
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PACKAGE MANAGER TYPES
@@ -250,12 +247,14 @@ class TestPackageManagerConnector:
 
     async def test_list_deps_npm(self):
         pm = PackageManagerConnector("npm")
-        deps_json = json.dumps({
-            "dependencies": {
-                "lodash": {"version": "4.17.21"},
-                "express": {"version": "4.18.2"},
+        deps_json = json.dumps(
+            {
+                "dependencies": {
+                    "lodash": {"version": "4.17.21"},
+                    "express": {"version": "4.18.2"},
+                }
             }
-        })
+        )
         mock = self._mock_exec(stdout=deps_json)
 
         with patch("afd.connectors.package_manager.exec_command", side_effect=mock):
@@ -267,10 +266,12 @@ class TestPackageManagerConnector:
 
     async def test_list_deps_pip(self):
         pm = PackageManagerConnector("pip")
-        deps_json = json.dumps([
-            {"name": "pydantic", "version": "2.6.0"},
-            {"name": "httpx", "version": "0.27.0"},
-        ])
+        deps_json = json.dumps(
+            [
+                {"name": "pydantic", "version": "2.6.0"},
+                {"name": "httpx", "version": "0.27.0"},
+            ]
+        )
         mock = self._mock_exec(stdout=deps_json)
 
         with patch("afd.connectors.package_manager.exec_command", side_effect=mock):
@@ -281,9 +282,11 @@ class TestPackageManagerConnector:
 
     async def test_list_deps_uv(self):
         pm = PackageManagerConnector("uv")
-        deps_json = json.dumps([
-            {"name": "click", "version": "8.1.7"},
-        ])
+        deps_json = json.dumps(
+            [
+                {"name": "click", "version": "8.1.7"},
+            ]
+        )
         mock = self._mock_exec(stdout=deps_json)
 
         with patch("afd.connectors.package_manager.exec_command", side_effect=mock):
@@ -293,11 +296,13 @@ class TestPackageManagerConnector:
 
     async def test_list_deps_cargo(self):
         pm = PackageManagerConnector("cargo")
-        metadata = json.dumps({
-            "packages": [
-                {"name": "serde", "version": "1.0.200"},
-            ]
-        })
+        metadata = json.dumps(
+            {
+                "packages": [
+                    {"name": "serde", "version": "1.0.200"},
+                ]
+            }
+        )
         mock = self._mock_exec(stdout=metadata)
 
         with patch("afd.connectors.package_manager.exec_command", side_effect=mock):
@@ -309,9 +314,11 @@ class TestPackageManagerConnector:
         pm = PackageManagerConnector("npm")
         mock = self._mock_exec(stderr="error", exit_code=1, error_code=ExecErrorCode.EXIT_CODE)
 
-        with patch("afd.connectors.package_manager.exec_command", side_effect=mock):
-            with pytest.raises(RuntimeError, match="Failed to list dependencies"):
-                await pm.list_deps()
+        with (
+            patch("afd.connectors.package_manager.exec_command", side_effect=mock),
+            pytest.raises(RuntimeError, match="Failed to list dependencies"),
+        ):
+            await pm.list_deps()
 
     async def test_run_npm(self):
         pm = PackageManagerConnector("npm")
@@ -395,10 +402,12 @@ class TestPackageManagerRootImports:
     """Tests that package manager connectors are importable from package root."""
 
     def test_package_manager_importable(self):
-        from afd import PackageManagerConnector, PackageManagerConnectorOptions
+        from afd import PackageManagerConnector
+
         assert PackageManagerConnector is not None
 
     def test_detection_importable(self):
-        from afd import detect_package_manager, Dependency
+        from afd import Dependency, detect_package_manager
+
         assert callable(detect_package_manager)
         assert Dependency is not None

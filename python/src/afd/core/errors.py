@@ -5,27 +5,27 @@ AND what they can do about it.
 
 Example:
     >>> from afd.core.errors import not_found_error, validation_error
-    >>> 
+    >>>
     >>> # Specific error factories
     >>> err = not_found_error("Document", "doc-123")
     >>> err.code
     'NOT_FOUND'
-    >>> 
+    >>>
     >>> # Generic error creation
     >>> err = create_error("CUSTOM_ERROR", "Something went wrong")
 """
 
 from dataclasses import dataclass
-from typing import Any, Literal, Optional, Tuple, Union
+from typing import Any, Literal, Union
 
 from afd.core.wire import WireModel
 
 
 class CommandError(WireModel):
     """Structured error with recovery guidance.
-    
+
     All errors should be actionable - users should know what to do next.
-    
+
     Attributes:
         code: Machine-readable error code (SCREAMING_SNAKE_CASE).
         message: Human-readable error description.
@@ -33,7 +33,7 @@ class CommandError(WireModel):
         retryable: Whether retrying the same request might succeed.
         details: Additional technical details for debugging.
         cause: Original error that caused this error.
-    
+
     Example:
         >>> error = CommandError(
         ...     code="RATE_LIMITED",
@@ -48,10 +48,10 @@ class CommandError(WireModel):
 
     code: str
     message: str
-    suggestion: Optional[str] = None
-    retryable: Optional[bool] = None
-    details: Optional[dict[str, Any]] = None
-    cause: Optional[Union["CommandError", str]] = None
+    suggestion: str | None = None
+    retryable: bool | None = None
+    details: dict[str, Any] | None = None
+    cause: Union["CommandError", str] | None = None
 
 
 def _omit_unset_cause(data: Any) -> Any:
@@ -78,11 +78,11 @@ catalog's values but still accepts any string as ``CommandError.code``.
 
 class ErrorCodes:
     """Standard error codes for common scenarios.
-    
+
     Use these for consistency across AFD applications. This is the shared
     catalog in ``spec/error-codes.md``: TypeScript, Rust and C++ define the
     same codes.
-    
+
     Example:
         >>> from afd.core.errors import ErrorCodes
         >>> ErrorCodes.NOT_FOUND
@@ -184,11 +184,11 @@ class ErrorCodeInfo:
     """Metadata for one entry in the shared error-code catalog."""
 
     code: str
-    retryable: Union[bool, Literal["varies"]]
+    retryable: bool | Literal["varies"]
     profile: str
 
 
-ERROR_CODE_CATALOG: Tuple[ErrorCodeInfo, ...] = (
+ERROR_CODE_CATALOG: tuple[ErrorCodeInfo, ...] = (
     ErrorCodeInfo(ErrorCodes.VALIDATION_ERROR, False, "core"),
     ErrorCodeInfo(ErrorCodes.INVALID_INPUT, False, "core"),
     ErrorCodeInfo(ErrorCodes.MISSING_REQUIRED_FIELD, False, "core"),
@@ -246,13 +246,13 @@ def create_error(
     code: str,
     message: str,
     *,
-    suggestion: Optional[str] = None,
-    retryable: Optional[bool] = None,
-    details: Optional[dict[str, Any]] = None,
-    cause: Optional[Union[CommandError, Exception, str]] = None,
+    suggestion: str | None = None,
+    retryable: bool | None = None,
+    details: dict[str, Any] | None = None,
+    cause: CommandError | Exception | str | None = None,
 ) -> CommandError:
     """Create a CommandError with standard fields.
-    
+
     Args:
         code: Machine-readable error code.
         message: Human-readable error description.
@@ -260,10 +260,10 @@ def create_error(
         retryable: Whether retry might succeed.
         details: Additional debugging info.
         cause: Original error that caused this.
-        
+
     Returns:
         A CommandError instance.
-    
+
     Example:
         >>> err = create_error(
         ...     "CUSTOM_ERROR",
@@ -271,7 +271,7 @@ def create_error(
         ...     suggestion="Try again later",
         ... )
     """
-    cause_value: Optional[Union[CommandError, str]] = None
+    cause_value: CommandError | str | None = None
     if isinstance(cause, CommandError):
         cause_value = cause
     elif isinstance(cause, Exception):
@@ -292,17 +292,17 @@ def create_error(
 def validation_error(
     message: str,
     *,
-    details: Optional[dict[str, Any]] = None,
+    details: dict[str, Any] | None = None,
 ) -> CommandError:
     """Create a validation error.
-    
+
     Args:
         message: Description of what validation failed.
         details: Field-specific validation errors.
-        
+
     Returns:
         A CommandError with code VALIDATION_ERROR.
-    
+
     Example:
         >>> err = validation_error(
         ...     "Title is required",
@@ -323,14 +323,14 @@ def not_found_error(
     resource_id: str,
 ) -> CommandError:
     """Create a not found error.
-    
+
     Args:
         resource_type: Type of resource (e.g., "Document", "User").
         resource_id: ID that was not found.
-        
+
     Returns:
         A CommandError with code NOT_FOUND.
-    
+
     Example:
         >>> err = not_found_error("Document", "doc-123")
         >>> err.message
@@ -346,16 +346,16 @@ def not_found_error(
 
 
 def rate_limit_error(
-    retry_after_seconds: Optional[int] = None,
+    retry_after_seconds: int | None = None,
 ) -> CommandError:
     """Create a rate limit error.
-    
+
     Args:
         retry_after_seconds: When to retry, if known.
-        
+
     Returns:
         A CommandError with code RATE_LIMITED.
-    
+
     Example:
         >>> err = rate_limit_error(60)
         >>> err.suggestion
@@ -380,14 +380,14 @@ def timeout_error(
     timeout_ms: int,
 ) -> CommandError:
     """Create a timeout error.
-    
+
     Args:
         operation_name: Name of the operation that timed out.
         timeout_ms: Timeout duration in milliseconds.
-        
+
     Returns:
         A CommandError with code TIMEOUT.
-    
+
     Example:
         >>> err = timeout_error("fetch_data", 5000)
         >>> "timed out" in err.message
@@ -405,17 +405,17 @@ def timeout_error(
 def internal_error(
     message: str,
     *,
-    cause: Optional[Exception] = None,
+    cause: Exception | None = None,
 ) -> CommandError:
     """Create an internal error (use sparingly - prefer specific errors).
-    
+
     Args:
         message: Error description.
         cause: Original exception that caused this.
-        
+
     Returns:
         A CommandError with code INTERNAL_ERROR.
-    
+
     Example:
         >>> try:
         ...     raise ValueError("oops")
@@ -433,15 +433,15 @@ def internal_error(
 
 def wrap_error(error: Any) -> CommandError:
     """Wrap an unknown error in a CommandError.
-    
+
     Use this to safely convert any exception to a CommandError.
-    
+
     Args:
         error: Any error value (Exception, CommandError, or other).
-        
+
     Returns:
         A CommandError wrapping the original error.
-    
+
     Example:
         >>> try:
         ...     raise ValueError("Something went wrong")
@@ -473,13 +473,13 @@ def wrap_error(error: Any) -> CommandError:
 
 def is_command_error(value: Any) -> bool:
     """Check if a value is a CommandError.
-    
+
     Args:
         value: Any value to check.
-        
+
     Returns:
         True if value is a CommandError instance.
-    
+
     Example:
         >>> err = not_found_error("Doc", "123")
         >>> is_command_error(err)

@@ -16,16 +16,15 @@ Example:
 """
 
 import asyncio
+import contextlib
 import os
 import platform
 import sys
 import tempfile
 from enum import Enum
 from pathlib import Path
-from typing import Optional
 
 from pydantic import BaseModel, Field
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PLATFORM CONSTANTS
@@ -119,7 +118,7 @@ def _check_windows_symlink_support() -> bool:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-class ExecErrorCode(str, Enum):
+class ExecErrorCode(str, Enum):  # noqa: UP042
     """Error codes for exec_command() failures.
 
     Attributes:
@@ -153,10 +152,10 @@ class ExecOptions(BaseModel):
         >>> opts = ExecOptions(cwd="/tmp", timeout=5000, debug=True)
     """
 
-    cwd: Optional[str] = None
-    timeout: Optional[int] = Field(default=None, gt=0)
+    cwd: str | None = None
+    timeout: int | None = Field(default=None, gt=0)
     debug: bool = False
-    env: Optional[dict[str, str]] = None
+    env: dict[str, str] | None = None
 
 
 class ExecResult(BaseModel):
@@ -178,7 +177,7 @@ class ExecResult(BaseModel):
     stdout: str
     stderr: str
     exit_code: int
-    error_code: Optional[ExecErrorCode] = None
+    error_code: ExecErrorCode | None = None
     duration_ms: float
 
 
@@ -187,7 +186,7 @@ def create_exec_result(
     stderr: str,
     exit_code: int,
     duration_ms: float,
-    error_code: Optional[ExecErrorCode] = None,
+    error_code: ExecErrorCode | None = None,
 ) -> ExecResult:
     """Factory function for ExecResult.
 
@@ -239,7 +238,7 @@ def is_exec_error(result: ExecResult) -> bool:
 
 async def exec_command(
     cmd: list[str],
-    options: Optional[ExecOptions] = None,
+    options: ExecOptions | None = None,
 ) -> ExecResult:
     """Execute a command asynchronously with cross-platform support.
 
@@ -290,11 +289,9 @@ async def exec_command(
                 process.communicate(),
                 timeout=timeout_ms / 1000.0,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             duration_ms = (loop.time() - start_time) * 1000
-            return create_exec_result(
-                "", "", 1, duration_ms, ExecErrorCode.TIMEOUT
-            )
+            return create_exec_result("", "", 1, duration_ms, ExecErrorCode.TIMEOUT)
         finally:
             # On a timeout, and when the awaiting task is cancelled (as a batch
             # deadline does), the child must not outlive the call.
@@ -321,10 +318,8 @@ async def _kill_and_reap(process: "asyncio.subprocess.Process") -> None:
     """Kill a child process that is still running and wait for it to exit."""
     if process.returncode is not None:
         return
-    try:
+    with contextlib.suppress(ProcessLookupError):
         process.kill()
-    except ProcessLookupError:
-        pass
     await process.wait()
 
 
@@ -333,7 +328,7 @@ async def _kill_and_reap(process: "asyncio.subprocess.Process") -> None:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-def find_up(filename: str, cwd: Optional[str] = None) -> Optional[str]:
+def find_up(filename: str, cwd: str | None = None) -> str | None:
     """Find a file by walking up parent directories.
 
     Args:

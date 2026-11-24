@@ -28,6 +28,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "mypy>=1.0",
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
     "ruff>=0.4.0",
@@ -86,6 +87,16 @@ max-complexity = 20
 max-args = 8
 max-branches = 20
 max-statements = 80
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = ["jwt", "jwt.*", "yaml", "yaml.*", "starlette", "starlette.*", "uvicorn", "uvicorn.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

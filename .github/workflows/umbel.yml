@@ -228,9 +228,13 @@ jobs:
         run: cargo test --locked --no-fail-fast -p umbel-store -p umbel-store-embedded -p umbel-okf -p umbel-scan -p umbel-plugin-sources-filesystem -p umbel-plugin-knowledge
       # Without the `code` feature (tree-sitter and its grammars) code collections are plain text.
       - name: Clippy (knowledge without code)
-        run: cargo clippy --locked -p umbel-plugin-knowledge --no-default-features --all-targets -- -D warnings
+        run: |
+          cargo clippy --locked -p umbel-plugin-knowledge --no-default-features --all-targets -- -D warnings
+          cargo clippy --locked -p umbel-first-party --no-default-features --bin umbel-knowledge -- -D warnings
       - name: Test (knowledge without code)
-        run: cargo test --locked --no-fail-fast -p umbel-plugin-knowledge --no-default-features
+        run: |
+          cargo test --locked --no-fail-fast -p umbel-plugin-knowledge --no-default-features
+          cargo test --locked --no-fail-fast -p umbel-first-party --no-default-features --test it knowledge_process
       - name: Upload the eval report
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

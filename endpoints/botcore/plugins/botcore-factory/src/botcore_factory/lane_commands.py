@@ -6,6 +6,7 @@ Made per host like ``commands``; ``build_factory_host`` serves both sets.
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any
 
 from afd import CommandResult, success
 from botcore.host import CommandPolicy
@@ -34,14 +35,14 @@ LANE_POLICIES: dict[str, CommandPolicy] = {
 }
 
 
-def make_lane_commands(get: Callable[[], Factory]) -> list[Callable]:
+def make_lane_commands(get: Callable[[], Factory]) -> list[Callable[..., Any]]:
     execute = executor()
 
-    async def lane_start() -> CommandResult:
+    async def lane_start() -> CommandResult[Any]:
         """Start the lane on this machine, detached: it validates, merges and raises events."""
         return await execute(lambda: success(lane_process.lane_start(get())))
 
-    async def lane_stop(force: bool = False) -> CommandResult:
+    async def lane_stop(force: bool = False) -> CommandResult[Any]:
         """Stop the lane; a running validation finishes first unless force.
 
         Args:
@@ -49,7 +50,7 @@ def make_lane_commands(get: Callable[[], Factory]) -> list[Callable]:
         """
         return await execute(lambda: success(lane_process.lane_stop(get(), force)))
 
-    async def lane_run(steps: int | None = None) -> CommandResult:
+    async def lane_run(steps: int | None = None) -> CommandResult[Any]:
         """Run the lane's loop in the foreground, for debugging the lane itself.
 
         Args:
@@ -57,15 +58,17 @@ def make_lane_commands(get: Callable[[], Factory]) -> list[Callable]:
         """
         return await execute(lambda: success(lane_process.run_loop(get(), steps=steps)))
 
-    async def lane_host_probe() -> CommandResult:
+    async def lane_host_probe() -> CommandResult[Any]:
         """Publish this machine's readiness to refs/factory/hosts on origin."""
         return await execute(lambda: success(machines.probe(get())))
 
-    async def lane_host_list() -> CommandResult:
+    async def lane_host_list() -> CommandResult[Any]:
         """The machines that published readiness: capacity, what each lacks, slot suggestion."""
         return await execute(lambda: success(machines.host_list(get())))
 
-    async def lane_host_set(id: str, drain: bool = False, recover: bool = False) -> CommandResult:
+    async def lane_host_set(
+        id: str, drain: bool = False, recover: bool = False
+    ) -> CommandResult[Any]:
         """Choose the lane host for every machine (the FACTORY_LANE_HOST variable).
 
         Args:
@@ -75,7 +78,7 @@ def make_lane_commands(get: Callable[[], Factory]) -> list[Callable]:
         """
         return await execute(lambda: success(machines.host_set(get(), id, drain, recover)))
 
-    async def lane_report(run: str | None = None, compare: str | None = None) -> CommandResult:
+    async def lane_report(run: str | None = None, compare: str | None = None) -> CommandResult[Any]:
         """A run's numbers from the lane's records, and their change from another run.
 
         Args:
@@ -84,7 +87,7 @@ def make_lane_commands(get: Callable[[], Factory]) -> list[Callable]:
         """
         return await execute(lambda: success(report.lane_report(get(), run, compare)))
 
-    async def foreman_handoff(session: str) -> CommandResult:
+    async def foreman_handoff(session: str) -> CommandResult[Any]:
         """Free the lane for another foreman session: the holder's own, or once its lease ran out.
 
         Args:
@@ -94,7 +97,7 @@ def make_lane_commands(get: Callable[[], Factory]) -> list[Callable]:
 
     async def ejection_excuse(
         branch: str, reason: str, session: str | None = None
-    ) -> CommandResult:
+    ) -> CommandResult[Any]:
         """Record that a cell's latest ejection was not its branch's fault (a known flake), so it
         no longer counts toward cells.maxEjections.
 
@@ -104,14 +107,14 @@ def make_lane_commands(get: Callable[[], Factory]) -> list[Callable]:
             session: The foreman's session (its T3 Code thread id); the owner names none.
         """
 
-        def body() -> CommandResult:
+        def body() -> CommandResult[Any]:
             factory = get()
             guard = foreman.acting(factory, session, "ejection-excuse", owner_may=True)
             return success(cells.ejection_excuse(factory, branch, reason, guard))
 
         return await execute(body)
 
-    async def measure_approve(branch: str, reason: str) -> CommandResult:
+    async def measure_approve(branch: str, reason: str) -> CommandResult[Any]:
         """Release a branch held for gate-change or measure-change to the queue.
 
         Args:

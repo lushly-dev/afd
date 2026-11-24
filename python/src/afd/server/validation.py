@@ -31,7 +31,9 @@ from pydantic import ValidationError as PydanticValidationError
 from afd.core.errors import CommandError
 from afd.core.result import CommandResult, failure
 from afd.core.schema_validation import (
-    DEFAULT_MAX_VALIDATION_ISSUES,
+    DEFAULT_MAX_VALIDATION_ISSUES as DEFAULT_MAX_VALIDATION_ISSUES,
+)
+from afd.core.schema_validation import (
     SchemaValidationError,
     resolve_max_validation_issues,
     schema_error_details,
@@ -215,7 +217,7 @@ def validate_input(
     input_data: object,
     *,
     max_issues: int = DEFAULT_MAX_VALIDATION_ISSUES,
-) -> ValidationResult:
+) -> ValidationResult[Any]:
     """Validate input data against a Pydantic model.
 
     Args:
@@ -257,7 +259,7 @@ def validate_input_enhanced(
     input_data: object,
     *,
     max_issues: int = DEFAULT_MAX_VALIDATION_ISSUES,
-) -> EnhancedValidationResult:
+) -> EnhancedValidationResult[Any]:
     """Validate input with field introspection (expected/unexpected/missing).
 
     Like validate_input but also reports which fields were expected,
@@ -549,9 +551,7 @@ def _convert_pydantic_errors(exc: PydanticValidationError) -> list[ValidationErr
     return errors
 
 
-def _extract_schema_info(
-    model_class: type[BaseModel], input_data: object
-) -> dict[str, list[str]]:
+def _extract_schema_info(model_class: type[BaseModel], input_data: object) -> dict[str, list[str]]:
     """Extract field introspection info from a model class and input data.
 
     Fields are reported under the name a caller sends: the field's alias when
@@ -624,6 +624,8 @@ def _input_validation_failure(
             errors = all_errors[:resolved_limit]
         else:
             errors = all_errors
+        if isinstance(model_class, dict):
+            raise TypeError("Pydantic validation error cannot occur for a JSON Schema dict")
         schema_info = dict(_extract_schema_info(model_class, input_data))
     details: dict[str, Any] = {"errors": [_error_to_dict(e) for e in errors]}
     for key, wire_key in (

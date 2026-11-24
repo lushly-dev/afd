@@ -1,0 +1,25 @@
+[package]
+name = "umbel-todo"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+license = "MIT"
+description = "AFD Umbel todo binary: the umbel command line with the todo and hello plugins compiled in"
+repository = "https://github.com/lushly-dev/afd"
+
+[[bin]]
+name = "umbel-todo"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+# The command line (`umbel::cli::run`) and the compiled-plugin contract; no loader, so no wasmtime.
+umbel = { path = "../..", default-features = false, features = ["cli"] }
+# The reference plugin joins `umbel-todo`'s catalog, so one binary can serve both for the external
+# clients' checks (`afd validate --surface`); it loads only when a workspace enables it.
+umbel-plugin-hello = { path = "../../plugins/hello" }
+umbel-plugin-todo = { path = "../../plugins/todo" }
+
+[lints]
+workspace = true

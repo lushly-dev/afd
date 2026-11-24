@@ -53,7 +53,7 @@ from afd.server import (  # noqa: E402
     jwks_key_source,
 )
 from tests.test_auth_verifier import ISSUER, JWKS, NOW, RESOURCE, _sign_jws  # noqa: E402
-from tests.test_mcp_auth import MODERN, MODERN_HEADERS, MODERN_META, _raw_asgi_call  # noqa: E402
+from tests.test_mcp_auth import MODERN_HEADERS, MODERN_META, _raw_asgi_call  # noqa: E402
 
 LEGACY = "2025-11-25"
 METADATA_URL = "https://mcp.test.example/.well-known/oauth-protected-resource/mcp"
@@ -309,7 +309,11 @@ async def test_modern_http_per_caller_list_read_hidden_parity_and_branding() -> 
         # Missing required_scopes -> 403 before dispatch, provider never called.
         for method, params, uri in (
             ("resources/list", {"_meta": MODERN_META}, None),
-            ("resources/read", {"uri": "app://alice/secret", "_meta": MODERN_META}, "app://alice/secret"),
+            (
+                "resources/read",
+                {"uri": "app://alice/secret", "_meta": MODERN_META},
+                "app://alice/secret",
+            ),
         ):
             res_403 = await client.post(
                 "/mcp",
@@ -317,7 +321,10 @@ async def test_modern_http_per_caller_list_read_hidden_parity_and_branding() -> 
                 headers=_modern_headers(method, uri=uri, token=no_scope),
             )
             assert res_403.status_code == 403
-            assert f'scope="res:read", resource_metadata="{METADATA_URL}"' in res_403.headers["www-authenticate"]
+            assert (
+                f'scope="res:read", resource_metadata="{METADATA_URL}"'
+                in res_403.headers["www-authenticate"]
+            )
         assert provider.list_callers == []
         assert provider.read_calls == []
 
@@ -385,7 +392,9 @@ async def test_modern_http_per_caller_list_read_hidden_parity_and_branding() -> 
             body = r.json()["result"]
             assert body["cacheScope"] == "private"
             assert body["ttlMs"] == 42_000
-            assert body["contents"] == [{"uri": uri, "mimeType": "text/plain", "text": expected_text}]
+            assert body["contents"] == [
+                {"uri": uri, "mimeType": "text/plain", "text": expected_text}
+            ]
 
         # Bob reading Alice's inline, read()-backed, or unlisted URI gets -32602 identical to absent URI.
         absent = await client.post(
@@ -512,7 +521,11 @@ async def test_legacy_http_per_caller_filtering_omits_cache_hints() -> None:
         return sid
 
     async def legacy_req(
-        client: httpx.AsyncClient, token: str, sid: str, method: str, params: dict[str, Any] | None = None
+        client: httpx.AsyncClient,
+        token: str,
+        sid: str,
+        method: str,
+        params: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         resp = await client.post(
             "/mcp",
@@ -798,7 +811,9 @@ async def test_host_admit_and_pre_dispatch_check_forward_credentials_to_provider
 
     async with raw_app.router.lifespan_context(raw_app):
         transport = httpx.ASGITransport(app=host_app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1:8000") as client:
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://127.0.0.1:8000"
+        ) as client:
             # Alice admitted by host -> sees Alice's entries, cacheScope "private".
             current_creds["creds"] = _host_creds("alice")
             r_list = await client.post(
@@ -832,7 +847,9 @@ async def test_host_admit_and_pre_dispatch_check_forward_credentials_to_provider
             # Skill read stays "public".
             r_skill = await client.post(
                 "/mcp",
-                json=_rpc("resources/read", {"uri": "skill://hello/SKILL.md", "_meta": MODERN_META}),
+                json=_rpc(
+                    "resources/read", {"uri": "skill://hello/SKILL.md", "_meta": MODERN_META}
+                ),
                 headers=_modern_headers("resources/read", uri="skill://hello/SKILL.md"),
             )
             assert r_skill.json()["result"]["cacheScope"] == "public"
@@ -912,7 +929,11 @@ async def test_cache_scope_matrix_static_skills_only_unauthenticated_and_stdio()
     async with _http_client(skills_only_srv) as client:
         for method, params, uri in (
             ("resources/list", {"_meta": MODERN_META}, None),
-            ("resources/read", {"uri": "skill://hello/SKILL.md", "_meta": MODERN_META}, "skill://hello/SKILL.md"),
+            (
+                "resources/read",
+                {"uri": "skill://hello/SKILL.md", "_meta": MODERN_META},
+                "skill://hello/SKILL.md",
+            ),
             ("resources/templates/list", {"_meta": MODERN_META}, None),
             ("skills/list", {"_meta": MODERN_META}, None),
             ("skills/get", {"uri": "skill://hello/SKILL.md", "_meta": MODERN_META}, None),

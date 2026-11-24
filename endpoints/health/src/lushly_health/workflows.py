@@ -87,8 +87,8 @@ def _value_majors(content: str, value: str, seen: frozenset[str] = frozenset()) 
     # caller-supplied value or item that isn't a version leaves it unread.
     if "fromjson" in value.lower() and not _CALLER_VALUE.search(value):
         matches = [_VERSION.fullmatch(item) for item in re.findall(r"\"([^\"]*)\"", value)]
-        if matches and all(matches):
-            return {int(match.group(1)) for match in matches}
+        if matches and all(match is not None for match in matches):
+            return {int(match.group(1)) for match in matches if match is not None}
     return None
 
 
@@ -113,7 +113,10 @@ def _trigger_events(content: str) -> dict[str, str] | None:
     start = next((i for i, line in enumerate(lines) if _TRIGGER_KEY.match(line)), None)
     if start is None:
         return None
-    inline = _strip_comment(_TRIGGER_KEY.match(lines[start]).group(1))
+    start_match = _TRIGGER_KEY.match(lines[start])
+    if start_match is None:
+        return None
+    inline = _strip_comment(start_match.group(1))
     if inline:
         return dict.fromkeys(re.findall(r"[a-z_]+", inline), inline)
     block = []
@@ -129,12 +132,15 @@ def _trigger_events(content: str) -> dict[str, str] | None:
         return {}
     column = min(len(line) - len(line.lstrip()) for line in block)
     events: dict[str, str] = {}
-    current = None
+    current: str | None = None
     for line in block:
         if len(line) - len(line.lstrip()) == column:
-            current = re.match(r"(?:-\s+)?([\w-]+)", line.strip()).group(1)
+            event_match = re.match(r"(?:-\s+)?([\w-]+)", line.strip())
+            if event_match is None:
+                continue
+            current = event_match.group(1)
             events[current] = ""
-        else:
+        elif current is not None:
             events[current] += f"{_strip_comment(line)}\n"
     return events
 

@@ -11,7 +11,6 @@ from afd.transports import (
 )
 from afd.transports.base import ToolInfo, ToolNotFoundError
 
-
 # ============================================================================
 # TransportConfig tests
 # ============================================================================
@@ -79,10 +78,10 @@ class TestMockTransportBasics:
     async def test_connect_failure(self):
         transport = MockTransport()
         transport.set_should_fail_connect(True, "Test error")
-        
+
         with pytest.raises(ConnectionError, match="Test error"):
             await transport.connect()
-        
+
         assert transport.state == TransportState.ERROR
 
 
@@ -93,13 +92,13 @@ class TestMockTransportTools:
     async def test_register_and_call_tool(self):
         transport = MockTransport()
         await transport.connect()
-        
+
         async def echo(args):
             return success({"echo": args.get("message", "")})
-        
+
         transport.register_tool("echo", echo)
         result = await transport.call_tool("echo", {"message": "hello"})
-        
+
         assert result.success is True
         assert result.data["echo"] == "hello"
 
@@ -107,35 +106,35 @@ class TestMockTransportTools:
     async def test_mock_response(self):
         transport = MockTransport()
         await transport.connect()
-        
+
         transport.add_mock_response("ping", {"status": "pong"})
         result = await transport.call_tool("ping", {})
-        
+
         assert result == {"status": "pong"}
 
     @pytest.mark.asyncio
     async def test_tool_not_found(self):
         transport = MockTransport()
         await transport.connect()
-        
+
         with pytest.raises(ToolNotFoundError) as exc:
             await transport.call_tool("nonexistent", {})
-        
+
         assert exc.value.tool_name == "nonexistent"
 
     @pytest.mark.asyncio
     async def test_list_tools(self):
         transport = MockTransport()
-        
+
         async def tool1(args):
             return success({})
-        
+
         transport.register_tool("tool1", tool1, description="First tool")
         transport.add_mock_response("tool2", {})
-        
+
         tools = await transport.list_tools()
         names = [t.name for t in tools]
-        
+
         assert "tool1" in names
         assert "tool2" in names
 
@@ -147,12 +146,12 @@ class TestMockTransportCallRecording:
     async def test_records_calls(self):
         transport = MockTransport()
         await transport.connect()
-        
+
         transport.add_mock_response("ping", {"status": "pong"})
-        
+
         await transport.call_tool("ping", {"a": 1})
         await transport.call_tool("ping", {"b": 2})
-        
+
         assert transport.call_count("ping") == 2
         assert transport.call_count() == 2
 
@@ -160,12 +159,12 @@ class TestMockTransportCallRecording:
     async def test_last_call(self):
         transport = MockTransport()
         await transport.connect()
-        
+
         transport.add_mock_response("ping", {"status": "pong"})
-        
+
         await transport.call_tool("ping", {"x": 1})
         await transport.call_tool("ping", {"x": 2})
-        
+
         last = transport.last_call("ping")
         assert last is not None
         assert last.arguments == {"x": 2}
@@ -174,14 +173,14 @@ class TestMockTransportCallRecording:
     async def test_get_calls(self):
         transport = MockTransport()
         await transport.connect()
-        
+
         transport.add_mock_response("a", "response_a")
         transport.add_mock_response("b", "response_b")
-        
+
         await transport.call_tool("a", {"v": 1})
         await transport.call_tool("b", {"v": 2})
         await transport.call_tool("a", {"v": 3})
-        
+
         a_calls = transport.get_calls("a")
         assert len(a_calls) == 2
         assert a_calls[0].arguments == {"v": 1}
@@ -191,10 +190,10 @@ class TestMockTransportCallRecording:
     async def test_clear_calls(self):
         transport = MockTransport()
         await transport.connect()
-        
+
         transport.add_mock_response("ping", {})
         await transport.call_tool("ping", {})
-        
+
         assert transport.call_count() == 1
         transport.clear_calls()
         assert transport.call_count() == 0
@@ -203,16 +202,16 @@ class TestMockTransportCallRecording:
     async def test_reset(self):
         transport = MockTransport()
         await transport.connect()
-        
+
         async def tool(args):
             return success({})
-        
+
         transport.register_tool("tool", tool)
         transport.add_mock_response("mock", {})
         await transport.call_tool("tool", {})
-        
+
         transport.reset()
-        
+
         assert transport.state == TransportState.DISCONNECTED
         assert transport.call_count() == 0
         assert await transport.list_tools() == []
@@ -228,15 +227,15 @@ class TestMockTransportProtocol:
     @pytest.mark.asyncio
     async def test_protocol_methods(self):
         transport = MockTransport()
-        
+
         # Connect
         await transport.connect()
         assert transport.state == TransportState.CONNECTED
-        
+
         # List tools
         tools = await transport.list_tools()
         assert isinstance(tools, list)
-        
+
         # Disconnect
         await transport.disconnect()
         assert transport.state == TransportState.DISCONNECTED

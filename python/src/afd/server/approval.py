@@ -34,18 +34,13 @@ import inspect
 import json
 import math
 import secrets
+from collections.abc import Awaitable, Callable, Iterable, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import (
     Any,
-    Awaitable,
-    Callable,
-    Iterable,
     Literal,
-    Optional,
     Protocol,
-    Sequence,
-    Union,
     runtime_checkable,
 )
 
@@ -89,7 +84,7 @@ _MAX_TOKEN_LENGTH = 1024
 # JavaScript numbers are doubles: past this, an integer could share a digest with its neighbour.
 _MAX_SAFE_INTEGER = 2**53 - 1
 
-ApprovalSecret = Union[str, bytes, bytearray, memoryview]
+ApprovalSecret = str | bytes | bytearray | memoryview
 """An HMAC key: a string (UTF-8) or raw bytes, at least 32 bytes long."""
 
 ApprovalRelayMode = Literal["none", "mcp-elicitation"]
@@ -114,8 +109,8 @@ class ApprovalCommand(Protocol):
     prompt. A :class:`~afd.core.commands.CommandDefinition` is one."""
 
     name: str
-    approval: Optional[ApprovalPolicy]
-    confirm_prompt: Optional[str]
+    approval: ApprovalPolicy | None
+    confirm_prompt: str | None
 
 
 class ApprovalNonceStore(Protocol):
@@ -125,7 +120,7 @@ class ApprovalNonceStore(Protocol):
     servers that run several instances a shared store.
     """
 
-    def consume(self, nonce: str, expires_at: float) -> Union[bool, Awaitable[bool]]:
+    def consume(self, nonce: str, expires_at: float) -> bool | Awaitable[bool]:
         """Mark ``nonce`` as used until ``expires_at`` (epoch milliseconds; it can be
         forgotten after). Return ``False`` when it was already used. Must be atomic: of
         two concurrent calls with the same nonce, exactly one returns ``True``."""
@@ -148,11 +143,11 @@ class ApprovalRequest:
 
     command: str
     input: Any
-    actor: Optional[Actor]
+    actor: Actor | None
     approval_token: str
     expires_at: str
     summary: str
-    rejected: Optional[ApprovalRejection] = None
+    rejected: ApprovalRejection | None = None
 
 
 @dataclass(frozen=True)
@@ -161,22 +156,20 @@ class _Accepted:
     expires_at: float
 
 
-from afd.core.direct_approval import _exchange
+from afd.core.direct_approval import _exchange  # noqa: E402
 
 
 def create_approval_middleware(
     *,
-    secret: Union[ApprovalSecret, Sequence[ApprovalSecret]],
-    commands: Optional[Iterable[Any]] = None,
+    secret: ApprovalSecret | Sequence[ApprovalSecret],
+    commands: Iterable[Any] | None = None,
     ttl_ms: float = _DEFAULT_TTL_MS,
     replay: Literal["single-use", "within-ttl"] = "single-use",
-    nonce_store: Optional[ApprovalNonceStore] = None,
-    summarize: Optional[Callable[[str, Any, CommandContext], Optional[str]]] = None,
-    include_token: Optional[bool] = None,
-    on_approval_required: Optional[
-        Callable[[ApprovalRequest], Union[None, Awaitable[None]]]
-    ] = None,
-    clock: Optional[Clock] = None,
+    nonce_store: ApprovalNonceStore | None = None,
+    summarize: Callable[[str, Any, CommandContext], str | None] | None = None,
+    include_token: bool | None = None,
+    on_approval_required: Callable[[ApprovalRequest], None | Awaitable[None]] | None = None,
+    clock: Clock | None = None,
     relay: ApprovalRelayMode = "none",
 ) -> CommandMiddleware:
     """A middleware that runs a command whose ``approval`` policy requires approval only
@@ -270,7 +263,9 @@ def create_approval_middleware(
         or ttl_ms <= 0
         or ttl_ms > _MAX_TTL_MS
     ):
-        raise ValueError("Approval ttl_ms must be a positive number of milliseconds, at most 24 hours")
+        raise ValueError(
+            "Approval ttl_ms must be a positive number of milliseconds, at most 24 hours"
+        )
     if replay not in ("single-use", "within-ttl"):
         raise ValueError("Approval replay must be 'single-use' or 'within-ttl'")
     if relay not in ("none", "mcp-elicitation"):
@@ -286,7 +281,11 @@ def create_approval_middleware(
     for command in commands or ():
         definition = _as_command(command)
         policy = getattr(definition, "approval", None)
-        if policy is not None and policy not in ("required", "not-required") and not callable(policy):
+        if (
+            policy is not None
+            and policy not in ("required", "not-required")
+            and not callable(policy)
+        ):
             raise TypeError(
                 f"Command '{definition.name}' has an invalid approval policy: "
                 "use 'required', 'not-required' or a function"
@@ -320,7 +319,7 @@ def create_approval_middleware(
 
     def verify(
         evidence: Any, command_name: str, input_binding: str, actor_binding: str, now: float
-    ) -> Union[_Accepted, ApprovalRejection]:
+    ) -> _Accepted | ApprovalRejection:
         if not isinstance(evidence, str) or len(evidence) > _MAX_TOKEN_LENGTH:
             return "malformed"
         parts = evidence.split(".")
@@ -361,7 +360,9 @@ def create_approval_middleware(
             return "actor-mismatch"
         return _Accepted(nonce=payload["n"], expires_at=payload["exp"])
 
-    def sign(command_name: str, input_binding: str, actor_binding: str, now: float) -> tuple[str, float]:
+    def sign(
+        command_name: str, input_binding: str, actor_binding: str, now: float
+    ) -> tuple[str, float]:
         key = keys[0]
         issued_at = math.floor(now)
         expires_at = issued_at + ttl_ms
@@ -383,7 +384,8 @@ def create_approval_middleware(
             return True
         if memory_store is not None:
             return memory_store.consume(nonce, expires_at, now)
-        assert nonce_store is not None
+        if nonce_store is None:
+            raise RuntimeError("single-use approval requires a nonce store")
         outcome = nonce_store.consume(nonce, expires_at)
         if inspect.isawaitable(outcome):
             outcome = await outcome
@@ -407,9 +409,7 @@ def create_approval_middleware(
     def hold_mac(key: bytes, binding: str, nonce: str, expires_at: int) -> str:
         """The MAC of a relayed approval's nonce and expiry, so the elicitation state cannot set
         them."""
-        return _b64url(
-            _hmac(key, "relay-hold\0" + _canonical_json([binding, nonce, expires_at]))
-        )
+        return _b64url(_hmac(key, "relay-hold\0" + _canonical_json([binding, nonce, expires_at])))
 
     def genuine(answer: AcceptedApproval, bindings: Sequence[str], now: float) -> bool:
         """Whether an accepted relayed approval was issued by this middleware and is unexpired."""
@@ -514,7 +514,7 @@ def create_approval_middleware(
         actor = getattr(context, "actor", None)
         actor_binding = _actor_json(actor)
 
-        rejected: Optional[ApprovalRejection] = None
+        rejected: ApprovalRejection | None = None
         exchange = _exchange(context)
         evidence = exchange.take() if exchange is not None else getattr(context, "approval", None)
         if evidence is not None:
@@ -587,7 +587,10 @@ def create_approval_middleware(
                     command=command_name,
                     input=input,
                     actor=Actor(
-                        kind=actor.kind, id=actor.id, label=actor.label, on_behalf_of=actor.on_behalf_of
+                        kind=actor.kind,
+                        id=actor.id,
+                        label=actor.label,
+                        on_behalf_of=actor.on_behalf_of,
                     )
                     if isinstance(actor, Actor)
                     else None,
@@ -601,14 +604,15 @@ def create_approval_middleware(
                 await notified
 
         if exchange is not None:
-            exchange.hold(approval_token=approval_token, expires_at=expires_at,
-                          summary=summary, reason=rejected)
+            exchange.hold(
+                approval_token=approval_token,
+                expires_at=expires_at,
+                summary=summary,
+                reason=rejected,
+            )
         on_mcp = (context.extra or {}).get("interface") == "mcp"
         # Rule 6: omit details.approvalToken on MCP by default unless the server opted in.
-        public_token = (
-            exchange is None
-            and (not on_mcp if include_token is None else include_token)
-        )
+        public_token = exchange is None and (not on_mcp if include_token is None else include_token)
         why = f"The approval token was not accepted ({rejected}). " if rejected else ""
         # Addressed to whoever relays the decision: the token is the approval, so the gated
         # caller must not resubmit it on its own, and tool arguments cannot carry it.
@@ -700,7 +704,7 @@ async def _requires_approval(policy: Any, input: Any, context: CommandContext) -
     if inspect.isawaitable(decision):
         decision = await decision
     # Fail closed: anything but an explicit "not-required" holds the call.
-    return decision != "not-required"
+    return bool(decision != "not-required")
 
 
 def _as_command(command: Any) -> Any:
@@ -742,7 +746,7 @@ _UNVERIFIED = object()
 """Passed to nothing: a call the approval middleware let through without approval."""
 
 
-def _canonical_or_none(value: Any) -> Optional[str]:
+def _canonical_or_none(value: Any) -> str | None:
     """The canonical JSON of a validated input, or ``None`` when it has none (an approval
     admission then compares the input by identity)."""
     try:
@@ -814,9 +818,7 @@ def _canonical_json(value: Any) -> str:
         if isinstance(item, int):
             # Past 2**53 JavaScript holds a double: bind the integers a double represents
             # exactly, as TypeScript would, and refuse the rest (neighbours would collide).
-            if abs(item) > _MAX_SAFE_INTEGER and (
-                abs(item) >= 2**1024 or int(float(item)) != item
-            ):
+            if abs(item) > _MAX_SAFE_INTEGER and (abs(item) >= 2**1024 or int(float(item)) != item):
                 raise TypeError(
                     "Cannot bind an approval to an integer a JavaScript number cannot hold exactly"
                 )
@@ -835,7 +837,11 @@ def _canonical_json(value: Any) -> str:
                     if not all(isinstance(key, str) for key in item):
                         raise TypeError("Cannot bind an approval to an object with non-string keys")
                     members = sorted(item.items(), key=lambda member: _utf16_key(member[0]))
-                    return "{" + ",".join(f"{_js_string(key)}:{encode(member)}" for key, member in members) + "}"
+                    return (
+                        "{"
+                        + ",".join(f"{_js_string(key)}:{encode(member)}" for key, member in members)
+                        + "}"
+                    )
                 return "[" + ",".join(encode(member) for member in item) + "]"
             finally:
                 ancestors.discard(marker)
@@ -901,7 +907,7 @@ def _reject_constant(name: str) -> Any:
     raise ValueError(f"Not JSON: {name}")
 
 
-def _parse_payload(encoded: str) -> Optional[dict[str, Any]]:
+def _parse_payload(encoded: str) -> dict[str, Any] | None:
     try:
         raw = base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4))
         value = json.loads(raw.decode("utf-8"), parse_constant=_reject_constant)
@@ -921,7 +927,7 @@ def _parse_payload(encoded: str) -> Optional[dict[str, Any]]:
 
 def _iso_timestamp(ms: float) -> str:
     """Epoch milliseconds as JavaScript's ``Date.toISOString()`` writes them."""
-    moment = datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(milliseconds=math.trunc(ms))
+    moment = datetime(1970, 1, 1, tzinfo=UTC) + timedelta(milliseconds=math.trunc(ms))
     return moment.strftime("%Y-%m-%dT%H:%M:%S.") + f"{moment.microsecond // 1000:03d}Z"
 
 

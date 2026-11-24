@@ -30,16 +30,18 @@ class TestPluginGitHubWiring:
         registry = PluginRegistry()
         plugin.register(registry)
         names = sorted(fn.__name__ for fn in registry.commands)
-        assert names == sorted([
-            "github_issue_create",
-            "github_issue_list",
-            "github_issue_comment",
-            "github_pr_create",
-            "github_pr_list",
-            "github_pr_review",
-            "github_search_code",
-            "github_search_issues",
-        ])
+        assert names == sorted(
+            [
+                "github_issue_create",
+                "github_issue_list",
+                "github_issue_comment",
+                "github_pr_create",
+                "github_pr_list",
+                "github_pr_review",
+                "github_search_code",
+                "github_search_issues",
+            ]
+        )
 
     def test_other_connectors_still_empty(self) -> None:
         cfg = ConnectorsConfig(enabled=["azure_blob"])

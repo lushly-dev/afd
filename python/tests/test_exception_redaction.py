@@ -120,7 +120,9 @@ class TestSimpleRegistry:
         assert LEAKY_MESSAGE not in _wire_text(result)
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("make", [lambda: SimpleRegistry(dev_mode=True), lambda: create_registry(dev_mode=True)])
+    @pytest.mark.parametrize(
+        "make", [lambda: SimpleRegistry(dev_mode=True), lambda: create_registry(dev_mode=True)]
+    )
     async def test_dev_mode_returns_the_exception_text(self, make):
         registry = make()
         registry.register("todo-create", _explode)

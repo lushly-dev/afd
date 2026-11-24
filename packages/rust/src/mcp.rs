@@ -125,10 +125,15 @@ pub type McpErrorCode = i32;
 pub struct McpErrorCodes;
 
 impl McpErrorCodes {
+    /// Invalid JSON received by the server.
     pub const PARSE_ERROR: i32 = -32700;
+    /// The JSON sent is not a valid request object.
     pub const INVALID_REQUEST: i32 = -32600;
+    /// The requested method does not exist or is not available.
     pub const METHOD_NOT_FOUND: i32 = -32601;
+    /// Invalid method parameters.
     pub const INVALID_PARAMS: i32 = -32602;
+    /// Internal JSON-RPC error.
     pub const INTERNAL_ERROR: i32 = -32603;
     /// MCP 2026-07-28: the HTTP headers do not match the body, or a required one is missing.
     pub const HEADER_MISMATCH: i32 = -32020;
@@ -139,7 +144,9 @@ impl McpErrorCodes {
     /// A 2025-era code. MCP 2026-07-28 has no initialization, and servers must not emit it.
     #[deprecated(note = "MCP 2026-07-28 has no initialization; servers must not emit -32002")]
     pub const SERVER_NOT_INITIALIZED: i32 = -32002;
+    /// The request was cancelled before completion.
     pub const REQUEST_CANCELLED: i32 = -32800;
+    /// The target content changed concurrently.
     pub const CONTENT_MODIFIED: i32 = -32801;
 }
 
@@ -207,8 +214,10 @@ pub struct McpEmbeddedResource {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct McpTextContent {
+    /// Always `text`.
     #[serde(rename = "type")]
     pub content_type: String,
+    /// Text body.
     pub text: String,
 }
 
@@ -216,9 +225,12 @@ pub struct McpTextContent {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct McpImageContent {
+    /// Always `image`.
     #[serde(rename = "type")]
     pub content_type: String,
+    /// Base64-encoded image data.
     pub data: String,
+    /// Image MIME type.
     pub mime_type: String,
 }
 
@@ -226,8 +238,10 @@ pub struct McpImageContent {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct McpResourceContent {
+    /// Always `resource`.
     #[serde(rename = "type")]
     pub content_type: String,
+    /// Embedded resource payload.
     pub resource: McpEmbeddedResource,
 }
 
@@ -286,10 +300,15 @@ pub struct McpResourceLinkContent {
 #[serde(untagged)]
 #[non_exhaustive]
 pub enum McpContent {
+    /// Plain text content.
     Text(McpTextContent),
+    /// Base64 image content.
     Image(McpImageContent),
+    /// Base64 audio content.
     Audio(McpAudioContent),
+    /// Embedded resource content.
     Resource(McpResourceContent),
+    /// Link to a readable resource.
     ResourceLink(McpResourceLinkContent),
     /// A content item of a type this crate does not model, kept verbatim.
     Unknown(serde_json::Value),
@@ -317,6 +336,7 @@ impl<'de> Deserialize<'de> for McpContent {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct McpToolsCapability {
+    /// Whether the server emits notifications when its tool list changes.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub list_changed: Option<bool>,
 }
@@ -325,8 +345,10 @@ pub struct McpToolsCapability {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct McpResourcesCapability {
+    /// Whether clients may subscribe to resource updates.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub subscribe: Option<bool>,
+    /// Whether the server emits notifications when its resource list changes.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub list_changed: Option<bool>,
 }
@@ -335,6 +357,7 @@ pub struct McpResourcesCapability {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct McpPromptsCapability {
+    /// Whether the server emits notifications when its prompt list changes.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub list_changed: Option<bool>,
 }
@@ -343,6 +366,7 @@ pub struct McpPromptsCapability {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct McpRootsCapability {
+    /// Whether the client emits notifications when its root list changes.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub list_changed: Option<bool>,
 }
@@ -351,14 +375,19 @@ pub struct McpRootsCapability {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct McpServerCapabilities {
+    /// Tool capability settings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<McpToolsCapability>,
+    /// Resource capability settings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resources: Option<McpResourcesCapability>,
+    /// Prompt capability settings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompts: Option<McpPromptsCapability>,
+    /// Logging capability settings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub logging: Option<HashMap<String, serde_json::Value>>,
+    /// Experimental capability extensions.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub experimental: Option<HashMap<String, serde_json::Value>>,
 }
@@ -367,10 +396,13 @@ pub struct McpServerCapabilities {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct McpClientCapabilities {
+    /// Roots capability settings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub roots: Option<McpRootsCapability>,
+    /// Sampling capability settings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sampling: Option<HashMap<String, serde_json::Value>>,
+    /// Experimental capability extensions.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub experimental: Option<HashMap<String, serde_json::Value>>,
 }
@@ -379,7 +411,9 @@ pub struct McpClientCapabilities {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct McpPeerInfo {
+    /// Peer implementation name.
     pub name: String,
+    /// Peer implementation version.
     pub version: String,
 }
 
@@ -387,8 +421,11 @@ pub struct McpPeerInfo {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct McpInitializeParams {
+    /// Protocol revision requested by the client.
     pub protocol_version: String,
+    /// Capabilities advertised by the client.
     pub capabilities: McpClientCapabilities,
+    /// Client identity.
     pub client_info: McpPeerInfo,
 }
 
@@ -396,8 +433,11 @@ pub struct McpInitializeParams {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct McpInitializeResult {
+    /// Protocol revision selected by the server.
     pub protocol_version: String,
+    /// Capabilities advertised by the server.
     pub capabilities: McpServerCapabilities,
+    /// Server identity.
     pub server_info: McpPeerInfo,
 }
 

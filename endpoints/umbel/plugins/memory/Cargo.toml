@@ -5,12 +5,8 @@ edition = "2024"
 rust-version = "1.97"
 publish = false
 license = "MIT"
-description = "AFD Umbel memory plugin: remember, capture and show memory records through the host's memory grants, with secret masking, the injection scan and expiry, and the umbel-memory binary"
+description = "AFD Umbel memory plugin: remember, capture and show memory records through the host's memory grants, with secret masking, the injection scan and expiry"
 repository = "https://github.com/lushly-dev/afd"
-
-[[bin]]
-name = "umbel-memory"
-path = "src/bin/umbel-memory.rs"
 
 [dependencies]
 # RFC 3339 instants with an offset (a capture's `startedAt`); the same crate the host reads them with.
@@ -23,10 +19,6 @@ serde_json = "1"
 sha2 = "0.11"
 # The policy and hygiene packs are TOML files.
 toml = "1"
-# The binary is the `umbel` command line with the memory plugin compiled in: the command line and
-# the embedded stores, and no loader (so no wasmtime), as `umbel-knowledge` does.
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
-umbel = { path = "../..", default-features = false, features = ["cli", "store-embedded"] }
 # The injection and hidden-text scan the host also runs over every memory write (section 6.2).
 umbel-scan = { path = "../../scan" }
 umbel-sdk = { path = "../../sdk" }

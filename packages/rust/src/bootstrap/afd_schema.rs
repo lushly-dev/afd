@@ -12,39 +12,54 @@ use crate::result::{failure, success_with, CommandResult, ResultOptions};
 
 use super::{bootstrap_expose, RegistryRef, BOOTSTRAP_CATEGORY, BOOTSTRAP_TAGS};
 
+/// Output format for `afd-schema`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum SchemaFormat {
+    /// JSON Schema objects.
     #[default]
     Json,
+    /// Generated TypeScript interface definitions.
     Typescript,
 }
 
+/// Input arguments for `afd-schema`.
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct SchemaInput {
+    /// Optional single command name to inspect.
     #[serde(default)]
     pub command: Option<String>,
+    /// Requested output format.
     #[serde(default)]
     pub format: SchemaFormat,
 }
 
+/// Schema entry for one command returned by `afd-schema`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SchemaInfo {
+    /// Command name.
     pub name: String,
+    /// Command description.
     pub description: String,
+    /// MCP tool representation when `format` is [`SchemaFormat::Json`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_tool: Option<McpTool>,
+    /// TypeScript definition when `format` is [`SchemaFormat::Typescript`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub typescript: Option<String>,
 }
 
+/// Output payload returned by `afd-schema`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SchemaOutput {
+    /// Command schema entries.
     pub schemas: Vec<SchemaInfo>,
+    /// Total number of returned schemas.
     pub total: usize,
+    /// Format used to render `schemas`.
     pub format: SchemaFormat,
 }
 

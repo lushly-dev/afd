@@ -14,9 +14,10 @@ python -m alfred.mcp_server --workspace /path/to/worktree
 
 ```python
 from alfred.host import build_alfred_host
-host = build_alfred_host('/path/to/worktree', target='worktree')
+
+host = build_alfred_host("/path/to/worktree", target="worktree")
 client = host.direct_client()
-result = await client.call('info-targets')
+result = await client.call("info-targets")
 ```
 
 Select a package name from release inventory, an existing area path, or `worktree`.

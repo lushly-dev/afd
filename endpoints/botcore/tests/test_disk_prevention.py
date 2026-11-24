@@ -49,8 +49,13 @@ def test_report_warns_when_a_repository_has_too_many_idle_worktrees(
     data = result.data
 
     [row] = data["repos"]
-    assert row["idle_worktrees"] == {"count": 2, "days": 3, "t3_code": 0, "limit": 1,
-                                     "complete": True}
+    assert row["idle_worktrees"] == {
+        "count": 2,
+        "days": 3,
+        "t3_code": 0,
+        "limit": 1,
+        "complete": True,
+    }
     assert data["warnings"] == [row["warning"]]
     assert "2 worktrees idle 3 days or more, over the limit of 1" in row["warning"]
     assert row["warning"] in (result.suggestions or [])
@@ -58,7 +63,8 @@ def test_report_warns_when_a_repository_has_too_many_idle_worktrees(
 
 @pytest.mark.parametrize("limit", ["idle_worktree_limit = 2", "idle_worktree_limit = 0"])
 def test_no_warning_at_the_limit_or_when_it_is_off(
-    repo: dict[str, Path], limit: str,  # noqa: F811
+    repo: dict[str, Path],  # noqa: F811
+    limit: str,
 ) -> None:
     age_worktree(repo["main"], repo["old"])
     add_idle(repo, "second")
@@ -72,18 +78,56 @@ def test_no_warning_at_the_limit_or_when_it_is_off(
 
 def test_idle_is_measured_in_seconds_and_leaves_out_what_this_run_removed() -> None:
     day = report.DAY
-    row = {"main": "/repo", "worktrees": [
-        {"path": "/repo", "main": True, "exists": True, "locked": None, "managed_by": None,
-         "idle_seconds": 9 * day, "reasons": []},
-        {"path": "/w/almost", "main": False, "exists": True, "locked": None, "managed_by": None,
-         "idle_seconds": int(3 * day) - 300, "reasons": []},  # rounds to 3.00 days
-        {"path": "/w/idle", "main": False, "exists": True, "locked": None, "managed_by": None,
-         "idle_seconds": 4 * day, "reasons": []},
-        {"path": "/w/slot", "main": False, "exists": True, "locked": None,
-         "managed_by": "factory", "idle_seconds": 9 * day, "reasons": []},
-        {"path": "/w/late", "main": False, "exists": True, "locked": None, "managed_by": None,
-         "idle_seconds": None, "reasons": ["not inspected: the time budget was spent"]},
-    ]}
+    row = {
+        "main": "/repo",
+        "worktrees": [
+            {
+                "path": "/repo",
+                "main": True,
+                "exists": True,
+                "locked": None,
+                "managed_by": None,
+                "idle_seconds": 9 * day,
+                "reasons": [],
+            },
+            {
+                "path": "/w/almost",
+                "main": False,
+                "exists": True,
+                "locked": None,
+                "managed_by": None,
+                "idle_seconds": int(3 * day) - 300,
+                "reasons": [],
+            },  # rounds to 3.00 days
+            {
+                "path": "/w/idle",
+                "main": False,
+                "exists": True,
+                "locked": None,
+                "managed_by": None,
+                "idle_seconds": 4 * day,
+                "reasons": [],
+            },
+            {
+                "path": "/w/slot",
+                "main": False,
+                "exists": True,
+                "locked": None,
+                "managed_by": "factory",
+                "idle_seconds": 9 * day,
+                "reasons": [],
+            },
+            {
+                "path": "/w/late",
+                "main": False,
+                "exists": True,
+                "locked": None,
+                "managed_by": None,
+                "idle_seconds": None,
+                "reasons": ["not inspected: the time budget was spent"],
+            },
+        ],
+    }
     settings = MachineSettings(idle_worktree_limit=0)
     report.count_idle(row, settings)
     assert row["idle_worktrees"]["count"] == 1 and row["idle_worktrees"]["complete"] is False
@@ -92,7 +136,9 @@ def test_idle_is_measured_in_seconds_and_leaves_out_what_this_run_removed() -> N
 
 
 def test_status_keeps_each_repositorys_last_complete_count(
-    repo: dict[str, Path], tmp_path: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],  # noqa: F811
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("BOTCORE_DISK_STATE", str(tmp_path / "state"))
     age_worktree(repo["main"], repo["old"])
@@ -191,7 +237,7 @@ def check(place: Path, settings: MachineSettings | None = None) -> dict:
 
 
 def suggested_entry(problem: str) -> dict:
-    block = problem[problem.index("\n[[aged]]\n") + 1:]
+    block = problem[problem.index("\n[[aged]]\n") + 1 :]
     return tomllib.loads(block)["aged"][0]
 
 
@@ -202,7 +248,8 @@ def test_cargo_default_keeps_output_in_each_worktree(cargo_home: Path, place: Pa
 
 
 def test_cargo_host_ancestor_config_outside_test_sandbox_is_ignored(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """lushly-dev/afd#1954: simulate TMPDIR inside $HOME where ~/.cargo/config.toml sets
     build-dir; confining config discovery to the test sandbox keeps the host config out."""
@@ -237,7 +284,9 @@ def test_cargo_host_ancestor_config_outside_test_sandbox_is_ignored(
 
 
 def test_cargo_build_dir_per_workspace_needs_an_aged_folder(
-    cargo_home: Path, place: Path, tmp_path: Path,
+    cargo_home: Path,
+    place: Path,
+    tmp_path: Path,
 ) -> None:
     root = tmp_path / "Dev" / "cargo-build"
     write_config(cargo_home, f"build-dir = {json.dumps(str(root) + '/{workspace-path-hash}')}")
@@ -262,7 +311,8 @@ def test_cargo_build_dir_per_workspace_needs_an_aged_folder(
 
 
 def test_cargo_suggested_max_gb_scales_with_volume_size(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from types import SimpleNamespace
 
@@ -283,7 +333,9 @@ def test_cargo_suggested_max_gb_scales_with_volume_size(
 
 
 def test_cargo_only_recognizes_non_hash_cargo_dirs_and_rejects_unrelated_content(
-    cargo_home: Path, place: Path, tmp_path: Path,
+    cargo_home: Path,
+    place: Path,
+    tmp_path: Path,
 ) -> None:
     root = tmp_path / "Dev" / "cargo-build"
     (root / "ab" / "0305f56e9b9616").mkdir(parents=True)
@@ -333,13 +385,19 @@ def test_cargo_only_recognizes_non_hash_cargo_dirs_and_rejects_unrelated_content
     assert cargo._cargo_only(root) is False
 
 
-@pytest.mark.parametrize("rule", [
-    {"path": "ROOT/*"},  # no age and no size: it clears nothing
-    {"path": "ROOT", "max_age_days": 7},  # the folder as one entry, always in use
-    {"path": "PARENT/*", "max_age_days": 7},
-])
+@pytest.mark.parametrize(
+    "rule",
+    [
+        {"path": "ROOT/*"},  # no age and no size: it clears nothing
+        {"path": "ROOT", "max_age_days": 7},  # the folder as one entry, always in use
+        {"path": "PARENT/*", "max_age_days": 7},
+    ],
+)
 def test_cargo_rules_that_clear_nothing_do_not_cover_it(
-    cargo_home: Path, place: Path, tmp_path: Path, rule: dict,
+    cargo_home: Path,
+    place: Path,
+    tmp_path: Path,
+    rule: dict,
 ) -> None:
     root = tmp_path / "Dev" / "cargo-build"
     write_config(cargo_home, f"build-dir = {json.dumps(str(root) + '/{workspace-path-hash}')}")
@@ -348,7 +406,9 @@ def test_cargo_rules_that_clear_nothing_do_not_cover_it(
 
 
 def test_cargo_never_suggests_clearing_a_folder_that_holds_other_things(
-    cargo_home: Path, place: Path, tmp_path: Path,
+    cargo_home: Path,
+    place: Path,
+    tmp_path: Path,
 ) -> None:
     write_config(cargo_home, 'build-dir = "{cargo-cache-home}/{workspace-path-hash}"')
     (cargo_home / "bin").mkdir()
@@ -363,14 +423,20 @@ def test_cargo_never_suggests_clearing_a_folder_that_holds_other_things(
 
 
 def test_cargo_shared_target_folder_needs_a_size_cap(
-    cargo_home: Path, place: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    cargo_home: Path,
+    place: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     write_config(cargo_home, f"target-dir = {json.dumps(str(tmp_path / 'ignored'))}")
     shared = tmp_path / "Dev" / "target"
     monkeypatch.setenv("CARGO_TARGET_DIR", str(shared))
     [moved] = cargo.cargo_outputs(MachineSettings(), [place])[0]
-    assert (moved.source, moved.root, moved.per_workspace) == ("CARGO_TARGET_DIR", str(shared),
-                                                                False)
+    assert (moved.source, moved.root, moved.per_workspace) == (
+        "CARGO_TARGET_DIR",
+        str(shared),
+        False,
+    )
     [problem] = check(place)["problems"]
     assert "one folder" in problem and "max_gb" in problem
     aged_only = MachineSettings(aged=[AgedFolder(path=str(shared), max_age_days=7)])
@@ -379,23 +445,37 @@ def test_cargo_shared_target_folder_needs_a_size_cap(
     assert not check(place, capped)["problems"]
 
 
-@pytest.mark.parametrize(("variable", "value"), [
-    ("CARGO_TARGET_DIR", "target-local"),
-    ("CARGO_BUILD_BUILD_DIR", "{workspace-root}/build"),
-])
+@pytest.mark.parametrize(
+    ("variable", "value"),
+    [
+        ("CARGO_TARGET_DIR", "target-local"),
+        ("CARGO_BUILD_BUILD_DIR", "{workspace-root}/build"),
+    ],
+)
 def test_cargo_paths_relative_to_the_build_stay_inside(
-    cargo_home: Path, place: Path, monkeypatch: pytest.MonkeyPatch, variable: str, value: str,
+    cargo_home: Path,
+    place: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    variable: str,
+    value: str,
 ) -> None:
     monkeypatch.setenv(variable, value)
     assert check(place)["arrangement"] == "inside each worktree"
 
 
-@pytest.mark.parametrize(("variable", "value"), [
-    ("CARGO_TARGET_DIR", "../escape"),
-    ("CARGO_BUILD_BUILD_DIR", "{workspace-root}/../out/{workspace-path-hash}"),
-])
+@pytest.mark.parametrize(
+    ("variable", "value"),
+    [
+        ("CARGO_TARGET_DIR", "../escape"),
+        ("CARGO_BUILD_BUILD_DIR", "{workspace-root}/../out/{workspace-path-hash}"),
+    ],
+)
 def test_cargo_paths_that_escape_the_build_cannot_be_covered(
-    cargo_home: Path, place: Path, monkeypatch: pytest.MonkeyPatch, variable: str, value: str,
+    cargo_home: Path,
+    place: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    variable: str,
+    value: str,
 ) -> None:
     monkeypatch.setenv(variable, value)
     [problem] = check(place)["problems"]
@@ -403,7 +483,8 @@ def test_cargo_paths_that_escape_the_build_cannot_be_covered(
 
 
 def test_cargo_values_are_literal_and_relative_to_the_folder_holding_cargo(
-    cargo_home: Path, place: Path,
+    cargo_home: Path,
+    place: Path,
 ) -> None:
     write_config(cargo_home, 'target-dir = "~/some-data"')
     [moved] = cargo.cargo_outputs(MachineSettings(), [place])[0]
@@ -411,11 +492,14 @@ def test_cargo_values_are_literal_and_relative_to_the_folder_holding_cargo(
 
 
 def test_cargo_reads_configs_as_cargo_does(
-    cargo_home: Path, place: Path, tmp_path: Path,
+    cargo_home: Path,
+    place: Path,
+    tmp_path: Path,
 ) -> None:
     write_config(cargo_home, f"target-dir = {json.dumps(str(tmp_path / 'from-toml'))}")
-    write_config(cargo_home, f"target-dir = {json.dumps(str(tmp_path / 'from-config'))}",
-                 name="config")
+    write_config(
+        cargo_home, f"target-dir = {json.dumps(str(tmp_path / 'from-config'))}", name="config"
+    )
     [moved] = cargo.cargo_outputs(MachineSettings(), [place])[0]
     assert moved.root == str(tmp_path / "from-config")  # `config` wins when both exist
 
@@ -423,7 +507,8 @@ def test_cargo_reads_configs_as_cargo_does(
     above.mkdir()
     (above / "extra.toml").write_text(
         f"[build]\nbuild-dir = {json.dumps(str(tmp_path / 'inc') + '/{workspace-path-hash}')}\n",
-        encoding="utf-8")
+        encoding="utf-8",
+    )
     (above / "config.toml").write_text('include = ["extra.toml"]\n', encoding="utf-8")
     found = {o.kind: o for o in cargo.cargo_outputs(MachineSettings(), [place])[0]}
     assert found["build-dir"].root == str(tmp_path / "inc")
@@ -432,7 +517,7 @@ def test_cargo_reads_configs_as_cargo_does(
 
 
 def test_cargo_config_problems_are_warnings(cargo_home: Path, place: Path) -> None:
-    (cargo_home / "config.toml").write_bytes(b"[build]\ntarget-dir = \"\xff\"\n")
+    (cargo_home / "config.toml").write_bytes(b'[build]\ntarget-dir = "\xff"\n')
     [problem] = check(place)["problems"]
     assert "could not be read" in problem
     (cargo_home / "config.toml").write_text('include = ["missing.toml"]\n', encoding="utf-8")
@@ -442,13 +527,16 @@ def test_cargo_config_problems_are_warnings(cargo_home: Path, place: Path) -> No
 
 def test_cargo_suggestion_is_valid_toml_for_windows_paths() -> None:
     value = r"D:\Build\{workspace-path-hash}"
-    placed = cargo.Placement("build-dir", "CARGO_BUILD_BUILD_DIR", value, "moved", r"D:\Build",
-                             True, r"D:\Build\*")
+    placed = cargo.Placement(
+        "build-dir", "CARGO_BUILD_BUILD_DIR", value, "moved", r"D:\Build", True, r"D:\Build\*"
+    )
     assert suggested_entry(placed.problem or "")["path"] == r"D:\Build\*"
 
 
 def test_setup_reports_the_cargo_arrangement(
-    repo: dict[str, Path], tmp_path: Path, monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],  # noqa: F811
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     home = tmp_path / "cargo-home"
     home.mkdir()
@@ -462,7 +550,9 @@ def test_setup_reports_the_cargo_arrangement(
 
 
 def test_cargo_cache_home_template_is_a_real_folder(
-    cargo_home: Path, place: Path, monkeypatch: pytest.MonkeyPatch,
+    cargo_home: Path,
+    place: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("CARGO_BUILD_BUILD_DIR", "{cargo-cache-home}/build/{workspace-path-hash}")
     [moved] = cargo.cargo_outputs(MachineSettings(), [place])[0]
@@ -471,7 +561,9 @@ def test_cargo_cache_home_template_is_a_real_folder(
 
 
 def test_cargo_cover_refused_by_the_planner_does_not_count(
-    cargo_home: Path, place: Path, monkeypatch: pytest.MonkeyPatch,
+    cargo_home: Path,
+    place: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     holder = place.parent  # holds the checkout, so the planner refuses to clear it
     monkeypatch.setenv("CARGO_TARGET_DIR", str(holder / "target"))
@@ -481,7 +573,9 @@ def test_cargo_cover_refused_by_the_planner_does_not_count(
 
 
 def test_cargo_include_must_be_toml_and_file_browser_litter_is_ignored(
-    cargo_home: Path, place: Path, tmp_path: Path,
+    cargo_home: Path,
+    place: Path,
+    tmp_path: Path,
 ) -> None:
     (cargo_home / "config.toml").write_text('include = ["extra.conf"]\n', encoding="utf-8")
     [problem] = check(place)["problems"]

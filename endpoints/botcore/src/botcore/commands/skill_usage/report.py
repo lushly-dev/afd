@@ -429,16 +429,16 @@ def _skill_usage_report_sync(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
     # Every session each project had in the window, whether or not it loaded a skill
     seen: dict[str, set[str]] = {}
     for session_id, entry in recorded.items():
-        name = entry.get("project")
+        proj_name = entry.get("project")
         started, ended = _parse(entry.get("created_at")), _parse(entry.get("updated_at"))
-        if started is None or not isinstance(name, str) or not _is_project(project, name):
+        if started is None or not isinstance(proj_name, str) or not _is_project(project, proj_name):
             continue
         if harness is not None and entry.get("harness") != harness:
             continue
         if agent in (MAIN, DELEGATE) and entry.get("agent") != agent:
             continue
         if started < until and (ended or started) >= since:
-            seen.setdefault(name, set()).add(session_id)
+            seen.setdefault(proj_name, set()).add(session_id)
     for key, row in rows.items():
         seen.setdefault(key[0], set()).update(row.sessions)
 
@@ -477,16 +477,17 @@ def _skill_usage_report_sync(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
     in_scope = {row.project for row in ordered} | set(seen)
     unlisted = sorted(in_scope - set(on_disk) - {UNKNOWN_PROJECT})
     if unlisted:  # a record an earlier botcore wrote: this one always says, even "none"
-        named = ", ".join(unlisted[:3]) + (
+        unlisted_label = ", ".join(unlisted[:3]) + (
             f" and {len(unlisted) - 3} more" if len(unlisted) > 3 else ""  # noqa: PLR2004
         )
         warnings.append(
-            f"No machine's record says which skills these projects hold: {named}. Their "
+            f"No machine's record says which skills these projects hold: {unlisted_label}. Their "
             "skills have no size here, none is listed as quiet and no read is marked as an "
             "audit, until skill-usage-collect runs on a machine that has them"
         )
 
     shown = ordered[:limit]
+    sessions_seen = sum(len(sessions) for sessions in seen.values())
     data = {
         "window": {
             "days": days,
@@ -496,7 +497,7 @@ def _skill_usage_report_sync(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
         "totals": {
             "skills": len(ordered),
             "sessions": len(users),
-            "sessions_seen": sum(len(sessions) for sessions in seen.values()),
+            "sessions_seen": sessions_seen,
             "loads": sum(row.loads for row in ordered),
             "harnesses": dict(sorted(by_harness.items())),
             "paths": dict(sorted(by_path.items())),
@@ -524,6 +525,6 @@ def _skill_usage_report_sync(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
     return success(
         data,
         reasoning=f"{len(ordered)} skills were used in {len(users)} of "
-        f"{data['totals']['sessions_seen']} sessions over {days} days; {len(quiet)} held by a "
+        f"{sessions_seen} sessions over {days} days; {len(quiet)} held by a "
         "checkout were not",
     )

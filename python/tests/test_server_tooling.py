@@ -41,7 +41,14 @@ class TestToolStrategies:
             return success(ResultOutput(total=input.value))
 
         tool_names = _tool_names(server)
-        assert {"afd-call", "afd-batch", "afd-pipe", "afd-help", "afd-docs", "afd-schema"} <= tool_names
+        assert {
+            "afd-call",
+            "afd-batch",
+            "afd-pipe",
+            "afd-help",
+            "afd-docs",
+            "afd-schema",
+        } <= tool_names
         assert "todo-create" in tool_names
 
     def test_grouped_strategy_lists_the_meta_tools_then_the_groups(self):
@@ -169,7 +176,9 @@ class TestBuiltInRoutedTools:
             events.append(command_name)
             return await next_fn()
 
-        server = create_server("test-app", tool_strategy="grouped", middleware=[recording_middleware])
+        server = create_server(
+            "test-app", tool_strategy="grouped", middleware=[recording_middleware]
+        )
 
         @server.command(
             name="math-double",
@@ -538,7 +547,9 @@ def test_the_meta_tools_are_spec_meta_tools_json_field_for_field():
     from afd.server.tools import META_TOOLS
 
     spec = json.loads(
-        (Path(__file__).resolve().parents[2] / "spec" / "meta-tools.json").read_text(encoding="utf-8")
+        (Path(__file__).resolve().parents[2] / "spec" / "meta-tools.json").read_text(
+            encoding="utf-8"
+        )
     )
     by_name = {tool["name"]: tool for tool in spec}
     assert [tool["name"] for tool in META_TOOLS] == [
@@ -581,9 +592,7 @@ def test_the_bootstrap_group_lists_the_context_tools_first():
         contexts=[ContextConfig(name="reading"), ContextConfig(name="editing")],
         bootstrap=True,
     )
-    bootstrap = next(
-        tool for tool in server.get_tool_definitions() if tool["name"] == "bootstrap"
-    )
+    bootstrap = next(tool for tool in server.get_tool_definitions() if tool["name"] == "bootstrap")
     assert bootstrap["inputSchema"]["properties"]["action"]["enum"] == [
         "context-list",
         "context-enter",
@@ -605,7 +614,7 @@ def test_bootstrap_tools_are_opt_in(strategy):
     assert not BOOTSTRAP_TOOLS & _tool_names(default)
 
     opted_in = create_server("test-app", tool_strategy=strategy, bootstrap=True)
-    assert BOOTSTRAP_TOOLS <= set(opted_in._get_command_index())
+    assert set(opted_in._get_command_index()) >= BOOTSTRAP_TOOLS
 
 
 def test_a_first_class_bootstrap_tool_needs_bootstrap():

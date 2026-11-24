@@ -86,9 +86,7 @@ class TestSanitizeArgs:
         assert parsed["config"]["repo"] == "a/b"
 
     def test_nested_list_redacts_sensitive_keys(self) -> None:
-        result = sanitize_args(
-            {"items": [{"token": "abc123"}, {"Authorization": "Bearer xyz"}]}
-        )
+        result = sanitize_args({"items": [{"token": "abc123"}, {"Authorization": "Bearer xyz"}]})
         assert "abc123" not in result
         assert "Bearer xyz" not in result
         assert "***REDACTED***" in result
@@ -198,9 +196,7 @@ class TestAuditLogger:
         def _boom(_msg):
             raise OSError("disk full")
 
-        monkeypatch.setattr(
-            "botcore_connectors.audit.logger.info", _boom
-        )
+        monkeypatch.setattr("botcore_connectors.audit.logger.info", _boom)
         # Should not raise
         entry = audit_logger.log(
             agent_id="a",

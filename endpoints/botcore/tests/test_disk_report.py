@@ -452,7 +452,8 @@ def test_file_candidate_mtime_counts_toward_worktree_activity(repo: dict[str, Pa
     worktree's last activity so a recent typecheck agrees with reclaim's recheck."""
     main, old = repo["main"], repo["old"]
     (main / "botcore.toml").write_text(
-        '[disk]\nregenerable = ["dist", "**/*.tsbuildinfo"]\n', encoding="utf-8",
+        '[disk]\nregenerable = ["dist", "**/*.tsbuildinfo"]\n',
+        encoding="utf-8",
     )
     (main / ".gitignore").write_text(GITIGNORE + "*.tsbuildinfo\n", encoding="utf-8")
     git(main, "commit", "-q", "-am", "add tsbuildinfo")
@@ -487,8 +488,9 @@ def test_unclassified_collapses_ignored_folders_and_marks_truncation(
     pytest_cache = old / ".pytest_cache"
     (pytest_cache / "v" / "cache").mkdir(parents=True)
     (pytest_cache / ".gitignore").write_text("*\n", encoding="utf-8")
-    (pytest_cache / "CACHEDIR.TAG").write_text("Signature: 8a477f597d28d172789f06886806bc55\n",
-                                               encoding="utf-8")
+    (pytest_cache / "CACHEDIR.TAG").write_text(
+        "Signature: 8a477f597d28d172789f06886806bc55\n", encoding="utf-8"
+    )
     (pytest_cache / "v" / "cache" / "nodeids").write_text("[]\n", encoding="utf-8")
 
     # Folder ignored with `glob_dir/*`.
@@ -658,8 +660,7 @@ def test_aged_descends_into_cargo_hash_buckets_and_preserves_non_buckets(tmp_pat
 
     settings = MachineSettings(aged=[{"path": f"{root}/*", "max_age_days": 3}])
     entries = {
-        e["path"]: e
-        for e in caches.report_aged(settings, now, time.monotonic() + 60)[0]["entries"]
+        e["path"]: e for e in caches.report_aged(settings, now, time.monotonic() + 60)[0]["entries"]
     }
     assert str(root / "ab") not in entries
     assert str(fresh_ws) in entries and not entries[str(fresh_ws)]["eligible"]
@@ -672,8 +673,7 @@ def test_aged_descends_into_cargo_hash_buckets_and_preserves_non_buckets(tmp_pat
     # Explicit `/*/*` pattern also lists the leaf workspace directories.
     double = MachineSettings(aged=[{"path": f"{root}/*/*", "max_age_days": 3}])
     double_paths = {
-        e["path"]
-        for e in caches.report_aged(double, now, time.monotonic() + 60)[0]["entries"]
+        e["path"] for e in caches.report_aged(double, now, time.monotonic() + 60)[0]["entries"]
     }
     assert {str(fresh_ws), str(stale_ws), str(other_stale)} <= double_paths
 

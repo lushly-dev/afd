@@ -15,7 +15,7 @@
  * range and the packages that want it.
  */
 import assert from 'node:assert/strict';
-import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
+import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { spawnTool } from '../../scripts/release/exec-tool.mjs';
@@ -68,6 +68,73 @@ const mentions = (text, name) =>
 		.slice(1)
 		.some((after) => !/^[\w.-]/.test(after));
 
+const unquoteYaml = (value) => value.trim().replace(/^(['"])(.*)\1$/, '$2');
+
+const isRealDirectory = (path) => {
+	if (!existsSync(path)) return false;
+	const stat = lstatSync(path);
+	return !stat.isSymbolicLink() && stat.isDirectory();
+};
+
+/**
+ * Every resolved specifier for `bare` in top-level `packages:` blocks of `pnpm-lock.yaml`.
+ * Multi-document lockfiles (pnpm 12) can contain more than one `packages:` block.
+ */
+function lockedPackageSpecs(lockText, bare) {
+	const specs = [];
+	let inPackages = false;
+	const prefix = `${bare}@`;
+	for (const line of lockText.split(/\r?\n/)) {
+		if (line === '---' || (/^\S/.test(line) && !line.startsWith('#'))) {
+			inPackages = line.trim() === 'packages:';
+			continue;
+		}
+		if (!inPackages) continue;
+		const match = line.match(/^ {2}(\S.*):$/);
+		if (!match) continue;
+		const key = unquoteYaml(match[1]);
+		if (key.startsWith(prefix)) specs.push(key.slice(prefix.length));
+	}
+	return specs;
+}
+
+/**
+ * Every resolved dependency specifier for `depBare` listed under snapshots of `parentBare`.
+ */
+function snapshotDependencySpecs(lockText, parentBare, depBare) {
+	const specs = [];
+	let inSnapshots = false;
+	let inParent = false;
+	let inDeps = false;
+	const parentPrefix = `${parentBare}@`;
+	for (const line of lockText.split(/\r?\n/)) {
+		if (line === '---' || (/^\S/.test(line) && !line.startsWith('#'))) {
+			inSnapshots = line.trim() === 'snapshots:';
+			inParent = false;
+			inDeps = false;
+			continue;
+		}
+		if (!inSnapshots) continue;
+		const snap = line.match(/^ {2}(\S.*):$/);
+		if (snap) {
+			const key = unquoteYaml(snap[1]);
+			inParent = key.startsWith(parentPrefix);
+			inDeps = false;
+			continue;
+		}
+		if (!inParent) continue;
+		const section = line.match(/^ {4}(\S+):$/);
+		if (section) {
+			inDeps = section[1] === 'dependencies' || section[1] === 'optionalDependencies';
+			continue;
+		}
+		if (!inDeps) continue;
+		const dep = line.match(/^ {6}([^:]+):\s*(.+)$/);
+		if (dep && unquoteYaml(dep[1]) === depBare) specs.push(unquoteYaml(dep[2]));
+	}
+	return specs;
+}
+
 /**
  * Fails unless the install at `root` applied `overrides`. A package overridden with a `file:`
  * tarball has no copy from anywhere else; an `a>b` override reaches only the `b` that `a` requires,
@@ -77,13 +144,55 @@ const mentions = (text, name) =>
 export function assertOverridesApplied(root, overrides) {
 	const store = join(root, 'node_modules/.pnpm');
 	const installed = readdirSync(store);
-	const copiesOf = (name) => installed.filter((entry) => entry.startsWith(`${name}@`));
+	const lockText = existsSync(join(root, 'pnpm-lock.yaml')) ? resolvedText(root) : null;
+	const copiesOf = (part) => {
+		const bare = bareName(part);
+		const name = packageName(part);
+		return installed.filter((entry) => {
+			if (entry.startsWith(`${name}@`)) return true;
+			// On Windows pnpm truncates `.pnpm/` entries over 60 characters and appends `_<md5>`,
+			// which can clip inside the package name before `@`.
+			if (!/_[0-9a-f]{32}$/.test(entry)) return false;
+			const stem = entry.slice(0, -33);
+			return (
+				stem.length > 0 &&
+				`${name}@`.startsWith(stem) &&
+				isRealDirectory(join(store, entry, 'node_modules', bare))
+			);
+		});
+	};
 	const fail = (selector, found) =>
 		`${selector} should resolve to the packed tarball, but the install has ${found}: the override was not applied`;
+	const storeDirName = (entryOrPath) => {
+		const normalized = entryOrPath.replaceAll('\\', '/');
+		const marker = '/.pnpm/';
+		const index = normalized.lastIndexOf(marker);
+		const rest = index === -1 ? normalized : normalized.slice(index + marker.length);
+		return rest.split('/', 1)[0];
+	};
+	const isFileStoreEntry = (entryOrPath, targetPart, parentPart = null) => {
+		const bare = bareName(targetPart);
+		const name = packageName(targetPart);
+		const dir = storeDirName(entryOrPath);
+		const expected = `${name}@file+`;
+		if (dir.startsWith(expected)) return true;
+		// On Windows pnpm truncates `.pnpm/` entries over 60 characters and appends `_<md5>`.
+		// A truncated stem shorter than `${name}@file+` is ambiguous with a registry copy, so it
+		// only passes when `pnpm-lock.yaml` confirms the resolved entry is a `file:` tarball.
+		if (!/_[0-9a-f]{32}$/.test(dir)) return false;
+		const stem = dir.slice(0, -33);
+		if (stem.length === 0 || !expected.startsWith(stem)) return false;
+		if (lockText === null) return false;
+		const specs = lockedPackageSpecs(lockText, bare);
+		if (specs.length === 0 || !specs.some((spec) => spec.startsWith('file:'))) return false;
+		if (specs.every((spec) => spec.startsWith('file:'))) return true;
+		if (parentPart === null) return false;
+		const depSpecs = snapshotDependencySpecs(lockText, bareName(parentPart), bare);
+		return depSpecs.length > 0 && depSpecs.every((spec) => spec.startsWith('file:'));
+	};
 	for (const [selector, specifier] of Object.entries(overrides)) {
 		const parts = selector.split('>');
 		const target = parts.at(-1);
-		const name = packageName(target);
 		if (specifier === '-') {
 			assert.ok(
 				!mentions(resolvedText(root), bareName(target)),
@@ -93,18 +202,27 @@ export function assertOverridesApplied(root, overrides) {
 		}
 		if (!specifier.startsWith('file:')) continue;
 		if (parts.length === 1) {
-			const copies = copiesOf(name);
-			const stray = copies.filter((copy) => !copy.startsWith(`${name}@file+`));
+			if (lockText !== null) {
+				const nonFile = lockedPackageSpecs(lockText, bareName(target)).filter(
+					(spec) => !spec.startsWith('file:')
+				);
+				assert.deepEqual(nonFile, [], fail(selector, nonFile.join(', ')));
+			}
+			const copies = copiesOf(target);
+			const stray = copies.filter((copy) => !isFileStoreEntry(copy, target));
 			assert.deepEqual(stray, [], fail(selector, copies.join(', ')));
 			continue;
 		}
-		const parent = packageName(parts.at(-2));
+		const parent = parts.at(-2);
 		const dependency = bareName(target);
 		for (const copy of copiesOf(parent)) {
 			const link = join(store, copy, 'node_modules', dependency);
 			if (!existsSync(link)) continue;
 			const resolved = realpathSync(link);
-			assert.ok(resolved.includes(`${name}@file+`), fail(`${selector} (in ${copy})`, resolved));
+			assert.ok(
+				isFileStoreEntry(resolved, target, parent),
+				fail(`${selector} (in ${copy})`, resolved)
+			);
 		}
 	}
 }

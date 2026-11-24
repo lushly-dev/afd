@@ -9,7 +9,8 @@ functions (``issue_check``), and so are their inputs.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from afd import CommandResult, success
 from botcore.host import CommandPolicy
@@ -52,23 +53,23 @@ POLICIES: dict[str, CommandPolicy] = {
 }
 
 
-def executor() -> Callable:
+def executor() -> Callable[[Callable[[], CommandResult[Any]]], Awaitable[CommandResult[Any]]]:
     """Run a command body in a thread, turning refusals and outside failures into errors."""
 
-    async def execute(body: Callable[[], CommandResult]) -> CommandResult:
+    async def execute(body: Callable[[], CommandResult[Any]]) -> CommandResult[Any]:
         # gh and git block; a thread keeps an MCP host's event loop free meanwhile.
         return await asyncio.to_thread(guarded, body)
 
     return execute
 
 
-def make_commands(get: Callable[[], Factory]) -> list[Callable]:
+def make_commands(get: Callable[[], Factory]) -> list[Callable[..., Any]]:
     """The commands of one host; ``get`` returns that host's Factory."""
     run = executor()
 
     async def issue_check(
         numbers: list[int] | None = None, limit: int | None = None, cursor: str | None = None
-    ) -> CommandResult:
+    ) -> CommandResult[Any]:
         """List untriaged issues, rule violations, the dispatch order and expired claims.
 
         Args:
@@ -77,7 +78,7 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
             cursor: The nextCursor of the previous page.
         """
 
-        def body() -> CommandResult:
+        def body() -> CommandResult[Any]:
             report = intake.check(intake.read_backlog(get(), numbers))
             data = paginate(report, limit, cursor)
             return success(
@@ -98,7 +99,7 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
         thread: str | None = None,
         session: str | None = None,
         related_because: str | None = None,
-    ) -> CommandResult:
+    ) -> CommandResult[Any]:
         """Claim issues for a new cell on GitHub and assign it a plan: the highest pace among
         Claude's plans while cells.claudeOnly is on (refused NO_CLAUDE_PLAN with none), else
         among every plan.
@@ -114,7 +115,7 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
                 as the files it edits, so one PR beats separate cells that would conflict.
         """
 
-        def body() -> CommandResult:
+        def body() -> CommandResult[Any]:
             factory = get()
             guard = foreman.acting(factory, session, "cell-register")
             cell = cells.register(factory, issues, branch, route, thread, related_because, guard)
@@ -126,7 +127,9 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
 
         return await run(body)
 
-    async def lane_status(limit: int | None = None, cursor: str | None = None) -> CommandResult:
+    async def lane_status(
+        limit: int | None = None, cursor: str | None = None
+    ) -> CommandResult[Any]:
         """The lane's state: host, queue, held branches, cells, open events, dials, and whether
         a cell may start now, on which plan and issue.
 
@@ -135,14 +138,14 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
             cursor: The nextCursor of the previous page.
         """
 
-        def body() -> CommandResult:
+        def body() -> CommandResult[Any]:
             factory = get()
             lane_process.check_lane(factory)
             return success(status.lane_status(factory, limit, cursor))
 
         return await run(body)
 
-    async def dial_get(key: str | None = None) -> CommandResult:
+    async def dial_get(key: str | None = None) -> CommandResult[Any]:
         """Read one dial's value and default, or every dial.
 
         Args:
@@ -152,7 +155,7 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
 
     async def dial_set(
         key: str, value: int | float | bool | str, session: str | None = None
-    ) -> CommandResult:
+    ) -> CommandResult[Any]:
         """Set a dial; the previous value is returned so the change can be undone.
 
         Args:
@@ -164,7 +167,7 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
 
     async def lane_enqueue(
         worktree: str, title: str | None = None, body_file: str | None = None
-    ) -> CommandResult:
+    ) -> CommandResult[Any]:
         """Hand a reviewed, committed branch to the lane: cheap checks, then queued or held.
 
         Args:
@@ -173,7 +176,7 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
             body_file: The PR body file in the worktree; the previous attempt's when left out.
         """
 
-        def body() -> CommandResult:
+        def body() -> CommandResult[Any]:
             data = queue.enqueue(get(), worktree, title, body_file)
             return success(
                 data,
@@ -185,7 +188,7 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
 
     async def lane_wait(
         consumer: str, timeout_ms: int | None = None, session: str | None = None
-    ) -> CommandResult:
+    ) -> CommandResult[Any]:
         """Wait for open events this consumer has not been given. Reading never resolves them.
 
         Args:
@@ -195,7 +198,7 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
                 waiting keeps it.
         """
 
-        def body() -> CommandResult:
+        def body() -> CommandResult[Any]:
             factory = get()
             lane_process.check_lane(factory)
             keep = foreman.waiting(factory, consumer, session, timeout_ms)
@@ -212,7 +215,7 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
 
         return await run(body)
 
-    async def event_resolve(id: str, note: str) -> CommandResult:
+    async def event_resolve(id: str, note: str) -> CommandResult[Any]:
         """Record a decision that answers an open event.
 
         Args:
@@ -221,7 +224,7 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
         """
         return await run(lambda: success(events.event_resolve(get(), id, note)))
 
-    async def lane_pause(reason: str | None = None) -> CommandResult:
+    async def lane_pause(reason: str | None = None) -> CommandResult[Any]:
         """Pause the lane: it starts no new validation until lane-resume.
 
         Args:
@@ -229,7 +232,7 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
         """
         return await run(lambda: success(events.lane_pause(get(), reason)))
 
-    async def lane_resume(reason: str | None = None) -> CommandResult:
+    async def lane_resume(reason: str | None = None) -> CommandResult[Any]:
         """Resume the lane; this answers its open lane-error events.
 
         Args:
@@ -237,7 +240,7 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
         """
         return await run(lambda: success(events.lane_resume(get(), reason)))
 
-    async def cell_attach(branch: str, thread: str) -> CommandResult:
+    async def cell_attach(branch: str, thread: str) -> CommandResult[Any]:
         """Record the T3 Code thread delegate_task returned for a registered cell.
 
         Args:
@@ -246,7 +249,7 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
         """
         return await run(lambda: success({"cell": cells.attach(get(), branch, thread)}))
 
-    async def lane_drop(branch: str, reason: str, session: str | None = None) -> CommandResult:
+    async def lane_drop(branch: str, reason: str, session: str | None = None) -> CommandResult[Any]:
         """Dequeue a branch, release its issues back to status:planned and forget its cell.
 
         Args:
@@ -261,7 +264,9 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
             )
         )
 
-    async def gate_allow(branch: str, reason: str, session: str | None = None) -> CommandResult:
+    async def gate_allow(
+        branch: str, reason: str, session: str | None = None
+    ) -> CommandResult[Any]:
         """Record that a diagnosis found a repair's gate edit to be the right repair.
 
         Args:
@@ -278,7 +283,7 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
             )
         )
 
-    async def plan_list() -> CommandResult:
+    async def plan_list() -> CommandResult[Any]:
         """Each plan's weekly window: share used and elapsed, room, pace (room below
         plans.ceiling per day to its reset) and whether it is above plans.ceiling. next is the
         plan cell-register would assign: the highest pace among Claude's plans while

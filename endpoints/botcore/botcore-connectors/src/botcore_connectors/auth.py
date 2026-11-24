@@ -72,8 +72,10 @@ class DefaultCredentialResolver:
 
     async def resolve(self, provider: str) -> str:
         cached = self._cache.get(provider)
-        if cached is not None and not cached.is_expired() and not cached.needs_refresh(
-            self._config.refresh_before_expiry_seconds
+        if (
+            cached is not None
+            and not cached.is_expired()
+            and not cached.needs_refresh(self._config.refresh_before_expiry_seconds)
         ):
             return cached.token
 

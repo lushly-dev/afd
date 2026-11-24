@@ -12,6 +12,7 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 TRIAGE = "status:triage"
 PLANNED = "status:planned"
@@ -34,7 +35,7 @@ class DefinitionsError(ValueError):
     """The label definitions file is missing or malformed."""
 
 
-def parse_definitions(text: str) -> list[dict]:
+def parse_definitions(text: str) -> list[dict[str, Any]]:
     """Parse and validate the definitions file text."""
     try:
         entries = json.loads(text)
@@ -57,7 +58,7 @@ def parse_definitions(text: str) -> list[dict]:
     return entries
 
 
-def load_definitions(path: Path) -> list[dict]:
+def load_definitions(path: Path) -> list[dict[str, Any]]:
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as exc:
@@ -78,7 +79,7 @@ class _Facts:
         return name in self.names
 
 
-def _facts(labels: Iterable[str], assigned: bool, definitions: list[dict]) -> _Facts:
+def _facts(labels: Iterable[str], assigned: bool, definitions: list[dict[str, Any]]) -> _Facts:
     ordered = list(dict.fromkeys(labels))  # Insertion order, as a JavaScript Set keeps it.
     defined = {entry["name"]: entry for entry in definitions}
     return _Facts(
@@ -130,7 +131,9 @@ def _rules(f: _Facts) -> list[str]:
     return problems
 
 
-def issue_violations(labels: Iterable[str], assigned: bool, definitions: list[dict]) -> list[str]:
+def issue_violations(
+    labels: Iterable[str], assigned: bool, definitions: list[dict[str, Any]]
+) -> list[str]:
     """The rules one issue breaks, in the order the JavaScript checker reports them."""
     return _rules(_facts(labels, assigned, definitions))
 
@@ -159,7 +162,7 @@ class Candidate:
 
 def held_reasons(
     issue: Candidate,
-    definitions: list[dict],
+    definitions: list[dict[str, Any]],
     with_open_pr: frozenset[int] | set[int] = frozenset(),
     claimed: frozenset[int] | set[int] = frozenset(),
 ) -> list[str]:
@@ -185,17 +188,17 @@ def held_reasons(
 
 def dispatch_order(
     issues: Iterable[Candidate],
-    definitions: list[dict],
+    definitions: list[dict[str, Any]],
     with_open_pr: frozenset[int] | set[int] = frozenset(),
     claimed: frozenset[int] | set[int] = frozenset(),
-) -> tuple[list[Candidate], list[dict]]:
+) -> tuple[list[Candidate], list[dict[str, Any]]]:
     """The issues a cell may take, in dispatch order, and why each other planned issue is held.
 
     Dispatch order is ``priority:0``, then ``priority:1``, then the rest, oldest first. Issues
     that are not planned are neither dispatchable nor held.
     """
     dispatchable: list[Candidate] = []
-    held: list[dict] = []
+    held: list[dict[str, Any]] = []
     for issue in issues:
         if PLANNED not in issue.labels:
             continue
@@ -208,7 +211,9 @@ def dispatch_order(
     return dispatchable, held
 
 
-def label_differences(definitions: list[dict], live: list[dict]) -> dict:
+def label_differences(
+    definitions: list[dict[str, Any]], live: list[dict[str, Any]]
+) -> dict[str, Any]:
     """Differences between the definitions and the repository's labels."""
     live_by_name = {label["name"]: label for label in live}
     names = {entry["name"] for entry in definitions}

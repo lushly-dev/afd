@@ -14,13 +14,16 @@ import json
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Any
+from collections.abc import Callable
+from typing import Any, TypeVar
+
+_F = TypeVar("_F", bound=Callable[..., Any])
 
 DEFAULT_TIMEOUT_SECONDS = 330.0  # Longer than a gateway-wait's own five minutes.
 
 
-def _error(code: str, message: str, suggestion: str, **details) -> dict:
-    body = {"code": code, "message": message, "suggestion": suggestion}
+def _error(code: str, message: str, suggestion: str, **details: Any) -> dict[str, Any]:
+    body: dict[str, Any] = {"code": code, "message": message, "suggestion": suggestion}
     if details:
         body["details"] = details
     return {"success": False, "error": body}
@@ -29,7 +32,7 @@ def _error(code: str, message: str, suggestion: str, **details) -> dict:
 class _NoRedirects(urllib.request.HTTPRedirectHandler):
     """A served host never redirects; following one would carry the token elsewhere."""
 
-    def redirect_request(self, *args, **kwargs):
+    def redirect_request(self, *args: Any, **kwargs: Any) -> None:
         return None
 
 
@@ -55,26 +58,30 @@ class HostClient:
         self.timeout = timeout
 
     def call(
-        self, command: str, arguments: dict | None = None, *, on_behalf_of: str | None = None
-    ) -> dict:
+        self,
+        command: str,
+        arguments: dict[str, Any] | None = None,
+        *,
+        on_behalf_of: str | None = None,
+    ) -> dict[str, Any]:
         body: dict[str, Any] = {"command": command, "arguments": arguments or {}}
         if on_behalf_of:
             body["onBehalfOf"] = on_behalf_of
         return self._send("POST", "call", json.dumps(body).encode(), "application/json")
 
-    def catalog(self) -> dict:
+    def catalog(self) -> dict[str, Any]:
         return self._send("GET", "catalog")
 
-    def docs(self, topic: str) -> dict:
+    def docs(self, topic: str) -> dict[str, Any]:
         return self._send("GET", f"docs/{topic}")
 
-    def upload(self, data: bytes, params: dict | None = None) -> dict:
+    def upload(self, data: bytes, params: dict[str, Any] | None = None) -> dict[str, Any]:
         path = "uploads"
         if params:
             path += "?" + urllib.parse.urlencode(params)
         return self._send("POST", path, data, "application/octet-stream")
 
-    def _unavailable(self, reason: str, *, reached: bool = False) -> dict:
+    def _unavailable(self, reason: str, *, reached: bool = False) -> dict[str, Any]:
         """``reached``: the request may have arrived (a timeout, or a proxy's 502/503/504),
         so its outcome is unknown; otherwise the connection never opened."""
         outcome = (
@@ -94,7 +101,7 @@ class HostClient:
 
     def _send(
         self, method: str, path: str, data: bytes | None = None, content_type: str | None = None
-    ) -> dict:
+    ) -> dict[str, Any]:
         request = urllib.request.Request(
             f"{self.base_url}/{self.route}/{path}", data=data, method=method
         )
@@ -105,12 +112,14 @@ class HostClient:
             request.add_header("Content-Type", content_type)
         try:
             with _OPENER.open(request, timeout=self.timeout) as response:
-                return json.loads(response.read() or b"{}")
+                parsed: dict[str, Any] = json.loads(response.read() or b"{}")
+                return parsed
         except urllib.error.HTTPError as exc:
             if exc.code in (502, 503, 504) or 300 <= exc.code < 400:
                 return self._unavailable(f"HTTP {exc.code}", reached=True)
             try:
-                return json.loads(exc.read() or b"{}")
+                error_payload: dict[str, Any] = json.loads(exc.read() or b"{}")
+                return error_payload
             except ValueError:
                 return self._unavailable(f"HTTP {exc.code} without a result", reached=True)
         except urllib.error.URLError as exc:
@@ -156,7 +165,7 @@ def create_remote_cli(
             for label, value in (("URL", url), ("ROUTE", route), ("TOKEN", token))
             if not value
         ]
-        if missing:
+        if missing or not url or not route or not token:
             raise click.UsageError(
                 "Set "
                 + ", ".join(f"{env_prefix}_{label}" for label in missing)
@@ -164,7 +173,7 @@ def create_remote_cli(
             )
         return HostClient(url, route, token, unavailable_code=unavailable_code)
 
-    def emit(result: dict) -> None:
+    def emit(result: dict[str, Any]) -> None:
         click.echo(json.dumps(result, indent=2))
         if result.get("success"):
             sys.exit(0)
@@ -177,10 +186,11 @@ def create_remote_cli(
         click.option("--token", default=None, help=f"Bearer token ({env_prefix}_TOKEN)"),
     ]
 
-    def with_options(function):
+    def with_options(function: _F) -> _F:
+        wrapped: Any = function
         for option in reversed(options):
-            function = option(function)
-        return function
+            wrapped = option(wrapped)
+        return wrapped  # type: ignore[no-any-return]
 
     @click.group(name=name)
     def group() -> None:
@@ -191,7 +201,14 @@ def create_remote_cli(
     @click.option("--args", "arguments", default="{}", help="Arguments as a JSON object")
     @click.option("--on-behalf-of", default=None, help="Who this call serves, as you say")
     @with_options
-    def call_cmd(command, arguments, on_behalf_of, url, route, token) -> None:
+    def call_cmd(
+        command: str,
+        arguments: str,
+        on_behalf_of: str | None,
+        url: str | None,
+        route: str | None,
+        token: str | None,
+    ) -> None:
         """Call COMMAND with --args '{...}'."""
         try:
             parsed = json.loads(arguments)
@@ -201,7 +218,7 @@ def create_remote_cli(
 
     @group.command("catalog")
     @with_options
-    def catalog_cmd(url, route, token) -> None:
+    def catalog_cmd(url: str | None, route: str | None, token: str | None) -> None:
         """List the route's commands and their schemas."""
         result = client(url, route, token).catalog()
         emit(result if "success" in result else {"success": True, "data": result})
@@ -209,7 +226,7 @@ def create_remote_cli(
     @group.command("docs")
     @click.argument("topic")
     @with_options
-    def docs_cmd(topic, url, route, token) -> None:
+    def docs_cmd(topic: str, url: str | None, route: str | None, token: str | None) -> None:
         """Read a documentation topic."""
         result = client(url, route, token).docs(topic)
         emit(result if "success" in result else {"success": True, "data": result})
@@ -220,7 +237,13 @@ def create_remote_cli(
         "--param", "params", multiple=True, help="A query parameter KEY=VALUE (repeatable)"
     )
     @with_options
-    def upload_cmd(file, params, url, route, token) -> None:
+    def upload_cmd(
+        file: Path,
+        params: tuple[str, ...],
+        url: str | None,
+        route: str | None,
+        token: str | None,
+    ) -> None:
         """Upload FILE (a git bundle for the factory gateway); prints its upload id."""
         pairs = dict(param.split("=", 1) for param in params if "=" in param)
         emit(client(url, route, token).upload(file.read_bytes(), pairs))

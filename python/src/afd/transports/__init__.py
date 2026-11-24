@@ -18,23 +18,23 @@ Example:
     >>> transport = create_transport("streamable-http", "http://localhost:3100/mcp")
 """
 
-from typing import Dict, Literal, Optional
+from typing import Literal
 
 from afd.transports.base import (
-    Transport,
-    TransportConfig,
-    TransportState,
-    ToolInfo,
-    TransportError,
-    ToolExecutionError,
     ConnectionError,
-    ToolNotFoundError,
     HttpStatusError,
     JsonRpcError,
+    ToolExecutionError,
+    ToolInfo,
+    ToolNotFoundError,
+    Transport,
+    TransportConfig,
+    TransportError,
+    TransportState,
 )
 from afd.transports.fastmcp import FastMCPTransport
-from afd.transports.mock import MockTransport
 from afd.transports.http import HttpTransport
+from afd.transports.mock import MockTransport
 from afd.transports.sse import SseTransport
 from afd.transports.streamable_http import (
     ElicitationHandler,
@@ -48,7 +48,7 @@ def create_transport(
     transport_type: Literal["streamable-http", "sse", "http"],
     url: str,
     *,
-    headers: Optional[Dict[str, str]] = None,
+    headers: dict[str, str] | None = None,
     timeout: float = 30.0,
 ) -> "HttpTransport | SseTransport | StreamableHttpTransport":
     """Create a transport by type.

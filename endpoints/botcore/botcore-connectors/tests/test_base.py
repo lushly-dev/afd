@@ -45,9 +45,7 @@ class TestConnectorContext:
 class TestApiCallSuccess:
     @respx.mock
     async def test_success_returns_command_result(self, connector: ConnectorBase) -> None:
-        respx.get(f"{BASE}/repos").mock(
-            return_value=httpx.Response(200, json={"items": [1, 2, 3]})
-        )
+        respx.get(f"{BASE}/repos").mock(return_value=httpx.Response(200, json={"items": [1, 2, 3]}))
         result = await connector.api_call("GET", "/repos")
 
         assert result.success is True
@@ -55,9 +53,7 @@ class TestApiCallSuccess:
 
     @respx.mock
     async def test_sends_default_headers(self, connector: ConnectorBase) -> None:
-        route = respx.get(f"{BASE}/test").mock(
-            return_value=httpx.Response(200, json={})
-        )
+        route = respx.get(f"{BASE}/test").mock(return_value=httpx.Response(200, json={}))
         await connector.api_call("GET", "/test")
 
         request = route.calls.last.request
@@ -65,9 +61,7 @@ class TestApiCallSuccess:
 
     @respx.mock
     async def test_sends_custom_headers(self, connector: ConnectorBase) -> None:
-        route = respx.get(f"{BASE}/test").mock(
-            return_value=httpx.Response(200, json={})
-        )
+        route = respx.get(f"{BASE}/test").mock(return_value=httpx.Response(200, json={}))
         await connector.api_call("GET", "/test", headers={"X-Custom": "val"})
 
         request = route.calls.last.request
@@ -97,9 +91,7 @@ class TestErrorMapping:
             (504, "SERVICE_ERROR"),
         ],
     )
-    async def test_status_maps_to_error_code(
-        self, status: int, expected_code: str
-    ) -> None:
+    async def test_status_maps_to_error_code(self, status: int, expected_code: str) -> None:
         ctx = ConnectorContext(
             base_url=BASE,
             max_retries=0,
@@ -119,9 +111,7 @@ class TestErrorMapping:
     async def test_error_has_suggestion(self) -> None:
         ctx = ConnectorContext(base_url=BASE, max_retries=0, jitter_max_seconds=0.0)
         async with ConnectorBase(ctx) as c:
-            respx.get(f"{BASE}/err").mock(
-                return_value=httpx.Response(403, json={})
-            )
+            respx.get(f"{BASE}/err").mock(return_value=httpx.Response(403, json={}))
             result = await c.api_call("GET", "/err")
 
         assert result.error is not None
@@ -132,9 +122,7 @@ class TestErrorMapping:
     async def test_unknown_4xx_maps_to_client_error(self) -> None:
         ctx = ConnectorContext(base_url=BASE, max_retries=0, jitter_max_seconds=0.0)
         async with ConnectorBase(ctx) as c:
-            respx.get(f"{BASE}/err").mock(
-                return_value=httpx.Response(418, json={})
-            )
+            respx.get(f"{BASE}/err").mock(return_value=httpx.Response(418, json={}))
             result = await c.api_call("GET", "/err")
 
         assert result.success is False
@@ -158,9 +146,7 @@ class TestErrorMapping:
             base_url=BASE, max_retries=0, jitter_max_seconds=0.0, timeout_seconds=0.1
         )
         async with ConnectorBase(ctx) as c:
-            respx.get(f"{BASE}/err").mock(
-                side_effect=httpx.ReadTimeout("timed out")
-            )
+            respx.get(f"{BASE}/err").mock(side_effect=httpx.ReadTimeout("timed out"))
             result = await c.api_call("GET", "/err")
 
         assert result.success is False
@@ -279,9 +265,7 @@ class TestRetry:
 class TestTelemetry:
     @respx.mock
     async def test_trace_id_header_sent(self, connector: ConnectorBase) -> None:
-        route = respx.get(f"{BASE}/test").mock(
-            return_value=httpx.Response(200, json={})
-        )
+        route = respx.get(f"{BASE}/test").mock(return_value=httpx.Response(200, json={}))
         await connector.api_call("GET", "/test")
 
         request = route.calls.last.request
@@ -291,9 +275,7 @@ class TestTelemetry:
 
     @respx.mock
     async def test_metadata_has_timing(self, connector: ConnectorBase) -> None:
-        respx.get(f"{BASE}/test").mock(
-            return_value=httpx.Response(200, json={})
-        )
+        respx.get(f"{BASE}/test").mock(return_value=httpx.Response(200, json={}))
         result = await connector.api_call("GET", "/test")
 
         assert result.metadata is not None
@@ -302,9 +284,7 @@ class TestTelemetry:
 
     @respx.mock
     async def test_metadata_has_trace_id(self, connector: ConnectorBase) -> None:
-        respx.get(f"{BASE}/test").mock(
-            return_value=httpx.Response(200, json={})
-        )
+        respx.get(f"{BASE}/test").mock(return_value=httpx.Response(200, json={}))
         result = await connector.api_call("GET", "/test")
 
         assert result.metadata is not None
@@ -313,9 +293,7 @@ class TestTelemetry:
 
     @respx.mock
     async def test_each_call_gets_unique_trace_id(self, connector: ConnectorBase) -> None:
-        respx.get(f"{BASE}/test").mock(
-            return_value=httpx.Response(200, json={})
-        )
+        respx.get(f"{BASE}/test").mock(return_value=httpx.Response(200, json={}))
         r1 = await connector.api_call("GET", "/test")
         r2 = await connector.api_call("GET", "/test")
 

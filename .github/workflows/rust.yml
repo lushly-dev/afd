@@ -23,8 +23,10 @@ on:
       - '.github/workflows/queue.yml'
   # publish-rust.yml runs these same checks before `cargo publish`.
   workflow_call:
+  # Daily check/MSRV/docs.rs plus weekly Sunday unlocked resolve and cargo-fuzz smoke (#1765).
   schedule:
     - cron: '29 6 * * *'
+    - cron: '17 6 * * 0'
   workflow_dispatch:
 
 permissions:
@@ -76,61 +78,224 @@ jobs:
         run: cargo fmt --check
 
       - name: Clippy (default features)
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --locked --all-targets -- -D warnings
 
       - name: Clippy (no default features)
-        run: cargo clippy --all-targets --no-default-features -- -D warnings
+        run: cargo clippy --locked --all-targets --no-default-features -- -D warnings
 
       - name: Test (default features)
-        run: cargo test
+        run: cargo test --locked --no-fail-fast
 
       - name: Test (no default features)
-        run: cargo test --no-default-features
+        run: cargo test --locked --no-fail-fast --no-default-features
 
       - name: Test (all features, library and batch control vectors)
-        run: cargo test --all-features --lib --test batch_controls_vectors
+        run: cargo test --locked --no-fail-fast --all-features --lib --test batch_controls_vectors
 
       # The MCP server (rmcp); off by default, and it needs Rust 1.88.
       - name: Clippy (server feature)
-        run: cargo clippy --all-targets --features server -- -D warnings
+        run: cargo clippy --locked --all-targets --features server -- -D warnings
 
       - name: Test (server feature)
-        run: cargo test --features server
+        run: cargo test --locked --no-fail-fast --features server
+
+      # Umbel's SDK depends on `server` with default features disabled (no `approval` or `journal-file`).
+      - name: Clippy (server feature without default features)
+        run: cargo clippy --locked --all-targets --no-default-features --features server -- -D warnings
+
+      - name: Test (server feature without default features)
+        run: cargo test --locked --no-fail-fast --no-default-features --features server
 
       # MCP authorization (`afd::server::auth`): `jsonwebtoken` on `aws-lc-rs` (a C build); implies
       # `server`, so it needs Rust 1.88 too.
       - name: Clippy (server-auth feature)
-        run: cargo clippy --all-targets --features server-auth -- -D warnings
+        run: cargo clippy --locked --all-targets --features server-auth -- -D warnings
 
       - name: Test (server-auth feature)
-        run: cargo test --features server-auth
+        run: cargo test --locked --no-fail-fast --features server-auth
 
       # The process-shared file journal (`FileJournalSink::shared`); off by default, and its file
       # locks need Rust 1.89.
       - name: Clippy (journal-file-shared feature)
-        run: cargo clippy --all-targets --features journal-file-shared -- -D warnings
+        run: cargo clippy --locked --all-targets --features journal-file-shared -- -D warnings
 
       - name: Test (journal-file-shared feature)
-        run: cargo test --features journal-file-shared
+        run: cargo test --locked --no-fail-fast --features journal-file-shared
 
       # The frontmatter reader (`afd::frontmatter`) on its own: Umbel's `umbel-okf` depends on the
       # crate with default features off and `frontmatter` on, without the MCP server.
       - name: Clippy (frontmatter feature alone)
-        run: cargo clippy --all-targets --no-default-features --features frontmatter -- -D warnings
+        run: cargo clippy --locked --all-targets --no-default-features --features frontmatter -- -D warnings
 
       - name: Test (frontmatter feature alone)
-        run: cargo test --no-default-features --features frontmatter
+        run: cargo test --locked --no-fail-fast --no-default-features --features frontmatter
 
-      # The `wasm` feature targets browsers, where `std::time::Instant::now()` traps.
+      # Browser/Node WebAssembly (`wasm32-unknown-unknown`): `web-time` is selected by target so
+      # `Instant::now()` and `SystemTime::now()` never trap even without `--features wasm`.
       - name: Install wasm32 target
         run: rustup target add wasm32-unknown-unknown
 
-      - name: Check (wasm32, wasm feature)
-        run: cargo check --target wasm32-unknown-unknown --no-default-features --features wasm
+      - name: Resolve wasm-bindgen version
+        id: wb
+        run: |
+          version=$(awk '/^name = "wasm-bindgen"$/{f=1} f && /^version = /{gsub(/"/,"",$3); print $3; exit}' Cargo.lock)
+          if [ -z "$version" ]; then
+            echo "Could not read wasm-bindgen version from Cargo.lock" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Cache wasm-bindgen-cli
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/wasm-bindgen-test-runner
+          key: ${{ runner.os }}-wasm-bindgen-cli-${{ steps.wb.outputs.version }}
+
+      - name: Install wasm-bindgen-cli
+        run: |
+          if [ ! -x "$HOME/.cargo/bin/wasm-bindgen-test-runner" ]; then
+            cargo install --locked wasm-bindgen-cli --version "${{ steps.wb.outputs.version }}"
+          fi
+
+      - name: Check (wasm32, no default features)
+        run: cargo check --locked --target wasm32-unknown-unknown --no-default-features
 
       # The approval middleware's nonce comes from `crypto.getRandomValues` (getrandom `wasm_js`).
       - name: Check (wasm32, wasm and approval features)
-        run: cargo check --target wasm32-unknown-unknown --no-default-features --features wasm,approval
+        run: cargo check --locked --target wasm32-unknown-unknown --no-default-features --features wasm,approval
+
+      - name: Test (wasm32 under Node via wasm-bindgen-test)
+        env:
+          CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER: wasm-bindgen-test-runner
+        run: |
+          cargo test --locked --target wasm32-unknown-unknown --no-default-features --test wasm_runtime
+          cargo test --locked --target wasm32-unknown-unknown --no-default-features --features wasm,approval --test wasm_runtime
+
+  msrv:
+    # One job per declared MSRV tier (packages/rust/Cargo.toml): 1.85 for the core and default
+    # features, 1.88 for `server` and `server-auth`, and 1.89 for `journal-file-shared`.
+    # Removes Cargo.lock and uses Cargo's MSRV-aware resolver (`fallback`) so older toolchains
+    # resolve compatible transitive versions rather than failing on the newest lockfile.
+    name: Rust (MSRV ${{ matrix.rust }} - ${{ matrix.tier }})
+    needs: queue
+    if: needs.queue.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rust: '1.85.0'
+            tier: core
+          - rust: '1.88.0'
+            tier: server
+          - rust: '1.89.0'
+            tier: journal-file-shared
+    defaults:
+      run:
+        working-directory: packages/rust
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Rust ${{ matrix.rust }}
+        run: rustup toolchain install ${{ matrix.rust }} --profile minimal
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          workspaces: packages/rust
+          key: msrv-${{ matrix.rust }}
+
+      - name: Check MSRV (${{ matrix.rust }})
+        env:
+          CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS: fallback
+        run: |
+          rm -f Cargo.lock
+          case "${{ matrix.tier }}" in
+            core)
+              cargo +${{ matrix.rust }} check --all-targets
+              cargo +${{ matrix.rust }} check --all-targets --no-default-features
+              cargo +${{ matrix.rust }} check --all-targets --no-default-features --features frontmatter
+              ;;
+            server)
+              cargo +${{ matrix.rust }} check --all-targets --features server
+              cargo +${{ matrix.rust }} check --all-targets --no-default-features --features server
+              cargo +${{ matrix.rust }} check --all-targets --features server-auth
+              ;;
+            journal-file-shared)
+              cargo +${{ matrix.rust }} check --all-targets --features journal-file-shared
+              ;;
+          esac
+
+  unlocked:
+    # Weekly fresh dependency resolution without Cargo.lock, catching breaking semver updates
+    # early while PR runs stay deterministic against the committed lockfile (#1765).
+    name: Rust (weekly unlocked resolve)
+    needs: queue
+    if: needs.queue.outputs.run == 'true' && (github.event.schedule == '17 6 * * 0' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: packages/rust
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install
+
+      - name: Test against freshly resolved dependencies
+        run: |
+          rm -f Cargo.lock
+          cargo test --no-fail-fast
+          cargo test --no-fail-fast --no-default-features
+          cargo test --no-fail-fast --no-default-features --features server
+          cargo test --no-fail-fast --features server-auth
+          cargo test --no-fail-fast --features journal-file-shared
+          cargo test --no-fail-fast --no-default-features --features frontmatter
+
+  fuzz:
+    # Weekly cargo-fuzz smoke run over the five untrusted-input parsers (#1765).
+    name: Rust (cargo-fuzz smoke)
+    needs: queue
+    if: needs.queue.outputs.run == 'true' && (github.event.schedule == '17 6 * * 0' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: packages/rust
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install nightly toolchain
+        run: rustup toolchain install nightly --profile minimal
+
+      - name: Cache cargo-fuzz
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-fuzz
+          key: ${{ runner.os }}-cargo-fuzz-v1
+
+      - name: Install cargo-fuzz
+        run: |
+          if [ ! -x "$HOME/.cargo/bin/cargo-fuzz" ]; then
+            cargo install --locked cargo-fuzz
+          fi
+
+      - name: Fuzz each target for 60 seconds
+        run: |
+          for target in frontmatter pipeline_resolve validation schema_validation canonical_json; do
+            corpus="$RUNNER_TEMP/corpus-$target"
+            mkdir -p "$corpus"
+            cargo +nightly fuzz run "$target" "$corpus" -- -max_total_time=60 -timeout=10 -rss_limit_mb=2048
+          done
 
   docs-rs:
     # Builds the API docs the way docs.rs does: nightly rustdoc, every feature

@@ -94,7 +94,7 @@ async def _check_pkg_version(
     if not installed_version:
         return
 
-    response = await client.get(f"https://pypi.org/pypi/{pkg}/json")  # type: ignore[union-attr]
+    response = await client.get(f"https://pypi.org/pypi/{pkg}/json")  # type: ignore[attr-defined]
     if response.status_code != 200:
         return
 

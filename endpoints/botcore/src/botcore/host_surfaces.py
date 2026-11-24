@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Callable
 from typing import Any
 
 import click
@@ -11,25 +12,26 @@ import click
 from botcore.host import CommandHost
 
 
-def _dump(result) -> dict:
-    return result.model_dump(mode="json", exclude_none=True)
+def _dump(result: Any) -> dict[str, Any]:
+    dumped: dict[str, Any] = result.model_dump(mode="json", exclude_none=True)
+    return dumped
 
 
 def create_host_cli(host: CommandHost) -> click.Group:
     """Build a CLI owned by the host, without mutating the global Botcore registry."""
 
     @click.group(name=host.name)
-    def cli():
+    def cli() -> None:
         """Inspect a catalog or call an explicitly admitted host command."""
 
     @cli.command("catalog")
-    def catalog():
+    def catalog() -> None:
         click.echo(json.dumps(host.catalog(), indent=2))
 
     @cli.command("call")
     @click.argument("command")
     @click.argument("arguments", default="{}")
-    def call(command: str, arguments: str):
+    def call(command: str, arguments: str) -> None:
         try:
             args = json.loads(arguments)
         except ValueError as exc:
@@ -72,8 +74,7 @@ def create_host_mcp_server(
                 raw_names[alias] = name
     server = FastMCP(host.name)
 
-    @server.tool(name=f"{host.name}-start", description="Discover host commands and their effects")
-    async def start() -> dict:
+    async def start() -> dict[str, Any]:
         return {
             "name": host.name,
             "version": version,
@@ -86,10 +87,11 @@ def create_host_mcp_server(
             "topics": sorted(host.docs),
         }
 
-    @server.tool(
-        name=f"{host.name}-call", description="Call a registered command under host policy"
+    server.tool(name=f"{host.name}-start", description="Discover host commands and their effects")(
+        start
     )
-    async def call(command: str, arguments: dict | None = None) -> dict:
+
+    async def call(command: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
         from afd import Actor
         from afd.core.commands import CommandContext
 
@@ -97,16 +99,20 @@ def create_host_mcp_server(
         context = CommandContext(actor=host.actor or Actor(kind="agent"))
         return _dump(await host.execute(command, arguments, context))
 
-    @server.tool(name=f"{host.name}-docs", description="Read a host documentation topic")
+    server.tool(
+        name=f"{host.name}-call", description="Call a registered command under host policy"
+    )(call)
+
     async def docs(topic: str = "overview") -> str:
         if topic == "overview":
             return f"# {host.name} — Topics\n" + "\n".join(sorted(host.docs))
         return host.docs.get(topic, f"Unknown topic. Available: {', '.join(sorted(host.docs))}")
 
+    server.tool(name=f"{host.name}-docs", description="Read a host documentation topic")(docs)
+
     if raw_python:
 
-        @server.tool(name=f"{host.name}-run", description="Trusted local Python; no sandbox")
-        async def run(code: str) -> dict:
+        async def run(code: str) -> dict[str, Any]:
             from afd import error, success
 
             from botcore.server import _validate_code
@@ -115,8 +121,8 @@ def create_host_mcp_server(
             if invalid:
                 return _dump(error("INVALID_CODE", invalid, suggestion="Use valid Python"))
 
-            def wrapper(command_name):
-                async def invoke(*args, **kwargs):
+            def wrapper(command_name: str) -> Callable[..., Any]:
+                async def invoke(*args: Any, **kwargs: Any) -> Any:
                     import inspect
 
                     signature = inspect.signature(host.handler(command_name))
@@ -125,7 +131,9 @@ def create_host_mcp_server(
 
                 return invoke
 
-            namespace = {alias: wrapper(command) for alias, command in raw_names.items()}
+            namespace: dict[str, Any] = {
+                alias: wrapper(command) for alias, command in raw_names.items()
+            }
             try:
                 wrapped = "async def _run():\n" + "\n".join(
                     "    " + line for line in code.splitlines()
@@ -135,5 +143,7 @@ def create_host_mcp_server(
                 return _dump(value if hasattr(value, "model_dump") else success(value))
             except Exception as exc:
                 return _dump(error("EXECUTION_ERROR", str(exc), suggestion="Inspect trusted code"))
+
+        server.tool(name=f"{host.name}-run", description="Trusted local Python; no sandbox")(run)
 
     return server

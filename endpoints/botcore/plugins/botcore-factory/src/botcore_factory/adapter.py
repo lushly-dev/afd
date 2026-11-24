@@ -18,18 +18,23 @@ import re
 from fnmatch import fnmatchcase
 from functools import lru_cache
 from pathlib import PurePosixPath
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 Argv = list[str]
 
 
-def _argv(value: list[str] | None, key: str) -> list[str] | None:
-    if value is None:
-        return None
+def _required_argv(value: list[str], key: str) -> list[str]:
     if not value or any(not isinstance(part, str) or not part for part in value):
         raise ValueError(f"{key} must be a non-empty list of non-empty strings (an argument list)")
     return value
+
+
+def _argv(value: list[str] | None, key: str) -> list[str] | None:
+    if value is None:
+        return None
+    return _required_argv(value, key)
 
 
 def _relative(value: str, key: str) -> str:
@@ -66,7 +71,7 @@ class Stage(BaseModel):
     @field_validator("run")
     @classmethod
     def _run(cls, value: list[str]) -> list[str]:
-        return _argv(value, "run")
+        return _required_argv(value, "run")
 
 
 class Regenerate(BaseModel):
@@ -86,7 +91,7 @@ class Regenerate(BaseModel):
     @field_validator("run")
     @classmethod
     def _run(cls, value: list[str]) -> list[str]:
-        return _argv(value, "run")
+        return _required_argv(value, "run")
 
     @field_validator("paths")
     @classmethod
@@ -95,7 +100,7 @@ class Regenerate(BaseModel):
 
 
 @lru_cache(maxsize=256)
-def _pattern(glob: str) -> re.Pattern:
+def _pattern(glob: str) -> re.Pattern[str]:
     """``**`` crosses directories, ``*`` and ``?`` stay within one."""
     parts = re.split(r"(\*\*/?|\*|\?)", glob)
     table = {"**": ".*", "**/": "(?:.*/)?", "*": "[^/]*", "?": "[^/]"}
@@ -223,7 +228,7 @@ class FactoryConfig(BaseModel):
         "preview",
     )
     @classmethod
-    def _commands(cls, value: list[str] | None, info) -> list[str] | None:
+    def _commands(cls, value: list[str] | None, info: Any) -> list[str] | None:
         return _argv(value, info.field_name)
 
     @field_validator("prequeue")
@@ -249,7 +254,7 @@ class FactoryConfig(BaseModel):
         "ignore_branches",
     )
     @classmethod
-    def _patterns(cls, value: list[str] | None, info) -> list[str] | None:
+    def _patterns(cls, value: list[str] | None, info: Any) -> list[str] | None:
         if value is None:
             return None
         if any(not isinstance(item, str) or not item.strip() for item in value):

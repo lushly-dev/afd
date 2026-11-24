@@ -1,5 +1,7 @@
 """The disk commands' safety rules, one test per way a report could mark the wrong thing ready."""
 
+# ruff: noqa: F811
+
 from __future__ import annotations
 
 import json
@@ -58,8 +60,10 @@ def test_a_registered_folder_replaced_by_another_repository_is_not_inspected(
     assert any("another" in r for r in row["reasons"])
 
 
-@pytest.mark.skipif(sys.platform == "win32" or os.geteuid() == 0,
-                    reason="permission bits are POSIX; root reads everything")
+@pytest.mark.skipif(
+    sys.platform == "win32" or os.geteuid() == 0,
+    reason="permission bits are POSIX; root reads everything",
+)
 def test_an_unreadable_folder_is_not_called_missing(repo: dict[str, Path]) -> None:  # noqa: F811
     trees = repo["old"].parent
     os.chmod(trees, 0)
@@ -114,7 +118,8 @@ def test_a_nested_worktree_is_its_own_row_not_part_of_its_parent(
 
 
 def test_an_incomplete_walk_marks_nothing_ready(
-    repo: dict[str, Path], monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    monkeypatch: pytest.MonkeyPatch,  # noqa: F811
 ) -> None:
     (repo["old"] / "src" / "deep").mkdir(parents=True)
     age_worktree(repo["main"], repo["old"])
@@ -133,7 +138,8 @@ def test_a_recent_build_inside_an_output_folder_counts_as_activity(
 
 
 def test_a_failed_process_listing_makes_nothing_ready(
-    repo: dict[str, Path], monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    monkeypatch: pytest.MonkeyPatch,  # noqa: F811
 ) -> None:
     age_worktree(repo["main"], repo["old"])
     monkeypatch.setattr(report, "running_processes", lambda: Processes(method="t", ok=False))
@@ -161,7 +167,8 @@ def test_a_disk_value_that_is_not_a_table_skips_only_that_repository(
 
 
 def test_a_recorded_volume_id_must_match(
-    repo: dict[str, Path], monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    monkeypatch: pytest.MonkeyPatch,  # noqa: F811
 ) -> None:
     mount = mount_point(repo["old"])
     monkeypatch.setattr(scan, "volume_id", lambda _m: "VOLUME-A")
@@ -174,10 +181,11 @@ def test_a_recorded_volume_id_must_match(
 
 
 def test_an_unreadable_volume_blocks_without_failing_the_report(
-    repo: dict[str, Path], monkeypatch: pytest.MonkeyPatch,  # noqa: F811
+    repo: dict[str, Path],
+    monkeypatch: pytest.MonkeyPatch,  # noqa: F811
 ) -> None:
     mount = mount_point(repo["old"])
-    _add_setting(repo, f'\n[[volume]]\nmount = {json.dumps(str(mount))}\n')
+    _add_setting(repo, f"\n[[volume]]\nmount = {json.dumps(str(mount))}\n")
 
     def denied(_path):
         raise PermissionError(13, "Permission denied")
@@ -211,43 +219,51 @@ def test_darwin_volume_id_prefers_apfs_volume_group_for_boot_snapshot(
     monkeypatch.setattr(scan.sys, "platform", "darwin")
     monkeypatch.setattr(scan.os.path, "ismount", lambda _p: True)
 
-    fake_plist({
-        "APFSSnapshot": True,
-        "APFSSnapshotUUID": "SNAP-UUID-NEW",
-        "APFSVolumeGroupID": "GROUP-UUID-STABLE",
-        "Internal": True,
-        "VolumeUUID": "SNAP-UUID-NEW",
-    })
+    fake_plist(
+        {
+            "APFSSnapshot": True,
+            "APFSSnapshotUUID": "SNAP-UUID-NEW",
+            "APFSVolumeGroupID": "GROUP-UUID-STABLE",
+            "Internal": True,
+            "VolumeUUID": "SNAP-UUID-NEW",
+        }
+    )
     assert scan._darwin_volume_id(Path("/")) == "GROUP-UUID-STABLE"
     assert scan.snapshot_volume_group_id(Path("/")) == "GROUP-UUID-STABLE"
 
     # External macOS boot drive (Internal=False): snapshot_volume_group_id refuses migration.
-    fake_plist({
-        "APFSSnapshot": True,
-        "APFSSnapshotUUID": "EXT-SNAP-UUID",
-        "APFSVolumeGroupID": "EXT-GROUP-UUID",
-        "Internal": False,
-        "VolumeUUID": "EXT-SNAP-UUID",
-    })
+    fake_plist(
+        {
+            "APFSSnapshot": True,
+            "APFSSnapshotUUID": "EXT-SNAP-UUID",
+            "APFSVolumeGroupID": "EXT-GROUP-UUID",
+            "Internal": False,
+            "VolumeUUID": "EXT-SNAP-UUID",
+        }
+    )
     assert scan._darwin_volume_id(Path("/")) == "EXT-GROUP-UUID"
     assert scan.snapshot_volume_group_id(Path("/")) is None
 
     # Non-snapshot APFS volume carrying APFSVolumeGroupID still uses VolumeUUID.
-    fake_plist({
-        "APFSSnapshot": False,
-        "APFSVolumeGroupID": "SOME-GROUP-UUID",
-        "Internal": True,
-        "VolumeUUID": "EXTERNAL-DEV-UUID",
-    })
+    fake_plist(
+        {
+            "APFSSnapshot": False,
+            "APFSVolumeGroupID": "SOME-GROUP-UUID",
+            "Internal": True,
+            "VolumeUUID": "EXTERNAL-DEV-UUID",
+        }
+    )
     assert scan._darwin_volume_id(Path("/Volumes/Dev")) == "EXTERNAL-DEV-UUID"
     assert scan.snapshot_volume_group_id(Path("/Volumes/Dev")) is None
 
     # Snapshot without a volume group ID falls back to VolumeUUID.
-    fake_plist({
-        "APFSSnapshot": True,
-        "Internal": True,
-        "VolumeUUID": "STANDALONE-SNAP-UUID",
-    })
+    fake_plist(
+        {
+            "APFSSnapshot": True,
+            "Internal": True,
+            "VolumeUUID": "STANDALONE-SNAP-UUID",
+        }
+    )
     assert scan._darwin_volume_id(Path("/")) == "STANDALONE-SNAP-UUID"
     assert scan.snapshot_volume_group_id(Path("/")) is None
 
@@ -261,7 +277,8 @@ def test_darwin_volume_id_prefers_apfs_volume_group_for_boot_snapshot(
 
 
 def test_volume_state_accepts_current_darwin_snapshot_uuid_until_setup_reruns(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Upgrading botcore on a macOS machine whose disk.toml still holds the current boot
     snapshot's VolumeUUID must keep verifying `/` in a single diskutil observation until
@@ -351,7 +368,8 @@ def test_aged_patterns_that_reach_protected_folders_are_refused(tmp_path: Path) 
 
 
 def test_t3_codes_default_folder_counts_when_its_settings_cannot_be_read(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     broken = tmp_path / "settings.json"
     broken.write_text("{not json", encoding="utf-8")
@@ -414,7 +432,8 @@ def test_case_probe_looks_past_folders_without_letters(tmp_path: Path) -> None:
 
 @pytest.mark.skipif(sys.platform == "win32", reason="symlinks need privileges on Windows")
 def test_a_session_link_hops_to_the_lasting_tool(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from botcore.commands.disk import setup
 
@@ -436,8 +455,11 @@ def test_an_uninstall_that_cannot_confirm_says_why(monkeypatch: pytest.MonkeyPat
     from botcore.commands.disk import schedule, setup
 
     monkeypatch.setattr(schedule, "uninstall", lambda: None)
-    monkeypatch.setattr(schedule, "current", lambda: schedule.ScheduleState(
-        "linux", True, "crontab", "the crontab could not be read"))
+    monkeypatch.setattr(
+        schedule,
+        "current",
+        lambda: schedule.ScheduleState("linux", True, "crontab", "the crontab could not be read"),
+    )
     result = asyncio.run(setup.disk_setup(uninstall=True))
     assert not result.success and "could not be read" in result.error.message
 
@@ -455,7 +477,8 @@ def test_deep_trees_are_searched_and_shallow_patterns_stop_early(tmp_path: Path)
 
 
 def test_a_cutoff_under_a_recursive_pattern_is_incomplete(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(scan, "MAX_DEPTH", 4)
     tmp_path.joinpath("a", "b", "c", "d", "e", "gen").mkdir(parents=True)

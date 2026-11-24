@@ -26,6 +26,7 @@ import shutil
 import stat
 import subprocess
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -490,11 +491,12 @@ def unique_reasons(  # noqa: PLR0913 - every fact is one more way to lose work
     try:
         if not _on_a_ref(worktree, head, timeout):
             reasons.append("its commit is on no branch, remote or tag")
-        for check in (
+        checks: tuple[Callable[[], str | None], ...] = (
             lambda: _hidden_changes(worktree, timeout),
             lambda: _private_state(worktree, admin, timeout),
             lambda: _ignored_reason(worktree, main, config, checkouts or [], timeout),
-        ):
+        )
+        for check in checks:
             reason = check()
             if reason:
                 reasons.append(reason)

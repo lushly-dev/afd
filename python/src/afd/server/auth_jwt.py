@@ -19,7 +19,7 @@ import re
 import types
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Literal, Protocol, Union, runtime_checkable
+from typing import Any, Literal, Protocol, runtime_checkable
 
 from afd.core.clock import Clock, system_clock
 from afd.server.auth_resource import assert_https_url
@@ -158,7 +158,7 @@ class TokenRefused:
         return False
 
 
-TokenVerification = Union[TokenVerified, TokenRefused]
+TokenVerification = TokenVerified | TokenRefused
 
 
 @runtime_checkable
@@ -184,7 +184,7 @@ class KeyErrorResult:
     error: Literal["unknown", "unavailable"]
 
 
-KeyLookup = Union[KeyFound, KeyErrorResult]
+KeyLookup = KeyFound | KeyErrorResult
 
 
 @runtime_checkable
@@ -365,13 +365,14 @@ def _import_public_key(alg: SigningAlgorithm, jwk: Mapping[str, Any]) -> Any:
     if not isinstance(kty, str) or kty not in _PUBLIC_MEMBERS:
         return None
     members = _PUBLIC_MEMBERS[kty]
-    decoded: dict[str, bytes | str] = {}
+    crv: str | None = None
+    decoded: dict[str, bytes] = {}
     for member in members:
         value = jwk.get(member)
         if not isinstance(value, str) or value == "":
             return None
         if member == "crv":
-            decoded[member] = value
+            crv = value
         else:
             raw = decode_base64url(value)
             if not raw:
@@ -380,20 +381,15 @@ def _import_public_key(alg: SigningAlgorithm, jwk: Mapping[str, Any]) -> Any:
 
     try:
         if kty == "RSA":
-            n_bytes = decoded["n"]
-            e_bytes = decoded["e"]
-            assert isinstance(n_bytes, bytes) and isinstance(e_bytes, bytes)
-            n = int.from_bytes(n_bytes, "big")
-            e = int.from_bytes(e_bytes, "big")
+            n = int.from_bytes(decoded["n"], "big")
+            e = int.from_bytes(decoded["e"], "big")
             if n.bit_length() < _MIN_RSA_BITS or e < 3 or e % 2 == 0:
                 return None
             return rsa.RSAPublicNumbers(e=e, n=n).public_key()
 
         if kty == "EC":
-            crv = decoded["crv"]
             x_bytes = decoded["x"]
             y_bytes = decoded["y"]
-            assert isinstance(x_bytes, bytes) and isinstance(y_bytes, bytes)
             expected_len = _COORDINATE_BYTES.get(alg)
             if expected_len is None or len(x_bytes) != expected_len or len(y_bytes) != expected_len:
                 return None
@@ -409,10 +405,9 @@ def _import_public_key(alg: SigningAlgorithm, jwk: Mapping[str, Any]) -> Any:
             return ec.EllipticCurvePublicNumbers(x=x, y=y, curve=curve).public_key()
 
         if kty == "OKP":
-            if alg != "EdDSA" or decoded["crv"] != "Ed25519":
+            if alg != "EdDSA" or crv != "Ed25519":
                 return None
             x_bytes = decoded["x"]
-            assert isinstance(x_bytes, bytes)
             if len(x_bytes) != 32:
                 return None
             return ed25519.Ed25519PublicKey.from_public_bytes(x_bytes)
@@ -575,17 +570,13 @@ class JwtVerifier:
 
         self._issuers = tuple(checked)
         inner_issuers = (
-            tuple(getattr(introspection, "issuers", ()) or ())
-            if introspection is not None
-            else ()
+            tuple(getattr(introspection, "issuers", ()) or ()) if introspection is not None else ()
         )
         self.issuers: tuple[str, ...] = tuple(item.issuer for item in checked) + inner_issuers
         self._introspection = introspection
         self._clock = clock or system_clock
 
-    async def verify(
-        self, token: str, request: TokenRequest = TokenRequest()
-    ) -> TokenVerification:
+    async def verify(self, token: str, request: TokenRequest = TokenRequest()) -> TokenVerification:
         parts = _compact_jws_parts(token)
         if parts is None:
             if self._introspection is not None:
@@ -677,9 +668,11 @@ class _IntrospectionVerifier:
         self._cache: dict[str, tuple[Any, float]] = {}
 
     async def _response(self, token: str) -> Any:
-        digest = base64.urlsafe_b64encode(hashlib.sha256(token.encode("utf-8")).digest()).rstrip(
-            b"="
-        ).decode("ascii")
+        digest = (
+            base64.urlsafe_b64encode(hashlib.sha256(token.encode("utf-8")).digest())
+            .rstrip(b"=")
+            .decode("ascii")
+        )
         cached = self._cache.get(digest)
         if cached is not None and cached[1] > self._clock.now():
             return cached[0]
@@ -714,9 +707,7 @@ class _IntrospectionVerifier:
             )
         return answer
 
-    async def verify(
-        self, token: str, request: TokenRequest = TokenRequest()
-    ) -> TokenVerification:
+    async def verify(self, token: str, request: TokenRequest = TokenRequest()) -> TokenVerification:
         if is_compact_jws(token):
             return TokenRefused(rule="unknown-issuer")
         try:

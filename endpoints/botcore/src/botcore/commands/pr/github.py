@@ -791,16 +791,16 @@ async def compute_base_overlap(
     # Fallback: GitHub compare API (read-only, works without local fetch).
     try:
         cmp_data = await run_gh_json(cwd, "api", f"repos/{repo}/compare/{head_sha}...{base_sha}")
-        merge_base = (cmp_data.get("merge_base_commit") or {}).get("sha")
-        base_touched: set[str] = set()
+        cmp_merge_base: str | None = (cmp_data.get("merge_base_commit") or {}).get("sha")
+        cmp_base_touched: set[str] = set()
         for f in cmp_data.get("files") or []:
             if not isinstance(f, dict):
                 continue
             if f.get("filename"):
-                base_touched.add(str(f["filename"]))
+                cmp_base_touched.add(str(f["filename"]))
             if f.get("previous_filename"):
-                base_touched.add(str(f["previous_filename"]))
-        return sorted(pr_set & base_touched), merge_base
+                cmp_base_touched.add(str(f["previous_filename"]))
+        return sorted(pr_set & cmp_base_touched), cmp_merge_base
     except GhCommandError:
         return [], None
 

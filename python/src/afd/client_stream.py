@@ -15,8 +15,8 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-from collections.abc import AsyncIterator
-from typing import Any
+from collections.abc import AsyncGenerator, AsyncIterator
+from typing import Any, TypeGuard
 
 from afd.core.sse import SseDecoder
 from afd.core.streaming import is_stream_chunk
@@ -49,7 +49,7 @@ def stream_error_chunk(
     }
 
 
-def _is_command_error(value: Any) -> bool:
+def _is_command_error(value: Any) -> TypeGuard[dict[str, Any]]:
     return (
         isinstance(value, dict)
         and isinstance(value.get("code"), str)
@@ -153,7 +153,7 @@ async def stream_over_http(
     connect_timeout: float | None = None,
     read_timeout: float | None = None,
     max_event_bytes: int = DEFAULT_MAX_STREAM_EVENT_BYTES,
-) -> AsyncIterator[dict[str, Any]]:
+) -> AsyncGenerator[dict[str, Any], None]:
     """POST ``args`` to ``url`` and yield its stream chunks (wire format, camelCase).
 
     Args:
@@ -194,11 +194,12 @@ async def stream_over_http(
 
     async def produce() -> None:
         try:
-            async with httpx.AsyncClient(
-                timeout=httpx.Timeout(read_timeout, connect=connect_timeout)
-            ) as http, http.stream(
-                "POST", url, json=args or {}, headers=request_headers
-            ) as response:
+            async with (
+                httpx.AsyncClient(
+                    timeout=httpx.Timeout(read_timeout, connect=connect_timeout)
+                ) as http,
+                http.stream("POST", url, json=args or {}, headers=request_headers) as response,
+            ):
                 if not response.is_success:
                     body = await response.aread()
                     error = http_failure(response.status_code, response.reason_phrase, body)
@@ -215,15 +216,23 @@ async def stream_over_http(
                         await queue.put(("chunk", chunk))
             await queue.put(("end", None))
         except _EventTooLargeError as exc:
-            await queue.put(("error", ({
-                "code": "STREAM_EVENT_TOO_LARGE",
-                "message": str(exc),
-                "suggestion": (
-                    "Have the command emit smaller chunks, or raise max_stream_event_bytes "
-                    "in the client config"
-                ),
-                "retryable": False,
-            }, False)))
+            await queue.put(
+                (
+                    "error",
+                    (
+                        {
+                            "code": "STREAM_EVENT_TOO_LARGE",
+                            "message": str(exc),
+                            "suggestion": (
+                                "Have the command emit smaller chunks, or raise max_stream_event_bytes "
+                                "in the client config"
+                            ),
+                            "retryable": False,
+                        },
+                        False,
+                    ),
+                )
+            )
         except Exception as exc:  # noqa: BLE001 - every failure becomes an error chunk
             await queue.put(("error", (connection_error(exc), True)))
 
@@ -236,16 +245,19 @@ async def stream_over_http(
         when the caller has not cancelled (the timer may fire a hair early)."""
         if cancel is not None and cancel.is_set():
             return stream_error_chunk(dict(cancelled_chunk), count)
-        if deadline is not None and (waited_out or loop.time() >= deadline):
-            return stream_error_chunk({
-                "code": "STREAM_TIMEOUT",
-                "message": f"Stream did not finish within {round(timeout * 1000)}ms",
-                "suggestion": (
-                    "Retry with a larger timeout. The command may still have run, "
-                    "so check its effect before retrying a mutation."
-                ),
-                "retryable": True,
-            }, count)
+        if timeout is not None and deadline is not None and (waited_out or loop.time() >= deadline):
+            return stream_error_chunk(
+                {
+                    "code": "STREAM_TIMEOUT",
+                    "message": f"Stream did not finish within {round(timeout * 1000)}ms",
+                    "suggestion": (
+                        "Retry with a larger timeout. The command may still have run, "
+                        "so check its effect before retrying a mutation."
+                    ),
+                    "retryable": True,
+                },
+                count,
+            )
         return None
 
     producer = asyncio.ensure_future(produce())

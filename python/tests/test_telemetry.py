@@ -253,40 +253,60 @@ class TestIsTelemetryEvent:
     def test_returns_false_when_required_fields_missing(self):
         """Test that partial dicts fail the guard."""
         assert is_telemetry_event({"command_name": "test"}) is False
-        assert is_telemetry_event({
-            "command_name": "test",
-            "started_at": "2024-01-15T10:30:00.000Z",
-        }) is False
+        assert (
+            is_telemetry_event(
+                {
+                    "command_name": "test",
+                    "started_at": "2024-01-15T10:30:00.000Z",
+                }
+            )
+            is False
+        )
 
     def test_returns_false_when_command_name_wrong_type(self):
         """Test that wrong type for command_name fails the guard."""
-        assert is_telemetry_event({
-            "command_name": 123,
-            "started_at": "2024-01-15T10:30:00.000Z",
-            "completed_at": "2024-01-15T10:30:00.100Z",
-            "duration_ms": 100,
-            "success": True,
-        }) is False
+        assert (
+            is_telemetry_event(
+                {
+                    "command_name": 123,
+                    "started_at": "2024-01-15T10:30:00.000Z",
+                    "completed_at": "2024-01-15T10:30:00.100Z",
+                    "duration_ms": 100,
+                    "success": True,
+                }
+            )
+            is False
+        )
 
     def test_returns_false_when_duration_ms_wrong_type(self):
         """Test that wrong type for duration_ms fails the guard."""
-        assert is_telemetry_event({
-            "command_name": "test",
-            "started_at": "2024-01-15T10:30:00.000Z",
-            "completed_at": "2024-01-15T10:30:00.100Z",
-            "duration_ms": "100",
-            "success": True,
-        }) is False
+        assert (
+            is_telemetry_event(
+                {
+                    "command_name": "test",
+                    "started_at": "2024-01-15T10:30:00.000Z",
+                    "completed_at": "2024-01-15T10:30:00.100Z",
+                    "duration_ms": "100",
+                    "success": True,
+                }
+            )
+            is False
+        )
 
     def test_returns_false_when_success_wrong_type(self):
         """Test that wrong type for success fails the guard."""
-        assert is_telemetry_event({
-            "command_name": "test",
-            "started_at": "2024-01-15T10:30:00.000Z",
-            "completed_at": "2024-01-15T10:30:00.100Z",
-            "duration_ms": 100,
-            "success": "true",
-        }) is False
+        assert (
+            is_telemetry_event(
+                {
+                    "command_name": "test",
+                    "started_at": "2024-01-15T10:30:00.000Z",
+                    "completed_at": "2024-01-15T10:30:00.100Z",
+                    "duration_ms": 100,
+                    "success": "true",
+                }
+            )
+            is False
+        )
 
     def test_accepts_int_duration_ms(self):
         """Test that integer duration_ms is accepted."""

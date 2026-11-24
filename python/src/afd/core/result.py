@@ -5,17 +5,17 @@ Agent-First Development (AFD) principles.
 
 Example:
     >>> from afd.core.result import success, error
-    >>> 
+    >>>
     >>> # Successful result
     >>> result = success({"id": "123"}, reasoning="Created successfully")
     >>> assert result.success is True
-    >>> 
-    >>> # Error result  
+    >>>
+    >>> # Error result
     >>> result = error("NOT_FOUND", "Resource not found")
     >>> assert result.success is False
 """
 
-from typing import Any, Generic, List, Optional, TypeVar
+from typing import Any, Generic, TypeVar
 
 from pydantic import (
     ConfigDict,
@@ -29,7 +29,8 @@ from pydantic import (
 # CommandError is defined once, in afd.core.errors, and re-exported here so
 # ``afd.core.result.CommandError`` and ``afd.core.errors.CommandError`` are the
 # same class.
-from afd.core.errors import CommandError, _omit_unset_cause
+from afd.core.errors import CommandError as CommandError
+from afd.core.errors import _omit_unset_cause
 from afd.core.metadata import Alternative, PlanStep, Source, Warning
 from afd.core.similarity import truncate_name
 from afd.core.wire import WIRE_MODEL_CONFIG, WireModel, keep_null_data
@@ -39,7 +40,7 @@ T = TypeVar("T")
 
 class ResultMetadata(WireModel):
     """Execution metadata for debugging and monitoring.
-    
+
     Attributes:
         execution_time_ms: Time taken to execute the command in milliseconds.
         command_version: Version of the command that produced this result.
@@ -57,19 +58,19 @@ class ResultMetadata(WireModel):
 
     model_config = ConfigDict(**WIRE_MODEL_CONFIG, extra="allow")
 
-    execution_time_ms: Optional[float] = None
-    command_version: Optional[str] = None
-    trace_id: Optional[str] = None
-    timestamp: Optional[str] = None
-    actor_kind: Optional[str] = None
+    execution_time_ms: float | None = None
+    command_version: str | None = None
+    trace_id: str | None = None
+    timestamp: str | None = None
+    actor_kind: str | None = None
 
 
 class CommandResult(WireModel, Generic[T]):
     """Standard response type for all AFD commands.
-    
+
     All commands return this structure, enabling consistent handling across
     CLI, MCP, and REST API surfaces.
-    
+
     Attributes:
         success: Whether the command completed successfully.
         data: The command output (generic type T) when success=True.
@@ -81,7 +82,7 @@ class CommandResult(WireModel, Generic[T]):
         alternatives: Other options the agent considered.
         warnings: Non-fatal warnings to surface to user.
         metadata: Execution metadata for debugging.
-    
+
     Example:
         >>> result: CommandResult[dict] = CommandResult(
         ...     success=True,
@@ -96,28 +97,28 @@ class CommandResult(WireModel, Generic[T]):
     """
 
     success: bool
-    data: Optional[T] = None
-    error: Optional[CommandError] = None
+    data: T | None = None
+    error: CommandError | None = None
 
     # UX-enabling fields (AFD standard)
-    confidence: Optional[float] = Field(default=None, ge=0, le=1)
-    reasoning: Optional[str] = None
-    sources: Optional[List[Source]] = None
-    plan: Optional[List[PlanStep]] = None
-    alternatives: Optional[List[Alternative[T]]] = None
-    warnings: Optional[List[Warning]] = None
-    suggestions: Optional[List[str]] = None  # Helpful next steps for user
-    
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    reasoning: str | None = None
+    sources: list[Source] | None = None
+    plan: list[PlanStep] | None = None
+    alternatives: list[Alternative[T]] | None = None
+    warnings: list[Warning] | None = None
+    suggestions: list[str] | None = None  # Helpful next steps for user
+
     # Execution metadata
-    metadata: Optional[ResultMetadata] = None
+    metadata: ResultMetadata | None = None
 
     # Undo fields (for serializable undo over MCP)
-    undo_command: Optional[str] = None
-    undo_args: Optional[dict[str, Any]] = None
+    undo_command: str | None = None
+    undo_args: dict[str, Any] | None = None
 
     @field_serializer("error", mode="wrap")
     def _serialize_error(
-        self, value: Optional[CommandError], handler: SerializerFunctionWrapHandler
+        self, value: CommandError | None, handler: SerializerFunctionWrapHandler
     ) -> Any:
         return _omit_unset_cause(handler(value))
 
@@ -131,19 +132,19 @@ class CommandResult(WireModel, Generic[T]):
 def success(
     data: T,
     *,
-    confidence: Optional[float] = None,
-    reasoning: Optional[str] = None,
-    sources: Optional[List[Source]] = None,
-    plan: Optional[List[PlanStep]] = None,
-    alternatives: Optional[List[Alternative[T]]] = None,
-    warnings: Optional[List[Warning]] = None,
-    suggestions: Optional[List[str]] = None,
-    metadata: Optional[ResultMetadata] = None,
-    undo_command: Optional[str] = None,
-    undo_args: Optional[dict[str, Any]] = None,
+    confidence: float | None = None,
+    reasoning: str | None = None,
+    sources: list[Source] | None = None,
+    plan: list[PlanStep] | None = None,
+    alternatives: list[Alternative[T]] | None = None,
+    warnings: list[Warning] | None = None,
+    suggestions: list[str] | None = None,
+    metadata: ResultMetadata | None = None,
+    undo_command: str | None = None,
+    undo_args: dict[str, Any] | None = None,
 ) -> CommandResult[T]:
     """Create a successful command result.
-    
+
     Args:
         data: The command output.
         confidence: Quality confidence score (0-1).
@@ -159,7 +160,7 @@ def success(
 
     Returns:
         CommandResult with success=True.
-    
+
     Example:
         >>> result = success(
         ...     data={"id": "123"},
@@ -186,19 +187,19 @@ def success(
 def failure(
     err: CommandError,
     *,
-    confidence: Optional[float] = None,
-    reasoning: Optional[str] = None,
-    sources: Optional[List[Source]] = None,
-    plan: Optional[List[PlanStep]] = None,
-    alternatives: Optional[List[Alternative[Any]]] = None,
-    warnings: Optional[List[Warning]] = None,
-    suggestions: Optional[List[str]] = None,
-    metadata: Optional[ResultMetadata] = None,
-    undo_command: Optional[str] = None,
-    undo_args: Optional[dict[str, Any]] = None,
+    confidence: float | None = None,
+    reasoning: str | None = None,
+    sources: list[Source] | None = None,
+    plan: list[PlanStep] | None = None,
+    alternatives: list[Alternative[Any]] | None = None,
+    warnings: list[Warning] | None = None,
+    suggestions: list[str] | None = None,
+    metadata: ResultMetadata | None = None,
+    undo_command: str | None = None,
+    undo_args: dict[str, Any] | None = None,
 ) -> CommandResult[Any]:
     """Create a failed command result from a CommandError.
-    
+
     Args:
         err: The error details.
         confidence: Quality confidence score (0-1).
@@ -211,10 +212,10 @@ def failure(
         metadata: Execution metadata.
         undo_command: Command name for undoing this operation.
         undo_args: Arguments to pass to the undo command.
-        
+
     Returns:
         CommandResult with success=False.
-    
+
     Example:
         >>> from afd.core.errors import not_found_error
         >>> result = failure(not_found_error("Document", "doc-123"))
@@ -239,25 +240,25 @@ def error(
     code: str,
     message: str,
     *,
-    suggestion: Optional[str] = None,
-    retryable: Optional[bool] = None,
-    details: Optional[dict[str, Any]] = None,
+    suggestion: str | None = None,
+    retryable: bool | None = None,
+    details: dict[str, Any] | None = None,
 ) -> CommandResult[Any]:
     """Create an error command result.
-    
+
     This is a convenience function that creates both the CommandError
     and wraps it in a failed CommandResult.
-    
+
     Args:
         code: Error code (e.g., "NOT_FOUND", "VALIDATION_ERROR").
         message: Human-readable error description.
         suggestion: Recovery guidance for the user.
         retryable: Whether retrying might succeed.
         details: Additional technical details.
-        
+
     Returns:
         CommandResult with success=False.
-    
+
     Example:
         >>> result = error(
         ...     "NOT_FOUND",
@@ -354,13 +355,13 @@ def coerce_command_result(value: Any, command: str) -> CommandResult[Any]:
 
 def is_success(result: CommandResult[T]) -> bool:
     """Check if a result is successful.
-    
+
     Args:
         result: The CommandResult to check.
-        
+
     Returns:
         True if the success discriminant is True (including null data).
-    
+
     Example:
         >>> result = success({"id": "123"})
         >>> is_success(result)
@@ -371,13 +372,13 @@ def is_success(result: CommandResult[T]) -> bool:
 
 def is_failure(result: CommandResult[T]) -> bool:
     """Check if a result is a failure.
-    
+
     Args:
         result: The CommandResult to check.
-        
+
     Returns:
         True if success=False and error is present.
-    
+
     Example:
         >>> result = error("NOT_FOUND", "Not found")
         >>> is_failure(result)

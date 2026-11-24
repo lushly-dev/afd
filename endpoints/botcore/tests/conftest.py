@@ -31,7 +31,8 @@ def _no_real_schedule(monkeypatch: pytest.MonkeyPatch) -> None:
     from botcore.commands.disk import schedule
 
     monkeypatch.setattr(
-        schedule, "current",
+        schedule,
+        "current",
         lambda: schedule.ScheduleState(platform="test", installed=False, where=None),
     )
 

@@ -11,12 +11,10 @@ import pytest
 import afd.server.middleware as middleware_module
 from afd import error, success
 from afd.core.commands import CommandContext
-from afd.core.result import CommandError, CommandResult
+from afd.core.result import CommandResult
 from afd.server import create_server
 from afd.server.middleware import (
-    CommandMiddleware,
     ConsoleTelemetrySink,
-    NextFn,
     TelemetryEvent,
     compose_middleware,
     create_auto_trace_id_middleware,
@@ -362,9 +360,7 @@ class TestRetryBackoff:
     @patch("afd.server.middleware.asyncio.sleep", new_callable=AsyncMock)
     async def test_backoff_doubles_and_is_capped_by_max_delay(self, mock_sleep):
         handler, calls = self._always_transient()
-        mw = create_retry_middleware(
-            max_retries=6, retry_delay=100, max_delay=1000, jitter=False
-        )
+        mw = create_retry_middleware(max_retries=6, retry_delay=100, max_delay=1000, jitter=False)
 
         result = await mw("test-cmd", {}, make_context(), handler)
 
@@ -627,9 +623,7 @@ class TestRateLimitMemoryAndSemantics:
     async def test_expired_windows_are_evicted(self, monkeypatch):
         # A manual clock: with real time, a busy machine expired early windows mid-loop (#336).
         now = [100.0]
-        monkeypatch.setattr(
-            middleware_module, "time", SimpleNamespace(monotonic=lambda: now[0])
-        )
+        monkeypatch.setattr(middleware_module, "time", SimpleNamespace(monotonic=lambda: now[0]))
         mw = create_rate_limit_middleware(
             max_requests=1, window_ms=20, key_fn=lambda ctx: ctx.trace_id
         )
@@ -782,9 +776,7 @@ class TestTelemetryMiddleware:
     @pytest.mark.asyncio
     async def test_filter_fn(self):
         sink = RecordingSink()
-        mw = create_telemetry_middleware(
-            sink, filter_fn=lambda name: name != "internal-cmd"
-        )
+        mw = create_telemetry_middleware(sink, filter_fn=lambda name: name != "internal-cmd")
         ctx = make_context()
 
         await mw("public-cmd", {}, ctx, success_handler)
@@ -1048,9 +1040,7 @@ class TestMiddlewareIntegration:
             "test-app",
             middleware=[
                 create_auto_trace_id_middleware(),
-                create_logging_middleware(
-                    log=lambda msg, *args: messages.append(msg)
-                ),
+                create_logging_middleware(log=lambda msg, *args: messages.append(msg)),
             ],
         )
 

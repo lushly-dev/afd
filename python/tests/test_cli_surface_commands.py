@@ -5,10 +5,15 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
-from afd import ExposeOptions, success
+from afd import (
+    AFD_BUILTIN_TOOL_NAMES,
+    AFD_META_TOOL_NAMES,
+    ExposeOptions,
+    is_afd_builtin_name,
+    success,
+)
 from afd.cli.main import _load_surface_commands
 from afd.cli.surface_commands import collect_surface_commands, is_opaque_grouped_tool
-from afd import AFD_BUILTIN_TOOL_NAMES, AFD_META_TOOL_NAMES, is_afd_builtin_name
 from afd.server import create_server
 from afd.server.factory import META_TOOL_NAMES as SERVER_META_TOOL_NAMES
 from afd.testing.surface.validate import validate_command_surface
@@ -50,7 +55,9 @@ class ServerTransport:
 class FakeTransport:
     """A transport serving a fixed tool listing plus afd-discover and afd-detail."""
 
-    def __init__(self, tools: list[ToolInfo], commands: list[str] | None = None, page_size: int = 200):
+    def __init__(
+        self, tools: list[ToolInfo], commands: list[str] | None = None, page_size: int = 200
+    ):
         self.tools = tools
         self.commands = commands or []
         self.page_size = page_size
@@ -139,7 +146,10 @@ TS_GROUPED_TOOL = ToolInfo(
     description="todo operations: create, get",
     input_schema={
         "type": "object",
-        "properties": {"action": {"type": "string", "enum": ["create", "get"]}, "params": {"type": "object"}},
+        "properties": {
+            "action": {"type": "string", "enum": ["create", "get"]},
+            "params": {"type": "object"},
+        },
         "required": ["action"],
     },
     meta={
@@ -223,7 +233,9 @@ async def test_typescript_individual_server_skips_builtin_tools():
 @pytest.mark.asyncio
 async def test_lazy_server_is_enumerated_with_discover_and_detail():
     names = [f"item-op{index}" for index in range(25)]
-    transport = FakeTransport([_builtin("afd-discover"), _builtin("afd-detail")], ["afd-help", *names], 10)
+    transport = FakeTransport(
+        [_builtin("afd-discover"), _builtin("afd-detail")], ["afd-help", *names], 10
+    )
 
     commands, warnings = await collect_surface_commands(transport, await transport.list_tools())
 
@@ -235,7 +247,9 @@ async def test_lazy_server_is_enumerated_with_discover_and_detail():
 
 @pytest.mark.asyncio
 async def test_grouped_tools_without_actions_are_enumerated():
-    transport = FakeTransport([_builtin("afd-pipe"), OPAQUE_GROUPED_TOOL], ["todo-create", "todo-get"])
+    transport = FakeTransport(
+        [_builtin("afd-pipe"), OPAQUE_GROUPED_TOOL], ["todo-create", "todo-get"]
+    )
 
     assert is_opaque_grouped_tool(OPAQUE_GROUPED_TOOL)
     assert not is_opaque_grouped_tool(TS_GROUPED_TOOL)
@@ -269,8 +283,16 @@ async def test_bootstrap_help_path_skips_builtin_commands():
             return {
                 "data": {
                     "commands": [
-                        {"name": "afd-help", "description": "List commands", "category": "bootstrap"},
-                        {"name": "todo-create", "description": "Create a todo item", "category": "todo"},
+                        {
+                            "name": "afd-help",
+                            "description": "List commands",
+                            "category": "bootstrap",
+                        },
+                        {
+                            "name": "todo-create",
+                            "description": "Create a todo item",
+                            "category": "todo",
+                        },
                     ]
                 }
             }

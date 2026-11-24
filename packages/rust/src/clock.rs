@@ -74,8 +74,8 @@ impl fmt::Debug for dyn RandomSource {
 
 /// The real clock: the system time.
 ///
-/// With the `wasm` feature it reads `Date.now()` through `web-time`, because
-/// `std::time::SystemTime::now()` traps on `wasm32-unknown-unknown`.
+/// On `wasm32-unknown-unknown` it reads `Date.now()` through `web-time`, because
+/// `std::time::SystemTime::now()` traps on that target.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct SystemClock;
 

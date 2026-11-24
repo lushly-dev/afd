@@ -94,7 +94,9 @@ class TestAccessControlIntegration:
 
         set_agent("agent-b")
         result = await memory_search(
-            query="data", scope="agent", scope_id="agent-a",
+            query="data",
+            scope="agent",
+            scope_id="agent-a",
         )
         assert_error(result, "MEMORY_ACCESS_DENIED")
 

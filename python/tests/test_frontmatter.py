@@ -29,7 +29,7 @@ def test_parses_yaml_12_core_scalars_and_nested_structures():
         "int_hex: 0x10\n"
         "float_val: 3.5\n"
         "float_exp: 1e3\n"
-        "quoted_num: \"42\"\n"
+        'quoted_num: "42"\n'
         "quoted_bool: 'true'\n"
         "items:\n"
         "  - a\n"

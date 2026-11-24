@@ -11,14 +11,14 @@ Use the repository Python AFD source through `[tool.uv.sources]`. Distribution
 metadata retains `afd>=0.9.0`. Run
 `uv sync --frozen --extra dev --extra mcp --extra cdp --group packages`,
 `uv run --frozen ruff check src/ tests/ scripts/ packages/ botcore-connectors/src/ botcore-connectors/tests/ plugins/botcore-teams/`,
+`uv run --frozen ruff format --check src/ tests/ scripts/ packages/ botcore-connectors/src/ botcore-connectors/tests/ plugins/botcore-teams/`,
+`uv run --frozen mypy src`,
 `uv run --frozen pytest tests/ --ignore=tests/integration -q` and
 `uv run --frozen python scripts/package_tests.py` on Python 3.11 and 3.12. That script runs
 the tests of the sibling packages (`packages/*`, `botcore-connectors` and every plugin but
 botcore-factory, which has its own workflow and runs on Linux, macOS and Windows) and the
 integration scenarios with a mocked LLM.
 The Botcore workflow runs these core gates plus all six wheel/sdist and asset smoke checks.
-`ruff format` is compared against base only: format the files a change touches and leave the
-rest, whose drift is known (lushly-dev/afd#513).
 The integration scenarios' `live` tier needs a signed-in Copilot CLI and is outside the gate;
 do not report it as passed. Native tool wrappers impose no AFD architecture rules on target apps.
 

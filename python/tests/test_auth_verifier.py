@@ -290,13 +290,13 @@ async def test_rule1_unknown_issuer_and_duplicate_payload_claims() -> None:
     assert await v.verify(other) == TokenRefused(rule="unknown-issuer")
 
     header = {"alg": "RS256", "typ": "at+jwt", "kid": KEYS["RS256"].kid}
-    dup_payload = _b64u(f'{{"iss":"https://elsewhere.example","iss":"{ISSUER}"}}'.encode("utf-8"))
+    dup_payload = _b64u(f'{{"iss":"https://elsewhere.example","iss":"{ISSUER}"}}'.encode())
     assert await v.verify(f"{_b64u_json(header)}.{dup_payload}.c2ln") == TokenRefused(
         rule="unknown-issuer"
     )
-    assert await v.verify(f"{_b64u_json(header)}.{_b64u_json([_default_claims()])}.c2ln") == TokenRefused(
-        rule="unknown-issuer"
-    )
+    assert await v.verify(
+        f"{_b64u_json(header)}.{_b64u_json([_default_claims()])}.c2ln"
+    ) == TokenRefused(rule="unknown-issuer")
 
 
 @pytest.mark.asyncio
@@ -308,7 +308,7 @@ async def test_rule1_routes_opaque_only_to_introspection() -> None:
     called = 0
 
     class _StubIntrospection:
-        async def verify(self, token: str, request: TokenRequest = TokenRequest()):
+        async def verify(self, token: str, request: TokenRequest | None = None):
             nonlocal called
             called += 1
             return TokenRefused(rule="inactive", issuer="introspect")
@@ -341,7 +341,7 @@ async def test_rule2_header_checks_in_order() -> None:
     assert await v.verify(_raw_jws({"alg": "RS256", "kid": kid})) == TokenRefused(
         rule="typ", issuer="test-as"
     )
-    dup_hdr = _b64u(f'{{"alg":"RS256","typ":"at+jwt","kid":"{kid}","kid":"other"}}'.encode("utf-8"))
+    dup_hdr = _b64u(f'{{"alg":"RS256","typ":"at+jwt","kid":"{kid}","kid":"other"}}'.encode())
     assert await v.verify(f"{dup_hdr}.{_b64u_json(_default_claims())}.c2ln") == TokenRefused(
         rule="typ", issuer="test-as"
     )

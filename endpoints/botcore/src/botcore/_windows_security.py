@@ -8,12 +8,17 @@ optional package or external command is needed. Callers own returned descriptors
 from __future__ import annotations
 
 import ctypes as c
-import msvcrt
 import os
+import sys
 from contextlib import ExitStack, contextmanager
-from ctypes import wintypes as w
 from functools import cache
 from pathlib import Path
+
+if sys.platform != "win32":
+    raise ImportError("botcore._windows_security is Windows-only")
+
+import msvcrt
+from ctypes import wintypes as w
 
 _kernel = c.WinDLL("kernel32", use_last_error=True)
 _advapi = c.WinDLL("advapi32", use_last_error=True)
@@ -98,6 +103,8 @@ def _sid(pointer) -> str:
     if not _sid_text(pointer, c.byref(text)):
         raise c.WinError(c.get_last_error())
     try:
+        if text.value is None:
+            raise PermissionError("A Windows token-store owner or ACL SID is unreadable")
         return text.value
     finally:
         _free(c.cast(text, _P))
@@ -169,6 +176,8 @@ def _check(handle, path: Path, *, directory: bool, ancestor=False) -> None:
                 ancestor and header.flags & 0x08
             ):  # INHERIT_ONLY does not grant this ancestor access.
                 continue
+            if ace.value is None:
+                raise PermissionError(f"{path}: unreadable Windows token-store ACL entry")
             sid = ace.value + 8  # ACCESS_ALLOWED_ACE: header, mask, SID
             if not _valid_sid(sid) or _sid_length(sid) > header.size - 8:
                 raise PermissionError(f"{path}: unreadable Windows token-store ACL entry")

@@ -60,7 +60,9 @@ def _server():
     async def todo_list(input):
         return success([])
 
-    @server.command(name="secret-rotate", description="Rotate keys", expose=ExposeOptions(mcp=False))
+    @server.command(
+        name="secret-rotate", description="Rotate keys", expose=ExposeOptions(mcp=False)
+    )
     async def secret_rotate(input):
         return success({"rotated": True})
 

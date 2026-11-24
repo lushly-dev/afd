@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -19,7 +20,7 @@ from afd.server.validation import _input_validation_failure
 class AfdDocsInput(BaseModel):
     """Input for ``afd-docs``."""
 
-    command: Optional[str] = Field(default=None, description="Specific command name, or omit for all")
+    command: str | None = Field(default=None, description="Specific command name, or omit for all")
 
 
 class AfdDocsOutput(WireModel):
@@ -35,8 +36,8 @@ def _json_block(value: dict[str, Any]) -> str:
 
 async def _afd_docs_handler(
     input: AfdDocsInput,
-    context: Optional[CommandContext],
-    get_commands: Callable[[], List[CommandDefinition]],
+    context: CommandContext | None,
+    get_commands: Callable[[], list[CommandDefinition]],
 ) -> CommandResult[AfdDocsOutput]:
     commands = listed_commands(get_commands(), scope_view_of(context))
     if input.command:
@@ -50,7 +51,7 @@ async def _afd_docs_handler(
         )
 
     lines: list[str] = ["# Command Documentation", ""]
-    grouped: Dict[str, List[CommandDefinition]] = {}
+    grouped: dict[str, list[CommandDefinition]] = {}
     for command in commands:
         grouped.setdefault(command.category or "General", []).append(command)
 
@@ -120,7 +121,13 @@ async def _afd_docs_handler(
                 for example in command.examples:
                     lines.append(f"- `{example.title}`")
                     lines.append("")
-                    lines.append(_json_block(example.input if isinstance(example.input, dict) else {"value": example.input}))
+                    lines.append(
+                        _json_block(
+                            example.input
+                            if isinstance(example.input, dict)
+                            else {"value": example.input}
+                        )
+                    )
                     lines.append("")
 
             shown_schema = command.advertised_input_schema or command.input_schema
@@ -153,16 +160,18 @@ async def _afd_docs_handler(
 
 
 def create_afd_docs_command(
-    get_commands: Callable[[], List[CommandDefinition]],
+    get_commands: Callable[[], list[CommandDefinition]],
 ) -> CommandDefinition:
     """Create the ``afd-docs`` bootstrap command."""
 
     async def handler(
         input: Any,
-        context: Optional[CommandContext] = None,
+        context: CommandContext | None = None,
     ) -> CommandResult[AfdDocsOutput]:
         try:
-            parsed_input = input if isinstance(input, AfdDocsInput) else AfdDocsInput(**(input or {}))
+            parsed_input = (
+                input if isinstance(input, AfdDocsInput) else AfdDocsInput(**(input or {}))
+            )
         except ValidationError as exc:
             return _input_validation_failure(AfdDocsInput, input, exc)
         return await _afd_docs_handler(parsed_input, context, get_commands)

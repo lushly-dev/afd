@@ -164,7 +164,8 @@ def test_collect_staged_deps_pyproject(tmp_path) -> None:
     """Parses added dependency lines from git diff."""
     with patch("botcore.commands.dev.quality.subprocess.run") as mock_run:
         mock_run.return_value = subprocess.CompletedProcess(
-            args=[], returncode=0,
+            args=[],
+            returncode=0,
             stdout='+++\n+"requests>=2.28",\n+"pydantic[email]>=2.0",\n',
             stderr="",
         )
@@ -182,7 +183,8 @@ def test_collect_staged_deps_requirements_txt(tmp_path) -> None:
         cmd = args[0] if args else kwargs.get("args", [])
         if "requirements.txt" in cmd:
             return subprocess.CompletedProcess(
-                args=cmd, returncode=0,
+                args=cmd,
+                returncode=0,
                 stdout="+++\n+flask\n+gunicorn\n",
                 stderr="",
             )
@@ -199,7 +201,10 @@ def test_collect_staged_deps_no_changes(tmp_path) -> None:
     """Returns empty list when no staged changes."""
     with patch("botcore.commands.dev.quality.subprocess.run") as mock_run:
         mock_run.return_value = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout="", stderr="",
+            args=[],
+            returncode=0,
+            stdout="",
+            stderr="",
         )
         deps = _collect_staged_deps(tmp_path)
 

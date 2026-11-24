@@ -1,6 +1,7 @@
 """Bootstrap command registry."""
 
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 from afd.core.commands import CommandDefinition
 from afd.server.bootstrap.afd_context import (
@@ -8,15 +9,15 @@ from afd.server.bootstrap.afd_context import (
     create_afd_context_exit_command,
     create_afd_context_list_command,
 )
-from afd.server.bootstrap.afd_help import create_afd_help_command
 from afd.server.bootstrap.afd_docs import create_afd_docs_command
+from afd.server.bootstrap.afd_help import create_afd_help_command
 from afd.server.bootstrap.afd_schema import create_afd_schema_command
 
 
 def get_bootstrap_commands(
-    get_commands: Callable[[], List[CommandDefinition]],
-    options: Optional[Dict[str, Any]] = None,
-) -> List[CommandDefinition]:
+    get_commands: Callable[[], list[CommandDefinition]],
+    options: dict[str, Any] | None = None,
+) -> list[CommandDefinition]:
     """Get all bootstrap commands for an AFD server.
 
     ``options["include_discovery"]`` (default True) includes ``afd-help``, ``afd-docs`` and

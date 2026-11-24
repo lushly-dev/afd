@@ -2,23 +2,19 @@
 
 import json
 import sys
-from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
 
 # Import to ensure module is loaded
 import afd.cli.main  # noqa: F401
-from afd.cli.main import cli, _load_state, _save_state
+from afd.cli.main import _load_state, _save_state, cli
 from afd.cli.output import (
-    print_error,
-    print_result,
-    print_success,
-    print_tools,
-    print_warning,
     _create_confidence_bar,
+    print_result,
+    print_tools,
 )
 from afd.transports import ToolInfo
 
@@ -29,6 +25,7 @@ _cli_main_module = sys.modules["afd.cli.main"]
 # ==============================================================================
 # Fixtures
 # ==============================================================================
+
 
 @pytest.fixture
 def runner():
@@ -51,21 +48,26 @@ def mock_transport():
     transport = MagicMock()
     transport.connect = AsyncMock()
     transport.disconnect = AsyncMock()
-    transport.list_tools = AsyncMock(return_value=[
-        ToolInfo(name="user-create", description="Create a user"),
-        ToolInfo(name="user-list", description="List users"),
-        ToolInfo(name="doc-get", description="Get a document"),
-    ])
-    transport.call_tool = AsyncMock(return_value={
-        "success": True,
-        "data": {"id": "123", "name": "Test"},
-    })
+    transport.list_tools = AsyncMock(
+        return_value=[
+            ToolInfo(name="user-create", description="Create a user"),
+            ToolInfo(name="user-list", description="List users"),
+            ToolInfo(name="doc-get", description="Get a document"),
+        ]
+    )
+    transport.call_tool = AsyncMock(
+        return_value={
+            "success": True,
+            "data": {"id": "123", "name": "Test"},
+        }
+    )
     return transport
 
 
 # ==============================================================================
 # State Management Tests
 # ==============================================================================
+
 
 class TestStateManagement:
     """Tests for CLI state persistence."""
@@ -92,6 +94,7 @@ class TestStateManagement:
 # ==============================================================================
 # CLI Command Tests
 # ==============================================================================
+
 
 class TestConnectCommand:
     """Tests for the connect command."""
@@ -130,7 +133,9 @@ class TestConnectCommand:
         sse_ctor.assert_called_once_with("http://example.com/sse", timeout=30.0)
         sse_transport.connect.assert_called_once()
 
-    @pytest.mark.parametrize("target", ["my-server", "todo-app", "localhost:3100", "ftp://host/sse"])
+    @pytest.mark.parametrize(
+        "target", ["my-server", "todo-app", "localhost:3100", "ftp://host/sse"]
+    )
     def test_connect_rejects_a_target_that_is_not_a_url(self, runner, temp_state_file, target):
         """A name used to report "Connected" against an empty in-process server."""
         result = runner.invoke(cli, ["connect", target])
@@ -214,19 +219,21 @@ class TestToolsCommand:
     def test_tools_list(self, runner, temp_state_file):
         """Should list available tools."""
         _save_state({"server": "mock"})
-        
+
         # Create a pre-configured mock transport with tools
         mock_transport = MagicMock()
         mock_transport.connect = AsyncMock()
         mock_transport.disconnect = AsyncMock()
-        mock_transport.list_tools = AsyncMock(return_value=[
-            ToolInfo(name="user-create", description="Create a user"),
-            ToolInfo(name="user-list", description="List all users"),
-        ])
-        
+        mock_transport.list_tools = AsyncMock(
+            return_value=[
+                ToolInfo(name="user-create", description="Create a user"),
+                ToolInfo(name="user-list", description="List all users"),
+            ]
+        )
+
         with patch.object(_cli_main_module, "_get_transport", return_value=mock_transport):
             result = runner.invoke(cli, ["tools", "-s", "mock"])
-        
+
         assert result.exit_code == 0
         assert "Available Tools" in result.output
         assert "user-create" in result.output
@@ -250,8 +257,11 @@ class TestCallCommand:
 
     @pytest.mark.parametrize(
         ("raw", "reason"),
-        [("{not json", "Expecting property name"), ("not json", 'Expected key=value, got "not"'),
-         ('{"a": NaN}', "NaN is not JSON")],
+        [
+            ("{not json", "Expecting property name"),
+            ("not json", 'Expected key=value, got "not"'),
+            ('{"a": NaN}', "NaN is not JSON"),
+        ],
     )
     def test_call_invalid_args(self, runner, temp_state_file, raw, reason):
         """Should error on arguments that are neither a JSON object nor key=value pairs."""
@@ -285,11 +295,13 @@ class TestValidateCommand:
         transport = MagicMock()
         transport.connect = AsyncMock()
         transport.disconnect = AsyncMock()
-        transport.list_tools = AsyncMock(return_value=[
-            ToolInfo(name="afd-help", description="Help"),
-            ToolInfo(name="afd-schema", description="Schema"),
-            ToolInfo(name="afd-context-list", description="Contexts"),
-        ])
+        transport.list_tools = AsyncMock(
+            return_value=[
+                ToolInfo(name="afd-help", description="Help"),
+                ToolInfo(name="afd-schema", description="Schema"),
+                ToolInfo(name="afd-context-list", description="Contexts"),
+            ]
+        )
 
         async def _call_tool(name, arguments):
             if name == "afd-help":
@@ -307,7 +319,7 @@ class TestValidateCommand:
                                 "category": "users",
                                 "requires": ["session-open"],
                                 "contexts": ["editing"],
-                            }
+                            },
                         ]
                     }
                 }
@@ -318,13 +330,19 @@ class TestValidateCommand:
                             {
                                 "name": "session-open",
                                 "input_schema": {"type": "object", "properties": {}},
-                                "output_schema": {"type": "object", "properties": {"sessionId": {"type": "string"}}},
+                                "output_schema": {
+                                    "type": "object",
+                                    "properties": {"sessionId": {"type": "string"}},
+                                },
                             },
                             {
                                 "name": "user-create",
                                 "input_schema": {"type": "object", "properties": {}},
-                                "output_schema": {"type": "object", "properties": {"id": {"type": "string"}}},
-                            }
+                                "output_schema": {
+                                    "type": "object",
+                                    "properties": {"id": {"type": "string"}},
+                                },
+                            },
                         ]
                     }
                 }
@@ -347,10 +365,12 @@ class TestValidateCommand:
         transport = MagicMock()
         transport.connect = AsyncMock()
         transport.disconnect = AsyncMock()
-        transport.list_tools = AsyncMock(return_value=[
-            ToolInfo(name="afd-help", description="Help"),
-            ToolInfo(name="afd-schema", description="Schema"),
-        ])
+        transport.list_tools = AsyncMock(
+            return_value=[
+                ToolInfo(name="afd-help", description="Help"),
+                ToolInfo(name="afd-schema", description="Schema"),
+            ]
+        )
 
         async def _call_tool(name, arguments):
             if name == "afd-help":
@@ -391,19 +411,26 @@ class TestValidateCommand:
         transport = MagicMock()
         transport.connect = AsyncMock()
         transport.disconnect = AsyncMock()
-        transport.list_tools = AsyncMock(return_value=[
-            ToolInfo(
-                name="user-create",
-                description="Create a user account",
-                input_schema={"type": "object", "properties": {}},
-                meta={
-                    "outputSchema": {"type": "object", "properties": {"id": {"type": "string"}}},
-                    "contexts": ["editing"],
-                    "requires": ["session-open"],
-                },
-            ),
-        ])
-        transport.call_tool = AsyncMock(side_effect=AssertionError("Fallback bootstrap path should not be used"))
+        transport.list_tools = AsyncMock(
+            return_value=[
+                ToolInfo(
+                    name="user-create",
+                    description="Create a user account",
+                    input_schema={"type": "object", "properties": {}},
+                    meta={
+                        "outputSchema": {
+                            "type": "object",
+                            "properties": {"id": {"type": "string"}},
+                        },
+                        "contexts": ["editing"],
+                        "requires": ["session-open"],
+                    },
+                ),
+            ]
+        )
+        transport.call_tool = AsyncMock(
+            side_effect=AssertionError("Fallback bootstrap path should not be used")
+        )
 
         captured = {}
 
@@ -462,6 +489,7 @@ class TestValidateCommand:
 # ==============================================================================
 # Output Formatting Tests
 # ==============================================================================
+
 
 class TestOutputFormatting:
     """Tests for Rich output formatting."""
@@ -527,6 +555,7 @@ class TestPrintResult:
 # ==============================================================================
 # Integration Tests
 # ==============================================================================
+
 
 class TestCLIIntegration:
     """Integration tests for CLI workflows."""

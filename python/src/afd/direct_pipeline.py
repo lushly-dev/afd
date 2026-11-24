@@ -67,7 +67,7 @@ class PipelineStepResult:
 
     command: str
     alias: str | None
-    result: CommandResult
+    result: CommandResult[Any]
     duration_ms: float
     skipped: bool = False
 
@@ -87,7 +87,7 @@ class PipelineResult:
     success: bool
     steps: list[PipelineStepResult]
     outputs: dict[str, Any]
-    final: CommandResult | None
+    final: CommandResult[Any] | None
     total_duration_ms: float
 
 
@@ -142,7 +142,7 @@ async def run_direct_pipeline(
 
     step_results: list[PipelineStepResult] = []
     outputs: dict[str, Any] = {}
-    prev_result: CommandResult | None = None
+    prev_result: CommandResult[Any] | None = None
     all_success = True
     variables = _PipelineContext(pipeline_input=input)
 
@@ -249,7 +249,7 @@ def _evaluate_condition(
     """
     if isinstance(condition, str):
         return bool(resolve_variable(condition, variables))
-    return evaluate_condition(condition, variables)
+    return evaluate_condition(condition, variables)  # type: ignore[arg-type]
 
 
 def _reject_streaming_step(

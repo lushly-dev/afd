@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import shlex
 from pathlib import PurePosixPath
+from typing import Any
 
 from botcore_factory import change_report, dials, records
 from botcore_factory.adapter import matches
@@ -107,7 +108,9 @@ def _check_review(factory: Factory, worktree: str, head: str) -> None:
         )
 
 
-def _check_gate(factory: Factory, worktree: str, branch: str, cell: dict, state: dict) -> None:
+def _check_gate(
+    factory: Factory, worktree: str, branch: str, cell: dict[str, Any], state: dict[str, Any]
+) -> None:
     """A branch ejected for a failing check may not come back with new gate-path edits."""
     ejection = factory.store.last_ejection(branch)
     cause = ejection.get("cause") if ejection else None
@@ -147,8 +150,8 @@ def _check_gate(factory: Factory, worktree: str, branch: str, cell: dict, state:
     )
 
 
-def _prequeue(factory: Factory, worktree: str) -> list[dict]:
-    stages = []
+def _prequeue(factory: Factory, worktree: str) -> list[dict[str, Any]]:
+    stages: list[dict[str, Any]] = []
     for stage in factory.config.prequeue:
         label = f"prequeue:{stage.name}"
         try:
@@ -195,7 +198,7 @@ def _profile_from_issues(issues: list[Issue]) -> str:
 
 def _read_test_changes(
     factory: Factory, worktree: str, branch: str, head: str
-) -> tuple[dict | None, str | None]:
+) -> tuple[dict[str, Any] | None, str | None]:
     """Advisory test-change report at enqueue (the lane runs the base's copy before validation)."""
     if not factory.config.test_changes:
         return None, None
@@ -232,8 +235,8 @@ def _check_inputs(factory: Factory, branch: str, body_file: str | None) -> None:
 
 
 def _admit(
-    state: dict,
-    entry: dict,
+    state: dict[str, Any],
+    entry: dict[str, Any],
     repaired: bool,
     *,
     hold_reason: str | None = None,
@@ -266,7 +269,7 @@ def _admit(
     return "queued", len(state["queue"]), None
 
 
-def _find_cell(state: dict, branch: str) -> dict:
+def _find_cell(state: dict[str, Any], branch: str) -> dict[str, Any]:
     cell = next((c for c in state["cells"] if c.get("branch") == branch), None)
     if cell is None:
         raise Refusal(
@@ -275,10 +278,13 @@ def _find_cell(state: dict, branch: str) -> dict:
             "The foreman registers a cell with cell-register before starting it; a branch "
             "without one cannot be queued",
         )
-    return cell
+    cell_dict: dict[str, Any] = cell
+    return cell_dict
 
 
-def enqueue(factory: Factory, worktree: str, title: str | None, body_file: str | None) -> dict:
+def enqueue(
+    factory: Factory, worktree: str, title: str | None, body_file: str | None
+) -> dict[str, Any]:
     """The checks run outside the state lock (the cheap stages take minutes); the worktree is
     read again under it, so what joins the queue is the head that was checked."""
     branch, head = _worktree(factory, worktree)

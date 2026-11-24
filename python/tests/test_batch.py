@@ -8,10 +8,7 @@ from afd.core.batch import (
     BatchCommandResult,
     BatchOptions,
     BatchRequest,
-    BatchResult,
-    BatchSummary,
     BatchTiming,
-    BatchWarning,
     calculate_batch_confidence,
     create_batch_request,
     create_batch_result,
@@ -22,7 +19,8 @@ from afd.core.batch import (
 )
 from afd.core.errors import CommandError
 from afd.core.metadata import Warning
-from afd.core.result import CommandResult, error as result_error, success as result_success
+from afd.core.result import error as result_error
+from afd.core.result import success as result_success
 from afd.core.wire import WIRE_ENVELOPE
 
 
@@ -43,7 +41,11 @@ def _make_failure_result():
 def _make_batch_command_result(id, index, command, result, duration_ms=10):
     """Helper to create a BatchCommandResult."""
     return BatchCommandResult(
-        id=id, index=index, command=command, result=result, duration_ms=duration_ms,
+        id=id,
+        index=index,
+        command=command,
+        result=result,
+        duration_ms=duration_ms,
     )
 
 
@@ -92,7 +94,10 @@ class TestBatchEnvelopeNulls:
         [
             ({"commands": [{"command": "todo-list", "id": None}]}, ("commands", 0, "id")),
             ({"commands": [{"command": "todo-list"}], "options": None}, ("options",)),
-            ({"commands": [{"command": "todo-list"}], "options": {"timeout": None}}, ("options", "timeout")),
+            (
+                {"commands": [{"command": "todo-list"}], "options": {"timeout": None}},
+                ("options", "timeout"),
+            ),
         ],
     )
     def test_null_is_rejected_in_a_wire_envelope(self, payload, path):
@@ -161,18 +166,22 @@ class TestCreateBatchRequest:
     """Tests for create_batch_request factory."""
 
     def test_auto_assigns_ids(self):
-        request = create_batch_request([
-            {"command": "todo-create", "input": {"title": "A"}},
-            {"command": "todo-create", "input": {"title": "B"}},
-        ])
+        request = create_batch_request(
+            [
+                {"command": "todo-create", "input": {"title": "A"}},
+                {"command": "todo-create", "input": {"title": "B"}},
+            ]
+        )
         assert len(request.commands) == 2
         assert request.commands[0].id == "cmd-0"
         assert request.commands[1].id == "cmd-1"
 
     def test_preserves_explicit_ids(self):
-        request = create_batch_request([
-            {"id": "my-id", "command": "todo-create", "input": {}},
-        ])
+        request = create_batch_request(
+            [
+                {"id": "my-id", "command": "todo-create", "input": {}},
+            ]
+        )
         assert request.commands[0].id == "my-id"
 
     def test_passes_options(self):
@@ -274,7 +283,9 @@ class TestCreateBatchResult:
         warning = Warning(code="SLOW", message="Command was slow")
         results = [
             _make_batch_command_result(
-                "0", 0, "a",
+                "0",
+                0,
+                "a",
                 _make_success_result(warnings=[warning]),
             ),
         ]
@@ -303,6 +314,7 @@ class TestCreateBatchResult:
 
     def test_with_metadata(self):
         from afd.core.result import ResultMetadata
+
         results = [
             _make_batch_command_result("0", 0, "a", _make_success_result()),
         ]
@@ -376,24 +388,34 @@ class TestBatchTypeGuards:
         assert is_batch_result(batch) is True
 
     def test_is_batch_result_with_dict(self):
-        assert is_batch_result({
-            "success": True,
-            "results": [],
-            "summary": {},
-            "timing": {},
-        }) is True
+        assert (
+            is_batch_result(
+                {
+                    "success": True,
+                    "results": [],
+                    "summary": {},
+                    "timing": {},
+                }
+            )
+            is True
+        )
 
     def test_is_batch_result_with_missing_fields(self):
         assert is_batch_result({"success": True}) is False
         assert is_batch_result({"success": True, "results": []}) is False
 
     def test_is_batch_result_with_non_list_results(self):
-        assert is_batch_result({
-            "success": True,
-            "results": "not-a-list",
-            "summary": {},
-            "timing": {},
-        }) is False
+        assert (
+            is_batch_result(
+                {
+                    "success": True,
+                    "results": "not-a-list",
+                    "summary": {},
+                    "timing": {},
+                }
+            )
+            is False
+        )
 
     def test_is_batch_command_with_instance(self):
         cmd = BatchCommand(command="test")

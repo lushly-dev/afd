@@ -7,7 +7,7 @@ body, use camelCase keys, serve JSON-RPC on ``/message`` and stream from
 
 import json
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import httpx
 import pytest
@@ -27,7 +27,7 @@ def _fixture(name: str) -> Any:
     return json.loads((WIRE_DIR / name).read_text(encoding="utf-8"))
 
 
-def _tool_result(body: Any, *, is_error: bool) -> Dict[str, Any]:
+def _tool_result(body: Any, *, is_error: bool) -> dict[str, Any]:
     """An MCP tools/call result as a TypeScript server sends it."""
     return {"content": [{"type": "text", "text": json.dumps(body, indent=2)}], "isError": is_error}
 
@@ -35,7 +35,7 @@ def _tool_result(body: Any, *, is_error: bool) -> Dict[str, Any]:
 class _RawTransport:
     """Returns canned MCP results through the real content extraction."""
 
-    def __init__(self, raw: Dict[str, Any]):
+    def __init__(self, raw: dict[str, Any]):
         self.raw = raw
         self.state = TransportState.DISCONNECTED
 
@@ -48,11 +48,11 @@ class _RawTransport:
     async def list_tools(self):
         return []
 
-    async def call_tool(self, name: str, arguments: Optional[Dict[str, Any]] = None):
+    async def call_tool(self, name: str, arguments: dict[str, Any] | None = None):
         return _HttpBasedTransport._extract_content(self.raw)
 
 
-async def _client_for(raw: Dict[str, Any]) -> McpClient:
+async def _client_for(raw: dict[str, Any]) -> McpClient:
     client = McpClient(transport=_RawTransport(raw))
     await client.connect()
     return client
@@ -70,7 +70,10 @@ class TestExtractContent:
         assert _HttpBasedTransport._extract_content(_tool_result(body, is_error=True)) == body
 
     def test_is_error_with_plain_text_raises(self):
-        raw = {"content": [{"type": "text", "text": "Error executing tool x: boom"}], "isError": True}
+        raw = {
+            "content": [{"type": "text", "text": "Error executing tool x: boom"}],
+            "isError": True,
+        }
 
         with pytest.raises(ToolExecutionError, match="boom"):
             _HttpBasedTransport._extract_content(raw)
@@ -180,7 +183,7 @@ class TestStream:
 
         monkeypatch.setattr(httpx, "AsyncClient", client_factory)
 
-    async def _client(self, url: str = "", endpoint: Optional[str] = None) -> McpClient:
+    async def _client(self, url: str = "", endpoint: str | None = None) -> McpClient:
         client = McpClient(McpClientConfig(url=url, endpoint=endpoint), transport=MockTransport())
         await client.connect()
         return client
@@ -219,12 +222,14 @@ class TestStream:
         received = [chunk async for chunk in client.stream("missing")]
 
         # The server's own error is kept, as TypeScript's client keeps it.
-        assert received == [{
-            "type": "error",
-            "error": {"code": "HTTP_404", "message": "Not found"},
-            "chunksBeforeError": 0,
-            "recoverable": False,
-        }]
+        assert received == [
+            {
+                "type": "error",
+                "error": {"code": "HTTP_404", "message": "Not found"},
+                "chunksBeforeError": 0,
+                "recoverable": False,
+            }
+        ]
 
     @pytest.mark.asyncio
     async def test_an_http_error_without_an_afd_error_is_a_stream_error(self, monkeypatch):
@@ -289,7 +294,7 @@ class _SessionTransport:
     async def list_tools(self):
         return []
 
-    async def call_tool(self, name: str, arguments: Optional[Dict[str, Any]] = None):
+    async def call_tool(self, name: str, arguments: dict[str, Any] | None = None):
         result = await self._session.call_tool(name, arguments or {})
         payload = result.model_dump(by_alias=True, mode="json", exclude_none=True)
         return _HttpBasedTransport._extract_content(payload)

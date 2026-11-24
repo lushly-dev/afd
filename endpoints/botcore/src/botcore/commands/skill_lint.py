@@ -85,7 +85,8 @@ async def skill_lint_spec(
         )
 
     budget, config_error = _listing_budget(target)
-    linted, listing = lint_skill_dirs(skill_dirs, budget)
+    linted, raw_listing = lint_skill_dirs(skill_dirs, budget)
+    listing: dict[str, object] = dict(raw_listing)
     if config_error:
         listing["config_error"] = config_error
     results = [

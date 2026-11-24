@@ -179,7 +179,7 @@ def test_typescript_star_exports_are_followed(tmp_path):
 
 
 def test_parse_python_exports():
-    content = '''
+    content = """
 __all__ = [
     "__version__",
     "CommandResult",
@@ -188,7 +188,7 @@ __all__ = [
     "CommandError",
     "create_error",
 ]
-'''
+"""
     entries = parse_python_exports(content)
     names = _names(entries)
     assert "CommandResult" in names
@@ -199,7 +199,7 @@ __all__ = [
 
 
 def test_python_all_augmentations_are_followed():
-    content = '''
+    content = """
 __all__: list[str] = ["first"]
 __all__ += ["second", 'third']
 __all__.extend(["fourth"])
@@ -213,9 +213,16 @@ try:
 except ImportError:
     pass
 names = ["not_exported"]
-'''
+"""
     assert [e.name for e in parse_python_exports(content)] == [
-        "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth",
+        "first",
+        "second",
+        "third",
+        "fourth",
+        "fifth",
+        "sixth",
+        "seventh",
+        "eighth",
     ]
 
 
@@ -366,7 +373,7 @@ def test_cpp_literals_and_comments_do_not_confuse_the_scanner():
     header = (
         "namespace afd {\n"
         'inline constexpr char open_brace[] = "{";\n'
-        'inline constexpr char close_brace = \'}\';\n'
+        "inline constexpr char close_brace = '}';\n"
         'const char* raw() { return R"x(}; // not a comment { )x"; }\n'
         "/* struct Commented {}; */\n"
         "#define MACRO(x) struct FromMacro {}\n"
@@ -506,7 +513,7 @@ def _write_vector_repo(root: Path, fixtures=("pipeline.json", "catalog.json")) -
             )
         elif language == "rust":
             source = "use std::path::PathBuf;\n" + "".join(
-                f"let path = PathBuf::from(\".\").join(\"{fixture}\");\n"
+                f'let path = PathBuf::from(".").join("{fixture}");\n'
                 "let text = std::fs::read_to_string(path).unwrap();\n"
                 "let vectors: serde_json::Value = serde_json::from_str(&text).unwrap();\n"
                 for fixture in fixtures
@@ -549,8 +556,8 @@ def test_dropped_vector_loader_is_a_language_gap(tmp_path):
     _write_vector_repo(tmp_path)
     (tmp_path / _VECTOR_TEST_FILES["rust"]).write_text(
         'let path = PathBuf::from(".").join("pipeline.json");\n'
-        'let text = std::fs::read_to_string(path).unwrap();\n'
-        'let vectors: serde_json::Value = serde_json::from_str(&text).unwrap();\n',
+        "let text = std::fs::read_to_string(path).unwrap();\n"
+        "let vectors: serde_json::Value = serde_json::from_str(&text).unwrap();\n",
         encoding="utf-8",
     )
 
@@ -635,10 +642,15 @@ def _write_contract_repo(root: Path, version: str = "1.0", **overrides: str) -> 
 
 
 def test_read_contract_version_in_every_language():
-    assert read_contract_version("typescript", "export const AFD_CONTRACT_VERSION: string = \"2.1\";") == "2.1"
+    assert (
+        read_contract_version("typescript", 'export const AFD_CONTRACT_VERSION: string = "2.1";')
+        == "2.1"
+    )
     assert read_contract_version("python", "CONTRACT_VERSION = '2.1'\n") == "2.1"
     assert read_contract_version("python", "CONTRACT_VERSION: Final[str] = '2.1'\n") == "2.1"
-    assert read_contract_version("rust", "pub const CONTRACT_VERSION: &'static str = \"2.1\";") == "2.1"
+    assert (
+        read_contract_version("rust", 'pub const CONTRACT_VERSION: &\'static str = "2.1";') == "2.1"
+    )
     assert (
         read_contract_version("cpp", 'inline constexpr std::string_view contract_version = "2.1";')
         == "2.1"
@@ -646,13 +658,19 @@ def test_read_contract_version_in_every_language():
 
 
 def test_read_contract_version_ignores_comments_and_other_names():
-    assert read_contract_version("typescript", "// export const AFD_CONTRACT_VERSION = '0.9';") is None
-    assert read_contract_version("typescript", "export const AFD_CONTRACT_VERSION_X = '0.9';") is None
+    assert (
+        read_contract_version("typescript", "// export const AFD_CONTRACT_VERSION = '0.9';") is None
+    )
+    assert (
+        read_contract_version("typescript", "export const AFD_CONTRACT_VERSION_X = '0.9';") is None
+    )
     assert read_contract_version("python", "# CONTRACT_VERSION = '0.9'\nOTHER = '1.0'\n") is None
     assert read_contract_version("python", "def f(:\n") is None
-    assert read_contract_version("rust", "/* pub const CONTRACT_VERSION: &str = \"0.9\"; */") is None
+    assert read_contract_version("rust", '/* pub const CONTRACT_VERSION: &str = "0.9"; */') is None
     assert (
-        read_contract_version("cpp", '// inline constexpr std::string_view contract_version = "0.9";')
+        read_contract_version(
+            "cpp", '// inline constexpr std::string_view contract_version = "0.9";'
+        )
         is None
     )
 
@@ -722,20 +740,14 @@ def fake_repo(tmp_path):
     py_dir = tmp_path / "python" / "src" / "afd"
     py_dir.mkdir(parents=True)
     (py_dir / "__init__.py").write_text(
-        '__all__ = [\n'
-        '    "CommandResult",\n'
-        '    "success",\n'
-        '    "failure",\n'
-        ']\n',
+        '__all__ = [\n    "CommandResult",\n    "success",\n    "failure",\n]\n',
         encoding="utf-8",
     )
 
     rs_dir = tmp_path / "packages" / "rust" / "src"
     rs_dir.mkdir(parents=True)
     (rs_dir / "lib.rs").write_text(
-        "pub use result::{\n"
-        "    success, failure, CommandResult,\n"
-        "};\n",
+        "pub use result::{\n    success, failure, CommandResult,\n};\n",
         encoding="utf-8",
     )
 
@@ -774,10 +786,7 @@ async def test_parity_detects_missing(fake_repo):
     """When Python is missing an export, it should be reported."""
     py_init = fake_repo / "python" / "src" / "afd" / "__init__.py"
     py_init.write_text(
-        '__all__ = [\n'
-        '    "CommandResult",\n'
-        '    "success",\n'
-        ']\n',
+        '__all__ = [\n    "CommandResult",\n    "success",\n]\n',
         encoding="utf-8",
     )
     result = await alfred_parity(str(fake_repo))
@@ -949,10 +958,15 @@ async def test_parity_on_real_repo():
 
     # The parsers find the core surface in every language.
     for language, entries in (
-        ("typescript", parse_typescript_exports(ts_file.read_text(encoding="utf-8"), ts_file.parent)),
+        (
+            "typescript",
+            parse_typescript_exports(ts_file.read_text(encoding="utf-8"), ts_file.parent),
+        ),
         (
             "python",
-            parse_python_exports((REPO_ROOT / "python/src/afd/__init__.py").read_text(encoding="utf-8")),
+            parse_python_exports(
+                (REPO_ROOT / "python/src/afd/__init__.py").read_text(encoding="utf-8")
+            ),
         ),
         (
             "rust",
@@ -975,7 +989,9 @@ async def test_parity_on_real_repo():
 
     # Every language declares the contract version in spec/VERSION.
     contract = data["contract_version"]
-    assert contract["expected"] == (REPO_ROOT / "spec" / "VERSION").read_text(encoding="utf-8").strip()
+    assert (
+        contract["expected"] == (REPO_ROOT / "spec" / "VERSION").read_text(encoding="utf-8").strip()
+    )
     assert contract["missing"] == []
     assert contract["mismatched"] == []
     assert contract["gaps"] == 0

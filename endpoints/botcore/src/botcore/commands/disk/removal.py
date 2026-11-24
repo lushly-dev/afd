@@ -19,6 +19,7 @@ import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from botcore.commands.disk.finished import judge, landed_how, reflog_only_commits, same_path
 from botcore.commands.disk.git import GitError, git_out, list_worktrees, path_key, status
@@ -31,9 +32,11 @@ MAX_RECORDS = 5000
 PIN_ROOT = "refs/botcore/removed"
 
 
-def plan_removals(data: dict, include_restorable: bool, due_days: float) -> list[dict]:
+def plan_removals(
+    data: dict[str, Any], include_restorable: bool, due_days: float
+) -> list[dict[str, Any]]:
     """The worktrees a tier 2 run would remove, as plain records for the Action list."""
-    planned = []
+    planned: list[dict[str, Any]] = []
     if not data.get("t3_code_settings_read", True):
         return planned
     for repo in data["repos"]:
@@ -45,24 +48,32 @@ def plan_removals(data: dict, include_restorable: bool, due_days: float) -> list
                 continue
             if row.get("tier") != 2 and not (include_restorable and verdict["restorable"]):
                 continue
-            planned.append({
-                "target": row["path"],
-                "main": repo["main"],
-                "branch": row.get("branch"),
-                "head": row.get("head"),
-                "landed": verdict.get("landed"),
-                "outputs": [
-                    s["path"] for s in row.get("strip", []) if s["kind"] in ("dir", "file")
-                ],
-                "due_days": due_days,
-                "bytes": row.get("strip_ready_bytes") or None,
-            })
+            planned.append(
+                {
+                    "target": row["path"],
+                    "main": repo["main"],
+                    "branch": row.get("branch"),
+                    "head": row.get("head"),
+                    "landed": verdict.get("landed"),
+                    "outputs": [
+                        s["path"] for s in row.get("strip", []) if s["kind"] in ("dir", "file")
+                    ],
+                    "due_days": due_days,
+                    "bytes": row.get("strip_ready_bytes") or None,
+                }
+            )
     return planned
 
 
 def recheck_removal(  # noqa: PLR0911, PLR0913 - each is a fact the recheck must compare
-    target: Path, main: Path, head: str | None, landed: bool, due_days: float,
-    config: DiskConfig, busy: str | None, outputs: list[str] | None = None,
+    target: Path,
+    main: Path,
+    head: str | None,
+    landed: bool,
+    due_days: float,
+    config: DiskConfig,
+    busy: str | None,
+    outputs: list[str] | None = None,
     volume_problem: Callable[[str], str | None] | None = None,
     t3_owned: Callable[[Path], str | None] | None = None,
     checkouts: list[str] | None = None,
@@ -112,8 +123,9 @@ def recheck_removal(  # noqa: PLR0911, PLR0913 - each is a fact the recheck must
     if activity is not None and time.time() - activity < due_days * DAY:
         return "it was active since planning"
     others = [c for c in checkouts or [] if c != path_key(target)]
-    verdict = judge(target, main, admin, now_head, branch, st.changed, st.operation, config, 60,
-                    others)
+    verdict = judge(
+        target, main, admin, now_head, branch, st.changed, st.operation, config, 60, others
+    )
     if verdict.unique:
         return f"something unique is in it now: {verdict.unique[0]}"
     if landed and not landed_how(target, now_head, config.landing_ref, 60, branch):
@@ -173,7 +185,7 @@ def _records_path() -> Path:
     return state_path() / REMOVALS
 
 
-def read_records() -> list[dict]:
+def read_records() -> list[dict[str, Any]]:
     try:
         data = json.loads(_records_path().read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -181,7 +193,7 @@ def read_records() -> list[dict]:
     return [r for r in data if isinstance(r, dict)] if isinstance(data, list) else []
 
 
-def _write_records(records: list[dict]) -> None:
+def _write_records(records: list[dict[str, Any]]) -> None:
     folder = state_path()
     folder.mkdir(parents=True, exist_ok=True)
     tmp = folder / f".{REMOVALS}.{os.getpid()}.tmp"
@@ -189,21 +201,24 @@ def _write_records(records: list[dict]) -> None:
     os.replace(tmp, _records_path())
 
 
-def begin_record(target: Path, main: Path, branch: str | None, head: str | None,
-                 refs: list[str]) -> str:
+def begin_record(
+    target: Path, main: Path, branch: str | None, head: str | None, refs: list[str]
+) -> str:
     """Write a pending removal record before git removes anything; return its id."""
     record_id = refs[0] if refs else f"{target}@{time.time()}"
     records = read_records()
-    records.append({
-        "id": record_id,
-        "state": "pending",
-        "path": str(target),
-        "main": str(main),
-        "branch": branch,
-        "head": head,
-        "refs": refs,
-        "started_at": datetime.now(UTC).isoformat(timespec="seconds"),
-    })
+    records.append(
+        {
+            "id": record_id,
+            "state": "pending",
+            "path": str(target),
+            "main": str(main),
+            "branch": branch,
+            "head": head,
+            "refs": refs,
+            "started_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        }
+    )
     _write_records(records)
     return record_id
 
@@ -219,15 +234,15 @@ def finish_record(record_id: str, state: str, detail: str | None = None) -> None
     _write_records(records)
 
 
-def find_record(path: Path) -> dict | None:
+def find_record(path: Path) -> dict[str, Any] | None:
     """The latest record of a removal of path (a pending one whose folder is gone counts)."""
     for record in reversed(read_records()):
         if not same_path(record["path"], path):
             continue
         if record.get("state") == "removed":
-            return record
+            return dict(record)
         if record.get("state") == "pending" and not exists(Path(record["path"])):
-            return record
+            return dict(record)
     return None
 
 
@@ -242,7 +257,7 @@ def _checked_out_elsewhere(main: Path, branch: str) -> bool:
     return any(w.branch == branch for w in worktrees)
 
 
-def restore(record: dict) -> tuple[bool, str]:
+def restore(record: dict[str, Any]) -> tuple[bool, str]:
     """Recreate a removed worktree at its path and commit: on its branch when the branch still
     points there and is free, on a recreated branch when it was deleted, else detached."""
     target, main = Path(record["path"]), Path(record["main"])

@@ -149,7 +149,7 @@ def test_audience_cases(case: dict[str, Any]) -> None:
     "case", CASES["scopeClaims"], ids=[case["description"] for case in CASES["scopeClaims"]]
 )
 def test_scope_claim_cases(case: dict[str, Any]) -> None:
-    scope = case["scope"] if "scope" in case else _ABSENT
+    scope = case.get("scope", _ABSENT)
     result = parse_scope_claim(scope, case["prefix"], case["limit"])
     if "refused" in case:
         assert result.ok is False
@@ -284,16 +284,20 @@ def test_request_decision_warns_and_refuses_invalid_or_empty_missing() -> None:
     from afd.server.auth_scopes import merge_decisions
 
     warnings: list[str] = []
-    assert request_decision([ScopeMissing(("not a token",))], warn=warnings.append) == RequestForbidden(
-        ()
-    )
+    assert request_decision(
+        [ScopeMissing(("not a token",))], warn=warnings.append
+    ) == RequestForbidden(())
     assert request_decision([ScopeMissing(())], warn=warnings.append) == RequestForbidden(())
     # Non-string mapping items (e.g. integers) are rejected rather than stringified into scopes.
-    assert request_decision([{"missing": [123, "todo:read"]}], warn=warnings.append) == RequestForbidden(  # type: ignore[list-item]
+    assert request_decision(
+        [{"missing": [123, "todo:read"]}], warn=warnings.append
+    ) == RequestForbidden(  # type: ignore[list-item]
         ("todo:read",)
     )
     # Unhashable items inside ScopeMissing survive merging with required scopes without raising.
-    merged = merge_decisions(ScopeMissing(("todo:read",)), ScopeMissing((["unhashable"], "todo:write")))  # type: ignore[arg-type]
+    merged = merge_decisions(
+        ScopeMissing(("todo:read",)), ScopeMissing((["unhashable"], "todo:write"))
+    )  # type: ignore[arg-type]
     assert request_decision([merged], warn=warnings.append) == RequestForbidden(
         ("todo:read", "todo:write")
     )
@@ -306,7 +310,10 @@ def test_scope_challenge_formatting_and_validation() -> None:
         challenge.header_value(["todo:write", "todo:admin"])
         == 'Gateway realm="todo", error="insufficient_scope", scope="todo:write todo:admin"'
     )
-    assert challenge.header_value(["not a token"]) == 'Gateway realm="todo", error="insufficient_scope"'
+    assert (
+        challenge.header_value(["not a token"])
+        == 'Gateway realm="todo", error="insufficient_scope"'
+    )
     assert ScopeChallenge("X").header_value([]) == 'X error="insufficient_scope"'
 
     for bad_scheme in ("", "Bearer", "bearer", "a b", 'a"b', "é"):

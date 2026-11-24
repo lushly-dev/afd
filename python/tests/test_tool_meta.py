@@ -30,7 +30,9 @@ def test_spec_tool_meta_key_vectors():
         allowed = case["allowed"]
         reason = check_meta_entry(key, value, allow_ui=True)
         if allowed:
-            assert reason is None, f"expected key {key!r} with {value!r} to be allowed, got: {reason}"
+            assert reason is None, (
+                f"expected key {key!r} with {value!r} to be allowed, got: {reason}"
+            )
             assert_tool_meta("demo-cmd", {key: value})
         else:
             assert reason is not None, f"expected key {key!r} with {value!r} to be refused"
@@ -129,7 +131,9 @@ def test_tool_meta_empty_dict_omitted():
     async def _handler(_input: Any, _ctx: Any = None) -> Any:
         return success({})
 
-    cmd_empty = CommandDefinition(name="plain-cmd", description="Plain", handler=_handler, tool_meta={})
+    cmd_empty = CommandDefinition(
+        name="plain-cmd", description="Plain", handler=_handler, tool_meta={}
+    )
     cmd_none = CommandDefinition(name="plain-cmd", description="Plain", handler=_handler)
     assert command_to_mcp_tool(cmd_empty) == command_to_mcp_tool(cmd_none)
 
@@ -138,7 +142,13 @@ def test_advertised_input_schema_validation_rules():
     assert_advertised_input_schema("ok-cmd", None)
     assert_advertised_input_schema("ok-cmd", {"type": "object", "properties": {}})
 
-    for bad in ("not-a-dict", [], {"type": "string"}, {"properties": {}}, {"type": "object", "x": float("nan")}):
+    for bad in (
+        "not-a-dict",
+        [],
+        {"type": "string"},
+        {"properties": {}},
+        {"type": "object", "x": float("nan")},
+    ):
         with pytest.raises(ValueError, match="bad-schema"):
             assert_advertised_input_schema("bad-schema", bad)  # type: ignore[arg-type]
 
@@ -209,11 +219,15 @@ async def test_advertised_input_schema_surfaces_and_runtime_validation():
         assert "minLength" not in md
 
         # Runtime calls validate against the validation schema (minLength: 2), not advertised!
-        too_short = await server.call_tool("afd-call", {"command": "wrap-greet", "input": {"name": "x"}})
+        too_short = await server.call_tool(
+            "afd-call", {"command": "wrap-greet", "input": {"name": "x"}}
+        )
         assert too_short.success is False
         assert too_short.error.code == "VALIDATION_ERROR"
 
-        valid = await server.call_tool("afd-call", {"command": "wrap-greet", "input": {"name": "Ada"}})
+        valid = await server.call_tool(
+            "afd-call", {"command": "wrap-greet", "input": {"name": "Ada"}}
+        )
         assert valid.success is True
         assert valid.data == {"greeted": "Ada"}
 
@@ -329,7 +343,11 @@ async def test_tool_meta_and_advertised_schema_over_real_mcp_transports():
         name="hello-greet",
         description="Greet",
         expose=MCP,
-        input_schema={"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]},
+        input_schema={
+            "type": "object",
+            "properties": {"name": {"type": "string"}},
+            "required": ["name"],
+        },
         advertised_input_schema=advertised,
         tool_meta=extra,
     )
@@ -353,7 +371,11 @@ async def test_tool_meta_and_advertised_schema_over_real_mcp_transports():
     async with _stream_session(server) as (send, notify):
         await send(
             "initialize",
-            {"protocolVersion": LEGACY, "capabilities": {}, "clientInfo": {"name": "t", "version": "0"}},
+            {
+                "protocolVersion": LEGACY,
+                "capabilities": {},
+                "clientInfo": {"name": "t", "version": "0"},
+            },
             req_id=1,
         )
         await notify("notifications/initialized")

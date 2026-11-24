@@ -26,12 +26,13 @@ process.
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import Any, Callable, Iterator, Optional
+from typing import Any
 
-Canonicalize = Callable[[Any], Optional[str]]
+Canonicalize = Callable[[Any], str | None]
 """The canonical JSON of a value, or ``None`` when it has none."""
 
 
@@ -41,7 +42,7 @@ class AdmissionCommand:
 
     name: str
     approval: Any = None
-    confirm_prompt: Optional[str] = None
+    confirm_prompt: str | None = None
 
 
 @dataclass(frozen=True)
@@ -49,7 +50,7 @@ class _Admitted:
     step: object
     """The approval step (one middleware instance) that admitted it."""
     name: str
-    canonical: Optional[str]
+    canonical: str | None
     """The canonical JSON of the input the approval step decided on; ``None`` when it has none, and
     then the dispatch must run that same input object."""
     input: Any
@@ -87,7 +88,7 @@ _LIVE: dict[int, list[Admission]] = {}
 _LOCK = threading.Lock()
 
 
-def _record(context: Any) -> Optional[Admission]:
+def _record(context: Any) -> Admission | None:
     """The record of the dispatch that runs on ``context``: the innermost of this task's, else the
     only one under way on that object anywhere."""
     for found in reversed(_RECORDS.get()):
@@ -134,7 +135,7 @@ def admit_approval(
     step: object,
     context: Any,
     command_name: str,
-    canonical: Optional[str],
+    canonical: str | None,
     input: Any,
     canonicalize: Canonicalize,
     *,
@@ -203,7 +204,7 @@ def take_admission(record: Admission, command_name: str, input: Any) -> str:
     return "admitted" if all(same(step) for step in admitted) else "mismatch"
 
 
-def live_command(context: Any) -> Optional[AdmissionCommand]:
+def live_command(context: Any) -> AdmissionCommand | None:
     """The command the call of ``context`` runs, as recorded by the engine; ``None`` outside it."""
     found = _record(context)
     return found.command if found is not None else None

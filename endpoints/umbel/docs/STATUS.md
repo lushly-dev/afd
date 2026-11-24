@@ -354,6 +354,7 @@ on 2026-11-23 are in the [session archives](#archive), in the tables they were w
 
 | Date | Session | What changed |
 | --- | --- | --- |
+| 2026-11-23 | Umbel crate and test layout ([#1774](https://github.com/lushly-dev/afd/issues/1774)) | In [#2357](https://github.com/lushly-dev/afd/pull/2357). Moved `umbel-knowledge` and `umbel-memory` binaries into `first-party/` and `umbel-todo` into `bins/todo/` (`umbel-todo`), removing `umbel` from `[dependencies]` of all three plugin libraries. Consolidated 267 top-level `tests/*.rs` files across 14 crates into one `tests/it/main.rs` per crate (plus `tests/it_logs/main.rs` in `umbel` for the five global-subscriber log-capture modules). Measured `cargo test --locked --workspace --no-run` (fresh `CARGO_TARGET_DIR`, `CARGO_PROFILE_DEV_DEBUG=line-tables-only`, `CARGO_BUILD_JOBS=4`, Windows x64 MSVC, Rust 1.98.0): target dir **47.98 GB -> 7.60 GB (-84.2%)**, test executables **311 -> 58 (-81.4%)**, cold wall time **595.9 s -> 584.7 s**. Because target-dir bloat is already cut by 84.2% without touching `src/`, extracting the hosted stack into a separate crate is deferred. |
 
 ## Archive
 

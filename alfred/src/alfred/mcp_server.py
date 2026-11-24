@@ -9,33 +9,49 @@ from alfred import __version__
 from alfred.host import build_alfred_host
 
 
-def create_server(workspace: str | Path, target=None, *, profile='inspection',
-                  raw_python=False, npm_controller=None):
+def create_server(
+    workspace: str | Path,
+    target=None,
+    *,
+    profile="inspection",
+    raw_python=False,
+    npm_controller=None,
+):
     """Create an explicit host; raw Python requires trusted-local opt-in.
 
     Run the server over stdio only: no other transport authenticates its caller.
     """
     host = build_alfred_host(workspace, target, profile=profile, npm_controller=npm_controller)
-    return create_host_mcp_server(host, version=__version__, raw_python=raw_python,
-                                  description='Alfred unified repository command host')
+    return create_host_mcp_server(
+        host,
+        version=__version__,
+        raw_python=raw_python,
+        description="Alfred unified repository command host",
+    )
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser()
-    parser.add_argument('--workspace', required=True)
-    parser.add_argument('--target')
-    parser.add_argument('--profile', choices=('inspection', 'trusted-local'), default='inspection')
-    parser.add_argument('--raw-python', action='store_true')
+    parser.add_argument("--workspace", required=True)
+    parser.add_argument("--target")
+    parser.add_argument("--profile", choices=("inspection", "trusted-local"), default="inspection")
+    parser.add_argument("--raw-python", action="store_true")
     # Kept so the old flag gets an explanation, not a usage error.
-    parser.add_argument('--sse', action='store_true', help='Refused: the server runs over stdio only')
+    parser.add_argument(
+        "--sse", action="store_true", help="Refused: the server runs over stdio only"
+    )
     args = parser.parse_args(argv)
     if args.sse:
         # An SSE port has no authentication, and even inspection reads the repository.
-        parser.error('--sse is refused: the Alfred MCP server runs over stdio only, for the '
-                     'client that started it')
-    server = create_server(args.workspace, args.target, profile=args.profile, raw_python=args.raw_python)
-    server.run(transport='stdio')
+        parser.error(
+            "--sse is refused: the Alfred MCP server runs over stdio only, for the "
+            "client that started it"
+        )
+    server = create_server(
+        args.workspace, args.target, profile=args.profile, raw_python=args.raw_python
+    )
+    server.run(transport="stdio")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

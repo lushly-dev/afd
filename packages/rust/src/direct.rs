@@ -13,10 +13,15 @@ use std::sync::{Arc, Mutex, MutexGuard};
 /// Token-free decision metadata passed to the trusted application's approval hook.
 #[derive(Clone, Debug)]
 pub struct DirectApprovalRequest {
+    /// Name of the held command.
     pub command: String,
+    /// Validated input payload for the held command.
     pub input: Value,
+    /// Human-readable summary of the action awaiting approval.
     pub summary: String,
+    /// RFC 3339 timestamp when the approval request expires.
     pub expires_at: String,
+    /// Optional reason why approval was requested.
     pub reason: Option<String>,
 }
 
@@ -96,6 +101,7 @@ pub struct DirectClient {
 }
 
 impl DirectClient {
+    /// Create a direct client backed by `registry` using [`CommandInterface::Agent`].
     pub fn new(registry: Arc<CommandRegistry>) -> Self {
         Self {
             registry,
@@ -115,11 +121,13 @@ impl DirectClient {
         self
     }
 
+    /// Install a trusted host hook to decide held approval requests.
     pub fn with_on_approval_needed(mut self, hook: DirectApprovalHook) -> Self {
         self.on_approval_needed = Some(hook);
         self
     }
 
+    /// Execute `name` with `input` and an optional caller context.
     pub async fn call(
         &self,
         name: &str,

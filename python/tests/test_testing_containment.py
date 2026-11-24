@@ -12,7 +12,8 @@ import pytest
 import yaml
 
 from afd import success
-from afd.testing.commands import coverage, evaluate, list as list_command, suggest
+from afd.testing.commands import coverage, evaluate, suggest
+from afd.testing.commands import list as list_command
 from afd.testing.commands._files import find_scenario_files
 from afd.testing.commands.create import scenario_create
 from afd.testing.commands.evaluate import scenario_evaluate
@@ -214,7 +215,10 @@ class TestScenarioExecutorWireForm:
                 description="d",
                 job="wire",
                 steps=[
-                    Step(command="todo-create", expect=Expectation(success=True, data={"id": "todo-1"})),
+                    Step(
+                        command="todo-create",
+                        expect=Expectation(success=True, data={"id": "todo-1"}),
+                    ),
                     Step(
                         command="todo-get",
                         input={"undo": "${{ steps[0].undoCommand }}"},

@@ -135,8 +135,10 @@ def _clear_at(dir_fd: int, where: str, device: int, out: Removal) -> bool:
 
 
 def _remove_dir_at(name: str, parent_fd: int, where: str, device: int, out: Removal) -> bool:
+    o_directory: int = getattr(os, "O_DIRECTORY", 0)
+    o_nofollow: int = getattr(os, "O_NOFOLLOW", 0)
     try:
-        fd = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent_fd)
+        fd = os.open(name, os.O_RDONLY | o_directory | o_nofollow, dir_fd=parent_fd)
     except FileNotFoundError:
         return True
     except OSError as exc:  # ELOOP: swapped for a link since it was listed
@@ -165,7 +167,8 @@ def _remove_dir_at(name: str, parent_fd: int, where: str, device: int, out: Remo
 def _remove_by_handle(path: Path, out: Removal) -> None:
     parent = os.path.realpath(os.path.dirname(os.path.abspath(path)))
     name = os.path.basename(os.path.normpath(path))
-    parent_fd = os.open(parent, os.O_RDONLY | os.O_DIRECTORY)
+    o_directory: int = getattr(os, "O_DIRECTORY", 0)
+    parent_fd = os.open(parent, os.O_RDONLY | o_directory)
     try:
         opened, expected = os.fstat(parent_fd), os.stat(parent)
         if (opened.st_dev, opened.st_ino) != (expected.st_dev, expected.st_ino):
@@ -226,8 +229,9 @@ def _remove_link_path(path: str, info: os.stat_result, out: Removal) -> None:
 
 def _remove_dir_path(top: str, device: int, out: Removal) -> bool:
     expected = os.lstat(top)
-    stack: list[tuple[str, bool, tuple[int, int]]] = [(top, False, (expected.st_dev,
-                                                                    expected.st_ino))]
+    stack: list[tuple[str, bool, tuple[int, int]]] = [
+        (top, False, (expected.st_dev, expected.st_ino))
+    ]
     ok = True
     while stack:
         current, visited, identity = stack.pop()

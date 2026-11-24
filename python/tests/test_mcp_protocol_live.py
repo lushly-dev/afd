@@ -61,7 +61,7 @@ async def protocol_server(strategy, transport, *, stateless=False, fixture="prot
             process.terminate()
         try:
             await asyncio.wait_for(process.wait(), 5)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             process.kill()
             await process.wait()
 
@@ -119,9 +119,17 @@ async def test_protocol_discovery_exposure_errors_and_meta_tools(strategy, trans
         if strategy == "hybrid":
             # The five meta-tools, the context tools, then the first-class tools in order.
             assert [item.name for item in tools] == [
-                "afd-discover", "afd-detail", "afd-call", "afd-batch", "afd-pipe",
-                "afd-context-list", "afd-context-enter", "afd-context-exit",
-                "alpha-run", "beta-run", "probe-read",
+                "afd-discover",
+                "afd-detail",
+                "afd-call",
+                "afd-batch",
+                "afd-pipe",
+                "afd-context-list",
+                "afd-context-enter",
+                "afd-context-exit",
+                "alpha-run",
+                "beta-run",
+                "probe-read",
             ]
         if strategy in ("individual", "hybrid"):
             alpha = next(item for item in tools if item.name == "alpha-run")
@@ -286,8 +294,6 @@ async def test_hybrid_strategy_over_stdio(mode):
         if mode == "legacy":
             # A 2025 stdio connection is one session: its context stack scopes the calls.
             assert entered["success"] is True
-            denied = json.loads(
-                (await client.call_tool("alpha-run", {"value": 1})).content[0].text
-            )
+            denied = json.loads((await client.call_tool("alpha-run", {"value": 1})).content[0].text)
             assert denied["error"]["code"] == "COMMAND_NOT_IN_CONTEXT"
             assert [item.name for item in (await client.list_tools()).tools] == names

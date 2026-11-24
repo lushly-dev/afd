@@ -14,7 +14,7 @@ import unicodedata
 import weakref
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Generic, Literal, TypeVar, Union
+from typing import Any, Generic, Literal, TypeGuard, TypeVar
 
 from afd.server.auth_resource import assert_https_url, audience_accepts, is_scope_token
 
@@ -299,12 +299,7 @@ class TokenRules:
 
 
 def _whole_number(what: str, value: Any, minimum: int, maximum: int = _MAX_SAFE_INT) -> int:
-    if (
-        isinstance(value, bool)
-        or not isinstance(value, int)
-        or value < minimum
-        or value > maximum
-    ):
+    if isinstance(value, bool) or not isinstance(value, int) or value < minimum or value > maximum:
         raise ValueError(f"[AFD] {what} must be a whole number from {minimum} to {maximum}")
     return value
 
@@ -362,7 +357,7 @@ class RuleRefusal:
         return False
 
 
-RuleResult = Union[RuleOk[T], RuleRefusal]
+RuleResult = RuleOk[T] | RuleRefusal
 
 
 def parse_scope_claim(
@@ -412,12 +407,7 @@ def check_jws_header(header: Any, algorithms: Sequence[str]) -> RuleResult[None]
     if not isinstance(typ, str) or typ.lower() not in _TYP:
         return RuleRefusal("typ")
     alg = header.get("alg")
-    if (
-        not isinstance(alg, str)
-        or alg == "none"
-        or alg.startswith("HS")
-        or alg not in algorithms
-    ):
+    if not isinstance(alg, str) or alg == "none" or alg.startswith("HS") or alg not in algorithms:
         return RuleRefusal("alg")
     kid = header.get("kid")
     if not isinstance(kid, str) or kid == "":
@@ -432,15 +422,15 @@ def check_jws_header(header: Any, algorithms: Sequence[str]) -> RuleResult[None]
 def _key_fits(alg: str, kty: Any, crv: Any) -> bool:
     """The ``kty``, and ``crv`` when it matters, each algorithm needs (RFC 7518 3.4, RFC 8037 3.1)."""
     if alg in ("RS256", "RS384", "RS512", "PS256", "PS384", "PS512"):
-        return kty == "RSA"
+        return bool(kty == "RSA")
     if alg == "ES256":
-        return kty == "EC" and crv == "P-256"
+        return bool(kty == "EC" and crv == "P-256")
     if alg == "ES384":
-        return kty == "EC" and crv == "P-384"
+        return bool(kty == "EC" and crv == "P-384")
     if alg == "ES512":
-        return kty == "EC" and crv == "P-521"
+        return bool(kty == "EC" and crv == "P-521")
     if alg == "EdDSA":
-        return kty == "OKP" and crv in ("Ed25519", "Ed448")
+        return bool(kty == "OKP" and crv in ("Ed25519", "Ed448"))
     return False
 
 
@@ -466,14 +456,14 @@ def check_key_fit(header: Any, key: Any) -> RuleResult[None]:
     return RuleOk(None)
 
 
-def _claim_text(value: Any) -> bool:
+def _claim_text(value: Any) -> TypeGuard[str]:
     """A string claim of rule 7: non-empty, at most 255 Unicode code points, no Cc character."""
     if not isinstance(value, str) or value == "" or len(value) > MAX_CLAIM_CHARS:
         return False
     return not any(unicodedata.category(ch) == "Cc" for ch in value)
 
 
-def _is_time(value: Any) -> bool:
+def _is_time(value: Any) -> TypeGuard[int | float]:
     if isinstance(value, bool):
         return False
     if isinstance(value, int):
@@ -514,29 +504,38 @@ def check_claims(
     if not _claim_text(jti) or not _claim_text(sub) or not _claim_text(client_id):
         return RuleRefusal("claims")
     nbf_present = "nbf" in claims
-    nbf = claims.get("nbf")
-    if nbf_present and not _is_time(nbf):
-        return RuleRefusal("claims")
+    nbf_val: int | float | None = None
+    if nbf_present:
+        raw_nbf = claims.get("nbf")
+        if not _is_time(raw_nbf):
+            return RuleRefusal("claims")
+        nbf_val = raw_nbf
     auth_time_present = "auth_time" in claims
-    auth_time = claims.get("auth_time")
-    if auth_time_present and not _is_time(auth_time):
-        return RuleRefusal("claims")
+    auth_time_val: int | float | None = None
+    if auth_time_present:
+        raw_auth_time = claims.get("auth_time")
+        if not _is_time(raw_auth_time):
+            return RuleRefusal("claims")
+        auth_time_val = raw_auth_time
     acr_present = "acr" in claims
-    acr = claims.get("acr")
-    if acr_present and not _claim_text(acr):
-        return RuleRefusal("claims")
+    acr_val: str | None = None
+    if acr_present:
+        raw_acr = claims.get("acr")
+        if not _claim_text(raw_acr):
+            return RuleRefusal("claims")
+        acr_val = raw_acr
 
     # 8. Time.
     skew = rules.clock_skew_s
     if now >= exp + skew:
         return RuleRefusal("expired")
-    if iat > now + skew or (nbf_present and nbf > now + skew):
+    if iat > now + skew or (nbf_val is not None and nbf_val > now + skew):
         return RuleRefusal("not-yet-valid")
     if exp < iat or exp - iat > rules.max_token_lifetime_s:
         return RuleRefusal("lifetime")
 
     # 9. Scopes.
-    scope_val = claims["scope"] if "scope" in claims else _ABSENT
+    scope_val = claims.get("scope", _ABSENT)
     scopes_result = parse_scope_claim(scope_val, rules.scope_prefix, rules.scope_limit)
     if not scopes_result.ok:
         return scopes_result
@@ -568,8 +567,8 @@ def check_claims(
             resource=rules.resource,
             expires_at=math.floor(exp),
             issued_at=math.floor(iat),
-            auth_time=math.floor(auth_time) if auth_time_present else None,
-            acr=acr if acr_present else None,
+            auth_time=math.floor(auth_time_val) if auth_time_val is not None else None,
+            acr=acr_val,
             cnf={"x5t#S256": thumbprint} if thumbprint is not None else None,
         )
     )

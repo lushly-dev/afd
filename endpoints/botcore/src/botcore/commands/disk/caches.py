@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 from botcore.commands.disk.scan import (
     DAY,
@@ -30,7 +31,11 @@ def _tool_out(args: list[str], cwd: Path | None) -> str | None:
     try:
         with command(f"running {args[0]} in", cwd or "", allow=60):
             done = subprocess.run(
-                [exe, *args[1:]], cwd=cwd, capture_output=True, text=True, timeout=60,
+                [exe, *args[1:]],
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                timeout=60,
                 check=False,
             )
     except (OSError, subprocess.TimeoutExpired):
@@ -98,7 +103,7 @@ def _store_of(checkout: Path) -> str | None:
     return None
 
 
-def _pnpm(checkouts: list[Path], deadline: float) -> list[dict]:
+def _pnpm(checkouts: list[Path], deadline: float) -> list[dict[str, Any]]:
     """One row per store, judged only from the checkouts that use that store."""
     by_store: dict[str, list[Path]] = {}
     for checkout in checkouts:
@@ -120,13 +125,15 @@ def _pnpm(checkouts: list[Path], deadline: float) -> list[dict]:
         if mode != "hardlink":
             row["note"] = (
                 "not pruned: packages are cloned or copied, so pnpm store prune would empty the "
-                "whole store" if mode == "clone-or-copy" else "not pruned: link mode unknown"
+                "whole store"
+                if mode == "clone-or-copy"
+                else "not pruned: link mode unknown"
             )
         rows.append(row)
     return rows
 
 
-def _uv(deadline: float) -> dict | None:
+def _uv(deadline: float) -> dict[str, Any] | None:
     path = _tool_out(["uv", "cache", "dir"], None)
     if path is None:
         return None
@@ -151,7 +158,7 @@ def _playwright_dir() -> Path:
     return home / ".cache" / "ms-playwright"
 
 
-def _playwright(deadline: float) -> dict | None:
+def _playwright(deadline: float) -> dict[str, Any] | None:
     path = _playwright_dir()
     if not is_dir(path):
         return None
@@ -165,14 +172,16 @@ def _playwright(deadline: float) -> dict | None:
     }
 
 
-def report_caches(settings: MachineSettings, repos: list[Path], deadline: float) -> list[dict]:
+def report_caches(
+    settings: MachineSettings, repos: list[Path], deadline: float
+) -> list[dict[str, Any]]:
     """One row per cache in the machine settings' `caches` list."""
     makers = {
         "pnpm": lambda: _pnpm(repos, deadline),
         "uv": lambda: [r for r in [_uv(deadline)] if r],
         "playwright": lambda: [r for r in [_playwright(deadline)] if r],
     }
-    rows: list[dict] = []
+    rows: list[dict[str, Any]] = []
     for name in settings.caches:
         maker = makers.get(name)
         if maker is None:
@@ -306,43 +315,52 @@ def _aged_items(pattern: str, protected: list[Path]) -> tuple[list[Path], str | 
 
 
 def report_aged(
-    settings: MachineSettings, now: float, deadline: float, protected: list[Path] | None = None,
+    settings: MachineSettings,
+    now: float,
+    deadline: float,
+    protected: list[Path] | None = None,
     processes: Processes | None = None,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Each [[aged]] folder's entries, their ages and sizes, and which are past a limit."""
-    rows = []
+    rows: list[dict[str, Any]] = []
     protected = protected or []
     for aged in settings.aged:
-        entries = []
+        entries: list[dict[str, Any]] = []
         items, refused_pattern = _aged_items(aged.path, protected)
         for item in items:
             refused = unsafe_aged_root(item, protected)
             if refused is None and processes is not None:
                 refused = busy_reason(item, processes)
             modified = newest_mtime(item, AGED_DEPTH)
-            entries.append({
-                "path": str(item),
-                "mtime": modified,
-                "age_days": None if modified is None else round((now - modified) / DAY, 2),
-                "bytes": None if refused else allocated(item, deadline),
-                "eligible": False,
-                "refused": refused,
-            })
+            entries.append(
+                {
+                    "path": str(item),
+                    "mtime": modified,
+                    "age_days": None if modified is None else round((now - modified) / DAY, 2),
+                    "bytes": None if refused else allocated(item, deadline),
+                    "eligible": False,
+                    "refused": refused,
+                }
+            )
         _mark_eligible(entries, aged.max_age_days, aged.max_gb)
         reclaim = sum(e["bytes"] or 0 for e in entries if e["eligible"])
-        rows.append({
-            "name": f"aged:{aged.path}",
-            "path": aged.path,
-            "refused": refused_pattern,
-            "max_age_days": aged.max_age_days,
-            "max_gb": aged.max_gb,
-            "entries": entries,
-            "reclaimable_bytes": reclaim,
-        })
+        rows.append(
+            {
+                "name": f"aged:{aged.path}",
+                "path": aged.path,
+                "refused": refused_pattern,
+                "max_age_days": aged.max_age_days,
+                "max_gb": aged.max_gb,
+                "entries": entries,
+                "reclaimable_bytes": reclaim,
+            }
+        )
     return rows
 
 
-def _mark_eligible(entries: list[dict], max_age: float | None, max_gb: float | None) -> None:
+def _mark_eligible(
+    entries: list[dict[str, Any]], max_age: float | None, max_gb: float | None
+) -> None:
     for entry in entries:
         if entry["refused"] or entry["age_days"] is None:
             continue

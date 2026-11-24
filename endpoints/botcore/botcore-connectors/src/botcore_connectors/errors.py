@@ -152,9 +152,7 @@ def input_validation_failed(
     )
 
 
-def input_too_large(
-    field: str, size: int, limit: int
-) -> CommandResult[dict[str, Any]]:
+def input_too_large(field: str, size: int, limit: int) -> CommandResult[dict[str, Any]]:
     """A string or collection field exceeded its maximum size."""
     return error(
         "INPUT_TOO_LARGE",
@@ -251,9 +249,7 @@ def github_validation_error(message: str) -> CommandResult[dict[str, Any]]:
     )
 
 
-def config_missing_required(
-    field: str, context: str = ""
-) -> CommandResult[dict[str, Any]]:
+def config_missing_required(field: str, context: str = "") -> CommandResult[dict[str, Any]]:
     """Required config field missing."""
     msg = f"Missing required config: {field}"
     if context:

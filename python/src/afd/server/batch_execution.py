@@ -12,7 +12,7 @@ import copy
 import dataclasses
 import time
 from collections.abc import Awaitable, Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import ValidationError as PydanticValidationError
@@ -40,7 +40,7 @@ from afd.core.wire import WIRE_ENVELOPE
 from afd.server.context_hook import copy_extra
 from afd.server.tool_router import new_trace_id
 
-RunCommand = Callable[[str, Any, CommandContext], Awaitable[CommandResult]]
+RunCommand = Callable[[str, Any, CommandContext], Awaitable[CommandResult[Any]]]
 """Runs one command by name with its input and context. Never raises, except when cancelled."""
 
 
@@ -99,7 +99,7 @@ async def execute_batch(
     run_command: RunCommand,
     max_batch_size: int,
     max_batch_parallelism: int,
-) -> BatchResult:
+) -> BatchResult[Any]:
     """Run a batch with partial-success semantics.
 
     Any request that is not a valid envelope (see ``WIRE_ENVELOPE``), is
@@ -113,7 +113,7 @@ async def execute_batch(
     after commands have run.
     """
     start_time = time.perf_counter()
-    started_at = datetime.now(timezone.utc).isoformat()
+    started_at = datetime.now(UTC).isoformat()
     context = context or CommandContext()
     if not isinstance(request, BatchRequest):
         payload = request
@@ -148,8 +148,8 @@ async def execute_batch(
     parallelism = min(options.parallelism, total)
     deadline = None if options.timeout is None else start_time + options.timeout / 1000
     batch_trace_id = context.trace_id or new_trace_id("batch")
-    results: list[BatchCommandResult | None] = [None] * total
-    in_flight: dict[asyncio.Task[CommandResult], tuple[int, float]] = {}
+    results: list[BatchCommandResult[Any] | None] = [None] * total
+    in_flight: dict[asyncio.Task[CommandResult[Any]], tuple[int, float]] = {}
     next_index = 0
     stopped = False
     timed_out = False
@@ -170,11 +170,10 @@ async def execute_batch(
         cancel = getattr(context, "cancel", None)
         signal = getattr(context, "signal", None)
         return bool(
-            (cancel is not None and cancel.is_set())
-            or (signal is not None and signal.is_set())
+            (cancel is not None and cancel.is_set()) or (signal is not None and signal.is_set())
         )
 
-    def record(index: int, result: CommandResult, started: float) -> None:
+    def record(index: int, result: CommandResult[Any], started: float) -> None:
         item = commands[index]
         results[index] = BatchCommandResult(
             id=item.id or f"cmd-{index}",
@@ -249,7 +248,7 @@ async def execute_batch(
         if in_flight:
             await _cancel_and_wait(in_flight)
 
-    final: list[BatchCommandResult] = []
+    final: list[BatchCommandResult[Any]] = []
     for index, item_result in enumerate(results):
         if item_result is None:
             item = commands[index]
@@ -278,7 +277,7 @@ async def execute_batch(
         total_ms=total_ms,
         average_ms=total_ms / len(final),
         started_at=started_at,
-        completed_at=datetime.now(timezone.utc).isoformat(),
+        completed_at=datetime.now(UTC).isoformat(),
     )
     return create_batch_result(final, timing, metadata=ResultMetadata(trace_id=batch_trace_id))
 
@@ -344,7 +343,7 @@ async def execute_pipeline_request(
 
     step_context = context or CommandContext()
 
-    async def executor(command_name: str, payload: dict[str, Any]) -> CommandResult:
+    async def executor(command_name: str, payload: dict[str, Any]) -> CommandResult[Any]:
         per_step = (
             dataclasses.replace(
                 step_context,
@@ -379,7 +378,7 @@ def describe_validation_error(exc: PydanticValidationError) -> list[dict[str, An
     ]
 
 
-def _invalid_batch(problem: Any, *, suggestion: str | None = None) -> BatchResult:
+def _invalid_batch(problem: Any, *, suggestion: str | None = None) -> BatchResult[Any]:
     """A failed BatchResult for a request whose envelope is invalid."""
     return create_failed_batch_result(
         CommandError(

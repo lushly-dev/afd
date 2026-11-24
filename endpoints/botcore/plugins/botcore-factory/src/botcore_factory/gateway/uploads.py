@@ -23,11 +23,13 @@ import os
 import secrets
 import signal
 import subprocess
+import sys
 import threading
 import time
 from collections.abc import Callable
 from datetime import timedelta
 from pathlib import Path
+from typing import Any
 
 from afd import Actor, CommandResult, error, success
 
@@ -90,8 +92,11 @@ def git(
     try:
         stdout, stderr = process.communicate(timeout=remaining)
     except subprocess.TimeoutExpired:
-        with contextlib.suppress(ProcessLookupError):
-            os.killpg(process.pid, signal.SIGKILL)
+        if sys.platform == "win32":
+            process.kill()
+        else:
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGKILL)
         process.communicate()
         raise GitError("the upload ran out of time") from None
     if process.returncode != 0:
@@ -127,7 +132,7 @@ def mirror_contains(data_dir: Path, repo: str, head: str, commit: str) -> bool:
     return True
 
 
-def read_bundle(mirror: Path, bundle: Path, upload_id: str, deadline: float) -> dict:
+def read_bundle(mirror: Path, bundle: Path, upload_id: str, deadline: float) -> dict[str, Any]:
     """Fetch ``bundle`` into ``mirror`` under ``refs/uploads/<id>/`` and read its heads and the
     commits it adds to main, newest first, with their authors' emails."""
     git(mirror, "bundle", "verify", "--quiet", str(bundle), deadline=deadline)
@@ -184,13 +189,15 @@ class BundleUploads:
         self.refresh_main = refresh_main
 
     async def __call__(
-        self, route: str, actor: Actor, data: bytes, params: dict | None = None
-    ) -> CommandResult:
+        self, route: str, actor: Actor, data: bytes, params: dict[str, Any] | None = None
+    ) -> CommandResult[Any]:
         import asyncio
 
         return await asyncio.to_thread(self.receive, route, actor, data, params or {})
 
-    def receive(self, route: str, actor: Actor, data: bytes, params: dict) -> CommandResult:
+    def receive(
+        self, route: str, actor: Actor, data: bytes, params: dict[str, Any]
+    ) -> CommandResult[Any]:
         repo = params.get("repo", "")
         if repo not in self.gateway.config.repositories:
             served = ", ".join(self.gateway.config.repositories)
@@ -260,7 +267,7 @@ class BundleUploads:
             "branch-push within the hour",
         )
 
-    def discard(self, upload_id: str, record: dict) -> None:
+    def discard(self, upload_id: str, record: dict[str, Any]) -> None:
         """Delete an upload's mirror refs. A ref left behind costs disk, not correctness:
         nothing pushes from an upload the state no longer holds."""
         mirror = mirror_path(self.data_dir, record.get("repo", ""))

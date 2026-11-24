@@ -13,6 +13,7 @@ import json
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any
 
 from botcore_factory.world import Comment
 
@@ -30,7 +31,7 @@ class Claim:
     def expired(self, now: datetime) -> bool:
         return parse_time(self.lease_until) <= now
 
-    def describe(self) -> dict:
+    def describe(self) -> dict[str, Any]:
         return {"branch": self.branch, "machine": self.machine, "leaseUntil": self.lease_until}
 
 
@@ -59,7 +60,7 @@ def release_body(branch: str, reason: str) -> str:
     return f"<!-- botcore-factory:release {marker} -->\nReleased `{branch}`: {reason}"
 
 
-def _parse(body: str) -> tuple[str, dict] | None:
+def _parse(body: str) -> tuple[str, dict[str, Any]] | None:
     match = _MARKER.search(body)
     if not match:
         return None
@@ -87,7 +88,14 @@ def current_claim(comments: list[Comment]) -> Claim | None:
             standing = [c for c in standing if branch is not None and c.branch != branch]
             continue
         branch, machine, lease = data.get("branch"), data.get("machine"), data.get("leaseUntil")
-        if all(isinstance(value, str) and value for value in (branch, machine, lease)):
+        if (
+            isinstance(branch, str)
+            and branch
+            and isinstance(machine, str)
+            and machine
+            and isinstance(lease, str)
+            and lease
+        ):
             try:
                 parse_time(lease)
             except ValueError:

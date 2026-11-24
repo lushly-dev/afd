@@ -19,9 +19,9 @@ class Task(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     description: str
     assigned_agent: str = ""
-    status: Literal[
-        "pending", "assigned", "running", "completed", "failed", "cancelled"
-    ] = "pending"
+    status: Literal["pending", "assigned", "running", "completed", "failed", "cancelled"] = (
+        "pending"
+    )
     priority: int = Field(default=5, ge=1, le=10)
     result: str = ""
     parent_task: str = ""

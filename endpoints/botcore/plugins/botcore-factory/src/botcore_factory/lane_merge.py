@@ -41,6 +41,7 @@ While a branch is in GitHub's queue:
 from __future__ import annotations
 
 import re
+from typing import Any
 
 from botcore_factory.adapter import matches
 from botcore_factory.cells import holding_seats
@@ -86,7 +87,7 @@ class Merging(Advancing):
         elif entry.get("state") == "merging":
             self.await_check(entry)
 
-    def push_and_open(self, entry: dict) -> None:
+    def push_and_open(self, entry: dict[str, Any]) -> None:
         branch, head = entry["branch"], entry["validatedHead"]
         cell = self.cell(branch) or {}
         try:
@@ -113,7 +114,7 @@ class Merging(Advancing):
         entry["checkSince"] = self.at
         self.actions.append(f"opened PR {entry['pr']} for {branch} at {head}")
 
-    def pr_body(self, entry: dict) -> str:
+    def pr_body(self, entry: dict[str, Any]) -> str:
         cell = self.cell(entry["branch"]) or {}
         text = ""
         if cell.get("worktree") and entry.get("bodyFile"):
@@ -137,7 +138,7 @@ class Merging(Advancing):
             )
         return f"{text.strip()}\n\n{closes}\n\n## Verification\n\n{verified}\n".lstrip()
 
-    def await_check(self, entry: dict) -> None:
+    def await_check(self, entry: dict[str, Any]) -> None:
         github, pr, head = self.world.github, entry["pr"], entry["pushedHead"]
         check = self.config.required_check
         if not check:
@@ -186,7 +187,7 @@ class Merging(Advancing):
             return
         self.merge(entry, progress)
 
-    def merge(self, entry: dict, before: MergeProgress) -> None:
+    def merge(self, entry: dict[str, Any], before: MergeProgress) -> None:
         pr, head = entry["pr"], entry["pushedHead"]
         if not self.follow_base(entry):
             return  # Never merge what main's move may have touched without validating it.
@@ -240,7 +241,7 @@ class Merging(Advancing):
             return
         self.enter_queue(entry, after, before.removed_at)
 
-    def same_head(self, entry: dict, progress: MergeProgress) -> None:
+    def same_head(self, entry: dict[str, Any], progress: MergeProgress) -> None:
         """The lane's trouble when GitHub's queue holds the pull request at a head the lane did
         not validate: nothing of it is adopted, landed or ejected until a person has looked."""
         pr, head = entry["pr"], entry["pushedHead"]
@@ -250,7 +251,9 @@ class Merging(Advancing):
                 "the lane validated: take it out of the queue on GitHub, then lane-resume"
             )
 
-    def enter_queue(self, entry: dict, progress: MergeProgress, removed_before: str) -> None:
+    def enter_queue(
+        self, entry: dict[str, Any], progress: MergeProgress, removed_before: str
+    ) -> None:
         """GitHub holds the merge request: wait for it at the front, in ``merge-queued``."""
         entry["state"] = MERGE_QUEUED
         entry["mergeQueue"] = {
@@ -266,7 +269,7 @@ class Merging(Advancing):
             where = "GitHub, which shows no merge yet"
         self.actions.append(f"merge of {entry['branch']} (PR {entry['pr']}) waits in {where}")
 
-    def note_queue(self, entry: dict, progress: MergeProgress) -> None:
+    def note_queue(self, entry: dict[str, Any], progress: MergeProgress) -> None:
         """Keep what GitHub says of the queued request on the entry, for ``lane-status`` and
         for reading the queue's commit once it is gone."""
         waiting = entry["mergeQueue"]
@@ -278,7 +281,7 @@ class Merging(Advancing):
         elif progress.waiting:
             waiting["state"] = "AUTO_MERGE"
 
-    def await_queue(self, entry: dict) -> None:
+    def await_queue(self, entry: dict[str, Any]) -> None:
         """Read a queued merge again: land it, eject it, or go on waiting within the limit."""
         pr, waiting = entry["pr"], entry["mergeQueue"]
         try:
@@ -345,7 +348,7 @@ class Merging(Advancing):
         commit = progress.removed_commit if removed else ""
         self.left_queue(entry, reason, commit or waiting.get("groupHead") or "")
 
-    def check_failed(self, entry: dict) -> bool:
+    def check_failed(self, entry: dict[str, Any]) -> bool:
         """Eject an entry that waits on auto-merge once the required check failed on its head:
         GitHub keeps auto-merge set, and nothing else would ever end the wait."""
         pr, head, check = entry["pr"], entry["pushedHead"], self.config.required_check
@@ -358,7 +361,7 @@ class Merging(Advancing):
         self.eject(entry, "ci-failed", f"{check} failed on PR {pr} at {head}")
         return True
 
-    def left_queue(self, entry: dict, reason: str, group: str) -> None:
+    def left_queue(self, entry: dict[str, Any], reason: str, group: str) -> None:
         """The pull request is open and GitHub no longer holds a merge request for it.
 
         ``group`` is the commit the queue had built for it (the removal's own, else the queue
@@ -412,7 +415,9 @@ class Merging(Advancing):
         why = f": {reason}" if reason else "; GitHub gave no reason"
         self.eject(entry, "merge-failed", f"PR {pr} left the merge queue unmerged{why}")
 
-    def land(self, entry: dict, without_check: bool = False, merged_head: str = "") -> None:
+    def land(
+        self, entry: dict[str, Any], without_check: bool = False, merged_head: str = ""
+    ) -> None:
         """Record the merge. ``merged_head`` is the pull request's head as GitHub gives it: when
         it is not the head the lane pushed (a person pushed and merged or queued it between two
         steps), what merged was never validated here, whatever the validated head's check

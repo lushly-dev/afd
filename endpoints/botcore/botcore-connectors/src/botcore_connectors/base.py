@@ -132,9 +132,7 @@ class ConnectorBase:
                 result = auth_refresh_failed(self._auth_provider)
             else:
                 merged_headers["Authorization"] = f"Bearer {token}"
-                result = await self._execute_with_retry(
-                    method, path, json, params, merged_headers
-                )
+                result = await self._execute_with_retry(method, path, json, params, merged_headers)
 
         elapsed_ms = round((time.monotonic() - start) * 1000, 1)
         logger.debug("connector response trace=%s elapsed=%sms", trace_id, elapsed_ms)

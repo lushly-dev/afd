@@ -1,8 +1,7 @@
 """Tests for MCP testing server tool calls, execution, factory, and error handling."""
 
 import json
-from unittest.mock import AsyncMock
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -15,7 +14,6 @@ from afd.testing.mcp.tools import (
     create_tool_registry,
     generate_tools,
 )
-
 
 # ==============================================================================
 # Helpers
@@ -41,6 +39,7 @@ def _jsonrpc_request(method: str, params=None, req_id=1) -> dict:
 # ==============================================================================
 # handle_request: tools/call with valid tool
 # ==============================================================================
+
 
 class TestHandleRequestToolsCallValid:
     """Tests for tools/call with a valid tool name."""
@@ -113,6 +112,7 @@ class TestHandleRequestToolsCallValid:
 # handle_request: tools/call with missing params
 # ==============================================================================
 
+
 class TestHandleRequestToolsCallMissingParams:
     """Tests for tools/call with missing or invalid params."""
 
@@ -164,6 +164,7 @@ class TestHandleRequestToolsCallMissingParams:
 # handle_request: tools/call with unknown tool
 # ==============================================================================
 
+
 class TestHandleRequestToolsCallUnknownTool:
     """Tests for tools/call with an unknown tool name."""
 
@@ -200,6 +201,7 @@ class TestHandleRequestToolsCallUnknownTool:
 # handle_request: unknown method
 # ==============================================================================
 
+
 class TestHandleRequestUnknownMethod:
     """Tests for unrecognized JSON-RPC methods."""
 
@@ -229,9 +231,7 @@ class TestHandleRequestUnknownMethod:
     async def test_empty_method_returns_method_not_found(self):
         """An empty method string should return METHOD_NOT_FOUND."""
         server = McpTestingServer()
-        response = await server.handle_request(
-            {"jsonrpc": "2.0", "id": 1, "method": ""}
-        )
+        response = await server.handle_request({"jsonrpc": "2.0", "id": 1, "method": ""})
         assert "error" in response
         assert response["error"]["code"] == JSON_RPC_ERRORS["METHOD_NOT_FOUND"]
 
@@ -239,6 +239,7 @@ class TestHandleRequestUnknownMethod:
 # ==============================================================================
 # get_tools()
 # ==============================================================================
+
 
 class TestGetTools:
     """Tests for McpTestingServer.get_tools()."""
@@ -270,6 +271,7 @@ class TestGetTools:
 # ==============================================================================
 # execute_tool()
 # ==============================================================================
+
 
 class TestExecuteTool:
     """Tests for McpTestingServer.execute_tool()."""
@@ -309,9 +311,7 @@ class TestExecuteTool:
     async def test_scenario_list_with_empty_dir(self, tmp_path):
         """Calling scenario-list on an empty directory should succeed."""
         server = McpTestingServer(cwd=str(tmp_path))
-        result = await server.execute_tool(
-            "scenario-list", {"directory": str(tmp_path)}
-        )
+        result = await server.execute_tool("scenario-list", {"directory": str(tmp_path)})
         assert result["success"] is True
         assert result["data"]["total"] == 0
 
@@ -319,6 +319,7 @@ class TestExecuteTool:
 # ==============================================================================
 # create_mcp_testing_server factory
 # ==============================================================================
+
 
 class TestCreateMcpTestingServer:
     """Tests for the create_mcp_testing_server factory function."""
@@ -336,9 +337,7 @@ class TestCreateMcpTestingServer:
 
     def test_custom_values(self):
         """Should pass through custom name and version."""
-        server = create_mcp_testing_server(
-            name="custom", version="9.9.9", verbose=True
-        )
+        server = create_mcp_testing_server(name="custom", version="9.9.9", verbose=True)
         assert server.name == "custom"
         assert server.version == "9.9.9"
         assert server._verbose is True
@@ -360,6 +359,7 @@ class TestCreateMcpTestingServer:
 # ==============================================================================
 # JSON-RPC error codes
 # ==============================================================================
+
 
 class TestJsonRpcErrors:
     """Tests for the JSON_RPC_ERRORS constants."""
@@ -384,6 +384,7 @@ class TestJsonRpcErrors:
 # Internal error handling
 # ==============================================================================
 
+
 class TestInternalErrorHandling:
     """Tests for internal error handling in handle_request."""
 
@@ -391,9 +392,7 @@ class TestInternalErrorHandling:
     async def test_handler_exception_returns_internal_error(self):
         """An exception in a tool handler should return INTERNAL_ERROR."""
         server = McpTestingServer()
-        server._registry["scenario-list"] = AsyncMock(
-            side_effect=RuntimeError("boom")
-        )
+        server._registry["scenario-list"] = AsyncMock(side_effect=RuntimeError("boom"))
         params = {"name": "scenario-list", "arguments": {}}
         response = await server.handle_request(_jsonrpc_request("tools/call", params))
         assert "error" in response
@@ -412,15 +411,14 @@ class TestInternalErrorHandling:
     async def test_null_id_preserved(self):
         """Should preserve a null id in the response."""
         server = McpTestingServer()
-        response = await server.handle_request(
-            {"jsonrpc": "2.0", "id": None, "method": "ping"}
-        )
+        response = await server.handle_request({"jsonrpc": "2.0", "id": None, "method": "ping"})
         assert response["id"] is None
 
 
 # ==============================================================================
 # create_tool_registry
 # ==============================================================================
+
 
 class TestCreateToolRegistry:
     """Tests for the create_tool_registry function."""

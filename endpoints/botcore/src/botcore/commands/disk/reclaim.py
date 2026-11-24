@@ -21,6 +21,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from afd import CommandResult, error, success
 
@@ -71,6 +72,7 @@ from botcore.commands.disk.scan import (
     volume_state,
 )
 from botcore.commands.disk.settings import (
+    MachineSettings,
     SettingsError,
     load_machine_settings,
     state_path,
@@ -146,7 +148,7 @@ class Run:
 # ── Planning ────────────────────────────────────────────────────────────────
 
 
-def _strippable(row: dict, repo: dict) -> bool:
+def _strippable(row: dict[str, Any], repo: dict[str, Any]) -> bool:
     """The report's own verdict: verified, unprotected, fully searched, with known activity."""
     return bool(row.get("can_strip") and row.get("exists") and not repo.get("blocked"))
 
@@ -157,7 +159,11 @@ def _volume_low(path: str, ctx: Context) -> bool:
 
 
 def plan_strips(
-    data: dict, step: float | None, include_pressure: bool, ctx: Context, only_low: bool,
+    data: dict[str, Any],
+    step: float | None,
+    include_pressure: bool,
+    ctx: Context,
+    only_low: bool,
 ) -> list[Action]:
     actions = []
     for repo in data["repos"]:
@@ -174,18 +180,20 @@ def plan_strips(
                 due = item["after_days"] if step is None else min(item["after_days"], step)
                 if idle < due * DAY:
                     continue
-                wt_actions.append(Action(
-                    kind="strip",
-                    target=str(Path(row["path"]) / item["path"]),
-                    root=row["path"],
-                    worktree=row["path"],
-                    pattern=item["pattern"],
-                    target_kind=item.get("kind"),
-                    bytes_estimate=item.get("bytes"),
-                    due_days=due,
-                    step="normal" if step is None else f"pressure-{step}d",
-                    detail=f"due after {due} days; idle {row['idle_days']}",
-                ))
+                wt_actions.append(
+                    Action(
+                        kind="strip",
+                        target=str(Path(row["path"]) / item["path"]),
+                        root=row["path"],
+                        worktree=row["path"],
+                        pattern=item["pattern"],
+                        target_kind=item.get("kind"),
+                        bytes_estimate=item.get("bytes"),
+                        due_days=due,
+                        step="normal" if step is None else f"pressure-{step}d",
+                        detail=f"due after {due} days; idle {row['idle_days']}",
+                    )
+                )
             # Strip file candidates (such as *.tsbuildinfo) before folder candidates (such as
             # dist) within a worktree so an interrupted or failed build-info removal never leaves
             # build info behind after its output folder is gone (lushly-dev/afd#1939).
@@ -208,32 +216,43 @@ def _aged_action_root(pattern: str, target: str) -> str:
     return str(base) if depth > 0 else str(Path(target).parent)
 
 
-def plan_tier0(data: dict) -> list[Action]:
+def plan_tier0(data: dict[str, Any]) -> list[Action]:
     actions = []
     for cache in data.get("caches", []):
         if cache.get("action"):
-            actions.append(Action(kind="cache", target=cache["name"], root=cache.get("cwd"),
-                                  detail=cache["action"]))
+            actions.append(
+                Action(
+                    kind="cache",
+                    target=cache["name"],
+                    root=cache.get("cwd"),
+                    detail=cache["action"],
+                )
+            )
     for aged in data.get("aged", []):
         eligible = [e for e in aged["entries"] if e["eligible"]]
         eligible.sort(
             key=lambda e: e["mtime"] if e.get("mtime") is not None else -(e["age_days"] or 0),
         )
         for entry in eligible:
-            actions.append(Action(
-                kind="aged",
-                target=entry["path"],
-                root=_aged_action_root(aged["path"], entry["path"]),
-                bytes_estimate=entry.get("bytes"),
-                planned_mtime=entry.get("mtime"),
-                identity=_identity(entry["path"]),
-                detail=f"age {entry['age_days']} days",
-            ))
+            actions.append(
+                Action(
+                    kind="aged",
+                    target=entry["path"],
+                    root=_aged_action_root(aged["path"], entry["path"]),
+                    bytes_estimate=entry.get("bytes"),
+                    planned_mtime=entry.get("mtime"),
+                    identity=_identity(entry["path"]),
+                    detail=f"age {entry['age_days']} days",
+                )
+            )
     return actions
 
 
 def plan_aged_pressure(
-    data: dict, step: float | None, ctx: Context, only_low: bool,
+    data: dict[str, Any],
+    step: float | None,
+    ctx: Context,
+    only_low: bool,
 ) -> list[Action]:
     """Plan `[[aged]]` evictions under low-space pressure, ordered oldest-first.
 
@@ -259,11 +278,10 @@ def plan_aged_pressure(
                 continue
             age_seconds = max(0.0, ctx.now - entry["mtime"])
             if step is not None:
-                due_days: float | None = (
-                    min(configured_age, step) if configured_age is not None else step
-                )
-                if age_seconds < due_days * DAY:
+                due_val: float = min(configured_age, step) if configured_age is not None else step
+                if age_seconds < due_val * DAY:
                     continue
+                due_days: float | None = due_val
                 step_label = f"pressure-{step}d"
                 detail = f"pressure due after {due_days} days; age {entry['age_days']} days"
             else:
@@ -272,20 +290,22 @@ def plan_aged_pressure(
                 due_days = None
                 step_label = "pressure-oldest"
                 detail = f"low space oldest-first; age {entry['age_days']} days"
-            candidates.append((
-                entry["mtime"],
-                Action(
-                    kind="aged",
-                    target=entry["path"],
-                    root=_aged_action_root(aged["path"], entry["path"]),
-                    bytes_estimate=entry.get("bytes"),
-                    due_days=due_days,
-                    planned_mtime=entry.get("mtime"),
-                    identity=_identity(entry["path"]),
-                    step=step_label,
-                    detail=detail,
-                ),
-            ))
+            candidates.append(
+                (
+                    entry["mtime"],
+                    Action(
+                        kind="aged",
+                        target=entry["path"],
+                        root=_aged_action_root(aged["path"], entry["path"]),
+                        bytes_estimate=entry.get("bytes"),
+                        due_days=due_days,
+                        planned_mtime=entry.get("mtime"),
+                        identity=_identity(entry["path"]),
+                        step=step_label,
+                        detail=detail,
+                    ),
+                )
+            )
     candidates.sort(key=lambda pair: (pair[0], pair[1].target))
     return [action for _mtime, action in candidates]
 
@@ -311,8 +331,9 @@ def _admin(worktree: Path) -> Path | None:
 
 
 def _toplevel(folder: Path) -> str:
-    return path_key(git_out(folder, "rev-parse", "--path-format=absolute", "--show-toplevel")
-                    .strip())
+    return path_key(
+        git_out(folder, "rev-parse", "--path-format=absolute", "--show-toplevel").strip()
+    )
 
 
 def _recheck_strip(action: Action, run: Run) -> str | None:
@@ -414,9 +435,8 @@ def _prune_empty_bucket(action: Action, run: Run) -> None:
     if (
         stat.S_ISLNK(info.st_mode)
         or not stat.S_ISDIR(info.st_mode)
-        or getattr(info, "st_file_attributes", 0) & getattr(
-            stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400
-        )
+        or getattr(info, "st_file_attributes", 0)
+        & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
     ):
         return
     if unsafe_aged_root(bucket, run.protected):
@@ -465,7 +485,8 @@ def tool_running(names: tuple[str, ...], processes: Processes) -> bool:
     if not processes.ok:
         return True
     words = re.compile(
-        r"(?:^|[\\/\s\"'])(?:" + "|".join(re.escape(n) for n in names)
+        r"(?:^|[\\/\s\"'])(?:"
+        + "|".join(re.escape(n) for n in names)
         + r")(?:\.exe|\.cjs|\.js|\.cmd)?(?=$|[\s\"'])",
         re.IGNORECASE,
     )
@@ -486,7 +507,11 @@ def _run_cache(action: Action) -> None:
         return
     with command(f"pruning the {action.target} cache", allow=1800):
         done = subprocess.run(
-            [exe, *args[1:]], cwd=action.root, capture_output=True, text=True, timeout=1800,
+            [exe, *args[1:]],
+            cwd=action.root,
+            capture_output=True,
+            text=True,
+            timeout=1800,
             check=False,
         )
     action.outcome = "done" if done.returncode == 0 else "failed"
@@ -590,8 +615,15 @@ def _carry_out_removal(action: Action, run: Run) -> None:
         return
     busy = busy_reason(target, run.processes_for(action.target))
     reason = recheck_removal(
-        target, main, action.head, bool(action.landed), action.due_days or 0, config, busy,
-        action.outputs, volume_problem=lambda p: _volume_problem(p, run.ctx),
+        target,
+        main,
+        action.head,
+        bool(action.landed),
+        action.due_days or 0,
+        config,
+        busy,
+        action.outputs,
+        volume_problem=lambda p: _volume_problem(p, run.ctx),
         t3_owned=lambda p: _t3_owned(p, run, _repository(main, run)),
         checkouts=run.ctx.checkouts,
     )
@@ -620,13 +652,23 @@ def _carry_out_removal(action: Action, run: Run) -> None:
     action.detail = f"removed; its commits are pinned under {refs[0]}; disk-restore {target}"
 
 
-def plan_tier2(data: dict, run: Run, include_restorable: bool) -> list[Action]:
+def plan_tier2(data: dict[str, Any], run: Run, include_restorable: bool) -> list[Action]:
     due = run.ctx.settings.remove_landed_after_days
     return [
-        Action(kind="remove", target=p["target"], root=p["main"], worktree=p["target"],
-               pattern=None, bytes_estimate=p["bytes"], due_days=p["due_days"], head=p["head"],
-               branch=p["branch"], landed=p["landed"], outputs=p["outputs"],
-               detail=p["landed"] or "restorable: nothing unique, not landed")
+        Action(
+            kind="remove",
+            target=p["target"],
+            root=p["main"],
+            worktree=p["target"],
+            pattern=None,
+            bytes_estimate=p["bytes"],
+            due_days=p["due_days"],
+            head=p["head"],
+            branch=p["branch"],
+            landed=p["landed"],
+            outputs=p["outputs"],
+            detail=p["landed"] or "restorable: nothing unique, not landed",
+        )
         for p in plan_removals(data, include_restorable, due)
     ]
 
@@ -642,16 +684,29 @@ def refresh_landing(main: Path, landing_ref: str) -> str | None:
     remote = next((r for r in remotes if ref.startswith(f"{r}/")), None)
     if remote is None:
         return None
-    branch = ref[len(remote) + 1:]
+    branch = ref[len(remote) + 1 :]
     try:
         configured = git_out(main, "config", "--get", "core.sshCommand", timeout=30).strip()
     except GitError:
         configured = ""
     ssh = f"{configured or 'ssh'} -o BatchMode=yes"  # the user's own command, never prompting
     try:
-        git_out(main, "-c", "gc.auto=0", "-c", "maintenance.auto=false",
-                "-c", f"core.sshCommand={ssh}", "fetch", "--quiet", "--no-prune", "--no-tags",
-                remote, branch, timeout=120)
+        git_out(
+            main,
+            "-c",
+            "gc.auto=0",
+            "-c",
+            "maintenance.auto=false",
+            "-c",
+            f"core.sshCommand={ssh}",
+            "fetch",
+            "--quiet",
+            "--no-prune",
+            "--no-tags",
+            remote,
+            branch,
+            timeout=120,
+        )
     except GitError as exc:
         return str(exc)
     return None
@@ -690,7 +745,7 @@ def prune_receipts(folder: Path, keep: Path | None = None) -> None:
             path.unlink(missing_ok=True)
 
 
-def write_receipt(payload: dict) -> Path:
+def write_receipt(payload: dict[str, Any]) -> Path:
     folder = state_path() / "receipts"
     folder.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
@@ -698,15 +753,16 @@ def write_receipt(payload: dict) -> Path:
     path = folder / f"{stamp}-{mode}-{os.getpid()}-{secrets.token_hex(3)}.json"
     text = json.dumps(payload, indent=1, default=str)
     if len(text) > MAX_ONE_RECEIPT:
-        trimmed = dict(payload, actions=payload["actions"][:1000],
-                       actions_truncated=len(payload["actions"]))
+        trimmed = dict(
+            payload, actions=payload["actions"][:1000], actions_truncated=len(payload["actions"])
+        )
         text = json.dumps(trimmed, indent=1, default=str)
     _write_atomic(path, text)
     prune_receipts(folder, keep=path)
     return path
 
 
-def write_status(payload: dict, receipt: Path) -> None:
+def write_status(payload: dict[str, Any], receipt: Path) -> None:
     """Update status.json; called only while holding the run lock."""
     folder = state_path()
     folder.mkdir(parents=True, exist_ok=True)
@@ -732,9 +788,12 @@ def write_status(payload: dict, receipt: Path) -> None:
     repos = dict(snapshot.get("repos") or {}) if isinstance(snapshot, dict) else {}
     for entry in payload.get("idle", []):
         if entry.get("complete"):
-            repos[entry["main"]] = {"at": now, "count": entry["count"],
-                                    "checkout": entry.get("checkout"),
-                                    "warning": entry.get("warning")}
+            repos[entry["main"]] = {
+                "at": now,
+                "count": entry["count"],
+                "checkout": entry.get("checkout"),
+                "warning": entry.get("warning"),
+            }
     current["worktree_warnings"] = {"repos": repos}
     _write_atomic(path, json.dumps(current, indent=1))
 
@@ -767,7 +826,7 @@ async def disk_reclaim(
     pressure: bool = False,
     budget_seconds: float = 300,
     include_restorable: bool = False,
-) -> CommandResult[dict]:
+) -> CommandResult[dict[str, Any]]:
     """Prune caches and aged folders (tier 0), strip idle build output (tier 1), and remove
     finished worktrees (tier 2).
 
@@ -781,13 +840,20 @@ async def disk_reclaim(
     back.
     """
     if tier not in (0, 1, 2):
-        return error("DISK_TIER_INVALID", f"tier {tier} is not 0, 1 or 2",
-                     suggestion="Pass tier=0 for caches, 1 to also strip build output, "
-                                "2 to also remove finished worktrees")
+        return error(
+            "DISK_TIER_INVALID",
+            f"tier {tier} is not 0, 1 or 2",
+            suggestion="Pass tier=0 for caches, 1 to also strip build output, "
+            "2 to also remove finished worktrees",
+        )
     if include_restorable and tier < 2:
-        return error("DISK_TIER_INVALID", "include_restorable needs tier=2",
-                     suggestion="Pass tier=2 with include_restorable")
-    def _run_reclaim() -> CommandResult[dict]:
+        return error(
+            "DISK_TIER_INVALID",
+            "include_restorable needs tier=2",
+            suggestion="Pass tier=2 with include_restorable",
+        )
+
+    def _run_reclaim() -> CommandResult[dict[str, Any]]:
         try:
             settings, _path, _found = load_machine_settings()
         except SettingsError as exc:
@@ -798,19 +864,24 @@ async def disk_reclaim(
                     settings, tier, apply, repo, pressure, budget_seconds, include_restorable
                 )
         except LockHeld as exc:
-            return error("DISK_RUN_IN_PROGRESS", str(exc),
-                         suggestion="Wait for the other run to finish, then run again")
+            return error(
+                "DISK_RUN_IN_PROGRESS",
+                str(exc),
+                suggestion="Wait for the other run to finish, then run again",
+            )
         if payload.get("error"):
-            return error("DISK_RECLAIM_FAILED", payload["error"],
-                         suggestion=f"Read the receipt {payload.get('receipt')}; "
-                                    "the run stopped early")
+            return error(
+                "DISK_RECLAIM_FAILED",
+                payload["error"],
+                suggestion=f"Read the receipt {payload.get('receipt')}; the run stopped early",
+            )
         suggestions = [] if apply else ["Run again with apply=True to carry out this plan"]
         return success(data=payload, suggestions=suggestions)
 
     return await run_blocking(_run_reclaim)
 
 
-def _protected(data: dict, ctx: Context) -> list[Path]:
+def _protected(data: dict[str, Any], ctx: Context) -> list[Path]:
     paths = [Path(w["path"]) for r in data["repos"] for w in r.get("worktrees", [])]
     paths += [Path(r["git_common_dir"]) for r in data["repos"] if r.get("git_common_dir")]
     return paths + list(ctx.t3_roots)
@@ -839,7 +910,7 @@ def _execute_aged_pressure(run: Run, actions: list[Action], stop_when_recovered:
                 _refresh_volume(action.target, run.ctx)
 
 
-def _plan_and_run(run: Run, data: dict, pressure: bool, include_restorable: bool) -> None:
+def _plan_and_run(run: Run, data: dict[str, Any], pressure: bool, include_restorable: bool) -> None:
     _execute(run, plan_tier0(data))
     ctx = run.ctx
     if run.tier >= 1:
@@ -855,8 +926,14 @@ def _plan_and_run(run: Run, data: dict, pressure: bool, include_restorable: bool
                             run.unfetched[path_key(main or "")] = problem
             _execute(run, removals)
             removed = {a.target for a in removals if a.outcome in ("done", "planned")}
-        _execute(run, [a for a in plan_strips(data, None, False, ctx, only_low=False)
-                       if a.worktree not in removed])
+        _execute(
+            run,
+            [
+                a
+                for a in plan_strips(data, None, False, ctx, only_low=False)
+                if a.worktree not in removed
+            ],
+        )
     if not (pressure or _low(ctx)):
         return
     for step in PRESSURE_STEPS[1:]:
@@ -879,7 +956,7 @@ def _plan_and_run(run: Run, data: dict, pressure: bool, include_restorable: bool
         )
 
 
-def _idle_after(data: dict, run: Run) -> dict:
+def _idle_after(data: dict[str, Any], run: Run) -> dict[str, Any]:
     """Each repository's idle count once this run's removals are taken off, and its warnings."""
     gone = {path_key(a.target) for a in run.actions if a.kind == "remove" and a.outcome == "done"}
     idle, warnings = [], []
@@ -888,20 +965,35 @@ def _idle_after(data: dict, run: Run) -> dict:
             continue  # its worktrees were not listed, or its [disk] could not be read
         count_idle(repo_row, run.ctx.settings, gone)
         counted = repo_row["idle_worktrees"]
-        idle.append({"main": repo_row["main"], "checkout": repo_row.get("checkout"),
-                     "count": counted["count"],
-                     "complete": counted["complete"], "warning": repo_row.get("warning")})
+        idle.append(
+            {
+                "main": repo_row["main"],
+                "checkout": repo_row.get("checkout"),
+                "count": counted["count"],
+                "complete": counted["complete"],
+                "warning": repo_row.get("warning"),
+            }
+        )
         if repo_row.get("warning"):
             warnings.append(repo_row["warning"])
     return {"idle": idle, "warnings": warnings}
 
 
 def _reclaim(  # noqa: PLR0913 - the command's own arguments
-    settings, tier, apply, repo, pressure, budget_seconds, include_restorable=False,
-) -> dict:
+    settings: MachineSettings,
+    tier: int,
+    apply: bool,
+    repo: str | None,
+    pressure: bool,
+    budget_seconds: float,
+    include_restorable: bool = False,
+) -> dict[str, Any]:
     data, pairs, ctx = build_report(settings, repo, budget_seconds=budget_seconds)
-    configs = {path_key(row["main"]): config for row, config in pairs
-               if config is not None and row.get("main")}
+    configs = {
+        path_key(row["main"]): config
+        for row, config in pairs
+        if config is not None and row.get("main")
+    }
     run = Run(apply=apply, tier=tier, ctx=ctx, protected=_protected(data, ctx), configs=configs)
     before = _free(ctx)
     failure = None

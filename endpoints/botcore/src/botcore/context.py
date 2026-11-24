@@ -49,8 +49,9 @@ class ExecutionContext:
         object.__setattr__(self, "target", target)
 
     def resolve_path(self, value: str) -> str:
-        path = (self.target / value).resolve()
-        if not path.is_relative_to(self.target):
+        target = self.target if self.target is not None else self.workspace
+        path = (target / value).resolve()
+        if not path.is_relative_to(target):
             raise ValueError(f"Path is outside the selected target: {value}")
         return str(path)
 

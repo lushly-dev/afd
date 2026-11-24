@@ -1,14 +1,11 @@
 """Tests for HttpTransport."""
 
-import json
-
-import pytest
 import httpx
+import pytest
 
-from afd.transports.http import HttpTransport
-from afd.transports.base import TransportError, TransportState, ToolInfo
 from afd.transports._mcp_protocol import _HttpBasedTransport
-
+from afd.transports.base import TransportError, TransportState
+from afd.transports.http import HttpTransport
 
 # ============================================================================
 # URL derivation
@@ -152,7 +149,11 @@ class TestHttpListTools:
     async def test_list_tools(self, monkeypatch):
         tools_data = [
             {"name": "ping", "description": "Health check"},
-            {"name": "todo-create", "description": "Create todo", "inputSchema": {"type": "object"}},
+            {
+                "name": "todo-create",
+                "description": "Create todo",
+                "inputSchema": {"type": "object"},
+            },
         ]
         t = HttpTransport("http://localhost:3100/sse")
         _mock_http_responses(monkeypatch, t, tools_list=tools_data)
@@ -196,18 +197,22 @@ def _mock_http_responses(
         if jsonrpc_error and method != "initialize":
             body = _make_jsonrpc_error()
         elif method == "initialize":
-            body = _make_jsonrpc_response({
-                "protocolVersion": "2024-11-05",
-                "serverInfo": {"name": "test-server", "version": "1.0.0"},
-                "capabilities": {},
-            })
+            body = _make_jsonrpc_response(
+                {
+                    "protocolVersion": "2024-11-05",
+                    "serverInfo": {"name": "test-server", "version": "1.0.0"},
+                    "capabilities": {},
+                }
+            )
         elif method == "tools/list":
             body = _make_jsonrpc_response({"tools": tools_list or []})
         elif method == "tools/call":
             content_text = __import__("json").dumps(tool_response or {})
-            body = _make_jsonrpc_response({
-                "content": [{"type": "text", "text": content_text}],
-            })
+            body = _make_jsonrpc_response(
+                {
+                    "content": [{"type": "text", "text": content_text}],
+                }
+            )
         else:
             body = _make_jsonrpc_response({})
 

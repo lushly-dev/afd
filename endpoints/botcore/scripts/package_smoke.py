@@ -96,6 +96,7 @@ def audit(artifacts: Path) -> list[dict]:
                 )
             if name == "lushly-botcore":
                 assert "afd>=0.9.0" in requires
+                assert "botcore/py.typed" in names
                 assert (
                     sum(
                         path.startswith("botcore/skills/") and path.endswith("/SKILL.md")

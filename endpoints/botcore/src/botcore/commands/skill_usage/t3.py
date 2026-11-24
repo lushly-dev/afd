@@ -411,7 +411,8 @@ def _loads(kind: str, payload: dict) -> list[tuple[str, str]]:
     if payload.get("status") != DONE:
         return []
     if kind == CHANGE:
-        changes = payload.get("changes") if isinstance(payload.get("changes"), list) else []
+        raw_changes = payload.get("changes")
+        changes: list[object] = raw_changes if isinstance(raw_changes, list) else []
         files = [payload.get("fileName"), *(_mapping(change).get("path") for change in changes)]
         names: list[str] = []
         for file in files:
@@ -436,14 +437,16 @@ def _loads(kind: str, payload: dict) -> list[tuple[str, str]]:
         command = command.get("command")
     if isinstance(command, list):
         command = " ".join(str(part) for part in command)
-    return [(name, SHELL_READ) for name in skills_read_by(command)] if _text(command) else []
+    command_text = _text(command)
+    return [(name, SHELL_READ) for name in skills_read_by(command_text)] if command_text else []
 
 
 def _says_more(link: tuple[str, str | None, bool | None]) -> tuple[int, bool, str]:
     """Orders two links to one pull request: the one that opened it first, then one that
     says it did not, then the earlier."""
     _, linked_at, opened = link
-    return ({True: 0, False: 1}.get(opened, 2), linked_at is None, linked_at or "")
+    rank = 0 if opened is True else 1 if opened is False else 2
+    return (rank, linked_at is None, linked_at or "")
 
 
 def _sessions(threads: dict[str, Thread], family: _Family) -> list[Session]:

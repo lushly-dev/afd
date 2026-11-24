@@ -43,6 +43,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import re
+from typing import Any
 
 from botcore_factory import change_report, job
 from botcore_factory.adapter import matches
@@ -209,7 +210,7 @@ class Step(Merging, Coverage):
         room = self.dial("lane.queueMax") - len(self.state["queue"])
         if room <= 0 or not self.state["held"]:
             return
-        remaining: list[dict] = []
+        remaining: list[dict[str, Any]] = []
         for held in self.state["held"]:
             reason = held.get("holdReason")
             if room > 0 and (reason is None or reason == "queue-full"):
@@ -286,7 +287,7 @@ class Step(Merging, Coverage):
                 if self._blocked_on_host_lock is not None:
                     return
 
-    def release_slot(self, entry: dict) -> None:
+    def release_slot(self, entry: dict[str, Any]) -> None:
         """Give a validated entry's slot to the front of the queue, keeping its validation
         (lushly-dev/afd#1452).
 
@@ -337,7 +338,7 @@ class Step(Merging, Coverage):
                 continue
             kept.remove(path)
 
-    def start_validation(self, entry: dict, slot: str) -> bool:
+    def start_validation(self, entry: dict[str, Any], slot: str) -> bool:
         """Start validating ``entry`` in ``slot``; False when ejected or blocked on host lock."""
         base, branch = self.base_head(), entry["branch"]
         log = log_path(branch, entry["attempt"])
@@ -463,7 +464,9 @@ class Step(Merging, Coverage):
                 with contextlib.suppress(WorldError):
                     self.release_host_hold(hold_id)
 
-    def validation_steps(self, entry: dict, path: str, base: str, slot: str) -> list[dict] | None:
+    def validation_steps(
+        self, entry: dict[str, Any], path: str, base: str, slot: str
+    ) -> list[dict[str, Any]] | None:
         """The validation job's steps, on the Node the merged slot's ``.nvmrc`` names. That Node
         missing ejects the branch as ``node-missing`` when the branch changed ``.nvmrc``; when
         the ``.nvmrc`` is the base's own, no branch is to blame, and the lane pauses
@@ -473,7 +476,7 @@ class Step(Merging, Coverage):
         ejected."""
         try:
             steps = self.job_steps(
-                "validate", self.config.validate_command, path, slot, entry["branch"]
+                "validate", self.config.validate_command or [], path, slot, entry["branch"]
             )
         except NodeUnavailable as unavailable:
             if ".nvmrc" not in self.world.git.changed_files(path, base):
@@ -492,7 +495,7 @@ class Step(Merging, Coverage):
         return bool(specs) and all(any(matches(c, s.paths) for s in specs) for c in conflicts)
 
     def regenerate(
-        self, entry: dict, path: str, base: str, conflicts: tuple[str, ...]
+        self, entry: dict[str, Any], path: str, base: str, conflicts: tuple[str, ...]
     ) -> tuple[MergeOutcome, list[str]] | None:
         """Write the conflicting generated files again and commit the merge (lushly-dev/afd#1410).
 
@@ -531,7 +534,9 @@ class Step(Merging, Coverage):
             self.world.git.abort_merge(path)
             raise LaneTrouble(f"Committing the merge for {entry['branch']} failed: {exc}") from exc
 
-    def read_test_changes(self, entry: dict, path: str, base: str, head: str) -> dict | None:
+    def read_test_changes(
+        self, entry: dict[str, Any], path: str, base: str, head: str
+    ) -> dict[str, Any] | None:
         """Run the adapter's ``test_changes`` command from the base's clean ``review`` slot.
 
         Running both the script and its commit-to-commit git reads from ``checkout`` (the clean
@@ -564,7 +569,9 @@ class Step(Merging, Coverage):
         except WorldError as exc:
             raise LaneTrouble(f"Reading test changes for {entry['branch']} failed: {exc}") from exc
 
-    def hold_for_gate_change(self, entry: dict, changed: list[str], report: dict | None) -> bool:
+    def hold_for_gate_change(
+        self, entry: dict[str, Any], changed: list[str], report: dict[str, Any] | None
+    ) -> bool:
         """Authoritative Phase 5 "never improves by checking less" hold for ``area:factory``.
 
         Even if a branch slipped past ``lane-enqueue``'s advisory check (e.g. by altering its
@@ -630,7 +637,7 @@ class Step(Merging, Coverage):
         self.actions.append(f"held {branch} ({change_report.GATE_CHANGE_HOLD})")
         return True
 
-    def review_verified(self, entry: dict, base: str) -> bool:
+    def review_verified(self, entry: dict[str, Any], base: str) -> bool:
         """Whether the base's review verifier accepts the cell's review of the queued head.
 
         ``lane-enqueue`` ran the cell's own copy of the verifier, which the branch can change;

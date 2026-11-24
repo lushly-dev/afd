@@ -42,7 +42,7 @@ class _Resolved:
 
 
 def find_lockfiles(root: Path) -> list[Path]:
-    found = []
+    found: list[Path] = []
     for current, directories, files in os.walk(root):
         directories[:] = sorted(
             name for name in directories if name not in _PRUNED and not name.startswith(".")

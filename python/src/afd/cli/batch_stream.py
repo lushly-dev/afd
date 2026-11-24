@@ -13,7 +13,7 @@ import asyncio
 import json
 import math
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -57,7 +57,9 @@ def _count(value: Any) -> float:
 def _json_text(value: Any, indent: int | None = None) -> str:
     """``value`` as JSON for text output, keeping non-ASCII characters readable."""
     separators = None if indent is not None else (",", ":")
-    return terminal_text(json.dumps(value, indent=indent, ensure_ascii=False, separators=separators))
+    return terminal_text(
+        json.dumps(value, indent=indent, ensure_ascii=False, separators=separators)
+    )
 
 
 def _bar(ratio: Any, width: int, color: str) -> str:
@@ -106,7 +108,7 @@ def _number(value: Any, digits: int = 1) -> str:
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 # ── Batch ────────────────────────────────────────────────────────────────────
@@ -176,12 +178,13 @@ def unknown_outcome_batch(
     """A batch whose answer never arrived: some or all of its commands may have run,
     so no command gets a status and every count but ``total`` is zero."""
     message = str(cause) or type(cause).__name__
-    error = {
+    error_message = (
+        f"No batch result was received ({message}). "
+        "The server may have run some or all of its commands."
+    )
+    error: dict[str, Any] = {
         "code": "OUTCOME_UNKNOWN",
-        "message": (
-            f"No batch result was received ({message}). "
-            "The server may have run some or all of its commands."
-        ),
+        "message": error_message,
         "suggestion": (
             "Check the effect of each command before retrying: running the batch again "
             "can repeat writes that already happened."
@@ -189,28 +192,62 @@ def unknown_outcome_batch(
         "retryable": False,
         "details": failure_cause(cause),
     }
-    result = batch_failure(commands, started_at, error, error["message"])
+    result = batch_failure(commands, started_at, error, error_message)
     result["summary"]["failureCount"] = 0
     return result
 
 
 JSON_RPC_ERRORS: dict[int, dict[str, Any]] = {
-    -32700: {"code": "PARSE_ERROR", "retryable": False, "suggestion": (
-        "The server could not parse the request as JSON; check the arguments are serializable")},
-    -32600: {"code": "INVALID_REQUEST", "retryable": False, "suggestion": (
-        "The server rejected the JSON-RPC envelope; check that it is an AFD MCP endpoint")},
-    -32601: {"code": "METHOD_NOT_FOUND", "retryable": False, "suggestion": (
-        "The server does not support this MCP method; check the server type and version")},
-    -32602: {"code": "INVALID_INPUT", "retryable": False, "suggestion": (
-        "Correct the request parameters (tool name and arguments object) and try again")},
-    -32603: {"code": "INTERNAL_ERROR", "retryable": True, "outcome_unknown": True, "suggestion": (
-        "The server failed while handling the request; retry, and check the server logs if it "
-        "persists")},
-    -32000: {"code": "REQUEST_REJECTED", "retryable": False, "suggestion": (
-        "The server rejected the HTTP request (Host, Origin, Content-Type or size); check the "
-        "URL and headers")},
-    -32001: {"code": "SESSION_NOT_FOUND", "retryable": True, "suggestion": (
-        "The MCP session is unknown or expired; reconnect to start a new session")},
+    -32700: {
+        "code": "PARSE_ERROR",
+        "retryable": False,
+        "suggestion": (
+            "The server could not parse the request as JSON; check the arguments are serializable"
+        ),
+    },
+    -32600: {
+        "code": "INVALID_REQUEST",
+        "retryable": False,
+        "suggestion": (
+            "The server rejected the JSON-RPC envelope; check that it is an AFD MCP endpoint"
+        ),
+    },
+    -32601: {
+        "code": "METHOD_NOT_FOUND",
+        "retryable": False,
+        "suggestion": (
+            "The server does not support this MCP method; check the server type and version"
+        ),
+    },
+    -32602: {
+        "code": "INVALID_INPUT",
+        "retryable": False,
+        "suggestion": (
+            "Correct the request parameters (tool name and arguments object) and try again"
+        ),
+    },
+    -32603: {
+        "code": "INTERNAL_ERROR",
+        "retryable": True,
+        "outcome_unknown": True,
+        "suggestion": (
+            "The server failed while handling the request; retry, and check the server logs if it "
+            "persists"
+        ),
+    },
+    -32000: {
+        "code": "REQUEST_REJECTED",
+        "retryable": False,
+        "suggestion": (
+            "The server rejected the HTTP request (Host, Origin, Content-Type or size); check the "
+            "URL and headers"
+        ),
+    },
+    -32001: {
+        "code": "SESSION_NOT_FOUND",
+        "retryable": True,
+        "suggestion": ("The MCP session is unknown or expired; reconnect to start a new session"),
+    },
 }
 """JSON-RPC error codes as TypeScript's client maps them (``client-errors.ts``)."""
 
@@ -229,8 +266,9 @@ def _rpc_error(code: int, message: str, data: Any) -> dict[str, Any] | None:
     return {
         "code": mapping.get("code", "JSON_RPC_ERROR"),
         "message": message or "The server returned a JSON-RPC error",
-        "suggestion": suggestion if isinstance(suggestion, str) and suggestion else (
-            mapping.get("suggestion", "Check the request against the server documentation")),
+        "suggestion": suggestion
+        if isinstance(suggestion, str) and suggestion
+        else (mapping.get("suggestion", "Check the request against the server documentation")),
         "retryable": mapping.get("retryable", False),
         "details": {"jsonRpcCode": code},
     }
@@ -264,7 +302,9 @@ def refusal(exc: Exception) -> dict[str, Any] | None:
     cause = getattr(exc, "cause", None)
     code = getattr(cause, "code", None)
     if type(cause).__name__ == "MCPError" and code in _SDK_REFUSALS:
-        return _rpc_error(code, str(getattr(cause, "message", "") or cause), getattr(cause, "data", None))
+        return _rpc_error(
+            code, str(getattr(cause, "message", "") or cause), getattr(cause, "data", None)
+        )
     status = _http_status(cause)
     if status is not None:
         return refusal(HttpStatusError(status, str(exc)))
@@ -284,9 +324,10 @@ def failure_cause(exc: Exception) -> dict[str, Any]:
         mapping = JSON_RPC_ERRORS.get(exc.code, {})
         return {"cause": mapping.get("code", "JSON_RPC_ERROR"), "jsonRpcCode": exc.code}
     cause = getattr(exc, "cause", None)
-    if type(cause).__name__ == "MCPError" and isinstance(getattr(cause, "code", None), int):
-        mapping = JSON_RPC_ERRORS.get(cause.code, {})
-        return {"cause": mapping.get("code", "JSON_RPC_ERROR"), "jsonRpcCode": cause.code}
+    cause_code = getattr(cause, "code", None)
+    if type(cause).__name__ == "MCPError" and isinstance(cause_code, int):
+        mapping = JSON_RPC_ERRORS.get(cause_code, {})
+        return {"cause": mapping.get("code", "JSON_RPC_ERROR"), "jsonRpcCode": cause_code}
     status = exc.status if isinstance(exc, HttpStatusError) else _http_status(cause)
     if status is not None:
         return {"cause": f"HTTP_{status}"}
@@ -342,8 +383,10 @@ async def run_batch(
 
     if _is_batch_result(result):
         return result
-    if isinstance(result, dict) and result.get("success") is False and isinstance(
-        result.get("error"), dict
+    if (
+        isinstance(result, dict)
+        and result.get("success") is False
+        and isinstance(result.get("error"), dict)
     ):
         error = result["error"]
         return batch_failure(
@@ -387,7 +430,9 @@ def batch_text(result: dict[str, Any], *, verbose: bool = False) -> list[str]:
 
     lines += ["", click.style("Summary:", bold=True)]
     lines.append(f"  Total:    {terminal_text(summary.get('total'))}")
-    lines.append(f"  Success:  {click.style(terminal_text(summary.get('successCount')), fg='green')}")
+    lines.append(
+        f"  Success:  {click.style(terminal_text(summary.get('successCount')), fg='green')}"
+    )
     if failures > 0:
         lines.append(f"  Failed:   {click.style(terminal_text(summary['failureCount']), fg='red')}")
     if skipped > 0:
@@ -397,7 +442,10 @@ def batch_text(result: dict[str, Any], *, verbose: bool = False) -> list[str]:
     lines.append(f"  Total:    {terminal_text(timing.get('totalMs'))}ms")
     lines.append(f"  Average:  {_number(timing.get('averageMs'))}ms/command")
 
-    lines += ["", f"{click.style('Confidence:', bold=True)} {format_confidence(result.get('confidence'))}"]
+    lines += [
+        "",
+        f"{click.style('Confidence:', bold=True)} {format_confidence(result.get('confidence'))}",
+    ]
     if result.get("reasoning"):
         lines.append(_dim(f"  {terminal_text(result['reasoning'])}"))
 
@@ -406,7 +454,8 @@ def batch_text(result: dict[str, Any], *, verbose: bool = False) -> list[str]:
         lines += ["", click.style("Command Results:", bold=True)]
         for entry in entries:
             entry = entry if isinstance(entry, dict) else {}
-            outcome = entry.get("result") if isinstance(entry.get("result"), dict) else {}
+            raw_result = entry.get("result")
+            outcome: dict[str, Any] = raw_result if isinstance(raw_result, dict) else {}
             ok = outcome.get("success") is True
             status = click.style("✓", fg="green") if ok else click.style("✗", fg="red")
             entry_id = terminal_text(entry.get("id") or f"#{entry.get('index')}")
@@ -505,14 +554,17 @@ class StreamPrinter:
                 self._echo(_json_text(chunk["data"], indent=2))
         elif kind == "error":
             self.clear_progress()
-            error = chunk.get("error") if isinstance(chunk.get("error"), dict) else {}
+            raw_error = chunk.get("error")
+            error: dict[str, Any] = raw_error if isinstance(raw_error, dict) else {}
             self._echo()
             self._echo(click.style("✗ Stream error", fg="red"))
             self._echo(f"  {click.style('Error:', fg='red')} {format_error_summary(error)}")
             if error.get("suggestion"):
                 self._echo(f"  {_dim('Suggestion:')} {terminal_text(error['suggestion'])}")
             if _count(chunk.get("chunksBeforeError")) > 0:
-                self._echo(_dim(f"  Chunks before error: {terminal_text(chunk['chunksBeforeError'])}"))
+                self._echo(
+                    _dim(f"  Chunks before error: {terminal_text(chunk['chunksBeforeError'])}")
+                )
             if chunk.get("recoverable"):
                 self._echo(_dim("  This error may be recoverable"))
                 if chunk.get("resumeFrom") is not None:

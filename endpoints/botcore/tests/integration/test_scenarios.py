@@ -239,17 +239,23 @@ class TestLiveAgentWorkflow:
         assert r3["data"]["session_id"] != r4["data"]["session_id"]
 
         # Assign distinct tasks
-        t1 = await handler("task_assign", {
-            "description": "Reply with exactly: RESEARCHER_OK",
-            "agent": "researcher",
-        })
+        t1 = await handler(
+            "task_assign",
+            {
+                "description": "Reply with exactly: RESEARCHER_OK",
+                "agent": "researcher",
+            },
+        )
         assert t1["success"]
         assert "RESEARCHER_OK" in t1["data"]["result"]
 
-        t2 = await handler("task_assign", {
-            "description": "Reply with exactly: CODER_OK",
-            "agent": "coder",
-        })
+        t2 = await handler(
+            "task_assign",
+            {
+                "description": "Reply with exactly: CODER_OK",
+                "agent": "coder",
+            },
+        )
         assert t2["success"]
         assert "CODER_OK" in t2["data"]["result"]
 
@@ -267,20 +273,26 @@ class TestLiveAgentWorkflow:
         handler = build_command_handler(orchestrator)
 
         # Store some knowledge
-        r = await handler("memory_set", {
-            "key": "project/stack",
-            "value": "Python 3.11, botcore, AFD, pytest",
-            "scope": "team",
-            "scope_id": "alpha-team",
-        })
+        r = await handler(
+            "memory_set",
+            {
+                "key": "project/stack",
+                "value": "Python 3.11, botcore, AFD, pytest",
+                "scope": "team",
+                "scope_id": "alpha-team",
+            },
+        )
         assert r["success"]
 
         # Retrieve it
-        r = await handler("memory_get", {
-            "key": "project/stack",
-            "scope": "team",
-            "scope_id": "alpha-team",
-        })
+        r = await handler(
+            "memory_get",
+            {
+                "key": "project/stack",
+                "scope": "team",
+                "scope_id": "alpha-team",
+            },
+        )
         assert r["success"]
         assert "botcore" in r["data"]["value"]
 
@@ -288,10 +300,13 @@ class TestLiveAgentWorkflow:
         await handler("agent_create", {"name": "researcher"})
         await handler("agent_start", {"name": "researcher"})
 
-        t = await handler("task_assign", {
-            "description": "Reply with exactly: MEMORY_TEST_PASS",
-            "agent": "researcher",
-        })
+        t = await handler(
+            "task_assign",
+            {
+                "description": "Reply with exactly: MEMORY_TEST_PASS",
+                "agent": "researcher",
+            },
+        )
         assert t["success"]
         assert "MEMORY_TEST_PASS" in t["data"]["result"]
 

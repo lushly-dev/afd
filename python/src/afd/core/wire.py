@@ -24,7 +24,7 @@ Example:
 from __future__ import annotations
 
 import json
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import (
     BaseModel,
@@ -109,8 +109,8 @@ def keep_null_data(
 
 
 def _insert_in_field_order(
-    model: BaseModel, dumped: dict, info: SerializationInfo, name: str, value: Any
-) -> dict:
+    model: BaseModel, dumped: dict[str, Any], info: SerializationInfo, name: str, value: Any
+) -> dict[str, Any]:
     """``dumped`` with ``name`` added where the model declares it, so key order matches."""
     fields = type(model).model_fields
     before = set()
@@ -118,7 +118,7 @@ def _insert_in_field_order(
         if field_name == name:
             break
         before.add(field.alias if info.by_alias and field.alias else field_name)
-    out: dict = {}
+    out: dict[str, Any] = {}
     placed = False
     for key, item in dumped.items():
         if not placed and key not in before:
@@ -160,7 +160,7 @@ def to_wire(value: Any) -> Any:
     )
 
 
-def to_wire_json(value: Any, *, indent: Optional[int] = None) -> str:
+def to_wire_json(value: Any, *, indent: int | None = None) -> str:
     """Serialize a value to a JSON string in the wire format.
 
     Args:

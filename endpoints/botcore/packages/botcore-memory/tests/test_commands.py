@@ -200,7 +200,10 @@ class TestScopeIdValidation:
 
     async def test_set_rejects_path_traversal(self):
         result = await memory_set(
-            key="k", value="v", scope="team", scope_id="../../escape",
+            key="k",
+            value="v",
+            scope="team",
+            scope_id="../../escape",
         )
         assert_error(result, "MEMORY_INVALID_SCOPE_ID")
 
@@ -218,7 +221,9 @@ class TestScopeIdValidation:
 
     async def test_search_rejects_path_traversal(self):
         result = await memory_search(
-            query="q", scope="team", scope_id="../../passwd",
+            query="q",
+            scope="team",
+            scope_id="../../passwd",
         )
         assert_error(result, "MEMORY_INVALID_SCOPE_ID")
 

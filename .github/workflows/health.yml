@@ -66,6 +66,8 @@ jobs:
         run: |
           uv run --frozen ruff check src tests scripts
           uv run --frozen ruff format --check src tests scripts
+      - name: Type check
+        run: uv run --frozen mypy src
       - name: Test
         run: uv run --frozen pytest -q
       - name: Build wheel and sdist, scan contents and smoke-test isolated consumers

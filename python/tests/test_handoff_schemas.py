@@ -11,7 +11,6 @@ from afd.server.handoff_schemas import (
     validate_handoff,
 )
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # HandoffCredentialsSchema
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -159,10 +158,12 @@ class TestHandoffResultSchema:
 
 class TestValidateHandoff:
     def test_valid_handoff(self):
-        result = validate_handoff({
-            "protocol": "websocket",
-            "endpoint": "wss://chat.example.com/room/123",
-        })
+        result = validate_handoff(
+            {
+                "protocol": "websocket",
+                "endpoint": "wss://chat.example.com/room/123",
+            }
+        )
         assert result.protocol == "websocket"
 
     def test_invalid_handoff_raises(self):

@@ -101,8 +101,12 @@ SESSION_PREFIXES = ("/tmp/", "/private/tmp/", "/var/folders/", "/private/var/fol
 SESSION_PART = "fnm_multishells"
 # Keys newer than the first release, left out of the file while at their defaults, so a botcore
 # from before them (which refuses unknown keys) still reads a file this one wrote
-OMIT_AT_DEFAULT = ("remove_landed", "idle_worktree_limit", "skill_usage_collect",
-                   "skill_usage_away")
+OMIT_AT_DEFAULT = (
+    "remove_landed",
+    "idle_worktree_limit",
+    "skill_usage_collect",
+    "skill_usage_away",
+)
 
 
 # ── The settings file ───────────────────────────────────────────────────────
@@ -197,9 +201,13 @@ def _watch_volumes(settings: MachineSettings) -> list[str]:
         if str(mount) in known:
             continue
         known.add(str(mount))
-        settings.volume.append(VolumeSettings(
-            mount=str(mount), id=volume_id(mount), low_space_gb=default_low_space_gb(mount),
-        ))
+        settings.volume.append(
+            VolumeSettings(
+                mount=str(mount),
+                id=volume_id(mount),
+                low_space_gb=default_low_space_gb(mount),
+            )
+        )
         added.append(str(mount))
     return added
 
@@ -209,8 +217,9 @@ def uv_cache_dir() -> str | None:
     if uv is None:
         return None
     try:
-        done = subprocess.run([uv, "cache", "dir"], capture_output=True, text=True, timeout=30,
-                              check=False)
+        done = subprocess.run(
+            [uv, "cache", "dir"], capture_output=True, text=True, timeout=30, check=False
+        )
     except (OSError, subprocess.TimeoutExpired):
         return None
     return done.stdout.strip() or None
@@ -253,8 +262,10 @@ def _session_path(path: str) -> bool:
         if not value:
             continue
         resolved = os.path.realpath(value)
-        if os.path.dirname(resolved) == resolved or home == resolved or home.startswith(
-            resolved.rstrip(os.sep) + os.sep
+        if (
+            os.path.dirname(resolved) == resolved
+            or home == resolved
+            or home.startswith(resolved.rstrip(os.sep) + os.sep)
         ):
             continue  # a root, the home folder or one above it is not a session folder
         for form in (value, resolved):
@@ -373,7 +384,7 @@ async def disk_setup(
     repos: list[str] | None = None,
     install_schedule: bool = True,
     remove_landed: bool | None = None,
-) -> CommandResult[dict]:
+) -> CommandResult[dict[str, Any]]:
     """Register this repository (and `repos`), record watched volumes, install the schedule.
 
     Safe to run again: it adds what is missing and never removes a repository or volume.
@@ -387,23 +398,33 @@ def _disk_setup_sync(
     repos: list[str] | None,
     install_schedule: bool,
     remove_landed: bool | None,
-) -> CommandResult[dict]:
+) -> CommandResult[dict[str, Any]]:
     if uninstall:
         schedule.uninstall()
         state = schedule.current()
         if state.installed:
             detail = f" ({state.detail})" if state.detail else ""
-            return error("DISK_SCHEDULE_FAILED",
-                         f"the job is still installed at {state.where}{detail}",
-                         suggestion="Remove it with the platform's scheduler, then run again")
-        return success(data={"schedule": state.as_dict(), "settings": str(settings_path()),
-                             "state": str(state_path())},
-                       suggestions=["Settings and receipts were kept; delete them if unwanted"])
+            return error(
+                "DISK_SCHEDULE_FAILED",
+                f"the job is still installed at {state.where}{detail}",
+                suggestion="Remove it with the platform's scheduler, then run again",
+            )
+        return success(
+            data={
+                "schedule": state.as_dict(),
+                "settings": str(settings_path()),
+                "state": str(state_path()),
+            },
+            suggestions=["Settings and receipts were kept; delete them if unwanted"],
+        )
     try:
         settings, path, _found = load_machine_settings()
     except SettingsError as exc:
-        return error("DISK_SETTINGS_INVALID", str(exc),
-                     suggestion="Fix the machine settings file, or move it aside and run again")
+        return error(
+            "DISK_SETTINGS_INVALID",
+            str(exc),
+            suggestion="Fix the machine settings file, or move it aside and run again",
+        )
     added_repos = []
     for candidate in [*(repos or []), str(Path.cwd())]:
         main = _main_checkout(expand(candidate))
@@ -430,12 +451,17 @@ def _disk_setup_sync(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(settings_toml(settings), encoding="utf-8")
     cargo = cargo_check(settings)
-    data: dict = {"settings": str(path), "added_repos": added_repos,
-                  "added_volumes": added_volumes, "updated_volumes": updated_volumes,
-                  "repos": settings.repos,
-                  "tools": settings.tools, "changed_tools": changed_tools,
-                  "remove_landed": settings.remove_landed,
-                  "cargo": cargo}
+    data: dict[str, Any] = {
+        "settings": str(path),
+        "added_repos": added_repos,
+        "added_volumes": added_volumes,
+        "updated_volumes": updated_volumes,
+        "repos": settings.repos,
+        "tools": settings.tools,
+        "changed_tools": changed_tools,
+        "remove_landed": settings.remove_landed,
+        "cargo": cargo,
+    }
     if not install_schedule:
         return success(data=data, suggestions=cargo["problems"])
     err_details: dict[str, Any] = {"settings": str(path), "changed_tools": changed_tools}
@@ -450,7 +476,8 @@ def _disk_setup_sync(
     exe, why = _persistent_exe(checkouts)
     if exe is None:
         return error(
-            "DISK_TOOL_NOT_INSTALLED", why or "botcore is not installed",
+            "DISK_TOOL_NOT_INSTALLED",
+            why or "botcore is not installed",
             suggestion="Install it as a tool first: uv tool install 'lushly-botcore==<version>'",
             details=err_details,
         )
@@ -458,22 +485,26 @@ def _disk_setup_sync(
     data["schedule"] = state.as_dict()
     if not state.installed:
         return error(
-            "DISK_SCHEDULE_FAILED", state.detail or "the scheduler refused the job",
+            "DISK_SCHEDULE_FAILED",
+            state.detail or "the scheduler refused the job",
             suggestion="Read the detail, fix it, and run disk-setup again",
             details=err_details,
         )
     schedule.run_now()
-    return success(data=data, suggestions=[
-        *cargo["problems"],
-        "Approve any permission prompt now: the first run has started",
-        "disk-status shows the last run",
-    ])
+    return success(
+        data=data,
+        suggestions=[
+            *cargo["problems"],
+            "Approve any permission prompt now: the first run has started",
+            "disk-status shows the last run",
+        ],
+    )
 
 
 # ── Status ──────────────────────────────────────────────────────────────────
 
 
-def _read_json(name: str) -> dict:
+def _read_json(name: str) -> dict[str, Any]:
     path = state_path() / name
     try:
         data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
@@ -482,7 +513,7 @@ def _read_json(name: str) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def _read_status() -> dict:
+def _read_status() -> dict[str, Any]:
     """status.json, which only disk-reclaim writes, under the run lock."""
     return _read_json("status.json")
 
@@ -498,7 +529,9 @@ def _age_hours(stamp: str | None) -> float | None:
 
 
 def _counted_warnings(
-    settings: MachineSettings, status: dict, registered_only: bool = True,
+    settings: MachineSettings,
+    status: dict[str, Any],
+    registered_only: bool = True,
 ) -> list[str]:
     """Repositories over the idle-worktree limit when a reclaim last counted them, from
     what that reclaim wrote. A count older than 48 hours says when it was taken.
@@ -530,7 +563,9 @@ def _counted_warnings(
     return warnings
 
 
-def disk_warnings(settings: MachineSettings | None = None, status: dict | None = None) -> list[str]:
+def disk_warnings(
+    settings: MachineSettings | None = None, status: dict[str, Any] | None = None
+) -> list[str]:
     """What the owner should fix that does not stop a run: registered repositories over the
     idle-worktree limit when a reclaim last counted them, and Cargo output no [[aged]] folder
     clears. Factory's lane-status shows these to the foreman before it starts cells."""
@@ -540,14 +575,15 @@ def disk_warnings(settings: MachineSettings | None = None, status: dict | None =
         except SettingsError:
             return []
     counted = _counted_warnings(settings, status if status is not None else _read_status())
-    return counted + cargo_check(settings)["problems"]
+    problems: list[str] = list(cargo_check(settings)["problems"])
+    return counted + problems
 
 
-def _volumes_now(settings: MachineSettings) -> list[dict]:
+def _volumes_now(settings: MachineSettings) -> list[dict[str, Any]]:
     return [volume_state(expand(v.mount), v.id, v.low_space_gb).as_dict() for v in settings.volume]
 
 
-def _saved() -> tuple[MachineSettings, Path, bool, dict, dict]:
+def _saved() -> tuple[MachineSettings, Path, bool, dict[str, Any], dict[str, Any]]:
     """The machine settings and what the job last wrote, each named before it is read."""
     doing("reading", settings_path())
     settings, path, found = load_machine_settings()
@@ -557,7 +593,7 @@ def _saved() -> tuple[MachineSettings, Path, bool, dict, dict]:
     return settings, path, found, status, _read_json("check.json")
 
 
-def _live(settings: MachineSettings, status: dict) -> dict:
+def _live(settings: MachineSettings, status: dict[str, Any]) -> dict[str, Any]:
     """What `disk-status` reads from the machine as it is now, and not from the job's files:
     the scheduler, the watched volumes, which counted repositories are still registered,
     and what Cargo's settings say."""
@@ -575,7 +611,7 @@ def _live(settings: MachineSettings, status: dict) -> dict:
 _LIVE: tuple[Step, tuple[MachineSettings, object]] | None = None
 
 
-async def disk_status() -> CommandResult[dict]:
+async def disk_status() -> CommandResult[dict[str, Any]]:
     """The schedule, the last runs, free space on watched volumes, and whether anything is
     stale.
 
@@ -596,14 +632,18 @@ async def disk_status() -> CommandResult[dict]:
         said = files.now()
         return error(
             "DISK_STATE_UNANSWERED",
-            _with_hint(f"The status has been {describe(said)} and it has not answered",
-                       said[1] if said else ""),
-            suggestion="The machine settings and the state folder must be on a drive that "
-                       "answers",
+            _with_hint(
+                f"The status has been {describe(said)} and it has not answered",
+                said[1] if said else "",
+            ),
+            suggestion="The machine settings and the state folder must be on a drive that answers",
         )
     if isinstance(files.outcome.get("raised"), SettingsError):
-        return error("DISK_SETTINGS_INVALID", str(files.outcome["raised"]),
-                     suggestion="Fix the machine settings file, or move it aside and run setup")
+        return error(
+            "DISK_SETTINGS_INVALID",
+            str(files.outcome["raised"]),
+            suggestion="Fix the machine settings file, or move it aside and run setup",
+        )
     if "raised" in files.outcome:
         raise files.outcome["raised"]
     settings, path, found, status, check = files.outcome["result"]
@@ -624,11 +664,13 @@ async def disk_status() -> CommandResult[dict]:
     problems = []
     if now is None:
         said = live.now()
-        problems.append(_with_hint(
-            f"this machine did not answer in {STATUS_SECONDS:g} seconds: the status was "
-            f"{describe(said)}; what follows is what the job last wrote",
-            said[1] if said else "",
-        ))
+        problems.append(
+            _with_hint(
+                f"this machine did not answer in {STATUS_SECONDS:g} seconds: the status was "
+                f"{describe(said)}; what follows is what the job last wrote",
+                said[1] if said else "",
+            )
+        )
     if not found:
         problems.append("no machine settings: run disk-setup")
     if sched is not None and not sched.installed:
@@ -637,16 +679,25 @@ async def disk_status() -> CommandResult[dict]:
         problems.append("no successful run in the last 48 hours")
     elif not last_apply.get("ok"):
         problems.append("the last run had failures: read its receipt")
-    problems += [f"{v['mount']} is below {v['low_space_gb']} GB free" for v in volumes
-                 if v["below_threshold"]]
-    problems += [f"{v['mount']} is not mounted or not the recorded volume" for v in volumes
-                 if not v["verified"]]
+    problems += [
+        f"{v['mount']} is below {v['low_space_gb']} GB free"
+        for v in volumes
+        if v["below_threshold"]
+    ]
+    problems += [
+        f"{v['mount']} is not mounted or not the recorded volume"
+        for v in volumes
+        if not v["verified"]
+    ]
     usage = check.get("skill_usage") if settings.skill_usage_collect else None
     usage = usage if isinstance(usage, dict) else None
     # what a reclaim counted is on file: all of it, when the machine does not say which
     # of those repositories are still registered. What Cargo's settings say is read now.
-    warnings = (now["counted"] + now["cargo"]) if now else _counted_warnings(
-        settings, status, registered_only=False)
+    warnings = (
+        (now["counted"] + now["cargo"])
+        if now
+        else _counted_warnings(settings, status, registered_only=False)
+    )
     work = check.get("disk_work")
     work = work if isinstance(work, dict) else None
     if work and not work.get("ok"):
@@ -689,8 +740,7 @@ async def disk_status() -> CommandResult[dict]:
         "problems": problems,
         "warnings": warnings,
     }
-    return success(data=data,
-                   suggestions=problems[:1] or data["warnings"][:1] or ["Nothing to do"])
+    return success(data=data, suggestions=problems[:1] or data["warnings"][:1] or ["Nothing to do"])
 
 
 # ── The scheduled job ───────────────────────────────────────────────────────
@@ -701,8 +751,9 @@ def notify(title: str, message: str) -> None:
     try:
         if sys.platform == "darwin":
             script = f"display notification {json.dumps(message)} with title {json.dumps(title)}"
-            subprocess.run(["osascript", "-e", script], timeout=30, check=False,
-                           capture_output=True)
+            subprocess.run(
+                ["osascript", "-e", script], timeout=30, check=False, capture_output=True
+            )
         elif sys.platform == "win32":
             ps = (
                 "Add-Type -AssemblyName System.Windows.Forms;"
@@ -711,11 +762,16 @@ def notify(title: str, message: str) -> None:
                 f"$n.ShowBalloonTip(10000,{json.dumps(title)},{json.dumps(message)},'Warning');"
                 "Start-Sleep -Seconds 11;$n.Dispose()"
             )
-            subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
-                           timeout=60, check=False, capture_output=True)
+            subprocess.run(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
+                timeout=60,
+                check=False,
+                capture_output=True,
+            )
         elif shutil.which("notify-send"):
-            subprocess.run(["notify-send", title, message], timeout=30, check=False,
-                           capture_output=True)
+            subprocess.run(
+                ["notify-send", title, message], timeout=30, check=False, capture_output=True
+            )
     except (OSError, subprocess.TimeoutExpired):
         pass
 
@@ -727,7 +783,7 @@ class StateBusy(OSError):
     """Another run is writing check.json and did not finish in time."""
 
 
-def _update_check(change: Callable[[dict], None]) -> None:
+def _update_check(change: Callable[[dict[str, Any]], None]) -> None:
     """check.json: the job's own heartbeat and notification time, apart from status.json.
     `change` is given the file as it stands. Two threads of a run write it, and so can two
     runs, one started by hand while the scheduler's is going: the read and the write are one
@@ -754,7 +810,7 @@ def _update_check(change: Callable[[dict], None]) -> None:
         os.replace(tmp, folder / "check.json")
 
 
-def _write_check(update: dict) -> None:
+def _write_check(update: dict[str, Any]) -> None:
     """The disk work's own notes in check.json, as it goes. A note that cannot be written
     (a full disk, which is when this runs) never fails the work: the run's record, written
     at its end, is what says the state could not be written."""
@@ -764,7 +820,7 @@ def _write_check(update: dict) -> None:
         pass
 
 
-def _newly_low(volumes: list[dict], last_apply: dict) -> list[str]:
+def _newly_low(volumes: list[dict[str, Any]], last_apply: dict[str, Any]) -> list[str]:
     """Low volumes worth a run now: not already low after the last run, or losing more space.
 
     A volume the last run could not bring back above its threshold waits for the daily run,
@@ -784,7 +840,7 @@ def _newly_low(volumes: list[dict], last_apply: dict) -> list[str]:
     return out
 
 
-def _outcome(previous: object, failure: str | None, found: dict) -> dict:
+def _outcome(previous: object, failure: str | None, found: dict[str, Any]) -> dict[str, Any]:
     """What check.json keeps of one part of the job (`disk_work`, `skill_usage`), given what
     it kept before: whether it worked, when it last did, and since when it has not."""
     now = datetime.now(UTC).isoformat(timespec="seconds")
@@ -823,7 +879,7 @@ def _look(step: Step) -> tuple[str, Said | None, int | None]:
     return ("waiting" if quiet >= limit else "working"), (what, path, lasted), word
 
 
-def _disk_outcome(step: Step, look: str, said: Said | None) -> tuple[str | None, dict]:
+def _disk_outcome(step: Step, look: str, said: Said | None) -> tuple[str | None, dict[str, Any]]:
     """Why the disk work is not done, or None, and what else the status shows of it. For a
     step seen `done` or `waiting`: one that is working has no outcome yet."""
     if look == "waiting":
@@ -842,12 +898,14 @@ def _disk_outcome(step: Step, look: str, said: Said | None) -> tuple[str | None,
     found = {"ran": bool(data.get("ran"))}
     if data.get("reclaim_ok") is False:
         # it came back, and its receipt lists what it could not do: not a time it worked
-        return (f"the reclaim had {data.get('failures', 0)} failures: read its receipt",
-                {**found, "reclaim_ok": False})
+        return (
+            f"the reclaim had {data.get('failures', 0)} failures: read its receipt",
+            {**found, "reclaim_ok": False},
+        )
     return None, found
 
 
-def _usage_outcome(step: Step, look: str, said: Said | None) -> tuple[str | None, dict]:
+def _usage_outcome(step: Step, look: str, said: Said | None) -> tuple[str | None, dict[str, Any]]:
     """Why skill usage was not collected, or None, and how many events were added."""
     from botcore.commands.skill_usage.store import SHARING
 
@@ -855,8 +913,10 @@ def _usage_outcome(step: Step, look: str, said: Said | None) -> tuple[str | None
         what, path = (said[0], said[1]) if said else ("starting", "")
         if what == SHARING:
             # the record is written before it is shared: what did not answer is the folder
-            text = (f"this machine's record was collected, but the shared folder did not "
-                    f"answer in {USAGE_SECONDS:g} seconds: {path}")
+            text = (
+                f"this machine's record was collected, but the shared folder did not "
+                f"answer in {USAGE_SECONDS:g} seconds: {path}"
+            )
         else:
             text = f"it made no progress for {USAGE_SECONDS:g} seconds"
             if what != "starting":
@@ -866,7 +926,8 @@ def _usage_outcome(step: Step, look: str, said: Said | None) -> tuple[str | None
         return f"{type(step.outcome['raised']).__name__}: {step.outcome['raised']}", {}
     result = step.outcome["result"]
     data = result.data or {}
-    shared = data.get("shared") if isinstance(data.get("shared"), dict) else {}
+    raw_shared = data.get("shared")
+    shared: dict[str, Any] = raw_shared if isinstance(raw_shared, dict) else {}
     if not result.success:
         return (result.error.message if result.error else "the collection failed"), {}
     if shared.get("error"):
@@ -874,7 +935,7 @@ def _usage_outcome(step: Step, look: str, said: Said | None) -> tuple[str | None
     return None, {"added": data.get("added", 0)}
 
 
-def _kept(previous: object, failure: str | None, found: dict) -> dict | None:
+def _kept(previous: object, failure: str | None, found: dict[str, Any]) -> dict[str, Any] | None:
     """What to keep of the disk work, or None to keep what is there. An hour with nothing
     due does not clear what a reclaim could not do: only another reclaim knows better."""
     before = previous if isinstance(previous, dict) else {}
@@ -916,7 +977,7 @@ async def _answered(what: str, path: object, work: Callable[[], Any], bounded: b
     return step.outcome["result"]
 
 
-async def disk_run(force: bool = False, own_process: bool = False) -> CommandResult[dict]:
+async def disk_run(force: bool = False, own_process: bool = False) -> CommandResult[dict[str, Any]]:
     """What the schedule runs: a free-space check, a reclaim when it is due or space is low,
     and then the hourly collection of skill usage.
 
@@ -934,14 +995,21 @@ async def disk_run(force: bool = False, own_process: bool = False) -> CommandRes
     """
     try:
         settings, _path, _found = await _answered(
-            "reading", settings_path(), load_machine_settings, own_process)
+            "reading", settings_path(), load_machine_settings, own_process
+        )
     except SettingsError as exc:
-        return error("DISK_SETTINGS_INVALID", str(exc),
-                     suggestion="Fix the machine settings file; the job will retry next hour")
+        return error(
+            "DISK_SETTINGS_INVALID",
+            str(exc),
+            suggestion="Fix the machine settings file; the job will retry next hour",
+        )
     except Unanswered as exc:
-        return error("DISK_STATE_UNANSWERED", str(exc),
-                     suggestion="The machine settings must be on a drive that answers; the "
-                                "job will retry next hour")
+        return error(
+            "DISK_STATE_UNANSWERED",
+            str(exc),
+            suggestion="The machine settings must be on a drive that answers; the "
+            "job will retry next hour",
+        )
     disk = Step("disk-work", lambda: asyncio.run(_disk_work(settings, force)))
     started: list[Step] = [disk]
     try:
@@ -958,10 +1026,13 @@ async def disk_run(force: bool = False, own_process: bool = False) -> CommandRes
 
 
 async def _run(  # noqa: C901, PLR0912 - one run, start to end
-    settings: MachineSettings, disk: Step, started: list[Step], own_process: bool,
-) -> CommandResult[dict]:
+    settings: MachineSettings,
+    disk: Step,
+    started: list[Step],
+    own_process: bool,
+) -> CommandResult[dict[str, Any]]:
     usage: Step | None = None
-    collected: dict | None = None
+    collected: dict[str, Any] | None = None
     unwritten: str | None = None
     # What was seen of each step when the run left it, and where it was. That stands for the
     # rest of the run: the step ends later only because it was told to stop.
@@ -982,20 +1053,20 @@ async def _run(  # noqa: C901, PLR0912 - one run, start to end
             if usage is None or usage_seen[0] == "working"
             else _usage_outcome(usage, *usage_seen)
         )
-        kept: dict = {}
+        kept: dict[str, Any] = {}
 
-        def change(data: dict) -> None:
+        def change(data: dict[str, Any]) -> None:
             if work is not None:  # a step that works has no outcome yet
                 keep = _kept(data.get("disk_work"), *work)
                 if keep is not None:
                     data["disk_work"] = keep
             if collection is not None:
-                kept["usage"] = data["skill_usage"] = _outcome(
-                    data.get("skill_usage"), *collection)
+                kept["usage"] = data["skill_usage"] = _outcome(data.get("skill_usage"), *collection)
 
         try:
-            await _answered("writing", state_path() / "check.json",
-                            lambda: _update_check(change), own_process)
+            await _answered(
+                "writing", state_path() / "check.json", lambda: _update_check(change), own_process
+            )
             unwritten = None
         except (Unanswered, OSError) as exc:  # a drive that is away, or one that is full
             unwritten = str(exc)
@@ -1045,18 +1116,26 @@ async def _run(  # noqa: C901, PLR0912 - one run, start to end
     if look != "done":
         failure, _found = _disk_outcome(disk, "waiting", said)
         print(f"the disk work was left waiting here:\n{where or disk.where()}", file=sys.stderr)
-        return error("DISK_RUN_STALLED", f"The disk work did not finish: {failure}",
-                     suggestion="disk-status shows what it waits for; the job tries again "
-                                "next hour")
+        return error(
+            "DISK_RUN_STALLED",
+            f"The disk work did not finish: {failure}",
+            suggestion="disk-status shows what it waits for; the job tries again next hour",
+        )
     if "raised" in disk.outcome:
         raised = disk.outcome["raised"]
         print(raised_text(raised), file=sys.stderr, end="")
-        return error("DISK_RUN_FAILED", f"{type(raised).__name__}: {raised}",
-                     suggestion="disk-status shows the state; the job will try again next hour")
+        return error(
+            "DISK_RUN_FAILED",
+            f"{type(raised).__name__}: {raised}",
+            suggestion="disk-status shows the state; the job will try again next hour",
+        )
     if unwritten:
-        return error("DISK_STATE_UNANSWERED", f"The run's state was not written: {unwritten}",
-                     suggestion="The state folder must be on a drive that answers and has room")
-    result = disk.outcome["result"]
+        return error(
+            "DISK_STATE_UNANSWERED",
+            f"The run's state was not written: {unwritten}",
+            suggestion="The state folder must be on a drive that answers and has room",
+        )
+    result: CommandResult[dict[str, Any]] = disk.outcome["result"]
     if collected is not None and result.success and isinstance(result.data, dict):
         result.data["skill_usage"] = collected
     return result
@@ -1118,7 +1197,7 @@ def _reach(settings: MachineSettings) -> None:
     doing("checking free space")
 
 
-async def _disk_work(settings: MachineSettings, force: bool) -> CommandResult[dict]:
+async def _disk_work(settings: MachineSettings, force: bool) -> CommandResult[dict[str, Any]]:
     """The disk part of the job: nothing here waits on, or fails with, the collection."""
     from botcore.commands.disk.reclaim import disk_reclaim
 
@@ -1134,23 +1213,30 @@ async def _disk_work(settings: MachineSettings, force: bool) -> CommandResult[di
     if not due:
         _write_check({})
         return success(data={"ran": False, "low": low, "last_apply_hours_ago": age})
-    result = await disk_reclaim(tier=2 if settings.remove_landed else 1, apply=True,
-                                pressure=False)
+    result = await disk_reclaim(tier=2 if settings.remove_landed else 1, apply=True, pressure=False)
     if not result.success:
         _write_check({"last_error": result.error.message if result.error else "failed"})
         code = result.error.code if result.error else "DISK_RECLAIM_FAILED"
-        return error(code, result.error.message if result.error else "the reclaim failed",
-                     suggestion="disk-status shows the state; the job will try again next hour")
+        return error(
+            code,
+            result.error.message if result.error else "the reclaim failed",
+            suggestion="disk-status shows the state; the job will try again next hour",
+        )
     data = result.data or {}
     still_low = data.get("still_low", [])
     check = _read_json("check.json")
-    update: dict = {"last_error": None}
+    update: dict[str, Any] = {"last_error": None}
     if still_low and time.time() - float(check.get("notified_at") or 0) > NOTIFY_SECONDS:
         notify("Disk space is still low", ", ".join(still_low) + ": run botcore disk-report")
         update["notified_at"] = time.time()
     _write_check(update)
-    return success(data={
-        "ran": True, "low": low, "still_low": still_low,
-        "reclaim_ok": not data.get("failures"), "failures": len(data.get("failures", [])),
-        "receipt": data.get("receipt"),
-    })
+    return success(
+        data={
+            "ran": True,
+            "low": low,
+            "still_low": still_low,
+            "reclaim_ok": not data.get("failures"),
+            "failures": len(data.get("failures", [])),
+            "receipt": data.get("receipt"),
+        }
+    )

@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 from botcore_factory.claims import Claim, current_claim
 from botcore_factory.labels import (
@@ -30,7 +31,7 @@ class Backlog:
     """One consistent read of the issues, their claims and the open PRs that would close them."""
 
     issues: tuple[Issue, ...]
-    definitions: list[dict]
+    definitions: list[dict[str, Any]]
     with_open_pr: frozenset[int]
     claims: dict[int, Claim | None]
     now: datetime
@@ -79,7 +80,7 @@ def dispatchable(backlog: Backlog) -> list[int]:
     return [issue.number for issue in ready]
 
 
-def stale_claims(backlog: Backlog) -> list[dict]:
+def stale_claims(backlog: Backlog) -> list[dict[str, Any]]:
     """Claimed issues whose lease expired, or that carry no claim comment at all."""
     stale = []
     for number, claim in sorted(backlog.claims.items()):
@@ -90,7 +91,7 @@ def stale_claims(backlog: Backlog) -> list[dict]:
     return stale
 
 
-def check(backlog: Backlog) -> dict:
+def check(backlog: Backlog) -> dict[str, Any]:
     """The full intake report, every list in a stable order."""
     issues = sorted(backlog.open_issues(), key=lambda issue: issue.number)
     _, held = dispatch_order(

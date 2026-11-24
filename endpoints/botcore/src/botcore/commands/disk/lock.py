@@ -13,10 +13,12 @@ import json
 import os
 import socket
 import stat
+import sys
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 
 
 class LockHeld(Exception):
@@ -24,7 +26,7 @@ class LockHeld(Exception):
 
 
 def _try_lock(fd: int) -> bool:
-    if os.name == "nt":
+    if sys.platform == "win32":
         import msvcrt
 
         try:
@@ -43,7 +45,7 @@ def _try_lock(fd: int) -> bool:
 
 
 def _unlock(fd: int) -> None:
-    if os.name == "nt":
+    if sys.platform == "win32":
         import msvcrt
 
         try:
@@ -72,9 +74,8 @@ def is_locked(path: Path) -> bool:
             return True
         if (
             stat.S_ISLNK(info.st_mode)
-            or getattr(info, "st_file_attributes", 0) & getattr(
-                stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400
-            )
+            or getattr(info, "st_file_attributes", 0)
+            & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
             or not stat.S_ISREG(info.st_mode)
         ):
             return True
@@ -123,7 +124,7 @@ def record_path(path: Path) -> Path:
     return path.with_name(path.name + ".json")
 
 
-def holder(path: Path) -> dict:
+def holder(path: Path) -> dict[str, Any]:
     """Who last took the lock (for messages only)."""
     try:
         data = json.loads(record_path(path).read_text(encoding="utf-8"))

@@ -238,15 +238,25 @@ impl<T> Default for CommandResult<T> {
 /// Options for creating successful command results.
 #[derive(Debug, Clone)]
 pub struct ResultOptions<T> {
+    /// Confidence score between 0.0 and 1.0.
     pub confidence: Option<f64>,
+    /// Human-readable explanation of the result.
     pub reasoning: Option<String>,
+    /// Sources consulted to produce the result.
     pub sources: Option<Vec<Source>>,
+    /// Execution plan steps associated with the command.
     pub plan: Option<Vec<PlanStep>>,
+    /// Alternative results or options considered.
     pub alternatives: Option<Vec<Alternative<T>>>,
+    /// Non-fatal warnings generated during execution.
     pub warnings: Option<Vec<Warning>>,
+    /// Suggested follow-up actions for the caller.
     pub suggestions: Option<Vec<String>>,
+    /// Additional execution metadata.
     pub metadata: Option<ResultMetadata>,
+    /// Command name that reverses this operation.
     pub undo_command: Option<String>,
+    /// Arguments to pass to `undo_command`.
     pub undo_args: Option<HashMap<String, serde_json::Value>>,
 }
 
@@ -270,12 +280,19 @@ impl<T> Default for ResultOptions<T> {
 /// Options for creating failure results.
 #[derive(Debug, Clone, Default)]
 pub struct FailureOptions {
+    /// Confidence score between 0.0 and 1.0.
     pub confidence: Option<f64>,
+    /// Human-readable explanation of the failure context.
     pub reasoning: Option<String>,
+    /// Sources consulted prior to failure.
     pub sources: Option<Vec<Source>>,
+    /// Execution plan steps up to the point of failure.
     pub plan: Option<Vec<PlanStep>>,
+    /// Non-fatal warnings generated prior to failure.
     pub warnings: Option<Vec<Warning>>,
+    /// Suggested recovery actions for the caller.
     pub suggestions: Option<Vec<String>>,
+    /// Additional execution metadata.
     pub metadata: Option<ResultMetadata>,
 }
 

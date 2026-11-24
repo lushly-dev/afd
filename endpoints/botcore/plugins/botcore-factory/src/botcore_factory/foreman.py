@@ -28,7 +28,8 @@ left open by a superseded session cannot take its successor's events.
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import timedelta
+from datetime import datetime, timedelta
+from typing import Any
 
 from botcore_factory import dials
 from botcore_factory.claims import format_time, parse_time
@@ -39,11 +40,11 @@ LEASE_DIAL = "foreman.leaseMinutes"
 SUPERSEDED_KEPT = 500
 
 
-def _live(lease: dict | None, now) -> bool:
+def _live(lease: dict[str, Any] | None, now: datetime) -> bool:
     return lease is not None and parse_time(lease["until"]) > now
 
 
-def _busy(lease: dict, command: str) -> Refusal:
+def _busy(lease: dict[str, Any], command: str) -> Refusal:
     return Refusal(
         "FOREMAN_BUSY",
         f"Session {lease['session']} is this lane's foreman until {lease['until']}; "
@@ -55,7 +56,7 @@ def _busy(lease: dict, command: str) -> Refusal:
     )
 
 
-def _stale(lane: dict, session: str, command: str) -> Refusal | None:
+def _stale(lane: dict[str, Any], session: str, command: str) -> Refusal | None:
     superseded = (lane.get("supersededForemen") or {}).get(session)
     if superseded is None:
         return None
@@ -71,7 +72,7 @@ def _stale(lane: dict, session: str, command: str) -> Refusal | None:
     )
 
 
-def _supersede(lane: dict, previous: str | None, session: str, at: str) -> None:
+def _supersede(lane: dict[str, Any], previous: str | None, session: str, at: str) -> None:
     """Record that ``session`` took the lane from ``previous``."""
     superseded = lane.setdefault("supersededForemen", {})
     if previous and previous != session:
@@ -83,7 +84,7 @@ def _supersede(lane: dict, previous: str | None, session: str, at: str) -> None:
 
 def hold(
     factory: Factory, session: str | None, command: str, owner_may: bool = False
-) -> dict | None:
+) -> dict[str, Any] | None:
     """Take or renew the lease for ``session`` before ``command`` acts; the lease, or None when
     no session is named. Refuses ``FOREMAN_STALE`` for a session another took the lane from,
     ``FOREMAN_BUSY`` for another session, and for a call that names none unless ``owner_may``
@@ -105,7 +106,7 @@ def hold(
         return take(state, session, command, now)
 
 
-def take(state: dict, session: str, command: str, now) -> dict:
+def take(state: dict[str, Any], session: str, command: str, now: datetime) -> dict[str, Any]:
     """Inside a store transaction: refuse a superseded session or another's live lease, else
     take or renew the lease for ``session``; the lease."""
     lease = state["lane"].get("foreman")
@@ -127,7 +128,13 @@ def take(state: dict, session: str, command: str, now) -> dict:
     return dict(state["lane"]["foreman"])
 
 
-def check(state: dict, session: str | None, command: str, now, owner_may: bool = False) -> None:
+def check(
+    state: dict[str, Any],
+    session: str | None,
+    command: str,
+    now: datetime,
+    owner_may: bool = False,
+) -> None:
     """``hold``'s refusals again, inside the transaction that acts: a named session must not be
     superseded and must still hold a live lease, which is renewed; it never takes the lane
     here, so one whose lease was handed over or ran out since ``hold`` is refused
@@ -156,26 +163,30 @@ def check(state: dict, session: str | None, command: str, now, owner_may: bool =
 
 def guard(
     factory: Factory, session: str | None, command: str, owner_may: bool = False
-) -> Callable[[dict], None]:
+) -> Callable[[dict[str, Any]], None]:
     """``check`` for ``command``, to run first inside its own store transaction."""
     return lambda state: check(state, session, command, factory.world.clock.now(), owner_may)
 
 
 def acting(
     factory: Factory, session: str | None, command: str, owner_may: bool = False
-) -> Callable[[dict], None]:
+) -> Callable[[dict[str, Any]], None]:
     """``hold`` before ``command`` acts; the ``guard`` to run inside its transaction."""
     hold(factory, session, command, owner_may)
     return guard(factory, session, command, owner_may)
 
 
-def wait_guard(factory: Factory, consumer: str, session: str | None):
+def wait_guard(
+    factory: Factory, consumer: str, session: str | None
+) -> Callable[[dict[str, Any]], None] | None:
     """What ``lane-wait`` checks inside the transaction that marks events delivered: the
     foreman's session again; nothing for any other consumer."""
     return guard(factory, session, "lane-wait") if consumer == "foreman" else None
 
 
-def waiting(factory: Factory, consumer: str, session: str | None, timeout_ms: int | None):
+def waiting(
+    factory: Factory, consumer: str, session: str | None, timeout_ms: int | None
+) -> Callable[[], None] | None:
     """Before ``lane-wait``: a foreman takes or renews the lease, and gets back what keeps it
     while waiting. Only a wait with a timeout keeps it, so a wait left behind by a session that
     has ended holds the lane at most until it times out and the lease runs out after it; None for
@@ -199,7 +210,7 @@ def renew(factory: Factory, session: str) -> None:
         hold(factory, session, "lane-wait")
 
 
-def handoff(factory: Factory, session: str) -> dict:
+def handoff(factory: Factory, session: str) -> dict[str, Any]:
     """Release the lease: the holder's own session, or anyone once it has run out."""
     if not session.strip():
         raise Refusal("VALIDATION_ERROR", "session is empty", "Pass the holder's session")

@@ -20,19 +20,14 @@ Example:
 import asyncio
 import math
 import time
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import (
     Annotated,
     Any,
-    AsyncIterator,
-    Awaitable,
-    Callable,
     Generic,
-    List,
     Literal,
-    Optional,
     TypeVar,
-    Union,
 )
 
 from pydantic import Field, TypeAdapter
@@ -74,13 +69,13 @@ class ProgressChunk(WireModel):
 
     type: Literal["progress"] = "progress"
     progress: float = Field(ge=0, le=1)
-    message: Optional[str] = None
-    current_step: Optional[int] = Field(default=None, ge=0)
-    total_steps: Optional[int] = Field(default=None, ge=0)
-    items_processed: Optional[int] = Field(default=None, ge=0)
-    items_total: Optional[int] = Field(default=None, ge=0)
-    estimated_time_remaining_ms: Optional[int] = Field(default=None, ge=0)
-    phase: Optional[str] = None
+    message: str | None = None
+    current_step: int | None = Field(default=None, ge=0)
+    total_steps: int | None = Field(default=None, ge=0)
+    items_processed: int | None = Field(default=None, ge=0)
+    items_total: int | None = Field(default=None, ge=0)
+    estimated_time_remaining_ms: int | None = Field(default=None, ge=0)
+    phase: str | None = None
 
 
 class DataChunk(WireModel, Generic[T]):
@@ -107,7 +102,7 @@ class DataChunk(WireModel, Generic[T]):
     data: T
     index: int = Field(ge=0)
     is_last: bool
-    chunk_id: Optional[str] = None
+    chunk_id: str | None = None
 
 
 class CompleteChunk(WireModel, Generic[T]):
@@ -132,12 +127,12 @@ class CompleteChunk(WireModel, Generic[T]):
     """
 
     type: Literal["complete"] = "complete"
-    data: Optional[T] = None
+    data: T | None = None
     total_chunks: int = Field(ge=0)
     total_duration_ms: float = Field(ge=0)
-    confidence: Optional[float] = Field(default=None, ge=0, le=1)
-    reasoning: Optional[str] = None
-    metadata: Optional[ResultMetadata] = None
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    reasoning: str | None = None
+    metadata: ResultMetadata | None = None
 
 
 class ErrorChunk(WireModel):
@@ -170,15 +165,15 @@ class ErrorChunk(WireModel):
     error: CommandError
     chunks_before_error: int = Field(ge=0)
     recoverable: bool = False
-    resume_from: Optional[int] = None
+    resume_from: int | None = None
 
 
 # Union type for all possible stream chunks
-StreamChunk = Union[ProgressChunk, DataChunk, CompleteChunk, ErrorChunk]
+StreamChunk = ProgressChunk | DataChunk[Any] | CompleteChunk[Any] | ErrorChunk
 
-_STREAM_CHUNK_ADAPTER: TypeAdapter[Any] = TypeAdapter(
+_STREAM_CHUNK_ADAPTER: TypeAdapter[StreamChunk] = TypeAdapter(
     Annotated[
-        Union[ProgressChunk, DataChunk[Any], CompleteChunk[Any], ErrorChunk],
+        ProgressChunk | DataChunk[Any] | CompleteChunk[Any] | ErrorChunk,
         Field(discriminator="type"),
     ]
 )
@@ -222,7 +217,7 @@ class StreamOptions(WireModel):
         >>> opts = StreamOptions(timeout=30000, progress_throttle_ms=200)
     """
 
-    timeout: Optional[int] = Field(default=None, ge=0)
+    timeout: int | None = Field(default=None, ge=0)
     progress_throttle_ms: int = Field(default=100, ge=0)
     buffer_size: int = Field(default=100, ge=1)
 
@@ -241,10 +236,10 @@ class StreamCallbacks(Generic[T]):
         on_error: Called if the stream encounters an error.
     """
 
-    on_progress: Optional[Callable[[ProgressChunk], None]] = field(default=None)
-    on_data: Optional[Callable[[DataChunk[T]], None]] = field(default=None)
-    on_complete: Optional[Callable[[CompleteChunk[T]], None]] = field(default=None)
-    on_error: Optional[Callable[[ErrorChunk], None]] = field(default=None)
+    on_progress: Callable[[ProgressChunk], None] | None = field(default=None)
+    on_data: Callable[[DataChunk[T]], None] | None = field(default=None)
+    on_complete: Callable[[CompleteChunk[T]], None] | None = field(default=None)
+    on_error: Callable[[ErrorChunk], None] | None = field(default=None)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -269,9 +264,9 @@ class StreamableCommand(WireModel):
     """
 
     streamable: Literal[True] = True
-    stream_data_type: Optional[str] = None
-    emits_progress: Optional[bool] = None
-    estimated_throughput: Optional[float] = Field(default=None, ge=0)
+    stream_data_type: str | None = None
+    emits_progress: bool | None = None
+    estimated_throughput: float | None = Field(default=None, ge=0)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -282,13 +277,13 @@ class StreamableCommand(WireModel):
 def create_progress_chunk(
     progress: float,
     *,
-    message: Optional[str] = None,
-    current_step: Optional[int] = None,
-    total_steps: Optional[int] = None,
-    items_processed: Optional[int] = None,
-    items_total: Optional[int] = None,
-    estimated_time_remaining_ms: Optional[int] = None,
-    phase: Optional[str] = None,
+    message: str | None = None,
+    current_step: int | None = None,
+    total_steps: int | None = None,
+    items_processed: int | None = None,
+    items_total: int | None = None,
+    estimated_time_remaining_ms: int | None = None,
+    phase: str | None = None,
 ) -> ProgressChunk:
     """Create a progress chunk with clamped progress value.
 
@@ -333,11 +328,11 @@ def create_progress_chunk_with_steps(
     current_step: int,
     total_steps: int,
     *,
-    message: Optional[str] = None,
-    items_processed: Optional[int] = None,
-    items_total: Optional[int] = None,
-    estimated_time_remaining_ms: Optional[int] = None,
-    phase: Optional[str] = None,
+    message: str | None = None,
+    items_processed: int | None = None,
+    items_total: int | None = None,
+    estimated_time_remaining_ms: int | None = None,
+    phase: str | None = None,
 ) -> ProgressChunk:
     """Create a progress chunk with explicit step tracking.
 
@@ -367,7 +362,7 @@ def create_data_chunk(
     index: int,
     is_last: bool,
     *,
-    chunk_id: Optional[str] = None,
+    chunk_id: str | None = None,
 ) -> DataChunk[T]:
     """Create a data chunk.
 
@@ -397,10 +392,10 @@ def create_complete_chunk(
     total_chunks: int,
     total_duration_ms: float,
     *,
-    data: Optional[T] = None,
-    confidence: Optional[float] = None,
-    reasoning: Optional[str] = None,
-    metadata: Optional[ResultMetadata] = None,
+    data: T | None = None,
+    confidence: float | None = None,
+    reasoning: str | None = None,
+    metadata: ResultMetadata | None = None,
 ) -> CompleteChunk[T]:
     """Create a completion chunk.
 
@@ -435,7 +430,7 @@ def create_error_chunk(
     chunks_before_error: int,
     recoverable: bool = False,
     *,
-    resume_from: Optional[int] = None,
+    resume_from: int | None = None,
 ) -> ErrorChunk:
     """Create an error chunk.
 
@@ -567,8 +562,8 @@ def is_streamable_command(command: Any) -> bool:
 
 async def consume_stream(
     stream: AsyncIterator[StreamChunk],
-    callbacks: StreamCallbacks,
-) -> Union[CompleteChunk, ErrorChunk]:
+    callbacks: StreamCallbacks[Any],
+) -> CompleteChunk[Any] | ErrorChunk:
     """Consume a stream with callbacks.
 
     Iterates over the stream, dispatching to the appropriate callback
@@ -585,7 +580,7 @@ async def consume_stream(
         >>> import asyncio
         >>> # See test_streaming.py for async usage examples
     """
-    last_chunk: Optional[Union[CompleteChunk, ErrorChunk]] = None
+    last_chunk: CompleteChunk[Any] | ErrorChunk | None = None
 
     async for chunk in stream:
         if isinstance(chunk, ProgressChunk):
@@ -619,7 +614,7 @@ async def consume_stream(
     return last_chunk
 
 
-async def collect_stream_data(stream: AsyncIterator[StreamChunk]) -> List[Any]:
+async def collect_stream_data(stream: AsyncIterator[StreamChunk]) -> list[Any]:
     """Collect all data from a stream into a list.
 
     Args:
@@ -635,7 +630,7 @@ async def collect_stream_data(stream: AsyncIterator[StreamChunk]) -> List[Any]:
         >>> import asyncio
         >>> # See test_streaming.py for async usage examples
     """
-    items: List[Any] = []
+    items: list[Any] = []
 
     async for chunk in stream:
         if isinstance(chunk, DataChunk):
@@ -671,7 +666,7 @@ class TimeoutController:
 
     def __init__(
         self,
-        timeout_ms: Optional[float] = None,
+        timeout_ms: float | None = None,
         *,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
@@ -689,12 +684,12 @@ class TimeoutController:
         self._deadline = None if timeout_ms is None else clock() + timeout_ms / 1000
 
     @property
-    def timeout_ms(self) -> Optional[float]:
+    def timeout_ms(self) -> float | None:
         """The full budget in milliseconds, or None for no timeout."""
         return self._timeout_ms
 
     @property
-    def remaining_ms(self) -> Optional[float]:
+    def remaining_ms(self) -> float | None:
         """Milliseconds left before the deadline (never below 0), or None for no timeout."""
         if self._deadline is None:
             return None
@@ -739,7 +734,7 @@ class TimeoutController:
 
 
 def create_timeout_controller(
-    timeout_ms: Optional[float] = None,
+    timeout_ms: float | None = None,
     *,
     clock: Callable[[], float] = time.monotonic,
 ) -> TimeoutController:

@@ -28,7 +28,7 @@ class _Model(BaseModel):
 class RequiredCheck(_Model):
     name: str = "ci-ok"
     #: Whether branch protection on main requires the check, so auto-merge waits for it.
-    required_on_main: bool = Field(True, alias="requiredOnMain")
+    required_on_main: bool = Field(default=True, alias="requiredOnMain")
 
 
 class Cutover(_Model):
@@ -59,7 +59,9 @@ class GatewayConfig(_Model):
     #: The owner's login. Until G5 his account is shared with agents.
     owner: str
     repositories: list[str]
-    required_check: RequiredCheck = Field(default_factory=RequiredCheck, alias="requiredCheck")
+    required_check: RequiredCheck = Field(
+        default_factory=lambda: RequiredCheck(), alias="requiredCheck"
+    )
     protected_refs: list[str] = Field(
         default_factory=lambda: ["refs/heads/main"], alias="protectedRefs"
     )

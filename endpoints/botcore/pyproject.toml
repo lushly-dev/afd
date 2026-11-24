@@ -25,6 +25,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "mypy>=1.0",
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
     "pytest-cov>=4.0.0",
@@ -72,11 +73,15 @@ packages = ["src/botcore"]
 [tool.hatch.build.hooks.custom]
 
 [tool.hatch.build]
-include = ["src/botcore/**/*.py", "src/botcore/skills/**/*.md", "src/botcore/skills/**/scripts/*.mjs", "src/botcore/provenance/*"]
+include = ["src/botcore/**/*.py", "src/botcore/py.typed", "src/botcore/skills/**/*.md", "src/botcore/skills/**/scripts/*.mjs", "src/botcore/provenance/*"]
 
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.format]
+# Skill markdown files are mirrored into .claude/skills/ via pnpm skills:sync.
+exclude = ["*.md"]
 
 [tool.ruff.lint]
 select = [
@@ -92,6 +97,37 @@ max-complexity = 20
 max-args = 8
 max-branches = 20
 max-statements = 80
+
+[tool.mypy]
+python_version = "3.11"
+# Basic mode by default with explicit strict overrides on host* and disk commands (#1757).
+warn_redundant_casts = true
+warn_unused_ignores = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "botcore.host",
+    "botcore.host_client",
+    "botcore.host_http",
+    "botcore.host_inputs",
+    "botcore.host_surfaces",
+    "botcore.host_tokens",
+    "botcore.commands.disk",
+    "botcore.commands.disk.*",
+]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_calls = true
+disallow_any_generics = true
+disallow_subclassing_any = true
+disallow_untyped_decorators = true
+check_untyped_defs = true
+warn_return_any = true
+warn_unused_ignores = true
+no_implicit_reexport = true
+strict_equality = true
+extra_checks = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

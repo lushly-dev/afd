@@ -13,11 +13,12 @@ import uuid
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import PureWindowsPath
-from typing import Any
+from typing import Any, cast
 
 from afd import Actor, CommandResult, DirectClient, error, system_clock, system_random
 from afd.core.commands import CommandContext
 from afd.core.result import ResultMetadata
+from afd.direct import CommandContext as DirectCommandContext
 from afd.direct import CommandInfo
 from afd.server.middleware import compose_middleware
 
@@ -48,7 +49,7 @@ class CommandPolicy:
     quality is an explicit bool/count/verdict field or the native execution adapter.
     """
 
-    effects: tuple[str, ...] | Callable[[dict], tuple[str, ...]] = ("inspect",)
+    effects: tuple[str, ...] | Callable[[dict[str, Any]], tuple[str, ...]] = ("inspect",)
     capabilities: tuple[str, ...] = ()
     paths: tuple[str, ...] = ()
     quality: str | None = None
@@ -59,7 +60,7 @@ class CommandPolicy:
         """Every effect a call may have: the static effects, or possible_effects."""
         return tuple(self.possible_effects if callable(self.effects) else self.effects)
 
-    def describe(self) -> dict:
+    def describe(self) -> dict[str, Any]:
         return {
             "effects": list(self.declared()),
             "effects_depend_on_arguments": callable(self.effects),
@@ -74,14 +75,14 @@ class CommandPolicy:
 class QualityVerdict:
     status: str
     target: str
-    evidence: dict
+    evidence: dict[str, Any]
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.status not in VERDICTS:
             raise ValueError(f"Unknown quality verdict: {self.status}")
 
 
-def interpret_quality(result: CommandResult, field: str, target: str) -> QualityVerdict:
+def interpret_quality(result: CommandResult[Any], field: str, target: str) -> QualityVerdict:
     """Interpret an explicitly registered legacy result without changing success."""
     data = result.data if isinstance(result.data, dict) else {}
     if not result.success:
@@ -149,9 +150,9 @@ class CommandHost:
         self.name = name
         self.context = context
         self.actor = actor
-        self._commands: dict[str, Callable] = {}
+        self._commands: dict[str, Callable[..., Any]] = {}
         self._policies: dict[str, CommandPolicy] = {}
-        self.middleware: list[Callable] = []
+        self.middleware: list[Callable[..., Any]] = []
         self.docs: dict[str, str] = {}
         #: The plugin instances whose commands this host serves (set by ``build_host``).
         self.plugins: dict[str, Any] = {}
@@ -165,7 +166,7 @@ class CommandHost:
                 if inspect.isawaitable(outcome):
                     await outcome
 
-    def register(self, name: str, handler: Callable, policy: CommandPolicy) -> None:
+    def register(self, name: str, handler: Callable[..., Any], policy: CommandPolicy) -> None:
         if name in self._commands or _other_spelling(name) in self._commands:
             raise ValueError(f"Duplicate command: {name}")
         declared = policy.declared()
@@ -186,7 +187,7 @@ class CommandHost:
                 return candidate
         return None
 
-    def handler(self, name: str) -> Callable:
+    def handler(self, name: str) -> Callable[..., Any]:
         return self._commands[self.resolve(name) or name]
 
     def policy(self, name: str) -> CommandPolicy:
@@ -212,10 +213,10 @@ class CommandHost:
             CommandInfo(name, summary(self.handler(name))) for name in self.list_command_names()
         ]
 
-    def get_command(self, name: str):
+    def get_command(self, name: str) -> None:
         return None  # The shared dispatcher binds the actual Python signature.
 
-    def catalog(self) -> list[dict]:
+    def catalog(self) -> list[dict[str, Any]]:
         """Each command's one-line description, input JSON Schema and policy."""
         rows = []
         for name in self.list_command_names():
@@ -233,7 +234,9 @@ class CommandHost:
     def direct_client(self) -> DirectClient:
         return DirectClient(self)
 
-    def call_context(self, context: Any = None) -> CommandContext:
+    def call_context(
+        self, context: CommandContext | DirectCommandContext | None = None
+    ) -> CommandContext | DirectCommandContext:
         """The per-call context middleware and handlers see: ``context`` when a surface
         built one (with the caller it verified as ``actor``), else a fresh one with a
         trace ID and this host's ``actor``."""
@@ -247,7 +250,7 @@ class CommandHost:
             context.random = system_random
         return context
 
-    def _not_found(self, name: Any) -> CommandResult:
+    def _not_found(self, name: Any) -> CommandResult[Any]:
         meant = self.closest_command(name) if isinstance(name, str) else None
         return error(
             "COMMAND_NOT_FOUND",
@@ -257,7 +260,12 @@ class CommandHost:
             details={"suggestedCommand": meant} if meant else None,
         )
 
-    async def execute(self, name: str, args: Any = None, context: Any = None) -> CommandResult:
+    async def execute(
+        self,
+        name: str,
+        args: dict[str, Any] | None = None,
+        context: CommandContext | DirectCommandContext | None = None,
+    ) -> CommandResult[Any]:
         registered = self.resolve(name)
         if registered is None:
             return self._not_found(name)
@@ -328,7 +336,7 @@ class CommandHost:
                 suggestion="Use declared arguments and paths within the host target",
             )
 
-        async def invoke():
+        async def invoke() -> Any:
             if inspect.iscoroutinefunction(handler) or inspect.iscoroutinefunction(
                 getattr(handler, "__call__", None)
             ):
@@ -342,7 +350,9 @@ class CommandHost:
         try:
             with use_context(self.context), use_call(call):
                 result = (
-                    await compose_middleware(*self.middleware)(served, kwargs, call, invoke)
+                    await compose_middleware(*self.middleware)(
+                        served, kwargs, cast(CommandContext, call), invoke
+                    )
                     if (self.middleware)
                     else await invoke()
                 )
@@ -475,13 +485,21 @@ def narrow_policy(name: str, plugin: CommandPolicy, host: CommandPolicy) -> Comm
             "a host policy may only narrow the plugin's"
         )
 
-    def per_call(arguments: dict) -> tuple[str, ...]:
-        extra = host.effects(arguments) if callable(host.effects) else host.effects
-        return tuple(sorted({*plugin.effects(arguments), *extra}))
+    effects: tuple[str, ...] | Callable[[dict[str, Any]], tuple[str, ...]]
+    if callable(plugin.effects):
+        plugin_fn = plugin.effects
 
-    dynamic = callable(plugin.effects)  # A static plugin set equals the host's here.
+        def per_call(arguments: dict[str, Any]) -> tuple[str, ...]:
+            extra = host.effects(arguments) if callable(host.effects) else host.effects
+            return tuple(sorted({*plugin_fn(arguments), *extra}))
+
+        effects = per_call
+        dynamic = True
+    else:
+        effects = plugin.effects
+        dynamic = False  # A static plugin set equals the host's here.
     return CommandPolicy(
-        per_call if dynamic else plugin.effects,
+        effects,
         host.capabilities or plugin.capabilities,
         host.paths,
         host.quality or plugin.quality,
@@ -490,7 +508,9 @@ def narrow_policy(name: str, plugin: CommandPolicy, host: CommandPolicy) -> Comm
     )
 
 
-def _refuse_foreign_policies(plugin_name: str, registry, commands: set, policies: set) -> None:
+def _refuse_foreign_policies(
+    plugin_name: str, registry: Any, commands: set[str], policies: set[str]
+) -> None:
     registered = {command.__name__ for command in registry.commands} - commands
     foreign = set(registry.policies) - policies - registered
     if foreign:
@@ -505,7 +525,7 @@ def build_host(
     context: ExecutionContext,
     *,
     plugins: tuple[str, ...] = (),
-    extra_commands: tuple[Callable, ...] = (),
+    extra_commands: tuple[Callable[..., Any], ...] = (),
     policies: dict[str, CommandPolicy] | None = None,
     core_commands: tuple[str, ...] = tuple(CORE_POLICIES),
     kebab_names: bool = False,

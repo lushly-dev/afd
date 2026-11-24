@@ -193,4 +193,6 @@ def test_cli_measures_external_output_and_workspace_write_guard(tmp_path):
         assert res_parity.exit_code == 1
         parity_doc = json.loads(out_parity.read_text(encoding="utf-8"))
         assert parity_doc["schema_version"] == "1.0"
-        assert {row["key"]: row["value"] for row in parity_doc["measures"]}["alfred_parity_gaps"] == 4
+        assert {row["key"]: row["value"] for row in parity_doc["measures"]}[
+            "alfred_parity_gaps"
+        ] == 4

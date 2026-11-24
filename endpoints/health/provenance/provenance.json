@@ -353,7 +353,8 @@
     },
     {
       "path": "pyproject.toml",
-      "origin": "authored"
+      "origin": "authored",
+      "adaptation": "Add mypy to dev dependencies and configure [tool.mypy] for CI type checking (#1757)."
     },
     {
       "path": "scripts/package_smoke.py",
@@ -440,12 +441,13 @@
     },
     {
       "path": "tests/test_privacy.py",
-      "origin": "authored"
+      "origin": "authored",
+      "adaptation": "Ignore .mypy_cache alongside .ruff_cache (#1757)."
     },
     {
       "path": "tests/test_provenance.py",
       "origin": "authored",
-      "adaptation": "Compare recorded POSIX-relative paths independently of the host path separator."
+      "adaptation": "Compare recorded POSIX-relative paths independently of the host path separator, and ignore .mypy_cache alongside .ruff_cache (#1757)."
     },
     {
       "path": "uv.lock",

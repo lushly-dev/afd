@@ -2,20 +2,19 @@
 
 import pytest
 from pydantic import BaseModel, Field
+from pydantic import ValidationError as PydanticValidationError
 
 from afd.server.validation import (
     DEFAULT_MAX_VALIDATION_ISSUES,
     VALIDATION_ISSUE_CODES,
     DateRangeParams,
     EmailStr,
-    EnhancedValidationResult,
     PaginationParams,
     SearchParams,
     SortParams,
     UuidStr,
     ValidationError,
     ValidationException,
-    ValidationResult,
     format_enhanced_validation_error,
     format_validation_errors,
     is_valid,
@@ -24,7 +23,6 @@ from afd.server.validation import (
     validate_input_enhanced,
     validate_or_throw,
 )
-
 
 # ── Test helpers ──────────────────────────────────────────────────────────────
 
@@ -97,9 +95,7 @@ class TestValidateInputEnhanced:
         )
         assert result.success is True
         # With invalid input, the extras are reported as unexpected.
-        result2 = validate_input_enhanced(
-            SampleInput, {"extra_field": "val"}
-        )
+        result2 = validate_input_enhanced(SampleInput, {"extra_field": "val"})
         assert result2.success is False
         assert result2.unexpected_fields is not None
         assert "extra_field" in result2.unexpected_fields
@@ -279,7 +275,7 @@ class TestUuidStr:
         class M(BaseModel):
             id: UuidStr
 
-        with pytest.raises(Exception):
+        with pytest.raises(PydanticValidationError):
             M(id="not-a-uuid")
 
 
@@ -295,7 +291,7 @@ class TestEmailStr:
         class M(BaseModel):
             email: EmailStr
 
-        with pytest.raises(Exception):
+        with pytest.raises(PydanticValidationError):
             M(email="not-an-email")
 
 
@@ -311,15 +307,15 @@ class TestPaginationParams:
         assert params.offset == 10
 
     def test_limit_lower_bound(self):
-        with pytest.raises(Exception):
+        with pytest.raises(PydanticValidationError):
             PaginationParams(limit=0)
 
     def test_limit_upper_bound(self):
-        with pytest.raises(Exception):
+        with pytest.raises(PydanticValidationError):
             PaginationParams(limit=101)
 
     def test_offset_non_negative(self):
-        with pytest.raises(Exception):
+        with pytest.raises(PydanticValidationError):
             PaginationParams(offset=-1)
 
 
@@ -334,7 +330,7 @@ class TestSortParams:
         assert params.sort_order == "desc"
 
     def test_invalid_order(self):
-        with pytest.raises(Exception):
+        with pytest.raises(PydanticValidationError):
             SortParams(sort_by="name", sort_order="invalid")
 
 
@@ -344,11 +340,11 @@ class TestSearchParams:
         assert params.query == "hello world"
 
     def test_empty_query_rejected(self):
-        with pytest.raises(Exception):
+        with pytest.raises(PydanticValidationError):
             SearchParams(query="")
 
     def test_long_query_rejected(self):
-        with pytest.raises(Exception):
+        with pytest.raises(PydanticValidationError):
             SearchParams(query="x" * 501)
 
 
@@ -359,11 +355,11 @@ class TestDateRangeParams:
         assert params.end == "2025-12-31"
 
     def test_end_before_start_rejected(self):
-        with pytest.raises(Exception):
+        with pytest.raises(PydanticValidationError):
             DateRangeParams(start="2025-12-31", end="2025-01-01")
 
     def test_equal_dates_rejected(self):
-        with pytest.raises(Exception):
+        with pytest.raises(PydanticValidationError):
             DateRangeParams(start="2025-06-15", end="2025-06-15")
 
     def test_non_iso_dates_pass_through(self):
@@ -375,6 +371,7 @@ class TestDateRangeParams:
 class TestValidationIssueCatalogAndCap:
     def test_pydantic_codes_map_into_afd_nine_code_catalog(self):
         from typing import Literal
+
         from pydantic import ConfigDict, field_validator
 
         class RichModel(BaseModel):

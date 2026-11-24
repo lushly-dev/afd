@@ -93,13 +93,15 @@ def get_client(
             mw_registry.add_middleware(mw)
         # Telemetry middleware (opt-in via config)
         if config and getattr(config, "telemetry_enabled", False):
+            from typing import cast
+
             from afd.core.telemetry import ConsoleTelemetrySink
-            from afd.server.middleware import create_telemetry_middleware
+            from afd.server.middleware import TelemetrySink, create_telemetry_middleware
 
             sink = ConsoleTelemetrySink(
                 format=getattr(config, "telemetry_format", "text"),
             )
-            mw_registry.add_middleware(create_telemetry_middleware(sink))
+            mw_registry.add_middleware(create_telemetry_middleware(cast(TelemetrySink, sink)))
         for mw in _plugin_middleware:
             mw_registry.add_middleware(mw)
         _client = create_direct_client(
@@ -141,27 +143,32 @@ async def batch_execute(
         create_batch_result,
     )
 
-    batch = create_batch_request([
-        {"command": cmd, "input": args} for cmd, args in commands
-    ])
+    batch = create_batch_request([{"command": cmd, "input": args} for cmd, args in commands])
     results: list[BatchCommandResult] = []
     started = datetime.now(UTC).isoformat()
     for i, cmd in enumerate(batch.commands):
         t0 = time.monotonic()
         result = await client.call(cmd.command, cmd.input)
         dur = (time.monotonic() - t0) * 1000
-        results.append(BatchCommandResult(
-            id=cmd.id, index=i, command=cmd.command,
-            result=result, duration_ms=dur,
-        ))
+        results.append(
+            BatchCommandResult(
+                id=cmd.id or f"cmd-{i}",
+                index=i,
+                command=cmd.command,
+                result=result,
+                duration_ms=dur,
+            )
+        )
         if not result.success and stop_on_error:
             break
     completed = datetime.now(UTC).isoformat()
     total_ms = sum(r.duration_ms for r in results)
     avg_ms = total_ms / len(results) if results else 0
     timing = BatchTiming(
-        total_ms=total_ms, average_ms=avg_ms,
-        started_at=started, completed_at=completed,
+        total_ms=total_ms,
+        average_ms=avg_ms,
+        started_at=started,
+        completed_at=completed,
     )
     return create_batch_result(results, timing)
 

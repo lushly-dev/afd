@@ -35,11 +35,7 @@ class _FakePage:
 
 @pytest.mark.asyncio
 async def test_cdp_snapshot_uses_body_aria_snapshot(monkeypatch) -> None:
-    snapshot_text = (
-        '- main:\n'
-        '  - heading "Garden" [level=1]\n'
-        '  - button "Save"\n'
-    )
+    snapshot_text = '- main:\n  - heading "Garden" [level=1]\n  - button "Save"\n'
     fake_page = _FakePage({"body": _FakeLocator(snapshot_text)})
 
     async def _fake_with_session_page(action, timeout_ms=30000):
@@ -61,11 +57,7 @@ async def test_cdp_snapshot_uses_body_aria_snapshot(monkeypatch) -> None:
 
 @pytest.mark.asyncio
 async def test_cdp_snapshot_uses_root_selector_subtree(monkeypatch) -> None:
-    snapshot_text = (
-        '- form "Login":\n'
-        '  - textbox "Email"\n'
-        '  - button "Save"\n'
-    )
+    snapshot_text = '- form "Login":\n  - textbox "Email"\n  - button "Save"\n'
     fake_page = _FakePage({"#login": _FakeLocator(snapshot_text)})
 
     async def _fake_with_session_page(action, timeout_ms=30000):

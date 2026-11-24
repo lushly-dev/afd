@@ -11,6 +11,7 @@ import os
 import shutil
 import subprocess
 from collections.abc import Callable, Mapping, Sequence
+from typing import Any
 
 from botcore_factory.world import Completed, WorldError
 
@@ -101,7 +102,7 @@ def make_runner(cwd: str) -> Run:
     return run
 
 
-def parse_json(text: str, what: str):
+def parse_json(text: str, what: str) -> Any:
     try:
         return json.loads(text)
     except ValueError as exc:

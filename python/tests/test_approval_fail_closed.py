@@ -8,23 +8,22 @@ The engine dispatches a gated call only when an approval step admitted it, and a
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Optional
+from typing import Any
 
 import pytest
-
 from pydantic import BaseModel
 
 from afd import ExposeOptions, success
 from afd.core.commands import CommandContext
 from afd.core.result import CommandError, CommandResult, failure
 from afd.direct import DirectClient, DirectClientOptions, create_direct_registry
-from afd.server.approval_admission import live_command
 from afd.server import (
     create_approval_middleware,
     create_retry_middleware,
     create_server,
     define_command,
 )
+from afd.server.approval_admission import live_command
 
 SECRET = "test-approval-secret-0123456789abcdef"
 MCP = ExposeOptions(mcp=True)
@@ -42,7 +41,9 @@ def expect_unavailable(result: Any, command: str, reason: str = "no-approval-ste
     assert result.success is False
     error = result.error
     assert error.code == "APPROVAL_UNAVAILABLE"
-    assert error.message == f"{command} needs a person's approval, and this server cannot ask for it"
+    assert (
+        error.message == f"{command} needs a person's approval, and this server cannot ask for it"
+    )
     assert error.retryable is False
     assert error.details == {"reason": reason}
     assert "do not retry" in error.suggestion.lower()
@@ -227,14 +228,18 @@ async def test_middleware_summarizes_with_the_confirm_prompt_of_the_command_it_r
     async def purge(input: Any) -> CommandResult[Any]:
         return success(None)
 
-    registry = create_direct_registry([purge], middleware=[create_approval_middleware(secret=SECRET)])
+    registry = create_direct_registry(
+        [purge], middleware=[create_approval_middleware(secret=SECRET)]
+    )
     asked: list[Any] = []
 
     async def decide(request: Any) -> bool:
         asked.append(request)
         return False
 
-    await DirectClient(registry, DirectClientOptions(on_approval_needed=decide)).call("todo-purge", {})
+    await DirectClient(registry, DirectClientOptions(on_approval_needed=decide)).call(
+        "todo-purge", {}
+    )
     assert [request.summary for request in asked] == ["Purge every todo"]
 
 
@@ -279,7 +284,9 @@ async def test_a_context_from_an_admitted_call_admits_nothing_later():
     client = DirectClient(approved, DirectClientOptions(on_approval_needed=_approve))
     assert (await client.call("todo-delete", {"id": 1})).success
     # The context the admitted gated call ran with, reused on a server with no approval step.
-    expect_unavailable(await fixture.server().execute("todo-delete", {"id": 1}, seen[-1]), "todo-delete")
+    expect_unavailable(
+        await fixture.server().execute("todo-delete", {"id": 1}, seen[-1]), "todo-delete"
+    )
     assert fixture.ran == ["todo-delete:1"]
 
 
@@ -329,7 +336,9 @@ async def test_an_input_changed_in_place_after_the_approval_is_refused():
         return await next_fn()
 
     fixture, client = _approved(change)
-    expect_unavailable(await client.call("todo-delete", {"id": 1}), "todo-delete", "admission-mismatch")
+    expect_unavailable(
+        await client.call("todo-delete", {"id": 1}), "todo-delete", "admission-mismatch"
+    )
     assert fixture.ran == []
 
 
@@ -388,7 +397,7 @@ async def test_a_listed_function_holds_though_the_command_declares_not_required(
 
 
 class _Listed:
-    def __init__(self, name: str, approval: Any, confirm_prompt: Optional[str] = None) -> None:
+    def __init__(self, name: str, approval: Any, confirm_prompt: str | None = None) -> None:
         self.name = name
         self.approval = approval
         self.confirm_prompt = confirm_prompt
@@ -431,7 +440,9 @@ async def test_overlapping_calls_on_one_uncopyable_context_keep_their_own_admiss
     assert sorted(fixture.ran) == ["todo-delete:1", "todo-list:2"]
     # No record outlives its call, and none answers for the shared object afterwards.
     assert live_command(shared) is None
-    expect_unavailable(await fixture.server().execute("todo-delete", {"id": 1}, shared), "todo-delete")
+    expect_unavailable(
+        await fixture.server().execute("todo-delete", {"id": 1}, shared), "todo-delete"
+    )
 
 
 async def test_an_ungated_call_cannot_take_an_overlapping_calls_admission():
@@ -494,13 +505,17 @@ UNBOUNDABLE = 2**53 + 1
 
 
 def expect_not_canonical(error: Any, command: str) -> None:
-    wire = error if isinstance(error, dict) else {
-        "code": error.code,
-        "message": error.message,
-        "suggestion": error.suggestion,
-        "retryable": error.retryable,
-        "details": error.details,
-    }
+    wire = (
+        error
+        if isinstance(error, dict)
+        else {
+            "code": error.code,
+            "message": error.message,
+            "suggestion": error.suggestion,
+            "retryable": error.retryable,
+            "details": error.details,
+        }
+    )
     assert wire["code"] == "APPROVAL_UNAVAILABLE"
     assert wire["message"] == (
         f"{command} needs a person's approval, and this input cannot be bound to one"
@@ -801,9 +816,11 @@ async def _relay_call(server: Any, mode: str, prompts: list[str], tool: str, arg
         prompts.append(params.message)
         schema = params.requested_schema
         properties = schema.get("properties") if isinstance(schema, dict) else schema.properties
-        return types.ElicitResult(action="accept", content={name: True for name in properties})
+        return types.ElicitResult(action="accept", content=dict.fromkeys(properties, True))
 
-    async with Client(server._create_mcp_server(), mode=mode, elicitation_callback=accept) as client:
+    async with Client(
+        server._create_mcp_server(), mode=mode, elicitation_callback=accept
+    ) as client:
         return json.loads((await client.call_tool(tool, arguments)).content[0].text)
 
 

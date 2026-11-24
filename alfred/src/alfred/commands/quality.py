@@ -75,9 +75,7 @@ def _iter_source_files(root: Path, extensions: set[str]) -> Iterator[Path]:
         relative_dir = Path(dirpath).relative_to(root).as_posix()
         prefix = "/" if relative_dir == "." else f"/{relative_dir}/"
         dirnames[:] = sorted(
-            name
-            for name in dirnames
-            if name not in skip_dirs and not skipped(f"{prefix}{name}/")
+            name for name in dirnames if name not in skip_dirs and not skipped(f"{prefix}{name}/")
         )
         for filename in sorted(filenames):
             path = Path(dirpath) / filename
@@ -96,7 +94,13 @@ def _read(path: Path) -> str | None:
 
 _DEFINE_COMMAND_RE = re.compile(r"\bdefineCommand\b")
 _JS_ESCAPES = {
-    "n": "\n", "t": "\t", "r": "\r", "b": "\b", "f": "\f", "v": "\v", "0": "\0",
+    "n": "\n",
+    "t": "\t",
+    "r": "\r",
+    "b": "\b",
+    "f": "\f",
+    "v": "\v",
+    "0": "\0",
 }
 
 
@@ -334,12 +338,14 @@ def parse_ts_define_commands(content: str, file: str = "") -> list[CommandDef]:
         description = properties.get("description")
         if name is None or description is None:
             continue
-        commands.append(CommandDef(
-            name=name,
-            description=description,
-            file=file,
-            line=code[: m.start()].count("\n") + 1,
-        ))
+        commands.append(
+            CommandDef(
+                name=name,
+                description=description,
+                file=file,
+                line=code[: m.start()].count("\n") + 1,
+            )
+        )
     return commands
 
 
@@ -387,7 +393,8 @@ def parse_py_commands(content: str, file: str = "") -> list[CommandDef]:
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             candidates.extend(
-                d for d in node.decorator_list
+                d
+                for d in node.decorator_list
                 if isinstance(d, ast.Call) and _is_command_factory(d.func)
             )
         elif (
@@ -412,9 +419,7 @@ def parse_py_commands(content: str, file: str = "") -> list[CommandDef]:
         )
         if name is None or description is None:
             continue
-        commands.append(CommandDef(
-            name=name, description=description, file=file, line=call.lineno
-        ))
+        commands.append(CommandDef(name=name, description=description, file=file, line=call.lineno))
     commands.sort(key=lambda c: c.line)
     return commands
 
@@ -438,13 +443,56 @@ _MIN_DESC_LENGTH = 10
 _MAX_DESC_LENGTH = 300
 
 _IMPERATIVE_VERBS = {
-    "get", "list", "create", "update", "delete", "remove", "add", "set",
-    "check", "validate", "run", "execute", "start", "stop", "find", "search",
-    "fetch", "send", "connect", "disconnect", "export", "import", "generate",
-    "build", "deploy", "test", "lint", "format", "parse", "resolve", "scan",
-    "echo", "ping", "greet", "register", "publish", "subscribe", "notify",
-    "query", "count", "aggregate", "transform", "convert", "normalize",
-    "evaluate", "compute", "calculate", "measure", "report", "analyze",
+    "get",
+    "list",
+    "create",
+    "update",
+    "delete",
+    "remove",
+    "add",
+    "set",
+    "check",
+    "validate",
+    "run",
+    "execute",
+    "start",
+    "stop",
+    "find",
+    "search",
+    "fetch",
+    "send",
+    "connect",
+    "disconnect",
+    "export",
+    "import",
+    "generate",
+    "build",
+    "deploy",
+    "test",
+    "lint",
+    "format",
+    "parse",
+    "resolve",
+    "scan",
+    "echo",
+    "ping",
+    "greet",
+    "register",
+    "publish",
+    "subscribe",
+    "notify",
+    "query",
+    "count",
+    "aggregate",
+    "transform",
+    "convert",
+    "normalize",
+    "evaluate",
+    "compute",
+    "calculate",
+    "measure",
+    "report",
+    "analyze",
 }
 
 
@@ -507,14 +555,16 @@ def _check_duplicates(commands: list[CommandDef]) -> list[QualityIssue]:
                 continue
             overlap = len(words_a & words_b) / min(len(words_a), len(words_b))
             if overlap > 0.8:
-                issues.append(QualityIssue(
-                    command=a.name,
-                    file=a.file,
-                    line=a.line,
-                    check="near-duplicate",
-                    message=f"Description is {overlap:.0%} similar to '{b.name}'",
-                    suggestion="Differentiate descriptions to help agents distinguish commands",
-                ))
+                issues.append(
+                    QualityIssue(
+                        command=a.name,
+                        file=a.file,
+                        line=a.line,
+                        check="near-duplicate",
+                        message=f"Description is {overlap:.0%} similar to '{b.name}'",
+                        suggestion="Differentiate descriptions to help agents distinguish commands",
+                    )
+                )
 
     return issues
 

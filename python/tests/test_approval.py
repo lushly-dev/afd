@@ -8,7 +8,7 @@ from __future__ import annotations
 import base64
 import json
 import math
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any
 
 import pytest
 from pydantic import (
@@ -28,7 +28,7 @@ from afd.server import (
     create_server,
     define_command,
 )
-from afd.server.approval import _MemoryNonceStore, _b64url, _canonical_json, _hmac
+from afd.server.approval import _b64url, _canonical_json, _hmac, _MemoryNonceStore
 
 SECRET = "test-approval-secret-0123456789abcdef"
 OTHER_SECRET = "another-approval-secret-0123456789abcdef"
@@ -41,7 +41,9 @@ async def _handler(input: Any, context: Any = None):
     return success("ran")
 
 
-def _command(name: str = "todo-delete", approval: Any = "required", **fields: Any) -> CommandDefinition:
+def _command(
+    name: str = "todo-delete", approval: Any = "required", **fields: Any
+) -> CommandDefinition:
     return CommandDefinition(
         name=name, description="Delete a todo", handler=_handler, approval=approval, **fields
     )
@@ -50,7 +52,7 @@ def _command(name: str = "todo-delete", approval: Any = "required", **fields: An
 class Gate:
     """One middleware with a manual clock, and a record of the calls that reached the handler."""
 
-    def __init__(self, commands: Optional[list[Any]] = None, **options: Any) -> None:
+    def __init__(self, commands: list[Any] | None = None, **options: Any) -> None:
         self.clock = options.pop("clock", None) or fixed_clock(NOW)
         self.ran: list[str] = []
         self.middleware = create_approval_middleware(
@@ -66,8 +68,8 @@ class Gate:
         *,
         token: Any = None,
         name: str = "todo-delete",
-        actor: Optional[Actor] = AGENT,
-        context: Optional[CommandContext] = None,
+        actor: Actor | None = AGENT,
+        context: CommandContext | None = None,
     ):
         async def next_fn():
             self.ran.append(name)
@@ -82,7 +84,7 @@ class Gate:
         return result.error.details["approvalToken"]
 
 
-def _reason(result) -> Optional[str]:
+def _reason(result) -> str | None:
     assert result.success is False and result.error.code == "APPROVAL_REQUIRED"
     return result.error.details.get("reason")
 
@@ -555,7 +557,7 @@ async def test_an_unbindable_input_fails_the_call():
 class DeleteInput(BaseModel):
     todo_id: int = Field(alias="todoId")
     force: bool = False
-    reason: Optional[str] = None
+    reason: str | None = None
 
 
 async def test_a_model_input_binds_to_its_json_with_defaults_and_aliases():
@@ -563,7 +565,10 @@ async def test_a_model_input_binds_to_its_json_with_defaults_and_aliases():
     token = await gate.token(DeleteInput(todoId=42))
     assert (await gate.call({"force": False, "todoId": 42, "reason": None}, token=token)).success
     token = await gate.token(DeleteInput(todoId=42))
-    assert _reason(await gate.call(DeleteInput(todoId=42, force=True), token=token)) == "input-mismatch"
+    assert (
+        _reason(await gate.call(DeleteInput(todoId=42, force=True), token=token))
+        == "input-mismatch"
+    )
 
 
 async def test_a_model_input_with_a_non_finite_float_fails_the_call():
@@ -694,9 +699,22 @@ async def test_a_python_token_verifies_in_typescript():
     token = await Gate().token(_TS_INPUT)
     actor = {"kind": "agent", "id": "claude", "label": "Claude", "onBehalfOf": "user-1"}
     run = subprocess.run(
-        [node, "--input-type=module", "-e", _TS_VERIFY, dist.as_uri(), SECRET, str(NOW), token,
-         json.dumps(_TS_INPUT), json.dumps(actor)],
-        capture_output=True, text=True, check=True, timeout=60,
+        [
+            node,
+            "--input-type=module",
+            "-e",
+            _TS_VERIFY,
+            dist.as_uri(),
+            SECRET,
+            str(NOW),
+            token,
+            json.dumps(_TS_INPUT),
+            json.dumps(actor),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=60,
     )
     assert json.loads(run.stdout) == {"success": True}
 
@@ -859,7 +877,9 @@ async def test_legacy_direct_registry_cannot_restore_public_approval_evidence():
     held = await client.call("todo-delete", {"id": 3})
     assert "approvalToken" not in held.error.details
     # Trusted host execution still issues a credential, but public DirectClient cannot use it.
-    host_hold = await server.execute("todo-delete", {"id": 3}, CommandContext(actor=Actor(kind="human")))
+    host_hold = await server.execute(
+        "todo-delete", {"id": 3}, CommandContext(actor=Actor(kind="human"))
+    )
     token = host_hold.error.details["approvalToken"]
     replayed = await client.call("todo-delete", {"id": 3}, DirectCallContext(approval=token))
     assert not replayed.success and replayed.error.code == "APPROVAL_REQUIRED"
@@ -886,17 +906,22 @@ def test_mutating_tools_without_a_policy_get_a_warning():
     [warning] = warnings({"destructive": True, "mutation": True})
     assert warning["message"].startswith("Destructive command")
     grouped = warnings(
-        {"actions": [{"command": "a", "mutation": True}, {"command": "b", "approval": "required"}, 7]}
+        {
+            "actions": [
+                {"command": "a", "mutation": True},
+                {"command": "b", "approval": "required"},
+                7,
+            ]
+        }
     )
     assert [warning["path"] for warning in grouped] == ["_meta.actions[0].approval"]
 
 
 def test_afd_validate_reports_the_warning_and_fails_with_strict(monkeypatch):
+    import sys
     from unittest.mock import AsyncMock, MagicMock
 
     from click.testing import CliRunner
-
-    import sys
 
     import afd.cli.main  # noqa: F401
     from afd.transports.base import ToolInfo

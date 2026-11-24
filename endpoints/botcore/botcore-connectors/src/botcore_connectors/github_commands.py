@@ -200,9 +200,7 @@ def _build_issue_commands(
         if assignees is not None:
             payload["assignees"] = assignees
 
-        result = await connector.gh_api_call(
-            "POST", f"/repos/{resolved}/issues", json=payload
-        )
+        result = await connector.gh_api_call("POST", f"/repos/{resolved}/issues", json=payload)
         if result.error is not None:
             return result
 
@@ -228,9 +226,7 @@ def _build_issue_commands(
         if labels:
             params["labels"] = labels
 
-        result = await connector.gh_api_call(
-            "GET", f"/repos/{resolved}/issues", params=params
-        )
+        result = await connector.gh_api_call("GET", f"/repos/{resolved}/issues", params=params)
         if result.error is not None:
             return result
 
@@ -304,9 +300,7 @@ def _build_pr_commands(
         if body is not None:
             payload["body"] = body
 
-        result = await connector.gh_api_call(
-            "POST", f"/repos/{resolved}/pulls", json=payload
-        )
+        result = await connector.gh_api_call("POST", f"/repos/{resolved}/pulls", json=payload)
         if result.error is not None:
             return result
 
@@ -335,9 +329,7 @@ def _build_pr_commands(
         if base:
             params["base"] = base
 
-        result = await connector.gh_api_call(
-            "GET", f"/repos/{resolved}/pulls", params=params
-        )
+        result = await connector.gh_api_call("GET", f"/repos/{resolved}/pulls", params=params)
         if result.error is not None:
             return result
 
@@ -407,9 +399,7 @@ def _build_search_commands(
         pagination = PaginationParams(page=page, page_size=page_size)
         params = {"q": effective_query, **pagination.to_github_params()}
 
-        result = await connector.gh_api_call(
-            "GET", "/search/code", params=params
-        )
+        result = await connector.gh_api_call("GET", "/search/code", params=params)
         if result.error is not None:
             return result
 
@@ -454,9 +444,7 @@ def _build_search_commands(
         pagination = PaginationParams(page=page, page_size=page_size)
         params = {"q": effective_query, **pagination.to_github_params()}
 
-        result = await connector.gh_api_call(
-            "GET", "/search/issues", params=params
-        )
+        result = await connector.gh_api_call("GET", "/search/issues", params=params)
         if result.error is not None:
             return result
 

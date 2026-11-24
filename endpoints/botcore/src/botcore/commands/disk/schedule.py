@@ -15,11 +15,19 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 from xml.sax.saxutils import escape
 
 LABEL = "dev.lushly.botcore-disk"
 WINDOWS_TASK = "botcore disk hygiene"
 CRON_MARK = "# botcore-disk"
+
+
+def _uid() -> int:
+    getuid = getattr(os, "getuid", None)
+    if getuid is None:
+        raise OSError("os.getuid is not available on this platform")
+    return int(getuid())
 
 
 @dataclass
@@ -29,14 +37,19 @@ class ScheduleState:
     where: str | None
     detail: str | None = None
 
-    def as_dict(self) -> dict:
-        return {"platform": self.platform, "installed": self.installed,
-                "where": self.where, "detail": self.detail}
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "platform": self.platform,
+            "installed": self.installed,
+            "where": self.where,
+            "detail": self.detail,
+        }
 
 
 def _run(args: list[str], stdin: str | None = None) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(args, input=stdin, capture_output=True, text=True, timeout=60,
-                          check=False)
+    return subprocess.run(
+        args, input=stdin, capture_output=True, text=True, timeout=60, check=False
+    )
 
 
 def job_command(exe: str) -> list[str]:
@@ -67,7 +80,7 @@ def _macos_install(exe: str, logs: Path, path_env: str) -> ScheduleState:
         "StandardErrorPath": str(logs / "job.log"),
     }
     plist.write_bytes(plistlib.dumps(body))
-    domain = f"gui/{os.getuid()}"
+    domain = f"gui/{_uid()}"
     _run(["launchctl", "bootout", domain, str(plist)])
     done = _run(["launchctl", "bootstrap", domain, str(plist)])
     for _attempt in range(10):  # bootout of a running job finishes asynchronously
@@ -80,16 +93,17 @@ def _macos_install(exe: str, logs: Path, path_env: str) -> ScheduleState:
 
 def _macos_uninstall() -> ScheduleState:
     plist = _plist_path()
-    _run(["launchctl", "bootout", f"gui/{os.getuid()}", str(plist)])
+    _run(["launchctl", "bootout", f"gui/{_uid()}", str(plist)])
     plist.unlink(missing_ok=True)
     return ScheduleState("macos", False, str(plist))
 
 
 def _macos_state() -> ScheduleState:
     plist = _plist_path()
-    loaded = _run(["launchctl", "print", f"gui/{os.getuid()}/{LABEL}"]).returncode == 0
-    return ScheduleState("macos", plist.exists() and loaded, str(plist),
-                         None if loaded else "not loaded")
+    loaded = _run(["launchctl", "print", f"gui/{_uid()}/{LABEL}"]).returncode == 0
+    return ScheduleState(
+        "macos", plist.exists() and loaded, str(plist), None if loaded else "not loaded"
+    )
 
 
 # ── Windows ─────────────────────────────────────────────────────────────────
@@ -180,7 +194,8 @@ def _linux_install(exe: str, path_env: str) -> ScheduleState:
         service.write_text(
             "[Unit]\nDescription=botcore disk hygiene\n\n[Service]\nType=oneshot\n"
             f"Environment={_quote('PATH=' + path_env)}\nExecStart={command}\nNice=10\n"
-            "IOSchedulingClass=idle\n", encoding="utf-8",
+            "IOSchedulingClass=idle\n",
+            encoding="utf-8",
         )
         timer.write_text(
             "[Unit]\nDescription=botcore disk hygiene, hourly\n\n[Timer]\nOnBootSec=5min\n"
@@ -198,8 +213,9 @@ def _linux_install(exe: str, path_env: str) -> ScheduleState:
     line = f"17 * * * * PATH={_quote(path_env)} {command} {CRON_MARK}"
     current = read_crontab()
     if current is None:
-        return ScheduleState("linux", False, None,
-                             "no systemd --user, and the crontab could not be read")
+        return ScheduleState(
+            "linux", False, None, "no systemd --user, and the crontab could not be read"
+        )
     lines = [ln for ln in current.splitlines() if not ln.endswith(CRON_MARK)] + [line]
     done = _run(["crontab", "-"], stdin="\n".join(lines) + "\n")
     detail = done.stderr.strip()[:300] or None

@@ -13,8 +13,9 @@ Example:
 
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Generic, List, Optional, TypeVar
+from typing import Any, Generic, TypeVar
 
 from afd.core.actor import Actor
 from afd.core.clock import fixed_clock, system_clock, system_random
@@ -54,7 +55,7 @@ class CommandTestResult(Generic[T]):
 
 
 def create_test_context(
-    overrides: Optional[dict[str, Any]] = None,
+    overrides: dict[str, Any] | None = None,
 ) -> CommandContext:
     """Create a CommandContext suitable for testing.
 
@@ -103,8 +104,8 @@ async def test_command(
     handler: Callable[..., Any],
     input: Any,
     *,
-    context: Optional[CommandContext] = None,
-    validation: Optional[ResultValidationOptions] = None,
+    context: CommandContext | None = None,
+    validation: ResultValidationOptions | None = None,
 ) -> CommandTestResult[Any]:
     """Execute a command handler with timing and validation.
 
@@ -152,8 +153,8 @@ async def test_command_definition(
     command: CommandDefinition,
     input: Any,
     *,
-    context: Optional[CommandContext] = None,
-    result_validation: Optional[ResultValidationOptions] = None,
+    context: CommandContext | None = None,
+    result_validation: ResultValidationOptions | None = None,
 ) -> dict[str, Any]:
     """Validate a command definition and execute it.
 
@@ -195,11 +196,11 @@ async def test_command_definition(
 
 async def test_command_multiple(
     handler: Callable[..., Any],
-    test_cases: List[dict[str, Any]],
+    test_cases: list[dict[str, Any]],
     *,
-    context: Optional[CommandContext] = None,
-    validation: Optional[ResultValidationOptions] = None,
-) -> List[dict[str, Any]]:
+    context: CommandContext | None = None,
+    validation: ResultValidationOptions | None = None,
+) -> list[dict[str, Any]]:
     """Batch-test a handler against multiple input/expectation pairs.
 
     Each test case dict may contain:
@@ -242,19 +243,23 @@ async def test_command_multiple(
             passed = passed and (tr.is_success == tc["expect_success"])
 
         if "expect_error" in tc and tr.is_failure:
-            passed = passed and (tr.result.error is not None and tr.result.error.code == tc["expect_error"])
+            passed = passed and (
+                tr.result.error is not None and tr.result.error.code == tc["expect_error"]
+            )
 
-        results.append({
-            "result": tr.result,
-            "validation": tr.validation,
-            "execution_time_ms": tr.execution_time_ms,
-            "is_valid": tr.is_valid,
-            "is_success": tr.is_success,
-            "is_failure": tr.is_failure,
-            "input": tc["input"],
-            "passed": passed,
-            "description": tc.get("description"),
-        })
+        results.append(
+            {
+                "result": tr.result,
+                "validation": tr.validation,
+                "execution_time_ms": tr.execution_time_ms,
+                "is_valid": tr.is_valid,
+                "is_success": tr.is_success,
+                "is_failure": tr.is_failure,
+                "input": tc["input"],
+                "passed": passed,
+                "description": tc.get("description"),
+            }
+        )
 
     return results
 
@@ -281,7 +286,8 @@ def create_mock_command(
         >>> result = await cmd.handler({"id": 1})
         >>> assert result.success
     """
-    async def handler(input: Any, context: Optional[CommandContext] = None) -> CommandResult[Any]:
+
+    async def handler(input: Any, context: CommandContext | None = None) -> CommandResult[Any]:
         try:
             data = mock_handler(input)
             # Support async mock handlers
@@ -340,7 +346,8 @@ def create_failure_command(
         >>> assert not result.success
         >>> assert result.error.code == "BROKEN"
     """
-    async def handler(input: Any, context: Optional[CommandContext] = None) -> CommandResult[Any]:
+
+    async def handler(input: Any, context: CommandContext | None = None) -> CommandResult[Any]:
         return failure(ResultCommandError(code=error["code"], message=error["message"]))
 
     return CommandDefinition(

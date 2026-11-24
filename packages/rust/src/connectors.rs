@@ -6,12 +6,17 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct IssueCreateOptions {
+    /// Issue title.
     pub title: String,
+    /// Issue body markdown.
     pub body: String,
+    /// Target repository (`owner/name`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repo: Option<String>,
+    /// Labels to apply.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub labels: Option<Vec<String>>,
+    /// Project name or identifier to attach.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub project: Option<String>,
 }
@@ -20,12 +25,16 @@ pub struct IssueCreateOptions {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct IssueFilters {
+    /// Issue state filter.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub state: Option<IssueListState>,
+    /// Required label name.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
+    /// Required assignee login.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub assignee: Option<String>,
+    /// Maximum number of issues to return.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limit: Option<u32>,
 }
@@ -34,8 +43,11 @@ pub struct IssueFilters {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum IssueListState {
+    /// Only open issues.
     Open,
+    /// Only closed issues.
     Closed,
+    /// Both open and closed issues.
     All,
 }
 
@@ -43,9 +55,13 @@ pub enum IssueListState {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Issue {
+    /// Issue number.
     pub number: u32,
+    /// Issue title.
     pub title: String,
+    /// Current issue state.
     pub state: IssueState,
+    /// Web URL of the issue.
     pub url: String,
 }
 
@@ -53,7 +69,9 @@ pub struct Issue {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum IssueState {
+    /// Open issue.
     Open,
+    /// Closed issue.
     Closed,
 }
 
@@ -61,11 +79,16 @@ pub enum IssueState {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PrCreateOptions {
+    /// Pull request title.
     pub title: String,
+    /// Pull request description markdown.
     pub body: String,
+    /// Source branch name.
     pub head: String,
+    /// Target base branch name.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub base: Option<String>,
+    /// Whether to open as a draft pull request.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub draft: Option<bool>,
 }
@@ -74,9 +97,13 @@ pub struct PrCreateOptions {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PullRequest {
+    /// Pull request number.
     pub number: u32,
+    /// Pull request title.
     pub title: String,
+    /// Current pull request state.
     pub state: PullRequestState,
+    /// Web URL of the pull request.
     pub url: String,
 }
 
@@ -84,8 +111,11 @@ pub struct PullRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum PullRequestState {
+    /// Open pull request.
     Open,
+    /// Closed without merging.
     Closed,
+    /// Merged pull request.
     Merged,
 }
 
@@ -93,6 +123,7 @@ pub enum PullRequestState {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct GitHubConnectorOptions {
+    /// Whether to enable debug logging.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub debug: Option<bool>,
 }
@@ -101,7 +132,9 @@ pub struct GitHubConnectorOptions {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum PackageManager {
+    /// npm CLI.
     Npm,
+    /// pnpm CLI.
     Pnpm,
 }
 
@@ -109,8 +142,10 @@ pub enum PackageManager {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct PackageManagerConnectorOptions {
+    /// Whether to enable debug logging.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub debug: Option<bool>,
+    /// Working directory for package manager commands.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cwd: Option<String>,
 }

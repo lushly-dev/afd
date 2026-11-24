@@ -2,7 +2,7 @@
 
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -25,6 +25,8 @@ from afd.core import CommandContext, CommandDefinition, ExposeOptions, create_co
 from afd.core.wire import to_wire
 from afd.direct import (
     CommandContext as DirectContext,
+)
+from afd.direct import (
     DirectCallContext,
     DirectClient,
     DirectClientOptions,
@@ -76,9 +78,9 @@ class TestSeededRandom:
 
 class TestClocks:
     def test_system_sources(self):
-        before = datetime.now(timezone.utc).timestamp() * 1000
+        before = datetime.now(UTC).timestamp() * 1000
         now = system_clock.now()
-        after = datetime.now(timezone.utc).timestamp() * 1000
+        after = datetime.now(UTC).timestamp() * 1000
         assert before - 1 <= now <= after + 1
         assert 0 <= system_random.next() < 1
         assert system_random.seed is None
@@ -88,7 +90,7 @@ class TestClocks:
         assert fixed_clock(1234).now() == 1234
         assert fixed_clock("2026-01-01T00:00:00Z").now() == 1767225600000
         assert fixed_clock("2026-01-01T00:00:00.250+00:00").now() == 1767225600250
-        assert fixed_clock(datetime(2026, 1, 1, tzinfo=timezone.utc)).now() == 1767225600000
+        assert fixed_clock(datetime(2026, 1, 1, tzinfo=UTC)).now() == 1767225600000
         # A naive datetime is UTC.
         assert fixed_clock(datetime(2026, 1, 1)).now() == 1767225600000
 
@@ -272,7 +274,9 @@ class TestServer:
             clock=fixed_clock("2026-01-01T00:00:00Z"),
             middleware=[
                 create_telemetry_middleware(Sink()),
-                create_timing_middleware(slow_threshold=10, on_slow=lambda n, ms: slow.append((n, ms))),
+                create_timing_middleware(
+                    slow_threshold=10, on_slow=lambda n, ms: slow.append((n, ms))
+                ),
             ],
         )
         await server.route_tool_call("probe-run", {})
@@ -322,7 +326,9 @@ class TestDirectClient:
         random = seeded_random("abc")
         client = DirectClient(
             registry,
-            DirectClientOptions(actor=Actor(kind="agent", label="assistant"), clock=client_clock, random=random),
+            DirectClientOptions(
+                actor=Actor(kind="agent", label="assistant"), clock=client_clock, random=random
+            ),
         )
         await client.call("probe-run", {})
         await client.call(
@@ -346,7 +352,9 @@ class TestSimpleRegistry:
         @registry.command(name="dice-roll", description="Roll a die")
         async def roll(sides: int = 6, *, context):
             seen.append(context)
-            return success({"roll": 1 + int(context.random.next() * sides), "at": context.clock.now()})
+            return success(
+                {"roll": 1 + int(context.random.next() * sides), "at": context.clock.now()}
+            )
 
         @registry.command(name="greet", description="Input only, as before")
         async def greet(name: str = "World"):
@@ -405,7 +413,9 @@ class TestTestingHelpers:
         assert context.actor == Actor(kind="test")
         assert context.clock is system_clock and context.random is system_random
 
-        context = create_test_context({"now": "2026-01-01T00:00:00Z", "random": seeded_random("abc")})
+        context = create_test_context(
+            {"now": "2026-01-01T00:00:00Z", "random": seeded_random("abc")}
+        )
         assert context.clock.now() == 1767225600000
         assert context.random.next() == ABC_SEQUENCE[0]
 
@@ -413,7 +423,7 @@ class TestTestingHelpers:
         context = create_test_context({"now": 99, "clock": clock, "actor": Actor(kind="agent")})
         assert context.clock is clock and context.actor == Actor(kind="agent")
 
-    def test_command_context_fixture(self, command_context):
+    def test_command_context_fixture(self, command_context):  # noqa: F811
         assert command_context.actor == Actor(kind="test")
         assert command_context.clock is system_clock
 

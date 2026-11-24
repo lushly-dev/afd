@@ -145,8 +145,11 @@ pub struct ReplayDifference {
 /// The outcome of replaying one entry.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ReplayEntryReport {
+    /// Journal sequence number of the replayed entry.
     pub seq: u64,
+    /// Executed command name.
     pub command: String,
+    /// Comparison outcome for this entry.
     pub status: ReplayStatus,
     /// The result in the journal.
     pub recorded: CommandResult<Value>,
@@ -170,8 +173,11 @@ pub struct ReplayEntryReport {
 pub struct ReplayReport {
     /// One report per replayed entry, in `seq` order.
     pub entries: Vec<ReplayEntryReport>,
+    /// Count of entries whose replayed result matched the recorded result.
     pub same: usize,
+    /// Count of entries whose replayed result diverged from the recorded result.
     pub different: usize,
+    /// Count of entries that failed to replay.
     pub errors: usize,
     /// Whether any entry was not `same`.
     pub diverged: bool,

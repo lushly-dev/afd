@@ -1,0 +1,54 @@
+[package]
+name = "afd_fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+license = "MIT"
+description = "cargo-fuzz targets for afd parsers that consume untrusted input (#1765)"
+
+# Its own workspace: builds with nightly Rust and libFuzzer, apart from the published crate.
+[workspace]
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+async-trait = "0.1"
+libfuzzer-sys = "0.4"
+serde_json = "1.0"
+afd = { path = "..", default-features = false, features = ["frontmatter"] }
+
+[[bin]]
+name = "frontmatter"
+path = "fuzz_targets/frontmatter.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "pipeline_resolve"
+path = "fuzz_targets/pipeline_resolve.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "validation"
+path = "fuzz_targets/validation.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "schema_validation"
+path = "fuzz_targets/schema_validation.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "canonical_json"
+path = "fuzz_targets/canonical_json.rs"
+test = false
+doc = false
+bench = false

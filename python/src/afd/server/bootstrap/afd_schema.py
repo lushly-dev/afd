@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, List, Literal, Optional
+from collections.abc import Callable
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -28,22 +29,22 @@ class SchemaInfo(WireModel):
 
     name: str
     description: str
-    input_schema: Dict[str, Any]
-    output_schema: Dict[str, Any] | None = None
+    input_schema: dict[str, Any]
+    output_schema: dict[str, Any] | None = None
     typescript: str | None = None
 
 
 class AfdSchemaOutput(WireModel):
     """Output for ``afd-schema``."""
 
-    schemas: List[SchemaInfo]
+    schemas: list[SchemaInfo]
     count: int
     format: Literal["json", "typescript"]
 
 
-def _build_schema_from_parameters(parameters: List[CommandParameter]) -> Dict[str, Any]:
-    properties: Dict[str, Dict[str, Any]] = {}
-    required: List[str] = []
+def _build_schema_from_parameters(parameters: list[CommandParameter]) -> dict[str, Any]:
+    properties: dict[str, dict[str, Any]] = {}
+    required: list[str] = []
     for parameter in parameters:
         prop = dict(parameter.schema or {})
         prop.setdefault("type", parameter.type)
@@ -64,7 +65,7 @@ def _build_schema_from_parameters(parameters: List[CommandParameter]) -> Dict[st
     }
 
 
-def _schema_to_typescript(schema: Dict[str, Any] | bool | None) -> str:
+def _schema_to_typescript(schema: dict[str, Any] | bool | None) -> str:
     if schema is False:
         return "never"
     if schema is True or not schema or not isinstance(schema, dict):
@@ -116,14 +117,16 @@ def _command_type_name(command_name: str) -> str:
     return "".join(part.capitalize() for part in command_name.split("-"))
 
 
-def _render_named_typescript_type(name: str, schema: Dict[str, Any] | None) -> str:
+def _render_named_typescript_type(name: str, schema: dict[str, Any] | None) -> str:
     rendered = _schema_to_typescript(schema)
     if schema and schema.get("type") == "object" and rendered.startswith("{"):
         return f"export interface {name} {rendered}"
     return f"export type {name} = {rendered};"
 
 
-def _render_typescript(command: CommandDefinition, input_schema: Dict[str, Any], output_schema: Dict[str, Any] | None) -> str:
+def _render_typescript(
+    command: CommandDefinition, input_schema: dict[str, Any], output_schema: dict[str, Any] | None
+) -> str:
     base_name = _command_type_name(command.name)
     return "\n".join(
         [
@@ -135,9 +138,9 @@ def _render_typescript(command: CommandDefinition, input_schema: Dict[str, Any],
 
 async def _afd_schema_handler(
     input: AfdSchemaInput,
-    context: Optional[CommandContext],
-    get_commands: Callable[[], List[CommandDefinition]],
-    get_json_schema: Optional[Callable[[CommandDefinition], Dict[str, Any]]] = None,
+    context: CommandContext | None,
+    get_commands: Callable[[], list[CommandDefinition]],
+    get_json_schema: Callable[[CommandDefinition], dict[str, Any]] | None = None,
 ) -> CommandResult[AfdSchemaOutput]:
     commands = listed_commands(get_commands(), scope_view_of(context))
     schemas: list[SchemaInfo] = []
@@ -173,17 +176,19 @@ async def _afd_schema_handler(
 
 
 def create_afd_schema_command(
-    get_commands: Callable[[], List[CommandDefinition]],
-    get_json_schema: Optional[Callable[[CommandDefinition], Dict[str, Any]]] = None,
+    get_commands: Callable[[], list[CommandDefinition]],
+    get_json_schema: Callable[[CommandDefinition], dict[str, Any]] | None = None,
 ) -> CommandDefinition:
     """Create the ``afd-schema`` bootstrap command."""
 
     async def handler(
         input: Any,
-        context: Optional[CommandContext] = None,
+        context: CommandContext | None = None,
     ) -> CommandResult[AfdSchemaOutput]:
         try:
-            parsed_input = input if isinstance(input, AfdSchemaInput) else AfdSchemaInput(**(input or {}))
+            parsed_input = (
+                input if isinstance(input, AfdSchemaInput) else AfdSchemaInput(**(input or {}))
+            )
         except ValidationError as exc:
             return _input_validation_failure(AfdSchemaInput, input, exc)
         return await _afd_schema_handler(parsed_input, context, get_commands, get_json_schema)

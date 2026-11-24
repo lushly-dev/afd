@@ -27,7 +27,7 @@ from __future__ import annotations
 import ipaddress
 import json
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, Literal, cast
 
 from afd import Actor, CommandResult, error
 from afd.core.commands import CommandContext
@@ -37,7 +37,7 @@ from botcore.host_tokens import TokenRecord, TokenStore
 
 #: Receives the route, the verified caller, the request body and the query string's parameters;
 #: returns a CommandResult.
-UploadHandler = Callable[[str, Actor, bytes, dict], Awaitable[CommandResult]]
+UploadHandler = Callable[[str, Actor, bytes, dict[str, str]], Awaitable[CommandResult[Any]]]
 
 DEFAULT_MAX_UPLOAD_BYTES = 256 * 1024 * 1024
 DEFAULT_MAX_CALL_BYTES = 1024 * 1024
@@ -50,7 +50,7 @@ TAILNET_NETWORKS = (
 )
 
 
-def _dump(result: CommandResult) -> dict:
+def _dump(result: CommandResult[Any]) -> dict[str, Any]:
     return result.model_dump(mode="json", exclude_none=True)
 
 
@@ -66,13 +66,13 @@ class _HostRoutes:
 
     def __init__(
         self,
-        hosts,
-        tokens,
-        uploads,
-        max_upload_bytes,
-        max_call_bytes,
-        max_concurrent_uploads,
-        upload_read_seconds,
+        hosts: dict[str, CommandHost],
+        tokens: TokenStore,
+        uploads: UploadHandler | None,
+        max_upload_bytes: int,
+        max_call_bytes: int,
+        max_concurrent_uploads: int,
+        upload_read_seconds: float,
     ) -> None:
         import asyncio
 
@@ -86,7 +86,7 @@ class _HostRoutes:
         self.upload_read_seconds = upload_read_seconds
 
     @staticmethod
-    def json(body: dict, status: int = 200) -> Any:
+    def json(body: dict[str, Any], status: int = 200) -> Any:
         from starlette.responses import JSONResponse
 
         return JSONResponse(body, status_code=status)
@@ -94,7 +94,7 @@ class _HostRoutes:
     def refused(self, status: int, code: str, message: str, suggestion: str) -> Any:
         return self.json(_dump(error(code, message, suggestion=suggestion)), status)
 
-    def admit(self, request) -> tuple[str, CommandHost, TokenRecord] | Any:
+    def admit(self, request: Any) -> tuple[str, CommandHost, TokenRecord] | Any:
         """The route, host and caller, or the refusal: no valid token (checked first, so no
         route is named to a caller without one), or a route this token does not open."""
         record = self.tokens.verify(_bearer(request.headers.get("authorization")))
@@ -119,9 +119,10 @@ class _HostRoutes:
     @staticmethod
     def actor(record: TokenRecord, on_behalf_of: Any = None) -> Actor:
         claimed = on_behalf_of[:200] if isinstance(on_behalf_of, str) else None
-        return Actor(kind=record.kind, id=record.actor, label=record.label, on_behalf_of=claimed)
+        actor_kind = cast(Literal["human", "agent", "service", "script", "test"], record.kind)
+        return Actor(kind=actor_kind, id=record.actor, label=record.label, on_behalf_of=claimed)
 
-    async def body(self, request, limit: int) -> bytes | None:
+    async def body(self, request: Any, limit: int) -> bytes | None:
         """The request body, or None once it passes ``limit`` bytes (declared or streamed)."""
         declared = request.headers.get("content-length")
         if declared is not None and declared.isdigit() and int(declared) > limit:
@@ -133,7 +134,7 @@ class _HostRoutes:
                 return None
         return bytes(received)
 
-    async def call(self, request) -> Any:
+    async def call(self, request: Any) -> Any:
         admitted = self.admit(request)
         if not isinstance(admitted, tuple):
             return admitted
@@ -160,7 +161,7 @@ class _HostRoutes:
         context = CommandContext(actor=self.actor(record, body.get("onBehalfOf")))
         return self.json(_dump(await host.execute(body["command"], body.get("arguments"), context)))
 
-    async def catalog(self, request) -> Any:
+    async def catalog(self, request: Any) -> Any:
         admitted = self.admit(request)
         if not isinstance(admitted, tuple):
             return admitted
@@ -175,7 +176,7 @@ class _HostRoutes:
             }
         )
 
-    async def docs(self, request) -> Any:
+    async def docs(self, request: Any) -> Any:
         admitted = self.admit(request)
         if not isinstance(admitted, tuple):
             return admitted
@@ -186,7 +187,7 @@ class _HostRoutes:
             return self.refused(404, "NOT_FOUND", f"No docs topic {topic}", f"Use one of: {topics}")
         return self.json({"topic": topic, "text": host.docs[topic]})
 
-    async def upload(self, request) -> Any:
+    async def upload(self, request: Any) -> Any:
         admitted = self.admit(request)
         if not isinstance(admitted, tuple):
             return admitted

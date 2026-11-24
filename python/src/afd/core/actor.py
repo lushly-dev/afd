@@ -9,7 +9,7 @@ from __future__ import annotations
 import copy
 import dataclasses
 from dataclasses import dataclass
-from typing import Any, Literal, Optional, Tuple, TypeVar
+from typing import Any, Literal, TypeVar
 
 from afd.core.clock import Clock, RandomSource, system_clock, system_random
 
@@ -26,7 +26,7 @@ __all__ = [
 ActorKind = Literal["human", "agent", "service", "script", "test"]
 """What kind of principal is calling: a person, an AI agent, a service, a script or a test."""
 
-ACTOR_KINDS: Tuple[ActorKind, ...] = ("human", "agent", "service", "script", "test")
+ACTOR_KINDS: tuple[ActorKind, ...] = ("human", "agent", "service", "script", "test")
 """The kinds of principal that can call a command."""
 
 
@@ -48,9 +48,9 @@ class Actor:
     """
 
     kind: ActorKind
-    id: Optional[str] = None
-    label: Optional[str] = None
-    on_behalf_of: Optional[str] = None
+    id: str | None = None
+    label: str | None = None
+    on_behalf_of: str | None = None
 
 
 def is_actor_kind(value: Any) -> bool:
@@ -70,7 +70,7 @@ def is_actor(value: Any) -> bool:
     )
 
 
-def actor_kind_of(actor: Any) -> Optional[ActorKind]:
+def actor_kind_of(actor: Any) -> ActorKind | None:
     """The actor's kind when it is a valid one, for ``metadata.actorKind`` and telemetry."""
     kind = getattr(actor, "kind", None)
     return kind if is_actor_kind(kind) else None
@@ -86,17 +86,17 @@ class ContextDefaults:
         actor: Actor when the context has none. Default: none (the context keeps no actor).
     """
 
-    clock: Optional[Clock] = None
-    random: Optional[RandomSource] = None
-    actor: Optional[Actor] = None
+    clock: Clock | None = None
+    random: RandomSource | None = None
+    actor: Actor | None = None
 
 
 ContextT = TypeVar("ContextT")
 
 
 def with_context_defaults(
-    context: Optional[ContextT] = None,
-    defaults: Optional[ContextDefaults] = None,
+    context: ContextT | None = None,
+    defaults: ContextDefaults | None = None,
 ) -> ContextT:
     """A copy of ``context`` with ``clock``, ``random`` and (when given) ``actor``
     filled in where it has none. Values already on the context always win.
@@ -108,26 +108,29 @@ def with_context_defaults(
     and a shared default object would carry one caller's identity into the next
     call.
     """
+    resolved: ContextT
     if context is None:
         from afd.core.commands import CommandContext
 
-        context = CommandContext()  # type: ignore[assignment]
+        resolved = CommandContext()  # type: ignore[assignment]
+    else:
+        resolved = context
     defaults = defaults or ContextDefaults()
-    actor = getattr(context, "actor", None) or defaults.actor
+    actor = getattr(resolved, "actor", None) or defaults.actor
     values = {
-        "clock": getattr(context, "clock", None) or defaults.clock or system_clock,
-        "random": getattr(context, "random", None) or defaults.random or system_random,
+        "clock": getattr(resolved, "clock", None) or defaults.clock or system_clock,
+        "random": getattr(resolved, "random", None) or defaults.random or system_random,
         "actor": copy.copy(actor) if actor is not None else None,
     }
-    if dataclasses.is_dataclass(context) and values.keys() <= {
-        field.name for field in dataclasses.fields(context)
+    if dataclasses.is_dataclass(resolved) and values.keys() <= {
+        field.name for field in dataclasses.fields(resolved)
     }:
-        return dataclasses.replace(context, **values)  # type: ignore[type-var]
+        return dataclasses.replace(resolved, **values)  # type: ignore[type-var]
     # A caller's own context type (TypeScript accepts any object here).
-    filled = copy.copy(context)
+    filled = copy.copy(resolved)
     try:
         for name, value in values.items():
             setattr(filled, name, value)
     except (AttributeError, TypeError):
-        return context
+        return resolved
     return filled

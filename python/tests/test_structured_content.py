@@ -68,7 +68,9 @@ def _server(**options):
     async def get(input: TodoInput):
         if input.id == "missing":
             return failure(
-                CommandError(code="NOT_FOUND", message="No such todo", suggestion="List todos first")
+                CommandError(
+                    code="NOT_FOUND", message="No such todo", suggestion="List todos first"
+                )
             )
         return success(Todo(id=input.id, title="Milk"))
 

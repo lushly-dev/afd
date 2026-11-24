@@ -88,7 +88,9 @@ class TestRootExports:
         from afd.core.metadata import WarningSeverity as Owned
 
         assert WarningSeverity is Owned
-        assert afd.create_warning("W", "msg", severity=WarningSeverity.CAUTION).severity == "caution"
+        assert (
+            afd.create_warning("W", "msg", severity=WarningSeverity.CAUTION).severity == "caution"
+        )
 
 
 # =============================================================================

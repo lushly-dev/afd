@@ -883,7 +883,9 @@ async def test_approval_relay_state_binds_hook_actor_and_2025_in_band_runs_hook_
 
     sdk = server._create_mcp_server()
     # 2026-07-28: Alice gets approval requestState; Bob cannot replay it; Alice succeeds.
-    async with Client(sdk, mode="auto", elicitation_callback=_answer("accept", field="approve")) as client:
+    async with Client(
+        sdk, mode="auto", elicitation_callback=_answer("accept", field="approve")
+    ) as client:
         asked = await client.session.call_tool("todo-nuke", {}, allow_input_required=True)
         assert type(asked).__name__ == "InputRequiredResult"
         state = asked.request_state
@@ -893,7 +895,9 @@ async def test_approval_relay_state_binds_hook_actor_and_2025_in_band_runs_hook_
             await client.session.call_tool(
                 "todo-nuke",
                 {},
-                input_responses={"approval": types.ElicitResult(action="accept", content={"approve": True})},
+                input_responses={
+                    "approval": types.ElicitResult(action="accept", content={"approve": True})
+                },
                 request_state=state,
                 allow_input_required=True,
             )
@@ -904,7 +908,9 @@ async def test_approval_relay_state_binds_hook_actor_and_2025_in_band_runs_hook_
         approved = await client.session.call_tool(
             "todo-nuke",
             {},
-            input_responses={"approval": types.ElicitResult(action="accept", content={"approve": True})},
+            input_responses={
+                "approval": types.ElicitResult(action="accept", content={"approve": True})
+            },
             request_state=state,
             allow_input_required=True,
         )
@@ -913,7 +919,9 @@ async def test_approval_relay_state_binds_hook_actor_and_2025_in_band_runs_hook_
 
     # 2025 legacy in-band elicitation: hook runs ONCE despite two internal route rounds.
     hook_calls = 0
-    async with Client(sdk, mode="legacy", elicitation_callback=_answer("accept", field="approve")) as client:
+    async with Client(
+        sdk, mode="legacy", elicitation_callback=_answer("accept", field="approve")
+    ) as client:
         res = await client.call_tool("todo-nuke", {})
     assert body(res)["success"] is True
     assert body(res)["data"] == {"actorId": "alice"}
@@ -1192,7 +1200,9 @@ async def test_up_front_batch_approval_binds_hook_actor():
 
     sdk = server._create_mcp_server()
     batch_args = {"commands": [{"command": "todo-nuke", "input": {}}]}
-    async with Client(sdk, mode="auto", elicitation_callback=_answer("accept", field="approve")) as client:
+    async with Client(
+        sdk, mode="auto", elicitation_callback=_answer("accept", field="approve")
+    ) as client:
         asked = await client.session.call_tool("afd-batch", batch_args, allow_input_required=True)
         assert type(asked).__name__ == "InputRequiredResult"
         state = asked.request_state
@@ -1260,5 +1270,3 @@ async def test_journal_records_hook_actor_and_trace_id_and_ignores_smuggled_jour
     assert entry.actor.on_behalf_of == "user-9"
     assert entry.trace_id == "hook-trace-42"
     assert entry.context is None
-
-

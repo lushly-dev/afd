@@ -226,9 +226,7 @@ async def test_required_is_not_enforced_for_afd_commands_but_present_values_are_
     result = await server.execute("scope-echo", {})
     assert result.error.code == "VALIDATION_ERROR"
     assert result.error.message == "Context field 'scope' is required"
-    invalid = await server.execute(
-        "afd-help", {}, CommandContext(extra={"scope": {"project": 42}})
-    )
+    invalid = await server.execute("afd-help", {}, CommandContext(extra={"scope": {"project": 42}}))
     assert invalid.error.code == "VALIDATION_ERROR"
     assert invalid.error.message == "Context field 'scope' is not valid"
 

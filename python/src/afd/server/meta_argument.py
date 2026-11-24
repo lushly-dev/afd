@@ -132,4 +132,4 @@ def _same_json(a: Any, b: Any) -> bool:
             return False
         # JSON has no undefined, so every member counts, null ones included.
         return set(a) == set(b) and all(_same_json(a[key], b[key]) for key in a)
-    return a == b
+    return bool(a == b)

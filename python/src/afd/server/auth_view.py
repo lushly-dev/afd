@@ -9,7 +9,7 @@ from __future__ import annotations
 import dataclasses
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Literal, TypeVar
+from typing import Any, Literal, Protocol, TypeVar
 
 from afd.core.commands import CommandContext, CommandDefinition
 from afd.core.errors import CommandError, ErrorCodes
@@ -30,7 +30,12 @@ from afd.server.auth_scopes import (
 from afd.server.tools import derive_group_action, derive_group_name
 from afd.server.types import GroupByFn, ToolStrategy
 
-_T = TypeVar("_T")
+
+class _Named(Protocol):
+    name: str
+
+
+_T = TypeVar("_T", bound=_Named)
 
 
 @dataclass(frozen=True)
@@ -410,7 +415,9 @@ class ScopeAuthority:
                 visible = required == "allowed" and r_visible and exists
             else:
                 exists = True
-                visible = required == "allowed" and all(scope in held_set for scope in command.scopes)
+                visible = required == "allowed" and all(
+                    scope in held_set for scope in command.scopes
+                )
 
             if exists:
                 known_set.add(name)
@@ -443,14 +450,14 @@ def known_only(items: Sequence[_T], view: ScopeView | None) -> list[_T]:
     """``items`` whose ``.name`` exists for ``view`` (all of them without a view)."""
     if view is None:
         return list(items)
-    return [item for item in items if view.known(getattr(item, "name"))]
+    return [item for item in items if view.known(item.name)]
 
 
 def shown_only(items: Sequence[_T], view: ScopeView | None) -> list[_T]:
     """``items`` whose ``.name`` is shown by ``view`` (all of them without a view)."""
     if view is None:
         return list(items)
-    return [item for item in items if view.shown(getattr(item, "name"))]
+    return [item for item in items if view.shown(item.name)]
 
 
 def listed_commands(

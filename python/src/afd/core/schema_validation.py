@@ -12,7 +12,10 @@ import json
 import math
 import re
 from datetime import date, datetime, time
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from afd.core.result import CommandResult
 
 from afd.core.schema_registration import _reference, pattern_matches, starts_resource
 from afd.core.schema_registration import check_schema as check_schema
@@ -86,7 +89,7 @@ def _equal(left: Any, right: Any) -> bool:
         return len(left) == len(right) and all(
             _equal(a, b) for a, b in zip(left, right, strict=True)
         )
-    return left == right
+    return bool(left == right)
 
 
 def _literal(value: Any) -> str:
@@ -185,7 +188,7 @@ def validate_schema(
     resources: list[dict[str, Any]] = [schema]
 
     def walk(
-        node: dict[str, Any],
+        node: dict[str, Any] | bool,
         current: Any,
         path: str,
         errors: list[dict[str, Any]],
@@ -513,7 +516,7 @@ def schema_validation_failure(
     exc: SchemaValidationError,
     *,
     max_issues: int | None = None,
-) -> Any:
+) -> CommandResult[Any]:
     """A framework-independent VALIDATION_ERROR result for core execution."""
     from afd.core.errors import CommandError
     from afd.core.result import failure

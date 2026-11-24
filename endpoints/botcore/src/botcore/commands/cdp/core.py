@@ -191,7 +191,7 @@ def _spawn_chrome(args: list[str]) -> subprocess.Popen[bytes]:
         "stderr": subprocess.DEVNULL,
     }
     if os.name == "nt":
-        popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        popen_kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
     else:
         popen_kwargs["start_new_session"] = True
     return subprocess.Popen(args, **popen_kwargs)

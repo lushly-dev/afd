@@ -14,7 +14,7 @@ cell calls. The repository adapter is ``[plugins.factory]`` in the target's ``bo
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from botcore.context import current_context
 
@@ -54,7 +54,8 @@ class _HostFactory:
             if target is None:  # A legacy surface registered the plugin outside any host.
                 from botcore.utils.workspace import find_workspace
 
-                target = Path(find_workspace())
+                ws = find_workspace()
+                target = Path(ws) if ws is not None else Path.cwd()
             world = self._world
             if world is None:
                 from botcore_factory.real_world import real_world
@@ -76,7 +77,7 @@ class FactoryPlugin:
     def config_schema(self) -> type[FactoryConfig]:
         return FactoryConfig
 
-    def configure(self, config: FactoryConfig | dict) -> None:
+    def configure(self, config: FactoryConfig | dict[str, Any]) -> None:
         self._config = config if isinstance(config, FactoryConfig) else FactoryConfig(**config)
 
     def register(self, registry: PluginRegistry) -> None:

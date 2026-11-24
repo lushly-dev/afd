@@ -155,7 +155,9 @@ class JournalEntry(JournalRecord):
     @classmethod
     def from_record(cls, seq: int, record: JournalRecord) -> JournalEntry:
         """``record`` stored at ``seq``."""
-        values = {item.name: getattr(record, item.name) for item in dataclasses.fields(JournalRecord)}
+        values = {
+            item.name: getattr(record, item.name) for item in dataclasses.fields(JournalRecord)
+        }
         return cls(seq=seq, **values)
 
     def to_dict(self) -> dict[str, Any]:
@@ -208,9 +210,7 @@ class JournalEntry(JournalRecord):
                 hash=digest["hash"], interface=digest.get("interface")
             ),
             context=data.get("context"),
-            context_omitted=(
-                list(data["contextOmitted"]) if "contextOmitted" in data else None
-            ),
+            context_omitted=(list(data["contextOmitted"]) if "contextOmitted" in data else None),
             output_budget=data.get("outputBudget"),
             result=data["result"],
             duration_ms=data["durationMs"],
@@ -316,8 +316,7 @@ def _is_actor_dict(value: Any) -> bool:
         isinstance(value, dict)
         and is_actor_kind(value.get("kind"))
         and all(
-            key not in value or isinstance(value[key], str)
-            for key in ("id", "label", "onBehalfOf")
+            key not in value or isinstance(value[key], str) for key in ("id", "label", "onBehalfOf")
         )
     )
 
@@ -529,8 +528,7 @@ def _dumps(value: Any, *, sort_keys: bool = False) -> str:
         return (
             "{"
             + ",".join(
-                f"{_js_string(str(key))}:{_dumps(item, sort_keys=sort_keys)}"
-                for key, item in items
+                f"{_js_string(str(key))}:{_dumps(item, sort_keys=sort_keys)}" for key, item in items
             )
             + "}"
         )

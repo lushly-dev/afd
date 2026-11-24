@@ -40,8 +40,9 @@
 //!   `tokio::time::timeout`, and the retry middleware's default wait through
 //!   `tokio::time::sleep` (Tokio's `time` feature only; the application
 //!   provides the runtime)
-//! - `wasm`: browser WebAssembly (`wasm32-unknown-unknown`), measuring
-//!   durations with `web-time`
+//! - `wasm`: browser WebAssembly (`wasm32-unknown-unknown`) randomness for `approval`
+//!   (`getrandom`'s `wasm_js` backend); durations use `web-time` on `wasm32-unknown-unknown`
+//!   automatically without this feature
 //! - `frontmatter`: [`frontmatter`], the YAML 1.2 core-schema frontmatter reader (`saphyr-parser`);
 //!   `server` enables it
 //! - `server`: [`server`], the MCP server (`rmcp`) over Streamable HTTP and stdio; needs Rust 1.88
@@ -61,6 +62,7 @@
 // docs.rs builds with `--cfg docsrs` on nightly, where the `doc(cfg)` badges on
 // feature-gated items need the unstable `doc_cfg` feature.
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![forbid(unsafe_code)]
 
 /// Compiles and runs the README examples as doctests.
 #[doc = include_str!("../README.md")]
@@ -118,14 +120,14 @@ mod wire;
 ///   changes nothing in production. Under `tokio::time::pause()` (as in
 ///   `tests/batch_controls_vectors.rs`), deadlines and durations follow the
 ///   paused clock instead of disagreeing with it.
-/// - `std::time::Instant::now()` traps on `wasm32-unknown-unknown`, so the
-///   `wasm` feature switches to `web-time`, which reads `performance.now()`
-///   there.
+/// - `std::time::Instant::now()` and `std::time::SystemTime::now()` trap on
+///   `wasm32-unknown-unknown`, so that target selects `web-time` automatically
+///   (`performance.now()` and `Date.now()`), with or without the `wasm` feature.
 /// - Otherwise it is `std::time::Instant`.
 mod time {
-    #[cfg(not(feature = "wasm"))]
+    #[cfg(not(all(target_family = "wasm", target_os = "unknown")))]
     use std::time as platform_time;
-    #[cfg(feature = "wasm")]
+    #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use web_time as platform_time;
 
     #[cfg(any(

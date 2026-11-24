@@ -59,7 +59,12 @@ def _server(**options: Any):
     async def add(input: Note, context: CommandContext):
         state["count"] += 1
         return success(
-            {"text": input.text, "tag": input.tag, "roll": context.random.next(), "n": state["count"]}
+            {
+                "text": input.text,
+                "tag": input.tag,
+                "roll": context.random.next(),
+                "n": state["count"],
+            }
         )
 
     @server.command(name="note-fail", description="Fail", input_schema=Note, expose=mcp)
@@ -155,7 +160,9 @@ class TestJsonLines:
         assert journal_actor("agent") is None
 
     def test_canonical_json_sorts_keys(self):
-        assert canonical_json({"b": 1, "a": {"d": 2.0, "c": None}}) == '{"a":{"c":null,"d":2},"b":1}'
+        assert (
+            canonical_json({"b": 1, "a": {"d": 2.0, "c": None}}) == '{"a":{"c":null,"d":2},"b":1}'
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -170,7 +177,10 @@ class TestMemorySink:
         for _ in range(4):
             await sink.append(_record())
         assert [entry.seq for entry in await sink.read()] == [1, 2, 3, 4]
-        assert [entry.seq for entry in await sink.read(JournalRange(from_seq=2, to_seq=3))] == [2, 3]
+        assert [entry.seq for entry in await sink.read(JournalRange(from_seq=2, to_seq=3))] == [
+            2,
+            3,
+        ]
 
     @pytest.mark.asyncio
     async def test_continues_from_initial_entries(self):
@@ -221,8 +231,12 @@ class TestFileSink:
 class TestContextDigest:
     def test_hashes_key_names_never_values(self):
         actor = Actor(kind="human", id="u1")
-        one = CommandContext(trace_id="t", actor=actor, extra={"session": "s-1", "interface": "cli"})
-        two = CommandContext(trace_id="t", actor=actor, extra={"session": "s-2", "interface": "cli"})
+        one = CommandContext(
+            trace_id="t", actor=actor, extra={"session": "s-1", "interface": "cli"}
+        )
+        two = CommandContext(
+            trace_id="t", actor=actor, extra={"session": "s-2", "interface": "cli"}
+        )
         three = CommandContext(trace_id="t", actor=actor, extra={"interface": "cli"})
         assert create_context_digest(one) == create_context_digest(two)
         assert create_context_digest(one).hash != create_context_digest(three).hash
@@ -345,7 +359,9 @@ class TestMiddleware:
                 return []
 
         errors: list[Exception] = []
-        server = _server(middleware=[create_journal_middleware(BrokenSink(), on_error=errors.append)])
+        server = _server(
+            middleware=[create_journal_middleware(BrokenSink(), on_error=errors.append)]
+        )
         result = await server.execute("note-add", {"text": "a"})
         assert result.success
         assert [str(error) for error in errors] == ["disk full"]

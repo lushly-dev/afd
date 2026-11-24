@@ -69,6 +69,10 @@ jobs:
           uv sync --frozen --extra dev --extra mcp --extra cdp --group packages
       - name: Lint
         run: uv run --frozen ruff check src/ tests/ scripts/ packages/ botcore-connectors/src/ botcore-connectors/tests/ plugins/botcore-teams/
+      - name: Format check
+        run: uv run --frozen ruff format --check src/ tests/ scripts/ packages/ botcore-connectors/src/ botcore-connectors/tests/ plugins/botcore-teams/
+      - name: Type check
+        run: uv run --frozen mypy src
       - name: Core tests
         # The integration scenarios drive the sibling packages, so they run with them below.
         run: uv run --frozen pytest tests/ --ignore=tests/integration -q

@@ -1,0 +1,201 @@
+//! The suite's own cases against a deliberately broken in-memory backend: it passes a correct
+//! one and fails each broken one where it should (leaks, gaps, lost writes, lowered `applied`,
+//! unfiltered co-citation weights).
+
+use crate::support;
+use support::{Fault, factory};
+use umbel_store::conformance::run_all;
+
+#[test]
+fn a_correct_in_memory_backend_passes_every_case() {
+    let report = run_all(&factory(Fault::None), None);
+    report.assert_passed();
+    assert!(report.passed() >= 40, "{report}");
+    // Without a spawn_writer and an index, the multi-process case and every index case wait; the
+    // embedded backend's own tests run those, and detect their faults. The fake has no memory
+    // store, so every memory case waits too; `memory_suite_detects.rs` runs them on a fake of
+    // their own. It has no record lane either, so the `lane`, `standing` and `matching` groups
+    // wait for the embedded backend's tests as well.
+    let skipped = report.skipped();
+    let (memory, other): (Vec<_>, Vec<_>) = skipped
+        .iter()
+        .partition(|s| s.starts_with("memory_") && s.contains("no memory store"));
+    let (lane, other): (Vec<_>, Vec<_>) = other
+        .into_iter()
+        .partition(|s| s.starts_with("lane::") && s.contains("no record lane"));
+    let (standing, other): (Vec<_>, Vec<_>) = other
+        .into_iter()
+        .partition(|s| s.starts_with("standing::") && s.contains("no record lane"));
+    let (matching, other): (Vec<_>, Vec<_>) = other
+        .into_iter()
+        .partition(|s| s.starts_with("matching::") && s.contains("no record lane"));
+    assert_eq!(lane.len(), 17, "every lane case: {skipped:?}");
+    assert_eq!(standing.len(), 17, "every standing case: {skipped:?}");
+    assert_eq!(matching.len(), 18, "every matching case: {skipped:?}");
+    assert!(
+        other
+            .iter()
+            .all(|s| s.contains("no spawn_writer") || s.contains("no search index")),
+        "{skipped:?}"
+    );
+    assert_eq!(other.len(), 15, "{skipped:?}");
+    assert_eq!(memory.len(), 44, "every memory case: {skipped:?}");
+}
+
+/// Each fault, and a group that must fail because of it.
+const DETECTED: &[(Fault, &str, &str)] = &[
+    (
+        Fault::GetLeaksUnreadable,
+        "access",
+        "documents_listed_and_fetched_per_reader",
+    ),
+    (
+        Fault::GetAnswersNotFoundForUnreadable,
+        "access",
+        "an_unreadable_document_is_indistinguishable_from_an_absent_one",
+    ),
+    (
+        Fault::ListLeaksUnreadable,
+        "access",
+        "documents_listed_and_fetched_per_reader",
+    ),
+    (
+        Fault::ListUnordered,
+        "documents",
+        "listing_is_ordered_by_id_and_pages",
+    ),
+    (
+        Fault::RecordsLeak,
+        "access",
+        "records_listed_and_fetched_per_reader",
+    ),
+    (
+        Fault::ChangesLeak,
+        "changes",
+        "revisions_are_dense_only_under_derivation",
+    ),
+    (Fault::ChangesLeak, "access", "changes_per_reader"),
+    (
+        Fault::ChangesIgnoreTrace,
+        "changes",
+        "trace_filters_to_one_call",
+    ),
+    (
+        Fault::DeleteChangeVisibleToAll,
+        "changes",
+        "a_delete_is_readable_by_the_deleted_versions_access",
+    ),
+    (
+        Fault::RevisionGap,
+        "documents",
+        "revisions_are_consecutive_from_one",
+    ),
+    (
+        Fault::RevisionGap,
+        "concurrency",
+        "two_threads_write_densely_and_a_reader_sees_whole_commits",
+    ),
+    (
+        Fault::LostWrite,
+        "concurrency",
+        "two_threads_write_densely_and_a_reader_sees_whole_commits",
+    ),
+    (
+        Fault::LostWrite,
+        "access",
+        "documents_listed_and_fetched_per_reader",
+    ),
+    (
+        Fault::IgnoreExpect,
+        "documents",
+        "expect_is_a_compare_and_set",
+    ),
+    (
+        Fault::IgnoreExpect,
+        "records",
+        "expect_is_a_compare_and_set",
+    ),
+    (
+        Fault::SkipEnvelopeCheck,
+        "envelope",
+        "missing_access_or_sensitivity_is_refused",
+    ),
+    (
+        Fault::LowerApplied,
+        "graph",
+        "applied_never_lowers_and_never_passes_head",
+    ),
+    (
+        Fault::LowerApplied,
+        "concurrency",
+        "graph_applied_never_lowers_under_contention",
+    ),
+    (Fault::ApplyNotAtomic, "graph", "apply_is_one_transaction"),
+    (
+        Fault::UnfilteredCoCitation,
+        "graph",
+        "weights_aggregate_over_readable_origins_only",
+    ),
+    (Fault::UnfilteredCoCitation, "access", "graph_per_reader"),
+    (
+        Fault::EdgeEndpointLeak,
+        "graph",
+        "endpoints_and_origins_are_both_checked",
+    ),
+    (Fault::NodeLeak, "access", "graph_per_reader"),
+    (Fault::SubgraphLeak, "access", "graph_per_reader"),
+    (
+        Fault::ReplaceKeepsOldEdges,
+        "graph",
+        "apply_replaces_one_origins_contribution",
+    ),
+];
+
+#[test]
+fn each_broken_backend_fails_where_it_should() {
+    for (fault, group, case) in DETECTED {
+        let report = run_all(&factory(*fault), None);
+        let failed = report
+            .group(group)
+            .into_iter()
+            .flat_map(|g| &g.cases)
+            .any(|c| {
+                c.name == *case && matches!(c.outcome, umbel_store::conformance::Outcome::Failed(_))
+            });
+        assert!(
+            failed,
+            "{fault:?} was not caught by {group}::{case}:\n{report}"
+        );
+    }
+}
+
+#[test]
+fn every_fault_is_caught_by_something() {
+    use Fault::*;
+    for fault in [
+        GetLeaksUnreadable,
+        GetAnswersNotFoundForUnreadable,
+        ListLeaksUnreadable,
+        ListUnordered,
+        RecordsLeak,
+        ChangesLeak,
+        ChangesIgnoreTrace,
+        DeleteChangeVisibleToAll,
+        RevisionGap,
+        LostWrite,
+        IgnoreExpect,
+        SkipEnvelopeCheck,
+        LowerApplied,
+        ApplyNotAtomic,
+        UnfilteredCoCitation,
+        EdgeEndpointLeak,
+        NodeLeak,
+        SubgraphLeak,
+        ReplaceKeepsOldEdges,
+    ] {
+        assert!(
+            DETECTED.iter().any(|(f, ..)| *f == fault),
+            "{fault:?} has no detection row"
+        );
+    }
+}

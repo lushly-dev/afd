@@ -14,15 +14,15 @@ Example:
 
 from __future__ import annotations
 
-from typing import Dict, Optional
+import contextlib
 
 import httpx
 
+from afd.transports._mcp_protocol import _HttpBasedTransport
 from afd.transports.base import (
     TransportError,
     TransportState,
 )
-from afd.transports._mcp_protocol import _HttpBasedTransport
 
 
 class HttpTransport(_HttpBasedTransport):
@@ -35,12 +35,18 @@ class HttpTransport(_HttpBasedTransport):
         self,
         url: str,
         *,
-        headers: Optional[Dict[str, str]] = None,
+        headers: dict[str, str] | None = None,
         timeout: float = 30.0,
         client_name: str = "afd-python-client",
         client_version: str = "0.2.0",
     ) -> None:
-        super().__init__(url, headers=headers, timeout=timeout, client_name=client_name, client_version=client_version)
+        super().__init__(
+            url,
+            headers=headers,
+            timeout=timeout,
+            client_name=client_name,
+            client_version=client_version,
+        )
 
     async def connect(self) -> None:
         """Establish connection: create HTTP client, run health check, initialize MCP."""
@@ -54,15 +60,13 @@ class HttpTransport(_HttpBasedTransport):
 
             # Health check (best-effort)
             health_url = self._derive_health_url(self._message_url)
-            try:
-                # The response is ignored: the health endpoint may not exist.
+            # The response is ignored: the health endpoint may not exist.
+            with contextlib.suppress(httpx.HTTPError):
                 await self._client.get(
                     health_url,
                     headers=self._headers,
                     timeout=self._timeout,
                 )
-            except httpx.HTTPError:
-                pass
 
             # MCP initialize handshake
             await self._initialize()

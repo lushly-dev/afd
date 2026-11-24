@@ -25,6 +25,7 @@ import sys
 import time
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from botcore_factory.claims import format_time
 from botcore_factory.lane import Step, step
@@ -138,7 +139,9 @@ def toolchain_mismatches(factory: Factory) -> list[str]:
         got = _version(have)
         if got is None:
             problems.append(f"{tool} {rule} (not installed)")
-        elif rule.startswith("==") and got != want or rule.startswith(">=") and got < want:
+        elif want is not None and (
+            (rule.startswith("==") and got != want) or (rule.startswith(">=") and got < want)
+        ):
             problems.append(f"{tool} {rule} (have {have})")
     return problems
 
@@ -170,7 +173,7 @@ def require_toolchains(factory: Factory, then: str) -> None:
         )
 
 
-def new_run(state: dict, at: str) -> str:
+def new_run(state: dict[str, Any], at: str) -> str:
     numbers = [
         int(m[1]) for r in state["runs"] if (m := re.fullmatch(r"run-(\d+)", str(r.get("id"))))
     ]
@@ -185,7 +188,7 @@ def _now(factory: Factory) -> str:
     return format_time(factory.world.clock.now())
 
 
-def lane_start(factory: Factory) -> dict:
+def lane_start(factory: Factory) -> dict[str, Any]:
     me = require_host(factory)
     lock = host_lock(factory)
     live = lock.live_holder()
@@ -236,7 +239,7 @@ def lane_start(factory: Factory) -> dict:
     return {"running": True, "runId": run_id, "pid": pid}
 
 
-def ours(factory: Factory, holder: dict | None) -> bool:
+def ours(factory: Factory, holder: dict[str, Any] | None) -> bool:
     """Whether the host's lane holder serves this repository (the lock is one per machine)."""
     if holder is None:
         return False
@@ -244,7 +247,9 @@ def ours(factory: Factory, holder: dict | None) -> bool:
     return repository is None or repository == factory.world.github.repository()
 
 
-def _end_run(factory: Factory, state: dict, reason: str, *, kill: bool, pid: int | None) -> None:
+def _end_run(
+    factory: Factory, state: dict[str, Any], reason: str, *, kill: bool, pid: int | None
+) -> None:
     """Close the run: with ``kill``, requeue what was validating and kill those jobs (plus any
     running coverage job); without (a status read), leave them to the next lane's ``resume``.
     Write the summary, release the lock ``pid`` held."""
@@ -278,7 +283,7 @@ def _end_run(factory: Factory, state: dict, reason: str, *, kill: bool, pid: int
         host_lock(factory).release(pid)
 
 
-def lane_stop(factory: Factory, force: bool) -> dict:
+def lane_stop(factory: Factory, force: bool) -> dict[str, Any]:
     lock = host_lock(factory)
     holder = lock.live_holder()
     foreign = holder is not None and not ours(factory, holder)
@@ -290,8 +295,12 @@ def lane_stop(factory: Factory, force: bool) -> dict:
         if holder is not None and finishing and not force:
             state["lane"]["stopRequested"] = "after-validation"
             return {"running": True, "stopping": True, "finishing": finishing}
-        pid = holder.get("pid") if holder else None
-        if pid is not None and not factory.world.processes.terminate(pid, holder.get("startedAt")):
+        pid = holder.get("pid") if holder is not None else None
+        if (
+            holder is not None
+            and pid is not None
+            and not factory.world.processes.terminate(pid, holder.get("startedAt"))
+        ):
             raise Refusal(
                 "LANE_LOCKED",
                 f"The lane process (pid {holder['pid']}) could not be confirmed as the one "
@@ -361,7 +370,7 @@ def run_loop(
     steps: int | None = None,
     sleep: Callable[[float], None] = time.sleep,
     poll: float = POLL_SECONDS,
-) -> dict:
+) -> dict[str, Any]:
     """The lane in this process: until asked to stop (or for ``steps`` steps). It refuses on the
     same grounds as lane-start."""
     me = require_host(factory)

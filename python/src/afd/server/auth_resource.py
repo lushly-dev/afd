@@ -117,7 +117,7 @@ def assert_https_url(what: str, url: Any) -> str:
     """Raise ``ValueError`` unless ``url`` is an absolute ``https`` URL in visible ASCII
     with no user information, query or fragment."""
     parts = _split_url(url) if isinstance(url, str) else None
-    if parts is None or parts.scheme.lower() != "https":
+    if not isinstance(url, str) or parts is None or parts.scheme.lower() != "https":
         raise ValueError(
             f"[AFD] {what} {json.dumps(url) if isinstance(url, (str, int, float, bool)) or url is None else repr(url)} "
             "is not an absolute https URL without user information, query or fragment"
@@ -230,7 +230,9 @@ def create_protected_resource(
             raise ValueError(f"[AFD] authorization server {json.dumps(server)} is named twice")
         servers.append(server)
     if not servers:
-        raise ValueError("[AFD] protected-resource metadata needs at least one authorization server")
+        raise ValueError(
+            "[AFD] protected-resource metadata needs at least one authorization server"
+        )
 
     if isinstance(scopes_supported, (str, bytes)) or not isinstance(scopes_supported, Sequence):
         raise ValueError("[AFD] scopes_supported must be a sequence of scope tokens")
