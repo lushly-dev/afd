@@ -152,7 +152,7 @@ waits for Gmail has a line of its own.
 
 - F5: Loam mount package (`endpoints/loam/plugins/mail/mount/loam-app.toml`, manual mounting docs, `loam-desktop.yml` mail/Rust trigger and scope; [#1997](https://github.com/lushly-dev/afd/issues/1997)). In progress as [#2345](https://github.com/lushly-dev/afd/pull/2345).
 
-- F6: `mailapp`'s send slice (`endpoints/loam/plugins/mail/app/`, the plugin's specification 13.1): open a thread by id, a reply to its newest message as a draft (`mail-draft-create`, `-update`, `-show`) and `mail-draft-send { draft, revision }` through Loam's confirmation for a person's gesture, its `loam-plugins.yml` job ([#2004](https://github.com/lushly-dev/afd/issues/2004)). In progress as [#2430](https://github.com/lushly-dev/afd/pull/2430).
+- F6: `mailapp`'s send slice (`endpoints/loam/plugins/mail/app/`, the plugin's specification 13.1): open a thread by id, a reply to its newest message as a draft (`mail-draft-create`, `-update`, `-show`) and `mail-draft-send { draft, revision }` through Loam's confirmation for a person's gesture, its `loam-plugins.yml` job ([#2004](https://github.com/lushly-dev/afd/issues/2004)). Merged as [#2430](https://github.com/lushly-dev/afd/pull/2430).
 
 - G: Composition with a connected Umbel. Not started.
 
