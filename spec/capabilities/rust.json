@@ -147,10 +147,12 @@
 		},
 		"single.cancellation": {
 			"status": "yes",
-			"note": "cooperative `CancellationSignal` / `CancellationToken` on `CommandContext`, linked to per-call and server default `30000` ms (`default_timeout_ms`) deadlines; pre-cancelled single and batch calls return `COMMAND_CANCELLED` (#2130)",
+			"note": "cooperative `CancellationSignal` / `CancellationToken` on `CommandContext`, linked to per-call and server default `30000` ms (`default_timeout_ms`) deadlines; pre-cancelled single and batch calls return `COMMAND_CANCELLED` (#2130); `DirectClient` and `afd-pipe` deadlines fire a child of the caller's signal, never the caller's own; `execute_pipeline_with_cancellation` skips steps once its signal fires and fires it at the pipeline deadline (#1599)",
 			"evidence": [
 				"packages/rust/src/cancellation.rs",
-				"packages/rust/tests/execution_controls_vectors.rs"
+				"packages/rust/tests/execution_controls_vectors.rs",
+				"packages/rust/tests/cancellation_propagation.rs",
+				"packages/rust/tests/server_pipeline_cancellation.rs"
 			]
 		},
 		"single.clock-random": {
