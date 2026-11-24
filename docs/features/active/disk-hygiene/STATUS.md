@@ -14,6 +14,23 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 
 ## Findings
 
+### Cargo build-dir bloat and aged-folder pressure escalation, 2026-11-23 (#2373)
+
+- **Random's `/Volumes/Dev` filled to 100% (163 MB free) with ~555 GB in `/Volumes/Dev/cargo-build`**
+  while `botcore disk-run` was running hourly and detecting `below_threshold`, because `disk-setup`
+  suggested `max_age_days = 7` with no `max_gb` cap, low-space pressure only escalated tier-1
+  worktree strips and never `[[aged]]` folders, `cargo-build/*` aged/evicted at the 2-hex bucket
+  level instead of per `{workspace-path-hash}` workspace dir, `_recheck_aged` globally blocked all
+  aged deletions whenever any `cargo`/`rustc` process ran anywhere on the machine, and manual
+  Cargo folders without `CACHEDIR.TAG` (such as `afd-p4`) caused `_cargo_only` to return `False`.
+- **Fixes landed in #2373:** `cargo.py` now suggests `max_age_days = 2` with a volume-scaled
+  `max_gb` cap (40–150 GB) and recognizes non-hash Cargo build dirs in `_cargo_only`; `caches.py`
+  descends into `<2-hex>/<hash>` buckets per workspace dir (preserving non-bucketed folders) and
+  `reclaim.py` prunes empty 2-hex buckets afterward; `disk-reclaim` escalates `[[aged]]` entries
+  oldest-first under low space (1 day, 6 hours, then oldest-first down to a 1-hour safety floor,
+  stopping as soon as the volume recovers); and `_recheck_aged` scopes Rust build protection to
+  matching processes, held `.cargo-lock` files, and recently modified entries (1-hour window).
+
 ### Air check and macOS boot-snapshot volume IDs, 2026-11-23 (#1693, #2267)
 
 - **macOS updates change `/`’s `VolumeUUID` and stop `disk-reclaim`.** After the MacBook Air
@@ -248,3 +265,5 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 - One Rust build arrangement, the idle-worktree warning, one T3 Code worktree folder (#1695): merged in #1728 on 2026-11-21.
 
 - `git gc` no longer makes every worktree look active (#1814): in this pull request.
+
+- Cargo `build-dir` defaults, per-workspace bucket eviction, scoped Rust build protection, and `[[aged]]` low-space pressure escalation (#2373): merged in #2377.

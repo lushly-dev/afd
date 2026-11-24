@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -15,6 +16,7 @@ from botcore.commands.disk.scan import (
     busy_reason,
     exists,
     is_dir,
+    is_link,
     newest_mtime,
 )
 from botcore.commands.disk.settings import MachineSettings, expand
@@ -188,10 +190,31 @@ def _within(inner: str, outer: str) -> bool:
     return inner == outer or inner.startswith(outer.rstrip(os.sep) + os.sep)
 
 
-# How deep an aged entry's age is read. Builds write deep in a folder (Cargo's build-dir is
-# `<2 hex>/<hash>/<profile>/deps/...`): three levels reach the `deps` folders whose times every
-# rebuild moves, without listing their files.
+# How deep an aged entry's age is read. Builds write deep in a folder: for a Cargo workspace
+# build dir (`<hash>/<profile>/deps/...` or `<hash>/<triple>/<profile>/deps`), three levels
+# reach cross-compiled `deps` directories as well as files inside `<profile>/deps` and
+# `<profile>/.fingerprint`.
 AGED_DEPTH = 3
+HASH_BUCKET = re.compile(r"^[0-9a-f]{2}$")  # Cargo {workspace-path-hash}: `<2 hex>/<rest>`
+HASH_LEAF = re.compile(r"^[0-9a-f]{8,}$")
+BUCKET_IGNORED_FILES = {".DS_Store", "Thumbs.db", "desktop.ini"}
+
+
+def parse_aged_pattern(pattern: str) -> tuple[Path, int, str]:
+    """Split an `[[aged]]` path into `(expanded_base, wildcard_depth, raw_base)`."""
+    text = pattern.rstrip()
+    if text.endswith(("/*/*", "\\*\\*")):
+        raw, depth = text[:-4], 2
+    elif text.endswith(("/*", "\\*")):
+        raw, depth = text[:-2], 1
+    else:
+        raw, depth = text, 0
+    return expand(raw), depth, raw
+
+
+def aged_base(pattern: str) -> Path:
+    """The directory an `[[aged]]` pattern sits under (with any `/*` or `/*/*` stripped)."""
+    return parse_aged_pattern(pattern)[0]
 
 
 def unsafe_aged_root(path: Path, protected: list[Path] | None = None) -> str | None:
@@ -214,23 +237,72 @@ def unsafe_aged_root(path: Path, protected: list[Path] | None = None) -> str | N
     return None
 
 
+def _bucket_leaves(bucket: Path) -> list[Path] | None:
+    """Workspace hash directories inside a Cargo `<2-hex>/<hash>` bucket, or None if `bucket`
+    is not a non-empty hash bucket holding only hex workspace directories."""
+    if not HASH_BUCKET.match(bucket.name):
+        return None
+    try:
+        children = list(each("reading", bucket, os.scandir(bucket)))
+    except OSError:
+        return None
+    leaves: list[Path] = []
+    for child in children:
+        if (
+            child.name in BUCKET_IGNORED_FILES
+            and not is_link(child)
+            and not child.is_dir(follow_symlinks=False)
+        ):
+            continue
+        if (
+            is_link(child)
+            or not child.is_dir(follow_symlinks=False)
+            or not HASH_LEAF.match(child.name)
+        ):
+            return None
+        leaves.append(Path(child.path))
+    return sorted(leaves) if leaves else None
+
+
 def _aged_items(pattern: str, protected: list[Path]) -> tuple[list[Path], str | None]:
     """The entries an [[aged]] pattern names, or why the pattern itself is refused."""
-    text = pattern.rstrip()
-    wildcard = text.endswith("/*") or text.endswith("\\*")
-    base = expand(text[:-2] if wildcard else text)
-    if not text[:-2 if wildcard else None].strip() or not base.is_absolute():
+    base, depth, raw = parse_aged_pattern(pattern)
+    if not raw.strip() or not base.is_absolute():
         return [], "an [[aged]] path must be absolute"
     refused = unsafe_aged_root(base, protected)
     if refused:
         return [], refused
-    if not wildcard:
+    if depth == 0:
         return ([base] if exists(base) else []), None
     try:
-        found = each("reading", base, os.scandir(base))
-        return sorted(Path(e.path) for e in found if not e.is_symlink()), None
+        found = list(each("reading", base, os.scandir(base)))
     except OSError:
         return [], None
+    items: list[Path] = []
+    if depth == 1:
+        for entry in found:
+            if is_link(entry):
+                continue
+            child = Path(entry.path)
+            if entry.is_dir(follow_symlinks=False) and unsafe_aged_root(child, protected) is None:
+                leaves = _bucket_leaves(child)
+                if leaves is not None:
+                    items.extend(leaves)
+                    continue
+            items.append(child)
+        return sorted(items), None
+    for entry in found:
+        if is_link(entry) or not entry.is_dir(follow_symlinks=False):
+            continue
+        mid = Path(entry.path)
+        if unsafe_aged_root(mid, protected) is not None:
+            continue
+        try:
+            grandchildren = list(each("reading", mid, os.scandir(mid)))
+        except OSError:
+            continue
+        items.extend(Path(e.path) for e in grandchildren if not is_link(e))
+    return sorted(items), None
 
 
 def report_aged(
@@ -281,8 +353,12 @@ def _mark_eligible(entries: list[dict], max_age: float | None, max_gb: float | N
     remaining = sum(e["bytes"] or 0 for e in entries if not e["eligible"])
     limit = max_gb * 1024**3
     oldest_first = sorted(
-        (e for e in entries if not e["eligible"] and not e["refused"]),
-        key=lambda e: -(e["age_days"] or 0),
+        (
+            e
+            for e in entries
+            if not e["eligible"] and not e["refused"] and e["age_days"] is not None
+        ),
+        key=lambda e: e["mtime"] if e.get("mtime") is not None else -(e["age_days"] or 0),
     )
     for entry in oldest_first:
         if remaining <= limit:

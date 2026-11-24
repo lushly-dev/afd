@@ -15,6 +15,7 @@ import os
 import re
 import secrets
 import shutil
+import stat
 import subprocess
 import time
 from dataclasses import asdict, dataclass, field
@@ -23,7 +24,12 @@ from pathlib import Path
 
 from afd import CommandResult, error, success
 
-from botcore.commands.disk.caches import AGED_DEPTH, unsafe_aged_root
+from botcore.commands.disk.caches import (
+    AGED_DEPTH,
+    HASH_BUCKET,
+    parse_aged_pattern,
+    unsafe_aged_root,
+)
 from botcore.commands.disk.finished import ReflogTooLong
 from botcore.commands.disk.git import (
     GitError,
@@ -33,7 +39,7 @@ from botcore.commands.disk.git import (
     status,
     tracked_under,
 )
-from botcore.commands.disk.lock import LockHeld, RunLock
+from botcore.commands.disk.lock import LockHeld, RunLock, is_locked
 from botcore.commands.disk.removal import (
     begin_record,
     finish_record,
@@ -43,7 +49,7 @@ from botcore.commands.disk.removal import (
     remove_worktree,
     unpin,
 )
-from botcore.commands.disk.remove import UnsafePath, remove_inside
+from botcore.commands.disk.remove import UnsafePath, check_inside, remove_inside
 from botcore.commands.disk.report import (
     MANAGERS,
     Context,
@@ -77,9 +83,13 @@ STRIP_RECORD = "botcore-disk-strip.json"
 MAX_RECEIPTS = 30
 MAX_RECEIPT_BYTES = 50 * 1024 * 1024
 MAX_ONE_RECEIPT = 5 * 1024 * 1024
-# Tier 1's idle thresholds under low space: the configured ones, then 1 day, then 6 hours
+# Tier 1 and aged idle thresholds under low space: the configured ones, then 1 day, then 6 hours
 PRESSURE_STEPS: tuple[float | None, ...] = (None, 1.0, 0.25)
 RUST_BUILDERS = ("cargo", "rustc", "clippy-driver")
+# Safety window protecting recently-written aged folders while a Rust build is running elsewhere
+RUST_ACTIVE_WINDOW_SECONDS = 3600.0
+# Minimum age floor for final oldest-first [[aged]] eviction when a volume remains below threshold
+AGED_PRESSURE_MIN_SECONDS = 3600.0
 
 
 @dataclass
@@ -118,11 +128,13 @@ class Run:
     seen: set[str] = field(default_factory=set)
     _per_worktree: dict[str, Processes] = field(default_factory=dict)
 
-    def add(self, action: Action) -> None:
+    def add(self, action: Action) -> bool:
         key = f"{action.kind}:{action.target}"
         if key not in self.seen:
             self.seen.add(key)
             self.actions.append(action)
+            return True
+        return False
 
     def processes_for(self, worktree: str) -> Processes:
         """A process listing taken when this worktree's first deletion is about to happen."""
@@ -190,6 +202,12 @@ def _identity(path: str) -> tuple[int, int] | None:
     return info.st_dev, info.st_ino
 
 
+def _aged_action_root(pattern: str, target: str) -> str:
+    """The root `remove_inside` checks `target` against for an `[[aged]]` action."""
+    base, depth, _raw = parse_aged_pattern(pattern)
+    return str(base) if depth > 0 else str(Path(target).parent)
+
+
 def plan_tier0(data: dict) -> list[Action]:
     actions = []
     for cache in data.get("caches", []):
@@ -197,18 +215,79 @@ def plan_tier0(data: dict) -> list[Action]:
             actions.append(Action(kind="cache", target=cache["name"], root=cache.get("cwd"),
                                   detail=cache["action"]))
     for aged in data.get("aged", []):
-        for entry in aged["entries"]:
-            if entry["eligible"]:
-                actions.append(Action(
+        eligible = [e for e in aged["entries"] if e["eligible"]]
+        eligible.sort(
+            key=lambda e: e["mtime"] if e.get("mtime") is not None else -(e["age_days"] or 0),
+        )
+        for entry in eligible:
+            actions.append(Action(
+                kind="aged",
+                target=entry["path"],
+                root=_aged_action_root(aged["path"], entry["path"]),
+                bytes_estimate=entry.get("bytes"),
+                planned_mtime=entry.get("mtime"),
+                identity=_identity(entry["path"]),
+                detail=f"age {entry['age_days']} days",
+            ))
+    return actions
+
+
+def plan_aged_pressure(
+    data: dict, step: float | None, ctx: Context, only_low: bool,
+) -> list[Action]:
+    """Plan `[[aged]]` evictions under low-space pressure, ordered oldest-first.
+
+    When `step` is a day threshold (such as 1.0 or 0.25), entries older than
+    `min(max_age_days, step)` (or `step` when only `max_gb` is set) qualify. When `step` is
+    `None`, remaining entries older than `AGED_PRESSURE_MIN_SECONDS` qualify for oldest-first
+    recovery.
+    """
+    candidates: list[tuple[float, Action]] = []
+    for aged in data.get("aged", []):
+        if aged.get("refused"):
+            continue
+        if aged.get("max_age_days") is None and aged.get("max_gb") is None:
+            continue
+        configured_age = aged.get("max_age_days")
+        for entry in aged.get("entries", []):
+            if entry.get("refused") or entry.get("mtime") is None:
+                continue
+            vol = volume_for(Path(entry["path"]), ctx)
+            if vol is not None and not vol.verified:
+                continue
+            if only_low and not (vol and vol.low):
+                continue
+            age_seconds = max(0.0, ctx.now - entry["mtime"])
+            if step is not None:
+                due_days: float | None = (
+                    min(configured_age, step) if configured_age is not None else step
+                )
+                if age_seconds < due_days * DAY:
+                    continue
+                step_label = f"pressure-{step}d"
+                detail = f"pressure due after {due_days} days; age {entry['age_days']} days"
+            else:
+                if age_seconds < AGED_PRESSURE_MIN_SECONDS:
+                    continue
+                due_days = None
+                step_label = "pressure-oldest"
+                detail = f"low space oldest-first; age {entry['age_days']} days"
+            candidates.append((
+                entry["mtime"],
+                Action(
                     kind="aged",
                     target=entry["path"],
-                    root=str(Path(entry["path"]).parent),
+                    root=_aged_action_root(aged["path"], entry["path"]),
                     bytes_estimate=entry.get("bytes"),
+                    due_days=due_days,
                     planned_mtime=entry.get("mtime"),
                     identity=_identity(entry["path"]),
-                    detail=f"age {entry['age_days']} days",
-                ))
-    return actions
+                    step=step_label,
+                    detail=detail,
+                ),
+            ))
+    candidates.sort(key=lambda pair: (pair[0], pair[1].target))
+    return [action for _mtime, action in candidates]
 
 
 # ── Checks made immediately before acting ───────────────────────────────────
@@ -289,6 +368,11 @@ def _recheck_strip(action: Action, run: Run) -> str | None:
     return None
 
 
+def _cargo_lock_held(target: Path) -> bool:
+    """Whether another process holds Cargo's lock file inside `target`."""
+    return is_locked(target / ".cargo-lock")
+
+
 def _recheck_aged(action: Action, run: Run) -> str | None:
     target = Path(action.target)
     refused = unsafe_aged_root(target, run.protected)
@@ -299,12 +383,50 @@ def _recheck_aged(action: Action, run: Run) -> str | None:
         return problem
     if _identity(action.target) != action.identity:
         return "it was replaced since planning"
-    if newest_mtime(target, AGED_DEPTH) != action.planned_mtime:
+    current_mtime = newest_mtime(target, AGED_DEPTH)
+    if current_mtime is None or current_mtime != action.planned_mtime:
         return "it changed since planning"
     processes = running_processes()
-    if tool_running(RUST_BUILDERS, processes) or busy_reason(target, processes):
-        return "a build or process is using it"
+    busy = busy_reason(target, processes)
+    if busy:
+        return f"a process is using it ({busy})"
+    if _cargo_lock_held(target):
+        return "a Rust build holds its lock"
+    if tool_running(RUST_BUILDERS, processes) and (
+        (time.time() - current_mtime) < RUST_ACTIVE_WINDOW_SECONDS
+    ):
+        return "a Rust build is running and it was modified recently"
     return None
+
+
+def _prune_empty_bucket(action: Action, run: Run) -> None:
+    """Remove an empty 2-hex Cargo hash bucket left behind after evicting its leaf dir."""
+    if not action.root:
+        return
+    bucket = Path(action.target).parent
+    root = Path(action.root)
+    if path_key(bucket) == path_key(root) or not HASH_BUCKET.match(bucket.name):
+        return
+    try:
+        info = os.lstat(bucket)
+    except OSError:
+        return
+    if (
+        stat.S_ISLNK(info.st_mode)
+        or not stat.S_ISDIR(info.st_mode)
+        or getattr(info, "st_file_attributes", 0) & getattr(
+            stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400
+        )
+    ):
+        return
+    if unsafe_aged_root(bucket, run.protected):
+        return
+    try:
+        check_inside(bucket, root)
+        doing("removing", bucket)
+        os.rmdir(bucket)
+    except (UnsafePath, OSError):
+        pass
 
 
 # ── Carrying out ────────────────────────────────────────────────────────────
@@ -427,6 +549,8 @@ def carry_out(action: Action, run: Run) -> None:
                 action.outcome, action.detail = "skipped", reason
                 return
             _do_remove(action)
+            if action.outcome == "done":
+                _prune_empty_bucket(action, run)
         elif action.kind == "cache":
             _run_cache(action)
         elif action.kind == "remove":
@@ -648,11 +772,13 @@ async def disk_reclaim(
     finished worktrees (tier 2).
 
     A dry run unless apply=True (a dry run still writes a receipt). When a watched volume is
-    below its threshold, or pressure=True, tier 1 also strips `when = "pressure"` patterns and
-    lowers its idle thresholds in steps (1 day, then 6 hours) until the volume recovers; with
-    pressure=True every step runs. Tier 2 removes worktrees T3 Code does not manage that hold
-    nothing unique and whose work has landed; include_restorable also removes those that hold
-    nothing unique but have not landed. Branches are kept; disk_restore brings one back.
+    below its threshold, or pressure=True, aged folders and tier 1 lower their idle thresholds
+    in steps (1 day, then 6 hours, and oldest-first down to 1 hour for aged folders on still-low
+    volumes) and tier 1 also strips `when = "pressure"` patterns until the volume recovers; with
+    pressure=True every threshold step runs. Tier 2 removes worktrees T3 Code does not manage
+    that hold nothing unique and whose work has landed; include_restorable also removes those
+    that hold nothing unique but have not landed. Branches are kept; disk_restore brings one
+    back.
     """
     if tier not in (0, 1, 2):
         return error("DISK_TIER_INVALID", f"tier {tier} is not 0, 1 or 2",
@@ -690,31 +816,67 @@ def _protected(data: dict, ctx: Context) -> list[Path]:
     return paths + list(ctx.t3_roots)
 
 
+def _refresh_volume(path: str, ctx: Context) -> bool:
+    """Re-read the watched volume holding `path` and return whether it is still low."""
+    vol = volume_for(Path(path), ctx)
+    if vol is None:
+        return False
+    fresh = volume_state(Path(vol.mount), vol.id_expected, vol.low_space_gb)
+    ctx.volumes[vol.mount] = fresh
+    return fresh.low
+
+
+def _execute_aged_pressure(run: Run, actions: list[Action], stop_when_recovered: bool) -> None:
+    """Carry out pressure `[[aged]]` actions oldest-first, stopping once each volume recovers."""
+    for action in actions:
+        if stop_when_recovered and not _volume_low(action.target, run.ctx):
+            continue
+        if not run.add(action):
+            continue
+        if run.apply and action.outcome == "planned":
+            carry_out(action, run)
+            if stop_when_recovered and action.outcome in ("done", "partial"):
+                _refresh_volume(action.target, run.ctx)
+
+
 def _plan_and_run(run: Run, data: dict, pressure: bool, include_restorable: bool) -> None:
     _execute(run, plan_tier0(data))
-    if run.tier < 1:
-        return
     ctx = run.ctx
-    removed: set[str] = set()
-    if run.tier >= 2:
-        removals = plan_tier2(data, run, include_restorable)
-        if run.apply:
-            for main in {a.root for a in removals if a.landed}:
-                config = run.configs.get(path_key(main or ""))
-                if config is not None:
-                    problem = refresh_landing(Path(main or ""), config.landing_ref)
-                    if problem:
-                        run.unfetched[path_key(main or "")] = problem
-        _execute(run, removals)
-        removed = {a.target for a in removals if a.outcome in ("done", "planned")}
-    _execute(run, [a for a in plan_strips(data, None, False, ctx, only_low=False)
-                   if a.worktree not in removed])
+    if run.tier >= 1:
+        removed: set[str] = set()
+        if run.tier >= 2:
+            removals = plan_tier2(data, run, include_restorable)
+            if run.apply:
+                for main in {a.root for a in removals if a.landed}:
+                    config = run.configs.get(path_key(main or ""))
+                    if config is not None:
+                        problem = refresh_landing(Path(main or ""), config.landing_ref)
+                        if problem:
+                            run.unfetched[path_key(main or "")] = problem
+            _execute(run, removals)
+            removed = {a.target for a in removals if a.outcome in ("done", "planned")}
+        _execute(run, [a for a in plan_strips(data, None, False, ctx, only_low=False)
+                       if a.worktree not in removed])
     if not (pressure or _low(ctx)):
         return
     for step in PRESSURE_STEPS[1:]:
-        _execute(run, plan_strips(data, step, True, ctx, only_low=not pressure))
+        _execute_aged_pressure(
+            run,
+            plan_aged_pressure(data, step, ctx, only_low=not pressure),
+            stop_when_recovered=run.apply and not pressure,
+        )
         if run.apply and not pressure and not _low(ctx):
-            break
+            return
+        if run.tier >= 1:
+            _execute(run, plan_strips(data, step, True, ctx, only_low=not pressure))
+            if run.apply and not pressure and not _low(ctx):
+                return
+    if _low(ctx):
+        _execute_aged_pressure(
+            run,
+            plan_aged_pressure(data, None, ctx, only_low=True),
+            stop_when_recovered=run.apply,
+        )
 
 
 def _idle_after(data: dict, run: Run) -> dict:
