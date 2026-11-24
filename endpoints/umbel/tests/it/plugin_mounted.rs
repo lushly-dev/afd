@@ -980,7 +980,8 @@ async fn a_stdio_child_that_dies_before_the_handshake_reports_its_exit_status_an
     assert!(error.message().contains("exited with code 9"), "{error}");
     assert!(!error.message().contains("stderr:"), "{error}");
 
-    // A child that survives the handshake but dies during `tools/list` also reports exit + stderr.
+    // A child that survives the handshake but dies during `tools/list` also reports exit,
+    // stdout EOF, and stderr.
     let setting = json!({
         "exitOnList": {
             "code": 4,
@@ -995,6 +996,7 @@ async fn a_stdio_child_that_dies_before_the_handshake_reports_its_exit_status_an
     let error = error_of(open(dir.path()));
     assert_eq!(error.code(), "PLUGIN_LOAD_FAILED");
     assert!(error.message().contains("exited with code 4"), "{error}");
+    assert!(error.message().contains("stdout closed (EOF)"), "{error}");
     assert!(error.message().contains("list-tools crash"), "{error}");
 }
 

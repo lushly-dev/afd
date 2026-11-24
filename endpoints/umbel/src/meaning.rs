@@ -42,12 +42,17 @@ pub(crate) enum BoundedReadError {
 /// Open `path` once, verify the opened handle is a regular file, and read at most `max_bytes`
 /// via `Read::take(max_bytes + 1)` so a file growing concurrently cannot bypass the cap.
 pub(crate) fn read_file_bounded(path: &Path, max_bytes: u64) -> Result<Vec<u8>, BoundedReadError> {
-    let file = fs::File::open(path).map_err(|err| {
-        if err.kind() == std::io::ErrorKind::NotFound {
-            BoundedReadError::NotFound
-        } else {
-            BoundedReadError::Io(err)
+    let file = fs::File::open(path).map_err(|err| match err.kind() {
+        std::io::ErrorKind::NotFound => BoundedReadError::NotFound,
+        std::io::ErrorKind::IsADirectory => BoundedReadError::NotRegularFile,
+        // On Windows, `File::open` on a directory fails with `PermissionDenied`
+        // (`ERROR_ACCESS_DENIED`) rather than opening a directory handle (#2389).
+        std::io::ErrorKind::PermissionDenied
+            if fs::metadata(path).is_ok_and(|meta| !meta.is_file()) =>
+        {
+            BoundedReadError::NotRegularFile
         }
+        _ => BoundedReadError::Io(err),
     })?;
     let meta = file.metadata().map_err(BoundedReadError::Io)?;
     if !meta.is_file() {

@@ -73,21 +73,56 @@ impl Limit {
     }
 }
 
+/// Why a stdio child's stdout stream stopped yielding JSON-RPC messages (#1175).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum StdoutEnd {
+    /// The child closed stdout (read returned 0 bytes).
+    Eof,
+    /// Reading stdout failed with an I/O error.
+    IoError(String),
+    /// A stdout line exceeded `max_result_bytes`.
+    LineOverLimit,
+}
+
+impl std::fmt::Display for StdoutEnd {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Eof => f.write_str("stdout closed (EOF)"),
+            Self::IoError(error) => write!(f, "stdout I/O error: {error}"),
+            Self::LineOverLimit => f.write_str("stdout line exceeded max_result_bytes"),
+        }
+    }
+}
+
+/// Shared slot recording the first reason a stdio child's stdout ended.
+pub(crate) type StdoutEndSlot = Arc<std::sync::Mutex<Option<StdoutEnd>>>;
+
+fn record_stdout_end(slot: &StdoutEndSlot, reason: StdoutEnd) {
+    let mut guard = slot
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if guard.is_none() {
+        *guard = Some(reason);
+    }
+}
+
 /// A child's stdout that watches the length of each line as it is read, and trips the limit when
 /// one passes `max` without a newline. rmcp's own reader is bounded to the same length, so the
-/// line is dropped unread, not buffered.
+/// line is dropped unread, not buffered. Also records why stdout ended for startup diagnostics.
 pub(crate) struct LimitedRead<R> {
     inner: R,
     line: usize,
     limit: Arc<Limit>,
+    stdout_end: StdoutEndSlot,
 }
 
 impl<R> LimitedRead<R> {
-    pub(crate) fn new(inner: R, limit: Arc<Limit>) -> Self {
+    pub(crate) fn new(inner: R, limit: Arc<Limit>, stdout_end: StdoutEndSlot) -> Self {
         Self {
             inner,
             line: 0,
             limit,
+            stdout_end,
         }
     }
 }
@@ -100,18 +135,31 @@ impl<R: AsyncRead + Unpin> AsyncRead for LimitedRead<R> {
     ) -> Poll<io::Result<()>> {
         let this = self.get_mut();
         let before = buf.filled().len();
+        let had_capacity = buf.remaining() > 0;
         let polled = Pin::new(&mut this.inner).poll_read(cx, buf);
-        if matches!(polled, Poll::Ready(Ok(()))) {
-            for byte in &buf.filled()[before..] {
-                if *byte == b'\n' {
-                    this.line = 0;
+        match &polled {
+            Poll::Ready(Ok(())) => {
+                let added = &buf.filled()[before..];
+                if had_capacity && added.is_empty() {
+                    record_stdout_end(&this.stdout_end, StdoutEnd::Eof);
                 } else {
-                    this.line += 1;
-                    if this.line > this.limit.max() {
-                        this.limit.trip();
+                    for byte in added {
+                        if *byte == b'\n' {
+                            this.line = 0;
+                        } else {
+                            this.line += 1;
+                            if this.line > this.limit.max() && !this.limit.tripped() {
+                                record_stdout_end(&this.stdout_end, StdoutEnd::LineOverLimit);
+                                this.limit.trip();
+                            }
+                        }
                     }
                 }
             }
+            Poll::Ready(Err(error)) => {
+                record_stdout_end(&this.stdout_end, StdoutEnd::IoError(error.to_string()));
+            }
+            Poll::Pending => {}
         }
         polled
     }
@@ -131,11 +179,15 @@ impl ChildTransport {
         stdout: ChildStdout,
         stdin: ChildStdin,
         limit: Arc<Limit>,
+        stdout_end: StdoutEndSlot,
     ) -> Self {
         let max = limit.max();
         Self {
-            transport: AsyncRwTransport::new_client(LimitedRead::new(stdout, limit), stdin)
-                .with_max_line_length(max),
+            transport: AsyncRwTransport::new_client(
+                LimitedRead::new(stdout, limit, stdout_end),
+                stdin,
+            )
+            .with_max_line_length(max),
             _child: child,
         }
     }
@@ -463,20 +515,23 @@ impl StreamableHttpClient for BoundedHttp {
 
 #[cfg(test)]
 mod tests {
-    use super::{Limit, LimitedRead};
+    use super::{Limit, LimitedRead, StdoutEnd, StdoutEndSlot};
+    use std::sync::{Arc, Mutex};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     #[tokio::test]
     async fn a_line_over_the_limit_trips_before_its_end_arrives() {
         let limit = Limit::new(16);
+        let stdout_end: StdoutEndSlot = Arc::new(Mutex::new(None));
         let (mut writer, reader) = tokio::io::duplex(1024);
-        let mut reader = LimitedRead::new(reader, std::sync::Arc::clone(&limit));
+        let mut reader = LimitedRead::new(reader, Arc::clone(&limit), Arc::clone(&stdout_end));
         // 17 bytes and no newline: the message is not complete, but it is already too long.
         writer.write_all(&[b'a'; 17]).await.unwrap();
         let mut buffer = [0u8; 64];
         let read = reader.read(&mut buffer).await.unwrap();
         assert_eq!(read, 17);
         assert!(limit.tripped());
+        assert_eq!(*stdout_end.lock().unwrap(), Some(StdoutEnd::LineOverLimit));
         tokio::time::timeout(std::time::Duration::from_secs(1), limit.exceeded())
             .await
             .unwrap();
@@ -485,14 +540,73 @@ mod tests {
     #[tokio::test]
     async fn lines_at_the_limit_pass_and_the_count_restarts_at_each_newline() {
         let limit = Limit::new(8);
+        let stdout_end: StdoutEndSlot = Arc::new(Mutex::new(None));
         let (mut writer, reader) = tokio::io::duplex(1024);
-        let mut reader = LimitedRead::new(reader, std::sync::Arc::clone(&limit));
+        let mut reader = LimitedRead::new(reader, Arc::clone(&limit), Arc::clone(&stdout_end));
         writer.write_all(b"12345678\n12345678\n1234").await.unwrap();
         let mut buffer = [0u8; 64];
         assert!(reader.read(&mut buffer).await.unwrap() > 0);
         assert!(!limit.tripped());
+        assert_eq!(*stdout_end.lock().unwrap(), None);
         writer.write_all(b"56789\n").await.unwrap();
         assert!(reader.read(&mut buffer).await.unwrap() > 0);
         assert!(limit.tripped(), "4 + 5 bytes make a 9 byte line");
+        assert_eq!(*stdout_end.lock().unwrap(), Some(StdoutEnd::LineOverLimit));
+    }
+
+    #[tokio::test]
+    async fn eof_on_stdout_is_recorded_as_the_end_reason() {
+        let limit = Limit::new(64);
+        let stdout_end: StdoutEndSlot = Arc::new(Mutex::new(None));
+        let (writer, reader) = tokio::io::duplex(64);
+        drop(writer);
+        let mut reader = LimitedRead::new(reader, limit, Arc::clone(&stdout_end));
+        let mut empty = [];
+        assert_eq!(reader.read(&mut empty).await.unwrap(), 0);
+        assert_eq!(*stdout_end.lock().unwrap(), None);
+        let mut buffer = [0u8; 16];
+        assert_eq!(reader.read(&mut buffer).await.unwrap(), 0);
+        assert_eq!(*stdout_end.lock().unwrap(), Some(StdoutEnd::Eof));
+    }
+
+    #[tokio::test]
+    async fn io_error_on_stdout_is_recorded_and_first_reason_wins() {
+        use std::io;
+        use std::pin::Pin;
+        use std::task::{Context, Poll};
+        use tokio::io::{AsyncRead, ReadBuf};
+
+        struct FailingRead;
+        impl AsyncRead for FailingRead {
+            fn poll_read(
+                self: Pin<&mut Self>,
+                _cx: &mut Context<'_>,
+                _buf: &mut ReadBuf<'_>,
+            ) -> Poll<io::Result<()>> {
+                Poll::Ready(Err(io::Error::new(io::ErrorKind::BrokenPipe, "pipe broke")))
+            }
+        }
+
+        let limit = Limit::new(64);
+        let stdout_end: StdoutEndSlot = Arc::new(Mutex::new(None));
+        let mut reader = LimitedRead::new(FailingRead, limit, Arc::clone(&stdout_end));
+        let mut buffer = [0u8; 16];
+        let err = reader.read(&mut buffer).await.unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::BrokenPipe);
+        assert_eq!(
+            *stdout_end.lock().unwrap(),
+            Some(StdoutEnd::IoError("pipe broke".to_owned()))
+        );
+
+        // Once `LineOverLimit` is recorded, a subsequent EOF does not overwrite it.
+        let limit = Limit::new(4);
+        let stdout_end: StdoutEndSlot = Arc::new(Mutex::new(None));
+        let (mut writer, reader) = tokio::io::duplex(64);
+        writer.write_all(b"12345").await.unwrap();
+        drop(writer);
+        let mut reader = LimitedRead::new(reader, limit, Arc::clone(&stdout_end));
+        assert_eq!(reader.read(&mut buffer).await.unwrap(), 5);
+        assert_eq!(reader.read(&mut buffer).await.unwrap(), 0);
+        assert_eq!(*stdout_end.lock().unwrap(), Some(StdoutEnd::LineOverLimit));
     }
 }

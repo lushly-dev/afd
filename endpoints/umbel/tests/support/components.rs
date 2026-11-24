@@ -10,23 +10,62 @@
 
 use std::path::{Path, PathBuf};
 
+/// Search `candidates` in order for `relative`, deduplicating repeated directories. Returns the
+/// first path that exists as a file, or the list of every path checked.
+fn find_artifact_in(relative: &Path, candidates: Vec<PathBuf>) -> Result<PathBuf, Vec<PathBuf>> {
+    let mut dirs = Vec::new();
+    for dir in candidates {
+        if !dirs.contains(&dir) {
+            dirs.push(dir);
+        }
+    }
+    let mut searched = Vec::with_capacity(dirs.len());
+    for dir in dirs {
+        let candidate = dir.join(relative);
+        if candidate.is_file() {
+            return Ok(candidate);
+        }
+        searched.push(candidate);
+    }
+    Err(searched)
+}
+
+/// Candidate Cargo target directories for built artifacts, in search order (#1924):
+/// 1. `CARGO_TARGET_DIR` (runtime, then compile-time),
+/// 2. the parent of `CARGO_TARGET_TMPDIR` (default `target/` or a configured `build.target-dir`),
+/// 3. `<workspace>/target` from `CARGO_MANIFEST_DIR` (where Cargo places final artifacts when
+///    `build.build-dir` moves `CARGO_TARGET_TMPDIR` to a separate build directory; a custom
+///    `.cargo/config.toml` `build.target-dir` outside `<workspace>/target` combined with a
+///    separate `build-dir` still requires `CARGO_TARGET_DIR`).
+pub fn find_target_artifact(relative: &Path) -> Result<PathBuf, Vec<PathBuf>> {
+    let mut candidates = Vec::new();
+    if let Some(dir) = std::env::var_os("CARGO_TARGET_DIR").filter(|value| !value.is_empty()) {
+        candidates.push(PathBuf::from(dir));
+    }
+    if let Some(dir) = option_env!("CARGO_TARGET_DIR").filter(|value| !value.is_empty()) {
+        candidates.push(PathBuf::from(dir));
+    }
+    if let Some(dir) = Path::new(env!("CARGO_TARGET_TMPDIR")).parent() {
+        candidates.push(dir.to_path_buf());
+    }
+    candidates.push(Path::new(env!("CARGO_MANIFEST_DIR")).join("target"));
+    find_artifact_in(relative, candidates)
+}
+
 /// `<target>/wasm32-wasip2/release/<name>.wasm`, built by `umbel.yml` (and by the command in the
-/// failure message) before the tests. The directory is the parent of Cargo's `CARGO_TARGET_TMPDIR`,
-/// which is the target directory unless a separate `build-dir` is configured (then the tests need
-/// `build-dir` and `CARGO_TARGET_DIR` to name the same directory). The test binary's own location
-/// is no guide: Cargo 1.100 moved test binaries from `<target>/debug/deps/` to
-/// `<target>/debug/build/<package>/<hash>/out/`.
+/// failure message) before the tests. Searches `CARGO_TARGET_DIR`, the parent of
+/// `CARGO_TARGET_TMPDIR`, and `<workspace>/target` so a configured Cargo `build.build-dir` still
+/// finds the final artifacts (#1924).
 pub fn wasm(name: &str) -> PathBuf {
-    let target = Path::new(env!("CARGO_TARGET_TMPDIR")).parent().unwrap();
-    let path = target
-        .join("wasm32-wasip2/release")
-        .join(format!("{name}.wasm"));
-    assert!(
-        path.is_file(),
-        "{} is missing: build the components first with `cargo build --locked --release --target wasm32-wasip2 -p umbel-plugin-hello -p umbel-plugin-components -p umbel-fixture-behaviors -p umbel-fixture-imports -p umbel-fixture-sockets -p umbel-fixture-future -p umbel-fixture-budget --features umbel-plugin-hello/component,umbel-plugin-components/component,umbel-fixture-budget/component`",
-        path.display()
-    );
-    path
+    let relative = Path::new("wasm32-wasip2/release").join(format!("{name}.wasm"));
+    find_target_artifact(&relative).unwrap_or_else(|searched| {
+        let tried: Vec<String> = searched.iter().map(|p| p.display().to_string()).collect();
+        panic!(
+            "{} is missing (searched: {}): build the components first with `cargo build --locked --release --target wasm32-wasip2 -p umbel-plugin-hello -p umbel-plugin-components -p umbel-fixture-behaviors -p umbel-fixture-imports -p umbel-fixture-sockets -p umbel-fixture-future -p umbel-fixture-budget --features umbel-plugin-hello/component,umbel-plugin-components/component,umbel-fixture-budget/component`",
+            relative.display(),
+            tried.join(", ")
+        );
+    })
 }
 
 pub fn hello_crate() -> PathBuf {
@@ -163,4 +202,42 @@ pub fn behaviors_dir(parent: &Path, grants: &[&str]) -> PathBuf {
         "umbel_fixture_behaviors",
         "probe.wasm",
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::find_artifact_in;
+    use std::path::Path;
+
+    #[test]
+    fn find_artifact_falls_back_to_workspace_target_when_build_dir_is_separate() {
+        let root = tempfile::tempdir().unwrap();
+        let build_dir = root.path().join("cargo-build");
+        let workspace_target = root.path().join("workspace-target");
+        let rel = Path::new("wasm32-wasip2/release/example.wasm");
+        let expected = workspace_target.join(rel);
+        std::fs::create_dir_all(expected.parent().unwrap()).unwrap();
+        std::fs::write(&expected, b"wasm").unwrap();
+
+        let found = find_artifact_in(rel, vec![build_dir.clone(), workspace_target.clone()])
+            .expect("should fall back to workspace target");
+        assert_eq!(found, expected);
+
+        let missing = find_artifact_in(
+            Path::new("debug/missing"),
+            vec![
+                build_dir.clone(),
+                build_dir.clone(),
+                workspace_target.clone(),
+            ],
+        )
+        .unwrap_err();
+        assert_eq!(
+            missing,
+            vec![
+                build_dir.join("debug/missing"),
+                workspace_target.join("debug/missing"),
+            ]
+        );
+    }
 }

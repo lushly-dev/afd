@@ -24,23 +24,23 @@ pub fn fixture_bin() -> PathBuf {
 }
 
 /// `hello-mcp`, which another package builds (specification section 1, M6): in `<target>/debug/`,
-/// where `umbel.yml` builds it before the tests. The target directory is the parent of Cargo's
-/// `CARGO_TARGET_TMPDIR` (see `components::wasm` for a configured `build-dir`); the test binary's own
-/// location is no guide, since Cargo 1.100 moved test binaries from `<target>/debug/deps/` to
-/// `<target>/debug/build/<package>/<hash>/out/`.
+/// where `umbel.yml` builds it before the tests. Searches `CARGO_TARGET_DIR`, the parent of
+/// `CARGO_TARGET_TMPDIR`, and `<workspace>/target` so a configured Cargo `build.build-dir` still
+/// finds the final artifact (#1924).
 pub fn hello_mcp() -> PathBuf {
-    let target = Path::new(env!("CARGO_TARGET_TMPDIR")).parent().unwrap();
-    let path = target.join("debug").join(if cfg!(windows) {
+    let relative = Path::new("debug").join(if cfg!(windows) {
         "hello-mcp.exe"
     } else {
         "hello-mcp"
     });
-    assert!(
-        path.is_file(),
-        "{} is missing: build it first with `cargo build --locked -p umbel-plugin-hello --features mounted --bin hello-mcp`",
-        path.display()
-    );
-    path
+    crate::components::find_target_artifact(&relative).unwrap_or_else(|searched| {
+        let tried: Vec<String> = searched.iter().map(|p| p.display().to_string()).collect();
+        panic!(
+            "{} is missing (searched: {}): build it first with `cargo build --locked -p umbel-plugin-hello --features mounted --bin hello-mcp`",
+            relative.display(),
+            tried.join(", ")
+        );
+    })
 }
 
 pub fn hello_crate() -> PathBuf {
