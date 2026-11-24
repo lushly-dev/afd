@@ -250,7 +250,8 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable[..., Any]]:
         return await run(lambda: success({"cell": cells.attach(get(), branch, thread)}))
 
     async def lane_drop(branch: str, reason: str, session: str | None = None) -> CommandResult[Any]:
-        """Dequeue a branch, release its issues back to status:planned and forget its cell.
+        """Dequeue a branch, release its issues and forget its cell. A released issue goes back
+        to status:planned unless another branch's live claim still holds it.
 
         Args:
             branch: The cell's branch; its worktree is left alone.

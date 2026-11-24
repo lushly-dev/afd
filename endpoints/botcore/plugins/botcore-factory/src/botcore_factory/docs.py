@@ -235,8 +235,9 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   `gate-change` or `measure-change` to the queue and approves that exact head (a later commit
   re-triggers the hold). Served on `factory` only, never `factory-cell`. Refuses
   `VALIDATION_ERROR` and `NOT_FOUND`.
-- `lane_drop(branch, reason, session?)` -> `dropped`, `released[]`: dequeues the branch, puts
-  each issue back to `status:planned` with one comment and forgets the cell. A foreman names its
+- `lane_drop(branch, reason, session?)` -> `dropped`, `released[]`: dequeues the branch, releases
+  each issue with one comment and forgets the cell. A released issue goes back to
+  `status:planned` unless another branch's live claim still holds it. A foreman names its
   `session`; the owner names none. For a `merging` entry, reads the pull request's merge progress
   on GitHub first so a queued, auto-merge or already-merged pull request is never dropped. Refuses
   `VALIDATION_ERROR`, `FOREMAN_STALE`, `FOREMAN_BUSY`, `FOREMAN_LOST`, `NOT_FOUND`, `READ_FAILED`

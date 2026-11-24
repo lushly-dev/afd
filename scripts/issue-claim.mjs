@@ -19,21 +19,25 @@
  * Change the format in both places.
  *
  * An issue is held while it carries the label and its claim's lease has not run out, or the
- * claim's branch has an open PR. The label with no claim comment (set by hand) is held by an
+ * claim's branch has an open PR. When several branches hold live claims, the earliest standing
+ * one holds the issue: a branch keeps its place from its first live claim, and its latest one
+ * gives the lease reported. The label with no claim comment (set by hand) is held by an
  * unknown holder until the issue has been quiet for the lease length. An open PR that would
  * close the issue holds it too. A claim by the same branch or session is the caller's own:
  * claiming it again renews the lease, on the current branch.
  *
  * `claim` takes several issues all or nothing: if any is held by someone else it claims none,
  * and a failed write puts back what the call claimed. It labels first (the factory refuses a
- * labelled issue), then comments, then reads back: if another claim landed first it releases
- * its own (the earliest standing claim wins). The factory does not read back, so a cell that
+ * labelled issue), then comments, then reads back: if another branch's claim is the earliest
+ * live one it releases its own. The factory does not read back, so a cell that
  * read the issue before the label landed can still claim beside it; that window is a single
  * GitHub write. On a closed issue, `release` ends standing claims and removes the claim label.
- * With `--closed-only`, it skips open issues. Otherwise, on an open issue
- * it restores the status the claim replaced (else `status:planned` with
- * an execution profile, `status:triage` without) and refuses another holder's live claim
- * without `--force`. `stale` lists claimed issues whose holder has gone quiet.
+ * With `--closed-only`, it skips open issues. Otherwise, on an open issue it ends the caller's
+ * claims and restores the status the claim replaced (else `status:planned` with an execution
+ * profile, `status:triage` without), unless another branch's live claim still stands: the
+ * label is then that holder's and stays. A caller whose claim does not hold the issue takes
+ * back its own claim only; ending the holder's needs `--force`. `stale` lists claimed issues
+ * whose holder has gone quiet.
  *
  * Exit codes: 0 done (free, the caller's own, or nothing to do); 3 held by someone else;
  * 1 usage or a failed gh call. Without a working `gh` login it says so and exits 1: a
@@ -103,7 +107,7 @@ function events(comments) {
 		if (!data || typeof data !== 'object') return;
 		const kind = match[1];
 		if (kind === 'release') {
-			if (data.branch === undefined || SAFE.test(data.branch))
+			if (data.branch === undefined || (typeof data.branch === 'string' && SAFE.test(data.branch)))
 				out.push({ kind, branch: data.branch, index });
 			return;
 		}
@@ -150,6 +154,24 @@ const describe = (c) =>
 const closes = (pr, number) =>
 	(pr.closingIssuesReferences ?? []).some((ref) => ref.number === number);
 
+/** A claim holds while its lease runs, or while its branch has an open PR. */
+const liveIn = (prs, now) => (claim) =>
+	Date.parse(claim.leaseUntil) > now || prs.some((pr) => pr.headRefName === claim.branch);
+
+/**
+ * The claim that holds, among standing claims oldest first: the branch with the earliest live
+ * claim keeps its place, and its latest live claim gives the lease and machine, so a renewal
+ * shows the current expiry (as botcore_factory/claims.py reads). Undefined when none is live.
+ */
+function holderOf(claims, live) {
+	const first = claims.find(live);
+	return first && claims.findLast((c) => c.branch === first.branch && live(c));
+}
+
+/** Whether `holder`'s branch holds for the caller: any of its live claims is the caller's. */
+const heldBy = (claims, holder, live, me) =>
+	claims.some((c) => c.branch === holder.branch && live(c) && mineOf(c, me));
+
 /**
  * Who holds an issue. `issue` is gh's {number, state, labels, comments, updatedAt}; `prs` the
  * repository's open PRs {number, headRefName, closingIssuesReferences}.
@@ -158,15 +180,16 @@ export function evaluate({ issue, prs, me, now, hours = DEFAULT_HOURS }) {
 	if (issue.state === 'CLOSED') return { state: 'closed' };
 	const hasLabel = issue.labels.some((l) => l.name === IN_PROGRESS);
 	const branchPr = (branch) => prs.find((pr) => pr.headRefName === branch);
-	const live = (c) => Date.parse(c.leaseUntil) > now || Boolean(branchPr(c.branch));
+	const live = liveIn(prs, now);
 	const claims = hasLabel ? standingClaims(issue.comments ?? []) : [];
-	const holder = claims.find(live);
-	if (holder)
+	const holder = holderOf(claims, live);
+	if (holder) {
 		return {
-			state: mineOf(holder, me) ? 'mine' : 'held',
+			state: heldBy(claims, holder, live, me) ? 'mine' : 'held',
 			holder,
 			pr: branchPr(holder.branch)?.number,
 		};
+	}
 	const namingPr = prs.find((pr) => pr.headRefName !== me?.branch && closes(pr, issue.number));
 	if (namingPr) return { state: 'held', pr: namingPr.number, by: 'pr' };
 	if (claims.length) return { state: 'stale', holder: claims.at(-1) };
@@ -358,17 +381,17 @@ function runClaim(ctx, numbers) {
 			ctx.edit(n, IN_PROGRESS, statuses);
 			ctx.comment(n, claimBody(ctx.me, leaseUntil, status));
 			step.commented = true;
-			// Only a live claim posted before this one wins; a later one backs off on its own read.
+			// The earliest live standing claim holds, as `evaluate` reads it. Another branch's there
+			// was posted first, or took the issue after this caller's lease ran out; a later one
+			// backs off on its own read. A renewal beside a later rival keeps its place.
 			const standing = standingClaims(ctx.issue(n).comments ?? []);
-			const own = standing.findLastIndex((c) => mineOf(c, ctx.me));
-			const first = standing.find(
-				(c, i) => (own < 0 || i < own) && Date.parse(c.leaseUntil) > ctx.now() && !mineOf(c, ctx.me)
-			);
-			if (first) {
+			const live = liveIn(ctx.prs(), ctx.now());
+			const first = holderOf(standing, live);
+			if (first && !heldBy(standing, first, live, ctx.me)) {
 				// The label stays: it is the winner's now.
 				ctx.comment(n, releaseBody(ctx.me.branch, `lost the claim to ${first.branch}`));
 				step = null;
-				ctx.log(`#${n}: ${describe(first)} claimed it first.`);
+				ctx.log(`#${n}: ${describe(first)} holds it.`);
 				undo(ctx, made, 'a claim in the same set was lost');
 				ctx.log(`Claimed none of ${all}.`);
 				return EXIT_HELD;
@@ -393,13 +416,21 @@ function runClaim(ctx, numbers) {
 	return 0;
 }
 
+/** Another caller's live claim on the issue: while one stands, the label is that holder's. */
+function heldBeside(ctx, issue, released = new Set()) {
+	const others = standingClaims(issue.comments ?? []).filter(
+		(c) => !released.has(c.branch) && !mineOf(c, ctx.me)
+	);
+	return holderOf(others, liveIn(ctx.prs(), ctx.now()));
+}
+
 /** Put back claims this call made; returns the issues it could not. */
 function undo(ctx, steps, reason) {
 	const left = [];
 	for (const s of steps) {
 		try {
 			if (s.commented) ctx.comment(s.n, releaseBody(ctx.me.branch, reason));
-			ctx.edit(s.n, s.status ?? PLANNED, [IN_PROGRESS]);
+			if (!heldBeside(ctx, ctx.issue(s.n))) ctx.edit(s.n, s.status ?? PLANNED, [IN_PROGRESS]);
 		} catch {
 			left.push(`#${s.n}`);
 		}
@@ -407,14 +438,22 @@ function undo(ctx, steps, reason) {
 	return left;
 }
 
-/** Back to the status the claim replaced, else planned (with an execution profile) or triage. */
-function release(ctx, n, reason, issue) {
+/**
+ * End the caller's claims and those of `also`. The issue goes back to the status the claim
+ * replaced (else planned with an execution profile, or triage) unless another live claim still
+ * stands, which is returned: the label is then that holder's and stays.
+ */
+function release(ctx, n, reason, issue, also = []) {
 	const own = standingClaims(issue.comments ?? []).filter((c) => mineOf(c, ctx.me));
-	const profiled = issue.labels.some((l) => l.name.startsWith('execution:'));
-	const status = own.findLast((c) => c.status)?.status ?? (profiled ? PLANNED : TRIAGE);
-	ctx.edit(n, status, [IN_PROGRESS]);
-	const branches = new Set([ctx.me.branch, ...own.map((c) => c.branch)]);
+	const branches = new Set([ctx.me.branch, ...own.map((c) => c.branch), ...also]);
+	const beside = heldBeside(ctx, issue, branches);
+	if (!beside) {
+		const profiled = issue.labels.some((l) => l.name.startsWith('execution:'));
+		const status = own.findLast((c) => c.status)?.status ?? (profiled ? PLANNED : TRIAGE);
+		ctx.edit(n, status, [IN_PROGRESS]);
+	}
 	for (const branch of branches) ctx.comment(n, releaseBody(branch, reason));
+	return beside;
 }
 
 function runRelease(ctx, numbers, flags) {
@@ -442,8 +481,22 @@ function runRelease(ctx, numbers, flags) {
 		}
 		const { e } = evaluateNumber(ctx, n, issue);
 		if (e.state === 'held' && !flags.force) {
-			ctx.log(`${sentence(n, e)}. Not released: pass --force to take another holder's claim away.`);
-			refused = true;
+			const own = new Set(
+				standingClaims(issue.comments ?? [])
+					.filter((c) => mineOf(c, ctx.me))
+					.map((c) => c.branch)
+			);
+			if (!own.size) {
+				ctx.log(
+					`${sentence(n, e)}. Not released: pass --force to take another holder's claim away.`
+				);
+				refused = true;
+				continue;
+			}
+			// A claim that does not hold the issue is the caller's to take back; the label and
+			// the issue stay with the holder.
+			for (const branch of own) ctx.comment(n, releaseBody(branch, reason));
+			ctx.log(`${sentence(n, e)}. Released your own claim (${reason}); the holder's stands.`);
 			continue;
 		}
 		if (e.state === 'free' && !issue.labels.some((l) => l.name === IN_PROGRESS)) {
@@ -451,9 +504,12 @@ function runRelease(ctx, numbers, flags) {
 			continue;
 		}
 		const holder = e.holder && !mineOf(e.holder, ctx.me) ? e.holder.branch : null;
-		release(ctx, n, reason, issue);
-		if (holder) ctx.comment(n, releaseBody(holder, reason));
-		ctx.log(`#${n}: released (${reason})`);
+		const beside = release(ctx, n, reason, issue, holder ? [holder] : []);
+		ctx.log(
+			beside
+				? `#${n}: released (${reason}); still held by ${describe(beside)}`
+				: `#${n}: released (${reason})`
+		);
 	}
 	return refused ? EXIT_HELD : 0;
 }

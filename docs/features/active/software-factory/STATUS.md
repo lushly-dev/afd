@@ -202,6 +202,27 @@ deleted the queue ref while the pull request was still open.
 
 What a cell may take, which plan it runs on, the foreman's commands and `run-fleet`.
 
+#### Competing issue claims, 2026-11-24
+
+[#2422](https://github.com/lushly-dev/afd/pull/2422), for the
+[formal verification pilot](../formal-verification/STATUS.md). The factory named the latest claim
+on an issue where the issue-claim CLI named the earliest live one, and a release took the label
+off an issue another branch's live claim still held.
+
+- `cell-register` names the earliest still-standing live claimant and directs the foreman to
+  available work. A renewal shows the holder's current lease.
+- `issue-check` no longer lists a live claim as stale because a later claim lapsed.
+- `lane-drop`, and a `cell-register` whose writes failed, leave `status:in-progress` on an issue
+  another branch's live claim holds, so it is not dispatched a second time; a lapsed claim whose
+  branch has an open PR counts, as the CLI reads it. The cell's own claim is still released, and
+  `lane-drop` posts that release before it changes the label.
+- The issue-claim CLI and the
+  [triage scenario](scenarios/14b-identify-the-standing-claimant.scenario.yaml) read the same
+  [fixture](scenarios/fixtures/claim-histories.json) of fifteen histories, including release by
+  either contender and three of the four known differences between the two, in four rows.
+- Not changed: the factory does not read back after it claims, so a cell that raced a session
+  keeps running after both name the session. The gateway's single writer ends that.
+
 #### The foreman's session is checked where it acts, 2026-11-19
 
 Branch `fleet/lane-builddir-foreman-1641-1633`, for
