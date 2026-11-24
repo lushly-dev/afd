@@ -187,7 +187,11 @@ fn migration_20_adds_proposal_generation_and_backfills_existing_proposals() {
     {
         let conn = rusqlite::Connection::open(home.database()).unwrap();
         conn.execute_batch(
-            "ALTER TABLE draft DROP COLUMN recipient_bases;
+            "DROP TABLE replyset_claim_key;
+             ALTER TABLE replyset_event DROP COLUMN instructions_version;
+             ALTER TABLE replyset_reply DROP COLUMN known_source_digest;
+             ALTER TABLE replyset_reply DROP COLUMN instructions_version;
+             ALTER TABLE draft DROP COLUMN recipient_bases;
              DROP TABLE proposed_story_member;
              DROP TABLE proposed_story;
              DROP TABLE account_policy;

@@ -999,6 +999,15 @@ impl Store {
         }
         Index::remove(&self.index_directory)?;
         let transaction = self.connection.transaction()?;
+        // Capture any derived-source drift before dropping `envelope` so an
+        // open reply unit's generation advances before the rebuild re-derives
+        // from raw bytes (plugin.spec.md section 9.1).
+        super::replysets::sync_source_digests_on(
+            &transaction,
+            &self.log,
+            None,
+            super::wall_clock(),
+        )?;
         transaction.execute_batch(
             "DELETE FROM part;
              DELETE FROM link;
@@ -1066,6 +1075,12 @@ impl Store {
             derive_body(&transaction, message, body, &mut touched)?;
         }
         settle(&transaction, &touched, now)?;
+        super::replysets::sync_source_digests_on(
+            &transaction,
+            &self.log,
+            Some(&touched.messages),
+            now,
+        )?;
         transaction.commit()?;
         self.index_documents(&touched.documents)?;
         Ok(())
@@ -1119,6 +1134,12 @@ impl Store {
             }
         }
         settle(&transaction, &touched, now)?;
+        super::replysets::sync_source_digests_on(
+            &transaction,
+            &self.log,
+            Some(&touched.messages),
+            now,
+        )?;
         transaction.commit()?;
         self.index_documents(&touched.documents)?;
         Ok(messages.len())
@@ -1185,6 +1206,12 @@ impl Store {
             }
         }
         settle(&transaction, &touched, now)?;
+        super::replysets::sync_source_digests_on(
+            &transaction,
+            &self.log,
+            Some(&touched.messages),
+            now,
+        )?;
         set_state(&transaction, REBUILD, last)?;
         transaction.commit()?;
         self.index_documents(&touched.documents)?;

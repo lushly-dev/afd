@@ -153,7 +153,7 @@ jobs:
       - name: Build AFD CLI
         working-directory: .
         run: pnpm -F "@lushly-dev/afd-cli..." build
-      - name: Scenarios 1-4 (agent-cannot-send, send-what-i-saw, approve-what-was-proposed, unsubscribe-target-shown)
+      - name: Scenarios 1-5 (agent-cannot-send, send-what-i-saw, approve-what-was-proposed, unsubscribe-target-shown, compose-replies-apart)
         working-directory: .
         run: >-
           node endpoints/loam/plugins/mail/scripts/run-scenarios.mjs
@@ -161,6 +161,7 @@ jobs:
           endpoints/loam/plugins/mail/docs/scenarios/send-what-i-saw.scenario.yaml
           endpoints/loam/plugins/mail/docs/scenarios/approve-what-was-proposed.scenario.yaml
           endpoints/loam/plugins/mail/docs/scenarios/unsubscribe-target-shown.scenario.yaml
+          endpoints/loam/plugins/mail/docs/scenarios/compose-replies-apart.scenario.yaml
       - name: Release build (no test-doubles)
         run: |
           cargo build --locked --release --bin loam-mail

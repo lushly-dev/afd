@@ -6,11 +6,14 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use rusqlite::{OptionalExtension, params};
+use rusqlite::{Connection, OptionalExtension, params};
 
 use super::derived::unreadable;
-use super::{Kept, MessageId, PartSeen, Place, Store, StoreError, derived, size_of};
+use super::{
+    Kept, MessageId, PartSeen, Place, Store, StoreError, derived, read_part_readonly_on, size_of,
+};
 use crate::derive::{self, BodyFields};
+use crate::log::Log;
 use crate::parts::{self, Structure};
 
 impl Store {
@@ -131,6 +134,15 @@ impl Store {
             &structure,
             &self.held_texts(message)?,
         )))
+    }
+
+    /// The bytes a message's text is read from, without writing to SQLite on a
+    /// damaged or missing blob (never queues `refetch`).
+    ///
+    /// # Errors
+    /// When the log or the database refuses.
+    pub fn body_bytes_readonly(&self, message: MessageId) -> Result<Option<Vec<u8>>, StoreError> {
+        body_bytes_readonly_on(&self.connection, &self.log, message)
     }
 
     /// The decoded content of the part at `place`, when its bytes are held:
@@ -363,8 +375,53 @@ impl Store {
             derived::derive_body(&transaction, message.0, body, &mut touched)?;
         }
         derived::settle(&transaction, &touched, now)?;
+        super::replysets::sync_source_digests_on(
+            &transaction,
+            &self.log,
+            Some(&touched.messages),
+            now,
+        )?;
         transaction.commit()?;
         self.index_documents(&touched.documents)?;
         Ok(())
     }
+}
+
+/// Non-writing equivalent of [`Store::body_bytes`] for pure-read commands and
+/// open-transaction derivation checks.
+pub(super) fn body_bytes_readonly_on(
+    connection: &Connection,
+    log: &Log,
+    message: MessageId,
+) -> Result<Option<Vec<u8>>, StoreError> {
+    match read_part_readonly_on(connection, log, message, "whole") {
+        Ok(whole) => return Ok(Some(whole)),
+        Err(StoreError::NotFound(_)) => {}
+        Err(error) => return Err(error),
+    }
+    let text: Option<String> = connection
+        .query_row(
+            "SELECT body FROM structure WHERE message_id = ?1",
+            [message.0],
+            |row| row.get(0),
+        )
+        .optional()?;
+    let Some(structure) = text
+        .map(|raw| Structure::from_json(&raw).ok_or(StoreError::NotFound("structure")))
+        .transpose()?
+    else {
+        return Ok(None);
+    };
+    let places: Vec<String> = {
+        let mut stmt = connection
+            .prepare_cached("SELECT part FROM held WHERE message_id = ?1 AND kind = 'text'")?;
+        stmt.query_map([message.0], |row| row.get(0))?
+            .collect::<Result<_, _>>()?
+    };
+    let mut texts = BTreeMap::new();
+    for place in places {
+        let bytes = read_part_readonly_on(connection, log, message, &place)?;
+        texts.insert(place, bytes);
+    }
+    Ok(Some(parts::assemble(&structure, &texts)))
 }

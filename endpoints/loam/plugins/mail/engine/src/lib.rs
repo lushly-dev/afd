@@ -173,6 +173,7 @@ pub fn registry(engine: &Arc<Engine>) -> Result<Arc<CommandRegistry>, String> {
     registry.register(replysets::create(Arc::clone(engine)))?;
     registry.register(replysets::update(Arc::clone(engine)))?;
     registry.register(replysets::next(Arc::clone(engine)))?;
+    registry.register(replysets::submit(Arc::clone(engine)))?;
     registry.register(replysets::show(Arc::clone(engine)))?;
     registry.register(replysets::send(Arc::clone(engine)))?;
     afd::register_bootstrap_commands(&registry)?;
@@ -317,7 +318,8 @@ fn reply_limit(engine: Arc<engine::Engine>) -> afd::CommandMiddleware {
 /// The bytes a result takes in its reply: over MCP the result goes out as
 /// JSON text and again as structured content, so twice, the text escaped.
 /// The few bytes of the reply's envelope are left out.
-pub(crate) fn reply_size(
+#[must_use]
+pub fn reply_size(
     result: &afd::CommandResult<serde_json::Value>,
     interface: Option<afd::CommandInterface>,
 ) -> usize {

@@ -70,6 +70,10 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # The log's file names, and a message's identity.
 sha2 = "0.11"
+# Reply-set unit claims (step F3; plugin.spec.md section 9.1): same vetted
+# primitives `afd`'s approval middleware already pins in the lockfile.
+hmac = "0.13"
+subtle = "2.5"
 tantivy = { version = "0.27", default-features = false, features = ["mmap", "stopwords", "stemmer", "lz4-compression"] }
 tokio = { version = "1", default-features = false, features = ["rt", "rt-multi-thread", "time", "net", "io-util", "io-std", "signal", "macros", "sync"] }
 # The MCP service mounted at `/mcp`, and driving the router in tests.

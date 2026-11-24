@@ -406,9 +406,11 @@ bounds is readable whole over HTTP MCP and at the terminal without `OUTPUT_BUDGE
 a tighter fail-closed display ceiling of **64 KiB canonical JSON and 200 JSON values**
 (`MOUNT_APPROVAL_UNAVAILABLE`, directing the person to the server's own terminal rather than cutting
 any value). Ordinary drafts (and every unsubscribe and proposal preview) stay well under 64 KiB and
-200 values and confirm directly in Loam; extreme M39 targets (such as 100 recipients or 48 KiB of
-heavily escaped control characters) remain readable whole over MCP and sendable at the terminal
-while Loam fails closed.
+200 values and confirm directly in Loam; small reply sets (up to ~3–4 replies under the current full
+`mail-replyset-show` preview shape) also confirm directly in Loam, while larger reply sets (tracked
+in `#2410` for Phase 5 Step 7) and extreme M39 targets (such as 100 recipients or 48 KiB of heavily
+escaped control characters) remain readable whole over MCP and sendable at the terminal while Loam
+fails closed.
 
 **Stable for an unchanged target.** Loam calls the preview again under its hold and compares the
 two results' canonical digests. So a preview's result holds no time of reading, no cursor that

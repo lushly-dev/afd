@@ -124,21 +124,22 @@ fn approved_send(fixture: &Fixture, input: Value) -> Value {
 }
 
 /// Pulls the next open unit for `set_id` and submits `text` against its handed
-/// `unit` id as `person`.
+/// `unit` and `claim` via `mail-replyset-submit` as `person`.
 fn person_submit_next(fixture: &Fixture, set_id: i64, text: &str) -> Value {
     let unit_res = fixture.person("mail-replyset-next", json!({ "replyset": set_id }));
     assert_eq!(unit_res["success"], true, "{unit_res}");
     assert_eq!(unit_res["data"]["done"], false, "{unit_res}");
     let reply = unit_res["data"]["reply"].as_i64().unwrap();
     let unit = unit_res["data"]["unit"].as_str().unwrap().to_string();
+    let claim = unit_res["data"]["claim"].as_str().unwrap().to_string();
     fixture.person(
-        "mail-replyset-next",
-        json!({ "replyset": set_id, "reply": reply, "unit": unit, "text": text }),
+        "mail-replyset-submit",
+        json!({ "replyset": set_id, "reply": reply, "unit": unit, "claim": claim, "text": text }),
     )
 }
 
 /// Pulls the next open unit for `set_id` and submits `text` against its handed
-/// `unit` id as agent `token_id`.
+/// `unit` and `claim` via `mail-replyset-submit` as agent `token_id`.
 fn agent_submit_next(fixture: &Fixture, token_id: &str, set_id: i64, text: &str) -> Value {
     let unit_res = fixture.agent(
         token_id,
@@ -149,10 +150,11 @@ fn agent_submit_next(fixture: &Fixture, token_id: &str, set_id: i64, text: &str)
     assert_eq!(unit_res["data"]["done"], false, "{unit_res}");
     let reply = unit_res["data"]["reply"].as_i64().unwrap();
     let unit = unit_res["data"]["unit"].as_str().unwrap().to_string();
+    let claim = unit_res["data"]["claim"].as_str().unwrap().to_string();
     fixture.agent(
         token_id,
-        "mail-replyset-next",
-        json!({ "replyset": set_id, "reply": reply, "unit": unit, "text": text }),
+        "mail-replyset-submit",
+        json!({ "replyset": set_id, "reply": reply, "unit": unit, "claim": claim, "text": text }),
     )
 }
 
@@ -281,26 +283,27 @@ fn end_to_end_cohort_replyset_isolation_preview_and_send() {
         "Thursday works at 2pm."
     );
 
-    // Submit Ada's reply matching sharedText -> differs = false.
+    // Submit Ada's reply matching sharedText via mail-replyset-submit.
     let sub1 = fixture.agent(
         "tok_a",
-        "mail-replyset-next",
+        "mail-replyset-submit",
         json!({
             "replyset": set_id,
             "reply": ada_reply,
+            "unit": unit1["data"]["unit"],
+            "claim": unit1["data"]["claim"],
             "text": "Shared closing: Thursday works.",
         }),
     );
     assert_eq!(sub1["success"], true, "{sub1}");
     assert_labelled(&sub1, CONTENT_WORDS);
     assert_eq!(sub1["data"]["revision"], 3);
-    assert_eq!(sub1["data"]["done"], false);
     assert_eq!(sub1["data"]["reply"]["source"], "submitted");
-    assert_eq!(sub1["data"]["reply"]["differs"], false);
     assert_eq!(
         sub1["data"]["reply"]["unit"],
         format!("rsu_{set_id}_{ada_reply}_2")
     );
+    assert!(sub1["data"].to_string().find("Shared closing").is_none());
 
     // Pull unit 2 (Bea): holds ONLY Bea's message and question 2 (individual: true).
     let unit2 = fixture.agent("tok_a", "mail-replyset-next", json!({ "replyset": set_id }));
@@ -321,33 +324,35 @@ fn end_to_end_cohort_replyset_isolation_preview_and_send() {
         "The invoice is ready."
     );
 
-    // Submit Bea's reply with custom text -> differs = true.
+    // Submit Bea's reply with custom text -> differs = true in mail-replyset-show.
     let sub2 = fixture.agent(
         "tok_a",
-        "mail-replyset-next",
+        "mail-replyset-submit",
         json!({
             "replyset": set_id,
             "reply": bea_reply,
+            "unit": unit2["data"]["unit"],
+            "claim": unit2["data"]["claim"],
             "text": "Hi Bea, invoice attached.",
         }),
     );
     assert_eq!(sub2["success"], true, "{sub2}");
-    assert_eq!(sub2["data"]["reply"]["differs"], true);
 
     // Pull unit 3 (Cam) and submit matching shared text.
     let unit3 = fixture.agent("tok_a", "mail-replyset-next", json!({ "replyset": set_id }));
     assert_eq!(unit3["data"]["reply"], cam_reply);
     let sub3 = fixture.agent(
         "tok_a",
-        "mail-replyset-next",
+        "mail-replyset-submit",
         json!({
             "replyset": set_id,
             "reply": cam_reply,
+            "unit": unit3["data"]["unit"],
+            "claim": unit3["data"]["claim"],
             "text": "Shared closing: Thursday works.",
         }),
     );
     assert_eq!(sub3["success"], true, "{sub3}");
-    assert_eq!(sub3["data"]["done"], true);
 
     // Calling next again reports done: true.
     let done = fixture.agent("tok_a", "mail-replyset-next", json!({ "replyset": set_id }));
@@ -488,13 +493,17 @@ fn recipient_cannot_be_set_by_caller_and_invalid_sources_are_refused() {
     assert_eq!(pulled["success"], true, "{pulled}");
     let sub = fixture.agent(
         "tok_a",
-        "mail-replyset-next",
+        "mail-replyset-submit",
         json!({
             "replyset": set_id,
             "reply": reply_id,
+            "unit": pulled["data"]["unit"],
+            "claim": pulled["data"]["claim"],
             "text": "Hello Ada.",
             "recipient": "attacker@evil.example",
             "to": ["attacker@evil.example"],
+            "subject": "Forged Subject",
+            "account": 999,
         }),
     );
     assert_eq!(sub["success"], true, "{sub}");
@@ -569,14 +578,15 @@ fn send_guards_m18_incomplete_stale_revision_and_concurrency() {
         .as_i64()
         .unwrap();
 
-    // 1. Agent over MCP cannot call mail-replyset-send (M18).
+    // 1. Incomplete set over MCP fails with REPLYSET_INCOMPLETE BEFORE any approval hold
+    //    (F3 releases mail-replyset-send over MCP under amended M18).
     let over_mcp = fixture.agent(
         "tok_a",
         "mail-replyset-send",
         json!({ "replyset": set_id, "revision": 1 }),
     );
     assert_eq!(
-        over_mcp["error"]["code"], "COMMAND_NOT_EXPOSED",
+        over_mcp["error"]["code"], "REPLYSET_INCOMPLETE",
         "{over_mcp}"
     );
 
@@ -1218,13 +1228,22 @@ fn journal_redacts_replyset_result_content_and_approval_tokens() {
         .as_i64()
         .unwrap();
 
-    // Pull unit (contains Ada's message body in result) -> journal must NOT keep result content!
-    let _ = fixture.agent("tok_a", "mail-replyset-next", json!({ "replyset": set_id }));
+    // Pull unit (read: NOT journaled!) and submit (claim MUST be redacted from journal!).
+    let pulled = fixture.agent("tok_a", "mail-replyset-next", json!({ "replyset": set_id }));
+    assert_eq!(pulled["success"], true, "{pulled}");
+    let claim = pulled["data"]["claim"].as_str().unwrap().to_string();
     let sub = fixture.agent(
         "tok_a",
-        "mail-replyset-next",
-        json!({ "replyset": set_id, "reply": r0, "text": "Shared closing: Thursday works." }),
+        "mail-replyset-submit",
+        json!({
+            "replyset": set_id,
+            "reply": r0,
+            "unit": pulled["data"]["unit"],
+            "claim": claim,
+            "text": "Shared closing: Thursday works.",
+        }),
     );
+    assert_eq!(sub["success"], true, "{sub}");
     let rev = sub["data"]["revision"].as_i64().unwrap();
 
     // Hold mail-replyset-send -> approvalToken must be stripped from journal.
@@ -1241,6 +1260,10 @@ fn journal_redacts_replyset_result_content_and_approval_tokens() {
     let journal_path = fixture.directory.path().join("data").join("journal.jsonl");
     let contents = std::fs::read_to_string(&journal_path).unwrap();
     assert!(!contents.contains(&held_token), "{contents}");
+    assert!(
+        !contents.contains(&claim),
+        "claim leaked into journal: {contents}"
+    );
     // Verify no journaled result kept `content` (especially Ada's read message body!).
     assert!(
         !contents.contains("Can we meet on Thursday?"),
@@ -1255,10 +1278,17 @@ fn journal_redacts_replyset_result_content_and_approval_tokens() {
             "approvalToken leaked in journal entry: {entry}"
         );
         let cmd = entry["command"].as_str().unwrap_or_default();
-        if matches!(
-            cmd,
-            "mail-replyset-create" | "mail-replyset-update" | "mail-replyset-next"
-        ) {
+        assert_ne!(
+            cmd, "mail-replyset-next",
+            "mail-replyset-next is a read and must not be journaled: {entry}"
+        );
+        if cmd == "mail-replyset-submit" {
+            assert!(
+                entry.pointer("/input/claim").is_none(),
+                "claim leaked in submit input: {entry}"
+            );
+        }
+        if matches!(cmd, "mail-replyset-create" | "mail-replyset-update") {
             assert!(
                 entry.pointer("/result/data/content").is_none(),
                 "content leaked in {cmd}: {entry}"
@@ -1294,7 +1324,8 @@ fn store_upgrades_from_migration_18_to_19() {
     {
         let conn = rusqlite::Connection::open(home.database()).unwrap();
         conn.execute_batch(
-            "ALTER TABLE draft DROP COLUMN recipient_bases;
+            "DROP TABLE replyset_claim_key;
+             ALTER TABLE draft DROP COLUMN recipient_bases;
              DROP TABLE proposed_story_member;
              DROP TABLE proposed_story;
              DROP TABLE account_policy;
@@ -1444,7 +1475,7 @@ async fn mcp_exposure_hides_send_and_lists_local_and_read_commands() {
         }
     };
 
-    // 1. afd-help lists create, update, next, show — and NEVER mail-replyset-send (M18).
+    // 1. afd-help lists create, update, next, submit, show, and released mail-replyset-send (F3).
     let help = post_mcp(
         "tools/call",
         json!({ "name": "afd-call", "arguments": { "command": "afd-help", "input": { "format": "full" } } }),
@@ -1454,10 +1485,12 @@ async fn mcp_exposure_hides_send_and_lists_local_and_read_commands() {
     assert!(help_str.contains("mail-replyset-create"), "{help_str}");
     assert!(help_str.contains("mail-replyset-update"), "{help_str}");
     assert!(help_str.contains("mail-replyset-next"), "{help_str}");
+    assert!(help_str.contains("mail-replyset-submit"), "{help_str}");
     assert!(help_str.contains("mail-replyset-show"), "{help_str}");
-    assert!(!help_str.contains("mail-replyset-send"), "{help_str}");
+    assert!(help_str.contains("mail-replyset-send"), "{help_str}");
 
-    // 2. Calling mail-replyset-send over HTTP MCP returns COMMAND_NOT_FOUND.
+    // 2. Calling mail-replyset-send over HTTP MCP for a nonexistent set fails
+    //    with REPLYSET_NOT_FOUND before any hold (never sends or issues a token).
     let call_send = post_mcp(
         "tools/call",
         json!({
@@ -1470,7 +1503,7 @@ async fn mcp_exposure_hides_send_and_lists_local_and_read_commands() {
     )
     .await;
     assert_eq!(
-        call_send["result"]["structuredContent"]["error"]["code"], "COMMAND_NOT_FOUND",
+        call_send["result"]["structuredContent"]["error"]["code"], "REPLYSET_NOT_FOUND",
         "{call_send}"
     );
 }
@@ -1608,27 +1641,40 @@ fn unit_handout_binds_generation_answers_and_budget_truncated_digest() {
         .as_i64()
         .unwrap();
 
-    // 1. Submitting before any handout fails with UNIT_NOT_OPEN.
-    let no_handout = fixture.agent(
+    // 1. Submitting with a guessed claim fails with UNIT_NOT_OPEN.
+    let guessed = fixture.agent(
         "tok_a",
-        "mail-replyset-next",
-        json!({ "replyset": set_id, "reply": ada_reply, "text": "Unpulled." }),
+        "mail-replyset-submit",
+        json!({
+            "replyset": set_id,
+            "reply": ada_reply,
+            "unit": format!("rsu_{set_id}_{ada_reply}_1"),
+            "claim": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "text": "Guessed claim.",
+        }),
     );
-    assert_eq!(no_handout["error"]["code"], "UNIT_NOT_OPEN", "{no_handout}");
+    assert_eq!(guessed["error"]["code"], "UNIT_NOT_OPEN", "{guessed}");
 
-    // 2. Pull with a tight max_bytes budget so visible text is truncated.
+    // 2. Pulling with a budget smaller than the canonical unit returns OUTPUT_BUDGET_EXCEEDED,
+    //    while pulling at the default budget succeeds and returns unit + claim + digest.
     let tight_ctx = CommandContext::new()
         .with_interface(CommandInterface::Mcp)
         .with_actor(Actor::new(ActorKind::Agent).with_id("tok_a"))
         .with_output_budget_ask(900);
-    let pulled = fixture.execute(
+    let too_tight = fixture.execute(
         "mail-replyset-next",
         json!({ "replyset": set_id }),
         tight_ctx,
     );
+    assert_eq!(
+        too_tight["error"]["code"], "OUTPUT_BUDGET_EXCEEDED",
+        "{too_tight}"
+    );
+
+    let pulled = fixture.agent("tok_a", "mail-replyset-next", json!({ "replyset": set_id }));
     assert_eq!(pulled["success"], true, "{pulled}");
-    assert_eq!(pulled["data"]["textComplete"], false, "{pulled}");
     let handed_unit = pulled["data"]["unit"].as_str().unwrap().to_string();
+    let handed_claim = pulled["data"]["claim"].as_str().unwrap().to_string();
     let handed_digest = pulled["data"]["inputs"]["sourceTextDigest"]
         .as_str()
         .unwrap()
@@ -1647,11 +1693,12 @@ fn unit_handout_binds_generation_answers_and_budget_truncated_digest() {
     let rev_after_ans = ans_upd["data"]["replyset"]["revision"].as_i64().unwrap();
     let stale_after_ans = fixture.agent(
         "tok_a",
-        "mail-replyset-next",
+        "mail-replyset-submit",
         json!({
             "replyset": set_id,
             "reply": ada_reply,
             "unit": handed_unit,
+            "claim": handed_claim,
             "text": "See you at 2pm.",
         }),
     );
@@ -1660,37 +1707,29 @@ fn unit_handout_binds_generation_answers_and_budget_truncated_digest() {
         "{stale_after_ans}"
     );
 
-    // 4. Pull again with tight budget -> submit succeeds and stores the EXACT
-    // budget-truncated sourceTextDigest and updated answer revision 2!
-    let tight_ctx2 = CommandContext::new()
-        .with_interface(CommandInterface::Mcp)
-        .with_actor(Actor::new(ActorKind::Agent).with_id("tok_a"))
-        .with_output_budget_ask(900);
-    let pulled2 = fixture.execute(
-        "mail-replyset-next",
-        json!({ "replyset": set_id }),
-        tight_ctx2,
-    );
+    // 4. Pull again -> new unit + claim succeed and store exact digest,
+    //    updated answer revision 2, and instructionsVersion.
+    let pulled2 = fixture.agent("tok_a", "mail-replyset-next", json!({ "replyset": set_id }));
     assert_eq!(pulled2["success"], true, "{pulled2}");
-    assert_eq!(pulled2["data"]["textComplete"], false, "{pulled2}");
     let unit2 = pulled2["data"]["unit"].as_str().unwrap().to_string();
+    let claim2 = pulled2["data"]["claim"].as_str().unwrap().to_string();
     let digest2 = pulled2["data"]["inputs"]["sourceTextDigest"]
         .as_str()
         .unwrap()
         .to_string();
-    // Answer grew ("2pm" -> "3pm instead"), so under the same 900-byte budget
-    // the visible text slice shortened slightly, producing a distinct digest.
-    assert_ne!(digest2, handed_digest);
+    assert_eq!(digest2, handed_digest);
     assert_ne!(unit2, handed_unit);
+    assert_ne!(claim2, handed_claim);
 
-    // Passing wrong `unit` fails with UNIT_NOT_OPEN.
+    // Passing stale `unit` with new `claim` (or stale `claim` with new `unit`) fails with UNIT_NOT_OPEN.
     let wrong_unit = fixture.agent(
         "tok_a",
-        "mail-replyset-next",
+        "mail-replyset-submit",
         json!({
             "replyset": set_id,
             "reply": ada_reply,
             "unit": handed_unit,
+            "claim": claim2,
             "text": "Wrong unit.",
         }),
     );
@@ -1698,22 +1737,28 @@ fn unit_handout_binds_generation_answers_and_budget_truncated_digest() {
 
     let submitted = fixture.agent(
         "tok_a",
-        "mail-replyset-next",
+        "mail-replyset-submit",
         json!({
             "replyset": set_id,
             "reply": ada_reply,
             "unit": unit2,
+            "claim": claim2,
             "text": "See you at 3pm.",
         }),
     );
     assert_eq!(submitted["success"], true, "{submitted}");
+    let shown_after_ada = fixture.person("mail-replyset-show", json!({ "replyset": set_id }));
     assert_eq!(
-        submitted["data"]["reply"]["inputs"]["sourceTextDigest"],
+        shown_after_ada["data"]["replyset"]["replies"][0]["inputs"]["sourceTextDigest"],
         digest2
     );
     assert_eq!(
-        submitted["data"]["reply"]["inputs"]["answers"],
+        shown_after_ada["data"]["replyset"]["replies"][0]["inputs"]["answers"],
         json!([{ "question": q_id, "revision": 2 }])
+    );
+    assert_eq!(
+        shown_after_ada["data"]["replyset"]["replies"][0]["inputs"]["instructionsVersion"],
+        loam_mail::replysets::INSTRUCTIONS_VERSION
     );
 
     // 5. Pull Bea's unit, then have the person edit Bea via mail-replyset-update ->
@@ -1722,6 +1767,7 @@ fn unit_handout_binds_generation_answers_and_budget_truncated_digest() {
     assert_eq!(bea_unit["success"], true, "{bea_unit}");
     let bea_reply = bea_unit["data"]["reply"].as_i64().unwrap();
     let bea_unit_id = bea_unit["data"]["unit"].as_str().unwrap().to_string();
+    let bea_claim = bea_unit["data"]["claim"].as_str().unwrap().to_string();
     let rev_now = submitted["data"]["revision"].as_i64().unwrap();
     assert_eq!(rev_now, rev_after_ans + 1);
     let person_edit = fixture.person(
@@ -1736,11 +1782,12 @@ fn unit_handout_binds_generation_answers_and_budget_truncated_digest() {
     assert_eq!(person_edit["success"], true, "{person_edit}");
     let late_submit = fixture.agent(
         "tok_a",
-        "mail-replyset-next",
+        "mail-replyset-submit",
         json!({
             "replyset": set_id,
             "reply": bea_reply,
             "unit": bea_unit_id,
+            "claim": bea_claim,
             "text": "Late agent overwrite!",
         }),
     );

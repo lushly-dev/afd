@@ -20,6 +20,7 @@ mod read;
 mod records;
 mod remove;
 mod replysets;
+mod replysets_send;
 mod schema;
 mod screening;
 mod selections;
@@ -125,6 +126,8 @@ pub enum StoreError {
     /// A proposal's canonical digest could not be computed (e.g. an integer
     /// outside JavaScript's exact safe range `±(2^53 - 1)`).
     InvalidDigest(String),
+    /// The operating system's random source failed when initializing a store secret.
+    Random,
     /// SQLite refused.
     Sqlite(rusqlite::Error),
 }
@@ -157,6 +160,7 @@ impl fmt::Display for StoreError {
             Self::InvalidDigest(reason) => {
                 write!(f, "the proposal cannot be digested canonically: {reason}")
             }
+            Self::Random => write!(f, "no random source for the reply-set claim key"),
             Self::Sqlite(error) => write!(f, "the store's database refused: {error}"),
         }
     }
@@ -410,6 +414,11 @@ impl Store {
             // Backfill fixed recipient bases on any pre-migration-23 drafts
             // so their previews and terminal checks never drift across syncs.
             drafts::backfill_recipient_bases(&mut connection, &log)?;
+            // Initialize the persistent HMAC-SHA256 claim key once and backfill
+            // baseline derived-source digests for open replies so
+            // `mail-replyset-next` stays a pure read that stores nothing.
+            replysets::ensure_claim_key(&connection, wall_clock())?;
+            replysets::backfill_source_digests(&connection, &log)?;
         }
         // The write-ahead log and its index take the database file's mode
         // when SQLite creates them; this covers ones left from before.
@@ -731,6 +740,7 @@ impl Store {
             )?;
         }
         derived::settle(&transaction, &touched, now)?;
+        replysets::sync_source_digests_on(&transaction, &self.log, Some(&touched.messages), now)?;
         transaction.commit()?;
         self.index_documents(&touched.documents)?;
         Ok(outcome)
@@ -831,6 +841,7 @@ impl Store {
             }
         }
         derived::settle(&transaction, &touched, now)?;
+        replysets::sync_source_digests_on(&transaction, &self.log, Some(&touched.messages), now)?;
         transaction.commit()?;
         self.index_documents(&touched.documents)?;
         Ok(blobs)
@@ -939,25 +950,30 @@ impl Store {
     /// # Errors
     /// [`StoreError::NotFound`] when that part is not held.
     pub fn read_part(&self, message: MessageId, place: &str) -> Result<Vec<u8>, StoreError> {
-        let blob: Vec<u8> = self
-            .connection
-            .query_row(
-                "SELECT blob FROM held WHERE message_id = ?1 AND part = ?2",
-                params![message.0, place],
-                |row| row.get(0),
-            )
-            .optional()?
-            .ok_or(StoreError::NotFound("part"))?;
-        let id = BlobId::from_bytes(&blob).ok_or(StoreError::NotFound("part"))?;
-        match self.log.get(id, READ_LIMIT) {
+        match read_part_readonly_on(&self.connection, &self.log, message, place) {
             Ok(bytes) => Ok(bytes),
-            Err(error @ (LogError::Corrupt(_) | LogError::NotHeld(_))) => {
+            Err(StoreError::Log(error @ (LogError::Corrupt(_) | LogError::NotHeld(_)))) => {
                 // Sync fetches it again, and storing the bytes repairs it.
                 self.note_damaged(message, place, wall_clock())?;
                 Err(error.into())
             }
-            Err(error) => Err(error.into()),
+            Err(error) => Err(error),
         }
+    }
+
+    /// Reads one held part strictly without writing to SQLite: a damaged or
+    /// missing blob returns its log error without queueing `refetch`, for
+    /// pure-read commands such as `mail-replyset-next`.
+    ///
+    /// # Errors
+    /// [`StoreError::NotFound`] when that part is not held, or the underlying
+    /// log error when the blob is missing or corrupt.
+    pub fn read_part_readonly(
+        &self,
+        message: MessageId,
+        place: &str,
+    ) -> Result<Vec<u8>, StoreError> {
+        read_part_readonly_on(&self.connection, &self.log, message, place)
     }
 
     /// A mailbox's counts.
@@ -1217,6 +1233,25 @@ fn json_string(text: &str) -> String {
     }
     quoted.push('"');
     quoted
+}
+
+/// Reads one held part from `connection` and `log` without mutating SQLite.
+pub(super) fn read_part_readonly_on(
+    connection: &Connection,
+    log: &Log,
+    message: MessageId,
+    place: &str,
+) -> Result<Vec<u8>, StoreError> {
+    let blob: Vec<u8> = connection
+        .query_row(
+            "SELECT blob FROM held WHERE message_id = ?1 AND part = ?2",
+            params![message.0, place],
+            |row| row.get(0),
+        )
+        .optional()?
+        .ok_or(StoreError::NotFound("part"))?;
+    let id = BlobId::from_bytes(&blob).ok_or(StoreError::NotFound("part"))?;
+    Ok(log.get(id, READ_LIMIT)?)
 }
 
 /// The time now in milliseconds, for a record that is only informative.
