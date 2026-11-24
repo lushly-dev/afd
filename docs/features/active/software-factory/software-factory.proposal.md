@@ -289,9 +289,11 @@ host the lane validates several branches at once while still merging one at a ti
   `lane-status`, take work in `issue-check`'s dispatch order, start a cell, react to the
   events above, finish with `lane-report`. Under 500 words; the runbook holds the detail.
 - Cells are T3 Code `delegate_task` children with `isolation: "worktree"`. A cell runs
-  wholly on one plan, a Claude plan since 2026-11-17, except for the second reviewer
-  on its first review. Routes come from
-  [model routing](../../../operations/model-routing.md).
+  wholly on one plan—policy admits Google/Antigravity (`Gemini 4 Neon medium`) and Claude
+  (`Opus 5.5 medium`) while excluding Codex/OpenAI, and `cells.claudeOnly` keeps lane
+  dispatch on Claude until [#2371](https://github.com/lushly-dev/afd/issues/2371) adds
+  Google/Antigravity plan selection—except for the second reviewer on its first review.
+  Routes come from [model routing](../../../operations/model-routing.md).
 - Starting a cell is reserve, then start: `cell-register` claims the issue and assigns the
   plan (from `canStartCell`'s `nextIssue` and `plan`), then `delegate_task` starts the cell
   on that plan, then `cell-attach` records its thread. The plan is the lane's choice, not
@@ -399,12 +401,12 @@ Lushly's lane assumes macOS. The plugin must not:
 | `lane.slots` | 1 | Validation concurrency against re-runs when `main` moves |
 | `cells.max` | 3 | Ready branches against host load and allowance |
 | `cells.issuesMax` | 1 | Small PRs against fewer cells for closely related issues |
-| `cells.claudeOnly` | true | Cells on Opus, as model routing says (2026-11-17), against spending every plan on cells |
+| `cells.claudeOnly` | true | Holds lane dispatch to Claude/Opus until [#2371](https://github.com/lushly-dev/afd/issues/2371) adds Google/Antigravity plan selection (keep on: turning it off also admits Codex) |
 | `host.minFreeGb` | 8 | Room kept free on the host for validation |
 | `lane.queueTarget` | 2 | When the foreman starts another cell |
 | `lane.queueMax` | 10 | Queued branches before new ones are held |
 | `plans.ceiling` | 85% | Factory use of a plan's week against Jason's own sessions |
-| `fable.ceiling` | 50% | Ordinary Fable routes against keeping Fable for hard cases |
+| `fable.ceiling` | 50% | Legacy dial for ordinary Fable `low`/`medium` routes (retired 2026-11-23; Fable is `high`-only for escalations) |
 | `lane.coverageEvery` | 5 | Merges between coverage runs on `main` |
 | `lane.checkTimeoutMinutes` | 90 | Waiting for a slow required check against holding the lane on one that never finishes (past it, a `lane-error` with the PR left open) |
 | `claims.leaseHours` | 24 | How long a silent claim holds an issue |
