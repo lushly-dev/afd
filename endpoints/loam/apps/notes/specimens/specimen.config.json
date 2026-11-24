@@ -1,4 +1,6 @@
 {
+	"plugins": ["./afd.plugin.ts"],
+	"jobSources": ["./afd.job-source.mjs"],
 	"specimens": [
 		{
 			"id": "notes-editor",
@@ -13,16 +15,66 @@
 			"exportName": "EditorCompact"
 		},
 		{
-			"id": "notes-editor-conflict",
-			"title": "Loam/Notes/EditorConflict",
+			"id": "notes-conflict",
+			"title": "Loam/Notes/Keep a draft",
 			"module": "./notes.specimens.ts",
-			"exportName": "EditorConflict"
+			"exportName": "NotesConflict",
+			"job": {
+				"scenario": "./scenarios/notes-conflict.scenario.yaml",
+				"target": "shell",
+				"pin": {
+					"clock": "2026-03-02T09:00:00Z"
+				},
+				"captures": [
+					{
+						"after": "The note opens beside itself",
+						"name": "two-editors"
+					},
+					{
+						"after": "Another writer saves the note",
+						"name": "conflict-notice",
+						"before": [
+							{
+								"action": {
+									"fill": "second-editor",
+									"value": "Ship the editor area, then the documents section."
+								}
+							}
+						]
+					}
+				]
+			}
 		},
 		{
-			"id": "notes-editor-conflict-compact",
-			"title": "Loam/Notes/EditorConflictCompact",
+			"id": "notes-conflict-compact",
+			"title": "Loam/Notes/Keep a draft compact",
 			"module": "./notes.specimens.ts",
-			"exportName": "EditorConflictCompact"
+			"exportName": "NotesConflictCompact",
+			"job": {
+				"scenario": "./scenarios/notes-conflict.scenario.yaml",
+				"target": "shell",
+				"pin": {
+					"clock": "2026-03-02T09:00:00Z"
+				},
+				"captures": [
+					{
+						"after": "The note opens beside itself",
+						"name": "two-editors"
+					},
+					{
+						"after": "Another writer saves the note",
+						"name": "conflict-notice",
+						"before": [
+							{
+								"action": {
+									"fill": "second-editor",
+									"value": "Ship the editor area, then the documents section."
+								}
+							}
+						]
+					}
+				]
+			}
 		},
 		{
 			"id": "notes-inspector",
