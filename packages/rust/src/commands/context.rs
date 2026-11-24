@@ -142,6 +142,36 @@ pub struct CommandContext {
     pub(crate) direct_approval: Option<Arc<std::sync::Mutex<crate::direct::Exchange>>>,
     /// The active-context state: a session stack, one request's context, or no session.
     pub(crate) context_scope: Option<crate::contexts::ContextScope>,
+    /// The caller's output budget ask (`spec/output-budgets.md`, B2) in its `_meta` form,
+    /// `{ "maxBytes": n }`, not yet validated: [`CommandRegistry::execute`](super::CommandRegistry::execute) checks it after the
+    /// declared context fields. Set in process by [`CommandContext::with_output_budget_ask`], and
+    /// by the MCP server from `_meta["dev.afd/outputBudget"]`.
+    pub(crate) output_budget_ask: Option<serde_json::Value>,
+    /// The effective output budget (B3, B4): set by [`CommandRegistry::execute`](super::CommandRegistry::execute) for the
+    /// middleware and the handler.
+    pub(crate) output_budget: Option<u64>,
+    /// The cancellation signal of a call (`spec/execution-controls.md`, `spec/command-metadata.md`):
+    /// set by a caller with [`CommandContext::with_cancellation`], by a command deadline, or by the
+    /// MCP server when running a task. Read it with [`CommandContext::cancellation`].
+    pub(crate) cancellation: Option<crate::cancellation::CancellationSignal>,
+    /// Optional per-call override for the registry's `default_timeout_ms`:
+    /// `Some(Some(ms))` applies a server default deadline without mutating `timeout_ms`
+    /// (preserving journal context digests), and `Some(None)` disables the default deadline
+    /// (e.g. `McpServer::with_default_timeout_ms(None)` or MCP Tasks bounded by TTL).
+    pub(crate) default_timeout_override: Option<Option<u64>>,
+    /// Which command this call runs and whether an approval step admitted it (#1886): only
+    /// [`CommandRegistry::execute`](super::CommandRegistry::execute) sets it, afresh for every
+    /// call, and it is removed before the handler runs.
+    pub(crate) approval_admission: Option<Arc<crate::approval::admission::Admission>>,
+    /// The state of a call that only the MCP server sets (its caller's filters, the approval
+    /// relay and evidence, an approver client, a task's progress): `None` for every call made
+    /// in process. Shared, so copying a context does not copy it.
+    pub(crate) server: Option<Arc<ServerCall>>,
+}
+
+/// The state of one call that only the MCP server sets ([`CommandContext::server`]).
+#[derive(Clone, Default)]
+pub(crate) struct ServerCall {
     /// A remote MCP caller: an unexposed command looks unknown, and recovery points to
     /// `afd-discover` (`spec/error-codes.md`, D4). Only the MCP server sets it.
     pub(crate) remote: bool,
@@ -152,14 +182,6 @@ pub struct CommandContext {
     /// execution under this context (batch items, pipeline steps, nested calls that pass the
     /// context on). Only the MCP server sets it.
     pub(crate) known: Option<Visibility>,
-    /// The caller's output budget ask (`spec/output-budgets.md`, B2) in its `_meta` form,
-    /// `{ "maxBytes": n }`, not yet validated: [`CommandRegistry::execute`](super::CommandRegistry::execute) checks it after the
-    /// declared context fields. Set in process by [`CommandContext::with_output_budget_ask`], and
-    /// by the MCP server from `_meta["dev.afd/outputBudget"]`.
-    pub(crate) output_budget_ask: Option<serde_json::Value>,
-    /// The effective output budget (B3, B4): set by [`CommandRegistry::execute`](super::CommandRegistry::execute) for the
-    /// middleware and the handler.
-    pub(crate) output_budget: Option<u64>,
     /// The execute-time scope decision (`spec/authorization.md`, M6, "At execution"). Only the
     /// MCP server sets it, and every execution under this context (batch items, pipeline steps,
     /// nested calls that pass the context on) is decided again on its validated input.
@@ -180,22 +202,42 @@ pub struct CommandContext {
     /// client"): only the MCP server sets it, for a caller its `with_approver` predicate names. It
     /// holds the evidence of `_meta["dev.afd/approval"]` until the first approval check takes it.
     pub(crate) approver: Option<Arc<crate::approval::approver::ApproverCall>>,
-    /// The cancellation signal of a call (`spec/execution-controls.md`, `spec/command-metadata.md`):
-    /// set by a caller with [`CommandContext::with_cancellation`], by a command deadline, or by the
-    /// MCP server when running a task. Read it with [`CommandContext::cancellation`].
-    pub(crate) cancellation: Option<crate::cancellation::CancellationSignal>,
     /// Where a task's progress goes ([`CommandContext::report_progress`]): only the server sets it.
     pub(crate) task_progress: Option<Arc<crate::cancellation::TaskProgress>>,
-    /// Optional per-call override for the registry's `default_timeout_ms`:
-    /// `Some(Some(ms))` applies a server default deadline without mutating `timeout_ms`
-    /// (preserving journal context digests), and `Some(None)` disables the default deadline
-    /// (e.g. `McpServer::with_default_timeout_ms(None)` or MCP Tasks bounded by TTL).
-    pub(crate) default_timeout_override: Option<Option<u64>>,
-    /// Which command this call runs and whether an approval step admitted it (#1886): only
-    /// [`CommandRegistry::execute`](super::CommandRegistry::execute) sets it, afresh for every
-    /// call, and it is removed before the handler runs.
-    pub(crate) approval_admission: Option<Arc<crate::approval::admission::Admission>>,
 }
+
+impl fmt::Debug for ServerCall {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ServerCall")
+            .field("remote", &self.remote)
+            .field("tool_surface", &self.tool_surface)
+            .field("known", &self.known)
+            .field("scope_check", &self.scope_check)
+            // Relay evidence names the caller: never print it.
+            .field(
+                "relay_evidence",
+                &self.relay_evidence.as_ref().map(|_| "[redacted]"),
+            )
+            .field("approval_relay", &self.approval_relay)
+            .field("up_front_approval", &self.up_front_approval)
+            .field("approver", &self.approver)
+            .field("task_progress", &self.task_progress)
+            .finish()
+    }
+}
+
+/// A call with no server state, read through [`CommandContext::server`].
+static NO_SERVER_CALL: ServerCall = ServerCall {
+    remote: false,
+    tool_surface: None,
+    known: None,
+    scope_check: None,
+    relay_evidence: None,
+    approval_relay: None,
+    up_front_approval: None,
+    approver: None,
+    task_progress: None,
+};
 
 impl fmt::Debug for CommandContext {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -214,22 +256,11 @@ impl fmt::Debug for CommandContext {
             .field("extra", &self.extra)
             .field("journal_state", &self.journal_state)
             .field("context_scope", &self.context_scope)
-            .field("tool_surface", &self.tool_surface)
-            .field("known", &self.known)
             .field("output_budget_ask", &self.output_budget_ask)
             .field("output_budget", &self.output_budget)
-            .field("scope_check", &self.scope_check)
-            // Relay evidence names the caller: never print it.
-            .field(
-                "relay_evidence",
-                &self.relay_evidence.as_ref().map(|_| "[redacted]"),
-            )
-            .field("approval_relay", &self.approval_relay)
-            .field("up_front_approval", &self.up_front_approval)
-            .field("approver", &self.approver)
             .field("cancellation", &self.cancellation)
-            .field("task_progress", &self.task_progress)
             .field("approval_admission", &self.approval_admission)
+            .field("server", &self.server)
             .finish()
     }
 }
@@ -269,20 +300,12 @@ pub(crate) struct CallState {
     journal_state: JournalContextState,
     direct_approval: Option<Arc<std::sync::Mutex<crate::direct::Exchange>>>,
     context_scope: Option<crate::contexts::ContextScope>,
-    remote: bool,
-    tool_surface: Option<ToolSurface>,
-    known: Option<Visibility>,
     output_budget_ask: Option<serde_json::Value>,
     output_budget: Option<u64>,
-    scope_check: Option<ScopeCheck>,
-    relay_evidence: Option<Arc<crate::approval::relay::RelayEvidence>>,
-    approval_relay: Option<Arc<crate::approval::relay::ApprovalRelayChannel>>,
-    up_front_approval: Option<Arc<crate::approval::relay::UpFrontApproval>>,
-    approver: Option<Arc<crate::approval::approver::ApproverCall>>,
     cancellation: Option<crate::cancellation::CancellationSignal>,
-    task_progress: Option<Arc<crate::cancellation::TaskProgress>>,
     default_timeout_override: Option<Option<u64>>,
     approval_admission: Option<Arc<crate::approval::admission::Admission>>,
+    server: Option<Arc<ServerCall>>,
 }
 
 impl CallState {
@@ -303,20 +326,12 @@ impl CallState {
             journal_state,
             direct_approval,
             context_scope,
-            remote,
-            tool_surface,
-            known,
             output_budget_ask,
             output_budget,
-            scope_check,
-            relay_evidence,
-            approval_relay,
-            up_front_approval,
-            approver,
             cancellation,
-            task_progress,
             default_timeout_override,
             approval_admission,
+            server,
         } = context;
         Self {
             interface: *interface,
@@ -326,20 +341,12 @@ impl CallState {
             journal_state: journal_state.clone(),
             direct_approval: direct_approval.clone(),
             context_scope: context_scope.clone(),
-            remote: *remote,
-            tool_surface: tool_surface.clone(),
-            known: known.clone(),
             output_budget_ask: output_budget_ask.clone(),
             output_budget: *output_budget,
-            scope_check: scope_check.clone(),
-            relay_evidence: relay_evidence.clone(),
-            approval_relay: approval_relay.clone(),
-            up_front_approval: up_front_approval.clone(),
-            approver: approver.clone(),
             cancellation: cancellation.clone(),
-            task_progress: task_progress.clone(),
             default_timeout_override: *default_timeout_override,
             approval_admission: approval_admission.clone(),
+            server: server.clone(),
         }
     }
 
@@ -354,30 +361,32 @@ impl CallState {
         context.journal_state.clone_from(&self.journal_state);
         context.direct_approval.clone_from(&self.direct_approval);
         context.context_scope.clone_from(&self.context_scope);
-        context.remote = self.remote;
-        context.tool_surface.clone_from(&self.tool_surface);
-        context.known.clone_from(&self.known);
         context
             .output_budget_ask
             .clone_from(&self.output_budget_ask);
         context.output_budget = self.output_budget;
-        context.scope_check.clone_from(&self.scope_check);
-        context.relay_evidence.clone_from(&self.relay_evidence);
-        context.approval_relay.clone_from(&self.approval_relay);
-        context
-            .up_front_approval
-            .clone_from(&self.up_front_approval);
-        context.approver.clone_from(&self.approver);
         context.cancellation.clone_from(&self.cancellation);
-        context.task_progress.clone_from(&self.task_progress);
         context.default_timeout_override = self.default_timeout_override;
         context
             .approval_admission
             .clone_from(&self.approval_admission);
+        context.server.clone_from(&self.server);
     }
 }
 
 impl CommandContext {
+    /// The call's server state, or an empty one for a call made in process.
+    pub(crate) fn server(&self) -> &ServerCall {
+        self.server.as_deref().unwrap_or(&NO_SERVER_CALL)
+    }
+
+    /// The call's server state to change: shared state is copied first, so the change stays
+    /// with this context.
+    #[cfg_attr(not(feature = "server"), allow(dead_code))]
+    pub(crate) fn server_mut(&mut self) -> &mut ServerCall {
+        Arc::make_mut(self.server.get_or_insert_with(Default::default))
+    }
+
     /// Create an empty context.
     pub fn new() -> Self {
         Self::default()
@@ -485,7 +494,7 @@ impl CommandContext {
 
     /// Whether this call is running as an MCP task (`spec/command-metadata.md`, "Tasks").
     pub fn is_task(&self) -> bool {
-        self.task_progress.is_some()
+        self.server().task_progress.is_some()
     }
 
     /// Report progress: for a call the MCP server runs as a task, `message` becomes the task's
@@ -495,7 +504,7 @@ impl CommandContext {
     /// ignores it. The client sees `statusMessage` and may show it to a person or a model, so
     /// report a phase or a count, never content.
     pub fn report_progress(&self, message: impl Into<String>) {
-        if let Some(progress) = &self.task_progress {
+        if let Some(progress) = &self.server().task_progress {
             progress.report(message.into());
         }
     }

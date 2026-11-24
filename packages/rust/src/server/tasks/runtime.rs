@@ -413,7 +413,7 @@ impl McpServer {
         }
         let progress = Arc::new(TaskProgress::default());
         context.cancellation = Some(running.signal.clone());
-        context.task_progress = Some(Arc::clone(&progress));
+        context.server_mut().task_progress = Some(Arc::clone(&progress));
         let token_deadline = context
             .credentials
             .as_ref()

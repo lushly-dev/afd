@@ -439,6 +439,7 @@ impl Gate {
             });
         }
         if let Some(step) = context
+            .server()
             .up_front_approval
             .as_deref()
             .and_then(|up_front| up_front.steps.iter().find(|step| step.command == name))
@@ -534,19 +535,19 @@ impl Gate {
         // reaches it and is never replaced by an elicitation, its carried evidence is taken by
         // the first command checked (the one the call routes to), once, and its tokens bind its
         // principal binding.
-        let approver = context.approver.clone();
+        let approver = context.server().approver.clone();
         let carried = approver.as_ref().and_then(|call| call.take());
         let relays = self.options.relay == ApprovalRelay::McpElicitation && approver.is_none();
         // Claimed only by the command the tool call routes to, once, gated or not, so a command
         // that runs inside another (or after it) cannot turn the tool call into an elicitation.
         let bound = if relays {
-            context.approval_relay.clone()
+            context.server().approval_relay.clone()
         } else {
             None
         };
         let relay = bound.as_ref().filter(|relay| relay.claim(&name));
         // A step of an afd-batch or afd-pipe that can ask: the whole call is approved up front.
-        if let (true, Some(up_front)) = (relays, context.up_front_approval.clone()) {
+        if let (true, Some(up_front)) = (relays, context.server().up_front_approval.clone()) {
             return self
                 .run_up_front(&up_front, name, input, context, next)
                 .await;
@@ -581,7 +582,7 @@ impl Gate {
         };
 
         let mut rejected = None;
-        if let Some(evidence) = &context.relay_evidence {
+        if let Some(evidence) = &context.server().relay_evidence {
             // Relay evidence is the only evidence considered when present (rule 2): no token, no
             // in-process exchange and no form answer.
             match self.check_relay_evidence(evidence, &name, &input, &actor_binding, &context) {
@@ -613,7 +614,7 @@ impl Gate {
 
         let summary = self.summary(&name, &input, &context);
 
-        if let (Some(relay), None) = (relay, &context.relay_evidence) {
+        if let (Some(relay), None) = (relay, &context.server().relay_evidence) {
             return match self
                 .ask_over_mcp(relay, &name, &input_binding, &actor_binding, &summary, now)
                 .await
@@ -678,13 +679,13 @@ impl Gate {
                 "once they approve, the application retries the same call with the same input and details.approvalToken as its approval evidence (tool arguments cannot carry it). The token expires at {expires_at}{}.",
                 if single_use { " and works once" } else { "" }
             )
-        } else if bound.is_some() && context.relay_evidence.is_none() {
+        } else if bound.is_some() && context.server().relay_evidence.is_none() {
             format!(
                 "the client could not be asked from inside afd-batch, afd-pipe or another command. Call {name} on its own so the client can ask the user."
             )
         } else if self.options.relay == ApprovalRelay::McpElicitation
             && context.interface == Some(crate::CommandInterface::Mcp)
-            && context.relay_evidence.is_none()
+            && context.server().relay_evidence.is_none()
         {
             format!(
                 "the client could not be asked here. Call {name} from an MCP client that supports form elicitation, or the application records the approval and retries."

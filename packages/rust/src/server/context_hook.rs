@@ -202,7 +202,7 @@ pub(crate) async fn build_context(
         Err(_) => return Err(Box::new(super::panic_guard::internal_failure())),
     };
     context.interface = Some(CommandInterface::Mcp);
-    context.remote = true;
+    context.server_mut().remote = true;
     if context.trace_id.is_none() {
         context.trace_id = trace_id;
     }

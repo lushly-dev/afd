@@ -85,12 +85,20 @@ pub(super) fn run_handler(
     }
     // Relay evidence and the approval relay serve the call that reached the middleware,
     // never a command the handler runs in process with this context.
-    context.relay_evidence = None;
-    context.up_front_approval = None;
-    if context.approval_relay.is_some() {
-        context.approval_relay = Some(Arc::new(
-            crate::approval::relay::ApprovalRelayChannel::never_asks(),
-        ));
+    // An in-process call has no server state, and a server call often nothing to clear: only
+    // then is the shared state copied.
+    let relayed = context.server().relay_evidence.is_some()
+        || context.server().up_front_approval.is_some()
+        || context.server().approval_relay.is_some();
+    if let (true, Some(server)) = (relayed, context.server.as_mut()) {
+        let server = Arc::make_mut(server);
+        server.relay_evidence = None;
+        server.up_front_approval = None;
+        if server.approval_relay.is_some() {
+            server.approval_relay = Some(Arc::new(
+                crate::approval::relay::ApprovalRelayChannel::never_asks(),
+            ));
+        }
     }
     Box::pin(async move {
         // Re-check immediately before handler start (including after an approval wait).

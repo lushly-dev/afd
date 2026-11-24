@@ -406,7 +406,8 @@ pub(crate) async fn check(gate: RelayGate<'_>, input: Value) -> RelayDecision {
         Ok(validated) => validated,
         Err(error) => return RelayDecision::Refuse(*error),
     };
-    if let (Some(scope_check), Some(credentials)) = (&execution.scope_check, &execution.credentials)
+    if let (Some(scope_check), Some(credentials)) =
+        (&execution.server().scope_check, &execution.credentials)
     {
         if let Some(error) = (scope_check.0)(&name, &validated, credentials) {
             return RelayDecision::Refuse(error);

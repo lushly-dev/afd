@@ -779,7 +779,7 @@ impl McpServer {
     /// and random source, and the remote flag (D4).
     fn base_context(&self) -> CommandContext {
         let mut context = CommandContext::new().with_interface(CommandInterface::Mcp);
-        context.remote = true;
+        context.server_mut().remote = true;
         with_context_defaults(context, &self.inner.context_defaults)
     }
 

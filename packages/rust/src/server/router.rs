@@ -283,10 +283,12 @@ impl Call<'_> {
             surface.first_class_tools = Some(Arc::new(shown));
         }
         surface.visible = self.visible.clone();
-        context.tool_surface = Some(surface);
-        context.known = self.known.clone();
-        context.approver = self.approver.clone();
-        context.scope_check = authz::execution_check(self.server, context.credentials.as_ref());
+        let scope_check = authz::execution_check(self.server, context.credentials.as_ref());
+        let server = context.server_mut();
+        server.tool_surface = Some(surface);
+        server.known = self.known.clone();
+        server.approver = self.approver.clone();
+        server.scope_check = scope_check;
         context
     }
 
@@ -405,7 +407,7 @@ impl Call<'_> {
             return match human_relay::check(gate, input.clone()).await {
                 RelayDecision::Proceed(evidence, extra) => {
                     let mut execution = execution;
-                    execution.relay_evidence = Some(Arc::new(evidence));
+                    execution.server_mut().relay_evidence = Some(Arc::new(evidence));
                     // The host's own fields for the approved call: never the request's, which
                     // reach `extra` only as declared context fields, and which these replace.
                     execution.extra.extend(extra);
@@ -591,7 +593,7 @@ impl Call<'_> {
         channel: &Arc<ApprovalRelayChannel>,
     ) -> CommandResult<Value> {
         let mut context = self.execution_context();
-        context.approval_relay = Some(Arc::clone(channel));
+        context.server_mut().approval_relay = Some(Arc::clone(channel));
         self.server
             .inner
             .registry
@@ -605,7 +607,8 @@ impl Call<'_> {
     fn step_context(&self) -> CommandContext {
         let mut context = self.execution_context();
         if self.can_elicit() {
-            context.approval_relay = Some(Arc::new(ApprovalRelayChannel::never_asks()));
+            context.server_mut().approval_relay =
+                Some(Arc::new(ApprovalRelayChannel::never_asks()));
         }
         context
     }
