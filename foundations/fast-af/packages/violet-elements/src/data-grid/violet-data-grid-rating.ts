@@ -30,7 +30,7 @@ const styles = css`
         --_surface-subtle: var(--color-surface-subtle, #e9e5de);
         --_text-secondary: var(--color-text-secondary, #48534b);
         --_text-muted: var(--color-text-muted, #5e6460);
-        --_focus-ring: var(--color-focus-ring, #146ba0);
+        --_focus-ring: var(--color-focus-ring, #28769e);
         --_rating-filled: var(--color-state-warning-text, #92400E);
         --_rating-empty: color-mix(in srgb, var(--_text-muted) 36%, transparent);
         --_rating-hover: color-mix(in srgb, var(--_rating-filled) 82%, var(--_surface-page));

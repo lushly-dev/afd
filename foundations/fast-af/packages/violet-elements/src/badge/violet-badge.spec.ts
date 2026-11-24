@@ -77,8 +77,8 @@ describe("violet-badge", () => {
         const accentStyle = getComputedStyle(accent!);
         const successStyle = getComputedStyle(success!);
 
-        expect(accentStyle.getPropertyValue("--_badge-bg").trim().toLowerCase()).toBe("#e2edf5");
-        expect(accentStyle.getPropertyValue("--_badge-text").trim().toLowerCase()).toBe("#146ba0");
+        expect(accentStyle.getPropertyValue("--_badge-bg").trim().toLowerCase()).toBe("#dfecf4");
+        expect(accentStyle.getPropertyValue("--_badge-text").trim().toLowerCase()).toBe("#1b5f80");
         expect(accentStyle.getPropertyValue("--_badge-text").trim().toLowerCase()).not.toBe(
             successStyle.getPropertyValue("--_badge-text").trim().toLowerCase()
         );

@@ -38,7 +38,7 @@ with the tints and shades Refined added under `global.ref.color` in `tree/loam.t
 | `color.surface.card` | `#f8f9f3` | `#1b1c1c` | `#ffffff` |
 | `color.surface.subtle` | `#e9e5de` | `#202222` | `#F2F2F2` |
 | `color.surface.floating` | `#ffffff` | `#252727` | `#ffffff` |
-| `color.surface.selected` | `#dfeae3` | `#1b2823` | `#E0E0E0` |
+| `color.surface.selected` | `#dfecf4` | `#162832` | `#E0E0E0` |
 | `color.surface.highlight` | `#ffffff` | `#333333` | `#ffffff` |
 | `color.surface.pressed` | `#d8dcd6` | `rgba(244, 240, 234, 0.14)` | `#E6E6E6` |
 | `color.text.primary` | `#181b1a` | `#f4f0ea` | `#000000` |
@@ -46,24 +46,24 @@ with the tints and shades Refined added under `global.ref.color` in `tree/loam.t
 | `color.text.muted` | `#5e6460` | `#999e9b` | `#3D3D3D` |
 | `color.border.subtle` | `rgba(24, 27, 26, 0.10)` | `rgba(244, 240, 234, 0.10)` | `#595959` |
 | `color.border.strong` | `#6b7d6e` | `#999e9b` | `#000000` |
-| `color.focus.ring` | `#146ba0` | `#a3ebcd` | `#000000` |
-| `color.control.selected.background` | `#badecf` | `#1b2823` | `#E0E0E0` |
-| `color.control.selected.foreground` | `#2c5e4b` | `#a3ebcd` | `#000000` |
-| `color.control.selected.border` | `rgba(44, 94, 75, 0.5)` | `rgba(163, 235, 205, 0.45)` | `#000000` |
-| `color.action.primary.background` / `.hover` / `.pressed` | `#181b1a` / `#2e3a33` / `#252e29` | `#f4f0ea` / `#d8dcd6` / `#bec6bd` | `#000000` / `#333333` / `#4D4D4D` |
+| `color.focus.ring` | `#28769e` | `#3d92bf` | `#000000` |
+| `color.control.selected.background` | `#c0daeb` | `#162832` | `#E0E0E0` |
+| `color.control.selected.foreground` | `#1b5f80` | `#a1d4f3` | `#000000` |
+| `color.control.selected.border` | `rgba(27, 95, 128, 0.5)` | `rgba(61, 146, 191, 0.5)` | `#000000` |
+| `color.action.primary.background` / `.hover` / `.pressed` | `#181b1a` / `#2f383e` / `#262e33` | `#f4f0ea` / `#d8dcd6` / `#bec6bd` | `#000000` / `#333333` / `#4D4D4D` |
 | `color.action.primary.text` | `#f4f0ea` | `#141515` | `#ffffff` |
 | `color.action.secondary.background` / `.hover` / `.pressed` | `rgba(24, 27, 26, 0.07)` / `rgba(24, 27, 26, 0.11)` / `rgba(24, 27, 26, 0.15)` | `rgba(244, 240, 234, 0.09)` / `rgba(244, 240, 234, 0.13)` / `rgba(244, 240, 234, 0.17)` | `#ffffff` / `#E6E6E6` / `#CCCCCC` |
 | `color.action.secondary.text` | `#181b1a` | `#f4f0ea` | `#000000` |
 | `color.action.secondary.border` | `transparent` | `transparent` | `#000000` |
 | `color.action.danger.background` / `.hover` / `.pressed` | `#c42a1a` / `#ad2416` / `#96200f` | as light | `#A30000` / `#8A0000` / `#700000` |
 | `color.action.danger.text` | `#ffffff` | `#ffffff` | `#ffffff` |
-| `color.accent.background` / `.text` | `#e2edf5` / `#146ba0` | `#182b3a` / `#9fd4f5` | `#ffffff` / `#004A80` |
+| `color.accent.background` / `.text` | `#dfecf4` / `#1b5f80` | `#162832` / `#a1d4f3` | `#ffffff` / `#004A80` |
 | `color.state.success.background` / `.text` / `.border` | `#dfeae3` / `#2c5e4b` / `transparent` | `#1b2823` / `#a3ebcd` / `transparent` | `#ffffff` / `#0B5A1E` / `#0B5A1E` |
 | `color.state.warning.background` / `.text` / `.border` | `#f3e8d2` / `#92400e` / `transparent` | `#3a2b18` / `#f3d6a3` / `transparent` | `#ffffff` / `#6B3200` / `#6B3200` |
 | `color.state.danger.background` / `.text` / `.border` | `#f7e4df` / `#c42a1a` / `transparent` | `#3d211d` / `#ffab99` / `transparent` | `#ffffff` / `#A30000` / `#A30000` |
 | `color.state.success.foreground`, `color.state.danger.foreground` | `#2c5e4b` / `#c42a1a` | `#a3ebcd` / `#ff897a` | `#0B5A1E` / `#A30000` |
 | `color.field.background` / `.readonly` | `#ffffff` / `rgba(24, 27, 26, 0.05)` | `rgba(0, 0, 0, 0.26)` / `rgba(244, 240, 234, 0.06)` | `#ffffff` / `#F2F2F2` |
-| `color.field.border` / `.hover` / `.focus` / `.invalid` | `#869089` / `#48534b` / `#146ba0` / `#c42a1a` | `#767b78` / `#999e9b` / `#a3ebcd` / `#ff897a` | `#595959` / `#000000` / `#000000` / `#A30000` |
+| `color.field.border` / `.hover` / `.focus` / `.invalid` | `#869089` / `#48534b` / `#28769e` / `#c42a1a` | `#767b78` / `#999e9b` / `#3d92bf` / `#ff897a` | `#595959` / `#000000` / `#000000` / `#A30000` |
 
 Some ids are aliases, so they follow the theme:
 

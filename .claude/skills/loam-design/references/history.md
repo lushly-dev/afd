@@ -197,3 +197,9 @@ The values above landed, for the theme and the components together:
   `color.border.strong` and its placeholder in `color.text.secondary`, measured over every surface a field
   sits on. High contrast's pressed surface and state icons, and dark's success icon, which had kept Lushly's
   values, take their own.
+- **2026-11-23. Cerulean 235° for selection, focus and accent (D172).** Selection (`color.surface.selected`,
+  `color.control.selected.*`), `color.focus.ring`, `color.accent.*` and light's primary hover/pressed move off
+  mint/green (selection, dark focus, light primary hover/pressed) and blue (light focus, accent) onto a
+  unified OKLCH 235° cerulean ramp (`ref.color.cerulean.*`), anchored to `#28769e` (light focus) and `#3d92bf`
+  (dark focus, saturation-balanced to light). Primary buttons keep ink/paper, `color.state.success.*` keeps
+  mint/green, and high contrast is unchanged.

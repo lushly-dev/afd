@@ -11,9 +11,9 @@ const styles = css`
     :host {
         display: inline-grid;
 
-        --_selection-background: var(--color-control-selected-background, #badecf);
-        --_selection-text: var(--color-control-selected-foreground, #2c5e4b);
-        --_selection-border: var(--color-control-selected-border, rgba(44, 94, 75, 0.5));
+        --_selection-background: var(--color-control-selected-background, #c0daeb);
+        --_selection-text: var(--color-control-selected-foreground, #1b5f80);
+        --_selection-border: var(--color-control-selected-border, rgba(27, 95, 128, 0.5));
         --_surface-card: var(--color-surface-card, #f8f9f3);
         --_border-strong: var(--color-border-strong, #6b7d6e);
         --_radius-sm: var(--radius-sm, 4px);

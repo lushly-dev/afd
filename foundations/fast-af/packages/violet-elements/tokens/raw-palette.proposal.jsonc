@@ -1,9 +1,8 @@
 {
-  // AFD Refined raw palette reference for Violet's built-in default theme (D159).
-  // These primitives come from AFD's design system (site/css/tokens-m2.css and
-  // endpoints/loam/packages/theme/src/tree/primitives.ts) and map into the
-  // semantic surface, text, action, focus and state roles.
-  "proposalVersion": "0.2.0",
+  // AFD Refined raw palette reference for Violet's built-in default theme (D159, D172).
+  // These primitives come from Loam's Violet token tree (endpoints/loam/packages/theme/tree/loam.tokens.json)
+  // and map into the semantic surface, text, action, focus, accent and state roles.
+  "proposalVersion": "0.3.0",
   "package": "@lushly-dev/violet-elements",
   "description": "AFD Refined raw palette primitives and semantic mapping reference for Violet.",
 
@@ -27,28 +26,40 @@
       "roleHint": "subtle recessed surface and tracks"
     },
     {
+      "id": "cerulean-wash",
+      "hex": "#dfecf4",
+      "hsl": "hsla(203, 49%, 92%, 1)",
+      "roleHint": "selected rows and accent wash"
+    },
+    {
+      "id": "cerulean-soft",
+      "hex": "#c0daeb",
+      "hsl": "hsla(204, 52%, 84%, 1)",
+      "roleHint": "selected control fill (checkbox, switch, radio)"
+    },
+    {
+      "id": "cerulean-500",
+      "hex": "#28769e",
+      "hsl": "hsla(200, 59%, 39%, 1)",
+      "roleHint": "focus ring and active handle"
+    },
+    {
+      "id": "cerulean-ink",
+      "hex": "#1b5f80",
+      "hsl": "hsla(200, 65%, 30%, 1)",
+      "roleHint": "selection, accent and link ink"
+    },
+    {
       "id": "mint-wash",
       "hex": "#dfeae3",
       "hsl": "hsla(142, 21%, 90%, 1)",
-      "roleHint": "selected rows and success wash"
-    },
-    {
-      "id": "mint-soft",
-      "hex": "#badecf",
-      "hsl": "hsla(155, 35%, 80%, 1)",
-      "roleHint": "selected control fill (checkbox, switch, radio)"
+      "roleHint": "success message wash"
     },
     {
       "id": "mint-ink",
       "hex": "#2c5e4b",
       "hsl": "hsla(157, 36%, 27%, 1)",
-      "roleHint": "selection and success ink"
-    },
-    {
-      "id": "blue-ink",
-      "hex": "#146ba0",
-      "hsl": "hsla(203, 78%, 35%, 1)",
-      "roleHint": "focus ring and link ink"
+      "roleHint": "success text and icon ink"
     },
     {
       "id": "red-ink",
@@ -94,10 +105,10 @@
         ]
       },
       "color.surface.selected": {
-        "source": "mint-wash",
+        "source": "cerulean-wash",
         "strategy": "direct",
         "notes": [
-          "Greyed mint wash for selected rows and success surfaces on paper."
+          "Cerulean 235° wash for selected rows and accent surfaces on paper (D172)."
         ]
       },
       "color.surface.floating": {
@@ -121,17 +132,24 @@
         ]
       },
       "color.control.selected.foreground": {
-        "source": "mint-ink",
+        "source": "cerulean-ink",
         "strategy": "direct",
         "notes": [
-          "Selection and success foreground ink paired with mint-soft and mint-wash."
+          "Cerulean selection and accent ink paired with cerulean-soft and cerulean-wash (D172)."
         ]
       },
       "color.focus.ring": {
-        "source": "blue-ink",
+        "source": "cerulean-500",
         "strategy": "direct",
         "notes": [
-          "Keyboard focus ring and link ink in light mode."
+          "Keyboard focus ring and active handle in light mode (D172)."
+        ]
+      },
+      "color.state.success.text": {
+        "source": "mint-ink",
+        "strategy": "direct",
+        "notes": [
+          "Success ink paired with mint-wash, kept distinct from cerulean selection and focus."
         ]
       },
       "color.state.danger.text": {
@@ -148,15 +166,15 @@
         "strategy": "direct"
       },
       "color.control.selected.background": {
-        "source": "mint-soft",
+        "source": "cerulean-soft",
         "strategy": "direct"
       }
     }
   },
 
   "notes": [
-    "AFD's Refined palette pairs ink on paper with mint for selection, blue for focus, and red for danger.",
-    "Semantic tokens are generated from Loam's Violet theme tree into tokens/violet-theme.export.json (D50, D159).",
+    "AFD's Refined palette pairs ink on paper with cerulean for selection, focus and accent, mint for success, and red for danger (D159, D172).",
+    "Semantic tokens are generated from Loam's Violet theme tree into tokens/violet-theme.export.json (D50, D159, D172).",
     "Products with their own look (such as Lushly) install their own VioletThemeSet via installVioletThemeSet()."
   ]
 }

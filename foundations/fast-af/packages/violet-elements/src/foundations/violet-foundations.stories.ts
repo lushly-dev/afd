@@ -573,7 +573,7 @@ function renderFoundationsOverview(): HTMLElement {
       }
 
       .status-chip[data-status="done"] {
-        background: var(--color-surface-selected, #dfeae3);
+        background: var(--color-surface-selected, #dfecf4);
         color: var(--color-text-primary, #181b1a);
       }
 
@@ -861,7 +861,7 @@ function renderAppliedSystem(): HTMLElement {
       }
 
       .button.primary {
-        background: var(--color-surface-selected, #dfeae3);
+        background: var(--color-surface-selected, #dfecf4);
         border-color: var(--color-border-strong, #6b7d6e);
       }
 
@@ -888,7 +888,7 @@ function renderAppliedSystem(): HTMLElement {
       }
 
       .choice input {
-        accent-color: var(--color-focus-ring, #146ba0);
+        accent-color: var(--color-focus-ring, #28769e);
       }
 
       .switch {
@@ -896,7 +896,7 @@ function renderAppliedSystem(): HTMLElement {
         inline-size: 3rem;
         block-size: 1.75rem;
         border-radius: 999px;
-        background: var(--color-surface-selected, #dfeae3);
+        background: var(--color-surface-selected, #dfecf4);
         border: 1px solid var(--color-border-strong, #6b7d6e);
       }
 
@@ -924,13 +924,13 @@ function renderAppliedSystem(): HTMLElement {
       }
 
       .tab.active {
-        background: var(--color-surface-selected, #dfeae3);
+        background: var(--color-surface-selected, #dfecf4);
         color: var(--color-text-primary, #181b1a);
       }
 
       .slider {
         inline-size: min(100%, 20rem);
-        accent-color: var(--color-focus-ring, #146ba0);
+        accent-color: var(--color-focus-ring, #28769e);
       }
 
       .card h3 {
@@ -958,7 +958,7 @@ function renderAppliedSystem(): HTMLElement {
       }
 
       .menu-item.active {
-        background: var(--color-surface-selected, #dfeae3);
+        background: var(--color-surface-selected, #dfecf4);
       }
 
       .grid-frame {
@@ -1342,7 +1342,7 @@ function renderRadiusLab(): HTMLElement {
       }
 
       .button.primary {
-        background: var(--color-surface-selected, #dfeae3);
+        background: var(--color-surface-selected, #dfecf4);
         border-color: var(--color-border-strong, #6b7d6e);
       }
 
@@ -1377,7 +1377,7 @@ function renderRadiusLab(): HTMLElement {
 
       .pill-chip {
         border-radius: var(--radius-round, 9999px);
-        background: var(--color-surface-selected, #dfeae3);
+        background: var(--color-surface-selected, #dfecf4);
       }
 
       .round-button {
@@ -1388,7 +1388,7 @@ function renderRadiusLab(): HTMLElement {
         block-size: 1.9rem;
         border-radius: var(--radius-round, 9999px);
         border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
-        background: var(--color-surface-selected, #dfeae3);
+        background: var(--color-surface-selected, #dfecf4);
         color: var(--color-text-primary, #181b1a);
         font: 600 0.74rem/1 var(--font-family-body);
       }
@@ -1882,7 +1882,7 @@ function renderSpacingLab(): HTMLElement {
       }
 
       .button.primary {
-        background: var(--color-surface-selected, #dfeae3);
+        background: var(--color-surface-selected, #dfecf4);
       }
 
       .inline-row-sm,
@@ -3411,7 +3411,7 @@ function renderSurfaceLab(): HTMLElement {
         gap: var(--space-stack-xs, 4px);
         padding: 0.75rem;
         border-radius: var(--radius-md, 8px);
-        background: var(--color-surface-selected, #dfeae3);
+        background: var(--color-surface-selected, #dfecf4);
       }
 
       .surface-floating {
@@ -3932,7 +3932,7 @@ function renderTextAndStructureLab(): HTMLElement {
         padding: 0.75rem;
         border: 1px solid var(--color-border-strong, #6b7d6e);
         border-radius: var(--radius-md, 8px);
-        background: var(--color-surface-selected, #dfeae3);
+        background: var(--color-surface-selected, #dfecf4);
       }
 
       .focused-field {
@@ -3942,7 +3942,7 @@ function renderTextAndStructureLab(): HTMLElement {
         border: 1px solid var(--color-border-subtle, rgba(24, 27, 26, 0.10));
         border-radius: var(--radius-md, 8px);
         background: var(--color-surface-card, #f8f9f3);
-        box-shadow: 0 0 0 2px var(--color-focus-ring, #146ba0);
+        box-shadow: 0 0 0 2px var(--color-focus-ring, #28769e);
       }
 
       .pill {
@@ -6642,9 +6642,9 @@ function renderPaletteLab(): HTMLElement {
                   <p class="mapping-label">Surface subtle</p>
                   <p class="mapping-copy">Recessed bands, tinted rows and slider tracks use paper-200.</p>
                 </article>
-                <article class="mapping-card" style="background: var(--raw-mint-wash); color: var(--raw-ink);">
+                <article class="mapping-card" style="background: var(--raw-cerulean-wash); color: var(--raw-ink);">
                   <p class="mapping-label">Surface selected</p>
-                  <p class="mapping-copy">Selected rows and success messages use the greyed mint-wash tint.</p>
+                  <p class="mapping-copy">Selected rows and accent surfaces use the cerulean-wash tint; success messages keep mint-wash.</p>
                 </article>
               </div>
             </div>
@@ -6655,9 +6655,10 @@ function renderPaletteLab(): HTMLElement {
               <div class="preview-eyebrow">Accent and ink family</div>
               <div class="ink-grid">
                 <div class="ink-chip" style="background: var(--raw-ink); color: var(--raw-paper);">Ink primary action</div>
-                <div class="ink-chip" style="background: var(--raw-mint-soft); color: var(--raw-ink);">Mint-soft selection</div>
-                <div class="ink-chip" style="background: #fff; color: var(--raw-blue-ink);">Blue-ink focus</div>
-                <div class="ink-chip" style="background: #fff; color: var(--raw-mint-ink);">Mint-ink selection</div>
+                <div class="ink-chip" style="background: var(--raw-cerulean-soft); color: var(--raw-ink);">Cerulean-soft selection</div>
+                <div class="ink-chip" style="background: #fff; color: var(--raw-cerulean-500);">Cerulean-500 focus</div>
+                <div class="ink-chip" style="background: #fff; color: var(--raw-cerulean-ink);">Cerulean-ink accent</div>
+                <div class="ink-chip" style="background: #fff; color: var(--raw-mint-ink);">Mint-ink success</div>
                 <div class="ink-chip" style="background: #fff; color: var(--raw-red-ink);">Red-ink danger</div>
                 <div class="ink-chip" style="background: #fff; color: var(--raw-ink);">Ink body</div>
               </div>
@@ -7337,6 +7338,8 @@ export const PaletteLab: Story = {
     ) as HTMLTextAreaElement | null;
     const parsed = JSON.parse(output?.value ?? "{}") as Record<string, string>;
     await expect(parsed.paper).toBe("#f4f0ea");
+    await expect(parsed["cerulean-500"]).toBe("#28769e");
+    await expect(parsed["cerulean-ink"]).toBe("#1b5f80");
     await expect(parsed["mint-ink"]).toBe("#2c5e4b");
 
     const previewTitle = canvasElement.querySelector(".section-title h3");

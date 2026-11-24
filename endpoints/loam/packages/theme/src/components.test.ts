@@ -187,7 +187,7 @@ describe('the fallback scan (2.4)', () => {
 			['card/card.ts', 7, '--_surface-subtle', 'rgba(28, 26, 13, 0.04)', '#e9e5de'],
 			['card/card.ts', 8, '--_local-ink', '#1c1a0d', '#181b1a'],
 			['card/card.ts', 9, '--_style-muted', '#6b7280', '#5e6460'],
-			['card/card.ts', 10, '--_text-link', '#c42a1a', '#146ba0'],
+			['card/card.ts', 10, '--_text-link', '#c42a1a', '#1b5f80'],
 			['card/card.ts', 10, '--_radius-round', '6px', '9999px'],
 		]);
 		const fixed = fixFallbacks(component, lightValues, mismatches);

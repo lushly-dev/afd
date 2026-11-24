@@ -186,17 +186,17 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-background, #badecf)",
+				"default": "var(--color-control-selected-background, #c0daeb)",
 				"name": "--_control-selected-background"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-border, rgba(44, 94, 75, 0.5))",
+				"default": "var(--color-control-selected-border, rgba(27, 95, 128, 0.5))",
 				"name": "--_control-selected-border"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-foreground, #2c5e4b)",
+				"default": "var(--color-control-selected-foreground, #1b5f80)",
 				"name": "--_control-selected-foreground"
 			},
 			{
@@ -226,7 +226,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-focus-ring, #146ba0)",
+				"default": "var(--color-focus-ring, #28769e)",
 				"name": "--_focus-ring"
 			},
 			{
@@ -316,7 +316,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-surface-selected, #dfeae3)",
+				"default": "var(--color-surface-selected, #dfecf4)",
 				"name": "--_surface-selected"
 			},
 			{

@@ -16,8 +16,8 @@ const styles = css`
         display: block;
         --_surface-hover: var(--color-surface-subtle, #e9e5de);
         --_surface-active: var(--color-surface-subtle, #e9e5de);
-        --_surface-selected: var(--color-surface-selected, #dfeae3);
-        --_option-mark: var(--color-control-selected-foreground, #2c5e4b);
+        --_surface-selected: var(--color-surface-selected, #dfecf4);
+        --_option-mark: var(--color-control-selected-foreground, #1b5f80);
         --_option-mark-size: 0.6875rem;
         --_focus-ring-width: var(--size-focus-ring-width, 2px);
         --_control-caption-size: var(--violet-control-caption-size, var(--type-caption-xs-size, 12px));

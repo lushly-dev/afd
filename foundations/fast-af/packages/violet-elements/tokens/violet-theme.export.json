@@ -5,11 +5,11 @@
 		"light": [
 			{
 				"id": "color.accent.background",
-				"value": "#e2edf5"
+				"value": "#dfecf4"
 			},
 			{
 				"id": "color.accent.text",
-				"value": "#146ba0"
+				"value": "#1b5f80"
 			},
 			{
 				"id": "color.action.danger.background",
@@ -33,11 +33,11 @@
 			},
 			{
 				"id": "color.action.primary.hover",
-				"value": "#2e3a33"
+				"value": "#2f383e"
 			},
 			{
 				"id": "color.action.primary.pressed",
-				"value": "#252e29"
+				"value": "#262e33"
 			},
 			{
 				"id": "color.action.primary.text",
@@ -73,15 +73,15 @@
 			},
 			{
 				"id": "color.control.selected.background",
-				"value": "#badecf"
+				"value": "#c0daeb"
 			},
 			{
 				"id": "color.control.selected.border",
-				"value": "rgba(44, 94, 75, 0.5)"
+				"value": "rgba(27, 95, 128, 0.5)"
 			},
 			{
 				"id": "color.control.selected.foreground",
-				"value": "#2c5e4b"
+				"value": "#1b5f80"
 			},
 			{
 				"id": "color.field.background",
@@ -97,7 +97,7 @@
 			},
 			{
 				"id": "color.field.border.focus",
-				"value": "#146ba0"
+				"value": "#28769e"
 			},
 			{
 				"id": "color.field.border.hover",
@@ -117,7 +117,7 @@
 			},
 			{
 				"id": "color.focus.ring",
-				"value": "#146ba0"
+				"value": "#28769e"
 			},
 			{
 				"id": "color.state.danger.background",
@@ -185,7 +185,7 @@
 			},
 			{
 				"id": "color.surface.selected",
-				"value": "#dfeae3"
+				"value": "#dfecf4"
 			},
 			{
 				"id": "color.surface.subtle",
@@ -483,11 +483,11 @@
 		"dark": [
 			{
 				"id": "color.accent.background",
-				"value": "#182b3a"
+				"value": "#162832"
 			},
 			{
 				"id": "color.accent.text",
-				"value": "#9fd4f5"
+				"value": "#a1d4f3"
 			},
 			{
 				"id": "color.action.danger.background",
@@ -551,15 +551,15 @@
 			},
 			{
 				"id": "color.control.selected.background",
-				"value": "#1b2823"
+				"value": "#162832"
 			},
 			{
 				"id": "color.control.selected.border",
-				"value": "rgba(163, 235, 205, 0.45)"
+				"value": "rgba(61, 146, 191, 0.5)"
 			},
 			{
 				"id": "color.control.selected.foreground",
-				"value": "#a3ebcd"
+				"value": "#a1d4f3"
 			},
 			{
 				"id": "color.field.background",
@@ -575,7 +575,7 @@
 			},
 			{
 				"id": "color.field.border.focus",
-				"value": "#a3ebcd"
+				"value": "#3d92bf"
 			},
 			{
 				"id": "color.field.border.hover",
@@ -595,7 +595,7 @@
 			},
 			{
 				"id": "color.focus.ring",
-				"value": "#a3ebcd"
+				"value": "#3d92bf"
 			},
 			{
 				"id": "color.state.danger.background",
@@ -663,7 +663,7 @@
 			},
 			{
 				"id": "color.surface.selected",
-				"value": "#1b2823"
+				"value": "#162832"
 			},
 			{
 				"id": "color.surface.subtle",

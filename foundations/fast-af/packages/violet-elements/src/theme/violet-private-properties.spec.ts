@@ -61,11 +61,11 @@ const HOOKS: Readonly<Record<string, { readers: readonly string[]; why: string; 
         readers: ["../option/violet-option.ts"],
         why: "inherited from an open select/combobox or focused listbox; transparent at rest",
     },
-    // The interface has no link colour, so the citation keeps AFD's blue ink until it does (#2237).
+    // The interface has no link colour, so the citation falls back to --color-accent-text (#1b5f80 in light) until it does (#2237).
     "--_text-link": {
         readers: ["../conversation/violet-source-citation.ts"],
-        why: "the citation's link colour: always #146ba0, AFD's blue ink; the interface has no link colour",
-        token: "--color-focus-ring",
+        why: "the citation's link colour override hook: falls back to --color-accent-text (#1b5f80 in light) while the interface has no link colour",
+        token: "--color-accent-text",
     },
 };
 
@@ -510,7 +510,8 @@ describe("driftedLiteralFallbacks", () => {
     const lightValues = new Map<string, string>([
         ["--color-text-primary", "#181b1a"],
         ["--color-surface-subtle", "#e9e5de"],
-        ["--color-focus-ring", "#146ba0"],
+        ["--color-accent-text", "#1b5f80"],
+        ["--color-focus-ring", "#28769e"],
         ["--color-action-danger-background", "#c42a1a"],
         ["--radius-lg", "12px"],
         ["--radius-round", "9999px"],
@@ -554,7 +555,7 @@ describe("driftedLiteralFallbacks", () => {
             },
             { path: "../card/violet-card.ts", line: 9, property: "--_radius-lg", literal: "6px", expected: "12px" },
             { path: "../card/violet-card.ts", line: 10, property: "--_local-ink", literal: "#1c1a0d", expected: "#181b1a" },
-            { path: "../card/violet-card.ts", line: 11, property: "--_text-link", literal: "#c42a1a", expected: "#146ba0" },
+            { path: "../card/violet-card.ts", line: 11, property: "--_text-link", literal: "#c42a1a", expected: "#1b5f80" },
             { path: "../card/violet-card.ts", line: 12, property: "--_radius-round", literal: "6px", expected: "9999px" },
             {
                 path: "../card/violet-card.ts",
@@ -598,7 +599,7 @@ describe("driftedLiteralFallbacks", () => {
                     "const styles = css`",
                     `    ${DOLLAR}{violetSurfaceTokenDefaults}`,
                     "    .ok { color: var(--_text-primary); border-width: var(--_card-border-width, 1px); }",
-                    "    .link { color: var(--_text-link, #146ba0); border-radius: var(--_radius-round, 9999px); gap: var(--_space-xs, 4px); }",
+                    "    .link { color: var(--_text-link, #1b5f80); border-radius: var(--_radius-round, 9999px); gap: var(--_space-xs, 4px); }",
                     "    .panel { inline-size: var(--_panel-inline-size, auto); }",
                     "    .swatch { background: var(--_swatch-color, transparent); }",
                     "`;",
