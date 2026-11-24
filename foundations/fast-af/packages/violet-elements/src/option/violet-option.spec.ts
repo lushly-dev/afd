@@ -120,6 +120,40 @@ describe("violet-option", () => {
         expect(option.value).toBe("apple-id");
     });
 
+    it("keeps an empty value from the value attribute or the value property (#2235)", async () => {
+        document.body.innerHTML = `<violet-option value="">None</violet-option>`;
+        await customElements.whenDefined("violet-option");
+        await nextFrame();
+        const fromMarkup = document.body.querySelector("violet-option") as VioletOption;
+
+        expect(fromMarkup.labelText).toBe("None");
+        expect(fromMarkup.value).toBe("");
+
+        const beforeConnect = await renderOption({
+            text: "None",
+            configure: el => {
+                el.value = "";
+            },
+        });
+
+        expect(beforeConnect.labelText).toBe("None");
+        expect(beforeConnect.value).toBe("");
+
+        beforeConnect.label = "Nothing";
+        await nextFrame();
+        expect(beforeConnect.value).toBe("");
+
+        const afterConnect = await renderOption({ text: "None" });
+        expect(afterConnect.value).toBe("None");
+        afterConnect.value = "";
+        await nextFrame();
+        expect(afterConnect.value).toBe("");
+
+        afterConnect.removeAttribute("value");
+        await nextFrame();
+        expect(afterConnect.value).toBe("None");
+    });
+
     it("excludes slotted description text from the label text", async () => {
         const option = await renderOption({ text: "Apple", description: "A red fruit" });
 

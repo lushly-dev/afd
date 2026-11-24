@@ -4,6 +4,7 @@ import { userEvent } from "vitest/browser";
 import "../option-group/violet-option-group";
 import "../option/violet-option";
 import "./violet-listbox";
+import type { VioletOption } from "../option/violet-option";
 import type { VioletListbox } from "./violet-listbox";
 
 function nextFrame(): Promise<void> {
@@ -214,6 +215,112 @@ describe("violet-listbox", () => {
             control.dispatchEvent(event);
 
             expect(event.defaultPrevented).toBe(false);
+        });
+    });
+
+    describe("empty-value options (#2235)", () => {
+        async function renderEmptyValueListbox(configure?: (listbox: VioletListbox) => void) {
+            document.body.innerHTML = "";
+            const listbox = document.createElement("violet-listbox") as VioletListbox;
+            const warm = createOption("Warm", "warm") as VioletOption;
+            const none = createOption("None", "") as VioletOption;
+            const cold = createOption("Cold", "cold") as VioletOption;
+            listbox.append(warm, none, cold);
+            configure?.(listbox);
+            document.body.append(listbox);
+            await customElements.whenDefined("violet-listbox");
+            await nextFrame();
+            return { listbox, warm, none, cold };
+        }
+
+        it("activates and chooses an empty-value option from the keyboard and with selectionFollowsFocus", async () => {
+            const { listbox, none } = await renderEmptyValueListbox();
+            const changes: string[] = [];
+            listbox.addEventListener("change", event => changes.push((event as CustomEvent<{ value: string }>).detail.value));
+
+            listbox.handleKeydown(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+            await nextFrame();
+
+            expect(none.active).toBe(true);
+            expect(listbox.activeOptionId).toBe(none.optionId);
+            const control = listbox.shadowRoot?.querySelector('[role="listbox"]') as HTMLElement;
+            expect(control.ariaActiveDescendantElement).toBe(none);
+
+            listbox.handleKeydown(new KeyboardEvent("keydown", { key: "Enter" }));
+            await nextFrame();
+
+            expect(listbox.value).toBe("");
+            expect(listbox.selectedValues).toEqual([""]);
+            expect(none.selected).toBe(true);
+            expect(changes).toEqual([""]);
+
+            // selectionFollowsFocus commits an empty-value option too.
+            const follow = await renderEmptyValueListbox(el => {
+                el.selectionFollowsFocus = true;
+            });
+            follow.listbox.handleKeydown(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+            await nextFrame();
+            expect(follow.none.selected).toBe(true);
+            expect(follow.listbox.selectedValues).toEqual([""]);
+        });
+
+        it("selects an empty-value option from an initial empty value and toggles it in multiple mode", async () => {
+            const { listbox, none } = await renderEmptyValueListbox(el => {
+                el.value = "";
+            });
+
+            expect(none.selected).toBe(true);
+            expect(listbox.selectedValues).toEqual([""]);
+
+            const multi = await renderEmptyValueListbox(el => {
+                el.multiple = true;
+            });
+            multi.listbox.handleKeydown(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+            multi.listbox.handleKeydown(new KeyboardEvent("keydown", { key: " " }));
+            await nextFrame();
+
+            expect(multi.none.selected).toBe(true);
+            expect(multi.listbox.selectedValues).toEqual([""]);
+
+            // In multiple mode, selecting only the second duplicate empty option survives appending another row.
+            const dupFirst = createOption("None 1", "") as VioletOption;
+            const dupSecond = createOption("None 2", "") as VioletOption;
+            multi.listbox.selectedValues = [];
+            multi.listbox.replaceChildren(dupFirst, dupSecond);
+            await nextFrame();
+            dupSecond.shadowRoot?.querySelector<HTMLElement>('[part="control"]')?.click();
+            await nextFrame();
+            multi.listbox.append(createOption("Extra", "extra"));
+            await nextFrame();
+            expect(dupFirst.selected).toBe(false);
+            expect(dupSecond.selected).toBe(true);
+            expect(multi.listbox.selectedValues).toEqual([""]);
+
+            // Parsed `<violet-option value="" selected>` is preserved on connect.
+            document.body.innerHTML = `
+                <violet-listbox>
+                    <violet-option value="warm">Warm</violet-option>
+                    <violet-option value="" selected>None</violet-option>
+                </violet-listbox>
+            `;
+            await nextFrame();
+            const parsed = document.body.querySelector("violet-listbox") as VioletListbox;
+            const parsedNone = parsed.querySelectorAll("violet-option")[1] as VioletOption;
+            expect(parsedNone.selected).toBe(true);
+            expect(parsed.selectedValues).toEqual([""]);
+
+            // Replacing rows keeps the matching activeValue active and single mode ignores multi selectedValues.
+            parsed.activeValue = "warm";
+            await nextFrame();
+            const nextA = createOption("A", "a") as VioletOption;
+            const nextWarm = createOption("Warm 2", "warm") as VioletOption;
+            parsed.replaceChildren(nextA, nextWarm);
+            await nextFrame();
+            expect(parsed.activeValue).toBe("warm");
+            expect(nextWarm.active).toBe(true);
+            parsed.selectedValues = ["a", "warm"];
+            await nextFrame();
+            expect(parsed.options.filter(option => option.selected).length).toBeLessThanOrEqual(1);
         });
     });
 });

@@ -2,11 +2,16 @@ import { attr, css, FASTElement, html, Observable, observable, when } from "@lus
 
 import "../option/violet-option";
 import {
+    findOriginatingOption,
+    findTypeaheadMatch,
     getEnabledOptions,
     getNextEnabledIndex,
     getOwnedOptions,
     getSelectedOption,
-    normalizeMatchText,
+    isOptionDisabled,
+    observeAttribute,
+    reflectStringAttribute,
+    resolveActiveOption,
     syncOptionSelection,
 } from "../listbox/violet-selection-helpers";
 import type { VioletOption } from "../option/violet-option";
@@ -275,6 +280,7 @@ const template = html<VioletSelect>`
  * Violet reusable select primitive.
  *
  * @summary Button-triggered popup list for choosing one option; the form receives the chosen option's value.
+ * @attr {string} [value=""] - The chosen option's value.
  * @slot - The options: violet-option and violet-option-group elements.
  * @fires input - Emitted when the chosen option changes.
  * @fires change - Emitted when the chosen option changes.
@@ -292,7 +298,12 @@ export class VioletSelect extends FASTElement {
     public static readonly formAssociated = true;
 
     readonly #internals: ElementInternals;
-    #defaultValue: string;
+    #explicitValue: string | null = null;
+    #defaultExplicitValue: string | null = null;
+    #selectedOption: VioletOption | null = null;
+    #activeOption: VioletOption | null = null;
+    #reflectingValue = false;
+    #syncingActive = false;
     #typeaheadBuffer = "";
     #typeaheadTimer = 0;
 
@@ -340,7 +351,6 @@ export class VioletSelect extends FASTElement {
     declare public placeholder: string;
     declare public supportingText: string;
     declare public errorText: string;
-    declare public value: string;
     declare public name: string;
     declare public required: boolean;
     declare public disabled: boolean;
@@ -366,14 +376,12 @@ export class VioletSelect extends FASTElement {
     public constructor() {
         super();
         this.#internals = this.attachInternals();
-        this.#defaultValue = "";
         this.open = false;
         this.validationMessageText = "";
         this.label = "";
         this.placeholder = "";
         this.supportingText = "";
         this.errorText = "";
-        this.value = "";
         this.activeValue = "";
         this.name = "";
         this.required = false;
@@ -389,8 +397,33 @@ export class VioletSelect extends FASTElement {
         this.errorId = `violet-select-error-${violetSelectCount}`;
     }
 
+    public get value(): string {
+        Observable.track(this, "value");
+        return this.#explicitValue ?? "";
+    }
+
+    public set value(next: string) {
+        const normalized = next === null || next === undefined ? null : String(next);
+        this.#setExplicitValue(normalized, true);
+    }
+
+    public override attributeChangedCallback(name: string, oldValue: string | null, newValue: string | null): void {
+        if (name === "value") {
+            if (!this.#reflectingValue) {
+                this.#setExplicitValue(newValue, false);
+            }
+            return;
+        }
+        super.attributeChangedCallback(name, oldValue, newValue);
+    }
+
     public connectedCallback(): void {
         super.connectedCallback();
+        if (this.#explicitValue === null && this.hasAttribute("value")) {
+            this.#explicitValue = this.getAttribute("value");
+        } else if (this.#explicitValue !== null) {
+            this.#reflectValueAttribute(this.#explicitValue);
+        }
         if (this.name && this.getAttribute("name") !== this.name) {
             this.setAttribute("name", this.name);
         }
@@ -407,7 +440,7 @@ export class VioletSelect extends FASTElement {
             attributeFilter: ["value", "label", "disabled"],
         });
         this.handleSlotChange();
-        this.#defaultValue = this.value;
+        this.#defaultExplicitValue = this.#explicitValue;
         this.#syncFormState();
         this.openChanged();
     }
@@ -456,11 +489,11 @@ export class VioletSelect extends FASTElement {
      */
     public get selectedLabel(): string {
         Observable.track(this, "selectedLabel");
-        return this.options.find(option => option.value === this.value)?.labelText ?? "";
+        return this.#selectedOption?.labelText ?? "";
     }
 
     public get activeOptionId(): string {
-        return this.options.find(option => option.value === this.activeValue)?.optionId ?? "";
+        return this.#activeOption?.optionId ?? "";
     }
 
     public get describedBy(): string {
@@ -471,11 +504,12 @@ export class VioletSelect extends FASTElement {
     }
 
     public get displayErrorText(): string {
+        Observable.track(this, "displayErrorText");
         return resolveFieldErrorText({
             invalid: this.invalid,
             disabled: this.effectiveDisabled,
             errorText: this.errorText,
-            fallbackValidationMessage: this.required && !this.value ? "Please select an option." : "",
+            fallbackValidationMessage: this.required && this.#selectedOption === null && !this.value ? "Please select an option." : "",
         });
     }
 
@@ -486,23 +520,41 @@ export class VioletSelect extends FASTElement {
     }
 
     public formResetCallback(): void {
-        this.value = this.#defaultValue;
+        this.#selectedOption = null;
+        this.options.forEach(option => {
+            option.selected = false;
+        });
+        this.#setExplicitValue(this.#defaultExplicitValue, true);
         this.handleSlotChange();
     }
 
     public handleSlotChange(): void {
-        const selected = getSelectedOption(this.options, this.value);
-        const enabled = getEnabledOptions(this.options);
-
-        if (!this.value) {
-            this.value = selected?.value ?? "";
+        const options = this.options;
+        const enabled = getEnabledOptions(options);
+        let selected: VioletOption | null = null;
+        if (
+            this.#selectedOption &&
+            enabled.includes(this.#selectedOption) &&
+            (this.#selectedOption.value === this.#explicitValue || !this.#selectedOption.hasAttribute("value"))
+        ) {
+            selected = this.#selectedOption;
+            if (this.#explicitValue !== selected.value) {
+                this.#explicitValue = selected.value;
+                this.#reflectValueAttribute(this.#explicitValue);
+                Observable.notify(this, "value");
+            }
+        } else {
+            selected = getSelectedOption(options, this.#explicitValue);
+            this.#selectedOption = selected;
+            if (this.#explicitValue === null && selected) {
+                this.#explicitValue = selected.value;
+                this.#reflectValueAttribute(this.#explicitValue);
+                Observable.notify(this, "value");
+            }
         }
 
-        if (!this.activeValue || !enabled.some(option => option.value === this.activeValue)) {
-            this.activeValue = selected?.value ?? enabled[0]?.value ?? "";
-        }
-
-        this.#syncOptions();
+        const nextActive = resolveActiveOption(enabled, this.#activeOption, this.activeValue, selected ?? enabled[0] ?? null);
+        this.#applyActiveOption(nextActive);
         this.#syncFormState();
         Observable.notify(this, "selectedLabel");
     }
@@ -565,23 +617,23 @@ export class VioletSelect extends FASTElement {
                 return false;
             case "Home":
                 event.preventDefault();
-                this.#setActive(getEnabledOptions(this.options)[0]?.value ?? "");
+                this.#setActiveOption(getEnabledOptions(this.options)[0] ?? null);
                 return false;
             case "End": {
                 event.preventDefault();
                 const enabled = getEnabledOptions(this.options);
-                this.#setActive(enabled.at(-1)?.value ?? "");
+                this.#setActiveOption(enabled.at(-1) ?? null);
                 return false;
             }
             case "Enter":
             case " ": {
-                const active = getEnabledOptions(this.options).find(option => option.value === this.activeValue);
+                const active = this.#activeOption && !isOptionDisabled(this.#activeOption) ? this.#activeOption : null;
                 if (!active) {
                     return true;
                 }
 
                 event.preventDefault();
-                this.selectValue(active.value);
+                this.#selectOption(active);
                 return false;
             }
             case "Escape":
@@ -614,13 +666,21 @@ export class VioletSelect extends FASTElement {
 
     public handleRequestSelect(event: CustomEvent<{ value?: string }>): void {
         event.stopPropagation();
+        const origin = findOriginatingOption(event, this.options);
+        if (origin) {
+            this.#selectOption(origin);
+            return;
+        }
         const nextValue = event.detail?.value ?? "";
         this.selectValue(nextValue);
     }
 
-    public valueChanged(): void {
+    public activeValueChanged(): void {
+        if (this.#syncingActive || !this.$fastController.isConnected) {
+            return;
+        }
+        this.#activeOption = getEnabledOptions(this.options).find(option => option.value === this.activeValue) ?? null;
         this.#syncOptions();
-        this.#syncFormState();
     }
 
     public nameChanged(): void {
@@ -686,8 +746,9 @@ export class VioletSelect extends FASTElement {
         }
 
         this.open = true;
-        this.activeValue = this.value || getEnabledOptions(this.options)[0]?.value || "";
-        this.#syncOptions();
+        const enabled = getEnabledOptions(this.options);
+        const selected = this.#selectedOption && enabled.includes(this.#selectedOption) ? this.#selectedOption : null;
+        this.#applyActiveOption(selected ?? enabled[0] ?? null);
     }
 
     public hide(): void {
@@ -700,11 +761,18 @@ export class VioletSelect extends FASTElement {
             return;
         }
 
-        this.value = option.value;
-        this.activeValue = option.value;
+        this.#selectOption(option);
+    }
+
+    #selectOption(option: VioletOption): void {
+        this.#selectedOption = option;
+        this.#explicitValue = option.value;
+        this.#reflectValueAttribute(this.#explicitValue);
         this.hide();
-        this.#syncOptions();
+        this.#applyActiveOption(option);
         this.#syncFormState();
+        Observable.notify(this, "value");
+        Observable.notify(this, "selectedLabel");
         this.$emit("input", { value: this.value });
         this.$emit("change", { value: this.value });
         this.#focusTrigger();
@@ -716,30 +784,37 @@ export class VioletSelect extends FASTElement {
 
     #moveActive(step: 1 | -1): void {
         const options = this.options;
-        const currentIndex = options.findIndex(option => option.value === this.activeValue);
+        const currentIndex = this.#activeOption ? options.indexOf(this.#activeOption) : -1;
         const nextIndex = getNextEnabledIndex(options, currentIndex < 0 ? (step === 1 ? -1 : 0) : currentIndex, step);
-        this.#setActive(options[nextIndex]?.value ?? "");
+        this.#setActiveOption(nextIndex >= 0 ? (options[nextIndex] ?? null) : null);
     }
 
-    #setActive(nextValue: string): void {
-        this.activeValue = nextValue;
-        this.#syncOptions();
+    #setActiveOption(nextOption: VioletOption | null): void {
+        this.#applyActiveOption(nextOption);
         this.#scrollActiveIntoView();
+    }
+
+    #applyActiveOption(nextOption: VioletOption | null): void {
+        this.#activeOption = nextOption;
+        this.#syncOptions();
+        this.#syncingActive = true;
+        try {
+            this.activeValue = nextOption?.value ?? "";
+        } finally {
+            this.#syncingActive = false;
+        }
     }
 
     #queueTypeahead(key: string): void {
         window.clearTimeout(this.#typeaheadTimer);
         this.#typeaheadBuffer = `${this.#typeaheadBuffer}${key.toLowerCase()}`;
-        const options = getEnabledOptions(this.options);
-        const currentIndex = options.findIndex(option => option.value === this.activeValue);
-        const ordered = currentIndex >= 0 ? [...options.slice(currentIndex + 1), ...options.slice(0, currentIndex + 1)] : options;
-        const match = ordered.find(option => normalizeMatchText(option.labelText).startsWith(normalizeMatchText(this.#typeaheadBuffer)));
+        const match = findTypeaheadMatch(this.options, this.#typeaheadBuffer, this.#activeOption);
 
         if (match) {
             if (this.open) {
-                this.#setActive(match.value);
+                this.#setActiveOption(match);
             } else {
-                this.selectValue(match.value);
+                this.#selectOption(match);
             }
         }
 
@@ -749,8 +824,7 @@ export class VioletSelect extends FASTElement {
     }
 
     #scrollActiveIntoView(): void {
-        const active = this.options.find(option => option.value === this.activeValue);
-        active?.shadowRoot?.querySelector('[part="control"]')?.scrollIntoView({ block: "nearest" });
+        this.#activeOption?.shadowRoot?.querySelector('[part="control"]')?.scrollIntoView({ block: "nearest" });
     }
 
     #positionPanel(): void {
@@ -804,12 +878,37 @@ export class VioletSelect extends FASTElement {
         return this.shadowRoot?.querySelector(".trigger") ?? null;
     }
 
+    #setExplicitValue(next: string | null, reflect: boolean): void {
+        const previous = this.#explicitValue ?? "";
+        this.#explicitValue = next;
+        if (reflect) {
+            this.#reflectValueAttribute(next);
+        }
+        if (this.$fastController.isConnected) {
+            this.#selectedOption = next === null ? null : getSelectedOption(this.options, next);
+            this.#syncOptions();
+            this.#syncFormState();
+        }
+        if (previous !== (next ?? "")) {
+            Observable.notify(this, "value");
+        }
+        Observable.notify(this, "selectedLabel");
+    }
+
+    #reflectValueAttribute(next: string | null): void {
+        this.#reflectingValue = true;
+        try {
+            reflectStringAttribute(this, "value", next);
+        } finally {
+            this.#reflectingValue = false;
+        }
+    }
+
     #syncOptions(): void {
-        syncOptionSelection(this.options, this.value, this.activeValue);
+        syncOptionSelection(this.options, this.#selectedOption ? [this.#selectedOption] : [], this.#activeOption);
         const listbox = this.#listbox;
         if (listbox) {
-            listbox.ariaActiveDescendantElement =
-                this.options.find(option => option.value === this.activeValue) ?? null;
+            listbox.ariaActiveDescendantElement = this.#activeOption;
         }
     }
 
@@ -819,12 +918,21 @@ export class VioletSelect extends FASTElement {
         }
 
         const control = this.shadowRoot?.querySelector(".trigger") as HTMLButtonElement | null;
-        const message = this.displayErrorText || (this.errorText ?? "").trim() || "Please select an option.";
+        const nextErrorText = this.displayErrorText;
+        const message = nextErrorText || (this.errorText ?? "").trim() || "Please select an option.";
         const invalid = !this.effectiveDisabled && this.invalid;
+        const formValue = this.effectiveDisabled
+            ? null
+            : this.#selectedOption
+              ? this.#selectedOption.value
+              : this.value || null;
 
-        this.validationMessageText = this.displayErrorText;
+        if (this.validationMessageText !== nextErrorText) {
+            this.validationMessageText = nextErrorText;
+            Observable.notify(this, "displayErrorText");
+        }
         this.#internals.ariaInvalid = invalid ? "true" : "false";
-        this.#internals.setFormValue(this.effectiveDisabled ? null : this.value || null, this.effectiveDisabled ? null : this.value || null);
+        this.#internals.setFormValue(formValue, formValue);
 
         if (this.effectiveDisabled) {
             this.#internals.setValidity({});
@@ -836,7 +944,7 @@ export class VioletSelect extends FASTElement {
             return;
         }
 
-        if (this.required && !this.value) {
+        if (this.required && this.#selectedOption === null && !this.value) {
             this.#internals.setValidity({ valueMissing: true }, message, control ?? undefined);
             return;
         }
@@ -849,7 +957,6 @@ attr(VioletSelect.prototype, "label");
 attr(VioletSelect.prototype, "placeholder");
 attr({ attribute: "supporting-text" })(VioletSelect.prototype, "supportingText");
 attr({ attribute: "error-text" })(VioletSelect.prototype, "errorText");
-attr(VioletSelect.prototype, "value");
 attr(VioletSelect.prototype, "name");
 attr({ mode: "boolean" })(VioletSelect.prototype, "required");
 attr({ mode: "boolean" })(VioletSelect.prototype, "disabled");
@@ -858,12 +965,16 @@ attr({ mode: "boolean" })(VioletSelect.prototype, "invalid");
 attr({ mode: "boolean" })(VioletSelect.prototype, "open");
 
 if (!customElements.get("violet-select")) {
-    await FASTElement.define(VioletSelect, {
-        name: "violet-select",
-        template,
-        styles,
-        shadowOptions: {
-            delegatesFocus: true,
+    await FASTElement.define(
+        VioletSelect,
+        {
+            name: "violet-select",
+            template,
+            styles,
+            shadowOptions: {
+                delegatesFocus: true,
+            },
         },
-    });
+        [observeAttribute("value")]
+    );
 }

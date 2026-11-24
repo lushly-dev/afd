@@ -33,8 +33,8 @@ export function getEnabledOptions(options: VioletOption[]): VioletOption[] {
     return options.filter(option => !isOptionDisabled(option));
 }
 
-export function getSelectedOption(options: VioletOption[], value: string): VioletOption | null {
-    if (!value) {
+export function getSelectedOption(options: VioletOption[], value: string | null): VioletOption | null {
+    if (value === null) {
         return options.find(option => option.selected && !isOptionDisabled(option)) ?? null;
     }
 
@@ -62,7 +62,7 @@ export function getNextEnabledIndex(options: VioletOption[], currentIndex: numbe
 export function findTypeaheadMatch(
     options: VioletOption[],
     buffer: string,
-    activeValue: string
+    active: VioletOption | string | null
 ): VioletOption | null {
     const enabled = getEnabledOptions(options);
 
@@ -71,22 +71,78 @@ export function findTypeaheadMatch(
     }
 
     const normalized = normalizeMatchText(buffer.trim());
-    const currentIndex = enabled.findIndex(option => option.value === activeValue);
+    const currentIndex =
+        active === null
+            ? -1
+            : typeof active === "string"
+              ? enabled.findIndex(option => option.value === active)
+              : enabled.indexOf(active);
     const ordered = currentIndex >= 0 ? [...enabled.slice(currentIndex + 1), ...enabled.slice(0, currentIndex + 1)] : enabled;
 
     return ordered.find(option => normalizeMatchText(option.labelText).startsWith(normalized)) ?? null;
 }
 
+export function observeAttribute(name: string): (def: { type: Function }) => void {
+    return def => {
+        const observed = (def.type as unknown as { observedAttributes: string[] }).observedAttributes;
+        if (!observed.includes(name)) {
+            observed.push(name);
+        }
+    };
+}
+
+export function reflectStringAttribute(element: Element, name: string, value: string | null): void {
+    if (value === null) {
+        if (element.hasAttribute(name)) {
+            element.removeAttribute(name);
+        }
+    } else if (element.getAttribute(name) !== value) {
+        element.setAttribute(name, value);
+    }
+}
+
+export function resolveActiveOption(
+    candidates: VioletOption[],
+    current: VioletOption | null,
+    activeValue: string,
+    fallback: VioletOption | null
+): VioletOption | null {
+    if (current && candidates.includes(current)) {
+        return current;
+    }
+    if (current) {
+        return candidates.find(option => option.value === current.value) ?? fallback;
+    }
+    if (activeValue !== "") {
+        return candidates.find(option => option.value === activeValue) ?? fallback;
+    }
+    return fallback;
+}
+
+export function findOriginatingOption(event: Event, options: VioletOption[]): VioletOption | null {
+    for (const node of event.composedPath()) {
+        if (node instanceof Element && node.localName === "violet-option") {
+            const option = node as VioletOption;
+            if (options.includes(option) && !isOptionDisabled(option)) {
+                return option;
+            }
+            return null;
+        }
+    }
+
+    return null;
+}
+
 export function syncOptionSelection(
     options: VioletOption[],
-    selectedValues: string[] | string,
-    activeValue: string
+    selectedOptions: ReadonlyArray<VioletOption>,
+    activeOption: VioletOption | null
 ): void {
-    const selection = new Set(Array.isArray(selectedValues) ? selectedValues : selectedValues ? [selectedValues] : []);
+    const selection = new Set(selectedOptions);
 
     for (const option of options) {
         option.groupDisabled = Boolean((option.closest("violet-option-group") as { disabled?: boolean } | null)?.disabled);
-        option.selected = selection.has(option.value);
-        option.active = activeValue !== "" && option.value === activeValue;
+        option.selected = selection.has(option);
+        option.active = activeOption !== null && option === activeOption;
     }
 }

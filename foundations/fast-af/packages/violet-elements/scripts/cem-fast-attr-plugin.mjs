@@ -150,6 +150,47 @@ export function fastAttrPlugin() {
         }
       }
 
+      // Link JSDoc `@attr` declarations (used when an element implements custom getter/setter
+      // reflection instead of FAST's `attr(...)` helper) to their matching public property.
+      for (const declaration of moduleDoc.declarations ?? []) {
+        if (declaration.kind !== "class" || !declaration.attributes?.length) {
+          continue;
+        }
+
+        for (const attribute of declaration.attributes) {
+          if (attribute.fieldName) {
+            continue;
+          }
+
+          const field = declaration.members?.find(
+            member => member.kind === "field" && member.privacy !== "private" && member.name === attribute.name
+          );
+
+          if (!field) {
+            continue;
+          }
+
+          attribute.fieldName = field.name;
+          field.attribute = attribute.name;
+
+          if (!field.readonly) {
+            field.reflects = true;
+          }
+
+          if (attribute.default !== undefined && field.default === undefined) {
+            field.default = attribute.default;
+          }
+
+          if (attribute.description && !field.description) {
+            field.description = attribute.description;
+          }
+
+          if (attribute.type && !field.type) {
+            field.type = attribute.type;
+          }
+        }
+      }
+
       pending.delete(moduleDoc);
     },
   };
