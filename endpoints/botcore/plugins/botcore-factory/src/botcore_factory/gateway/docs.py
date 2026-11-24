@@ -25,11 +25,14 @@ details.outcomeKnown says whether the call could have run.
 - lane: reads, claims, issue-comment, issue-create, branch-push, pr-open,
   verification-record, pr-merge, pr-revert, gateway-wait, lane-heartbeat.
 - owner: everything, and issue-release with force.
+- heartbeat: gateway-status and lane-heartbeat only, for the token a lane's loop reads: a
+  lane runs queued branches' code as its own process, so its health token must open nothing
+  else.
 
-Reads on every route: gateway-status, issue-get, comment-list, claim-list, pr-status,
-review-get. claim-list (and gateway-audit and gateway-wait) answer from a scan of the
-repository that callers share for cache.graphqlSeconds (15): a write through the gateway
-shows at once, and one made elsewhere shows within that time.
+Reads on every route but heartbeat: gateway-status (heartbeat too), issue-get, comment-list,
+claim-list, pr-status, review-get. claim-list (and gateway-audit and gateway-wait) answer
+from a scan of the repository that callers share for cache.graphqlSeconds (15): a write
+through the gateway shows at once, and one made elsewhere shows within that time.
 
 ## Claims
 

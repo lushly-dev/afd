@@ -18,6 +18,9 @@ DEFAULT_WRITES_PER_HOUR: dict[str, int | None] = {
     "foreman": 300,
     "lane": 600,
     "owner": None,
+    # Reports health only; it makes no write the budget counts, and fails closed if one is added.
+    # A configuration that sets writesPerHour replaces this map: list heartbeat (0) there too.
+    "heartbeat": 0,
 }
 
 

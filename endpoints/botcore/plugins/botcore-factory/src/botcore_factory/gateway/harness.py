@@ -46,6 +46,7 @@ ROUTE_ACTORS = {
     "foreman": Actor(kind="agent", id="foreman"),
     "lane": Actor(kind="service", id="lane@workstation"),
     "owner": Actor(kind="human", id="owner"),
+    "heartbeat": Actor(kind="service", id="lane-heartbeat@workstation"),
 }
 _CONFIG_KEYS = set(GatewayConfig.model_fields) | {
     field.alias for field in GatewayConfig.model_fields.values() if field.alias

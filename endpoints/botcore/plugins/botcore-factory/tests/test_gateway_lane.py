@@ -104,9 +104,10 @@ def test_a_report_the_gateway_cannot_keep_is_refused(world, repo, last_merge_at,
     assert lanes(gateway)[0]["reportedAt"] is None
 
 
-def test_only_the_lane_and_the_owner_report_a_lane():
+def test_only_the_lane_the_owner_and_the_heartbeat_route_report_a_lane():
     serving = {route for route, commands in ROUTES.items() if "lane-heartbeat" in commands}
-    assert serving == {"lane", "owner"}
+    assert serving == {"lane", "owner", "heartbeat"}
+    assert ROUTES["heartbeat"] == ("gateway-status", "lane-heartbeat")
 
 
 def test_a_second_running_host_is_shown_beside_the_first(world):

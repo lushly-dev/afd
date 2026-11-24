@@ -1555,10 +1555,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "a756844423721eceb7fd5b81b175b48fe4a76c286c52445b3c0ef954701ed94b",
+      "current_import_sha256": "1f746911c38efc4fe9a0121499cf0f78aa73ae1f76c647aebd3efe7d035cc2eb",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833); Format Botcore, add mypy type checking and py.typed marker (#1757)"
+      "import_reason": "Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833); Format Botcore, add mypy type checking and py.typed marker (#1757); factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/commands.py",
@@ -1566,10 +1566,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "1ce41567b3c4878da119496468bb4919bdd3c149fca3b70145fe496bbb29dedd",
+      "current_import_sha256": "4f60e07c458bf05a294c21bb760f44e58c0bcfd1627847257619ec390245c937",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833); Format Botcore, add mypy type checking and py.typed marker (#1757); Normalize LF bytes in Botcore provenance digests so Linux CI matches git blobs (#1757); factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16)"
+      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833); Format Botcore, add mypy type checking and py.typed marker (#1757); Normalize LF bytes in Botcore provenance digests so Linux CI matches git blobs (#1757); factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16); factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/config.py",
@@ -1577,10 +1577,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "aa077ae67510a083ae611f6a180fa520c32bfe296cda139298ea581b31e2f87e",
+      "current_import_sha256": "894f794a10bb03928a8f7544f8ca60f0103bb13258dc554eea158e506f4ac2a2",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "The texts assume the merge queue rebases (lushly-dev/afd#1809, step 3); Format Botcore, add mypy type checking and py.typed marker (#1757); Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385); factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16)"
+      "import_reason": "The texts assume the merge queue rebases (lushly-dev/afd#1809, step 3); Format Botcore, add mypy type checking and py.typed marker (#1757); Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385); factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16); factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/docs.py",
@@ -1588,10 +1588,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "71707465764ba82d9814f241dfa581c52c20753f27e997d49fc5128005256022",
+      "current_import_sha256": "739673363ae5731248b4380154f002d5570d9c8990e5b58a4b64d79e59ddd265",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); The texts assume the merge queue rebases (lushly-dev/afd#1809, step 3); Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385); factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16)"
+      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); The texts assume the merge queue rebases (lushly-dev/afd#1809, step 3); Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385); factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16); factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/github.py",
@@ -1616,15 +1616,26 @@
       "import_reason": "Give every Factory squash merge the branch's own messages as its body, so GitHub credits no co-author; send stdin as bytes (lushly-dev/afd#1515); Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833); Format Botcore, add mypy type checking and py.typed marker (#1757); Normalize LF bytes in Botcore provenance digests so Linux CI matches git blobs (#1757); Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385)"
     },
     {
+      "path": "plugins/botcore-factory/src/botcore_factory/gateway/harness.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "74059063acb88d5afeaa7a59e1a7dfee103fe55026df9ada125e23cac8834a1e",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes"
+    },
+    {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/hosts.py",
       "origin": "local-after-import",
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "e2ded4e8044194d0830be0931baabf0d68a3a12b2974c87c3d3dec20b2de167a",
+      "current_import_sha256": "6f03cc4a983b73f5ce62048df18e017b3df407ed8ee5f04077a0d18b0adc7814",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16)"
+      "import_reason": "factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16); factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/records.py",
@@ -1643,10 +1654,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "5455b9731161d2ce663c9d3f35b5087f176bf4f642dbab4847942834265b46cb",
+      "current_import_sha256": "560260babef08f59e57404b3df8c5478dfaf9cb2680ef988760346dd653375ff",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385)"
+      "import_reason": "Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385); factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/service.py",
@@ -1654,10 +1665,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "969f7d7beb95ae1666968a97db82ca7b8f31dfe2f3619ebe8642f350dd79abff",
+      "current_import_sha256": "83195a425116ffaf2629a31c14f1d644756c049d25eb225d1298c7b3e289570c",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); The texts assume the merge queue rebases (lushly-dev/afd#1809, step 3); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims (#1810), keep usable [tools] entries on disk-setup rerun (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833); Format Botcore, add mypy type checking and py.typed marker (#1757); Normalize LF bytes in Botcore provenance digests so Linux CI matches git blobs (#1757); Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385); factory gateway: trust its own verification record over GitHub's lagging check-runs list (#2401); factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16)"
+      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); The texts assume the merge queue rebases (lushly-dev/afd#1809, step 3); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims (#1810), keep usable [tools] entries on disk-setup rerun (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833); Format Botcore, add mypy type checking and py.typed marker (#1757); Normalize LF bytes in Botcore provenance digests so Linux CI matches git blobs (#1757); Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385); factory gateway: trust its own verification record over GitHub's lagging check-runs list (#2401); factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16); factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/state.py",
@@ -1669,6 +1680,17 @@
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "factory gateway: trust its own verification record over GitHub's lagging check-runs list (#2401); factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16)"
+    },
+    {
+      "path": "plugins/botcore-factory/src/botcore_factory/gateway/uploads.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "df18607ecca172c6b3610bc0939793786952b52454c0309cc1cd9e9277089f4d",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/intake.py",
@@ -1984,10 +2006,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "c02827ae8d5795b3e3b493d759262d073face278d06b2276896b169759941278",
+      "current_import_sha256": "1535908ccaef6c7ae51dea05b96ca72c85453ce96284815cb550c6fb0c0fdc58",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385)"
+      "import_reason": "Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385); factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes"
     },
     {
       "path": "plugins/botcore-factory/tests/test_gateway_lane.py",
@@ -1995,10 +2017,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "f28f655a546f3eb01c0d3dc5576d8bace2902073550ed182d30ba949b7d9ef56",
+      "current_import_sha256": "6c019a7a3b472dadd933d63ca06d923969a80bd5688471dcd392aa421156f387",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16)"
+      "import_reason": "factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16); factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes"
     },
     {
       "path": "plugins/botcore-factory/tests/test_gateway_routes.py",
@@ -2028,10 +2050,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "b30934e55209bc56bd6eca301385f7588cc7185873bd6ae6deaca429801f4e5d",
+      "current_import_sha256": "14217de3bb8d48a96029200dc40a236c70b37c962c6dfc7abbc3d12089fd2c91",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833)"
+      "import_reason": "Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833); factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes"
     },
     {
       "path": "plugins/botcore-factory/tests/test_gateway_validation.py",
@@ -3310,6 +3332,17 @@
       "stage_reason": "Add shared dispatch, effects policy and quality-verdict adapters",
       "import_classification": "modified-after-staging",
       "import_reason": "Map broken-link failures and typed infrastructure verdicts correctly; merge plugin-declared policies that a host may only narrow, carry input schemas and one-line descriptions in the catalog, refuse wrong argument names; load config as an explicit plugin selection; resolve either spelling of a command name with closest-name refusals, serve kebab-case names on request, validate typed inputs, build a context per call, admit effects by profile; Fix Batch 5 P0/P1 bugs (#1871-#1875); Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778); Format Botcore, add mypy type checking and py.typed marker (#1757); Format and type-check botcore after base sync (#1757); Replace production assert statements with explicit runtime checks and assert botcore/py.typed ships in wheel (#1757)"
+    },
+    {
+      "path": "src/botcore/host_http.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "76423cad687294a8fd382ca89e40d75ed623d1c6cd5dbd0c30e1e932c1a6523f",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes"
     },
     {
       "path": "src/botcore/host_surfaces.py",
@@ -6930,10 +6963,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "db284fafc24627b8b05bfa7bfa91913d61cad9a4cd6b0fd2ab4d64b3199ae122",
+      "current_import_sha256": "5597a614ee214abbeeb2a9dba0ad641089a032a456a9ac77b2aba5ec71577fa3",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence"
+      "import_reason": "Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes"
     },
     {
       "path": "tests/test_info.py",

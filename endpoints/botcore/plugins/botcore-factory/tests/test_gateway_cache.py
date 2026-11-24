@@ -376,7 +376,9 @@ def test_the_server_gives_every_route_one_cache(world, tmp_path, monkeypatch):
 
     monkeypatch.setattr(server, "build_gateway_host", build)
     server.build_gateway_app(tmp_path / "data", gateway.config, github)
-    assert len(seen) == 5 and all(port is seen[0] for port in seen)
+    from botcore_factory.gateway.commands import ROUTES
+
+    assert len(seen) == len(ROUTES) and all(port is seen[0] for port in seen)
     assert isinstance(seen[0], CachedGitHub) and seen[0].inner is github
 
 

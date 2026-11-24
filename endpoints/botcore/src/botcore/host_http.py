@@ -73,6 +73,7 @@ class _HostRoutes:
         max_call_bytes: int,
         max_concurrent_uploads: int,
         upload_read_seconds: float,
+        upload_routes: frozenset[str] | None = None,
     ) -> None:
         import asyncio
 
@@ -84,6 +85,7 @@ class _HostRoutes:
         self.upload_slots = asyncio.Semaphore(max_concurrent_uploads)
         self.uploading: set[str] = set()  # Token ids with an upload in progress.
         self.upload_read_seconds = upload_read_seconds
+        self.upload_routes = upload_routes
 
     @staticmethod
     def json(body: dict[str, Any], status: int = 200) -> Any:
@@ -192,7 +194,10 @@ class _HostRoutes:
         if not isinstance(admitted, tuple):
             return admitted
         route, _, record = admitted
-        if self.uploads is None:
+        if self.uploads is None or (
+            self.upload_routes is not None and route not in self.upload_routes
+        ):
+            # Refused before a slot is taken or a byte of the body is read.
             return self.refused(404, "NOT_FOUND", f"/{route} takes no uploads", "Call a command")
         if record.id in self.uploading or self.upload_slots.locked():
             return self.refused(
@@ -242,8 +247,11 @@ def create_host_http_app(
     max_call_bytes: int = DEFAULT_MAX_CALL_BYTES,
     max_concurrent_uploads: int = DEFAULT_MAX_CONCURRENT_UPLOADS,
     upload_read_seconds: float = DEFAULT_UPLOAD_READ_SECONDS,
+    upload_routes: frozenset[str] | None = None,
 ) -> Any:
-    """A Starlette app serving each host in ``hosts`` under ``/<route>``."""
+    """A Starlette app serving each host in ``hosts`` under ``/<route>``. ``upload_routes``
+    names the routes that take uploads; any other is refused before its body is read. Left
+    out, every route does."""
     from starlette.applications import Starlette
     from starlette.routing import Route
 
@@ -255,6 +263,7 @@ def create_host_http_app(
         max_call_bytes,
         max_concurrent_uploads,
         upload_read_seconds,
+        upload_routes,
     )
     return Starlette(
         routes=[

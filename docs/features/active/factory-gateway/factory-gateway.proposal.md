@@ -154,8 +154,8 @@ which last an hour, and never hands a token to a caller.
 
 ### Callers, tokens and policy
 
-The gateway is one process serving five botcore hosts, one per kind of caller, each behind its
-own route:
+The gateway is one process serving a botcore host per kind of caller, each behind its own
+route (five at first; `/heartbeat` added 2026-11-24):
 
 | Route | Host | Caller | May do |
 |---|---|---|---|
@@ -164,6 +164,7 @@ own route:
 | `/foreman` | `gateway-foreman` | The foreman, and the factory commands it calls (`cell-register`, `cell-park`, `lane-drop`) | Read; claim and release; label, comment and file issues; open revert pull requests; set the lane-host variable; read the audit; wait for events |
 | `/lane` | `gateway-lane` | The lane process | Read; claim, renew and release; push branches; open pull requests; record validation; merge; revert; file flakes; wait for events |
 | `/owner` | `gateway-owner` | The owner's CLI | Everything, and the overrides only he has (`issue-release` with `force`) |
+| `/heartbeat` | `gateway-heartbeat` | A lane's loop, reporting its health | `gateway-status` and `lane-heartbeat` for the host its token names; no uploads |
 
 - **Tokens.** Each caller has its own bearer token, issued, listed and revoked with an operator
   CLI on `random` that is not served over any route. The route checks the token before the host;
@@ -366,15 +367,16 @@ not foresee) is `GITHUB_REFUSED` with GitHub's message, and repeating the call w
 `branch-push` whose ref moved between the gateway's read and its push is `HEAD_MOVED`: the push is
 made with git's `--force-with-lease`, so it never overwrites what another writer put there. Effects use botcore's names: reads are `inspect`, GitHub writes `service`,
 writes to the gateway's own state `history-write`. Routes: C cell, S session, F foreman, L lane,
-O owner.
+O owner, H heartbeat (added 2026-11-24: `gateway-status` and `lane-heartbeat` only, the token a
+lane's loop can hold without its queued branches' code being able to merge).
 
 | Command | Routes | Input | Result `data` | Refusals | From |
 |---|---|---|---|---|---|
 | `gateway-status` | all | — | `host`, `writes[]` (this route's write commands), `identity`, `app`, `repos[]`, `rateLimit { remaining, resetAt, graphql? { remaining, resetAt } }`, `ages { appKey, token, readOnlyToken? }` (`appKey`: seconds since the key file was modified; `token`: seconds left on the current installation token; `readOnlyToken` enters with the cells' read-only token in G1), `journal { bytes, oldest }`, `lastEvent?`, `lanes[] { repo, host, running, stale, queued, lastMergeAt, reportedAt, otherHosts[]? }` (G1; one per repository, each lane's own `lane-heartbeat`, `running` false once the report is `laneStaleMinutes` old) | — | G0 |
-| `issue-get` | all | `number` | `state`, `title`, `labels[]`, `assignees[]`, `claim?`, `author { login, association }`, `body { trust, text }`, `linkedPrs[]` | `NOT_FOUND` | G1 |
-| `comment-list` | all | `number`, `limit?`, `cursor?` | `comments[] { id, author, association, trust, text, at }`, `nextCursor?` | `NOT_FOUND` | G1 |
-| `claim-list` | all | `stale?` | `claims[] { number, holder { branch, machine }, leaseUntil, stale, legacy, labelMatches }` | — | G1 |
-| `pr-status` | all | `number` | `state`, `head`, `mergedAt?`, `mergeable`, `settled`, `retryAfterMs?`, `requiredCheck { name, state, stalledMinutes?, cause? }`, `checks[]`, `autoMerge`, `closes[]` | `NOT_FOUND` | G1 |
+| `issue-get` | C S F L O | `number` | `state`, `title`, `labels[]`, `assignees[]`, `claim?`, `author { login, association }`, `body { trust, text }`, `linkedPrs[]` | `NOT_FOUND` | G1 |
+| `comment-list` | C S F L O | `number`, `limit?`, `cursor?` | `comments[] { id, author, association, trust, text, at }`, `nextCursor?` | `NOT_FOUND` | G1 |
+| `claim-list` | C S F L O | `stale?` | `claims[] { number, holder { branch, machine }, leaseUntil, stale, legacy, labelMatches }` | — | G1 |
+| `pr-status` | C S F L O | `number` | `state`, `head`, `mergedAt?`, `mergeable`, `settled`, `retryAfterMs?`, `requiredCheck { name, state, stalledMinutes?, cause? }`, `checks[]`, `autoMerge`, `closes[]` | `NOT_FOUND` | G1 |
 | `issue-claim` | S F L O | `numbers[]`, `holder`, `lease_hours?` | `claims[] { number, holder, leaseUntil, renewed, previousHolder? }`, `record { label, commentAuthor }` | `ALREADY_CLAIMED`, `ISSUE_CLOSED`, `NOT_FOUND`; none is claimed if any is refused | G1 |
 | `issue-release` | S F L O | `number`, `holder`, `reason`, `force?` (owner only) | `released`, `changed`, `record { label }` | `NOT_CLAIMED`, `NOT_HOLDER`, `SECRET_IN_BODY` | G1 |
 | `issue-label` | F O | `number`, `add?`, `remove?` | `labels[]`, `previous[]` | `LABEL_UNKNOWN`, `NOT_FOUND` | G1 |
@@ -388,8 +390,8 @@ O owner.
 | `variable-set` | F O | `name`, `value` | `name`, `value`, `previous` | `VARIABLE_NOT_ALLOWED`, `SECRET_IN_BODY` | G1 |
 | `gateway-audit` | F O | `issue?`, `pr?`, `since?`, `actor?`, `limit?`, `cursor?` | `entries[] { seq, timestamp, command, actor, target, success }`, `outside[] { at, kind, target, by, label? }`, `nextCursor?` | — | G1 |
 | `review-record` | C O | `branch`, `head`, `lanes[] { lane, model, effort, verdict, fixed, deferred }` | `record { head, verdict, lanes }`; recording the same head again replaces it | `SECRET_IN_BODY` | G2 |
-| `review-get` | all | `head` | `verdict`, `lanes[]`, `recordedAt` | `NOT_FOUND` | G2 |
-| `lane-heartbeat` | L O | `host`, `running`, `queued`, `last_merge_at?` | `lane` (as `gateway-status` lists it) | `VALIDATION_ERROR` (a time without its zone), `SECRET_IN_BODY` | G1 |
+| `review-get` | C S F L O | `head` | `verdict`, `lanes[]`, `recordedAt` | `NOT_FOUND` | G2 |
+| `lane-heartbeat` | L O H | `host`, `running`, `queued`, `last_merge_at?` | `lane` (as `gateway-status` lists it) | `VALIDATION_ERROR` (a time without its zone), `SECRET_IN_BODY` | G1 |
 | `gateway-wait` | F L O | `consumer`, `kinds[]?`, `timeout_ms?` | `events[] { id, kind, target, at, sharedAccount?, detail? }`, or `{ events: [], timedOut: true }` | — | G3 |
 
 Every write can also be refused with `WRITE_BUDGET_EXCEEDED`.

@@ -258,8 +258,9 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 - **Next, in order:** the lanes reporting their health: Lushly's `merge-lane.mjs`, which runs
   on `random` already, calling `lane-heartbeat` (Lushly's side,
   [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392), coordinated with its
-  foreman), and botcore's lane once it runs for AFD; the factory plugin on the gateway (after
-  `feat/factory-lane-loop` lands); Lushly's side ([lushly#2392](https://github.com/lushly-dev/lushly/issues/2392));
+  foreman, with a `/heartbeat` token issued only after it merged and the lane reloaded
+  cleanly), and botcore's lane once it runs for AFD; the factory plugin on the gateway (the
+  lane loop landed in #1295; `feat/factory-lane-loop` is stale); Lushly's side ([lushly#2392](https://github.com/lushly-dev/lushly/issues/2392));
   the process files and the two process checks.
 - **Not done:** every milestone below.
 
@@ -393,6 +394,16 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   `lushly-dev/afd` and `lushly-dev/lushly`, each `running: false` with `reportedAt: null`. Lushly's lane already runs on
   `random` (`merge-lane.mjs` from `~/github/lushly`, its foreman said on 2026-11-24); AFD has no
   lane running: its sessions merge through the merge queue.
+- 2026-11-24: a `/heartbeat` route for the lanes' token. Lushly's foreman asked that the lane
+  hold a token that can only report its health, since the lane runs queued branches' code as
+  its own process and that code can read any token the lane can; a `/lane` token can merge.
+  `/heartbeat` serves `gateway-status` and `lane-heartbeat` only, for the host its token's
+  actor names (`lane-heartbeat@<host>`, else `HOST_NOT_TOKEN_S`). Opus's review found that
+  any route could store uploads: a route that cannot push now takes none (`/foreman` too),
+  refused in botcore's HTTP surface (`upload_routes`) before a slot is taken; Gemini's, that
+  the host match must be exact and the read routes' docs said "every route".
+  Not closed: Lushly's lane runs as the owner's account, which holds his gateway token and
+  `gh` sign-in, so queued code can read those already; a separate OS user (G4) closes it.
 - 2026-11-14: filed [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392), Lushly's side
   of G1 (claim script, lane steps, flake filer, process files and checks), as G1 started.
 

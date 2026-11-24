@@ -72,7 +72,7 @@ def serve(
     app_key: Path | None,
     allow_any_address: bool,
 ) -> None:
-    """Serve the five routes from one process, as the App named in the configuration."""
+    """Serve every route from one process, as the App named in the configuration."""
     from botcore.host_http import serve_hosts
 
     from botcore_factory.gateway.server import build_gateway_app
@@ -149,6 +149,12 @@ def token_issue(data_dir: Path, route: str, kind: str, actor_id: str, label: str
     """Issue a token; it is printed once and only its digest is kept."""
     from botcore_factory.gateway.server import token_store
 
+    head, at, host = actor_id.rpartition("@")
+    if route == "heartbeat" and not (head and at and host):
+        raise click.BadParameter(
+            "A heartbeat token reports for one host: name it as lane-heartbeat@<host>",
+            param_hint="--actor",
+        )
     record, secret = token_store(data_dir).issue(route, kind, actor_id, label)
     click.echo(json.dumps({**record.public(), "token": secret}, indent=2))
 

@@ -280,6 +280,16 @@ class Gateway:
         reports it. Each host's report is kept apart, so one host cannot hide another's."""
         self.repo(repo)
         self.text(host=host)
+        actor = _actor().get("id") or ""
+        if self.route == "heartbeat" and actor.rpartition("@")[1:] != ("@", host):
+            raise refuse(
+                "HOST_NOT_TOKEN_S",
+                f"This heartbeat token reports for {actor or 'no host'}, not {host}",
+                "Send the host the token was issued for, or issue a token whose actor is "
+                f"lane-heartbeat@{host}",
+                actor=actor,
+                host=host,
+            )
         merged = None if last_merge_at is None else _time_or_none(last_merge_at)
         if last_merge_at is not None and merged is None:
             raise refuse(

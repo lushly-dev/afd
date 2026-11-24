@@ -1,4 +1,4 @@
-"""The gateway as a server: five routes behind tokens, real bundle uploads and the CLIs."""
+"""The gateway as a server: its routes behind tokens, real bundle uploads and the CLIs."""
 
 from __future__ import annotations
 
@@ -55,6 +55,7 @@ def gateway(tmp_path):
             ("session", "agent", "session@workstation"),
             ("lane", "service", "lane@random"),
             ("owner", "human", "owner"),
+            ("heartbeat", "service", "lane-heartbeat@random"),
         ]
     }
     return TestClient(app), tokens, data, clock, github_file
@@ -108,6 +109,93 @@ def upload(client, token, data: bytes, route="cell", repo=REPO):
 
 
 # ── Routes and the journal ──────────────────────────────────────────────
+
+
+def test_a_heartbeat_token_reports_the_lane_and_opens_nothing_else(gateway):
+    """The token a lane's loop holds, and its queued branches' code can read: it reports the
+    lane's health and cannot push, merge, claim or use another route."""
+    client, tokens, *_ = gateway
+    token = tokens["heartbeat"]
+    beat = call(
+        client,
+        token,
+        "heartbeat",
+        "lane-heartbeat",
+        repo=REPO,
+        host="random",
+        running=True,
+        queued=0,
+    )
+    assert beat["success"] and beat["data"]["lane"]["running"] is True, beat
+    status = call(client, token, "heartbeat", "gateway-status")
+    assert status["data"]["writes"] == []
+    assert status["data"]["lanes"][0]["host"] == "random"
+    for command, arguments in [
+        ("pr-merge", {"repo": REPO, "number": 44, "head": "a" * 40}),
+        (
+            "issue-claim",
+            {"repo": REPO, "numbers": [103], "holder": {"branch": "b", "machine": "m"}},
+        ),
+        ("branch-push", {"repo": REPO, "ref": "refs/heads/x", "head": "a" * 40, "bundle": "x"}),
+        (
+            "verification-record",
+            {"repo": REPO, "head": "a" * 40, "result": "passed", "summary": "s"},
+        ),
+        ("issue-get", {"repo": REPO, "number": 103}),
+    ]:
+        refused = call(client, token, "heartbeat", command, **arguments)
+        assert refused["error"]["code"] == "COMMAND_NOT_FOUND", (command, refused)
+    other = call(client, token, "lane", "gateway-status")
+    assert other["error"]["code"] == "FORBIDDEN"
+    elsewhere = call(
+        client,
+        token,
+        "heartbeat",
+        "lane-heartbeat",
+        repo=REPO,
+        host="spare",
+        running=True,
+        queued=0,
+    )
+    assert elsewhere["error"]["code"] == "HOST_NOT_TOKEN_S"  # Only the host it was issued for.
+    catalog = client.get("/heartbeat/catalog", headers={"Authorization": f"Bearer {token}"})
+    assert sorted(row["name"] for row in catalog.json()["commands"]) == [
+        "gateway-status",
+        "lane-heartbeat",
+    ]
+
+
+def test_a_route_that_cannot_push_takes_no_uploads(gateway, tmp_path):
+    client, tokens, *_ = gateway
+    data, _ = make_bundle(tmp_path, [OWNER])
+    _, foreman = token_store(tmp_path / "data").issue("foreman", "agent", "foreman")
+    for route, token in (("heartbeat", tokens["heartbeat"]), ("foreman", foreman)):
+        refused = upload(client, token, data, route=route)
+        assert refused["error"]["code"] == "NOT_FOUND", refused  # Refused before the handler.
+    state_file = tmp_path / "data" / "state.json"
+    state = json.loads(state_file.read_text("utf-8")) if state_file.exists() else {}
+    assert state.get("uploads", {}) == {}  # Nothing was recorded or fetched.
+    assert upload(client, tokens["cell"], data)["success"]
+
+
+def test_the_upload_handler_refuses_a_route_that_cannot_push(gateway, tmp_path):
+    """The gateway's own check, behind botcore's: it holds if a server forgets upload_routes."""
+    from afd import Actor
+
+    from botcore_factory.gateway.service import Gateway
+    from botcore_factory.gateway.state import GatewayState
+    from botcore_factory.gateway.uploads import BundleUploads
+
+    _, _, data_dir, *_ = gateway
+    state = GatewayState(data_dir)
+    fixture = json.loads((FIXTURES / "gateway.json").read_text(encoding="utf-8"))
+    config = GatewayConfig(**{k: v for k, v in fixture.items() if k in CONFIG_KEYS})
+    gw = Gateway(FakeGitHub(tmp_path / "github.json", bot=config.bot), config, state, "heartbeat")
+    data, _ = make_bundle(tmp_path, [OWNER])
+    result = BundleUploads(gw, data_dir).receive(
+        "heartbeat", Actor(kind="service", id="lane-heartbeat@random"), data, {"repo": REPO}
+    )
+    assert result.error and result.error.code == "FORBIDDEN" and result.error.suggestion
 
 
 def test_every_route_answers_with_its_own_writes(gateway):
@@ -433,3 +521,31 @@ def test_a_ref_that_moves_between_the_read_and_the_push_is_not_overwritten(
     assert result["error"]["details"]["head"] == "f" * 40
     world = json.loads(github_file.read_text(encoding="utf-8"))
     assert world["refs"].get(queue) != head
+
+
+def test_a_heartbeat_token_must_name_its_host_exactly(gateway):
+    client, _, data, *_ = gateway
+    store = token_store(data)
+    for actor in ("lane-heartbeat@xrandom", "random", "lane-heartbeat@random@x"):
+        _, token = store.issue("heartbeat", "service", actor)
+        refused = call(
+            client,
+            token,
+            "heartbeat",
+            "lane-heartbeat",
+            repo=REPO,
+            host="random",
+            running=True,
+            queued=0,
+        )
+        assert refused["error"]["code"] == "HOST_NOT_TOKEN_S", actor
+
+
+def test_a_heartbeat_token_must_be_issued_for_a_host(tmp_path):
+    runner = CliRunner()
+    base = ["token", "issue", "--data", str(tmp_path), "--route", "heartbeat", "--kind", "service"]
+    for actor in ("random", "lane-heartbeat@", "@random"):
+        refused = runner.invoke(admin_cli, [*base, "--actor", actor])
+        assert refused.exit_code != 0 and "lane-heartbeat@<host>" in refused.output, actor
+    issued = runner.invoke(admin_cli, [*base, "--actor", "lane-heartbeat@random"])
+    assert issued.exit_code == 0, issued.output

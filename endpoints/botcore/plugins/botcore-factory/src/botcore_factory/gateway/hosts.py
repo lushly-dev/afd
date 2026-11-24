@@ -1,4 +1,4 @@
-"""The gateway's five hosts, one per kind of caller, on botcore's remote-caller profile.
+"""The gateway's hosts, one per kind of caller, on botcore's remote-caller profile.
 
 Each host serves its route's commands under their kebab-case names and journals every call
 with AFD's journal middleware, recording the actor the route's verified token named.
