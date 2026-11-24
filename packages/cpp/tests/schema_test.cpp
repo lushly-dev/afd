@@ -243,6 +243,19 @@ TEST_CASE("additionalProperties controls undeclared members") {
     // No declared shape: an object passes through unchanged.
     const auto any = compile({{"type", "object"}});
     CHECK(*any.validate({{"b", 1}}) == afd::Json{{"b", 1}});
+
+    // Schema-valued additionalProperties validates each undeclared member and applies defaults.
+    const auto typed_extra = compile(afd::Json::parse(
+        R"({"type":"object","properties":{"a":{"type":"string"}},"additionalProperties":{"type":"object","properties":{"n":{"type":"number","default":1}}}})"));
+    const auto extra_ok = typed_extra.validate({{"a", "x"}, {"extra", afd::Json::object()}});
+    REQUIRE(extra_ok.has_value());
+    CHECK(*extra_ok == afd::Json{{"a", "x"}, {"extra", {{"n", 1}}}});
+
+    const auto extra_bad = typed_extra.validate({{"a", "x"}, {"extra", {{"n", "oops"}}}});
+    REQUIRE_FALSE(extra_bad.has_value());
+    REQUIRE(extra_bad.error().errors.size() == 1);
+    CHECK(extra_bad.error().errors[0].path == "extra.n");
+    CHECK(extra_bad.error().errors[0].code == "invalid_type");
 }
 
 TEST_CASE("format_validation_errors matches TypeScript") {
@@ -386,17 +399,50 @@ TEST_CASE("required boolean and untyped properties reject omission through schem
 
 TEST_CASE(
     "self-recursive $ref schemas enforce max validation depth without stack overflow (#1719)") {
+    const auto wrap_object = [](afd::Json inner) {
+        afd::Json wrapper = afd::Json::object();
+        wrapper["next"] = std::move(inner);
+        return wrapper;
+    };
+    const auto wrap_array = [](afd::Json inner) {
+        afd::Json wrapper = afd::Json::array();
+        wrapper.push_back(std::move(inner));
+        return wrapper;
+    };
+
     const auto obj_schema =
         compile({{"type", "object"}, {"properties", {{"next", {{"$ref", "#"}}}}}});
     afd::Json shallow_obj = afd::Json::object();
     for (int i = 0; i < 10; ++i) {
-        shallow_obj = afd::Json{{"next", std::move(shallow_obj)}};
+        shallow_obj = wrap_object(std::move(shallow_obj));
     }
     CHECK(obj_schema.validate(shallow_obj).has_value());
 
+    // Exact boundary: depth 128 succeeds and preserves the full tree; depth 129 fails too_deep.
+    afd::Json boundary_obj = afd::Json::object();
+    for (int i = 0; i < 128; ++i) {
+        boundary_obj = wrap_object(std::move(boundary_obj));
+    }
+    const auto boundary_ok = obj_schema.validate(boundary_obj);
+    REQUIRE(boundary_ok.has_value());
+    const afd::Json* cursor = &*boundary_ok;
+    for (int i = 0; i < 128; ++i) {
+        REQUIRE(cursor->is_object());
+        REQUIRE(cursor->contains("next"));
+        cursor = &(*cursor)["next"];
+    }
+    CHECK(cursor->is_object());
+    CHECK(cursor->empty());
+
+    const afd::Json over_boundary_obj = wrap_object(std::move(boundary_obj));
+    const auto boundary_err = obj_schema.validate(over_boundary_obj);
+    REQUIRE_FALSE(boundary_err.has_value());
+    REQUIRE_FALSE(boundary_err.error().errors.empty());
+    CHECK(boundary_err.error().errors.front().code == "too_deep");
+
     afd::Json deep_obj = afd::Json::object();
     for (int i = 0; i < 160; ++i) {
-        deep_obj = afd::Json{{"next", std::move(deep_obj)}};
+        deep_obj = wrap_object(std::move(deep_obj));
     }
     const auto obj_result = obj_schema.validate(deep_obj);
     REQUIRE_FALSE(obj_result.has_value());
@@ -404,11 +450,30 @@ TEST_CASE(
     CHECK(obj_result.error().errors.front().code == "too_deep");
 
     const auto arr_schema = compile({{"type", "array"}, {"items", {{"$ref", "#"}}}});
+    afd::Json boundary_arr = afd::Json::array();
+    for (int i = 0; i < 128; ++i) {
+        boundary_arr = wrap_array(std::move(boundary_arr));
+    }
+    const auto arr_boundary_ok = arr_schema.validate(boundary_arr);
+    REQUIRE(arr_boundary_ok.has_value());
+    const afd::Json* arr_cursor = &*arr_boundary_ok;
+    for (int i = 0; i < 128; ++i) {
+        REQUIRE(arr_cursor->is_array());
+        REQUIRE(arr_cursor->size() == 1);
+        arr_cursor = &(*arr_cursor)[0];
+    }
+    CHECK(arr_cursor->is_array());
+    CHECK(arr_cursor->empty());
+
+    const afd::Json over_boundary_arr = wrap_array(std::move(boundary_arr));
+    const auto arr_boundary_err = arr_schema.validate(over_boundary_arr);
+    REQUIRE_FALSE(arr_boundary_err.has_value());
+    REQUIRE_FALSE(arr_boundary_err.error().errors.empty());
+    CHECK(arr_boundary_err.error().errors.front().code == "too_deep");
+
     afd::Json deep_arr = afd::Json::array();
     for (int i = 0; i < 160; ++i) {
-        afd::Json wrapper = afd::Json::array();
-        wrapper.push_back(std::move(deep_arr));
-        deep_arr = std::move(wrapper);
+        deep_arr = wrap_array(std::move(deep_arr));
     }
     const auto arr_result = arr_schema.validate(deep_arr);
     REQUIRE_FALSE(arr_result.has_value());
