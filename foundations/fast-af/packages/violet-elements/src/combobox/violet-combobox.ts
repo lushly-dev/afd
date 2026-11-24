@@ -5,12 +5,14 @@ import type { VioletOption } from "../option/violet-option";
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { resolveFieldErrorText } from "../shared/field-error";
 import {
+    findOriginatingOption,
     getEnabledOptions,
     getNextEnabledIndex,
     getOwnedOptions,
     getSelectedOption,
     isOptionDisabled,
     normalizeMatchText,
+    resolveActiveOption,
     syncOptionSelection,
 } from "../listbox/violet-selection-helpers";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
@@ -299,7 +301,14 @@ export class VioletCombobox extends FASTElement {
 
     readonly #internals: ElementInternals;
     #defaultValue: string;
-    #defaultSelectedOptionValue: string;
+    #defaultSelectedOptionValue: string | null;
+    #defaultExplicitEmpty = false;
+    #selectedOption: VioletOption | null = null;
+    #committedValue: string | null = null;
+    #activeOption: VioletOption | null = null;
+    #pendingInitialEmptyValue = false;
+    #syncingActive = false;
+    #syncingSelection = false;
 
     readonly #handleViewportChange = () => {
         if (this.open) {
@@ -371,7 +380,7 @@ export class VioletCombobox extends FASTElement {
         super();
         this.#internals = this.attachInternals();
         this.#defaultValue = "";
-        this.#defaultSelectedOptionValue = "";
+        this.#defaultSelectedOptionValue = null;
         this.open = false;
         this.validationMessageText = "";
         this.label = "";
@@ -408,9 +417,11 @@ export class VioletCombobox extends FASTElement {
             attributes: true,
             attributeFilter: ["value", "label", "disabled"],
         });
+        this.#defaultExplicitEmpty = this.hasAttribute("value") && this.getAttribute("value") === "";
+        this.#pendingInitialEmptyValue = this.#defaultExplicitEmpty;
         this.handleSlotChange();
         this.#defaultValue = this.getAttribute("value") ?? this.value;
-        this.#defaultSelectedOptionValue = this.selectedOptionValue;
+        this.#defaultSelectedOptionValue = this.#selectedOption ? this.#selectedOption.value : null;
         this.#syncFormState();
         this.openChanged();
     }
@@ -463,7 +474,7 @@ export class VioletCombobox extends FASTElement {
     }
 
     public get activeOptionId(): string {
-        return this.visibleOptions.find(option => option.value === this.activeValue)?.optionId ?? "";
+        return this.#activeOption && this.visibleOptions.includes(this.#activeOption) ? this.#activeOption.optionId : "";
     }
 
     public get describedBy(): string {
@@ -474,53 +485,89 @@ export class VioletCombobox extends FASTElement {
     }
 
     public get displayErrorText(): string {
-        const submittedValue = this.selectedOptionValue || this.value;
+        Observable.track(this, "displayErrorText");
+        const missing = this.required && this.#selectedOption === null && !this.value.trim();
         return resolveFieldErrorText({
             invalid: this.invalid,
             disabled: this.effectiveDisabled,
             errorText: this.errorText,
-            fallbackValidationMessage: this.required && !submittedValue.trim() ? "Please choose an option." : "",
+            fallbackValidationMessage: missing ? "Please choose an option." : "",
         });
     }
 
     public formStateRestoreCallback(state: File | string | FormData | null): void {
         if (typeof state === "string") {
+            this.#setSelectedOption(null);
+            this.options.forEach(option => {
+                option.selected = false;
+            });
+            this.#pendingInitialEmptyValue = state === "";
             this.value = state;
+            this.handleSlotChange();
         }
     }
 
     public formResetCallback(): void {
-        this.value = this.#defaultValue;
-        this.selectedOptionValue = this.#defaultSelectedOptionValue;
-        this.activeValue = "";
+        this.#setSelectedOption(null);
+        this.#applyActiveOption(null);
         this.open = false;
         this.options.forEach(option => {
             option.selected = false;
         });
+        if (this.#defaultSelectedOptionValue !== null) {
+            const option = getSelectedOption(this.options, this.#defaultSelectedOptionValue);
+            this.#pendingInitialEmptyValue = option === null && this.#defaultSelectedOptionValue === "";
+            if (option) {
+                this.#setSelectedOption(option);
+                this.value = option.labelText;
+            } else {
+                this.value = this.#defaultValue;
+            }
+        } else if (this.#defaultExplicitEmpty) {
+            this.#pendingInitialEmptyValue = true;
+            this.value = "";
+        } else {
+            this.#pendingInitialEmptyValue = false;
+            this.value = this.#defaultValue;
+        }
         this.handleSlotChange();
     }
 
     public handleSlotChange(): void {
+        const options = this.options;
         // While the panel is open with no active selection, the user is filtering; do not
         // auto-select a newly arrived option or overwrite their filter query.
-        const filteringOpen = this.open && !this.selectedOptionValue;
-        const selectedByValue = filteringOpen
-            ? null
-            : getSelectedOption(this.options, this.selectedOptionValue || this.value);
-        const hadSelection = Boolean(this.selectedOptionValue && selectedByValue?.value === this.selectedOptionValue);
-        const selectedByLabel =
-            selectedByValue ??
-            (filteringOpen
-                ? null
-                : (this.options.find(
-                      option =>
-                          !isOptionDisabled(option) &&
-                          normalizeMatchText(option.labelText ?? option.textContent ?? "") === normalizeMatchText(this.value)
-                  ) ?? null));
-        const selected = selectedByValue ?? selectedByLabel;
+        const filteringOpen = this.open && this.#selectedOption === null && this.#committedValue === null;
+        const currentSelected =
+            this.#selectedOption &&
+            options.includes(this.#selectedOption) &&
+            !isOptionDisabled(this.#selectedOption) &&
+            (this.#selectedOption.value === this.#committedValue || !this.#selectedOption.hasAttribute("value"))
+                ? this.#selectedOption
+                : null;
+        let selected: VioletOption | null = currentSelected;
+        const hadSelection = currentSelected !== null || this.#committedValue !== null;
+
+        if (!selected && this.#committedValue !== null && !filteringOpen) {
+            selected = getSelectedOption(options, this.#committedValue);
+        }
+
+        if (!selected && !filteringOpen) {
+            const lookupValue = this.value !== "" ? this.value : this.#pendingInitialEmptyValue ? "" : null;
+            selected = getSelectedOption(options, lookupValue);
+            if (!selected && normalizeMatchText(this.value) !== "") {
+                selected =
+                    options.find(
+                        option =>
+                            !isOptionDisabled(option) &&
+                            normalizeMatchText(option.labelText ?? option.textContent ?? "") === normalizeMatchText(this.value)
+                    ) ?? null;
+            }
+        }
 
         if (selected) {
-            this.selectedOptionValue = selected.value;
+            this.#pendingInitialEmptyValue = false;
+            this.#setSelectedOption(selected);
 
             if (
                 !this.open ||
@@ -531,15 +578,18 @@ export class VioletCombobox extends FASTElement {
             ) {
                 this.value = selected.labelText;
             }
-        } else if (!this.open && !this.value) {
-            this.selectedOptionValue = "";
+        } else if (this.#selectedOption !== null || this.#committedValue !== null || (!this.open && !this.value)) {
+            this.#setSelectedOption(null);
         }
 
-        if (!this.activeValue || !this.visibleOptions.some(option => option.value === this.activeValue)) {
-            this.activeValue = this.visibleOptions[0]?.value ?? "";
+        const visible = this.visibleOptions;
+        const nextActive = resolveActiveOption(visible, this.#activeOption, this.activeValue, visible[0] ?? null);
+        if (nextActive === this.#activeOption) {
+            this.#syncVisibleState();
+        } else {
+            this.#applyActiveOption(nextActive);
         }
 
-        this.#syncVisibleState();
         this.#syncFormState();
         Observable.notify(this, "visibleOptions");
     }
@@ -570,16 +620,16 @@ export class VioletCombobox extends FASTElement {
         // The native `input` is composed and would reach the host as a second event; this element emits its own.
         event.stopPropagation();
         const control = event.currentTarget as HTMLInputElement | null;
+        this.#pendingInitialEmptyValue = false;
         this.value = control?.value ?? "";
         this.open = true;
 
-        const selectedLabel = this.options.find(option => option.value === this.selectedOptionValue)?.labelText ?? "";
-        if (normalizeMatchText(selectedLabel) !== normalizeMatchText(this.value)) {
-            this.selectedOptionValue = "";
+        const selectedLabel = this.#selectedOption?.labelText ?? "";
+        if (!this.#selectedOption || normalizeMatchText(selectedLabel) !== normalizeMatchText(this.value)) {
+            this.#setSelectedOption(null);
         }
 
-        this.activeValue = this.visibleOptions[0]?.value ?? "";
-        this.#syncVisibleState();
+        this.#applyActiveOption(this.visibleOptions[0] ?? null);
         this.#syncFormState();
         this.$emit("input", { value: this.value, selectedValue: this.selectedOptionValue });
     }
@@ -614,9 +664,14 @@ export class VioletCombobox extends FASTElement {
                 }
                 return false;
             case "Enter":
-                if (this.open && this.activeValue) {
+                if (
+                    this.open &&
+                    this.#activeOption &&
+                    this.visibleOptions.includes(this.#activeOption) &&
+                    !isOptionDisabled(this.#activeOption)
+                ) {
                     event.preventDefault();
-                    this.selectValue(this.activeValue);
+                    this.#selectOption(this.#activeOption);
                     return false;
                 }
                 break;
@@ -641,14 +696,51 @@ export class VioletCombobox extends FASTElement {
 
     public handleRequestSelect(event: CustomEvent<{ value?: string }>): void {
         event.stopPropagation();
+        const origin = findOriginatingOption(event, this.options);
+        if (origin) {
+            this.#selectOption(origin);
+            return;
+        }
         const nextValue = event.detail?.value ?? "";
         this.selectValue(nextValue);
     }
 
     public valueChanged(): void {
-        this.#syncVisibleState();
-        this.#syncFormState();
+        if (this.value !== "") {
+            this.#pendingInitialEmptyValue = false;
+        }
+        if (this.$fastController.isConnected) {
+            const visible = this.visibleOptions;
+            if (this.#activeOption && !visible.includes(this.#activeOption)) {
+                this.#applyActiveOption(visible[0] ?? null);
+            } else {
+                this.#syncVisibleState();
+            }
+            this.#syncFormState();
+        }
         Observable.notify(this, "visibleOptions");
+    }
+
+    public activeValueChanged(): void {
+        if (this.#syncingActive || !this.$fastController.isConnected) {
+            return;
+        }
+        this.#activeOption =
+            this.visibleOptions.find(option => option.value === this.activeValue && !isOptionDisabled(option)) ?? null;
+        this.#syncVisibleState();
+    }
+
+    public selectedOptionValueChanged(): void {
+        if (this.#syncingSelection) {
+            return;
+        }
+        this.#committedValue = this.selectedOptionValue === "" ? null : this.selectedOptionValue;
+        if (this.$fastController.isConnected) {
+            this.#selectedOption =
+                this.#committedValue === null ? null : getSelectedOption(this.options, this.#committedValue);
+            this.#syncVisibleState();
+            this.#syncFormState();
+        }
     }
 
     public requiredChanged(): void {
@@ -697,20 +789,23 @@ export class VioletCombobox extends FASTElement {
 
         const wasOpen = this.open;
         this.open = true;
+        const visible = this.visibleOptions;
         // Keep the keyboard-driven active option when the panel is already open (repeated ArrowUp/Down).
-        const activeStillVisible = this.visibleOptions.some(option => option.value === this.activeValue);
+        const activeStillVisible = this.#activeOption !== null && visible.includes(this.#activeOption);
         if (!wasOpen || !activeStillVisible) {
-            this.activeValue = this.selectedOptionValue || this.visibleOptions[0]?.value || this.activeValue;
+            const selectedVisible =
+                this.#selectedOption !== null && visible.includes(this.#selectedOption) ? this.#selectedOption : null;
+            this.#applyActiveOption(selectedVisible ?? visible[0] ?? null);
+        } else {
+            this.#syncVisibleState();
         }
-        this.#syncVisibleState();
     }
 
     public hide(commitSelection: boolean): void {
         this.open = false;
 
         if (commitSelection) {
-            const selected = this.options.find(option => option.value === this.selectedOptionValue);
-            this.value = selected?.labelText ?? "";
+            this.value = this.#selectedOption?.labelText ?? "";
         }
 
         this.#syncVisibleState();
@@ -724,37 +819,63 @@ export class VioletCombobox extends FASTElement {
             return;
         }
 
-        this.selectedOptionValue = option.value;
+        this.#selectOption(option);
+    }
+
+    #selectOption(option: VioletOption): void {
+        this.#pendingInitialEmptyValue = false;
+        this.#setSelectedOption(option);
         this.value = option.labelText;
-        this.activeValue = option.value;
+        this.#applyActiveOption(option);
         this.hide(false);
         this.#syncVisibleState();
         this.#syncFormState();
         this.$emit("change", { value: this.value, selectedValue: option.value, label: option.labelText });
     }
 
+    #setSelectedOption(option: VioletOption | null): void {
+        this.#selectedOption = option;
+        this.#committedValue = option ? option.value : null;
+        this.#syncingSelection = true;
+        try {
+            this.selectedOptionValue = option?.value ?? "";
+        } finally {
+            this.#syncingSelection = false;
+        }
+    }
+
+    #applyActiveOption(option: VioletOption | null): void {
+        this.#activeOption = option;
+        this.#syncVisibleState();
+        this.#syncingActive = true;
+        try {
+            this.activeValue = option?.value ?? "";
+        } finally {
+            this.#syncingActive = false;
+        }
+    }
+
     #moveActive(step: 1 | -1): void {
         const options = this.visibleOptions;
-        const currentIndex = options.findIndex(option => option.value === this.activeValue);
+        const currentIndex = this.#activeOption ? options.indexOf(this.#activeOption) : -1;
         const nextIndex = getNextEnabledIndex(options, currentIndex < 0 ? (step === 1 ? -1 : 0) : currentIndex, step);
-        this.activeValue = options[nextIndex]?.value ?? "";
-        this.#syncVisibleState();
+        this.#applyActiveOption(nextIndex >= 0 ? (options[nextIndex] ?? null) : null);
         this.#scrollActiveIntoView();
     }
 
     #scrollActiveIntoView(): void {
-        const active = this.visibleOptions.find(option => option.value === this.activeValue);
-        active?.shadowRoot?.querySelector('[part="control"]')?.scrollIntoView({ block: "nearest" });
+        this.#activeOption?.shadowRoot?.querySelector('[part="control"]')?.scrollIntoView({ block: "nearest" });
     }
 
     #syncVisibleState(): void {
-        const visibleValues = new Set(this.visibleOptions.map(option => option.value));
+        const visible = new Set(this.visibleOptions);
 
         for (const option of this.options) {
-            option.hidden = !visibleValues.has(option.value);
+            option.hidden = !visible.has(option);
         }
 
-        syncOptionSelection(this.options, this.selectedOptionValue, this.activeValue);
+        const active = this.#activeOption && visible.has(this.#activeOption) ? this.#activeOption : null;
+        syncOptionSelection(this.options, this.#selectedOption ? [this.#selectedOption] : [], active);
         this.#syncActiveDescendant();
     }
 
@@ -764,9 +885,10 @@ export class VioletCombobox extends FASTElement {
             return;
         }
 
-        input.ariaActiveDescendantElement = this.open
-            ? this.visibleOptions.find(option => option.value === this.activeValue) ?? null
-            : null;
+        input.ariaActiveDescendantElement =
+            this.open && this.#activeOption && this.visibleOptions.includes(this.#activeOption)
+                ? this.#activeOption
+                : null;
     }
 
     #positionPanel(): void {
@@ -820,19 +942,33 @@ export class VioletCombobox extends FASTElement {
         return this.shadowRoot?.querySelector('input[role="combobox"]') ?? null;
     }
 
+    get #submittedValue(): string | null {
+        if (this.effectiveDisabled) {
+            return null;
+        }
+        if (this.#selectedOption) {
+            return this.#selectedOption.value;
+        }
+        return this.value || null;
+    }
+
     #syncFormState(): void {
         if (!this.$fastController.isConnected) {
             return;
         }
 
         const control = this.shadowRoot?.querySelector('input[role="combobox"]') as HTMLInputElement | null;
-        const message = this.displayErrorText || (this.errorText ?? "").trim() || "Please choose an option.";
-        const submittedValue = this.effectiveDisabled ? "" : this.selectedOptionValue || this.value;
+        const nextErrorText = this.displayErrorText;
+        const message = nextErrorText || (this.errorText ?? "").trim() || "Please choose an option.";
+        const submittedValue = this.#submittedValue;
         const invalid = !this.effectiveDisabled && this.invalid;
 
-        this.validationMessageText = this.displayErrorText;
+        if (this.validationMessageText !== nextErrorText) {
+            this.validationMessageText = nextErrorText;
+            Observable.notify(this, "displayErrorText");
+        }
         this.#internals.ariaInvalid = invalid ? "true" : "false";
-        this.#internals.setFormValue(this.effectiveDisabled ? null : submittedValue || null, this.effectiveDisabled ? null : submittedValue || null);
+        this.#internals.setFormValue(submittedValue, submittedValue);
 
         if (this.effectiveDisabled) {
             this.#internals.setValidity({});
@@ -844,7 +980,7 @@ export class VioletCombobox extends FASTElement {
             return;
         }
 
-        if (this.required && !submittedValue.trim()) {
+        if (this.required && this.#selectedOption === null && !this.value.trim()) {
             this.#internals.setValidity({ valueMissing: true }, message, control ?? undefined);
             return;
         }

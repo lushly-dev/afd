@@ -61,16 +61,16 @@ function selectView(field: FormField): FieldView {
 	element.label = requiredMark(field);
 	element.supportingText = field.help;
 	element.required = field.required;
-	// By position: `violet-option` takes its label as its value when its value is empty, so "None" would be sent.
 	const options = field.options ?? [];
-	options.forEach(({ label }, index) => {
+	for (const { value, label } of options) {
 		const option = document.createElement('violet-option') as VioletOption;
-		option.value = `option-${index}`;
+		option.value = value;
 		option.textContent = label;
 		element.append(option);
-	});
-	const first = options.findIndex(({ value }) => value === field.initial);
-	element.value = first < 0 ? '' : `option-${first}`;
+	}
+	if (typeof field.initial === 'string' && options.some(({ value }) => value === field.initial)) {
+		element.value = field.initial;
+	}
 	const showError = (message: string | null) => {
 		element.invalid = message !== null;
 		element.errorText = message === null ? '' : `Error: ${message}`;
@@ -79,13 +79,13 @@ function selectView(field: FormField): FieldView {
 	return {
 		field,
 		element,
-		read: () => options[Number(element.value.slice('option-'.length))]?.value ?? '',
+		read: () => element.value,
 		showError,
 		// Mark the row the keyboard is on, which the option's own fill barely shows (as `loam-list`).
 		connected() {
 			const sync = () => {
 				for (const option of element.options) {
-					option.toggleAttribute('data-active', option.value === element.activeValue);
+					option.toggleAttribute('data-active', option.active);
 				}
 			};
 			Observable.getNotifier(element).subscribe({ handleChange: sync }, 'activeValue');

@@ -70,7 +70,7 @@
 			},
 			{
 				"basis": "observed",
-				"default": "",
+				"description": "Submitted value. Defaults to the option's label text when omitted; an explicit empty string is kept.",
 				"name": "value",
 				"property": "value",
 				"rules": [

@@ -1,5 +1,6 @@
-import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, Observable, attr, css, html, observable } from "@lushly-dev/fast-element";
 
+import { observeAttribute, reflectStringAttribute } from "../listbox/violet-selection-helpers";
 import { violetActionTokenDefaults } from "../theme/violet-token-defaults";
 
 let violetOptionId = 0;
@@ -177,6 +178,7 @@ const template = html<VioletOption>`
  * Violet reusable option primitive.
  *
  * @summary One choice inside a violet-select, violet-combobox or violet-listbox.
+ * @attr {string} value - Submitted value. Defaults to the option's label text when omitted; an explicit empty string is kept.
  * @slot - The option's label text.
  * @slot before - Leading content such as an icon.
  * @slot description - Secondary text under the label.
@@ -192,13 +194,15 @@ const template = html<VioletOption>`
  * @cssproperty --violet-option-active-ring - Inset ring color of the active option row when keyboard navigation is active.
  */
 export class VioletOption extends FASTElement {
+    #explicitValue: string | null = null;
+    #reflectingValue = false;
+
     @observable
     declare public hasDescription: boolean;
 
     @observable
     declare public groupDisabled: boolean;
 
-    declare public value: string;
     declare public label: string;
     declare public selected: boolean;
     declare public active: boolean;
@@ -210,7 +214,6 @@ export class VioletOption extends FASTElement {
         super();
         violetOptionId += 1;
         this.optionId = `violet-option-${violetOptionId}`;
-        this.value = "";
         this.label = "";
         this.selected = false;
         this.active = false;
@@ -219,13 +222,46 @@ export class VioletOption extends FASTElement {
         this.hasDescription = false;
     }
 
+    public get value(): string {
+        Observable.track(this, "value");
+        return this.#explicitValue ?? this.labelText;
+    }
+
+    public set value(next: string) {
+        const normalized = next === null || next === undefined ? null : String(next);
+        const previous = this.#explicitValue ?? this.labelText;
+        this.#explicitValue = normalized;
+        this.#reflectValueAttribute(normalized);
+        if (previous !== (this.#explicitValue ?? this.labelText)) {
+            Observable.notify(this, "value");
+        }
+    }
+
+    public override attributeChangedCallback(name: string, oldValue: string | null, newValue: string | null): void {
+        if (name === "value") {
+            if (!this.#reflectingValue) {
+                const previous = this.#explicitValue ?? this.labelText;
+                this.#explicitValue = newValue;
+                if (previous !== (this.#explicitValue ?? this.labelText)) {
+                    Observable.notify(this, "value");
+                }
+            }
+            return;
+        }
+        super.attributeChangedCallback(name, oldValue, newValue);
+    }
+
     public connectedCallback(): void {
         super.connectedCallback();
+        if (this.#explicitValue === null && this.hasAttribute("value")) {
+            this.#explicitValue = this.getAttribute("value");
+        } else if (this.#explicitValue !== null) {
+            this.#reflectValueAttribute(this.#explicitValue);
+        }
         this.id ||= this.optionId;
         this.setAttribute("role", "option");
         this.#syncAriaState();
         this.handleDescriptionSlotChange();
-        this.#syncDerivedValue();
     }
 
     public selectedChanged(): void {
@@ -241,7 +277,9 @@ export class VioletOption extends FASTElement {
     }
 
     public labelChanged(): void {
-        this.#syncDerivedValue();
+        if (this.#explicitValue === null) {
+            Observable.notify(this, "value");
+        }
     }
 
     public handleDescriptionSlotChange(): void {
@@ -280,9 +318,12 @@ export class VioletOption extends FASTElement {
         return this.disabled || this.groupDisabled;
     }
 
-    #syncDerivedValue(): void {
-        if (!this.value) {
-            this.value = this.labelText;
+    #reflectValueAttribute(next: string | null): void {
+        this.#reflectingValue = true;
+        try {
+            reflectStringAttribute(this, "value", next);
+        } finally {
+            this.#reflectingValue = false;
         }
     }
 
@@ -301,16 +342,19 @@ export class VioletOption extends FASTElement {
     }
 }
 
-attr(VioletOption.prototype, "value");
 attr(VioletOption.prototype, "label");
 attr({ mode: "boolean" })(VioletOption.prototype, "selected");
 attr({ mode: "boolean" })(VioletOption.prototype, "active");
 attr({ mode: "boolean" })(VioletOption.prototype, "disabled");
 
 if (!customElements.get("violet-option")) {
-    await FASTElement.define(VioletOption, {
-        name: "violet-option",
-        template,
-        styles,
-    });
+    await FASTElement.define(
+        VioletOption,
+        {
+            name: "violet-option",
+            template,
+            styles,
+        },
+        [observeAttribute("value")]
+    );
 }

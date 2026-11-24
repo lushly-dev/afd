@@ -1170,4 +1170,179 @@ describe("violet-combobox", () => {
         const singleFrame = single.shadowRoot?.querySelector(".control-frame") as HTMLElement;
         expect(singleFrame.getBoundingClientRect().width).toBeLessThanOrEqual(120.5);
     });
+
+    describe("empty-value options (#2235)", () => {
+        async function renderEmptyValueForm(configure?: (combobox: VioletCombobox) => void) {
+            document.body.innerHTML = "";
+            const form = document.createElement("form");
+            const combobox = document.createElement("violet-combobox") as VioletCombobox;
+            combobox.name = "source";
+            combobox.label = "Seed source";
+            const warm = createOption("Warm", "warm") as VioletOption;
+            const none = createOption("None", "") as VioletOption;
+            const cold = createOption("Cold", "cold") as VioletOption;
+            combobox.append(warm, none, cold);
+            configure?.(combobox);
+            form.append(combobox);
+            document.body.append(form);
+            await customElements.whenDefined("violet-combobox");
+            await nextFrame();
+            return { form, combobox, warm, none, cold };
+        }
+
+        it("activates, chooses with Enter, shows its label and submits empty string", async () => {
+            const { form, combobox, none } = await renderEmptyValueForm();
+            const changes: Array<{ value: string; selectedValue: string; label: string }> = [];
+            combobox.addEventListener("change", event =>
+                changes.push((event as CustomEvent<{ value: string; selectedValue: string; label: string }>).detail)
+            );
+
+            // Nothing chosen yet: form gets no entry.
+            expect(new FormData(form).has("source")).toBe(false);
+
+            pressKey(combobox, "ArrowDown");
+            await nextFrame();
+            expect(none.active).toBe(true);
+            expect(combobox.activeOptionId).toBe(none.optionId);
+            expect(getInput(combobox).ariaActiveDescendantElement).toBe(none);
+
+            const enter = pressKey(combobox, "Enter");
+            await nextFrame();
+
+            expect(enter.defaultPrevented).toBe(true);
+            expect(combobox.open).toBe(false);
+            expect(combobox.selectedOptionValue).toBe("");
+            expect(combobox.value).toBe("None");
+            expect(getInput(combobox).value).toBe("None");
+            expect(none.selected).toBe(true);
+            expect(changes).toEqual([{ value: "None", selectedValue: "", label: "None" }]);
+            expect(new FormData(form).has("source")).toBe(true);
+            expect(new FormData(form).get("source")).toBe("");
+
+            // Reopening highlights the chosen empty-value option, not the first option.
+            combobox.show();
+            await nextFrame();
+            expect(none.active).toBe(true);
+
+            // Filtering to no matches clears active state so Enter does not pick the empty-value option.
+            await typeText(combobox, "zzz");
+            expect(combobox.visibleOptions).toHaveLength(0);
+            expect(none.active).toBe(false);
+            expect(getInput(combobox).ariaActiveDescendantElement).toBeNull();
+            pressKey(combobox, "Enter");
+            await nextFrame();
+            expect(combobox.open).toBe(true);
+        });
+
+        it("supports filtering to an empty-value option and restoring an initial empty value on reset", async () => {
+            const { form, combobox, none } = await renderEmptyValueForm(el => {
+                el.setAttribute("value", "");
+            });
+
+            expect(combobox.value).toBe("None");
+            expect(combobox.selectedOptionValue).toBe("");
+            expect(none.selected).toBe(true);
+            expect(new FormData(form).get("source")).toBe("");
+
+            combobox.selectValue("cold");
+            await nextFrame();
+            expect(new FormData(form).get("source")).toBe("cold");
+
+            form.reset();
+            await nextFrame();
+            expect(combobox.value).toBe("None");
+            expect(combobox.selectedOptionValue).toBe("");
+            expect(none.selected).toBe(true);
+            expect(new FormData(form).get("source")).toBe("");
+
+            // Filter by label and choose with Enter.
+            await typeText(combobox, "non");
+            expect(combobox.visibleOptions).toEqual([none]);
+            expect(none.active).toBe(true);
+            pressKey(combobox, "Enter");
+            await nextFrame();
+            expect(combobox.value).toBe("None");
+            expect(new FormData(form).get("source")).toBe("");
+
+            // Programmatic filtering to zero matches clears the active option so Enter does not commit.
+            combobox.show();
+            combobox.value = "zzz";
+            await nextFrame();
+            expect(combobox.visibleOptions).toHaveLength(0);
+            pressKey(combobox, "Enter");
+            await nextFrame();
+            expect(combobox.open).toBe(true);
+
+            // formStateRestoreCallback("") restores the empty choice even when another option is selected.
+            combobox.selectValue("cold");
+            await nextFrame();
+            expect(new FormData(form).get("source")).toBe("cold");
+            combobox.formStateRestoreCallback("");
+            await nextFrame();
+            expect(combobox.value).toBe("None");
+            expect(combobox.selectedOptionValue).toBe("");
+            expect(none.selected).toBe(true);
+            expect(new FormData(form).get("source")).toBe("");
+
+            // Replacing the selected empty option with a new empty option reconciles instead of submitting the label.
+            const replacementNone = createOption("Nothing", "") as VioletOption;
+            combobox.replaceChildren(createOption("Warm", "warm"), replacementNone);
+            await nextFrame();
+            expect(combobox.value).toBe("Nothing");
+            expect(combobox.selectedOptionValue).toBe("");
+            expect(replacementNone.selected).toBe(true);
+            expect(new FormData(form).get("source")).toBe("");
+        });
+
+        it("satisfies required when an empty-value option is chosen and restores late empty options on reset", async () => {
+            document.body.innerHTML = `
+                <form>
+                    <violet-combobox name="source" label="Seed source" value="" required></violet-combobox>
+                </form>
+            `;
+            await customElements.whenDefined("violet-combobox");
+            await nextFrame();
+            const form = document.body.querySelector("form") as HTMLFormElement;
+            const combobox = form.querySelector("violet-combobox") as VioletCombobox;
+
+            // Before the empty-value option arrives, required is unmet.
+            expect(combobox.checkValidity()).toBe(false);
+
+            const warm = createOption("Warm", "warm") as VioletOption;
+            const none = createOption("None", "") as VioletOption;
+            combobox.append(warm, none);
+            await vi.waitFor(() => expect(combobox.value).toBe("None"));
+            expect(none.selected).toBe(true);
+            expect(combobox.checkValidity()).toBe(true);
+            expect(new FormData(form).get("source")).toBe("");
+
+            combobox.selectValue("warm");
+            await nextFrame();
+            expect(new FormData(form).get("source")).toBe("warm");
+
+            form.reset();
+            await nextFrame();
+            expect(combobox.value).toBe("None");
+            expect(none.selected).toBe(true);
+            expect(new FormData(form).get("source")).toBe("");
+
+            // External selectedOptionValue write still reconciles.
+            combobox.selectedOptionValue = "warm";
+            combobox.handleSlotChange();
+            await nextFrame();
+            expect(combobox.value).toBe("Warm");
+            expect(new FormData(form).get("source")).toBe("warm");
+
+            // In-place option recycling (like FAST repeat) keeps the committed value instead of hijacking it.
+            const recycled = combobox.querySelector('violet-option[value="warm"]') as VioletOption;
+            const other = combobox.querySelector('violet-option[value=""]') as VioletOption;
+            recycled.setAttribute("value", "other");
+            recycled.textContent = "Other";
+            other.setAttribute("value", "warm");
+            other.textContent = "Warm (moved)";
+            await vi.waitFor(() => expect(combobox.value).toBe("Warm (moved)"));
+            expect(combobox.selectedOptionValue).toBe("warm");
+            expect(new FormData(form).get("source")).toBe("warm");
+        });
+    });
 });

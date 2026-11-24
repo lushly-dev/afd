@@ -5392,6 +5392,42 @@
             },
             {
               "kind": "field",
+              "name": "#activeOption",
+              "privacy": "private",
+              "type": {
+                "text": "VioletOption | null"
+              },
+              "default": "null"
+            },
+            {
+              "kind": "method",
+              "name": "#applyActiveOption",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "option",
+                  "type": {
+                    "text": "VioletOption | null"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "field",
+              "name": "#committedValue",
+              "privacy": "private",
+              "type": {
+                "text": "string | null"
+              },
+              "default": "null"
+            },
+            {
+              "kind": "field",
               "name": "#controlFrame",
               "privacy": "private",
               "type": {
@@ -5410,12 +5446,21 @@
             },
             {
               "kind": "field",
+              "name": "#defaultExplicitEmpty",
+              "privacy": "private",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false"
+            },
+            {
+              "kind": "field",
               "name": "#defaultSelectedOptionValue",
               "privacy": "private",
               "type": {
-                "text": "string"
+                "text": "string | null"
               },
-              "default": "\"\""
+              "default": "null"
             },
             {
               "kind": "field",
@@ -5491,6 +5536,15 @@
               "readonly": true
             },
             {
+              "kind": "field",
+              "name": "#pendingInitialEmptyValue",
+              "privacy": "private",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false"
+            },
+            {
               "kind": "method",
               "name": "#positionPanel",
               "privacy": "private",
@@ -5511,6 +5565,60 @@
               }
             },
             {
+              "kind": "field",
+              "name": "#selectedOption",
+              "privacy": "private",
+              "type": {
+                "text": "VioletOption | null"
+              },
+              "default": "null"
+            },
+            {
+              "kind": "method",
+              "name": "#selectOption",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "option",
+                  "type": {
+                    "text": "VioletOption"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "#setSelectedOption",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "option",
+                  "type": {
+                    "text": "VioletOption | null"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "field",
+              "name": "#submittedValue",
+              "privacy": "private",
+              "type": {
+                "text": "string | null"
+              },
+              "readonly": true
+            },
+            {
               "kind": "method",
               "name": "#syncActiveDescendant",
               "privacy": "private",
@@ -5529,6 +5637,24 @@
                   "text": "void"
                 }
               }
+            },
+            {
+              "kind": "field",
+              "name": "#syncingActive",
+              "privacy": "private",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false"
+            },
+            {
+              "kind": "field",
+              "name": "#syncingSelection",
+              "privacy": "private",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false"
             },
             {
               "kind": "method",
@@ -5557,6 +5683,16 @@
               },
               "privacy": "public",
               "default": "\"\""
+            },
+            {
+              "kind": "method",
+              "name": "activeValueChanged",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
             },
             {
               "kind": "method",
@@ -6007,6 +6143,16 @@
               },
               "privacy": "public",
               "default": "\"\""
+            },
+            {
+              "kind": "method",
+              "name": "selectedOptionValueChanged",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
             },
             {
               "kind": "method",
@@ -6580,7 +6726,10 @@
                 "text": "string"
               },
               "privacy": "public",
-              "default": "\"Message\""
+              "default": "\"Message\"",
+              "attribute": "label",
+              "reflects": true,
+              "description": "Programmatic label forwarded to the composer input."
             },
             {
               "kind": "field",
@@ -6674,7 +6823,8 @@
           "attributes": [
             {
               "description": "Programmatic label forwarded to the composer input.",
-              "name": "label"
+              "name": "label",
+              "fieldName": "label"
             },
             {
               "name": "status",
@@ -30324,6 +30474,42 @@
               "default": "1"
             },
             {
+              "kind": "field",
+              "name": "#activeOption",
+              "privacy": "private",
+              "type": {
+                "text": "VioletOption | null"
+              },
+              "default": "null"
+            },
+            {
+              "kind": "method",
+              "name": "#applyActiveOption",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "nextOption",
+                  "type": {
+                    "text": "VioletOption | null"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "field",
+              "name": "#explicitValue",
+              "privacy": "private",
+              "type": {
+                "text": "string | null"
+              },
+              "default": "null"
+            },
+            {
               "kind": "method",
               "name": "#moveActive",
               "privacy": "private",
@@ -30369,6 +30555,33 @@
               ]
             },
             {
+              "kind": "field",
+              "name": "#reflectingValue",
+              "privacy": "private",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false"
+            },
+            {
+              "kind": "method",
+              "name": "#reflectValueAttribute",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "next",
+                  "type": {
+                    "text": "string | null"
+                  }
+                }
+              ]
+            },
+            {
               "kind": "method",
               "name": "#scrollActiveIntoView",
               "privacy": "private",
@@ -30379,8 +30592,17 @@
               }
             },
             {
+              "kind": "field",
+              "name": "#selectedOptions",
+              "privacy": "private",
+              "type": {
+                "text": "VioletOption[]"
+              },
+              "default": "[]"
+            },
+            {
               "kind": "method",
-              "name": "#setActive",
+              "name": "#selectOption",
               "privacy": "private",
               "return": {
                 "type": {
@@ -30389,12 +30611,76 @@
               },
               "parameters": [
                 {
-                  "name": "nextValue",
+                  "name": "option",
                   "type": {
-                    "text": "string"
+                    "text": "VioletOption"
+                  }
+                },
+                {
+                  "name": "emit",
+                  "default": "true"
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "#setActiveOption",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "nextOption",
+                  "type": {
+                    "text": "VioletOption | null"
                   }
                 }
               ]
+            },
+            {
+              "kind": "method",
+              "name": "#setExplicitValue",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "next",
+                  "type": {
+                    "text": "string | null"
+                  }
+                },
+                {
+                  "name": "reflect",
+                  "type": {
+                    "text": "boolean"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "field",
+              "name": "#syncingActive",
+              "privacy": "private",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false"
+            },
+            {
+              "kind": "field",
+              "name": "#syncingSelection",
+              "privacy": "private",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false"
             },
             {
               "kind": "method",
@@ -30405,6 +30691,28 @@
                   "text": "void"
                 }
               }
+            },
+            {
+              "kind": "method",
+              "name": "#toggleOption",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "option",
+                  "type": {
+                    "text": "VioletOption"
+                  }
+                },
+                {
+                  "name": "emit",
+                  "default": "true"
+                }
+              ]
             },
             {
               "kind": "field",
@@ -30423,6 +30731,30 @@
                 "text": "number"
               },
               "default": "0"
+            },
+            {
+              "kind": "method",
+              "name": "#updateExplicitValue",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "next",
+                  "type": {
+                    "text": "string | null"
+                  }
+                },
+                {
+                  "name": "reflect",
+                  "type": {
+                    "text": "boolean"
+                  }
+                }
+              ]
             },
             {
               "kind": "field",
@@ -30662,19 +30994,10 @@
                 "text": "string"
               },
               "privacy": "public",
-              "default": "\"\"",
               "attribute": "value",
-              "reflects": true
-            },
-            {
-              "kind": "method",
-              "name": "valueChanged",
-              "privacy": "public",
-              "return": {
-                "type": {
-                  "text": "void"
-                }
-              }
+              "reflects": true,
+              "default": "\"\"",
+              "description": "The chosen option's value (or the first chosen value in multiple mode)."
             }
           ],
           "events": [
@@ -30687,12 +31010,16 @@
               "name": "change"
             }
           ],
-          "superclass": {
-            "name": "FASTElement",
-            "package": "@lushly-dev/fast-element"
-          },
-          "summary": "Always-visible list of options for choosing one, or several with multiple.",
           "attributes": [
+            {
+              "type": {
+                "text": "string"
+              },
+              "description": "The chosen option's value (or the first chosen value in multiple mode).",
+              "name": "value",
+              "default": "\"\"",
+              "fieldName": "value"
+            },
             {
               "name": "label",
               "type": {
@@ -30700,14 +31027,6 @@
               },
               "default": "\"\"",
               "fieldName": "label"
-            },
-            {
-              "name": "value",
-              "type": {
-                "text": "string"
-              },
-              "default": "\"\"",
-              "fieldName": "value"
             },
             {
               "name": "disabled",
@@ -30734,6 +31053,11 @@
               "fieldName": "selectionFollowsFocus"
             }
           ],
+          "superclass": {
+            "name": "FASTElement",
+            "package": "@lushly-dev/fast-element"
+          },
+          "summary": "Always-visible list of options for choosing one, or several with multiple.",
           "customElement": true,
           "tagName": "violet-listbox"
         }
@@ -30753,6 +31077,29 @@
       "kind": "javascript-module",
       "path": "src/listbox/violet-selection-helpers.ts",
       "declarations": [
+        {
+          "kind": "function",
+          "name": "findOriginatingOption",
+          "return": {
+            "type": {
+              "text": "VioletOption | null"
+            }
+          },
+          "parameters": [
+            {
+              "name": "event",
+              "type": {
+                "text": "Event"
+              }
+            },
+            {
+              "name": "options",
+              "type": {
+                "text": "VioletOption[]"
+              }
+            }
+          ]
+        },
         {
           "kind": "function",
           "name": "findTypeaheadMatch",
@@ -30775,9 +31122,9 @@
               }
             },
             {
-              "name": "activeValue",
+              "name": "active",
               "type": {
-                "text": "string"
+                "text": "VioletOption | string | null"
               }
             }
           ]
@@ -30864,7 +31211,7 @@
             {
               "name": "value",
               "type": {
-                "text": "string"
+                "text": "string | null"
               }
             }
           ]
@@ -30905,6 +31252,87 @@
         },
         {
           "kind": "function",
+          "name": "observeAttribute",
+          "return": {
+            "type": {
+              "text": "(def: { type: Function }) => void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "name",
+              "type": {
+                "text": "string"
+              }
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "reflectStringAttribute",
+          "return": {
+            "type": {
+              "text": "void"
+            }
+          },
+          "parameters": [
+            {
+              "name": "element",
+              "type": {
+                "text": "Element"
+              }
+            },
+            {
+              "name": "name",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "name": "value",
+              "type": {
+                "text": "string | null"
+              }
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "resolveActiveOption",
+          "return": {
+            "type": {
+              "text": "VioletOption | null"
+            }
+          },
+          "parameters": [
+            {
+              "name": "candidates",
+              "type": {
+                "text": "VioletOption[]"
+              }
+            },
+            {
+              "name": "current",
+              "type": {
+                "text": "VioletOption | null"
+              }
+            },
+            {
+              "name": "activeValue",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "name": "fallback",
+              "type": {
+                "text": "VioletOption | null"
+              }
+            }
+          ]
+        },
+        {
+          "kind": "function",
           "name": "syncOptionSelection",
           "return": {
             "type": {
@@ -30919,21 +31347,29 @@
               }
             },
             {
-              "name": "selectedValues",
+              "name": "selectedOptions",
               "type": {
-                "text": "string[] | string"
+                "text": "ReadonlyArray<VioletOption>"
               }
             },
             {
-              "name": "activeValue",
+              "name": "activeOption",
               "type": {
-                "text": "string"
+                "text": "VioletOption | null"
               }
             }
           ]
         }
       ],
       "exports": [
+        {
+          "kind": "js",
+          "name": "findOriginatingOption",
+          "declaration": {
+            "name": "findOriginatingOption",
+            "module": "src/listbox/violet-selection-helpers.ts"
+          }
+        },
         {
           "kind": "js",
           "name": "findTypeaheadMatch",
@@ -30987,6 +31423,30 @@
           "name": "normalizeMatchText",
           "declaration": {
             "name": "normalizeMatchText",
+            "module": "src/listbox/violet-selection-helpers.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "observeAttribute",
+          "declaration": {
+            "name": "observeAttribute",
+            "module": "src/listbox/violet-selection-helpers.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "reflectStringAttribute",
+          "declaration": {
+            "name": "reflectStringAttribute",
+            "module": "src/listbox/violet-selection-helpers.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "resolveActiveOption",
+          "declaration": {
+            "name": "resolveActiveOption",
             "module": "src/listbox/violet-selection-helpers.ts"
           }
         },
@@ -31807,18 +32267,44 @@
               "default": "1"
             },
             {
+              "kind": "field",
+              "name": "#explicitValue",
+              "privacy": "private",
+              "type": {
+                "text": "string | null"
+              },
+              "default": "null"
+            },
+            {
+              "kind": "field",
+              "name": "#reflectingValue",
+              "privacy": "private",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false"
+            },
+            {
               "kind": "method",
-              "name": "#syncAriaState",
+              "name": "#reflectValueAttribute",
               "privacy": "private",
               "return": {
                 "type": {
                   "text": "void"
                 }
-              }
+              },
+              "parameters": [
+                {
+                  "name": "next",
+                  "type": {
+                    "text": "string | null"
+                  }
+                }
+              ]
             },
             {
               "kind": "method",
-              "name": "#syncDerivedValue",
+              "name": "#syncAriaState",
               "privacy": "private",
               "return": {
                 "type": {
@@ -31991,9 +32477,9 @@
                 "text": "string"
               },
               "privacy": "public",
-              "default": "\"\"",
               "attribute": "value",
-              "reflects": true
+              "reflects": true,
+              "description": "Submitted value. Defaults to the option's label text when omitted; an explicit empty string is kept."
             }
           ],
           "events": [
@@ -32002,18 +32488,13 @@
               "name": "request-select"
             }
           ],
-          "superclass": {
-            "name": "FASTElement",
-            "package": "@lushly-dev/fast-element"
-          },
-          "summary": "One choice inside a violet-select, violet-combobox or violet-listbox.",
           "attributes": [
             {
-              "name": "value",
               "type": {
                 "text": "string"
               },
-              "default": "\"\"",
+              "description": "Submitted value. Defaults to the option's label text when omitted; an explicit empty string is kept.",
+              "name": "value",
               "fieldName": "value"
             },
             {
@@ -32049,6 +32530,11 @@
               "fieldName": "disabled"
             }
           ],
+          "superclass": {
+            "name": "FASTElement",
+            "package": "@lushly-dev/fast-element"
+          },
+          "summary": "One choice inside a violet-select, violet-combobox or violet-listbox.",
           "customElement": true,
           "tagName": "violet-option"
         }
@@ -35411,6 +35897,33 @@
             },
             {
               "kind": "field",
+              "name": "#activeOption",
+              "privacy": "private",
+              "type": {
+                "text": "VioletOption | null"
+              },
+              "default": "null"
+            },
+            {
+              "kind": "method",
+              "name": "#applyActiveOption",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "nextOption",
+                  "type": {
+                    "text": "VioletOption | null"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "field",
               "name": "#controlShell",
               "privacy": "private",
               "type": {
@@ -35420,12 +35933,21 @@
             },
             {
               "kind": "field",
-              "name": "#defaultValue",
+              "name": "#defaultExplicitValue",
               "privacy": "private",
               "type": {
-                "text": "string"
+                "text": "string | null"
               },
-              "default": "\"\""
+              "default": "null"
+            },
+            {
+              "kind": "field",
+              "name": "#explicitValue",
+              "privacy": "private",
+              "type": {
+                "text": "string | null"
+              },
+              "default": "null"
             },
             {
               "kind": "method",
@@ -35536,6 +36058,33 @@
               ]
             },
             {
+              "kind": "field",
+              "name": "#reflectingValue",
+              "privacy": "private",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false"
+            },
+            {
+              "kind": "method",
+              "name": "#reflectValueAttribute",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "next",
+                  "type": {
+                    "text": "string | null"
+                  }
+                }
+              ]
+            },
+            {
               "kind": "method",
               "name": "#scrollActiveIntoView",
               "privacy": "private",
@@ -35546,8 +36095,17 @@
               }
             },
             {
+              "kind": "field",
+              "name": "#selectedOption",
+              "privacy": "private",
+              "type": {
+                "text": "VioletOption | null"
+              },
+              "default": "null"
+            },
+            {
               "kind": "method",
-              "name": "#setActive",
+              "name": "#selectOption",
               "privacy": "private",
               "return": {
                 "type": {
@@ -35556,9 +36114,51 @@
               },
               "parameters": [
                 {
-                  "name": "nextValue",
+                  "name": "option",
                   "type": {
-                    "text": "string"
+                    "text": "VioletOption"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "#setActiveOption",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "nextOption",
+                  "type": {
+                    "text": "VioletOption | null"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "#setExplicitValue",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "next",
+                  "type": {
+                    "text": "string | null"
+                  }
+                },
+                {
+                  "name": "reflect",
+                  "type": {
+                    "text": "boolean"
                   }
                 }
               ]
@@ -35572,6 +36172,15 @@
                   "text": "void"
                 }
               }
+            },
+            {
+              "kind": "field",
+              "name": "#syncingActive",
+              "privacy": "private",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false"
             },
             {
               "kind": "method",
@@ -35627,6 +36236,16 @@
               },
               "privacy": "public",
               "default": "\"\""
+            },
+            {
+              "kind": "method",
+              "name": "activeValueChanged",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
             },
             {
               "kind": "method",
@@ -36125,19 +36744,10 @@
                 "text": "string"
               },
               "privacy": "public",
-              "default": "\"\"",
               "attribute": "value",
-              "reflects": true
-            },
-            {
-              "kind": "method",
-              "name": "valueChanged",
-              "privacy": "public",
-              "return": {
-                "type": {
-                  "text": "void"
-                }
-              }
+              "reflects": true,
+              "default": "\"\"",
+              "description": "The chosen option's value."
             },
             {
               "kind": "field",
@@ -36169,12 +36779,16 @@
               "name": "change"
             }
           ],
-          "superclass": {
-            "name": "FASTElement",
-            "package": "@lushly-dev/fast-element"
-          },
-          "summary": "Button-triggered popup list for choosing one option; the form receives the chosen option's value.",
           "attributes": [
+            {
+              "type": {
+                "text": "string"
+              },
+              "description": "The chosen option's value.",
+              "name": "value",
+              "default": "\"\"",
+              "fieldName": "value"
+            },
             {
               "name": "label",
               "type": {
@@ -36206,14 +36820,6 @@
               },
               "default": "\"\"",
               "fieldName": "errorText"
-            },
-            {
-              "name": "value",
-              "type": {
-                "text": "string"
-              },
-              "default": "\"\"",
-              "fieldName": "value"
             },
             {
               "name": "name",
@@ -36256,6 +36862,11 @@
               "fieldName": "open"
             }
           ],
+          "superclass": {
+            "name": "FASTElement",
+            "package": "@lushly-dev/fast-element"
+          },
+          "summary": "Button-triggered popup list for choosing one option; the form receives the chosen option's value.",
           "customElement": true,
           "tagName": "violet-select"
         }

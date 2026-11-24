@@ -6,6 +6,7 @@ const isChromium = server.browser === "chromium";
 import "../option/violet-option";
 import "../option-group/violet-option-group";
 import "./violet-select";
+import type { VioletOption } from "../option/violet-option";
 import type { VioletSelect } from "./violet-select";
 
 function nextFrame(): Promise<void> {
@@ -464,5 +465,151 @@ describe("violet-select", () => {
         expect(single.getBoundingClientRect().width).toBeLessThanOrEqual(120.5);
         const singleTrigger = single.shadowRoot?.querySelector(".trigger") as HTMLElement;
         expect(singleTrigger.getBoundingClientRect().width).toBeLessThanOrEqual(120.5);
+    });
+
+    describe("empty-value options (#2235)", () => {
+        function renderEmptyValueForm(configure?: (select: VioletSelect, options: VioletOption[]) => void) {
+            document.body.innerHTML = "";
+            const form = document.createElement("form");
+            const select = document.createElement("violet-select") as VioletSelect;
+            select.name = "tone";
+            select.label = "Tone";
+            select.placeholder = "Pick a tone";
+            const warm = createOption("Warm", "warm") as VioletOption;
+            const none = createOption("None", "") as VioletOption;
+            const cold = createOption("Cold", "cold") as VioletOption;
+            select.append(warm, none, cold);
+            configure?.(select, [warm, none, cold]);
+            form.append(select);
+            document.body.append(form);
+            return { form, select, options: [warm, none, cold] as const };
+        }
+
+        it("activates, chooses, displays in the trigger and submits an empty-value option", async () => {
+            const { form, select, options } = renderEmptyValueForm();
+            const [, none] = options;
+            await customElements.whenDefined("violet-select");
+            await nextFrame();
+
+            // Nothing chosen yet: placeholder shows and the form gets no entry.
+            const valueEl = select.shadowRoot?.getElementById(select.valueId) as HTMLElement;
+            expect(valueEl.dataset.placeholder).toBe("true");
+            expect(valueEl.textContent?.trim()).toBe("Pick a tone");
+            expect(new FormData(form).has("tone")).toBe(false);
+
+            // Navigate to the empty-value option from the keyboard and commit with Enter.
+            const changes: string[] = [];
+            select.addEventListener("change", event => changes.push((event as CustomEvent<{ value: string }>).detail.value));
+            select.show();
+            await nextFrame();
+            select.handleListboxKeydown(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+            await nextFrame();
+
+            expect(none.active).toBe(true);
+            expect(select.activeOptionId).toBe(none.optionId);
+            const listbox = select.shadowRoot?.querySelector('[role="listbox"]') as HTMLElement;
+            expect(listbox.ariaActiveDescendantElement).toBe(none);
+
+            select.handleListboxKeydown(new KeyboardEvent("keydown", { key: "Enter" }));
+            await nextFrame();
+
+            expect(select.open).toBe(false);
+            expect(select.value).toBe("");
+            expect(select.selectedLabel).toBe("None");
+            expect(none.selected).toBe(true);
+            expect(valueEl.dataset.placeholder).toBe("false");
+            expect(valueEl.textContent?.trim()).toBe("None");
+            expect(changes).toEqual([""]);
+            expect(new FormData(form).has("tone")).toBe(true);
+            expect(new FormData(form).get("tone")).toBe("");
+
+            // Reopening highlights the chosen empty-value option, not the first option.
+            select.show();
+            await nextFrame();
+            expect(none.active).toBe(true);
+            expect(options[0].active).toBe(false);
+        });
+
+        it("selects an empty-value option when value is set to empty string before connect or via selected", async () => {
+            const { form, select, options } = renderEmptyValueForm(el => {
+                el.value = "";
+            });
+            const [, none] = options;
+            await customElements.whenDefined("violet-select");
+            await nextFrame();
+
+            expect(select.value).toBe("");
+            expect(select.selectedLabel).toBe("None");
+            expect(none.selected).toBe(true);
+            expect(new FormData(form).get("tone")).toBe("");
+
+            select.selectValue("cold");
+            await nextFrame();
+            expect(new FormData(form).get("tone")).toBe("cold");
+
+            form.reset();
+            await nextFrame();
+            expect(select.value).toBe("");
+            expect(select.selectedLabel).toBe("None");
+            expect(none.selected).toBe(true);
+            expect(new FormData(form).get("tone")).toBe("");
+
+            // Parsed markup with `<violet-option value="" selected>` selects the empty option on connect.
+            document.body.innerHTML = `
+                <form>
+                    <violet-select name="tone" label="Tone" required>
+                        <violet-option value="warm">Warm</violet-option>
+                        <violet-option value="" selected>None</violet-option>
+                    </violet-select>
+                </form>
+            `;
+            await nextFrame();
+            const parsedForm = document.body.querySelector("form") as HTMLFormElement;
+            const parsedSelect = parsedForm.querySelector("violet-select") as VioletSelect;
+            const parsedNone = parsedSelect.querySelectorAll("violet-option")[1] as VioletOption;
+            expect(parsedNone.selected).toBe(true);
+            expect(parsedSelect.selectedLabel).toBe("None");
+            expect(parsedSelect.checkValidity()).toBe(true);
+            expect(new FormData(parsedForm).get("tone")).toBe("");
+
+            // Clicking a second option with the same empty value selects the clicked option, not the first.
+            const secondNone = createOption("Unset", "") as VioletOption;
+            parsedSelect.append(secondNone);
+            await nextFrame();
+            parsedSelect.show();
+            secondNone.shadowRoot?.querySelector<HTMLElement>('[part="control"]')?.click();
+            await nextFrame();
+            expect(secondNone.selected).toBe(true);
+            expect(parsedNone.selected).toBe(false);
+            expect(parsedSelect.selectedLabel).toBe("Unset");
+
+            // Renaming a derived-value option updates both the displayed label and submitted value.
+            const derived = document.createElement("violet-option") as VioletOption;
+            derived.textContent = "Apple";
+            parsedSelect.append(derived);
+            await nextFrame();
+            parsedSelect.selectValue("Apple");
+            await nextFrame();
+            expect(new FormData(parsedForm).get("tone")).toBe("Apple");
+            derived.textContent = "Pear";
+            await vi.waitFor(() => expect(parsedSelect.selectedLabel).toBe("Pear"));
+            expect(new FormData(parsedForm).get("tone")).toBe("Pear");
+
+            // Selecting an empty-value option via `value = ""` on a required invalid select clears the rendered error.
+            document.body.innerHTML = `
+                <violet-select name="tone" label="Tone" required invalid>
+                    <violet-option value="">None</violet-option>
+                    <violet-option value="warm">Warm</violet-option>
+                </violet-select>
+            `;
+            await nextFrame();
+            const requiredSelect = document.body.querySelector("violet-select") as VioletSelect;
+            expect(requiredSelect.shadowRoot?.querySelector(".error")?.textContent?.trim()).toBe(
+                "Please select an option."
+            );
+            requiredSelect.value = "";
+            await nextFrame();
+            expect(requiredSelect.shadowRoot?.querySelector(".error")).toBeNull();
+        });
     });
 });

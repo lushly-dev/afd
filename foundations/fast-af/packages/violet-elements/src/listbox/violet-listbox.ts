@@ -1,15 +1,20 @@
-import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-element";
+import { FASTElement, Observable, attr, css, html, observable } from "@lushly-dev/fast-element";
 
 import "../option-group/violet-option-group";
 import "../option/violet-option";
 import type { VioletOption } from "../option/violet-option";
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 import {
+    findOriginatingOption,
     findTypeaheadMatch,
     getEnabledOptions,
     getNextEnabledIndex,
     getOwnedOptions,
     getSelectedOption,
+    isOptionDisabled,
+    observeAttribute,
+    reflectStringAttribute,
+    resolveActiveOption,
     syncOptionSelection,
 } from "./violet-selection-helpers";
 
@@ -94,6 +99,7 @@ const template = html<VioletListbox>`
  * Violet reusable listbox primitive.
  *
  * @summary Always-visible list of options for choosing one, or several with multiple.
+ * @attr {string} [value=""] - The chosen option's value (or the first chosen value in multiple mode).
  * @slot - The options: violet-option and violet-option-group elements.
  * @fires input - Emitted when the selection changes.
  * @fires change - Emitted when the selection changes.
@@ -101,12 +107,17 @@ const template = html<VioletListbox>`
  */
 export class VioletListbox extends FASTElement {
     #pressing = false;
+    #explicitValue: string | null = null;
+    #selectedOptions: VioletOption[] = [];
+    #activeOption: VioletOption | null = null;
+    #reflectingValue = false;
+    #syncingActive = false;
+    #syncingSelection = false;
 
     @observable
     declare public activeValue: string;
 
     declare public label: string;
-    declare public value: string;
     declare public disabled: boolean;
     declare public multiple: boolean;
     declare public selectionFollowsFocus: boolean;
@@ -124,7 +135,6 @@ export class VioletListbox extends FASTElement {
         violetListboxId += 1;
         this.listboxId = `violet-listbox-${violetListboxId}`;
         this.label = "";
-        this.value = "";
         this.activeValue = "";
         this.selectedValues = [];
         this.disabled = false;
@@ -132,8 +142,33 @@ export class VioletListbox extends FASTElement {
         this.selectionFollowsFocus = false;
     }
 
+    public get value(): string {
+        Observable.track(this, "value");
+        return this.#explicitValue ?? "";
+    }
+
+    public set value(next: string) {
+        const normalized = next === null || next === undefined ? null : String(next);
+        this.#setExplicitValue(normalized, true);
+    }
+
+    public override attributeChangedCallback(name: string, oldValue: string | null, newValue: string | null): void {
+        if (name === "value") {
+            if (!this.#reflectingValue) {
+                this.#setExplicitValue(newValue, false);
+            }
+            return;
+        }
+        super.attributeChangedCallback(name, oldValue, newValue);
+    }
+
     public connectedCallback(): void {
         super.connectedCallback();
+        if (this.#explicitValue === null && this.hasAttribute("value")) {
+            this.#explicitValue = this.getAttribute("value");
+        } else if (this.#explicitValue !== null) {
+            this.#reflectValueAttribute(this.#explicitValue);
+        }
         this.addEventListener("request-select", this.handleRequestSelect as EventListener);
         this.handleSlotChange();
     }
@@ -148,39 +183,63 @@ export class VioletListbox extends FASTElement {
     }
 
     public get activeOptionId(): string {
-        return this.options.find(option => option.value === this.activeValue)?.optionId ?? "";
+        return this.#activeOption?.optionId ?? "";
     }
 
     public handleSlotChange(): void {
-        const enabled = getEnabledOptions(this.options);
+        const options = this.options;
+        const enabled = getEnabledOptions(options);
+        let firstSelected: VioletOption | null = null;
         if (this.multiple) {
-            const derivedSelected =
+            const wanted = new Set(this.selectedValues);
+            const surviving = this.#selectedOptions.filter(
+                option => enabled.includes(option) && wanted.has(option.value)
+            );
+            const coveredValues = new Set(surviving.map(option => option.value));
+            const added = enabled.filter(option => wanted.has(option.value) && !coveredValues.has(option.value));
+            const derivedOptions =
                 this.selectedValues.length > 0
-                    ? this.selectedValues.filter(value => enabled.some(option => option.value === value))
-                    : this.options.filter(option => option.selected && enabled.some(candidate => candidate === option)).map(option => option.value);
-
-            this.selectedValues = derivedSelected;
-            this.value = this.selectedValues[0] ?? "";
-
-            if (!this.activeValue || !enabled.some(option => option.value === this.activeValue)) {
-                this.activeValue = this.selectedValues[0] ?? enabled[0]?.value ?? "";
+                    ? enabled.filter(option => surviving.includes(option) || added.includes(option))
+                    : this.#selectedOptions.length > 0
+                      ? []
+                      : enabled.filter(option => option.selected);
+            this.#selectedOptions = derivedOptions;
+            firstSelected = derivedOptions[0] ?? null;
+            this.#syncingSelection = true;
+            try {
+                this.selectedValues = derivedOptions.map(option => option.value);
+                this.#updateExplicitValue(derivedOptions[0]?.value ?? null, true);
+            } finally {
+                this.#syncingSelection = false;
             }
         } else {
-            const selected = getSelectedOption(this.options, this.value);
-            const fallbackActive = selected?.value ?? enabled[0]?.value ?? "";
-
-            if (!this.value && selected) {
-                this.value = selected.value;
-            }
-
-            this.selectedValues = this.value ? [this.value] : [];
-
-            if (!this.activeValue || !enabled.some(option => option.value === this.activeValue)) {
-                this.activeValue = fallbackActive;
+            const current = this.#selectedOptions[0];
+            const selected =
+                current &&
+                enabled.includes(current) &&
+                (current.value === this.#explicitValue || !current.hasAttribute("value"))
+                    ? current
+                    : getSelectedOption(options, this.#explicitValue);
+            this.#selectedOptions = selected ? [selected] : [];
+            firstSelected = selected;
+            this.#syncingSelection = true;
+            try {
+                if (selected && (this.#explicitValue === null || current === selected)) {
+                    this.#updateExplicitValue(selected.value, true);
+                }
+                this.selectedValues = selected ? [selected.value] : [];
+            } finally {
+                this.#syncingSelection = false;
             }
         }
 
-        this.#syncOptions();
+        const nextActive = resolveActiveOption(
+            enabled,
+            this.#activeOption,
+            this.activeValue,
+            firstSelected ?? enabled[0] ?? null
+        );
+        this.#applyActiveOption(nextActive);
     }
 
     public handleFocus(): void {
@@ -188,14 +247,13 @@ export class VioletListbox extends FASTElement {
             return;
         }
 
-        if (!this.activeValue) {
-            const selected = this.multiple
-                ? this.selectedValues[0]
-                : getSelectedOption(this.options, this.value)?.value;
-            this.activeValue = selected ?? getEnabledOptions(this.options)[0]?.value ?? "";
+        const enabled = getEnabledOptions(this.options);
+        if (!this.#activeOption || !enabled.includes(this.#activeOption)) {
+            const selected = this.#selectedOptions.find(option => enabled.includes(option)) ?? null;
+            this.#applyActiveOption(selected ?? enabled[0] ?? null);
+        } else {
+            this.#syncOptions();
         }
-
-        this.#syncOptions();
         // Focus from a press on the list leaves the scroll alone: bringing the active row into view
         // would move the row under the pointer before the press ends, and the click would miss it
         // (#712). Focus from the keyboard or from script still brings it into view.
@@ -233,19 +291,21 @@ export class VioletListbox extends FASTElement {
                 return false;
             case "Home":
                 event.preventDefault();
-                this.#setActive(getEnabledOptions(this.options)[0]?.value ?? "");
+                this.#setActiveOption(getEnabledOptions(this.options)[0] ?? null);
                 return false;
             case "End": {
                 event.preventDefault();
                 const enabled = getEnabledOptions(this.options);
-                this.#setActive(enabled.at(-1)?.value ?? "");
+                this.#setActiveOption(enabled.at(-1) ?? null);
                 return false;
             }
             case "Enter":
             case " ":
                 event.preventDefault();
-                if (this.activeValue) {
-                    this.multiple ? this.toggleValue(this.activeValue) : this.selectValue(this.activeValue);
+                if (this.#activeOption && !isOptionDisabled(this.#activeOption)) {
+                    this.multiple
+                        ? this.#toggleOption(this.#activeOption)
+                        : this.#selectOption(this.#activeOption);
                 }
                 return false;
             case "a":
@@ -267,24 +327,37 @@ export class VioletListbox extends FASTElement {
     public handleRequestSelect(event: CustomEvent<{ value?: string }>): void {
         event.stopPropagation();
 
+        const origin = findOriginatingOption(event, this.options);
+        if (origin) {
+            this.multiple ? this.#toggleOption(origin) : this.#selectOption(origin);
+            return;
+        }
         const nextValue = event.detail?.value ?? "";
         this.multiple ? this.toggleValue(nextValue) : this.selectValue(nextValue);
     }
 
-    public valueChanged(): void {
-        if (!this.multiple) {
-            this.selectedValues = this.value ? [this.value] : [];
-        }
-        this.#syncOptions();
-    }
-
     public activeValueChanged(): void {
+        if (this.#syncingActive || !this.$fastController.isConnected) {
+            return;
+        }
+        this.#activeOption = getEnabledOptions(this.options).find(option => option.value === this.activeValue) ?? null;
         this.#syncOptions();
     }
 
     public selectedValuesChanged(): void {
-        if (this.multiple) {
-            this.value = this.selectedValues[0] ?? "";
+        if (this.#syncingSelection || !this.$fastController.isConnected || !this.multiple) {
+            return;
+        }
+
+        const enabled = getEnabledOptions(this.options);
+        const wanted = new Set(this.selectedValues);
+        this.#selectedOptions = enabled.filter(option => wanted.has(option.value));
+
+        this.#syncingSelection = true;
+        try {
+            this.#updateExplicitValue(this.selectedValues.length > 0 ? (this.selectedValues[0] ?? null) : null, true);
+        } finally {
+            this.#syncingSelection = false;
         }
 
         this.#syncOptions();
@@ -296,14 +369,7 @@ export class VioletListbox extends FASTElement {
             return;
         }
 
-        this.value = option.value;
-        this.activeValue = option.value;
-        this.#syncOptions();
-
-        if (emit) {
-            this.$emit("input", { value: this.value });
-            this.$emit("change", { value: this.value });
-        }
+        this.#selectOption(option, emit);
     }
 
     public toggleValue(nextValue: string, emit = true): void {
@@ -312,16 +378,60 @@ export class VioletListbox extends FASTElement {
             return;
         }
 
-        const selected = new Set(this.selectedValues);
-        if (selected.has(option.value)) {
-            selected.delete(option.value);
+        this.#toggleOption(option, emit);
+    }
+
+    public toggleAll(): void {
+        const enabled = getEnabledOptions(this.options);
+        const allSelected = enabled.every(option => this.#selectedOptions.includes(option));
+
+        this.#selectedOptions = allSelected ? [] : [...enabled];
+        this.#syncingSelection = true;
+        try {
+            this.selectedValues = this.#selectedOptions.map(option => option.value);
+            this.#updateExplicitValue(this.#selectedOptions[0]?.value ?? null, true);
+        } finally {
+            this.#syncingSelection = false;
+        }
+        this.#applyActiveOption(enabled[0] ?? null);
+        this.$emit("input", { value: this.value, selectedValues: [...this.selectedValues] });
+        this.$emit("change", { value: this.value, selectedValues: [...this.selectedValues] });
+    }
+
+    #selectOption(option: VioletOption, emit = true): void {
+        this.#selectedOptions = [option];
+        this.#syncingSelection = true;
+        try {
+            this.#updateExplicitValue(option.value, true);
+            this.selectedValues = [option.value];
+        } finally {
+            this.#syncingSelection = false;
+        }
+        this.#applyActiveOption(option);
+
+        if (emit) {
+            this.$emit("input", { value: this.value });
+            this.$emit("change", { value: this.value });
+        }
+    }
+
+    #toggleOption(option: VioletOption, emit = true): void {
+        const selected = new Set(this.#selectedOptions);
+        if (selected.has(option)) {
+            selected.delete(option);
         } else {
-            selected.add(option.value);
+            selected.add(option);
         }
 
-        this.selectedValues = this.options.filter(candidate => selected.has(candidate.value)).map(candidate => candidate.value);
-        this.activeValue = option.value;
-        this.#syncOptions();
+        this.#selectedOptions = this.options.filter(candidate => selected.has(candidate));
+        this.#syncingSelection = true;
+        try {
+            this.selectedValues = this.#selectedOptions.map(candidate => candidate.value);
+            this.#updateExplicitValue(this.#selectedOptions[0]?.value ?? null, true);
+        } finally {
+            this.#syncingSelection = false;
+        }
+        this.#applyActiveOption(option);
 
         if (emit) {
             this.$emit("input", { value: this.value, selectedValues: [...this.selectedValues] });
@@ -329,33 +439,68 @@ export class VioletListbox extends FASTElement {
         }
     }
 
-    public toggleAll(): void {
-        const enabled = getEnabledOptions(this.options);
-        const allSelected = enabled.every(option => this.selectedValues.includes(option.value));
-
-        this.selectedValues = allSelected ? [] : enabled.map(option => option.value);
-        this.activeValue = enabled[0]?.value ?? "";
+    #setExplicitValue(next: string | null, reflect: boolean): void {
+        this.#updateExplicitValue(next, reflect);
+        if (!this.$fastController.isConnected) {
+            return;
+        }
+        if (!this.multiple) {
+            const selected = next === null ? null : getSelectedOption(this.options, next);
+            this.#selectedOptions = selected ? [selected] : [];
+            this.#syncingSelection = true;
+            try {
+                this.selectedValues = selected ? [selected.value] : [];
+            } finally {
+                this.#syncingSelection = false;
+            }
+        }
         this.#syncOptions();
-        this.$emit("input", { value: this.value, selectedValues: [...this.selectedValues] });
-        this.$emit("change", { value: this.value, selectedValues: [...this.selectedValues] });
+    }
+
+    #updateExplicitValue(next: string | null, reflect: boolean): void {
+        const previous = this.#explicitValue ?? "";
+        this.#explicitValue = next;
+        if (reflect) {
+            this.#reflectValueAttribute(next);
+        }
+        if (previous !== (next ?? "")) {
+            Observable.notify(this, "value");
+        }
+    }
+
+    #reflectValueAttribute(next: string | null): void {
+        this.#reflectingValue = true;
+        try {
+            reflectStringAttribute(this, "value", next);
+        } finally {
+            this.#reflectingValue = false;
+        }
     }
 
     #moveActive(step: 1 | -1): void {
         const options = this.options;
-        const currentIndex = options.findIndex(option => option.value === this.activeValue);
+        const currentIndex = this.#activeOption ? options.indexOf(this.#activeOption) : -1;
         const nextIndex = getNextEnabledIndex(options, currentIndex < 0 ? (step === 1 ? -1 : 0) : currentIndex, step);
-        const nextValue = options[nextIndex]?.value ?? "";
-
-        this.#setActive(nextValue);
+        this.#setActiveOption(nextIndex >= 0 ? (options[nextIndex] ?? null) : null);
     }
 
-    #setActive(nextValue: string): void {
-        this.activeValue = nextValue;
-        this.#syncOptions();
+    #setActiveOption(nextOption: VioletOption | null): void {
+        this.#applyActiveOption(nextOption);
         this.#scrollActiveIntoView();
 
-        if (!this.multiple && this.selectionFollowsFocus && nextValue) {
-            this.selectValue(nextValue);
+        if (!this.multiple && this.selectionFollowsFocus && nextOption) {
+            this.#selectOption(nextOption);
+        }
+    }
+
+    #applyActiveOption(nextOption: VioletOption | null): void {
+        this.#activeOption = nextOption;
+        this.#syncOptions();
+        this.#syncingActive = true;
+        try {
+            this.activeValue = nextOption?.value ?? "";
+        } finally {
+            this.#syncingActive = false;
         }
     }
 
@@ -363,9 +508,9 @@ export class VioletListbox extends FASTElement {
         window.clearTimeout(this.#typeaheadTimer);
         this.#typeaheadBuffer = `${this.#typeaheadBuffer}${key.toLowerCase()}`;
 
-        const match = findTypeaheadMatch(this.options, this.#typeaheadBuffer, this.activeValue);
+        const match = findTypeaheadMatch(this.options, this.#typeaheadBuffer, this.#activeOption);
         if (match) {
-            this.#setActive(match.value);
+            this.#setActiveOption(match);
         }
 
         this.#typeaheadTimer = window.setTimeout(() => {
@@ -374,33 +519,34 @@ export class VioletListbox extends FASTElement {
     }
 
     #scrollActiveIntoView(): void {
-        const active = this.options.find(option => option.value === this.activeValue);
-        active?.shadowRoot?.querySelector('[part="control"]')?.scrollIntoView({ block: "nearest" });
+        this.#activeOption?.shadowRoot?.querySelector('[part="control"]')?.scrollIntoView({ block: "nearest" });
     }
 
     #syncOptions(): void {
-        syncOptionSelection(this.options, this.multiple ? this.selectedValues : this.value, this.activeValue);
+        syncOptionSelection(this.options, this.#selectedOptions, this.#activeOption);
         const control = this.shadowRoot?.querySelector('[role="listbox"]');
         if (control) {
-            control.ariaActiveDescendantElement =
-                this.options.find(option => option.value === this.activeValue) ?? null;
+            control.ariaActiveDescendantElement = this.#activeOption;
         }
     }
 }
 
 attr(VioletListbox.prototype, "label");
-attr(VioletListbox.prototype, "value");
 attr({ mode: "boolean" })(VioletListbox.prototype, "disabled");
 attr({ mode: "boolean" })(VioletListbox.prototype, "multiple");
 attr({ mode: "boolean", attribute: "selection-follows-focus" })(VioletListbox.prototype, "selectionFollowsFocus");
 
 if (!customElements.get("violet-listbox")) {
-    await FASTElement.define(VioletListbox, {
-        name: "violet-listbox",
-        template,
-        styles,
-        shadowOptions: {
-            delegatesFocus: true,
+    await FASTElement.define(
+        VioletListbox,
+        {
+            name: "violet-listbox",
+            template,
+            styles,
+            shadowOptions: {
+                delegatesFocus: true,
+            },
         },
-    });
+        [observeAttribute("value")]
+    );
 }
