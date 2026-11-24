@@ -261,18 +261,6 @@ function isShellHarnessViolation(violation: { id: string; targets: string[] }): 
 	);
 }
 
-/**
- * Job specimens mount `loam-shell` with a scoped `CustomElementRegistry` for `notes-editor`,
- * where FAST's inert-document template cloning interacts with `motion: 'settled'` in Specimen's
- * instrumentation (tracked in #2384); `reducedMotion: 'reduce'` with `motion: 'natural'` keeps
- * transitions off without mutating `foundations/specimen`.
- */
-const JOB_CONTEXT: Partial<SpecimenContext> = {
-	viewport: { width: 1280, height: 800 },
-	reducedMotion: 'reduce',
-	motion: 'natural',
-};
-
 describe("P2-D10: Specimen captures of notes' editor, inspector and embed", () => {
 	let notes: SpecimenBench;
 	beforeAll(async () => {
@@ -304,7 +292,7 @@ describe("P2-D10: Specimen captures of notes' editor, inspector and embed", () =
 					Observation
 				>();
 				for (const id of ['notes-conflict', 'notes-conflict-compact'] as const) {
-					const run = await notes.runJob({ id, context: { ...JOB_CONTEXT, theme } });
+					const run = await notes.runJob({ id, context: { ...CONTEXT, theme } });
 					expect(run.status, id).toBe('passed');
 					expect(run.job, id).toBe('notes-conflict');
 					expect(run.pinned.clock, id).toBe('2026-03-02T09:00:00Z');
