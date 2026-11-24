@@ -29,7 +29,8 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   no GitHub App. The owner's ranking of the jobs, the six questions in
   [For the owner](factory-gateway.proposal.md#for-the-owner) and the App (G0) are still his.
 - **Last verified:** 2026-11-23 (dates in this file are Pacific time): the rate-limit replay
-  through the deployed gateway, and the gateway updated to `3fe08c00`, both below. 2026-11-21:
+  through the deployed gateway, the gateway updated to `3fe08c00` and then to `36aed322` with
+  the read cache, all below. 2026-11-21:
   G0's exit, after a restart of `random`, from all three machines; also the rebase-credit test, the variables write
   and the runbook's install script, all below. On 2026-11-20: G0's test writes in Lushly. On 2026-11-19 against `main` at `d742f591`: the gateway runs on `random` as a launch daemon built from that commit. Over the
   tailnet with the owner's token, `factory-gateway call gateway-status` answered as
@@ -180,8 +181,9 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   `issue-get` reads only the issue: its claim from the issue's own comments and `linkedPrs`
   from GitHub's closing references (all states, so older merged pull requests now count),
   where it paged every open and 100 closed pull requests. `pr-status` reads check runs once.
-  Conditional REST requests (`ETag`) are not built: REST is the looser budget. Not yet
-  deployed on `random`.
+  Conditional REST requests (`ETag`) are not built: REST is the looser budget. Deployed on
+  `random` on 2026-11-23 by the runbook's code update to `main` at `36aed322`, configuration
+  kept: `claim-list` for AFD took 9.6 s, and again within the window 0.2 s.
 - **Squash credit, settled 2026-11-20: an App's squash takes the credit.** `pr-merge` squashed
   lushly#2707 as `72adbcc5`, whose author is `lushly-factory-gateway[bot]` and committer GitHub,
   with no line for the owner, who wrote its only commit (`bc996e25`): the gateway's explicit
@@ -240,8 +242,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   [#2303](https://github.com/lushly-dev/afd/pull/2303). Both run on `random` since the update
   to `3fe08c00` on 2026-11-23.
 - **Next, in order:** the first merge the App enqueues in AFD, checked for its committer, which closes
-  [#1809](https://github.com/lushly-dev/afd/issues/1809); the read cache deployed on `random`;
-  change 3 redesigned so the host is the only validator (held on
+  [#1809](https://github.com/lushly-dev/afd/issues/1809); change 3 redesigned so the host is the only validator (held on
   `lush/botcore-command-tools`); the lane on `random`
   with its health in `gateway-status`; the factory plugin on the gateway (after
   `feat/factory-lane-loop` lands); Lushly's side ([lushly#2392](https://github.com/lushly-dev/lushly/issues/2392));
