@@ -7,8 +7,8 @@ const styles = css`
 
     :host {
         display: flex;
-        --_surface-hover: var(--color-surface-subtle, #e9e5de);
-        --_surface-pressed: var(--color-surface-pressed, #d8dcd6);
+        --_surface-hover: var(--violet-color-surface-subtle, #e9e5de);
+        --_surface-pressed: var(--violet-color-surface-pressed, #d8dcd6);
     }
 
     .control {

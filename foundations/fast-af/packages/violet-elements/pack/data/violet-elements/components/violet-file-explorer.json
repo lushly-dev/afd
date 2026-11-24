@@ -89,7 +89,7 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--color-state-danger-foreground, #c42a1a)",
+				"default": "var(--violet-color-state-danger-foreground, #c42a1a)",
 				"name": "--_danger-text"
 			},
 			{

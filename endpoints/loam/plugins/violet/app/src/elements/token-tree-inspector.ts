@@ -46,25 +46,25 @@ const styles = css`
 	:host {
 		display: grid;
 		align-content: start;
-		gap: var(--space-stack-md);
-		padding: var(--space-layout-sm);
-		background: var(--color-surface-card);
+		gap: var(--violet-space-stack-md);
+		padding: var(--violet-space-layout-sm);
+		background: var(--violet-color-surface-card);
 		block-size: 100%;
 		box-sizing: border-box;
 		overflow-y: auto;
 	}
 	h2 {
-		font-size: var(--type-title-sm-size);
-		line-height: var(--type-title-sm-line);
-		font-weight: var(--type-title-sm-weight);
+		font-size: var(--violet-type-title-sm-size);
+		line-height: var(--violet-type-title-sm-line);
+		font-weight: var(--violet-type-title-sm-weight);
 	}
 	.section {
 		display: grid;
-		gap: var(--space-stack-xs);
+		gap: var(--violet-space-stack-xs);
 	}
 	.lineage {
 		display: grid;
-		gap: var(--space-stack-xs);
+		gap: var(--violet-space-stack-xs);
 		margin: 0;
 		padding: 0;
 		list-style: none;
@@ -74,16 +74,16 @@ const styles = css`
 		flex-wrap: wrap;
 		align-items: center;
 		justify-content: space-between;
-		gap: var(--space-inline-sm);
-		padding: var(--space-stack-xs) var(--space-inline-sm);
-		border: 1px solid var(--color-border-subtle);
-		border-radius: var(--radius-md);
-		background: var(--color-surface-page);
+		gap: var(--violet-space-inline-sm);
+		padding: var(--violet-space-stack-xs) var(--violet-space-inline-sm);
+		border: 1px solid var(--violet-color-border-subtle);
+		border-radius: var(--violet-radius-md);
+		background: var(--violet-color-surface-page);
 	}
 	.value-editor {
 		display: flex;
 		align-items: end;
-		gap: var(--space-inline-sm);
+		gap: var(--violet-space-inline-sm);
 	}
 	.value-editor violet-text-field {
 		flex: 1 1 auto;
@@ -91,15 +91,15 @@ const styles = css`
 	}
 	.pending-box {
 		display: grid;
-		gap: var(--space-stack-sm);
-		padding: var(--space-stack-sm) var(--space-inline-md);
-		border: 1px solid var(--color-border-strong);
-		border-radius: var(--radius-md);
-		background: var(--color-surface-subtle);
+		gap: var(--violet-space-stack-sm);
+		padding: var(--violet-space-stack-sm) var(--violet-space-inline-md);
+		border: 1px solid var(--violet-color-border-strong);
+		border-radius: var(--violet-radius-md);
+		background: var(--violet-color-surface-subtle);
 	}
 	.pending-list {
 		display: grid;
-		gap: var(--space-stack-xs);
+		gap: var(--violet-space-stack-xs);
 		margin: 0;
 		padding: 0;
 		list-style: none;
@@ -107,7 +107,7 @@ const styles = css`
 	.actions {
 		display: flex;
 		flex-wrap: wrap;
-		gap: var(--space-inline-sm);
+		gap: var(--violet-space-inline-sm);
 	}
 	@media (forced-colors: active) {
 		.lineage-item,

@@ -1,14 +1,14 @@
 /* Page layout over violet-elements' runtime theme tokens. */
 :root {
 	color-scheme: light dark;
-	--page-bg: var(--color-surface-page);
-	--card-bg: var(--color-surface-card);
-	--text: var(--color-text-primary);
-	--text-secondary: var(--color-text-secondary);
-	--border: var(--color-border-subtle);
-	--card-radius: var(--radius-lg);
-	--card-shadow: var(--shadow-card);
-	--gap: var(--space-layout-sm);
+	--page-bg: var(--violet-color-surface-page);
+	--card-bg: var(--violet-color-surface-card);
+	--text: var(--violet-color-text-primary);
+	--text-secondary: var(--violet-color-text-secondary);
+	--border: var(--violet-color-border-subtle);
+	--card-radius: var(--violet-radius-lg);
+	--card-shadow: var(--violet-shadow-card);
+	--gap: var(--violet-space-layout-sm);
 }
 
 * {
@@ -19,8 +19,8 @@ body {
 	margin: 0;
 	background: var(--page-bg);
 	color: var(--text);
-	font-family: var(--font-family-body);
-	font-size: var(--type-body-md-size);
+	font-family: var(--violet-font-family-body);
+	font-size: var(--violet-type-body-md-size);
 	line-height: 1.5;
 }
 
@@ -31,7 +31,7 @@ todo-app,
 
 h1,
 h2 {
-	font-family: var(--font-family-heading);
+	font-family: var(--violet-font-family-heading);
 	line-height: 1.25;
 	margin: 0 0 calc(var(--gap) / 2);
 }
@@ -46,7 +46,7 @@ h2 {
 
 code,
 pre {
-	font-family: var(--font-family-mono);
+	font-family: var(--violet-font-family-mono);
 	font-size: 0.85em;
 }
 

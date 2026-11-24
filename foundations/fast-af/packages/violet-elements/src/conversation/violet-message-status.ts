@@ -7,7 +7,7 @@ const styles = css`
 
     :host {
         display: block;
-        --_danger-text: var(--color-state-danger-text, #c42a1a);
+        --_danger-text: var(--violet-color-state-danger-text, #c42a1a);
         --_status-font-size: var(--violet-status-font-size, var(--_caption-size));
         --_status-line-height: var(--violet-status-line-height, var(--_caption-line));
         --_status-indicator-size: var(--violet-status-indicator-size, var(--_caption-line));

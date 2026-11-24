@@ -72,45 +72,45 @@ const styles = [
 		}
 		dialog {
 			box-sizing: border-box;
-			inline-size: min(92vw, var(--shell-size-main-min));
+			inline-size: min(92vw, var(--violet-shell-size-main-min));
 			max-block-size: 80dvh;
-			padding: var(--space-layout-md);
+			padding: var(--violet-space-layout-md);
 			border: 0;
-			border-radius: var(--radius-lg);
-			background: var(--color-surface-floating);
-			box-shadow: var(--shadow-floating);
-			color: var(--color-text-primary);
-			font-family: var(--font-family-body);
+			border-radius: var(--violet-radius-lg);
+			background: var(--violet-color-surface-floating);
+			box-shadow: var(--violet-shadow-floating);
+			color: var(--violet-color-text-primary);
+			font-family: var(--violet-font-family-body);
 			opacity: 0;
 			transition:
-				opacity var(--duration-fast) var(--easing-standard),
-				display var(--duration-fast) var(--easing-standard) allow-discrete,
-				overlay var(--duration-fast) var(--easing-standard) allow-discrete;
+				opacity var(--violet-duration-fast) var(--violet-easing-standard),
+				display var(--violet-duration-fast) var(--violet-easing-standard) allow-discrete,
+				overlay var(--violet-duration-fast) var(--violet-easing-standard) allow-discrete;
 		}
 		/* A dialog sits at the inline end, above the parts; the next ones above it (data-stack, its place). */
 		dialog:not(:modal) {
 			position: fixed;
-			inset: auto var(--space-layout-md) var(--space-layout-md) auto;
-			z-index: var(--z-index-popover);
+			inset: auto var(--violet-space-layout-md) var(--violet-space-layout-md) auto;
+			z-index: var(--violet-z-index-popover);
 			margin: 0;
-			inline-size: min(92vw, var(--shell-size-sidebar-max));
-			border: 1px solid var(--color-border-strong);
+			inline-size: min(92vw, var(--violet-shell-size-sidebar-max));
+			border: 1px solid var(--violet-color-border-strong);
 		}
 		:host([data-stack='1']) dialog:not(:modal) {
-			inset-block-end: calc(var(--space-layout-md) + var(--shell-size-titlebar) * 2);
+			inset-block-end: calc(var(--violet-space-layout-md) + var(--violet-shell-size-titlebar) * 2);
 		}
 		:host([data-stack='2']) dialog:not(:modal) {
-			inset-block-end: calc(var(--space-layout-md) + var(--shell-size-titlebar) * 4);
+			inset-block-end: calc(var(--violet-space-layout-md) + var(--violet-shell-size-titlebar) * 4);
 		}
 		:host([data-stack='3']) dialog:not(:modal) {
-			inset-block-end: calc(var(--space-layout-md) + var(--shell-size-titlebar) * 6);
+			inset-block-end: calc(var(--violet-space-layout-md) + var(--violet-shell-size-titlebar) * 6);
 		}
 		dialog[open] {
 			opacity: 1;
 			transition:
-				opacity var(--duration-base) var(--easing-emphasized),
-				display var(--duration-base) var(--easing-emphasized) allow-discrete,
-				overlay var(--duration-base) var(--easing-emphasized) allow-discrete;
+				opacity var(--violet-duration-base) var(--violet-easing-emphasized),
+				display var(--violet-duration-base) var(--violet-easing-emphasized) allow-discrete,
+				overlay var(--violet-duration-base) var(--violet-easing-emphasized) allow-discrete;
 		}
 		@starting-style {
 			dialog[open] {
@@ -118,52 +118,52 @@ const styles = [
 			}
 		}
 		dialog::backdrop {
-			background: color-mix(in srgb, var(--color-surface-page) 60%, transparent);
+			background: color-mix(in srgb, var(--violet-color-surface-page) 60%, transparent);
 		}
 		h2 {
-			margin-block: 0 var(--space-stack-sm);
-			font-size: var(--type-title-sm-size);
-			line-height: var(--type-title-sm-line);
-			font-weight: var(--type-title-sm-weight);
+			margin-block: 0 var(--violet-space-stack-sm);
+			font-size: var(--violet-type-title-sm-size);
+			line-height: var(--violet-type-title-sm-line);
+			font-weight: var(--violet-type-title-sm-weight);
 		}
 		p {
-			margin-block: 0 var(--space-stack-md);
-			color: var(--color-text-secondary);
-			font-size: var(--type-body-md-size);
-			line-height: var(--type-body-md-line);
+			margin-block: 0 var(--violet-space-stack-md);
+			color: var(--violet-color-text-secondary);
+			font-size: var(--violet-type-body-md-size);
+			line-height: var(--violet-type-body-md-line);
 			overflow-wrap: anywhere;
 		}
 		.from {
-			margin-block-end: var(--space-stack-xs);
-			font-size: var(--type-label-sm-size);
-			line-height: var(--type-label-sm-line);
+			margin-block-end: var(--violet-space-stack-xs);
+			font-size: var(--violet-type-label-sm-size);
+			line-height: var(--violet-type-label-sm-line);
 		}
 		.error {
-			color: var(--color-state-danger-text);
+			color: var(--violet-color-state-danger-text);
 		}
 		.content:empty {
 			display: none;
 		}
 		.content {
-			margin-block-end: var(--space-stack-md);
+			margin-block-end: var(--violet-space-stack-md);
 		}
 		.details {
 			margin: 0;
-			padding: var(--size-space-sm);
-			border-radius: var(--radius-md);
-			background: var(--color-surface-subtle);
-			color: var(--color-text-primary);
-			font-family: var(--font-family-mono);
+			padding: var(--violet-size-space-sm);
+			border-radius: var(--violet-radius-md);
+			background: var(--violet-color-surface-subtle);
+			color: var(--violet-color-text-primary);
+			font-family: var(--violet-font-family-mono);
 			white-space: pre-wrap;
 		}
 		.field {
 			display: flex;
 			flex-direction: column;
-			gap: var(--space-stack-xs);
-			margin-block-end: var(--space-stack-sm);
-			font-size: var(--type-label-sm-size);
-			line-height: var(--type-label-sm-line);
-			font-weight: var(--type-label-sm-weight);
+			gap: var(--violet-space-stack-xs);
+			margin-block-end: var(--violet-space-stack-sm);
+			font-size: var(--violet-type-label-sm-size);
+			line-height: var(--violet-type-label-sm-line);
+			font-weight: var(--violet-type-label-sm-weight);
 		}
 		.field.check {
 			flex-direction: row-reverse;
@@ -172,44 +172,44 @@ const styles = [
 		}
 		.field .hint {
 			margin: 0;
-			font-weight: var(--type-body-md-weight);
+			font-weight: var(--violet-type-body-md-weight);
 		}
 		input:not([type='checkbox']),
 		select {
 			box-sizing: border-box;
-			min-block-size: var(--size-target-natural);
-			padding-inline: var(--size-space-sm);
-			border: 1px solid var(--color-field-border);
-			border-radius: var(--radius-md);
-			background: var(--color-field-background);
-			color: var(--color-field-text);
+			min-block-size: var(--violet-size-target-natural);
+			padding-inline: var(--violet-size-space-sm);
+			border: 1px solid var(--violet-color-field-border);
+			border-radius: var(--violet-radius-md);
+			background: var(--violet-color-field-background);
+			color: var(--violet-color-field-text);
 			font: inherit;
-			font-weight: var(--type-body-md-weight);
+			font-weight: var(--violet-type-body-md-weight);
 		}
 		input[type='checkbox'] {
-			inline-size: var(--size-target-compact);
-			block-size: var(--size-target-compact);
+			inline-size: var(--violet-size-target-compact);
+			block-size: var(--violet-size-target-compact);
 			margin: 0;
 		}
 		input:focus-visible,
 		select:focus-visible {
-			outline: var(--shell-size-focus) solid var(--color-focus-ring);
-			outline-offset: var(--size-space-xs);
-			border-color: var(--color-field-border-focus);
+			outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+			outline-offset: var(--violet-size-space-xs);
+			border-color: var(--violet-color-field-border-focus);
 		}
 		input[aria-invalid='true'] {
-			border-color: var(--color-field-border-invalid);
+			border-color: var(--violet-color-field-border-invalid);
 		}
 		.buttons {
 			display: flex;
 			flex-wrap: wrap;
 			justify-content: flex-end;
-			gap: var(--space-inline-sm);
+			gap: var(--violet-space-inline-sm);
 		}
 		@media (prefers-reduced-motion: reduce) {
 			dialog,
 			dialog[open] {
-				transition-duration: var(--duration-fast);
+				transition-duration: var(--violet-duration-fast);
 			}
 		}
 		@media (forced-colors: active) {

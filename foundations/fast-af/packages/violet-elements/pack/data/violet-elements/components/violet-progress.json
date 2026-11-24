@@ -71,17 +71,17 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-foreground, #1b5f80)",
+				"default": "var(--violet-color-control-selected-foreground, #1b5f80)",
 				"name": "--_progress-fill"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--radius-round, 9999px)",
+				"default": "var(--violet-radius-round, 9999px)",
 				"name": "--_progress-radius"
 			},
 			{
 				"basis": "declared",
-				"default": "color-mix(in srgb, var(--color-text-primary, #181b1a) 10%, transparent)",
+				"default": "color-mix(in srgb, var(--violet-color-text-primary, #181b1a) 10%, transparent)",
 				"name": "--_progress-track"
 			},
 			{

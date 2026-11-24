@@ -187,7 +187,7 @@ describe("violet-file-upload", () => {
             theme.setAttribute("preset", preset);
             // violet-theme uses display: contents, so paint the page backdrop on a real box inside it.
             const backdrop = document.createElement("div");
-            backdrop.style.background = "var(--color-surface-page)";
+            backdrop.style.background = "var(--violet-color-surface-page)";
             const upload = document.createElement("violet-file-upload") as VioletFileUpload;
             upload.appearance = "dropzone";
             upload.label = "Upload files";

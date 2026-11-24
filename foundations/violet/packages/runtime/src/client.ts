@@ -5,6 +5,7 @@
  */
 
 import { TokenCache } from './cache.js';
+import { tokenCustomProperty } from './property.js';
 import type {
 	ApiResponse,
 	CacheEntry,
@@ -372,7 +373,7 @@ export class VioletRuntime {
 
 		for (const token of this.tokens.values()) {
 			if (typeof token.value === 'string' || typeof token.value === 'number') {
-				const varName = this.tokenToCssVar(token.id, prefix);
+				const varName = tokenCustomProperty(token.id, prefix);
 				// The page's own value before the first write, restored by removeFromDocument().
 				const previous = properties.get(varName)?.previous ?? {
 					value: root.style.getPropertyValue(varName),
@@ -609,7 +610,7 @@ export class VioletRuntime {
 		const prefix = this.config.cssPrefix;
 		for (const token of this.tokens.values()) {
 			if (typeof token.value === 'string' || typeof token.value === 'number') {
-				rule.style.setProperty(this.tokenToCssVar(token.id, prefix), String(token.value));
+				rule.style.setProperty(tokenCustomProperty(token.id, prefix), String(token.value));
 			}
 		}
 	}
@@ -622,14 +623,6 @@ export class VioletRuntime {
 		for (const token of tokens) {
 			this.tokens.set(token.id, token);
 		}
-	}
-
-	/**
-	 * Convert token ID to CSS variable name.
-	 */
-	private tokenToCssVar(tokenId: string, prefix: string): string {
-		const name = tokenId.replace(/\./g, '-');
-		return prefix ? `--${prefix}-${name}` : `--${name}`;
 	}
 
 	/**

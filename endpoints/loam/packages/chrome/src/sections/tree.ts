@@ -71,56 +71,56 @@ const template = html<LoamTree>`
 const styles = css`
 	:host {
 		display: block;
-		--violet-tree-indent-step: var(--space-inline-md);
-		--violet-tree-row-padding-inline: var(--space-inline-md);
+		--violet-tree-indent-step: var(--violet-space-inline-md);
+		--violet-tree-row-padding-inline: var(--violet-space-inline-md);
 	}
 	:host([hidden]),
 	[hidden] {
 		display: none !important;
 	}
 	h3 {
-		margin: 0 0 var(--space-stack-xs);
-		color: var(--color-text-secondary);
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
-		font-weight: var(--weight-semibold);
+		margin: 0 0 var(--violet-space-stack-xs);
+		color: var(--violet-color-text-secondary);
+		font-size: var(--violet-type-label-sm-size);
+		line-height: var(--violet-type-label-sm-line);
+		font-weight: var(--violet-weight-semibold);
 	}
 	:host([heading]:not([heading=''])) {
-		margin-block-end: var(--space-stack-md);
+		margin-block-end: var(--violet-space-stack-md);
 	}
 	p {
 		margin: 0;
-		color: var(--color-text-secondary);
-		font-size: var(--type-body-md-size);
-		line-height: var(--type-body-md-line);
+		color: var(--violet-color-text-secondary);
+		font-size: var(--violet-type-body-md-size);
+		line-height: var(--violet-type-body-md-line);
 	}
 	.failure p {
-		color: var(--color-state-danger-text);
+		color: var(--violet-color-state-danger-text);
 	}
 	.failure .suggestion {
-		margin-block-start: var(--space-stack-xs);
-		color: var(--color-text-secondary);
+		margin-block-start: var(--violet-space-stack-xs);
+		color: var(--violet-color-text-secondary);
 	}
 	violet-tree-item::part(row) {
-		color: var(--color-text-primary);
-		border-inline-start: var(--size-space-xs) solid transparent;
-		border-radius: var(--radius-md);
+		color: var(--violet-color-text-primary);
+		border-inline-start: var(--violet-size-space-xs) solid transparent;
+		border-radius: var(--violet-radius-md);
 		box-shadow: none;
-		transition: background-color var(--duration-fast) var(--easing-standard);
+		transition: background-color var(--violet-duration-fast) var(--violet-easing-standard);
 	}
 	violet-tree-item::part(row):hover {
-		background: var(--color-surface-subtle);
+		background: var(--violet-color-surface-subtle);
 	}
 	/* Selected: the control colors and a start-edge bar, since color alone is not enough. */
 	violet-tree-item[selected]::part(row) {
-		border-inline-start-color: var(--color-control-selected-foreground);
-		background: var(--color-control-selected-background);
-		color: var(--color-control-selected-foreground);
+		border-inline-start-color: var(--violet-color-control-selected-foreground);
+		background: var(--violet-color-control-selected-background);
+		color: var(--violet-color-control-selected-foreground);
 		box-shadow: none;
 	}
 	violet-tree-item:focus-visible::part(row) {
-		outline: var(--shell-size-focus) solid var(--color-focus-ring);
-		outline-offset: calc(-1 * var(--shell-size-focus));
+		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+		outline-offset: calc(-1 * var(--violet-shell-size-focus));
 		box-shadow: none;
 	}
 	/* The chevron turns at once: only opacity and color move (design.md, motion). */
@@ -128,56 +128,56 @@ const styles = css`
 		transition: none;
 	}
 	violet-tree-item::part(meta) {
-		color: var(--color-text-secondary);
+		color: var(--violet-color-text-secondary);
 	}
 	.label {
 		overflow-wrap: anywhere;
 	}
 	.more {
-		min-inline-size: var(--size-target-compact);
-		min-block-size: var(--size-target-compact);
+		min-inline-size: var(--violet-size-target-compact);
+		min-block-size: var(--violet-size-target-compact);
 		padding: 0;
 		border: 0;
-		border-radius: var(--radius-sm);
+		border-radius: var(--violet-radius-sm);
 		background: transparent;
-		color: var(--color-text-secondary);
+		color: var(--violet-color-text-secondary);
 		font: inherit;
 		cursor: pointer;
 	}
 	.more:hover {
-		background: var(--color-action-secondary-hover);
-		color: var(--color-text-primary);
+		background: var(--violet-color-action-secondary-hover);
+		color: var(--violet-color-text-primary);
 	}
 	.menu {
 		position-area: block-end span-inline-end;
 		margin: 0;
-		padding: var(--size-space-xs);
+		padding: var(--violet-size-space-xs);
 		border: 1px solid transparent;
-		border-radius: var(--radius-lg);
-		background: var(--color-surface-floating);
-		box-shadow: var(--shadow-floating);
-		color: var(--color-text-primary);
+		border-radius: var(--violet-radius-lg);
+		background: var(--violet-color-surface-floating);
+		box-shadow: var(--violet-shadow-floating);
+		color: var(--violet-color-text-primary);
 	}
 	.menu:popover-open {
 		display: grid;
 	}
 	.menu button {
-		min-block-size: var(--size-target-natural);
-		padding-inline: var(--space-inline-md);
+		min-block-size: var(--violet-size-target-natural);
+		padding-inline: var(--violet-space-inline-md);
 		border: 0;
-		border-radius: var(--radius-md);
+		border-radius: var(--violet-radius-md);
 		background: transparent;
-		color: var(--color-text-primary);
+		color: var(--violet-color-text-primary);
 		font: inherit;
 		text-align: start;
 		cursor: pointer;
 	}
 	.menu button:hover {
-		background: var(--color-surface-subtle);
+		background: var(--violet-color-surface-subtle);
 	}
 	.menu button:focus-visible {
-		outline: var(--shell-size-focus) solid var(--color-focus-ring);
-		outline-offset: calc(-1 * var(--shell-size-focus));
+		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+		outline-offset: calc(-1 * var(--violet-shell-size-focus));
 	}
 	@media (prefers-reduced-motion: reduce) {
 		violet-tree-item::part(row) {

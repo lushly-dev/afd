@@ -59,8 +59,8 @@ describe('the component token export (2.4)', () => {
 
 	it('maps each custom property to its light value', () => {
 		expect(lightValues.size).toBe(componentIds.length);
-		expect(lightValues.get('--color-text-muted')).toBe('#5e6460');
-		expect(lightValues.has('--shell-size-titlebar')).toBe(false);
+		expect(lightValues.get('--violet-color-text-muted')).toBe('#5e6460');
+		expect(lightValues.has('--violet-shell-size-titlebar')).toBe(false);
 	});
 
 	it('compares the committed export byte for byte, naming what differs', () => {
@@ -103,37 +103,41 @@ describe('the fallback scan (2.4)', () => {
 
 	it('finds literal fallbacks, with nested parentheses, and skips non-literals', () => {
 		const text = [
-			'a { color: var(--color-text-primary, #18181B);',
-			'  box-shadow: var(--shadow-card, 0 1px 2px rgba(1, 2, 3, 0.1),',
+			'a { color: var(--violet-color-text-primary, #18181B);',
+			'  box-shadow: var(--violet-shadow-card, 0 1px 2px rgba(1, 2, 3, 0.1),',
 			'    0 5px 10px rgba(1, 2, 3, 0.2));',
-			'  border: var(--color-border-subtle, var(--color-border-strong, #fff));',
-			'  padding: var(--space-inline-sm, ${gap});',
-			'  margin: var(--space-inline-md); }',
+			'  border: var(--violet-color-border-subtle, var(--violet-color-border-strong, #fff));',
+			'  padding: var(--violet-space-inline-sm, ${gap});',
+			'  margin: var(--violet-space-inline-md); }',
 		].join('\n');
 		expect(
 			findFallbacks(text).map(({ property, literal, line }) => [property, literal, line])
 		).toEqual([
-			['--color-text-primary', '#18181B', 1],
-			['--shadow-card', '0 1px 2px rgba(1, 2, 3, 0.1),\n    0 5px 10px rgba(1, 2, 3, 0.2)', 2],
-			['--color-border-strong', '#fff', 4],
+			['--violet-color-text-primary', '#18181B', 1],
+			[
+				'--violet-shadow-card',
+				'0 1px 2px rgba(1, 2, 3, 0.1),\n    0 5px 10px rgba(1, 2, 3, 0.2)',
+				2,
+			],
+			['--violet-color-border-strong', '#fff', 4],
 		]);
-		expect(findFallbacks('var(--color-text-primary, #fff')).toEqual([]);
+		expect(findFallbacks('var(--violet-color-text-primary, #fff')).toEqual([]);
 	});
 
 	it('reports and rewrites only component fallbacks that differ from light', () => {
 		const text = [
-			'color: var(--color-text-primary, #18181B);',
-			'color: var(--color-text-muted, #6b7280);',
-			'radius: var(--radius-md,  8px );',
+			'color: var(--violet-color-text-primary, #18181B);',
+			'color: var(--violet-color-text-muted, #6b7280);',
+			'radius: var(--violet-radius-md,  8px );',
 			'local: var(--_private, 9px);',
-			'shell: var(--shell-size-titlebar, 99px);',
+			'shell: var(--violet-shell-size-titlebar, 99px);',
 		].join('\n');
 		const mismatches = scanFallbacks([{ path: 'a.ts', text }], lightValues);
 		expect(
 			mismatches.map(({ path, line, property, expected }) => [path, line, property, expected])
 		).toEqual([
-			['a.ts', 1, '--color-text-primary', '#181b1a'],
-			['a.ts', 2, '--color-text-muted', '#5e6460'],
+			['a.ts', 1, '--violet-color-text-primary', '#181b1a'],
+			['a.ts', 2, '--violet-color-text-muted', '#5e6460'],
 		]);
 		const fixed = fixFallbacks(text, lightValues);
 		expect(fixed).toBe(text.replace('#18181B', '#181b1a').replace('#6b7280', '#5e6460'));
@@ -144,14 +148,14 @@ describe('the fallback scan (2.4)', () => {
 		const defaults = [
 			'export const violetSurfaceTokenDefaults: ElementStyles = css`',
 			'  :host {',
-			'    --_text-primary: var(--color-text-primary, #181b1a);',
-			'    --_surface-subtle: var(--color-surface-subtle, #e9e5de);',
+			'    --_text-primary: var(--violet-color-text-primary, #181b1a);',
+			'    --_surface-subtle: var(--violet-color-surface-subtle, #e9e5de);',
 			'  }',
 			'`;',
 		].join('\n');
 		const styles = [
 			'export const cardStyles = css`',
-			'  :host { --_style-muted: var(--color-text-muted, #5e6460); }',
+			'  :host { --_style-muted: var(--violet-color-text-muted, #5e6460); }',
 			'`;',
 		].join('\n');
 		const component = [
@@ -206,9 +210,9 @@ describe('the fallback scan (2.4)', () => {
 	it('handles multi-binding aliases without false positives and marks mismatches ambiguous', () => {
 		const grid = [
 			'const styles = css`',
-			'  :host { --_row-size: var(--size-target-natural); }',
-			'  :host([density="compact"]) { --_row-size: var(--size-target-compact); }',
-			'  :host([density="comfortable"]) { --_row-size: var(--size-target-comfortable); }',
+			'  :host { --_row-size: var(--violet-size-target-natural); }',
+			'  :host([density="compact"]) { --_row-size: var(--violet-size-target-compact); }',
+			'  :host([density="comfortable"]) { --_row-size: var(--violet-size-target-comfortable); }',
 			'  .default { block-size: var(--_row-size, 32px); }',
 			'  .compact { block-size: var(--_row-size, 24px); }',
 			'  .wrong { block-size: var(--_row-size, 18px); }',
@@ -240,10 +244,10 @@ describe("violet-elements' token interface", () => {
 					...wanted.tokens,
 					'color.brand.glow': { property: '--color-brand-glow', type: 'color' },
 					'shell.size.sidebar.default': {
-						property: '--shell-size-sidebar-default',
+						property: '--violet-shell-size-sidebar-default',
 						type: 'dimension',
 					},
-					'radius.sm': { property: '--radius-sm', type: 'number' },
+					'radius.sm': { property: '--violet-radius-sm', type: 'number' },
 				},
 			},
 			outputs.contract
@@ -252,7 +256,7 @@ describe("violet-elements' token interface", () => {
 		expect(errors[0]).toMatch(/contractVersion 2\) lists 'color\.brand\.glow'/);
 		expect(errors[1]).toMatch(/'shell\.size\.sidebar\.default', which Loam's tree does not supply/);
 		expect(errors[2]).toBe(
-			"interface.json lists 'radius.sm' as --radius-sm (number), Loam's contract as --radius-sm (dimension)"
+			"interface.json lists 'radius.sm' as --violet-radius-sm (number), Loam's contract as --violet-radius-sm (dimension)"
 		);
 		expect(compareInterface({ tokens: {} }, outputs.contract)).toHaveLength(1);
 	});
@@ -276,9 +280,9 @@ describe('theme:check with the component paths', () => {
 		await writeFile(join(root, 'src', 'button', 'button.ts'), source);
 		await writeFile(
 			join(root, 'src', 'button', 'button.spec.ts'),
-			'var(--color-text-muted, #000000)'
+			'var(--violet-color-text-muted, #000000)'
 		);
-		await writeFile(join(root, 'src', 'notes.md'), 'var(--color-text-muted, #000000)');
+		await writeFile(join(root, 'src', 'notes.md'), 'var(--violet-color-text-muted, #000000)');
 		return {
 			interfacePath: pathToFileURL(join(root, 'interface.json')),
 			exportPath: pathToFileURL(join(root, 'export.json')),
@@ -287,7 +291,7 @@ describe('theme:check with the component paths', () => {
 	};
 
 	it('passes when the export matches and every fallback is the light value', async () => {
-		const components = await fixture('var(--color-text-muted, #5e6460)');
+		const components = await fixture('var(--violet-color-text-muted, #5e6460)');
 		expect((await sourceFiles(components.sourceDirectory)).map((file) => file.path)).toEqual([
 			'button/button.ts',
 		]);
@@ -297,18 +301,18 @@ describe('theme:check with the component paths', () => {
 	});
 
 	it('fails on a drifted fallback and on a stale export', async () => {
-		const components = await fixture('var(--color-text-muted, #6b7280)', '{}\n');
+		const components = await fixture('var(--violet-color-text-muted, #6b7280)', '{}\n');
 		const { errors } = await checkTheme(contractUrl, { outputs, components, layoutDefaults });
 		expect(errors.some((error) => /contractVersion undefined/.test(error))).toBe(true);
 		expect(errors).toContain(
-			'violet-elements/src/button/button.ts:1: var(--color-text-muted, #6b7280) differs from the light value #5e6460'
+			'violet-elements/src/button/button.ts:1: var(--violet-color-text-muted, #6b7280) differs from the light value #5e6460'
 		);
 		expect(errors.at(-1)).toMatch(/^1 fallbacks differ from the light theme/);
 	});
 
 	it('fails when the tree does not supply an interface id', async () => {
 		const components = await fixture(
-			'var(--color-text-muted, #5e6460)',
+			'var(--violet-color-text-muted, #5e6460)',
 			outputs.componentExportJson,
 			JSON.stringify({
 				contractVersion: 1,

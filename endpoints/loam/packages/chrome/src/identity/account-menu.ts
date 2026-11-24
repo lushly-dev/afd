@@ -31,76 +31,76 @@ const template = html<LoamAccountMenu>`
 const styles = css`
 	:host {
 		position: fixed;
-		inset-block-start: var(--shell-size-titlebar);
-		inset-inline-end: var(--space-inline-md);
+		inset-block-start: var(--violet-shell-size-titlebar);
+		inset-inline-end: var(--violet-space-inline-md);
 		z-index: 10;
 	}
 	.menu {
 		display: grid;
-		min-inline-size: var(--shell-size-sidebar-min);
-		padding: var(--size-space-xs);
+		min-inline-size: var(--violet-shell-size-sidebar-min);
+		padding: var(--violet-size-space-xs);
 		border: 1px solid transparent;
-		border-radius: var(--radius-lg);
-		background: var(--color-surface-floating);
-		box-shadow: var(--shadow-floating);
-		color: var(--color-text-primary);
+		border-radius: var(--violet-radius-lg);
+		background: var(--violet-color-surface-floating);
+		box-shadow: var(--violet-shadow-floating);
+		color: var(--violet-color-text-primary);
 	}
 	.who {
 		display: grid;
 		margin: 0;
-		padding: var(--size-space-sm) var(--size-space-md);
-		border-block-end: 1px solid var(--color-border-subtle);
+		padding: var(--violet-size-space-sm) var(--violet-size-space-md);
+		border-block-end: 1px solid var(--violet-color-border-subtle);
 	}
 	.name {
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
-		font-weight: var(--weight-semibold);
+		font-size: var(--violet-type-label-sm-size);
+		line-height: var(--violet-type-label-sm-line);
+		font-weight: var(--violet-weight-semibold);
 	}
 	.email {
-		color: var(--color-text-secondary);
-		font-size: var(--type-caption-xs-size);
-		line-height: var(--type-caption-xs-line);
+		color: var(--violet-color-text-secondary);
+		font-size: var(--violet-type-caption-xs-size);
+		line-height: var(--violet-type-caption-xs-line);
 	}
 	.item {
-		min-block-size: var(--size-target-natural);
-		padding-inline: var(--size-space-md);
+		min-block-size: var(--violet-size-target-natural);
+		padding-inline: var(--violet-size-space-md);
 		border: 0;
-		border-radius: var(--radius-md);
+		border-radius: var(--violet-radius-md);
 		background: transparent;
-		color: var(--color-text-primary);
+		color: var(--violet-color-text-primary);
 		font: inherit;
-		font-size: var(--type-label-sm-size);
+		font-size: var(--violet-type-label-sm-size);
 		text-align: start;
 		cursor: pointer;
 		transition:
-			background-color var(--duration-fast) var(--easing-standard),
-			color var(--duration-fast) var(--easing-standard);
+			background-color var(--violet-duration-fast) var(--violet-easing-standard),
+			color var(--violet-duration-fast) var(--violet-easing-standard);
 	}
 	.personas {
 		display: grid;
-		border-block-end: 1px solid var(--color-border-subtle);
+		border-block-end: 1px solid var(--violet-color-border-subtle);
 	}
 	.personas:empty {
 		display: none;
 	}
 	.item[role='menuitemradio'] {
-		border-inline-start: var(--size-space-xs) solid transparent;
+		border-inline-start: var(--violet-size-space-xs) solid transparent;
 	}
 	.item[aria-checked='true'] {
-		background: var(--color-control-selected-background);
-		color: var(--color-control-selected-foreground);
-		border-inline-start-color: var(--color-control-selected-foreground);
-		font-weight: var(--weight-semibold);
+		background: var(--violet-color-control-selected-background);
+		color: var(--violet-color-control-selected-foreground);
+		border-inline-start-color: var(--violet-color-control-selected-foreground);
+		font-weight: var(--violet-weight-semibold);
 	}
 	.item:hover {
-		background: var(--color-action-secondary-hover);
+		background: var(--violet-color-action-secondary-hover);
 	}
 	.item:active {
-		background: var(--color-action-secondary-pressed);
+		background: var(--violet-color-action-secondary-pressed);
 	}
 	.item:focus-visible {
-		outline: var(--shell-size-focus) solid var(--color-focus-ring);
-		outline-offset: calc(-1 * var(--shell-size-focus));
+		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+		outline-offset: calc(-1 * var(--violet-shell-size-focus));
 	}
 	@media (prefers-reduced-motion: reduce) {
 		.item {

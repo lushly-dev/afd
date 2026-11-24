@@ -12,8 +12,8 @@ const template = html<LoamGlobal>`<slot></slot>`;
 const styles = css`
 	:host {
 		position: fixed;
-		inset: var(--shell-size-titlebar) 0 auto 0;
-		z-index: var(--z-index-popover);
+		inset: var(--violet-shell-size-titlebar) 0 auto 0;
+		z-index: var(--violet-z-index-popover);
 		display: flex;
 		flex-direction: column;
 	}
@@ -22,20 +22,20 @@ const styles = css`
 	}
 	::slotted(p) {
 		margin: 0;
-		padding-block: var(--space-stack-xs);
-		padding-inline: var(--space-inline-md);
-		border-block-end: 1px solid var(--color-border-strong);
-		background: var(--color-surface-floating);
-		color: var(--color-text-primary);
-		font-family: var(--font-family-body);
-		font-size: var(--type-body-md-size);
-		line-height: var(--type-body-md-line);
+		padding-block: var(--violet-space-stack-xs);
+		padding-inline: var(--violet-space-inline-md);
+		border-block-end: 1px solid var(--violet-color-border-strong);
+		background: var(--violet-color-surface-floating);
+		color: var(--violet-color-text-primary);
+		font-family: var(--violet-font-family-body);
+		font-size: var(--violet-type-body-md-size);
+		line-height: var(--violet-type-body-md-line);
 	}
 	::slotted(p[data-tone='warning']) {
-		color: var(--color-state-warning-text);
+		color: var(--violet-color-state-warning-text);
 	}
 	::slotted(p[data-tone='danger']) {
-		color: var(--color-state-danger-text);
+		color: var(--violet-color-state-danger-text);
 	}
 	@media (forced-colors: active) {
 		::slotted(p) {

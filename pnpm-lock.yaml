@@ -950,6 +950,9 @@ importers:
       '@lushly-dev/violet-core':
         specifier: workspace:*
         version: link:../../../../foundations/violet/packages/core
+      '@lushly-dev/violet-runtime':
+        specifier: workspace:*
+        version: link:../../../../foundations/violet/packages/runtime
     devDependencies:
       '@lushly-dev/loam-kernel':
         specifier: workspace:*
@@ -1142,6 +1145,9 @@ importers:
       '@lushly-dev/violet-elements':
         specifier: workspace:*
         version: link:../../../../../foundations/fast-af/packages/violet-elements
+      '@lushly-dev/violet-runtime':
+        specifier: workspace:*
+        version: link:../../../../../foundations/violet/packages/runtime
     devDependencies:
       '@lushly-dev/afd-testing':
         specifier: workspace:*
@@ -1521,6 +1527,9 @@ importers:
 
   foundations/violet/packages/core:
     dependencies:
+      '@lushly-dev/violet-runtime':
+        specifier: workspace:^
+        version: link:../runtime
       zod:
         specifier: ^4.6.7
         version: 4.6.7

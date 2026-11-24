@@ -322,7 +322,7 @@ show(records.find((record) => record.tag === 'violet-slider') ?? records[0]);
 
 const appRoot = stage(
 	$('[data-app-stage]'),
-	'.add { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: var(--space-3); } [data-list] { display: grid; gap: var(--space-2); margin-top: var(--space-5); } .empty { margin: 0; color: var(--color-text-secondary); }'
+	'.add { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: var(--space-3); } [data-list] { display: grid; gap: var(--space-2); margin-top: var(--space-5); } .empty { margin: 0; color: var(--violet-color-text-secondary); }'
 );
 mount(
 	appRoot,

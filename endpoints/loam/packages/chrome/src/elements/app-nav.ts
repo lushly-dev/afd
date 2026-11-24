@@ -52,7 +52,7 @@ const navStyles = css`
 		margin: 0;
 		padding: 0;
 		list-style: none;
-		gap: var(--space-inline-sm);
+		gap: var(--violet-space-inline-sm);
 	}
 	.bands {
 		min-block-size: 0;
@@ -64,7 +64,7 @@ const navStyles = css`
 		flex: none;
 		margin: 0;
 		border: 0;
-		background: var(--color-border-subtle);
+		background: var(--violet-color-border-subtle);
 	}
 	.bottom:empty,
 	.divider:has(+ .bottom:empty) {
@@ -144,11 +144,11 @@ export const railDefinition = {
 				display: flex;
 				flex-direction: column;
 				align-items: center;
-				gap: var(--space-inline-sm);
-				inline-size: var(--shell-size-rail);
-				padding-block: var(--space-stack-sm);
-				background: var(--color-surface-subtle);
-				border-inline-end: 1px solid var(--color-border-subtle);
+				gap: var(--violet-space-inline-sm);
+				inline-size: var(--violet-shell-size-rail);
+				padding-block: var(--violet-space-stack-sm);
+				background: var(--violet-color-surface-subtle);
+				border-inline-end: 1px solid var(--violet-color-border-subtle);
 			}
 			.bands,
 			.band,
@@ -159,7 +159,7 @@ export const railDefinition = {
 				align-self: stretch;
 			}
 			.divider {
-				inline-size: var(--size-target-compact);
+				inline-size: var(--violet-size-target-compact);
 				block-size: 1px;
 			}
 			@media (forced-colors: active) {
@@ -183,15 +183,15 @@ export const tabbarDefinition = {
 				display: flex;
 				align-items: center;
 				justify-content: safe center;
-				gap: var(--space-inline-sm);
-				block-size: var(--shell-size-tabbar);
-				padding-inline: var(--space-inline-md);
-				background: var(--color-surface-subtle);
-				border-block-start: 1px solid var(--color-border-subtle);
+				gap: var(--violet-space-inline-sm);
+				block-size: var(--violet-shell-size-tabbar);
+				padding-inline: var(--violet-space-inline-md);
+				background: var(--violet-color-surface-subtle);
+				border-block-start: 1px solid var(--violet-color-border-subtle);
 			}
 			.divider {
 				inline-size: 1px;
-				block-size: var(--size-target-compact);
+				block-size: var(--violet-size-target-compact);
 			}
 			@media (forced-colors: active) {
 				:host {

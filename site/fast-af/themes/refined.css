@@ -2,7 +2,7 @@
  * Refined: the component changes the theme needs, as a patch for the review pages.
  * Each part is added to the shadow root of the components it names, after their own styles.
  * It reads only theme tokens and the components' private aliases. Three things in it would
- * become tokens: a heading family (--font-family-heading), a well surface (--_well, a wash of
+ * become tokens: a heading family (--violet-font-family-heading), a well surface (--_well, a wash of
  * the text colour) and the radius of a surface as distinct from a control (radius.lg here).
  */
 
@@ -76,23 +76,23 @@
    The soft part is a literal until there is a shadow.well token. */
 .control-frame {
 	border-color: var(--_border-subtle);
-	background: var(--color-field-background, var(--_surface-page));
-	color: var(--color-field-text, var(--color-text-primary));
+	background: var(--violet-color-field-background, var(--_surface-page));
+	color: var(--violet-color-field-text, var(--violet-color-text-primary));
 	box-shadow:
 		inset 0 1px 0 var(--_field-border),
-		var(--shadow-well, inset 0 2px 3px -1px rgb(0 0 0 / 0.1));
+		var(--violet-shadow-well, inset 0 2px 3px -1px rgb(0 0 0 / 0.1));
 }
 .control-frame:hover {
 	border-color: var(--_border-subtle);
 	box-shadow:
 		inset 0 1px 0 var(--_field-border-hover),
-		var(--shadow-well, inset 0 2px 3px -1px rgb(0 0 0 / 0.1));
+		var(--violet-shadow-well, inset 0 2px 3px -1px rgb(0 0 0 / 0.1));
 }
 .control-frame:focus-within,
 .control-shell.open .control-frame {
-	border-color: var(--color-field-border-focus, var(--_focus-ring));
+	border-color: var(--violet-color-field-border-focus, var(--_focus-ring));
 	box-shadow:
-		0 0 0 calc(var(--size-focus-ring-width, 2px) - 1px) var(--color-field-border-focus, var(--_focus-ring)),
+		0 0 0 calc(var(--violet-size-focus-ring-width, 2px) - 1px) var(--violet-color-field-border-focus, var(--_focus-ring)),
 		0 0 0 4px color-mix(in srgb, var(--_focus-ring) 20%, transparent);
 	transform: none;
 }
@@ -100,7 +100,7 @@
 	border-color: var(--_danger-border);
 }
 :host([readonly]) .control-frame {
-	background: var(--color-field-background-readonly, var(--_surface-subtle));
+	background: var(--violet-color-field-background-readonly, var(--_surface-subtle));
 }
 :host([disabled]) .control-frame,
 :host(:disabled) .control-frame {
@@ -108,33 +108,33 @@
 }
 .control,
 .input {
-	color: var(--color-field-text, var(--color-text-primary));
+	color: var(--violet-color-field-text, var(--violet-color-text-primary));
 }
 .control::placeholder,
 .input::placeholder {
-	color: var(--color-field-placeholder, var(--_text-muted));
+	color: var(--violet-color-field-placeholder, var(--_text-muted));
 }
 
 /* @component violet-select, violet-date-range-picker, violet-color-picker */
 .trigger {
 	border-color: var(--_border-subtle);
-	background: var(--color-field-background, var(--_surface-page));
-	color: var(--color-field-text, var(--color-text-primary));
+	background: var(--violet-color-field-background, var(--_surface-page));
+	color: var(--violet-color-field-text, var(--violet-color-text-primary));
 	box-shadow:
 		inset 0 1px 0 var(--_field-border),
-		var(--shadow-well, inset 0 2px 3px -1px rgb(0 0 0 / 0.1));
+		var(--violet-shadow-well, inset 0 2px 3px -1px rgb(0 0 0 / 0.1));
 }
 .trigger:hover {
 	border-color: var(--_border-subtle);
 	box-shadow:
 		inset 0 1px 0 var(--_field-border-hover),
-		var(--shadow-well, inset 0 2px 3px -1px rgb(0 0 0 / 0.1));
+		var(--violet-shadow-well, inset 0 2px 3px -1px rgb(0 0 0 / 0.1));
 }
 .trigger:focus-visible,
 .control-shell.open .trigger {
-	border-color: var(--color-field-border-focus, var(--_focus-ring));
+	border-color: var(--violet-color-field-border-focus, var(--_focus-ring));
 	box-shadow:
-		0 0 0 calc(var(--size-focus-ring-width, 2px) - 1px) var(--color-field-border-focus, var(--_focus-ring)),
+		0 0 0 calc(var(--violet-size-focus-ring-width, 2px) - 1px) var(--violet-color-field-border-focus, var(--_focus-ring)),
 		0 0 0 4px color-mix(in srgb, var(--_focus-ring) 20%, transparent);
 	transform: none;
 }
@@ -147,7 +147,7 @@
 }
 .value[data-placeholder="true"],
 .segment.placeholder {
-	color: var(--color-field-placeholder, var(--_text-muted));
+	color: var(--violet-color-field-placeholder, var(--_text-muted));
 }
 
 /* @component violet-text-field, violet-text-area, violet-select, violet-combobox, violet-date-picker, violet-date-range-picker, violet-time-picker, violet-color-picker, violet-slider, violet-range-slider */
@@ -164,7 +164,7 @@
 /* These two have no error line of their own, so under an invalid value the supporting
    text is the reason: say it in the error colour. */
 :host([invalid]) .supporting {
-	color: var(--color-state-danger-text, var(--_text-muted));
+	color: var(--violet-color-state-danger-text, var(--_text-muted));
 }
 
 /* @component violet-select, violet-combobox */
@@ -178,8 +178,8 @@
 }
 .panel {
 	border-color: transparent;
-	border-radius: var(--radius-lg, calc(var(--_radius-md) * 1.5));
-	background: var(--color-surface-floating, var(--_surface-card));
+	border-radius: var(--violet-radius-lg, calc(var(--_radius-md) * 1.5));
+	background: var(--violet-color-surface-floating, var(--_surface-card));
 }
 .listbox ::slotted(violet-option) {
 	--violet-option-active-ring: color-mix(in srgb, var(--_focus-ring) 55%, transparent);
@@ -188,8 +188,8 @@
 /* @component violet-date-picker, violet-date-range-picker */
 /* The calendar inside is the popup: it takes the floating shadow from here. */
 .panel {
-	--shadow-card: var(--shadow-floating);
-	--color-surface-card: var(--color-surface-floating);
+	--violet-shadow-card: var(--violet-shadow-floating);
+	--violet-color-surface-card: var(--violet-color-surface-floating);
 }
 
 /* ── Options and the lists that hold them ──────────────────────────────── */
@@ -197,16 +197,16 @@
 /* @component violet-option */
 /* Its token block is the action one, which has none of these: outside a select they fell to 16px. */
 :host {
-	--_space-inline-md: var(--space-inline-md, 8px);
-	--_control-body-size: var(--violet-control-body-size, var(--type-body-md-size, 14px));
-	--_control-caption-size: var(--violet-control-caption-size, var(--type-caption-xs-size, 12px));
-	--_type-body-line: var(--type-body-md-line, 20px);
-	--_type-caption-line: var(--type-caption-xs-line, 16px);
-	--_text-muted: var(--color-text-muted, #616775);
-	--_surface-active: var(--color-surface-subtle, #f0efe6);
-	--_surface-selected: var(--color-surface-selected, #ddeadf);
+	--_space-inline-md: var(--violet-space-inline-md, 8px);
+	--_control-body-size: var(--violet-control-body-size, var(--violet-type-body-md-size, 14px));
+	--_control-caption-size: var(--violet-control-caption-size, var(--violet-type-caption-xs-size, 12px));
+	--_type-body-line: var(--violet-type-body-md-line, 20px);
+	--_type-caption-line: var(--violet-type-caption-xs-line, 16px);
+	--_text-muted: var(--violet-color-text-muted, #616775);
+	--_surface-active: var(--violet-color-surface-subtle, #f0efe6);
+	--_surface-selected: var(--violet-color-surface-selected, #ddeadf);
 	--_selected-border: transparent;
-	--_option-mark: var(--color-control-selected-foreground, #244635);
+	--_option-mark: var(--violet-color-control-selected-foreground, #244635);
 }
 .control {
 	position: relative;
@@ -310,7 +310,7 @@
 }
 /* The state colours are for messages; an invalid mark needs the field's 3:1 edge. */
 :host([invalid]) .box {
-	border-color: var(--color-field-border-invalid, var(--_danger-border));
+	border-color: var(--violet-color-field-border-invalid, var(--_danger-border));
 }
 
 /* @component violet-radio */
@@ -330,7 +330,7 @@
 		0 0 0 4px var(--_focus-ring);
 }
 :host([invalid]) .control {
-	border-color: var(--color-field-border-invalid, var(--_danger-border));
+	border-color: var(--violet-color-field-border-invalid, var(--_danger-border));
 }
 
 /* @component violet-radio-group */
@@ -351,7 +351,7 @@
 	--_track-border-width: 0px;
 	--_track-padding: 2px;
 	--_thumb-size: calc(var(--_track-block-size) - (var(--_track-padding) * 2));
-	--_radius-sm: var(--radius-sm, 2px);
+	--_radius-sm: var(--violet-radius-sm, 2px);
 }
 .track {
 	border: 0;
@@ -406,7 +406,7 @@
 		0 0 0 4px var(--_focus-ring);
 }
 :host([invalid]) .track {
-	box-shadow: inset 0 0 0 1px var(--color-field-border-invalid, var(--_danger-border));
+	box-shadow: inset 0 0 0 1px var(--violet-color-field-border-invalid, var(--_danger-border));
 }
 @media (forced-colors: active) {
 	.track {
@@ -422,8 +422,8 @@
 /* @component violet-segmented-control */
 :host {
 	/* Read by .group and never defined in the field token block, so the track was square. */
-	--_radius-lg: var(--radius-lg, 6px);
-	--_well: color-mix(in srgb, var(--color-text-primary, #18181b) 7%, transparent);
+	--_radius-lg: var(--violet-radius-lg, 6px);
+	--_well: color-mix(in srgb, var(--violet-color-text-primary, #18181b) 7%, transparent);
 }
 .label {
 	margin-block-end: calc(var(--_space-stack-xs) + var(--_space-stack-2xs));
@@ -450,11 +450,11 @@
 /* @component violet-segment */
 :host {
 	/* Its two token blocks define none of these. */
-	--_surface-page: var(--color-surface-page, #fffefa);
+	--_surface-page: var(--violet-color-surface-page, #fffefa);
 	--_control-body-size: var(--violet-control-body-size, var(--_control-type-size));
-	--_type-label-weight: var(--type-label-sm-weight, 500);
-	--_type-body-line: var(--type-body-md-line, 20px);
-	--_segment-selected-background: var(--violet-segment-selected-background, var(--color-surface-highlight, var(--_surface-card)));
+	--_type-label-weight: var(--violet-type-label-sm-weight, 500);
+	--_type-body-line: var(--violet-type-body-md-line, 20px);
+	--_segment-selected-background: var(--violet-segment-selected-background, var(--violet-color-surface-highlight, var(--_surface-card)));
 	--_segment-selected-border: var(--violet-segment-selected-border, transparent);
 }
 .button {
@@ -465,7 +465,7 @@
 }
 .button:hover {
 	background: transparent;
-	color: var(--color-text-primary, #18181b);
+	color: var(--violet-color-text-primary, #18181b);
 }
 :host([disabled]) .button,
 :host([aria-disabled="true"]) .button {
@@ -477,16 +477,16 @@
 /* @component violet-pagination */
 :host {
 	/* Read here and never defined in the action token block: the control drew as bare text. */
-	--_space-xs: var(--space-stack-xs, 4px);
-	--_space-sm: var(--space-inline-md, 8px);
-	--_space-md: var(--space-layout-sm, 12px);
-	--_space-lg: var(--space-layout-sm, 12px);
+	--_space-xs: var(--violet-space-stack-xs, 4px);
+	--_space-sm: var(--violet-space-inline-md, 8px);
+	--_space-md: var(--violet-space-layout-sm, 12px);
+	--_space-lg: var(--violet-space-layout-sm, 12px);
 	--_control-body-size: var(--violet-control-body-size, var(--_control-type-size));
-	--_type-label-weight: var(--type-body-md-weight, 400);
-	--_type-body-line: var(--type-body-md-line, 20px);
-	--_text-primary: var(--color-text-primary, #18181b);
-	--_text-muted: var(--color-text-muted, #616775);
-	--_surface-page: var(--color-surface-page, #fffefa);
+	--_type-label-weight: var(--violet-type-body-md-weight, 400);
+	--_type-body-line: var(--violet-type-body-md-line, 20px);
+	--_text-primary: var(--violet-color-text-primary, #18181b);
+	--_text-muted: var(--violet-color-text-muted, #616775);
+	--_surface-page: var(--violet-color-surface-page, #fffefa);
 }
 .list {
 	gap: calc(var(--_space-xs) / 2);
@@ -518,12 +518,12 @@
 
 /* @component violet-slider, violet-range-slider */
 :host {
-	--_well: color-mix(in srgb, var(--color-text-primary, #18181b) 10%, transparent);
+	--_well: color-mix(in srgb, var(--violet-color-text-primary, #18181b) 10%, transparent);
 	--_rail-background: var(--_well);
-	--_selection-fill: var(--color-control-selected-foreground, #244635);
+	--_selection-fill: var(--violet-color-control-selected-foreground, #244635);
 	--_thumb-size: calc(var(--_target-size) * 0.5);
 	--_track-size: calc(var(--_target-size) * 0.125);
-	--_tick-color: var(--color-border-strong, rgba(28, 26, 13, 0.48));
+	--_tick-color: var(--violet-color-border-strong, rgba(28, 26, 13, 0.48));
 }
 /* A thumb is a key, not a popover: the end of the fill, in the fill's colour, which the
    theme already holds at 3:1 on the page. */
@@ -557,8 +557,8 @@
 /* @component violet-progress */
 :host {
 	--_progress-track-size: 6px;
-	--_progress-radius: var(--radius-round, 9999px);
-	--_progress-track: color-mix(in srgb, var(--color-text-primary, #18181b) 10%, transparent);
+	--_progress-radius: var(--violet-radius-round, 9999px);
+	--_progress-track: color-mix(in srgb, var(--violet-color-text-primary, #18181b) 10%, transparent);
 }
 .value-label {
 	font-size: var(--_control-caption-size);
@@ -575,7 +575,7 @@
 :host([appearance="outline"]) {
 	--_card-background: var(--violet-card-background, var(--_surface-card));
 	--_card-border-color: var(--violet-card-border-color, transparent);
-	--_card-shadow: var(--violet-card-shadow, var(--shadow-control, none));
+	--_card-shadow: var(--violet-card-shadow, var(--violet-shadow-control, none));
 }
 /* Header and footer are bands: a tonal step with a clean edge. */
 .header,
@@ -611,16 +611,16 @@
 	font-weight: 500;
 }
 .dismiss {
-	margin-block-start: calc((var(--_alert-title-line) - var(--size-target-natural, 32px)) / 2);
+	margin-block-start: calc((var(--_alert-title-line) - var(--violet-size-target-natural, 32px)) / 2);
 	margin-inline-end: calc(var(--_space-stack-xs) * -1);
 }
 
 /* @component violet-badge */
 :host {
 	/* Neither is defined in the surface token block. */
-	--_type-label-weight: var(--type-label-sm-weight, 500);
-	--_surface-page: var(--color-surface-page, transparent);
-	--_badge-bg: color-mix(in srgb, var(--color-text-primary, #18181b) 8%, transparent);
+	--_type-label-weight: var(--violet-type-label-sm-weight, 500);
+	--_surface-page: var(--violet-color-surface-page, transparent);
+	--_badge-bg: color-mix(in srgb, var(--violet-color-text-primary, #18181b) 8%, transparent);
 	--_badge-border: transparent;
 }
 .badge {
@@ -643,16 +643,16 @@
 .root {
 	border-radius: var(--_radius-lg);
 	background: var(--_surface-card);
-	box-shadow: var(--shadow-control, none);
+	box-shadow: var(--violet-shadow-control, none);
 	overflow: clip;
 }
 
 /* @component violet-accordion-item */
 :host {
 	/* Read here and never defined in the surface token block: headers drew at 16px. */
-	--_target-size: var(--violet-target-size, var(--size-target-natural, 32px));
+	--_target-size: var(--violet-target-size, var(--violet-size-target-natural, 32px));
 	--_control-body-size: var(--violet-control-body-size, var(--_body-size));
-	--_type-label-weight: var(--type-label-sm-weight, 500);
+	--_type-label-weight: var(--violet-type-label-sm-weight, 500);
 	--_type-body-line: var(--_body-line);
 	--_accordion-item-background: var(--violet-accordion-item-background, transparent);
 	--_accordion-item-background-expanded: var(--violet-accordion-item-background-expanded, transparent);
@@ -705,15 +705,15 @@
 :host {
 	font-weight: 500;
 	/* Both were mixed with a literal white, which flashes on a dark surface. */
-	--_tab-hover: var(--color-action-secondary-background, var(--_surface-subtle));
+	--_tab-hover: var(--violet-color-action-secondary-background, var(--_surface-subtle));
 	--_tab-closed-resting: var(--_surface-subtle);
 }
 :host([data-appearance="open"]) {
 	border-radius: var(--_radius-md);
 }
 :host([data-appearance="open"][aria-selected="true"]) {
-	background: var(--color-action-secondary-background, var(--_surface-subtle));
-	border-color: var(--color-action-secondary-border, transparent);
+	background: var(--violet-color-action-secondary-background, var(--_surface-subtle));
+	border-color: var(--violet-color-action-secondary-border, transparent);
 }
 :host([data-appearance="open"][aria-selected="true"]) .indicator {
 	opacity: 0;
@@ -735,7 +735,7 @@
 
 /* @component violet-tree */
 :host {
-	--_tree-surface-radius: var(--violet-tree-surface-radius, var(--radius-lg, calc(var(--_radius-md) * 1.5)));
+	--_tree-surface-radius: var(--violet-tree-surface-radius, var(--violet-radius-lg, calc(var(--_radius-md) * 1.5)));
 	--_tree-surface-border: var(--violet-tree-surface-border, transparent);
 }
 .label {
@@ -745,7 +745,7 @@
 /* @component violet-tree-item */
 :host {
 	/* Was mixed with a literal white. A chosen row is the selected surface, with no ring. */
-	--_tree-row-background-selected: var(--violet-tree-row-background-selected, var(--color-surface-selected, var(--_surface-subtle)));
+	--_tree-row-background-selected: var(--violet-tree-row-background-selected, var(--violet-color-surface-selected, var(--_surface-subtle)));
 	--_tree-row-border-selected: var(--violet-tree-row-border-selected, transparent);
 }
 :host([disabled]) .row {
@@ -757,9 +757,9 @@
 /* @component violet-menu */
 :host {
 	/* Read for the panel's padding and gap, and never defined in the action token block. */
-	--_space-sm: var(--space-inline-sm, 4px);
-	--_panel-radius: var(--violet-menu-radius, var(--radius-lg, calc(var(--_radius-md) * 1.5)));
-	--_panel-background: var(--violet-menu-background, var(--color-surface-floating, var(--_surface-card)));
+	--_space-sm: var(--violet-space-inline-sm, 4px);
+	--_panel-radius: var(--violet-menu-radius, var(--violet-radius-lg, calc(var(--_radius-md) * 1.5)));
+	--_panel-background: var(--violet-menu-background, var(--violet-color-surface-floating, var(--_surface-card)));
 	--_panel-border-color: var(--violet-menu-border-color, transparent);
 }
 /* block-size: thin is not a length, so the separator had no height and did not draw. */
@@ -790,7 +790,7 @@
 /* A tooltip is the one inverted surface: ink on paper, paper on ink. */
 :host {
 	--_tooltip-radius: var(--violet-tooltip-radius, calc(var(--_radius-md) - 2px));
-	--_tooltip-background: var(--violet-tooltip-background, var(--color-action-primary-background, var(--_surface-card)));
+	--_tooltip-background: var(--violet-tooltip-background, var(--violet-color-action-primary-background, var(--_surface-card)));
 	--_tooltip-shadow: var(--violet-tooltip-shadow, var(--_shadow-card));
 	--_tooltip-border-color: var(--violet-tooltip-border-color, transparent);
 }
@@ -798,7 +798,7 @@
 	/* Its position area is as wide as the anchor, so a tip over a short button wrapped to one word a line. */
 	inline-size: max-content;
 	padding: calc(var(--_space-sm) / 2) var(--_space-sm);
-	color: var(--color-action-primary-text, inherit);
+	color: var(--violet-color-action-primary-text, inherit);
 }
 
 /* @component violet-dialog */
@@ -814,10 +814,10 @@ dialog {
 	border-block-end-color: transparent;
 }
 .title {
-	font-family: var(--font-family-heading, "Space Grotesk", "Segoe UI", system-ui, sans-serif);
-	font-size: var(--type-title-sm-size, 18px);
-	line-height: var(--type-title-sm-line, 24px);
-	font-weight: var(--type-title-sm-weight, 600);
+	font-family: var(--violet-font-family-heading, "Space Grotesk", "Segoe UI", system-ui, sans-serif);
+	font-size: var(--violet-type-title-sm-size, 18px);
+	line-height: var(--violet-type-title-sm-line, 24px);
+	font-weight: var(--violet-type-title-sm-weight, 600);
 	letter-spacing: -0.01em;
 }
 .body {
@@ -865,14 +865,14 @@ dialog {
 /* font.family.body is the UI face now. This would become a heading family token. */
 :host([variant="title-sm"]) .root,
 :host([variant="title-md"]) .root {
-	font-family: var(--font-family-heading, "Space Grotesk", "Segoe UI", system-ui, sans-serif);
+	font-family: var(--violet-font-family-heading, "Space Grotesk", "Segoe UI", system-ui, sans-serif);
 	letter-spacing: -0.01em;
 }
 
 /* @component violet-empty-state */
 /* An empty slot is marked with a dashed edge: the one outline left on a surface. */
 :host([appearance="outline"]) {
-	--_empty-border: color-mix(in srgb, var(--color-border-strong, currentColor) 60%, transparent);
+	--_empty-border: color-mix(in srgb, var(--violet-color-border-strong, currentColor) 60%, transparent);
 }
 :host([appearance="outline"]) .root {
 	border-style: dashed;
@@ -887,8 +887,8 @@ dialog {
 /* @component violet-skeleton */
 :host {
 	/* Was mixed with a literal white. */
-	--_skeleton-surface: color-mix(in srgb, var(--color-text-primary, #18181b) 8%, transparent);
-	--_skeleton-highlight: color-mix(in srgb, var(--color-surface-highlight, #ffffff) 68%, var(--_surface-card));
+	--_skeleton-surface: color-mix(in srgb, var(--violet-color-text-primary, #18181b) 8%, transparent);
+	--_skeleton-highlight: color-mix(in srgb, var(--violet-color-surface-highlight, #ffffff) 68%, var(--_surface-card));
 	--_skeleton-radius: var(--_radius-sm);
 }
 
@@ -897,7 +897,7 @@ dialog {
 /* @component violet-calendar */
 :host {
 	--_calendar-radius: var(--_radius-lg);
-	--_calendar-accent: var(--color-control-selected-foreground, #244635);
+	--_calendar-accent: var(--violet-color-control-selected-foreground, #244635);
 }
 .root {
 	/* It had a border and the card shadow, which is itself the card's edge. */
@@ -919,9 +919,9 @@ dialog {
 .day-button.selected,
 .day-button.range-start,
 .day-button.range-end {
-	background: var(--color-control-selected-background, #ddeadf);
-	color: var(--color-control-selected-foreground, #244635);
-	box-shadow: inset 0 0 0 1px var(--color-control-selected-border, transparent);
+	background: var(--violet-color-control-selected-background, #ddeadf);
+	color: var(--violet-color-control-selected-foreground, #244635);
+	box-shadow: inset 0 0 0 1px var(--violet-color-control-selected-border, transparent);
 	font-weight: 500;
 }
 
@@ -963,12 +963,12 @@ dialog {
 :host([tone="error"]) .surface {
 	padding: var(--_space-sm) var(--_space-md);
 	border-color: var(--_danger-border);
-	background: var(--color-state-danger-background, transparent);
+	background: var(--violet-color-state-danger-background, transparent);
 }
 :host([tone="success"]) .surface {
 	padding: var(--_space-sm) var(--_space-md);
 	border-color: var(--_success-border);
-	background: var(--color-state-success-background, transparent);
+	background: var(--violet-color-state-success-background, transparent);
 }
 
 /* @component violet-reasoning-block */
@@ -1018,8 +1018,8 @@ dialog {
 }
 .name,
 .approval-tool-name {
-	font-family: var(--font-family-mono, ui-monospace, monospace);
-	font-size: var(--type-label-sm-size, 13px);
+	font-family: var(--violet-font-family-mono, ui-monospace, monospace);
+	font-size: var(--violet-type-label-sm-size, 13px);
 	font-weight: 500;
 }
 .badge {
@@ -1085,7 +1085,7 @@ dialog {
 }
 .header {
 	padding: var(--_space-sm) var(--_space-md);
-	font-size: var(--type-label-sm-size, 13px);
+	font-size: var(--violet-type-label-sm-size, 13px);
 	line-height: var(--_approval-line-height);
 	font-weight: 500;
 }
@@ -1112,16 +1112,16 @@ dialog {
 /* @component violet-chat-suggestions */
 /* Filled like a secondary button, and the same height; round, because it is a suggestion. */
 ::slotted(*) {
-	min-block-size: var(--size-target-natural, 32px);
+	min-block-size: var(--violet-size-target-natural, 32px);
 	padding: 0 var(--_space-md);
-	border-color: var(--color-action-secondary-border, transparent);
-	background: var(--color-action-secondary-background, var(--_surface-subtle));
+	border-color: var(--violet-color-action-secondary-border, transparent);
+	background: var(--violet-color-action-secondary-background, var(--_surface-subtle));
 	font-size: var(--_body-size);
 	line-height: var(--_body-line);
 }
 ::slotted(*:hover) {
-	background: var(--color-action-secondary-hover, var(--_surface-hover));
-	border-color: var(--color-action-secondary-border, transparent);
+	background: var(--violet-color-action-secondary-hover, var(--_surface-hover));
+	border-color: var(--violet-color-action-secondary-border, transparent);
 }
 
 /* @component violet-chat-composer */

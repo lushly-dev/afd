@@ -61,11 +61,11 @@ const HOOKS: Readonly<Record<string, { readers: readonly string[]; why: string; 
         readers: ["../option/violet-option.ts"],
         why: "inherited from an open select/combobox or focused listbox; transparent at rest",
     },
-    // The interface has no link colour, so the citation falls back to --color-accent-text (#1b5f80 in light) until it does (#2237).
+    // The interface has no link colour, so the citation falls back to --violet-color-accent-text (#1b5f80 in light) until it does (#2237).
     "--_text-link": {
         readers: ["../conversation/violet-source-citation.ts"],
-        why: "the citation's link colour override hook: falls back to --color-accent-text (#1b5f80 in light) while the interface has no link colour",
-        token: "--color-accent-text",
+        why: "the citation's link colour override hook: falls back to --violet-color-accent-text (#1b5f80 in light) while the interface has no link colour",
+        token: "--violet-color-accent-text",
     },
 };
 
@@ -415,7 +415,7 @@ describe("undefinedPrivateReads", () => {
     const defaults = [
         'import { css, type ElementStyles } from "@lushly-dev/fast-element";',
         "export const violetFieldTokenDefaults: ElementStyles = css`",
-        "    :host { --_radius-md: var(--radius-md, 8px); }",
+        "    :host { --_radius-md: var(--violet-radius-md, 8px); }",
         "`;",
     ].join("\n");
     const scan = (files: Record<string, string>) => undefinedPrivateReads({ "./violet-token-defaults.ts": defaults, ...files });
@@ -500,25 +500,25 @@ describe("driftedLiteralFallbacks", () => {
         'import { css, type ElementStyles } from "@lushly-dev/fast-element";',
         "export const violetSurfaceTokenDefaults: ElementStyles = css`",
         "    :host {",
-        "        --_text-primary: var(--color-text-primary, #181b1a);",
-        "        --_surface-subtle: var(--color-surface-subtle, #e9e5de);",
-        "        --_radius-lg: var(--radius-lg, 12px);",
-        "        --_radius-round: var(--radius-round, 9999px);",
+        "        --_text-primary: var(--violet-color-text-primary, #181b1a);",
+        "        --_surface-subtle: var(--violet-color-surface-subtle, #e9e5de);",
+        "        --_radius-lg: var(--violet-radius-lg, 12px);",
+        "        --_radius-round: var(--violet-radius-round, 9999px);",
         "    }",
         "`;",
     ].join("\n");
     const lightValues = new Map<string, string>([
-        ["--color-text-primary", "#181b1a"],
-        ["--color-surface-subtle", "#e9e5de"],
-        ["--color-accent-text", "#1b5f80"],
-        ["--color-focus-ring", "#28769e"],
-        ["--color-action-danger-background", "#c42a1a"],
-        ["--radius-lg", "12px"],
-        ["--radius-round", "9999px"],
-        ["--space-stack-xs", "4px"],
-        ["--size-target-compact", "24px"],
-        ["--size-target-natural", "32px"],
-        ["--size-target-comfortable", "44px"],
+        ["--violet-color-text-primary", "#181b1a"],
+        ["--violet-color-surface-subtle", "#e9e5de"],
+        ["--violet-color-accent-text", "#1b5f80"],
+        ["--violet-color-focus-ring", "#28769e"],
+        ["--violet-color-action-danger-background", "#c42a1a"],
+        ["--violet-radius-lg", "12px"],
+        ["--violet-radius-round", "9999px"],
+        ["--violet-space-stack-xs", "4px"],
+        ["--violet-size-target-compact", "24px"],
+        ["--violet-size-target-natural", "32px"],
+        ["--violet-size-target-comfortable", "44px"],
     ]);
     const scan = (files: Record<string, string>) =>
         driftedLiteralFallbacks({ "./violet-token-defaults.ts": defaults, ...files }, lightValues);
@@ -532,7 +532,7 @@ describe("driftedLiteralFallbacks", () => {
                     "    :host { --_local-ink: var(--_text-primary); }",
                     "",
                     "    // comment after a blank line must not shift reported line numbers",
-                    "    .a { color: var(--color-text-primary, #1c1a0d); }",
+                    "    .a { color: var(--violet-color-text-primary, #1c1a0d); }",
                     "    .b { color: var(--_text-primary, #1c1a0d); }",
                     "    .c { background: var(--_surface-subtle, rgba(28, 26, 13, 0.04)); }",
                     "    .d { border-radius: var(--_radius-lg, 6px); }",
@@ -544,7 +544,7 @@ describe("driftedLiteralFallbacks", () => {
                 ].join("\n"),
             }),
         ).toEqual([
-            { path: "../card/violet-card.ts", line: 6, property: "--color-text-primary", literal: "#1c1a0d", expected: "#181b1a" },
+            { path: "../card/violet-card.ts", line: 6, property: "--violet-color-text-primary", literal: "#1c1a0d", expected: "#181b1a" },
             { path: "../card/violet-card.ts", line: 7, property: "--_text-primary", literal: "#1c1a0d", expected: "#181b1a" },
             {
                 path: "../card/violet-card.ts",
@@ -572,9 +572,9 @@ describe("driftedLiteralFallbacks", () => {
             scan({
                 "../grid/violet-grid.ts": [
                     "const styles = css`",
-                    "    :host { --_row-size: var(--size-target-natural); }",
-                    '    :host([density="compact"]) { --_row-size: var(--size-target-compact); }',
-                    '    :host([density="comfortable"]) { --_row-size: var(--size-target-comfortable); }',
+                    "    :host { --_row-size: var(--violet-size-target-natural); }",
+                    '    :host([density="compact"]) { --_row-size: var(--violet-size-target-compact); }',
+                    '    :host([density="comfortable"]) { --_row-size: var(--violet-size-target-comfortable); }',
                     "    .default { block-size: var(--_row-size, 32px); }",
                     "    .compact { block-size: var(--_row-size, 24px); }",
                     "    .wrong { block-size: var(--_row-size, 18px); }",

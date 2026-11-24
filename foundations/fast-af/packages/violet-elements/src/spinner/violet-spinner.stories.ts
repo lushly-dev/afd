@@ -77,7 +77,7 @@ export const Decorative: Story = {
 
 export const InContext: Story = {
     render: () => `
-        <div style="display:flex;align-items:center;gap:var(--space-layout-sm);font-family:inherit;font-size:var(--type-body-md-size);line-height:var(--type-body-md-line);color:var(--color-text-secondary);">
+        <div style="display:flex;align-items:center;gap:var(--violet-space-layout-sm);font-family:inherit;font-size:var(--violet-type-body-md-size);line-height:var(--violet-type-body-md-line);color:var(--violet-color-text-secondary);">
             <violet-spinner decorative size="sm"></violet-spinner>
             <span>Syncing row changes…</span>
         </div>

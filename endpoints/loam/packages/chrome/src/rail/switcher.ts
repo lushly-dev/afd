@@ -89,39 +89,39 @@ const styles = css`
 		block-size: 100%;
 	}
 	violet-popover {
-		--violet-popover-min-inline-size: var(--shell-size-sidebar-min);
-		--violet-popover-background: var(--color-surface-floating);
-		--violet-popover-shadow: var(--shadow-floating);
-		--violet-popover-border: var(--color-border-subtle);
+		--violet-popover-min-inline-size: var(--violet-shell-size-sidebar-min);
+		--violet-popover-background: var(--violet-color-surface-floating);
+		--violet-popover-shadow: var(--violet-shadow-floating);
+		--violet-popover-border: var(--violet-color-border-subtle);
 	}
 	violet-popover::part(surface),
 	dialog {
 		pointer-events: auto;
-		color: var(--color-text-primary);
+		color: var(--violet-color-text-primary);
 	}
 	dialog {
-		inline-size: min(92vw, var(--shell-size-main-min));
-		padding: var(--space-layout-sm);
+		inline-size: min(92vw, var(--violet-shell-size-main-min));
+		padding: var(--violet-space-layout-sm);
 		border: 0;
-		border-radius: var(--radius-lg);
-		background: var(--color-surface-floating);
-		box-shadow: var(--shadow-floating);
+		border-radius: var(--violet-radius-lg);
+		background: var(--violet-color-surface-floating);
+		box-shadow: var(--violet-shadow-floating);
 	}
 	dialog::backdrop {
-		background: color-mix(in srgb, var(--color-surface-page) 60%, transparent);
+		background: color-mix(in srgb, var(--violet-color-surface-page) 60%, transparent);
 	}
 	.failure {
-		margin: var(--space-stack-xs) 0 0;
-		color: var(--color-state-danger-text);
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
+		margin: var(--violet-space-stack-xs) 0 0;
+		color: var(--violet-color-state-danger-text);
+		font-size: var(--violet-type-label-sm-size);
+		line-height: var(--violet-type-label-sm-line);
 	}
 	violet-listbox::part(control):focus-visible {
-		outline: var(--shell-size-focus) solid var(--color-focus-ring);
+		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
 	}
 	violet-listbox:focus-within violet-option[data-active]::part(control) {
-		outline: var(--shell-size-focus) solid var(--color-focus-ring);
-		outline-offset: calc(-1 * var(--shell-size-focus));
+		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+		outline-offset: calc(-1 * var(--violet-shell-size-focus));
 	}
 	@media (forced-colors: active) {
 		dialog {

@@ -31,27 +31,27 @@ const template = html<NotesEmbed>`
 const styles = css`
 	:host {
 		display: grid;
-		gap: var(--space-stack-sm);
-		color: var(--color-text-primary);
+		gap: var(--violet-space-stack-sm);
+		color: var(--violet-color-text-primary);
 	}
 	[hidden] {
 		display: none;
 	}
 	p {
 		margin: 0;
-		font-size: var(--type-body-md-size);
-		line-height: var(--type-body-md-line);
+		font-size: var(--violet-type-body-md-size);
+		line-height: var(--violet-type-body-md-line);
 	}
 	.text {
 		white-space: pre-wrap;
 		overflow-wrap: anywhere;
 	}
 	.more {
-		color: var(--color-text-secondary);
+		color: var(--violet-color-text-secondary);
 	}
 	ul {
 		display: grid;
-		gap: var(--space-stack-sm);
+		gap: var(--violet-space-stack-sm);
 		margin: 0;
 		padding: 0;
 		list-style: none;

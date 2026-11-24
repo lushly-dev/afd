@@ -28,29 +28,29 @@ const TONE_WORD: Record<ToastTone, string> = {
 const regionStyles = css`
 	:host {
 		position: fixed;
-		inset: auto var(--space-inline-md) calc(var(--shell-size-tabbar) + var(--space-inline-sm)) auto;
+		inset: auto var(--violet-space-inline-md) calc(var(--violet-shell-size-tabbar) + var(--violet-space-inline-sm)) auto;
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-stack-sm);
+		gap: var(--violet-space-stack-sm);
 		box-sizing: border-box;
 		inline-size: auto;
-		max-inline-size: min(92vw, var(--shell-size-main-min));
+		max-inline-size: min(92vw, var(--violet-shell-size-main-min));
 		block-size: auto;
-		max-block-size: calc(100dvh - var(--shell-size-tabbar) - var(--shell-size-titlebar));
+		max-block-size: calc(100dvh - var(--violet-shell-size-tabbar) - var(--violet-shell-size-titlebar));
 		margin: 0;
 		padding: 0;
 		border: 0;
 		overflow: visible;
 		background: transparent;
-		color: var(--color-text-primary);
+		color: var(--violet-color-text-primary);
 		pointer-events: none;
 	}
 	:host(:has(loam-toast)) {
 		overflow-block: auto;
 	}
 	:host(:focus-visible) {
-		outline: var(--shell-size-focus) solid var(--color-focus-ring);
-		outline-offset: var(--shell-size-focus);
+		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+		outline-offset: var(--violet-shell-size-focus);
 	}
 	.announcement {
 		position: absolute;
@@ -118,20 +118,20 @@ const toastStyles = [
 		:host {
 			display: flex;
 			align-items: center;
-			gap: var(--space-inline-sm);
-			padding-block: var(--space-stack-sm);
-			padding-inline: var(--space-inline-md);
-			border: 1px solid var(--color-border-strong);
-			border-radius: var(--radius-md);
-			background: var(--color-surface-floating);
-			color: var(--color-text-primary);
-			box-shadow: var(--shadow-floating);
-			font-family: var(--font-family-body);
-			font-size: var(--type-body-md-size);
-			line-height: var(--type-body-md-line);
+			gap: var(--violet-space-inline-sm);
+			padding-block: var(--violet-space-stack-sm);
+			padding-inline: var(--violet-space-inline-md);
+			border: 1px solid var(--violet-color-border-strong);
+			border-radius: var(--violet-radius-md);
+			background: var(--violet-color-surface-floating);
+			color: var(--violet-color-text-primary);
+			box-shadow: var(--violet-shadow-floating);
+			font-family: var(--violet-font-family-body);
+			font-size: var(--violet-type-body-md-size);
+			line-height: var(--violet-type-body-md-line);
 			pointer-events: auto;
 			opacity: 1;
-			transition: opacity var(--duration-base) var(--easing-emphasized);
+			transition: opacity var(--violet-duration-base) var(--violet-easing-emphasized);
 		}
 		@starting-style {
 			:host {
@@ -140,12 +140,12 @@ const toastStyles = [
 		}
 		@media (prefers-reduced-motion: reduce) {
 			:host {
-				transition-duration: var(--duration-fast);
+				transition-duration: var(--violet-duration-fast);
 			}
 		}
 		.word {
 			flex: none;
-			font-weight: var(--weight-semibold);
+			font-weight: var(--violet-weight-semibold);
 		}
 		:host([tone='info']) .word,
 		:host([tone='success']) .word {
@@ -157,32 +157,32 @@ const toastStyles = [
 			white-space: nowrap;
 		}
 		:host([tone='success']) {
-			border-color: var(--color-state-success-border);
+			border-color: var(--violet-color-state-success-border);
 			background:
-				linear-gradient(var(--color-state-success-background), var(--color-state-success-background)),
-				var(--color-surface-floating);
-			color: var(--color-state-success-text);
+				linear-gradient(var(--violet-color-state-success-background), var(--violet-color-state-success-background)),
+				var(--violet-color-surface-floating);
+			color: var(--violet-color-state-success-text);
 		}
 		:host([tone='warning']) {
-			border-color: var(--color-state-warning-border);
+			border-color: var(--violet-color-state-warning-border);
 			background:
-				linear-gradient(var(--color-state-warning-background), var(--color-state-warning-background)),
-				var(--color-surface-floating);
-			color: var(--color-state-warning-text);
+				linear-gradient(var(--violet-color-state-warning-background), var(--violet-color-state-warning-background)),
+				var(--violet-color-surface-floating);
+			color: var(--violet-color-state-warning-text);
 		}
 		:host([tone='danger']) {
-			border-color: var(--color-state-danger-border);
+			border-color: var(--violet-color-state-danger-border);
 			background:
-				linear-gradient(var(--color-state-danger-background), var(--color-state-danger-background)),
-				var(--color-surface-floating);
-			color: var(--color-state-danger-text);
+				linear-gradient(var(--violet-color-state-danger-background), var(--violet-color-state-danger-background)),
+				var(--violet-color-surface-floating);
+			color: var(--violet-color-state-danger-text);
 		}
 		[hidden] {
 			display: none;
 		}
 		.tone {
 			flex: none;
-			--violet-icon-size: var(--size-line-md);
+			--violet-icon-size: var(--violet-size-line-md);
 		}
 		.body {
 			display: flex;
@@ -191,8 +191,8 @@ const toastStyles = [
 			min-inline-size: 0;
 		}
 		.from {
-			font-size: var(--type-label-sm-size);
-			line-height: var(--type-label-sm-line);
+			font-size: var(--violet-type-label-sm-size);
+			line-height: var(--violet-type-label-sm-line);
 		}
 		.message {
 			overflow-wrap: anywhere;
@@ -200,27 +200,27 @@ const toastStyles = [
 		.link {
 			flex: none;
 			color: inherit;
-			font-weight: var(--weight-semibold);
+			font-weight: var(--violet-weight-semibold);
 		}
 		.inbox {
 			flex: none;
-			min-block-size: var(--size-target-natural);
-			padding-inline: var(--size-space-sm);
+			min-block-size: var(--violet-size-target-natural);
+			padding-inline: var(--violet-size-space-sm);
 			border: 1px solid currentColor;
-			border-radius: var(--radius-md);
+			border-radius: var(--violet-radius-md);
 			background: transparent;
 			color: inherit;
 			font: inherit;
-			font-weight: var(--weight-semibold);
+			font-weight: var(--violet-weight-semibold);
 			cursor: pointer;
 		}
 		.inbox:hover {
-			background: var(--color-action-secondary-hover);
+			background: var(--violet-color-action-secondary-hover);
 		}
 		.inbox:focus-visible,
 		.link:focus-visible {
-			outline: var(--shell-size-focus) solid var(--color-focus-ring);
-			outline-offset: var(--shell-size-focus);
+			outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+			outline-offset: var(--violet-shell-size-focus);
 		}
 		.dismiss {
 			flex: none;
@@ -228,29 +228,29 @@ const toastStyles = [
 			align-items: center;
 			justify-content: center;
 			box-sizing: border-box;
-			min-inline-size: var(--size-target-natural);
-			min-block-size: var(--size-target-natural);
+			min-inline-size: var(--violet-size-target-natural);
+			min-block-size: var(--violet-size-target-natural);
 			padding: 0;
 			border: 1px solid transparent;
-			border-radius: var(--radius-md);
+			border-radius: var(--violet-radius-md);
 			background: transparent;
 			color: inherit;
 			cursor: pointer;
 		}
 		.dismiss violet-icon {
-			--violet-icon-size: var(--size-line-sm);
+			--violet-icon-size: var(--violet-size-line-sm);
 		}
 		.dismiss:hover {
-			background: var(--color-action-secondary-hover);
-			color: var(--color-text-primary);
+			background: var(--violet-color-action-secondary-hover);
+			color: var(--violet-color-text-primary);
 		}
 		.dismiss:active {
-			background: var(--color-action-secondary-pressed);
-			color: var(--color-text-primary);
+			background: var(--violet-color-action-secondary-pressed);
+			color: var(--violet-color-text-primary);
 		}
 		.dismiss:focus-visible {
-			outline: var(--shell-size-focus) solid var(--color-focus-ring);
-			outline-offset: calc(-1 * var(--shell-size-focus));
+			outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+			outline-offset: calc(-1 * var(--violet-shell-size-focus));
 		}
 		@media (forced-colors: active) {
 			:host,

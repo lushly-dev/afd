@@ -649,7 +649,7 @@ contrast rules break. Apply exactly that with the apply step it returns."
   `OPERATION_NOT_ALLOWED`, `VALIDATION_ERROR` (Violet's "reaches more than N nodes"). Scenario 05.
 
 **`violet-theme-preview`** — `tokens.resolve` and `checkCssTokenValue`. "Return the custom
-properties a preview of a node applies (--color-text-primary: #1b1b1f), and any value refused as
+properties a preview of a node applies (--violet-color-text-primary: #1b1b1f), and any value refused as
 unsafe to draw."
 
 - Input: `{ document, node }`.
@@ -937,7 +937,7 @@ collapsed node column are checked by hand in 9.3. Each is **clean** when its con
 its ARIA snapshot is not empty and names the expected rows, and no `Context mismatch` is reported
 (the `expectClean` rule of the web suite). `violet-preview-scoped` also asserts, by computed style,
 that the shell frame's node column and inspector backgrounds equal Loam's `color.surface.card` for
-the run's theme while the preview root's `--color-surface-page` is `#121214`. Fixtures stub the
+the run's theme while the preview root's `--violet-color-surface-page` is `#121214`. Fixtures stub the
 client as `notes`' do (`apps/notes/specimens/notes.specimens.ts`).
 
 ## 8. CI and the boundary

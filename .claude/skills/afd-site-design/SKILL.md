@@ -56,6 +56,12 @@ all of them unless a line says which.
 Stylesheet order on a tool's page: `tokens-m2`, `manifesto-2`, `manifesto-3`, `area`,
 `area-kit`, then `design` (design side only), then the tool's own.
 
+The site's tokens are its own, though some share a name with Violet's old unprefixed ones
+(`--color-text-muted`, `--shadow-well`, `--weight-medium`). The shared components read Violet's
+`--violet-*` properties (violet-elements' token interface, version 4), so CSS that styles them,
+in `site/fast-af/themes/` and `site/js/fast-af-*.js`, names `--violet-color-text-muted`, never the
+site's token.
+
 ## Principles
 
 1. **Show, don't claim.** Demos call real commands. Every number on a page is read

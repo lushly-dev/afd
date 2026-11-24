@@ -32,21 +32,21 @@ const SHEET_CSS = `
 		gap: var(--space-3);
 		min-width: 0;
 		padding: var(--space-4);
-		border: 1px solid var(--color-border-subtle);
+		border: 1px solid var(--violet-color-border-subtle);
 	}
 	.cell.wide {
 		grid-column: 1 / -1;
 	}
 	.cell > h2 {
 		margin: 0;
-		color: var(--color-text-muted);
-		font: 500 var(--t-label) / 1.4 var(--font-family-mono);
+		color: var(--violet-color-text-muted);
+		font: 500 var(--t-label) / 1.4 var(--violet-font-family-mono);
 		letter-spacing: var(--tracking-label);
 		text-transform: uppercase;
 	}
 	.cell > .note {
 		margin: 0;
-		color: var(--color-text-secondary);
+		color: var(--violet-color-text-secondary);
 		font-size: var(--t-small);
 	}
 	.demo {
@@ -60,7 +60,7 @@ const SHEET_CSS = `
 	}
 	.none {
 		margin: 0;
-		color: var(--color-text-muted);
+		color: var(--violet-color-text-muted);
 		font-size: var(--t-small);
 	}
 	.stack {

@@ -37,10 +37,10 @@ const styles = css`
             box-shadow var(--_duration-base) var(--_easing-standard),
             transform var(--_duration-fast) var(--_easing-standard);
 
-        --_selection-text: var(--color-control-selected-foreground, #1b5f80);
+        --_selection-text: var(--violet-color-control-selected-foreground, #1b5f80);
         --_tab-border: color-mix(in srgb, var(--_border-subtle) 88%, transparent);
-        --_tab-key-background: var(--color-action-secondary-background, var(--_surface-subtle));
-        --_tab-key-border: var(--color-action-secondary-border, transparent);
+        --_tab-key-background: var(--violet-color-action-secondary-background, var(--_surface-subtle));
+        --_tab-key-border: var(--violet-color-action-secondary-border, transparent);
         --_tab-hover: var(--_tab-key-background);
         --_tab-closed-resting: var(--_surface-subtle);
         --_tab-indicator-thickness: 2px;

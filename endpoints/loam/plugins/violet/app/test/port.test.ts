@@ -1189,8 +1189,8 @@ describe('cache isolation, store.put failure, grants, metadata, suggestions, and
 			const leakedInterface = {
 				contractVersion: 1,
 				tokens: {
-					'color.surface.page': { property: '--color-surface-page', type: 'color' },
-					'color.text.primary': { property: '--color-text-primary', type: 'color' },
+					'color.surface.page': { property: '--violet-color-surface-page', type: 'color' },
+					'color.text.primary': { property: '--violet-color-text-primary', type: 'color' },
 					'ref.palette.neutral.50': { property: '--ref-palette-neutral-50', type: 'color' },
 				},
 			};
@@ -1378,5 +1378,25 @@ describe('cache isolation, store.put failure, grants, metadata, suggestions, and
 		expect(cmp.error).toBeUndefined();
 		expect(cmp.compareNodes).toEqual(['fresh/light', 'fresh/dark']);
 		expect(comparedNodes).toEqual(['fresh/light', 'fresh/dark']);
+	});
+});
+
+describe('violet-theme-preview (#1786)', () => {
+	it('names each property as the shared components read it, under the violet- prefix', async () => {
+		const { kernel } = await bootKernel();
+		try {
+			const doc = await createDoc(kernel, 'example');
+			const preview = await kernel.call<{ properties: Array<{ name: string; value: string }> }>(
+				'violet-theme-preview',
+				{ document: doc, node: 'example/dark' }
+			);
+			expect(preview.success, JSON.stringify(preview.error)).toBe(true);
+			const names = preview.data?.properties.map((property) => property.name) ?? [];
+			expect(names.length).toBeGreaterThan(0);
+			expect(names.filter((name) => !name.startsWith('--violet-'))).toEqual([]);
+			expect(names).toContain('--violet-color-text-primary');
+		} finally {
+			await kernel.dispose();
+		}
 	});
 });

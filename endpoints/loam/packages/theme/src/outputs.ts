@@ -2,6 +2,7 @@
  * The theme's outputs (2.1, 2.3): the contract, `loam-theme.css` and `loam-theme.json`, rendered
  * here rather than by Violet's exporters, which have no exclusion filter and no override diff.
  */
+import { tokenCustomProperty, VIOLET_CSS_PREFIX } from '@lushly-dev/violet-runtime/property';
 import { type ComponentExport, renderComponentExport } from './components.js';
 import {
 	buildLoamTree,
@@ -16,7 +17,11 @@ import {
 	themeNode,
 } from './tree/index.js';
 
-export const CONTRACT_VERSION = 1;
+/**
+ * The contract's version: 2 since every property moved under the `violet-` prefix (#1786), with
+ * the ids, types and kinds of version 1.
+ */
+export const CONTRACT_VERSION = 2;
 
 export interface ContractEntry {
 	property: string;
@@ -51,8 +56,13 @@ export interface ResolvedTree {
 	brokenReferences: BrokenReference[];
 }
 
-/** `--` + the id with `.` replaced by `-` (`color.surface.page` → `--color-surface-page`). */
-export const cssProperty = (id: string): string => `--${id.replaceAll('.', '-')}`;
+/**
+ * The custom property of a Loam id: violet-runtime's one naming rule under the components' prefix,
+ * `--violet-` and the id with `.` replaced by `-` (`color.surface.page` →
+ * `--violet-color-surface-page`). Loam's own ids, `shell.*` and density among them, take the same
+ * rule, so the whole tree is named as Violet's CSS exporter names it.
+ */
+export const cssProperty = (id: string): string => tokenCustomProperty(id, VIOLET_CSS_PREFIX);
 
 const byId = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 

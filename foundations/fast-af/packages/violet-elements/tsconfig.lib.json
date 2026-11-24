@@ -10,6 +10,9 @@
     "declarationMap": false,
     "experimentalDecorators": true,
     "resolveJsonModule": true,
+    // theme-css imports its generated naming rule as `.ts`, so the source runs in Node with type
+    // stripping and the emitted `.js` imports in plain Node (verify:exports checks both).
+    "rewriteRelativeImportExtensions": true,
     "useDefineForClassFields": false
   },
   "include": ["src/**/*.ts"],

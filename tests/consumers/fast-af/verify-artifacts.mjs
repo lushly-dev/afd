@@ -291,8 +291,13 @@ const tokenInterface = JSON.parse(
 	await readFile(resolveFrom.resolve(`${componentName}/tokens/interface.json`), 'utf8')
 );
 assert(Number.isInteger(tokenInterface.contractVersion), 'interface.json has a contractVersion');
+assert.equal(
+	tokenInterface.cssPrefix,
+	'violet',
+	'interface.json names its properties under cssPrefix'
+);
 assert.deepEqual(tokenInterface.tokens['font.family.body'], {
-	property: '--font-family-body',
+	property: '--violet-font-family-body',
 	type: 'fontFamily',
 });
 passed(`components: manifest, package.json and 3 token assets resolve (${declared.length} tags)`);
@@ -494,7 +499,7 @@ if (browserName !== 'none') {
 				globalThis.__singleFileReady === true &&
 				// The runtime adopts its theme sheet; it writes no style element.
 				document.adoptedStyleSheets.some((sheet) =>
-					[...sheet.cssRules].some((rule) => rule.cssText.includes('--color-surface-page'))
+					[...sheet.cssRules].some((rule) => rule.cssText.includes('--violet-color-surface-page'))
 				),
 			null,
 			{ timeout: 30000 }
@@ -505,7 +510,7 @@ if (browserName !== 'none') {
 				themeDefined: Boolean(customElements.get('violet-theme')),
 				textDefined: Boolean(customElements.get('violet-text')),
 				surfacePage: theme
-					? getComputedStyle(theme).getPropertyValue('--color-surface-page').trim()
+					? getComputedStyle(theme).getPropertyValue('--violet-color-surface-page').trim()
 					: '',
 			};
 		});

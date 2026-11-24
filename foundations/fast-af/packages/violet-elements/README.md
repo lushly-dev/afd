@@ -106,37 +106,51 @@ before they are treated as reference-grade. The stories run on Specimen
 ## The Token Interface
 
 The components read semantic tokens as CSS custom properties (`color.surface.page` is
-`--color-surface-page`), each with a literal fallback. This package owns the list:
+`--violet-color-surface-page`), each with a literal fallback. A property is `--`, the interface's
+`cssPrefix` (`violet`), `-` and the id with `.` replaced by `-`: violet-runtime's
+`tokenCustomProperty(id, 'violet')`, which `violetTokenProperty(id)` and `VIOLET_CSS_PREFIX` give
+here, and which violet-core's CSS exporter writes with `prefix: 'violet'`, so Violet's own output
+drives the components with no remapping. This package owns the list:
 [tokens/interface.json](./tokens/interface.json), published as
 `@lushly-dev/violet-elements/tokens/interface.json`, names every custom property a component
 reads, by token id, with its type:
 
 ```json
 {
-  "contractVersion": 3,
+  "contractVersion": 4,
   "package": "@lushly-dev/violet-elements",
+  "cssPrefix": "violet",
   "tokens": {
-    "color.accent.background": { "property": "--color-accent-background", "type": "color" },
-    "color.surface.page": { "property": "--color-surface-page", "type": "color" },
-    "font.family.body": { "property": "--font-family-body", "type": "fontFamily" },
-    "shadow.well": { "property": "--shadow-well", "type": "shadow" }
+    "color.accent.background": { "property": "--violet-color-accent-background", "type": "color" },
+    "color.surface.page": { "property": "--violet-color-surface-page", "type": "color" },
+    "font.family.body": { "property": "--violet-font-family-body", "type": "fontFamily" },
+    "shadow.well": { "property": "--violet-shadow-well", "type": "shadow" }
   }
 }
 ```
 
 - A theme set supplies every id in its default preset. `"reserved": true` on an entry marks an
   id of the interface that no component reads yet; supply it anyway. No id is reserved in
-  version 3.
-- `contractVersion` changes whenever an id is added, removed, renamed or retyped. Version 2
+  version 4.
+- `contractVersion` changes whenever an id is added, removed, renamed or retyped, or `cssPrefix`
+  changes. Version 2
   (the Refined design) added `font.family.heading`, `shadow.well`, `color.field.background`,
   `color.field.background.readonly`, `color.field.text`, `color.field.placeholder` and
   `color.field.border.focus`; `font.family.mono`, reserved in version 1, is now read. Version 3
-  added `color.accent.background` and `color.accent.text` for accent badges.
+  added `color.accent.background` and `color.accent.text` for accent badges. Version 4 keeps the
+  ids and moves every property under `cssPrefix` `violet` (#1786): see
+  [Migrating to version 4](#migrating-to-interface-version-4).
 - Types: `color`, `dimension`, `duration`, `cubicBezier`, `fontWeight`, `fontFamily`, `number`
   and `shadow`.
 - `src/theme/violet-token-interface.spec.ts` fails when a component reads a property the file
-  does not list (private `--_*` aliases and the components' own `--violet-*` knobs aside), or
-  when the file lists one nothing reads that is not `reserved`.
+  does not list (private `--_*` aliases and the components' own `--violet-<name>` knobs aside:
+  a knob whose name begins like a token family's, as `--violet-font-family` does, is listed
+  there with its reason), when it reads an unprefixed name from before version 4, or when the
+  file lists one nothing reads that is not `reserved`.
+- The naming rule is violet-runtime's (`@lushly-dev/violet-runtime/property`). This package takes
+  no Violet dependency (D50), so `theme:build` copies that file into
+  `src/theme/generated/violet-token-property.generated.ts` and refuses an interface whose
+  `cssPrefix` differs from it; CI's regenerate-and-diff step fails when the copy is stale.
 - Typefaces come from `font.family.body`, from `font.family.heading` for a dialog's title and
   the text component's headings (its fallback is the body family) and from `font.family.mono`
   for a tool call's command name. When no theme or `--violet-font-family` override is installed,
@@ -206,9 +220,34 @@ path:
 - The stylesheet becomes the only runtime path, installed through `adoptedStyleSheets` so that a
   page's Content Security Policy can forbid inline styles. `violet-runtime`'s inline
   `applyToDocument` is deprecated in favour of the same stylesheet.
-- Semantic properties take the `--violet-` prefix, which is what violet-core's CSS exporter
-  emits with `prefix: 'violet'` and violet-runtime with `cssPrefix: 'violet'`, with aliases for the unprefixed names for one preview release and a migration
-  note for Loam.
+- Semantic properties take the `--violet-` prefix (done, interface version 4), which is what
+  violet-core's CSS exporter emits with `prefix: 'violet'` and violet-runtime with
+  `cssPrefix: 'violet'`, with the alias block below for one preview release and a migration note
+  in Loam's `design.md`.
+
+## Migrating to interface version 4
+
+Every token property gains the `violet-` prefix; the ids, types and values are unchanged:
+
+| Before (version 3) | From version 4 |
+|---|---|
+| `--color-surface-page` <!-- violet-prefix: keep --> | `--violet-color-surface-page` |
+| `--font-family-body` <!-- violet-prefix: keep --> | `--violet-font-family-body` |
+| `--size-target-natural` <!-- violet-prefix: keep --> | `--violet-size-target-natural` |
+| `--z-index-modal` <!-- violet-prefix: keep --> | `--violet-z-index-modal` |
+| `--<id with . as ->` | `--violet-<id with . as ->`, `violetTokenProperty(id)` |
+
+The components' own knobs (`--violet-target-size`, `--violet-icon-size`, `--violet-font-family` and
+the rest) keep their names. `tokens/interface.json` lists each property; a product that wrote
+properties itself regenerates them from Violet with `prefix: 'violet'`, or names them with
+`violetTokenProperty`. `node scripts/codemods/violet-prefix.mjs` in this repository is the
+codemod that moved its own consumers; its plan shows the replacement rule.
+
+**Deprecated, removed in the next preview release:** the generated stylesheet ends with an alias
+block that declares each old name as a `var()` of the new one on the default preset's selectors
+(`:root` and every `[data-violet-theme-root]`), so a hand-written read of an old name keeps
+following the active preset, scoped roots included. Setting an old name no longer reaches the
+components: set the `--violet-` property instead.
 
 ## Runtime Theme
 

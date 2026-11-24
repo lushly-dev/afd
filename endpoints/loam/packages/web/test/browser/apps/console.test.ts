@@ -461,8 +461,8 @@ describe('P2-E13: E10: the console is every new app first UI', () => {
 				const style = getComputedStyle(span);
 				// The tokens as this page resolves them, through CSSOM, which style-src does not refuse.
 				const probe = document.createElement('i');
-				probe.style.setProperty('color', 'var(--color-state-danger-text)');
-				probe.style.setProperty('font-weight', 'var(--weight-semibold)');
+				probe.style.setProperty('color', 'var(--violet-color-state-danger-text)');
+				probe.style.setProperty('font-weight', 'var(--violet-weight-semibold)');
 				document.body.append(probe);
 				const token = getComputedStyle(probe);
 				const expected = { color: token.color, weight: token.fontWeight };

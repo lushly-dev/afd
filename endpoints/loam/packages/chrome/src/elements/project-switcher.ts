@@ -34,12 +34,12 @@ const styles = css`
 	}
 	.icon {
 		display: inline-flex;
-		padding: var(--size-space-xs);
-		border-radius: var(--radius-sm);
+		padding: var(--violet-size-space-xs);
+		border-radius: var(--violet-radius-sm);
 	}
 	:host([project]:not([project=''])) .icon {
-		background: var(--color-control-selected-background);
-		color: var(--color-control-selected-foreground);
+		background: var(--violet-color-control-selected-background);
+		color: var(--violet-color-control-selected-foreground);
 	}
 	@media (forced-colors: active) {
 		:host([project]:not([project=''])) .icon {

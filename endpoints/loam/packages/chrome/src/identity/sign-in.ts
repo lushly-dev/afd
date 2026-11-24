@@ -78,77 +78,77 @@ const styles = [
 		}
 		dialog {
 			box-sizing: border-box;
-			inline-size: min(92vw, var(--shell-size-main-min));
+			inline-size: min(92vw, var(--violet-shell-size-main-min));
 			max-block-size: 80dvh;
-			padding: var(--space-layout-md);
+			padding: var(--violet-space-layout-md);
 			border: 0;
-			border-radius: var(--radius-lg);
-			background: var(--color-surface-floating);
-			box-shadow: var(--shadow-floating);
-			color: var(--color-text-primary);
-			font-family: var(--font-family-body);
+			border-radius: var(--violet-radius-lg);
+			background: var(--violet-color-surface-floating);
+			box-shadow: var(--violet-shadow-floating);
+			color: var(--violet-color-text-primary);
+			font-family: var(--violet-font-family-body);
 		}
 		dialog[open] {
 			display: grid;
-			gap: var(--space-stack-md);
+			gap: var(--violet-space-stack-md);
 		}
 		dialog::backdrop {
-			background: color-mix(in srgb, var(--color-surface-page) 60%, transparent);
+			background: color-mix(in srgb, var(--violet-color-surface-page) 60%, transparent);
 		}
 		h2 {
 			margin: 0;
-			font-family: var(--font-family-heading);
-			font-size: var(--type-title-sm-size);
-			line-height: var(--type-title-sm-line);
-			font-weight: var(--type-title-sm-weight);
+			font-family: var(--violet-font-family-heading);
+			font-size: var(--violet-type-title-sm-size);
+			line-height: var(--violet-type-title-sm-line);
+			font-weight: var(--violet-type-title-sm-weight);
 		}
 		form {
 			display: grid;
-			gap: var(--space-stack-sm);
+			gap: var(--violet-space-stack-sm);
 		}
 		label {
-			font-size: var(--type-label-sm-size);
-			line-height: var(--type-label-sm-line);
-			font-weight: var(--type-label-sm-weight);
+			font-size: var(--violet-type-label-sm-size);
+			line-height: var(--violet-type-label-sm-line);
+			font-weight: var(--violet-type-label-sm-weight);
 		}
 		input {
 			box-sizing: border-box;
-			min-block-size: var(--size-target-natural);
-			padding-inline: var(--size-space-md);
-			border: 1px solid var(--color-border-subtle);
-			border-radius: var(--radius-md);
-			background: var(--color-field-background);
-			color: var(--color-field-text);
+			min-block-size: var(--violet-size-target-natural);
+			padding-inline: var(--violet-size-space-md);
+			border: 1px solid var(--violet-color-border-subtle);
+			border-radius: var(--violet-radius-md);
+			background: var(--violet-color-field-background);
+			color: var(--violet-color-field-text);
 			box-shadow:
-				inset 0 1px 0 var(--color-field-border),
-				var(--shadow-well);
+				inset 0 1px 0 var(--violet-color-field-border),
+				var(--violet-shadow-well);
 			font: inherit;
-			font-size: var(--type-body-md-size);
+			font-size: var(--violet-type-body-md-size);
 			transition:
-				border-color var(--duration-fast) var(--easing-standard),
-				box-shadow var(--duration-base) var(--easing-standard);
+				border-color var(--violet-duration-fast) var(--violet-easing-standard),
+				box-shadow var(--violet-duration-base) var(--violet-easing-standard);
 		}
 		input:hover {
 			box-shadow:
-				inset 0 1px 0 var(--color-field-border-hover),
-				var(--shadow-well);
+				inset 0 1px 0 var(--violet-color-field-border-hover),
+				var(--violet-shadow-well);
 		}
 		input:focus-visible {
-			border-color: var(--color-field-border-focus);
-			outline: var(--shell-size-focus) solid var(--color-focus-ring);
-			outline-offset: var(--size-space-xs);
+			border-color: var(--violet-color-field-border-focus);
+			outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+			outline-offset: var(--violet-size-space-xs);
 		}
 		.oidc {
 			display: grid;
-			gap: var(--space-stack-sm);
+			gap: var(--violet-space-stack-sm);
 		}
 		.recover {
 			display: grid;
-			gap: var(--space-stack-xs);
+			gap: var(--violet-space-stack-xs);
 		}
 		.recover form {
 			display: grid;
-			gap: var(--space-stack-xs);
+			gap: var(--violet-space-stack-xs);
 		}
 		.recover form[hidden] {
 			display: none;
@@ -159,9 +159,9 @@ const styles = [
 		}
 		.message {
 			margin: 0;
-			color: var(--color-text-secondary);
-			font-size: var(--type-body-md-size);
-			line-height: var(--type-body-md-line);
+			color: var(--violet-color-text-secondary);
+			font-size: var(--violet-type-body-md-size);
+			line-height: var(--violet-type-body-md-line);
 		}
 		.message:empty {
 			display: none;

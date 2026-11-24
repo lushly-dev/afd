@@ -55,13 +55,13 @@ describe("violet-source-citation", () => {
         expect(root?.querySelector(".title")?.textContent?.trim()).toBe("Source title");
     });
 
-    it("follows --color-accent-text across themes and still honors --_text-link overrides", async () => {
+    it("follows --violet-color-accent-text across themes and still honors --_text-link overrides", async () => {
         const citation = await renderCitation("https://example.com/page");
         const link = citation.shadowRoot?.querySelector<HTMLAnchorElement>("a.link");
         expect(link).not.toBeNull();
         expect(getComputedStyle(link as HTMLAnchorElement).color).toBe("rgb(27, 95, 128)");
 
-        citation.style.setProperty("--color-accent-text", "#a1d4f3");
+        citation.style.setProperty("--violet-color-accent-text", "#a1d4f3");
         await nextFrame();
         expect(getComputedStyle(link as HTMLAnchorElement).color).toBe("rgb(161, 212, 243)");
 

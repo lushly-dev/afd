@@ -96,23 +96,27 @@ describe('the token-only lint corpus', () => {
 		expect(rulesOf('@media (forced-colors: active) { :host { color: WindowText; } }')).toEqual([]);
 		expect(rulesOf(':host { transition-property: background, color; }')).toEqual([]);
 		// Setting a shell token or a primitive is reading it too.
-		expect(rulesOf(':host { --shell-size-titlebar: var(--size-target-natural); }')).toEqual([
-			'shell-token',
-		]);
-		expect(rulesOf(':host { --shell-size-titlebar: var(--size-target-natural); }', chrome)).toEqual(
-			[]
-		);
-		expect(rulesOf(':host { --ref-space-4: var(--size-space-sm); }', chrome)).toEqual([
+		expect(
+			rulesOf(':host { --violet-shell-size-titlebar: var(--violet-size-target-natural); }')
+		).toEqual(['shell-token']);
+		expect(
+			rulesOf(':host { --violet-shell-size-titlebar: var(--violet-size-target-natural); }', chrome)
+		).toEqual([]);
+		expect(rulesOf(':host { --ref-space-4: var(--violet-size-space-sm); }', chrome)).toEqual([
 			'primitive',
 		]);
+		expect(rulesOf(':host { --violet-ref-space-4: var(--violet-size-space-sm); }', chrome)).toEqual(
+			['primitive']
+		);
+		expect(rulesOf(':host { gap: var(--violet-ref-space-4); }')).toEqual(['primitive']);
 		// Lengths in at-rule conditions are not checked.
 		expect(
-			rulesOf('@container (min-width: 480px) { :host { gap: var(--size-space-md); } }')
+			rulesOf('@container (min-width: 480px) { :host { gap: var(--violet-size-space-md); } }')
 		).toEqual([]);
 	});
 
 	it('does not let a shell alias launder a shell token outside the chrome', () => {
-		const css = ':host { --_h: var(--shell-size-titlebar); block-size: var(--_h); }';
+		const css = ':host { --_h: var(--violet-shell-size-titlebar); block-size: var(--_h); }';
 		expect(lintSource(css, 'x.css', shared).map((violation) => violation.rule)).toEqual([
 			'shell-token',
 			'private-alias',
@@ -144,7 +148,10 @@ describe('loam-lint-tokens', () => {
 	};
 
 	it('lints the globs it is given, as the package in the working directory', () => {
-		writeFileSync(join(directory, 'a.css'), ':host { block-size: var(--shell-size-titlebar); }');
+		writeFileSync(
+			join(directory, 'a.css'),
+			':host { block-size: var(--violet-shell-size-titlebar); }'
+		);
 		expect(run({ name: CHROME_PACKAGE }).code).toBe(0);
 		const shared = run({ name: '@lushly-dev/loam-kernel' });
 		expect(shared.code).toBe(1);

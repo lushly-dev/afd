@@ -120,7 +120,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--size-target-natural, 32px)",
+				"default": "var(--violet-size-target-natural, 32px)",
 				"name": "--_target-size-natural"
 			},
 			{

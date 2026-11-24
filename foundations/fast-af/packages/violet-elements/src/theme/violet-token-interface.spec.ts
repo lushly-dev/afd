@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import tokenInterface from "../../tokens/interface.json";
 import { violetThemeBuiltInSet } from "./generated/violet-theme.generated";
+import { tokenCustomProperty } from "./generated/violet-token-property.generated";
 import {
+    VIOLET_CSS_PREFIX,
     VIOLET_TOKEN_TYPES,
     findVioletThemeSetGaps,
     violetTokenProperty,
@@ -28,7 +30,22 @@ const CONTRACT_DIGESTS: Readonly<Record<number, string>> = {
     2: "a62b51f27974d98d9c78da13bd0d5ac8e5f91d0fbb8423cfff5f5148b1d34638",
     // Distinct accent tokens (#1577): color.accent.background and color.accent.text.
     3: "46a6fc2d8be329e3be627635fa848d92396f56d17475bbf389e6d628de5cabf2",
+    // Every property under cssPrefix `violet` (#1786): `--violet-<kebab id>`.
+    4: "e986d5697ea6263de35b42396ddd22599fe7d290f7288402bd3ede8e907eb362",
 };
+
+/**
+ * The components' own knobs (`--violet-<name>`, set by a host, not by a theme) whose names begin
+ * like a token's: each with why it is a knob. Any other `--violet-<family>-` read must be listed.
+ */
+const KNOBS: Readonly<Record<string, string>> = {
+    "--violet-font-family": "the host's typeface override, read ahead of font.family.body (#512)",
+};
+
+/** `--violet-color-`, `--violet-size-` and so on: the start of every token family's properties. */
+const TOKEN_FAMILIES = [...new Set(Object.keys(tokenInterface.tokens).map(id => id.split(".")[0]))].map(
+    family => `${violetTokenProperty(family)}-`,
+);
 
 /**
  * Calls the scan cannot read as a literal property, each with why no component reads a theme
@@ -37,6 +54,8 @@ const CONTRACT_DIGESTS: Readonly<Record<number, string>> = {
 const UNRESOLVED_ALLOWED: Readonly<Record<string, string>> = {
     // The foundations story's registry renders the export's own references as `var(--<ref>)`.
     "../foundations/token-registry.ts: var(${tokenIdToCssVar(value.ref)})": "renders the export's references",
+    // The deprecated alias block points each old name at its token's property; it reads nothing itself.
+    "./violet-theme-css.ts: var(${violetTokenProperty(id)})": "writes the alias block's var() of each property",
     // Standard CSS Anchor Positioning property, not a theme token.
     '../shared/overlay-positioning.ts: getPropertyValue("anchor-name")': "reads standard CSS anchor-name property",
 };
@@ -54,9 +73,11 @@ interface Scan {
 
 /**
  * Every theme property the components read: each `var(--x` and `getPropertyValue("--x"` outside
- * comments, less private aliases (`--_x`) and the components' own knobs (`--violet-x`), which a
- * theme does not set. A call whose argument is a template, a variable or anything else the scan
- * cannot read is reported, so a read cannot hide from the interface.
+ * comments, less private aliases (`--_x`) and the components' own knobs (`--violet-<name>` outside
+ * the token families, and `KNOBS`), which a theme does not set. A read of an unprefixed name
+ * (`--color-x`, the names before contract version 4) counts as a theme read, so it fails as
+ * unlisted. A call whose argument is a template, a variable or anything else the scan cannot read
+ * is reported, so a read cannot hide from the interface.
  */
 function scan(): Scan {
     const read = new Map<string, string[]>();
@@ -73,7 +94,10 @@ function scan(): Scan {
                 }
                 continue;
             }
-            if (literal.startsWith("--_") || literal.startsWith("--violet-")) {
+            const knob =
+                literal.startsWith("--violet-") &&
+                (literal in KNOBS || !TOKEN_FAMILIES.some(family => literal.startsWith(family)));
+            if (literal.startsWith("--_") || knob) {
                 continue;
             }
             read.set(literal, [...(read.get(literal) ?? []), path]);
@@ -128,18 +152,29 @@ describe("the token interface (tokens/interface.json)", () => {
         ).toBe(CONTRACT_DIGESTS[contract.contractVersion]);
     });
 
-    it("names each property from its id and gives it a known type", () => {
+    it("names each property from its id under cssPrefix and gives it a known type", () => {
+        expect(contract.cssPrefix).toBe(VIOLET_CSS_PREFIX);
+        expect(VIOLET_CSS_PREFIX).toBe("violet");
         for (const [id, entry] of entries) {
             expect(entry.property, id).toBe(violetTokenProperty(id));
+            expect(entry.property, id).toBe(tokenCustomProperty(id, contract.cssPrefix));
             expect(TOKEN_TYPES.has(entry.type), `${id} has type ${entry.type}`).toBe(true);
         }
-        expect(contract.tokens["font.family.body"]).toEqual({ property: "--font-family-body", type: "fontFamily" });
+        expect(contract.tokens["font.family.body"]).toEqual({ property: "--violet-font-family-body", type: "fontFamily" });
         // Read by the tool-call card since contract version 2, so no longer reserved.
-        expect(contract.tokens["font.family.mono"]).toEqual({ property: "--font-family-mono", type: "fontFamily" });
-        expect(contract.tokens["font.family.heading"]).toEqual({ property: "--font-family-heading", type: "fontFamily" });
-        expect(contract.tokens["shadow.well"]).toEqual({ property: "--shadow-well", type: "shadow" });
-        expect(contract.tokens["color.accent.background"]).toEqual({ property: "--color-accent-background", type: "color" });
-        expect(contract.tokens["color.accent.text"]).toEqual({ property: "--color-accent-text", type: "color" });
+        expect(contract.tokens["font.family.mono"]).toEqual({ property: "--violet-font-family-mono", type: "fontFamily" });
+        expect(contract.tokens["font.family.heading"]).toEqual({ property: "--violet-font-family-heading", type: "fontFamily" });
+        expect(contract.tokens["shadow.well"]).toEqual({ property: "--violet-shadow-well", type: "shadow" });
+        expect(contract.tokens["color.accent.background"]).toEqual({ property: "--violet-color-accent-background", type: "color" });
+        expect(contract.tokens["color.accent.text"]).toEqual({ property: "--violet-color-accent-text", type: "color" });
+    });
+
+    it("keeps each knob that begins like a token out of the tokens' properties", () => {
+        const properties = new Set(entries.map(([, entry]) => entry.property));
+        for (const knob of Object.keys(KNOBS)) {
+            expect(properties.has(knob), `${knob} is a token's property`).toBe(false);
+        }
+        expect(TOKEN_FAMILIES).toContain("--violet-color-");
     });
 
     it("is supplied in full by the built-in default set, in every preset", () => {
@@ -151,8 +186,8 @@ describe("findVioletThemeSetGaps", () => {
     const tiny: VioletTokenInterface = {
         contractVersion: 1,
         tokens: {
-            "color.surface.page": { property: "--color-surface-page", type: "color" },
-            "font.family.body": { property: "--font-family-body", type: "fontFamily" },
+            "color.surface.page": { property: "--violet-color-surface-page", type: "color" },
+            "font.family.body": { property: "--violet-font-family-body", type: "fontFamily" },
         },
     };
 
@@ -184,8 +219,8 @@ describe("findVioletThemeSetGaps", () => {
         ).toEqual({
             problems: [],
             missing: [
-                { preset: "day", id: "font.family.body", property: "--font-family-body" },
-                { preset: "night", id: "font.family.body", property: "--font-family-body" },
+                { preset: "day", id: "font.family.body", property: "--violet-font-family-body" },
+                { preset: "night", id: "font.family.body", property: "--violet-font-family-body" },
             ],
             complete: false,
         });

@@ -126,7 +126,7 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--color-border-strong, #6b7d6e)",
+				"default": "var(--violet-color-border-strong, #6b7d6e)",
 				"name": "--_border-strong"
 			},
 			{
@@ -136,27 +136,27 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--radius-sm, 4px)",
+				"default": "var(--violet-radius-sm, 4px)",
 				"name": "--_radius-sm"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-background, #c0daeb)",
+				"default": "var(--violet-color-control-selected-background, #c0daeb)",
 				"name": "--_selection-background"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-border, rgba(27, 95, 128, 0.5))",
+				"default": "var(--violet-color-control-selected-border, rgba(27, 95, 128, 0.5))",
 				"name": "--_selection-border"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-foreground, #1b5f80)",
+				"default": "var(--violet-color-control-selected-foreground, #1b5f80)",
 				"name": "--_selection-text"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--size-font-md, 14px)",
+				"default": "var(--violet-size-font-md, 14px)",
 				"name": "--_size-font-md"
 			},
 			{
@@ -166,7 +166,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-surface-card, #f8f9f3)",
+				"default": "var(--violet-color-surface-card, #f8f9f3)",
 				"name": "--_surface-card"
 			},
 			{
@@ -176,12 +176,12 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--type-body-md-line, 20px)",
+				"default": "var(--violet-type-body-md-line, 20px)",
 				"name": "--_type-body-line"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--type-caption-xs-line, 16px)",
+				"default": "var(--violet-type-caption-xs-line, 16px)",
 				"name": "--_type-caption-line"
 			}
 		],

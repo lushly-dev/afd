@@ -107,7 +107,7 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "color-mix(in srgb, var(--color-text-primary, #181b1a) 7%, transparent)",
+				"default": "color-mix(in srgb, var(--violet-color-text-primary, #181b1a) 7%, transparent)",
 				"name": "--_well"
 			}
 		],

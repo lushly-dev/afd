@@ -20,19 +20,19 @@ type VioletButtonElement = HTMLElement & {
 function renderScopedTheme(args: ScopedThemeArgs): HTMLElement {
     const scope = document.createElement("violet-theme") as VioletThemeElement;
     scope.setAttribute("preset", args.preset);
-    scope.style.setProperty("--color-action-primary-background", args.accentBackground);
-    scope.style.setProperty("--color-action-primary-hover", args.accentBackground);
-    scope.style.setProperty("--color-action-primary-pressed", args.accentBackground);
-    scope.style.setProperty("--color-action-primary-text", args.accentText);
+    scope.style.setProperty("--violet-color-action-primary-background", args.accentBackground);
+    scope.style.setProperty("--violet-color-action-primary-hover", args.accentBackground);
+    scope.style.setProperty("--violet-color-action-primary-pressed", args.accentBackground);
+    scope.style.setProperty("--violet-color-action-primary-text", args.accentText);
 
     const card = document.createElement("div");
     card.style.display = "grid";
     card.style.gap = "0.75rem";
     card.style.padding = "1rem";
-    card.style.border = "1px solid var(--color-border-subtle)";
-    card.style.borderRadius = "var(--radius-md)";
-    card.style.background = "var(--color-surface-card)";
-    card.style.color = "var(--color-text-primary)";
+    card.style.border = "1px solid var(--violet-color-border-subtle)";
+    card.style.borderRadius = "var(--violet-radius-md)";
+    card.style.background = "var(--violet-color-surface-card)";
+    card.style.color = "var(--violet-color-text-primary)";
 
     const heading = document.createElement("strong");
     heading.textContent = args.preset === "dark" ? "Dark scoped theme" : "Light scoped theme";
@@ -101,7 +101,7 @@ export const Overview: Story = {
 
         await expect(computed?.backgroundColor ?? "").toBe("rgb(12, 90, 77)");
         await expect(computed?.color ?? "").toBe("rgb(255, 255, 255)");
-        await expect(scope?.style.getPropertyValue("--color-action-primary-background") ?? "").toBe(args.accentBackground);
+        await expect(scope?.style.getPropertyValue("--violet-color-action-primary-background") ?? "").toBe(args.accentBackground);
     },
 };
 

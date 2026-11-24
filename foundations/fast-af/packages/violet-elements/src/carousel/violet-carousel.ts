@@ -45,12 +45,12 @@ const styles = css`
         --_carousel-shadow: var(--_shadow-card);
         --_carousel-dot-size: 0.625rem;
         /* The surface block has no target sizes; a dot's button is three quarters of a control on fine pointers and full comfortable size on coarse pointers. */
-        --_target-size-natural: var(--size-target-natural, 32px);
-        --_target-size-comfortable: var(--size-target-comfortable, 44px);
+        --_target-size-natural: var(--violet-size-target-natural, 32px);
+        --_target-size-comfortable: var(--violet-size-target-comfortable, 44px);
         --_auto-target-size: var(--_target-size-natural);
         --_target-size: var(--violet-target-size, var(--_auto-target-size));
         --_carousel-dot-target-size: calc(var(--_target-size) * 0.75);
-        --_carousel-dot-active: var(--color-state-success-foreground, #2c5e4b);
+        --_carousel-dot-active: var(--violet-color-state-success-foreground, #2c5e4b);
         --_carousel-dot-idle: color-mix(in srgb, var(--_text-muted) 32%, transparent);
     }
 

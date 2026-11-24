@@ -2,7 +2,7 @@
 export const CHROME_PACKAGE: '@lushly-dev/loam-chrome';
 
 export interface LintOptions {
-	/** The contract's custom properties, like `--color-surface-page`. */
+	/** The contract's custom properties, like `--violet-color-surface-page`. */
 	properties: ReadonlySet<string>;
 	/** Whether `shell.*` tokens may be read: only in `@lushly-dev/loam-chrome`. */
 	allowShell: boolean;

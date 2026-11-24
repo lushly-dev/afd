@@ -3,6 +3,12 @@
  * shared by the runtime installer and the build-time checks a product runs against
  * `tokens/interface.json`.
  */
+// violet-runtime's naming rule, copied by `theme:build`: this package takes no Violet dependency
+// (Loam D50).
+import { tokenCustomProperty, VIOLET_CSS_PREFIX } from "./generated/violet-token-property.generated.ts";
+
+/** The prefix of every property the components read: `tokens/interface.json`'s `cssPrefix`. */
+export { VIOLET_CSS_PREFIX };
 
 export const VIOLET_THEME_ROOT_ATTRIBUTE = "data-violet-theme-root";
 export const VIOLET_THEME_PRESET_ATTRIBUTE = "data-violet-theme";
@@ -53,6 +59,8 @@ export interface VioletTokenInterfaceEntry {
 /** `tokens/interface.json`: the custom properties the components read, per token id. */
 export interface VioletTokenInterface {
     readonly contractVersion: number;
+    /** The prefix each property carries (`violet`), from contract version 4. */
+    readonly cssPrefix?: string;
     readonly tokens: Readonly<Record<string, VioletTokenInterfaceEntry>>;
 }
 
@@ -103,9 +111,24 @@ function isBalanced(value: string): boolean {
     return quote === null && open.length === 0;
 }
 
-/** `--` and the id with `.` replaced by `-`: `color.surface.page` gives `--color-surface-page`. */
+/**
+ * The custom property the components read for a token id: `--violet-` and the id with `.` replaced
+ * by `-`, so `color.surface.page` gives `--violet-color-surface-page`. It is violet-runtime's
+ * `tokenCustomProperty` under `VIOLET_CSS_PREFIX` (copied into `generated/` by `theme:build`), the
+ * name Violet's runtime and violet-core's CSS exporter write with that prefix.
+ */
 export function violetTokenProperty(id: string): string {
-    return `--${id.replace(/\./g, "-")}`;
+    return tokenCustomProperty(id, VIOLET_CSS_PREFIX);
+}
+
+/**
+ * The name a token had before contract version 4, with no prefix: `--color-surface-page`. Only the
+ * alias block uses it.
+ *
+ * @deprecated Removed with the alias block in the release after the one that adds it.
+ */
+function violetLegacyTokenProperty(id: string): string {
+    return tokenCustomProperty(id);
 }
 
 /** Every problem with a theme set's shape, preset names, ids and values; empty when it is sound. */
@@ -156,10 +179,28 @@ function declarations(tokens: readonly VioletThemeToken[]): string {
 }
 
 /**
+ * The alias block: each id the set supplies, under its name before contract version 4, as a
+ * `var()` of its prefixed property (`--color-surface-page: var(--violet-color-surface-page);`).
+ * Hand-written `var(--color-x)` calls keep reading the theme for one preview release.
+ *
+ * It sits on the default preset's selectors only, which take in every theme root: a custom property
+ * whose value is a `var()` is computed where it is declared, so each root and `:root` computes its
+ * aliases from its own preset's values.
+ *
+ * @deprecated Removed in the release after the one that adds it; read `--violet-*` instead.
+ */
+function aliasDeclarations(themeSet: VioletThemeSet): string {
+    const ids = new Set(Object.values(themeSet.presets).flatMap(tokens => tokens.map(token => token.id)));
+    return [...ids]
+        .map(id => `  ${violetLegacyTokenProperty(id)}: var(${violetTokenProperty(id)});`)
+        .join("\n");
+}
+
+/**
  * The stylesheet for a theme set: the default preset on `:root` and on every
  * `[data-violet-theme-root]`, then each other preset on the same selectors with
- * `[data-violet-theme="<preset>"]`. Throws a `TypeError` listing every problem when the set is not
- * sound.
+ * `[data-violet-theme="<preset>"]`, then the alias block (`aliasDeclarations`) on the default
+ * preset's selectors. Throws a `TypeError` listing every problem when the set is not sound.
  */
 export function createVioletThemeCss(themeSet: VioletThemeSet): string {
     const problems = validateVioletThemeSet(themeSet);
@@ -185,6 +226,8 @@ export function createVioletThemeCss(themeSet: VioletThemeSet): string {
             "}",
         );
     }
+    // Deprecated: the names before contract version 4, for one preview release.
+    blocks.push(":root,", `[${VIOLET_THEME_ROOT_ATTRIBUTE}]`, "{", aliasDeclarations(themeSet), "}");
     return blocks.join("\n");
 }
 

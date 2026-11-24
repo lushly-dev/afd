@@ -69,7 +69,7 @@ const HOST_CONTEXT = {
 	platform: 'web',
 	displayMode: 'inline',
 	containerDimensions: { width: 800, height: 600 },
-	'dev.loam/tokens': { '--color-surface-page': '#FFFEFA' },
+	'dev.loam/tokens': { '--violet-color-surface-page': '#FFFEFA' },
 };
 
 const initialize = () => ({ protocolVersion: '2026-01-26', hostContext: HOST_CONTEXT });
@@ -95,7 +95,7 @@ describe('connectView', () => {
 		expect(posted[1]?.method).toBe('ui/notifications/initialized');
 		expect(posted[1]?.id).toBeUndefined();
 		expect(view.hostContext.theme).toBe('light');
-		expect(properties.get('--color-surface-page')).toBe('#FFFEFA');
+		expect(properties.get('--violet-color-surface-page')).toBe('#FFFEFA');
 	});
 
 	it("applies the shell's fonts once, from ui/initialize or the first change that carries them", async () => {
@@ -350,7 +350,7 @@ describe('connectView', () => {
 		const view = await connectView();
 		const seen: unknown[] = [];
 		view.onHostContext((context) => seen.push(context));
-		const change = { theme: 'dark', 'dev.loam/tokens': { '--color-surface-page': '#111' } };
+		const change = { theme: 'dark', 'dev.loam/tokens': { '--violet-color-surface-page': '#111' } };
 		deliver({
 			jsonrpc: '2.0',
 			method: 'ui/notifications/host-context-changed',
@@ -358,7 +358,7 @@ describe('connectView', () => {
 		});
 		expect(seen).toEqual([change]);
 		expect(view.hostContext.theme).toBe('dark');
-		expect(properties.get('--color-surface-page')).toBe('#111');
+		expect(properties.get('--violet-color-surface-page')).toBe('#111');
 	});
 
 	it('runs teardown listeners before answering', async () => {

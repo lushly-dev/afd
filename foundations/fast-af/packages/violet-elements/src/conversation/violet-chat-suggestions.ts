@@ -28,11 +28,11 @@ const styles = css`
         box-sizing: border-box;
         display: inline-flex;
         align-items: center;
-        min-block-size: var(--size-target-natural, 32px);
+        min-block-size: var(--violet-size-target-natural, 32px);
         padding: 0 var(--_space-md);
-        border: var(--_card-border-width, 1px) solid var(--color-action-secondary-border, transparent);
+        border: var(--_card-border-width, 1px) solid var(--violet-color-action-secondary-border, transparent);
         border-radius: var(--_radius-round);
-        background: var(--color-action-secondary-background, var(--_surface-subtle));
+        background: var(--violet-color-action-secondary-background, var(--_surface-subtle));
         font-size: var(--_suggestion-font-size);
         line-height: var(--_suggestion-line-height);
         color: var(--_text-primary);

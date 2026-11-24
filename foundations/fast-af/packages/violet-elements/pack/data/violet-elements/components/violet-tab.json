@@ -38,7 +38,7 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-foreground, #1b5f80)",
+				"default": "var(--violet-color-control-selected-foreground, #1b5f80)",
 				"name": "--_selection-text"
 			},
 			{
@@ -63,12 +63,12 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-action-secondary-background, var(--_surface-subtle))",
+				"default": "var(--violet-color-action-secondary-background, var(--_surface-subtle))",
 				"name": "--_tab-key-background"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-action-secondary-border, transparent)",
+				"default": "var(--violet-color-action-secondary-border, transparent)",
 				"name": "--_tab-key-border"
 			},
 			{

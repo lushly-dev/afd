@@ -487,25 +487,25 @@ const own = css`
 		flex: 1 1 auto;
 		min-block-size: 0;
 		overflow: auto;
-		padding: var(--space-layout-md);
+		padding: var(--violet-space-layout-md);
 	}
 	.section {
 		display: grid;
-		gap: var(--space-stack-md);
+		gap: var(--violet-space-stack-md);
 	}
 	.read-failure:not([hidden]) {
-		margin-block-start: var(--space-stack-md);
+		margin-block-start: var(--violet-space-stack-md);
 	}
 	.more:not([hidden]) {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: var(--space-inline-md);
+		gap: var(--violet-space-inline-md);
 	}
 	.new:not([hidden]) {
 		display: flex;
 		flex-wrap: wrap;
-		gap: var(--space-inline-sm);
+		gap: var(--violet-space-inline-sm);
 	}
 `;
 

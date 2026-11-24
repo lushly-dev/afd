@@ -11,8 +11,8 @@ import type { AppearanceV0, ResolvedThemeV0 } from '@lushly-dev/loam-kernel';
 export const documentStyles = css`
 	html {
 		color-scheme: light;
-		background: var(--color-surface-page);
-		color: var(--color-text-primary);
+		background: var(--violet-color-surface-page);
+		color: var(--violet-color-text-primary);
 	}
 	html[data-loam-theme='dark'] {
 		color-scheme: dark;

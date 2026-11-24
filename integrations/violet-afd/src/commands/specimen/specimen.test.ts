@@ -79,7 +79,7 @@ describe('specimen.get and specimen.set (#118)', () => {
 			map: {},
 			stored: false,
 			updatedAt: null,
-			interface: { package: '@lushly-dev/violet-elements', contractVersion: 3 },
+			interface: { package: '@lushly-dev/violet-elements', contractVersion: 4 },
 		});
 		expect(data.components.map((entry) => [entry.component, entry.drawn])).toEqual([
 			['button', false],

@@ -63,42 +63,42 @@ const template = html<LoamEmbed>`
 const styles = css`
 	:host {
 		display: block;
-		color: var(--color-text-primary);
+		color: var(--violet-color-text-primary);
 	}
 	[hidden] {
 		display: none;
 	}
 	.embed {
 		display: grid;
-		gap: var(--space-stack-sm);
-		padding: var(--space-stack-sm) var(--space-inline-md);
-		border: 1px solid var(--color-border-subtle);
-		border-radius: var(--radius-md);
-		background: var(--color-surface-subtle);
+		gap: var(--violet-space-stack-sm);
+		padding: var(--violet-space-stack-sm) var(--violet-space-inline-md);
+		border: 1px solid var(--violet-color-border-subtle);
+		border-radius: var(--violet-radius-md);
+		background: var(--violet-color-surface-subtle);
 	}
 	p {
 		display: flex;
 		align-items: center;
-		gap: var(--space-inline-sm);
+		gap: var(--violet-space-inline-sm);
 		margin: 0;
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
+		font-size: var(--violet-type-label-sm-size);
+		line-height: var(--violet-type-label-sm-line);
 	}
 	.head {
-		font-weight: var(--type-label-sm-weight);
+		font-weight: var(--violet-type-label-sm-weight);
 	}
 	.note {
-		color: var(--color-text-secondary);
+		color: var(--violet-color-text-secondary);
 	}
 	a {
 		display: inline-flex;
 		align-items: center;
-		min-block-size: var(--size-target-compact);
-		color: var(--color-text-primary);
+		min-block-size: var(--violet-size-target-compact);
+		color: var(--violet-color-text-primary);
 	}
 	a:focus-visible {
-		outline: var(--shell-size-focus) solid var(--color-focus-ring);
-		outline-offset: var(--size-space-xs);
+		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+		outline-offset: var(--violet-size-space-xs);
 	}
 	.body:empty {
 		display: none;

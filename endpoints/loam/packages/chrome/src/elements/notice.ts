@@ -26,10 +26,10 @@ const styles = css`
 		place-items: center;
 		min-block-size: 100dvh;
 		box-sizing: border-box;
-		padding: var(--space-layout-md);
-		background: var(--color-surface-page);
-		color: var(--color-text-primary);
-		font-family: var(--font-family-body);
+		padding: var(--violet-space-layout-md);
+		background: var(--violet-color-surface-page);
+		color: var(--violet-color-text-primary);
+		font-family: var(--violet-font-family-body);
 	}
 	:host([embedded]) {
 		display: block;
@@ -39,22 +39,22 @@ const styles = css`
 		display: none;
 	}
 	.suggestion {
-		margin-block-start: var(--space-stack-sm);
+		margin-block-start: var(--violet-space-stack-sm);
 	}
 	.notice {
-		max-inline-size: calc(var(--shell-size-main-min) * 1.6);
+		max-inline-size: calc(var(--violet-shell-size-main-min) * 1.6);
 	}
 	h1 {
-		margin-block: 0 var(--space-stack-md);
-		font-size: var(--type-title-md-size);
-		line-height: var(--type-title-md-line);
-		font-weight: var(--type-title-md-weight);
+		margin-block: 0 var(--violet-space-stack-md);
+		font-size: var(--violet-type-title-md-size);
+		line-height: var(--violet-type-title-md-line);
+		font-weight: var(--violet-type-title-md-weight);
 	}
 	p {
 		margin: 0;
-		color: var(--color-text-secondary);
-		font-size: var(--type-body-md-size);
-		line-height: var(--type-body-md-line);
+		color: var(--violet-color-text-secondary);
+		font-size: var(--violet-type-body-md-size);
+		line-height: var(--violet-type-body-md-line);
 	}
 	@media (forced-colors: active) {
 		:host,

@@ -15,16 +15,16 @@ const styles = css`
         display: grid;
 
         /* The rail is a well, filled to the value; the thumb is the end of the fill, in its colour. */
-        --_selection-fill: var(--color-control-selected-foreground, #1b5f80);
-        --_rail-background: color-mix(in srgb, var(--color-text-primary, #181b1a) 10%, transparent);
-        --_danger-border: var(--color-state-danger-border, transparent);
-        --_radius-full: var(--radius-round, 9999px);
+        --_selection-fill: var(--violet-color-control-selected-foreground, #1b5f80);
+        --_rail-background: color-mix(in srgb, var(--violet-color-text-primary, #181b1a) 10%, transparent);
+        --_danger-border: var(--violet-color-state-danger-border, transparent);
+        --_radius-full: var(--violet-radius-round, 9999px);
         --_thumb-size: calc(var(--_target-size) * 0.5);
         --_track-size: calc(var(--_target-size) * 0.125);
         --_control-block-size: var(--_target-size);
         --_vertical-track-size: calc(var(--_target-size) * 4);
         --_tick-size: 6px;
-        --_tick-color: var(--color-border-strong, #6b7d6e);
+        --_tick-color: var(--violet-color-border-strong, #6b7d6e);
         --_start-percent: 25%;
         --_end-percent: 75%;
     }

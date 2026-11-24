@@ -2,6 +2,7 @@
 // theme (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4). Categories and
 // tiers follow the families of the retired master-semantic registry, removed in #656.
 import exportText from "../../tokens/violet-theme.export.json?raw";
+import { violetTokenProperty } from "../theme/violet-theme-css";
 
 type TokenMetadata = {
   category: string;
@@ -74,7 +75,7 @@ const families: ReadonlyArray<[prefix: string, category: string, tier: string]> 
 
 /**
  * The aliases the retired registry declared. The export holds resolved values, so the story's labs
- * get these chains back (`--space-inline-sm: var(--size-space-sm)`) and editing a ramp step still
+ * get these chains back (`--violet-space-inline-sm: var(--violet-size-space-sm)`) and editing a ramp step still
  * moves the semantic tokens on it. An alias is kept only while both light values agree.
  */
 const registryAliases: Readonly<Record<string, string>> = {
@@ -258,8 +259,9 @@ export const violetTokenGroups: VioletTokenGroup[] = Array.from(
   }, new Map<string, VioletTokenGroup>())
 ).map(([, group]) => group);
 
+/** The custom property the theme sheet sets for a token id: `violetTokenProperty`'s name. */
 export function tokenIdToCssVar(tokenId: string): string {
-  return `--${tokenId.replace(/\./g, "-")}`;
+  return violetTokenProperty(tokenId);
 }
 
 function isTokenReferenceValue(value: VioletTokenValue): value is TokenReferenceValue {

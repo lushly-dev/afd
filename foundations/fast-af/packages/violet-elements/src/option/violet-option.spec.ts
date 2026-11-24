@@ -290,7 +290,7 @@ describe("violet-option", () => {
         expect(optMedium.hasAttribute("active")).toBe(true);
         control(optMedium).style.transition = "none";
         const probe = document.createElement("span");
-        probe.style.backgroundColor = "var(--color-surface-selected)";
+        probe.style.backgroundColor = "var(--violet-color-surface-selected)";
         theme.append(probe);
         expect(getComputedStyle(control(optMedium)).backgroundColor).toBe(getComputedStyle(probe).backgroundColor);
 
@@ -312,7 +312,7 @@ describe("violet-option", () => {
             const theme = document.createElement("violet-theme");
             theme.setAttribute("preset", preset);
             const canvas = document.createElement("div");
-            canvas.style.background = "var(--color-surface-page)";
+            canvas.style.background = "var(--violet-color-surface-page)";
             theme.append(canvas);
             document.body.append(theme);
 
@@ -431,18 +431,18 @@ describe("violet-option", () => {
         const option = await renderOption({ text: "Apple" });
         const theme = document.createElement("violet-theme");
         theme.setAttribute("preset", preset);
-        theme.style.color = "var(--color-text-primary)";
+        theme.style.color = "var(--violet-color-text-primary)";
         option.before(theme);
         theme.append(option);
         option.active = true;
         await vi.waitFor(() => {
-            expect(getComputedStyle(theme).getPropertyValue("--color-surface-subtle").trim()).not.toBe("");
+            expect(getComputedStyle(theme).getPropertyValue("--violet-color-surface-subtle").trim()).not.toBe("");
         });
         await nextFrame();
         // Exclude transition intermediates from the measured color pair.
         control(option).style.transition = "none";
         const computed = getComputedStyle(control(option));
-        const surface = getComputedStyle(theme).getPropertyValue("--color-surface-subtle").trim();
+        const surface = getComputedStyle(theme).getPropertyValue("--violet-color-surface-subtle").trim();
         const probe = document.createElement("span");
         probe.style.backgroundColor = surface;
         theme.append(probe);

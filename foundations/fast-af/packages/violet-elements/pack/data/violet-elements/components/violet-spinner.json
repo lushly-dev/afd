@@ -92,7 +92,7 @@
 		{
 			"basis": "observed",
 			"from": "components-spinner--in-context",
-			"html": "<div style=\"display:flex;align-items:center;gap:var(--space-layout-sm);font-family:inherit;font-size:var(--type-body-md-size);line-height:var(--type-body-md-line);color:var(--color-text-secondary);\">\n            <violet-spinner decorative label size=\"sm\"></violet-spinner>\n            <span>Syncing row changes…</span>\n        </div>"
+			"html": "<div style=\"display:flex;align-items:center;gap:var(--violet-space-layout-sm);font-family:inherit;font-size:var(--violet-type-body-md-size);line-height:var(--violet-type-body-md-line);color:var(--violet-color-text-secondary);\">\n            <violet-spinner decorative label size=\"sm\"></violet-spinner>\n            <span>Syncing row changes…</span>\n        </div>"
 		},
 		{
 			"basis": "observed",

@@ -9,26 +9,26 @@ import { css } from '@lushly-dev/fast-element';
 
 export const documentsStyles = css`
 	:host {
-		color: var(--color-text-primary);
-		font-size: var(--type-body-md-size);
-		line-height: var(--type-body-md-line);
+		color: var(--violet-color-text-primary);
+		font-size: var(--violet-type-body-md-size);
+		line-height: var(--violet-type-body-md-line);
 	}
 	[hidden] {
 		display: none !important;
 	}
 	h1 {
 		margin: 0;
-		font-family: var(--font-family-heading);
-		font-size: var(--type-title-md-size);
-		line-height: var(--type-title-md-line);
-		font-weight: var(--type-title-md-weight);
+		font-family: var(--violet-font-family-heading);
+		font-size: var(--violet-type-title-md-size);
+		line-height: var(--violet-type-title-md-line);
+		font-weight: var(--violet-type-title-md-weight);
 	}
 	h2 {
 		margin: 0;
-		font-family: var(--font-family-heading);
-		font-size: var(--type-title-sm-size);
-		line-height: var(--type-title-sm-line);
-		font-weight: var(--type-title-sm-weight);
+		font-family: var(--violet-font-family-heading);
+		font-size: var(--violet-type-title-sm-size);
+		line-height: var(--violet-type-title-sm-line);
+		font-weight: var(--violet-type-title-sm-weight);
 		overflow-wrap: anywhere;
 	}
 	p {
@@ -38,111 +38,111 @@ export const documentsStyles = css`
 	.empty,
 	th,
 	label {
-		color: var(--color-text-secondary);
+		color: var(--violet-color-text-secondary);
 	}
 	.failure {
-		color: var(--color-state-danger-text);
+		color: var(--violet-color-state-danger-text);
 	}
 	label {
 		display: grid;
-		gap: var(--space-stack-xs);
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
+		gap: var(--violet-space-stack-xs);
+		font-size: var(--violet-type-label-sm-size);
+		line-height: var(--violet-type-label-sm-line);
 	}
 	.check {
 		display: inline-flex;
 		align-items: center;
-		gap: var(--space-inline-sm);
-		min-block-size: var(--size-target-natural);
+		gap: var(--violet-space-inline-sm);
+		min-block-size: var(--violet-size-target-natural);
 	}
 	/* A 24 px target in both densities, beside the pickers (design.md). */
 	.check input {
-		inline-size: var(--size-target-compact);
-		block-size: var(--size-target-compact);
+		inline-size: var(--violet-size-target-compact);
+		block-size: var(--violet-size-target-compact);
 		margin: 0;
-		accent-color: var(--color-control-selected-background);
+		accent-color: var(--violet-color-control-selected-background);
 	}
 	.field {
 		box-sizing: border-box;
-		min-block-size: var(--size-target-natural);
-		padding-inline: var(--size-space-sm);
-		border: 1px solid var(--color-border-subtle);
-		border-radius: var(--radius-md);
-		background: var(--color-field-background);
-		color: var(--color-field-text);
+		min-block-size: var(--violet-size-target-natural);
+		padding-inline: var(--violet-size-space-sm);
+		border: 1px solid var(--violet-color-border-subtle);
+		border-radius: var(--violet-radius-md);
+		background: var(--violet-color-field-background);
+		color: var(--violet-color-field-text);
 		box-shadow:
-			inset 0 1px 0 var(--color-field-border),
-			var(--shadow-well);
+			inset 0 1px 0 var(--violet-color-field-border),
+			var(--violet-shadow-well);
 		font: inherit;
-		font-size: var(--type-body-md-size);
-		line-height: var(--type-body-md-line);
+		font-size: var(--violet-type-body-md-size);
+		line-height: var(--violet-type-body-md-line);
 		transition:
-			border-color var(--duration-fast) var(--easing-standard),
-			box-shadow var(--duration-base) var(--easing-standard);
+			border-color var(--violet-duration-fast) var(--violet-easing-standard),
+			box-shadow var(--violet-duration-base) var(--violet-easing-standard);
 	}
 	.field:hover {
 		box-shadow:
-			inset 0 1px 0 var(--color-field-border-hover),
-			var(--shadow-well);
+			inset 0 1px 0 var(--violet-color-field-border-hover),
+			var(--violet-shadow-well);
 	}
 	.field[aria-invalid='true'] {
-		border-color: var(--color-field-border-invalid);
+		border-color: var(--violet-color-field-border-invalid);
 	}
 	.button {
-		min-block-size: var(--size-target-natural);
-		padding-inline: var(--space-inline-md);
-		border: 1px solid var(--color-action-secondary-border);
-		border-radius: var(--radius-md);
-		background: var(--color-action-secondary-background);
-		color: var(--color-action-secondary-text);
+		min-block-size: var(--violet-size-target-natural);
+		padding-inline: var(--violet-space-inline-md);
+		border: 1px solid var(--violet-color-action-secondary-border);
+		border-radius: var(--violet-radius-md);
+		background: var(--violet-color-action-secondary-background);
+		color: var(--violet-color-action-secondary-text);
 		font: inherit;
 		cursor: pointer;
 		transition:
-			background-color var(--duration-fast) var(--easing-standard),
-			color var(--duration-fast) var(--easing-standard),
-			border-color var(--duration-fast) var(--easing-standard),
-			box-shadow var(--duration-fast) var(--easing-standard);
+			background-color var(--violet-duration-fast) var(--violet-easing-standard),
+			color var(--violet-duration-fast) var(--violet-easing-standard),
+			border-color var(--violet-duration-fast) var(--violet-easing-standard),
+			box-shadow var(--violet-duration-fast) var(--violet-easing-standard);
 	}
 	.button:hover {
-		background: var(--color-action-secondary-hover);
+		background: var(--violet-color-action-secondary-hover);
 	}
 	.button:active {
-		background: var(--color-action-secondary-pressed);
+		background: var(--violet-color-action-secondary-pressed);
 	}
 	.button.primary {
 		border-color: transparent;
-		background: var(--color-action-primary-background);
-		color: var(--color-action-primary-text);
-		box-shadow: var(--shadow-control);
+		background: var(--violet-color-action-primary-background);
+		color: var(--violet-color-action-primary-text);
+		box-shadow: var(--violet-shadow-control);
 	}
 	.button.primary:hover {
-		background: var(--color-action-primary-hover);
+		background: var(--violet-color-action-primary-hover);
 	}
 	.button.primary:active {
-		background: var(--color-action-primary-pressed);
+		background: var(--violet-color-action-primary-pressed);
 		box-shadow: none;
 	}
 	.field:focus-visible {
-		border-color: var(--color-field-border-focus);
-		outline: var(--shell-size-focus) solid var(--color-focus-ring);
-		outline-offset: var(--size-space-xs);
+		border-color: var(--violet-color-field-border-focus);
+		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+		outline-offset: var(--violet-size-space-xs);
 	}
 	.button:focus-visible,
 	.check input:focus-visible,
 	h1:focus-visible,
 	a:focus-visible {
-		outline: var(--shell-size-focus) solid var(--color-focus-ring);
-		outline-offset: var(--size-space-xs);
+		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+		outline-offset: var(--violet-size-space-xs);
 	}
 	h1:focus:not(:focus-visible) {
 		outline: none;
 	}
 	a {
 		display: inline-block;
-		min-block-size: var(--size-target-compact);
-		color: var(--color-text-primary);
+		min-block-size: var(--violet-size-target-compact);
+		color: var(--violet-color-text-primary);
 		text-decoration: underline;
-		text-underline-offset: var(--size-space-xs);
+		text-underline-offset: var(--violet-size-space-xs);
 		overflow-wrap: anywhere;
 	}
 	table {
@@ -151,24 +151,24 @@ export const documentsStyles = css`
 	}
 	th,
 	td {
-		padding-block: var(--space-stack-xs);
-		padding-inline: var(--space-inline-sm);
-		border-block-end: 1px solid var(--color-border-subtle);
+		padding-block: var(--violet-space-stack-xs);
+		padding-inline: var(--violet-space-inline-sm);
+		border-block-end: 1px solid var(--violet-color-border-subtle);
 		text-align: start;
 		vertical-align: top;
 		overflow-wrap: anywhere;
 	}
 	th {
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
-		font-weight: var(--type-label-sm-weight);
+		font-size: var(--violet-type-label-sm-size);
+		line-height: var(--violet-type-label-sm-line);
+		font-weight: var(--violet-type-label-sm-weight);
 	}
 	.actions,
 	.tools {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: end;
-		gap: var(--space-inline-sm);
+		gap: var(--violet-space-inline-sm);
 	}
 	.said {
 		position: absolute;

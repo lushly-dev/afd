@@ -15,14 +15,14 @@ const styles = css`
 
     :host {
         display: block;
-        --_surface-hover: var(--color-surface-subtle, #e9e5de);
-        --_surface-active: var(--color-surface-subtle, #e9e5de);
-        --_surface-selected: var(--color-surface-selected, #dfecf4);
-        --_option-mark: var(--color-control-selected-foreground, #1b5f80);
+        --_surface-hover: var(--violet-color-surface-subtle, #e9e5de);
+        --_surface-active: var(--violet-color-surface-subtle, #e9e5de);
+        --_surface-selected: var(--violet-color-surface-selected, #dfecf4);
+        --_option-mark: var(--violet-color-control-selected-foreground, #1b5f80);
         --_option-mark-size: 0.6875rem;
-        --_focus-ring-width: var(--size-focus-ring-width, 2px);
-        --_control-caption-size: var(--violet-control-caption-size, var(--type-caption-xs-size, 12px));
-        --_type-caption-line: var(--type-caption-xs-line, 16px);
+        --_focus-ring-width: var(--violet-size-focus-ring-width, 2px);
+        --_control-caption-size: var(--violet-control-caption-size, var(--violet-type-caption-xs-size, 12px));
+        --_type-caption-line: var(--violet-type-caption-xs-line, 16px);
         --_option-padding-inline-start: var(--violet-option-padding-inline-start, calc(var(--_space-inline-md) * 1.5));
         --_option-padding-inline-end: var(--violet-option-padding-inline-end, calc(var(--_space-inline-md) * 1.5));
     }

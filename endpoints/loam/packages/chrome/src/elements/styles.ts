@@ -7,8 +7,8 @@ import { css } from '@lushly-dev/fast-element';
 
 /** The focus indicator, on `:focus-visible` only. */
 export const focusRing = css.partial`
-	outline: var(--shell-size-focus) solid var(--color-focus-ring);
-	outline-offset: var(--size-space-xs);
+	outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+	outline-offset: var(--violet-size-space-xs);
 `;
 
 /** A part host: hidden when not present, focusable for F6 with the ring drawn inside it. */
@@ -22,8 +22,8 @@ export const partHost = css`
 		display: none;
 	}
 	:host(:focus-visible) {
-		outline: var(--shell-size-focus) solid var(--color-focus-ring);
-		outline-offset: calc(-1 * var(--shell-size-focus));
+		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+		outline-offset: calc(-1 * var(--violet-shell-size-focus));
 	}
 	@media (forced-colors: active) {
 		:host(:focus-visible) {
@@ -43,52 +43,52 @@ export const quietButton = css`
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		gap: var(--size-space-sm);
-		min-block-size: var(--size-target-natural);
-		min-inline-size: var(--size-target-natural);
+		gap: var(--violet-size-space-sm);
+		min-block-size: var(--violet-size-target-natural);
+		min-inline-size: var(--violet-size-target-natural);
 		padding-block: 0;
-		padding-inline: var(--size-space-md);
+		padding-inline: var(--violet-size-space-md);
 		border: 1px solid transparent;
-		border-inline-start-width: var(--size-space-xs);
-		border-radius: var(--radius-md);
+		border-inline-start-width: var(--violet-size-space-xs);
+		border-radius: var(--violet-radius-md);
 		background: transparent;
-		color: var(--color-text-secondary);
+		color: var(--violet-color-text-secondary);
 		font: inherit;
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
-		font-weight: var(--type-label-sm-weight);
+		font-size: var(--violet-type-label-sm-size);
+		line-height: var(--violet-type-label-sm-line);
+		font-weight: var(--violet-type-label-sm-weight);
 		cursor: pointer;
 		transition:
-			background-color var(--duration-fast) var(--easing-standard),
-			color var(--duration-fast) var(--easing-standard),
-			border-color var(--duration-fast) var(--easing-standard);
+			background-color var(--violet-duration-fast) var(--violet-easing-standard),
+			color var(--violet-duration-fast) var(--violet-easing-standard),
+			border-color var(--violet-duration-fast) var(--violet-easing-standard);
 	}
 	.quiet:hover {
-		background: var(--color-action-secondary-hover);
-		color: var(--color-text-primary);
+		background: var(--violet-color-action-secondary-hover);
+		color: var(--violet-color-text-primary);
 	}
 	.quiet:active {
-		background: var(--color-action-secondary-pressed);
-		color: var(--color-text-primary);
+		background: var(--violet-color-action-secondary-pressed);
+		color: var(--violet-color-text-primary);
 	}
 	.quiet:focus-visible {
-		outline: var(--shell-size-focus) solid var(--color-focus-ring);
-		outline-offset: calc(-1 * var(--shell-size-focus));
+		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+		outline-offset: calc(-1 * var(--violet-shell-size-focus));
 	}
 	.quiet[aria-pressed='true'] {
-		background: var(--color-control-selected-background);
-		color: var(--color-control-selected-foreground);
-		border-inline-start-color: var(--color-control-selected-foreground);
+		background: var(--violet-color-control-selected-background);
+		color: var(--violet-color-control-selected-foreground);
+		border-inline-start-color: var(--violet-color-control-selected-foreground);
 	}
 	.quiet[aria-disabled='true'],
 	.quiet:disabled {
 		opacity: 0.55;
 		cursor: not-allowed;
 		background: transparent;
-		color: var(--color-text-secondary);
+		color: var(--violet-color-text-secondary);
 	}
 	.quiet violet-icon {
-		--violet-icon-size: var(--size-line-sm);
+		--violet-icon-size: var(--violet-size-line-sm);
 	}
 	@media (prefers-reduced-motion: reduce) {
 		.quiet {
@@ -145,25 +145,25 @@ export const partHeader = css`
 	.header {
 		display: flex;
 		align-items: center;
-		gap: var(--space-inline-sm);
-		padding-block: var(--space-stack-sm);
-		padding-inline: var(--space-layout-sm);
-		border-block-end: 1px solid var(--color-border-subtle);
+		gap: var(--violet-space-inline-sm);
+		padding-block: var(--violet-space-stack-sm);
+		padding-inline: var(--violet-space-layout-sm);
+		border-block-end: 1px solid var(--violet-color-border-subtle);
 	}
 	.title {
 		flex: 1;
 		margin: 0;
 		min-inline-size: 0;
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
-		font-weight: var(--type-label-sm-weight);
-		color: var(--color-text-secondary);
+		font-size: var(--violet-type-label-sm-size);
+		line-height: var(--violet-type-label-sm-line);
+		font-weight: var(--violet-type-label-sm-weight);
+		color: var(--violet-color-text-secondary);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
 	.body {
-		padding: var(--space-layout-sm);
+		padding: var(--violet-space-layout-sm);
 		overflow: auto;
 		min-block-size: 0;
 	}

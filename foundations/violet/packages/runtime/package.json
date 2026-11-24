@@ -33,6 +33,10 @@
 		".": {
 			"import": "./dist/index.js",
 			"types": "./dist/index.d.ts"
+		},
+		"./property": {
+			"import": "./dist/property.js",
+			"types": "./dist/property.d.ts"
 		}
 	},
 	"scripts": {

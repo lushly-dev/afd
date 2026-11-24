@@ -23,33 +23,33 @@ export const entryBase = css`
 		flex-direction: column;
 	}
 	.entry:not([aria-disabled]):hover {
-		background: var(--color-action-secondary-hover);
-		color: var(--color-text-primary);
+		background: var(--violet-color-action-secondary-hover);
+		color: var(--violet-color-text-primary);
 	}
 	.entry {
 		box-sizing: border-box;
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		gap: var(--size-space-xs);
-		min-inline-size: var(--size-target-comfortable);
-		min-block-size: var(--size-target-comfortable);
-		padding: var(--size-space-xs);
+		gap: var(--violet-size-space-xs);
+		min-inline-size: var(--violet-size-target-comfortable);
+		min-block-size: var(--violet-size-target-comfortable);
+		padding: var(--violet-size-space-xs);
 		border: 1px solid transparent;
-		border-radius: var(--radius-md);
+		border-radius: var(--violet-radius-md);
 		background: transparent;
-		color: var(--color-text-secondary);
+		color: var(--violet-color-text-secondary);
 		font: inherit;
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
-		font-weight: var(--type-label-sm-weight);
+		font-size: var(--violet-type-label-sm-size);
+		line-height: var(--violet-type-label-sm-line);
+		font-weight: var(--violet-type-label-sm-weight);
 	}
 	.entry violet-icon {
-		--violet-icon-size: var(--size-line-md);
+		--violet-icon-size: var(--violet-size-line-md);
 	}
 	.entry:focus-visible {
-		outline: var(--shell-size-focus) solid var(--color-focus-ring);
-		outline-offset: calc(-1 * var(--shell-size-focus));
+		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+		outline-offset: calc(-1 * var(--violet-shell-size-focus));
 	}
 	@media (forced-colors: active) {
 		.entry {

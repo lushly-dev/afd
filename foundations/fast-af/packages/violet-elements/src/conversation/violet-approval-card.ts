@@ -13,12 +13,12 @@ const styles = css`
         --_approval-font-size: var(--violet-approval-font-size, var(--_body-size));
         --_approval-line-height: var(--violet-approval-line-height, var(--_body-line));
         --_approval-caption-size: var(--violet-approval-caption-size, var(--_caption-size));
-        --_warning-bg-subtle: var(--color-state-warning-background, #f3e8d2);
-        --_warning-text: var(--color-state-warning-text, #92400e);
-        --_success-bg-subtle: var(--color-state-success-background, #dfeae3);
-        --_success-text: var(--color-state-success-text, #2c5e4b);
-        --_danger-bg-subtle: var(--color-state-danger-background, #f7e4df);
-        --_danger-text: var(--color-state-danger-text, #c42a1a);
+        --_warning-bg-subtle: var(--violet-color-state-warning-background, #f3e8d2);
+        --_warning-text: var(--violet-color-state-warning-text, #92400e);
+        --_success-bg-subtle: var(--violet-color-state-success-background, #dfeae3);
+        --_success-text: var(--violet-color-state-success-text, #2c5e4b);
+        --_danger-bg-subtle: var(--violet-color-state-danger-background, #f7e4df);
+        --_danger-text: var(--violet-color-state-danger-text, #c42a1a);
     }
 
     /* The one raised card in a thread: a toned band, the request, and the actions on a band. */
@@ -54,7 +54,7 @@ const styles = css`
         gap: var(--_space-sm);
         padding: var(--_space-sm) var(--_space-md);
         background: var(--_warning-bg-subtle);
-        font-size: var(--type-label-sm-size, 13px);
+        font-size: var(--violet-type-label-sm-size, 13px);
         line-height: var(--_approval-line-height);
         font-weight: 500;
         color: var(--_warning-text);

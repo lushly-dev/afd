@@ -16,9 +16,9 @@ await loadVioletBuiltInTheme();
 function applyTheme(preset: VioletThemePreset): void {
   applyVioletThemePreset(document, preset);
   document.documentElement.style.colorScheme = preset === "dark" ? "dark" : "light";
-  document.documentElement.style.backgroundColor = "var(--color-surface-page)";
-  document.body.style.backgroundColor = "var(--color-surface-page)";
-  document.body.style.color = "var(--color-text-primary)";
+  document.documentElement.style.backgroundColor = "var(--violet-color-surface-page)";
+  document.body.style.backgroundColor = "var(--violet-color-surface-page)";
+  document.body.style.color = "var(--violet-color-text-primary)";
 }
 
 applyTheme("light");

@@ -87,14 +87,14 @@ const styles = css`
 	.copilot {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-stack-sm);
+		gap: var(--violet-space-stack-sm);
 		box-sizing: border-box;
 		block-size: 100%;
-		padding: var(--space-layout-sm);
-		font-size: var(--type-body-md-size);
-		line-height: var(--type-body-md-line);
-		font-weight: var(--type-body-md-weight);
-		color: var(--color-text-primary);
+		padding: var(--violet-space-layout-sm);
+		font-size: var(--violet-type-body-md-size);
+		line-height: var(--violet-type-body-md-line);
+		font-weight: var(--violet-type-body-md-weight);
+		color: var(--violet-color-text-primary);
 	}
 	/* The thread scrolls itself, in a focusable log; a scroller here would be a second, unfocusable one. */
 	.thread {
@@ -106,13 +106,13 @@ const styles = css`
 	.tool,
 	.taint {
 		margin: 0;
-		color: var(--color-text-secondary);
+		color: var(--violet-color-text-secondary);
 	}
 	/* The cards wait below the thread, above the composer; a long set scrolls in a focusable region of its own. */
 	.cards {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-stack-sm);
+		gap: var(--violet-space-stack-sm);
 		max-block-size: 50%;
 		overflow-y: auto;
 	}
@@ -121,25 +121,25 @@ const styles = css`
 		overflow-wrap: anywhere;
 	}
 	.card-title {
-		font-weight: var(--type-label-sm-weight);
+		font-weight: var(--violet-type-label-sm-weight);
 	}
 	.card-input {
 		white-space: pre-wrap;
-		font-family: var(--font-family-mono);
+		font-family: var(--violet-font-family-mono);
 	}
 	.card-why,
 	.card-ended {
-		color: var(--color-text-secondary);
+		color: var(--violet-color-text-secondary);
 	}
 	.suggestion {
 		display: flex;
 		flex-direction: column;
 		align-items: flex-start;
-		gap: var(--space-stack-xs);
-		padding: var(--space-stack-sm) var(--space-inline-md);
-		border: 1px solid var(--color-border-subtle);
-		border-radius: var(--radius-md);
-		background: var(--color-surface-card);
+		gap: var(--violet-space-stack-xs);
+		padding: var(--violet-space-stack-sm) var(--violet-space-inline-md);
+		border: 1px solid var(--violet-color-border-subtle);
+		border-radius: var(--violet-radius-md);
+		background: var(--violet-color-surface-card);
 	}
 	[hidden] {
 		display: none;

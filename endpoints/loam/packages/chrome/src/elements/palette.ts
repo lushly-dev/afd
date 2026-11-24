@@ -117,57 +117,57 @@ const styles = css`
 		display: contents;
 	}
 	violet-dialog {
-		--violet-dialog-width: min(92vw, calc(var(--shell-size-main-min) * 1.6));
+		--violet-dialog-width: min(92vw, calc(var(--violet-shell-size-main-min) * 1.6));
 		--violet-dialog-max-height: 70dvh;
-		--violet-dialog-background: var(--color-surface-floating);
-		--violet-dialog-shadow: var(--shadow-floating);
-		--violet-dialog-radius: var(--radius-lg);
-		--violet-dialog-backdrop: color-mix(in srgb, var(--color-surface-page) 60%, transparent);
+		--violet-dialog-background: var(--violet-color-surface-floating);
+		--violet-dialog-shadow: var(--violet-shadow-floating);
+		--violet-dialog-radius: var(--violet-radius-lg);
+		--violet-dialog-backdrop: color-mix(in srgb, var(--violet-color-surface-page) 60%, transparent);
 	}
 	violet-dialog::part(header) {
-		padding-block: var(--space-stack-sm);
-		padding-inline: var(--space-layout-sm);
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
+		padding-block: var(--violet-space-stack-sm);
+		padding-inline: var(--violet-space-layout-sm);
+		font-size: var(--violet-type-label-sm-size);
+		line-height: var(--violet-type-label-sm-line);
 	}
 	.search {
-		padding: var(--space-layout-sm);
-		border-block-end: 1px solid var(--color-border-subtle);
+		padding: var(--violet-space-layout-sm);
+		border-block-end: 1px solid var(--violet-color-border-subtle);
 	}
 	.field {
 		box-sizing: border-box;
 		inline-size: 100%;
-		min-block-size: var(--size-target-comfortable);
-		padding-inline: var(--size-space-md);
-		border: 1px solid var(--color-field-border);
-		border-radius: var(--radius-md);
-		background: var(--color-field-background);
-		color: var(--color-field-text);
+		min-block-size: var(--violet-size-target-comfortable);
+		padding-inline: var(--violet-size-space-md);
+		border: 1px solid var(--violet-color-field-border);
+		border-radius: var(--violet-radius-md);
+		background: var(--violet-color-field-background);
+		color: var(--violet-color-field-text);
 		font: inherit;
-		font-size: var(--type-title-sm-size);
-		line-height: var(--type-title-sm-line);
+		font-size: var(--violet-type-title-sm-size);
+		line-height: var(--violet-type-title-sm-line);
 	}
 	.field:hover {
-		border-color: var(--color-field-border-hover);
+		border-color: var(--violet-color-field-border-hover);
 	}
 	.field::placeholder {
-		color: var(--color-field-placeholder);
+		color: var(--violet-color-field-placeholder);
 	}
 	.field:focus-visible {
-		border-color: var(--color-field-border-focus);
-		outline: var(--shell-size-focus) solid var(--color-focus-ring);
-		outline-offset: var(--size-space-xs);
+		border-color: var(--violet-color-field-border-focus);
+		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+		outline-offset: var(--violet-size-space-xs);
 	}
 	.results {
 		display: block;
 		max-block-size: 50dvh;
 		overflow: auto;
-		padding: var(--size-space-sm);
+		padding: var(--violet-size-space-sm);
 	}
 	/* The active result is where Enter goes while focus stays in the field: show the focus indicator. */
 	violet-option[data-active]::part(control) {
-		outline: var(--shell-size-focus) solid var(--color-focus-ring);
-		outline-offset: calc(-1 * var(--shell-size-focus));
+		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
+		outline-offset: calc(-1 * var(--violet-shell-size-focus));
 	}
 	/* A pause between a row's title and its description, heard and not seen (A-N1). */
 	.pause {
@@ -179,36 +179,36 @@ const styles = css`
 		white-space: nowrap;
 	}
 	.result-name {
-		font-size: var(--type-body-md-size);
-		line-height: var(--type-body-md-line);
+		font-size: var(--violet-type-body-md-size);
+		line-height: var(--violet-type-body-md-line);
 	}
 	.result-description {
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
+		font-size: var(--violet-type-label-sm-size);
+		line-height: var(--violet-type-label-sm-line);
 	}
 	.result-shortcut {
-		font-family: var(--font-family-body);
-		font-size: var(--type-caption-xs-size);
-		line-height: var(--type-caption-xs-line);
-		font-weight: var(--type-caption-xs-weight);
-		color: var(--color-text-secondary);
+		font-family: var(--violet-font-family-body);
+		font-size: var(--violet-type-caption-xs-size);
+		line-height: var(--violet-type-caption-xs-line);
+		font-weight: var(--violet-type-caption-xs-weight);
+		color: var(--violet-color-text-secondary);
 		white-space: nowrap;
 	}
 	.footer {
-		min-block-size: var(--size-target-compact);
-		padding-block: var(--space-stack-xs);
-		padding-inline: var(--space-layout-sm);
-		border-block-start: 1px solid var(--color-border-subtle);
-		color: var(--color-text-secondary);
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
+		min-block-size: var(--violet-size-target-compact);
+		padding-block: var(--violet-space-stack-xs);
+		padding-inline: var(--violet-space-layout-sm);
+		border-block-start: 1px solid var(--violet-color-border-subtle);
+		color: var(--violet-color-text-secondary);
+		font-size: var(--violet-type-label-sm-size);
+		line-height: var(--violet-type-label-sm-line);
 	}
 	.footer p {
 		margin: 0;
 	}
 	.failure {
-		color: var(--color-state-danger-text);
-		font-weight: var(--weight-semibold);
+		color: var(--violet-color-state-danger-text);
+		font-weight: var(--violet-weight-semibold);
 	}
 	@media (forced-colors: active) {
 		.field {

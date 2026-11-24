@@ -167,6 +167,8 @@ export const WORKFLOW_GRAPH = {
 			'tests/consumers/fast-af/**',
 			'scripts/release/exec-tool.mjs',
 			'scripts/codemods/split-define.mjs',
+			// theme:build copies violet-runtime's naming rule; the regenerate-and-diff step checks it.
+			'foundations/violet/packages/runtime/src/property.ts',
 		],
 	},
 	'health-dashboard.yml': {
@@ -347,6 +349,8 @@ export const WORKFLOW_GRAPH = {
 			'scripts/release/exec-tool.mjs',
 			'foundations/fast-af/packages/violet-elements/tokens/interface.json',
 			'foundations/fast-af/packages/violet-elements/src/theme/violet-theme-css.ts',
+			// violet-theme-css.ts imports it; the consumer check runs that source in Node.
+			'foundations/fast-af/packages/violet-elements/src/theme/generated/violet-token-property.generated.ts',
 		],
 	},
 };

@@ -7,12 +7,17 @@ export interface CaptureInstrumentation {
 	setMotionMode(mode: 'natural' | 'settled'): void;
 }
 
+// Violet's motion tokens (violet-elements' token interface 4 names them `--violet-duration-*`),
+// and the unprefixed names components before that interface read.
 const motionRules = `*, *::before, *::after {
 	animation-duration: 0s !important;
 	animation-delay: 0s !important;
 	transition-duration: 0s !important;
 	transition-delay: 0s !important;
 	scroll-behavior: auto !important;
+	--violet-duration-fast: 0ms !important;
+	--violet-duration-base: 0ms !important;
+	--violet-duration-slow: 0ms !important;
 	--duration-fast: 0ms !important;
 	--duration-base: 0ms !important;
 	--duration-slow: 0ms !important;

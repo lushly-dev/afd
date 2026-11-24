@@ -44,7 +44,7 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--violet-menu-background, var(--color-surface-floating, #ffffff))",
+				"default": "var(--violet-menu-background, var(--violet-color-surface-floating, #ffffff))",
 				"name": "--_panel-background"
 			},
 			{
@@ -79,7 +79,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-menu-radius, var(--radius-lg, 12px))",
+				"default": "var(--violet-menu-radius, var(--violet-radius-lg, 12px))",
 				"name": "--_panel-radius"
 			},
 			{
@@ -89,7 +89,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--shadow-floating, 0 0 0 1px rgba(24, 27, 26, 0.08), 0 4px 12px -2px rgba(24, 27, 26, 0.12), 0 18px 40px -8px rgba(24, 27, 26, 0.20))",
+				"default": "var(--violet-shadow-floating, 0 0 0 1px rgba(24, 27, 26, 0.08), 0 4px 12px -2px rgba(24, 27, 26, 0.12), 0 18px 40px -8px rgba(24, 27, 26, 0.20))",
 				"name": "--_shadow-floating"
 			}
 		],

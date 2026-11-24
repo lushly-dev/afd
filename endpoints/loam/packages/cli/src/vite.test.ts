@@ -93,7 +93,7 @@ describe('singleFileHtml', () => {
 		const root = await temporaryDirectory();
 		const src = join(root, 'src');
 		await mkdir(src);
-		await writeFile(join(src, 'style.css'), 'h1 { color: var(--color-text-primary); }\n');
+		await writeFile(join(src, 'style.css'), 'h1 { color: var(--violet-color-text-primary); }\n');
 		await writeFile(join(src, 'helper.ts'), "export const answer = (): string => 'the answer';\n");
 		await writeFile(
 			join(src, 'main.html'),
@@ -128,7 +128,7 @@ describe('singleFileHtml', () => {
 		expect(readdirSync(join(root, 'dist'))).toEqual(['main.html']);
 		const page = readFileSync(join(root, 'dist/main.html'), 'utf8');
 		expect(page).toContain('the answer');
-		expect(page).toMatch(/<style>[^<]*--color-text-primary/);
+		expect(page).toMatch(/<style>[^<]*--violet-color-text-primary/);
 		expect(page).not.toMatch(/<script[^>]*\bsrc=/);
 		expect(page).not.toMatch(/<link[^>]*stylesheet/);
 	});

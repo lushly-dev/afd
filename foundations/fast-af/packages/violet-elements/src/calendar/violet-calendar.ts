@@ -30,10 +30,10 @@ const styles = css`
         --_calendar-background: var(--violet-calendar-background, var(--_surface-card));
         --_calendar-shadow: var(--violet-calendar-shadow, var(--_shadow-card));
         --_calendar-cell-size: clamp(2rem, 6vw, 2.25rem);
-        --_calendar-accent: var(--color-control-selected-foreground, #1b5f80);
+        --_calendar-accent: var(--violet-color-control-selected-foreground, #1b5f80);
         --_calendar-accent-soft: color-mix(in srgb, var(--_calendar-accent) 16%, transparent);
-        --_calendar-selected-background: var(--color-control-selected-background, #c0daeb);
-        --_calendar-selected-border: var(--color-control-selected-border, rgba(27, 95, 128, 0.5));
+        --_calendar-selected-background: var(--violet-color-control-selected-background, #c0daeb);
+        --_calendar-selected-border: var(--violet-color-control-selected-border, rgba(27, 95, 128, 0.5));
     }
 
     .root {

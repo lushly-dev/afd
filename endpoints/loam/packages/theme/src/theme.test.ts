@@ -74,14 +74,14 @@ describe("Loam's Violet tree", () => {
 	});
 
 	it('keeps the component ids and their property scheme', () => {
-		expect(committed.tokens['color.surface.page'].property).toBe('--color-surface-page');
+		expect(committed.tokens['color.surface.page'].property).toBe('--violet-color-surface-page');
 		expect(committed.tokens['z-index.toast']).toEqual({
-			property: '--z-index-toast',
+			property: '--violet-z-index-toast',
 			type: 'number',
 			kind: 'component',
 		});
 		expect(committed.tokens['shell.size.sidebar.default']).toEqual({
-			property: '--shell-size-sidebar-default',
+			property: '--violet-shell-size-sidebar-default',
 			type: 'dimension',
 			kind: 'shell',
 		});
@@ -239,18 +239,20 @@ describe('exports', () => {
 	it('writes the light block with every token and override diffs for the rest', () => {
 		const light = rule(':root,\n[data-loam-theme="light"]');
 		expect(light.match(/^\t--/gm)).toHaveLength(tokens(ROOT_NODE).size);
+		expect(light).not.toContain('--violet-ref-');
 		expect(light).not.toContain('--ref-');
 		const dark = rule('[data-loam-theme="dark"]');
-		expect(dark).toContain('\t--color-surface-page: #141515;');
-		expect(dark).not.toContain('--size-space-md');
-		expect(dark).not.toContain('--color-action-danger-background');
+		expect(dark).toContain('\t--violet-color-surface-page: #141515;');
+		expect(dark).not.toContain('--violet-size-space-md');
+		expect(dark).not.toContain('--violet-color-action-danger-background');
 		const contrast = rule('[data-loam-theme="high-contrast"]');
-		expect(contrast).toContain('\t--shell-size-focus: 3px;');
+		expect(contrast).toContain('\t--violet-shell-size-focus: 3px;');
 		// field.* references follow their targets, so their resolved values differ too.
-		expect(contrast).toContain('\t--color-field-text: #000000;');
+		expect(contrast).toContain('\t--violet-color-field-text: #000000;');
 		for (const theme of THEMES) {
 			const compact = rule(`[data-loam-theme="${theme}"][data-loam-density="compact"]`);
-			expect(compact).toContain('\t--size-target-natural: 28px;');
+			expect(compact).toContain('\t--violet-size-target-natural: 28px;');
+			expect(compact).not.toContain('--violet-color-');
 			expect(compact).not.toContain('--color-');
 		}
 		expect(css.match(/\{$/gm)).toHaveLength(6);
@@ -258,7 +260,7 @@ describe('exports', () => {
 
 	it('writes every node as Token[] with resolved values', () => {
 		const json = JSON.parse(outputs.files['loam-theme.json']);
-		expect(json.contractVersion).toBe(1);
+		expect(json.contractVersion).toBe(2);
 		expect(Object.keys(json.nodes)).toEqual(NODE_IDS);
 		const dark = json.nodes['loam/dark'] as { id: string; value: string }[];
 		expect(dark).toContainEqual({ id: 'color.action.secondary.text', value: '#f4f0ea' });
@@ -318,7 +320,11 @@ describe('theme:check', () => {
 			expect.stringMatching(/^'color\.surface\.gone' is in the contract but not in the tree/),
 		]);
 		const retyped = structuredClone(built);
-		retyped.tokens['radius.sm'] = { property: '--radius-sm', type: 'number', kind: 'component' };
+		retyped.tokens['radius.sm'] = {
+			property: '--violet-radius-sm',
+			type: 'number',
+			kind: 'component',
+		};
 		expect(compareContract(retyped, built)).toHaveLength(1);
 		expect(compareContract([], built)).toHaveLength(1);
 	});

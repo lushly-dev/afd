@@ -17,20 +17,20 @@ const styles = css`
 	:host {
 		display: inline-flex;
 		align-items: center;
-		gap: var(--size-space-sm);
-		min-block-size: var(--size-target-compact);
-		padding-inline: var(--space-inline-sm);
-		color: var(--color-text-secondary);
-		font-size: var(--type-caption-xs-size);
-		line-height: var(--type-caption-xs-line);
-		font-weight: var(--type-caption-xs-weight);
+		gap: var(--violet-size-space-sm);
+		min-block-size: var(--violet-size-target-compact);
+		padding-inline: var(--violet-space-inline-sm);
+		color: var(--violet-color-text-secondary);
+		font-size: var(--violet-type-caption-xs-size);
+		line-height: var(--violet-type-caption-xs-line);
+		font-weight: var(--violet-type-caption-xs-weight);
 		white-space: nowrap;
 	}
 	:host([hidden]) {
 		display: none;
 	}
 	.label {
-		color: var(--color-text-muted);
+		color: var(--violet-color-text-muted);
 	}
 	.value {
 		min-inline-size: 0;

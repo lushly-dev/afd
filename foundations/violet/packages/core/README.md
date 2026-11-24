@@ -14,7 +14,7 @@ const { tokens } = await resolveTokens(db, 'brand-dark', { filter: 'color.*' });
 const { content } = await exportTokens(db, 'brand-dark', { format: 'css' }); // :root { --color-…: … }
 ```
 
-Exports to CSS, SCSS, TypeScript, JSON, Swift, Kotlin, Dart, Tailwind and Lua. Failures throw `TokenDomainError` with the code, message and suggestion the matching command reports.
+Exports to CSS, SCSS, TypeScript, JSON, Swift, Kotlin, Dart, Tailwind and Lua. The CSS export names each property with `@lushly-dev/violet-runtime`'s `tokenCustomProperty`; with `prefix: 'violet'` it writes the names `@lushly-dev/violet-elements` reads (`--violet-color-surface-page`), so its output themes those components as it is. Failures throw `TokenDomainError` with the code, message and suggestion the matching command reports.
 
 | Entry point | Contents |
 | --- | --- |

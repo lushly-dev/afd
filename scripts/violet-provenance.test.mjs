@@ -79,11 +79,21 @@ test('Violet provenance records are bound by hash and every unit is admitted for
 
 test('the native core has no AFD edge and the integration uses the workspace AFD core', () => {
 	const core = json('foundations/violet/packages/core/package.json');
+	// The one exception is Violet's own runtime, for the custom property naming rule its CSS
+	// exporter shares (#1786): an import-free module of the same family, with no AFD edge of its own.
+	const allowed = { dependencies: ['@lushly-dev/violet-runtime'] };
 	for (const field of ['dependencies', 'peerDependencies', 'optionalDependencies'])
-		assert(
-			!Object.keys(core[field] ?? {}).some((name) => name.startsWith('@lushly-dev/')),
+		assert.deepEqual(
+			Object.keys(core[field] ?? {}).filter((name) => name.startsWith('@lushly-dev/')),
+			allowed[field] ?? [],
 			`core ${field} names another Lushly package`
 		);
+	const runtime = json('foundations/violet/packages/runtime/package.json');
+	assert.deepEqual(
+		Object.keys(runtime.dependencies ?? {}),
+		[],
+		'the runtime core depends on has no dependencies'
+	);
 	assert.equal(core.exports['./commands'], undefined);
 	const afd = json('integrations/violet-afd/package.json');
 	assert.equal(afd.dependencies['@lushly-dev/afd-core'], 'workspace:^2.2.0');

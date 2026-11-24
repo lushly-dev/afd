@@ -118,12 +118,12 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--size-target-comfortable, 44px)",
+				"default": "var(--violet-size-target-comfortable, 44px)",
 				"name": "--_target-size-comfortable"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--size-target-natural, 32px)",
+				"default": "var(--violet-size-target-natural, 32px)",
 				"name": "--_target-size-natural"
 			}
 		],

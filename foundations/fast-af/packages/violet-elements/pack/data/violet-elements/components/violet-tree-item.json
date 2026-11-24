@@ -94,7 +94,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var( --violet-tree-row-background-selected, var(--color-surface-selected, var(--_surface-subtle)) )",
+				"default": "var( --violet-tree-row-background-selected, var(--violet-color-surface-selected, var(--_surface-subtle)) )",
 				"name": "--_tree-row-background-selected"
 			},
 			{

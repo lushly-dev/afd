@@ -193,22 +193,22 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-state-danger-border, transparent)",
+				"default": "var(--violet-color-state-danger-border, transparent)",
 				"name": "--_danger-border"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--radius-round, 9999px)",
+				"default": "var(--violet-radius-round, 9999px)",
 				"name": "--_radius-full"
 			},
 			{
 				"basis": "declared",
-				"default": "color-mix(in srgb, var(--color-text-primary, #181b1a) 10%, transparent)",
+				"default": "color-mix(in srgb, var(--violet-color-text-primary, #181b1a) 10%, transparent)",
 				"name": "--_rail-background"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-control-selected-foreground, #1b5f80)",
+				"default": "var(--violet-color-control-selected-foreground, #1b5f80)",
 				"name": "--_selection-fill"
 			},
 			{
@@ -223,7 +223,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--color-border-strong, #6b7d6e)",
+				"default": "var(--violet-color-border-strong, #6b7d6e)",
 				"name": "--_tick-color"
 			},
 			{

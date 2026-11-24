@@ -372,8 +372,8 @@ describe("violet-button", () => {
         });
 
         it("honors the --color-action-danger-* token overrides", async () => {
-            document.body.style.setProperty("--color-action-danger-background", "rgb(1, 2, 3)");
-            document.body.style.setProperty("--color-action-danger-text", "rgb(250, 251, 252)");
+            document.body.style.setProperty("--violet-color-action-danger-background", "rgb(1, 2, 3)");
+            document.body.style.setProperty("--violet-color-action-danger-text", "rgb(250, 251, 252)");
             try {
                 const button = await renderButton(el => {
                     el.appearance = "danger";
@@ -382,8 +382,8 @@ describe("violet-button", () => {
                 expect(style.backgroundColor).toBe("rgb(1, 2, 3)");
                 expect(style.color).toBe("rgb(250, 251, 252)");
             } finally {
-                document.body.style.removeProperty("--color-action-danger-background");
-                document.body.style.removeProperty("--color-action-danger-text");
+                document.body.style.removeProperty("--violet-color-action-danger-background");
+                document.body.style.removeProperty("--violet-color-action-danger-text");
             }
         });
 
@@ -431,8 +431,8 @@ describe("violet-button", () => {
 
         it("grows every button with its label when the body type tokens double", async () => {
             // Emulates 200% text-only zoom: the type tokens are px, so root font-size has no effect.
-            document.body.style.setProperty("--type-body-md-size", "28px");
-            document.body.style.setProperty("--type-body-md-line", "40px");
+            document.body.style.setProperty("--violet-type-body-md-size", "28px");
+            document.body.style.setProperty("--violet-type-body-md-line", "40px");
             const buttons = await renderInto(
                 appearances
                     .map(appearance => `<violet-button appearance="${appearance}">Save changes</violet-button>`)

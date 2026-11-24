@@ -120,10 +120,10 @@ const styles = css`
 		box-sizing: border-box;
 		block-size: 100%;
 		min-block-size: 0;
-		background: var(--color-surface-page);
-		color: var(--color-text-primary);
-		font-size: var(--type-body-md-size);
-		line-height: var(--type-body-md-line);
+		background: var(--violet-color-surface-page);
+		color: var(--violet-color-text-primary);
+		font-size: var(--violet-type-body-md-size);
+		line-height: var(--violet-type-body-md-line);
 	}
 	:host([hidden]),
 	[hidden] {
@@ -133,8 +133,8 @@ const styles = css`
 		position: absolute;
 		inset-block-start: 0;
 		inset-inline-start: 0;
-		margin: var(--space-layout-md);
-		color: var(--color-text-secondary);
+		margin: var(--violet-space-layout-md);
+		color: var(--violet-color-text-secondary);
 	}
 	.frame {
 		block-size: 100%;

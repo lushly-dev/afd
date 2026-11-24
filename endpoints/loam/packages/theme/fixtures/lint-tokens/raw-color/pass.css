@@ -1,8 +1,8 @@
 :host {
-	color: var(--color-text-primary);
+	color: var(--violet-color-text-primary);
 	background: transparent;
 	border-color: currentColor;
-	outline-color: color-mix(in srgb, var(--color-focus-ring), transparent);
-	transition: color var(--duration-fast) var(--easing-standard);
+	outline-color: color-mix(in srgb, var(--violet-color-focus-ring), transparent);
+	transition: color var(--violet-duration-fast) var(--violet-easing-standard);
 	content: "#fff red";
 }

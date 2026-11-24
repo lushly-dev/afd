@@ -24,7 +24,8 @@
 		"@lushly-dev/loam-sdk": "workspace:*",
 		"@lushly-dev/violet-afd": "workspace:*",
 		"@lushly-dev/violet-core": "workspace:*",
-		"@lushly-dev/violet-elements": "workspace:*"
+		"@lushly-dev/violet-elements": "workspace:*",
+		"@lushly-dev/violet-runtime": "workspace:*"
 	},
 	"devDependencies": {
 		"@lushly-dev/afd-testing": "workspace:*",

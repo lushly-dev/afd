@@ -239,7 +239,7 @@ describe('P2-E13: E1: hello loads native', () => {
 				?.shadowRoot?.querySelector('loam-main') as HTMLElement;
 			main.style.setProperty('font-family', 'monospace');
 			main.style.setProperty('color', 'rgb(255, 0, 0)');
-			main.style.setProperty('--color-text-secondary', 'rgb(0, 128, 0)');
+			main.style.setProperty('--violet-color-text-secondary', 'rgb(0, 128, 0)');
 			const element = main
 				.querySelector('loam-mount')
 				?.shadowRoot?.querySelector('hello-main') as HTMLElement;
@@ -247,12 +247,12 @@ describe('P2-E13: E1: hello loads native', () => {
 			const answer = {
 				font: getComputedStyle(element).fontFamily,
 				color: getComputedStyle(element).color,
-				token: getComputedStyle(element).getPropertyValue('--color-text-secondary').trim(),
+				token: getComputedStyle(element).getPropertyValue('--violet-color-text-secondary').trim(),
 				inherited: getComputedStyle(paragraph).color,
 			};
 			main.style.removeProperty('font-family');
 			main.style.removeProperty('color');
-			main.style.removeProperty('--color-text-secondary');
+			main.style.removeProperty('--violet-color-text-secondary');
 			return answer;
 		});
 		expect(styled.font).not.toContain('monospace');
