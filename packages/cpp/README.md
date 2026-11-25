@@ -72,7 +72,7 @@ afd::ReplayReport report = afd::replay_journal(fresh_registry, *entries);
 ```
 
 - **Format and rules** are [`spec/journal.md`](../../spec/journal.md); `tests/journal_wire_test.cpp` records the session in `spec/wire/journal.jsonl`, compares it entry for entry, and replays the file to `same`.
-- **No secrets from the context.** An entry keeps the actor, the surface, the trace ID and the declared context fields marked `journal` (below); `contextDigest.hash` covers those and the names of the other members, never their values. Inputs and results are kept as they are: commands named `auth-*` are skipped, and `filter` and `redact` handle the rest.
+- **No secrets from the context.** An entry keeps the actor, the surface, the trace ID and the declared context fields marked `journal` (below); `contextDigest.hash` covers those and the names of the other members, never their values. Inputs and results are kept as they are. A command that takes or returns a secret sets `CommandDefinition::secret`, and the journal never records a call to it unless it was also given `redact`, whatever `filter` says; `redact` gets `JournalRedactInfo::secret` with each record (unset in a `DirectClient`'s own middleware, where the declaration cannot be read and nothing is recorded without `redact`). An unrecorded secret call inside a recorded one reads off the parent's tape, which is marked truncated. The default `filter` also skips commands named `auth-*`.
 - **The tape** holds every `steady_ms`, `wall_ms` and `random->next()` value the handler and the registry's timing read, so add the middleware last. Replay feeds it back and reports each entry as `same`, `different` (with paths) or `error`.
 
 ## Declared context fields

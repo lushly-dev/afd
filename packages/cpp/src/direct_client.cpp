@@ -113,6 +113,9 @@ CommandResult DirectClient::call(std::string_view name, const Json& args,
     context.approval.reset();
     context.mcp_approval_relay.reset();
     context.output_budget_meta_ask.reset();
+    // The registry records the command each call runs; one a caller's context carries from
+    // another call is not this call's, so client middleware (a journal) reads none.
+    context.approval_admission.reset();
     context.direct_approval = std::make_shared<detail::DirectApprovalState>();
     const detail::DisposeDirectApproval cleanup{context.direct_approval};
 

@@ -15,6 +15,11 @@
 
 namespace afd {
 
+namespace detail {
+struct TapedClock;
+struct TapedRandom;
+} // namespace detail
+
 /// A source of time. `steady_ms` is monotonic, for durations and deadlines. `wall_ms` is
 /// milliseconds since the Unix epoch, for timestamps.
 class Clock {
@@ -22,6 +27,11 @@ public:
     virtual ~Clock() = default;
     [[nodiscard]] virtual double steady_ms() const = 0;
     [[nodiscard]] virtual std::int64_t wall_ms() const = 0;
+    /// Internal to the command journal: set only on the clock its recorder puts on a context, so
+    /// a call that must stay off the tape finds the clock under it. Do not override.
+    [[nodiscard]] virtual const detail::TapedClock* journal_tape() const noexcept {
+        return nullptr;
+    }
 };
 
 /// The real clock: `std::chrono::steady_clock` and `std::chrono::system_clock`.
@@ -59,6 +69,10 @@ public:
     [[nodiscard]] virtual double next() = 0;
     /// The seed this source was created from, when it is seeded (for journals and replay).
     [[nodiscard]] virtual std::optional<std::string> seed() const { return std::nullopt; }
+    /// Internal to the command journal, as `Clock::journal_tape` is. Do not override.
+    [[nodiscard]] virtual const detail::TapedRandom* journal_tape() const noexcept {
+        return nullptr;
+    }
 };
 
 /// The real random source: a thread-safe `std::mt19937_64` seeded from `std::random_device`. Not

@@ -251,9 +251,13 @@
 			"evidence": ["packages/cpp/include/afd/journal.hpp"]
 		},
 		"single.journal-secret": {
-			"status": "planned",
-			"note": "the next step of the `secret` change: the recorder still skips `auth-*` by name only",
-			"evidence": ["packages/cpp/include/afd/journal.hpp"]
+			"status": "yes",
+			"note": "`CommandDefinition::secret`; `create_journal_middleware` reads it from the command `CommandRegistry::execute` runs and tells `redact` with a second argument, `JournalRedactInfo::secret` (a one-argument `redact` still works)",
+			"evidence": [
+				"packages/cpp/include/afd/journal.hpp",
+				"packages/cpp/src/journal_replay.cpp",
+				"packages/cpp/tests/journal_secret_test.cpp"
+			]
 		},
 		"middleware.chain": {
 			"status": "yes",

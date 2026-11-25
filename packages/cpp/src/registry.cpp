@@ -542,6 +542,12 @@ CommandResult CommandRegistry::execute_impl(std::string_view name, const Json& i
     admission->command = std::shared_ptr<const CommandDefinition>(command, &command->definition);
     // run_chain keeps it, so a dispatch takes only this record's admission.
     context.approval_admission = admission;
+    // The record names a running call only until this call returns (the journal reads it).
+    admission->running.store(true);
+    struct EndAdmission {
+        detail::ApprovalAdmission& record;
+        ~EndAdmission() { record.running.store(false); }
+    } const end_admission{*admission};
 
     // 4.5. Pre-dispatch cancellation check (after validation, before middleware; #1766).
     if (context.cancellation.is_cancelled()) {
