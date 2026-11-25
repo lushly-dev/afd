@@ -33,12 +33,34 @@ The proposal lists six under "For the owner to decide". Each has its own line he
 
 ## Findings
 
-None yet.
+### 2026-11-24: the first collection of 17 to 23 Nov (#2481)
+
+- The report by workflow on pull requests gives the nine rows of the proposal's table: runs and
+  failures exactly, wall hours to the tenth (Loam 895 runs, 205.9 h, 50 failed). The figures the
+  proposal gives over all workflows "but the verdict" come out of the record too (8,237 runs; in
+  the queue 25 failed runs in 23 of 363 groups; 30 passes on a later attempt, 26 after failing
+  and 4 after being cancelled), but the report's own `totals` count `CI verdict` like any other
+  workflow: 9,542 runs on pull requests, and 30 of 363 queue groups with a failed run, since in 7
+  groups only the verdict failed. Nothing in a run says that a workflow judges the others. A
+  botcore setting could name it, but every section of botcore's configuration refuses a key it
+  does not know, so a new key in the repository's `botcore.toml` would stop each machine's older
+  botcore from reading the file. Deciding how the verdict is left out is open; until then a
+  reader takes its row off.
+- GitHub drops a pull-request run's link to its pull request once the pull request is closed:
+  of the 11,529 pull-request runs listed from 17 to 25 Nov, 11,208 (97%) had no pull request
+  and so no base revision. A merge-queue run's base comes from its branch name and was there for
+  all 9,240. The pieces that need a pull-request run's base (#2482, #2483) must read it another
+  way, such as the pull request of the head revision.
+- The week had 754 runs of events the report does not give rows for: 346 `workflow_run`, 327
+  `issues` and 81 `dynamic`. `coverage` names them.
+- The run lines of 17 to 25 Nov (25,113 lines, every run and earlier attempt, no steps) took
+  10.8 MB, about 430 bytes a line. #2484 measures the record with steps and decides its folding.
 
 ## Phase 1. What ran and what merged
 
-- The record, `gate-outcome-collect` for CI runs, and `gate-outcome-report` by workflow (#2481): not
-  started.
+- The record, `gate-outcome-collect` for CI runs, and `gate-outcome-report` by workflow (#2481): built
+  and in review in #2517. On 17 to 23 Nov it gives the nine rows of the
+  proposal's table exactly; see the finding of 2026-11-24 for the verdict and the base revision.
 
 - The checks known, the report by check with quiet and not-observed checks, and a group step's
   failing command (#2482): not started; follows #2481.

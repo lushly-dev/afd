@@ -160,6 +160,7 @@ Language detection is automatic. botcore inspects workspace markers (`Cargo.toml
 |--------|----------|-------------|
 | **Dev** | `dev_lint`, `dev_test`, `dev_build` + 9 more | Language-aware linting, testing, building, quality gates, static analysis |
 | **Skills** | `skill_seed`, `skill_list`, `skill_status`, `skill_lint`, `skill_adopt`, `skill_index`, `skill_usage_collect`, `skill_usage_report`, `skill_usage_triggers` | Seed, track, lint, and manage skill ownership across repos; report which skills agents load |
+| **Gate outcomes** | `gate_outcome_collect`, `gate_outcome_report` | Read a repository's workflow runs, attempts, jobs and steps from GitHub; report each workflow's runs by event, how they ended and their wall hours |
 | **CDP** | 33 `cdp_*` functions | Browser automation from Python (`botcore.commands.cdp`; not registered on the MCP server or CLI): launch, navigate, click, screenshot, forms, console, traces |
 | **Docs** | `docs_lint`, `docs_check_changelog`, `docs_check_agents` | Documentation quality checks |
 | **Info** | `info_workspace`, `info_env`, `info_scripts` | Workspace discovery and environment inspection |
@@ -369,6 +370,25 @@ machine that reads it has checked out.
 On macOS the system asks, once and at the screen, before the hourly job reads a folder in a
 cloud drive that fetches files on demand. After a run that waited for that answer,
 `botcore disk-status` says the shared folder did not answer, and what to allow.
+
+### Measure Workflow Runs
+
+```bash
+# Read this checkout's repository's Actions runs of the last 7 days into the record
+botcore gate-outcome-collect --since-days 7
+
+# Each workflow on pull requests over the 7 days that ended 2 days ago: how runs ended, wall hours
+botcore gate-outcome-report --days 7 --ending-days-ago 2 --where pull_request
+
+# The merge queue's groups and how many had a failure
+botcore gate-outcome-report --days 7 --where merge_group
+```
+
+A collection reads GitHub through `gh` within its own `--requests` limit and stops when the
+account's hourly allowance is down to half; the next one goes on from where it stopped. The
+record holds paths, digests, names, durations and counts only, and is shared with other machines
+through the same shared folder as skill usage. Every input and field is in the `gate-outcome`
+topic of the MCP server's docs tool.
 
 ## Development
 

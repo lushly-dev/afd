@@ -68,6 +68,7 @@ from botcore.commands.disk import (
     disk_unkeep,
 )
 from botcore.commands.docs import docs_check_agents, docs_check_changelog, docs_lint, docs_preflight
+from botcore.commands.gate_outcome import gate_outcome_collect, gate_outcome_report
 from botcore.commands.info import info_env, info_scripts, info_workspace
 from botcore.commands.pr import pr_drift, pr_status, pr_wait
 from botcore.commands.research import research_query, research_stream
@@ -119,6 +120,9 @@ __all__ = [
     "skill_usage_collect",
     "skill_usage_report",
     "skill_usage_triggers",
+    # Gate outcomes
+    "gate_outcome_collect",
+    "gate_outcome_report",
     "skill_lint",
     "skill_lint_spec",
     "skill_adopt",
