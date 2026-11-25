@@ -1,6 +1,6 @@
 # Specimen MCP server
 
-A local stdio MCP endpoint over the 36 AFD commands in `@lushly-dev/specimen-afd`.
+A local stdio MCP endpoint over the 37 AFD commands in `@lushly-dev/specimen-afd`.
 It advertises each MCP-exposed command's JSON input schema and AFD mutation/destructive
 annotations, validates through the CLI's execution path, and returns its complete
 `CommandResult` as JSON text, with `isError` set when `success` is false.

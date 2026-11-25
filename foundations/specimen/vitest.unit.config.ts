@@ -35,6 +35,7 @@ export const browserSuites = [
 	'src/sets-bench.test.ts',
 	'src/compare-bench.test.ts',
 	'src/jobs-bench.test.ts',
+	'src/review-bench.test.ts',
 ];
 
 export default defineConfig({
@@ -74,6 +75,9 @@ export default defineConfig({
 				'src/png.ts',
 				'src/point.ts',
 				'src/pointer.ts',
+				'src/review.ts',
+				'src/review-page.ts',
+				'src/review-validate.ts',
 				'src/sets.ts',
 				'src/themes.ts',
 				'src/validate.ts',

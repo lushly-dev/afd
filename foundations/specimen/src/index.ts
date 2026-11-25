@@ -197,6 +197,20 @@ export {
 	type SpecimenPointer,
 } from './pointer.js';
 export {
+	computeCauseHash,
+	computeChangedFingerprint,
+	computeChangedItemId,
+	computeCheckItemId,
+	computeInsufficientItemId,
+	computeMembersHash,
+	matchesReviewIdFilter,
+	REVIEW_PAGE_FILE,
+	readReviewPageData,
+	resolveReviewItemFromSets,
+	runReview,
+} from './review.js';
+export { renderReviewPageHtml } from './review-page.js';
+export {
 	CAPTURE_LABELS_FILE,
 	CAPTURE_SETS_DIR,
 	captureContentHash,
