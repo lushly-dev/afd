@@ -18,6 +18,7 @@ def _no_real_skill_usage(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     several tests run that job."""
     monkeypatch.setenv("BOTCORE_SKILL_USAGE_T3_STORE", "")
     monkeypatch.setenv("BOTCORE_SKILL_USAGE_CLAUDE_DIR", "")
+    monkeypatch.setenv("BOTCORE_SKILL_USAGE_USER_DIRS", "")
     monkeypatch.setenv("BOTCORE_SKILL_USAGE_STATE", str(tmp_path / "skill-usage-record"))
     monkeypatch.setenv("BOTCORE_SKILL_USAGE_SHARED", "")
     monkeypatch.setenv("BOTCORE_SKILL_USAGE_AWAY", "")

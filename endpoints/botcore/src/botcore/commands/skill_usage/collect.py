@@ -28,6 +28,14 @@ from botcore.commands.skill.frontmatter import split_frontmatter
 from botcore.commands.skill.lint import listing_characters
 from botcore.commands.skill_usage import claude_code, t3
 from botcore.commands.skill_usage.events import EDIT, RECOGNIZER, TYPED, Event, is_skill_folder
+from botcore.commands.skill_usage.external import (
+    apply_aliases,
+    extra_skill_dirs_for_root,
+    repo_skills_config_at,
+    repo_skills_config_on_disk,
+    skill_dirs_for,
+    update_external_and_observed,
+)
 from botcore.commands.skill_usage.store import (
     LOCK_FILE,
     SHARING,
@@ -51,6 +59,7 @@ from botcore.commands.skill_usage.store import (
 )
 
 STATE_VERSION = 1
+INVENTORY_VERSION = 2  # bumps when what skill_inventory reads from a commit expands (#1830)
 OVERLAP = timedelta(days=1)  # re-read this much, for items a harness finished writing late
 FULL_EVERY = timedelta(days=7)  # then read everything: a thread moved here can be older
 GIT_SECONDS = 30.0
@@ -73,7 +82,6 @@ _LINK = "120000"  # a tree entry that is a link: its blob is the path it points 
 GONE_AFTER = timedelta(days=30)
 NOTHING_HELD: dict[str, object] = {"at": None, "commit": None, "held": {}, "renames": {}}
 UNKNOWN_PROJECT = "unknown"
-_PATHSPECS = tuple(f":(glob){folder}/*/SKILL.md" for folder in SKILL_DIRS)
 _REMOTE = re.compile(r"[:/]([^/:\s]+/[^/\s]+?)(?:\.git)?/?$")
 
 
@@ -107,9 +115,18 @@ def _renames(value: object) -> dict[str, str]:
     }
 
 
-def skill_on_disk(root: str, name: str) -> bool:
-    """Whether a checkout holds a skill of this name."""
-    return any((Path(root) / folder / name / "SKILL.md").is_file() for folder in SKILL_DIRS)
+def _pathspecs(skill_dirs: tuple[str, ...] = SKILL_DIRS) -> tuple[str, ...]:
+    return tuple(f":(glob){folder}/*/SKILL.md" for folder in skill_dirs)
+
+
+def skill_on_disk(root: str, name: str, skill_dirs: tuple[str, ...] | None = None) -> bool:
+    """Whether a checkout holds a skill of this name in its default or configured skill folders."""
+    dirs = (
+        skill_dirs
+        if skill_dirs is not None
+        else skill_dirs_for(repo_skills_config_on_disk(Path(root)))
+    )
+    return any((Path(root) / folder / name / "SKILL.md").is_file() for folder in dirs)
 
 
 def _tips(root: Path, refs: tuple[str, ...]) -> dict[str, tuple[str, datetime, str]]:
@@ -182,16 +199,16 @@ def _facts(raw: bytes) -> list[int]:
     return [len(text.encode("utf-8")), listing_characters(text, described)]
 
 
-def held_in_folder(root: Path) -> dict[str, list[int]]:
+def held_in_folder(root: Path, skill_dirs: tuple[str, ...] = SKILL_DIRS) -> dict[str, list[int]]:
     """Each skill a folder holds as it lies, with its facts (`_facts`). For a project that is
     not a repository, names no branch that changes are merged to, or that git could not
     read, with no commit on record (`_name_projects`). Only a `SKILL.md` that is a file is
     read: a pipe by that name would hold the collection until something wrote to it."""
     found: dict[str, list[int]] = {}
-    for folder in SKILL_DIRS:
+    for folder in skill_dirs:
         try:
             children = sorted(Path(root, folder).iterdir())
-        except OSError:
+        except (OSError, ValueError):
             continue
         for child in children:
             if not is_skill_folder(child.name):
@@ -200,7 +217,7 @@ def held_in_folder(root: Path) -> dict[str, list[int]]:
                 if not (child / "SKILL.md").is_file():
                     continue
                 raw = (child / "SKILL.md").read_bytes()
-            except OSError:
+            except (OSError, ValueError):
                 continue
             found.setdefault(child.name, _facts(raw))
     return found
@@ -325,14 +342,16 @@ def _storage(value: object) -> dict[str, dict]:
     return found
 
 
-def held_at(root: Path, commit: str) -> dict[str, list[int]]:
+def held_at(
+    root: Path, commit: str, skill_dirs: tuple[str, ...] = SKILL_DIRS
+) -> dict[str, list[int]]:
     """Each skill a project holds at a commit, with its facts. Read from git's objects: what
     is checked out or changed in the folder plays no part, so every machine that has the
     commit says the same of it. A `SKILL.md` that is a link is not followed. Raises
     GitError, and ValueError for an answer from git that cannot be read."""
-    listed = git_out(root, "ls-tree", "-r", "-z", commit, "--", *SKILL_DIRS, timeout=GIT_SECONDS)
+    listed = git_out(root, "ls-tree", "-r", "-z", commit, "--", *skill_dirs, timeout=GIT_SECONDS)
     blobs: dict[str, str] = {}  # a name two folders hold is the first folder's, as on disk
-    for folder in SKILL_DIRS:
+    for folder in skill_dirs:
         for entry in listed.split("\0"):
             about, _, path = entry.partition("\t")
             mode, kind, blob = (*about.split(), "", "", "")[:3]
@@ -369,39 +388,59 @@ def skill_inventory(root: Path, last: dict | None = None) -> dict:
     for an answer from git that cannot be read: nothing is known of the branch this time."""
     tip = default_tip(root)
     if tip is None:
-        return {
+        cfg = repo_skills_config_on_disk(root)
+        dirs = skill_dirs_for(cfg)
+        raw_held = held_in_folder(root) if dirs == SKILL_DIRS else held_in_folder(root, dirs)
+        raw_renames = (
+            skill_renames(root) if dirs == SKILL_DIRS else skill_renames(root, skill_dirs=dirs)
+        )
+        inventory: dict = {
             "at": None,
             "commit": None,
-            "held": held_in_folder(root),
-            "renames": skill_renames(root) or {},
+            "held": apply_aliases(raw_held, cfg.aliases),
+            "renames": raw_renames or {},
         }
+        if cfg.aliases:
+            inventory["aliases"] = dict(cfg.aliases)
+        return inventory
     _ref, commit, at = tip
     if last is not None and last["commit"] == commit:
         return last
-    return {
+    cfg = repo_skills_config_at(root, commit)
+    dirs = skill_dirs_for(cfg)
+    raw_held = held_at(root, commit) if dirs == SKILL_DIRS else held_at(root, commit, dirs)
+    raw_renames = (
+        _renames_in(root, commit) if dirs == SKILL_DIRS else _renames_in(root, commit, dirs)
+    )
+    inventory = {
         "at": at,
         "commit": commit,
-        "held": held_at(root, commit),
-        "renames": _renames_in(root, commit),
+        "held": apply_aliases(raw_held, cfg.aliases),
+        "renames": raw_renames,
     }
+    if cfg.aliases:
+        inventory["aliases"] = dict(cfg.aliases)
+    return inventory
 
 
-def skill_renames(root: Path, ref: str = "HEAD") -> dict[str, str] | None:
+def skill_renames(
+    root: Path, ref: str = "HEAD", skill_dirs: tuple[str, ...] = SKILL_DIRS
+) -> dict[str, str] | None:
     """Old skill name to new, from the renames in a history; None when git cannot say. A
     skill folder renamed in one commit keeps one identity in the report this way, with
     nothing to configure. The history read is the one whose skills the report lists: the
     default branch's, at the commit its skills were read from (`skill_inventory`), or the
     checkout's own where it names none."""
     try:
-        return _renames_in(root, ref)
+        return _renames_in(root, ref, skill_dirs)
     except GitError:
         return None
 
 
-def _renames_in(root: Path, ref: str) -> dict[str, str]:
+def _renames_in(root: Path, ref: str, skill_dirs: tuple[str, ...] = SKILL_DIRS) -> dict[str, str]:
     text = git_out(
         root, "log", ref, "--diff-filter=R", "-M50%", "--name-status", "--format=",
-        "--", *_PATHSPECS, timeout=GIT_SECONDS,
+        "--", *_pathspecs(skill_dirs), timeout=GIT_SECONDS,
     )  # fmt: skip
     renames: dict[str, str] = {}
     for line in text.splitlines():
@@ -687,15 +726,23 @@ def _name_projects(
                 # than any commit.
                 if last is not None and last["commit"]:
                     continue
-                account = {**NOTHING_HELD, "held": held_in_folder(folder)}
+                cfg = repo_skills_config_on_disk(folder)
+                account = {
+                    **NOTHING_HELD,
+                    "held": apply_aliases(held_in_folder(folder, skill_dirs_for(cfg)), cfg.aliases),
+                }
+                if cfg.aliases:
+                    account["aliases"] = dict(cfg.aliases)
             accounts[root] = account
             entry["renames"] = {**entry["renames"], **account["renames"]}
         entry["accounts"] = accounts
         entry["storage"] = storage
         entry["missing"] = missing
         # the newest of them; and an entry all the same for a project no folder ever spoke
-        # for, so that a reader knows this was looked for
-        entry["skills"] = newest_inventory(list(accounts.values())) or dict(NOTHING_HELD)
+        # for, so that a reader knows this was looked for (shallow-copied so observed sizes
+        # do not mutate the cached per-checkout account dict)
+        winner = newest_inventory(list(accounts.values()))
+        entry["skills"] = dict(winner) if winner is not None else dict(NOTHING_HELD)
     return projects, names
 
 
@@ -728,7 +775,14 @@ def _read_t3(
     try:
         with t3.progress(connection, path):
             t3.check_schema(connection)
-            return t3.read(connection, since=since, all_items=all_items, natives=natives, path=path)
+            return t3.read(
+                connection,
+                since=since,
+                all_items=all_items,
+                natives=natives,
+                path=path,
+                dirs_for_root=extra_skill_dirs_for_root,
+            )
     except sqlite3.Error as exc:
         raise t3.StoreUnreadable(str(exc)) from exc
     finally:
@@ -741,11 +795,11 @@ PREFIXES = {t3.SOURCE: "t3", claude_code.SOURCE: "cc"}
 
 def _events(  # noqa: PLR0913 - one source's loads and what names them
     loads: list[t3.Load], source: str, names: dict[str, str], projects: dict, machine: str,
-    known: set[tuple[str, str]],
+    known: set[tuple[str, str]], external_skills: set[str] | None = None,
 ) -> list[Event]:  # fmt: skip
     """A source's loads as events. A typed name is kept only when it is a skill: the record
-    already knows it, this read shows it loaded another way, or the project's checkout holds
-    it."""
+    already knows it, this read shows it loaded another way, the project's checkout holds it,
+    or a personal/external skill folder holds it."""
     events: list[Event] = []
     for load in loads:
         events.append(
@@ -766,12 +820,19 @@ def _events(  # noqa: PLR0913 - one source's loads and what names them
             )
         )
     loaded = known | {(event.project, event.skill) for event in events if event.path != TYPED}
+    ext = external_skills or set()
+    root_dirs: dict[str, tuple[str, ...]] = {}
+
+    def dirs_of(root: str) -> tuple[str, ...]:
+        if root not in root_dirs:
+            root_dirs[root] = skill_dirs_for(repo_skills_config_on_disk(Path(root)))
+        return root_dirs[root]
 
     def is_skill(event: Event) -> bool:
+        if (event.project, event.skill) in loaded or event.skill in ext:
+            return True
         roots = _strings(_mapping(projects.get(event.project)).get("roots"))
-        return (event.project, event.skill) in loaded or any(
-            skill_on_disk(root, event.skill) for root in roots
-        )
+        return any(skill_on_disk(root, event.skill, dirs_of(root)) for root in roots)
 
     return [event for event in events if event.path != TYPED or is_skill(event)]
 
@@ -788,8 +849,16 @@ def _item(event: Event) -> str | None:
 def settings_refused(exc: Exception) -> CommandResult[dict]:
     """The refusal for machine settings that cannot say this machine's name or shared folder."""
     if isinstance(exc, InvalidMachine):
+        message = str(exc)
+        if "skill_usage_dirs" in message or "BOTCORE_SKILL_USAGE_USER_DIRS" in message:
+            return _failure(
+                "INVALID_INPUT",
+                message,
+                "Set skill_usage_dirs in the machine settings (or BOTCORE_SKILL_USAGE_USER_DIRS) "
+                "to full paths with no '..' segments or NUL bytes",
+            )
         return _failure(
-            "INVALID_INPUT", str(exc),
+            "INVALID_INPUT", message,
             "Set skill_usage_machine (for example macbook-air) and skill_usage_shared (a "
             "full path) in the machine settings, or BOTCORE_SKILL_USAGE_MACHINE and "
             "BOTCORE_SKILL_USAGE_SHARED",
@@ -905,6 +974,8 @@ async def skill_usage_collect(  # noqa: PLR0911 - one refusal per way a source c
                     resolved_machine,
                     rebuild,
                     here.machine,
+                    user_dirs=() if t3_store is not None else here.skill_dirs,
+                    scan_user_dirs=t3_store is None,
                 )
                 if result.success and result.data is not None:
                     result.data["sources"] += absent
@@ -939,7 +1010,8 @@ async def skill_usage_collect(  # noqa: PLR0911 - one refusal per way a source c
 
 def _collect(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one collection, start to end
     directory: Path, path: Path | None, transcripts: Path | None, since_days: int | None,
-    machine: str, rebuild: bool, this_machine: str,
+    machine: str, rebuild: bool, this_machine: str, user_dirs: tuple[Path, ...] = (),
+    scan_user_dirs: bool = True,
 ) -> CommandResult[dict]:  # fmt: skip
     stored, unreadable = load_events(directory)
     state = load_state(directory)
@@ -987,18 +1059,32 @@ def _collect(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one collection, start t
             if event.source == t3.SOURCE and event.native and event.harness == claude_code.HARNESS
         }
         doing("reading Claude Code's transcripts in", transcripts)
-        claude = claude_code.read(transcripts, seen, found.natives | recorded, everything=rebuild)
+        claude = claude_code.read(
+            transcripts,
+            seen,
+            found.natives | recorded,
+            everything=rebuild,
+            dirs_for_root=extra_skill_dirs_for_root,
+        )
 
     refiled: dict[str, str] = {}
+    previous_projects = _mapping(state.get("projects"))
+    inv_version = state.get("inventory_version")
+    refresh_inventory = rebuild or type(inv_version) is not int or inv_version < INVENTORY_VERSION
     projects, names = _name_projects(
-        _mapping(state.get("projects")),
+        previous_projects,
         {**found.projects, **claude.projects},
-        again=rebuild,
+        again=refresh_inventory,
         now=now,
         refiled=refiled,
     )
     refiled_events = False
     if refiled:
+        for old_name, target_name in refiled.items():
+            old_prev = _mapping(previous_projects.get(old_name))
+            old_obs = _mapping(old_prev.get("observed_files"))
+            if old_obs and target_name in projects:
+                projects[target_name].setdefault("observed_files", {}).update(old_obs)
         updated_stored: list[Event] = []
         for event in stored:
             target = refiled.get(event.project)
@@ -1022,7 +1108,30 @@ def _collect(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one collection, start t
         if item.project_id is None and isinstance(filed, str) and filed != UNKNOWN_PROJECT:
             item.project_id = f"filed:{thread}"
             names[item.project_id] = filed
-    from_t3 = _events(found.loads, t3.SOURCE, names, projects, machine, known_skills)
+    # Record where loaded skill files live (outside configured project skill folders) and
+    # scan personal/external skill folders so their sizes and quiet list are available too
+    all_loads = [
+        (names.get(load.project_id or "", UNKNOWN_PROJECT), load)
+        for load in [*found.loads, *claude.loads]
+    ]
+    external = update_external_and_observed(
+        loads=all_loads,
+        projects=projects,
+        previous_projects=previous_projects,
+        previous_external=_mapping(state.get("external")),
+        user_dirs=user_dirs,
+        scan_user_dirs=scan_user_dirs,
+        facts_fn=_facts,
+        storage_of_fn=storage_of,
+        gone_fn=_gone,
+        now=now,
+    )
+    external_skill_names = set(_mapping(external.get("held"))) | set(
+        _mapping(external.get("observed"))
+    )
+    from_t3 = _events(
+        found.loads, t3.SOURCE, names, projects, machine, known_skills, external_skill_names
+    )
     # a skill that T3 Code's sessions loaded in this very read is a skill to a command typed
     # elsewhere
     loaded = known_skills | {(e.project, e.skill) for e in from_t3 if e.path != TYPED}
@@ -1032,7 +1141,9 @@ def _collect(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one collection, start t
         event.native for event in [*stored, *from_t3] if event.native and event.source == t3.SOURCE
     }
     fresh: dict[str, Event] = {}
-    for event in _events(claude.loads, claude_code.SOURCE, names, projects, machine, loaded):
+    for event in _events(
+        claude.loads, claude_code.SOURCE, names, projects, machine, loaded, external_skill_names
+    ):
         if event.native not in shown:
             fresh.setdefault(event.id, event)  # once, however many transcripts hold the call
     from_claude = list(fresh.values())
@@ -1101,21 +1212,22 @@ def _collect(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one collection, start t
 
     if transcripts is not None:
         sources = {**sources, claude_code.SOURCE: {"files": claude.files}}
-    save_state(
-        directory,
-        {
-            "version": STATE_VERSION,
-            "machine": this_machine,
-            # what tells this record from another machine's of the same name
-            "record_id": state.get("record_id") or uuid.uuid4().hex,
-            "collected_at": _stamp(now),
-            # the rules every event still re-readable was recognised by: a rebuild, or a
-            # record that began under them
-            "recognizer": RECOGNIZER if rebuild or not stored else state.get("recognizer", 0),
-            "sources": {**sources, t3.SOURCE: {"stores": stores}},
-            "projects": projects,
-        },
-    )
+    saved_state: dict = {
+        "version": STATE_VERSION,
+        "inventory_version": INVENTORY_VERSION,
+        "machine": this_machine,
+        # what tells this record from another machine's of the same name
+        "record_id": state.get("record_id") or uuid.uuid4().hex,
+        "collected_at": _stamp(now),
+        # the rules every event still re-readable was recognised by: a rebuild, or a
+        # record that began under them
+        "recognizer": RECOGNIZER if rebuild or not stored else state.get("recognizer", 0),
+        "sources": {**sources, t3.SOURCE: {"stores": stores}},
+        "projects": projects,
+    }
+    if external:
+        saved_state["external"] = external
+    save_state(directory, saved_state)
     if path is not None:
         new = [event for event in added if event.source == t3.SOURCE]
         read_sources.append(

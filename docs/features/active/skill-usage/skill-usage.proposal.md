@@ -521,11 +521,16 @@ for the schedule.
   once git answers for that folder, and its recorded events and sessions on that machine are
   refiled under `owner/name` ([#2052](https://github.com/lushly-dev/afd/issues/2052)).
 - **Skills outside a project's skill folders.** Size, context cost and the `quiet` list come
-  from `.claude/skills`, `.agents/skills` and `.codex/skills` of the project's default
-  branch. A skill folder or `SKILL.md` that is a link is not followed in a commit. A load
-  of a skill kept elsewhere (a person's own folder, a plugin, a repository's source folder for
-  generated skills) is counted, with no size, and a canonical name and its exported name stay
-  two skills ([#1830](https://github.com/lushly-dev/afd/issues/1830)).
+  from `.claude/skills`, `.agents/skills`, `.codex/skills`, plus any `[skills].extra_dirs`
+  (and custom `source_dir`) declared in the project's `botcore.toml` / `pyproject.toml` on
+  its default branch, with `[skills.aliases]` folding canonical and exported names together
+  ([#1830](https://github.com/lushly-dev/afd/issues/1830)). A skill folder or `SKILL.md` that
+  is a link is not followed in a commit. Personal skill folders (`~/.claude/skills`,
+  `~/.agents/skills`, `~/.codex/skills`, plus `skill_usage_dirs` in `disk.toml`) supply sizes
+  and appear in `quiet` under `project: "external"` when unused across all projects. A
+  `file_read` or `shell_read` of a `SKILL.md` outside those folders records its path locally
+  (never shared) and shares its size and listing characters. A skill loaded only through the
+  `Skill` tool or a typed name from an unlisted plugin folder has no file path to measure.
 - **Cost is a ceiling.** A skill read in three parts counts three whole files.
 - **Reads the parser does not know.** A file printed by a script (`python -c`, `xargs cat`) is
   not counted.

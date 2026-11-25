@@ -9,6 +9,7 @@ skill's is dropped rather than stored.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 
 # How a skill reached the agent
@@ -142,16 +143,36 @@ def clean_skill_name(raw: str) -> str | None:
     return name if _SKILL_NAME.fullmatch(name) else None
 
 
-def skill_of_file(path: str) -> str | None:
-    """The skill whose SKILL.md this file path names: `…/skills/<name>/SKILL.md` exactly."""
-    match = _SKILL_FILE.search(path.strip())
-    return match.group(1) if match else None
+def skill_of_file(path: str, extra_dirs: Sequence[str] = ()) -> str | None:
+    """The skill whose SKILL.md this file path names: `…/skills/<name>/SKILL.md`, or
+    `…/<extra_dir>/<name>/SKILL.md` for a repository's configured extra skill folders."""
+    text = path.strip()
+    match = _SKILL_FILE.search(text)
+    if match:
+        return match.group(1)
+    if extra_dirs:
+        norm = text.replace("\\", "/")
+        for folder in extra_dirs:
+            extra_match = re.search(rf"(?:^|/){re.escape(folder)}/+({_NAME})/+SKILL\.md$", norm)
+            if extra_match:
+                return extra_match.group(1)
+    return None
 
 
-def skill_of_folder(path: str) -> str | None:
-    """The skill a file belongs to: any file under `…/skills/<name>/`."""
-    match = _SKILL_FOLDER.search(path.strip())
-    return match.group(1) if match else None
+def skill_of_folder(path: str, extra_dirs: Sequence[str] = ()) -> str | None:
+    """The skill a file belongs to: any file under `…/skills/<name>/` or a configured
+    `…/<extra_dir>/<name>/`."""
+    text = path.strip()
+    if extra_dirs:
+        norm = text.replace("\\", "/")
+        for folder in extra_dirs:
+            extra_match = re.search(rf"(?:^|/){re.escape(folder)}/+({_NAME})/+[^/]", norm)
+            if extra_match:
+                return extra_match.group(1)
+    match = _SKILL_FOLDER.search(text)
+    if match:
+        return match.group(1)
+    return None
 
 
 def typed_skill(text: str) -> str | None:
@@ -520,18 +541,19 @@ def _operands(arguments: list[str], script_flag: bool = False) -> list[str]:
     return operands
 
 
-def _files_read(name: str, arguments: list[str]) -> list[str]:
+def _files_read(name: str, arguments: list[str]) -> list[tuple[str, bool]]:
+    """(path, on_disk) for each file a command reads; `on_disk` is False for git object reads."""
     if name in _READERS:
-        return _operands(arguments, script_flag=name == "awk")
+        return [(path, True) for path in _operands(arguments, script_flag=name == "awk")]
     if name == "sed":
         in_place = any(
             argument.startswith(("-i", "--in-place"))
             or (re.fullmatch(r"-[A-Za-z]+", argument) and "i" in argument)
             for argument in arguments
         )
-        return [] if in_place else _operands(arguments, script_flag=True)
+        return [] if in_place else [(path, True) for path in _operands(arguments, script_flag=True)]
     if name == "git":
-        return _printed_by_git(arguments)
+        return [(path, False) for path in _printed_by_git(arguments)]
     return []
 
 
@@ -548,18 +570,18 @@ def _reaches_agent(commands: list[_Command], position: int) -> bool:
             return False
 
 
-def skills_read_by(command: str, depth: int = 0, *, _powershell: bool | None = None) -> list[str]:
-    """The skills whose SKILL.md a shell command shows the agent, in order, each once.
-
-    Only a command that prints the file counts: `cat`, `sed`, `head`, `tail`, `nl`, `less`,
-    `more`, `bat`, `awk`, `type`, `Get-Content`, and `git show <revision>:<path>`. A search, a
-    diff, a listing or an edit that names the file does not count, nor does a read whose
-    output goes to a file or into a count, a digest or a search. Quoted text, comments and
-    here-document bodies are data, not commands. A script handed to a shell is read as that
-    shell reads it.
-    """
+def skill_files_read_by(
+    command: str,
+    depth: int = 0,
+    *,
+    _powershell: bool | None = None,
+    extra_dirs: Sequence[str] = (),
+) -> list[tuple[str, str | None]]:
+    """(skill, file_path) for each skill whose SKILL.md a shell command shows the agent, in
+    order, each skill once. `file_path` is None for git-object reads (`git show`), which name
+    no file on disk."""
     powershell = _is_powershell(command) if _powershell is None else _powershell
-    found: list[str] = []
+    found: dict[str, str | None] = {}
     commands = _commands(
         _without_here_documents(command, powershell=powershell), powershell=powershell
     )
@@ -573,12 +595,44 @@ def skills_read_by(command: str, depth: int = 0, *, _powershell: bool | None = N
                 child_ps = (
                     True if name in _POWERSHELL_SHELLS else False if name in _POSIX_SHELLS else None
                 )
-                skills = skills_read_by(script, depth + 1, _powershell=child_ps)
+                pairs = skill_files_read_by(
+                    script, depth + 1, _powershell=child_ps, extra_dirs=extra_dirs
+                )
             else:
-                skills = []
+                pairs = []
         else:
-            skills = [s for path in _files_read(name, arguments) if (s := skill_of_file(path))]
-        for skill in skills:
-            if skill and skill not in found:
-                found.append(skill)
-    return found
+            pairs = [
+                (skill, path.strip() if on_disk else None)
+                for path, on_disk in _files_read(name, arguments)
+                if (skill := skill_of_file(path, extra_dirs))
+            ]
+        for skill, file_path in pairs:
+            if not skill:
+                continue
+            if skill not in found or (found[skill] is None and file_path is not None):
+                found[skill] = file_path
+    return list(found.items())
+
+
+def skills_read_by(
+    command: str,
+    depth: int = 0,
+    *,
+    _powershell: bool | None = None,
+    extra_dirs: Sequence[str] = (),
+) -> list[str]:
+    """The skills whose SKILL.md a shell command shows the agent, in order, each once.
+
+    Only a command that prints the file counts: `cat`, `sed`, `head`, `tail`, `nl`, `less`,
+    `more`, `bat`, `awk`, `type`, `Get-Content`, and `git show <revision>:<path>`. A search, a
+    diff, a listing or an edit that names the file does not count, nor does a read whose
+    output goes to a file or into a count, a digest or a search. Quoted text, comments and
+    here-document bodies are data, not commands. A script handed to a shell is read as that
+    shell reads it.
+    """
+    return [
+        skill
+        for skill, _ in skill_files_read_by(
+            command, depth, _powershell=_powershell, extra_dirs=extra_dirs
+        )
+    ]

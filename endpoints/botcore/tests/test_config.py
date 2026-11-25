@@ -116,6 +116,54 @@ def test_skills_listing_budget_must_be_a_positive_integer(value: object) -> None
         SkillsConfig(listing_budget=value)
 
 
+def test_skills_extra_dirs_and_aliases(tmp_path: Path) -> None:
+    (tmp_path / "botcore.toml").write_text(
+        '[skills]\nextra_dirs = ["src/skills/", "src/skills", "plugins/a/skills"]\n'
+        '[skills.aliases]\ngate-discipline = "maintain-gates"\n',
+        encoding="utf-8",
+    )
+    loaded = load_config(workspace=tmp_path)
+    assert loaded.skills.extra_dirs == ["src/skills", "plugins/a/skills"]
+    assert loaded.skills.aliases == {"gate-discipline": "maintain-gates"}
+
+
+@pytest.mark.parametrize(
+    "bad_dir",
+    [
+        "",
+        "   ",
+        "/abs/path",
+        "C:/abs/path",
+        "a\\b",
+        "./skills",
+        "../skills",
+        "a/../b",
+        "a//b",
+        "a\x00b",
+        ":(exclude)foo",
+    ],
+)
+def test_skills_extra_dirs_rejects_invalid_paths(bad_dir: str) -> None:
+    with pytest.raises(ValidationError):
+        SkillsConfig(extra_dirs=[bad_dir])
+
+
+@pytest.mark.parametrize(
+    "bad_aliases",
+    [
+        {"a": "a"},
+        {"a": "b", "b": "a"},
+        {"a": "b", "b": "c", "c": "a"},
+        {"bad name": "good"},
+        {"good": "../escape"},
+        {"_hidden": "good"},
+    ],
+)
+def test_skills_aliases_rejects_invalid_and_cyclic_entries(bad_aliases: dict[str, str]) -> None:
+    with pytest.raises(ValidationError):
+        SkillsConfig(aliases=bad_aliases)
+
+
 def test_config_precedence(tmp_workspace: Path) -> None:
     """CLI overrides > project config > defaults."""
     # tmp_workspace has file_size_warn=400 and coverage_threshold=70

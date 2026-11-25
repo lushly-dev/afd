@@ -79,6 +79,9 @@ class MachineSettings(BaseModel):
     # Machines the triggers report read here does not wait for before it calls a change a
     # miss: ones the owner knows are switched off. It waits for every other machine
     skill_usage_away: list[str] = []
+    # Additional skill folders outside any project (e.g. plugin skill folders) to include in
+    # skill-usage sizes and the quiet list alongside personal skill folders
+    skill_usage_dirs: list[str] = []
     volume: list[VolumeSettings] = []
     aged: list[AgedFolder] = []
 

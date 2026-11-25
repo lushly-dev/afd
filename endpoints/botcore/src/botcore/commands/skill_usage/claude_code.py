@@ -18,6 +18,7 @@ import json
 import os
 import re
 import stat
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -32,9 +33,9 @@ from botcore.commands.skill_usage.events import (
     SUBAGENT,
     TYPED,
     clean_skill_name,
+    skill_files_read_by,
     skill_of_file,
     skill_of_folder,
-    skills_read_by,
 )
 from botcore.commands.skill_usage.t3 import Load, Session, _moment
 
@@ -344,25 +345,29 @@ def _transcript(home: str, files: list[Path], others: set[str]) -> _Transcript |
     return found
 
 
-def _loads_of(call: _Call) -> list[tuple[str, str]]:
-    """(skill, path) for each load a finished tool call shows, and for a change to a
+def _loads_of(call: _Call, extra_dirs: Sequence[str] = ()) -> list[tuple[str, str, str | None]]:
+    """(skill, path, file) for each load a finished tool call shows, and for a change to a
     skill's files."""
     tool = call.tool.lower()
     if call.tool == "Skill":
         name = clean_skill_name(_text(call.arguments.get("skill")) or "")
-        return [(name, SKILL_TOOL)] if name else []
+        return [(name, SKILL_TOOL, None)] if name else []
     file = _text(call.arguments.get("file_path")) or _text(call.arguments.get("notebook_path"))
     if tool in READ_TOOLS:
-        name = skill_of_file(file or "")
-        return [(name, FILE_READ)] if name else []
+        raw_file = file or ""
+        name = skill_of_file(raw_file, extra_dirs)
+        return [(name, FILE_READ, raw_file.strip())] if name else []
     if tool in EDIT_TOOLS:
-        name = skill_of_folder(file or "")
-        return [(name, EDIT)] if name else []
+        name = skill_of_folder(file or "", extra_dirs)
+        return [(name, EDIT, None)] if name else []
     if call.tool == "Bash":
         command = _text(call.arguments.get("command"))
         if not command or "SKILL.md" not in command:  # nearly every command: not worth parsing
             return []
-        return [(name, SHELL_READ) for name in skills_read_by(command)]
+        return [
+            (name, SHELL_READ, file_path)
+            for name, file_path in skill_files_read_by(command, extra_dirs=extra_dirs)
+        ]
     return []
 
 
@@ -374,7 +379,66 @@ def _names(value: object) -> list[str]:
     return [name for name in value if isinstance(name, str)] if isinstance(value, list) else []
 
 
-def read(root: Path, known: dict, held: set[str], *, everything: bool = False) -> ClaudeRead:
+def _extra_dirs_for(
+    proj_root: str | None,
+    dirs_for_root: Callable[[str], tuple[str, ...]] | None,
+    cache: dict[str, tuple[str, ...]],
+) -> tuple[str, ...]:
+    if dirs_for_root is None or not proj_root:
+        return ()
+    if proj_root not in cache:
+        cache[proj_root] = dirs_for_root(proj_root)
+    return cache[proj_root]
+
+
+def _collect_own_loads(
+    parsed: _Transcript,
+    own: dict[str, list[str]],
+    checkout: dict[str, str | None],
+    dirs_for_root: Callable[[str], tuple[str, ...]] | None,
+    extra_cache: dict[str, tuple[str, ...]],
+    result: ClaudeRead,
+) -> list[str]:
+    loaded: list[str] = []
+    for session, call_ids in own.items():
+        thread = f"{PREFIX}{session}"
+        proj_root = checkout[session]
+        extra_dirs = _extra_dirs_for(proj_root, dirs_for_root, extra_cache)
+        session_cwd = parsed.sessions[session].cwd if session in parsed.sessions else None
+        for call_id in call_ids:
+            call = parsed.calls[call_id]
+            if call_id not in parsed.finished or not call.at:
+                continue  # only a call that came back, and came back without an error
+            for skill, path, load_file in _loads_of(call, extra_dirs=extra_dirs):
+                loaded.append(call_id)
+                result.loads.append(
+                    Load(
+                        item=call_id,
+                        native=f"{HARNESS}:{call_id}",
+                        at=call.at,
+                        skill=skill,
+                        path=path,
+                        harness=HARNESS,
+                        thread=thread,
+                        root=thread,
+                        agent=SUBAGENT if call.subagent else MAIN,
+                        project_id=proj_root,
+                        model=call.model,
+                        file=load_file,
+                        cwd=session_cwd,
+                    )
+                )
+    return loaded
+
+
+def read(
+    root: Path,
+    known: dict,
+    held: set[str],
+    *,
+    everything: bool = False,
+    dirs_for_root: Callable[[str], tuple[str, ...]] | None = None,
+) -> ClaudeRead:
     """Every skill load in the transcripts that is not T3 Code's, from the transcripts that
     changed since `known` was written (all of them with `everything`); and the sessions
     those loads and their rows belong to.
@@ -387,6 +451,7 @@ def read(root: Path, known: dict, held: set[str], *, everything: bool = False) -
     """
     result = ClaudeRead(files={name: _entry(entry) for name, entry in known.items()})
     checkouts = _Checkouts()
+    extra_cache: dict[str, tuple[str, ...]] = {}
     found = _transcripts(root)
     others = set(found)
     for home, files in found.items():
@@ -451,30 +516,7 @@ def read(root: Path, known: dict, held: set[str], *, everything: bool = False) -
                     pull_requests=(),
                 )
             )
-        loaded: list[str] = []
-        for session, call_ids in own.items():
-            thread = f"{PREFIX}{session}"
-            for call_id in call_ids:
-                call = parsed.calls[call_id]
-                if call_id not in parsed.finished or not call.at:
-                    continue  # only a call that came back, and came back without an error
-                for skill, path in _loads_of(call):
-                    loaded.append(call_id)
-                    result.loads.append(
-                        Load(
-                            item=call_id,
-                            native=f"{HARNESS}:{call_id}",
-                            at=call.at,
-                            skill=skill,
-                            path=path,
-                            harness=HARNESS,
-                            thread=thread,
-                            root=thread,
-                            agent=SUBAGENT if call.subagent else MAIN,
-                            project_id=checkout[session],
-                            model=call.model,
-                        )
-                    )
+        loaded = _collect_own_loads(parsed, own, checkout, dirs_for_root, extra_cache, result)
         for session, row_id, name, at, program in parsed.typed:
             typed_skill = clean_skill_name(name)
             thread = f"{PREFIX}{session}"

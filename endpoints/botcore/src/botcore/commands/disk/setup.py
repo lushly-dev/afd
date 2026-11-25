@@ -106,6 +106,7 @@ OMIT_AT_DEFAULT = (
     "idle_worktree_limit",
     "skill_usage_collect",
     "skill_usage_away",
+    "skill_usage_dirs",
 )
 
 
