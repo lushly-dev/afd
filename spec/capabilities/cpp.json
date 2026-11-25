@@ -250,6 +250,11 @@
 			"note": "synchronous",
 			"evidence": ["packages/cpp/include/afd/journal.hpp"]
 		},
+		"single.journal-secret": {
+			"status": "planned",
+			"note": "the next step of the `secret` change: the recorder still skips `auth-*` by name only",
+			"evidence": ["packages/cpp/include/afd/journal.hpp"]
+		},
 		"middleware.chain": {
 			"status": "yes",
 			"evidence": [

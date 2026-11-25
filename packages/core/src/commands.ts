@@ -322,6 +322,13 @@ export interface CommandDefinition<TInput = unknown, TOutput = unknown> {
 	handoffProtocol?: 'websocket' | 'webrtc' | 'sse' | 'http-stream' | string;
 
 	/**
+	 * Whether the command takes or returns a secret (a password argument, an issued token). A
+	 * journal never records a call to it unless the host also gives the recorder `redact`, which
+	 * removes the secret; a `filter` alone does not admit it (`spec/journal.md`).
+	 */
+	secret?: boolean;
+
+	/**
 	 * Whether this command performs destructive or irreversible actions.
 	 * When true, frontends SHOULD prompt for user confirmation before
 	 * applying the result locally.

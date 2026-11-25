@@ -66,6 +66,8 @@ export function createAuthMutationCommands(
 		category: 'auth',
 		tags: ['auth', 'session'],
 		mutation: true,
+		// It takes a password: no journal records it without a `redact` that removes it.
+		secret: true,
 		// A person signs in: an agent is never handed a password or a sign-in to drive, so the
 		// command is not on the agent surface. An agent asks the person to sign in instead.
 		expose: { palette: true, agent: false, cli: true, mcp: false },

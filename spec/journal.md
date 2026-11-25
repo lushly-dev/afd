@@ -69,9 +69,17 @@ within one implementation, because the context key names (`clock`, `random` and 
 between languages.
 
 Inputs and results are recorded as they are. A command that takes or returns a secret (a password
-argument, an issued token) must be filtered out or redacted by the recorder. The TypeScript
-and Python middleware skip commands named `auth-*` by default and have `filter` and `redact`
-options for the rest. When a secret is derived from `context.random`, the redaction must drop the tape too: its
+argument, an issued token) declares `secret: true` ([command metadata](./command-metadata.md#fields)),
+and a recorder never records a call to it unless the host also gave the recorder `redact`, which
+must remove the secret: a `filter` alone never admits it, so a host's own filter cannot drop the
+protection by accident. The recorder reads the declaration from the command the engine runs, not
+from its name, and gives `redact` that answer with each record. A recorder that cannot read it (one
+outside the execution engine, such as a client's own middleware) records no call without `redact`.
+A secret call left unrecorded inside a recorded call reads neither of the parent's taped sources,
+and the parent's tape is marked `truncated`, so its replay cannot restore every value. The flag
+covers the call itself: a value it returns that a later pipeline step or a calling handler passes
+on is that command's input, recorded unless it too is `secret` or redacted. The default `filter`
+also skips commands named `auth-*`, as before, and `filter` and `redact` handle the rest. When a secret is derived from `context.random`, the redaction must drop the tape too: its
 random values would rebuild the secret.
 
 ### Declared context fields

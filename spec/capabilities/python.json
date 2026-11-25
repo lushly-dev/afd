@@ -234,6 +234,11 @@
 			"note": "with the built-in sinks: the digest is synchronous and nothing is awaited before `append`; a custom async sink that awaits before assigning `seq` could reorder",
 			"evidence": ["python/src/afd/server/journal.py"]
 		},
+		"single.journal-secret": {
+			"status": "planned",
+			"note": "the next step of the `secret` change: the recorder still skips `auth-*` by name only",
+			"evidence": ["python/src/afd/server/journal.py"]
+		},
 		"middleware.chain": {
 			"status": "yes",
 			"evidence": ["python/src/afd/server/middleware.py", "python/tests/test_middleware.py"]

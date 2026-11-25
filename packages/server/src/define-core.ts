@@ -89,6 +89,13 @@ export interface ZodCommandOptions<TInput extends $ZodType, TOutput> {
 	handoffProtocol?: 'websocket' | 'webrtc' | 'sse' | 'http-stream' | string;
 
 	/**
+	 * Whether the command takes or returns a secret (a password argument, an issued token). A
+	 * journal never records a call to it unless the host also gives the recorder `redact`, which
+	 * removes the secret; a `filter` alone does not admit it (`spec/journal.md`).
+	 */
+	secret?: boolean;
+
+	/**
 	 * Whether this command performs destructive/irreversible actions.
 	 * When true, frontends SHOULD prompt for user confirmation before
 	 * applying the result locally.
@@ -232,6 +239,9 @@ export interface ZodCommandDefinition<TInput extends $ZodType = ZodType, TOutput
 	/** The specific handoff protocol this command uses */
 	handoffProtocol?: 'websocket' | 'webrtc' | 'sse' | 'http-stream' | string;
 
+	/** Whether the command takes or returns a secret: journals do not record it without `redact` */
+	secret?: boolean;
+
 	/** Whether this command is destructive (triggers confirmation UI) */
 	destructive?: boolean;
 
@@ -369,6 +379,10 @@ export function defineCommandWithSchema<TInput extends $ZodType, TOutput>(
 	}
 
 	const { name, description, handler, examples, contexts, toolMeta } = options;
+	if (options.secret !== undefined && typeof options.secret !== 'boolean') {
+		// A value that is not a boolean would read as "not secret" and the journal would record it.
+		throw new TypeError(`Command "${options.name}": secret must be a boolean`);
+	}
 	const metadata = {
 		title: options.title,
 		category: options.category,
@@ -390,6 +404,7 @@ export function defineCommandWithSchema<TInput extends $ZodType, TOutput>(
 		...(options.confirmationMode !== undefined && { confirmationMode: options.confirmationMode }),
 		...(options.task !== undefined && { task: options.task }),
 		...(outputBudget && { outputBudget }),
+		...(options.secret === true && { secret: true }),
 	};
 
 	return {

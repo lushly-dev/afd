@@ -157,6 +157,7 @@ export {
 	createJournalMiddleware,
 	JOURNAL_RESULT_UNSERIALIZABLE,
 	type JournalMiddlewareOptions,
+	type JournalRedactInfo,
 } from './journal.js';
 export {
 	type JournalReplayTarget,

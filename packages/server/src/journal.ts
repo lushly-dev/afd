@@ -24,6 +24,7 @@ import {
 	systemClock,
 	systemRandom,
 } from '@lushly-dev/afd-core';
+import { liveCommand } from './approval-admission.js';
 import { JOURNALED_CONTEXT_FIELDS } from './context-fields.js';
 import { EFFECTIVE_OUTPUT_BUDGET } from './output-budget.js';
 
@@ -90,11 +91,54 @@ const SPENT_REPLAY: JournalReplayMarker = { rewind() {}, end() {} };
 /** On a recording clock: the clock it wraps, for timing that must stay off the tape. */
 const UNTAPED = Symbol('afd.journal.untaped');
 
+/** On a recording clock and random source: the tape they write to. */
+const TAPE = Symbol('afd.journal.tape');
+
 /** The clock under any recording wrappers, so a journal's own timing lands on no tape. */
 function untaped(clock: Clock): Clock {
 	let current: Clock & { [UNTAPED]?: Clock } = clock;
 	while (current[UNTAPED]) current = current[UNTAPED];
 	return current;
+}
+
+/** The random source under any recording wrappers. */
+function untapedRandom(random: RandomSource): RandomSource {
+	let current: RandomSource & { [UNTAPED]?: RandomSource } = random;
+	while (current[UNTAPED]) current = current[UNTAPED];
+	return current;
+}
+
+/** What `redact` is told about the call besides its record. */
+export interface JournalRedactInfo {
+	/**
+	 * `true` when the command declares `secret`, `false` when it does not, and `undefined` when
+	 * the recorder runs outside the execution engine (a DirectClient's own middleware) and cannot
+	 * read the declaration. Remove the secret, or return `undefined`, whenever it is not `false`.
+	 */
+	secret: boolean | undefined;
+}
+
+/**
+ * Run `next` off every tape: a call the journal leaves unrecorded because it may carry a secret
+ * reads the clock and random source a recording parent wrapped, which would put the values that
+ * built the secret on the parent's tape. The parent's tape is marked `truncated` instead, so its
+ * replay says it cannot restore every value.
+ */
+async function offTape(context: CommandContext, next: () => Promise<CommandResult>) {
+	const { clock, random } = context;
+	const tapes = [clock, random]
+		.map((source) => (source as { [TAPE]?: JournalTape } | undefined)?.[TAPE])
+		.filter((tape) => tape !== undefined);
+	if (tapes.length === 0) return next();
+	for (const tape of tapes) tape.truncated = true;
+	if (clock) context.clock = untaped(clock);
+	if (random) context.random = untapedRandom(random);
+	try {
+		return await next();
+	} finally {
+		context.clock = clock;
+		context.random = random;
+	}
 }
 
 /** The value under {@link JOURNAL_REPLAY}. */
@@ -122,18 +166,21 @@ export interface JournalMiddlewareOptions {
 	recordFailures?: boolean;
 	/**
 	 * Record only the commands this returns `true` for. Default: every command except those
-	 * named `auth-*` (`@lushly-dev/afd-auth`'s `auth-sign-in` takes a password). A custom
-	 * filter replaces the default, so exclude `auth-*` in it too unless you redact them.
+	 * named `auth-*`. A custom filter replaces the default, so exclude `auth-*` in it too unless
+	 * you redact them. A command that declares `secret` (`@lushly-dev/afd-auth`'s `auth-sign-in`
+	 * takes a password) is never recorded without `redact`, whatever this returns.
 	 */
 	filter?: (commandName: string) => boolean;
 	/**
 	 * Last look at each record before it is stored: return it (changed or not), or `undefined`
-	 * to skip it. Use it to drop secrets from inputs or results, such as a password argument
+	 * to skip it. Giving it also lets calls to commands that declare `secret` be recorded
+	 * (when `filter` allows them), so it must remove their secrets: `info.secret` says which
+	 * calls those are (`undefined` outside the execution engine, where it cannot be read). Use it to drop secrets from inputs or results, such as a password argument
 	 * or an issued token. A redacted entry may no longer replay to the same result. When a secret
 	 * is derived from `context.random` (a generated code or token), drop `record.tape` too:
 	 * the recorded random values would rebuild it.
 	 */
-	redact?: (record: JournalRecord) => JournalRecord | undefined;
+	redact?: (record: JournalRecord, info: JournalRedactInfo) => JournalRecord | undefined;
 	/**
 	 * Most clock readings and most random values kept per call, each. Past it the tape is
 	 * marked `truncated` and replay cannot restore the rest. Default 1000.
@@ -218,25 +265,26 @@ function recordingSources(
 		if (values.length < maxReads) values.push(value);
 		else tape.truncated = true;
 	};
-	const recordingClock: Clock & { [UNTAPED]: Clock } = {
+	const recordingClock: Clock & { [UNTAPED]: Clock; [TAPE]: JournalTape } = {
 		[UNTAPED]: clock,
+		[TAPE]: tape,
 		now() {
 			const value = clock.now();
 			keep(tape.clock, value);
 			return value;
 		},
 	};
-	return {
-		clock: recordingClock,
-		random: {
-			...(random.seed !== undefined ? { seed: random.seed } : {}),
-			next() {
-				const value = random.next();
-				keep(tape.random, value);
-				return value;
-			},
+	const recordingRandom: RandomSource & { [UNTAPED]: RandomSource; [TAPE]: JournalTape } = {
+		[UNTAPED]: random,
+		[TAPE]: tape,
+		...(random.seed !== undefined ? { seed: random.seed } : {}),
+		next() {
+			const value = random.next();
+			keep(tape.random, value);
+			return value;
 		},
 	};
+	return { clock: recordingClock, random: recordingRandom };
 }
 
 /**
@@ -254,7 +302,8 @@ function recordingSources(
  * takes its turn as its command returns, and the context digest, which is asynchronous, never
  * reorders them. So an `append` that never settles holds every later recorded call, and a sink
  * whose `append` runs a command this middleware records would wait on itself. A sink error goes to `onError` and never changes the command
- * result. Commands named `auth-*` are not recorded unless `filter` allows them. During
+ * result. Commands named `auth-*` are not recorded unless `filter` allows them, and a command
+ * that declares `secret` is not recorded without `redact`. During
  * `replayJournal()` this middleware records nothing; it restarts the replay tape at its position.
  *
  * @example
@@ -278,14 +327,18 @@ export function createJournalMiddleware(
 	const {
 		recordFailures = false,
 		filter = defaultFilter,
-		redact = (record: JournalRecord) => record,
+		// Captured once: whether there is a redactor decides which calls may be recorded, and the
+		// same one is the one applied.
+		redact: givenRedact,
 		maxTapeReads = DEFAULT_MAX_TAPE_READS,
 		onError,
 	} = options;
 	/** Settles when the last call to finish has appended, or given up: the next one appends after it. */
 	let turn: Promise<void> = Promise.resolve();
 
-	return async (commandName, input, context, next) => {
+	/** Contexts already moved off their parent's tape: a secret call's second pass records as usual. */
+	const offParentTape = new WeakSet<CommandContext>();
+	const middleware: CommandMiddleware = async (commandName, input, context, next) => {
 		const replay = (context as Record<symbol, unknown>)[JOURNAL_REPLAY] as
 			| JournalReplayMarker
 			| undefined;
@@ -297,6 +350,18 @@ export function createJournalMiddleware(
 			} finally {
 				replay.end();
 			}
+		}
+		// A command declaring `secret` is recorded only when a `redact` can remove the secret: a
+		// filter alone never admits it (`spec/journal.md`). Outside the engine (a DirectClient's
+		// own middleware) the declaration cannot be read, so no call is recorded without `redact`.
+		const command = liveCommand(context);
+		const secret = command === undefined ? undefined : command.secret === true;
+		if (secret !== false && givenRedact === undefined) return offTape(context, next);
+		// A secret call recorded or skipped by `filter` reads off its parent's tape too: its own
+		// recording, if any, keeps its reads on its own entry, for `redact` to drop.
+		if (secret === true && !offParentTape.has(context)) {
+			offParentTape.add(context);
+			return offTape(context, () => middleware(commandName, input, context, next));
 		}
 		if (!filter(commandName)) return next();
 
@@ -367,7 +432,7 @@ export function createJournalMiddleware(
 					context.outputBudget === effectiveOutputBudget
 						? context
 						: { ...context, outputBudget: effectiveOutputBudget };
-				const record = redact({
+				const draft: JournalRecord = {
 					timestamp: new Date(start).toISOString(),
 					...(typeof context.traceId === 'string' ? { traceId: context.traceId } : {}),
 					command: commandName,
@@ -379,7 +444,8 @@ export function createJournalMiddleware(
 					result: copied.result,
 					durationMs,
 					...(hasTape ? { tape } : {}),
-				});
+				};
+				const record = givenRedact ? givenRedact(draft, { secret }) : draft;
 				await previous;
 				if (record) await sink.append(record);
 			} catch (error) {
@@ -394,4 +460,5 @@ export function createJournalMiddleware(
 		if (thrown) throw thrown.error;
 		return recorded;
 	};
+	return middleware;
 }

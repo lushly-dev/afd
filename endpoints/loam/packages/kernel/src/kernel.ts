@@ -136,7 +136,7 @@ export function kernelJournalOptions(
 		recordFailures: true,
 		onError,
 		filter: (command) => journalsCommand(command),
-		redact: redactJournalRecord,
+		redact: (record, { secret }) => redactJournalRecord(record, false, secret),
 	};
 }
 
@@ -483,9 +483,9 @@ export async function createKernelParts(
 		{
 			...kernelJournalOptions(),
 			filter: (command) => command === 'notification-list' || journalsCommand(command),
-			redact: (record) => {
+			redact: (record, { secret }) => {
 				const threw = record.traceId !== undefined && thrownTraces.delete(record.traceId);
-				const own = (each: JournalRecord) => apps.redact(redactJournalRecord(each, threw));
+				const own = (each: JournalRecord) => apps.redact(redactJournalRecord(each, threw, secret));
 				// A command no registry holds has no rule: its input in a wrapper is dropped (step 6's third round, B).
 				return redactSafely(
 					record,
