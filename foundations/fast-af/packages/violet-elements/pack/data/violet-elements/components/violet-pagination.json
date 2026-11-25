@@ -120,7 +120,7 @@
 			"html": "<violet-pagination boundary-count=\"1\" label=\"Crop pages\" page=\"5\" page-count=\"9\" sibling-count=\"1\"></violet-pagination>"
 		}
 	],
-	"format": 1,
+	"format": 2,
 	"gaps": [
 		{
 			"kind": "summary"

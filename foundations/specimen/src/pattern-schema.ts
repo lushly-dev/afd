@@ -1,11 +1,26 @@
 import { z } from 'zod';
 import {
+	a11yExpectationSchema,
+	focusExpectationSchema,
+	isAscendingUnique,
+	layoutExpectationSchema,
 	PACK_TEXT_LIMITS,
 	packIdentifier,
 	packText,
+	patternKeepStatementSchema,
+	patternSetupSchema,
+	patternStatementSchema,
+	patternTargetSchema,
+	portableActionSchema,
+	portableEventExpectationSchema,
+	portableExpectationSchema,
+	portableFormExpectationSchema,
+	portableScenarioStepSchema,
+	portableValidityExpectationSchema,
+	standardDomEventSchema,
 	TEXT_INVALID,
 	TEXT_TOO_LONG,
-} from './pack-schema.js';
+} from './pack-atoms.js';
 import { contextSchema } from './schema.js';
 
 /**
@@ -13,16 +28,22 @@ import { contextSchema } from './schema.js';
  * Loaded dynamically so projects with no patterns never load Zod at bench creation time.
  */
 
-export const patternMarkers = { TEXT_TOO_LONG, TEXT_INVALID };
-
-const isAscendingUnique = (values: readonly string[]): boolean => {
-	for (let index = 1; index < values.length; index++) {
-		if ((values[index - 1] as string) >= (values[index] as string)) return false;
-	}
-	return true;
+export {
+	a11yExpectationSchema,
+	focusExpectationSchema,
+	layoutExpectationSchema,
+	patternSetupSchema,
+	patternTargetSchema,
+	portableActionSchema,
+	portableEventExpectationSchema,
+	portableExpectationSchema,
+	portableFormExpectationSchema,
+	portableScenarioStepSchema,
+	portableValidityExpectationSchema,
+	standardDomEventSchema,
 };
 
-const isUnique = (values: readonly string[]): boolean => new Set(values).size === values.length;
+export const patternMarkers = { TEXT_TOO_LONG, TEXT_INVALID };
 
 /** Inclusive viewport bounds (CSS pixels) and/or supported themes for an implementation. */
 export const implementationContextsSchema = z
@@ -94,166 +115,6 @@ export const patternSetupBindingSchema = z.strictObject({
 	setup: packIdentifier('setup'),
 });
 
-const roleSetSchema = z.union([
-	packIdentifier('role'),
-	z
-		.array(packIdentifier('role'))
-		.min(1)
-		.max(8)
-		.refine(isUnique, 'Target roles must be unique')
-		.meta({ uniqueItems: true }),
-]);
-
-export const patternTargetSchema = z
-	.strictObject({
-		role: roleSetSchema,
-		name: packText(PACK_TEXT_LIMITS.summary).optional(),
-		nameStartsWith: packText(PACK_TEXT_LIMITS.summary).optional(),
-		nameContains: packText(PACK_TEXT_LIMITS.summary).optional(),
-	})
-	.refine((value) => {
-		const count =
-			Number(value.name !== undefined) +
-			Number(value.nameStartsWith !== undefined) +
-			Number(value.nameContains !== undefined);
-		return count <= 1;
-	}, 'Specify at most one of name, nameStartsWith, or nameContains')
-	.meta({
-		not: {
-			anyOf: [
-				{ required: ['name', 'nameStartsWith'] },
-				{ required: ['name', 'nameContains'] },
-				{ required: ['nameStartsWith', 'nameContains'] },
-			],
-		},
-	});
-
-export const patternSetupSchema = z.strictObject({
-	text: packText(PACK_TEXT_LIMITS.statement),
-	targets: z
-		.record(packIdentifier('alias'), patternTargetSchema)
-		.refine((record) => {
-			const count = Object.keys(record).length;
-			return count >= 1 && count <= 16;
-		}, 'A setup must declare between 1 and 16 targets')
-		.meta({ minProperties: 1, maxProperties: 16 }),
-});
-
-const timeoutMsSchema = z.number().int().min(1).max(60_000);
-
-export const portableActionSchema = z.union([
-	z.strictObject({ click: packIdentifier('alias') }),
-	z.strictObject({ focus: packIdentifier('alias') }),
-	z.strictObject({ hover: packIdentifier('alias') }),
-	z.strictObject({
-		fill: packIdentifier('alias'),
-		value: packText(PACK_TEXT_LIMITS.statement, 'multi', 0),
-	}),
-	z.strictObject({
-		press: packText(64, 'single', 1),
-		target: packIdentifier('alias').optional(),
-	}),
-]);
-
-export const standardDomEventSchema = z.enum(['input', 'change', 'submit', 'reset']);
-
-export const portableEventExpectationSchema = z.strictObject({
-	event: standardDomEventSchema,
-	target: packIdentifier('alias').optional(),
-	since: packIdentifier('stepId'),
-	timeoutMs: timeoutMsSchema.optional(),
-	absent: z.boolean().optional(),
-});
-
-export const portableFormExpectationSchema = z.strictObject({
-	target: packIdentifier('alias'),
-	form: z.strictObject({
-		name: packText(PACK_TEXT_LIMITS.summary),
-		value: packText(PACK_TEXT_LIMITS.value, 'multi', 0).nullable(),
-	}),
-	timeoutMs: timeoutMsSchema.optional(),
-});
-
-export const portableValidityExpectationSchema = z.strictObject({
-	target: packIdentifier('alias'),
-	validity: z.strictObject({ valid: z.boolean() }),
-	timeoutMs: timeoutMsSchema.optional(),
-});
-
-export const a11yExpectationSchema = z.strictObject({
-	target: packIdentifier('alias'),
-	a11y: z
-		.strictObject({
-			role: roleSetSchema.optional(),
-			name: packText(PACK_TEXT_LIMITS.summary, 'single', 0).optional(),
-			nameNonEmpty: z.boolean().optional(),
-			nameContains: packText(PACK_TEXT_LIMITS.summary).optional(),
-			expanded: z.boolean().optional(),
-			selected: z.boolean().optional(),
-			checked: z.union([z.boolean(), z.literal('mixed')]).optional(),
-			pressed: z.union([z.boolean(), z.literal('mixed')]).optional(),
-			disabled: z.boolean().optional(),
-			invalid: z.union([z.boolean(), z.literal('grammar'), z.literal('spelling')]).optional(),
-			readonly: z.boolean().optional(),
-			required: z.boolean().optional(),
-			level: z.number().int().min(1).max(6).optional(),
-		})
-		.refine(
-			(value) => Object.keys(value).length > 0,
-			'An a11y expectation must assert at least one property'
-		)
-		.refine(
-			(value) =>
-				value.name === undefined ||
-				(value.nameNonEmpty === undefined && value.nameContains === undefined),
-			'a11y.name is mutually exclusive with nameNonEmpty and nameContains'
-		)
-		.meta({
-			minProperties: 1,
-			not: {
-				anyOf: [{ required: ['name', 'nameNonEmpty'] }, { required: ['name', 'nameContains'] }],
-			},
-		}),
-	timeoutMs: timeoutMsSchema.optional(),
-});
-
-export const focusExpectationSchema = z.strictObject({
-	target: packIdentifier('alias'),
-	focus: z.boolean(),
-	timeoutMs: timeoutMsSchema.optional(),
-});
-
-export const layoutExpectationSchema = z.strictObject({
-	target: packIdentifier('alias'),
-	layout: z
-		.strictObject({
-			minHeight: z.number().positive().max(8192).optional(),
-			minWidth: z.number().positive().max(8192).optional(),
-			noOverflow: z.boolean().optional(),
-			noOuterMargin: z.boolean().optional(),
-		})
-		.refine(
-			(value) => Object.keys(value).length > 0,
-			'A layout expectation must assert at least one property'
-		)
-		.meta({ minProperties: 1 }),
-	timeoutMs: timeoutMsSchema.optional(),
-});
-
-export const portableExpectationSchema = z.union([
-	portableEventExpectationSchema,
-	portableFormExpectationSchema,
-	portableValidityExpectationSchema,
-	a11yExpectationSchema,
-	focusExpectationSchema,
-	layoutExpectationSchema,
-]);
-
-export const portableScenarioStepSchema = z.union([
-	z.strictObject({ id: packIdentifier('stepId'), action: portableActionSchema }),
-	z.strictObject({ id: packIdentifier('stepId'), expect: portableExpectationSchema }),
-]);
-
 const patternGateContextSchema = z.strictObject({
 	viewport: contextSchema.shape.viewport.optional(),
 	container: contextSchema.shape.container,
@@ -267,17 +128,6 @@ export const patternGateSchema = z.strictObject({
 	setup: packIdentifier('setup'),
 	context: patternGateContextSchema.optional(),
 	scenario: z.array(portableScenarioStepSchema).min(1).max(32),
-});
-
-const patternStatementSchema = z.strictObject({
-	id: packIdentifier('id'),
-	text: packText(PACK_TEXT_LIMITS.statement),
-});
-
-const patternKeepStatementSchema = z.strictObject({
-	id: packIdentifier('id'),
-	text: packText(PACK_TEXT_LIMITS.statement),
-	gate: packIdentifier('gate').optional(),
 });
 
 const patternFacetsSchema = z

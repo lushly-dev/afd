@@ -1,0 +1,21 @@
+{
+	"css": "",
+	"dependencies": [],
+	"fingerprint": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+	"format": 2,
+	"html": "<div class=\"select\"></div>",
+	"keep": [
+		{
+			"basis": "verified",
+			"id": "pattern.select.named"
+		}
+	],
+	"name": "other",
+	"origin": {
+		"id": "example-select--default"
+	},
+	"pattern": "select",
+	"revision": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+	"status": "stable",
+	"tokens": []
+}

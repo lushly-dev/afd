@@ -676,13 +676,13 @@
 															"type": "object",
 															"properties": {
 																"minHeight": {
-																	"type": "number",
-																	"exclusiveMinimum": 0,
+																	"type": "integer",
+																	"minimum": 1,
 																	"maximum": 8192
 																},
 																"minWidth": {
-																	"type": "number",
-																	"exclusiveMinimum": 0,
+																	"type": "integer",
+																	"minimum": 1,
 																	"maximum": 8192
 																},
 																"noOverflow": {

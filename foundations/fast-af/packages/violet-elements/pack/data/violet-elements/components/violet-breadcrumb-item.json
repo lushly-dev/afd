@@ -71,7 +71,7 @@
 			"html": "<div role=\"list\"><violet-breadcrumb-item href=\"/plans\" role=\"listitem\">Plans</violet-breadcrumb-item></div>"
 		}
 	],
-	"format": 1,
+	"format": 2,
 	"gaps": [],
 	"import": "@lushly-dev/violet-elements",
 	"rules": [

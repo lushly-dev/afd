@@ -351,9 +351,139 @@
 				}
 			],
 			"regenerated": true
+		},
+		{
+			"description": "A record says it is format 1 inside a format 2 library; libraries cannot mix versions.",
+			"name": "format-mix",
+			"problems": [
+				{
+					"at": "/format",
+					"code": "FORMAT_UNSUPPORTED",
+					"path": "data/example/components/example-option.json"
+				}
+			],
+			"regenerated": true
+		},
+		{
+			"description": "A pattern record's pattern id is not its file name.",
+			"name": "pattern-mismatch",
+			"problems": [
+				{
+					"at": "/pattern",
+					"code": "PATTERN_MISMATCH",
+					"path": "data/example/patterns/field.json"
+				}
+			],
+			"regenerated": true
+		},
+		{
+			"description": "A component claims a pattern in the same library that has no pattern record.",
+			"name": "pattern-unknown",
+			"problems": [
+				{
+					"at": "/patterns/0/pattern",
+					"code": "PATTERN_UNKNOWN",
+					"path": "data/example/components/example-select.json"
+				}
+			],
+			"regenerated": true
+		},
+		{
+			"description": "A copy record's name is not its file name.",
+			"name": "copy-mismatch",
+			"problems": [
+				{
+					"at": "/name",
+					"code": "COPY_MISMATCH",
+					"path": "data/example/patterns/select/simple.json"
+				}
+			],
+			"regenerated": true
+		},
+		{
+			"description": "A pattern record lists a copy implementation with no copy record.",
+			"name": "copy-unknown",
+			"problems": [
+				{
+					"at": "/implementations/1/name",
+					"code": "COPY_UNKNOWN",
+					"path": "data/example/patterns/select.json"
+				}
+			],
+			"regenerated": true
+		},
+		{
+			"description": "A component pattern's contexts.themes are not in ascending order.",
+			"name": "contexts-themes-unsorted",
+			"problems": [
+				{
+					"at": "/patterns/0/contexts/themes/1",
+					"code": "NOT_CANONICAL",
+					"path": "data/example/components/example-select.json"
+				}
+			],
+			"regenerated": true
+		},
+		{
+			"description": "The catalog's summary for a pattern differs from its pattern record.",
+			"name": "catalog-pattern-mismatch",
+			"problems": [
+				{
+					"at": "/patterns/0",
+					"code": "CATALOG_MISMATCH",
+					"path": "data/example/library.json"
+				}
+			],
+			"regenerated": false
+		},
+		{
+			"description": "A pattern statement reuses a component's statement id.",
+			"name": "pattern-duplicate-id",
+			"problems": [
+				{
+					"at": "/useWhen/0/id",
+					"code": "DUPLICATE_ID",
+					"path": "data/example/patterns/field.json"
+				}
+			],
+			"regenerated": true
+		},
+		{
+			"description": "A deprecated pattern's replacedBy fails the pattern identifier syntax.",
+			"name": "replaced-by-invalid",
+			"problems": [
+				{
+					"at": "/replacedBy",
+					"code": "IDENTIFIER_INVALID",
+					"path": "data/example/patterns/field.json"
+				},
+				{
+					"at": "/patterns/0/replacedBy",
+					"code": "IDENTIFIER_INVALID",
+					"path": "data/example/library.json"
+				}
+			],
+			"regenerated": true
+		},
+		{
+			"description": "A deprecated pattern's qualified replacedBy has a library segment longer than 64 characters.",
+			"name": "replaced-by-segment-too-long",
+			"problems": [
+				{
+					"at": "/replacedBy",
+					"code": "IDENTIFIER_INVALID",
+					"path": "data/example/patterns/field.json"
+				},
+				{
+					"at": "/patterns/0/replacedBy",
+					"code": "IDENTIFIER_INVALID",
+					"path": "data/example/library.json"
+				}
+			],
+			"regenerated": true
 		}
 	],
-	"format": 1,
+	"format": 2,
 	"stamp": {
 		"package": {
 			"name": "example-components",

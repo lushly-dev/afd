@@ -189,7 +189,7 @@
 			"html": "<div aria-label=\"Sowing methods\" role=\"listbox\"><violet-option active aria-selected=\"true\" id=\"violet-option-1\" label=\"Broadcast sowing\" role=\"option\" selected value=\"broadcast-sowing\">Broadcast sowing<span slot=\"description\">Used when broad bed coverage matters most.</span></violet-option></div>"
 		}
 	],
-	"format": 1,
+	"format": 2,
 	"gaps": [],
 	"import": "@lushly-dev/violet-elements",
 	"rules": [

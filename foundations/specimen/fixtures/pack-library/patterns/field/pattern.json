@@ -1,0 +1,111 @@
+{
+	"pattern": "field",
+	"summary": "Single-line text input with a visible label and optional validation message.",
+	"status": "stable",
+	"scope": "control",
+	"facets": {
+		"purpose": ["text-entry"],
+		"structure": ["inline"]
+	},
+	"useWhen": [
+		{
+			"id": "pattern.field.use-when",
+			"text": "Use for one line of free-form text inside or outside a form."
+		}
+	],
+	"avoidWhen": [
+		{
+			"id": "pattern.field.avoid-when",
+			"text": "Avoid for fixed option lists or multi-paragraph text."
+		}
+	],
+	"keep": [
+		{
+			"id": "pattern.field.named",
+			"text": "Exposes a textbox role and accessible name.",
+			"gate": "named"
+		},
+		{
+			"id": "pattern.field.edits-value",
+			"text": "Typing text dispatches an input event.",
+			"gate": "edits-value"
+		},
+		{
+			"id": "pattern.field.invalid-state",
+			"text": "Invalid state is exposed to assistive technology.",
+			"gate": "invalid-state"
+		},
+		{
+			"id": "pattern.field.clear-hint",
+			"text": "Explain how to fix an invalid value in plain text near the field."
+		}
+	],
+	"customize": [
+		{
+			"id": "pattern.field.size",
+			"text": "Match field width to the expected length of the value."
+		}
+	],
+	"setups": {
+		"default": {
+			"text": "Mount a text field labeled \"Email\".",
+			"targets": {
+				"control": {
+					"role": "textbox",
+					"name": "Email"
+				}
+			}
+		},
+		"invalid": {
+			"text": "Mount an invalid text field labeled \"Email\" with a hint.",
+			"targets": {
+				"control": {
+					"role": "textbox",
+					"name": "Email"
+				}
+			}
+		}
+	},
+	"gates": {
+		"named": {
+			"setup": "default",
+			"scenario": [
+				{
+					"id": "check-name",
+					"expect": {
+						"target": "control",
+						"a11y": {
+							"role": "textbox",
+							"name": "Email"
+						}
+					}
+				}
+			]
+		},
+		"edits-value": {
+			"setup": "default",
+			"scenario": [
+				{ "id": "type", "action": { "fill": "control", "value": "grace@example.com" } },
+				{
+					"id": "input-fired",
+					"expect": { "event": "input", "target": "control", "since": "type" }
+				}
+			]
+		},
+		"invalid-state": {
+			"setup": "invalid",
+			"scenario": [
+				{
+					"id": "check-invalid",
+					"expect": {
+						"target": "control",
+						"a11y": {
+							"role": "textbox",
+							"invalid": true
+						}
+					}
+				}
+			]
+		}
+	}
+}

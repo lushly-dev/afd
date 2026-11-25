@@ -146,7 +146,7 @@
 			"html": "<violet-data-grid-attachment-cell aria-label=\"Attachments\" placeholder=\"Add attachments\"></violet-data-grid-attachment-cell>"
 		}
 	],
-	"format": 1,
+	"format": 2,
 	"gaps": [
 		{
 			"kind": "summary"

@@ -22,7 +22,11 @@ pub(crate) const LIBRARY_MISMATCH: &str = "LIBRARY_MISMATCH";
 pub(crate) const PREFIX_MISMATCH: &str = "PREFIX_MISMATCH";
 pub(crate) const CATALOG_MISMATCH: &str = "CATALOG_MISMATCH";
 pub(crate) const DIGEST_MISMATCH: &str = "DIGEST_MISMATCH";
-/// The plugin's own code, outside the format's sixteen (section 3.4).
+pub(crate) const PATTERN_MISMATCH: &str = "PATTERN_MISMATCH";
+pub(crate) const COPY_MISMATCH: &str = "COPY_MISMATCH";
+pub(crate) const PATTERN_UNKNOWN: &str = "PATTERN_UNKNOWN";
+pub(crate) const COPY_UNKNOWN: &str = "COPY_UNKNOWN";
+/// The plugin's own code, outside the format's twenty (section 3.4).
 pub(crate) const FILE_TOO_LARGE: &str = "FILE_TOO_LARGE";
 
 /// One problem.

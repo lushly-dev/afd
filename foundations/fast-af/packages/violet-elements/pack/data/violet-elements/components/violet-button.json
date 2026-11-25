@@ -221,7 +221,7 @@
 			"html": "<violet-button appearance=\"quiet\" disabled type=\"button\">Quiet action</violet-button>"
 		}
 	],
-	"format": 1,
+	"format": 2,
 	"gaps": [
 		{
 			"kind": "role"

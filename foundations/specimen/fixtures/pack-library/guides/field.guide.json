@@ -20,5 +20,6 @@
 			"members": ["hint"]
 		}
 	],
-	"detail": "A single-line text field that takes part in forms.\n\nIts value is submitted under its name attribute. Setting invalid marks the field for assistive technology; the reason belongs in the hint slot, where it is read as the description."
+	"detail": "A single-line text field that takes part in forms.\n\nIts value is submitted under its name attribute. Setting invalid marks the field for assistive technology; the reason belongs in the hint slot, where it is read as the description.",
+	"implements": ["field"]
 }

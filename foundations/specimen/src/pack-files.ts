@@ -3,7 +3,7 @@ import { cp, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/pro
 import { basename, dirname, join, resolve } from 'node:path';
 import type { LoadedConfig } from './config.js';
 import { computeCoverage } from './coverage.js';
-import { checkPack, packCatalog, packContentDigest, readPackFiles } from './pack.js';
+import { canonicalJson, checkPack, packCatalog, packContentDigest, readPackFiles } from './pack.js';
 import { buildPack } from './pack-build.js';
 import type { PackComponent, PackRules } from './pack-schema.js';
 import type {
@@ -41,14 +41,16 @@ export function packDirectory(config: LoadedConfig): string {
 	return resolve(dirname(config.file), packConfig(config).directory);
 }
 
-/** The committed files of one library: its records and its rules. */
+/** The committed files of one library: its records, patterns, copies, and rules. */
 async function committedFiles(directory: string, library: string): Promise<Map<string, string>> {
 	const files = existsSync(directory) ? await readPackFiles(directory) : new Map();
 	return new Map(
 		[...files]
 			.filter(
 				([path]) =>
-					path === `rules/${library}.json` || path.startsWith(`data/${library}/components/`)
+					path === `rules/${library}.json` ||
+					path.startsWith(`data/${library}/components/`) ||
+					path.startsWith(`data/${library}/patterns/`)
 			)
 			.map(([path, bytes]) => [path, decoder.decode(bytes)])
 	);
@@ -122,6 +124,22 @@ export async function writePack(
 	allowFailed?: readonly string[]
 ): Promise<PackRun> {
 	const directory = packDirectory(config);
+	const missingSetups = build.problems.filter(
+		(problem) => problem.code === 'PATTERN_SETUP_MISSING'
+	);
+	if (missingSetups.length) {
+		throw Object.assign(
+			new Error(`No pack was written. ${missingSetups.map((item) => item.message).join(' ')}`),
+			{
+				code: 'PATTERN_SETUP_MISSING',
+				suggestion:
+					'Add the missing setup case (run specimen-suggest with the reported pattern: obligation) or declare a contexts limit on the implementation.',
+				details: {
+					missing: missingSetups.map(({ path, message }) => ({ path, message })),
+				},
+			}
+		);
+	}
 	const why = refusal(build, allowFailed);
 	if (why) throw new Error(`No pack was written. ${why}`);
 	const before = answered(await committedFiles(directory, build.library), build);
@@ -184,15 +202,77 @@ function staleness(
 		config: pack,
 		schemas,
 		...(config.guides ? { guides: config.guides } : {}),
+		...(config.patterns ? { patterns: config.patterns } : {}),
 		coverage: computeCoverage(schemas, []),
 		cases: [],
 		examples: [],
 	});
 	const plugins = config.plugins.length > 0;
 	const refused: string[] = [];
-	const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+	const same = (a: unknown, b: unknown) => canonicalJson(a) === canonicalJson(b);
 	const statements = (items: { id: string; text: string }[] | undefined) =>
 		(items ?? []).map(({ id, text }) => [id, text]);
+	const tagSet = new Set(schemas.map((s) => s.tag).filter((t) => t.startsWith(pack.prefix)));
+	// Derive expected component-to-pattern claims from both guide `implements` and entry
+	// `patternSetup` bindings (matching `pattern-coverage.ts` + `pack-build.ts`).
+	const expectedClaimsByTag = new Map<
+		string,
+		Map<string, { library: string; pattern: string; contexts?: unknown }>
+	>();
+	const addExpectedClaim = (tag: string, library: string, pattern: string, contexts?: unknown) => {
+		const map = expectedClaimsByTag.get(tag) ?? new Map();
+		const key = `${library}/${pattern}`;
+		const existing = map.get(key);
+		if (!existing) {
+			map.set(key, { library, pattern, ...(contexts !== undefined ? { contexts } : {}) });
+		} else if (existing.contexts === undefined && contexts !== undefined) {
+			existing.contexts = contexts;
+		}
+		expectedClaimsByTag.set(tag, map);
+	};
+	const guideByTag = new Map((config.guides?.components ?? []).map((guide) => [guide.tag, guide]));
+	for (const guide of config.guides?.components ?? []) {
+		if (!tagSet.has(guide.tag)) continue;
+		for (const claim of guide.implements ?? []) {
+			const claimLib = typeof claim === 'string' ? pack.library : claim.library;
+			const claimPat = typeof claim === 'string' ? claim : claim.pattern;
+			const ctx = guide.contexts;
+			addExpectedClaim(guide.tag, claimLib, claimPat, ctx);
+		}
+	}
+	for (const entry of config.entries) {
+		if (!entry.component || !tagSet.has(entry.component) || !entry.patternSetup) continue;
+		if (entry.story !== undefined && entry.story.play !== 'absent') continue;
+		const claimLib = entry.patternSetup.library ?? pack.library;
+		addExpectedClaim(
+			entry.component,
+			claimLib,
+			entry.patternSetup.pattern,
+			guideByTag.get(entry.component)?.contexts
+		);
+	}
+	const localImplTagsByPattern = new Map<string, Set<string>>();
+	for (const [tag, claims] of expectedClaimsByTag) {
+		for (const claim of claims.values()) {
+			if (claim.library !== pack.library) continue;
+			const set = localImplTagsByPattern.get(claim.pattern) ?? new Set<string>();
+			set.add(tag);
+			localImplTagsByPattern.set(claim.pattern, set);
+		}
+	}
+	const normalizeContexts = (contexts: unknown) => {
+		if (!contexts || typeof contexts !== 'object') return undefined;
+		const c = contexts as {
+			viewport?: Record<string, unknown>;
+			themes?: string[];
+			reason: string;
+		};
+		return {
+			...(c.viewport ? { viewport: c.viewport } : {}),
+			...(c.themes ? { themes: [...c.themes].sort() } : {}),
+			reason: c.reason,
+		};
+	};
 	const rulesOf = (record: PackComponent) => {
 		const names = new Set(record.api.attributes.map((item) => item.name));
 		return (config.guides?.rules ?? [])
@@ -214,9 +294,63 @@ function staleness(
 				why('Its rules differ from the guide files and guide sources.');
 			continue;
 		}
+		if (path.startsWith(`data/${pack.library}/patterns/`)) {
+			const rest = path.slice(`data/${pack.library}/patterns/`.length);
+			// Saved copy records (`<pattern>/<name>.json`) are checked by Slice 2 `fingerprintsOnly`.
+			if (rest.includes('/')) continue;
+			const builtPattern = expected.files.get(path);
+			if (!builtPattern) {
+				why('No pattern.json file describes it anymore.');
+			} else {
+				const havePat = JSON.parse(text) as {
+					pattern: string;
+					implementations: Array<{ kind: string; tag?: string; name?: string; linkage: string }>;
+				};
+				const wantPat = JSON.parse(builtPattern) as typeof havePat;
+				// Compare component implementations against guides + patternSetup bindings; keep
+				// Slice 2 `kind: "copy"` entries out of Slice 1's static diff until B4.
+				const expectedComponentImpls = [...(localImplTagsByPattern.get(wantPat.pattern) ?? [])]
+					.sort()
+					.map((tag) => ({ kind: 'component', tag, linkage: 'instance' }));
+				const haveWithoutCopies = {
+					...havePat,
+					implementations: havePat.implementations.filter((item) => item.kind !== 'copy'),
+				};
+				const wantWithSetups = {
+					...wantPat,
+					implementations: expectedComponentImpls,
+				};
+				if (!same(haveWithoutCopies, wantWithSetups)) {
+					why('Its pattern record differs from its pattern.json or implementing guides.');
+				}
+			}
+			continue;
+		}
 		const record = JSON.parse(text) as PackComponent;
 		const built = expected.files.get(path);
 		const guide = config.guides?.components.find((item) => item.tag === record.tag);
+		const havePatterns = (record.patterns ?? []).map((item) => ({
+			library: item.library,
+			pattern: item.pattern,
+			...(item.contexts ? { contexts: normalizeContexts(item.contexts) } : {}),
+		}));
+		const wantPatterns = [...(expectedClaimsByTag.get(record.tag)?.values() ?? [])]
+			.sort((a, b) =>
+				a.library !== b.library
+					? a.library < b.library
+						? -1
+						: 1
+					: a.pattern < b.pattern
+						? -1
+						: a.pattern > b.pattern
+							? 1
+							: 0
+			)
+			.map((item) => ({
+				library: item.library,
+				pattern: item.pattern,
+				...(item.contexts ? { contexts: normalizeContexts(item.contexts) } : {}),
+			}));
 		const fields: [string, unknown, unknown][] = [
 			['summary', record.summary, guide?.summary],
 			['detail', record.detail, guide?.detail],
@@ -225,6 +359,7 @@ function staleness(
 			['usage', statements(record.usage), statements(guide?.usage)],
 			['a11y.statements', statements(record.a11y.statements), statements(guide?.a11y)],
 			['rules', record.rules, rulesOf(record)],
+			['patterns', havePatterns, wantPatterns],
 		];
 		for (const [field, have, want] of fields)
 			if (!same(have, want)) why(`Its ${field} differs from its guide.`);
@@ -283,8 +418,12 @@ function staleness(
 		}
 	}
 	for (const path of expected.files.keys())
-		if (!committed.has(path))
-			refused.push(`${path}: The manifest declares it, and it has no record.`);
+		if (!committed.has(path)) {
+			const reason = path.startsWith(`data/${pack.library}/patterns/`)
+				? 'A pattern.json declares it, and it has no committed pattern record.'
+				: 'The manifest declares it, and it has no record.';
+			refused.push(`${path}: ${reason}`);
+		}
 	return refused;
 }
 

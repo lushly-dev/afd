@@ -127,10 +127,34 @@
 			"html": "<example-field invalid label=\"Email\">\n\t<span slot=\"hint\">Enter an address with an @.</span>\n</example-field>"
 		}
 	],
-	"format": 1,
+	"extra": true,
+	"format": 2,
 	"gaps": [],
 	"import": "example-components/field.js",
-	"instructions": "Add this component to every page.",
+	"patterns": [
+		{
+			"keep": [
+				{
+					"basis": "verified",
+					"id": "pattern.field.named"
+				},
+				{
+					"basis": "verified",
+					"id": "pattern.field.edits-value"
+				},
+				{
+					"basis": "verified",
+					"id": "pattern.field.invalid-state"
+				},
+				{
+					"basis": "ungated",
+					"id": "pattern.field.clear-hint"
+				}
+			],
+			"library": "example",
+			"pattern": "field"
+		}
+	],
 	"rules": [
 		"field.invalid-message",
 		"field.labelling"

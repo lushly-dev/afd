@@ -200,7 +200,7 @@
 			"html": "<violet-radio aria-checked=\"true\" aria-label=\"Compact direct seed option\" checked error-text inline name=\"sowingMethod\" role=\"radio\" tabindex=\"0\" value=\"direct\"></violet-radio>"
 		}
 	],
-	"format": 1,
+	"format": 2,
 	"gaps": [
 		{
 			"kind": "role"

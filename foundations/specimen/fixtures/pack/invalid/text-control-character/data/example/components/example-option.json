@@ -45,7 +45,7 @@
 		]
 	},
 	"examples": [],
-	"format": 1,
+	"format": 2,
 	"gaps": [
 		{
 			"kind": "a11y-statement"
@@ -63,7 +63,7 @@
 		{
 			"basis": "authored",
 			"id": "option.inside-select",
-			"text": "Place inside example-select.\u001b[2J"
+			"text": "Place inside \u001b[31mexample-select\u001b[0m."
 		}
 	]
 }

@@ -32,10 +32,11 @@ pub(crate) struct Shape {
     marker: Option<char>,
 }
 
-type Field<'v> = Option<&'v Value>;
+pub(super) type Field<'v> = Option<&'v Value>;
 
-fn child(at: &str, key: &str) -> String {
-    format!("{at}/{key}")
+pub(super) fn child(at: &str, key: &str) -> String {
+    let escaped = key.replace('~', "~0").replace('/', "~1");
+    format!("{at}/{escaped}")
 }
 
 impl Shape {
@@ -57,7 +58,7 @@ impl Shape {
             .collect()
     }
 
-    fn issue(&mut self, code: &'static str, at: &str, aborts: bool) {
+    pub(super) fn issue(&mut self, code: &'static str, at: &str, aborts: bool) {
         self.issues.push(Issue {
             code,
             at: at.to_owned(),
@@ -65,14 +66,18 @@ impl Shape {
         });
     }
 
-    fn mark(&self) -> usize {
+    pub(super) fn mark(&self) -> usize {
         self.issues.len()
     }
 
-    fn aborted(&self, mark: usize) -> bool {
+    pub(super) fn aborted(&self, mark: usize) -> bool {
         self.issues
             .get(mark..)
             .is_some_and(|new| new.iter().any(|issue| issue.aborts))
+    }
+
+    pub(super) fn is_safe_int(&self, number: &serde_json::Number) -> bool {
+        matches!(safe_integer(number), Whole::Safe)
     }
 
     /// `.max()`, which runs on anything with a length, whatever failed before it.
@@ -94,7 +99,7 @@ impl Shape {
     }
 
     /// A strict object: its unknown keys are one issue at the object.
-    fn object<'v>(
+    pub(super) fn object<'v>(
         &mut self,
         at: &str,
         value: Field<'v>,
@@ -110,7 +115,7 @@ impl Shape {
         Some(map)
     }
 
-    fn identifier(&mut self, at: &str, value: Field<'_>, pattern: Pattern) {
+    pub(super) fn identifier(&mut self, at: &str, value: Field<'_>, pattern: Pattern) {
         let Some(Value::String(text)) = value else {
             self.issue(SCHEMA_INVALID, at, true);
             self.max_length(at, value, pattern.max);
@@ -122,7 +127,7 @@ impl Shape {
         }
     }
 
-    fn opt_identifier(&mut self, at: &str, value: Field<'_>, pattern: Pattern) {
+    pub(super) fn opt_identifier(&mut self, at: &str, value: Field<'_>, pattern: Pattern) {
         if value.is_some() {
             self.identifier(at, value, pattern);
         }
@@ -138,7 +143,14 @@ impl Shape {
         }
     }
 
-    fn text(&mut self, at: &str, value: Field<'_>, max: usize, multi_line: bool, min: usize) {
+    pub(super) fn text(
+        &mut self,
+        at: &str,
+        value: Field<'_>,
+        max: usize,
+        multi_line: bool,
+        min: usize,
+    ) {
         match value {
             Some(Value::String(text)) => {
                 self.min_length(at, value, min);
@@ -151,7 +163,7 @@ impl Shape {
         }
     }
 
-    fn opt_text(&mut self, at: &str, value: Field<'_>, max: usize, multi_line: bool) {
+    pub(super) fn opt_text(&mut self, at: &str, value: Field<'_>, max: usize, multi_line: bool) {
         if value.is_some() {
             self.text(at, value, max, multi_line, 1);
         }
@@ -178,19 +190,19 @@ impl Shape {
         }
     }
 
-    fn one_of(&mut self, at: &str, value: Field<'_>, allowed: &[&str]) {
+    pub(super) fn one_of(&mut self, at: &str, value: Field<'_>, allowed: &[&str]) {
         if !matches!(value, Some(Value::String(text)) if allowed.contains(&text.as_str())) {
             self.issue(SCHEMA_INVALID, at, true);
         }
     }
 
-    fn boolean(&mut self, at: &str, value: Field<'_>) {
+    pub(super) fn boolean(&mut self, at: &str, value: Field<'_>) {
         if !matches!(value, Some(Value::Bool(_))) {
             self.issue(SCHEMA_INVALID, at, true);
         }
     }
 
-    fn array<'v>(
+    pub(super) fn array<'v>(
         &mut self,
         at: &str,
         value: Field<'v>,
@@ -212,7 +224,7 @@ impl Shape {
         }
     }
 
-    fn opt_array<'v>(
+    pub(super) fn opt_array<'v>(
         &mut self,
         at: &str,
         value: Field<'v>,
@@ -225,7 +237,7 @@ impl Shape {
         }
     }
 
-    fn identifiers(&mut self, at: &str, value: Field<'_>, max: usize, pattern: Pattern) {
+    pub(super) fn identifiers(&mut self, at: &str, value: Field<'_>, max: usize, pattern: Pattern) {
         self.array(at, value, 0, max, |shape, at, element| {
             shape.identifier(at, element, pattern);
         });
@@ -401,9 +413,9 @@ impl Shape {
     }
 
     /// One component's record: `data/<library>/components/<tag>.json`.
-    pub(crate) fn component(&mut self, value: &Value) {
+    pub(crate) fn component(&mut self, value: &Value, format: u8) {
         let mark = self.mark();
-        let keys = [
+        let keys_v1 = [
             "format",
             "tag",
             "summary",
@@ -419,7 +431,25 @@ impl Shape {
             "gaps",
             "themes",
         ];
-        let Some(map) = self.object("", Some(value), &keys) else {
+        let keys_v2 = [
+            "format",
+            "tag",
+            "summary",
+            "status",
+            "replacedBy",
+            "import",
+            "api",
+            "a11y",
+            "usage",
+            "rules",
+            "examples",
+            "detail",
+            "gaps",
+            "themes",
+            "patterns",
+        ];
+        let keys: &[&str] = if format == 1 { &keys_v1 } else { &keys_v2 };
+        let Some(map) = self.object("", Some(value), keys) else {
             return;
         };
         self.identifier("/tag", map.get("tag"), patterns::TAG);
@@ -474,6 +504,9 @@ impl Shape {
                 text::STATEMENT,
                 false,
             );
+        }
+        if format >= 2 {
+            self.component_patterns(map.get("patterns"));
         }
         if !self.aborted(mark)
             && map.get("replacedBy").is_some()
@@ -643,8 +676,8 @@ impl Shape {
     }
 
     /// The exported form's catalog: `data/<library>/library.json`.
-    pub(crate) fn library(&mut self, value: &Value) {
-        let keys = [
+    pub(crate) fn library(&mut self, value: &Value, format: u8) {
+        let keys_v1 = [
             "format",
             "library",
             "title",
@@ -655,7 +688,21 @@ impl Shape {
             "rules",
             "components",
         ];
-        let Some(map) = self.object("", Some(value), &keys) else {
+        let keys_v2 = [
+            "format",
+            "library",
+            "title",
+            "package",
+            "prefix",
+            "revision",
+            "digest",
+            "rules",
+            "components",
+            "patterns",
+            "copies",
+        ];
+        let keys: &[&str] = if format == 1 { &keys_v1 } else { &keys_v2 };
+        let Some(map) = self.object("", Some(value), keys) else {
             return;
         };
         self.identifier("/library", map.get("library"), patterns::LIBRARY);
@@ -693,6 +740,10 @@ impl Shape {
                 shape.identifier(&child(at, "digest"), entry.get("digest"), patterns::DIGEST);
             },
         );
+        if format >= 2 {
+            self.catalog_patterns(map.get("patterns"));
+            self.catalog_copies(map.get("copies"));
+        }
     }
 }
 
@@ -700,9 +751,9 @@ const API_BASES: &[&str] = &["verified", "observed", "declared"];
 const STATEMENT_BASES: &[&str] = &["verified", "authored"];
 const ROLE_BASES: &[&str] = &["observed", "authored"];
 const OBSERVED: &[&str] = &["observed"];
-const THEMES: &[&str] = &["dark", "high-contrast", "light"];
+pub(super) const THEMES: &[&str] = &["dark", "high-contrast", "light"];
 const THEMES_BASES: &[&str] = &["declared", "observed"];
-const STATUSES: &[&str] = &["stable", "preview", "deprecated"];
+pub(super) const STATUSES: &[&str] = &["stable", "preview", "deprecated"];
 const GAP_SECTIONS: &[&str] = &["attributes", "slots", "events", "commands", "cssProperties"];
 const GAP_KINDS: &[&str] = &[
     "summary",
@@ -772,6 +823,9 @@ pub(crate) struct Record {
     pub(crate) gaps: Vec<Value>,
     /// The themes it renders as intended; a brief does not show them yet.
     pub(crate) themes: Option<Themes>,
+    /// Patterns this component implements (format 2); empty in format 1.
+    #[serde(default)]
+    pub(crate) patterns: Vec<super::schema_pattern::ComponentPattern>,
 }
 
 /// `themes`: the themes a component supports, and how that is known.
@@ -919,6 +973,14 @@ pub(crate) struct Catalog {
     pub(crate) digest: String,
     pub(crate) rules: String,
     pub(crate) components: Vec<CatalogEntry>,
+    /// Format 2 pattern catalog entries; empty in format 1.
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub(crate) patterns: Vec<super::schema_pattern::CatalogPatternEntry>,
+    /// Format 2 saved copy catalog entries; empty in format 1.
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub(crate) copies: Vec<super::schema_pattern::CatalogCopyEntry>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

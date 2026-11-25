@@ -20,5 +20,6 @@
 			"state": "open",
 			"role": "listbox"
 		}
-	]
+	],
+	"implements": ["select"]
 }

@@ -102,7 +102,7 @@
 			"html": "<example-select label=\"Size\" value=\"m\">\n\t<example-option value=\"s\">Small</example-option>\n\t<example-option selected value=\"m\">Medium</example-option>\n</example-select>"
 		}
 	],
-	"format": 1,
+	"format": 2,
 	"gaps": [
 		{
 			"kind": "unobserved",
@@ -111,6 +111,30 @@
 		}
 	],
 	"import": "example-components/select.js",
+	"patterns": [
+		{
+			"keep": [
+				{
+					"basis": "verified",
+					"id": "pattern.select.named"
+				},
+				{
+					"basis": "verified",
+					"id": "pattern.select.escape-closes"
+				},
+				{
+					"basis": "verified",
+					"id": "pattern.select.fits-narrow"
+				},
+				{
+					"basis": "ungated",
+					"id": "pattern.select.concise-labels"
+				}
+			],
+			"library": "example",
+			"pattern": "select"
+		}
+	],
 	"rules": [
 		"field.labelling",
 		"popup.focus-return"
@@ -121,7 +145,7 @@
 	"usage": [
 		{
 			"basis": "authored",
-			"id": "field.when",
+			"id": "field.label-required",
 			"text": "Use for a choice from a short, fixed list. For free text, use example-field."
 		}
 	]

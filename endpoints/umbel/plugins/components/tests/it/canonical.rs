@@ -191,7 +191,7 @@ async fn a_repeated_key_keeps_the_last_value_and_is_not_canonical() {
     let raw = String::from_utf8(pack.files[&path].clone()).unwrap();
     pack.set_raw(
         &path,
-        &raw.replacen("\"format\": 1,", "\"format\": 0,\n\t\"format\": 1,", 1),
+        &raw.replacen("\"format\": 2,", "\"format\": 0,\n\t\"format\": 2,", 1),
     );
     pack.regenerate("example");
     assert_eq!(
@@ -358,6 +358,42 @@ async fn a_tag_that_reads_as_an_instruction_is_not_shown_in_a_problem_path() {
         problems(&result)
             .iter()
             .any(|(_, _, code)| code == "IDENTIFIER_INVALID")
+    );
+}
+
+#[tokio::test]
+async fn fractional_layout_min_height_is_schema_invalid() {
+    let path = "data/example/patterns/select.json";
+    let mut pack = Pack::example();
+    let raw = String::from_utf8(pack.files[path].clone()).unwrap();
+    assert!(raw.contains("\"minHeight\": 36"));
+    pack.set_raw(
+        path,
+        &raw.replacen("\"minHeight\": 36", "\"minHeight\": 36.5", 1),
+    );
+    pack.regenerate("example");
+    assert_eq!(
+        the_problem(&pack).await,
+        shape(
+            path,
+            Some("/gates/fits-narrow/scenario/0/expect/layout/minHeight"),
+            "SCHEMA_INVALID"
+        )
+    );
+
+    // Multi-segment nested pointers (`context/viewport/width`) keep clean `/` separators.
+    let mut pack = Pack::example();
+    pack.edit(path, |pat| {
+        pat["gates"]["fits-narrow"]["context"]["viewport"]["width"] = json!(0);
+    });
+    pack.regenerate("example");
+    assert_eq!(
+        the_problem(&pack).await,
+        shape(
+            path,
+            Some("/gates/fits-narrow/context/viewport/width"),
+            "SCHEMA_INVALID"
+        )
     );
 }
 

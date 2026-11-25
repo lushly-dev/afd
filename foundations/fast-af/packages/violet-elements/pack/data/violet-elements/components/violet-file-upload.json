@@ -331,7 +331,7 @@
 			"html": "<div style=\"max-inline-size: 38rem;\"><form><violet-file-upload accept=\".pdf,.jpg,.jpeg,.png\" appearance=\"dropzone\" data-invalid error-text=\"Add a valid file before continuing.\" invalid label=\"Upload field maps\" max-file-size max-files=\"2\" multiple name=\"field-maps\" size=\"natural\" supporting-text=\"Accepted formats: PDF, JPG, or PNG.\"></violet-file-upload></form></div>"
 		}
 	],
-	"format": 1,
+	"format": 2,
 	"gaps": [
 		{
 			"kind": "unobserved",

@@ -207,7 +207,7 @@ describe('specimen pack', () => {
 				cases,
 				(await readFile(cases, 'utf8')).replace(
 					'<example-select label="Size" value="m">',
-					'<example-select label="Size" value="m" disabled>'
+					'<example-select label="Size" value="m" required>'
 				)
 			);
 			const edited = await createSpecimenBench({ root: join(root, 'pack-library') });
@@ -305,6 +305,153 @@ describe('specimen pack', () => {
 				]);
 			} finally {
 				await variants.close();
+				await rm(root, { recursive: true, force: true });
+			}
+		},
+		SEVERAL_BUILDS
+	);
+
+	it(
+		'refuses to write with PATTERN_SETUP_MISSING when an implemented pattern lacks a gated setup',
+		async () => {
+			const root = await copy();
+			const configPath = join(root, 'pack-library/specimen.config.json');
+			const config = JSON.parse(await readFile(configPath, 'utf8')) as {
+				specimens: Array<Record<string, unknown>>;
+			};
+			// Remove the `invalid` setup binding for example-field so `field/invalid` is missing.
+			for (const entry of config.specimens) {
+				if (entry.id === 'example-field--invalid') {
+					delete entry.patternSetup;
+				}
+			}
+			await writeFile(configPath, JSON.stringify(config, null, '\t'));
+			const before = await readPackFiles(join(root, 'pack/committed'));
+			const missing = await createSpecimenBench({ root: join(root, 'pack-library') });
+			try {
+				const check = await missing.packCheck({ workers: 1 });
+				expect(check.valid).toBe(false);
+				expect(check.problems).toEqual(
+					expect.arrayContaining([
+						expect.objectContaining({
+							code: 'PATTERN_SETUP_MISSING',
+							message: expect.stringContaining('example/field'),
+						}),
+					])
+				);
+				await expect(missing.pack({ workers: 1 })).rejects.toMatchObject({
+					code: 'PATTERN_SETUP_MISSING',
+					suggestion: expect.stringContaining('specimen-suggest'),
+				});
+				expect(await readPackFiles(join(root, 'pack/committed'))).toEqual(before);
+			} finally {
+				await missing.close();
+				await rm(root, { recursive: true, force: true });
+			}
+		},
+		SEVERAL_BUILDS
+	);
+
+	it(
+		'refuses to write with GATE_FAILED when a pattern gate fails, even with allowFailed',
+		async () => {
+			const root = await copy();
+			const cases = join(root, 'pack-library/specimens.js');
+			await writeFile(
+				cases,
+				(await readFile(cases, 'utf8')).replace(
+					'<example-select label="Size" value="m">',
+					'<example-select label="Size" value="m" disabled>'
+				)
+			);
+			const before = await readPackFiles(join(root, 'pack/committed'));
+			const broken = await createSpecimenBench({ root: join(root, 'pack-library') });
+			try {
+				const check = await broken.packCheck({ workers: 1 });
+				expect(check.valid).toBe(false);
+				expect(check.problems).toEqual(
+					expect.arrayContaining([expect.objectContaining({ code: 'GATE_FAILED' })])
+				);
+				await expect(
+					broken.pack({
+						workers: 1,
+						allowFailed: ['example-select--default--gate--escape-closes'],
+					})
+				).rejects.toThrow(/GATE_FAILED/);
+				expect(await readPackFiles(join(root, 'pack/committed'))).toEqual(before);
+			} finally {
+				await broken.close();
+				await rm(root, { recursive: true, force: true });
+			}
+		},
+		SEVERAL_BUILDS
+	);
+
+	it(
+		'builds a pattern-only format 2 pack with zero components',
+		async () => {
+			const root = await mkdtemp(join(tmpdir(), 'specimen-pack-patterns-only-'));
+			const { mkdir: mk } = await import('node:fs/promises');
+			try {
+				await mk(join(root, 'patterns/confirm'), { recursive: true });
+				await mk(join(root, 'pack'), { recursive: true });
+				await writeFile(
+					join(root, 'package.json'),
+					JSON.stringify({ name: 'app-patterns', version: '1.0.0', type: 'module' })
+				);
+				await writeFile(
+					join(root, 'patterns/confirm/pattern.json'),
+					JSON.stringify({
+						pattern: 'confirm',
+						summary: 'Confirm a destructive action before applying it.',
+						scope: 'composition',
+						facets: { purpose: ['confirmation'] },
+						useWhen: [{ id: 'pattern.confirm.use', text: 'Use before irreversible actions.' }],
+						avoidWhen: [],
+						keep: [
+							{ id: 'pattern.confirm.explicit', text: 'Name the action on the confirm button.' },
+						],
+						customize: [],
+						setups: {},
+						gates: {},
+					})
+				);
+				await writeFile(
+					join(root, 'app.js'),
+					'export const Screen = { render: () => { const d = document.createElement("div"); d.textContent = "Confirm"; return d; } };\n'
+				);
+				await writeFile(
+					join(root, 'specimen.config.json'),
+					JSON.stringify({
+						specimens: [
+							{ id: 'app--screen', title: 'App/Screen', module: './app.js', exportName: 'Screen' },
+						],
+						patterns: ['./patterns/**/pattern.json'],
+						pack: {
+							library: 'myapp',
+							title: 'My App Patterns',
+							prefix: 'myapp-',
+							package: './package.json',
+							directory: './pack',
+							localElements: { tags: ['myapp-dialog'] },
+						},
+					})
+				);
+				const appBench = await createSpecimenBench({ root });
+				try {
+					const written = await appBench.pack({ workers: 1 });
+					expect(written.problems).toEqual([]);
+					expect(written.written.sort()).toEqual([
+						'data/myapp/patterns/confirm.json',
+						'rules/myapp.json',
+					]);
+					const exported = await appBench.packExport({ directory: join(root, 'exported') });
+					expect(exported.files).toContain('data/myapp/library.json');
+					expect(exported.files).toContain('data/myapp/patterns/confirm.json');
+				} finally {
+					await appBench.close();
+				}
+			} finally {
 				await rm(root, { recursive: true, force: true });
 			}
 		},

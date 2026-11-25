@@ -233,7 +233,7 @@
 			"html": "<violet-switch aria-label=\"Compact irrigation alerts switch\" checked error-text inline name=\"compactIrrigationAlerts\" value=\"enabled\"></violet-switch>"
 		}
 	],
-	"format": 1,
+	"format": 2,
 	"gaps": [
 		{
 			"kind": "role"

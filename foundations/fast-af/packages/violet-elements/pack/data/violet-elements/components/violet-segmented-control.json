@@ -150,7 +150,7 @@
 			"html": "<violet-segmented-control error-text=\"Choose a view before continuing.\" invalid label=\"Propagation view\" name required supporting-text value><violet-segment value=\"overview\">Overview</violet-segment><violet-segment value=\"planting\">Planting</violet-segment></violet-segmented-control>"
 		}
 	],
-	"format": 1,
+	"format": 2,
 	"gaps": [
 		{
 			"kind": "role"

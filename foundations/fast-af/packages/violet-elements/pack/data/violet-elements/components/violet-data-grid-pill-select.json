@@ -203,7 +203,7 @@
 			"html": "<violet-data-grid-pill-select control-label=\"Planting method\" error-announcement=\"self\" error-text placeholder=\"Choose a method\" value=\"Transplant Cover\"></violet-data-grid-pill-select>"
 		}
 	],
-	"format": 1,
+	"format": 2,
 	"gaps": [
 		{
 			"kind": "summary"

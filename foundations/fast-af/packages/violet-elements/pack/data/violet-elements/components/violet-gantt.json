@@ -244,7 +244,7 @@
 			"html": "<div style=\"inline-size: 70rem; block-size: 30rem; max-inline-size: 100%;\"><violet-gantt density=\"natural\" dir=\"ltr\" locale></violet-gantt></div>"
 		}
 	],
-	"format": 1,
+	"format": 2,
 	"gaps": [
 		{
 			"kind": "summary"

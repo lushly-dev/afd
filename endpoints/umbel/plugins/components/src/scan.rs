@@ -5,8 +5,9 @@ use serde_json::{Map, Value};
 use umbel_scan::scan_content;
 
 /// Whether an identifier, its separators read as spaces, reads as an instruction.
+/// Includes `/` so qualified pattern ids (`<library>/<pattern>`) are scanned across segments too.
 pub(crate) fn identifier_hit(identifier: &str) -> bool {
-    let words = identifier.replace(['-', '.', '_'], " ");
+    let words = identifier.replace(['-', '.', '_', '/'], " ");
     scan_content(&words).is_instruction_like()
 }
 

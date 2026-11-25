@@ -1,0 +1,134 @@
+{
+	"avoidWhen": [
+		{
+			"id": "pattern.field.avoid-when",
+			"text": "Avoid for fixed option lists or multi-paragraph text."
+		}
+	],
+	"customize": [
+		{
+			"id": "pattern.field.size",
+			"text": "Match field width to the expected length of the value."
+		}
+	],
+	"facets": {
+		"purpose": [
+			"text-entry"
+		],
+		"structure": [
+			"inline"
+		]
+	},
+	"format": 2,
+	"gates": {
+		"edits-value": {
+			"scenario": [
+				{
+					"action": {
+						"fill": "control",
+						"value": "grace@example.com"
+					},
+					"id": "type"
+				},
+				{
+					"expect": {
+						"event": "input",
+						"since": "type",
+						"target": "control"
+					},
+					"id": "input-fired"
+				}
+			],
+			"setup": "default"
+		},
+		"invalid-state": {
+			"scenario": [
+				{
+					"expect": {
+						"a11y": {
+							"invalid": true,
+							"role": "textbox"
+						},
+						"target": "control"
+					},
+					"id": "check-invalid"
+				}
+			],
+			"setup": "invalid"
+		},
+		"named": {
+			"scenario": [
+				{
+					"expect": {
+						"a11y": {
+							"name": "Email",
+							"role": "textbox"
+						},
+						"target": "control"
+					},
+					"id": "check-name"
+				}
+			],
+			"setup": "default"
+		}
+	},
+	"implementations": [
+		{
+			"kind": "component",
+			"linkage": "instance",
+			"tag": "example-field"
+		}
+	],
+	"keep": [
+		{
+			"gate": "named",
+			"id": "pattern.field.named",
+			"text": "Exposes a textbox role and accessible name."
+		},
+		{
+			"gate": "edits-value",
+			"id": "pattern.field.edits-value",
+			"text": "Typing text dispatches an input event."
+		},
+		{
+			"gate": "invalid-state",
+			"id": "pattern.field.invalid-state",
+			"text": "Invalid state is exposed to assistive technology."
+		},
+		{
+			"id": "pattern.field.clear-hint",
+			"text": "Explain how to fix an invalid value in plain text near the field."
+		}
+	],
+	"pattern": "field",
+	"replacedBy": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/select",
+	"scope": "control",
+	"setups": {
+		"default": {
+			"targets": {
+				"control": {
+					"name": "Email",
+					"role": "textbox"
+				}
+			},
+			"text": "Mount a text field labeled \"Email\"."
+		},
+		"invalid": {
+			"targets": {
+				"control": {
+					"name": "Email",
+					"role": "textbox"
+				}
+			},
+			"text": "Mount an invalid text field labeled \"Email\" with a hint."
+		}
+	},
+	"status": "deprecated",
+	"summary": "Single-line text input with a visible label and optional validation message.",
+	"useWhen": [
+		{
+			"id": "pattern.field.use-when",
+			"text": "Use for one line of free-form text inside or outside a form."
+		}
+	]
+}

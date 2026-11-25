@@ -14,14 +14,19 @@ import {
 	PACK_PATTERNS,
 	PACK_TEXT_LIMITS,
 	type PackComponent,
+	type PackComponentPattern,
+	type PackKeepBasis,
+	type PackPattern,
 	type PackRules,
 } from './pack-schema.js';
+import type { LoadedPatterns } from './patterns.js';
 import type { ComponentSchema, SchemaValue } from './plugin.js';
 import type {
 	ElementObservation,
 	GuideCoverage,
 	Observation,
 	PackConfig,
+	PatternCoverage,
 	ThemeSupport,
 } from './types.js';
 
@@ -54,8 +59,10 @@ export interface PackBuildInput {
 	/** Every schema the run used; only the library's tags get a record. */
 	schemas: readonly ComponentSchema[];
 	guides?: LoadedGuides;
+	patterns?: LoadedPatterns;
 	coverage: Pick<CoverageReport, 'components'>;
 	guideCoverage?: GuideCoverage;
+	patternCoverage?: PatternCoverage;
 	cases: readonly PackCase[];
 	examples: readonly PackExample[];
 }
@@ -384,6 +391,43 @@ function componentRecord(
 	const specifier = importOf(input.config, schema);
 	const themes = declaredThemesOf(tag, input.cases);
 	const themeReason = texts.line(themes?.reason, 'themes.reason');
+	const componentPatterns: PackComponentPattern[] = (input.patternCoverage?.implementations ?? [])
+		.filter((impl) => impl.kind === 'component' && impl.tag === tag)
+		.map((impl) => {
+			const keep: PackKeepBasis[] = impl.keep.flatMap((item): PackKeepBasis[] => {
+				if (item.level === 'verified') return [{ id: item.id, basis: 'verified' }];
+				if (item.level === 'ungated') return [{ id: item.id, basis: 'ungated' }];
+				if (item.level === 'out-of-context' && item.reason)
+					return [{ id: item.id, basis: 'out-of-context', reason: item.reason }];
+				return [];
+			});
+			const contexts = impl.contexts
+				? {
+						...(impl.contexts.viewport ? { viewport: impl.contexts.viewport } : {}),
+						...(impl.contexts.themes
+							? { themes: sorted(impl.contexts.themes) as ('dark' | 'high-contrast' | 'light')[] }
+							: {}),
+						reason: impl.contexts.reason,
+					}
+				: undefined;
+			return {
+				library: impl.patternLibrary,
+				pattern: impl.pattern,
+				...(contexts ? { contexts } : {}),
+				keep,
+			};
+		})
+		.sort((a, b) =>
+			a.library !== b.library
+				? a.library < b.library
+					? -1
+					: 1
+				: a.pattern < b.pattern
+					? -1
+					: a.pattern > b.pattern
+						? 1
+						: 0
+		);
 
 	const api = {
 		attributes: byName(attributes),
@@ -451,6 +495,7 @@ function componentRecord(
 					},
 				}
 			: {}),
+		...(componentPatterns.length ? { patterns: componentPatterns } : {}),
 	};
 	return { record, omitted: texts.omitted };
 }
@@ -533,5 +578,64 @@ export function buildPack(input: PackBuildInput): PackBuild {
 			.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
 	};
 	files.set(`rules/${config.library}.json`, canonicalJson(rulesFile));
+
+	// Format 2 pattern records for local patterns owned by this library (`spec.md` §6.4).
+	const tagSet = new Set(tags);
+	const localImplTagsByPattern = new Map<string, Set<string>>();
+	for (const guide of input.guides?.components ?? []) {
+		if (!tagSet.has(guide.tag)) continue;
+		for (const claim of guide.implements ?? []) {
+			const claimLib = typeof claim === 'string' ? config.library : claim.library;
+			const claimPat = typeof claim === 'string' ? claim : claim.pattern;
+			if (claimLib !== config.library) continue;
+			const set = localImplTagsByPattern.get(claimPat) ?? new Set<string>();
+			set.add(guide.tag);
+			localImplTagsByPattern.set(claimPat, set);
+		}
+	}
+	for (const impl of input.patternCoverage?.implementations ?? []) {
+		if (
+			impl.kind === 'component' &&
+			impl.tag &&
+			tagSet.has(impl.tag) &&
+			impl.patternLibrary === config.library
+		) {
+			const set = localImplTagsByPattern.get(impl.pattern) ?? new Set<string>();
+			set.add(impl.tag);
+			localImplTagsByPattern.set(impl.pattern, set);
+		}
+	}
+	for (const data of input.patterns?.patterns ?? []) {
+		const facets: Record<string, string[]> = Object.fromEntries(
+			Object.keys(data.facets ?? {})
+				.sort()
+				.map((key) => [key, sorted(data.facets?.[key] ?? [])])
+		);
+		const implementations: PackPattern['implementations'] = sorted(
+			localImplTagsByPattern.get(data.pattern) ?? []
+		).map((tag) => ({
+			kind: 'component' as const,
+			tag,
+			linkage: 'instance' as const,
+		}));
+		const patternRecord: PackPattern = {
+			format: PACK_FORMAT_VERSION,
+			pattern: data.pattern,
+			...(data.summary === undefined ? {} : { summary: data.summary }),
+			status: data.status ?? 'stable',
+			...(data.replacedBy === undefined ? {} : { replacedBy: data.replacedBy }),
+			scope: data.scope,
+			facets,
+			useWhen: data.useWhen ?? [],
+			avoidWhen: data.avoidWhen ?? [],
+			keep: data.keep ?? [],
+			customize: data.customize ?? [],
+			setups: data.setups ?? {},
+			gates: data.gates ?? {},
+			implementations,
+		};
+		files.set(`data/${config.library}/patterns/${data.pattern}.json`, canonicalJson(patternRecord));
+	}
+
 	return { files, tags, gaps, omitted };
 }

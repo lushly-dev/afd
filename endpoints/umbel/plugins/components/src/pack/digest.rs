@@ -21,8 +21,8 @@ pub(crate) fn utf16_cmp(a: &str, b: &str) -> std::cmp::Ordering {
 }
 
 /// A library's pack digest: the SHA-256 of one line per file, `<path> <digest>\n`, sorted by
-/// path, over the rules file and everything under `components/`, as `packContentDigest` writes
-/// it. `files` holds exactly those files.
+/// path, over the rules file and everything under `components/` and `patterns/`, as
+/// `packContentDigest` writes it. `files` holds exactly those files.
 pub(crate) fn pack_digest<'a>(files: impl IntoIterator<Item = (&'a str, &'a [u8])>) -> String {
     let mut files: Vec<(&str, &[u8])> = files.into_iter().collect();
     files.sort_by(|(a, _), (b, _)| utf16_cmp(a, b));

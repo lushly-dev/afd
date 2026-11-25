@@ -1987,6 +1987,29 @@ describe('specimen commands', () => {
 			outcome: { status: 'out-of-context', reason: 'Desktop only.', failures: [] },
 			observation: null,
 		});
+
+		// Per-error recovery suggestions for all 10 Patterns typed error codes (spec §5.5).
+		const patternErrorCodes: Array<[string, string]> = [
+			['TARGET_NOT_FOUND', 'accessible element'],
+			['TARGET_AMBIGUOUS', 'nameStartsWith'],
+			['SPECIMEN_NOT_FOUND', 'specimen-list'],
+			['ALREADY_EXISTS', 'replace: true'],
+			['PATTERN_UNKNOWN', 'createPattern: true'],
+			['COPY_NOT_FOUND', 'specimen-pattern-save'],
+			['COPY_DOWNGRADE_REFUSED', 'allowDowngrade: true'],
+			['COPY_REFRESH_UNSUPPORTED', 'origin.target'],
+			['PATTERN_SETUP_MISSING', 'specimen-suggest'],
+			['POINT_STALE', 'specimen-point'],
+		];
+		for (const [code, snippet] of patternErrorCodes) {
+			vi.mocked(instance.pack).mockRejectedValueOnce(
+				Object.assign(new Error(`Simulated ${code}`), { code })
+			);
+			const errRes = await executeSpecimenCommand(instance, 'specimen-pack', {});
+			expect(errRes.success, code).toBe(false);
+			expect(errRes.error?.code, code).toBe(code);
+			expect(errRes.error?.suggestion, code).toContain(snippet);
+		}
 	});
 
 	it('exposes the 6 specimen-note-* commands with mutation metadata, schema validation, and structured errors', async () => {
