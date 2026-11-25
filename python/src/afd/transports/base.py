@@ -49,6 +49,7 @@ class ToolInfo:
     description: str
     input_schema: dict[str, Any] | None = None
     meta: dict[str, Any] | None = None
+    annotations: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)

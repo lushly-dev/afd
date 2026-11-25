@@ -23,7 +23,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from afd.transports.base import TransportError, _TaskSeed
+from afd.transports.base import ToolInfo, TransportError, _TaskSeed
 from afd.transports.sse import SseTransport, _EndOfStreamSignal
 
 ProtocolMode = Literal["auto", "legacy", "modern"]
@@ -48,6 +48,10 @@ class _CapturedTaskSlot:
 
 _CAPTURED_TASK: ContextVar[_CapturedTaskSlot | None] = ContextVar(
     "afd_client_captured_task", default=None
+)
+
+_ON_TOOL_RELISTED: ContextVar[Callable[[str, ToolInfo | None], None] | None] = ContextVar(
+    "afd_client_on_tool_relisted", default=None
 )
 
 
@@ -201,7 +205,7 @@ class StreamableHttpTransport(SseTransport):
         # A pinned version skips server/discover (and with it the server's identity),
         # so "modern" negotiates like "auto" and then insists on 2026-07-28.
         extensions = [_tasks_client_extension()] if self._tasks else None
-        client = Client(
+        client = _make_afd_mcp_client_cls(Client)(
             streams(),
             mode="legacy" if self._mode == "legacy" else "auto",
             read_timeout_seconds=float(timeout),
@@ -336,9 +340,10 @@ class StreamableHttpTransport(SseTransport):
                 raise
             try:
                 with anyio.fail_after(effective_timeout):
-                    await _relist_tool(session, name)
+                    refreshed = await _relist_tool(session, name)
             except (MCPError, TimeoutError, ValidationError) as relist_error:
                 raise mismatch from relist_error
+            _notify_tool_relisted(name, refreshed)
             result = await send()
         if isinstance(result, InputRequiredResult):
             asked = result.model_dump(by_alias=True, mode="json", exclude_none=True)
@@ -526,15 +531,64 @@ _RELIST_PAGE_CAP = 100
 """Page cap for the re-list after a ``HEADER_MISMATCH``, as ``mcp.Client`` caps it."""
 
 
-async def _relist_tool(client: Any, name: str) -> None:
+def _tool_info_from_sdk_tool(tool: Any) -> ToolInfo:
+    """Convert an SDK ``mcp.types.Tool`` (or lightweight test double) to :class:`ToolInfo`."""
+    if hasattr(tool, "model_dump"):
+        payload = tool.model_dump(by_alias=True, mode="json", exclude_none=True)
+        annotations = payload.get("annotations")
+        return ToolInfo(
+            name=payload["name"],
+            description=payload.get("description", ""),
+            input_schema=payload.get("inputSchema"),
+            meta=payload.get("_meta"),
+            annotations=annotations if isinstance(annotations, dict) else None,
+        )
+    meta = getattr(tool, "meta", None)
+    if meta is None:
+        meta = getattr(tool, "_meta", None)
+    annotations = getattr(tool, "annotations", None)
+    if annotations is not None and hasattr(annotations, "model_dump"):
+        annotations = annotations.model_dump(by_alias=True, mode="json", exclude_none=True)
+    return ToolInfo(
+        name=tool.name,
+        description=getattr(tool, "description", "") or "",
+        input_schema=getattr(tool, "input_schema", None),
+        meta=meta if isinstance(meta, dict) else None,
+        annotations=annotations if isinstance(annotations, dict) else None,
+    )
+
+
+def _notify_tool_relisted(name: str, tool: ToolInfo | None) -> None:
+    """Notify an active ``McpClient.call()`` when ``HEADER_MISMATCH`` refreshes tool metadata."""
+    callback = _ON_TOOL_RELISTED.get()
+    if callback is not None:
+        callback(name, tool)
+
+
+async def _relist_tool(client: Any, name: str) -> ToolInfo | None:
     """Refetch the tool listing, page by page, until a page lists ``name``
-    (``mcp.Client._relist_tool``)."""
+    (``mcp.Client._relist_tool``), returning its refreshed :class:`ToolInfo` or ``None``."""
     cursor: str | None = None
     for _ in range(_RELIST_PAGE_CAP):
         page = await client.list_tools(cursor=cursor, cache_mode="refresh")
+        for tool in page.tools:
+            if tool.name == name:
+                return _tool_info_from_sdk_tool(tool)
         cursor = page.next_cursor
-        if cursor is None or any(tool.name == name for tool in page.tools):
-            return
+        if cursor is None:
+            return None
+    return None
+
+
+def _make_afd_mcp_client_cls(base: type[Any]) -> type[Any]:
+    """Build the ``mcp.Client`` subclass that reports ``HEADER_MISMATCH`` relists to AFD."""
+
+    class _AfdMcpClient(base):  # type: ignore[misc]
+        async def _relist_tool(self, name: str) -> None:
+            refreshed = await _relist_tool(self, name)
+            _notify_tool_relisted(name, refreshed)
+
+    return _AfdMcpClient
 
 
 def _elicitation_callback(handler: ElicitationHandler) -> Any:

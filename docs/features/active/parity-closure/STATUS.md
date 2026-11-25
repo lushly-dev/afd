@@ -77,6 +77,10 @@ validation and landing belong to the lane.
 
 - Cancellation signal for deadlines ([#1599](https://github.com/lushly-dev/afd/issues/1599)): the registry, batch and pre-cancel guard landed with #2221; `DirectClient` and pipeline deadlines fire the command's signal, and pipelines stop at a cancelled call: #2441.
 
+## Follow-up parity items
+
+- Python `McpClient.call()` fail-closed `OUTCOME_UNKNOWN` ([#2319](https://github.com/lushly-dev/afd/issues/2319)): `McpClient.call()` snapshots read-only `_meta.mutation: false` (without contradicting destructive or non-read-only markers) before dispatch, clears cached tool metadata on reconnect discovery failure, and returns non-retryable `OUTCOME_UNKNOWN` with `details.cause` on timeout, transport loss, HTTP 5xx, JSON-RPC `-32603`, or failed task poll; `spec/error-codes.md` updated (merged in #2511).
+
 ## Historical checkpoints
 
 The plan's 2026-10-10 stabilization candidate is now merged (#367), and its first releases are

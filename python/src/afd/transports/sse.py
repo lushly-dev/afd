@@ -295,12 +295,14 @@ class SseTransport(_HttpBasedTransport):
             tools: list[ToolInfo] = []
             for tool in result.tools:
                 payload = tool.model_dump(by_alias=True, mode="json", exclude_none=True)
+                annotations = payload.get("annotations")
                 tools.append(
                     ToolInfo(
                         name=payload["name"],
                         description=payload.get("description", ""),
                         input_schema=payload.get("inputSchema"),
                         meta=payload.get("_meta"),
+                        annotations=annotations if isinstance(annotations, dict) else None,
                     )
                 )
             return tools
@@ -358,7 +360,11 @@ class SseTransport(_HttpBasedTransport):
         if lost and self._session is session and self._state == TransportState.CONNECTED:
             self._state = TransportState.ERROR
             self._report_error(exc)
-        if isinstance(exc, MCPError) and not lost:
+        # The MCP SDK synthesizes MCPError(-32700) when it cannot decode a
+        # server's response body (e.g. truncated JSON or a dropped SSE stream
+        # after the server ran the command), so keep -32700 as a TransportError
+        # rather than a definite JSON-RPC refusal.
+        if isinstance(exc, MCPError) and not lost and exc.code != -32700:
             raise JsonRpcError(exc.code, exc.message, exc.data) from exc
         if isinstance(exc, TransportError):
             raise exc

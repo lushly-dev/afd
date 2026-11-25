@@ -183,7 +183,9 @@ async def test_loss_after_mutation_reconnects_discovery_without_replaying(transp
         try:
             await client.connect()
             result = await client.call("write-drop")
-            assert result.error.code == "TRANSPORT_ERROR"
+            assert result.error.code == "OUTCOME_UNKNOWN"
+            assert result.error.retryable is False
+            assert result.error.details == {"cause": "TRANSPORT_ERROR"}
             await until(lambda: len(connected) == 2)
             assert client.is_connected()
             assert client.get_tools()[0].name == "tool-2"
@@ -331,7 +333,9 @@ async def test_sse_request_timeout_is_bounded_and_does_not_replay():
         try:
             await client.connect()
             result = await asyncio.wait_for(client.call("write-hold"), 1)
-            assert result.error.code == "TRANSPORT_ERROR"
+            assert result.error.code == "OUTCOME_UNKNOWN"
+            assert result.error.retryable is False
+            assert result.error.details == {"cause": "TIMEOUT"}
             assert server.writes == 1
             assert not client.is_connected()
         finally:
@@ -384,3 +388,96 @@ async def test_sdk_output_schema_failure_keeps_same_session(auto_reconnect, mode
             assert server.initializations == 1
         finally:
             await client.disconnect()
+
+
+async def test_streamable_http_truncated_json_after_write_returns_outcome_unknown():
+    writes = 0
+
+    async def handle(reader, writer):
+        nonlocal writes
+        try:
+            header = await reader.readuntil(b"\r\n\r\n")
+            request_line, *headers = header.decode().split("\r\n")
+            method, _path, _ = request_line.split()
+            hdrs = dict(line.lower().split(": ", 1) for line in headers if ": " in line)
+            body = await reader.readexactly(int(hdrs.get("content-length", "0")))
+            if method != "POST":
+                writer.write(b"HTTP/1.1 405 Method Not Allowed\r\nContent-Length: 0\r\n\r\n")
+                await writer.drain()
+                return
+            request = json.loads(body)
+            if "id" not in request:
+                writer.write(b"HTTP/1.1 202 Accepted\r\nContent-Length: 0\r\n\r\n")
+                await writer.drain()
+                return
+            rpc_method = request["method"]
+            if rpc_method == "initialize":
+                payload = {
+                    "jsonrpc": "2.0",
+                    "id": request["id"],
+                    "result": {
+                        "protocolVersion": "2025-11-25",
+                        "capabilities": {"tools": {}},
+                        "serverInfo": {"name": "trunc", "version": "1"},
+                    },
+                }
+                raw = json.dumps(payload).encode()
+            elif rpc_method == "tools/list":
+                payload = {
+                    "jsonrpc": "2.0",
+                    "id": request["id"],
+                    "result": {
+                        "tools": [
+                            {
+                                "name": "write-trunc",
+                                "description": "Mutates then returns truncated JSON",
+                                "inputSchema": {"type": "object"},
+                                "_meta": {"mutation": True},
+                            }
+                        ]
+                    },
+                }
+                raw = json.dumps(payload).encode()
+            elif rpc_method == "tools/call":
+                writes += 1
+                # Write completed on server, but JSON body is truncated.
+                raw = b'{"jsonrpc":"2.0","id":'
+            else:
+                raise AssertionError(rpc_method)
+            writer.write(
+                f"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {len(raw)}\r\nConnection: close\r\n\r\n".encode()
+                + raw
+            )
+            await writer.drain()
+        except (asyncio.IncompleteReadError, ConnectionError):
+            pass
+        finally:
+            writer.close()
+            await writer.wait_closed()
+
+    server = await asyncio.start_server(handle, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+    url = f"http://127.0.0.1:{port}/mcp"
+    client = McpClient(
+        McpClientConfig(
+            url=url,
+            transport="streamable-http",
+            protocol_mode="legacy",
+            auto_reconnect=False,
+            timeout=5.0,
+        )
+    )
+    try:
+        await client.connect()
+        result = await client.call("write-trunc", {})
+        assert writes == 1
+        assert result.success is False
+        assert result.error is not None
+        assert result.error.code == "OUTCOME_UNKNOWN"
+        assert result.error.retryable is False
+        assert result.error.details is not None
+        assert result.error.details["cause"] == "TRANSPORT_ERROR"
+    finally:
+        await client.disconnect()
+        server.close()
+        await server.wait_closed()

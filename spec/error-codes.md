@@ -337,22 +337,23 @@ does not define them.
 | Code | Meaning | Retryable | Implementations |
 | --- | --- | --- | --- |
 | `NOT_CONNECTED` | `connect()` was not called, or the connection closed | No | TypeScript |
-| `HTTP_<status>` | The server answered with an HTTP error status | Yes for 5xx and 429 | TypeScript |
+| `HTTP_<status>` | The server answered with an HTTP error status | Yes for 5xx and 429 | TypeScript, Python |
 | `PARSE_ERROR` | JSON-RPC `-32700`, or a batch result the client could not parse | No | TypeScript |
 | `INVALID_REQUEST` | JSON-RPC `-32600` | No | TypeScript |
 | `METHOD_NOT_FOUND` | JSON-RPC `-32601` | No | TypeScript |
 | `REQUEST_REJECTED` | JSON-RPC `-32000`: the server rejected the HTTP request (Host, Origin, Content-Type or size) | No | TypeScript |
 | `SESSION_NOT_FOUND` | JSON-RPC `-32001`: the MCP session is unknown or expired; reconnect | Yes | TypeScript |
 | `SESSION_LIMIT_REACHED` | HTTP 503 whose JSON-RPC `-32000` error carries `data.code: "SESSION_LIMIT_REACHED"`: the server refused `initialize` because its session store is full and the caller holds no session. Neither a bare `-32000` nor `-32002` is read as this | Yes (retry after `Retry-After`) | TypeScript |
-| `MISSING_CLIENT_CAPABILITY` | JSON-RPC `-32021`: the server requires a client capability (such as `io.modelcontextprotocol/tasks`) the request did not declare | No | TypeScript |
+| `MISSING_CLIENT_CAPABILITY` | JSON-RPC `-32021`: the server requires a client capability (such as `io.modelcontextprotocol/tasks`) the request did not declare | No | TypeScript, Python |
 | `JSON_RPC_ERROR` | Any other JSON-RPC error code | No | TypeScript |
-| `OUTCOME_UNKNOWN` | A call (not positively marked read-only), batch or pipeline request got no result after it may have reached the server, so the command or commands may have run | No | TypeScript |
+| `OUTCOME_UNKNOWN` | A call (not positively marked read-only), batch or pipeline request got no result after it may have reached the server, so the command or commands may have run | No | TypeScript, Python (`call()`, `afd batch`) |
 | `TOOL_ERROR` | The tool failed and its content is not a `CommandResult` | No | TypeScript, Python |
 | `BATCH_ERROR`, `PIPELINE_ERROR` | `afd-batch` or `afd-pipe` failed and its content is not a result | No | TypeScript |
 | `STREAM_CANCELLED` | The caller, `disconnect()` or the transport cancelled the stream | No | TypeScript |
 | `STREAM_TRUNCATED` | The connection closed before a complete or error chunk. The command may have run | No | TypeScript |
 | `STREAM_EVENT_TOO_LARGE` | An SSE event exceeded `maxStreamEventSize` | No | TypeScript |
-| `TRANSPORT_ERROR`, `CLIENT_ERROR`, `INVALID_RESULT` | The transport failed, the client failed, or the server's result could not be parsed | No | Python |
+| `TRANSPORT_ERROR` | The transport or JSON-RPC call failed | Varies (Yes for read-only connection loss and `-32001`; No for definite refusals) | Python |
+| `CLIENT_ERROR`, `INVALID_RESULT` | The client failed, or the server's result could not be parsed | No | Python |
 | `INPUT_REQUIRED` | The server answered `input_required` and no elicitation handler was registered. `data.inputRequests` holds what the server asked for | No | TypeScript, Python (`streamable-http`) |
 
 ### Middleware and telemetry
