@@ -1874,10 +1874,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "59896fdcdefe5f395ce8d7b973a5c701e67403fe002d1a37a80ba02f67011400",
+      "current_import_sha256": "91843252ccc6137e890889bf3ee130000b4790308aa3dc3056883055d566af2a",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Emit provenance-rerecorded record (schema 4), count it in lane-report, and include Health in regenerate paths (lushly-dev/afd#1472); Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933); Format Botcore, add mypy type checking and py.typed marker (#1757); Normalize LF bytes in Botcore provenance digests so Linux CI matches git blobs (#1757); Every factory refusal carries a structured recovery, checked by its jobs (verified recovery, step 3)"
+      "import_reason": "Emit provenance-rerecorded record (schema 4), count it in lane-report, and include Health in regenerate paths (lushly-dev/afd#1472); Fix botcore bug batch: factory state durability (#1796), teams missing-command errors (#1797), provenance archive member hardening (#1671), and ignored-only tier-2 disk classification (#1933); Format Botcore, add mypy type checking and py.typed marker (#1757); Normalize LF bytes in Botcore provenance digests so Linux CI matches git blobs (#1757); Every factory refusal carries a structured recovery, checked by its jobs (verified recovery, step 3); verified recovery step 4: small-worlds explorer and lane-report's recovery"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/runtime.py",
@@ -1955,6 +1955,17 @@
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Factory gate exemptions need the live foreman; the lane rechecks repair gate edits"
+    },
+    {
+      "path": "plugins/botcore-factory/tests/small_worlds.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "7f17abd124f4aa0935cae57ad7c667d9d8546b55e419120137724ad91cfcd67f",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Verified recovery step 4: explore the factory's fixture worlds and judge each refusal's recovery"
     },
     {
       "path": "plugins/botcore-factory/tests/test_adapter.py",
@@ -2259,10 +2270,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "1099ddcb8b30d608dc7b1e630490818deac246d3b61d272bec871bdf87b849ab",
+      "current_import_sha256": "3d026e9c3f08d668d7df36ea0476c8b00c408e24706b11f6e0decd09c2f46286",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Emit provenance-rerecorded record (schema 4), count it in lane-report, and include Health in regenerate paths (lushly-dev/afd#1472)"
+      "import_reason": "Emit provenance-rerecorded record (schema 4), count it in lane-report, and include Health in regenerate paths (lushly-dev/afd#1472); verified recovery step 4: small-worlds explorer and lane-report's recovery"
     },
     {
       "path": "plugins/botcore-factory/tests/test_scenarios.py",
@@ -2274,6 +2285,17 @@
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Name the earliest standing live claimant, report a renewed holder's lease, and leave the label to another branch's live claim on release (formal verification pilot)"
+    },
+    {
+      "path": "plugins/botcore-factory/tests/test_small_worlds.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "65907c5601c031022393e352c8cce1cee99e03c7296ab0c0f1f7aee4e2162ff1",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Verified recovery step 4: explore the factory's fixture worlds and judge each refusal's recovery"
     },
     {
       "path": "plugins/botcore-factory/tests/test_squash.py",

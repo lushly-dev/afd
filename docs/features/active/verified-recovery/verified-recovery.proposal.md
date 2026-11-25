@@ -12,8 +12,9 @@ technique has precedent elsewhere: compilers apply their own fix suggestions and
 proof assistants replay a suggestion before offering it. No agent-facing interface the research
 found does it.
 
-**Status.** Active, owner's go-ahead of 2026-11-24 to work through steps 1 to 3 and check in before
-step 4. [STATUS.md](STATUS.md) records each step.
+**Status.** Active. The owner's go-ahead of 2026-11-24 covered steps 1 to 3, with a check-in before
+step 4. At that check-in, the same day, the owner agreed to step 4 as a pilot on the factory and to
+step 5 after it. [STATUS.md](STATUS.md) records each step.
 
 ## The steps
 
@@ -22,7 +23,8 @@ step 4. [STATUS.md](STATUS.md) records each step.
 | 1. Fix what is known | The suggestions the research found wrong; Python scenarios check `expect.error.suggestion` as TypeScript does; a factory test that every command a refusal names is served | The named defects fixed, each with a test that failed first |
 | 2. A structured recovery | `CommandError.recovery` beside the prose: `call` a command, `fix-input`, `retry`, `external` or `stop`, specified in `spec/recovery.md`; schema, shared vectors and the wire fixtures in all four languages | Every language loads `spec/vectors/recovery.json` and round-trips the wire fixtures |
 | 3. Follow and assert | A scenario expectation that follows a refusal's recovery and judges the result, in the TypeScript and Python runners; the factory's refusals carry recoveries its scenarios follow | The factory's executed jobs follow every recovery they reach; a planted wrong recovery fails a job |
-| 4. Small worlds | Explore short command sequences over fixture worlds and check that every refusal's recovery leads back toward a job's success | An owner gate: whether to build it is decided with the owner after step 3 |
+| 4. Small worlds | A pilot on the factory: explore short command sequences over its fixture worlds and check that every refusal's recovery leads back toward a job's success | Every `call`, `fix-input` and `retry` recovery the explorer reaches is enabled and lands where the refused call can still succeed; a planted wrong recovery fails; what it finds is fixed or recorded. Whether to build it for other surfaces is decided with the owner after the pilot |
+| 5. Engine recoveries | The errors AFD's engines emit carry recoveries: unknown command, rate limit, confirmation and approval, in all four languages, and the default server instructions say to follow `recovery` when present | The shared vectors pin each engine error's recovery, and every language produces it |
 
 ## What "progress" means
 
@@ -47,7 +49,7 @@ only where the scenario says so, as with the confirmation flow's repeated call.
   changes; consumers that do not know `recovery` ignore it. Step 3 adds recoveries to the
   factory's refusals, which changes what those refusals return, not what they mean.
 - Engine-emitted errors (`COMMAND_NOT_FOUND`, `RATE_LIMITED`, the confirmation and approval flows)
-  gain recoveries in a later step, in all four languages at once, because each changes what an
-  agent sees.
+  gain recoveries in step 5, in all four languages at once, because each changes what an agent
+  sees.
 - Rust and C++ have no scenario runner, so step 3 covers TypeScript and Python; the other two
   check the field through the shared vectors and wire fixtures.

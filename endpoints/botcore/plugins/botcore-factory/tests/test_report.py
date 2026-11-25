@@ -81,4 +81,5 @@ async def test_an_unknown_run_is_refused(make_run):
     result = await make_run("finished").call("lane_report", run="run-9")
     assert result.error.code == "NOT_FOUND" and "runId" in result.error.suggestion
     fresh = await make_run().call("lane_report")
-    assert fresh.error.code == "NOT_FOUND" and "lane-start" in fresh.error.suggestion
+    assert fresh.error.code == "NOT_FOUND" and "lane-status" in fresh.error.suggestion
+    assert fresh.error.recovery is not None and fresh.error.recovery.command == "lane-status"
