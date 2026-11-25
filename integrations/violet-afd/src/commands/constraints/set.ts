@@ -2,7 +2,69 @@ import { checkPattern } from '@lushly-dev/violet-core/engine';
 import { type Constraint, ConstraintSchema } from '@lushly-dev/violet-core/types';
 import { z } from 'zod';
 import type { CommandResult } from '../../types/command-result.js';
+import { contextId, contextNow } from '../context-sources.js';
 import type { CommandContext, CommandDefinition } from '../registry.js';
+
+/** Duplicate constraint IDs in a list, deduplicated in encounter order */
+export function findDuplicateConstraintIds(constraints: readonly Constraint[]): string[] {
+	const seen = new Set<string>();
+	const duplicates = new Set<string>();
+	for (const constraint of constraints) {
+		if (seen.has(constraint.id)) duplicates.add(constraint.id);
+		seen.add(constraint.id);
+	}
+	return [...duplicates];
+}
+
+/** Semantic checks beyond ConstraintSchema shared by constraints.set, import.tree, and export.tree */
+export function validateConstraintSemantics(
+	constraints: readonly Constraint[],
+): { message: string; suggestion: string } | null {
+	// A reason says why a rule is switched off; on a rule that runs it would mislead (#1327)
+	const reasonOnEnabled = constraints.filter((c) => c.enabled && c.disabledReason);
+	if (reasonOnEnabled.length > 0) {
+		return {
+			message: `disabledReason is set on enabled constraint(s): ${reasonOnEnabled.map((c) => c.id).join(', ')}`,
+			suggestion:
+				'Set enabled: false beside disabledReason to switch the rule off, or drop disabledReason',
+		};
+	}
+
+	// Reject pattern constraints whose regex is invalid or can backtrack catastrophically,
+	// and validate ramp constraints with field-specific recovery suggestions.
+	for (const constraint of constraints) {
+		if (constraint.config.type === 'pattern') {
+			const check = checkPattern(constraint.config.pattern, constraint.config.flags);
+			if (!check.ok) {
+				return {
+					message: `Constraint '${constraint.id}' has an unusable pattern: ${check.reason}`,
+					suggestion:
+						'Use a valid, simple regular expression without nested quantifiers such as (a+)+',
+				};
+			}
+			continue;
+		}
+
+		if (constraint.config.type === 'ramp') {
+			if (constraint.config.ramp.trim().length === 0) {
+				return {
+					message: `Constraint '${constraint.id}' has an empty ramp glob`,
+					suggestion:
+						"Set 'ramp' to a non-empty glob matching Stage 1 ramp tokens, such as 'ref.space.*'",
+				};
+			}
+			if (constraint.config.repeatThreshold < 2) {
+				return {
+					message: `Constraint '${constraint.id}' has repeatThreshold ${constraint.config.repeatThreshold}, which must be at least 2`,
+					suggestion:
+						"Set 'repeatThreshold' to an integer >= 2 (default: 2) so repeat warnings fire when two or more tokens share an off-ramp value",
+				};
+			}
+		}
+	}
+
+	return null;
+}
 
 // =============================================================================
 // Input/Output Schemas
@@ -45,95 +107,77 @@ async function handler(rawInput: Input, context: CommandContext): Promise<Comman
 	}
 
 	// Check for duplicate constraint IDs in input
-	const ids = input.constraints.map((c) => c.id);
-	const duplicateIds = ids.filter((id, i) => ids.indexOf(id) !== i);
+	const duplicateIds = findDuplicateConstraintIds(input.constraints);
 	if (duplicateIds.length > 0) {
 		return {
 			success: false,
 			error: {
 				code: 'DUPLICATE_CONSTRAINT_ID',
-				message: `Duplicate constraint IDs: ${[...new Set(duplicateIds)].join(', ')}`,
+				message: `Duplicate constraint IDs: ${duplicateIds.join(', ')}`,
 				suggestion: 'Ensure each constraint has a unique ID',
 			},
 		};
 	}
 
-	// A reason says why a rule is switched off; on a rule that runs it would mislead (#1327)
-	const reasonOnEnabled = input.constraints.filter((c) => c.enabled && c.disabledReason);
-	if (reasonOnEnabled.length > 0) {
+	const semanticError = validateConstraintSemantics(input.constraints);
+	if (semanticError) {
 		return {
 			success: false,
 			error: {
 				code: 'VALIDATION_ERROR',
-				message: `disabledReason is set on enabled constraint(s): ${reasonOnEnabled.map((c) => c.id).join(', ')}`,
-				suggestion:
-					'Set enabled: false beside disabledReason to switch the rule off, or drop disabledReason',
+				message: semanticError.message,
+				suggestion: semanticError.suggestion,
 			},
 		};
 	}
 
-	// Reject pattern constraints whose regex is invalid or can backtrack catastrophically,
-	// and validate ramp constraints with field-specific recovery suggestions.
-	for (const constraint of input.constraints) {
-		if (constraint.config.type === 'pattern') {
-			const check = checkPattern(constraint.config.pattern, constraint.config.flags);
-			if (!check.ok) {
-				return {
-					success: false,
-					error: {
-						code: 'VALIDATION_ERROR',
-						message: `Constraint '${constraint.id}' has an unusable pattern: ${check.reason}`,
-						suggestion:
-							'Use a valid, simple regular expression without nested quantifiers such as (a+)+',
-					},
-				};
-			}
-			continue;
-		}
-
-		if (constraint.config.type === 'ramp') {
-			if (constraint.config.ramp.trim().length === 0) {
-				return {
-					success: false,
-					error: {
-						code: 'VALIDATION_ERROR',
-						message: `Constraint '${constraint.id}' has an empty ramp glob`,
-						suggestion:
-							"Set 'ramp' to a non-empty glob matching Stage 1 ramp tokens, such as 'ref.space.*'",
-					},
-				};
-			}
-			if (constraint.config.repeatThreshold < 2) {
-				return {
-					success: false,
-					error: {
-						code: 'VALIDATION_ERROR',
-						message: `Constraint '${constraint.id}' has repeatThreshold ${constraint.config.repeatThreshold}, which must be at least 2`,
-						suggestion:
-							"Set 'repeatThreshold' to an integer >= 2 (default: 2) so repeat warnings fire when two or more tokens share an off-ramp value",
-					},
-				};
-			}
-		}
-	}
-
-	// Get existing constraints if merging
+	// Store constraints and record audit event atomically using context clock/random for replay determinism (#2329)
 	let finalConstraints: Constraint[];
-	if (input.merge) {
-		const existing = await db.getConstraints(input.nodeId);
-		// Create a map for easy lookup
-		const constraintMap = new Map(existing.map((c) => [c.id, c]));
-		// Override/add new constraints
-		for (const constraint of input.constraints) {
-			constraintMap.set(constraint.id, constraint);
-		}
-		finalConstraints = Array.from(constraintMap.values());
-	} else {
-		finalConstraints = input.constraints;
-	}
+	try {
+		finalConstraints = await db.transaction(async () => {
+			const existing = await db.getConstraints(input.nodeId);
+			let nextConstraints: Constraint[];
+			if (input.merge) {
+				// Create a map for easy lookup
+				const constraintMap = new Map(existing.map((c) => [c.id, c]));
+				// Override/add new constraints
+				for (const constraint of input.constraints) {
+					constraintMap.set(constraint.id, constraint);
+				}
+				nextConstraints = Array.from(constraintMap.values());
+			} else {
+				nextConstraints = input.constraints;
+			}
 
-	// Store constraints
-	await db.setConstraints(input.nodeId, finalConstraints);
+			await db.setConstraints(input.nodeId, nextConstraints);
+			await db.addAuditEvent({
+				id: contextId(context),
+				timestamp: contextNow(context),
+				eventType: 'constraint_set',
+				actor: context.actor || 'system',
+				targetNode: input.nodeId,
+				targetToken: null,
+				oldValue: JSON.stringify(existing),
+				newValue: JSON.stringify(nextConstraints),
+				metadata: JSON.stringify({
+					merge: input.merge,
+					constraintsSet: input.constraints.length,
+					totalConstraints: nextConstraints.length,
+				}),
+			});
+			return nextConstraints;
+		});
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		return {
+			success: false,
+			error: {
+				code: 'INTERNAL_ERROR',
+				message: `Failed to save constraints and audit event on '${input.nodeId}': ${message}`,
+				suggestion: "Check database availability with 'system.doctor' and retry 'constraints.set'",
+			},
+		};
+	}
 
 	return {
 		success: true,

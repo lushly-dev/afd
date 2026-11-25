@@ -1,8 +1,22 @@
 import type { CssValueMetadata } from '@lushly-dev/violet-core/css';
 import { resolveNodeTokenMap, validateTokenId } from '@lushly-dev/violet-core/engine';
-import { IncludePolicySchema, NodeTypeSchema } from '@lushly-dev/violet-core/types';
+import {
+	type Constraint,
+	ConstraintSchema,
+	ContrastConfigSchema,
+	EnumConfigSchema,
+	IncludePolicySchema,
+	NodeTypeSchema,
+	PatternConfigSchema,
+	RampConfigSchema,
+	RampPairWithSchema,
+	RangeConfigSchema,
+	ReferenceConfigSchema,
+	ScaleConfigSchema,
+} from '@lushly-dev/violet-core/types';
 import { z } from 'zod';
 import { ErrorCodes, failure, success } from '../../types/command-result.js';
+import { findDuplicateConstraintIds, validateConstraintSemantics } from '../constraints/set.js';
 import { nodeCreateCommand } from '../node/create.js';
 import type { CommandContext, CommandDefinition } from '../registry.js';
 import {
@@ -18,6 +32,24 @@ import { importJsonCommand } from './json.js';
 export { VIOLET_EXTENSION_KEY };
 
 /**
+ * Strict constraint schema for DTCG tree files: rejects unrecognized top-level or nested
+ * config fields (such as `minimum: 7` instead of `min: 7`) instead of silently stripping them (#2330).
+ */
+const StrictConstraintConfigSchema = z.discriminatedUnion('type', [
+	EnumConfigSchema.strict(),
+	RangeConfigSchema.strict(),
+	PatternConfigSchema.strict(),
+	ScaleConfigSchema.strict(),
+	ContrastConfigSchema.strict(),
+	ReferenceConfigSchema.strict(),
+	RampConfigSchema.extend({ pairWith: RampPairWithSchema.strict().optional() }).strict(),
+]);
+
+const StrictConstraintSchema = ConstraintSchema.extend({
+	config: StrictConstraintConfigSchema,
+}).strict();
+
+/**
  * Node settings read from a file's root `$extensions["dev.lushly.violet"]`
  */
 const NodeExtensionSchema = z.object({
@@ -31,6 +63,8 @@ const NodeExtensionSchema = z.object({
 	includePolicy: IncludePolicySchema.optional(),
 	/** Read top-level global/semantic/component groups as token tiers (see import.json) */
 	tiers: z.boolean().optional(),
+	/** Design constraints attached to this node (#2330) */
+	constraints: z.array(StrictConstraintSchema).optional(),
 });
 
 /**
@@ -73,6 +107,7 @@ interface PlannedNode {
 	includes: string[];
 	includePolicy?: z.infer<typeof IncludePolicySchema>;
 	tiers: boolean;
+	constraints: Constraint[];
 	file: string;
 	content: string;
 }
@@ -177,8 +212,28 @@ function planNodes(files: Array<{ name: string; content: string }>): Map<string,
 					.map((issue) => `${issue.path.join('.')} ${issue.message}`)
 					.join('; ')}`,
 				suggestion:
-					'Expected { node?: string, parent?: string, type?: string, includes?: string[], includePolicy?: "merge" | "override", tiers?: boolean }',
+					'Expected { node?: string, parent?: string, type?: string, includes?: string[], includePolicy?: "merge" | "override", tiers?: boolean, constraints?: Constraint[] }',
 			});
+		}
+
+		const constraints = extension.data.constraints ?? [];
+		if (constraints.length > 0) {
+			const duplicateIds = findDuplicateConstraintIds(constraints);
+			if (duplicateIds.length > 0) {
+				throw new TreeImportError({
+					code: ErrorCodes.VALIDATION_ERROR,
+					message: `Duplicate constraint IDs in '${file.name}': ${duplicateIds.join(', ')}`,
+					suggestion: 'Ensure each constraint in the file has a unique ID',
+				});
+			}
+			const semanticError = validateConstraintSemantics(constraints);
+			if (semanticError) {
+				throw new TreeImportError({
+					code: ErrorCodes.VALIDATION_ERROR,
+					message: `Invalid constraints in '${file.name}': ${semanticError.message}`,
+					suggestion: semanticError.suggestion,
+				});
+			}
 		}
 
 		const id = extension.data.node ?? nodeIdFromFileName(file.name);
@@ -198,6 +253,7 @@ function planNodes(files: Array<{ name: string; content: string }>): Map<string,
 			includes: extension.data.includes ?? [],
 			includePolicy: extension.data.includePolicy,
 			tiers: extension.data.tiers ?? false,
+			constraints,
 			file: file.name,
 			content: file.content,
 		});
@@ -384,6 +440,10 @@ async function createNodeFromFile(
 				.join(', ')}`,
 			suggestion: 'Fix the token IDs and run again',
 		});
+	}
+
+	if (node.constraints.length > 0) {
+		await context.db.setConstraints(node.id, structuredClone(node.constraints));
 	}
 
 	return {

@@ -4,6 +4,9 @@
 
 import { createMemoryDatabase } from '@lushly-dev/violet-core/engine';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { listCommand as constraintsListCommand } from '../constraints/list.js';
+import { setCommand as constraintsSetCommand } from '../constraints/set.js';
+import { validateCommand as constraintsValidateCommand } from '../constraints/validate.js';
 import { importTreeCommand } from '../import/tree.js';
 import { nodeCreateCommand } from '../node/create.js';
 import { nodeUpdateCommand } from '../node/update.js';
@@ -394,5 +397,158 @@ describe('export.tree command', () => {
 			expect(catalog.success).toBe(true);
 			expect(catalog.data?.tokens.map((token) => token.id)).toContain(expectedId);
 		}
+	});
+
+	it('round-trips node constraints (contrast, ramp, disabledReason, severity, applyTo) with dropped: [] (#2330)', async () => {
+		const rootConstraints = [
+			{
+				id: 'space-ramp',
+				name: 'Spacing ramp',
+				description: 'Two-stage spacing scale',
+				config: {
+					type: 'ramp' as const,
+					ramp: 'ref.space.*',
+					requireOffRampReason: true,
+					repeatThreshold: 3,
+					pairWith: {
+						fromSuffix: '.size',
+						toSuffix: '.line',
+						rampTarget: 'ref.type.*.line',
+					},
+				},
+				severity: 'warning' as const,
+				applyTo: 'size.*',
+				enabled: true,
+			},
+			{
+				id: 'contrast-page',
+				name: 'Text contrast on page',
+				config: {
+					type: 'contrast' as const,
+					against: 'color.surface.page',
+					min: 4.5,
+					backdrop: 'color.surface.page',
+				},
+				severity: 'error' as const,
+				applyTo: 'color.text.*',
+				enabled: true,
+			},
+		];
+		const darkConstraints = [
+			{
+				id: 'legacy-brand-disabled',
+				name: 'Brand hex rule',
+				config: {
+					type: 'pattern' as const,
+					pattern: '^#[0-9a-fA-F]{6}$',
+					flags: 'i',
+					target: 'value' as const,
+				},
+				severity: 'info' as const,
+				applyTo: 'color.brand',
+				enabled: false,
+				disabledReason: 'Relaxed during palette migration',
+			},
+		];
+
+		// Set in unsorted ID order on example to verify canonical code-point sorting on export
+		expect(
+			(
+				await constraintsSetCommand.handler(
+					{ nodeId: 'example', constraints: rootConstraints },
+					context,
+				)
+			).success,
+		).toBe(true);
+		expect(
+			(
+				await constraintsSetCommand.handler(
+					{ nodeId: 'example-dark', constraints: darkConstraints },
+					context,
+				)
+			).success,
+		).toBe(true);
+
+		const first = await exportFiles(context);
+		expect(first.dropped).toEqual([]);
+
+		const exampleDoc = JSON.parse(
+			first.files.find((entry) => entry.node === 'example')?.content ?? '',
+		);
+		const darkDoc = JSON.parse(
+			first.files.find((entry) => entry.node === 'example-dark')?.content ?? '',
+		);
+		const compactDoc = JSON.parse(
+			first.files.find((entry) => entry.node === 'example-dark-compact')?.content ?? '',
+		);
+
+		// Sorted by id (contrast-page before space-ramp), omitted when empty (example-dark-compact)
+		expect(
+			exampleDoc.$extensions['dev.lushly.violet'].constraints.map((c: { id: string }) => c.id),
+		).toEqual(['contrast-page', 'space-ramp']);
+		expect(darkDoc.$extensions['dev.lushly.violet'].constraints).toEqual(darkConstraints);
+		expect(compactDoc.$extensions['dev.lushly.violet'].constraints).toBeUndefined();
+
+		// Import into a fresh database and verify exact constraint preservation and validation parity
+		const imported = await importFiles(files(first));
+		const listedExample = await constraintsListCommand.handler(
+			{ nodeId: 'example', includeInherited: false },
+			imported,
+		);
+		expect(listedExample.success).toBe(true);
+		expect(listedExample.data?.constraints).toEqual([
+			{ ...rootConstraints[1], source: 'example' },
+			{ ...rootConstraints[0], source: 'example' },
+		]);
+
+		const listedDark = await constraintsListCommand.handler(
+			{ nodeId: 'example-dark', includeInherited: false },
+			imported,
+		);
+		expect(listedDark.success).toBe(true);
+		expect(listedDark.data?.constraints).toEqual([
+			{ ...darkConstraints[0], source: 'example-dark' },
+		]);
+
+		const beforeValidate = await constraintsValidateCommand.handler(
+			{ nodeId: 'example-dark' },
+			context,
+		);
+		const afterValidate = await constraintsValidateCommand.handler(
+			{ nodeId: 'example-dark' },
+			imported,
+		);
+		const byTokenId = <T extends { tokenId: string }>(items: T[] | undefined) =>
+			[...(items ?? [])].sort((a, b) =>
+				a.tokenId < b.tokenId ? -1 : a.tokenId > b.tokenId ? 1 : 0,
+			);
+		expect(afterValidate.data?.valid).toBe(beforeValidate.data?.valid);
+		expect(afterValidate.data?.summary).toEqual(beforeValidate.data?.summary);
+		expect(afterValidate.data?.disabled).toEqual(beforeValidate.data?.disabled);
+		expect(byTokenId(afterValidate.data?.results)).toEqual(byTokenId(beforeValidate.data?.results));
+
+		// Second export is byte-identical with dropped: []
+		const second = await exportFiles(imported);
+		expect(second.dropped).toEqual([]);
+		expect(second.files).toEqual(first.files);
+	});
+
+	it('refuses stored constraints that import.tree would reject (#2330)', async () => {
+		await context.db.setConstraints('example', [
+			{
+				id: 'bad-stored',
+				name: 'Invalid stored rule',
+				config: { type: 'pattern', pattern: '^(a+)+$' },
+				severity: 'error',
+				applyTo: 'color.*',
+				enabled: true,
+			},
+		]);
+
+		const result = await exportTreeCommand.handler({}, context);
+		expect(result.success).toBe(false);
+		expect(result.error?.code).toBe('VALIDATION_ERROR');
+		expect(result.error?.message).toContain('bad-stored');
+		expect(result.error?.suggestion).toContain('constraints.set');
 	});
 });

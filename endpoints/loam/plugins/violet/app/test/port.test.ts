@@ -1400,3 +1400,445 @@ describe('violet-theme-preview (#1786)', () => {
 		}
 	});
 });
+
+describe('constraint audit history and DTCG round-trip (#2329, #2330)', () => {
+	it('surfaces constraint-set entries in violet-change-list and replays deterministically (#2329)', async () => {
+		const { kernel, replay } = await bootKernel();
+		try {
+			const doc = await createDoc(kernel, 'example');
+			const rule = {
+				id: 'hc-contrast',
+				name: 'High contrast text',
+				applyTo: 'color.text.*',
+				config: { type: 'contrast' as const, against: 'color.surface.page', min: 7 },
+			};
+			const setRes = await kernel.call('violet-constraint-set', {
+				document: doc,
+				node: 'example/high-contrast',
+				constraints: [rule],
+				merge: true,
+			});
+			expect(setRes.success, JSON.stringify(setRes.error)).toBe(true);
+
+			const history = await kernel.call<{
+				changes: Array<{
+					node: string;
+					token: string | null;
+					operation: string;
+					oldValue: unknown;
+					value: unknown;
+				}>;
+				total: number;
+			}>('violet-change-list', { document: doc, node: 'example/high-contrast' });
+			expect(history.success, JSON.stringify(history.error)).toBe(true);
+			expect(history.data?.total).toBe(1);
+			expect(history.data?.changes[0]).toMatchObject({
+				node: 'example/high-contrast',
+				token: null,
+				operation: 'constraint-set',
+				oldValue: [],
+				value: [expect.objectContaining({ id: 'hc-contrast', applyTo: 'color.text.*' })],
+			});
+
+			await replay();
+		} finally {
+			await kernel.dispose();
+		}
+	});
+
+	it('exports and re-imports node constraints via violet-tree-export and violet-tree-import with dropped: [] (#2330)', async () => {
+		const { kernel } = await bootKernel();
+		try {
+			const sourceDoc = await createDoc(kernel, 'example');
+			const exported = await kernel.call<{
+				content: { files: Array<{ name: string; content: string }> };
+				dropped: unknown[];
+			}>('violet-tree-export', { document: sourceDoc });
+			expect(exported.success, JSON.stringify(exported.error)).toBe(true);
+			expect(exported.data?.dropped).toEqual([]);
+
+			const rootFile = exported.data?.content.files.find((f) => f.name === 'example.tokens.json');
+			expect(rootFile).toBeDefined();
+			const rootJson = JSON.parse(rootFile?.content ?? '{}');
+			expect(rootJson.$extensions['dev.lushly.violet'].constraints).toEqual([
+				expect.objectContaining({ id: 'text-on-page', applyTo: 'color.text.*' }),
+			]);
+
+			const targetDoc = await createDoc(kernel, 'blank');
+			const imported = await kernel.call('violet-tree-import', {
+				document: targetDoc,
+				content: exported.data?.content,
+			});
+			expect(imported.success, JSON.stringify(imported.error)).toBe(true);
+
+			// Break contrast in the re-imported tree to prove the imported constraint is active.
+			await kernel.call('violet-token-override', {
+				document: targetDoc,
+				node: 'example/dark',
+				token: 'color.text.muted',
+				value: '#18181c',
+			});
+			const violations = await kernel.call<{
+				violations: Array<{ node: string; token: string; rule: string }>;
+			}>('violet-violation-list', { document: targetDoc });
+			expect(violations.success).toBe(true);
+			expect(violations.data?.violations).toContainEqual(
+				expect.objectContaining({
+					node: 'example/dark',
+					token: 'color.text.muted',
+					rule: 'text-on-page',
+				})
+			);
+
+			// Invalid constraint in an imported file fails closed with VALIDATION_ERROR without mutating the doc.
+			const blankDoc = await createDoc(kernel, 'blank');
+			const badImport = await kernel.call('violet-tree-import', {
+				document: blankDoc,
+				content: {
+					files: [
+						{
+							name: 'bad.tokens.json',
+							content: JSON.stringify({
+								$extensions: {
+									'dev.lushly.violet': {
+										type: 'product',
+										constraints: [
+											{
+												id: 'bad-re',
+												name: 'Bad regex',
+												applyTo: 'color.*',
+												config: { type: 'pattern', pattern: '^(a+)+$' },
+											},
+										],
+									},
+								},
+								color: { $type: 'color', bg: { $value: '#ffffff' } },
+							}),
+						},
+					],
+				},
+			});
+			expect(badImport.success).toBe(false);
+			expect(badImport.error?.code).toBe('VALIDATION_ERROR');
+			const afterBad = await kernel.call<{ nodes: unknown[] }>('violet-node-list', {
+				document: blankDoc,
+			});
+			expect(afterBad.data?.nodes).toEqual([]);
+		} finally {
+			await kernel.dispose();
+		}
+	});
+
+	it('preserves file-embedded constraints in buildFromSeed, merges mixed seeds by rule ID, enforces the 50-rule cap, and survives __proto__ node IDs (#2330)', async () => {
+		const port = createVioletPort();
+		const h = createHandlers(port);
+		const callHandler = (name: string, input: unknown, ctx: AppCallContextV1) => {
+			const fn = h[name] as
+				| ((i: unknown, c: AppCallContextV1) => Promise<Record<string, unknown>>)
+				| undefined;
+			if (!fn) throw new Error(`Missing handler ${name}`);
+			return fn(input, ctx);
+		};
+		const makeCtx = () => {
+			const map = new Map<string, unknown>();
+			const store = {
+				map,
+				async get<T>(key: string) {
+					return map.get(key) as T | undefined;
+				},
+				async put(key: string, value: unknown) {
+					map.set(key, structuredClone(value));
+				},
+				async delete(key: string) {
+					map.delete(key);
+				},
+				async list() {
+					return [...map.entries()].map(([key, value]) => ({ key, value }));
+				},
+			};
+			const ctx: AppCallContextV1 = {
+				traceId: 'seed-test',
+				now: () => 1_700_000_000_000,
+				random: () => 0.25,
+				store,
+				config: {},
+				scope: { workspace: 'personal' },
+				client: { call: async () => ({ success: false }) as never },
+			};
+			return { ctx, store };
+		};
+
+		// 1. Seed with file-embedded constraints ONLY (no seed.constraints) activates rules and exports with dropped: []
+		{
+			const { ctx, store } = makeCtx();
+			const doc = 'doc_seed_file_only';
+			await store.put(documentContentKey(doc), {
+				format: 'violet-tree',
+				version: 1,
+				rev: 0,
+				syncedRev: 0,
+				seed: {
+					files: [
+						{
+							name: 'base.tokens.json',
+							content: JSON.stringify({
+								$extensions: {
+									'dev.lushly.violet': {
+										type: 'product',
+										constraints: [
+											{
+												id: 'file-contrast',
+												name: 'File contrast',
+												applyTo: 'color.text',
+												config: { type: 'contrast', against: 'color.bg', min: 4.5 },
+											},
+										],
+									},
+								},
+								color: {
+									$type: 'color',
+									bg: { $value: '#ffffff' },
+									text: { $value: '#cccccc' },
+								},
+							}),
+						},
+					],
+				},
+			});
+			const viol = (await callHandler('violet-violation-list', { document: doc }, ctx)) as {
+				success: boolean;
+				data?: { violations: Array<{ rule: string }> };
+			};
+			expect(viol.success).toBe(true);
+			expect(viol.data?.violations).toContainEqual(
+				expect.objectContaining({ rule: 'file-contrast' })
+			);
+			const exp = (await callHandler('violet-tree-export', { document: doc }, ctx)) as {
+				success: boolean;
+				data?: { dropped: unknown[]; content: { files: Array<{ content: string }> } };
+			};
+			expect(exp.success).toBe(true);
+			expect(exp.data?.dropped).toEqual([]);
+			const exported = JSON.parse(exp.data?.content.files[0]?.content ?? '{}');
+			expect(exported.$extensions['dev.lushly.violet'].constraints).toEqual([
+				expect.objectContaining({ id: 'file-contrast' }),
+			]);
+		}
+
+		// 2. Mixed seed (file-embedded + seed.constraints on the same node) merges by rule ID with seed.constraints precedence
+		{
+			const { ctx, store } = makeCtx();
+			const doc = 'doc_seed_mixed';
+			await store.put(documentContentKey(doc), {
+				format: 'violet-tree',
+				version: 1,
+				rev: 0,
+				syncedRev: 0,
+				seed: {
+					files: [
+						{
+							name: 'base.tokens.json',
+							content: JSON.stringify({
+								$extensions: {
+									'dev.lushly.violet': {
+										type: 'product',
+										constraints: [
+											{
+												id: 'contrast-rule',
+												name: 'File contrast',
+												applyTo: 'color.text',
+												config: { type: 'contrast', against: 'color.bg', min: 4.5 },
+											},
+											{
+												id: 'shared-id',
+												name: 'From file',
+												applyTo: 'color.text',
+												config: { type: 'enum', values: ['#000000'] },
+											},
+										],
+									},
+								},
+								color: {
+									$type: 'color',
+									bg: { $value: '#ffffff' },
+									text: { $value: '#000000' },
+								},
+								space: { $type: 'dimension', sm: { $value: '5px' } },
+							}),
+						},
+					],
+					constraints: {
+						base: [
+							{
+								id: 'spacing-rule',
+								name: 'Seed spacing',
+								applyTo: 'space.*',
+								severity: 'error',
+								enabled: true,
+								config: { type: 'scale', base: 4, tolerance: 0 },
+							},
+							{
+								id: 'shared-id',
+								name: 'From seed override',
+								applyTo: 'color.text',
+								severity: 'error',
+								enabled: true,
+								config: { type: 'enum', values: ['#000000'] },
+							},
+						],
+					},
+				},
+			});
+			const exp = (await callHandler('violet-tree-export', { document: doc }, ctx)) as {
+				success: boolean;
+				data?: { content: { files: Array<{ content: string }> } };
+			};
+			expect(exp.success).toBe(true);
+			const constraints = JSON.parse(exp.data?.content.files[0]?.content ?? '{}').$extensions[
+				'dev.lushly.violet'
+			].constraints as Array<{ id: string; name: string }>;
+			expect(constraints.map((c) => c.id)).toEqual(['contrast-rule', 'shared-id', 'spacing-rule']);
+			expect(constraints.find((c) => c.id === 'shared-id')?.name).toBe('From seed override');
+		}
+
+		// 3. 50-rule cap enforced on violet-tree-import (50 succeeds, 51 fails with VALIDATION_ERROR) and buildFromSeed
+		const makeRules = (count: number) =>
+			Array.from({ length: count }, (_, idx) => ({
+				id: `rule-${String(idx).padStart(2, '0')}`,
+				name: `Rule ${idx}`,
+				applyTo: 'color.*',
+				config: { type: 'enum' as const, values: ['#ffffff'] },
+			}));
+		{
+			const { kernel } = await bootKernel();
+			try {
+				const doc50 = await createDoc(kernel, 'blank');
+				const ok50 = await kernel.call('violet-tree-import', {
+					document: doc50,
+					content: {
+						files: [
+							{
+								name: 'base.tokens.json',
+								content: JSON.stringify({
+									$extensions: {
+										'dev.lushly.violet': { type: 'product', constraints: makeRules(50) },
+									},
+									color: { $type: 'color', bg: { $value: '#ffffff' } },
+								}),
+							},
+						],
+					},
+				});
+				expect(ok50.success, JSON.stringify(ok50.error)).toBe(true);
+
+				const doc51 = await createDoc(kernel, 'blank');
+				const fail51 = await kernel.call('violet-tree-import', {
+					document: doc51,
+					content: {
+						files: [
+							{
+								name: 'base.tokens.json',
+								content: JSON.stringify({
+									$extensions: {
+										'dev.lushly.violet': { type: 'product', constraints: makeRules(51) },
+									},
+									color: { $type: 'color', bg: { $value: '#ffffff' } },
+								}),
+							},
+						],
+					},
+				});
+				expect(fail51.success).toBe(false);
+				expect(fail51.error?.code).toBe('VALIDATION_ERROR');
+				const list51 = await kernel.call<{ nodes: unknown[] }>('violet-node-list', {
+					document: doc51,
+				});
+				expect(list51.data?.nodes).toEqual([]);
+			} finally {
+				await kernel.dispose();
+			}
+		}
+		{
+			const { ctx, store } = makeCtx();
+			const docSeed51 = 'doc_seed_51';
+			await store.put(documentContentKey(docSeed51), {
+				format: 'violet-tree',
+				version: 1,
+				rev: 0,
+				syncedRev: 0,
+				seed: {
+					files: [
+						{
+							name: 'base.tokens.json',
+							content: JSON.stringify({
+								$extensions: {
+									'dev.lushly.violet': { type: 'product', constraints: makeRules(51) },
+								},
+								color: { $type: 'color', bg: { $value: '#ffffff' } },
+							}),
+						},
+					],
+				},
+			});
+			const failSeed51 = (await callHandler('violet-node-list', { document: docSeed51 }, ctx)) as {
+				success: boolean;
+				error?: { code: string };
+			};
+			expect(failSeed51.success).toBe(false);
+			expect(failSeed51.error?.code).toBe('VALIDATION_ERROR');
+		}
+
+		// 4. Prototype-safe snapshot extraction for node id '__proto__' across cache clear + reload
+		{
+			const { ctx, store } = makeCtx();
+			const docProto = 'doc_proto_node';
+			const imported = (await callHandler(
+				'violet-tree-import',
+				{
+					document: docProto,
+					content: {
+						files: [
+							{
+								name: 'proto.tokens.json',
+								content: JSON.stringify({
+									$extensions: {
+										'dev.lushly.violet': {
+											node: '__proto__',
+											type: 'product',
+											constraints: [
+												{
+													id: 'proto-rule',
+													name: 'Proto rule',
+													applyTo: 'color.*',
+													config: { type: 'enum', values: ['#ffffff'] },
+												},
+											],
+										},
+									},
+									color: { $type: 'color', bg: { $value: '#ffffff' } },
+								}),
+							},
+						],
+					},
+				},
+				ctx
+			)) as { success: boolean; error?: unknown };
+			expect(imported.success, JSON.stringify(imported.error)).toBe(true);
+
+			// Simulate JSON round-trip persistence (as SQLite/IndexedDB stores do) + cache eviction
+			const persisted = JSON.parse(JSON.stringify(store.map.get(documentContentKey(docProto))));
+			store.map.set(documentContentKey(docProto), persisted);
+			port.clearCache();
+
+			const expProto = (await callHandler('violet-tree-export', { document: docProto }, ctx)) as {
+				success: boolean;
+				data?: { content: { files: Array<{ content: string }> } };
+			};
+			expect(expProto.success).toBe(true);
+			const protoJson = JSON.parse(expProto.data?.content.files[0]?.content ?? '{}');
+			expect(protoJson.$extensions['dev.lushly.violet'].constraints).toEqual([
+				expect.objectContaining({ id: 'proto-rule' }),
+			]);
+		}
+	});
+});
