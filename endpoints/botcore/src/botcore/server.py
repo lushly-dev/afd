@@ -3,6 +3,7 @@
 Public API:
     build_namespace()      → (namespace dict, populated PluginRegistry)
     build_docs(registry)   → merged docs dict
+    render_docs_topic(docs, topic, name=...) → (text, found) for one topic
     create_mcp_server(name, ...) → FastMCP instance with {name}-start/docs/run tools
 """
 
@@ -83,6 +84,24 @@ def build_docs(
             raise ValueError(f"Duplicate documentation topics: {sorted(overlap)}")
         docs.update(extra_docs)
     return docs
+
+
+def render_docs_topic(docs: dict[str, str], topic: str, *, name: str) -> tuple[str, bool]:
+    """Render one docs topic as the ``{name}-docs`` tool and ``botcore docs`` both show it.
+
+    ``overview`` lists every topic with its first line. Returns the text and whether the
+    topic exists; for an unknown topic the text names the topics that do.
+    """
+    if topic == "overview":
+        lines = [f"# {name} — Topics\n"]
+        for t in sorted(docs.keys()):
+            first_line = docs[t].strip().splitlines()[0] if docs[t].strip() else t
+            lines.append(f"- **{t}**: {first_line}")
+        return "\n".join(lines), True
+    if topic not in docs:
+        avail = ", ".join(sorted(docs.keys()))
+        return f"Unknown topic: '{topic}'. Available: overview, {avail}", False
+    return docs[topic], True
 
 
 # Input guard for ``{name}-run`` code. It bounds abuse of the exec surface, not the model's
@@ -166,16 +185,7 @@ def create_mcp_server(
         description=f"Reference docs by topic ({', '.join(sorted(docs.keys()))})",
     )
     async def _docs(topic: str = "overview") -> str:
-        if topic == "overview":
-            lines = [f"# {name} — Topics\n"]
-            for t in sorted(docs.keys()):
-                first_line = docs[t].strip().splitlines()[0] if docs[t].strip() else t
-                lines.append(f"- **{t}**: {first_line}")
-            return "\n".join(lines)
-        if topic not in docs:
-            avail = ", ".join(sorted(docs.keys()))
-            return f"Unknown topic: '{topic}'. Available: overview, {avail}"
-        return docs[topic]
+        return render_docs_topic(docs, topic, name=name)[0]
 
     # ── {name}-run ────────────────────────────────────────────────────
     @server.tool(

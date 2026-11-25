@@ -1129,3 +1129,7 @@ def pr_wait_cmd(  # noqa: PLR0913 - one argument per CLI option
 from botcore.cli_cdp import cdp_group  # noqa: E402
 
 cli.add_command(cdp_group)
+
+from botcore.cli_docs import docs_command  # noqa: E402
+
+cli.add_command(docs_command)
