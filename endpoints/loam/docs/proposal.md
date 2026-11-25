@@ -671,7 +671,7 @@ Each is small enough to read as a tutorial and real enough to use.
 | hello | One surface each: rail, sidebar, main, a setting, an experiment, a toast; the reference for the contract and the test kit | Native | Phase 1 |
 | notes | The reference document type: text with links, backlinks and embeds; one model, many editors | Native document type | Phase 2 |
 | console | Any mounted AFD server and every new app: commands, schemas, forms, results, then the journal and usage | Native, over mounted servers | Minimal in phase 1, complete in phase 5 |
-| violet | Token trees as a `violet-tree` document type, with themes, contrast and exports, over `@lushly-dev/violet-afd` ([proposal](../../../docs/features/active/violet-app/violet-app.proposal.md)) | Native, with Violet's engine in the page; the mounted `violet-server` behind the same port after phase 5 | First slice now, on phases 1 and 2 |
+| violet | Token trees as a `violet-tree` document type, with themes, contrast and exports, over `@lushly-dev/violet-afd` ([proposal](../../../docs/features/complete/violet-app/violet-app.proposal.md)) | Native, with Violet's engine in the page; the mounted `violet-server` behind the same port after phase 5 | First slice now, on phases 1 and 2 |
 | health | Health reports in the shell: the existing dashboard's reading of report 1.1 files, under a project | Native, from `endpoints/health-dashboard` | Phase 5 |
 | specimen | The component bench: list, render, diff | Mounted | After phase 5 |
 | umbel | Knowledge, memory and context for the copilot and a browser over them | Mounted Umbel | After Umbel's phase 2 |
