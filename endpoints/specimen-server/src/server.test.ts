@@ -61,7 +61,7 @@ describe('Specimen MCP endpoint', () => {
 		try {
 			const definitions = createSpecimenCommands(bench).filter((command) => command.expose?.mcp);
 			const { tools } = await client.listTools();
-			expect(tools).toHaveLength(26);
+			expect(tools).toHaveLength(32);
 			expect(tools).toEqual(
 				definitions.map((command) => ({
 					name: command.name,
@@ -101,6 +101,21 @@ describe('Specimen MCP endpoint', () => {
 			expect(tools.find((tool) => tool.name === 'specimen-point-check')?.annotations).toEqual({
 				readOnlyHint: true,
 			});
+			expect(tools.find((tool) => tool.name === 'specimen-note-list')?.annotations).toEqual({
+				readOnlyHint: true,
+			});
+			for (const mut of [
+				'specimen-note-add',
+				'specimen-note-check',
+				'specimen-note-move',
+				'specimen-note-resolve',
+				'specimen-note-reopen',
+			]) {
+				expect(tools.find((tool) => tool.name === mut)?.annotations).toEqual({
+					readOnlyHint: false,
+					destructiveHint: false,
+				});
+			}
 		} finally {
 			await bench.close();
 		}
@@ -202,6 +217,39 @@ describe('Specimen MCP endpoint', () => {
 			error: {
 				code: 'NOT_A_JOB',
 				suggestion: expect.stringContaining('specimen-list'),
+			},
+		});
+		const emptyNotes = await client.callTool({
+			name: 'specimen-note-list',
+			arguments: {},
+		});
+		expect(emptyNotes.isError).toBe(false);
+		expect(envelope(emptyNotes as CallToolResult)).toMatchObject({
+			success: true,
+			data: { notes: [] },
+		});
+		const missingNote = await client.callTool({
+			name: 'specimen-note-resolve',
+			arguments: { id: 'note-000000000000', outcome: 'fixed', reason: 'Done' },
+		});
+		expect(missingNote.isError).toBe(true);
+		expect(envelope(missingNote as CallToolResult)).toMatchObject({
+			success: false,
+			error: {
+				code: 'NOTE_NOT_FOUND',
+				suggestion: expect.stringContaining('specimen-note-list'),
+			},
+		});
+		const emptyNoteText = await client.callTool({
+			name: 'specimen-note-add',
+			arguments: { pointer: 'specimen:cheap#ref=root/div:1', text: '' },
+		});
+		expect(emptyNoteText.isError).toBe(true);
+		expect(envelope(emptyNoteText as CallToolResult)).toMatchObject({
+			success: false,
+			error: {
+				code: 'NOTE_EMPTY',
+				suggestion: expect.stringContaining('what'),
 			},
 		});
 	});

@@ -233,6 +233,43 @@ function harness() {
 		point: vi.fn(async () => ({ point: cliSamplePoint })),
 		pointMove: vi.fn(async () => ({ point: { ...cliSamplePoint, id: 'pt-9w4m2c1x5r8k' } })),
 		pointCheck: vi.fn(async () => ({ status: 'current' as const, changed: [] })),
+		noteAdd: vi.fn(async () => ({ note: cliSampleNote })),
+		noteList: vi.fn(async () => ({ notes: [cliSampleNote] })),
+		noteCheck: vi.fn(async () => ({
+			checked: 1,
+			orphaned: [],
+			weakened: [],
+			unchecked: [],
+			restored: [],
+		})),
+		noteMove: vi.fn(async () => ({
+			note: {
+				...cliSampleNote,
+				orphaned: false,
+				history: [{ change: 'moved' as const, reason: 'Moved' }],
+			},
+		})),
+		noteResolve: vi.fn(async () => ({
+			resolved: [
+				{
+					...cliSampleNote,
+					state: 'resolved' as const,
+					resolution: { outcome: 'fixed' as const, reason: 'Fixed' },
+					history: [{ change: 'resolved' as const, outcome: 'fixed' as const, reason: 'Fixed' }],
+				},
+			],
+			skipped: [],
+		})),
+		noteReopen: vi.fn(async () => ({
+			note: {
+				...cliSampleNote,
+				state: 'open' as const,
+				history: [
+					{ change: 'resolved' as const, outcome: 'fixed' as const, reason: 'Fixed' },
+					{ change: 'reopened' as const, reason: 'Reopened' },
+				],
+			},
+		})),
 		createJob: vi.fn(async (request) => ({
 			written: 'specimen.config.json',
 			entry: {
@@ -1536,4 +1573,200 @@ describe('specimen CLI', () => {
 			error: { code: 'VALIDATION_ERROR' },
 		});
 	});
+
+	it('dispatches note-add, note-list, note-check, note-move, note-resolve, and note-reopen', async () => {
+		const h = harness();
+		const root = await directory();
+		const uri =
+			'specimen:example-toolbar?theme=dark&viewport=1280x800#ref=root/example-toolbar:1/shadow/example-button:2&pin=0.4,0.6';
+
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'note-add',
+					'--pointer',
+					uri,
+					'--text',
+					'Export needs PDF',
+					'--assignee',
+					'agent',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.noteAdd).toHaveBeenLastCalledWith({
+			pointer: uri,
+			text: 'Export needs PDF',
+			assignee: 'agent',
+		});
+
+		expect(
+			await runCli(['--root', root, 'note-add', 'pt-5r8k2w9m4c1x', '--text', 'From point'], h.io)
+		).toBe(0);
+		expect(h.bench.noteAdd).toHaveBeenLastCalledWith({
+			point: 'pt-5r8k2w9m4c1x',
+			text: 'From point',
+		});
+
+		// Empty --text passes through to specimen-note-add instead of failing option parsing
+		vi.mocked(h.bench.noteAdd).mockRejectedValueOnce(
+			Object.assign(new Error('Note text cannot be empty.'), {
+				code: 'NOTE_EMPTY',
+				suggestion: 'Say what you noticed.',
+			})
+		);
+		expect(await runCli(['--root', root, 'note-add', '--pointer', uri, '--text', ''], h.io)).toBe(
+			1
+		);
+		expect(JSON.parse(h.output.at(-1) ?? '')).toMatchObject({
+			success: false,
+			error: { code: 'NOTE_EMPTY' },
+		});
+
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'note-list',
+					'--specimen',
+					'example-toolbar',
+					'--state',
+					'open',
+					'--assignee',
+					'agent',
+					'--orphaned',
+					'--limit',
+					'10',
+					'--after',
+					'note-111111111111',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.noteList).toHaveBeenLastCalledWith({
+			specimen: 'example-toolbar',
+			state: 'open',
+			assignee: 'agent',
+			orphaned: true,
+			limit: 10,
+			after: 'note-111111111111',
+		});
+		expect(await runCli(['--root', root, 'note-list', '--orphaned', '--no-orphaned'], h.io)).toBe(
+			1
+		);
+
+		expect(await runCli(['--root', root, 'note-check', 'example-toolbar'], h.io)).toBe(0);
+		expect(h.bench.noteCheck).toHaveBeenLastCalledWith({ specimen: 'example-toolbar' });
+		expect(await runCli(['--root', root, 'note-check'], h.io)).toBe(0);
+		expect(h.bench.noteCheck).toHaveBeenLastCalledWith({});
+
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'note-move',
+					'note-7k2m9q4x1r8t',
+					'--point',
+					'pt-5r8k2w9m4c1x',
+					'--reason',
+					'Archive moved into menu',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.noteMove).toHaveBeenLastCalledWith({
+			id: 'note-7k2m9q4x1r8t',
+			point: 'pt-5r8k2w9m4c1x',
+			reason: 'Archive moved into menu',
+		});
+
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'note-resolve',
+					'note-9v4b7n2k5m1c',
+					'--outcome',
+					'fixed',
+					'--reason',
+					'Export offers CSV and PDF',
+					'--revision',
+					'4f2c9a1',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.noteResolve).toHaveBeenLastCalledWith({
+			id: 'note-9v4b7n2k5m1c',
+			outcome: 'fixed',
+			reason: 'Export offers CSV and PDF',
+			evidence: { revision: '4f2c9a1' },
+		});
+
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'note-resolve',
+					'--ids',
+					'note-q4z1m6t9b2xe,note-w8c3r5y0k7aj',
+					'--outcome',
+					'obsolete',
+					'--reason',
+					'Filter bar removed',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.noteResolve).toHaveBeenLastCalledWith({
+			ids: ['note-q4z1m6t9b2xe', 'note-w8c3r5y0k7aj'],
+			outcome: 'obsolete',
+			reason: 'Filter bar removed',
+		});
+
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'note-reopen',
+					'note-9v4b7n2k5m1c',
+					'--reason',
+					'PDF fails on long reports',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.noteReopen).toHaveBeenLastCalledWith({
+			id: 'note-9v4b7n2k5m1c',
+			reason: 'PDF fails on long reports',
+		});
+	});
 });
+
+const cliSampleNote = {
+	id: 'note-9v4b7n2k5m1c',
+	text: 'Export should offer CSV and PDF',
+	subject: {
+		specimen: 'example-toolbar',
+		context: { theme: 'dark', viewport: '1280x800' },
+		accessible: { role: 'button', name: 'Export' },
+		identity: {
+			strongest: 'role-name' as const,
+			roleName: { role: 'button', name: 'Export' },
+			componentPosition: { tag: 'example-button', index: 2 },
+			ref: 'root/example-toolbar:1/shadow/example-button:2',
+		},
+	},
+	pin: { x: 0.4, y: 0.6 },
+	state: 'open' as const,
+	orphaned: false,
+	assignee: 'agent',
+	history: [],
+};

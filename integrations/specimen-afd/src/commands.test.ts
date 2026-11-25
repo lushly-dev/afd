@@ -365,6 +365,53 @@ function bench(): SpecimenCommandBench {
 		point: vi.fn(async () => ({ point: samplePoint })),
 		pointMove: vi.fn(async () => ({ point: { ...samplePoint, id: 'pt-9w4m2c1x5r8k' } })),
 		pointCheck: vi.fn(async () => ({ status: 'current' as const, changed: [] })),
+		noteAdd: vi.fn(async () => ({ note: sampleNote })),
+		noteList: vi.fn(async () => ({ notes: [sampleNote] })),
+		noteCheck: vi.fn(async () => ({
+			checked: 1,
+			orphaned: [],
+			weakened: [],
+			unchecked: [],
+			restored: [],
+		})),
+		noteMove: vi.fn(async () => ({
+			note: {
+				...sampleNote,
+				orphaned: false,
+				history: [{ change: 'moved' as const, reason: 'Archive moved into overflow menu' }],
+			},
+		})),
+		noteResolve: vi.fn(async () => ({
+			resolved: [
+				{
+					...sampleNote,
+					state: 'resolved' as const,
+					resolution: { outcome: 'fixed' as const, reason: 'Export offers CSV and PDF' },
+					history: [
+						{
+							change: 'resolved' as const,
+							outcome: 'fixed' as const,
+							reason: 'Export offers CSV and PDF',
+						},
+					],
+				},
+			],
+			skipped: [],
+		})),
+		noteReopen: vi.fn(async () => ({
+			note: {
+				...sampleNote,
+				state: 'open' as const,
+				history: [
+					{
+						change: 'resolved' as const,
+						outcome: 'fixed' as const,
+						reason: 'Export offers CSV and PDF',
+					},
+					{ change: 'reopened' as const, reason: 'PDF fails for long reports' },
+				],
+			},
+		})),
 		createJob: vi.fn(async (request) => ({
 			written: 'specimen.config.json',
 			entry: {
@@ -461,6 +508,31 @@ const samplePoint = {
 	},
 };
 
+const sampleNote = {
+	id: 'note-9v4b7n2k5m1c',
+	text: 'Export should offer CSV and PDF, not only CSV',
+	subject: {
+		specimen: 'example-toolbar',
+		context: { theme: 'dark', viewport: '1280x800' },
+		accessible: {
+			role: 'button',
+			name: 'Export',
+			from: 'root/example-toolbar:1/shadow/example-button:2/shadow/button:1',
+		},
+		identity: {
+			strongest: 'role-name' as const,
+			roleName: { role: 'button', name: 'Export' },
+			componentPosition: { tag: 'example-button', index: 2 },
+			ref: 'root/example-toolbar:1/shadow/example-button:2',
+		},
+	},
+	pin: { x: 0.4, y: 0.6 },
+	state: 'open' as const,
+	orphaned: false,
+	assignee: 'agent',
+	history: [],
+};
+
 const packReport = {
 	library: 'example',
 	directory: '/pack',
@@ -503,6 +575,12 @@ describe('specimen commands', () => {
 			'specimen-point',
 			'specimen-point-move',
 			'specimen-point-check',
+			'specimen-note-add',
+			'specimen-note-list',
+			'specimen-note-check',
+			'specimen-note-move',
+			'specimen-note-resolve',
+			'specimen-note-reopen',
 			'specimen-job-create',
 			'specimen-job-run',
 		]);
@@ -1762,5 +1840,134 @@ describe('specimen commands', () => {
 		expect(missing.success).toBe(false);
 		expect(missing.error?.code).toBe('CAPTURE_SET_NOT_FOUND');
 		expect(missing.error?.suggestion).toContain('specimen-capture');
+	});
+
+	it('exposes the 6 specimen-note-* commands with mutation metadata, schema validation, and structured errors', async () => {
+		const instance = bench();
+		const commands = createSpecimenCommands(instance);
+		const mutation = (name: string) => commands.find((command) => command.name === name)?.mutation;
+		expect(mutation('specimen-note-add')).toBe(true);
+		expect(mutation('specimen-note-list')).toBe(false);
+		expect(mutation('specimen-note-check')).toBe(true);
+		expect(mutation('specimen-note-move')).toBe(true);
+		expect(mutation('specimen-note-resolve')).toBe(true);
+		expect(mutation('specimen-note-reopen')).toBe(true);
+
+		const added = await executeSpecimenCommand(instance, 'specimen-note-add', {
+			pointer:
+				'specimen:example-toolbar?theme=dark&viewport=1280x800#ref=root/example-toolbar:1/shadow/example-button:2&pin=0.4,0.6',
+			text: 'Export should offer CSV and PDF',
+			assignee: 'agent',
+		});
+		expect(added.success).toBe(true);
+		expect(instance.noteAdd).toHaveBeenCalledTimes(1);
+
+		const listed = await executeSpecimenCommand(instance, 'specimen-note-list', {
+			assignee: 'agent',
+			limit: 20,
+		});
+		expect(listed.success).toBe(true);
+		expect(instance.noteList).toHaveBeenCalledWith({ assignee: 'agent', limit: 20 });
+
+		const checked = await executeSpecimenCommand(instance, 'specimen-note-check', {});
+		expect(checked.success).toBe(true);
+		expect(instance.noteCheck).toHaveBeenCalledWith({});
+
+		const moved = await executeSpecimenCommand(instance, 'specimen-note-move', {
+			id: 'note-9v4b7n2k5m1c',
+			point: 'pt-5r8k2w9m4c1x',
+			reason: 'Archive moved into overflow menu',
+		});
+		expect(moved.success).toBe(true);
+
+		const resolved = await executeSpecimenCommand(instance, 'specimen-note-resolve', {
+			id: 'note-9v4b7n2k5m1c',
+			outcome: 'fixed',
+			reason: 'Export offers CSV and PDF',
+			evidence: { revision: '4f2c9a1' },
+		});
+		expect(resolved.success).toBe(true);
+
+		const reopened = await executeSpecimenCommand(instance, 'specimen-note-reopen', {
+			id: 'note-9v4b7n2k5m1c',
+			reason: 'PDF fails for long reports',
+		});
+		expect(reopened.success).toBe(true);
+
+		// Invalid mutual-exclusion / range shapes fail with VALIDATION_ERROR
+		for (const [cmd, badInput] of [
+			['specimen-note-add', { point: 'pt-1', pointer: 'specimen:a#ref=root/div:1', text: 'x' }],
+			['specimen-note-list', { limit: 101 }],
+			['specimen-note-move', { id: 'note-9v4b7n2k5m1c', reason: 'no target' }],
+			[
+				'specimen-note-resolve',
+				{ id: 'note-1', ids: ['note-1'], outcome: 'fixed', reason: 'both' },
+			],
+		] as const) {
+			const res = await executeSpecimenCommand(instance, cmd, badInput);
+			expect(res.success, cmd).toBe(false);
+			expect(res.error?.code, cmd).toBe('VALIDATION_ERROR');
+		}
+
+		// Structured Slice 2 error codes pass through cleanly (including empty text / omitted reason)
+		for (const [cmd, input, method, code, suggestion] of [
+			[
+				'specimen-note-add',
+				{ pointer: 'specimen:a#ref=root/div:1', text: '' },
+				'noteAdd',
+				'NOTE_EMPTY',
+				'Say what you noticed.',
+			],
+			[
+				'specimen-note-add',
+				{ point: 'pt-2k7m9p4x8c1v', text: 'Stale' },
+				'noteAdd',
+				'POINT_STALE',
+				'Run specimen-point to point again.',
+			],
+			[
+				'specimen-note-move',
+				{ id: 'note-9v4b7n2k5m1c', point: 'pt-5r8k2w9m4c1x' },
+				'noteMove',
+				'REASON_REQUIRED',
+				'Give a reason: what was done and why.',
+			],
+			[
+				'specimen-note-resolve',
+				{ id: 'note-9v4b7n2k5m1c', outcome: 'fixed' },
+				'noteResolve',
+				'REASON_REQUIRED',
+				'Give a reason: what was done and why.',
+			],
+			[
+				'specimen-note-resolve',
+				{ id: 'note-000000000000', outcome: 'fixed', reason: 'Done' },
+				'noteResolve',
+				'NOTE_NOT_FOUND',
+				'Run specimen-note-list to see available notes.',
+			],
+			[
+				'specimen-note-resolve',
+				{ id: 'note-9v4b7n2k5m1c', outcome: 'fixed', reason: 'Done' },
+				'noteResolve',
+				'NOTE_ALREADY_RESOLVED',
+				'Run specimen-note-reopen to reopen it.',
+			],
+			[
+				'specimen-note-reopen',
+				{ id: 'note-9v4b7n2k5m1c', reason: 'Again' },
+				'noteReopen',
+				'NOTE_NOT_RESOLVED',
+				'Run specimen-note-resolve to close an open note.',
+			],
+		] as const) {
+			vi.mocked(instance[method]).mockRejectedValueOnce(
+				Object.assign(new Error(code), { code, suggestion })
+			);
+			const res = await executeSpecimenCommand(instance, cmd, input);
+			expect(res.success, code).toBe(false);
+			expect(res.error?.code, code).toBe(code);
+			expect(res.error?.suggestion, code).toBe(suggestion);
+		}
 	});
 });

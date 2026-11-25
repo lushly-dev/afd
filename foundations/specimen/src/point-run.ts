@@ -100,7 +100,11 @@ export interface PointHost {
 			timeoutMs?: number;
 		},
 		options: { resolveTarget?: Target; collectTexts?: boolean }
-	): Promise<{ observation: Observation | null; pointMeta: PointCaptureMeta }>;
+	): Promise<{
+		observation: Observation | null;
+		outcome?: { status: string } | null;
+		pointMeta: PointCaptureMeta;
+	}>;
 }
 
 function computePointDigests(

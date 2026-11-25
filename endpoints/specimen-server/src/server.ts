@@ -15,7 +15,7 @@ export async function createSpecimenMcpServer(options: BenchOptions): Promise<Mc
 		{
 			capabilities: { tools: {} },
 			instructions:
-				'Specimen observes and tests native components, retained stories, and job specimens. Start with specimen-list and specimen-validate. Tools use the same input schemas and CommandResult envelopes as the specimen CLI. Rendering, inspection, and job runs can launch Chromium and execute project code; job-create, job-run, capture, compare, baseline, migrate, build, point, and pack operations can write files. Use this server with trusted local projects.',
+				'Specimen observes and tests native components, retained stories, and job specimens. Start with specimen-list and specimen-validate. Tools use the same input schemas and CommandResult envelopes as the specimen CLI. Rendering, inspection, and job runs can launch Chromium and execute project code; job-create, job-run, capture, compare, baseline, migrate, build, point, note, and pack operations can write files. Use this server with trusted local projects.',
 		}
 	);
 	server.server.setRequestHandler(ListToolsRequestSchema, async () => ({

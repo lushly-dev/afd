@@ -6,6 +6,7 @@ export const CAPTURE_VERSION = '0.10' as const;
 export const NORMALIZATION_VERSION = '0.2' as const;
 
 export type { Args, Decorator, Meta, Preview, StoryContext, StoryObj } from './csf-types.js';
+export type * from './note-types.js';
 export type * from './pack-types.js';
 export type * from './pattern-types.js';
 export type * from './point-types.js';

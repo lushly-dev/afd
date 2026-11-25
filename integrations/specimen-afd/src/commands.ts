@@ -33,6 +33,16 @@ import {
 	matrixRunSchema,
 	migrateRequestSchema,
 	migrationReportSchema,
+	noteAddRequestSchema,
+	noteCheckRequestSchema,
+	noteCheckResultSchema,
+	noteListRequestSchema,
+	noteListResultSchema,
+	noteMoveRequestSchema,
+	noteReopenRequestSchema,
+	noteResolveRequestSchema,
+	noteResolveResultSchema,
+	noteResultSchema,
 	observationSchema,
 	packCheckRunSchema,
 	packExportRequestSchema,
@@ -62,6 +72,11 @@ export {
 	buildOutputSchema,
 	contextSchema,
 	inspectResultSchema,
+	noteCheckResultSchema,
+	noteListResultSchema,
+	noteResolveResultSchema,
+	noteResultSchema,
+	noteSchema,
 	observationSchema,
 	pointCheckResultSchema,
 	pointResultSchema,
@@ -94,6 +109,16 @@ import type {
 	MatrixRun,
 	MigrateRequest,
 	MigrationReport,
+	NoteAddRequest,
+	NoteCheckRequest,
+	NoteCheckResult,
+	NoteListRequest,
+	NoteListResult,
+	NoteMoveRequest,
+	NoteReopenRequest,
+	NoteResolveRequest,
+	NoteResolveResult,
+	NoteResult,
 	Observation,
 	ObservationDiff,
 	PackCheckRun,
@@ -266,6 +291,12 @@ export interface SpecimenCommandBench {
 	point(request: PointRequest): Promise<PointResult>;
 	pointMove(request: PointMoveRequest): Promise<PointResult>;
 	pointCheck(request: PointCheckRequest): Promise<PointCheckResult>;
+	noteAdd(request: NoteAddRequest): Promise<NoteResult>;
+	noteList(request?: NoteListRequest): Promise<NoteListResult>;
+	noteCheck(request?: NoteCheckRequest): Promise<NoteCheckResult>;
+	noteMove(request: NoteMoveRequest): Promise<NoteResult>;
+	noteResolve(request: NoteResolveRequest): Promise<NoteResolveResult>;
+	noteReopen(request: NoteReopenRequest): Promise<NoteResult>;
 	createJob(request: JobCreateRequest): Promise<JobCreateResult>;
 	runJob(request: JobRunRequest): Promise<JobRun>;
 }
@@ -747,6 +778,102 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				'Run specimen-point to create a fresh point if the stored point is missing or unreadable.'
 			),
 	});
+	const noteAdd = defineCommand({
+		...common,
+		name: 'specimen-note-add',
+		description:
+			'Pin a note to a fresh point id or a specimen: pointer URI and store it under specimens/notes/<id>.json. Refuses empty text (NOTE_EMPTY) and stale points (POINT_STALE).',
+		mutation: true,
+		input: noteAddRequestSchema,
+		output: noteResultSchema,
+		handler: async (input) =>
+			result(
+				() => bench.noteAdd(input as NoteAddRequest),
+				noteResultSchema,
+				'SPECIMEN_NOTE_ADD_FAILED',
+				'Pass a fresh point id or valid pointer URI with non-empty note text.'
+			),
+	});
+	const noteList = defineCommand({
+		...common,
+		name: 'specimen-note-list',
+		description:
+			'List committed notes from specimens/notes/ without launching a browser. Defaults to open notes, filters by specimen, state, assignee, or orphaned, and pages with limit (default 20, max 100) and after/next.',
+		mutation: false,
+		input: noteListRequestSchema,
+		output: noteListResultSchema,
+		handler: async (input) =>
+			result(
+				() => bench.noteList(input),
+				noteListResultSchema,
+				'SPECIMEN_NOTE_LIST_FAILED',
+				'Check the specimens/notes/ directory and filter options, then run specimen-note-list again.'
+			),
+	});
+	const noteCheck = defineCommand({
+		...common,
+		name: 'specimen-note-check',
+		description:
+			'Re-resolve open notes against current specimen renders, updating orphaned flags without moving notes by guesswork. Reports checked count, orphaned, weakened, unchecked (render-failed or specimen-missing), and restored ids.',
+		mutation: true,
+		input: noteCheckRequestSchema,
+		output: noteCheckResultSchema,
+		handler: async (input) =>
+			result(
+				() => bench.noteCheck(input),
+				noteCheckResultSchema,
+				'SPECIMEN_NOTE_CHECK_FAILED',
+				'Verify the specimen configuration and browser installation, then run specimen-note-check again.'
+			),
+	});
+	const noteMove = defineCommand({
+		...common,
+		name: 'specimen-note-move',
+		description:
+			'Re-pin a note to a fresh point id or specimen: pointer URI with a required reason (REASON_REQUIRED), clearing orphaned and recording the move in history. Refuses stale points (POINT_STALE).',
+		mutation: true,
+		input: noteMoveRequestSchema,
+		output: noteResultSchema,
+		handler: async (input) =>
+			result(
+				() => bench.noteMove(input as NoteMoveRequest),
+				noteResultSchema,
+				'SPECIMEN_NOTE_MOVE_FAILED',
+				'Run specimen-note-list to check the note id and specimen-point to create a fresh point.'
+			),
+	});
+	const noteResolve = defineCommand({
+		...common,
+		name: 'specimen-note-resolve',
+		description:
+			'Resolve one note (id) or several (ids) with an outcome (fixed, declined, duplicate, obsolete, withdrawn), a required reason (REASON_REQUIRED), and optional evidence. Always returns { resolved, skipped }; single id fails with NOTE_NOT_FOUND or NOTE_ALREADY_RESOLVED, while bulk ids record them in skipped.',
+		mutation: true,
+		input: noteResolveRequestSchema,
+		output: noteResolveResultSchema,
+		handler: async (input) =>
+			result(
+				() => bench.noteResolve(input as NoteResolveRequest),
+				noteResolveResultSchema,
+				'SPECIMEN_NOTE_RESOLVE_FAILED',
+				'Run specimen-note-list to check the note id and provide an outcome and reason.'
+			),
+	});
+	const noteReopen = defineCommand({
+		...common,
+		name: 'specimen-note-reopen',
+		description:
+			'Reopen a resolved note with a required reason (REASON_REQUIRED), preserving its prior resolution in history. Refuses open notes with NOTE_NOT_RESOLVED.',
+		mutation: true,
+		input: noteReopenRequestSchema,
+		output: noteResultSchema,
+		handler: async (input) =>
+			result(
+				() => bench.noteReopen(input),
+				noteResultSchema,
+				'SPECIMEN_NOTE_REOPEN_FAILED',
+				'Run specimen-note-list with state: resolved to check the note id, then pass a reason.'
+			),
+	});
 	const jobCreate = defineCommand({
 		...common,
 		name: 'specimen-job-create',
@@ -813,6 +940,12 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		point,
 		pointMove,
 		pointCheck,
+		noteAdd,
+		noteList,
+		noteCheck,
+		noteMove,
+		noteResolve,
+		noteReopen,
 		jobCreate,
 		jobRun,
 	] as const;
@@ -863,6 +996,12 @@ export async function executeSpecimenCommand(
 		point,
 		pointMove,
 		pointCheck,
+		noteAdd,
+		noteList,
+		noteCheck,
+		noteMove,
+		noteResolve,
+		noteReopen,
 		jobCreate,
 		jobRun,
 	] = createSpecimenCommands(bench);
@@ -915,6 +1054,18 @@ export async function executeSpecimenCommand(
 			return execute(pointMove, input);
 		case 'specimen-point-check':
 			return execute(pointCheck, input);
+		case 'specimen-note-add':
+			return execute(noteAdd, input);
+		case 'specimen-note-list':
+			return execute(noteList, input);
+		case 'specimen-note-check':
+			return execute(noteCheck, input);
+		case 'specimen-note-move':
+			return execute(noteMove, input);
+		case 'specimen-note-resolve':
+			return execute(noteResolve, input);
+		case 'specimen-note-reopen':
+			return execute(noteReopen, input);
 		case 'specimen-job-create':
 			return execute(jobCreate, input);
 		case 'specimen-job-run':
@@ -924,7 +1075,7 @@ export async function executeSpecimenCommand(
 				code: 'COMMAND_NOT_FOUND',
 				message: `Unknown command: ${name}`,
 				suggestion:
-					'Use specimen list, validate, inspect, render, capture, compare, run, themes, migrate, diff, build, point, point-move, point-check, job-create, or job-run.',
+					'Use specimen list, validate, inspect, render, capture, compare, run, themes, migrate, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, or job-run.',
 			});
 	}
 }

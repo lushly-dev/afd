@@ -1423,3 +1423,12 @@ export function parsePointCheckRequest(value: unknown): PointCheckRequest {
 		...(timeoutMs === undefined ? {} : { timeoutMs }),
 	};
 }
+
+export {
+	parseNoteAddRequest,
+	parseNoteCheckRequest,
+	parseNoteListRequest,
+	parseNoteMoveRequest,
+	parseNoteReopenRequest,
+	parseNoteResolveRequest,
+} from './note-validate.js';
