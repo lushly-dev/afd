@@ -253,8 +253,14 @@ impl Call<'_> {
         if command.is_accessible_in_context(Some(&active)) {
             return None;
         }
-        let tools = self.exposed(crate::AFD_CONTEXT_COMMAND_NAMES[0]).is_some();
-        Some(refused(not_in_context_error(command, &active, tools)))
+        // Whether the caller can call a context command, the same test for the suggestion and
+        // the recovery (`spec/recovery.md`, rule 2): served, existing for the caller and listed.
+        let can = |name: &str| {
+            self.exposed(name).is_some_and(|tool| {
+                tool.is_accessible_in_context(Some(&active)) && self.shows(&tool)
+            })
+        };
+        Some(refused(not_in_context_error(command, &active, can)))
     }
 
     /// The context every execution of this call starts from: the hook's context with the
@@ -641,17 +647,7 @@ impl Call<'_> {
                 .iter()
                 .map(|command| command.name.clone())
                 .collect();
-            return refused(
-                CommandError::new(
-                    error_codes::COMMAND_NOT_FOUND,
-                    format!(
-                        "Command '{}' not found",
-                        crate::commands::truncate_name(name)
-                    ),
-                )
-                .with_suggestion(crate::commands::not_found_suggestion(name, &callable, true))
-                .with_retryable(false),
-            );
+            return refused(crate::commands::command_not_found(name, &callable, true));
         };
         if let Some(denied) = self.denial(&command) {
             return denied;

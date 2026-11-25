@@ -5,7 +5,8 @@
 		"code": "CALL_NOT_GRANTED",
 		"message": "This app may not call that command",
 		"suggestion": "Ask the deployer for a calls grant that names the command; the command must also set expose.apps",
-		"retryable": false
+		"retryable": false,
+		"recovery": { "kind": "external" }
 	},
 	"exposure": [
 		{

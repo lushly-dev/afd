@@ -14,6 +14,17 @@ namespace {
 // The suggestion TypeScript's internalError and wrapError use.
 constexpr char default_suggestion[] = "Please try again. If this persists, contact support.";
 
+// `rate_limit_error`'s `afterMs`: the wait in whole milliseconds, rounded up so the caller waits at
+// least as long as the suggestion says. A wait that is negative, infinite or beyond 2^53 - 1 ms has
+// no `afterMs` a recovery can carry, so the recovery is a plain retry.
+std::optional<std::int64_t> rate_limit_after_ms(double seconds) {
+    const double ms = std::ceil(seconds * 1000.0);
+    if (!std::isfinite(ms) || ms < 0 || ms > detail::max_safe_integer_double) {
+        return std::nullopt;
+    }
+    return static_cast<std::int64_t>(ms);
+}
+
 // A cause chain comes from untrusted input; bound the recursion that reads it.
 constexpr int max_cause_depth = 32;
 
@@ -386,7 +397,8 @@ CommandError call_not_granted() {
     return create_error(error_codes::CALL_NOT_GRANTED, "This app may not call that command",
                         {.suggestion = "Ask the deployer for a calls grant that names the command; "
                                        "the command must also set expose.apps",
-                         .retryable = false});
+                         .retryable = false,
+                         .recovery = Recovery{.kind = RecoveryKind::external}});
 }
 
 CommandError not_found_error(std::string_view resource_type, std::string_view resource_id) {
@@ -407,10 +419,13 @@ CommandError rate_limit_error(std::optional<double> retry_after_seconds) {
         retry_after_seconds && *retry_after_seconds != 0 && !std::isnan(*retry_after_seconds);
     ErrorOptions options;
     options.retryable = true;
+    // Retry the same call (spec/recovery.md, "Engine errors"), after the wait when it is known.
+    options.recovery = Recovery{.kind = RecoveryKind::retry};
     if (known) {
         options.suggestion =
             "Wait " + detail::format_number(*retry_after_seconds) + " seconds and try again";
         options.details = Json{{"retryAfterSeconds", wire::number(*retry_after_seconds)}};
+        options.recovery->after_ms = rate_limit_after_ms(*retry_after_seconds);
     } else {
         options.suggestion = "Wait a moment and try again";
     }

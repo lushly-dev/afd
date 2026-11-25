@@ -28,7 +28,7 @@ use crate::approval::relay::{
 use crate::approval::token::{actor_json, canonical_json, hmac_sha256};
 use crate::canonical::base64url_encode;
 use crate::commands::{CommandContext, MiddlewareNext};
-use crate::errors::{error_codes, CommandError};
+use crate::errors::{error_codes, CommandError, Recovery};
 use crate::result::{failure, CommandResult};
 
 /// The most gated steps one question lists; a person cannot weigh more at once.
@@ -355,6 +355,7 @@ fn declined_error(tool: &str, gated: &[Gated]) -> CommandError {
         "Do not run this again without asking the user first; the user chose not to approve it.",
     )
     .with_retryable(false)
+    .with_recovery(Recovery::stop())
     .with_details(HashMap::from([
         ("reason".to_owned(), json!("declined")),
         ("summary".to_owned(), json!(summaries(gated))),
@@ -372,6 +373,7 @@ fn pending_error(tool: &str, gated: &[Gated]) -> CommandError {
         "Wait for the user to approve \"{summary}\" in the client."
     ))
     .with_retryable(false)
+    .with_recovery(Recovery::external())
     .with_details(HashMap::from([("summary".to_owned(), json!(summary))]))
 }
 

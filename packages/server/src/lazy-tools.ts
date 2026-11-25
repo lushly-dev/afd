@@ -10,7 +10,7 @@ import type {
 	TaskSupport,
 } from '@lushly-dev/afd-core';
 import { approvalMode, success, truncateName } from '@lushly-dev/afd-core';
-import { defaultCommandGroup, notFoundSuggestion } from './command-routing.js';
+import { defaultCommandGroup, type NotFoundNext, notFoundSuggestion } from './command-routing.js';
 import type { DetailInput, DiscoverInput } from './meta-tools.js';
 import type { ZodCommandDefinition } from './schema.js';
 
@@ -192,10 +192,16 @@ export function executeDiscover(
 // DETAIL
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/**
+ * @param next - The command an entry's not-found suggestion points to, one the caller can call.
+ *   The entry carries no recovery: the step is the caller's own (`spec/recovery.md`, "Engine
+ *   errors"). Default: `afd-discover`, which the router that serves `afd-detail` serves too
+ */
 export function executeDetail(
 	allRegisteredCommands: ZodCommandDefinition[],
 	exposedCommandNames: Set<string>,
-	input: DetailInput
+	input: DetailInput,
+	next: NotFoundNext | null = 'afd-discover'
 ): CommandResult<DetailEntry[]> {
 	const startTime = performance.now();
 	const rawNames = Array.isArray(input.command) ? input.command : [input.command];
@@ -214,7 +220,7 @@ export function executeDetail(
 				error: {
 					code: 'COMMAND_NOT_FOUND',
 					message: `No command named '${truncateName(name)}'`,
-					suggestion: notFoundSuggestion(name, allNames),
+					suggestion: notFoundSuggestion(name, allNames, next),
 				},
 			};
 		}

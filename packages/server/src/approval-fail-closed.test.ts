@@ -39,6 +39,8 @@ function expectUnavailable(
 		details: { reason },
 	});
 	expect(result.error?.suggestion?.toLowerCase()).toContain('do not retry');
+	// The operator fixes the approval setup (spec/recovery.md, "Engine errors").
+	expect(result.error?.recovery).toEqual({ kind: 'external' });
 }
 
 /** Commands with each kind of policy, and a record of which handlers ran. */
@@ -363,6 +365,7 @@ describe('one admission runs one handler, on what was approved', () => {
 				details: { reason: 'input-not-canonical' },
 			},
 		});
+		expect(result.error?.recovery).toBeUndefined();
 		expect(asked).not.toHaveBeenCalled();
 		expect(handled).not.toHaveBeenCalled();
 	});
@@ -429,7 +432,8 @@ describe('one admission runs one handler, on what was approved', () => {
 		const registry = createDirectRegistry([remove], {
 			middleware: [createApprovalMiddleware({ secret: SECRET, onApprovalRequired: asked })],
 		});
-		expect(await registry.execute('todo-delete', { id: 1 })).toMatchObject({
+		const changed = await registry.execute('todo-delete', { id: 1 });
+		expect(changed).toMatchObject({
 			success: false,
 			error: {
 				code: 'APPROVAL_UNAVAILABLE',
@@ -438,6 +442,7 @@ describe('one admission runs one handler, on what was approved', () => {
 				details: { reason: 'admission-mismatch' },
 			},
 		});
+		expect(changed.error?.recovery).toEqual({ kind: 'external' });
 		expect(asked).not.toHaveBeenCalled();
 		expect(handled).not.toHaveBeenCalled();
 	});

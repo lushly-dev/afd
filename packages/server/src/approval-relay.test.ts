@@ -207,7 +207,13 @@ function body(result: unknown): Record<string, unknown> {
 
 function error(result: unknown) {
 	return body(result).error as
-		| { code: string; suggestion: string; retryable?: boolean; details?: Record<string, unknown> }
+		| {
+				code: string;
+				suggestion: string;
+				retryable?: boolean;
+				details?: Record<string, unknown>;
+				recovery?: unknown;
+		  }
 		| undefined;
 }
 
@@ -314,6 +320,8 @@ describe('approval relay over MCP', () => {
 				retryable: false,
 				details: { reason: 'declined', summary: 'Run todo-delete' },
 			});
+			// The human chose not to proceed: no step makes the call succeed.
+			expect(error(result)?.recovery).toEqual({ kind: 'stop' });
 			expect(error(result)?.details).not.toHaveProperty('approvalToken');
 			expect(calls).toEqual([]);
 		}
@@ -691,6 +699,7 @@ describe('approval relay over MCP', () => {
 				}
 			);
 			expect(error(wrongField.result)?.details).toMatchObject({ reason: 'declined' });
+			expect(error(wrongField.result)?.recovery).toEqual({ kind: 'stop' });
 			expect(calls).toEqual([]);
 		});
 
@@ -761,10 +770,16 @@ describe('approval relay over MCP', () => {
 /** The error of a batch or pipeline refused before any step ran. */
 function refusal(result: unknown) {
 	const payload = body(result) as {
-		error?: { code: string; message: string; suggestion: string; details?: object };
+		error?: {
+			code: string;
+			message: string;
+			suggestion: string;
+			details?: object;
+			recovery?: unknown;
+		};
 		steps?: Array<{
 			index: number;
-			error?: { code: string; suggestion: string; details?: object };
+			error?: { code: string; suggestion: string; details?: object; recovery?: unknown };
 		}>;
 	};
 	return payload.error ?? payload.steps?.find((step) => step.index === -1)?.error;
@@ -808,12 +823,16 @@ describe('a held call on an input with no canonical form', () => {
 			}),
 		] as unknown as ReturnType<typeof commands>;
 
-	function expectNotCanonical(refused: { code: string; details?: object } | undefined) {
+	function expectNotCanonical(
+		refused: { code: string; details?: object; recovery?: unknown } | undefined
+	) {
 		expect(refused).toMatchObject({
 			code: 'APPROVAL_UNAVAILABLE',
 			retryable: false,
 			details: { reason: 'input-not-canonical' },
 		});
+		// The caller sends the input in another form, which no command does.
+		expect(refused?.recovery).toBeUndefined();
 	}
 
 	it('is answered on its own without asking the client', async () => {
@@ -900,6 +919,8 @@ describe('an up-front step whose policy changes its input', () => {
 			retryable: false,
 			details: { reason: 'admission-mismatch' },
 		});
+		// The operator fixes the approval setup.
+		expect(refusal(result)?.recovery).toEqual({ kind: 'external' });
 		expect(prompts).toEqual([]);
 		expect(requests).toEqual([]);
 		expect(calls).toEqual([]);
@@ -942,6 +963,8 @@ describe('one up-front approval for afd-batch and afd-pipe (#459)', () => {
 			code: 'APPROVAL_REQUIRED',
 			details: { reason: 'input-not-known' },
 		});
+		// The caller splits the pipeline, which no command does.
+		expect(refusal(result)?.recovery).toBeUndefined();
 		expect(calls).toEqual([]);
 	});
 
@@ -1009,6 +1032,7 @@ describe('one up-front approval for afd-batch and afd-pipe (#459)', () => {
 				retryable: false,
 				details: { reason: 'declined', summary: 'Run todo-delete; Run todo-delete-strict' },
 			});
+			expect(refusal(batch)?.recovery).toEqual({ kind: 'stop' });
 			expect(body(batch).results).toEqual([]);
 			const pipe = await client.callTool({
 				name: 'afd-pipe',
@@ -1020,6 +1044,7 @@ describe('one up-front approval for afd-batch and afd-pipe (#459)', () => {
 				code: 'APPROVAL_REQUIRED',
 				details: { reason: 'declined' },
 			});
+			expect(refusal(pipe)?.recovery).toEqual({ kind: 'stop' });
 			expect(calls).toEqual([]);
 		}
 	);
@@ -1274,6 +1299,8 @@ describe('one up-front approval for afd-batch and afd-pipe (#459)', () => {
 			code: 'APPROVAL_REQUIRED',
 			details: { reason: 'too-many-approvals', limit: 20 },
 		});
+		// The caller splits the batch, which no command does.
+		expect(refusal(batch)?.recovery).toBeUndefined();
 		expect(calls).toEqual(['list']);
 	});
 
@@ -1361,6 +1388,8 @@ describe('approval middleware with a relay', () => {
 		const fake = fakeRelay(missing, 'todo-list-elsewhere');
 		const nested = await middleware('todo-delete', { id: 1 }, fake.context, ran);
 		expect(nested.error?.suggestion).toContain('Call todo-delete on its own');
+		// The caller reshapes the call, which no command does.
+		expect(nested.error).not.toHaveProperty('recovery');
 		// Routed and first: an ungated command claims it, so a gated one it runs cannot.
 		const first = fakeRelay(missing, 'todo-list');
 		await middleware('todo-list', {}, first.context, async () =>
@@ -1380,6 +1409,8 @@ describe('approval middleware with a relay', () => {
 		const result = await middleware('todo-delete', { id: 1 }, fake.context, ran);
 		expect(result.error?.code).toBe('APPROVAL_REQUIRED');
 		expect(result.error?.details).not.toHaveProperty('approvalToken');
+		// The approval is pending: a person answers it.
+		expect(result.error?.recovery).toEqual({ kind: 'external' });
 		const [hold] = fake.holds;
 		expect(fake.asked[0]).toHaveLength(2);
 		expect(hold?.bindings).toEqual(fake.asked[0]);

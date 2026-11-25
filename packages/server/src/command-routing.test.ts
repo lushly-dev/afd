@@ -1,6 +1,8 @@
+import { AFD_META_TOOL_NAMES } from '@lushly-dev/afd-core';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import {
+	canCall,
 	commandAction,
 	commandGroup,
 	defaultCommandGroup,
@@ -8,6 +10,7 @@ import {
 	isAccessibleInContext,
 	notFoundSuggestion,
 	notInContextError,
+	ROUTED_META_TOOL_NAMES,
 } from './command-routing.js';
 import { defineCommand } from './schema.js';
 
@@ -20,6 +23,24 @@ function command(name: string, extra: { category?: string; contexts?: string[] }
 		...extra,
 	});
 }
+
+describe('callable commands', () => {
+	it('knows the meta-tools core names, without importing them', () => {
+		expect(ROUTED_META_TOOL_NAMES).toEqual(AFD_META_TOOL_NAMES);
+	});
+
+	it('names a command only where the surface shows it to the caller', () => {
+		const surface = {
+			metaTools: true,
+			command: (name: string) => (name === 'todo-list' ? {} : undefined),
+		};
+		expect(canCall(surface, 'todo-list', {}, null)).toBe(true);
+		expect(canCall({ ...surface, shown: () => false }, 'todo-list', {}, null)).toBe(false);
+		// A meta-tool is called as its own tool: whether it is shown does not apply.
+		expect(canCall({ ...surface, shown: () => false }, 'afd-discover', {}, null)).toBe(true);
+		expect(canCall({ ...surface, metaTools: false }, 'afd-discover', {}, null)).toBe(false);
+	});
+});
 
 describe('group and action derivation', () => {
 	it('uses the category, else the first name segment, else general', () => {
@@ -68,6 +89,7 @@ describe('context scoping', () => {
 			code: 'COMMAND_NOT_IN_CONTEXT',
 			message: "Command 'doc-edit' is not available in context 'printing'",
 			suggestion: 'Use afd-context-list to see available contexts, or afd-context-enter to switch.',
+			recovery: { kind: 'call', command: 'afd-context-list' },
 		});
 	});
 });

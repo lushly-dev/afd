@@ -209,6 +209,8 @@ describe('confirmations over MCP', () => {
 			retryable: false,
 			details: { commands: ['todo-clear'] },
 		});
+		// The user chose not to proceed: no step makes the call succeed.
+		expect((body(result).error as { recovery?: unknown }).recovery).toEqual({ kind: 'stop' });
 		expect(calls).toEqual([]);
 	});
 

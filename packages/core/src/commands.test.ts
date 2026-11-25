@@ -287,6 +287,7 @@ describe('createCommandRegistry', () => {
 			expect(result.error?.code).toBe('COMMAND_NOT_EXPOSED');
 			expect(result.error?.message).toContain('palette.only');
 			expect(result.error?.message).toContain('mcp');
+			expect(result.error?.recovery).toEqual({ kind: 'external' });
 		});
 
 		it('executes command when exposed to interface', async () => {
@@ -616,6 +617,9 @@ describe('createCommandRegistry - execute error paths', () => {
 		const result = await registry.execute('not-found', {});
 		expect(result.success).toBe(false);
 		expect(result.error?.code).toBe('COMMAND_NOT_FOUND');
+		// Its suggestion names the `afd tools` shell command, whatever the registry registers.
+		expect(result.error?.suggestion).toBe("Use 'afd tools' to see available commands");
+		expect(result.error?.recovery).toEqual({ kind: 'external' });
 	});
 
 	const throwing: CommandDefinition = {

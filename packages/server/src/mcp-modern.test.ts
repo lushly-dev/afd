@@ -157,6 +157,11 @@ describe('POST /mcp wire (2026-07-28)', () => {
 		expect(result.resultType).toBe('complete');
 		expect(result.supportedVersions).toEqual([MODERN]);
 		expect(result.instructions).toContain('afd-discover');
+		// The first sentence, exactly as spec/tool-strategies.md gives it ("server/discover
+		// instructions", item 1): it says what error.recovery is beside the prose.
+		expect(result.instructions).toMatch(
+			/^modern-test is an AFD server\. Every tool returns a CommandResult as JSON text: \{ success, data, error: \{ code, message, suggestion, recovery \} \}; follow error\.suggestion to recover\. When error\.recovery is present, it is the same step in a form a program can follow\. /
+		);
 		expect(result.ttlMs).toBe(300_000);
 		expect(result.cacheScope).toBe('public');
 		expect((result._meta as Record<string, unknown>)['io.modelcontextprotocol/serverInfo']).toEqual(

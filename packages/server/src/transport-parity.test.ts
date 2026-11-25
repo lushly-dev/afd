@@ -423,13 +423,42 @@ describe('Cross-transport parity', () => {
 			expect(directResult.error?.code).toBe('UNKNOWN_TOOL');
 		});
 
-		it('server suggests close matches and afd-discover, never the whole command list', async () => {
+		it('server suggests close matches, never the whole command list, and no tool execute cannot run', async () => {
+			// server.execute reaches commands without the tool router, so it cannot run afd-discover:
+			// neither the suggestion nor a recovery names it (spec/recovery.md, rule 2).
 			const unrelated = await serverExec.call('nonexistent-command', {});
-			expect(unrelated.error?.suggestion).toBe('Use afd-discover to list all commands.');
+			expect(unrelated.error).toEqual({
+				code: 'COMMAND_NOT_FOUND',
+				message: "Command 'nonexistent-command' not found",
+				suggestion: 'Check the command name against the available commands.',
+			});
+			expect((await serverExec.call('afd-discover', {})).error?.code).toBe('COMMAND_NOT_FOUND');
 
 			const typo = await serverExec.call('test-gret', {});
 			expect(typo.error?.suggestion).toMatch(/^Did you mean 'test-greet'\?/);
-			expect(typo.error?.suggestion).toContain('afd-discover');
+			expect(typo.error?.suggestion).not.toContain('afd-discover');
+		});
+
+		it('a bootstrapped server.execute and its pipeline steps offer afd-help, which it serves', async () => {
+			const bootstrapped = createMcpServer({
+				name: 'parity-bootstrap',
+				version: '1.0.0',
+				commands: sharedCommands,
+				bootstrap: true,
+			});
+			const notFound = {
+				code: 'COMMAND_NOT_FOUND',
+				message: "Command 'nonexistent-command' not found",
+				suggestion: 'Use afd-help to list all commands.',
+				recovery: { kind: 'call', command: 'afd-help' },
+			};
+
+			expect((await bootstrapped.execute('nonexistent-command', {})).error).toEqual(notFound);
+			expect((await bootstrapped.execute('afd-help', {})).success).toBe(true);
+			const pipeline = await bootstrapped.executePipeline({
+				steps: [{ command: 'nonexistent-command', input: {} }],
+			});
+			expect(pipeline.steps[0]?.error).toEqual(notFound);
 		});
 
 		it('DirectClient includes structured recovery data for unknown commands', async () => {

@@ -24,7 +24,7 @@ import { resolveDefaultTimeoutMs, withCommandDeadlines } from './command-timeout
 import { createConfirmationGate } from './confirmation-gate.js';
 import { checkContextFields } from './context-fields.js';
 import { createContextState, resolveContextState } from './context-scope.js';
-import { createExecutionEngine } from './execution.js';
+import { createExecutionEngine, type ExecutionDeps } from './execution.js';
 import { createHttpHandler } from './http-handler.js';
 import { createSessionStore, DEFAULT_MAX_SESSIONS, sessionLimits } from './http-sessions.js';
 import { createHttpHostVerifiedCheck, createHumanRelayGate } from './human-relay.js';
@@ -213,6 +213,10 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 
 	const contextDefaults = { clock: options.clock, random: options.random };
 	const commandMiddleware = withCommandDeadlines(middleware, defaultTimeoutMs);
+	// Whether the caller is shown a command under MCP authorization (M6): a refusal names it only
+	// then. Read here, from the request's scope view, so the engine never loads `scope-view`.
+	const isShown = (name: string, context: CommandContext | undefined) =>
+		scopeViewOf(context)?.shown(name) ?? true;
 	const relayHooks = {
 		transfer: transferRelayState,
 		takeDispatch(context: CommandContext, commandName: string, data: unknown) {
@@ -224,13 +228,19 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 					'Do not retry: this call is not the one the person confirmed. Move middleware that retries or changes input before confirmation.',
 				retryable: false,
 				details: { commands: [commandName], reason: 'admission-mismatch' },
+				// The operator fixes the middleware order (`spec/recovery.md`, "Engine errors").
+				recovery: { kind: 'external' as const },
 			};
 		},
 		clear: clearRelayEvidence,
 	};
+	// The in-process lane (`server.execute`): it reaches commands without the router, so its
+	// refusals never name a meta-tool (`spec/recovery.md`, "Engine errors").
 	const engine = createExecutionEngine({
 		commandMap,
 		middleware: commandMiddleware,
+		metaTools: false,
+		isShown,
 		devMode,
 		onCommand,
 		onError,
@@ -244,12 +254,13 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 
 	const remoteCommands = registeredCommands.filter((command) => isMcpExposed(command));
 	const remoteCommandMap = new Map(remoteCommands.map((command) => [command.name, command]));
-	const remoteEngine = createExecutionEngine({
+	const remoteDeps: ExecutionDeps = {
 		commandMap: remoteCommandMap,
 		// MCP authorization (spec/authorization.md, M6): a resolver decides every command again at
 		// execution, on its validated input, before any other middleware or the handler; and a
 		// command hidden from the caller is looked up as a name that does not exist.
 		middleware: options.auth ? [executionScopes, ...commandMiddleware] : commandMiddleware,
+		isShown,
 		...(options.auth && {
 			hidden: (commandName: string, context: CommandContext) =>
 				!(scopeViewOf(context)?.known(commandName) ?? true),
@@ -280,7 +291,14 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		maxBatchParallelism,
 		maxValidationIssues,
 		relay: relayHooks,
-	});
+	};
+	// The MCP lanes: the router serves the meta-tools there, so a refusal may name them.
+	const remoteEngine = createExecutionEngine(remoteDeps);
+	// The HTTP `/rpc`, `/batch` and `/stream` lanes run commands without the router, which serves
+	// `afd-discover` and the other meta-tools only over MCP. Their refusals name a meta-tool
+	// nowhere, or an unknown command would recover with a call that is itself not found; they
+	// offer `afd-help` when it is registered and callable (`spec/recovery.md`, "Engine errors").
+	const httpEngine = createExecutionEngine({ ...remoteDeps, metaTools: false });
 	const exposedCommandNames = new Set(remoteCommands.map((c) => c.name));
 	const confirmations = createConfirmationGate(options.confirmations ?? 'off', remoteCommands);
 	const defaultActor = options.actor ?? { kind: 'agent' as const };
@@ -395,9 +413,9 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		routeToolCall,
 		approver: options.approver,
 		actor: options.actor ?? { kind: 'agent' },
-		executeCommand: remoteEngine.executeCommand,
-		executeBatch: remoteEngine.executeBatch,
-		executeStream: remoteEngine.executeStream,
+		executeCommand: httpEngine.executeCommand,
+		executeBatch: httpEngine.executeBatch,
+		executeStream: httpEngine.executeStream,
 		isMutation: (commandName) => mutationNames.has(commandName),
 		confirmations,
 		hostVerifiedCheck,

@@ -238,7 +238,8 @@ Expected<CommandMiddleware> create_rate_limit_middleware(RateLimitOptions option
                 return failure(
                     create_error(error_codes::RATE_LIMITED, "Rate limit client capacity reached",
                                  {.suggestion = "Retry after the current rate limit window expires",
-                                  .retryable = true}));
+                                  .retryable = true,
+                                  .recovery = Recovery{.kind = RecoveryKind::retry}}));
             }
             if (found == state->index.end() || now >= found->second->second.reset_at_ms) {
                 if (found != state->index.end()) {
@@ -258,7 +259,12 @@ Expected<CommandMiddleware> create_rate_limit_middleware(RateLimitOptions option
                     error_codes::RATE_LIMITED, "Too many requests",
                     {.suggestion =
                          "Try again in " + detail::format_number(remaining_seconds) + " seconds",
-                     .retryable = true}));
+                     .retryable = true,
+                     // The same whole number of seconds the suggestion gives.
+                     .recovery = Recovery{.kind = RecoveryKind::retry,
+                                          .after_ms = static_cast<std::int64_t>(
+                                              (std::min)(remaining_seconds * 1000.0,
+                                                         detail::max_safe_integer_double))}}));
             }
             ++window.count;
         }

@@ -50,7 +50,7 @@ from afd.core.actor import Actor
 from afd.core.approval import ApprovalPolicy
 from afd.core.clock import Clock, system_clock
 from afd.core.commands import CommandContext, CommandDefinition, CommandMiddleware, NextFn
-from afd.core.errors import ErrorCodes
+from afd.core.errors import ErrorCodes, Recovery
 from afd.core.journal import _js_number, _js_string
 from afd.core.result import CommandError, CommandResult, failure
 from afd.server.approval_admission import admit_approval, gates, live_command, mark_listed_gate
@@ -590,6 +590,7 @@ def create_approval_middleware(
                         ),
                         retryable=False,
                         details={"summary": summary, "reason": "declined"},
+                        recovery=Recovery(kind="stop"),
                     )
                 )
             if (
@@ -621,6 +622,7 @@ def create_approval_middleware(
                     suggestion=f'Wait for the user to approve "{summary}" in the client.',
                     retryable=False,
                     details={"expiresAt": _iso_timestamp(asked.expires_at), "summary": summary},
+                    recovery=Recovery(kind="external"),
                 )
             )
 
@@ -672,6 +674,10 @@ def create_approval_middleware(
             if rejected
             else ""
         )
+        # A person approves (external), unless the caller must reshape the call: a gated step
+        # inside afd-batch, afd-pipe or another command is called on its own, which no recovery
+        # describes (spec/recovery.md, "Engine errors").
+        held_recovery: Recovery | None = Recovery(kind="external")
         # Addressed to whoever relays the decision: the token is the approval, so the gated
         # caller must not resubmit it on its own, and tool arguments cannot carry it.
         if public_token:
@@ -685,6 +691,7 @@ def create_approval_middleware(
                 "the client could not be asked from inside afd-batch, afd-pipe or another "
                 f"command. Call {command_name} on its own so the client can ask the user."
             )
+            held_recovery = None
         elif relays and on_mcp and relay_ev is None and not host_verified:
             retry = (
                 f"the client could not be asked here. Call {command_name} from an MCP client "
@@ -707,6 +714,7 @@ def create_approval_middleware(
                 suggestion=f'{why}Ask the user to approve "{summary}"; {retry}',
                 retryable=False,
                 details=details,
+                recovery=held_recovery,
             )
         )
 

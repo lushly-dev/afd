@@ -371,6 +371,7 @@ function declinedError(tool: UpFrontApproval['tool'], gated: readonly GatedStep[
 		suggestion:
 			'Do not run this again without asking the user first; the user chose not to approve it.',
 		retryable: false,
+		recovery: { kind: 'stop' },
 		details: { reason: 'declined', summary: gated.map((step) => step.summary).join('; ') },
 	};
 }
@@ -404,6 +405,7 @@ function pendingError(tool: UpFrontApproval['tool'], gated: readonly GatedStep[]
 		message: `The ${toolName(tool)} needs approval before it runs`,
 		suggestion: `Wait for the user to approve "${summary}" in the client.`,
 		retryable: false,
+		recovery: { kind: 'external' },
 		details: { summary },
 	};
 }

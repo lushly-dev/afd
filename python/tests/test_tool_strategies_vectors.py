@@ -94,6 +94,9 @@ async def test_lists_ttl_and_calls_follow_the_vectors(case):
             assert result.is_error is (not expected["success"])
             if not expected["success"]:
                 assert body["error"]["code"] == expected["code"], call
+                if "recovery" in expected:
+                    # null in the vector: the error carries no recovery (spec/recovery.md).
+                    assert body["error"].get("recovery") == expected["recovery"], call
 
 
 @pytest.mark.parametrize("case", VECTORS["constructionFailures"], ids=lambda case: case["id"])

@@ -10,9 +10,12 @@ from pydantic import BaseModel, model_validator
 
 from afd import ExposeOptions, success
 from afd.core.commands import CommandContext
+from afd.core.errors import Recovery
 from afd.server import create_server, define_command
 from afd.server.middleware import create_rate_limit_middleware
 
+# server.execute also runs the meta-tools outside the apps interface, so afd-discover is callable
+# there and its unknown-command suggestion names it, as over MCP (spec/error-codes.md).
 DISCOVER_HINT = "Use afd-discover to list all commands."
 
 
@@ -253,14 +256,21 @@ class TestDidYouMean:
 
         assert result.error.message == "Command 'todo-crate' not found"
         assert result.error.suggestion == f"Did you mean 'todo-create'? {DISCOVER_HINT}"
+        assert result.error.recovery.command == "afd-discover"
 
     @pytest.mark.asyncio
     async def test_no_close_match_points_to_discovery(self):
         server = _server()
 
         result = await server.execute("zzzzzzzz", {})
+        over_mcp = await server.call_tool("afd-call", {"command": "zzzzzzzz"})
+        batch = await server.execute("afd-batch", {"commands": [{"command": "zzzzzzzz"}]})
+        item = batch.results[0].result
 
-        assert result.error.suggestion == DISCOVER_HINT
+        # server.execute, its afd-batch items and MCP all name the afd-discover they serve.
+        for error in (result.error, over_mcp.error, item.error):
+            assert error.suggestion == DISCOVER_HINT
+            assert error.recovery == Recovery(kind="call", command="afd-discover")
 
     @pytest.mark.asyncio
     async def test_suggestions_omit_commands_hidden_from_the_interface(self):

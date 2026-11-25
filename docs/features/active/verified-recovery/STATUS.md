@@ -106,9 +106,36 @@ sentence; edit only your step's line. Keep earlier entries as history.
       catch.
   - Whether to build it for other surfaces is the owner's decision.
 
-- **Step 5, engine recoveries:** not started. The owner agreed on 2026-11-24 to take it after step
-  4. It takes up step 2's two follow-up rows: engine-emitted errors carry a recovery in all four
-  languages, and the default server instructions say to follow it.
+- **Step 5, engine recoveries:** merged 2026-11-25 as [#2539](https://github.com/lushly-dev/afd/pull/2539). The owner agreed on
+  2026-11-24 to take it after step 4. It takes up step 2's two follow-up rows.
+  - `spec/recovery.md`'s "Engine errors" table gives each error the engines emit its recovery:
+    - an unknown command calls `afd-discover` or `afd-help`, and a command outside the active
+      context calls `afd-context-list`, each only when the caller can call it;
+    - `CONTEXT_NOT_FOUND` and `CONTEXT_DEPTH_EXCEEDED` call the context commands, on the same
+      condition;
+    - a command not exposed or not granted, a confirmation, an approval a person must give and a
+      missing approval step are `external`;
+    - a declined confirmation or approval is `stop`;
+    - a rate limit is `retry`, with `afterMs` when the window's end is known;
+    - a call the caller must reshape carries none.
+  - Each engine decides once whether the caller can call a command, and names it in both the
+    suggestion and the recovery only then. The checks are registration, exposure, the active
+    context, an `allow` list and authorization.
+  - The fix changed what some engines said:
+    - Python's in-process `server.execute` and TypeScript's HTTP lanes stopped naming tools they
+      cannot run;
+    - the "or afd-context-enter to switch" clause now needs that command to be callable;
+    - a DirectClient approval hook that fails keeps the hold, `external`, and only one that
+      answers no is a decline.
+  - The default instructions keep "follow error.suggestion to recover" and add what
+    `error.recovery` is. Umbel's Ideas spec and README quote the new sentence.
+  - `dispatch.json`, `tool-strategies.json` and `app-calls.json` pin the recoveries, and every
+    language compares them. Each language has its own tests for the rows no vector reaches.
+  - Merging `main` brought TypeScript's host-verified confirmation (#2514); its refusals carry
+    `external` and `stop`.
+  - The routing code adds about 600 bytes to Loam's first paint (349,561 to 350,177 before #2514)
+    and about 900 to the kernel alone. Under D115, Loam's STATUS records the kernel's ceiling
+    raised; first paint fits after #2534 gave it one chunk.
 
 ## Follow-ups
 
@@ -121,3 +148,5 @@ sentence; edit only your step's line. Keep earlier entries as history.
 | 2026-11-24 | Step 4 | `foreman-handoff` frees the foreman for whoever passes the holder's session id, which `FOREMAN_BUSY`'s details show. So a refused foreman can take over instead of stopping. Decide whether a handoff needs more than the id |
 | 2026-11-24 | Step 4 | The explorer accepts a `fix-input` or `retry` whose call made again refuses with another code when the refused call can still succeed, where the scenario runners' default expects success; 9 such cases pass today. Two branches of its judgement are untested: a `fix-input` or `retry` whose call leaves the explored states is out of reach and never fires, and only the first remaining way is checked for that. Decide the rule for both if the explorer grows |
 | 2026-11-24 | Step 4 | `gate-allow` records an allowance for a head no branch has (the explorer passes `0000000` on a working cell). Decide whether it should refuse a head that does not exist |
+| 2026-11-24 | Step 5 | Engine errors left without a recovery in step 5: `VALIDATION_ERROR` (a `fix-input` from `details`, though unexpected fields need `external`), `OUTPUT_BUDGET_EXCEEDED` (the budget is in `_meta`, not `input`), the timeout and stream errors (the command may have run), `INSUFFICIENT_SCOPE`, the Tasks `UNAUTHORIZED` and `TASK_TOKEN_EXPIRED`. Give each a recovery where its step can be named |
+| 2026-11-25 | Step 5 | A host-verified confirmation the server cannot relay from inside `afd-batch` or `afd-pipe` tells the caller to call the command on its own, and carries `external` (the table's `CONFIRMATION_REQUIRED` row), while the same step for an approval carries none (`APPROVAL_REQUIRED`'s reshape row). Decide whether the confirmation should carry none too, in all four languages, or say in `spec/recovery.md` why the two differ |

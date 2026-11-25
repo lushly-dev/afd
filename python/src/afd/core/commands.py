@@ -50,7 +50,7 @@ from afd.core.command_execution import (
 from afd.core.command_execution import (
     execute_stream as _execute_core_stream,
 )
-from afd.core.errors import CommandError, ErrorCodes
+from afd.core.errors import CommandError, ErrorCodes, Recovery
 from afd.core.output_budget import (
     AFD_OUTPUT_BUDGET_META_KEY,
     OutputBudget,
@@ -309,6 +309,8 @@ def call_not_granted() -> CommandError:
             "the command must also set expose.apps"
         ),
         retryable=False,
+        # The deployer adds a calls grant (spec/recovery.md, "Engine errors").
+        recovery=Recovery(kind="external"),
     )
 
 

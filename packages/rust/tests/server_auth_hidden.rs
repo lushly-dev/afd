@@ -997,6 +997,121 @@ async fn a_context_refusal_names_context_tools_only_when_they_exist_for_the_call
     assert!(!seen.reached("plan-create"));
 }
 
+/// Hides the context commands named in it from every caller.
+struct WithoutContextTools(&'static [&'static str]);
+
+impl ScopeResolver for WithoutContextTools {
+    fn resolve(&self, _command: &str, _input: &Value, _credentials: &Credentials) -> ScopeDecision {
+        ScopeDecision::Allowed
+    }
+
+    fn visible(&self, command: &str, _credentials: &Credentials) -> bool {
+        !self.0.contains(&command)
+    }
+}
+
+/// A server with the `planning` and `review` contexts and `plan-create` in `planning`, whose
+/// resolver hides `hidden`.
+fn context_server(hidden: &'static [&'static str]) -> McpServer {
+    let seen = Arc::new(Seen::default());
+    let registry = Arc::new(CommandRegistry::new());
+    let mut plan =
+        CommandDefinition::new("plan-create", "Plan", vec![], Handle(seen, "plan-create"))
+            .with_contexts(["planning"]);
+    plan.expose.mcp = true;
+    registry.register(plan).unwrap();
+    McpServer::new(registry, "plans", "1.0.0")
+        .with_contexts(vec![
+            afd::ContextConfig::new("planning"),
+            afd::ContextConfig::new("review"),
+        ])
+        .unwrap()
+        .with_authorization(
+            authorization()
+                .with_resolver(WithoutContextTools(hidden))
+                .with_filter_tools_by_scope(true),
+        )
+}
+
+/// `COMMAND_NOT_IN_CONTEXT` names `afd-context-enter` only when the caller can call it: without
+/// it, the suggestion keeps only `afd-context-list`, which stays the recovery, on the router's
+/// routes and the registry's (a batch step).
+#[tokio::test]
+async fn a_context_refusal_names_afd_context_enter_only_when_the_caller_can_call_it() {
+    let server = context_server(&["afd-context-enter"]);
+    let mut meta: Value = serde_json::from_str(common::META).unwrap();
+    meta["dev.afd/context"] = json!("review");
+    for params in [
+        call("plan-create", Some(json!({}))),
+        call("afd-call", Some(json!({ "command": "plan-create" }))),
+        call(
+            "afd-batch",
+            Some(json!({ "commands": [{ "command": "plan-create" }] })),
+        ),
+    ] {
+        let answer = send(
+            &server,
+            post_with("tools/call", params.clone(), &meta, &reader()),
+        )
+        .await;
+        let result = command_result(&answer.body);
+        let error = if params["name"] == "afd-batch" {
+            result["results"][0]["result"]["error"].clone()
+        } else {
+            result["error"].clone()
+        };
+        assert_eq!(
+            error["code"], "COMMAND_NOT_IN_CONTEXT",
+            "{params}: {result}"
+        );
+        assert_eq!(
+            error["suggestion"], "Use afd-context-list to see available contexts.",
+            "{params}: {result}"
+        );
+        assert_eq!(
+            error["recovery"],
+            json!({ "kind": "call", "command": "afd-context-list" }),
+            "{params}: {result}"
+        );
+    }
+}
+
+/// `afd-context-enter`'s `CONTEXT_NOT_FOUND` names and recovers with `afd-context-list` only when
+/// the caller can call it.
+#[tokio::test]
+async fn an_unknown_context_names_afd_context_list_only_when_the_caller_can_call_it() {
+    let meta: Value = serde_json::from_str(common::META).unwrap();
+    for (hidden, named) in [(&[][..], true), (&["afd-context-list"][..], false)] {
+        let server = context_server(hidden);
+        let answer = send(
+            &server,
+            post_with(
+                "tools/call",
+                call("afd-context-enter", Some(json!({ "context": "nope" }))),
+                &meta,
+                &reader(),
+            ),
+        )
+        .await;
+        let result = command_result(&answer.body);
+        let error = &result["error"];
+        assert_eq!(error["code"], "CONTEXT_NOT_FOUND", "{hidden:?}: {result}");
+        if named {
+            assert_eq!(
+                error["suggestion"],
+                "Available contexts: planning, review. Use afd-context-list to see all contexts."
+            );
+            assert_eq!(
+                error["recovery"],
+                json!({ "kind": "call", "command": "afd-context-list" })
+            );
+        } else {
+            assert_eq!(error["suggestion"], "Available contexts: planning, review.");
+            assert!(error.get("recovery").is_none(), "{result}");
+        }
+    }
+}
+
 /// The task a caller who may see `vault-sync` creates, with its id.
 async fn sync_task(main: &Served) -> String {
     let [_, capable] = metas();

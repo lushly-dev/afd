@@ -302,6 +302,14 @@ const HOST_IMPORTS =
  *   approval, and tool-surface on `main` at `bd3749120` (esbuild 0.28.2) to 51,910 / 66,576 /
  *   90,788 bytes (raised 50,500 → 52,300, 64,600 → 67,000, 88,500 → 91,200); every-export stays
  *   within 119,500.
+ *   Engine recoveries (verified recovery, step 5): every engine refusal decides once whether the
+ *   caller can call the command it names and sets the matching `recovery` and suggestion
+ *   (`canCall` in `command-routing.ts`, which keeps its own copy of the meta-tool names; its
+ *   callers pass in what the caller is shown, so neither `builtin-tools` nor `scope-view` joins
+ *   Loam's first paint). Before #2263 it measured 51,214 / 65,193 / 89,457 bytes on
+ *   `lush/engine-recoveries` at `00c702e98`. With `main` at `3403a6e02` (#2263) merged, host,
+ *   approval, tool-surface and every-export measure 51,258 / 66,609 / 90,598 / 118,150 bytes
+ *   (esbuild 0.28.2), within #2263's 52,300 / 67,000 / 91,200 / 119,500.
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
@@ -319,12 +327,12 @@ const DIRECT_BUDGETS = [
 	{
 		what: 'the same host with the approval middleware',
 		imports: `${HOST_IMPORTS}, createApprovalMiddleware`,
-		bytes: 67_000,
+		bytes: 67_800,
 	},
 	{
 		what: 'a host with the tool surface',
 		imports: `${HOST_IMPORTS}, createDirectToolSurface`,
-		bytes: 91_200,
+		bytes: 91_800,
 	},
 	{ what: 'every export', imports: undefined, bytes: 119_500 },
 ];

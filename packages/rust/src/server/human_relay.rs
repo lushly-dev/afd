@@ -309,6 +309,7 @@ fn required(names: &[String], suggestion: String) -> CommandError {
     )
     .with_suggestion(suggestion)
     .with_retryable(false)
+    .with_recovery(crate::Recovery::external())
     .with_details(HashMap::from([("commands".to_owned(), json!(names))]))
 }
 

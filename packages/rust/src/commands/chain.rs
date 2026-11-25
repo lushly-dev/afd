@@ -138,6 +138,8 @@ fn approval_unavailable(name: &str, taken: crate::approval::admission::Taken) ->
     )
     .with_suggestion(suggestion)
     .with_retryable(false)
+    // The operator fixes the approval setup (`spec/recovery.md`, "Engine errors").
+    .with_recovery(crate::errors::Recovery::external())
     .with_details(std::collections::HashMap::from([(
         "reason".to_owned(),
         serde_json::json!(reason),

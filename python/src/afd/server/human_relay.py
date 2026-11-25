@@ -27,7 +27,7 @@ from pydantic import ValidationError as PydanticValidationError
 from afd.core.actor import Actor
 from afd.core.clock import Clock, system_clock
 from afd.core.commands import CommandContext, CommandDefinition
-from afd.core.errors import CommandError, ErrorCodes
+from afd.core.errors import CommandError, ErrorCodes, Recovery
 from afd.core.schema_validation import DEFAULT_MAX_VALIDATION_ISSUES, SchemaValidationError
 from afd.server.approval import _actor_json, _b64url, _canonical_json, _plain_input, _utf8
 from afd.server.auth_rules import Credentials
@@ -480,6 +480,8 @@ def _required_error(names: Sequence[str], suggestion: str) -> CommandError:
         suggestion=suggestion,
         retryable=False,
         details={"commands": list(names)},
+        # A person confirms through the host (spec/recovery.md, "Engine errors").
+        recovery=Recovery(kind="external"),
     )
 
 
@@ -492,6 +494,7 @@ def _declined_error(names: Sequence[str]) -> CommandError:
         ),
         retryable=False,
         details={"commands": list(names)},
+        recovery=Recovery(kind="stop"),
     )
 
 

@@ -87,6 +87,7 @@ pub(super) fn call_not_granted() -> CommandError {
         "Ask the deployer for a calls grant that names the command; the command must also set expose.apps",
     )
     .with_retryable(false)
+    .with_recovery(crate::errors::Recovery::external())
 }
 
 /// Commands by name, plus their registration order.

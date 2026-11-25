@@ -112,6 +112,10 @@ describe('the approver carrier', () => {
 		);
 		expect(retry.error?.code).toBe('APPROVAL_REQUIRED');
 		expect(retry.error?.message).toContain('one command');
+		// A person approves the held call; the approved call resent the wrong way is the caller's
+		// to reshape, which no command does (spec/recovery.md, "Engine errors").
+		expect(held.error?.recovery).toEqual({ kind: 'external' });
+		expect(retry.error).not.toHaveProperty('recovery');
 		expect(runs).toEqual([]);
 	});
 

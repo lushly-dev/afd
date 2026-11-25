@@ -244,6 +244,8 @@ fn assert_not_canonical(setup: &Setup, response: &Value) {
         error["details"]["reason"], "input-not-canonical",
         "{response}"
     );
+    // The caller sends the input in another form: no recovery (`spec/recovery.md`).
+    assert!(error.get("recovery").is_none(), "{response}");
     assert_eq!(
         error["message"],
         "todo-delete needs a person's approval, and this input cannot be bound to one"
@@ -349,6 +351,7 @@ async fn a_decline_or_cancel_runs_nothing() {
         assert_eq!(error["code"], "APPROVAL_REQUIRED", "{refused}");
         assert_eq!(error["retryable"], false);
         assert_eq!(error["details"]["reason"], "declined");
+        assert_eq!(error["recovery"], json!({ "kind": "stop" }));
         assert_eq!(
             error["details"]["summary"],
             "Run todo-delete; Run todo-archive"
@@ -402,6 +405,7 @@ async fn a_client_without_elicitation_keeps_the_fallback() {
         .as_str()
         .unwrap()
         .contains("supports form elicitation"));
+    assert_eq!(error["recovery"], json!({ "kind": "external" }));
     assert_eq!(setup.calls(), ["list"]);
 }
 
@@ -422,6 +426,8 @@ async fn a_gated_step_reading_an_earlier_step_refuses_the_pipeline_up_front() {
         let error = refusal(&refused);
         assert_eq!(error["code"], "APPROVAL_REQUIRED", "{refused}");
         assert_eq!(error["details"]["reason"], "input-not-known");
+        // The caller splits the pipeline: no command does it (`spec/recovery.md`).
+        assert!(error.get("recovery").is_none(), "{refused}");
         assert_eq!(error["details"]["step"], 2);
         assert_eq!(error["details"]["command"], "todo-delete");
         assert!(error["suggestion"]
@@ -533,6 +539,7 @@ async fn a_hidden_command_is_never_named_and_at_most_20_steps_are_asked_about() 
         error["details"]["reason"], "too-many-approvals",
         "{refused}"
     );
+    assert!(error.get("recovery").is_none(), "{refused}");
     assert_eq!(error["details"]["limit"], 20);
     assert!(setup.calls().is_empty());
 }
@@ -659,6 +666,7 @@ async fn a_2025_stdio_connection_is_asked_once_in_band() {
         "declined",
         "{refused}"
     );
+    assert_eq!(refusal(&refused)["recovery"], json!({ "kind": "stop" }));
     assert!(calls.lock().unwrap().is_empty());
 }
 

@@ -59,6 +59,8 @@ TEST_CASE("an unknown or hidden command is UNKNOWN_TOOL with structured recovery
     CHECK(hidden.error->code == "UNKNOWN_TOOL");
     CHECK(hidden.error->message == "Tool 'admin-reset' not found in registry");
     CHECK(hidden.error->retryable == false);
+    // The remedy is list_command_names(), not a command: no recovery (spec/recovery.md).
+    CHECK_FALSE(hidden.error->recovery.has_value());
 
     const auto typo = client.call("todo-lst");
     CHECK(typo.error->suggestion == "Did you mean 'todo-list'?");
@@ -67,6 +69,7 @@ TEST_CASE("an unknown or hidden command is UNKNOWN_TOOL with structured recovery
         "message":"Tool 'todo-lst' not found in registry","requested_tool":"todo-lst",
         "available_tools":["todo-list","todo-slow"],"suggestions":["todo-list","todo-slow"],
         "hint":"Did you mean 'todo-list'?"})"));
+    CHECK_FALSE(typo.error->recovery.has_value());
 }
 
 TEST_CASE("allow restricts the client further") {
@@ -76,6 +79,7 @@ TEST_CASE("allow restricts the client further") {
     const auto blocked = client.call("todo-slow");
     CHECK(blocked.error->code == "COMMAND_NOT_ALLOWED");
     CHECK(blocked.error->message == "Command 'todo-slow' is not allowed for this client");
+    CHECK_FALSE(blocked.error->recovery.has_value());
     CHECK(client.list_command_names() == std::vector<std::string>{"todo-list"});
 }
 

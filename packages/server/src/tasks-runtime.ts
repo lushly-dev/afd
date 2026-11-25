@@ -232,6 +232,7 @@ function taskLimitError(): CommandError {
 		message: 'The task could not start: a task limit was reached, so nothing ran',
 		suggestion: 'Wait for one of your tasks to finish or expire, then call again.',
 		retryable: true,
+		recovery: { kind: 'retry' },
 	};
 }
 

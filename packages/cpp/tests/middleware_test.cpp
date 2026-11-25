@@ -424,6 +424,14 @@ TEST_CASE("create_rate_limit_middleware limits per key, resets on window, and bo
     CHECK(limited.error->message == "Too many requests");
     CHECK(limited.error->retryable == true);
     CHECK(limited.error->suggestion == "Try again in 5 seconds");
+    // The same whole number of seconds as the suggestion (spec/recovery.md, "Engine errors").
+    CHECK(limited.error->recovery ==
+          afd::Recovery{.kind = afd::RecoveryKind::retry, .after_ms = 5000});
+    clock->advance(1500);
+    const auto later = registry->execute("todo-list", afd::Json::object(), alice);
+    CHECK(later.error->suggestion == "Try again in 4 seconds");
+    CHECK(later.error->recovery ==
+          afd::Recovery{.kind = afd::RecoveryKind::retry, .after_ms = 4000});
 
     // Independent key still has quota; third distinct key hits max_keys.
     CHECK(registry->execute("todo-list", afd::Json::object(), bob).success);
@@ -432,6 +440,8 @@ TEST_CASE("create_rate_limit_middleware limits per key, resets on window, and bo
     CHECK(full.error->code == afd::error_codes::RATE_LIMITED);
     CHECK(full.error->message == "Rate limit client capacity reached");
     CHECK(full.error->retryable == true);
+    // When the window ends is not known for a new client: retry with no minimum wait.
+    CHECK(full.error->recovery == afd::Recovery{.kind = afd::RecoveryKind::retry});
 
     // Advancing past the window clears expired keys and resets quota.
     clock->advance(5000);

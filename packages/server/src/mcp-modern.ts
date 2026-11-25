@@ -212,7 +212,7 @@ export function defaultInstructions(options: {
 	bootstrap?: boolean;
 }): string {
 	const lines = [
-		`${options.name} is an AFD server. Every tool returns a CommandResult as JSON text: { success, data, error: { code, message, suggestion } }; follow error.suggestion to recover.`,
+		`${options.name} is an AFD server. Every tool returns a CommandResult as JSON text: { success, data, error: { code, message, suggestion, recovery } }; follow error.suggestion to recover. When error.recovery is present, it is the same step in a form a program can follow.`,
 	];
 	if (options.toolStrategy === 'lazy') {
 		lines.push(

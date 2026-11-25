@@ -2,6 +2,11 @@
 
 Drives ``create_server`` through every registry and MCP case in ``spec/vectors/dispatch.json``
 and validates every returned ``CommandResult`` against ``spec/schema/result.json``.
+
+The ``registry`` surface has no tool surface, so it serves no meta-tool: it runs through the
+server's command path (``_execute_command``), the path ``server.execute`` takes for a command,
+with the same middleware, approval and context-field checks, but without the meta-tool routing
+that makes ``afd-discover`` callable from ``server.execute`` itself.
 """
 
 from __future__ import annotations
@@ -138,6 +143,35 @@ def test_python_gaps_are_documented():
     assert "hooks" in GAPS
 
 
+async def _run_registry(server: Any, name: str, input: Any, context: CommandContext) -> Any:
+    """One call on the registry surface: the command path, which routes no meta-tool."""
+    return await server._execute_command(name, input, context)
+
+
+@pytest.mark.asyncio
+async def test_registry_surface_registers_the_context_commands_as_plain_commands():
+    # setup.contextCommands "plain": the registry surface reaches afd-context-list,
+    # afd-context-enter and afd-context-exit as commands, with no bootstrap or help commands, so
+    # afd-context-list is callable there and afd-help is not (afd-discover is a meta-tool, which
+    # this surface does not route).
+    assert VECTORS["setup"]["contextCommands"] == "plain"
+    server = _build_server({"surface": "registry"}, [])
+    names = {command.name for command in server.list_commands(include_bootstrap=True)}
+    assert {"afd-context-list", "afd-context-enter", "afd-context-exit"} <= names
+    assert names.isdisjoint({"afd-help", "afd-docs", "afd-schema", "afd-discover"})
+    server._context_state.enter("combat")
+    listed = await _run_registry(
+        server, "afd-context-list", {}, CommandContext(extra={"interface": "mcp"})
+    )
+    assert listed.success is True, listed.error
+    assert {item.name for item in listed.data.contexts} == set(VECTORS["setup"]["contexts"])
+    assert listed.data.active_context == "combat"
+    discover = await _run_registry(
+        server, "afd-discover", {}, CommandContext(extra={"interface": "mcp"})
+    )
+    assert discover.error is not None and discover.error.code == "COMMAND_NOT_FOUND"
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("case", VECTORS["cases"], ids=lambda case: case["id"])
 async def test_dispatch_vector(case: dict[str, Any]):
@@ -164,7 +198,7 @@ async def test_dispatch_vector(case: dict[str, Any]):
             server._context_state.enter(call["activeContext"])
         actor = Actor(kind=call["actorKind"]) if "actorKind" in call else None
         ctx = CommandContext(trace_id=call.get("traceId"), actor=actor, extra=extra)
-        result = await server.execute(call["command"], call["input"], ctx)
+        result = await _run_registry(server, call["command"], call["input"], ctx)
 
     wire = to_wire(result)
     _result_validator().validate(wire)
@@ -180,6 +214,9 @@ async def test_dispatch_vector(case: dict[str, Any]):
     if "message" in expected:
         assert result.error is not None
         assert result.error.message == expected["message"]
+    if "recovery" in expected:
+        # null in the vector: the error carries no recovery (spec/recovery.md, Engine errors).
+        assert wire["error"].get("recovery") == expected["recovery"]
     if "data" in expected:
         assert result.data == expected["data"]
     assert hooks == expected["hooks"]

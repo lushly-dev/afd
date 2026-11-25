@@ -274,6 +274,7 @@ async fn elicitation_round_trip_is_bound_to_the_input() {
     let refused = body(&refused);
     assert_eq!(refused["error"]["code"], "CONFIRMATION_DECLINED");
     assert_eq!(refused["error"]["retryable"], false);
+    assert_eq!(refused["error"]["recovery"], json!({ "kind": "stop" }));
     assert_eq!(runs.load(Ordering::SeqCst), 1);
 }
 
@@ -624,6 +625,7 @@ mod approval_relay {
             assert_eq!(refused["error"]["code"], "APPROVAL_REQUIRED", "{refused}");
             assert_eq!(refused["error"]["details"]["reason"], "declined");
             assert_eq!(refused["error"]["retryable"], false);
+            assert_eq!(refused["error"]["recovery"], json!({ "kind": "stop" }));
             assert!(refused["error"]["details"].get("approvalToken").is_none());
         }
         assert_eq!(runs.load(Ordering::SeqCst), 0);

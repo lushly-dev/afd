@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 import time
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -17,6 +17,7 @@ from afd.core.batch import (
     create_failed_batch_result,
 )
 from afd.core.commands import CommandContext, CommandDefinition
+from afd.core.errors import Recovery
 from afd.core.output_budget import current_output_budget_ask
 from afd.core.pipeline import create_pipeline_failure
 from afd.core.result import CommandResult, error
@@ -48,7 +49,11 @@ from afd.server.confirmations import (
 from afd.server.context_fields import current_context_field_values
 from afd.server.context_hook import copy_extra, current_hook_outcome
 from afd.server.human_relay import HumanRelayGate, host_verified_unrelayable
-from afd.server.lazy_tools import execute_detail, execute_discover, not_found_suggestion
+from afd.server.lazy_tools import (
+    command_not_found,
+    execute_detail,
+    execute_discover,
+)
 from afd.server.tools import derive_group_name
 
 
@@ -89,7 +94,56 @@ class ToolRouterDeps:
 NOT_IN_CONTEXT_SUGGESTION = (
     "Use afd-context-list to see available contexts, or afd-context-enter to switch."
 )
-"""The ``COMMAND_NOT_IN_CONTEXT`` suggestion (spec/error-codes.md)."""
+"""The ``COMMAND_NOT_IN_CONTEXT`` suggestion when the caller can call ``afd-context-list`` and
+``afd-context-enter`` (spec/error-codes.md). Without ``afd-context-enter`` it ends after the
+first clause."""
+
+GROUPED_UNKNOWN_ACTION_SUGGESTION = (
+    "Use afd-call with the full command name, or list tools to find a valid action."
+)
+"""A grouped tool's unknown-action (and ambiguous-action) suggestion, the same in every language:
+it names no command a recovery could call (spec/recovery.md, "Engine errors")."""
+
+
+def not_in_context_error(
+    command_name: str,
+    active_context: str | None,
+    *,
+    can: Callable[[str], bool],
+    belongs_to: Sequence[str] = (),
+    message: str | None = None,
+) -> CommandResult[Any]:
+    """The ``COMMAND_NOT_IN_CONTEXT`` result (spec/recovery.md, "Engine errors").
+
+    ``can(name)`` is whether the caller can call the context command ``name``, decided once for
+    both the suggestion and the recovery: when it can call ``afd-context-list``, the suggestion
+    names it, and ``afd-context-enter`` too when it can call that, and the recovery calls
+    ``afd-context-list``; when it cannot, the suggestion names ``belongs_to``, the command's own
+    contexts, and there is no recovery.
+    """
+    if can("afd-context-list"):
+        suggestion = (
+            NOT_IN_CONTEXT_SUGGESTION
+            if can("afd-context-enter")
+            else "Use afd-context-list to see available contexts."
+        )
+        recovery: Recovery | None = Recovery(kind="call", command="afd-context-list")
+    else:
+        contexts = ", ".join(f"'{name}'" for name in belongs_to)
+        suggestion = (
+            f"Switch to a context this command belongs to ({contexts}), "
+            "or call it with no active context."
+            if contexts
+            else "Call it with no active context."
+        )
+        recovery = None
+    return error(
+        "COMMAND_NOT_IN_CONTEXT",
+        message or f"Command '{command_name}' is not available in context '{active_context}'",
+        suggestion=suggestion,
+        recovery=recovery,
+    )
+
 
 _MCP_ACTOR = Actor(kind="agent")
 """The default actor of a call over MCP."""
@@ -236,11 +290,28 @@ def create_tool_router(deps: ToolRouterDeps) -> Callable[..., Awaitable[Any]]:
             _scope_view=view,
         )
 
-    def not_in_context(name: str, active_context: str | None) -> CommandResult[Any]:
-        return error(
-            "COMMAND_NOT_IN_CONTEXT",
-            f"Command '{name}' is not available in context '{active_context}'",
-            suggestion=NOT_IN_CONTEXT_SUGGESTION,
+    def context_command_callable(
+        name: str, view: ScopeView | None, active_context: str | None
+    ) -> bool:
+        """Whether an MCP caller can call the context command ``name`` here: served (the server
+        registers them with contexts), shown to the caller's scopes, and in the active context."""
+        command = commands_by_name.get(name)
+        return (
+            command is not None
+            and (view is None or view.shown(command.name))
+            and is_command_accessible(command, active_context)
+        )
+
+    def not_in_context(
+        command: CommandDefinition,
+        active_context: str | None,
+        view: ScopeView | None,
+    ) -> CommandResult[Any]:
+        return not_in_context_error(
+            command.name,
+            active_context,
+            can=lambda name: context_command_callable(name, view, active_context),
+            belongs_to=command.contexts,
         )
 
     gate = deps.confirmations if deps.confirmations and deps.confirmations.mode != "off" else None
@@ -378,19 +449,16 @@ def create_tool_router(deps: ToolRouterDeps) -> Callable[..., Awaitable[Any]]:
             if command is None:
                 # An unexposed or hidden command gets the same answer as an unknown one, so a
                 # remote caller cannot learn that it exists (spec/error-codes.md, D4; M6).
+                # The router serves afd-discover in every strategy, so the caller can call it.
                 callable_names = [
                     item.name
                     for item in shown_only(known_commands, view)
                     if is_command_accessible(item, active_context)
                 ]
-                return error(
-                    "COMMAND_NOT_FOUND",
-                    f"Command '{truncate_name(command_name)}' not found",
-                    suggestion=not_found_suggestion(command_name, callable_names),
-                )
+                return command_not_found(command_name, callable_names, "afd-discover")
 
             if not is_command_accessible(command, active_context):
-                return not_in_context(command_name, active_context)
+                return not_in_context(command, active_context, view)
 
             command_input = payload.get("input", {})
             if getattr(command, "confirmation_mode", None) == "host-verified":
@@ -523,12 +591,18 @@ def create_tool_router(deps: ToolRouterDeps) -> Callable[..., Awaitable[Any]]:
                 is_shown=lambda cmd: view is None or view.shown(cmd.name),
             )
             if selection.kind == "not_in_context_action" and selection.command is not None:
-                return not_in_context(selection.command.name, active_context)
+                return not_in_context(selection.command, active_context, view)
             if selection.kind == "not_in_context_group":
-                return error(
-                    "COMMAND_NOT_IN_CONTEXT",
-                    f"Grouped tool '{tool_name}' is not available in context '{active_context}'",
-                    suggestion=NOT_IN_CONTEXT_SUGGESTION,
+                return not_in_context_error(
+                    tool_name,
+                    active_context,
+                    can=lambda name: context_command_callable(name, view, active_context),
+                    belongs_to=list(
+                        dict.fromkeys(context for member in members for context in member.contexts)
+                    ),
+                    message=(
+                        f"Grouped tool '{tool_name}' is not available in context '{active_context}'"
+                    ),
                 )
             if selection.kind == "missing_action":
                 return error(
@@ -543,13 +617,15 @@ def create_tool_router(deps: ToolRouterDeps) -> Callable[..., Awaitable[Any]]:
                 return error(
                     "AMBIGUOUS_ACTION",
                     f"Action '{truncate_name(str(action))}' does not identify one command in group '{truncate_name(tool_name)}'",
-                    suggestion="Use afd-call with the full command name, or list tools to find a valid action.",
+                    suggestion=GROUPED_UNKNOWN_ACTION_SUGGESTION,
                 )
             if selection.kind == "unknown_action":
+                # No recovery: the caller spells the action correctly or uses afd-call, and the
+                # shared text names no command a recovery could call (spec/recovery.md).
                 return error(
                     "COMMAND_NOT_FOUND",
                     f"Action '{action}' is not available for grouped tool '{tool_name}'",
-                    suggestion="Use afd-discover or afd-detail to inspect available actions.",
+                    suggestion=GROUPED_UNKNOWN_ACTION_SUGGESTION,
                 )
             if selection.kind == "command" and selection.command is not None:
                 command = selection.command
@@ -577,8 +653,8 @@ def create_tool_router(deps: ToolRouterDeps) -> Callable[..., Awaitable[Any]]:
                 )
 
         command = known_by_name.get(tool_name)
-        if not is_command_accessible(command, active_context):
-            return not_in_context(tool_name, active_context)
+        if command is not None and not is_command_accessible(command, active_context):
+            return not_in_context(command, active_context, view)
 
         # A confirm-gated tool advertises an optional `confirm` argument, removed here before
         # the command validates its input, unless the command's own schema declares it.

@@ -106,6 +106,8 @@ void check_unavailable(const afd::CommandResult& result, const std::string& name
           name + " needs a person's approval, and this server cannot ask for it");
     CHECK(result.error->retryable == std::optional<bool>(false));
     CHECK((*result.error->details)["reason"] == reason);
+    // Either reason is the operator's to fix (spec/recovery.md, "Engine errors").
+    CHECK(result.error->recovery == afd::Recovery{.kind = afd::RecoveryKind::external});
     if (reason == "no-approval-step") {
         CHECK(*result.error->suggestion ==
               "Tell the user that " + name +
@@ -433,6 +435,7 @@ TEST_CASE("an input with no canonical form") {
                   "1, as a string)."));
         CHECK(result.error->retryable == std::optional<bool>(false));
         CHECK(Json(result)["error"]["details"] == Json{{"reason", "input-not-canonical"}});
+        CHECK_FALSE(result.error->recovery.has_value());
         CHECK(commands.ran->empty());
     }
 

@@ -4,6 +4,7 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <doctest.h>
@@ -114,6 +115,8 @@ TEST_CASE("a session's stack is changed by enter and exit") {
           "Command 'note-delete' is not available in context 'reading'");
     CHECK(refused["error"]["suggestion"] ==
           "Use afd-context-list to see available contexts, or afd-context-enter to switch.");
+    CHECK(refused["error"].value("recovery", Json()) ==
+          Json{{"kind", "call"}, {"command", "afd-context-list"}});
 
     const auto again = run(registry, "afd-context-enter", {{"context", "reading"}}, scope);
     CHECK(again["reasoning"] == "Already in context 'reading'; nothing changed");
@@ -125,6 +128,10 @@ TEST_CASE("a session's stack is changed by enter and exit") {
     CHECK(unknown["error"]["code"] == "CONTEXT_NOT_FOUND");
     CHECK(unknown["error"]["suggestion"] ==
           "Available contexts: reading, editing. Use afd-context-list to see all contexts.");
+    // Recovery: list the contexts (spec/recovery.md, "Engine errors").
+    CHECK(unknown["error"].value("recovery", Json()) ==
+          Json{{"kind", "call"}, {"command", "afd-context-list"}});
+    CHECK(unknown["error"]["retryable"] == false);
 
     CHECK(run(registry, "afd-context-exit", Json::object(), scope)["reasoning"] ==
           "Exited context 'editing', now in 'reading'");
@@ -145,6 +152,10 @@ TEST_CASE("a full stack refuses another context") {
     const auto full = run(registry, "afd-context-enter", {{"context", "editing"}}, scope);
     CHECK(full["error"]["code"] == "CONTEXT_DEPTH_EXCEEDED");
     CHECK(full["error"]["message"] == "Context stack is limited to 1 levels");
+    // Recovery: leave a context, then enter again (spec/recovery.md, "Engine errors").
+    CHECK(full["error"].value("recovery", Json()) ==
+          Json{{"kind", "call"}, {"command", "afd-context-exit"}, {"thenRetry", true}});
+    CHECK(full["error"]["retryable"] == false);
 }
 
 TEST_CASE("one request's context is validated, never changed") {
@@ -184,6 +195,126 @@ TEST_CASE("without context tools, COMMAND_NOT_IN_CONTEXT names the command's con
     CHECK(result["error"]["suggestion"] ==
           "Switch to a context this command belongs to ('editing'), or call it with no active "
           "context.");
+    // No command the caller can call does it: no recovery (spec/recovery.md, "Engine errors").
+    CHECK_FALSE(result["error"].contains("recovery"));
+}
+
+TEST_CASE("COMMAND_NOT_IN_CONTEXT names afd-context-list only where the caller can call it") {
+    // note-delete is exposed to MCP and the CLI; the context commands are not exposed to the CLI.
+    auto owned = std::make_shared<afd::CommandRegistry>();
+    REQUIRE_FALSE(afd::register_context_commands(*owned, two_contexts()));
+    REQUIRE_FALSE(owned->register_command(
+        {.name = "note-delete",
+         .description = "Delete a note",
+         .handler = [](const Json&, afd::CommandContext&) { return afd::success(nullptr); },
+         .contexts = {"editing"},
+         .expose = {.mcp = true, .cli = true}}));
+    const std::shared_ptr<const afd::CommandRegistry> registry = owned;
+    const std::string contexts_text =
+        "Switch to a context this command belongs to ('editing'), or call it with no active "
+        "context.";
+    const auto refused = [](const afd::CommandResult& result) {
+        REQUIRE(result.error);
+        CHECK(result.error->code == "COMMAND_NOT_IN_CONTEXT");
+        return *result.error;
+    };
+    afd::CommandContext reading;
+    reading.active_context = "reading";
+
+    SUBCASE("a surface the context commands are not exposed to") {
+        afd::CommandContext cli = reading;
+        cli.surface = afd::Interface::cli;
+        const auto error = refused(owned->execute("note-delete", Json::object(), cli));
+        CHECK(error.suggestion == contexts_text);
+        CHECK_FALSE(error.recovery);
+    }
+    SUBCASE("a DirectClient whose allow list refuses afd-context-list") {
+        afd::DirectClient client(
+            registry, {.surface = afd::Interface::mcp,
+                       .allow = [](std::string_view name) { return name != "afd-context-list"; }});
+        const auto error = refused(client.call("note-delete", Json::object(), reading));
+        CHECK(error.suggestion == contexts_text);
+        CHECK_FALSE(error.recovery);
+    }
+    SUBCASE("a DirectClient whose allow list refuses only afd-context-enter") {
+        afd::DirectClient client(
+            registry, {.surface = afd::Interface::mcp,
+                       .allow = [](std::string_view name) { return name != "afd-context-enter"; }});
+        const auto error = refused(client.call("note-delete", Json::object(), reading));
+        // The second clause names afd-context-enter, so it goes with it; the recovery stays.
+        CHECK(error.suggestion == "Use afd-context-list to see available contexts.");
+        CHECK(error.recovery ==
+              afd::Recovery{.kind = afd::RecoveryKind::call, .command = "afd-context-list"});
+    }
+    SUBCASE("a DirectClient whose allow list admits it") {
+        afd::DirectClient client(registry, {.surface = afd::Interface::mcp});
+        const auto error = refused(client.call("note-delete", Json::object(), reading));
+        CHECK(error.suggestion ==
+              "Use afd-context-list to see available contexts, or afd-context-enter to switch.");
+        CHECK(error.recovery ==
+              afd::Recovery{.kind = afd::RecoveryKind::call, .command = "afd-context-list"});
+    }
+}
+
+TEST_CASE("afd-context-enter names the context command it sends to only where the caller can call "
+          "it") {
+    auto owned = std::make_shared<afd::CommandRegistry>();
+    REQUIRE_FALSE(afd::register_context_commands(*owned, two_contexts()));
+    const std::shared_ptr<const afd::CommandRegistry> registry = owned;
+    auto session = std::make_shared<afd::ContextStack>(1);
+    const auto scope =
+        std::make_shared<const afd::ContextScope>(afd::ContextScope{.session = session});
+    const auto enter = [&](const afd::DirectClient& client, const std::string& name) {
+        afd::CommandContext context;
+        context.context_scope = scope;
+        context.active_context = scope->active();
+        const auto result = client.call("afd-context-enter", {{"context", name}}, context);
+        REQUIRE(result.error);
+        return *result.error;
+    };
+
+    SUBCASE("CONTEXT_NOT_FOUND, with afd-context-list refused") {
+        const afd::DirectClient client(
+            registry, {.surface = afd::Interface::mcp,
+                       .allow = [](std::string_view name) { return name != "afd-context-list"; }});
+        const auto error = enter(client, "nowhere");
+        CHECK(error.code == "CONTEXT_NOT_FOUND");
+        CHECK(error.suggestion == "Available contexts: reading, editing.");
+        CHECK_FALSE(error.recovery);
+    }
+    SUBCASE("CONTEXT_NOT_FOUND, with afd-context-list admitted") {
+        const afd::DirectClient client(
+            registry, {.surface = afd::Interface::mcp,
+                       .allow = [](std::string_view name) { return name != "afd-context-exit"; }});
+        const auto error = enter(client, "nowhere");
+        CHECK(error.suggestion ==
+              "Available contexts: reading, editing. Use afd-context-list to see all contexts.");
+        CHECK(error.recovery ==
+              afd::Recovery{.kind = afd::RecoveryKind::call, .command = "afd-context-list"});
+    }
+    SUBCASE("CONTEXT_DEPTH_EXCEEDED, with afd-context-exit refused") {
+        REQUIRE(session->enter("reading"));
+        const afd::DirectClient client(
+            registry, {.surface = afd::Interface::mcp,
+                       .allow = [](std::string_view name) { return name != "afd-context-exit"; }});
+        const auto error = enter(client, "editing");
+        CHECK(error.code == "CONTEXT_DEPTH_EXCEEDED");
+        CHECK(error.suggestion == "Leave a context before entering another");
+        CHECK_FALSE(error.recovery);
+        CHECK_FALSE(error.retryable.value_or(true));
+    }
+    SUBCASE("CONTEXT_DEPTH_EXCEEDED, with afd-context-exit admitted") {
+        REQUIRE(session->enter("reading"));
+        const afd::DirectClient client(
+            registry, {.surface = afd::Interface::mcp,
+                       .allow = [](std::string_view name) { return name != "afd-context-list"; }});
+        const auto error = enter(client, "editing");
+        CHECK(error.suggestion ==
+              "Call afd-context-exit to leave a context before entering another");
+        CHECK(error.recovery == afd::Recovery{.kind = afd::RecoveryKind::call,
+                                              .command = "afd-context-exit",
+                                              .then_retry = true});
+    }
 }
 
 TEST_CASE("a call with a context scope runs in the scope's context, whatever active_context says") {

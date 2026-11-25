@@ -491,6 +491,8 @@ export function createRateLimitMiddleware(options: RateLimitOptions): CommandMid
 					message: 'Rate limit client capacity reached',
 					retryable: true,
 					suggestion: 'Retry after the current rate limit window expires',
+					// When the window frees a slot is unknown, so no minimum wait.
+					recovery: { kind: 'retry' },
 				},
 			};
 		}
@@ -500,11 +502,14 @@ export function createRateLimitMiddleware(options: RateLimitOptions): CommandMid
 		}
 
 		if (window.count >= maxRequests) {
+			// The suggestion and the recovery give the same whole number of seconds.
+			const seconds = Math.ceil((window.resetAt - now) / 1000);
 			return failure({
 				code: 'RATE_LIMITED',
 				message: 'Too many requests',
-				suggestion: `Try again in ${Math.ceil((window.resetAt - now) / 1000)} seconds`,
+				suggestion: `Try again in ${seconds} seconds`,
 				retryable: true,
+				recovery: { kind: 'retry', afterMs: seconds * 1000 },
 			});
 		}
 

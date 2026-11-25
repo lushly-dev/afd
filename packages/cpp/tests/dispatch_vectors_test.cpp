@@ -181,7 +181,23 @@ BuiltRegistry build_registry(const afd::Json& vectors, const afd::Json& test_cas
         REQUIRE_MESSAGE(!reg_err.has_value(), reg_err.value_or(""));
     }
 
+    // setup.contextCommands "plain": the registry surface registers the context commands as plain
+    // commands, with no tool surface and no bootstrap or help commands.
+    if (test_case.at("surface") == "registry" && setup.value("contextCommands", "") == "plain") {
+        std::vector<afd::ContextConfig> contexts;
+        for (const auto& name : setup.at("contexts")) {
+            contexts.push_back({.name = name.get<std::string>()});
+        }
+        const auto context_err = afd::register_context_commands(*out.registry, std::move(contexts));
+        REQUIRE_MESSAGE(!context_err.has_value(), context_err.value_or(""));
+    }
+
     return out;
+}
+
+// `expect.recovery`: the error's recovery as JSON, `null` for none (spec/recovery.md).
+afd::Json recovery_json(const std::optional<afd::Recovery>& recovery) {
+    return recovery ? afd::Json(*recovery) : afd::Json(nullptr);
 }
 
 std::optional<std::string> command_version_from(const afd::Json& vectors, std::string_view name) {
@@ -250,6 +266,11 @@ TEST_CASE("single-command dispatch order matches spec/vectors/dispatch.json") {
         if (expected.contains("retryable")) {
             REQUIRE(result.error.has_value());
             CHECK(result.error->retryable == expected.at("retryable").get<bool>());
+        }
+        if (expected.contains("recovery")) {
+            REQUIRE(result.error.has_value());
+            CHECK(dispatch_vectors::recovery_json(result.error->recovery) ==
+                  expected.at("recovery"));
         }
         if (expected.contains("message")) {
             REQUIRE(result.error.has_value());
@@ -347,6 +368,14 @@ TEST_CASE("MCP dispatch-order cases match spec/vectors/dispatch.json") {
         }
         if (expected.contains("retryable")) {
             CHECK(result.at("error").at("retryable") == expected.at("retryable"));
+        }
+        if (expected.contains("recovery")) {
+            // On the wire, no recovery is an absent member, never `null`.
+            const auto& error = result.at("error");
+            CHECK(error.value("recovery", afd::Json(nullptr)) == expected.at("recovery"));
+            if (expected.at("recovery").is_null()) {
+                CHECK_FALSE(error.contains("recovery"));
+            }
         }
         if (expected.contains("data")) {
             CHECK(result.at("data") == expected.at("data"));

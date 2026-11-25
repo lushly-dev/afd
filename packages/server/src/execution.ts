@@ -27,16 +27,18 @@ import {
 	executionFailure,
 	failure,
 	isActorKind,
-	truncateName,
 	withContextDefaults,
 } from '@lushly-dev/afd-core';
 import { commandNotAllowed } from '@lushly-dev/afd-core/internal/direct-allow';
 import { beginAdmission, needsAdmission, takeAdmission } from './approval-admission.js';
 import { filterAllowed, isCommandAllowed } from './command-allow.js';
 import {
+	type CallableSurface,
+	canCall,
 	filterByContext,
 	isAccessibleInContext,
-	notFoundSuggestion,
+	notFoundError,
+	notFoundNext,
 	notInContextError,
 } from './command-routing.js';
 import { applyContextFields, type ContextField } from './context-fields.js';
@@ -68,14 +70,23 @@ export interface ExecutionDeps {
 	/** Declared context fields, validated on each call's context (`spec/context-fields.md`). */
 	contextFields?: readonly ContextField[];
 	/**
-	 * Whether refusals may name `afd-discover` and the `afd-context-*` tools, which only a host that
-	 * serves them can (`spec/error-codes.md`, "Suggestions name only tools the host provides").
-	 * Default `true`: the MCP server serves both. A direct registry without a tool surface sets
-	 * `false`.
+	 * Whether the host serves the meta-tools (`afd-discover` and the rest) to the callers of this
+	 * engine. A refusal names a command, in its suggestion and in its recovery, only where the
+	 * caller can call it (`spec/recovery.md`, "Engine errors"): a meta-tool only when this is set,
+	 * and any other command only when it is in `commandMap`, allowed in the active context, admitted
+	 * by the call's `allow` list and shown under MCP authorization. Default `true`: the MCP server's
+	 * router serves them. A direct registry without a tool surface, and in-process calls that reach
+	 * the engine without the router, set `false`.
 	 */
-	suggestTools?: boolean;
+	metaTools?: boolean;
 	/** Whether a command is hidden from the caller of `context` (MCP authorization, M6). */
 	hidden?: (name: string, context: CommandContext) => boolean;
+	/**
+	 * Whether the caller of `context` is shown the command `name` (M6), so a refusal names it only
+	 * then ({@link canCall}). The server passes the request's scope view here, so the engine, which
+	 * `/direct` bundles, never loads `scope-view`. Default: every command is shown.
+	 */
+	isShown?: (name: string, context: CommandContext | undefined) => boolean;
 	/** The commands the caller of `context` may be shown, for suggestions (M6). */
 	shown?: (commands: ZodCommandDefinition[], context: CommandContext) => ZodCommandDefinition[];
 	/**
@@ -132,7 +143,11 @@ function runHook(hook: () => unknown, onHookError: (error: unknown) => void): vo
 
 export function createExecutionEngine(deps: ExecutionDeps) {
 	const { commandMap, middleware, devMode, onCommand, onError } = deps;
-	const suggestTools = deps.suggestTools ?? true;
+	const surface: CallableSurface = {
+		metaTools: deps.metaTools ?? true,
+		command: (name: string) => commandMap.get(name),
+		shown: deps.isShown,
+	};
 
 	/** Report to `onError`. A failing `onError` has nowhere left to report, so it is ignored. */
 	function reportError(error: unknown): void {
@@ -175,6 +190,8 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 		// call's context is a fresh object, so no other call's admission applies to it.
 		if (command) beginAdmission(context, command);
 
+		/** Whether this caller can call `name` here, decided once for the suggestion and recovery. */
+		const can = (name: string) => canCall(surface, name, callerContext, activeContext);
 		if (!command) {
 			// A few close matches, never the whole list: in lazy mode that would load
 			// every command name into the agent's context on a single typo. Never one the call's
@@ -184,21 +201,17 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 				filterByContext(deps.shown?.(listed, callerContext) ?? listed, activeContext),
 				callerContext
 			);
-			return failure({
-				code: 'COMMAND_NOT_FOUND',
-				message: `Command '${truncateName(commandName)}' not found`,
-				suggestion: notFoundSuggestion(
+			return failure(
+				notFoundError(
 					commandName,
 					candidates.map((candidate) => candidate.name),
-					suggestTools
-				),
-			});
+					notFoundNext(can)
+				)
+			);
 		}
 
 		if (activeContext && !isAccessibleInContext(command, activeContext)) {
-			return failure(
-				notInContextError(commandName, activeContext, suggestTools ? undefined : command.contexts)
-			);
+			return failure(notInContextError(commandName, activeContext, command.contexts, can));
 		}
 		// Validate input with enhanced error messages. Schema callbacks (.refine,
 		// .superRefine, .transform, .preprocess) run here, so an exception they throw
@@ -283,6 +296,8 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 							? `Tell the user that ${commandName} needs their approval and this server has no approval step; do not retry. The operator adds the approval middleware (createApprovalMiddleware) or removes the command's approval policy.`
 							: `Do not retry: this call is not the one approved. The operator moves middleware that retries or changes input before the approval middleware.`,
 					retryable: false,
+					// The operator fixes the approval setup.
+					recovery: { kind: 'external' },
 					details: { reason: admission === 'missing' ? 'no-approval-step' : 'admission-mismatch' },
 				});
 			}

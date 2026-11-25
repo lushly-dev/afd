@@ -9,8 +9,11 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
+
+#include "detail/caller_allow.hpp"
 
 namespace afd {
 
@@ -67,6 +70,13 @@ CommandResult session_required() {
                        "\"] with the context name on each tools/list and tools/call request, or "
                        "connect over stdio, which keeps one context stack per connection",
          .retryable = false}));
+}
+
+// Whether the caller of one context command can call another, decided once for its suggestion and
+// recovery (spec/recovery.md, "Engine errors"). The three are registered, exposed and scoped as a
+// unit, so a caller that reached one can call another unless its client's allow list refuses it.
+bool can_call_context_command(const CommandContext& context, std::string_view name) {
+    return detail::caller_allows(context, name);
 }
 
 CommandResult done(Json data, std::string reasoning) {
@@ -145,11 +155,16 @@ std::vector<CommandDefinition> context_commands(std::vector<ContextConfig> confi
             for (const auto& config : *contexts) {
                 available += (available.empty() ? "" : ", ") + config.name;
             }
+            const bool can_list = can_call_context_command(context, "afd-context-list");
             return failure(create_error(
                 error_codes::CONTEXT_NOT_FOUND, "Context '" + name + "' is not configured",
                 {.suggestion = "Available contexts: " + available +
-                               ". Use afd-context-list to see all contexts.",
-                 .retryable = false}));
+                               (can_list ? ". Use afd-context-list to see all contexts." : "."),
+                 .retryable = false,
+                 .recovery = can_list
+                                 ? std::optional<Recovery>(Recovery{.kind = RecoveryKind::call,
+                                                                    .command = "afd-context-list"})
+                                 : std::nullopt}));
         }
         const std::optional<std::string> previous = scope->active();
         if (!scope->session) {
@@ -163,12 +178,20 @@ std::vector<CommandDefinition> context_commands(std::vector<ContextConfig> confi
                         "Already in context '" + name + "'; nothing changed");
         }
         if (!scope->session->enter(name)) {
+            const bool can_exit = can_call_context_command(context, "afd-context-exit");
             return failure(create_error(
                 error_codes::CONTEXT_DEPTH_EXCEEDED,
                 "Context stack is limited to " + std::to_string(scope->session->max_depth()) +
                     " levels",
-                {.suggestion = "Call afd-context-exit to leave a context before entering another",
-                 .retryable = false}));
+                {.suggestion =
+                     can_exit ? "Call afd-context-exit to leave a context before entering another"
+                              : "Leave a context before entering another",
+                 .retryable = false,
+                 .recovery = can_exit
+                                 ? std::optional<Recovery>(Recovery{.kind = RecoveryKind::call,
+                                                                    .command = "afd-context-exit",
+                                                                    .then_retry = true})
+                                 : std::nullopt}));
         }
         const std::string was = previous ? " (was '" + *previous + "')" : "";
         return done(Json{{"entered", name}, {"previous", optional_name(previous)}},

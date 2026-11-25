@@ -247,6 +247,8 @@ function requiredError(names: readonly string[], suggestion: string): CommandErr
 		suggestion,
 		retryable: false,
 		details: { commands: [...names] },
+		// A person confirms through the host (`spec/recovery.md`, "Engine errors").
+		recovery: { kind: 'external' },
 	};
 }
 
@@ -258,6 +260,7 @@ function declinedError(names: readonly string[]): CommandError {
 			'Do not run this again without asking the user first; the user chose not to proceed.',
 		retryable: false,
 		details: { commands: [...names] },
+		recovery: { kind: 'stop' },
 	};
 }
 

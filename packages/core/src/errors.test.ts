@@ -77,12 +77,50 @@ describe('rateLimitError', () => {
 		expect(err.suggestion).toContain('60');
 		expect(err.retryable).toBe(true);
 		expect(err.details).toEqual({ retryAfterSeconds: 60 });
+		// The same wait as the suggestion, in milliseconds (spec/recovery.md, "Engine errors").
+		expect(err.recovery).toEqual({ kind: 'retry', afterMs: 60_000 });
 	});
 
 	it('uses generic suggestion without retry time', () => {
 		const err = rateLimitError();
 		expect(err.suggestion).toContain('Wait');
 		expect(err.details).toBeUndefined();
+		expect(err.recovery).toEqual({ kind: 'retry' });
+	});
+
+	it('rounds a wait up to a whole millisecond, so it is never shorter than the suggestion', () => {
+		expect(rateLimitError(0.0001).recovery).toEqual({ kind: 'retry', afterMs: 1 });
+		expect(rateLimitError(0.0015).recovery).toEqual({ kind: 'retry', afterMs: 2 });
+	});
+
+	it('treats a zero wait as unknown', () => {
+		const err = rateLimitError(0);
+		expect(err.suggestion).toBe('Wait a moment and try again');
+		expect(err.details).toBeUndefined();
+		expect(err.recovery).toEqual({ kind: 'retry' });
+	});
+
+	it.each([-5, Infinity])(
+		'falls back to a plain retry for a wait of %s, which afterMs cannot carry',
+		(seconds) => {
+			const err = rateLimitError(seconds);
+			expect(err.recovery).toEqual({ kind: 'retry' });
+			expect(err.retryable).toBe(true);
+			expect(err.details).toEqual({ retryAfterSeconds: seconds });
+		}
+	);
+});
+
+describe('recovery on the other helpers', () => {
+	it('is set by none of validation, not found, timeout and internal', () => {
+		for (const err of [
+			validationError('bad input'),
+			notFoundError('User', '42'),
+			timeoutError('fetchData', 5000),
+			internalError('boom'),
+		]) {
+			expect(err, err.code).not.toHaveProperty('recovery');
+		}
 	});
 });
 

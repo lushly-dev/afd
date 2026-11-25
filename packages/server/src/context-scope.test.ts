@@ -7,6 +7,7 @@ import {
 	createContextState,
 	DEFAULT_CONTEXT_MAX_DEPTH,
 } from './bootstrap/afd-context.js';
+import { bindCommandAllow } from './command-allow.js';
 import { bindContextState, resolveContextState } from './context-scope.js';
 import { createExecutionEngine } from './execution.js';
 import { defineCommand } from './schema.js';
@@ -82,6 +83,28 @@ describe('context commands with a bound state', () => {
 		expect(result.success).toBe(false);
 		expect(result.error?.code).toBe('CONTEXT_DEPTH_EXCEEDED');
 		expect(result.error?.suggestion).toContain('afd-context-exit');
+		// Exit a context, then enter again (spec/recovery.md, "Engine errors").
+		expect(result.error?.recovery).toEqual({
+			kind: 'call',
+			command: 'afd-context-exit',
+			thenRetry: true,
+		});
+		expect(state.stack).toEqual(['edit']);
+	});
+
+	it('enter leaves afd-context-exit out of a full stack refusal when the caller cannot call it', async () => {
+		const state = createContextState({ maxDepth: 1 });
+		const enter = createAfdContextEnterCommand(contexts, state);
+		await enter.handler({ context: 'edit' });
+		// A DirectClient `allow` list that refuses only afd-context-exit (spec/recovery.md,
+		// "Engine errors"): the refusal names no command, and carries no recovery.
+		const allow = bindCommandAllow({}, (name) => name !== 'afd-context-exit');
+		const result = await enter.handler({ context: 'print' }, allow);
+		expect(result.error).toEqual({
+			code: 'CONTEXT_DEPTH_EXCEEDED',
+			message: 'Context stack is limited to 1 levels',
+			suggestion: 'Leave a context before entering another',
+		});
 		expect(state.stack).toEqual(['edit']);
 	});
 

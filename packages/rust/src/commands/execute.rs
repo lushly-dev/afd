@@ -18,7 +18,9 @@ impl CommandRegistry {
     ///    to three close matches, as in TypeScript, chosen among the commands
     ///    exposed to `context.interface` (all commands when it is unset) and
     ///    available in the active context, and points to `afd-help` when that
-    ///    is one of them (`afd-discover` for the MCP server's calls). On an
+    ///    is one of them (`afd-discover` for the MCP server's calls), with a
+    ///    `call` recovery to the same command and none when it names neither
+    ///    (`spec/recovery.md`, "Engine errors"). On an
     ///    authorized MCP server, a command its resolver hides from the caller
     ///    is an unknown name here, with the same answer
     ///    (`spec/authorization.md`, M6, "Hidden commands").
@@ -142,18 +144,7 @@ impl CommandRegistry {
                 .filter(|candidate| listed.is_none_or(|listed| listed.allows(candidate)))
                 .map(|candidate| candidate.name.clone())
                 .collect();
-            return failure(
-                CommandError::new(
-                    error_codes::COMMAND_NOT_FOUND,
-                    format!("Command '{}' not found", truncate_name(name)),
-                )
-                .with_suggestion(not_found_suggestion(
-                    name,
-                    &callable,
-                    context.server().remote,
-                ))
-                .with_retryable(false),
-            );
+            return failure(command_not_found(name, &callable, context.server().remote));
         };
 
         if let Some(interface) = context.interface {
@@ -166,21 +157,32 @@ impl CommandRegistry {
                     .with_suggestion(format!(
                         "Call it from an interface it is exposed to, or set expose.{interface} to true in its definition"
                     ))
-                    .with_retryable(false),
+                    .with_retryable(false)
+                    .with_recovery(crate::errors::Recovery::external()),
                 );
             }
         }
 
         if let Some(active) = active_context.as_deref() {
             if !command.is_accessible_in_context(Some(active)) {
-                let context_tools = self
-                    .get(crate::builtin_names::AFD_CONTEXT_COMMAND_NAMES[0])
-                    .is_some_and(|list| visible(&list) && known(&list));
-                return failure(crate::contexts::not_in_context_error(
-                    &command,
-                    active,
-                    context_tools,
-                ));
+                // Whether the caller can call a context command, the same test for the
+                // suggestion and the recovery: registered, exposed to the interface, in the
+                // active context, existing for the caller and in its listing
+                // (`spec/recovery.md`, rule 2).
+                let listed = context
+                    .server()
+                    .tool_surface
+                    .as_ref()
+                    .and_then(|surface| surface.visible.as_ref());
+                let can = |name: &str| {
+                    self.get(name).is_some_and(|tool| {
+                        visible(&tool)
+                            && known(&tool)
+                            && tool.is_accessible_in_context(Some(active))
+                            && listed.is_none_or(|listed| listed.allows(&tool))
+                    })
+                };
+                return failure(crate::contexts::not_in_context_error(&command, active, can));
             }
         }
 
@@ -676,6 +678,40 @@ const MAX_NOT_FOUND_MATCHES: usize = 3;
 /// The bootstrap command that lists the commands a caller can call.
 const HELP_COMMAND: &str = "afd-help";
 
+/// The `COMMAND_NOT_FOUND` answer for an unknown command name at lookup: a call, `afd-call`, a
+/// batch item or a pipeline step. Its suggestion and its recovery (`spec/recovery.md`, "Engine
+/// errors") come from the one decision [`list_pointer`] makes, so they name the same command:
+/// `afd-discover` for a remote MCP caller, `afd-help` when `callable` holds it, and otherwise
+/// none.
+pub(crate) fn command_not_found(name: &str, callable: &[String], remote: bool) -> CommandError {
+    let error = CommandError::new(
+        error_codes::COMMAND_NOT_FOUND,
+        format!("Command '{}' not found", truncate_name(name)),
+    )
+    .with_suggestion(not_found_suggestion(name, callable, remote))
+    .with_retryable(false);
+    match list_pointer(callable, remote) {
+        Some(command) => error.with_recovery(crate::errors::Recovery::engine_call(command, false)),
+        None => error,
+    }
+}
+
+/// The command an unknown name's caller can call to list the commands: `afd-discover`, which
+/// the MCP server routes in every tool strategy to every caller it answers, or `afd-help` when
+/// the caller can call it, or none.
+fn list_pointer(callable: &[String], remote: bool) -> Option<&'static str> {
+    if remote {
+        Some(DISCOVER_COMMAND)
+    } else if callable.iter().any(|candidate| candidate == HELP_COMMAND) {
+        Some(HELP_COMMAND)
+    } else {
+        None
+    }
+}
+
+/// The meta-tool that lists the commands of an MCP server.
+const DISCOVER_COMMAND: &str = "afd-discover";
+
 /// Recovery guidance for an unknown command name, as in TypeScript's
 /// `notFoundSuggestion`: at most [`MAX_NOT_FOUND_MATCHES`] close matches
 /// (bounded fuzzy matching; none for very long names), never the whole list,
@@ -689,13 +725,10 @@ const HELP_COMMAND: &str = "afd-help";
 /// `name` is untrusted and never echoed; `callable` holds the names the caller
 /// may call, in registration order (ties keep that order, as in TypeScript).
 pub(crate) fn not_found_suggestion(name: &str, callable: &[String], remote: bool) -> String {
-    // The MCP server routes afd-discover in every tool strategy.
-    let list = if remote {
-        "Use afd-discover to list all commands."
-    } else if callable.iter().any(|candidate| candidate == HELP_COMMAND) {
-        "Use afd-help to list all commands."
-    } else {
-        "Check the command name against the available commands."
+    let list = match list_pointer(callable, remote) {
+        Some(DISCOVER_COMMAND) => "Use afd-discover to list all commands.",
+        Some(_) => "Use afd-help to list all commands.",
+        None => "Check the command name against the available commands.",
     };
     let mut matches =
         crate::similarity::find_similar_tools(name, callable, Some(MAX_NOT_FOUND_MATCHES))

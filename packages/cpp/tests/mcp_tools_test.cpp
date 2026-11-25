@@ -391,6 +391,10 @@ TEST_CASE("an unexposed command is answered exactly as an unknown one, on every 
     const Json grouped_unknown = answer(call(*server, "notes", {{"action", "hdie"}}));
     CHECK(grouped_hidden["code"] == "COMMAND_NOT_FOUND");
     CHECK(grouped_hidden["suggestion"] == grouped_unknown["suggestion"]);
+    // A grouped tool's unknown action names no command a recovery could call: none
+    // (spec/recovery.md, "Engine errors").
+    CHECK_FALSE(grouped_unknown.contains("recovery"));
+    CHECK_FALSE(grouped_hidden.contains("recovery"));
     CHECK(answer(call(*server, "notes"))["suggestion"].get<std::string>().find("hide") ==
           std::string::npos);
     const Json batch =
@@ -503,6 +507,8 @@ TEST_CASE("afd-detail describes up to ten commands, with their tools' schemas") 
     CHECK(missing["error"]["suggestion"] ==
           "Did you mean 'note-delete'? Other close matches: 'note-create', 'note-list'. Use "
           "afd-discover to list all commands.");
+    // A per-entry not-found carries no recovery (spec/recovery.md, "Engine errors").
+    CHECK_FALSE(missing["error"].contains("recovery"));
 
     Json many = Json::array();
     for (int i = 0; i < 12; ++i) {
@@ -709,12 +715,17 @@ TEST_CASE("2026-07-28: one question covers a batch's gated steps, bound to the r
     const Json error = body(declined)["error"];
     CHECK(error["code"] == "CONFIRMATION_DECLINED");
     CHECK(error["message"] == "The user did not confirm 'note-delete', 'tag-purge'");
+    // The user chose not to proceed (spec/recovery.md, "Engine errors").
+    CHECK(error.value("recovery", Json()) == Json{{"kind", "stop"}});
+    CHECK(error["retryable"] == false);
     CHECK(*fixture.deletes == 1);
 
     // Without elicitation, require-human refuses.
-    CHECK(body(modern_call(*server, "afd-batch", batch))["error"]["suggestion"] ==
+    const Json unconfirmed = body(modern_call(*server, "afd-batch", batch))["error"];
+    CHECK(unconfirmed["suggestion"] ==
           "This server accepts only a confirmation from the user: use an MCP client that "
           "supports elicitation.");
+    CHECK(unconfirmed.value("recovery", Json()) == Json{{"kind", "external"}});
 }
 
 TEST_CASE("2025: a pipeline's confirmation is asked in band, once") {
@@ -742,11 +753,14 @@ TEST_CASE("2025: a pipeline's confirmation is asked in band, once") {
     };
     const Json declined = body(call(*server, "afd-pipe", pipe, decline));
     CHECK(declined["steps"][0]["error"]["code"] == "CONFIRMATION_DECLINED");
+    // A pipeline step carries the same recovery as the error on its own.
+    CHECK(declined["steps"][0]["error"].value("recovery", Json()) == Json{{"kind", "stop"}});
     const afd::mcp::ClientRequester silent = [](const Json&) -> std::optional<Json> {
         return std::nullopt;
     };
-    CHECK(body(call(*server, "afd-pipe", pipe, silent))["steps"][0]["error"]["code"] ==
-          "CONFIRMATION_REQUIRED");
+    const Json unanswered = body(call(*server, "afd-pipe", pipe, silent))["steps"][0]["error"];
+    CHECK(unanswered["code"] == "CONFIRMATION_REQUIRED");
+    CHECK(unanswered.value("recovery", Json()) == Json{{"kind", "external"}});
     CHECK(*fixture.deletes == 1);
 }
 
@@ -799,6 +813,7 @@ TEST_CASE("2025: a batch is approved up front, once, before any step runs") {
     CHECK(declined["error"]["details"]["reason"] == "declined");
     CHECK(declined["error"]["message"] == "The user did not approve tag-remove; nothing in the "
                                           "batch ran");
+    CHECK(declined["error"].value("recovery", Json()) == Json{{"kind", "stop"}});
     CHECK(*fixture.removes == 1);
 
     // Unanswered: nobody declined, and nothing ran.
@@ -807,6 +822,8 @@ TEST_CASE("2025: a batch is approved up front, once, before any step runs") {
     CHECK(silent["results"].empty());
     CHECK(silent["error"]["code"] == "APPROVAL_REQUIRED");
     CHECK_FALSE(silent["error"].contains("details"));
+    // Unanswered: a person must still approve.
+    CHECK(silent["error"].value("recovery", Json()) == Json{{"kind", "external"}});
     CHECK(*fixture.removes == 1);
 }
 
@@ -832,6 +849,8 @@ TEST_CASE("without a commands list, a batch is approved up front from the server
     const Json refused = body(call(*server, "afd-pipe", pipe, client.requester()));
     CHECK(client.asked.size() == 1);
     CHECK(refused["steps"][0]["error"]["details"]["reason"] == "input-not-known");
+    // The caller reshapes the pipeline: no recovery.
+    CHECK_FALSE(refused["steps"][0]["error"].contains("recovery"));
     CHECK(*fixture.removes == 1);
 }
 
@@ -984,6 +1003,7 @@ TEST_CASE("2026-07-28: one input_required approves the whole batch, and a replay
                     {{"requestState", asked["requestState"]},
                      {"inputResponses", {{"approval", {{"action", "decline"}}}}}});
     CHECK(body(declined)["error"]["details"]["reason"] == "declined");
+    CHECK(body(declined)["error"].value("recovery", Json()) == Json{{"kind", "stop"}});
     CHECK(*fixture.removes == 2);
 }
 
@@ -1020,6 +1040,7 @@ TEST_CASE("a pipeline step is shown with its $input resolved; a step reading $pr
           Json{{"reason", "input-not-known"}, {"step", 1}, {"command", "tag-remove"}});
     CHECK(error["suggestion"].get<std::string>().rfind(
               "Split the pipeline before the step at index 1", 0) == 0);
+    CHECK_FALSE(error.contains("recovery"));
     CHECK(*fixture.removes == 1);
 }
 
@@ -1034,6 +1055,7 @@ TEST_CASE("more than 20 gated steps are not asked about") {
     const Json refused =
         body(modern_call(*server, "afd-batch", {{"commands", commands}}, form_elicitation));
     CHECK(refused["error"]["details"] == Json{{"reason", "too-many-approvals"}, {"limit", 20}});
+    CHECK_FALSE(refused["error"].contains("recovery"));
     CHECK(*fixture.removes == 0);
 }
 
@@ -1265,6 +1287,7 @@ TEST_CASE("2025: a batch question nobody answers is no decline") {
     CHECK(refused["error"]["code"] == "CONFIRMATION_REQUIRED");
     CHECK(refused["error"]["suggestion"] ==
           "The client did not answer the confirmation question. Ask the user, then call again.");
+    CHECK(refused["error"].value("recovery", Json()) == Json{{"kind", "external"}});
 }
 
 TEST_CASE("2026-07-28: a batch's confirmation answers only the caller it was asked of") {

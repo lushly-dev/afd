@@ -43,7 +43,7 @@ import {
 	createDirectApprovalExchange,
 	publicDirectContext,
 } from '@lushly-dev/afd-core/internal/direct-approval';
-import { askForApproval, publicApprovalResult } from './direct-approval.js';
+import { askForApproval, declinedApproval, publicApprovalResult } from './direct-approval.js';
 import { runWithTimeout } from './direct-timeout.js';
 import { validateInput } from './direct-validation.js';
 import type {
@@ -309,7 +309,7 @@ export class DirectClient {
 					: undefined;
 			if (hook && held) {
 				this.debug(`[${traceId}] Approval needed for ${name}`);
-				const approved = await askForApproval(hook, {
+				const answer = await askForApproval(hook, {
 					command: name,
 					input: { ...args },
 					summary: held.summary,
@@ -319,10 +319,16 @@ export class DirectClient {
 					...(context?.signal && { signal: context.signal }),
 				});
 				// A call cancelled as the hook answered is not retried.
-				if (approved && !context?.signal?.aborted) {
+				const cancelled = answer === 'aborted' || context?.signal?.aborted;
+				if (answer === 'approved' && !cancelled) {
 					this.debug(`[${traceId}] Approved; retrying ${name}`);
 					exchange.approve();
 					result = await attempt();
+				} else if (answer === 'declined' && !cancelled && result.error) {
+					// The hook declined: the user chose not to proceed, so no step makes this call
+					// succeed (`spec/recovery.md`, "Engine errors"). A hook that failed (threw,
+					// rejected or gave no boolean) is not a decline: the hold stays as it is.
+					result = { ...result, error: declinedApproval(result.error) };
 				}
 			}
 

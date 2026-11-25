@@ -27,11 +27,12 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
+use crate::builtin_names::AFD_CONTEXT_COMMAND_NAMES;
 use crate::commands::{
     CommandContext, CommandDefinition, CommandHandler, CommandParameter, CommandRegistry,
     ExposeOptions,
 };
-use crate::errors::{error_codes, CommandError};
+use crate::errors::{error_codes, CommandError, Recovery};
 use crate::result::{failure, success_with, CommandResult, ResultOptions};
 
 /// Default maximum depth of a [`ContextStack`], as in TypeScript and Python.
@@ -198,28 +199,35 @@ impl ContextScope {
 
 /// The `COMMAND_NOT_IN_CONTEXT` error for `command` outside `active`.
 ///
-/// It names the `afd-context-*` tools when the caller can call them, and otherwise the contexts
-/// the command belongs to (`spec/error-codes.md`).
+/// It names `afd-context-list` when `can` says the caller can call it, adding `afd-context-enter`
+/// when it can call that too, and otherwise the contexts the command belongs to
+/// (`spec/error-codes.md`).
 pub(crate) fn not_in_context_error(
     command: &CommandDefinition,
     active: &str,
-    context_tools: bool,
+    can: impl Fn(&str) -> bool,
 ) -> CommandError {
-    let suggestion = if context_tools {
-        "Use afd-context-list to see available contexts, or afd-context-enter to switch.".to_owned()
-    } else {
-        let contexts: Vec<String> = command
-            .contexts
-            .iter()
-            .flatten()
-            .map(|context| format!("'{context}'"))
-            .collect();
-        format!(
-            "Switch to a context this command belongs to ({}), or call it with no active context.",
-            contexts.join(", ")
-        )
+    let list = Some(AFD_CONTEXT_COMMAND_NAMES[0]).filter(|list| can(list));
+    let suggestion = match list {
+        Some(_) if can(AFD_CONTEXT_COMMAND_NAMES[1]) => {
+            "Use afd-context-list to see available contexts, or afd-context-enter to switch."
+                .to_owned()
+        }
+        Some(_) => "Use afd-context-list to see available contexts.".to_owned(),
+        None => {
+            let contexts: Vec<String> = command
+                .contexts
+                .iter()
+                .flatten()
+                .map(|context| format!("'{context}'"))
+                .collect();
+            format!(
+                "Switch to a context this command belongs to ({}), or call it with no active context.",
+                contexts.join(", ")
+            )
+        }
     };
-    CommandError::new(
+    let error = CommandError::new(
         error_codes::COMMAND_NOT_IN_CONTEXT,
         format!(
             "Command '{}' is not available in context '{active}'",
@@ -227,7 +235,30 @@ pub(crate) fn not_in_context_error(
         ),
     )
     .with_suggestion(suggestion)
-    .with_retryable(false)
+    .with_retryable(false);
+    // The same decision as the suggestion's (`spec/recovery.md`, "Engine errors").
+    match list {
+        Some(list) => error.with_recovery(Recovery::engine_call(list, false)),
+        None => error,
+    }
+}
+
+/// Whether the caller of `context` can call the context command `name`: the server's filters
+/// admit it, both which commands exist for the caller and which it may list
+/// (`spec/error-codes.md`, "Suggestions name only tools the host provides"). The context commands
+/// are registered together and exposed alike, so the one running can stand for the others'
+/// registration and exposure.
+fn caller_can_call(context: &CommandContext, name: &str) -> bool {
+    let server = context.server();
+    server
+        .known
+        .as_ref()
+        .is_none_or(|known| known.allows_name(name))
+        && server
+            .tool_surface
+            .as_ref()
+            .and_then(|surface| surface.visible.as_ref())
+            .is_none_or(|visible| visible.allows_name(name))
 }
 
 fn stateless_hint() -> String {
@@ -309,17 +340,24 @@ impl CommandHandler for ContextEnter {
         let name = input["context"].as_str().unwrap_or_default().to_owned();
         if !self.0.iter().any(|config| config.name == name) {
             let available: Vec<&str> = self.0.iter().map(|config| config.name.as_str()).collect();
-            return failure(
-                CommandError::new(
-                    error_codes::CONTEXT_NOT_FOUND,
-                    format!("Context '{name}' is not configured"),
-                )
-                .with_suggestion(format!(
-                    "Available contexts: {}. Use afd-context-list to see all contexts.",
-                    available.join(", ")
-                ))
-                .with_retryable(false),
-            );
+            let available = available.join(", ");
+            let list = AFD_CONTEXT_COMMAND_NAMES[0];
+            let error = CommandError::new(
+                error_codes::CONTEXT_NOT_FOUND,
+                format!("Context '{name}' is not configured"),
+            )
+            .with_retryable(false);
+            // The suggestion and the recovery name afd-context-list only when the caller can
+            // call it (`spec/recovery.md`, "Engine errors").
+            return failure(if caller_can_call(&context, list) {
+                error
+                    .with_suggestion(format!(
+                        "Available contexts: {available}. Use afd-context-list to see all contexts."
+                    ))
+                    .with_recovery(Recovery::engine_call(list, false))
+            } else {
+                error.with_suggestion(format!("Available contexts: {available}."))
+            });
         }
         let previous = scope.active();
         let stack = match scope {
@@ -338,14 +376,22 @@ impl CommandHandler for ContextEnter {
             );
         }
         if stack.enter(name.clone()).is_err() {
-            return failure(
-                CommandError::new(
-                    error_codes::CONTEXT_DEPTH_EXCEEDED,
-                    format!("Context stack is limited to {} levels", stack.max_depth()),
-                )
-                .with_suggestion("Call afd-context-exit to leave a context before entering another")
-                .with_retryable(false),
-            );
+            let exit = AFD_CONTEXT_COMMAND_NAMES[2];
+            let error = CommandError::new(
+                error_codes::CONTEXT_DEPTH_EXCEEDED,
+                format!("Context stack is limited to {} levels", stack.max_depth()),
+            )
+            .with_retryable(false);
+            // As for CONTEXT_NOT_FOUND, afd-context-exit only when the caller can call it.
+            return failure(if caller_can_call(&context, exit) {
+                error
+                    .with_suggestion(
+                        "Call afd-context-exit to leave a context before entering another",
+                    )
+                    .with_recovery(Recovery::engine_call(exit, true))
+            } else {
+                error.with_suggestion("Leave a context before entering another")
+            });
         }
         let was = previous
             .as_deref()

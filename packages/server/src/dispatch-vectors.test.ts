@@ -14,13 +14,16 @@ import {
 	type CommandMiddleware,
 	type CommandResult,
 	type ExposeOptions,
+	type Recovery,
 	success,
 } from '@lushly-dev/afd-core';
 import { AjvJsonSchemaValidator } from '@modelcontextprotocol/client/validators/ajv';
 import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createApprovalMiddleware } from './approval.js';
+import { createContextCommands } from './bootstrap/registry.js';
 import type { ContextField } from './context-fields.js';
+import { createContextState } from './context-scope.js';
 import { createDirectRegistry, type ExposeInterface } from './direct-registry.js';
 import { defineCommand } from './schema.js';
 import { createMcpHandler } from './server.js';
@@ -59,6 +62,8 @@ interface DispatchCase {
 	expect: {
 		success: boolean;
 		code?: string;
+		/** The error's recovery (`spec/recovery.md`, "Engine errors"); `null` for none. */
+		recovery?: Recovery | null;
 		retryable?: boolean;
 		message?: string;
 		data?: unknown;
@@ -72,6 +77,8 @@ interface DispatchCase {
 
 interface DispatchVectors {
 	setup: {
+		/** `plain`: the registry surface registers the context commands as plain commands. */
+		contextCommands?: 'plain';
 		contexts: string[];
 		commands: DispatchCommandSpec[];
 	};
@@ -241,9 +248,16 @@ describe('spec/vectors/dispatch.json', () => {
 			if (testCase.surface === 'mcp') {
 				result = await callMcp(commands, middleware, testCase);
 			} else {
-				const registry = createDirectRegistry(commands, {
+				const contexts = vectors.setup.contexts.map((name) => ({ name }));
+				// The context commands as plain commands: no tool surface, no bootstrap or help
+				// commands, so afd-context-list is callable and afd-discover and afd-help are not.
+				const contextCommands =
+					vectors.setup.contextCommands === 'plain'
+						? createContextCommands(contexts, createContextState({ persistent: false }))
+						: [];
+				const registry = createDirectRegistry([...commands, ...contextCommands], {
 					interface: (testCase.call.interface ?? 'agent') as Exclude<ExposeInterface, 'apps'>,
-					contexts: vectors.setup.contexts.map((name) => ({ name })),
+					contexts,
 					...(testCase.withContextFields && { contextFields: declaredFields }),
 					middleware,
 					devMode: testCase.devMode ?? false,
@@ -275,6 +289,11 @@ describe('spec/vectors/dispatch.json', () => {
 			expect(result.success).toBe(testCase.expect.success);
 			if (testCase.expect.code !== undefined) {
 				expect(result.error?.code).toBe(testCase.expect.code);
+			}
+			if (testCase.expect.recovery !== undefined) {
+				expect(result.error?.recovery, `${testCase.id} recovery`).toEqual(
+					testCase.expect.recovery ?? undefined
+				);
 			}
 			if (testCase.expect.retryable !== undefined) {
 				expect(result.error?.retryable).toBe(testCase.expect.retryable);

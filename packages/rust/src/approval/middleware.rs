@@ -46,7 +46,7 @@ use super::{ApprovalDecision, ApprovalPolicy, ApprovalRejection};
 use crate::actor::Actor;
 use crate::clock::{Clock, SYSTEM_CLOCK};
 use crate::commands::{BoxFuture, CommandContext, CommandDefinition, CommandMiddleware};
-use crate::errors::{error_codes, CommandError};
+use crate::errors::{error_codes, CommandError, Recovery};
 use crate::result::{failure, CommandResult};
 
 const TOKEN_PREFIX: &str = "afdap1";
@@ -675,6 +675,13 @@ impl Gate {
         let why = rejected
             .map(|reason| format!("The approval token was not accepted ({reason}). "))
             .unwrap_or_default();
+        // The one hold whose step is the caller's own: call the command on its own so the client
+        // can ask (`spec/recovery.md`, "Engine errors": no recovery). Every other hold waits on a
+        // person's approval, which is outside the command surface.
+        let reshape = approver.is_none()
+            && !include_token
+            && bound.is_some()
+            && context.server().relay_evidence.is_none();
         // Addressed to whoever relays the decision: the token is the approval, so the gated
         // caller must not resubmit it on its own, and tool arguments cannot carry it.
         let retry = if approver.is_some() {
@@ -687,7 +694,7 @@ impl Gate {
                 "once they approve, the application retries the same call with the same input and details.approvalToken as its approval evidence (tool arguments cannot carry it). The token expires at {expires_at}{}.",
                 if single_use { " and works once" } else { "" }
             )
-        } else if bound.is_some() && context.server().relay_evidence.is_none() {
+        } else if reshape {
             format!(
                 "the client could not be asked from inside afd-batch, afd-pipe or another command. Call {name} on its own so the client can ask the user."
             )
@@ -711,17 +718,20 @@ impl Gate {
         if let Some(reason) = rejected {
             details.insert("reason".to_owned(), json!(reason.as_str()));
         }
-        failure(
-            CommandError::new(
-                error_codes::APPROVAL_REQUIRED,
-                format!("{name} needs approval before it runs"),
-            )
-            .with_suggestion(format!(
-                "{why}Ask the user to approve \"{summary}\"; {retry}"
-            ))
-            .with_retryable(false)
-            .with_details(details),
+        let error = CommandError::new(
+            error_codes::APPROVAL_REQUIRED,
+            format!("{name} needs approval before it runs"),
         )
+        .with_suggestion(format!(
+            "{why}Ask the user to approve \"{summary}\"; {retry}"
+        ))
+        .with_retryable(false)
+        .with_details(details);
+        failure(if reshape {
+            error
+        } else {
+            error.with_recovery(Recovery::external())
+        })
     }
 
     /// The text shown to the human who approves: `summarize`'s, else the command's
@@ -849,6 +859,7 @@ impl Gate {
                         "Do not run this again without asking the user first; the user chose not to approve it.",
                     )
                     .with_retryable(false)
+                    .with_recovery(Recovery::stop())
                     .with_details(HashMap::from([
                         ("summary".to_owned(), json!(summary)),
                         (
@@ -907,6 +918,7 @@ impl Gate {
                 "Wait for the user to approve \"{summary}\" in the client."
             ))
             .with_retryable(false)
+            .with_recovery(Recovery::external())
             .with_details(HashMap::from([
                 ("expiresAt".to_owned(), json!(iso_time(expires_at))),
                 ("summary".to_owned(), json!(summary)),

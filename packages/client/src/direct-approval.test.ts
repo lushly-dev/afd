@@ -45,6 +45,7 @@ function gatedRegistry(clock: ManualClock, options: { includeToken?: boolean } =
 			message: `${name} needs approval before it runs`,
 			suggestion: 'Ask the user to approve',
 			retryable: false,
+			recovery: { kind: 'external' },
 			details: {
 				expiresAt: new Date(exp).toISOString(),
 				summary: `Delete todo ${(input as { id?: unknown }).id}`,
@@ -117,14 +118,25 @@ describe('DirectClient onApprovalNeeded', () => {
 		expect(calls[1]?.context.traceId).toBe(calls[0]?.context.traceId);
 	});
 
-	it('returns the original result unchanged when the hook denies', async () => {
+	it('returns the refusal as declined when the hook denies', async () => {
 		const hook = vi.fn<DirectApprovalHook>(async () => false);
 		const { client, calls, ran, held } = setup(hook);
 
 		const result = await client.call('todo-delete', { id: 42 });
 
-		expect(isFailure(result) && result.error.code).toBe('APPROVAL_REQUIRED');
-		expect(result).toBe(held[0]);
+		// The user chose not to proceed: the recovery is stop, and the suggestion says so
+		// (spec/recovery.md, "Engine errors"). Everything else is the registry's refusal.
+		const refusal = held[0] as CommandResult;
+		expect(result).toEqual({
+			...refusal,
+			error: {
+				...refusal.error,
+				suggestion:
+					'Do not run this again without asking the user first; the user chose not to approve it.',
+				recovery: { kind: 'stop' },
+			},
+		});
+		expect(refusal.error?.recovery).toEqual({ kind: 'external' });
 		expect(hook).toHaveBeenCalledOnce();
 		expect(calls).toHaveLength(1);
 		expect(ran).toEqual([]);
@@ -144,11 +156,17 @@ describe('DirectClient onApprovalNeeded', () => {
 			},
 		],
 		['returns a truthy non-boolean', async () => 'yes' as unknown as boolean],
-	])('treats a hook that %s as a denial', async (_label, impl) => {
-		const { client, calls, ran } = setup(impl as DirectApprovalHook);
+		['returns nothing', async () => undefined as unknown as boolean],
+	])('keeps the hold unchanged when the hook %s, which is not a decline', async (_label, impl) => {
+		const { client, calls, ran, held } = setup(impl as DirectApprovalHook);
 
 		const result = await client.call('todo-delete', { id: 42 });
 
+		// Only an explicit `false` declines (spec/recovery.md, "Engine errors"): a failed hook
+		// leaves the registry's hold as it was, `external` with its own suggestion.
+		const refusal = held[0] as CommandResult;
+		expect(refusal.error?.recovery).toEqual({ kind: 'external' });
+		expect(result).toEqual(refusal);
 		expect(isFailure(result) && result.error.details?.approvalToken).toBeUndefined();
 		expect(calls).toHaveLength(1);
 		expect(ran).toEqual([]);

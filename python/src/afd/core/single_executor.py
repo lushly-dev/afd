@@ -33,7 +33,7 @@ from typing import TYPE_CHECKING, Any
 from afd.core.actor import ContextDefaults, actor_kind_of, with_context_defaults
 from afd.core.clock import system_clock
 from afd.core.direct_allow import _is_allowed, _not_allowed
-from afd.core.errors import CommandError
+from afd.core.errors import CommandError, Recovery
 from afd.core.output_budget import (
     apply_output_budget,
     check_output_budget,
@@ -70,18 +70,21 @@ def not_found_suggestion(
     command_name: str,
     command_names: Sequence[str],
     *,
-    suggest_tools: bool = True,
+    guide: str | None = None,
+    suggest_tools: bool = False,
 ) -> str:
     """Recovery guidance for an unknown command name.
 
-    Names at most three close matches and points to ``afd-discover`` only when
-    the host serves the MCP meta-tool surface (``spec/error-codes.md``, D4).
+    Names at most three close matches and points to ``guide`` (``afd-discover`` or
+    ``afd-help``) only when the caller can call it (``spec/recovery.md``, "Engine errors").
     """
-    fallback = (
-        "Use afd-discover to list all commands."
-        if suggest_tools
-        else "List available commands to see valid options"
-    )
+    resolved_guide = guide if guide is not None else ("afd-discover" if suggest_tools else None)
+    if resolved_guide == "afd-discover":
+        fallback = "Use afd-discover to list all commands."
+    elif resolved_guide == "afd-help":
+        fallback = "Use afd-help to list all commands."
+    else:
+        fallback = "List available commands to see valid options"
     matches = find_similar_tools(command_name, command_names, _MAX_NOT_FOUND_MATCHES)
     if not matches:
         return fallback
@@ -241,7 +244,6 @@ class CommandExecutionConfig:
     is_hidden: Callable[[CommandDefinition, CommandContext], bool] | None = None
     is_shown: Callable[[CommandDefinition, CommandContext], bool] | None = None
     not_found_builder: Callable[[str, list[str]], CommandResult[Any]] | None = None
-    not_in_context_suggestion: str | None = None
     validate_input: (
         Callable[[CommandDefinition, Any, CommandContext], Awaitable[tuple[bool, Any]]] | None
     ) = None
@@ -467,6 +469,26 @@ async def _execute_command_inner(
     ):
         command = None
 
+    def _can_call_registered(target_name: str) -> bool:
+        lookup = (config.lookup_apps or config.lookup) if interface == "apps" else config.lookup
+        candidate = lookup(target_name)
+        if candidate is None:
+            return False
+        if config.is_hidden is not None and config.is_hidden(candidate, exec_context):
+            return False
+        if config.is_shown is not None and not config.is_shown(candidate, exec_context):
+            return False
+        if not _is_allowed(exec_context, target_name):
+            return False
+        if interface is not None and interface != "":
+            if not is_exposed_to(candidate, interface):
+                return False
+            if interface == "apps" and not app_call_granted(
+                candidate, target_name, exec_context, config.call_grant
+            ):
+                return False
+        return not active_context or not candidate.contexts or active_context in candidate.contexts
+
     if command is None:
         callable_names = [
             candidate.name
@@ -475,17 +497,23 @@ async def _execute_command_inner(
                 not active_context or not candidate.contexts or active_context in candidate.contexts
             )
             and _is_allowed(exec_context, candidate.name)
-            and (not interface or is_exposed_to(candidate, interface))
+            and (interface is None or interface == "" or is_exposed_to(candidate, interface))
+            and (config.is_hidden is None or not config.is_hidden(candidate, exec_context))
             and (config.is_shown is None or config.is_shown(candidate, exec_context))
         ]
         if config.not_found_builder is not None:
             return config.not_found_builder(name, callable_names)
+        if config.suggest_tools and _is_allowed(exec_context, "afd-discover"):
+            guide: str | None = "afd-discover"
+        elif _can_call_registered("afd-help"):
+            guide = "afd-help"
+        else:
+            guide = None
         return error(
             "COMMAND_NOT_FOUND",
             f"Command '{truncate_name(name)}' not found",
-            suggestion=not_found_suggestion(
-                name, callable_names, suggest_tools=config.suggest_tools
-            ),
+            suggestion=not_found_suggestion(name, callable_names, guide=guide),
+            recovery=Recovery(kind="call", command=guide) if guide is not None else None,
         )
 
     # 4. Exposure check.
@@ -501,22 +529,30 @@ async def _execute_command_inner(
                 else "Use one of the interfaces " + ", ".join(sorted(_VALID_INTERFACES))
             ),
             retryable=False,
+            recovery=Recovery(kind="external"),
         )
 
     # 5. Active context check.
     if active_context and command.contexts and active_context not in command.contexts:
-        if config.not_in_context_suggestion is not None:
-            suggestion = config.not_in_context_suggestion
+        if _can_call_registered("afd-context-list"):
+            suggestion = (
+                "Use afd-context-list to see available contexts, or afd-context-enter to switch."
+                if _can_call_registered("afd-context-enter")
+                else "Use afd-context-list to see available contexts."
+            )
+            recovery: Recovery | None = Recovery(kind="call", command="afd-context-list")
         else:
             contexts = ", ".join(f"'{c}'" for c in command.contexts)
             suggestion = (
                 f"Switch to a context this command belongs to ({contexts}), "
                 "or call it with no active context."
             )
+            recovery = None
         return error(
             "COMMAND_NOT_IN_CONTEXT",
             f"Command '{command.name}' is not available in context '{active_context}'",
             suggestion=suggestion,
+            recovery=recovery,
         )
 
     # 6. Input validation.

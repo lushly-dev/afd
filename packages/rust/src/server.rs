@@ -889,8 +889,9 @@ impl McpServer {
         let inner = &self.inner;
         let mut lines = vec![format!(
             "{} is an AFD server. Every tool returns a CommandResult as JSON text: \
-             {{ success, data, error: {{ code, message, suggestion }} }}; follow \
-             error.suggestion to recover.",
+             {{ success, data, error: {{ code, message, suggestion, recovery }} }}; follow \
+             error.suggestion to recover. When error.recovery is present, it is the same step \
+             in a form a program can follow.",
             inner.name
         )];
         lines.push(

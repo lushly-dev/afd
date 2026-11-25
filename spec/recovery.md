@@ -132,8 +132,72 @@ Because the step is structured, a test can follow it and judge the result
 a `call` recovery's command must be callable and not refuse in the same way; with `thenRetry` the
 repeated call must succeed or fail with a different, expected code; a `fix-input` recovery's input
 must pass validation; and a chain of recoveries must end within a bound without returning to the
-refusal it started from. The contract only defines the field. Which errors carry it, and how
-scenarios check it, is each application's and testing package's concern.
+refusal it started from. Which of an application's own errors carry a recovery, and how its
+scenarios check them, is the application's and testing package's concern. The errors the engines
+emit themselves carry the recoveries below.
+
+## Engine errors
+
+The errors AFD's own engines emit (registries, servers, routers, middleware, the confirmation and
+approval steps, and the context commands) carry the recovery this table gives, in all four
+implementations. A batch item or pipeline step that fails with one of these errors carries the
+same recovery. Every other engine error carries none for now
+([follow-ups](../docs/features/active/verified-recovery/STATUS.md#follow-ups)).
+
+The recovery describes the same step as the error's `suggestion` (rule 1). Where a row turns on
+whether the caller can call a command, the engine decides it once and uses the answer for both:
+the command is named in the suggestion and in a `call` recovery only when the caller can call it
+on this surface, which means:
+- it is registered or served;
+- it is exposed to the caller's interface;
+- it is allowed in the active context;
+- it is admitted by any `allow` list;
+- it is visible under the server's authorization (rule 2).
+
+A meta-tool such as `afd-discover` is called as its own tool, not through `afd-call`, whose
+lookup holds only commands. Where the table says *none*, the engine sets no recovery: the step is
+the caller's own and no command does it, such as spelling a command name correctly or splitting a
+pipeline.
+
+| Code | When | Recovery |
+| --- | --- | --- |
+| `COMMAND_NOT_FOUND` | An unknown command name at lookup (a call, `afd-call`, a batch item or a pipeline step), and the caller can call `afd-discover` | `{ "kind": "call", "command": "afd-discover" }` |
+| `COMMAND_NOT_FOUND` | An unknown command name at lookup outside TypeScript's core registry, the caller cannot call `afd-discover` and can call `afd-help` | `{ "kind": "call", "command": "afd-help" }` |
+| `COMMAND_NOT_FOUND` | TypeScript's core registry, whatever it registers: its suggestion names the `afd tools` shell command | `{ "kind": "external" }` |
+| `COMMAND_NOT_FOUND` | Every other case, a grouped tool's unknown action and `afd-detail`'s per-entry not-found included, whatever the caller can call | none |
+| `UNKNOWN_TOOL`, `COMMAND_NOT_ALLOWED` | Every case: the remedy is the client's own `listCommandNames()`, not a command | none |
+| `COMMAND_NOT_EXPOSED` | Every case: the command cannot be called from this interface | `{ "kind": "external" }` |
+| `CALL_NOT_GRANTED` | Every case: the deployer adds a calls grant | `{ "kind": "external" }` |
+| `COMMAND_NOT_IN_CONTEXT` | The caller can call `afd-context-list` | `{ "kind": "call", "command": "afd-context-list" }` |
+| `COMMAND_NOT_IN_CONTEXT` | It cannot: the suggestion names the contexts instead | none |
+| `CONTEXT_NOT_FOUND` | `afd-context-enter` names a context that does not exist, and the caller can call `afd-context-list` | `{ "kind": "call", "command": "afd-context-list" }` |
+| `CONTEXT_NOT_FOUND` | Every other case: the caller cannot call `afd-context-list`, or a direct registry's unknown `activeContext` | none |
+| `CONTEXT_DEPTH_EXCEEDED` | `afd-context-enter` while the context stack is full, and the caller can call `afd-context-exit` | `{ "kind": "call", "command": "afd-context-exit", "thenRetry": true }` |
+| `CONTEXT_DEPTH_EXCEEDED` | The caller cannot call `afd-context-exit` | none |
+| `RATE_LIMITED` | The middleware knows when the window ends ("Try again in N seconds") | `{ "kind": "retry", "afterMs": N × 1000 }`, the same whole number of seconds the suggestion gives |
+| `RATE_LIMITED` | The limiter's client capacity is full, or a task limit is reached | `{ "kind": "retry" }` |
+| `CONFIRMATION_REQUIRED` | Every case: the user confirms, which rule 5 keeps out of `input` | `{ "kind": "external" }` |
+| `CONFIRMATION_DECLINED` | Every case: the user chose not to proceed | `{ "kind": "stop" }` |
+| `APPROVAL_REQUIRED` | `reason: "declined"`, or a DirectClient whose `onApprovalNeeded` answered no | `{ "kind": "stop" }` |
+| `APPROVAL_REQUIRED` | The caller reshapes the call: an `afd-batch` or `afd-pipe` refused up front (`input-not-known`, `too-many-approvals`), a gated step the suggestion says to call on its own, or an approved call resent the wrong way | none |
+| `APPROVAL_REQUIRED` | Every other case: a person must approve, the approval is pending or unanswered, a token was rejected, or a DirectClient's `onApprovalNeeded` failed (threw, rejected or gave no answer), which is not a decline | `{ "kind": "external" }` |
+| `APPROVAL_UNAVAILABLE` | `no-approval-step` or `admission-mismatch`: the operator fixes the approval setup | `{ "kind": "external" }` |
+| `APPROVAL_UNAVAILABLE` | `input-not-canonical`: the caller sends the input in a form canonical JSON accepts | none |
+
+Each `retry` row's error is already `retryable: true`, and each `stop` row's is not, as the kinds
+require. Engines fix any suggestion that names a command the caller cannot call (rule 2) in the
+same change, so the two never disagree. A grouped tool's unknown-action suggestion names no command a
+recovery could call, in any language ("Use afd-call with the full command name, or list tools to find a valid action."),
+so Python's, which names `afd-discover` and `afd-detail`, takes the shared text.
+
+The error helpers an application uses follow the table where they share a code:
+- `rateLimitError()` and its counterparts set `{ "kind": "retry" }`, with `afterMs` when they are
+  given the wait in seconds.
+- The other helpers (validation, not found, timeout, internal) set no recovery.
+- An application sets its own recovery through the general error constructor in each language.
+
+The default server instructions say what `error.recovery` is beside the prose
+([tool strategies](./tool-strategies.md)).
 
 ## Conformance
 
@@ -144,6 +208,23 @@ scenarios check it, is each application's and testing package's concern.
   same error with any recovery that breaks `$defs/recovery` dropped (rule 7).
 - [`wire/result-failure.json`](./wire/result-failure.json) carries a `recovery`, so every language's
   wire-fixture round trip covers it.
+- The engine rows are pinned where shared vectors already reach the engines:
+  - [`vectors/dispatch.json`](./vectors/dispatch.json) gives `expect.recovery` on each refusing case.
+  - [`vectors/tool-strategies.json`](./vectors/tool-strategies.json) gives `expected.recovery` on
+    each refusing call.
+  - [`vectors/app-calls.json`](./vectors/app-calls.json) pins `CALL_NOT_GRANTED`'s whole error,
+    recovery included.
+  - Each value is the object the error's `recovery` must equal, or `null` where the table gives
+    none, and every language's loader compares it.
+  - `dispatch.json`'s `registry` surface registers the context commands as plain commands, with
+    no tool surface and no bootstrap or help commands. So `afd-context-list` is callable there in
+    every language, and `afd-discover` and `afd-help` are not.
+- Rows no shared vector reaches are checked by each language's own tests:
+  - the rate limiter and task limit;
+  - the declines;
+  - the reshaped and unavailable approvals;
+  - `UNKNOWN_TOOL` and `COMMAND_NOT_ALLOWED`;
+  - the context commands.
 
 | Implementation | Native type | Tests |
 | --- | --- | --- |
