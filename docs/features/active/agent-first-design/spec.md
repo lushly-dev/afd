@@ -2,18 +2,19 @@
 
 | Field | Value |
 | --- | --- |
+| Epic | [#2544](https://github.com/lushly-dev/afd/issues/2544) (Q4 follow-up: [#2545](https://github.com/lushly-dev/afd/issues/2545)) |
 | Proposal & status | [`agent-first-design.proposal.md`](agent-first-design.proposal.md), [`STATUS.md`](STATUS.md) |
-| Phase 0 record | [`bench/record/README.md`](bench/record/README.md) (step 0.6 **go with changes**, 2026-11-24) |
-| Proposed amendments for | [Patterns](../../active/patterns/spec.md), [Design Decisions](../../active/design-decisions/design-decisions.proposal.md), [Screens from Jobs](../../active/screens-from-jobs/screens-from-jobs.proposal.md) |
-| Scenarios | [`scenarios/`](scenarios/) — 12 ranked jobs (5 in `slice-1`, 7 in `slice-2`) |
+| Phase 0 record | [`bench/record/README.md`](bench/record/README.md) (step 0.6 **go with changes**, 2026-11-24, [#2530](https://github.com/lushly-dev/afd/pull/2530)) |
+| Companion amendments applied to | [Patterns](../patterns/spec.md#8-amendment-agent-first-design-phase-a-approved-2026-11-24), [Design Decisions](../design-decisions/design-decisions.proposal.md#amendment-agent-first-design-phase-a-approved-2026-11-24), [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md#10-measurement-and-exit-criteria) |
+| Scenarios | [`scenarios/`](scenarios/) — 12 ranked jobs (5 in `slice-1`, 7 in `slice-2`; 58 steps) |
 
 ## Status
 
-- **State:** Phase A specification (2026-11-24), drafted after step 0.6 (**go with changes**),
-  checked with all three jobs-first validators, revised after three independent reader walks
-  (Person, Job List, Calling Agent), and revised again after two-model independent review
-  (Claude Opus 5.5 and Gemini 4 Neon). Ready for owner acceptance or refusal of the proposed
-  companion amendments in [section 4](#4-proposed-amendments-for-the-owner).
+- **State:** Approved Phase A specification (merged 2026-11-24 in [#2537](https://github.com/lushly-dev/afd/pull/2537);
+  all four companion amendments in [section 4](#4-proposed-amendments-for-the-owner) accepted by
+  the owner on 2026-11-24 and applied to Patterns, Design Decisions, Screens from Jobs, and
+  `agent-first-design.proposal.md` §10). Promoted from `proposed/` to
+  `docs/features/active/agent-first-design/` under Epic [#2544](https://github.com/lushly-dev/afd/issues/2544).
 - **Phase 0 inputs folded into this specification:**
   - Step 0.1 showed agents already pass nine checks in ten on result-state stories without a
     default pattern set; steps 0.2 and 0.5 stay deferred, so `afd-defaults` is specified as an
@@ -25,11 +26,12 @@
     the walk prompt so personas judge screen dates against it; (2) require an explicit `Done.` or
     `Stopped, because` ending line; (3) judge clean-vs-changed walks by a blind pairwise report
     comparison beside the journal path so worked-around perception trouble is caught.
-- **Not edited yet:** `docs/features/active/patterns/spec.md`,
-  `docs/features/active/design-decisions/design-decisions.proposal.md` and
-  `docs/features/active/screens-from-jobs/screens-from-jobs.proposal.md`. Each amendment in
-  [section 4](#4-proposed-amendments-for-the-owner) waits for the owner's acceptance at phase A's
-  exit.
+- **Companion amendments applied (2026-11-24):** All four amendments in
+  [section 4](#4-proposed-amendments-for-the-owner) were accepted by the owner and applied to
+  [`../patterns/spec.md`](../patterns/spec.md#8-amendment-agent-first-design-phase-a-approved-2026-11-24),
+  [`../design-decisions/design-decisions.proposal.md`](../design-decisions/design-decisions.proposal.md#amendment-agent-first-design-phase-a-approved-2026-11-24),
+  [`../screens-from-jobs/screens-from-jobs.proposal.md`](../screens-from-jobs/screens-from-jobs.proposal.md#10-measurement-and-exit-criteria),
+  and [`agent-first-design.proposal.md` §10](agent-first-design.proposal.md#10-out-of-scope).
 
 ---
 
@@ -581,14 +583,15 @@ command-level error code on `specimen-pattern-fork`/`compare`/`merge`.)*
    verification of commands added by the walks.
 3. Two-model independent review completed with zero unresolved blockers.
 4. The owner accepts or refuses each proposed amendment in [section 4](#4-proposed-amendments-for-the-owner)
-   so each accepted part moves into the proposal that owns it.
+   so each accepted part moves into the proposal that owns it. *(Met 2026-11-24: all four
+   amendments accepted and applied.)*
 
 ---
 
 ## 4. Proposed amendments for the owner
 
-Each amendment below is drafted here for the owner to accept or refuse before editing the owning
-active proposal.
+*(Accepted 2026-11-24 and applied to Patterns, Design Decisions, Screens from Jobs and
+`agent-first-design.proposal.md` §10; heading kept for anchor stability.)*
 
 ### 4.1 Amendment to Patterns (`docs/features/active/patterns/spec.md` & Umbel A31)
 
@@ -658,7 +661,7 @@ active proposal.
      require interactive review-page or CLI human confirmation
      (`decidedBy: { kind: 'person', channel: 'review-page' | 'cli' }`, refusing `script`/agent
      actors with `PERSON_REQUIRED`).
-   **For the owner to confirm.**
+   *(Confirmed by the owner on 2026-11-24.)*
 3. **Decision card mode on `decision-record`, `design-card-list`, `design-release`, and `decision-list` filters:**
    - Card mode input on `decision-record`: `{ card?: string, cards?: string[], chosen: 'approve' | 'request-changes' | 'reject' | 'defer', reason: string, refusalScope?: RefusalScope, regressionAccepted?: boolean, meantToFix?: { job: string, target: string }, supersedes?: string, remediation?: string }`
      (aligned with Design Decisions' `chosen` input so it does not collide with output
@@ -697,12 +700,12 @@ active proposal.
 
 ### 4.4 Amendment to Agent-First Design (`agent-first-design.proposal.md` §10)
 
-1. **Reconcile Job 15 with §10 "Out of scope":** Proposal §10 (`agent-first-design.proposal.md:927`)
-   currently lists *"Measuring outcomes with real users in production"* as out of scope, while
-   Job 15 (`design-observe`) reads post-release AFD command journals against what an approved
-   decision was meant to fix. Propose narrowing §10 to exclude analytics/telemetry outside AFD
+1. **Reconcile Job 15 with §10 "Out of scope":** Proposal §10 (`agent-first-design.proposal.md:935`,
+   previously `:927`) listed *"Measuring outcomes with real users in production"* as out of scope,
+   while Job 15 (`design-observe`) reads post-release AFD command journals against what an
+   approved decision was meant to fix. Narrow §10 to exclude analytics/telemetry outside AFD
    command journals while keeping post-release AFD command-journal observation in scope.
-   **For the owner to confirm.**
+   *(Confirmed by the owner on 2026-11-24 and applied.)*
 
 ---
 

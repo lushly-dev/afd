@@ -1,6 +1,6 @@
 /**
  * @fileoverview The seed library: the application the Agent-First Design bench is built on
- * (`docs/features/proposed/agent-first-design/bench/seed-library.md`).
+ * (`docs/features/active/agent-first-design/bench/seed-library.md`).
  */
 
 export { createSeedLibraryAdapter } from './adapter.js';

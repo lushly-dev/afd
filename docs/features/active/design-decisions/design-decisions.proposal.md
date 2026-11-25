@@ -388,6 +388,10 @@ a set of kind `compare`, and diffs each against the first.
   (`VARIANT_UNAVAILABLE`).
 - **`page`** links to `compare.html?set=`, which shows the screenshots side by side with the
   structured differences.
+- **Variants differ in mechanism** (amended 2026-11-24 for
+  [Agent-First Design](../agent-first-design/spec.md#42-amendment-to-design-decisions-docsfeaturesactivedesign-decisionsdesign-decisionsproposalmd)):
+  `specimen-compare` variants should differ in how they solve the problem, not only in styling
+  density.
 
 No pixel comparison is added.
 
@@ -408,7 +412,9 @@ A decision is one JSON file, `specimens/decisions/<id>.json`, with a random Croc
     chosen variant, and a decision may name more, such as the screens that show it.
   - `answers`: present when the choice came from accepting review items.
   - `supersedes` (the prior choice id it replaced), `decidedAt`, and `decidedBy`
-    (`{ kind: 'person' | 'script' | 'test' }`; see [6.6](#66-who-decides)).
+    (`{ kind: 'person' | 'script' | 'test' }`, extended with `panel` on provisional Mode 3 review
+    answers in [Amendment: Agent-First Design Phase A](#amendment-agent-first-design-phase-a-approved-2026-11-24);
+    see [6.6](#66-who-decides)).
 - **Discard and restore** apply to a choice only (Slice 2, Phase 6).
   - `decision-discard` moves variants from kept to discarded, and names the exports that can now
     be deleted and the revision.
@@ -516,21 +522,30 @@ a review).
 
 ### 6.6 Who decides
 
-- **Commands that need a person's confirmation.** `decision-record`, `decision-discard` and
-  `decision-restore` declare a `confirmPrompt` that names the decision and the choice.
-  - Phase 5 extends existing `endpoints/specimen-server`
-    ([#1320](https://github.com/lushly-dev/afd/pull/1320)) with `confirmations: 'require-human'`
-    (routing execution through `@lushly-dev/afd-server` or equivalent MCP elicitation plumbing).
-    It is the single host shared with Screens from Jobs and Pointing.
-  - **Provenance comes from accepted elicitation, not the invoking actor.** AFD's `ActorKind`
-    (`packages/core/src/actor.ts:10`) uses `'human' | 'agent' | 'service' | 'script' | 'test'`,
-    and MCP calls default to `{ kind: 'agent' }` (`packages/server/src/server-types.ts:212`). A
-    decision recorded through `endpoints/specimen-server` records `decidedBy: { kind: 'person' }`
-    if and only if human elicitation succeeded under `confirmations: 'require-human'` — including
-    when an AI agent invoked the MCP tool and the person accepted the elicitation.
+- **Commands that need a person's confirmation.**
+  - **`decision-record`** *(amended 2026-11-24 for
+    [Agent-First Design](#amendment-agent-first-design-phase-a-approved-2026-11-24))*: declares
+    static `confirmationMode: 'host-verified'` with `HumanRelay` over MCP
+    (`spec/command-metadata.md:40,145-158`). Because `host-verified` never sends form elicitation
+    regardless of `confirmations`, MCP calls to `decision-record` are confirmed exclusively via
+    `HumanRelay` (`CONFIRMATION_REQUIRED` / `CONFIRMATION_DECLINED`), superseding the earlier
+    form-elicitation provenance rule for `decision-record`. Provisional panel Mode 3 settlements
+    run in-process from `panel-review` via `DirectRegistry` (`spec/command-metadata.md:158`).
+  - **`decision-discard` and `decision-restore`** retain `confirmPrompt` under
+    `confirmations: 'require-human'` on `endpoints/specimen-server`
+    ([#1320](https://github.com/lushly-dev/afd/pull/1320)), deriving `decidedBy: { kind: 'person' }`
+    from accepted human elicitation.
+  - Phase 5 ([#2213](https://github.com/lushly-dev/afd/issues/2213)) wires both paths on
+    `endpoints/specimen-server` (`HumanRelay` host-verified confirmation for `decision-record`
+    and `confirmations: 'require-human'` for `decision-discard`/`decision-restore`). It remains
+    the single host shared with Screens from Jobs and Pointing.
 - **The CLI runs as a script.** It records `decidedBy: { kind: 'script' }`. CLI answers settle
-  review items for solo-owner terminal workflows, and `review.html` badges them visibly as
-  `script` (owner decision Q7).
+  local review-triage items for solo-owner terminal workflows, and `review.html` badges them
+  visibly as `script` (owner decision Q7). Under the 2026-11-24 Agent-First Design amendment,
+  release cards, guidance approvals, `design-release` and `panel-calibrate` outside MCP require
+  interactive review-page or CLI human confirmation
+  (`decidedBy: { kind: 'person', channel: 'review-page' | 'cli' }`, refusing `script`/agent
+  actors with `PERSON_REQUIRED`).
 - **Scenarios cannot show any of this,** because every step runs as one test actor
   (`decidedBy: { kind: 'test' }`).
 
@@ -565,7 +580,7 @@ decision Q14). Every command lives in `integrations/specimen-afd`, with its logi
 | `specimen-compare` | Yes, mutation (writes a set) | `ids` (2 to 8), `context`, `checkpoint` | `set`, `context`, `checkpoint`, `captures` (`id`, `status`, `axe`, `violations: string[]`, `screenshot`), `differences` (`id`, `against`, `status`, `channels`), `page` |
 | `specimen-diff` | Extended | `left` and `right` each an observation or `{ set, id }`, `allowContextDifferences`, `requireVisual` | As today (`events` channel already landed in `#1919`) |
 | `specimen-review` | Yes, read | `before`, `after` (set ids or labels), `ids` (exact specimen ids or `<id>` job prefixes) | `before` and `after` (`set`, `label`, `revision`, `dirty`), `open` (sub-shapes below), `blocking` (sub-shapes below), `settled` (`unchanged` captures, `kept` captures, `answered` review items), `page` |
-| `decision-record` | Yes, mutation (writes files), `confirmPrompt` | Three input modes (below); always `chosen`, `reason` | Single decision: `decision`, `kind`, `path`, `chosen`, `kept`, `supersedes`, `answers`, `evidence`, `evidenceDir`, `subjects`; multi-choice supersede (`supersedes` array length ≥ 2): `{ decisions: Array<SingleDecisionResult> }` |
+| `decision-record` | Yes, mutation (writes files), `confirmationMode: 'host-verified'` over MCP *(amended 2026-11-24; see [§12 amendment](#amendment-agent-first-design-phase-a-approved-2026-11-24))* | Three input modes (below) plus card mode; always `chosen`, `reason` | Single decision: `decision`, `kind`, `path`, `chosen`, `kept`, `supersedes`, `answers`, `evidence`, `evidenceDir`, `subjects`; multi-choice supersede (`supersedes` array length ≥ 2) or batch `cards`: `{ decisions: Array<SingleDecisionResult> }` |
 | `decision-get` | Yes, read | `decision` | The record, with `evidence.captures` |
 | `decision-list` | Yes, read | none | `decisions`, current choices sorted by `decision` id ascending (`decision`, `question`, `chosen`, `stale`); `undecided` (`set`, `ids`) |
 | `decision-check` | Yes, read | `files`, `specimens`, `tokens` | `decisions`, current choices only (`decision`, `question`, `chosen`, `reason`, `supersedes`, `matched`) |
@@ -641,11 +656,13 @@ phase so no command lands half-wired. Prior prerequisites `.specimen/` in `.giti
      `blocking` `rejected` with `reason`, `incomplete-check`/`insufficient-evidence`),
      `decision-record` `items` mode + fingerprints, `review.html?before=&after=` (with script-actor
      badge) + browser test, CLI + `specimen-server` wiring.
-  5. **Human-elicited confirmations ([#2213](https://github.com/lushly-dev/afd/issues/2213), blocked on [#2211](https://github.com/lushly-dev/afd/issues/2211); runs in parallel with [#2212](https://github.com/lushly-dev/afd/issues/2212); Phases 4 + 5 unblock Screens from Jobs Phase 5b [#2040](https://github.com/lushly-dev/afd/issues/2040)).**
-     Wire `confirmations: 'require-human'` into `endpoints/specimen-server`
-     ([#1320](https://github.com/lushly-dev/afd/pull/1320)) so accepted human elicitation records
-     `decidedBy: { kind: 'person' }` even for agent-originated MCP calls, verified by an end-to-end
-     MCP elicitation test.
+  5. **Host-verified & human-elicited confirmations ([#2213](https://github.com/lushly-dev/afd/issues/2213), blocked on [#2211](https://github.com/lushly-dev/afd/issues/2211); runs in parallel with [#2212](https://github.com/lushly-dev/afd/issues/2212); Phases 4 + 5 unblock Screens from Jobs Phase 5b [#2040](https://github.com/lushly-dev/afd/issues/2040)).**
+     *(Scope updated 2026-11-24 by [Agent-First Design Phase A](#amendment-agent-first-design-phase-a-approved-2026-11-24)):*
+     wire static `confirmationMode: 'host-verified'` + `HumanRelay` on `decision-record` (and
+     `confirmations: 'require-human'` for `decision-discard`/`decision-restore`) into
+     `endpoints/specimen-server` ([#1320](https://github.com/lushly-dev/afd/pull/1320)) so
+     host-verified confirmation records `decidedBy: { kind: 'person' }` even for agent-originated
+     MCP calls, verified by an end-to-end `HumanRelay` confirmation test.
 - **Slice 2 (Jobs 2, 9):**
   6. **Variant lifecycle: discard & restore ([#2214](https://github.com/lushly-dev/afd/issues/2214), blocked on [#2211](https://github.com/lushly-dev/afd/issues/2211) and [#2213](https://github.com/lushly-dev/afd/issues/2213)).**
      `decision-discard` (`CHOSEN_VARIANT`), `decision-restore` (`EXPORT_MISSING`), `confirmPrompt`,
@@ -677,11 +694,11 @@ Exit is gated per slice:
      with its `reason` until the content changes.
   4. **Fewer review items & evidence footprint.** Record before/after review-item counts and the
      `specimens/evidence/` byte size on one real pull request.
-  5. **Pages & human elicitation verified.** Browser tests verify `compare.html` and `review.html`
-     (including the `script`-actor badge), and an end-to-end MCP test on
-     `endpoints/specimen-server` proves an agent-originated MCP call whose human elicitation is
-     accepted under `require-human` records `decidedBy: { kind: 'person' }` while CLI records
-     `{ kind: 'script' }`.
+  5. **Pages & host-verified confirmation verified.** Browser tests verify `compare.html` and
+     `review.html` (including the `script`-actor badge), and an end-to-end MCP test on
+     `endpoints/specimen-server` proves an agent-originated MCP call to `decision-record`
+     confirmed through `HumanRelay` (`confirmationMode: 'host-verified'`, amended 2026-11-24)
+     records `decidedBy: { kind: 'person' }` while CLI triage records `{ kind: 'script' }`.
 - **Slice 2 exit (Phase 6, [#2214](https://github.com/lushly-dev/afd/issues/2214)):**
   every scenario tagged `slice-2` (Jobs 2 and 9) passes against the built commands.
 
@@ -702,7 +719,7 @@ Scenarios cannot show whether a person decides faster. Criterion 4 is the first 
 
 | Risk or open point | Response |
 | --- | --- |
-| An agent answers its own review question over MCP | `confirmPrompt` with `confirmations: 'require-human'` on `endpoints/specimen-server` (Phase 5) |
+| An agent answers its own review question over MCP | `confirmationMode: 'host-verified'` with `HumanRelay` on `decision-record` (and `confirmPrompt` with `confirmations: 'require-human'` on `decision-discard`/`decision-restore`) on `endpoints/specimen-server` (Phase 5, amended 2026-11-24) |
 | A shell-capable agent calls `specimen-cli` directly to record a `{ kind: 'script' }` answer | Accepted trade-off for solo-owner terminal workflows (Q7); `review.html` badges script answers visibly, and a future repo config flag can restrict settlement to `person` only |
 | Written screenshots grow the repository | Only the evidence of recorded choices is written, not every set. Measure `specimens/evidence/` size on a real PR at Slice 1 exit |
 | A specimen that shows the time never hashes the same | Reported as `changed` with the clock difference; the fix is a fixed clock (`pin.clock` in Screens from Jobs) for that specimen |
@@ -735,7 +752,9 @@ Confirmed by the owner in a three-pass walkthrough on 2026-11-22 (Q1–Q19):
    and are visibly badged on `review.html`.
 8. **MCP host confirmation wiring (Q8):** Extend existing `endpoints/specimen-server` (`#1320`) in
    Phase 5 (`#2213`) with `confirmations: 'require-human'`, deriving `decidedBy: { kind: 'person' }`
-   from accepted human elicitation regardless of invoking MCP actor.
+   from accepted human elicitation regardless of invoking MCP actor. *(Amended 2026-11-24 for
+   `decision-record` by [Agent-First Design Phase A](#amendment-agent-first-design-phase-a-approved-2026-11-24)
+   below: upgraded to static `confirmationMode: 'host-verified'` + `HumanRelay`.)*
 9. **Relation to Ideas (Q9):** Keep separate for now while preserving append-only records,
    required `reason` and `supersedes`.
 10. **Job ranking & slices (Q10):** Keep all ten jobs; Slice 1 (`slice-1`) = Jobs 1, 3, 4, 5, 6,
@@ -760,6 +779,15 @@ Confirmed by the owner in a three-pass walkthrough on 2026-11-22 (Q1–Q19):
     per-slice exit criteria (including page browser tests, MCP elicitation test, and evidence-size
     measurement), promotion to `docs/features/active/design-decisions/`, and shipping the promotion
     PR.
+
+### Amendment: Agent-First Design Phase A (approved 2026-11-24)
+
+Approved by the owner on 2026-11-24 at [Agent-First Design](../agent-first-design/spec.md#42-amendment-to-design-decisions-docsfeaturesactivedesign-decisionsdesign-decisionsproposalmd) Phase A exit (Epic [#2544](https://github.com/lushly-dev/afd/issues/2544)). Full wire contracts live in [`../agent-first-design/spec.md`](../agent-first-design/spec.md):
+
+1. **Provisional panel answers (`decidedBy.kind: 'panel'`):** `decidedBy` adds `{ kind: 'panel', reviewers: string[], split: string }`, valid only on Mode 3 (`items: string[]`) with `provisional: true` and `panel: { reviewers, split }` for non-release, non-guidance, non-escalated review items (refused with `AUTHOR_CANNOT_DECIDE`, verified against `ctx.actor.id`/change author, if authored by the caller, or `PERSON_REQUIRED` on card/release/guidance approval).
+2. **Q7 resolution & static `confirmationMode: 'host-verified'`:** Keeps CLI `decidedBy: { kind: 'script' }` answers for solo local review triage (Q7), while upgrading `decision-record` (alongside new `design-release` and `panel-calibrate`) to static `confirmationMode: 'host-verified'` with `HumanRelay` (`spec/command-metadata.md:40,145-158`) over MCP (`HumanRelay` returns `CONFIRMATION_REQUIRED` when unavailable and `CONFIRMATION_DECLINED` when declined, distinct from approval middleware's `APPROVAL_REQUIRED`/`APPROVAL_UNAVAILABLE` and handler-level `PERSON_REQUIRED`). Provisional panel Mode 3 settlements run in-process from `panel-review` via `DirectRegistry` (`spec/command-metadata.md:158`). Outside MCP, release cards, guidance approvals, `design-release` and `panel-calibrate` require interactive review-page or CLI confirmation (`decidedBy: { kind: 'person', channel: 'review-page' | 'cli' }`, refusing `script`/agent actors with `PERSON_REQUIRED`).
+3. **Decision card mode, `design-card-list`, `design-release` and `decision-list` filters:** Adds card mode to `decision-record`: single `card` returns `{ decision, chosen, refusalScope?, regressionAccepted?, meantToFix?, superseded?, appliedPatterns? }` and batch `cards` (restricted to non-regression cards reviewed together on `page`) returns `{ decisions: Array<...> }`; supports `chosen: 'approve' | 'request-changes' | 'reject' | 'defer'`, `refusalScope`, `regressionAccepted`, `meantToFix`, `supersedes` + `remediation`, enforces `CARD_NOT_FOUND`, `REFUSAL_SCOPE_REQUIRED`, `REGRESSION_ACK_REQUIRED`, `UPSTREAM_CHANGED`, and `REFUSED_AS_UNSAFE` (which also closes the re-proposed card as `rejected`), and atomically applies approved pattern fork/merge updates. Adds `design-card-list`, `design-release` (writing append-only `specimens/releases/<release>.json` manifests, preserving Q9's append-only decisions), and `decision-list` filters (`kind`, `released`, `limit`, `after`).
+4. **Variants differ in mechanism:** Applied in [section 6.3](#63-comparison).
 
 ## 13. Out of scope
 

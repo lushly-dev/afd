@@ -112,7 +112,7 @@ Configuration validation rules (`foundations/specimen/src/validate.ts`):
 
 ### 2.1 Schema (`pattern.json`)
 
-Published as `@lushly-dev/specimen/pattern.schema.json` (JSON Schema draft 2020-12) alongside `@lushly-dev/specimen/guide/*.schema.json`. Every object is strict (`additionalProperties: false`):
+Published as `@lushly-dev/specimen/pattern.schema.json` (JSON Schema draft 2020-12) alongside `@lushly-dev/specimen/guide/*.schema.json`. Every object is strict (`additionalProperties: false`); see [§8](#8-amendment-agent-first-design-phase-a-approved-2026-11-24) for the 2026-11-24 optional `approvalStatus`, `derivedFrom` and `waivedKeep` additions:
 
 ```ts
 export type PatternScope = 'control' | 'composition';
@@ -848,7 +848,7 @@ export interface PackComponentPattern {
 
 ### 6.4 Pattern record (`data/<library>/patterns/<pattern>.json`, Slice 1)
 
-Every key below is allowed and no other (`SCHEMA_INVALID`):
+Every key below is allowed and no other (`SCHEMA_INVALID`); see [§8](#8-amendment-agent-first-design-phase-a-approved-2026-11-24) for the 2026-11-24 optional `approvalStatus` and `derivedFrom` additions:
 
 ```ts
 export interface PackPatternRecord {
@@ -884,7 +884,7 @@ export interface PackPatternRecord {
 
 ### 6.5 Copy record (`data/<library>/patterns/<pattern>/<name>.json`, Slice 2)
 
-Every key below is allowed and no other (`SCHEMA_INVALID`):
+Every key below is allowed and no other (`SCHEMA_INVALID`); see [§8](#8-amendment-agent-first-design-phase-a-approved-2026-11-24) for the 2026-11-24 optional `approvalStatus` addition:
 
 ```ts
 export interface PackCopyRecord {
@@ -927,7 +927,7 @@ export interface PackCopyRecord {
 
 ### 6.6 Catalog (`data/<library>/library.json`)
 
-Extends format 1's catalog with `format: 2`, `patterns`, and `copies`:
+Extends format 1's catalog with `format: 2`, `patterns`, and `copies` (and optional `approvalStatus` / compiled `patternBindings` per [§8](#8-amendment-agent-first-design-phase-a-approved-2026-11-24)):
 
 ```ts
 export interface PackCatalogV2 {
@@ -1007,3 +1007,17 @@ Phases B–D stay gated on Phase A exit (owner approval of this specification an
 | **D1** | Slice 1 | `violet-elements`: author `select`, `field`, and `dialog.modal` patterns, split shared guide statements, rebuild format 2 pack; **re-measure builder accuracy, tokens, and cost on `dialog.modal` (P0-7)** | Slice 1 exit criteria 1–4 pass on both `example-*` (upgraded stubs) and `violet-*`; `dialog.modal` builder benchmark recorded |
 | **D2** | Slice 2 | Loam: configure `pack.dependencies` + `pack.localElements` + `pack.themeStylesheet`, save 2–3 screen compositions as complete copies, encode checklist rules as gated `keep` statements | Slice 2 exit criteria 5–6 pass on Loam copies |
 | **D3** | Slice 1/2 | Second consumer library (Lushly) claiming shared patterns across libraries | Cross-library aggregation and portable gates verified |
+
+---
+
+## 8. Amendment: Agent-First Design Phase A (approved 2026-11-24)
+
+Approved by the owner on 2026-11-24 at [Agent-First Design](../agent-first-design/spec.md#4-proposed-amendments-for-the-owner) Phase A exit (Epic [#2544](https://github.com/lushly-dev/afd/issues/2544)). Norms live in [`../agent-first-design/spec.md`](../agent-first-design/spec.md) and apply to Patterns' schema, Pack Format 2 and Umbel Amendment A31:
+
+1. **Default pattern ownership (`afd-defaults`):** Applies Patterns' 2026-11-21 question 4 decision (library-owned; [`patterns.proposal.md`](patterns.proposal.md#12-owner-decisions-resolved-2026-11-21)) to AFD's ten canonical result-state patterns (`alternatives-and-confidence`, `approval-request`, `batch-partial-failure`, `collection-states`, `destructive-confirm`, `error-recovery`, `evidence-and-sources`, `progress-and-plan`, `undo-offer`, `warnings-banner`) as a versioned library (`afd-defaults@<semver>`). Products that customize nothing pin `afd-defaults` at a version in `specimen.config.json`.
+2. **Approval status (`approvalStatus`) and Pack Format 2 update:** Optional `approvalStatus?: 'proposed' | 'approved' | 'deprecated'` is added to `pattern.json`, `PackPatternRecord`, `PackCopyRecord`, `PackCatalogV2` and individual statements (updating Pack Format 2's strict `additionalProperties: false` schemas and `checkPack`), separate from completeness (`complete`/`draft`) and release lifecycle (`stable`/`preview`/`deprecated`). `components-pattern-list`, `components-pattern-open` and `components-brief` serve only `approved` content by default (`includeProposed: true` exposes proposed items for review), and `components-brief` gains optional `patterns?: string[]` input to fetch pattern guidance directly by `<library>/<pattern>` id.
+3. **Copied patterns (`derivedFrom`, `waivedKeep`, fork/compare/merge):**
+   - `PatternFile` and Pack Format 2 gain optional `derivedFrom: { library, pattern, version, revision, statements: Record<id, sha256>, declined?: Record<id, sha256> }` (supporting statement-by-statement comparison statuses `unchanged`, `changed-here`, `changed-upstream`, `changed-both`, `dropped-here`, `added-upstream`, `declined`) and `waivedKeep: Array<{ id, reason }>`.
+   - `specimen-validate` reports `valid: false` with issue code `WAIVER_REASON_REQUIRED` when a copied pattern drops an upstream `keep` without a waiver reason, and verifies that an `approved` pattern's digest matches a recorded person approval.
+   - `specimen-pattern-fork`, `specimen-pattern-compare` and `specimen-pattern-merge` govern customization by copy rather than layering: `specimen-pattern-merge` stages selected upstream statement updates (including paired `gate`/`setup` keys, `waivers` for declined `keep`s, and `derivedFrom.declined` digests for non-`keep`s) pinned to `upstreamVersion` and statement digests onto a guidance decision card, applied atomically only upon person approval (refused with `UPSTREAM_CHANGED` if upstream moved).
+4. **Compiled `patternBindings` for WASI Umbel:** `specimen.config.json` gains optional `patternBindings?: Record<"<sourceLibrary>/<pattern>", "<localLibrary>/<pattern>">`, and Specimen compiles active (approved) bindings into Pack Format 2 (`library.json`) / `consumers.json` (v3) so sandboxed WASI Umbel (`Cx::pack_read`) resolves them without reading `specimen.config.json`. Bindings to a `proposed` copy stay pending until approved; until then, `components-brief` and `design-states` continue serving the approved upstream default unless `includeProposed: true`. Nothing is layered implicitly.
