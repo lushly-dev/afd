@@ -98,11 +98,18 @@ def observed_jobs(record) -> dict[str, set[str]]:  # noqa: ANN001 - a Record
     for shape in record.shapes.values():
         file = _file(shape["workflow"])
         seen.setdefault(file, set()).update(job for job, _ in shape["jobs"])
+    for line in record.folds.values():  # and every job a folded day saw
+        jobs = seen.setdefault(_file(line["workflow"]), set())
+        if line["kind"] == "folded-check":
+            jobs.add(line["job"])
+        else:
+            jobs.update(line["checks"]["jobs_seen"] + line["checks"]["jobs_skipped"])
     return seen
 
 
 def observed_ids(record, known: Known) -> set[str]:  # noqa: ANN001 - a Record
-    """The id of every step the record's shapes hold, as a check of a run would be named."""
+    """The id of every step the record's shapes hold, as a check of a run would be named, and
+    of every check a folded day holds."""
     found: set[str] = set()
     for shape in record.shapes.values():
         file = _file(shape["workflow"])
@@ -117,6 +124,8 @@ def observed_ids(record, known: Known) -> set[str]:  # noqa: ANN001 - a Record
                     found.update(check_id(file, job_name, label, c) for c in step.commands)
                 else:
                     found.add(check_id(file, job_name, label))
+    # and every check a folded day holds, as it was named when the day was folded
+    found.update(line["check"] for line in record.folds.values() if line["kind"] == "folded-check")
     return found
 
 
@@ -212,53 +221,73 @@ class _Attempts:
         return self.cache[key]
 
 
-def by_check(  # noqa: C901, PLR0912, PLR0913, PLR0915 - the rows, what was not observed, coverage
-    data: dict, record, known: Known, finished: list, verdicts: set[str],  # noqa: ANN001
-    where: str | None, wanted: set[str] | None, check: str | None, sort: str, limit: int,
-    status: str,
-) -> None:  # fmt: skip
-    """Replace a report's rows with check rows, and add `not_observed` and what they rest on."""
-    attempts = _Attempts(record, known)
-    rows: dict[tuple[str, str], CheckRow] = {}
-    examples: list[dict] = []
-    known_ids = known.ids(observed_jobs(record)) if not known.error else {}
-    ran: Counter = Counter()  # by file: runs that ran
-    read: Counter = Counter()  # by file: those whose steps are on record
-    jobs_seen: set[tuple[str, str]] = set()  # (file, job) in a run whose steps were read
-    jobs_skipped: set[tuple[str, str]] = set()  # listed with no step: skipped by its condition
-    summaries: Counter = Counter()  # group steps that ran, by how their summary was read
-    for latest, held in finished:
+@dataclass
+class Tally:
+    """Check rows and what they rest on, from runs one at a time: what a report's by check
+    gives over its window, and what the fold keeps of one day's runs of one workflow and
+    event. `examples` collects the attempts a check failed in: for `check` only, or for
+    every check when `every`."""
+
+    attempts: _Attempts
+    known_ids: dict
+    verdicts: set[str]
+    check: str | None = None
+    every: bool = False
+    rows: dict[tuple[str, str], CheckRow] = field(default_factory=dict)
+    examples: dict[str, list[dict]] = field(default_factory=dict)
+    parts: dict[str, tuple] = field(default_factory=dict)  # a failed check's job, step, command
+    ran: Counter = field(default_factory=Counter)  # by file: runs that ran
+    read: Counter = field(default_factory=Counter)  # by file: those whose steps are on record
+    # (file, job) in a run whose steps were read, and listed with no step (skipped)
+    jobs_seen: set[tuple[str, str]] = field(default_factory=set)
+    jobs_skipped: set[tuple[str, str]] = field(default_factory=set)
+    summaries: Counter = field(default_factory=Counter)  # group steps that ran, by how read
+
+    def _row(self, identifier: str, latest: dict, parts: tuple) -> CheckRow:
+        key = (identifier, latest["event"])
+        row = self.rows.get(key)
+        if row is None:
+            file = _file(latest["workflow"])
+            job, step, command = parts
+            row = self.rows[key] = CheckRow(
+                identifier, file, job, step, command, latest["event"],
+                known=identifier in self.known_ids, verdict=latest["workflow"] in self.verdicts,
+            )  # fmt: skip
+        return row
+
+    def add(self, latest: dict, held: dict[int, dict]) -> None:  # noqa: C901, PLR0912 - one run
         file = _file(latest["workflow"])
-        if check is not None:  # every attempt it failed in, an earlier one included
+        if self.check is not None or self.every:  # every attempt it failed in, earlier ones too
             for number in sorted(held, reverse=True):
-                found = attempts.of(held[number])
-                if found is not None and found.checks.get(check, ("",))[0] == "failed":
-                    examples.append({"run": latest["run"], "attempt": number,
-                                     "latest": number == latest["attempt"],
-                                     "where": latest["event"], "created": latest["created"],
-                                     "ended": "failed"})  # fmt: skip
+                found = self.attempts.of(held[number])
+                if found is None:
+                    continue
+                for identifier, outcome in found.checks.items():
+                    if outcome[0] != "failed" or (self.check not in (None, identifier)):
+                        continue
+                    self.parts.setdefault(identifier, outcome[2:])
+                    self.examples.setdefault(identifier, []).append({
+                        "run": latest["run"], "attempt": number,
+                        "latest": number == latest["attempt"], "where": latest["event"],
+                        "created": latest["created"], "ended": "failed",
+                    })  # fmt: skip
         if latest["conclusion"] not in RUN_ENDS:
-            continue  # action_required, skipped: no step ran
-        ran[file] += 1
-        got = attempts.of(latest)
+            return  # action_required, skipped: no step ran
+        self.ran[file] += 1
+        got = self.attempts.of(latest)
         if got is None:
-            continue
-        read[file] += 1
+            return
+        self.read[file] += 1
+        record = self.attempts.record
         steps = record.steps[f"steps:{latest['run']}:{latest['attempt']}"]
         shape = record.shapes[steps["shape"]]
-        jobs_seen.update((file, job) for job, names in shape["jobs"] if names)
-        jobs_skipped.update((file, job) for job, names in shape["jobs"] if not names)
-        summaries.update(status or "not-asked" for status in got.summaries)
+        self.jobs_seen.update((file, job) for job, names in shape["jobs"] if names)
+        self.jobs_skipped.update((file, job) for job, names in shape["jobs"] if not names)
+        self.summaries.update(status or "not-asked" for status in got.summaries)
         for identifier, (end, seconds, job, step, command) in got.checks.items():
-            if check is not None and identifier != check:
+            if self.check is not None and identifier != self.check:
                 continue
-            key = (identifier, latest["event"])
-            row = rows.get(key)
-            if row is None:
-                row = rows[key] = CheckRow(
-                    identifier, file, job, step, command, latest["event"],
-                    known=identifier in known_ids, verdict=latest["workflow"] in verdicts,
-                )  # fmt: skip
+            row = self._row(identifier, latest, (job, step, command))
             if end == "unknown":
                 row.unknown += 1
                 continue
@@ -267,30 +296,82 @@ def by_check(  # noqa: C901, PLR0912, PLR0913, PLR0915 - the rows, what was not 
                 row.seconds += seconds
                 row.timed += 1
             if end == "passed" and latest["attempt"] > 1:
-                before, missing = [], False
-                for number in range(1, latest["attempt"]):
-                    earlier = held.get(number)
-                    found = attempts.of(earlier) if earlier else None
-                    if (
-                        found is None
-                        and earlier is not None
-                        and earlier["status"] == "completed"
-                        and (
-                            earlier["conclusion"] not in RUN_ENDS
-                            or earlier["conclusion"] == "success"
-                        )
-                    ):
-                        continue  # it ran no step, or passed: no failure of this check to follow
-                    if found is None or identifier not in found.checks:
-                        missing = missing or found is None
-                        continue
-                    before.append(found.checks[identifier][0])
-                kind = (
-                    "failed" if "failed" in before else "cancelled" if "cancelled" in before
-                    else "unknown" if missing or "unknown" in before else None
-                )  # fmt: skip
+                kind = self._passed_after(identifier, latest, held)
                 if kind is not None:
                     row.later[kind] += 1
+
+    def _passed_after(self, identifier: str, latest: dict, held: dict[int, dict]) -> str | None:
+        before, missing = [], False
+        for number in range(1, latest["attempt"]):
+            earlier = held.get(number)
+            found = self.attempts.of(earlier) if earlier else None
+            if (
+                found is None
+                and earlier is not None
+                and earlier["status"] == "completed"
+                and (earlier["conclusion"] not in RUN_ENDS or earlier["conclusion"] == "success")
+            ):
+                continue  # it ran no step, or passed: no failure of this check to follow
+            if found is None or identifier not in found.checks:
+                missing = missing or found is None
+                continue
+            before.append(found.checks[identifier][0])
+        return (
+            "failed" if "failed" in before else "cancelled" if "cancelled" in before
+            else "unknown" if missing or "unknown" in before else None
+        )  # fmt: skip
+
+    def add_folded_workflow(self, line: dict) -> None:
+        """What a folded day's workflow line holds of its runs' steps."""
+        file, held = _file(line["workflow"]), line["checks"]
+        self.ran[file] += held["ran"]
+        self.read[file] += held["read"]
+        self.jobs_seen.update((file, job) for job in held["jobs_seen"])
+        self.jobs_skipped.update((file, job) for job in held["jobs_skipped"])
+        self.summaries.update({status: n for status, n in held["summaries"].items() if n})
+
+    def add_folded_check(self, line: dict) -> None:
+        """A folded day's check line: its counts, and the attempts it failed in."""
+        identifier = line["check"]
+        if self.check is not None and identifier != self.check:
+            return
+        if any(line["counts"].values()) or line["unknown"]:  # else it failed only before
+            latest = {"workflow": line["workflow"], "event": line["event"]}
+            row = self._row(identifier, latest, (line["job"], line["step"], line["command"]))
+            row.counts.update({end: count for end, count in line["counts"].items() if count})
+            row.unknown += line["unknown"]
+            row.seconds += line["seconds"]
+            row.timed += line["timed"]
+            row.later.update({kind: count for kind, count in line["later"].items() if count})
+        for run, attempt, is_latest, created in line["examples"]:
+            self.examples.setdefault(identifier, []).append({
+                "run": run, "attempt": attempt, "latest": is_latest, "where": line["event"],
+                "created": created, "ended": "failed",
+            })  # fmt: skip
+
+
+def by_check(  # noqa: C901, PLR0913 - the rows, what was not observed, coverage
+    data: dict, record, known: Known, scan, verdicts: set[str],  # noqa: ANN001
+    where: str | None, wanted: set[str] | None, check: str | None, sort: str, limit: int,
+    status: str,
+) -> None:  # fmt: skip
+    """Replace a report's rows with check rows, and add `not_observed` and what they rest on.
+    `scan` is the report's pass over the window: its runs, and its folded days' lines."""
+    known_ids = known.ids(observed_jobs(record)) if not known.error else {}
+    tally = Tally(_Attempts(record, known), known_ids, verdicts, check)
+    for latest, held in scan.finished:
+        tally.add(latest, held)
+    days = scan.folded_days
+    for line in scan.folded:
+        tally.add_folded_workflow(line)
+    for line in sorted(record.folds.values(), key=lambda line: line["id"]):
+        if (
+            line["kind"] == "folded-check" and line["day"] in days
+            and (where is None or line["event"] == where)
+            and (wanted is None or line["workflow"] in wanted)
+        ):  # fmt: skip
+            tally.add_folded_check(line)
+    rows, ran, read = tally.rows, tally.ran, tally.read
 
     key_of = {
         "minutes": lambda row: row.seconds,
@@ -307,7 +388,7 @@ def by_check(  # noqa: C901, PLR0912, PLR0913, PLR0915 - the rows, what was not 
             continue
         if wanted is not None and f".github/workflows/{file}" not in wanted:
             continue
-        why = _why(status, file, job, where, ran, read, (jobs_seen, jobs_skipped))
+        why = _why(status, file, job, where, ran, read, (tally.jobs_seen, tally.jobs_skipped))
         if "${{" in step and status != "absent":
             why = (
                 "its name holds an expression the workflow file cannot evaluate, so a run "
@@ -320,10 +401,12 @@ def by_check(  # noqa: C901, PLR0912, PLR0913, PLR0915 - the rows, what was not 
     data["more"] = {"rows": max(0, len(ordered) - limit),
                     "not_observed": max(0, len(not_observed) - limit)}  # fmt: skip
     if check is not None:
+        examples = tally.examples.get(check, [])
         examples.sort(key=lambda example: (example["created"], example["run"]), reverse=True)
         data["examples"] = examples[:limit]
         data["more"]["examples"] = max(0, len(examples) - limit)
     coverage = data["coverage"]
+    summaries = tally.summaries
     group_runs = sum(summaries.values())
     # the share of group steps that ran whose summary was read: their commands' seconds
     coverage["commands_share"] = share(summaries["read"], group_runs) if group_runs else None

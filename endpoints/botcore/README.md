@@ -397,8 +397,11 @@ through the same shared folder as skill usage. The checks known are read from th
 branch's tip, and where a hook group step failed, the job's log is read once for the hook
 runner's summary, of which only each command's name, result and seconds are kept. A repository
 names the workflows that judge the others in `botcore.toml` (`[gate_outcome] verdict_workflows`),
-so the totals do not count one failure twice. Every input and field is in the `gate-outcome`
-topic of the MCP server's docs tool.
+so the totals do not count one failure twice. The hourly job collects for the checkouts a
+machine's settings name in `gate_outcome_checkouts` (none by default: GitHub's allowance is the
+account's), and days more than 180 days old are folded into one line for each workflow and each
+check, which the reports read as they read the runs. Every input and field is in the
+`gate-outcome` topic of the MCP server's docs tool.
 
 ## Development
 

@@ -694,8 +694,8 @@ a line in #1387's plan, not a command of this feature.
 
 ### The record and the commands
 
-Events are lines of a file in botcore's state folder, appended and never rewritten, each with
-an id and the version of the rules that made it. A fact learned late (a pass that arrives after
+Events are lines of a file in botcore's state folder, appended and rewritten only by the fold
+below, each with an id and the version of the rules that made it. A fact learned late (a pass that arrives after
 a report, a rebuilt collection) is appended as a newer line for the same id, and a reader keeps
 one line for each id, so an event is never counted twice: the one made by the newer rules, then
 the one that holds what the other could not read (a line that could not read an attempt's
@@ -705,17 +705,30 @@ records through the folder skill usage already uses, by the same rules.
 
 **Size.** A week is about 17,000 workflow runs. A run that passed is one line holding the
 seconds of its jobs, steps and group commands; their names are kept once for each version of
-the workflow. A run that did not pass also keeps each step's conclusion. Lines older than 180
-days are folded into one line for each check and day. Findings, escapes, pairs, proofs and
-decisions are small and are kept whole. A `rebuild` keeps a fact whose source no longer
-answers, such as a log GitHub has expired, and marks it as no longer readable.
+the workflow. A run that did not pass also keeps each step's conclusion. Run and step lines
+older than 180 days are folded into one line for each check, event and day and one for each
+workflow, event and day, holding the counts and seconds the reports give, and a report over a
+window that reaches past 180 days reads them and says in its coverage which days are folded.
+The fold is the only thing that rewrites the record: at the end of a collection, under its
+lock, it writes the new file beside the old one and replaces it in one move, and the machine's
+shared copy follows. A line it cannot read is kept as it is. Findings, escapes, pairs, proofs
+and decisions are small and are never folded. A `rebuild` keeps a fact whose source no longer
+answers, such as a log GitHub has expired, and marks it as no longer readable; a folded day is
+not asked of GitHub again, so a rebuild keeps it as folded.
 
 **Collecting.** A report never needs a collection first, except the first on a machine. The
 hourly job botcore installs (`disk-setup`), whose last step collects skill usage, gains a step
-for this collection, and every answer says how old each source is. The machine's botcore
-settings name the repository and the checkout the collection reads; it fetches the default
-branch itself. The job runs the botcore that is installed, so a machine starts collecting when
-it has the release that carries these commands, and cutting that release is the maintainer's.
+of its own after that one, with its own time limits and its own line in what the job reports,
+so one step's trouble never stops the other; every answer says how old each source is. A
+machine collects only when its botcore settings name the checkouts to collect for, and none is
+named by default: the allowance belongs to the account, so the owner chooses which machine
+reads GitHub. For each checkout the step fetches the default branch into a ref of its own under
+`refs/botcore/`, so no branch, remote-tracking branch, tag, index or working tree a session
+uses moves, and the checks known and the fix commits are read from that ref when it is newer
+than the checkout's own. It collects every source the installed botcore has, at the default
+`requests`, and a refusal is reported without failing the job. The job runs the botcore that is
+installed, so a machine starts collecting when it has the release that carries these commands
+and its settings name a checkout; cutting that release is the maintainer's.
 
 A collection first reads what the shared folder holds and asks GitHub only for the rest: the
 lists of runs, then the jobs and steps of runs that did not pass, with the log of a job whose
@@ -745,14 +758,16 @@ inspects. `gate-outcome-replay` inspects, runs git for `from_branch` and writes 
 | `gate-outcome-report` | `days`, `ending_days_ago`, `compare_ending_days_ago`, `by` (`workflow`, `check`, `area`, `class`, `decision`), the filters `where`, `workflow`, `check`, `area`, `finding_class`, `decision`, `pull_request`, `due`, then `sort` and `limit` | `window`, `totals`, `rows`, `examples` when a filter narrows the answer, `not_observed`, `undecided`, `coverage`, `machines`, `warnings`, `more`; with a second window, `compare` | `VALIDATION_ERROR`, `INVALID_INPUT`, `NOT_COLLECTED`, `NO_WORKSPACE`, `RECORD_UNAVAILABLE` |
 | `gate-outcome-replay` | `days`, `workflow`, `job`, one of `paths`, `events` or `from_branch`, and `decision_out` | `proposed`, `runs_considered`, `runs_skipped`, `minutes`, `failures` with labels and how many another check also failed, `still_ran`, `not_replayed`, `local`, `decisions`, `warnings`; with `decision_out`, `written` | `VALIDATION_ERROR`, `INVALID_INPUT`, `NOT_COLLECTED`, `NO_WORKSPACE`, `RECORD_UNAVAILABLE` |
 
-**Bounds.** `limit` is 25 unless given and at most 200. It applies to each list of an answer by
+**Bounds.** `limit` is 25 unless given and at most 75. It applies to each list of an answer by
 itself, and `more` says how many each list left out. Rows come in a stated order: for checks
 and workflows `sort` is `minutes` (the default), `failed` or `runs`, largest first; areas come
 by fix commits, classes by what got through, decisions newest first. `days` is 1 to 365. The
 local server cuts an answer at 100,000 characters and an agent's harness sets aside a long one,
-and both surfaces print indented JSON today. So a test measures the widest answer at the
-default and at the largest limit on a real week's record, as each surface prints it, and the
-limits are lowered if either is over.
+and both surfaces print indented JSON today. So the widest answer of each grouping is measured
+at the default and at the largest limit on one whole day of real runs with every run's steps,
+as each surface prints it, and the limits are lowered if either is over: the largest was 200
+until by check at 200 measured about 201,000 characters (the status file's finding of
+2026-11-25). The week's figure is measured once the hourly job has collected for a week.
 
 **Refusals** follow the contract's two codes. A value outside a fixed list (`by`, `where`,
 `sources`, `sort`, `finding_class`, `decision`) or outside a range is `VALIDATION_ERROR`, and
@@ -881,9 +896,10 @@ Every scenario tagged `slice` passes for phase 1, and each other after its phase
   and the queue's groups above from a clean collection (runs and failures exactly, wall hours
   within 1%), and counts each way a run ended apart. A collection held to 200 requests ends
   `partly`, and the next one goes on without reading a run twice. A failed `Quality gate` step
-  has its failing command named. The size of that week's record and of the widest answers is
-  measured and written in the status file. The hourly job has collected on one machine for a
-  week without a session asking.
+  has its failing command named. The size of one whole day's record with every run's steps, of
+  a line of each kind and of the widest answers is measured and written in the status file,
+  and the week's once the hourly job has run for a week. The hourly job has collected on one
+  machine for a week without a session asking.
 - **Phase 2.** The `valid` findings in pull requests merged after the block lands are walked to
   the end in order, at least ten of them and until one is `check-added` with a `recorded`
   `failed-as-expected` and one is `no-check` with its reason. Each has the tree id of its
@@ -1000,7 +1016,10 @@ their failing tests, and the measures command is cut), the design has the curren
 - Whether Lefthook's closing summary can be read reliably enough to split a group step, in a CI
   log and locally.
 - How many requests a day the collection needs once it has caught up, and how large a week's
-  record is.
+  record is. One quiet day read whole took about one request an attempt and 1.2 MB.
+- How large a record of 180 days of runs is to share and to read whole for each report, and
+  whether folding sooner, or into fewer lines than one for each check, event and day, is
+  needed: a folded day measured about as large as a quiet day's runs.
 - What a proof costs in the heavy units, and so how many minutes a pull request with findings
   gains.
 - How often a `pnpm verify` line exists for a reviewed tree, and so how often the checks' state

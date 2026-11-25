@@ -38,6 +38,9 @@ DEFAULT_REFS = (
     "refs/heads/main",
     "refs/heads/master",
 )
+# Where the hourly job fetches the default branch (hourly.py): a ref of its own, so no ref a
+# session works with moves under it
+OWN_REF = "refs/botcore/gate-outcome/default"
 LEFTHOOK_FILES = ("lefthook.yml", "lefthook.yaml", ".lefthook.yml", ".lefthook.yaml")
 # Steps GitHub adds to every job, which no workflow file names: a job's overhead, not checks
 HOUSEKEEPING = {
@@ -185,18 +188,39 @@ def toplevel(root: Path) -> Path:
     return Path(top) if top else root
 
 
+def _commit(root: Path, ref: str) -> str | None:
+    try:
+        commit = git_out(
+            root, "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}", timeout=_GIT_SECONDS,
+        ).strip()  # fmt: skip
+    except GitError:
+        return None
+    return commit or None
+
+
+def _contains(root: Path, newer: str, older: str) -> bool:
+    """Whether `older` is `newer` or one of its ancestors."""
+    try:
+        git_out(
+            root, "merge-base", "--is-ancestor", older, newer, timeout=_GIT_SECONDS
+        )  # fmt: skip
+    except GitError:
+        return False
+    return True
+
+
 def default_ref(root: Path) -> tuple[str, str] | None:
-    for ref in DEFAULT_REFS:
-        try:
-            commit = git_out(
-                root, "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}",
-                timeout=_GIT_SECONDS,
-            ).strip()  # fmt: skip
-        except GitError:
-            continue
-        if commit:
-            return ref, commit
-    return None
+    """The default branch's tip: the hourly job's own ref (OWN_REF) when it is there and newer
+    than the checkout's landing branch, which it is when it holds it; otherwise origin's HEAD,
+    origin/main, origin/master, main or master, the first that is there."""
+    found = next(
+        ((ref, commit) for ref in DEFAULT_REFS if (commit := _commit(root, ref)) is not None),
+        None,
+    )
+    own = _commit(root, OWN_REF)
+    if own is not None and (found is None or (own != found[1] and _contains(root, own, found[1]))):
+        return OWN_REF, own
+    return found
 
 
 def _show(root: Path, commit: str, path: str) -> str | None:

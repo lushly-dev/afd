@@ -684,10 +684,10 @@ def gate_outcome_collect_cmd(
 )
 @click.option(
     "--limit",
-    type=click.IntRange(1, 200),
+    type=click.IntRange(1, 75),
     default=25,
     show_default=True,
-    help="Rows to give: 1 to 200",
+    help="Rows to give: 1 to 75",
 )
 @_json_option
 @click.pass_context

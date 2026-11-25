@@ -33,6 +33,51 @@ The proposal lists six under "For the owner to decide". Each has its own line he
 
 ## Findings
 
+### 2026-11-25: the record's sizes on a whole day, and the fold on real data (#2484)
+
+- 20 Nov, the quietest day of 16 to 24 Nov (1,063 runs listed; 22 to 24 Nov list 2,500 or
+  more, as many as GitHub counts), was read whole by two collections at the default limit:
+  1,000 and 186 requests. Every run's steps and every hook group step's summary are on record
+  (`steps_share` and `commands_share` 1.0), so the figures below rest on all of that day's
+  runs. In the five events, 1,044 finished runs: 952 passed, 34 failed, 42 cancelled, 16
+  `action_required`, 75.7 wall hours, and 25 queue groups of which 6 had a failed run.
+- The day's record is 1,158,673 bytes in 2,317 lines: 1,068 `run` lines (attempts) of 426
+  bytes on average (470 at most), 1,052 `steps` lines of 472 (2,059), 104 `group` lines of 616
+  (1,569) and 93 `shape` lines of 1,544 (6,805). Shapes are kept once for each version of a
+  workflow, so a later day adds fewer. The finding on the report by check (#2482) put a day at
+  2,800 to 9,000 requests for its jobs alone; this one cost 1,186 in all, about one an attempt.
+- The fold, run on a copy of that record as if the day were 180 days old, gives the same
+  answer to all 27 reports of the day compared (by workflow and by check, every event and each
+  of the five, both sorts, and the three checks that failed most, at the largest limit). It
+  makes 66 `folded-workflow` lines (1,064 bytes on average, 2,134 at most) and 1,845
+  `folded-check` lines (568, 1,062): 1,262,198 bytes with the shapes, more than the day's runs.
+  A check line is kept for each check and event that ran, so a folded day costs about the same
+  whatever its runs, and the fold saves space only on a day busier than this one: on the 8,955
+  runs listed on 23 Nov, about seven times by this day's bytes a run. At these sizes a record of 180 days of runs is
+  hundreds of megabytes (about 1.2 MB a day on a quiet day), which every report reads whole.
+  How much to fold, and when, is for a later piece; see "Not yet known".
+- A day folds only when it is wholly collected, every machine's record was read, the checks
+  known could be read and each of its lines can be made; otherwise the collection's
+  `folded.not_folded` names it, why, and what mends it where something can. The hourly job
+  reads seven days, so a day it left unfinished (a machine off for a week, collections stopped
+  at their limit hour after hour) waits for a collection reaching it, and one 365 days old or
+  more can never be read again and stays as runs. A span listed while a run was still going
+  counts as listed, so such a run folds as still going, which reports warn of. Whether such
+  days should fold anyway, marked as partial, is open.
+- The widest answers, as the command line prints them with `--json` (and without), and as the
+  local server's run tool would return the command's result dumped as JSON: by workflow,
+  14,519 (13,194) and 14,725 characters at the default limit of 25, and 33,559 (30,642) and
+  33,765 at 200; by check, 28,253 (26,432) and 28,459 at 25, and 200,775 (188,608) and 200,981
+  at 200, twice the server's cut of 100,000. By check, 100 rows give 103,058 and 90 give
+  93,631. The largest limit is now 75, where the widest answer is 79,201: room for a week's
+  longer lists of checks and warnings, which this day cannot show.
+- The hourly job, run once by hand (`botcore disk-run`) with scratch settings naming this
+  checkout and scratch state folders, and no shared folder: skill usage `ok` (2,618 events, a
+  first collection), then the gate outcome step `ok`, having fetched the default branch into
+  `refs/botcore/gate-outcome/default` and collected seven days `partly`, stopped at the default
+  1,000 requests. `disk-status` showed both lines and called the machine healthy. Whether the
+  job collects for a week without a session asking follows the release.
+
 ### 2026-11-25: the fix-commit inventory on real data (#2483)
 
 - A collection of 17 to 25 Nov read 148 fix commits in 8 GitHub requests and about a minute.
@@ -115,20 +160,22 @@ The proposal lists six under "For the owner to decide". Each has its own line he
 
 ## Phase 1. What ran and what merged
 
-- The record, `gate-outcome-collect` for CI runs, and `gate-outcome-report` by workflow (#2481): built
-  and in review in #2517. On 17 to 23 Nov it gives the nine rows of the
+- The record, `gate-outcome-collect` for CI runs, and `gate-outcome-report` by workflow (#2481): merged
+  in #2517. On 17 to 23 Nov it gives the nine rows of the
   proposal's table exactly; see the finding of 2026-11-24 for the verdict and the base revision.
 
 - The checks known, the report by check with quiet and not-observed checks, and a group step's
-  failing command (#2482): built and in review in #2535; scenarios 01 and 03 run in Botcore's
+  failing command (#2482): merged in #2535; scenarios 01 and 03 run in Botcore's
   core tests, 03's steps 3, 4 and 6 waiting on #2483. See the finding of 2026-11-25.
 
-- The fix commits and the escapes they close, and the report by area (#2483): built and in
-  review in #2547; scenario 02 and the three held steps of 03 pass. See the finding of 2026-11-25
+- The fix commits and the escapes they close, and the report by area (#2483): merged in
+  #2547; scenario 02 and the three held steps of 03 pass. See the finding of 2026-11-25
   on the inventory.
 
-- The hourly job's step, the record's folding and measured sizes (#2484): not started; follows
-  #2481.
+- The hourly job's step, the record's folding and measured sizes (#2484): merged in #2568;
+  the sizes of a whole day are in the finding of 2026-11-25. Open: the hourly job
+  collecting on one machine for a week without a session asking, which follows the release
+  and a machine's settings naming a checkout.
 
 - A docs topic the command line can print (#2479): merged in #2533. `botcore docs <topic>` prints
   what the server's docs tool returns, from the same function; `botcore docs` lists the topics.
