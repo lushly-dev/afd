@@ -1,0 +1,81 @@
+# JTBD scenario for the Test effectiveness proposal. The data is invented. Nothing is built, so
+# this file is checked, not run. Once built it runs against a prepared repository, a recorded
+# set of API answers and a record.
+#
+# Not shown: the decision file, which is written in a pull request, and the time after it. The
+# fixture holds both.
+name: Find where a new kind of check would help
+description: >-
+  When defects of one class keep getting through in one area, past the checks in review or
+  onto main, I want that place shown with its examples, so that a new kind of check is
+  proposed where it would catch something and I can see afterwards whether it did.
+job: find-where-a-check-would-help
+steps:
+  - description: Fix commits, findings and runs are read
+    command: gate-outcome-collect
+    input: { sources: [main, reviews, ci, runs], since_days: 60 }
+    expect:
+      success: true
+      data:
+        sources:
+          - { source: ci, status: read }
+          - { source: main, status: read }
+          - { source: reviews, status: read }
+          - { source: runs, status: read }
+  - description: Classes by what got through, and a class no reviewer reported shows by its escapes
+    command: gate-outcome-report
+    input: { days: 60, by: class }
+    expect:
+      success: true
+      data:
+        rows:
+          - { class: parity, valid: 9, findings_passed: 5, escapes: 3, got_through: 8 }
+          - { class: contract, valid: 0, findings_passed: 0, escapes: 4, got_through: 4 }
+          - { class: logic, valid: 6, findings_passed: 1, escapes: 0, got_through: 1 }
+        coverage:
+          found_by_absent: 2
+  - description: One class by area, with the findings and escapes themselves
+    command: gate-outcome-report
+    input: { days: 60, by: class, finding_class: parity, limit: 2 }
+    expect:
+      success: true
+      data:
+        rows:
+          - class: parity
+            area: packages/beds
+            valid: 7
+            findings_passed: 5
+            escapes: 3
+            got_through: 8
+            decisions: { check-added: 5, check-unproven: 1, no-check: 1, deferred: 0, open: 0 }
+          - class: parity
+            area: endpoints/shed
+            valid: 2
+            findings_passed: 0
+            escapes: 0
+            got_through: 0
+        examples:
+          - kind: finding
+            pull_request: 12
+            files: ['packages/beds/src/rows.ts:40-52']
+            checks_on_state: [{ check: 'beds.yml / test / pnpm test:beds', result: passed }]
+          - kind: escape
+            issue: 27
+            found_by: use
+            pull_request: 31
+        more: { examples: 10 }
+  - description: The check proposed there is a decision, shown failing on its examples, with what came after
+    command: gate-outcome-report
+    input: { days: 60, by: decision, area: packages/beds }
+    expect:
+      success: true
+      data:
+        rows:
+          - decision: beds-parity-vectors
+            kind: check-added
+            target: { class: parity, area: packages/beds }
+            added: { command: 'pnpm check:beds-vectors' }
+            proofs: { failed-as-expected: 3, passed-without-the-change: 0, could-not-replay: 1 }
+            days_since: 20
+            later: { findings: 0, escapes: 0 }
+            state: holding

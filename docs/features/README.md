@@ -94,6 +94,7 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 | [Rust Distribution](./proposed/rust-distribution/) | Rust-based distribution layer |
 | [Rust Support](./proposed/rust-support/) | Core crate published as 0.1.0; broader MCP transport and distribution proposal remains open |
 | [Skill Knowledge Layer](./proposed/skill-knowledge-layer/) | Skills as structured knowledge for agents |
+| [Test Effectiveness](./proposed/test-effectiveness/test-effectiveness.proposal.md) | What each check observed, caught, missed and cost, a reviewer's finding followed to the check added for it and shown failing, how often review reported what a check caught, and what came of each change to the checks: botcore's `gate-outcome-*` commands read GitHub's runs, `main`'s fix commits, what `pnpm verify` saw and what reviewers found, and replay a proposed trigger or tier change over the history before the owner decides. Twelve jobs, walked three times; the owner's ranking is open. Extends [#1387](https://github.com/lushly-dev/afd/issues/1387). |
 
 ### Closeout (2026-11-14)
 

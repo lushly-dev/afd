@@ -1,0 +1,77 @@
+# JTBD scenario for the Test effectiveness proposal. The data is invented. Nothing is built, so
+# this file is checked, not run. Once built it runs against a prepared repository, a recorded
+# set of API answers and a record.
+#
+# Not shown: time passing after each decision, and the decision files themselves, which are
+# written in pull requests. The fixture holds the files and what came later.
+name: See what came of each change made on this evidence
+description: >-
+  When I have added a check, narrowed a trigger, moved a suite or decided to leave one alone, I
+  want to see whether the defect came back and whether the work was saved, and which decisions
+  are due another look, so that I keep, adjust or reverse the change.
+job: see-whether-a-change-worked
+steps:
+  - description: Runs, fix commits and findings since the decisions are read
+    command: gate-outcome-collect
+    input: { sources: [ci, main, reviews], since_days: 60 }
+    expect:
+      success: true
+      data:
+        sources:
+          - { source: ci, status: read }
+          - { source: main, status: read }
+          - { source: reviews, status: read }
+  - description: Each decision, newest first, has what was expected and what happened since
+    command: gate-outcome-report
+    input: { days: 60, by: decision }
+    expect:
+      success: true
+      data:
+        rows:
+          - decision: beds-unit-tests
+            kind: kept
+            days_since: 12
+            state: kept
+            look_again: { exists: true }
+            due: false
+          - decision: beds-gate-restored
+            kind: restored
+            days_since: 15
+            state: holding
+            supersedes: beds-gate-daily
+          - decision: shed-browser-daily
+            kind: moved-to-daily
+            days_since: 21
+            scheduled_failures: 1
+            state: contradicted
+            contradicted_by: { run: 7001 }
+          - decision: shed-documents-trigger
+            kind: trigger-narrowed
+            days_since: 30
+            approved: { by: owner }
+            replay: { runs_skipped: 48, minutes: 610 }
+            since: { runs_skipped: 26, minutes: 340 }
+            failures_elsewhere: 0
+            state: holding
+          - decision: beds-gate-daily
+            kind: moved-to-daily
+            days_since: 38
+            state: superseded
+            superseded_by: beds-gate-restored
+          - decision: beds-rows-parity
+            kind: check-added
+            days_since: 40
+            later: { findings: 0, escapes: 0 }
+            state: holding
+            due: true
+        undecided:
+          - { workflow: beds.yml, change: { contains: paths } }
+  - description: The decisions whose date to look again has passed
+    command: gate-outcome-report
+    input: { days: 60, by: decision, due: true }
+    expect:
+      success: true
+      data:
+        rows:
+          - { decision: beds-rows-parity, kind: check-added, state: holding, due: true }
+        more: { rows: 0 }

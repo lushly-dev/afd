@@ -1,0 +1,72 @@
+# JTBD scenario for the Test effectiveness proposal. The data is invented. Nothing is built, so
+# this file is checked, not run. Once built it runs against a prepared repository, a recorded
+# set of API answers and a record.
+name: Record that a finding needs no new check, and find that answer later
+description: >-
+  When a finding needs no new check, I want that recorded with its reason, so that a test is
+  not added for its own sake and a later session that meets the same proposal finds the answer.
+job: decline-a-check-with-a-reason
+steps:
+  - description: The findings of merged pull requests are read
+    command: gate-outcome-collect
+    input: { sources: [reviews], since_days: 30 }
+    expect:
+      success: true
+      data:
+        sources:
+          - { source: reviews, status: read, found: 3, added: 3 }
+  - description: A finding an existing check covers names that check, shown failing on the state
+    command: gate-outcome-report
+    input: { days: 30, by: class, finding_class: interface }
+    expect:
+      success: true
+      data:
+        rows:
+          - class: interface
+            area: endpoints/shed
+            valid: 3
+            decisions: { check-added: 0, check-unproven: 0, no-check: 2, deferred: 0, open: 1 }
+        examples:
+          - pull_request: 15
+            decision: no-check
+            reason: covered
+            covered_by: 'shed.yml / browser / pnpm test:browser'
+            proof: failed-as-expected
+            proof_run: recorded
+          - pull_request: 16
+            decision: no-check
+            reason: judgment
+          - pull_request: 17
+            decision: open
+  - description: Before it adds a test in an area, a session reads what was declined there, however long ago
+    command: gate-outcome-report
+    input: { days: 30, by: class, area: endpoints/shed, decision: no-check }
+    expect:
+      success: true
+      data:
+        examples:
+          - pull_request: 15
+            class: interface
+            reason: covered
+            files: ['endpoints/shed/src/panel.ts:12-30']
+            url: { contains: /pull/15 }
+          - pull_request: 16
+            class: interface
+            reason: judgment
+            files: ['endpoints/shed/src/menu.ts:88-90']
+            url: { contains: /pull/16 }
+          - pull_request: 3
+            class: interface
+            reason: one-off
+            age_days: 200
+            files: ['endpoints/shed/src/panel.ts:44-51']
+            url: { contains: /pull/3 }
+        more: { examples: 0 }
+  - description: A decision outside the list is refused with the list
+    command: gate-outcome-report
+    input: { days: 30, by: class, decision: declined }
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR
+        suggestion: { contains: no-check }

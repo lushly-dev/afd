@@ -1,0 +1,127 @@
+# JTBD scenario for the Test effectiveness proposal. The data is invented. Nothing is built, so
+# this file is checked, not run. Once built it runs against a prepared repository, a recorded
+# set of API answers and a record.
+name: See how often each check ran, how its runs ended and what it cost
+description: >-
+  When I ask what the checks cost, I want each check's runs by how they ended, its minutes and
+  its failures, the costliest first and the quiet ones marked, so that I compare checks by
+  what happened and never mix a run that tested nothing into a rate.
+job: see-what-ran-and-what-failed
+tags: [slice]
+steps:
+  - description: A collection held to a few requests says how far it got
+    command: gate-outcome-collect
+    input: { sources: [ci], since_days: 7, requests: 50 }
+    expect:
+      success: true
+      data:
+        machine: bench
+        requests_used: 50
+        sources:
+          - { source: ci, status: partly, why: { contains: requests }, reached: { exists: true } }
+  - description: The next one goes on from there and reads the week
+    command: gate-outcome-collect
+    input: { sources: [ci], since_days: 7 }
+    expect:
+      success: true
+      data:
+        sources:
+          - { source: ci, status: read, found: 409 }
+  - description: Collecting again adds nothing, on this machine or another
+    command: gate-outcome-collect
+    input: { sources: [ci], since_days: 7 }
+    expect:
+      success: true
+      data:
+        sources:
+          - { source: ci, status: read, found: 409, added: 0 }
+  - description: The two costliest checks on pull requests, each with its runs by how they ended
+    command: gate-outcome-report
+    input: { days: 7, by: check, where: pull_request, sort: minutes, limit: 2 }
+    expect:
+      success: true
+      data:
+        totals: { runs: 409, passed: 350, failed: 23, cancelled: 30, action_required: 6, skipped: 0 }
+        rows:
+          - check: 'shed.yml / browser / pnpm test:browser'
+            where: pull_request
+            runs: 154
+            passed: 136
+            failed: 2
+            cancelled: 16
+            not-run: 9
+            passed_on_later_attempt: 1
+            minutes: 2100
+            quiet: false
+            rates: given
+            failed_per_100_completed: 1.4
+          - check: 'beds.yml / test / pnpm test:beds'
+            where: pull_request
+            runs: 240
+            passed: 214
+            failed: 12
+            cancelled: 14
+            not-run: 0
+            passed_on_later_attempt: 2
+            minutes: 1200
+            quiet: false
+            rates: given
+            failed_per_100_completed: 5.3
+        more: { rows: 2 }
+        coverage:
+          collected: { ci: { exists: true } }
+          steps_share: 1
+  - description: A check that never failed in CI is marked quiet, and its local runs are absent, not zero
+    command: gate-outcome-report
+    input: { days: 7, by: check, where: pull_request, check: 'beds.yml / gate / Quality gate / boundaries' }
+    expect:
+      success: true
+      data:
+        rows:
+          - check: 'beds.yml / gate / Quality gate / boundaries'
+            where: pull_request
+            runs: 240
+            passed: 226
+            failed: 0
+            cancelled: 14
+            minutes: 40
+            quiet: true
+            local: absent
+            rates: given
+        coverage:
+          sources: { ci: read, runs: absent }
+          not_seen:
+            - { contains: before pnpm verify }
+  - description: By workflow, the queue has its groups, how many had a failure and its wall hours
+    command: gate-outcome-report
+    input: { days: 7, by: workflow, where: merge_group }
+    expect:
+      success: true
+      data:
+        rows:
+          - workflow: shed.yml
+            where: merge_group
+            runs: 90
+            passed: 85
+            failed: 5
+            cancelled: 0
+            wall_hours: 18
+            groups: 90
+            groups_failed: 5
+            rates: given
+  - description: A matrix leg is its own check, and one with few runs gets its counts and no rate
+    command: gate-outcome-report
+    input: { days: 1, by: check, where: pull_request, check: 'shed.yml / desktop (windows) / pnpm test:desktop' }
+    expect:
+      success: true
+      data:
+        rows:
+          - { check: 'shed.yml / desktop (windows) / pnpm test:desktop', runs: 12, failed: 1, rates: too-few }
+  - description: A filter that does not go with the grouping is refused with those that do
+    command: gate-outcome-report
+    input: { days: 7, by: workflow, finding_class: parity }
+    expect:
+      success: false
+      error:
+        code: INVALID_INPUT
+        suggestion: { contains: where }

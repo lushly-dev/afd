@@ -1,0 +1,80 @@
+# JTBD scenario for the Test effectiveness proposal. The data is invented. Nothing is built, so
+# this file is checked, not run. Once built it runs against a prepared repository, a recorded
+# set of API answers and a record.
+name: See the fix commits and the escapes they close, without taking one for the other
+description: >-
+  When I ask where bugs reach main, I want the fix commits by area and the escapes they close,
+  so that a commit that closes five bugs, one that closes none and one that answers a working
+  check are never counted as the same thing.
+job: see-the-fix-commits
+tags: [slice]
+steps:
+  - description: The fix and revert commits on the default branch are read once
+    command: gate-outcome-collect
+    input: { sources: [main], since_days: 7 }
+    expect:
+      success: true
+      data:
+        sources:
+          - { source: main, status: read, found: 5, added: 5 }
+  - description: Each area has its fix commits, the escapes they close and what is unconfirmed
+    command: gate-outcome-report
+    input: { days: 7, by: area }
+    expect:
+      success: true
+      data:
+        totals:
+          merged: 40
+          fix_commits: 5
+          reverts: 0
+          escapes: 6
+          unconfirmed: 2
+          with_test_path: 4
+          escapes_found_by: { review: 1, check: 0, daily: 1, use: 4, sweep: 0, unknown: 0 }
+          escapes_by_class: { contract: 3, logic: 2, parity: 1 }
+          found_by_absent: 1
+        rows:
+          - area: packages/beds
+            fix_commits: 3
+            escapes: 5
+            unconfirmed: 1
+            with_test_path: 3
+            last_edit: { read: 2, median_days: 6 }
+            rates: too-few
+          - area: repository
+            fix_commits: 1
+            escapes: 0
+            unconfirmed: 1
+            with_test_path: 0
+            last_edit: { read: 1, median_days: 40 }
+            rates: too-few
+          - area: several
+            fix_commits: 1
+            escapes: 1
+            unconfirmed: 0
+            with_test_path: 1
+            last_edit: { read: 0 }
+            units: [packages/beds, endpoints/shed]
+            rates: too-few
+        coverage:
+          not_seen:
+            - { contains: feat }
+  - description: One area lists its commits with the issues each closes, how each was found and its class
+    command: gate-outcome-report
+    input: { days: 7, by: area, area: packages/beds, limit: 2 }
+    expect:
+      success: true
+      data:
+        examples:
+          - commit: { matches: '^[0-9a-f]{7,40}$' }
+            pull_request: 31
+            escapes:
+              - { issue: 27, found_by: use, class: contract }
+              - { issue: 28, found_by: use, class: contract }
+            test_paths: 1
+          - commit: { matches: '^[0-9a-f]{7,40}$' }
+            pull_request: 33
+            escapes: { length: 0 }
+            found_by: check
+            test_paths: 1
+        more: { examples: 1 }

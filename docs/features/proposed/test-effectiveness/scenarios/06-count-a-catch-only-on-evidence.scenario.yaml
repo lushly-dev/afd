@@ -1,0 +1,88 @@
+# JTBD scenario for the Test effectiveness proposal. The data is invented. Nothing is built, so
+# this file is checked, not run. Once built it runs against a prepared repository, a recorded
+# set of API answers and a record.
+#
+# Not shown: time passing between a failure and its pass. The fixture holds both runs.
+name: Count a catch only where the evidence shows one
+description: >-
+  When a check failed and later passed, I want each failure labelled by what the evidence
+  shows, so that a catch is counted only where a named test stood still and the code moved,
+  and a second attempt that passed is never called a flake or a fix.
+job: count-a-catch-only-on-evidence
+steps:
+  - description: Local runs and CI runs are read and each failure is paired with the pass after it
+    command: gate-outcome-collect
+    input: { sources: [ci, runs], since_days: 30 }
+    expect:
+      success: true
+      data:
+        sources:
+          - { source: ci, status: read }
+          - { source: runs, status: read, found: 31, added: 31 }
+        pairs: 7
+        unresolved: 1
+        superseded: 1
+  - description: A failure is a confirmed catch only where its failing tests are named, in CI or by the lane
+    command: gate-outcome-report
+    input: { days: 30, by: check, check: 'beds.yml / test / pnpm test:beds' }
+    expect:
+      success: true
+      data:
+        rows:
+          - check: 'beds.yml / test / pnpm test:beds'
+            where: pull_request
+            runs: 240
+            failed: 7
+            failures: 5
+            labels:
+              confirmed-catch: 1
+              likely-catch: 0
+              tests-changed: 0
+              tests-weakened: 1
+              repeat-passed: 1
+              base-moved: 1
+              mixed: 0
+              unresolved: 0
+              superseded: 1
+            catches: { confirmed: 1, likely: 0 }
+            rates: given
+          - check: 'beds.yml / test / pnpm test:beds'
+            where: local
+            runs: 31
+            failed: 6
+            failures: 4
+            labels:
+              confirmed-catch: 1
+              likely-catch: 1
+              tests-changed: 1
+              tests-weakened: 0
+              repeat-passed: 0
+              base-moved: 0
+              mixed: 0
+              unresolved: 1
+              superseded: 0
+            catches: { confirmed: 1, likely: 1 }
+            rates: given
+        coverage:
+          named_tests_share: { pull_request: 0.8, local: 0.25 }
+          not_seen:
+            - { contains: before pnpm verify }
+  - description: One check's pairs are listed with their runs, so each can be read at its source
+    command: gate-outcome-report
+    input: { days: 30, by: check, check: 'beds.yml / test / pnpm test:beds', where: pull_request, limit: 2 }
+    expect:
+      success: true
+      data:
+        examples:
+          - pull_request: 12
+            failed_run: 5001
+            passed_run: 5007
+            label: confirmed-catch
+            tests_failed: ['rows keeps order']
+            facts: { source: 2, tests: 0, new_tests: 0, base: same, context: same }
+          - pull_request: 18
+            failed_run: 5102
+            passed_run: 5103
+            label: repeat-passed
+            facts: { source: 0, tests: 0, base: same, context: same }
+        more: { examples: 3 }
