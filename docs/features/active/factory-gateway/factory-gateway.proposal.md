@@ -160,7 +160,7 @@ route (five at first; `/heartbeat` added 2026-11-24):
 | Route | Host | Caller | May do |
 |---|---|---|---|
 | `/cell` | `gateway-cell` | Cells | Read; push its head to `refs/factory/queue/<branch>`; record its review (G2) |
-| `/session` | `gateway-session` | Interactive sessions outside a fleet (Lushly's `do-init-lushly`, AFD's `start-session`) | Read; claim and release their own issues; push their head to `refs/factory/queue/<branch>` to hand it to the lane (from G1, by the owner's decision of 2026-11-15). Everything else stays on the owner's `gh` sign-in until G5 |
+| `/session` | `gateway-session` | Interactive sessions outside a fleet (`start-session` in both repositories) | Read; claim and release their own issues; push their head to `refs/factory/queue/<branch>` to hand it to the lane (from G1, by the owner's decision of 2026-11-15). Everything else stays on the owner's `gh` sign-in until G5 |
 | `/foreman` | `gateway-foreman` | The foreman, and the factory commands it calls (`cell-register`, `cell-park`, `lane-drop`) | Read; claim and release; label, comment and file issues; open revert pull requests; set the lane-host variable; read the audit; wait for events |
 | `/lane` | `gateway-lane` | The lane process | Read; claim, renew and release; push branches; open pull requests; record validation; merge; revert; file flakes; wait for events |
 | `/owner` | `gateway-owner` | The owner's CLI | Everything, and the overrides only he has (`issue-release` with `force`) |
@@ -437,8 +437,8 @@ must pass, the process it changes and its exit.
     topic and catalog descriptions; the cell hook and its Codex equivalent; the MCP configuration
     that registers the gateway's routes.
   - Lushly: `AGENTS.md`'s "Claim an issue before starting it" line; `INIT.md`'s claiming section;
-    `do-init-lushly` (sessions claim on `/session`), `do-prepare-pr` (sessions hand off to the
-    lane by default), `do-triage`, `do-run-fleet`, `do-end-session`;
+    `start-session` (sessions claim on `/session`), `prepare-pr` (sessions hand off to the
+    lane by default), `triage-issues`, `run-fleet`, `end-session`;
     `Docs/operations/merge-lane.md`; the scripts above (`issue-claim.mjs`, `merge-lane-worker.mjs`,
     `merge-lane-operations.mjs`, `merge-lane-ci.mjs`, `final-validation-flakes.mjs`); its MCP and
     hook configuration; a `skill-seed --update` for any seeded Botcore skill that changed.
@@ -455,7 +455,7 @@ must pass, the process it changes and its exit.
   lane's `REVIEW_MISSING` reads `review-get` for the exact head.
 - **Jobs:** `records` (12).
 - **Process:** AFD `prepare-pr` and `review-code`; Lushly `review-code-lushly` and its
-  `review-lanes.md`, `do-prepare-pr`, `scripts/check-review-lanes.mjs --verify-handoff`; the
+  `review-lanes.md`, `prepare-pr`, `scripts/check-review-lanes.mjs --verify-handoff`; the
   pull-request body guidance in both stops asking for a hand-written review table. Making
   `factory/review` a required check is a gate change and goes through each repository's gate rules.
 - **Exit:** the `records` scenario passes; a fleet run's pull requests carry the review as a check,
@@ -467,8 +467,8 @@ must pass, the process it changes and its exit.
   detection, coalesced T3 Code wakes; the lane's CI wait and the foreman's `owner-replied` come from
   gateway events.
 - **Jobs:** `events` (13, 14).
-- **Process:** the factory's `run-fleet` and Lushly's `do-run-fleet` drop their polling guidance;
-  `merge-lane.md`'s CI wait section; `do-end-session` and `lushly-worktree-discipline` read
+- **Process:** the factory's `run-fleet` and Lushly's `run-fleet` drop their polling guidance;
+  `merge-lane.md`'s CI wait section; Lushly's `end-session` and `lushly-worktree-discipline` read
   `pr-status` instead of `gh api .../pulls/<n> --jq .merged`.
 - **Exit:** the `events` scenarios pass; a fleet run's foreman wakes come from gateway events, and
   a GitHub Actions stall during a run pauses the lane without an ejection.
@@ -482,15 +482,17 @@ must pass, the process it changes and its exit.
   the G1 hooks are retired.
 - **Jobs:** the `boundary` property of job 15 (a cell's token pushes only its own queue ref), shown
   by the plugin's unit tests, and the exit below.
-- **Process:** the factory's cell start, Lushly's `do-run-fleet` and `lushly-worktree-discipline`,
-  `SETUP.md` in both repositories.
+- **Process:** the factory's cell start, Lushly's `run-fleet` and `lushly-worktree-discipline`,
+  `SETUP.md` in both repositories. Lushly's `scripts/post-merge-backstop.mjs`, which only a
+  workflow runs, with Actions' own token: whether a script only a workflow runs stays outside the
+  door (the door's exclusions name it) or writes through it.
 - **Exit:** a test cell that tries `gh issue edit`, `git push` or another cell's queue ref fails
   for lack of a credential, not because a hook refused it; a test branch whose tests try to read
   the lane's token finds none.
 
 ### G5: sessions through the door
 
-Interactive sessions (Lushly's `do-init-lushly` to `do-prepare-pr` outside a fleet) claim through
+Interactive sessions (Lushly's `start-session` to `prepare-pr` outside a fleet) claim through
 the `/session` route from G1, but every other write they make (pushes, pull requests, comments,
 authorised merges) still uses the owner's `gh` sign-in after G4, so a write from his account is
 still ambiguous. G5 widens the `/session` route to those writes, including merging its own pull
@@ -504,15 +506,19 @@ The owner's direction is that each milestone updates the skills, tools and `AGEN
 as it lands. Two checks make that hold, in each repository, both gate changes that go through that
 repository's gate rules (AFD's `gates.md`, Lushly's `lushly-gate-discipline`):
 
-- **The manifest.** `process.json` in this folder lists, per milestone and per repository, every
-  file the milestone changes (instruction files, skills, runbooks, scripts, hook and MCP
-  configuration) and the gateway commands each must name. Once a milestone is marked landed there,
-  the check fails until each listed file names its commands.
+- **The manifest.** Each repository keeps its own half of the process manifest, so that a rename
+  and the manifest change in the same pull request: AFD's is `process.json` in this folder,
+  Lushly's `Docs/operations/factory-gateway/process.json`. Each lists, per milestone, every file
+  of its repository the milestone changes (instruction files, skills, runbooks, scripts, hook and
+  MCP configuration) and the gateway commands each must name. Every listed file must be tracked;
+  once a milestone is marked landed there, the check fails until each listed file names its commands.
+  The check is AFD's `scripts/check-process.mjs`, which holds the door's patterns and which
+  Lushly syncs.
 - **The door.** A check fails when an instruction file, skill, runbook, script, hook or MCP
   configuration runs or tells an agent to run a `gh` write the gateway serves, outside an allowlist
   in the manifest. Each allowed file names the milestone that removes it (the interactive-session
-  skills and runbooks are allowed until G5), and the check fails on an allowed file once that
-  milestone has landed.
+  skills and runbooks are allowed until G5), why it may write until then and the issue that
+  removes it, and the check fails on an allowed file once that milestone has landed.
 
 A milestone is done when its code and its process files have merged in both repositories, the two
 checks pass, and `STATUS.md` names every file and the pull request that changed it. AFD's seeded

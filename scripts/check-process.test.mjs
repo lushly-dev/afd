@@ -6,6 +6,8 @@ import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
+	DOOR_ARGV_PATTERNS,
+	DOOR_PATTERNS,
 	decode,
 	globToRegExp,
 	names,
@@ -29,32 +31,30 @@ const clean = Object.fromEntries(
 	Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'))
 );
 
-/** The real manifest, whose patterns every fixture uses, so a weakened pattern fails here. */
+/** The real manifest: its exclusions are tested below. The patterns are the checker's own. */
 const REAL = JSON.parse(
 	readFileSync(join(here, '../docs/features/active/factory-gateway/process.json'), 'utf8')
 );
+const MILESTONES = ['G0', 'G1', 'G2', 'G3', 'G4', 'G5'];
+const ISSUE = 'https://github.com/lushly-dev/afd/issues/1550';
 
-/** A manifest with the door's real patterns and exclusions, `scope` and the given overrides. */
+/** An allow entry with its reason and issue. */
+const allowed = (path, until) => ({ path, until, reason: 'Writes until then.', issue: ISSUE });
+
+/** A manifest with every milestone unlanded, `scope`, no exclusion and the given overrides. */
 function manifest({
 	milestones = {},
 	allow = [],
+	exclude = [],
 	scope = ['docs/**', 'scripts/**', 'AGENTS.md'],
-	lushly,
+	repo = 'afd',
 } = {}) {
+	const none = Object.fromEntries(MILESTONES.map((m) => [m, { landed: false, files: [] }]));
 	return {
-		version: 1,
-		milestones: {
-			G1: { landed: false, afd: [], lushly: [] },
-			G5: { landed: false, afd: [], lushly: [] },
-			...milestones,
-		},
-		door: {
-			patterns: [...REAL.door.patterns],
-			argvPatterns: [...REAL.door.argvPatterns],
-			exclude: [...REAL.door.exclude],
-			scope: { afd: scope, ...(lushly ? { lushly } : {}) },
-			allow,
-		},
+		version: 2,
+		repo,
+		milestones: { ...none, ...milestones },
+		door: { scope, exclude, allow },
 	};
 }
 
@@ -76,7 +76,8 @@ function fixture(files, { untracked = {}, manifest: m = manifest() } = {}) {
 
 /** Runs the check in `root` and returns its exit code and output. */
 function run(root, ...args) {
-	const result = spawnSync(process.execPath, [script, '--manifest', MANIFEST, ...args], {
+	const manifestArgs = args.includes('--manifest') ? [] : ['--manifest', MANIFEST];
+	const result = spawnSync(process.execPath, [script, ...manifestArgs, ...args], {
 		cwd: root,
 		encoding: 'utf8',
 		env: clean,
@@ -90,11 +91,11 @@ test('passes a repository whose only write is allowed, and says what it read', (
 	const { status, out } = run(
 		fixture(
 			{ 'docs/runbook.md': 'Run `gh pr create --fill`.\n', 'scripts/a.mjs': 'export {};\n' },
-			{ manifest: manifest({ allow: [{ repo: 'afd', path: 'docs/runbook.md', until: 'G1' }] }) }
+			{ manifest: manifest({ allow: [allowed('docs/runbook.md', 'G1')] }) }
 		)
 	);
 	assert.equal(status, 0, out);
-	assert.match(out, /process: 5 files read; 1 hold GitHub writes allowed/);
+	assert.match(out, /process: afd's half: 5 files read; 1 hold GitHub writes allowed/);
 });
 
 test('refuses a write in a runbook, naming the file, the line and the write', () => {
@@ -161,10 +162,8 @@ test('reads code without its comments, but with its strings, docstrings and regu
 	assert.match(loud.out, /scripts\/h\.mjs:1: `gh pr merge`/);
 });
 
-test("the real manifest's patterns refuse each write the gateway serves, and no read", () => {
-	const expressions = [...REAL.door.patterns, ...REAL.door.argvPatterns].map(
-		(p) => new RegExp(p, 'gu')
-	);
+test("the checker's patterns refuse each write the gateway serves, and no read", () => {
+	const expressions = [...DOOR_PATTERNS, ...DOOR_ARGV_PATTERNS].map((p) => new RegExp(p, 'gu'));
 	const writes = [
 		'gh issue edit 3 --add-label x',
 		'gh issue comment 3 -b hi',
@@ -191,6 +190,24 @@ test("the real manifest's patterns refuse each write the gateway serves, and no 
 		'gh api repos/o/r/issues/1/comments -f body=x && gh api -X GET search/issues -f q=x',
 		'| `gh api repos/o/r/issues/1/labels -f labels[]=x` | `gh api -X GET search/issues -f q=x` |',
 		'mutation { addLabelsToLabelable(input: $i) { clientMutationId } }',
+		...[
+			'enqueuePullRequest',
+			'mergePullRequest',
+			'createPullRequest',
+			'updatePullRequest',
+			'markPullRequestReadyForReview',
+			'revertPullRequest',
+			'addLabelsToLabelable',
+			'removeLabelsFromLabelable',
+			'addAssigneesToAssignable',
+			'removeAssigneesFromAssignable',
+			'addComment',
+			'createIssue',
+			'updateIssue',
+		].flatMap((name) => [
+			`mutation { ${name}(input: $i) { clientMutationId } }`,
+			`mutation M { ${name} { clientMutationId } }`,
+		]),
 		"run('gh', ['issue', 'edit', n])",
 		'run("gh", ["pr" , "merge"])',
 		'run(`gh`, [`variable`, `set`])',
@@ -231,32 +248,54 @@ test('reads a file with a NUL or in UTF-16, and refuses its writes', () => {
 });
 
 test('a scope whose every file is excluded reads nothing, and fails', () => {
+	const exclude = [{ glob: '**/*.test.mjs', reason: 'Tests.' }];
 	const { status, out } = run(
-		fixture({ 'docs/a.test.mjs': '1\n' }, { manifest: manifest({ scope: ['docs/*.test.mjs'] }) })
+		fixture(
+			{ 'docs/a.test.mjs': '1\n' },
+			{ manifest: manifest({ scope: ['docs/*.test.mjs'], exclude }) }
+		)
 	);
 	assert.equal(status, 1);
-	assert.match(out, /door: no file in door\.scope\.afd was read/);
+	assert.match(out, /door: no file in door\.scope was read/);
 });
 
-test('--repo lushly reads its own scope and allow entries', () => {
+test('an exclusion cannot silence a scope glob, and fails once it removes nothing', () => {
+	const silenced = run(
+		fixture(
+			{ 'scripts/a.mjs': "run('gh pr merge 1');\n" },
+			{ manifest: manifest({ exclude: [{ glob: 'scripts/**', reason: 'Quiet.' }] }) }
+		)
+	);
+	assert.equal(silenced.status, 1);
+	assert.match(
+		silenced.out,
+		/door\.scope glob scripts\/\*\* reads no file: door\.exclude removes each it matches/
+	);
+	const stale = run(
+		fixture({}, { manifest: manifest({ exclude: [{ glob: '**/*.test.mjs', reason: 'Tests.' }] }) })
+	);
+	assert.equal(stale.status, 1);
+	assert.match(
+		stale.out,
+		/door\.exclude glob \*\*\/\*\.test\.mjs removes no file in door\.scope: delete it/
+	);
+});
+
+test("another repository's half reads its own scope and allow entries", () => {
 	const m = manifest({
-		lushly: ['Ops/**'],
-		allow: [
-			{ repo: 'afd', path: 'Ops/ops.md', until: 'G1' },
-			{ repo: 'lushly', path: 'Ops/allowed.md', until: 'G1' },
-		],
+		repo: 'lushly',
+		scope: ['Ops/**', 'AGENTS.md'],
+		allow: [allowed('Ops/allowed.md', 'G1')],
 	});
 	const { status, out } = run(
 		fixture(
 			{ 'Ops/ops.md': 'gh pr merge 1\n', 'Ops/allowed.md': 'gh issue edit 1\n' },
 			{ manifest: m }
-		),
-		'--repo',
-		'lushly'
+		)
 	);
 	assert.equal(status, 1);
 	assert.match(out, /Ops\/ops\.md:1: `gh pr merge` is a GitHub write/);
-	assert.doesNotMatch(out, /allowed\.md/);
+	assert.doesNotMatch(out, /allowed\.md|docs\/README/);
 });
 
 test('a command is named only as a word of its own', () => {
@@ -272,19 +311,32 @@ test('a command is named only as a word of its own', () => {
 	assert.ok(!names('scripts/review-record.mjs', 'review-record'));
 });
 
-test('leaves out workflows, tests, files outside the scope and untracked files', () => {
+test("leaves out the real manifest's exclusions, files outside the scope and untracked files", () => {
 	const { status, out } = run(
 		fixture(
 			{
 				'.github/workflows/w.yml': 'run: gh pr merge 1\n',
 				'scripts/a.test.mjs': "'gh pr merge'\n",
-				'scripts/tests/b.py': '["gh", "pr", "merge"]\n',
+				'scripts/botcore_factory/gateway/b.py': '["gh", "pr", "merge"]\n',
 				'packages/core/c.ts': "'gh pr merge'\n",
 			},
-			{ untracked: { 'docs/scratch.md': 'gh pr merge 1\n' } }
+			{
+				untracked: { 'docs/scratch.md': 'gh pr merge 1\n' },
+				manifest: manifest({
+					exclude: [
+						...REAL.door.exclude.filter((e) => e.glob === '**/*.test.mjs'),
+						{ glob: 'scripts/botcore_factory/gateway/**', reason: 'The door.' },
+					],
+				}),
+			}
 		)
 	);
 	assert.equal(status, 0, out);
+});
+
+test("the real manifest's exclusions each say why", () => {
+	assert.ok(REAL.door.exclude.length > 0);
+	for (const { glob, reason } of REAL.door.exclude) assert.ok(reason.length > 20, glob);
 });
 
 test('refuses an allowed file once its milestone has landed', () => {
@@ -293,8 +345,8 @@ test('refuses an allowed file once its milestone has landed', () => {
 			{ 'scripts/claim.mjs': "gh(['issue', 'edit', n]);\n" },
 			{
 				manifest: manifest({
-					milestones: { G1: { landed: true, afd: [] } },
-					allow: [{ repo: 'afd', path: 'scripts/claim.mjs', until: 'G1' }],
+					milestones: { G1: { landed: true, files: [] } },
+					allow: [allowed('scripts/claim.mjs', 'G1')],
 				}),
 			}
 		)
@@ -312,11 +364,7 @@ test('an allow entry expires once its file holds no write or is gone', () => {
 			{ 'docs/runbook.md': 'Ask the gateway: `issue-comment`.\n' },
 			{
 				manifest: manifest({
-					allow: [
-						{ repo: 'afd', path: 'docs/runbook.md', until: 'G5' },
-						{ repo: 'afd', path: 'docs/gone.md', until: 'G1' },
-						{ repo: 'lushly', path: 'docs/elsewhere.md', until: 'G1' },
-					],
+					allow: [allowed('docs/runbook.md', 'G5'), allowed('docs/gone.md', 'G1')],
 				}),
 			}
 		)
@@ -327,7 +375,6 @@ test('an allow entry expires once its file holds no write or is gone', () => {
 		/docs\/runbook\.md: door\.allow .* holds no write the door refuses: delete its entry/
 	);
 	assert.match(out, /docs\/gone\.md: door\.allow .* but it is not tracked/);
-	assert.doesNotMatch(out, /elsewhere/);
 });
 
 test('a landed milestone needs each listed file to exist and name each command', () => {
@@ -342,14 +389,13 @@ test('a landed milestone needs each listed file to exist and name each command',
 					milestones: {
 						G1: {
 							landed: true,
-							afd: [
+							files: [
 								{ path: 'docs/runbook.md', names: ['issue-claim', 'pr-status'] },
 								{ path: 'docs/missing.md', names: ['pr-merge'] },
 								{ path: 'docs/paths.md', names: ['issue-claim'] },
 							],
-							lushly: [{ path: 'docs/lushly-only.md', names: ['x'] }],
 						},
-						G2: { landed: false, afd: [{ path: 'docs/runbook.md', names: ['review-record'] }] },
+						G2: { landed: false, files: [{ path: 'docs/runbook.md', names: ['review-record'] }] },
 					},
 				}),
 			}
@@ -359,8 +405,31 @@ test('a landed milestone needs each listed file to exist and name each command',
 	assert.match(out, /docs\/runbook\.md: G1 has landed, so this file must name `pr-status`/);
 	assert.doesNotMatch(out, /runbook\.md: .*`issue-claim`/);
 	assert.match(out, /docs\/paths\.md: G1 has landed, so this file must name `issue-claim`/);
-	assert.match(out, /docs\/missing\.md: G1 has landed and lists this file, which is not tracked/);
-	assert.doesNotMatch(out, /lushly-only|review-record/);
+	assert.match(out, /docs\/missing\.md: G1 lists this file, which is not tracked/);
+	assert.doesNotMatch(out, /review-record/);
+});
+
+test('a milestone not yet landed still needs each listed file tracked, so a rename fails at once', () => {
+	const listed = (path) => ({ G3: { landed: false, files: [{ path, names: ['gateway-wait'] }] } });
+	const renamed = run(
+		fixture(
+			{ 'docs/new-name.md': 'Wait.\n' },
+			{ manifest: manifest({ milestones: listed('docs/old-name.md') }) }
+		)
+	);
+	assert.equal(renamed.status, 1);
+	assert.match(
+		renamed.out,
+		/docs\/old-name\.md: G3 lists this file, which is not tracked: if it moved, list it by its new path/
+	);
+	// Followed by the manifest, the same rename passes: G3 has not landed, so no name is asked for.
+	const followed = run(
+		fixture(
+			{ 'docs/new-name.md': 'Wait.\n' },
+			{ manifest: manifest({ milestones: listed('docs/new-name.md') }) }
+		)
+	);
+	assert.equal(followed.status, 0, followed.out);
 });
 
 test('a scope glob that matches no tracked file fails, so the scan cannot shrink unseen', () => {
@@ -368,36 +437,85 @@ test('a scope glob that matches no tracked file fails, so the scan cannot shrink
 		fixture({}, { manifest: manifest({ scope: ['AGENTS.md', 'docs/operations/**'] }) })
 	);
 	assert.equal(status, 1);
-	assert.match(out, /door\.scope\.afd glob docs\/operations\/\*\* matches no tracked file/);
+	assert.match(out, /door\.scope glob docs\/operations\/\*\* matches no tracked file/);
 });
 
 test('refuses a manifest it cannot trust', () => {
 	const m = manifest({
 		allow: [
-			{ repo: 'afd', path: 'a', until: 'G9' },
-			{ repo: 'afd', path: 'b', until: 'G1' },
-			{ repo: 'afd', path: 'b', until: 'G5' },
-			{ repo: 'other', path: 'c', until: 'G1' },
-			{ repo: 'afd', path: 'd', until: 'G4' },
+			allowed('a', 'G9'),
+			allowed('b', 'G1'),
+			allowed('b', 'G5'),
+			{ path: 'c', until: 'G1', issue: ISSUE },
+			{ ...allowed('d', 'G1'), reason: '   ' },
+			{ ...allowed('e', 'G1'), issue: 'lushly#2392' },
+			{ ...allowed('f', 'G1'), issue: 'https://github.com/lushly-dev/afd/pull/12' },
+			{ ...allowed('g', 'G1'), issue: `see ${ISSUE}` },
+			{ ...allowed('g2', 'G1'), issue: `${ISSUE} and more` },
+			{ ...allowed('h', 'G1'), owner: 'x' },
 		],
+		exclude: [{ glob: 'x/**' }, { reason: 'No glob.' }],
 	});
-	m.milestones.G7 = { landed: 'yes' };
-	m.door.patterns.push('gh (pr');
-	delete m.door.scope.afd;
-	const problems = validateManifest(m, 'afd').join('\n');
+	m.milestones.G7 = { landed: 'yes', files: [] };
+	m.milestones.G2 = { landed: false };
+	m.milestones.G3 = { landed: false, files: [], afd: [] };
+	delete m.milestones.G4;
+	m.lushly = {};
+	m.patterns = [];
+	m.door.patterns = ['gh pr merge'];
+	m.door.argvPatterns = [];
+	delete m.door.scope;
+	const problems = validateManifest(m).join('\n');
 	assert.match(problems, /unknown milestone G7/);
 	assert.match(problems, /G7\.landed must be true or false/);
-	assert.match(problems, /does not compile/);
-	assert.match(problems, /door\.scope\.afd must list/);
+	assert.match(problems, /G2\.files must be a list/);
+	assert.match(problems, /G3 has an unknown key "afd"/);
+	assert.match(problems, /milestones must hold G4/);
+	assert.match(problems, /the manifest has an unknown key "lushly"/);
+	assert.match(problems, /the manifest has an unknown key "patterns"/);
+	assert.match(problems, /door\.patterns is not read: the patterns are DOOR_PATTERNS/);
+	assert.match(problems, /door\.argvPatterns is not read/);
+	assert.match(problems, /door\.scope must list/);
 	assert.match(problems, /allow\[0\]\.until must name a milestone in the manifest/);
-	// G4 is a milestone, but this manifest holds no G4 whose `landed` could expire the entry.
-	assert.match(problems, /allow\[4\]\.until must name a milestone in the manifest/);
-	assert.match(problems, /names afd:b twice/);
-	assert.match(problems, /allow\[3\]\.repo must be one of/);
-	assert.deepEqual(validateManifest(manifest(), 'afd'), []);
+	assert.match(problems, /names b twice/);
+	assert.match(problems, /allow\[3\]\.reason must say why/);
+	assert.match(problems, /allow\[4\]\.reason must say why/);
+	for (const i of [5, 6, 7, 8])
+		assert.match(problems, new RegExp(`allow\\[${i}\\]\\.issue must link the GitHub issue`));
+	assert.match(problems, /door\.allow\[9\] has an unknown key "owner"/);
+	assert.match(problems, /door\.exclude\[0\]\.reason must say why/);
+	assert.match(problems, /door\.exclude\[1\] needs a glob/);
+	assert.match(validateManifest({ ...manifest(), version: 1 }).join('\n'), /version must be 2/);
+	assert.match(validateManifest({ ...manifest(), repo: '' }).join('\n'), /repo must name/);
+	const shapes = validateManifest({ version: 2, repo: 'afd', door: { scope: ['a'], allow: {} } });
+	assert.match(shapes.join('\n'), /milestones must be an object/);
+	assert.match(shapes.join('\n'), /door\.allow must be a list/);
+	assert.match(shapes.join('\n'), /door\.exclude must be a list/);
+	assert.match(validateManifest('x').join('\n'), /must be a JSON object/);
+	assert.deepEqual(validateManifest(manifest()), []);
 	const { status, out } = run(fixture({}, { manifest: m }));
 	assert.equal(status, 1);
 	assert.match(out, /manifest: unknown milestone G7/);
+});
+
+test("names a missing manifest, and refuses another repository's half", () => {
+	const missing = run(fixture({}), '--manifest', 'nowhere.json');
+	assert.equal(missing.status, 2);
+	assert.match(
+		missing.out,
+		/cannot read the manifest nowhere\.json \(ENOENT\); pass this repository's/
+	);
+	const root = fixture({}, { manifest: manifest({ repo: 'lushly' }) });
+	execFileSync('git', ['remote', 'add', 'origin', 'https://github.com/lushly-dev/afd.git'], {
+		cwd: root,
+		env: clean,
+	});
+	const wrong = run(root);
+	assert.equal(wrong.status, 1);
+	assert.match(
+		wrong.out,
+		/is lushly's half, but this repository is https:\/\/github\.com\/lushly-dev\/afd/
+	);
 });
 
 test('globs: ** spans directories, also none, and * stays within one', () => {

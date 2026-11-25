@@ -428,7 +428,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   and `run-fleet`. The manifest is now a factory gate path, so a repair cannot add an exemption.
   Not covered yet:
   - the cell hook, which G1 lists once it exists;
-  - Lushly's own check;
+  - Lushly's own check (its half of the manifest moves to Lushly, a later entry that day);
   - proof that `.claude/settings.json` denies `gh` writes. G1's entry asks only that the file
     name `gh` and `git push`, which a read permission satisfies.
 - 2026-11-24: `install.sh` builds beside the running gateway and switches (the follow-up of
@@ -486,6 +486,44 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   gateway's log (root only) for the mirrors' fetch at start. Lushly's lane does not call the
   gateway yet: its foreman found no call in `scripts/merge-lane*.mjs`, and Lushly's `main`
   names the gateway only in `SETUP.md`.
+- 2026-11-24: each repository keeps its own half of the process manifest (`process.json`
+  version 2), by Lushly's foreman's direction. The manifest's Lushly entries had gone stale:
+  Lushly's skills overhaul (lushly#2587) renamed `do-init-lushly`, `do-triage`, `do-run-fleet`,
+  `do-end-session`, `do-prepare-pr` and `do-sweep`, and nothing in Lushly could see a copy kept
+  in AFD.
+  - **AFD's half** stays in this folder, holding only AFD's files.
+  - **Lushly's half** moves to Lushly's `Docs/operations/factory-gateway/process.json`, built in
+    Lushly's pull request for lushly#2392. Until that merges, no manifest lists Lushly's files.
+    That half was prepared from the old entries, renamed, with a door scope at Lushly's paths. Run
+    against Lushly's `main` at `f430fcc8`, AFD's checker found three writers nobody had allowed:
+    - the triage skill's `references/epics.md`, now allowed until G1;
+    - `scripts/issue-claim.mjs`, until G1;
+    - `scripts/post-merge-backstop.mjs`, until G4. Only a workflow runs it, with Actions' own
+      token. The proposal's G4 now lists the decision whether such scripts stay outside the door.
+
+    With those three allowed, it passed: 603 files read, 13 allowed.
+  - **The checker** now holds the door's patterns (`DOOR_PATTERNS`, unchanged), so Lushly's
+    sync of the one file carries them.
+  - **New checks:**
+    - Every listed file must be tracked, whether or not its milestone has landed, so a rename
+      fails until the manifest follows it.
+    - Every allow entry needs a `reason` and an `issue` (a GitHub issue URL). AFD's entries link
+      the epic, and Lushly's G1 entries link lushly#2392.
+    - Exclusions are now exemptions like the rest. Each gives its reason, and fails once it
+      removes nothing in scope (`.github/workflows/**`, `**/*.test.ts` and `**/tests/**` went
+      for that reason). A scope glob that reads no file once exclusions apply fails too.
+    - The shape is checked strictly: all six milestones, no unknown key (a version-1 leftover
+      fails), a clear message for a missing manifest. `repo` must name the origin remote's
+      repository.
+  - **Docstrings:** two of the factory's, in `lane_merge.py` and `world.py`, only said the lane
+    never uses `gh pr merge`. They are reworded and their allow entries deleted, so AFD now
+    allows 9 files.
+  - **Watched it fail:** a listed path renamed back to `do-run-fleet` and an allow entry without
+    its issue each failed with its message, then passed once restored. Eight mutations of the
+    new rules each failed a test.
+  - **Reviews:** Opus 5.5 reviewed the stale entries' fix (approved) and then the split
+    (approved). Its improvements were taken: exclusions, the strict shape, `repo`, the
+    reasons, and four mutations the tests had missed.
 - 2026-11-14: filed [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392), Lushly's side
   of G1 (claim script, lane steps, flake filer, process files and checks), as G1 started.
 

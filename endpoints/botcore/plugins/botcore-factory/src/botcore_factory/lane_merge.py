@@ -13,7 +13,7 @@ Nothing advances while coverage a gate-path merge owes has not passed.
 Asking GitHub to merge is not the merge. After asking, the lane reads what happened
 (``merge_progress``): merged, and the branch lands as before; or, where the base takes merges only
 through a merge queue, queued. There the lane asks with ``enqueue_pr`` (GraphQL
-``enqueuePullRequest``, bound to the validated head), never ``gh pr merge``, which would set
+``enqueuePullRequest``, bound to the validated head), never the CLI's merge, which would set
 auto-merge on a pull request whose checks had not finished. A queued branch waits at the front in
 state ``merge-queued``, read again each step, until it is ``MERGED`` (it lands) or it left the
 queue unmerged (it is ejected: ``ci-failed`` when the required check failed on the commit the
