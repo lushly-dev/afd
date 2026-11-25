@@ -1,9 +1,9 @@
 # Violet in Loam: the plugin's specification
 
-The normative specification of the [Violet in Loam proposal](../../../../../docs/features/active/violet-app/violet-app.proposal.md),
+The normative specification of the [Violet in Loam proposal](../../../../../docs/features/complete/violet-app/violet-app.proposal.md),
 approved by the owner on 2026-11-16 with every recommendation in its section 12 accepted. It
 specifies interfaces, schemas, contracts and tests, and no implementation bodies. Read the
-[status](../../../../../docs/features/active/violet-app/STATUS.md) first. Issue
+[status](../../../../../docs/features/complete/violet-app/STATUS.md) first. Issue
 [#2205](https://github.com/lushly-dev/afd/issues/2205), under epic
 [#1556](https://github.com/lushly-dev/afd/issues/1556); the build is
 [#2207](https://github.com/lushly-dev/afd/issues/2207).
@@ -18,7 +18,7 @@ specifies interfaces, schemas, contracts and tests, and no implementation bodies
 - **Covers:** the package and its manifest (3), the `violet-tree` document type (4), the engine
   port (5), the twenty-two commands and `document-create` (6), the screens and the Specimen
   matrix (7), CI and the D109 boundary (8), and the verification of exit criteria 1, 2 and 4 of
-  the proposal's [section 10](../../../../../docs/features/active/violet-app/violet-app.proposal.md#10-exit-criteria)
+  the proposal's [section 10](../../../../../docs/features/complete/violet-app/violet-app.proposal.md#10-exit-criteria)
   (9). Exit criterion 3 was verified by [#1974](https://github.com/lushly-dev/afd/issues/1974).
 - **Does not cover:** the mounted `violet-server` behind the same port (the proposal's question
   2, after phase 5 or the plugin-engine specification); agents inside Loam (phase 5); Lushly's
