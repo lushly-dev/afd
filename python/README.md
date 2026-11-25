@@ -557,6 +557,30 @@ URL, share both and pass `instances="multiple"` to `create_server(...)`:
   `sse_app`, or `run` / `run_async` over HTTP) logs one warning per process to stderr;
   `instances="single"` silences it, and stdio logs nothing.
 
+## Application authentication (`afd.auth`)
+
+`afd.auth` provides the provider-agnostic `AuthAdapter` protocol, discriminated `AuthSessionState` models (`UNAUTHENTICATED`, `LOADING`, `AuthenticatedSessionState`), `AuthAdapterError`, `ListenerSet`, `create_auth_middleware`, `create_auth_commands` (`auth-sign-in`, `auth-sign-out`, `auth-session-get`), and `MockAuthAdapter`.
+
+```python
+from afd.auth import MockAuthAdapter, create_auth_commands, create_auth_middleware
+from afd.server import create_server, is_verified_credentials
+
+adapter = MockAuthAdapter()
+server = create_server(
+    "my-app",
+    middleware=[
+        create_auth_middleware(
+            adapter,
+            is_verified_credentials=is_verified_credentials,
+        )
+    ],
+)
+for cmd in create_auth_commands(adapter):
+    server.register(cmd)
+```
+
+On a server configured with MCP bearer-token `auth`, pass `is_verified_credentials=is_verified_credentials` from `afd.server`; `create_server(...)` refuses to start with an `afd.auth` middleware lacking it (directly or inside `compose_middleware`). `create_journal_middleware` skips `auth-*` commands by default.
+
 ## CLI
 
 ```bash
@@ -590,7 +614,7 @@ explicitly authorizes one retry. JSON or noninteractive calls remain held withou
 
 | Extra       | Contents                                                             |
 | ----------- | -------------------------------------------------------------------- |
-| (core)      | `CommandResult`, `success()`, `error()`, error types, metadata types |
+| (core)      | `CommandResult`, `success()`, `error()`, error types, metadata types, `afd.auth` |
 | `[server]`  | MCP server factory, `@define_command`, `create_server()`             |
 | `[client]`  | `McpClient`, SSE/HTTP transports, handoff connection handlers       |
 | `[cli]`     | Click-based CLI for connecting to MCP servers                        |

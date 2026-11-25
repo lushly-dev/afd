@@ -119,7 +119,12 @@ def _command_type_name(command_name: str) -> str:
 
 def _render_named_typescript_type(name: str, schema: dict[str, Any] | None) -> str:
     rendered = _schema_to_typescript(schema)
-    if schema and schema.get("type") == "object" and rendered.startswith("{"):
+    if (
+        schema
+        and schema.get("type") == "object"
+        and not any(key in schema for key in ("oneOf", "anyOf", "allOf"))
+        and rendered.startswith("{")
+    ):
         return f"export interface {name} {rendered}"
     return f"export type {name} = {rendered};"
 

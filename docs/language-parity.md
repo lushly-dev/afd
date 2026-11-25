@@ -35,7 +35,7 @@ Versions below describe repository manifests; repository versions alone do not i
 | Version | 2.5.0 | 0.13.0 | 0.3.0 | 0.3.0 |
 | Contract | 1.0-rc (`AFD_CONTRACT_VERSION`) | 1.0-rc (`afd.CONTRACT_VERSION`) | 1.0-rc (`afd::CONTRACT_VERSION`) | 1.0-rc (`afd::contract_version`) |
 | Distribution | npm | PyPI | [crates.io](https://crates.io/crates/afd); published 0.3.0 | CMake `FetchContent`, `find_package`, `add_subdirectory`; published [cpp-v0.3.0](https://github.com/lushly-dev/afd/releases/tag/cpp-v0.3.0) |
-| Scope | Full stack: core, MCP server, MCP client, DirectClient, CLI, auth, testing, UI packages | Full stack in one package: core, MCP server (the `mcp` SDK's `MCPServer`), client, DirectClient, CLI, testing, platform and connectors | Core library, validating registry, batch, pipeline and stream executors, bootstrap commands, optional MCP server (`server` feature), approval-aware in-process `DirectClient`. No remote client | Core library, validating registry, middleware, `DirectClient`, batch, pipeline and stream executors, commands as MCP tools (`afd/mcp.hpp`), and an opt-in MCP stdio server (`afd::mcp_stdio`). No client |
+| Scope | Full stack: core, MCP server, MCP client, DirectClient, CLI, auth, testing, UI packages | Full stack in one package: core, MCP server (the `mcp` SDK's `MCPServer`), client, DirectClient, CLI, auth (`afd.auth`), testing, platform and connectors | Core library, validating registry, batch, pipeline and stream executors, bootstrap commands, optional MCP server (`server` feature), approval-aware in-process `DirectClient`. No remote client | Core library, validating registry, middleware, `DirectClient`, batch, pipeline and stream executors, commands as MCP tools (`afd/mcp.hpp`), and an opt-in MCP stdio server (`afd::mcp_stdio`). No client |
 | Todo backend | stdio (SDK v2), both MCP eras | stdio (`mcp` 2.x), both eras | stdio and Streamable HTTP (`server` feature, on axum), both eras | stdio (hand-rolled), both eras |
 | CI | `ci.yml` (`pnpm check`) | `python.yml` | `rust.yml` | `cpp.yml` |
 | Skill | `afd-typescript` | `afd-python` | `afd-rust` | `afd-cpp` |
@@ -145,7 +145,7 @@ Rendered from [`spec/capabilities/`](../spec/capabilities/README.md) (`typescrip
 | `defaultMiddleware()`: trace ID, logging, timing | Yes | Yes | Yes (#1600): `default_middleware`, `create_auto_trace_id_middleware`, `create_logging_middleware`, `create_timing_middleware` | Yes |
 | Retry, rate limit, telemetry | Yes | Yes | Yes (#1600): `create_retry_middleware`, `create_rate_limit_middleware`, `create_telemetry_middleware` | Yes (#547): `create_retry_middleware`, `create_rate_limit_middleware`, `create_telemetry_middleware` |
 | Tracing (OpenTelemetry-shaped), `composeMiddleware` | Yes | Yes | Partial (#1600): `compose_middleware`; tracing middleware is N/A: a host wraps calls in `tracing` or OpenTelemetry spans in its own middleware | Partial (#547): `compose_middleware`; tracing middleware is N/A (D6) |
-| Auth middleware | Yes (`packages/auth`) | No (planned per D6) | No (planned per D6) | N/A: built by the host |
+| Auth middleware | Yes (`packages/auth`) | Yes (D6, #549): `afd.auth.create_auth_middleware` with `is_verified_credentials` backstop on token-authorized servers | N/A: built by the host (D6) | N/A: built by the host |
 | Approval middleware (`APPROVAL_REQUIRED`, signed tokens) | Yes (`createApprovalMiddleware`, on WebCrypto; also in browsers through `@lushly-dev/afd-server/direct`) | Yes (`create_approval_middleware`; tokens verify across languages) | Yes (`create_approval_middleware`, `approval` feature, default; tokens verify across languages) | Yes (#422): `create_approval_middleware` and `canonical_json`, evidence in `CommandContext::approval`; tokens match TS byte for byte; configuration errors return `Expected` |
 | Declared approval policy held without the middleware (`APPROVAL_UNAVAILABLE`, [`spec/command-metadata.md`](../spec/command-metadata.md#approvals)) | Yes (`createMcpServer`, `createDirectRegistry`; core's `createCommandRegistry` has no check) | Yes (`create_server`, `create_direct_registry`; core's `create_command_registry` has no check; [#1886](https://github.com/lushly-dev/afd/issues/1886)) | Yes ([#1886](https://github.com/lushly-dev/afd/issues/1886), #2029): `CommandRegistry::execute` refuses unadmitted calls; `ApprovalMiddlewareOptions::from_secret` makes the command list optional | Yes ([#1886](https://github.com/lushly-dev/afd/issues/1886)): `CommandRegistry::execute` refuses an unadmitted call, so `DirectClient`, batches, pipelines and `afd::mcp_stdio` do too; `ApprovalMiddlewareOptions::commands` is optional |
 | Private DirectClient/registry approval exchange | Yes (credentials stay out of results; public approval context is stripped) | Yes (#460): `on_approval_needed`, validating `create_direct_registry`, private CLI `--module`/`--approve` | Yes (#460): approval-aware `DirectClient.call` with async hook, one total deadline; raw registry remains a trusted host API | Yes (#460): `on_approval_needed`, private call/pipe retries; raw registry remains a trusted host API, hooks use cooperative cancellation |
@@ -176,7 +176,7 @@ Rendered from [`spec/capabilities/`](../spec/capabilities/README.md) (`typescrip
 | Capability | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
 | `HandoffResult`, `createHandoff`, default reconnect policy (3 attempts, 1000 ms) | Yes | Yes (#545 candidate): fresh shared default policy | Partial: `is_handoff_protocol` and `is_handoff_command` mean different things; `handoff:<p>` tags are ignored | Yes |
-| Handoff client: WebSocket and SSE handlers, reconnect | Yes: reconnect falls back to the default policy | Yes (#545 candidate): metadata then shared default; explicit options win | No (no remote client) | No: not declared |
+| Handoff client: WebSocket and SSE handlers, reconnect | Yes: reconnect falls back to the default policy | Yes (#545 candidate): metadata then shared default; explicit options win | N/A: no remote client (D6) | N/A: no remote client (D6) |
 | `TelemetryEvent`, `TelemetrySink` | Yes | Partial: the core event serializes snake_case, and the middleware defines a second copy | Partial: `durationMs` is an integer | Yes (#547): `afd/telemetry.hpp` (`TelemetryEvent`, `TelemetrySink`, `create_telemetry_event`, `is_telemetry_event`, `ConsoleTelemetrySink`) |
 | Telemetry middleware | Yes | Yes | Yes (#1600): `create_telemetry_middleware` | Yes (#547): `create_telemetry_middleware` |
 | `calculateSimilarity`, `findSimilarTools` (128 cap, 0.4 threshold) | Yes | Yes (not exported from `afd`) | Yes (counts chars, not UTF-16 units) | Yes |
@@ -220,17 +220,17 @@ Rendered from [`spec/capabilities/`](../spec/capabilities/README.md) (`typescrip
 <!-- generated:capabilities:parity.clients-tooling:start -->
 | Capability | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| MCP client: call, batch, pipe, stream | Yes: `streamable-http` (SDK v2, `protocolMode`) by default; `sse`/`http` deprecated | Partial: `StreamableHttpTransport` (`mcp.Client`, `protocol_mode`) by default; reconnect refreshes discovery without replaying calls; `stream` needs a server with `/stream` (#548). Deprecated `http` sends no session ID (see Intended differences) | No (no remote client) | No: not declared |
+| MCP client: call, batch, pipe, stream | Yes: `streamable-http` (SDK v2, `protocolMode`) by default; `sse`/`http` deprecated | Partial: `StreamableHttpTransport` (`mcp.Client`, `protocol_mode`) by default; reconnect refreshes discovery without replaying calls; `stream` needs a server with `/stream` (#548). Deprecated `http` sends no session ID (see Intended differences) | N/A: no remote client (D6) | N/A: no remote client (D6) |
 | Browser-safe MCP transport (`StreamableHttpTransport` at `@lushly-dev/afd-client/streamable-http`, with no Node.js builtin or `eventsource` of ours and a 340,000-byte budget; Loam phase 1 step 0a) | Yes | N/A | N/A | N/A |
 | In-process client (`DirectClient`) with `allow`, exposure, timeout, `pipe` | Yes | Yes (#545 candidate): validating `create_direct_registry` enforces exposure; fail-closed `allow` (carried into nested calls), ordered middleware and millisecond deadlines on `DirectClient`; legacy registries remain host adapters | Partial: approval-aware `DirectClient.call` with agent exposure and total deadline; no `pipe`, `allow` or unknown-tool helper | Yes (see [defects](#defects-found-in-this-review)) |
 | `DirectClient` interface selection (the interface calls run as, default `agent`, so a CLI host calls CLI-exposed commands) | Yes (`createDirectRegistry({ interface })`) | Yes (`DirectCommandRegistry(server, interface=...)`) | Yes (added in Rust crate Unreleased): `DirectClient::with_interface` | Yes: `DirectClientOptions::surface` |
-| CLI | Yes | Partial: `batch` and `stream` take TypeScript's arguments (#548); `call` and `shell` take JSON or `key=value`, and commands send `-H`/`AFD_HEADERS` (#1822); connection is `--server`; `stream` needs `/stream`. No `scenario` | N/A | N/A |
+| CLI | Yes | Partial: `batch` and `stream` take TypeScript's arguments (#548); `call` and `shell` take JSON or `key=value`, and commands send `-H`/`AFD_HEADERS` (#1822); connection is `--server`; `stream` needs `/stream`. No `scenario` | N/A: no Rust CLI (D6) | N/A: no C++ CLI (D6) |
 | CLI OAuth 2.1 client ([`spec/authorization.md`](../spec/authorization.md#m9-the-oauth-client-cli), M9) | Yes ([#912](https://github.com/lushly-dev/afd/issues/912)): `afd auth` (`login`, `status`, `refresh`, `logout`), RFC 9728/8414 discovery, CIMD and pre-registration, PKCE S256 loopback flow, separate `tokens.json` with refresh rotation and URL/header redaction; loads `spec/authorization-client.json` | Planned ([#2491](https://github.com/lushly-dev/afd/issues/2491)): OAuth 2.1 CLI client (`spec/authorization.md`, M9) | N/A: no Rust CLI | N/A: no C++ CLI |
-| Auth adapter | Yes | No (planned per D6) | No (planned per D6) | N/A: built by the host |
-| Testing: JTBD scenarios, surface validation (13 rules), assertions | Yes | Yes | No (N/A per D6) | No (N/A per D6) |
+| Auth adapter | Yes | Yes (D6, #549): `afd.auth` (`AuthAdapter`, `MockAuthAdapter`, `create_auth_commands`, `create_auth_middleware`) | N/A: built by the host (D6) | N/A: built by the host |
+| Testing: JTBD scenarios, surface validation (13 rules), assertions | Yes | Yes | N/A: exercised through the TypeScript CLI and scenario runner over MCP (D6) | N/A: exercised through the TypeScript CLI and scenario runner over MCP (D6) |
 | UI: view-state, adapters, local-db, React hooks | Yes | N/A | N/A | N/A |
 | Browser stores: `IndexedDbAdapter` (`@lushly-dev/local-db/indexeddb`) with the adapter contract suite (`@lushly-dev/local-db/testing`), and `IndexedDbJournalSink` with its Web Lock writer rule (`@lushly-dev/afd-core/journal-indexeddb`) | Yes | N/A | N/A | N/A |
-| Platform utilities and connectors (exec, GitHub, package manager) | Yes (subpath exports) | Yes | Partial: types only | Deferred (connectors) |
+| Platform utilities and connectors (exec, GitHub, package manager) | Yes (subpath exports) | Yes | Partial: types only; further connectors N/A (D6) | N/A: no connectors beyond existing implementations (D6) |
 <!-- generated:capabilities:parity.clients-tooling:end -->
 
 ## Intended differences
@@ -259,20 +259,19 @@ These gaps are appropriate. They follow the framework-agnostic rule, a language'
 
 ## Declared deferred
 
-These gaps are planned. They are listed so the name budgets stay honest. D1/D2/D6 in the [closure plan](./features/active/parity-closure/parity-closure.plan.md) explicitly cover the native server targets, remaining native middleware/stream work and Python auth. The historical "undeclared" inventory below is retained for context; those decisions are now accepted plans.
+These gaps are planned. They are listed so the name budgets stay honest. D1/D2/D6 in the [closure plan](./features/active/parity-closure/parity-closure.plan.md) explicitly cover the native server targets, remaining native middleware/stream work, and D6 role boundaries (with Python `afd.auth` shipped for #549). The historical "undeclared" inventory below is retained for context; those decisions are now accepted plans.
 
 - **C++** (the [proposal scope table](./features/complete/cpp-support/proposal.md#scope) and work plan PR 5a):
   - MCP JSON-RPC types (the `afd::mcp_stdio` server and the command-to-tool helpers landed in #341);
-  - connectors;
   - `CommandParameter`;
   - streamable-command metadata.
 - **Rust** (the rows above): the full per-command `_meta` on an individual tool, which a grouped tool's `_meta.actions` entries already carry, and reserved meta-tool names at registration.
 
-**Accepted role decisions (D6).** Native MCP clients, CLIs, testing toolkits and handoff clients are N/A; Python auth is planned. Remaining implementation gaps include:
+**Accepted role decisions (D6).** Native MCP clients, CLIs, testing toolkits, handoff clients, and Rust/C++ application auth are N/A; Python application auth (`afd.auth`) shipped in #549 (browser-only `SessionSync`, React hooks, and third-party JS adapters remain TypeScript-only). Notes:
 
 - **C++:** tracing middleware is N/A (`compose_middleware` and retry/rate-limit/telemetry middleware landed in #547).
 - **Rust:** the tracing middleware is N/A, as in C++ (a host wraps calls in `tracing` or OpenTelemetry spans in its own middleware).
-- **Python:** planned auth adapter.
+- **Python:** `afd.auth` provides the core `AuthAdapter` contract, auth middleware (with the `#2524` `is_verified_credentials` server backstop), `auth-*` commands, and `MockAuthAdapter`.
 
 ## Unintended gaps
 

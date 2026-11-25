@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import dataclasses
 import logging
 import os
 from collections.abc import (
@@ -88,6 +89,7 @@ from afd.core.result import (
 from afd.core.schema_validation import (
     DEFAULT_MAX_VALIDATION_ISSUES,
     SchemaValidationError,
+    check_schema,
     resolve_max_validation_issues,
 )
 from afd.core.similarity import truncate_name
@@ -111,6 +113,7 @@ from afd.server.auth import (
     credentials_actor,
     is_trusted_transport,
 )
+from afd.server.auth_middleware_check import assert_auth_middleware_recognises_tokens
 from afd.server.auth_resource import ProtectedResource
 from afd.server.auth_rules import Credentials
 from afd.server.auth_scopes import ScopeChallenge
@@ -321,6 +324,10 @@ class MCPServer:
             instances=config.instances,
             confirmation_key=config.confirmation_key,
             confirmations=config.confirmations,
+            middleware=config.middleware,
+        )
+        assert_auth_middleware_recognises_tokens(
+            has_auth=config.auth is not None,
             middleware=config.middleware,
         )
         self._confirmations: str = config.confirmations
@@ -591,27 +598,86 @@ class MCPServer:
 
         return decorator
 
-    def register(self, func: Callable[..., Any]) -> None:
-        """Register an already-decorated command function.
+    def register(self, func: Callable[..., Any] | CommandDefinition) -> None:
+        """Register a decorated command function or :class:`CommandDefinition`.
 
         Raises:
-            ValueError: If the function is not decorated, or its name is one the
-                server handles itself, as TypeScript's ``assertValidCommandNames``
-                refuses: the router's meta-tools (``afd-call``, ``afd-batch``,
-                ``afd-pipe``, ``afd-discover``, ``afd-detail``), always; ``afd-help``,
+            ValueError: If a callable is not decorated with ``@define_command``,
+                or the command's name is one the server handles itself, as
+                TypeScript's ``assertValidCommandNames`` refuses: the router's
+                meta-tools (``afd-call``, ``afd-batch``, ``afd-pipe``,
+                ``afd-discover``, ``afd-detail``), always; ``afd-help``,
                 ``afd-docs`` and ``afd-schema`` when ``bootstrap=True``; and
-                ``afd-context-list``, ``afd-context-enter`` and ``afd-context-exit``
-                when contexts are configured. Without those options the names are
-                ordinary commands.
+                ``afd-context-list``, ``afd-context-enter`` and
+                ``afd-context-exit`` when contexts are configured. Without
+                those options the names are ordinary commands.
         """
+        metadata: CommandMetadata | None = None
+        if isinstance(func, CommandDefinition):
+            if not callable(func.handler):
+                raise TypeError(f"Command '{func.name}' handler must be callable")
+            if (
+                func.approval is not None
+                and func.approval not in ("required", "not-required")
+                and not callable(func.approval)
+            ):
+                raise TypeError(
+                    f"Command '{func.name}' has an invalid approval policy: "
+                    "use 'required', 'not-required' or a function"
+                )
+            checked_tool_meta = assert_tool_meta(func.name, func.tool_meta)
+            checked_advertised = assert_advertised_input_schema(
+                func.name, func.advertised_input_schema
+            )
+            if func.input_schema is not None:
+                check_schema(func.input_schema)
+            normalized_scopes = validate_command_scopes(func.name, func.scopes)
+            normalized_confirmation_mode = validate_confirmation_mode(
+                func.name, getattr(func, "confirmation_mode", None)
+            )
+            validate_task_declaration(
+                func.name,
+                func.task,
+                confirm_prompt=func.confirm_prompt,
+                approval=func.approval,
+                confirmation_mode=normalized_confirmation_mode,
+            )
+            normalized_output_budget = validate_output_budget_declaration(
+                func.name, func.output_budget
+            )
+            definition = dataclasses.replace(
+                func,
+                tool_meta=checked_tool_meta,
+                advertised_input_schema=checked_advertised,
+                scopes=normalized_scopes,
+                confirmation_mode=normalized_confirmation_mode,
+                output_budget=normalized_output_budget,
+            )
+            handler_func: Callable[..., Any] = definition.handler
+        else:
+            if not has_command_metadata(func):
+                raise ValueError(f"Function {func.__name__} is not decorated with @define_command")
 
-        if not has_command_metadata(func):
-            raise ValueError(f"Function {func.__name__} is not decorated with @define_command")
+            converted = command_to_definition(func)
+            metadata = get_command_metadata(func)
+            if converted is None or metadata is None:
+                raise ValueError(f"Function {func.__name__} is missing command metadata")
+            definition = converted
+            handler_func = func
+            definition.confirmation_mode = validate_confirmation_mode(
+                definition.name, getattr(definition, "confirmation_mode", None)
+            )
+            validate_task_declaration(
+                definition.name,
+                definition.task,
+                confirm_prompt=definition.confirm_prompt,
+                approval=definition.approval,
+                confirmation_mode=definition.confirmation_mode,
+            )
+            definition.output_budget = validate_output_budget_declaration(
+                definition.name, definition.output_budget
+            )
 
-        definition = command_to_definition(func)
-        metadata = get_command_metadata(func)
-        if definition is None or metadata is None:
-            raise ValueError(f"Function {func.__name__} is missing command metadata")
         if definition.name in META_TOOL_NAMES:
             raise ValueError(
                 f"Command name '{definition.name}' is reserved: the tool router handles "
@@ -621,19 +687,6 @@ class MCPServer:
         reserved = self._reserved_name_error(definition.name)
         if reserved is not None:
             raise ValueError(reserved)
-        definition.confirmation_mode = validate_confirmation_mode(
-            definition.name, getattr(definition, "confirmation_mode", None)
-        )
-        validate_task_declaration(
-            definition.name,
-            definition.task,
-            confirm_prompt=definition.confirm_prompt,
-            approval=definition.approval,
-            confirmation_mode=definition.confirmation_mode,
-        )
-        definition.output_budget = validate_output_budget_declaration(
-            definition.name, definition.output_budget
-        )
 
         first_class = self.config.first_class_tools or []
         if definition.name in first_class and not self._is_exposed_to(definition, "mcp"):
@@ -644,8 +697,9 @@ class MCPServer:
             )
 
         self._registry.register(definition)
-        self._commands[definition.name] = func
-        self._metadata[definition.name] = metadata
+        self._commands[definition.name] = handler_func
+        if metadata is not None:
+            self._metadata[definition.name] = metadata
         self._invalidate_caches()
         self._sync_mcp_tool_definitions()
 

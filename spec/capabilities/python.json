@@ -251,9 +251,13 @@
 			"evidence": ["python/src/afd/server/middleware.py"]
 		},
 		"middleware.auth": {
-			"status": "no",
-			"note": "(planned per D6)",
-			"evidence": ["docs/features/active/parity-closure/parity-closure.plan.md"]
+			"status": "yes",
+			"note": "(D6, #549): `afd.auth.create_auth_middleware` with `is_verified_credentials` backstop on token-authorized servers",
+			"evidence": [
+				"python/src/afd/auth/middleware.py",
+				"python/src/afd/server/auth_middleware_check.py",
+				"python/tests/test_auth_adapter.py"
+			]
 		},
 		"middleware.approval": {
 			"status": "yes",
@@ -726,9 +730,14 @@
 			"evidence": ["python/src/afd/cli/main.py", "python/tests/test_cli.py"]
 		},
 		"tooling.auth-adapter": {
-			"status": "no",
-			"note": "(planned per D6)",
-			"evidence": ["docs/features/active/parity-closure/parity-closure.plan.md"]
+			"status": "yes",
+			"note": "(D6, #549): `afd.auth` (`AuthAdapter`, `MockAuthAdapter`, `create_auth_commands`, `create_auth_middleware`)",
+			"evidence": [
+				"python/src/afd/auth/__init__.py",
+				"python/src/afd/auth/commands.py",
+				"python/src/afd/auth/mock.py",
+				"python/tests/test_auth_adapter.py"
+			]
 		},
 		"tooling.testing": {
 			"status": "yes",
