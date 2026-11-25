@@ -550,9 +550,12 @@ registration refuses `task` beside `confirm_prompt`, an approval policy or a `co
 The task's owner is the call's principal binding; `tasks/get`, `tasks/update` and `tasks/cancel`
 answer anyone else, an expired task and an unknown id alike with `-32602` "Task not found". The
 handler runs on a fresh context with a `CancellationSignal` (`context.cancellation()`) that fires on
-`tasks/cancel`, at the task's `ttlMs` and at the token's `expiresAt` (then the task completes with
+`tasks/cancel`, when the task's `max_run_ms` execution budget ends (default 1 hour; completes with
+`TIMEOUT`), at its `ttlMs` and at the token's `expiresAt` (then the task completes with
 `TASK_TOKEN_EXPIRED`, not retryable as it is for a mutation that may have run); the server stops
-the handler then, at its next `.await`.
+the handler then, at its next `.await`. Finished tasks stay readable for `ttl_ms` (default 1 hour)
+after reaching a terminal status, with `ttlMs` starting at `max_run_ms + ttl_ms` and tightening on
+completion to `(finished_at - created_at) + ttl_ms` (capped at token expiry plus grace when set).
 `context.report_progress("indexing")` sets the task's `statusMessage`. The default store is in
 memory, for one process, and bounded (32 tasks per owner, 256 in all, dropping finished tasks to
 make room; at most 64 running per process); a host with several processes supplies a shared

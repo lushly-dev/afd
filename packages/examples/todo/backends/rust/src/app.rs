@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use afd::{
     create_approval_middleware, success, ApprovalMiddlewareOptions, ApprovalPolicy, ApprovalRelay,
-    CommandContext, CommandDefinition, CommandHandler, CommandRegistry, CommandResult,
-    ContextConfig, ExposeOptions,
+    CommandContext, CommandDefinition, CommandHandler, CommandParameter, CommandRegistry,
+    CommandResult, ContextConfig, ExposeOptions, TaskSupport,
 };
 use async_trait::async_trait;
 use serde_json::{json, Value};
@@ -136,5 +136,52 @@ pub fn register_protocol_conformance_command(registry: &CommandRegistry) -> Resu
     });
     registry
         .register(command)
+        .map_err(|error| error.to_string())
+}
+
+struct SlowTask;
+
+#[async_trait]
+impl CommandHandler for SlowTask {
+    async fn execute(&self, input: Value, _context: CommandContext) -> CommandResult<Value> {
+        let delay_ms = input
+            .get("delayMs")
+            .and_then(Value::as_u64)
+            .unwrap_or(0)
+            .min(10_000);
+        tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+        success(json!({ "delayedMs": delay_ms }))
+    }
+}
+
+/// Register the `todo-slow-task` command used by the shared tasks conformance suite
+/// (`TASK_CONFORMANCE=1`) to verify execution run budgets and post-completion retention.
+pub fn register_task_conformance_command(registry: &CommandRegistry) -> Result<(), String> {
+    let command = CommandDefinition::new(
+        "todo-slow-task",
+        "Sleep for delayMs to test task execution budgets and retention",
+        vec![CommandParameter::required_number(
+            "delayMs",
+            "Milliseconds to sleep before returning",
+        )],
+        SlowTask,
+    )
+    .with_expose(ExposeOptions {
+        palette: false,
+        mcp: true,
+        agent: true,
+        cli: false,
+        apps: false,
+    })
+    .with_task(TaskSupport::Optional);
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "delayMs": { "type": "integer", "minimum": 0, "maximum": 10000 }
+        },
+        "required": ["delayMs"]
+    });
+    registry
+        .register_with_schema(command, schema)
         .map_err(|error| error.to_string())
 }

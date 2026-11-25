@@ -49,11 +49,6 @@
 			"reason": "Pre-existing Rust file over 1,500 lines when Rust joined the size gate (#1802)"
 		},
 		{
-			"file": "endpoints/umbel/src/shared/tasks.rs",
-			"lines": 1757,
-			"reason": "Pre-existing Rust file over 1,500 lines when Rust joined the size gate (#1802)"
-		},
-		{
 			"file": "endpoints/umbel/src/workspace/config.rs",
 			"lines": 1905,
 			"reason": "Pre-existing Rust file over 1,500 lines when Rust joined the size gate (#1802)"

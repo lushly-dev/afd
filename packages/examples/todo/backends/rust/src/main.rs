@@ -46,6 +46,14 @@ fn build() -> Result<(ServerConfig, Arc<CommandRegistry>), (ExitCode, String)> {
             )
         })?;
     }
+    if env::var("TASK_CONFORMANCE").as_deref() == Ok("1") {
+        app::register_task_conformance_command(&registry).map_err(|error| {
+            (
+                ExitCode::FAILURE,
+                format!("Could not register task conformance command: {error}"),
+            )
+        })?;
+    }
     Ok((config, registry))
 }
 

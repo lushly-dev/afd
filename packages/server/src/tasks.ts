@@ -19,8 +19,11 @@ import { resultContent, type ToolCallResult } from './tool-router.js';
 /** Extension identifier for MCP Tasks (SEP-2663). */
 export const TASKS_EXTENSION_ID = 'io.modelcontextprotocol/tasks';
 
-/** A task's default `ttlMs`: one hour. */
+/** A task's default post-completion retention (`TaskOptions.ttlMs`): one hour. */
 export const DEFAULT_TASK_TTL_MS = 3_600_000;
+
+/** A task's default execution run budget (`TaskOptions.maxRunMs`): one hour. */
+export const DEFAULT_TASK_MAX_RUN_MS = 3_600_000;
 
 /** A task's default `pollIntervalMs`: one second. */
 export const DEFAULT_TASK_POLL_INTERVAL_MS = 1_000;
@@ -97,9 +100,9 @@ export interface TaskRecord {
 export type TaskChange =
 	| { kind: 'progress'; message: string; at: number }
 	| { kind: 'cancel-requested' }
-	| { kind: 'completed'; result: ToolCallResult; at: number }
-	| { kind: 'failed'; error: TaskRpcError; at: number }
-	| { kind: 'cancelled'; at: number };
+	| { kind: 'completed'; result: ToolCallResult; at: number; ttlMs?: number }
+	| { kind: 'failed'; error: TaskRpcError; at: number; ttlMs?: number }
+	| { kind: 'cancelled'; at: number; ttlMs?: number };
 
 /** Whether `record`'s `ttlMs` has elapsed at `now` (epoch milliseconds). */
 export function isTaskExpired(
@@ -137,15 +140,24 @@ export function applyTaskChange(record: TaskRecord, change: TaskChange): boolean
 			record.status = 'completed';
 			record.result = change.result;
 			record.lastUpdatedAt = change.at;
+			if (change.ttlMs !== undefined) {
+				record.ttlMs = Math.min(record.ttlMs, Math.max(1, change.ttlMs));
+			}
 			return true;
 		case 'failed':
 			record.status = 'failed';
 			record.error = change.error;
 			record.lastUpdatedAt = change.at;
+			if (change.ttlMs !== undefined) {
+				record.ttlMs = Math.min(record.ttlMs, Math.max(1, change.ttlMs));
+			}
 			return true;
 		case 'cancelled':
 			record.status = 'cancelled';
 			record.lastUpdatedAt = change.at;
+			if (change.ttlMs !== undefined) {
+				record.ttlMs = Math.min(record.ttlMs, Math.max(1, change.ttlMs));
+			}
 			return true;
 	}
 }
@@ -355,8 +367,10 @@ export class InMemoryTaskStore implements TaskStore {
 
 /** Server-level MCP Tasks configuration (`McpServerOptions.taskOptions`). */
 export interface TaskOptions {
-	/** Task lifetime from creation in ms (at least 1; default: 3,600,000). */
+	/** Post-completion retention in ms (counted from finish; at least 1; default: 3,600,000). */
 	ttlMs?: number;
+	/** Maximum execution run budget in ms (counted from creation; at least 1; default: 3,600,000). */
+	maxRunMs?: number;
 	/** Suggested polling interval in ms (at least 1; default: 1,000). */
 	pollIntervalMs?: number;
 	/** How often a running task checks deadlines, progress and cancellation in ms (default: 1,000). */
@@ -367,7 +381,8 @@ export interface TaskOptions {
 	maxRunning?: number;
 	/**
 	 * When set (including `0`), cap each task's `ttlMs` at `tokenExpiresAt * 1000 + graceMs`.
-	 * Unset by default (TTL is `ttlMs` alone).
+	 * Unset by default (TTL is `maxRunMs + ttlMs` while working, tightened to elapsed + `ttlMs`
+	 * on finish).
 	 */
 	tokenExpiryGraceMs?: number;
 	/**
@@ -381,6 +396,7 @@ export interface TaskOptions {
 /** Resolved task options with all defaults applied. */
 export interface ResolvedTaskOptions {
 	readonly ttlMs: number;
+	readonly maxRunMs: number;
 	readonly pollIntervalMs: number;
 	readonly checkIntervalMs: number;
 	readonly maxResultBytes: number;
@@ -400,6 +416,7 @@ function positiveInt(value: number | undefined, fallback: number, name: string):
 /** Validate and normalize `TaskOptions`. */
 export function resolveTaskOptions(options: TaskOptions = {}): ResolvedTaskOptions {
 	const ttlMs = positiveInt(options.ttlMs, DEFAULT_TASK_TTL_MS, 'ttlMs');
+	const maxRunMs = positiveInt(options.maxRunMs, DEFAULT_TASK_MAX_RUN_MS, 'maxRunMs');
 	const pollIntervalMs = positiveInt(
 		options.pollIntervalMs,
 		DEFAULT_TASK_POLL_INTERVAL_MS,
@@ -425,6 +442,7 @@ export function resolveTaskOptions(options: TaskOptions = {}): ResolvedTaskOptio
 	}
 	return {
 		ttlMs,
+		maxRunMs,
 		pollIntervalMs,
 		checkIntervalMs,
 		maxResultBytes,
@@ -434,18 +452,47 @@ export function resolveTaskOptions(options: TaskOptions = {}): ResolvedTaskOptio
 	};
 }
 
-/** Compute `ttlMs` for a task created at `nowMs` with optional token `expiresAtSeconds`. */
+function capTtlAtTokenExpiry(
+	options: ResolvedTaskOptions,
+	createdAtMs: number,
+	uncappedTtlMs: number,
+	expiresAtSeconds?: number
+): number {
+	if (options.tokenExpiryGraceMs === undefined || expiresAtSeconds === undefined) {
+		return Math.max(1, Math.min(Number.MAX_SAFE_INTEGER, uncappedTtlMs));
+	}
+	const endMs = expiresAtSeconds * 1000 + options.tokenExpiryGraceMs;
+	const remaining = Math.max(0, endMs - createdAtMs);
+	return Math.max(1, Math.min(uncappedTtlMs, remaining));
+}
+
+/**
+ * Compute initial `ttlMs` (counted from `createdAt`) for a task created at `nowMs` with optional
+ * token `expiresAtSeconds`: `maxRunMs + ttlMs`, capped at token expiry plus grace when configured.
+ */
 export function taskTtlFor(
 	options: ResolvedTaskOptions,
 	nowMs: number,
 	expiresAtSeconds?: number
 ): number {
-	if (options.tokenExpiryGraceMs === undefined || expiresAtSeconds === undefined) {
-		return options.ttlMs;
-	}
-	const endMs = expiresAtSeconds * 1000 + options.tokenExpiryGraceMs;
-	const remaining = Math.max(0, endMs - nowMs);
-	return Math.max(1, Math.min(options.ttlMs, remaining));
+	const total = Math.min(Number.MAX_SAFE_INTEGER, options.maxRunMs + options.ttlMs);
+	return capTtlAtTokenExpiry(options, nowMs, total, expiresAtSeconds);
+}
+
+/**
+ * Compute final `ttlMs` (counted from `createdAtMs`) for a task that reached a terminal state at
+ * `finishedAtMs`: `min(options.maxRunMs, max(0, finishedAtMs - createdAtMs)) + options.ttlMs`,
+ * capped at token expiry plus grace when configured (never wider than initial `ttlMs`).
+ */
+export function finishedTaskTtlFor(
+	options: ResolvedTaskOptions,
+	createdAtMs: number,
+	finishedAtMs: number,
+	expiresAtSeconds?: number
+): number {
+	const elapsed = Math.min(options.maxRunMs, Math.max(0, finishedAtMs - createdAtMs));
+	const total = Math.min(Number.MAX_SAFE_INTEGER, elapsed + options.ttlMs);
+	return capTtlAtTokenExpiry(options, createdAtMs, total, expiresAtSeconds);
 }
 
 const VALID_TASK_SUPPORT = new Set<TaskSupport>(['never', 'optional', 'required']);

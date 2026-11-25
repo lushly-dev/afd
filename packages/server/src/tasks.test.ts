@@ -25,6 +25,10 @@ import { defineCommand } from './schema.js';
 import { createMcpHandler, createMcpServer } from './server.js';
 import { SkillCatalog } from './skills.js';
 import {
+	applyTaskChange,
+	DEFAULT_TASK_MAX_RUN_MS,
+	DEFAULT_TASK_TTL_MS,
+	finishedTaskTtlFor,
 	InMemoryTaskStore,
 	resolveTaskOptions,
 	TASKS_EXTENSION_ID,
@@ -38,6 +42,7 @@ import {
 	isTaskId,
 	newTaskId,
 	TaskRuntime,
+	taskRunTimeoutError,
 	tokenExpiredError,
 } from './tasks-runtime.js';
 import { isVerifiedCredentials } from './verified-credentials.js';
@@ -320,11 +325,13 @@ describe('MCP Tasks unit primitives', () => {
 		expect(isTaskId('a'.repeat(27))).toBe(false);
 	});
 
-	it('prioritizes token expiry over TTL and marks TASK_TOKEN_EXPIRED retryable appropriately', () => {
-		expect(dueTaskStop(10, 10, 10)).toBe('token-expired');
-		expect(dueTaskStop(20, 10, 10)).toBe('ttl-ended');
-		expect(dueTaskStop(undefined, 10, 9)).toBeUndefined();
-		expect(dueTaskStop(10, 20, 9)).toBeUndefined();
+	it('prioritizes token expiry over TTL over run timeout and marks errors retryable appropriately', () => {
+		expect(dueTaskStop(10, 10, 10, 10)).toBe('token-expired');
+		expect(dueTaskStop(20, 10, 10, 10)).toBe('ttl-ended');
+		expect(dueTaskStop(20, 20, 10, 10)).toBe('run-timeout');
+		expect(dueTaskStop(undefined, 20, 10, undefined)).toBeUndefined();
+		expect(dueTaskStop(undefined, 10, 9, 15)).toBeUndefined();
+		expect(dueTaskStop(10, 20, 9, 15)).toBeUndefined();
 
 		const cases: Array<['not-started' | 'running' | 'finished', boolean, boolean]> = [
 			['not-started', true, true],
@@ -338,20 +345,80 @@ describe('MCP Tasks unit primitives', () => {
 			const err = tokenExpiredError(stage, mutation);
 			expect(err.code).toBe(ErrorCodes.TASK_TOKEN_EXPIRED);
 			expect(err.retryable).toBe(retryable);
+
+			const timeoutErr = taskRunTimeoutError(stage, mutation);
+			expect(timeoutErr.code).toBe(ErrorCodes.TIMEOUT);
+			expect(timeoutErr.retryable).toBe(retryable);
 		}
 	});
 
-	it('caps task TTL at token expiry plus grace and validates options', () => {
-		const uncapped = resolveTaskOptions({ ttlMs: 60_000 });
-		expect(taskTtlFor(uncapped, 1_000_000, 1_010)).toBe(60_000);
+	it('separates run budget from post-completion retention, caps at token expiry and validates options', () => {
+		const defaults = resolveTaskOptions();
+		expect(defaults.maxRunMs).toBe(DEFAULT_TASK_MAX_RUN_MS);
+		expect(defaults.ttlMs).toBe(DEFAULT_TASK_TTL_MS);
+		expect(taskTtlFor(defaults, 1_000_000, undefined)).toBe(
+			DEFAULT_TASK_MAX_RUN_MS + DEFAULT_TASK_TTL_MS
+		);
 
-		const capped = resolveTaskOptions({ ttlMs: 60_000, tokenExpiryGraceMs: 5_000 });
+		const uncapped = resolveTaskOptions({ maxRunMs: 20_000, ttlMs: 40_000 });
+		expect(taskTtlFor(uncapped, 1_000_000, 1_010)).toBe(60_000);
+		expect(finishedTaskTtlFor(uncapped, 1_000_000, 1_015_000, 1_010)).toBe(55_000);
+		// Finishing past maxRunMs clamps elapsed to maxRunMs so ttlMs never widens past initial ttlMs
+		expect(finishedTaskTtlFor(uncapped, 1_000_000, 1_025_000, 1_010)).toBe(60_000);
+		// Clock regression clamps elapsed to 0
+		expect(finishedTaskTtlFor(uncapped, 1_000_000, 999_000, 1_010)).toBe(40_000);
+
+		const capped = resolveTaskOptions({
+			maxRunMs: 20_000,
+			ttlMs: 40_000,
+			tokenExpiryGraceMs: 5_000,
+		});
 		expect(taskTtlFor(capped, 1_000_000, 1_010)).toBe(15_000);
+		expect(finishedTaskTtlFor(capped, 1_000_000, 1_005_000, 1_010)).toBe(15_000);
 		expect(taskTtlFor(capped, 1_000_000, 2_000)).toBe(60_000);
 		expect(taskTtlFor(capped, 1_000_000, undefined)).toBe(60_000);
 		expect(taskTtlFor(capped, 1_000_000, 900)).toBe(1);
 
+		const rec: TaskRecord = {
+			id: 'a'.repeat(26),
+			owner: 'alice',
+			command: 'job-echo',
+			status: 'working',
+			createdAt: 1_000,
+			lastUpdatedAt: 1_000,
+			ttlMs: 60_000,
+			pollIntervalMs: 100,
+			cancelRequested: false,
+		};
+		expect(
+			applyTaskChange(rec, {
+				kind: 'completed',
+				result: { content: [], isError: false },
+				at: 6_000,
+				ttlMs: 45_000,
+			})
+		).toBe(true);
+		expect(rec.ttlMs).toBe(45_000);
+
+		// Widening ttlMs on terminal transition is clamped to initial ttlMs
+		const recNoWiden: TaskRecord = {
+			...rec,
+			status: 'working',
+			ttlMs: 60_000,
+			result: undefined,
+		};
+		expect(
+			applyTaskChange(recNoWiden, {
+				kind: 'completed',
+				result: { content: [], isError: false },
+				at: 6_000,
+				ttlMs: 90_000,
+			})
+		).toBe(true);
+		expect(recNoWiden.ttlMs).toBe(60_000);
+
 		expect(() => resolveTaskOptions({ ttlMs: 0 })).toThrow(/ttlMs/);
+		expect(() => resolveTaskOptions({ maxRunMs: 0 })).toThrow(/maxRunMs/);
 		expect(() => resolveTaskOptions({ maxRunning: -1 })).toThrow(/maxRunning/);
 		expect(() => resolveTaskOptions({ tokenExpiryGraceMs: -1 })).toThrow(/tokenExpiryGraceMs/);
 	});
@@ -462,6 +529,7 @@ describe('MCP Tasks registration validation', () => {
 
 describe('MCP Tasks over HTTP', () => {
 	const defaultTaskOptions: TaskOptions = {
+		maxRunMs: TTL_MS,
 		ttlMs: TTL_MS,
 		pollIntervalMs: 20,
 		checkIntervalMs: 5,
@@ -662,7 +730,7 @@ describe('MCP Tasks over HTTP', () => {
 			status: 'working',
 			createdAt: NOW_ISO,
 			lastUpdatedAt: NOW_ISO,
-			ttlMs: TTL_MS,
+			ttlMs: TTL_MS * 2,
 			pollIntervalMs: 20,
 		});
 
@@ -1461,5 +1529,202 @@ describe('MCP Tasks over HTTP', () => {
 			(detailed.result as { structuredContent: { data: { note: string } } }).structuredContent.data
 				.note
 		).toBe('stdio');
+	});
+
+	it('retains a finished task result for ttlMs after finish even past maxRunMs, and times out working tasks', async () => {
+		const runs = { echo: 0, wait: 0, list: 0, aborted: 0 };
+		const waitStarted = deferred();
+		const waitRelease = deferred();
+		const clock = fixedClock(NOW_MS);
+		const http = await listenHandler(
+			createMcpHandler({
+				name: 'retention-test',
+				version: '1.0.0',
+				commands: makeCommands({ runs, waitStarted, waitRelease }),
+				toolStrategy: 'individual',
+				clock,
+				createContext: makeActorContext,
+				taskOptions: {
+					// Default 1h maxRunMs + 1h ttlMs = 2h initial ttlMs
+					pollIntervalMs: 10,
+					checkIntervalMs: 5,
+					callersIdentifiedByHook: true,
+				},
+			})
+		);
+
+		// 1. Task finishes at 55 minutes: stays readable past 1h run budget until finishedAt + 1h
+		const created = await rpc(
+			http.url,
+			'tools/call',
+			{ name: 'job-wait', arguments: {} },
+			{ tasks: true }
+		);
+		const seed = created.body.result as { taskId: string; ttlMs: number };
+		expect(seed.ttlMs).toBe(DEFAULT_TASK_MAX_RUN_MS + DEFAULT_TASK_TTL_MS);
+		await waitStarted.promise;
+
+		clock.advance(55 * 60_000);
+		waitRelease.resolve();
+		const done = await pollUntilSettled(http.url, seed.taskId);
+		expect(done.status).toBe('completed');
+		expect(done.ttlMs).toBe(55 * 60_000 + DEFAULT_TASK_TTL_MS);
+
+		// Past 1h from creation (5m after finish) and 1ms before finishedAt + 1h -> still readable
+		clock.advance(10 * 60_000);
+		const stillThere = await rpc(http.url, 'tasks/get', { taskId: seed.taskId }, { tasks: true });
+		expect((stillThere.body.result as { status: string }).status).toBe('completed');
+
+		clock.advance(50 * 60_000 - 1);
+		const lastMs = await rpc(http.url, 'tasks/get', { taskId: seed.taskId }, { tasks: true });
+		expect((lastMs.body.result as { status: string }).status).toBe('completed');
+
+		// Exactly at finishedAt + 1h -> gone (-32602)
+		clock.advance(1);
+		const gone = await rpc(http.url, 'tasks/get', { taskId: seed.taskId }, { tasks: true });
+		expect(gone.body.error).toEqual({ code: -32602, message: 'Task not found' });
+
+		// 2. Working task exceeding maxRunMs completes with TIMEOUT (read retryable, mutation non-retryable)
+		// and keeps that TIMEOUT result for ttlMs after it stops.
+		const shortClock = fixedClock(NOW_MS);
+		const readStarted = deferred();
+		const readRelease = deferred();
+		const readHttp = await listenHandler(
+			createMcpHandler({
+				name: 'timeout-read',
+				version: '1.0.0',
+				commands: makeCommands({
+					runs: { echo: 0, wait: 0, list: 0, aborted: 0 },
+					waitStarted: readStarted,
+					waitRelease: readRelease,
+				}),
+				toolStrategy: 'individual',
+				clock: shortClock,
+				createContext: makeActorContext,
+				taskOptions: {
+					maxRunMs: 10_000,
+					ttlMs: 30_000,
+					pollIntervalMs: 10,
+					checkIntervalMs: 5,
+					callersIdentifiedByHook: true,
+				},
+			})
+		);
+		const readCreated = await rpc(
+			readHttp.url,
+			'tools/call',
+			{ name: 'job-wait', arguments: {} },
+			{ tasks: true }
+		);
+		const readId = String((readCreated.body.result as { taskId: string }).taskId);
+		await readStarted.promise;
+		shortClock.advance(10_000);
+		const readTimedOut = await pollUntilSettled(readHttp.url, readId);
+		expect(readTimedOut.status).toBe('completed');
+		expect(
+			(
+				readTimedOut.result as {
+					structuredContent: { error: { code: string; retryable: boolean } };
+				}
+			).structuredContent.error
+		).toMatchObject({ code: ErrorCodes.TIMEOUT, retryable: true });
+
+		// Retained for ttlMs (30s) after timeout, then gone
+		shortClock.advance(29_999);
+		expect(
+			(
+				(await rpc(readHttp.url, 'tasks/get', { taskId: readId }, { tasks: true })).body.result as {
+					status: string;
+				}
+			).status
+		).toBe('completed');
+		shortClock.advance(1);
+		expect(
+			(await rpc(readHttp.url, 'tasks/get', { taskId: readId }, { tasks: true })).body.error
+		).toEqual({ code: -32602, message: 'Task not found' });
+
+		// Mutation exceeding maxRunMs is NOT retryable
+		const mutClock = fixedClock(NOW_MS);
+		const mutStarted = deferred();
+		const mutRelease = deferred();
+		const mutHttp = await listenHandler(
+			createMcpHandler({
+				name: 'timeout-mut',
+				version: '1.0.0',
+				commands: makeCommands({
+					runs: { echo: 0, wait: 0, list: 0, aborted: 0 },
+					waitStarted: mutStarted,
+					waitRelease: mutRelease,
+				}),
+				toolStrategy: 'individual',
+				clock: mutClock,
+				createContext: makeActorContext,
+				taskOptions: {
+					maxRunMs: 10_000,
+					ttlMs: 30_000,
+					pollIntervalMs: 10,
+					checkIntervalMs: 5,
+					callersIdentifiedByHook: true,
+				},
+			})
+		);
+		const mutCreated = await rpc(
+			mutHttp.url,
+			'tools/call',
+			{ name: 'job-write', arguments: {} },
+			{ tasks: true }
+		);
+		const mutId = String((mutCreated.body.result as { taskId: string }).taskId);
+		await mutStarted.promise;
+		mutClock.advance(10_000);
+		const mutTimedOut = await pollUntilSettled(mutHttp.url, mutId);
+		expect(
+			(
+				mutTimedOut.result as {
+					structuredContent: { error: { code: string; retryable: boolean } };
+				}
+			).structuredContent.error
+		).toMatchObject({ code: ErrorCodes.TIMEOUT, retryable: false });
+
+		// 3. Handler returning slightly past maxRunMs (before ttlMs) keeps its result and caps ttlMs
+		const lateClock = fixedClock(NOW_MS);
+		const lateStarted = deferred();
+		const lateRelease = deferred();
+		const lateHttp = await listenHandler(
+			createMcpHandler({
+				name: 'late-return',
+				version: '1.0.0',
+				commands: makeCommands({
+					runs: { echo: 0, wait: 0, list: 0, aborted: 0 },
+					waitStarted: lateStarted,
+					waitRelease: lateRelease,
+				}),
+				toolStrategy: 'individual',
+				clock: lateClock,
+				createContext: makeActorContext,
+				taskOptions: {
+					maxRunMs: 10_000,
+					ttlMs: 30_000,
+					pollIntervalMs: 10,
+					// Long check interval so handler returns before next timeout tick
+					checkIntervalMs: 5_000,
+					callersIdentifiedByHook: true,
+				},
+			})
+		);
+		const lateCreated = await rpc(
+			lateHttp.url,
+			'tools/call',
+			{ name: 'job-wait', arguments: {} },
+			{ tasks: true }
+		);
+		const lateId = String((lateCreated.body.result as { taskId: string }).taskId);
+		await lateStarted.promise;
+		lateClock.advance(12_000);
+		lateRelease.resolve();
+		const lateDone = await pollUntilSettled(lateHttp.url, lateId);
+		expect(lateDone.status).toBe('completed');
+		expect((lateDone.result as { isError: boolean }).isError).toBe(false);
+		expect(lateDone.ttlMs).toBe(40_000);
 	});
 });

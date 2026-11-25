@@ -30,7 +30,10 @@ TASKS_EXTENSION_ID = "io.modelcontextprotocol/tasks"
 """Extension identifier for MCP Tasks (SEP-2663)."""
 
 DEFAULT_TASK_TTL_MS = 3_600_000
-"""A task's default ``ttlMs``: one hour."""
+"""A task's default post-completion retention (``TaskOptions.ttl_ms``): one hour."""
+
+DEFAULT_TASK_MAX_RUN_MS = 3_600_000
+"""A task's default execution run budget (``TaskOptions.max_run_ms``): one hour."""
 
 DEFAULT_TASK_POLL_INTERVAL_MS = 1_000
 """A task's default ``pollIntervalMs``: one second."""
@@ -128,6 +131,7 @@ class TaskCompletedChange:
     result: dict[str, Any]
     at: int
     kind: Literal["completed"] = "completed"
+    ttl_ms: int | None = field(default=None, kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -137,6 +141,7 @@ class TaskFailedChange:
     error: TaskRpcError
     at: int
     kind: Literal["failed"] = "failed"
+    ttl_ms: int | None = field(default=None, kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -145,6 +150,7 @@ class TaskCancelledChange:
 
     at: int
     kind: Literal["cancelled"] = "cancelled"
+    ttl_ms: int | None = field(default=None, kw_only=True)
 
 
 TaskChange = (
@@ -202,15 +208,21 @@ def apply_task_change(record: TaskRecord, change: TaskChange) -> bool:
         record.status = "completed"
         record.result = copy.deepcopy(change.result)
         record.last_updated_at = change.at
+        if change.ttl_ms is not None:
+            record.ttl_ms = min(record.ttl_ms, max(1, change.ttl_ms))
         return True
     if isinstance(change, TaskFailedChange):
         record.status = "failed"
         record.error = copy.deepcopy(change.error)
         record.last_updated_at = change.at
+        if change.ttl_ms is not None:
+            record.ttl_ms = min(record.ttl_ms, max(1, change.ttl_ms))
         return True
     if isinstance(change, TaskCancelledChange):
         record.status = "cancelled"
         record.last_updated_at = change.at
+        if change.ttl_ms is not None:
+            record.ttl_ms = min(record.ttl_ms, max(1, change.ttl_ms))
         return True
     return False
 
@@ -417,6 +429,10 @@ class InMemoryTaskStore:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+_MAX_SAFE_TTL_MS = 9_007_199_254_740_991
+"""JSON safe-integer ceiling (2^53 - 1) shared across TypeScript, Python, and Rust."""
+
+
 @dataclass(frozen=True)
 class TaskOptions:
     """Server-level MCP Tasks configuration (``create_server(..., task_options=...)``)."""
@@ -428,9 +444,11 @@ class TaskOptions:
     max_running: int = DEFAULT_MAX_RUNNING_TASKS
     token_expiry_grace_ms: int | None = None
     callers_identified_by_hook: bool = False
+    max_run_ms: int = field(default=DEFAULT_TASK_MAX_RUN_MS, kw_only=True)
 
     def __post_init__(self) -> None:
         _positive_int(self.ttl_ms, "task_options.ttl_ms")
+        _positive_int(self.max_run_ms, "task_options.max_run_ms")
         _positive_int(self.poll_interval_ms, "task_options.poll_interval_ms")
         _positive_int(self.check_interval_ms, "task_options.check_interval_ms")
         _positive_int(self.max_result_bytes, "task_options.max_result_bytes")
@@ -445,17 +463,44 @@ class TaskOptions:
             raise ValueError("task_options.callers_identified_by_hook must be a boolean")
 
 
+def _cap_ttl_at_token_expiry(
+    options: TaskOptions,
+    created_at_ms: int,
+    uncapped_ttl_ms: int,
+    expires_at_seconds: int | None = None,
+) -> int:
+    clamped = max(1, min(_MAX_SAFE_TTL_MS, uncapped_ttl_ms))
+    if options.token_expiry_grace_ms is None or expires_at_seconds is None:
+        return clamped
+    end_ms = expires_at_seconds * 1000 + options.token_expiry_grace_ms
+    remaining = max(0, end_ms - created_at_ms)
+    return max(1, min(clamped, remaining))
+
+
 def task_ttl_for(
     options: TaskOptions,
     now_ms: int,
     expires_at_seconds: int | None = None,
 ) -> int:
-    """Compute ``ttl_ms`` for a task created at ``now_ms`` with optional token ``expires_at``."""
-    if options.token_expiry_grace_ms is None or expires_at_seconds is None:
-        return options.ttl_ms
-    end_ms = expires_at_seconds * 1000 + options.token_expiry_grace_ms
-    remaining = max(0, end_ms - now_ms)
-    return max(1, min(options.ttl_ms, remaining))
+    """Compute initial ``ttl_ms`` (from ``created_at``): ``max_run_ms + ttl_ms``, capped at
+    token expiry plus grace when configured."""
+    total = min(_MAX_SAFE_TTL_MS, options.max_run_ms + options.ttl_ms)
+    return _cap_ttl_at_token_expiry(options, now_ms, total, expires_at_seconds)
+
+
+def finished_task_ttl_for(
+    options: TaskOptions,
+    created_at_ms: int,
+    finished_at_ms: int,
+    expires_at_seconds: int | None = None,
+) -> int:
+    """Compute final ``ttl_ms`` (from ``created_at_ms``) when a task reaches a terminal state
+    at ``finished_at_ms``: ``min(options.max_run_ms, max(0, finished_at_ms - created_at_ms)) +
+    options.ttl_ms``, capped at token expiry plus grace when configured (never wider than
+    initial ``ttl_ms``)."""
+    elapsed = min(options.max_run_ms, max(0, finished_at_ms - created_at_ms))
+    total = min(_MAX_SAFE_TTL_MS, elapsed + options.ttl_ms)
+    return _cap_ttl_at_token_expiry(options, created_at_ms, total, expires_at_seconds)
 
 
 def assert_valid_task_commands(commands: Sequence[CommandDefinition]) -> None:
@@ -473,6 +518,7 @@ def assert_valid_task_commands(commands: Sequence[CommandDefinition]) -> None:
 __all__ = [
     "TASKS_EXTENSION_ID",
     "DEFAULT_TASK_TTL_MS",
+    "DEFAULT_TASK_MAX_RUN_MS",
     "DEFAULT_TASK_POLL_INTERVAL_MS",
     "DEFAULT_TASK_CHECK_INTERVAL_MS",
     "DEFAULT_MAX_TASK_RESULT_BYTES",
@@ -501,6 +547,7 @@ __all__ = [
     "task_tool_result",
     "task_failure_result",
     "task_ttl_for",
+    "finished_task_ttl_for",
     "new_task_id",
     "is_task_id",
     "assert_valid_task_commands",

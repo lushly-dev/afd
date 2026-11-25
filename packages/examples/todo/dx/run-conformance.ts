@@ -666,6 +666,189 @@ async function run() {
 				await session.close();
 			}
 		}
+		if (target === 'ts' || target === 'py' || target === 'rs') {
+			// Verify post-completion retention and execution run budget across TS, Python, and Rust
+			// (spec/command-metadata.md, "Tasks").
+			const maxRunMs = 900;
+			const retentionMs = 1200;
+			const delayMs = 300;
+			const session = await connect(
+				target,
+				mode,
+				{
+					TASK_CONFORMANCE: '1',
+					TASK_MAX_RUN_MS: String(maxRunMs),
+					TASK_RETENTION_MS: String(retentionMs),
+					TASK_POLL_INTERVAL_MS: '50',
+					TASK_CHECK_INTERVAL_MS: '25',
+				},
+				{ tasks: true }
+			);
+			try {
+				const startSlow = async (ms: number) => {
+					const raw = (await session.client.callTool({
+						name: 'todo-slow-task',
+						arguments: { delayMs: ms },
+					})) as { _meta?: Record<string, unknown> };
+					const token = raw._meta?.[TASK_SENTINEL];
+					if (typeof token !== 'string') {
+						throw new Error('Expected todo-slow-task to start an MCP task');
+					}
+					const seed = session.interceptedTasks.get(token);
+					session.interceptedTasks.delete(token);
+					if (!seed || typeof seed.taskId !== 'string') {
+						throw new Error(`Invalid task seed: ${JSON.stringify(seed)}`);
+					}
+					return seed;
+				};
+				const pollSettled = async (taskId: string) => {
+					const deadline = Date.now() + 10_000;
+					while (Date.now() < deadline) {
+						const got = (await session.client.request(
+							{ method: 'tasks/get', params: { taskId } },
+							PASS_THROUGH_SCHEMA as never
+						)) as Record<string, unknown>;
+						if (got.status !== 'working') return got;
+						await new Promise((r) => setTimeout(r, 25));
+					}
+					throw new Error(`Task ${taskId} did not settle in time`);
+				};
+
+				// 1. Task finishing within maxRunMs stays readable past maxRunMs until finishedAt + retentionMs.
+				try {
+					const startedWall = Date.now();
+					const seed = await startSlow(delayMs);
+					if (seed.ttlMs !== maxRunMs + retentionMs) {
+						throw new Error(
+							`Expected initial ttlMs=${maxRunMs + retentionMs}, got ${String(seed.ttlMs)}`
+						);
+					}
+					const settled = await pollSettled(String(seed.taskId));
+					if (settled.status !== 'completed') {
+						throw new Error(`Expected completed, got ${JSON.stringify(settled)}`);
+					}
+					const settledRes = settled.result as {
+						isError?: boolean;
+						content?: Array<{ text?: string }>;
+					};
+					const settledBody = JSON.parse(settledRes?.content?.[0]?.text ?? '{}') as {
+						success?: boolean;
+						data?: { delayedMs?: number };
+					};
+					if (
+						settledRes?.isError === true ||
+						settledBody.success !== true ||
+						settledBody.data?.delayedMs !== delayMs
+					) {
+						throw new Error(
+							`Expected successful todo-slow-task result { delayedMs: ${delayMs} }, got ${JSON.stringify(settled)}`
+						);
+					}
+					const createdAtMs = Date.parse(String(settled.createdAt));
+					const finishedAtMs = Date.parse(String(settled.lastUpdatedAt));
+					const expectedTtlMs =
+						Math.min(maxRunMs, Math.max(0, finishedAtMs - createdAtMs)) + retentionMs;
+					if (
+						!Number.isFinite(createdAtMs) ||
+						!Number.isFinite(finishedAtMs) ||
+						settled.ttlMs !== expectedTtlMs
+					) {
+						throw new Error(
+							`Expected exact tightened ttlMs=${expectedTtlMs} from server timestamps, got ${String(settled.ttlMs)}`
+						);
+					}
+					// Wait past original maxRunMs (still well inside retentionMs after finish).
+					const pastRunBudget = startedWall + maxRunMs + 150 - Date.now();
+					if (pastRunBudget > 0) await new Promise((r) => setTimeout(r, pastRunBudget));
+					const stillReadable = (await session.client.request(
+						{ method: 'tasks/get', params: { taskId: String(seed.taskId) } },
+						PASS_THROUGH_SCHEMA as never
+					)) as Record<string, unknown>;
+					if (stillReadable.status !== 'completed') {
+						throw new Error(
+							`Expected completed past maxRunMs, got ${JSON.stringify(stillReadable)}`
+						);
+					}
+					// Wait past server's createdAt + settled.ttlMs and confirm -32602.
+					const pastRetention = createdAtMs + expectedTtlMs + 200 - Date.now();
+					if (pastRetention > 0) await new Promise((r) => setTimeout(r, pastRetention));
+					let expiredCode: number | undefined;
+					try {
+						await session.client.request(
+							{ method: 'tasks/get', params: { taskId: String(seed.taskId) } },
+							PASS_THROUGH_SCHEMA as never
+						);
+					} catch (error) {
+						expiredCode = (error as { code?: number }).code;
+					}
+					if (expiredCode !== -32602) {
+						throw new Error(`Expected -32602 after retention elapsed, got ${String(expiredCode)}`);
+					}
+					results.push({
+						name: 'Finished task stays readable past maxRunMs and expires after post-completion retention',
+						success: true,
+					});
+				} catch (error) {
+					results.push({
+						name: 'Finished task stays readable past maxRunMs and expires after post-completion retention',
+						success: false,
+						error: error instanceof Error ? error.message : String(error),
+					});
+				}
+
+				// 2. Working task exceeding maxRunMs stops with TIMEOUT and retains that result without widening ttlMs.
+				try {
+					const seed = await startSlow(3_000);
+					const settled = await pollSettled(String(seed.taskId));
+					if (settled.status !== 'completed') {
+						throw new Error(`Expected completed TIMEOUT, got ${JSON.stringify(settled)}`);
+					}
+					if (
+						typeof settled.ttlMs !== 'number' ||
+						settled.ttlMs < retentionMs ||
+						settled.ttlMs > maxRunMs + retentionMs
+					) {
+						throw new Error(
+							`Expected TIMEOUT ttlMs in [${retentionMs}, ${maxRunMs + retentionMs}], got ${String(settled.ttlMs)}`
+						);
+					}
+					const toolRes = settled.result as {
+						isError?: boolean;
+						content?: Array<{ text?: string }>;
+					};
+					const body = JSON.parse(toolRes?.content?.[0]?.text ?? '{}') as {
+						error?: { code?: string; retryable?: boolean };
+					};
+					if (
+						toolRes?.isError !== true ||
+						body.error?.code !== 'TIMEOUT' ||
+						body.error?.retryable !== true
+					) {
+						throw new Error(`Unexpected TIMEOUT payload: ${JSON.stringify(settled)}`);
+					}
+					await new Promise((r) => setTimeout(r, 200));
+					const retained = (await session.client.request(
+						{ method: 'tasks/get', params: { taskId: String(seed.taskId) } },
+						PASS_THROUGH_SCHEMA as never
+					)) as Record<string, unknown>;
+					if (retained.status !== 'completed') {
+						throw new Error(`Expected TIMEOUT result retained, got ${JSON.stringify(retained)}`);
+					}
+					results.push({
+						name: 'Working task exceeding maxRunMs stops with TIMEOUT and retains its result',
+						success: true,
+					});
+				} catch (error) {
+					results.push({
+						name: 'Working task exceeding maxRunMs stops with TIMEOUT and retains its result',
+						success: false,
+						error: error instanceof Error ? error.message : String(error),
+					});
+				}
+			} finally {
+				await session.close();
+			}
+		}
 		if (results.length === 0) {
 			throw new Error(
 				`No case in ${specPath} is for ${LANGUAGE[target]}: this backend does not implement the suite yet`

@@ -12,7 +12,7 @@
 //! unless `HOST` says otherwise.
 
 use crate::app::{contexts, Approvals};
-use afd::server::{ConfirmationMode, HttpOptions, McpServer, ToolStrategy};
+use afd::server::{ConfirmationMode, HttpOptions, McpServer, TaskOptions, ToolStrategy};
 use afd::CommandRegistry;
 use axum::{
     extract::{DefaultBodyLimit, Request, State},
@@ -137,6 +137,9 @@ pub struct ServerConfig {
     /// `off`; default `agents`). The signing key is read apart (`TODO_APPROVAL_SECRET`, see
     /// [`crate::app::approval_secret`]), so this configuration never holds it.
     pub approvals: Approvals,
+    /// Optional task runtime overrides (`TASK_MAX_RUN_MS`, `TASK_RETENTION_MS`,
+    /// `TASK_POLL_INTERVAL_MS`, `TASK_CHECK_INTERVAL_MS`).
+    pub task_options: Option<TaskOptions>,
 }
 
 impl ServerConfig {
@@ -220,6 +223,48 @@ impl ServerConfig {
 
         let approvals = Approvals::from_env(var("APPROVALS").as_deref())?;
 
+        let parse_positive_u64 = |name: &str| -> Result<Option<u64>, String> {
+            let Some(raw) = var(name) else {
+                return Ok(None);
+            };
+            let trimmed = raw.trim();
+            if trimmed.is_empty() {
+                return Ok(None);
+            }
+            trimmed
+                .parse::<u64>()
+                .ok()
+                .filter(|&v| v >= 1)
+                .map(Some)
+                .ok_or_else(|| format!("{name} must be a positive integer, got \"{raw}\""))
+        };
+        let max_run_ms = parse_positive_u64("TASK_MAX_RUN_MS")?;
+        let ttl_ms = parse_positive_u64("TASK_RETENTION_MS")?;
+        let poll_interval_ms = parse_positive_u64("TASK_POLL_INTERVAL_MS")?;
+        let check_interval_ms = parse_positive_u64("TASK_CHECK_INTERVAL_MS")?;
+        let task_options = if max_run_ms.is_some()
+            || ttl_ms.is_some()
+            || poll_interval_ms.is_some()
+            || check_interval_ms.is_some()
+        {
+            let mut opts = TaskOptions::new();
+            if let Some(v) = max_run_ms {
+                opts = opts.with_max_run_ms(v);
+            }
+            if let Some(v) = ttl_ms {
+                opts = opts.with_ttl_ms(v);
+            }
+            if let Some(v) = poll_interval_ms {
+                opts = opts.with_poll_interval_ms(v);
+            }
+            if let Some(v) = check_interval_ms {
+                opts = opts.with_check_interval_ms(v);
+            }
+            Some(opts)
+        } else {
+            None
+        };
+
         Ok(Self {
             host,
             port,
@@ -227,6 +272,7 @@ impl ServerConfig {
             confirmations,
             strategy,
             approvals,
+            task_options,
             policy: HttpPolicy {
                 allowed_origins,
                 allowed_hosts,
@@ -258,7 +304,7 @@ pub fn mcp_server(
     registry: Arc<CommandRegistry>,
     config: &ServerConfig,
 ) -> Result<McpServer, String> {
-    let server = McpServer::new(
+    let mut server = McpServer::new(
         Arc::clone(&registry),
         "todo-app-rust",
         env!("CARGO_PKG_VERSION"),
@@ -266,6 +312,9 @@ pub fn mcp_server(
     .with_contexts(contexts())?
     .with_confirmations(config.confirmations)
     .with_tool_strategy(config.strategy);
+    if let Some(ref task_options) = config.task_options {
+        server = server.with_task_options(task_options.clone());
+    }
     // After the context commands, as TypeScript's `bootstrap: true` registers them, so the
     // `bootstrap` tool lists its actions in TypeScript's order.
     afd::register_bootstrap_commands(&registry)?;
