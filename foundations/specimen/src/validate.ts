@@ -1424,6 +1424,7 @@ export function parsePointCheckRequest(value: unknown): PointCheckRequest {
 	};
 }
 
+export * from './decision-validate.js';
 export {
 	parseNoteAddRequest,
 	parseNoteCheckRequest,

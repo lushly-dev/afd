@@ -315,6 +315,71 @@ function harness() {
 				},
 			],
 		})),
+		recordDecision: vi.fn(async (request) => ({
+			decision: 'dec-q7k2m4xab3na',
+			kind: 'choice' as const,
+			path: 'specimens/decisions/dec-q7k2m4xab3na.json',
+			chosen: request.chosen,
+			kept: ['toolbar--airy'],
+			evidence: {
+				set: 'set-9c03e1d27a55',
+				dir: 'specimens/evidence/set-9c03e1d27a55/',
+			},
+			evidenceDir: 'specimens/evidence/set-9c03e1d27a55/',
+			subjects: { specimens: [request.chosen] },
+		})),
+		getDecision: vi.fn(async (request) => ({
+			decision: request.decision,
+			id: request.decision,
+			kind: 'choice' as const,
+			slug: 'toolbar-density',
+			status: 'current' as const,
+			question: 'How dense should the toolbar be?',
+			variants: ['toolbar--dense', 'toolbar--airy'],
+			chosen: 'toolbar--dense',
+			kept: ['toolbar--airy'],
+			discarded: [],
+			reason: 'Fits twelve commands.',
+			evidence: {
+				set: 'set-9c03e1d27a55',
+				dir: 'specimens/evidence/set-9c03e1d27a55/',
+				captures: [
+					{
+						key: 'toolbar--dense',
+						id: 'toolbar--dense',
+						status: 'captured' as const,
+						hash: 'abc123',
+						axe: 'passed' as const,
+						screenshot: 'specimens/evidence/set-9c03e1d27a55/toolbar--dense.png',
+					},
+				],
+			},
+			subjects: { specimens: ['toolbar--dense'] },
+			decidedAt: '2026-11-24T00:00:00.000Z',
+			decidedBy: { kind: 'script' as const },
+		})),
+		listDecisions: vi.fn(async () => ({
+			decisions: [
+				{
+					decision: 'dec-q7k2m4xab3na',
+					question: 'How dense should the toolbar be?',
+					chosen: 'toolbar--dense',
+					stale: [],
+				},
+			],
+			undecided: [],
+		})),
+		checkDecisions: vi.fn(async () => ({
+			decisions: [
+				{
+					decision: 'dec-q7k2m4xab3na',
+					question: 'How dense should the toolbar be?',
+					chosen: 'toolbar--dense',
+					reason: 'Fits twelve commands.',
+					matched: { files: ['src/toolbar/toolbar.css'] },
+				},
+			],
+		})),
 		close: vi.fn(async () => {}),
 	};
 	const createBench = vi.fn(async () => bench);
@@ -1746,6 +1811,193 @@ describe('specimen CLI', () => {
 		expect(h.bench.noteReopen).toHaveBeenLastCalledWith({
 			id: 'note-9v4b7n2k5m1c',
 			reason: 'PDF fails on long reports',
+		});
+	});
+
+	it('dispatches decision-record, decision-get, decision-list, and decision-check through CLI options', async () => {
+		const h = harness();
+		const root = await directory();
+
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'decision-record',
+					'--slug',
+					'toolbar-density',
+					'--question',
+					'How dense should the toolbar be?',
+					'--set',
+					'set-9c03e1d27a55',
+					'--chosen',
+					'toolbar--dense',
+					'--reason',
+					'Fits twelve commands.',
+					'--files',
+					'src/toolbar/**/*.{ts,css},src/shared/*.css',
+					'--tokens',
+					'space.toolbar.gap',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.recordDecision).toHaveBeenLastCalledWith(
+			{
+				slug: 'toolbar-density',
+				question: 'How dense should the toolbar be?',
+				set: 'set-9c03e1d27a55',
+				chosen: 'toolbar--dense',
+				reason: 'Fits twelve commands.',
+				subjects: {
+					files: ['src/toolbar/**/*.{ts,css}', 'src/shared/*.css'],
+					tokens: ['space.toolbar.gap'],
+				},
+			},
+			{ decidedBy: { kind: 'script' } }
+		);
+
+		// Invalid character range glob in --files fails validation cleanly.
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'decision-record',
+					'--slug',
+					'bad-glob',
+					'--question',
+					'Bad glob?',
+					'--set',
+					'set-9c03e1d27a55',
+					'--chosen',
+					'toolbar--dense',
+					'--reason',
+					'Reason.',
+					'--files',
+					'src/[z-a]/toolbar.css',
+				],
+				h.io
+			)
+		).toBe(1);
+		expect(JSON.parse(h.output.at(-1) ?? '')).toMatchObject({
+			success: false,
+			error: { code: 'VALIDATION_ERROR' },
+		});
+
+		// Empty --reason passes through to decision-record rather than failing CLI option parsing.
+		vi.mocked(h.bench.recordDecision).mockRejectedValueOnce(
+			Object.assign(new Error('Reason required'), {
+				code: 'REASON_REQUIRED',
+				suggestion: 'Give the reason the choice rests on.',
+			})
+		);
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'decision-record',
+					'--slug',
+					'toolbar-density',
+					'--question',
+					'How dense?',
+					'--set',
+					'set-9c03e1d27a55',
+					'--chosen',
+					'toolbar--dense',
+					'--reason',
+					'',
+				],
+				h.io
+			)
+		).toBe(1);
+		expect(JSON.parse(h.output.at(-1) ?? '')).toMatchObject({
+			success: false,
+			error: { code: 'REASON_REQUIRED' },
+		});
+
+		// Multi-supersede splits comma-separated ids into an array.
+		vi.mocked(h.bench.recordDecision).mockResolvedValueOnce({
+			decisions: [
+				{
+					decision: 'dec-aaaaaaaaaaaa',
+					kind: 'choice',
+					path: 'specimens/decisions/dec-aaaaaaaaaaaa.json',
+					chosen: 'toolbar--dense',
+					kept: ['toolbar--airy'],
+					supersedes: 'dec-q7k2m4xab3na',
+					evidence: { set: 'set-7e2a90c4d311', dir: 'specimens/evidence/set-7e2a90c4d311/' },
+					evidenceDir: 'specimens/evidence/set-7e2a90c4d311/',
+					subjects: { specimens: ['toolbar--dense'] },
+				},
+				{
+					decision: 'dec-bbbbbbbbbbbb',
+					kind: 'choice',
+					path: 'specimens/decisions/dec-bbbbbbbbbbbb.json',
+					chosen: 'list--empty',
+					kept: ['list--empty-plain'],
+					supersedes: 'dec-h3np6wz5c2rf',
+					evidence: { set: 'set-7e2a90c4d311', dir: 'specimens/evidence/set-7e2a90c4d311/' },
+					evidenceDir: 'specimens/evidence/set-7e2a90c4d311/',
+					subjects: { specimens: ['list--empty'] },
+				},
+			],
+		});
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'decision-record',
+					'--supersedes',
+					'dec-q7k2m4xab3na,dec-h3np6wz5c2rf',
+					'--items',
+					'changed:abc:def:set-4f1c0a9e2b7d..set-7e2a90c4d311',
+					'--chosen',
+					'accept',
+					'--reason',
+					'Shared token updated.',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.recordDecision).toHaveBeenLastCalledWith(
+			{
+				supersedes: ['dec-q7k2m4xab3na', 'dec-h3np6wz5c2rf'],
+				items: ['changed:abc:def:set-4f1c0a9e2b7d..set-7e2a90c4d311'],
+				chosen: 'accept',
+				reason: 'Shared token updated.',
+			},
+			{ decidedBy: { kind: 'script' } }
+		);
+
+		expect(await runCli(['--root', root, 'decision-get', 'dec-q7k2m4xab3na'], h.io)).toBe(0);
+		expect(h.bench.getDecision).toHaveBeenLastCalledWith({ decision: 'dec-q7k2m4xab3na' });
+
+		expect(await runCli(['--root', root, 'decision-list'], h.io)).toBe(0);
+		expect(h.bench.listDecisions).toHaveBeenCalledTimes(1);
+
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'decision-check',
+					'--files',
+					'src/toolbar/toolbar.css',
+					'--specimens',
+					'toolbar--dense',
+					'--tokens',
+					'space.toolbar.gap',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.checkDecisions).toHaveBeenLastCalledWith({
+			files: ['src/toolbar/toolbar.css'],
+			specimens: ['toolbar--dense'],
+			tokens: ['space.toolbar.gap'],
 		});
 	});
 });

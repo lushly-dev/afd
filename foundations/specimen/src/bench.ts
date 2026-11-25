@@ -4,6 +4,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'nod
 import { BenchWorkerClient } from './bench-worker-client.js';
 import { selectCompareEntries } from './compare.js';
 import { type LoadedConfig, loadConfig, resolveContext } from './config.js';
+import { checkDecisions, getDecision, listDecisions, recordDecision } from './decisions.js';
 import { withGuides } from './guides.js';
 import type { SpecimenHostError } from './host.js';
 import { JOBS_COVERAGE_OBLIGATIONS, readJobCoverageFromSet } from './job-coverage.js';
@@ -67,6 +68,13 @@ import type {
 	ContractRun,
 	CoverageRequest,
 	CoverageRun,
+	DecisionCheckRequest,
+	DecisionCheckResult,
+	DecisionGetRequest,
+	DecisionGetResult,
+	DecisionListResult,
+	DecisionRecordRequest,
+	DecisionRecordResult,
 	DiffRequest,
 	InspectRequest,
 	InspectResult,
@@ -104,6 +112,7 @@ import type {
 	PointResult,
 	ProfileRequest,
 	ProfileRun,
+	RecordDecisionOptions,
 	RunRequest,
 	SpecimenEntry,
 	SpecimenListFilter,
@@ -295,6 +304,17 @@ export interface SpecimenBench {
 	noteResolve(request: NoteResolveRequest): Promise<NoteResolveResult>;
 	/** Reopen a resolved note with a reason, preserving its prior resolution in history (no browser). */
 	noteReopen(request: NoteReopenRequest): Promise<NoteResult>;
+	/** Record a design decision (choice, supersession, or review answer) under `specimens/decisions/`. */
+	recordDecision(
+		request: DecisionRecordRequest,
+		options?: RecordDecisionOptions
+	): Promise<DecisionRecordResult>;
+	/** Read a recorded design decision by id, including committed `evidence.captures` for choices. */
+	getDecision(request: DecisionGetRequest): Promise<DecisionGetResult>;
+	/** List current choice decisions sorted by id ascending (with stale globs) and undecided comparison sets. */
+	listDecisions(): Promise<DecisionListResult>;
+	/** Return current choice decisions covering any of the given `files`, `specimens`, or `tokens`. */
+	checkDecisions(request?: DecisionCheckRequest): Promise<DecisionCheckResult>;
 	build(
 		outDir: string
 	): Promise<{ directory: string; shellBytes: number; budget: number; files: string[] }>;
@@ -314,6 +334,10 @@ export type BenchRuntime = Omit<
 	| 'noteList'
 	| 'noteResolve'
 	| 'noteReopen'
+	| 'recordDecision'
+	| 'getDecision'
+	| 'listDecisions'
+	| 'checkDecisions'
 > & {
 	/** Build the configured pack from two passes over every case, and write nothing. */
 	packBuild(request?: PackBuildRequest): Promise<PackBuildRun>;
@@ -1032,6 +1056,22 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 			const request = parseNoteReopenRequest(rawRequest);
 			requireNoteReason(request.reason, 'reopening a note');
 			return enqueueLocal((current) => reopenNote(current.root, request));
+		},
+		async recordDecision(rawRequest, decisionOptions) {
+			const snapshot = ensureOpen();
+			return recordDecision(snapshot.root, rawRequest, decisionOptions);
+		},
+		async getDecision(rawRequest) {
+			const snapshot = ensureOpen();
+			return getDecision(snapshot.root, rawRequest);
+		},
+		async listDecisions() {
+			const snapshot = ensureOpen();
+			return listDecisions(snapshot.root);
+		},
+		async checkDecisions(rawRequest = {}) {
+			const snapshot = ensureOpen();
+			return checkDecisions(snapshot.root, rawRequest);
 		},
 		close() {
 			closing ??= (async () => {

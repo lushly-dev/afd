@@ -35,6 +35,29 @@ export {
 	type CoverageObligation,
 	UNREACHED_PREFIX,
 } from './coverage.js';
+export {
+	checkDecisions,
+	DECISION_ID_LENGTH,
+	DECISION_ID_PATTERN,
+	DECISIONS_DIR,
+	decisionFilePath,
+	decisionRelativePath,
+	decisionsDir,
+	EVIDENCE_DIR,
+	evidenceRelativeDir,
+	evidenceRootDir,
+	evidenceSetDir,
+	generateDecisionId,
+	getDecision,
+	listDecisions,
+	matchesSubjectGlob,
+	readAllDecisions,
+	readDecisionEvidenceManifest,
+	readDecisionRecord,
+	recordDecision,
+	SPECIMENS_DIR,
+	writeDecisionEvidence,
+} from './decisions.js';
 export { canonicalJson, diffObservations } from './diff.js';
 export {
 	defineGuideSource,

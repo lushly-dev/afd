@@ -22,6 +22,14 @@ import {
 	contractRunSchema,
 	coverageRequestSchema,
 	coverageRunSchema,
+	decisionCheckRequestSchema,
+	decisionCheckResultSchema,
+	decisionGetRequestSchema,
+	decisionGetResultSchema,
+	decisionListRequestSchema,
+	decisionListResultSchema,
+	decisionRecordRequestSchema,
+	decisionRecordResultSchema,
 	inspectRequestSchema,
 	inspectResultSchema,
 	jobConfigSchema,
@@ -98,6 +106,14 @@ import type {
 	ContractRun,
 	CoverageRequest,
 	CoverageRun,
+	DecisionActor,
+	DecisionCheckRequest,
+	DecisionCheckResult,
+	DecisionGetRequest,
+	DecisionGetResult,
+	DecisionListResult,
+	DecisionRecordRequest,
+	DecisionRecordResult,
 	DiffRequest,
 	InspectRequest,
 	InspectResult,
@@ -133,6 +149,7 @@ import type {
 	PointResult,
 	ProfileRequest,
 	ProfileRun,
+	RecordDecisionOptions,
 	RunRequest,
 	SpecimenEntry,
 	SpecimenListFilter,
@@ -299,6 +316,13 @@ export interface SpecimenCommandBench {
 	noteReopen(request: NoteReopenRequest): Promise<NoteResult>;
 	createJob(request: JobCreateRequest): Promise<JobCreateResult>;
 	runJob(request: JobRunRequest): Promise<JobRun>;
+	recordDecision(
+		request: DecisionRecordRequest,
+		options?: RecordDecisionOptions
+	): Promise<DecisionRecordResult>;
+	getDecision(request: DecisionGetRequest): Promise<DecisionGetResult>;
+	listDecisions(): Promise<DecisionListResult>;
+	checkDecisions(request?: DecisionCheckRequest): Promise<DecisionCheckResult>;
 }
 
 /** One story by id, or a suite by filter; the handler tells them apart. */
@@ -915,6 +939,78 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 			return outcome;
 		},
 	});
+	const decisionRecord = defineCommand({
+		...common,
+		name: 'decision-record',
+		description:
+			'Record a design decision with its required reason and write its files under specimens/decisions/ and specimens/evidence/ (never running git commit). Supports three input modes: new choice from a capture/compare set (set, slug, question, chosen, reason, optional subjects); supersede one or more current choices (supersedes: id or id[], chosen, reason, optional set/items/slug/question/subjects — writes one successor choice per superseded id and swaps old->new chosen in subjects.specimens on variant reversal); or review answer (items, chosen accept|reject, reason, optional slug/question, no subjects).',
+		mutation: true,
+		confirmPrompt: 'Record this design decision and write its files under specimens/?',
+		input: decisionRecordRequestSchema,
+		output: decisionRecordResultSchema,
+		handler: async (input, context) => {
+			// Phase 5 (#2213) wires `confirmations: 'require-human'` so `person` provenance comes
+			// exclusively from accepted human elicitation, never from unverified `context.actor.kind`.
+			const decidedBy: DecisionActor =
+				context.actor?.kind === 'test'
+					? { kind: 'test', ...(context.actor?.id ? { id: context.actor.id } : {}) }
+					: { kind: 'script', ...(context.actor?.id ? { id: context.actor.id } : {}) };
+			return result(
+				() => bench.recordDecision(input, { decidedBy }),
+				decisionRecordResultSchema,
+				'SPECIMEN_DECISION_RECORD_FAILED',
+				'Check the set id, decision id(s), variant id, and non-empty reason, then run decision-record again.'
+			);
+		},
+	});
+	const decisionGet = defineCommand({
+		...common,
+		name: 'decision-get',
+		description:
+			'Read a recorded design decision by id, returning its reason, variants, subjects, and committed evidence captures. Use decision-list to find current decision ids.',
+		mutation: false,
+		input: decisionGetRequestSchema,
+		output: decisionGetResultSchema,
+		handler: async (input) =>
+			result(
+				() => bench.getDecision(input),
+				decisionGetResultSchema,
+				'SPECIMEN_DECISION_GET_FAILED',
+				'Use decision-list to see current decision ids.'
+			),
+	});
+	const decisionList = defineCommand({
+		...common,
+		name: 'decision-list',
+		description:
+			'List all current choice decisions sorted by decision id ascending (with stale subject globs that match no file) and undecided comparison sets.',
+		mutation: false,
+		input: decisionListRequestSchema,
+		output: decisionListResultSchema,
+		handler: async () =>
+			result(
+				() => bench.listDecisions(),
+				decisionListResultSchema,
+				'SPECIMEN_DECISION_LIST_FAILED',
+				'Verify specimens/decisions/ and .specimen/sets/ are readable, then run decision-list again.'
+			),
+	});
+	const decisionCheck = defineCommand({
+		...common,
+		name: 'decision-check',
+		description:
+			'Call decision-check with the files, specimens, or tokens you are about to change, before editing. Returns matching current choice decisions with their chosen variant, reason, and matched subjects; informs and does not block. Use decision-list to see every current decision id.',
+		mutation: false,
+		input: decisionCheckRequestSchema,
+		output: decisionCheckResultSchema,
+		handler: async (input) =>
+			result(
+				() => bench.checkDecisions(input),
+				decisionCheckResultSchema,
+				'SPECIMEN_DECISION_CHECK_FAILED',
+				'Pass files, specimens, or tokens to check, or use decision-list to see every current decision id.'
+			),
+	});
 	return [
 		list,
 		render,
@@ -948,6 +1044,10 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		noteReopen,
 		jobCreate,
 		jobRun,
+		decisionRecord,
+		decisionGet,
+		decisionList,
+		decisionCheck,
 	] as const;
 }
 
@@ -1004,6 +1104,10 @@ export async function executeSpecimenCommand(
 		noteReopen,
 		jobCreate,
 		jobRun,
+		decisionRecord,
+		decisionGet,
+		decisionList,
+		decisionCheck,
 	] = createSpecimenCommands(bench);
 	switch (name) {
 		case 'specimen-list':
@@ -1070,12 +1174,20 @@ export async function executeSpecimenCommand(
 			return execute(jobCreate, input);
 		case 'specimen-job-run':
 			return execute(jobRun, input);
+		case 'decision-record':
+			return execute(decisionRecord, input);
+		case 'decision-get':
+			return execute(decisionGet, input);
+		case 'decision-list':
+			return execute(decisionList, input);
+		case 'decision-check':
+			return execute(decisionCheck, input);
 		default:
 			return failure({
 				code: 'COMMAND_NOT_FOUND',
 				message: `Unknown command: ${name}`,
 				suggestion:
-					'Use specimen list, validate, inspect, render, capture, compare, run, themes, migrate, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, or job-run.',
+					'Use specimen list, validate, inspect, render, capture, compare, run, themes, migrate, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, job-run, decision-record, decision-get, decision-list, or decision-check.',
 			});
 	}
 }

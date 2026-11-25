@@ -16,6 +16,10 @@ import {
 	contextSchema,
 	contractRequestSchema,
 	coverageRequestSchema,
+	decisionCheckRequestSchema,
+	decisionGetRequestSchema,
+	decisionListRequestSchema,
+	decisionRecordRequestSchema,
 	jobConfigSchema,
 	jobCreateRequestSchema,
 	jobRunRequestSchema,
@@ -45,6 +49,10 @@ import {
 	parseContext,
 	parseContractRequest,
 	parseCoverageRequest,
+	parseDecisionCheckRequest,
+	parseDecisionGetRequest,
+	parseDecisionListRequest,
+	parseDecisionRecordRequest,
 	parseJobCreateRequest,
 	parseJobRunRequest,
 	parseMatrixRequest,
@@ -1320,5 +1328,166 @@ describe('request parsing agrees with the public schemas', () => {
 		];
 		for (const value of reopenValues)
 			agrees(noteReopenRequestSchema, parseNoteReopenRequest, value);
+	});
+
+	it('accepts and rejects decision requests as decision*RequestSchema do', () => {
+		const recordValues: unknown[] = [
+			// Mode 1: new choice
+			{
+				slug: 'toolbar-density',
+				question: 'How dense?',
+				set: 'set-9c03e1d27a55',
+				chosen: 'toolbar--dense',
+				reason: 'Fits twelve commands.',
+			},
+			{
+				slug: 'toolbar-density',
+				question: 'How dense?',
+				set: 'set-9c03e1d27a55',
+				chosen: 'toolbar--dense',
+				reason: '',
+				subjects: { files: ['src/toolbar/**'], tokens: ['space.toolbar.gap'] },
+			},
+			{
+				slug: 'toolbar-density',
+				question: 'How dense?',
+				set: 'set-9c03e1d27a55',
+				chosen: 'toolbar--dense',
+			},
+			// Mode 1 missing slug or question
+			{ question: 'How dense?', set: 'set-9c03e1d27a55', chosen: 'toolbar--dense', reason: 'r' },
+			{ slug: 'toolbar-density', set: 'set-9c03e1d27a55', chosen: 'toolbar--dense', reason: 'r' },
+			// Mode 2: supersede single & multi (with or without items)
+			{ supersedes: 'dec-q7k2m4xab3na', chosen: 'toolbar--airy', reason: 'Calmer.' },
+			{
+				supersedes: ['dec-q7k2m4xab3na'],
+				chosen: 'toolbar--airy',
+				reason: 'Calmer.',
+			},
+			{
+				supersedes: ['dec-q7k2m4xab3na', 'dec-h3np6wz5c2rf'],
+				chosen: 'toolbar--airy',
+				reason: 'Direct multi-choice supersede.',
+			},
+			{
+				supersedes: ['dec-q7k2m4xab3na', 'dec-h3np6wz5c2rf'],
+				items: ['changed:a:b:set-4f1c0a9e2b7d..set-7e2a90c4d311'],
+				chosen: 'accept',
+				reason: 'Both adopt 8px.',
+			},
+			// Mode 2 invalid combos
+			{
+				supersedes: ['dec-q7k2m4xab3na', 'dec-h3np6wz5c2rf'],
+				items: ['changed:a:b:set-4f1c0a9e2b7d..set-7e2a90c4d311'],
+				chosen: 'accept',
+				slug: 'override-not-allowed',
+				reason: 'Slug override on multi supersede.',
+			},
+			{
+				supersedes: 'dec-q7k2m4xab3na',
+				items: ['changed:a:b:set-4f1c0a9e2b7d..set-7e2a90c4d311'],
+				set: 'set-7e2a90c4d311',
+				chosen: 'accept',
+				reason: 'Conflicting set with items.',
+			},
+			{
+				supersedes: 'dec-q7k2m4xab3na',
+				items: ['changed:a:b:set-4f1c0a9e2b7d..set-7e2a90c4d311'],
+				chosen: 'accept',
+				subjects: { specimens: ['toolbar--dense'] },
+				reason: 'Cannot replace subjects when accepting review item.',
+			},
+			// Invalid file glob syntax
+			{
+				slug: 'bad-glob',
+				question: 'Bad glob?',
+				set: 'set-9c03e1d27a55',
+				chosen: 'toolbar--dense',
+				reason: 'r',
+				subjects: { files: ['src/[z-a]/a.ts'] },
+			},
+			{
+				supersedes: 'dec-q7k2m4xab3na',
+				items: ['changed:a:b:set-4f1c0a9e2b7d..set-7e2a90c4d311'],
+				chosen: 'reject',
+				reason: 'Cannot reject when superseding.',
+			},
+			{
+				supersedes: ['dec-q7k2m4xab3na', 'dec-q7k2m4xab3na'],
+				items: ['changed:a:b:set-4f1c0a9e2b7d..set-7e2a90c4d311'],
+				chosen: 'accept',
+				reason: 'Duplicate ids.',
+			},
+			{ supersedes: [], chosen: 'a', reason: 'Empty.' },
+			// Mode 3: review answer
+			{
+				items: ['check:list--empty:color-contrast:set-4f1c0a9e2b7d..set-7e2a90c4d311'],
+				chosen: 'accept',
+				reason: 'Measured 7.1:1.',
+			},
+			{
+				items: ['changed:a:b:set-4f1c0a9e2b7d..set-7e2a90c4d311'],
+				chosen: 'reject',
+				reason: 'Still wraps.',
+				slug: 'gap-reject',
+				question: 'Keep 4px?',
+			},
+			// Mode 3 invalid combos
+			{
+				items: ['changed:a:b:set-4f1c0a9e2b7d..set-7e2a90c4d311'],
+				chosen: 'toolbar--dense',
+				reason: 'Invalid chosen for answer.',
+			},
+			{
+				items: ['changed:a:b:set-4f1c0a9e2b7d..set-7e2a90c4d311'],
+				chosen: 'accept',
+				reason: 'Has subjects.',
+				subjects: { specimens: ['toolbar--dense'] },
+			},
+			{
+				items: ['changed:a:b:set-4f1c0a9e2b7d..set-7e2a90c4d311'],
+				set: 'set-7e2a90c4d311',
+				chosen: 'accept',
+				reason: 'Set with items without supersedes.',
+			},
+			{ items: ['dup', 'dup'], chosen: 'accept', reason: 'Dup items.' },
+			{ items: [], chosen: 'accept', reason: 'Empty items.' },
+			// Missing mode / bad types
+			{ chosen: 'toolbar--dense', reason: 'No mode.' },
+			{ chosen: '', set: 's', slug: 'a', question: 'q', reason: 'r' },
+			{ set: 's', slug: 'a', question: 'q', chosen: 'x', reason: 123 },
+			{ set: 's', slug: 'a', question: 'q', chosen: 'x', extra: true },
+			{},
+			null,
+		];
+		for (const value of recordValues)
+			agrees(decisionRecordRequestSchema, parseDecisionRecordRequest, value);
+
+		for (const value of [
+			{ decision: 'dec-q7k2m4xab3na' },
+			{ decision: '' },
+			{ decision: 'dec-q7k2m4xab3na', extra: true },
+			{},
+			null,
+		]) {
+			agrees(decisionGetRequestSchema, parseDecisionGetRequest, value);
+		}
+
+		for (const value of [{}, { extra: true }, null, []]) {
+			agrees(decisionListRequestSchema, parseDecisionListRequest, value);
+		}
+
+		for (const value of [
+			{},
+			{ files: ['src/toolbar/toolbar.css'] },
+			{ specimens: ['toolbar--dense'], tokens: ['space.toolbar.gap'] },
+			{ files: [] },
+			{ files: [''] },
+			{ specimens: 'toolbar--dense' },
+			{ extra: true },
+			null,
+		]) {
+			agrees(decisionCheckRequestSchema, parseDecisionCheckRequest, value);
+		}
 	});
 });

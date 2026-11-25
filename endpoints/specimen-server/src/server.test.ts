@@ -61,7 +61,7 @@ describe('Specimen MCP endpoint', () => {
 		try {
 			const definitions = createSpecimenCommands(bench).filter((command) => command.expose?.mcp);
 			const { tools } = await client.listTools();
-			expect(tools).toHaveLength(32);
+			expect(tools).toHaveLength(36);
 			expect(tools).toEqual(
 				definitions.map((command) => ({
 					name: command.name,
@@ -70,6 +70,19 @@ describe('Specimen MCP endpoint', () => {
 					annotations: commandToolAnnotations(command),
 				}))
 			);
+			expect(tools.find((tool) => tool.name === 'decision-record')?.annotations).toEqual({
+				readOnlyHint: false,
+				destructiveHint: false,
+			});
+			expect(tools.find((tool) => tool.name === 'decision-get')?.annotations).toEqual({
+				readOnlyHint: true,
+			});
+			expect(tools.find((tool) => tool.name === 'decision-list')?.annotations).toEqual({
+				readOnlyHint: true,
+			});
+			expect(tools.find((tool) => tool.name === 'decision-check')?.annotations).toEqual({
+				readOnlyHint: true,
+			});
 			expect(tools.find((tool) => tool.name === 'specimen-job-create')?.annotations).toEqual({
 				readOnlyHint: false,
 				destructiveHint: false,
@@ -591,6 +604,218 @@ describe('Specimen MCP endpoint', () => {
 			error: {
 				code: 'CAPTURE_SET_NOT_FOUND',
 				suggestion: expect.stringContaining('specimen-capture'),
+			},
+		});
+	});
+
+	it('exposes decision-record, decision-get, decision-list, and decision-check end-to-end over MCP', async () => {
+		const mkObs = (id: string) => ({
+			manifest: {
+				captureVersion: CAPTURE_VERSION,
+				normalizationVersion: NORMALIZATION_VERSION,
+				specimenId: id,
+				capturedUtc: '2026-11-24T00:00:00.000Z',
+				bench: { name: '@lushly-dev/specimen', version: '2.2.0', plugins: [] },
+				driver: { name: 'host' as const, emulates: [] },
+				checkpoint: {
+					name: 'mount',
+					actionMode: 'none' as const,
+					ready: { steps: ['frame'], outcome: 'ready' as const, deadlineMs: 1000 },
+					baseline: {
+						clock: 'real' as const,
+						random: { source: 'seeded' as const, seed: 1 },
+						storage: 'empty' as const,
+					},
+				},
+				source: { revision: 'a1b2c3d', digest: 'd', dirty: false },
+				dependencies: 'lock',
+				browser: { name: 'chromium', version: '130', platform: 'linux-x64', build: null },
+				context: {
+					viewport: { width: 1280, height: 800 },
+					theme: 'light' as const,
+					locale: 'en-US',
+					reducedMotion: 'no-preference' as const,
+					motion: 'natural' as const,
+					pixelRatio: 1,
+					observed: {
+						width: 1280,
+						height: 800,
+						media: false,
+						colorScheme: 'light' as const,
+						contrast: 'no-preference' as const,
+						reducedMotion: 'no-preference' as const,
+						language: 'en-US',
+						devicePixelRatio: 1,
+					},
+					resources: { fonts: [], remote: [] },
+				},
+			},
+			channels: {
+				dom: { raw: `<div data-id="${id}"></div>`, normalized: `<div data-id="${id}"></div>` },
+				a11y: {
+					snapshot: `- region "${id}"`,
+					axe: {
+						status: 'passed' as const,
+						policy: 'error' as const,
+						violations: [],
+						incomplete: 0,
+						incompleteChecks: [],
+						exceptions: [],
+					},
+				},
+				events: { declared: [], history: [] },
+				evidence: {
+					expectations: [],
+					claims: [],
+					commands: [],
+					formData: [],
+					validity: [],
+					attributesSet: [],
+				},
+				elements: [],
+				console: { errors: [], warnings: [] },
+				visual: { path: null },
+			},
+			completeness: {
+				dom: { status: 'complete' as const, scope: 'dom', reasons: [] },
+				a11y: { status: 'complete' as const, scope: 'a11y', reasons: [] },
+				layout: { status: 'complete' as const, scope: 'layout', reasons: [] },
+				styles: { status: 'complete' as const, scope: 'styles', reasons: [] },
+				tokens: { status: 'unsupported' as const, scope: 'tokens', reasons: [] },
+				events: { status: 'not-requested' as const, scope: 'events', reasons: [] },
+				visual: { status: 'not-requested' as const, scope: 'visual', reasons: [] },
+			},
+		});
+
+		const written = await writeCaptureSet(root, {
+			kind: 'compare',
+			order: ['toolbar--dense', 'toolbar--airy'],
+			context: {
+				viewport: { width: 1280, height: 800 },
+				theme: 'light',
+				locale: 'en-US',
+				reducedMotion: 'no-preference',
+				motion: 'natural',
+			},
+			checkpoint: {
+				name: 'mount',
+				actionMode: 'none',
+				baseline: { clock: 'real', random: { source: 'seeded', seed: 1 }, storage: 'empty' },
+			},
+			browser: { name: 'chromium', version: '130' },
+			axe: true,
+			revision: 'a1b2c3d',
+			dirty: false,
+			skipped: { jobs: 0, gates: 0 },
+			entries: [
+				{
+					key: 'toolbar--dense',
+					id: 'toolbar--dense',
+					status: 'captured',
+					observation: mkObs('toolbar--dense'),
+				},
+				{
+					key: 'toolbar--airy',
+					id: 'toolbar--airy',
+					status: 'captured',
+					observation: mkObs('toolbar--airy'),
+				},
+			],
+		});
+
+		const client = await connect();
+
+		// Initially listed as undecided.
+		const beforeList = await client.callTool({ name: 'decision-list', arguments: {} });
+		expect(beforeList.isError).toBe(false);
+		expect(envelope(beforeList as CallToolResult)).toMatchObject({
+			success: true,
+			data: {
+				decisions: [],
+				undecided: [{ set: written.run.set }],
+			},
+		});
+
+		// Record choice over MCP.
+		const recorded = await client.callTool({
+			name: 'decision-record',
+			arguments: {
+				slug: 'toolbar-density',
+				question: 'How dense should the toolbar be?',
+				set: written.run.set,
+				chosen: 'toolbar--dense',
+				reason: 'Fits twelve commands without wrapping.',
+				subjects: { files: ['case.ts'], tokens: ['space.toolbar.gap'] },
+			},
+		});
+		expect(recorded.isError).toBe(false);
+		const recordedEnv = envelope(recorded as CallToolResult);
+		expect(recordedEnv).toMatchObject({
+			success: true,
+			data: {
+				decision: expect.stringMatching(/^dec-[0-9a-hjkmnp-tv-z]{12}$/),
+				kind: 'choice',
+				chosen: 'toolbar--dense',
+				kept: ['toolbar--airy'],
+			},
+		});
+		const decisionId = recordedEnv.data.decision as string;
+
+		// Read back with decision-get.
+		const fetched = await client.callTool({
+			name: 'decision-get',
+			arguments: { decision: decisionId },
+		});
+		expect(fetched.isError).toBe(false);
+		expect(envelope(fetched as CallToolResult)).toMatchObject({
+			success: true,
+			data: {
+				decision: decisionId,
+				chosen: 'toolbar--dense',
+				evidence: { set: written.run.set },
+			},
+		});
+
+		// Check with decision-check.
+		const checked = await client.callTool({
+			name: 'decision-check',
+			arguments: { files: ['case.ts'], tokens: ['space.toolbar.gap'] },
+		});
+		expect(checked.isError).toBe(false);
+		expect(envelope(checked as CallToolResult)).toMatchObject({
+			success: true,
+			data: {
+				decisions: [
+					{
+						decision: decisionId,
+						matched: { files: ['case.ts'], tokens: ['space.toolbar.gap'] },
+					},
+				],
+			},
+		});
+
+		// List now shows the decision with no stale globs and no undecided sets.
+		const afterList = await client.callTool({ name: 'decision-list', arguments: {} });
+		expect(afterList.isError).toBe(false);
+		expect(envelope(afterList as CallToolResult)).toMatchObject({
+			success: true,
+			data: {
+				decisions: [{ decision: decisionId, chosen: 'toolbar--dense', stale: [] }],
+				undecided: [],
+			},
+		});
+
+		// Missing decision returns DECISION_NOT_FOUND pointing to decision-list.
+		const missing = await client.callTool({
+			name: 'decision-get',
+			arguments: { decision: 'dec-q7k2m4xab3nb' },
+		});
+		expect(missing.isError).toBe(true);
+		expect(envelope(missing as CallToolResult)).toMatchObject({
+			success: false,
+			error: {
+				code: 'DECISION_NOT_FOUND',
+				suggestion: expect.stringContaining('decision-list'),
 			},
 		});
 	});

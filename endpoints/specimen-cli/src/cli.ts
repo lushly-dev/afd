@@ -88,6 +88,13 @@ const valueOptions = new Set([
 	'after',
 	'reason',
 	'outcome',
+	'slug',
+	'question',
+	'supersedes',
+	'items',
+	'chosen',
+	'specimens',
+	'tokens',
 ]);
 const flagOptions = new Set([
 	'require-visual',
@@ -125,7 +132,7 @@ function parseArguments(args: string[]): ParsedArguments {
 	const action = positionals.shift();
 	if (!action)
 		throw new Error(
-			'Choose a command: list, validate, inspect, render, capture, compare, run, themes, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, or job-run'
+			'Choose a command: list, validate, inspect, render, capture, compare, run, themes, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, job-run, decision-record, decision-get, decision-list, or decision-check'
 		);
 	return { action, positionals, options, flags };
 }
@@ -404,6 +411,24 @@ function validateOptions(parsed: ParsedArguments): void {
 			'reduced-motion',
 			'motion',
 		]),
+		'decision-record': new Set([
+			'root',
+			'config',
+			'output',
+			'slug',
+			'question',
+			'set',
+			'supersedes',
+			'items',
+			'chosen',
+			'reason',
+			'specimens',
+			'files',
+			'tokens',
+		]),
+		'decision-get': new Set(['root', 'config', 'output']),
+		'decision-list': new Set(['root', 'config', 'output']),
+		'decision-check': new Set(['root', 'config', 'output', 'files', 'specimens', 'tokens']),
 	};
 	const known = allowed[parsed.action];
 	if (!known) throw new Error(`Unknown command: ${parsed.action}`);
@@ -490,7 +515,12 @@ function validateOptions(parsed: ParsedArguments): void {
 		return;
 	}
 	const expected =
-		parsed.action === 'list' || parsed.action === 'validate' || parsed.action === 'migrate'
+		parsed.action === 'list' ||
+		parsed.action === 'validate' ||
+		parsed.action === 'migrate' ||
+		parsed.action === 'decision-record' ||
+		parsed.action === 'decision-list' ||
+		parsed.action === 'decision-check'
 			? 0
 			: parsed.action === 'point-move'
 				? 2
@@ -575,6 +605,27 @@ function parseCapturesOption(raw: string): unknown {
 			return step;
 		});
 }
+function splitTopLevelList(raw: string): string[] {
+	const items: string[] = [];
+	let current = '';
+	let braceDepth = 0;
+	let bracketDepth = 0;
+	for (let i = 0; i < raw.length; i++) {
+		const ch = raw[i] as string;
+		if (ch === '{') braceDepth++;
+		else if (ch === '}' && braceDepth > 0) braceDepth--;
+		else if (ch === '[') bracketDepth++;
+		else if (ch === ']' && bracketDepth > 0) bracketDepth--;
+		if (ch === ',' && braceDepth === 0 && bracketDepth === 0) {
+			if (current.length > 0) items.push(current);
+			current = '';
+		} else {
+			current += ch;
+		}
+	}
+	if (current.length > 0) items.push(current);
+	return items;
+}
 const resultCapture = z.object({ success: z.literal(true), data: observationSchema }).passthrough();
 async function readCapture(file: string): Promise<unknown> {
 	const value: unknown = JSON.parse(await readFile(file, 'utf8'));
@@ -657,7 +708,56 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 				result = await executeSpecimenCommand(bench, 'specimen-build', {
 					outDir: resolve(root, parsed.positionals[0] ?? ''),
 				});
-			else {
+			else if (parsed.action === 'decision-record') {
+				const splitList = (option: string) =>
+					(parsed.options.get(option) ?? '').split(',').filter(Boolean);
+				const splitGlobs = (option: string) => splitTopLevelList(parsed.options.get(option) ?? '');
+				const rawSupersedes = parsed.options.has('supersedes')
+					? splitList('supersedes')
+					: undefined;
+				const supersedes =
+					rawSupersedes === undefined
+						? undefined
+						: rawSupersedes.length === 1
+							? rawSupersedes[0]
+							: rawSupersedes;
+				const hasSubjects =
+					parsed.options.has('specimens') ||
+					parsed.options.has('files') ||
+					parsed.options.has('tokens');
+				const subjects = hasSubjects
+					? {
+							...(parsed.options.has('specimens') ? { specimens: splitList('specimens') } : {}),
+							...(parsed.options.has('files') ? { files: splitGlobs('files') } : {}),
+							...(parsed.options.has('tokens') ? { tokens: splitList('tokens') } : {}),
+						}
+					: undefined;
+				result = await executeSpecimenCommand(bench, 'decision-record', {
+					...(parsed.options.has('slug') ? { slug: parsed.options.get('slug') } : {}),
+					...(parsed.options.has('question') ? { question: parsed.options.get('question') } : {}),
+					...(parsed.options.has('set') ? { set: parsed.options.get('set') } : {}),
+					...(supersedes !== undefined ? { supersedes } : {}),
+					...(parsed.options.has('items') ? { items: splitList('items') } : {}),
+					...(parsed.options.has('chosen') ? { chosen: parsed.options.get('chosen') } : {}),
+					...(parsed.options.has('reason') ? { reason: parsed.options.get('reason') } : {}),
+					...(subjects !== undefined ? { subjects } : {}),
+				});
+			} else if (parsed.action === 'decision-get')
+				result = await executeSpecimenCommand(bench, 'decision-get', {
+					decision: parsed.positionals[0],
+				});
+			else if (parsed.action === 'decision-list')
+				result = await executeSpecimenCommand(bench, 'decision-list', {});
+			else if (parsed.action === 'decision-check') {
+				const splitList = (option: string) =>
+					(parsed.options.get(option) ?? '').split(',').filter(Boolean);
+				const splitGlobs = (option: string) => splitTopLevelList(parsed.options.get(option) ?? '');
+				result = await executeSpecimenCommand(bench, 'decision-check', {
+					...(parsed.options.has('files') ? { files: splitGlobs('files') } : {}),
+					...(parsed.options.has('specimens') ? { specimens: splitList('specimens') } : {}),
+					...(parsed.options.has('tokens') ? { tokens: splitList('tokens') } : {}),
+				});
+			} else {
 				const context: Partial<SpecimenContext> = {};
 				const viewport = parsed.options.get('viewport');
 				const container = parsed.options.get('container');
@@ -1087,7 +1187,7 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 			code: 'SPECIMEN_CLI_ERROR',
 			message,
 			suggestion:
-				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID [--set SET], capture [IDS...] [--label NAME], compare ID1 ID2..., run ID, a11y [ID] [--set SET], themes [ID] [--theme light,dark] [--threshold 0.02], migrate [--files A,B] [--helpers] [--apply], diff LEFT RIGHT, build OUTDIR, pack [TAG], pack-check [TAG], pack-export DIR, point POINTER | ID (--role ROLE [--name NAME] | --selector CSS), point-move POINT_ID DIRECTION [--index N], point-check POINT_ID, note-add (--point ID | --pointer URI) --text TEXT [--assignee NAME], note-list [--specimen ID] [--state open|resolved|all] [--assignee NAME] [--orphaned] [--limit N] [--after ID], note-check [SPECIMEN_ID], note-move NOTE_ID (--point ID | --pointer URI) --reason TEXT, note-resolve (NOTE_ID | --ids A,B) --outcome OUTCOME --reason TEXT [--revision SHA] [--capture REF], note-reopen NOTE_ID --reason TEXT, job-create ID --scenario PATH --module PATH --export-name NAME --target ID --captures STEPS, or job-run ID [--label NAME]; check option values and file paths.',
+				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID [--set SET], capture [IDS...] [--label NAME], compare ID1 ID2..., run ID, a11y [ID] [--set SET], themes [ID] [--theme light,dark] [--threshold 0.02], migrate [--files A,B] [--helpers] [--apply], diff LEFT RIGHT, build OUTDIR, pack [TAG], pack-check [TAG], pack-export DIR, point POINTER | ID (--role ROLE [--name NAME] | --selector CSS), point-move POINT_ID DIRECTION [--index N], point-check POINT_ID, note-add (--point ID | --pointer URI) --text TEXT [--assignee NAME], note-list [--specimen ID] [--state open|resolved|all] [--assignee NAME] [--orphaned] [--limit N] [--after ID], note-check [SPECIMEN_ID], note-move NOTE_ID (--point ID | --pointer URI) --reason TEXT, note-resolve (NOTE_ID | --ids A,B) --outcome OUTCOME --reason TEXT [--revision SHA] [--capture REF], note-reopen NOTE_ID --reason TEXT, job-create ID --scenario PATH --module PATH --export-name NAME --target ID --captures STEPS, job-run ID [--label NAME], decision-record --chosen VAL --reason TEXT (--set SET --slug SLUG --question TEXT | --supersedes IDS | --items ITEMS), decision-get ID, decision-list, or decision-check [--files A,B] [--specimens A,B] [--tokens A,B]; check option values and file paths.',
 		});
 	} finally {
 		if (bench) {
