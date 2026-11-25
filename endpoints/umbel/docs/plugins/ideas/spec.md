@@ -995,7 +995,7 @@ P18 is not built, so the deployer pastes this into `mcp.instructions`. A deploye
 server's name:
 
 > Umbel is an AFD server. Every tool returns a CommandResult as JSON text: { success, data, error: { code, message,
-> suggestion } }; follow error.suggestion to recover. The command tools listed are the common ones. Call
+> suggestion, recovery } }; follow error.suggestion to recover. When error.recovery is present, it is the same step in a form a program can follow. The command tools listed are the common ones. Call
 > afd-discover to find others, afd-detail for a schema, and afd-call to run one. Use afd-batch for several
 > independent commands and afd-pipe to chain them. This instance keeps the person's ideas. When they share a view, a
 > claim or a question they want kept, save it with ideas-capture, not memory; facts about the person and how to work

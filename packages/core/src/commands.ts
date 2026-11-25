@@ -741,6 +741,8 @@ export function createCommandRegistry(options: CommandRegistryOptions = {}): Com
 						code: 'COMMAND_NOT_FOUND',
 						message: `Command '${truncateName(String(name))}' not found`,
 						suggestion: `Use 'afd tools' to see available commands`,
+						// The suggestion names a shell command, outside the command surface.
+						recovery: { kind: 'external' },
 					},
 				};
 			}
@@ -755,6 +757,7 @@ export function createCommandRegistry(options: CommandRegistryOptions = {}): Com
 							message: `Command '${name}' is not exposed to ${context.interface}`,
 							suggestion: `Call it from an interface it is exposed to, or set expose.${context.interface} to true in its definition`,
 							retryable: false,
+							recovery: { kind: 'external' },
 						},
 					};
 				}

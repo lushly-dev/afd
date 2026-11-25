@@ -1335,6 +1335,11 @@ describe('MCP Tasks over HTTP', () => {
 				}
 			).structuredContent.error
 		).toMatchObject({ code: ErrorCodes.RATE_LIMITED, retryable: true });
+		// A task limit: retry, with no minimum wait (spec/recovery.md, "Engine errors").
+		expect(
+			(limitedA.body.result as { structuredContent: { error: { recovery?: unknown } } })
+				.structuredContent.error.recovery
+		).toEqual({ kind: 'retry' });
 
 		// Call on proc-b hits sharedStore owner-limit -> RATE_LIMITED
 		const limitedB = await rpc(
@@ -1350,6 +1355,10 @@ describe('MCP Tasks over HTTP', () => {
 				}
 			).structuredContent.error
 		).toMatchObject({ code: ErrorCodes.RATE_LIMITED, retryable: true });
+		expect(
+			(limitedB.body.result as { structuredContent: { error: { recovery?: unknown } } })
+				.structuredContent.error.recovery
+		).toEqual({ kind: 'retry' });
 
 		// Cancel via proc-b reaches runner on proc-a through sharedStore
 		const cancelB = await rpc(httpB.url, 'tasks/cancel', { taskId: id }, { tasks: true });

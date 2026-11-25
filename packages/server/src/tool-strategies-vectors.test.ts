@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { success } from '@lushly-dev/afd-core';
+import { type Recovery, success } from '@lushly-dev/afd-core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { defineCommand, type ZodCommandDefinition } from './schema.js';
@@ -37,7 +37,7 @@ interface CallCase {
 	tool: string;
 	arguments?: Record<string, unknown>;
 	context: string | null;
-	expected: { success: boolean; code?: string };
+	expected: { success: boolean; code?: string; recovery?: Recovery | null };
 }
 
 interface ServerCase {
@@ -173,7 +173,7 @@ async function modernCall(
 	return JSON.parse(content[0]?.text ?? '{}') as {
 		success: boolean;
 		data?: Record<string, unknown>;
-		error?: { code: string; message: string; suggestion?: string };
+		error?: { code: string; message: string; suggestion?: string; recovery?: Recovery };
 	};
 }
 
@@ -260,6 +260,9 @@ describe('spec/vectors/tool-strategies.json: servers', () => {
 				const result = await modernCall(base, call.tool, call.arguments, call.context);
 				expect(result.success).toBe(call.expected.success);
 				if (call.expected.code) expect(result.error?.code).toBe(call.expected.code);
+				if (call.expected.recovery !== undefined) {
+					expect(result.error?.recovery).toEqual(call.expected.recovery ?? undefined);
+				}
 			}
 		);
 	});

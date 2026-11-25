@@ -116,6 +116,8 @@ TEST_CASE(
     const auto nothing_close = registry.execute("zzzz-zzzz");
     CHECK(nothing_close.error->suggestion ==
           "Check the command name against the available commands.");
+    // Spelling a name correctly is the caller's own step: no recovery (spec/recovery.md).
+    CHECK_FALSE(nothing_close.error->recovery.has_value());
 
     const auto huge = registry.execute(std::string(10000, 'x'));
     CHECK(huge.error->message == "Command '" + std::string(128, 'x') + "…' not found");
@@ -124,7 +126,17 @@ TEST_CASE(
     // Suggestions name only tools the host provides (spec/error-codes.md, D4): C++ has no
     // afd-discover, so a registered afd-help is named instead.
     add(registry, echo_command("afd-help"));
-    CHECK(registry.execute("zzzz-zzzz").error->suggestion == "Use afd-help to list all commands.");
+    const auto with_help = registry.execute("zzzz-zzzz");
+    CHECK(with_help.error->suggestion == "Use afd-help to list all commands.");
+    CHECK(with_help.error->recovery ==
+          afd::Recovery{.kind = afd::RecoveryKind::call, .command = "afd-help"});
+    // afd-help hidden from the caller's surface is neither named nor the recovery (rule 2).
+    afd::CommandContext cli;
+    cli.surface = afd::Interface::cli;
+    const auto hidden_help = registry.execute("zzzz-zzzz", afd::Json::object(), cli);
+    CHECK(hidden_help.error->suggestion ==
+          "Check the command name against the available commands.");
+    CHECK_FALSE(hidden_help.error->recovery.has_value());
 }
 
 TEST_CASE("exposure: a surface only reaches commands exposed to it") {
@@ -139,7 +151,8 @@ TEST_CASE("exposure: a surface only reaches commands exposed to it") {
     const auto blocked = registry.execute("admin-reset", {{"title", "x"}}, agent);
     CHECK(as_json(blocked) == afd::Json::parse(R"({"success":false,"error":{
         "code":"COMMAND_NOT_EXPOSED","message":"Command 'admin-reset' is not exposed to agent",
-        "suggestion":"Use one of the commands exposed to agent: todo-create","retryable":false}})"));
+        "suggestion":"Use one of the commands exposed to agent: todo-create","retryable":false,
+        "recovery":{"kind":"external"}}})"));
 
     // A hidden command is never offered as a suggestion.
     const auto typo = registry.execute("admin-rese", afd::Json::object(), agent);
@@ -152,6 +165,61 @@ TEST_CASE("exposure: a surface only reaches commands exposed to it") {
     mcp.surface = afd::Interface::mcp;
     CHECK(registry.execute("todo-create", {{"title", "x"}}, mcp).error->suggestion ==
           "No commands are exposed to mcp; set expose.mcp on the commands it should call");
+}
+
+TEST_CASE("a handler that re-enters the registry names only what its client's allow list admits") {
+    // A DirectClient answers an unknown or unexposed name itself, so the registry's not-found
+    // candidates and not-exposed list are reached by a handler calling back in with its context,
+    // which carries the client's allow list (spec/recovery.md, rule 2).
+    auto owned = std::make_shared<afd::CommandRegistry>();
+    const afd::ExposeOptions mcp_only{.mcp = true};
+    auto help = echo_command("afd-help");
+    help.expose = mcp_only;
+    add(*owned, help);
+    auto create = echo_command("todo-create");
+    create.expose = mcp_only;
+    add(*owned, create);
+    auto hidden = echo_command("admin-reset");
+    hidden.expose = afd::ExposeOptions{.mcp = false};
+    add(*owned, hidden);
+    const afd::CommandRegistry* inner = owned.get();
+    add(*owned, afd::CommandDefinition{
+                    .name = "probe-run",
+                    .description = "Run another command from inside a handler",
+                    .input_schema = afd::Json::parse(
+                        R"({"type":"object","properties":{"target":{"type":"string"}},
+                            "required":["target"]})"),
+                    .handler =
+                        [inner](const afd::Json& input, afd::CommandContext& context) {
+                            return inner->execute(input["target"].get<std::string>(),
+                                                  {{"title", "x"}}, context);
+                        },
+                    .expose = mcp_only,
+                });
+    const std::shared_ptr<const afd::CommandRegistry> registry = owned;
+    const afd::DirectClient client(
+        registry, {.surface = afd::Interface::mcp,
+                   .allow = [](std::string_view name) { return name != "afd-help"; }});
+
+    const auto missing = client.call("probe-run", {{"target", "zzzz-zzzz"}});
+    REQUIRE(missing.error);
+    CHECK(missing.error->code == "COMMAND_NOT_FOUND");
+    CHECK(missing.error->suggestion == "Check the command name against the available commands.");
+    CHECK_FALSE(missing.error->recovery.has_value());
+
+    const auto unexposed = client.call("probe-run", {{"target", "admin-reset"}});
+    REQUIRE(unexposed.error);
+    CHECK(unexposed.error->code == "COMMAND_NOT_EXPOSED");
+    CHECK(unexposed.error->suggestion ==
+          "Use one of the commands exposed to mcp: todo-create, probe-run");
+
+    // The same client without the allow list is offered afd-help, so the list above is the cause.
+    const afd::DirectClient open(registry, {.surface = afd::Interface::mcp});
+    const auto offered = open.call("probe-run", {{"target", "zzzz-zzzz"}});
+    REQUIRE(offered.error);
+    CHECK(offered.error->suggestion == "Use afd-help to list all commands.");
+    CHECK(offered.error->recovery ==
+          afd::Recovery{.kind = afd::RecoveryKind::call, .command = "afd-help"});
 }
 
 TEST_CASE("contexts: a command outside the active context is unavailable") {

@@ -584,6 +584,8 @@ async fn a_held_input_without_canonical_json_is_refused_by_the_approval_step() {
             .and_then(|details| details.get("reason")),
         Some(&json!("input-not-canonical"))
     );
+    // The caller sends the input in another form: no recovery (`spec/recovery.md`).
+    assert!(error.recovery.is_none(), "{error:?}");
     assert_eq!(
         error.suggestion.as_deref(),
         Some("Do not retry with this input: it has no exact canonical form, so an approval cannot be bound to it. Send the input in a form canonical JSON accepts (for example, an integer a JavaScript number cannot hold exactly, such as 2^53 + 1, as a string).")

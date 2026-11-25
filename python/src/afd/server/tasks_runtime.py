@@ -19,7 +19,7 @@ from typing import Any, Literal
 from afd.core.actor import Actor
 from afd.core.clock import Clock, system_clock
 from afd.core.commands import CommandContext, CommandDefinition
-from afd.core.errors import CommandError, ErrorCodes
+from afd.core.errors import CommandError, ErrorCodes, Recovery
 from afd.core.result import failure
 from afd.core.similarity import truncate_name
 from afd.server.approval_relay import bind_approval_relay
@@ -195,6 +195,7 @@ def task_limit_error() -> CommandError:
         message="The task could not start: a task limit was reached, so nothing ran",
         suggestion="Wait for one of your tasks to finish or expire, then call again.",
         retryable=True,
+        recovery=Recovery(kind="retry"),
     )
 
 

@@ -29,6 +29,7 @@ class UpFrontApproval;
 struct JournaledContextFields;
 struct ApprovalAdmission;
 struct RawOutputBudgetAsk;
+struct CallerAllow;
 } // namespace detail
 
 /// A surface a command can be exposed to. TypeScript calls this the command's `interface`; C++
@@ -145,6 +146,10 @@ struct CommandContext {
     /// call's deadline on `cancellation`, so `CommandRegistry::execute` does not stack a second
     /// deadline on top. Leave unset.
     bool deadline_armed = false;
+    /// Internal: the allow list of the `DirectClient` the call came through, so the registry's
+    /// suggestions and recoveries name only commands it admits (`spec/recovery.md`, rule 2).
+    /// `DirectClient` replaces whatever the caller passes. Leave unset.
+    std::shared_ptr<const detail::CallerAllow> caller_allow;
 };
 
 /// Defaults for `with_context_defaults`.

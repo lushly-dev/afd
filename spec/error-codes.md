@@ -98,17 +98,24 @@ the registry with the `agent` interface, so it answers `COMMAND_NOT_FOUND` and
 ### Suggestions name only tools the host provides
 
 A suggestion names `afd-discover`, `afd-detail`, `afd-help` or `afd-context-*` only where the caller
-can call that tool.
+can call that tool on this surface: it is registered or served, exposed to the caller's interface,
+allowed in the active context, admitted by any `allow` list and visible under the server's
+authorization. The error's `recovery` follows the same decision
+([engine errors](./recovery.md#engine-errors)), so the prose and the structure never disagree.
+"Check the command name against the available commands." is the unknown-command ending where the
+caller can call neither discovery tool; "Switch to a context this command belongs to ('planning'), or
+call it with no active context." is the `COMMAND_NOT_IN_CONTEXT` text where it cannot call
+`afd-context-list`.
 
 | Implementation | Unknown-command suggestion ends with | `COMMAND_NOT_IN_CONTEXT` suggestion |
 | --- | --- | --- |
-| TypeScript server | "Use afd-discover to list all commands." (the router serves `afd-discover` in every tool strategy) | "Use afd-context-list to see available contexts, or afd-context-enter to switch." (the server registers both when it has contexts) |
-| TypeScript direct registry (`createDirectRegistry`) | As the TypeScript server with a tool surface (`tools: createDirectToolSurface()`), which serves `afd-discover`; otherwise "Check the command name against the available commands." | As the TypeScript server with a tool surface, which serves the context tools when the registry has contexts; otherwise as C++ |
+| TypeScript server | Over MCP, "Use afd-discover to list all commands." (the router serves `afd-discover` in every tool strategy). In process (`server.execute`), "Use afd-help to list all commands." when the caller can call `afd-help`, otherwise the "Check the command name" ending | "Use afd-context-list to see available contexts, or afd-context-enter to switch." when the caller can call `afd-context-list`, without the second clause when it cannot call `afd-context-enter`; otherwise the contexts text |
+| TypeScript direct registry (`createDirectRegistry`) | As the TypeScript server over MCP with a tool surface (`tools: createDirectToolSurface()`), which serves `afd-discover`; otherwise as `server.execute` | As the TypeScript server, whether the context commands come from a tool surface or are registered as plain commands |
 | TypeScript core registry | "Use 'afd tools' to see available commands" (the CLI) | Not emitted |
-| Rust registry | "Use afd-help to list all commands." when the caller can call `afd-help`, otherwise "Check the command name against the available commands."; calls from the MCP server (`server` feature, which serves `afd-discover` in every strategy) end as TypeScript's | As TypeScript when the caller can call `afd-context-list`; otherwise as C++ |
-| C++ registry | As Rust | As TypeScript when the caller can call `afd-context-list` (`register_context_commands`); otherwise names the contexts the command belongs to: "Switch to a context this command belongs to ('planning'), or call it with no active context." |
-| Python server | As TypeScript. [#325](https://github.com/lushly-dev/afd/issues/325) tracks the tool strategies that do not serve `afd-discover` remotely | As TypeScript |
-| Python core registry | "List available commands to see valid options" | As C++ |
+| Rust registry | "Use afd-help to list all commands." when the caller can call `afd-help`, otherwise the "Check the command name" ending; calls from the MCP server (`server` feature, which serves `afd-discover` in every strategy) end as TypeScript's over MCP | As TypeScript |
+| C++ registry | As Rust, a DirectClient's `allow` list included | As Rust |
+| Python server | As the TypeScript server over MCP. In process, `server.execute` also runs the meta-tools outside the `apps` interface, so it ends as over MCP unless an `allow` list refuses `afd-discover`; the `apps` interface, and such an `allow` list, end as TypeScript's `server.execute` | As TypeScript |
+| Python core registry | "Use afd-help to list all commands." when the caller can call `afd-help`, otherwise "List available commands to see valid options" | As TypeScript |
 
 A hybrid server ([tool strategies](./tool-strategies.md#hybrid)) always lists `afd-discover`, and
 lists `afd-context-list` and `afd-context-enter` whenever it has contexts, so both server

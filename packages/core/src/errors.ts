@@ -347,16 +347,24 @@ export function notFoundError(resourceType: string, resourceId: string): Command
 }
 
 /**
- * Create a rate limit error.
+ * Create a rate limit error. Its recovery is `retry`, waiting `retryAfterSeconds` when given
+ * (`spec/recovery.md`, "Engine errors").
  */
 export function rateLimitError(retryAfterSeconds?: number): CommandError {
 	const suggestion = retryAfterSeconds
 		? `Wait ${retryAfterSeconds} seconds and try again`
 		: 'Wait a moment and try again';
+	// A wait the recovery can carry: a whole number of milliseconds in range, rounded up, so the wait is never shorter than the suggestion's.
+	const afterMs = retryAfterSeconds ? Math.ceil(retryAfterSeconds * 1000) : undefined;
+	const recovery: Recovery =
+		afterMs !== undefined && Number.isSafeInteger(afterMs) && afterMs >= 0
+			? { kind: 'retry', afterMs }
+			: { kind: 'retry' };
 
 	return createError(ErrorCodes.RATE_LIMITED, 'Rate limit exceeded', {
 		suggestion,
 		retryable: true,
+		recovery,
 		details: retryAfterSeconds ? { retryAfterSeconds } : undefined,
 	});
 }

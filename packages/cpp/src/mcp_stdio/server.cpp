@@ -202,6 +202,7 @@ CommandError declined_error(const std::vector<std::string>& names) {
         .suggestion =
             "Do not run this again without asking the user first; the user chose not to proceed.",
         .retryable = false,
+        .recovery = Recovery{.kind = RecoveryKind::stop},
         .details = Json{{"commands", names}},
         .cause = nullptr,
     };
@@ -224,6 +225,8 @@ CommandError required_error(std::string message, const std::vector<std::string>&
                 : std::string("This server accepts only a confirmation from the user: use an "
                               "MCP client that supports elicitation."),
         .retryable = false,
+        // The user confirms, which spec/recovery.md's rule 5 keeps out of a recovery's input.
+        .recovery = Recovery{.kind = RecoveryKind::external},
         .details = Json{{"commands", names}},
         .cause = nullptr,
     };
@@ -249,6 +252,7 @@ CommandResult unanswered(std::string_view key, std::string_view command, std::st
                       (confirmation ? "confirmation" : "approval") +
                       " question. Ask the user, then call again.",
         .retryable = false,
+        .recovery = Recovery{.kind = RecoveryKind::external},
         .details = std::nullopt,
         .cause = nullptr,
     });
@@ -420,8 +424,9 @@ struct StdioServer::State {
     [[nodiscard]] std::string default_instructions() const {
         std::string text = options.name +
                            " is an AFD server. Every tool returns a CommandResult as JSON text: "
-                           "{ success, data, error: { code, message, suggestion } }; follow "
-                           "error.suggestion to recover.";
+                           "{ success, data, error: { code, message, suggestion, recovery } }; "
+                           "follow error.suggestion to recover. When error.recovery is present, "
+                           "it is the same step in a form a program can follow.";
         switch (options.tool_strategy) {
         case ToolStrategy::hybrid:
             text += " The command tools listed are the common ones. Call afd-discover to find "

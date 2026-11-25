@@ -93,7 +93,9 @@ export interface DirectClientOptions {
 	 * the exchange; a legacy token-in-result registry is held without prompting.
 	 *
 	 * The hook is trusted application code and never sees the credential. On denial, a hook
-	 * error or no hook, return a token-free `APPROVAL_REQUIRED` result. `context.timeout`
+	 * error or no hook, return a token-free `APPROVAL_REQUIRED` result. Only an explicit `false`
+	 * is a decline, whose recovery is `stop`; a hook that throws, rejects or gives no boolean
+	 * leaves the hold as it was, `external` with its own suggestion. `context.timeout`
 	 * bounds each attempt, not the wait: close the prompt when `request.signal` aborts.
 	 * Cancellation during the wait denies the call. An expired retry is held again with
 	 * `details.reason: 'expired'`; the client never retries more than once.

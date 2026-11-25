@@ -711,6 +711,130 @@ describe('P3-E9: M6, a hidden mutation on /stream', () => {
 	});
 });
 
+describe('P3-E9: M6, a hidden context tool is never named (spec/recovery.md, rule 2)', () => {
+	/** A 2026-07-28 `tools/call` on `/mcp`, in `context`. */
+	function callIn(base: string, bearer: string, name: string, args: unknown, context: string) {
+		return post(
+			`${base}/mcp`,
+			{
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'tools/call',
+				params: { name, arguments: args, _meta: { ...META, 'dev.afd/context': context } },
+			},
+			bearer,
+			{ 'MCP-Protocol-Version': '2026-07-28', 'Mcp-Method': 'tools/call', 'Mcp-Name': name }
+		);
+	}
+
+	async function served(hide: string[]) {
+		return serve(
+			{
+				toolStrategy: 'individual',
+				commands: [...commands(), todo('todo-review', ['todo:read'], { contexts: ['review'] })],
+				contexts: [{ name: 'review' }, { name: 'planning' }],
+			},
+			{ resolver: resolver({ hide }), filterToolsByScope: true }
+		);
+	}
+
+	it('names afd-context-list only when the caller is shown it', async () => {
+		const bearer = await token('todo:read');
+		const shown = toolResult(await callIn(await served([]), bearer, 'todo-review', {}, 'planning'));
+		expect(shown.error).toMatchObject({
+			code: 'COMMAND_NOT_IN_CONTEXT',
+			recovery: { kind: 'call', command: 'afd-context-list' },
+		});
+		const hidden = toolResult(
+			await callIn(await served(['afd-context-list']), bearer, 'todo-review', {}, 'planning')
+		);
+		expect(hidden.error).toEqual({
+			code: 'COMMAND_NOT_IN_CONTEXT',
+			message: "Command 'todo-review' is not available in context 'planning'",
+			suggestion:
+				"Switch to a context this command belongs to ('review'), or call it with no active context.",
+		});
+		const unknown = toolResult(
+			await callIn(
+				await served(['afd-context-list']),
+				bearer,
+				'afd-context-enter',
+				{ context: 'nope' },
+				'planning'
+			)
+		);
+		expect(unknown.error).toEqual({
+			code: 'CONTEXT_NOT_FOUND',
+			message: "Context 'nope' is not configured",
+			suggestion: 'Available contexts: review, planning.',
+		});
+	});
+
+	// The engine refuses a batch step, not the router, so this checks the scope view reaches it.
+	it('names afd-context-list in an afd-batch step only when the caller is shown it', async () => {
+		const bearer = await token('todo:read');
+		const batch = async (hide: string[]) => {
+			const sent = await callIn(
+				await served(hide),
+				bearer,
+				'afd-batch',
+				{ commands: [{ command: 'todo-review', input: {} }] },
+				'planning'
+			);
+			const batched = toolResult(sent) as {
+				results?: { result?: { error?: Record<string, unknown> } }[];
+			};
+			return batched.results?.[0]?.result?.error;
+		};
+		expect(await batch([])).toMatchObject({
+			code: 'COMMAND_NOT_IN_CONTEXT',
+			recovery: { kind: 'call', command: 'afd-context-list' },
+		});
+		expect(await batch(['afd-context-list'])).toEqual({
+			code: 'COMMAND_NOT_IN_CONTEXT',
+			message: "Command 'todo-review' is not available in context 'planning'",
+			suggestion:
+				"Switch to a context this command belongs to ('review'), or call it with no active context.",
+		});
+		expect(ran).not.toContain('todo-review');
+	});
+});
+
+describe('P3-E9: M6, a hidden afd-help is never named on /rpc (spec/recovery.md, "Engine errors")', () => {
+	/** The error `/rpc` answers for a name the server does not have. */
+	async function unknownOnRpc(hide: string[]) {
+		const base = await serve(
+			{ toolStrategy: 'individual', bootstrap: true },
+			{ resolver: resolver({ hide }), filterToolsByScope: true }
+		);
+		const sent = await post(
+			`${base}/rpc`,
+			{ jsonrpc: '2.0', id: 1, method: 'zzzz-qqqq', params: {} },
+			await token('todo:read')
+		);
+		expect(sent.status).toBe(200);
+		return JSON.parse(sent.text);
+	}
+
+	it('points an unknown command to afd-help only when the caller is shown it', async () => {
+		const error = (sent: { result?: { success?: boolean; error?: unknown } }) => {
+			expect(sent.result?.success).toBe(false);
+			return sent.result?.error;
+		};
+		expect(error(await unknownOnRpc([]))).toEqual({
+			code: 'COMMAND_NOT_FOUND',
+			message: "Command 'zzzz-qqqq' not found",
+			suggestion: 'Use afd-help to list all commands.',
+			recovery: { kind: 'call', command: 'afd-help' },
+		});
+		expect(error(await unknownOnRpc(['afd-help']))).toEqual({
+			code: 'COMMAND_NOT_FOUND',
+			message: "Command 'zzzz-qqqq' not found",
+			suggestion: 'Check the command name against the available commands.',
+		});
+	});
+});
+
 describe('P3-E9: M6, credentials the resolver sees', () => {
 	it('are the verified credentials, never the token', async () => {
 		const seen: Credentials[] = [];

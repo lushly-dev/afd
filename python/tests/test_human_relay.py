@@ -561,6 +561,8 @@ async def test_client_decline_or_cancel_never_calls_resume(action: str) -> None:
     assert err["code"] == "CONFIRMATION_DECLINED"
     assert err["retryable"] is False
     assert err["details"] == {"commands": ["wire-send"]}
+    # spec/recovery.md, "Engine errors": a decline is a stop.
+    assert err["recovery"] == {"kind": "stop"}
     assert len(relay.resumes) == 0
 
 
@@ -631,6 +633,8 @@ async def test_resume_declined_pending_invalid_and_missing_url_capability() -> N
         err = json.loads(r_nocap["result"]["content"][0]["text"])["error"]
         assert err["code"] == "CONFIRMATION_REQUIRED"
         assert "URL-mode elicitation" in err["suggestion"]
+        # A person confirms through the host.
+        assert err["recovery"] == {"kind": "external"}
 
     # Relay.begin returning CommandError propagates cleanly
     refuse_relay = _ScriptedRelay(
@@ -793,9 +797,11 @@ async def test_batch_pipe_legacy_no_relay_ack_and_direct_boundaries() -> None:
             "confirm": ["wire-send"],
         },
     )
-    assert json.loads(batch_res["result"]["content"][0]["text"])["error"]["code"] == (
-        "CONFIRMATION_REQUIRED"
-    )
+    batch_err = json.loads(batch_res["result"]["content"][0]["text"])["error"]
+    assert batch_err["code"] == "CONFIRMATION_REQUIRED"
+    # Pinned as the table gives it today ("Engine errors", CONFIRMATION_REQUIRED: external); the
+    # verified-recovery follow-ups ask whether a "call it on its own" step should carry none.
+    assert batch_err["recovery"] == {"kind": "external"}
     pipe_res = await _http_call(
         server,
         "afd-pipe",
@@ -842,6 +848,8 @@ async def test_batch_pipe_legacy_no_relay_ack_and_direct_boundaries() -> None:
     err_nr = json.loads(nr["result"]["content"][0]["text"])["error"]
     assert err_nr["code"] == "CONFIRMATION_REQUIRED"
     assert "cannot confirm" in err_nr["suggestion"]
+    # No relay is installed: only the operator can change that.
+    assert err_nr["recovery"] == {"kind": "external"}
 
     # 6. Direct server.execute and DirectClient are ungated by HumanRelay.
     direct_res = await server.execute("wire-send", {"n": 7})

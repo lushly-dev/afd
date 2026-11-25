@@ -81,7 +81,7 @@ bind = "127.0.0.1:7421"
 first_class_tools = ["ideas-capture", "ideas-ask", "ideas-guide", "memory-remember"]
 instructions = """\
 Umbel is an AFD server. Every tool returns a CommandResult as JSON text: { success, data, error: \
-{ code, message, suggestion } }; follow error.suggestion to recover. The command tools listed \
+{ code, message, suggestion, recovery } }; follow error.suggestion to recover. When error.recovery is present, it is the same step in a form a program can follow. The command tools listed \
 are the common ones. Call afd-discover to find others, afd-detail for a schema, and afd-call to \
 run one. Use afd-batch for several independent commands and afd-pipe to chain them. This \
 instance keeps the person's ideas. When they share a view, a claim or a question they want kept, \
@@ -184,7 +184,7 @@ default's sentences for the hybrid strategy (section 11.2). It is the text above
 `tests/instructions.rs` holds that the three agree:
 
 > Umbel is an AFD server. Every tool returns a CommandResult as JSON text: { success, data, error: {
-> code, message, suggestion } }; follow error.suggestion to recover. The command tools listed are
+> code, message, suggestion, recovery } }; follow error.suggestion to recover. When error.recovery is present, it is the same step in a form a program can follow. The command tools listed are
 > the common ones. Call afd-discover to find others, afd-detail for a schema, and afd-call to run
 > one. Use afd-batch for several independent commands and afd-pipe to chain them. This instance
 > keeps the person's ideas. When they share a view, a claim or a question they want kept, save it

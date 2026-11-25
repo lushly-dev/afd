@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "detail/caller_allow.hpp"
 #include "detail/direct_approval.hpp"
 #include "detail/exceptions.hpp"
 #include "detail/json_io.hpp"
@@ -118,6 +119,10 @@ CommandResult DirectClient::call(std::string_view name, const Json& args,
     context.approval_admission.reset();
     context.direct_approval = std::make_shared<detail::DirectApprovalState>();
     const detail::DisposeDirectApproval cleanup{context.direct_approval};
+    // The registry names only commands this client's allow list admits (spec/recovery.md, rule 2).
+    context.caller_allow = options_.allow ? std::make_shared<const detail::CallerAllow>(
+                                                detail::CallerAllow{.allows = options_.allow})
+                                          : nullptr;
 
     // 3. Context.
     if (!context.trace_id || context.trace_id->empty()) {
@@ -209,6 +214,7 @@ CommandResult DirectClient::call(std::string_view name, const Json& args,
     if (!result.success && result.error && result.error->code == "APPROVAL_REQUIRED" && pending &&
         options_.on_approval_needed && !context.cancellation.is_cancelled()) {
         bool approved = false;
+        bool answered = false;
 #if AFD_HAS_EXCEPTIONS
         try {
 #endif
@@ -219,11 +225,19 @@ CommandResult DirectClient::call(std::string_view name, const Json& args,
                                       .expires_at = pending->expires_at,
                                       .reason = pending->reason,
                                       .cancellation = context.cancellation});
+            answered = true;
 #if AFD_HAS_EXCEPTIONS
         } catch (...) {
             approved = false;
         }
 #endif
+        if (answered && !approved && result.error) {
+            // The hook declined: no step makes this call succeed (spec/recovery.md), and the prose
+            // says the same (rule 1), as the approval middleware words a decline.
+            result.error->suggestion = "Do not run this again without asking the user first; the "
+                                       "user chose not to approve it.";
+            result.error->recovery = Recovery{.kind = RecoveryKind::stop};
+        }
         if (approved && !context.cancellation.is_cancelled()) {
             {
                 std::lock_guard lock(context.direct_approval->mutex);

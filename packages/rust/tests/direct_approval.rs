@@ -92,6 +92,10 @@ fn held(result: &CommandResult<Value>) {
         .contains_key("approvalToken"));
 }
 
+fn recovery_of(result: &CommandResult<Value>) -> Value {
+    serde_json::to_value(&result.error.as_ref().unwrap().recovery).unwrap()
+}
+
 #[tokio::test]
 async fn public_context_cannot_approve_and_observers_never_get_credentials() {
     let f = fixture();
@@ -121,6 +125,7 @@ async fn only_explicit_approval_retries_and_replay_is_held() {
     for answer in [Ok(true), Ok(false), Err("hook error".to_owned())] {
         let f = fixture();
         let approved = answer == Ok(true);
+        let declined = answer == Ok(false);
         let decisions = Arc::new(AtomicUsize::new(0));
         let calls = Arc::clone(&decisions);
         let client = DirectClient::new(Arc::clone(&f.registry)).with_on_approval_needed(Arc::new(
@@ -137,6 +142,24 @@ async fn only_explicit_approval_retries_and_replay_is_held() {
             assert_eq!(result.data, Some(json!({"id":1})));
         } else {
             held(&result);
+            // `spec/recovery.md`, "Engine errors": a declining hook is a stop; a hook that fails
+            // leaves the hold, which a person must still approve.
+            let recovery = if declined {
+                json!({ "kind": "stop" })
+            } else {
+                json!({ "kind": "external" })
+            };
+            assert_eq!(recovery_of(&result), recovery);
+            if declined {
+                // The prose says the same as the recovery (rule 1).
+                let suggestion = result.error.as_ref().and_then(|e| e.suggestion.as_deref());
+                assert_eq!(
+                    suggestion,
+                    Some(
+                        "Do not run this again without asking the user first; the user chose not to approve it."
+                    )
+                );
+            }
         }
         assert_eq!(f.runs.load(Ordering::SeqCst), usize::from(approved));
         assert_eq!(decisions.load(Ordering::SeqCst), 1);
@@ -158,7 +181,9 @@ async fn hook_panics_leave_the_original_hold() {
     let f = fixture();
     let client = DirectClient::new(Arc::clone(&f.registry))
         .with_on_approval_needed(Arc::new(|_| panic!("hook")));
-    held(&client.call("item-delete", json!({"id":1}), None).await);
+    let result = client.call("item-delete", json!({"id":1}), None).await;
+    held(&result);
+    assert_eq!(recovery_of(&result), json!({ "kind": "external" }));
     assert_eq!(f.runs.load(Ordering::SeqCst), 0);
 }
 

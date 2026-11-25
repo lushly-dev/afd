@@ -317,6 +317,19 @@ async fn the_calls_match_the_shared_cases() {
                 if let Some(code) = expected.get("code") {
                     assert_eq!(result["error"]["code"], *code, "{label}: {response}");
                 }
+                // `null` is no recovery: the error carries no `recovery` member.
+                if let Some(recovery) = expected.get("recovery") {
+                    assert_eq!(
+                        result["error"]["recovery"], *recovery,
+                        "{label}: {response}"
+                    );
+                    if recovery.is_null() {
+                        assert!(
+                            result["error"].get("recovery").is_none(),
+                            "{label}: {response}"
+                        );
+                    }
+                }
                 assert_eq!(
                     response["result"]["structuredContent"], result,
                     "{label}: structuredContent equals the text"

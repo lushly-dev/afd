@@ -657,6 +657,7 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 					suggestion:
 						'Do not run this again without asking the user first; the user chose not to approve it.',
 					retryable: false,
+					recovery: { kind: 'stop' },
 					details: { summary, reason: 'declined' },
 				});
 			}
@@ -688,6 +689,7 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 				message: `${commandName} needs approval before it runs`,
 				suggestion: `Wait for the user to approve "${summary}" in the client.`,
 				retryable: false,
+				recovery: { kind: 'external' },
 				details: { expiresAt: new Date(expiresAt).toISOString(), summary },
 			});
 		}
@@ -739,6 +741,9 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 			message: `${commandName} needs approval before it runs`,
 			suggestion: `${why}Ask the user to approve "${summary}"; ${retry}`,
 			retryable: false,
+			// A person approves, so the step is outside the command surface, except where the
+			// suggestion tells the caller to reshape the call: call the gated command on its own.
+			...(!(bound && !approver && !includeToken) && { recovery: { kind: 'external' } as const }),
 			details: {
 				...(includeToken && { approvalToken }),
 				expiresAt,

@@ -62,6 +62,7 @@ describe('DirectClient allow option', () => {
 			retryable: false,
 		});
 		expect(result.error?.suggestion).toBeTruthy();
+		expect(result.error).not.toHaveProperty('recovery');
 		expect(calls).toEqual([]);
 	});
 
@@ -406,6 +407,8 @@ describe('DirectClient failures instead of rejections', () => {
 			suggestion: "Did you mean 'todo-create'?",
 			retryable: false,
 		});
+		// The remedy is the client's own listCommandNames(), not a command.
+		expect(result.error).not.toHaveProperty('recovery');
 	});
 });
 

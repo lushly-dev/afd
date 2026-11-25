@@ -15,6 +15,7 @@ Example:
     >>> err = create_error("CUSTOM_ERROR", "Something went wrong")
 """
 
+import math
 from dataclasses import dataclass
 from typing import Any, Literal, Union
 
@@ -485,8 +486,23 @@ def not_found_error(
     )
 
 
+def _retry_after(seconds: Any) -> Recovery:
+    """``{kind: "retry"}`` with ``after_ms`` of ``seconds`` rounded up to whole milliseconds, so
+    the wait is never shorter than the suggestion's, when that is a finite wait in
+    ``0..MAX_AFTER_MS``; otherwise with no minimum wait. It never raises."""
+    if seconds is not None and not isinstance(seconds, bool):
+        try:
+            if math.isfinite(seconds):
+                after_ms = math.ceil(seconds * 1000)
+                if 0 <= after_ms <= MAX_AFTER_MS:
+                    return Recovery(kind="retry", after_ms=after_ms)
+        except (TypeError, ValueError, OverflowError):
+            pass
+    return Recovery(kind="retry")
+
+
 def rate_limit_error(
-    retry_after_seconds: int | None = None,
+    retry_after_seconds: float | None = None,
 ) -> CommandError:
     """Create a rate limit error.
 
@@ -512,6 +528,9 @@ def rate_limit_error(
         suggestion=suggestion,
         retryable=True,
         details={"retryAfterSeconds": retry_after_seconds} if retry_after_seconds else None,
+        # The wait the suggestion gives, when known (spec/recovery.md, "Engine errors").
+        # No seconds, or 0, is no known wait, as in TypeScript.
+        recovery=_retry_after(retry_after_seconds or None),
     )
 
 

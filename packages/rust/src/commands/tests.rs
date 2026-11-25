@@ -465,9 +465,68 @@ async fn not_found_suggestion_for(
     let error = result.error.expect("an unknown command fails");
     assert_eq!(error.code, "COMMAND_NOT_FOUND");
     assert_eq!(error.retryable, Some(false));
-    error
+    let suggestion = error
         .suggestion
-        .expect("COMMAND_NOT_FOUND has a suggestion")
+        .expect("COMMAND_NOT_FOUND has a suggestion");
+    // The suggestion and the recovery name the same command, or neither names one
+    // (`spec/recovery.md`, "Engine errors").
+    let recovery = if suggestion.ends_with("Use afd-help to list all commands.") {
+        serde_json::json!({ "kind": "call", "command": "afd-help" })
+    } else {
+        serde_json::Value::Null
+    };
+    assert_eq!(
+        serde_json::to_value(&error.recovery).unwrap(),
+        recovery,
+        "{suggestion}"
+    );
+    suggestion
+}
+
+/// `spec/recovery.md`, "Engine errors": a remote MCP caller can always call `afd-discover`, and
+/// an in-process registry with no `afd-help` points to no command.
+#[tokio::test]
+async fn command_not_found_recovers_through_the_command_its_suggestion_names() {
+    let registry = Arc::new(CommandRegistry::new());
+    let local = registry
+        .execute("item-missing", serde_json::json!({}), None)
+        .await
+        .error
+        .unwrap();
+    assert_eq!(
+        local.suggestion.as_deref(),
+        Some("Check the command name against the available commands.")
+    );
+    assert!(local.recovery.is_none());
+
+    let mut remote = CommandContext::new();
+    remote.server_mut().remote = true;
+    let remote = registry
+        .execute("item-missing", serde_json::json!({}), Some(remote))
+        .await
+        .error
+        .unwrap();
+    assert_eq!(
+        remote.suggestion.as_deref(),
+        Some("Use afd-discover to list all commands.")
+    );
+    assert_eq!(
+        serde_json::to_value(&remote.recovery).unwrap(),
+        serde_json::json!({ "kind": "call", "command": "afd-discover" })
+    );
+
+    // A batch item carries the single call's answer: here afd-help, once it is registered.
+    crate::bootstrap::register_bootstrap_commands(&registry).unwrap();
+    let batch = registry
+        .execute_batch(crate::BatchRequest::new(vec![BatchCommand::new(
+            "item-missing",
+            serde_json::json!({}),
+        )]))
+        .await;
+    assert_eq!(
+        serde_json::to_value(&batch.results[0].result.error.as_ref().unwrap().recovery).unwrap(),
+        serde_json::json!({ "kind": "call", "command": "afd-help" })
+    );
 }
 
 #[tokio::test]

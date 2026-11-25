@@ -8,6 +8,7 @@
 #include <mutex>
 
 #include "detail/approval_admission.hpp"
+#include "detail/caller_allow.hpp"
 #include "detail/context_fields.hpp"
 #include "detail/exceptions.hpp"
 #include "detail/json_io.hpp"
@@ -52,11 +53,39 @@ bool is_accessible_in_context(const CommandDefinition& command,
            command.contexts.end();
 }
 
-// COMMAND_NOT_IN_CONTEXT's suggestion. It names the afd-context-* tools when the caller can call
-// them (contexts.hpp), and otherwise the contexts the command belongs to, as Rust does.
-std::string contexts_suggestion(const CommandDefinition& command, bool context_tools) {
-    if (context_tools) {
-        return "Use afd-context-list to see available contexts, or afd-context-enter to switch.";
+// The command an unknown-command error sends the caller to, decided once for the suggestion and
+// the recovery (spec/recovery.md, "Engine errors"): afd-discover for a remote call, which the MCP
+// server serves in every strategy, else afd-help when the caller can call it (`candidates` are the
+// names it can call), else none.
+std::optional<std::string_view> not_found_listing(const std::vector<std::string>& candidates,
+                                                  bool remote) {
+    if (remote) {
+        return "afd-discover";
+    }
+    if (std::find(candidates.begin(), candidates.end(), "afd-help") != candidates.end()) {
+        return "afd-help";
+    }
+    return std::nullopt;
+}
+
+// A `call` recovery to `command`, or none.
+std::optional<Recovery> call_recovery(std::optional<std::string_view> command) {
+    if (!command) {
+        return std::nullopt;
+    }
+    return Recovery{.kind = RecoveryKind::call, .command = std::string(*command)};
+}
+
+// COMMAND_NOT_IN_CONTEXT's suggestion. It names afd-context-list when the caller can call it
+// (contexts.hpp), and afd-context-enter beside it only when it can call that too; otherwise it
+// names the contexts the command belongs to, as Rust does.
+std::string contexts_suggestion(const CommandDefinition& command, bool context_list,
+                                bool context_enter) {
+    if (context_list) {
+        return context_enter
+                   ? "Use afd-context-list to see available contexts, or afd-context-enter to "
+                     "switch."
+                   : "Use afd-context-list to see available contexts.";
     }
     std::string contexts;
     for (const auto& context : command.contexts) {
@@ -91,6 +120,8 @@ CommandResult approval_unavailable(const std::string& name, detail::AdmissionChe
                      name + " needs a person's approval, and this server cannot ask for it",
                      {.suggestion = std::move(suggestion),
                       .retryable = false,
+                      // Both reasons are the operator's to fix.
+                      .recovery = Recovery{.kind = RecoveryKind::external},
                       .details = Json{{"reason", std::move(reason)}}}));
 }
 
@@ -110,11 +141,9 @@ std::string issue_summary(const ValidationFailure& failure) {
 // Rust does.
 std::string not_found_suggestion(std::string_view name, const std::vector<std::string>& candidates,
                                  bool remote) {
-    const bool has_help =
-        std::find(candidates.begin(), candidates.end(), "afd-help") != candidates.end();
-    const std::string list = remote     ? "Use afd-discover to list all commands."
-                             : has_help ? "Use afd-help to list all commands."
-                                        : "Check the command name against the available commands.";
+    const auto listing = not_found_listing(candidates, remote);
+    const std::string list = listing ? "Use " + std::string(*listing) + " to list all commands."
+                                     : "Check the command name against the available commands.";
     const auto matches = find_similar_tools(name, candidates, max_not_found_matches);
     if (matches.empty()) {
         return list;
@@ -471,11 +500,12 @@ CommandResult CommandRegistry::execute_impl(std::string_view name, const Json& i
                 const auto& definition = entry->definition;
                 const bool exposed =
                     !context.surface || is_exposed_to(definition.expose, *context.surface);
-                if (hidden && exposed) {
+                if (hidden && exposed && detail::caller_allows(context, definition.name)) {
                     exposed_names.push_back(definition.name);
                 }
                 if (!command && exposed &&
-                    is_accessible_in_context(definition, context.active_context)) {
+                    is_accessible_in_context(definition, context.active_context) &&
+                    detail::caller_allows(context, definition.name)) {
                     candidates.push_back(definition.name);
                 }
             }
@@ -487,7 +517,8 @@ CommandResult CommandRegistry::execute_impl(std::string_view name, const Json& i
     if (!command) {
         return failure(create_error(
             error_codes::COMMAND_NOT_FOUND, "Command '" + truncate_name(name) + "' not found",
-            {.suggestion = not_found_suggestion(name, candidates, context.remote)}));
+            {.suggestion = not_found_suggestion(name, candidates, context.remote),
+             .recovery = call_recovery(not_found_listing(candidates, context.remote))}));
     }
     const auto& definition = command->definition;
     if (context.surface && !is_exposed_to(definition.expose, *context.surface)) {
@@ -503,21 +534,33 @@ CommandResult CommandRegistry::execute_impl(std::string_view name, const Json& i
                                ? "No commands are exposed to " + surface + "; set expose." +
                                      surface + " on the commands it should call"
                                : "Use one of the commands exposed to " + surface + ": " + available,
-             .retryable = false}));
+             .retryable = false,
+             .recovery = Recovery{.kind = RecoveryKind::external}}));
     }
 
     // 3. Context.
     if (!is_accessible_in_context(definition, context.active_context)) {
-        // The afd-context-* tools, when this caller can call them (the lock is released above).
-        const auto context_list = get("afd-context-list");
-        const bool context_tools =
-            context_list &&
-            (!context.surface || is_exposed_to(context_list->definition.expose, *context.surface));
-        return failure(
-            create_error(error_codes::COMMAND_NOT_IN_CONTEXT,
-                         "Command '" + definition.name + "' is not available in context '" +
-                             *context.active_context + "'",
-                         {.suggestion = contexts_suggestion(definition, context_tools)}));
+        // Whether this caller can call an afd-context-* tool (the lock is released above):
+        // registered, exposed to its surface, allowed in its context and by its client's allow
+        // list. One answer for each names it in the suggestion and the recovery.
+        const auto can_call = [&](std::string_view tool) {
+            const auto found = get(tool);
+            return found &&
+                   (!context.surface ||
+                    is_exposed_to(found->definition.expose, *context.surface)) &&
+                   is_accessible_in_context(found->definition, context.active_context) &&
+                   detail::caller_allows(context, found->definition.name);
+        };
+        const bool context_list = can_call("afd-context-list");
+        const bool context_enter = context_list && can_call("afd-context-enter");
+        return failure(create_error(
+            error_codes::COMMAND_NOT_IN_CONTEXT,
+            "Command '" + definition.name + "' is not available in context '" +
+                *context.active_context + "'",
+            {.suggestion = contexts_suggestion(definition, context_list, context_enter),
+             .recovery =
+                 call_recovery(context_list ? std::optional<std::string_view>("afd-context-list")
+                                            : std::nullopt)}));
     }
 
     // 4. Validation.

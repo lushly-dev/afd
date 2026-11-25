@@ -220,6 +220,26 @@ impl Recovery {
         self.validate()?;
         Ok(self)
     }
+
+    /// A `call` recovery to an engine command (`spec/recovery.md`, "Engine errors"): `command` is
+    /// one of the engine's own non-empty names, so the recovery is always valid.
+    pub(crate) fn engine_call(command: &'static str, then_retry: bool) -> Self {
+        Self::Call {
+            command: command.to_owned(),
+            input: None,
+            needs: None,
+            then_retry: then_retry.then_some(true),
+        }
+    }
+
+    /// The `retry` recovery of an engine's `RATE_LIMITED`: `afterMs` is `seconds` × 1000 when the
+    /// wait is known and fits `afterMs`'s range, and absent otherwise.
+    pub(crate) fn engine_retry(seconds: Option<u64>) -> Self {
+        let after_ms = seconds
+            .and_then(|seconds| seconds.checked_mul(1000))
+            .filter(|ms| *ms <= MAX_AFTER_MS);
+        Self::Retry { after_ms }
+    }
 }
 
 fn check_input(input: Option<&HashMap<String, serde_json::Value>>) -> Result<(), InvalidRecovery> {
@@ -615,7 +635,8 @@ impl CommandError {
         }
     }
 
-    /// Create a rate limit error.
+    /// Create a rate limit error, with a `retry` recovery whose `afterMs` is the wait in
+    /// milliseconds when it is given (`spec/recovery.md`, "Engine errors").
     pub fn rate_limited(retry_after_seconds: Option<u32>) -> Self {
         let suggestion = match retry_after_seconds {
             Some(secs) => format!("Wait {} seconds and try again", secs),
@@ -633,7 +654,9 @@ impl CommandError {
             message: "Rate limit exceeded".to_string(),
             suggestion: Some(suggestion),
             retryable: Some(true),
-            recovery: None,
+            recovery: Some(Box::new(Recovery::engine_retry(
+                retry_after_seconds.map(u64::from),
+            ))),
             details,
             cause: None,
         }
@@ -1129,7 +1152,8 @@ pub fn not_found_error(resource_type: &str, resource_id: &str) -> CommandError {
     CommandError::not_found(resource_type, resource_id)
 }
 
-/// Create a rate limit error.
+/// Create a rate limit error, with a `retry` recovery whose `afterMs` is the wait in milliseconds
+/// when it is given (`spec/recovery.md`, "Engine errors").
 pub fn rate_limit_error(retry_after_seconds: Option<u32>) -> CommandError {
     CommandError::rate_limited(retry_after_seconds)
 }
@@ -1199,6 +1223,36 @@ mod tests {
         assert_eq!(error.code, "RATE_LIMITED");
         assert_eq!(error.retryable, Some(true));
         assert!(error.suggestion.as_ref().unwrap().contains("60"));
+    }
+
+    /// `spec/recovery.md`, "Engine errors": the rate-limit helpers set a `retry` recovery, with
+    /// the wait they are given; the other helpers set none.
+    #[test]
+    fn helpers_set_the_recovery_the_table_gives() {
+        for error in [
+            rate_limit_error(Some(60)),
+            CommandError::rate_limited(Some(60)),
+        ] {
+            assert_eq!(
+                serde_json::to_value(&error.recovery).unwrap(),
+                serde_json::json!({ "kind": "retry", "afterMs": 60000 })
+            );
+        }
+        assert_eq!(
+            serde_json::to_value(&rate_limit_error(None).recovery).unwrap(),
+            serde_json::json!({ "kind": "retry" })
+        );
+        for error in [
+            validation_error("bad", None),
+            CommandError::validation("bad", None),
+            not_found_error("Todo", "1"),
+            timeout_error("op", 10),
+            internal_error("boom"),
+            CommandError::internal("boom"),
+            create_error("CUSTOM", "custom"),
+        ] {
+            assert!(error.recovery.is_none(), "{}", error.code);
+        }
     }
 
     #[test]

@@ -10,6 +10,10 @@ use serde_json::Value;
 use std::panic::AssertUnwindSafe;
 use std::sync::{Arc, Mutex, MutexGuard};
 
+/// What a declined approval tells the caller, as the approval middleware words a decline.
+const DECLINED_SUGGESTION: &str =
+    "Do not run this again without asking the user first; the user chose not to approve it.";
+
 /// Token-free decision metadata passed to the trusted application's approval hook.
 #[derive(Clone, Debug)]
 pub struct DirectApprovalRequest {
@@ -245,6 +249,17 @@ impl DirectClient {
                     let result =
                         public_result(self.registry.execute(name, input, Some(context)).await);
                     return if expired() { timed_out() } else { result };
+                }
+                // The host's hook declined: no step makes this call succeed
+                // (`spec/recovery.md`, "Engine errors"). An error or panic keeps the hold as it is.
+                if matches!(answer, Ok(Ok(false))) {
+                    let mut result = result;
+                    if let Some(error) = result.error.as_mut() {
+                        // The prose says the same as the recovery (rule 1).
+                        error.suggestion = Some(DECLINED_SUGGESTION.to_owned());
+                        error.recovery = Some(Box::new(crate::Recovery::stop()));
+                    }
+                    return result;
                 }
             }
             result

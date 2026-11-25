@@ -45,6 +45,7 @@ from afd.core.commands import (
 from afd.core.commands import (
     NextFn as NextFn,
 )
+from afd.core.errors import Recovery, _retry_after
 from afd.core.result import CommandError, CommandResult
 from afd.server.auth_middleware_check import carry_auth_middleware_mark
 from afd.server.instance_state import carry_approval_process_state
@@ -524,20 +525,30 @@ def create_rate_limit_middleware(
                         message="Rate limit client capacity reached",
                         suggestion="Retry after the current rate limit window expires",
                         retryable=True,
+                        # The limiter cannot say when a key's window frees: no minimum wait.
+                        recovery=Recovery(kind="retry"),
                     ),
                 )
             window = [0, now + window_ms]
             windows[key] = window
 
         if window[0] >= max_requests:
-            retry_secs = max(1, math.ceil((window[1] - now) / 1000))
+            remaining = (window[1] - now) / 1000
+            # An endless window (window_ms=inf) has no wait the suggestion can give.
+            retry_secs = max(1, math.ceil(remaining)) if math.isfinite(remaining) else None
             return CommandResult(
                 success=False,
                 error=CommandError(
                     code="RATE_LIMITED",
                     message="Too many requests",
-                    suggestion=f"Try again in {retry_secs} seconds",
+                    suggestion=(
+                        f"Try again in {retry_secs} seconds"
+                        if retry_secs is not None
+                        else "Retry after the current rate limit window expires"
+                    ),
                     retryable=True,
+                    # The same whole seconds the suggestion gives (spec/recovery.md).
+                    recovery=_retry_after(retry_secs),
                 ),
             )
 

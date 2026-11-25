@@ -5,14 +5,16 @@
  * Always available regardless of active context (universal tools).
  */
 
-import type { CommandDefinition, CommandResult } from '@lushly-dev/afd-core';
-import { failure, success } from '@lushly-dev/afd-core';
+import type { CommandContext, CommandDefinition, CommandResult } from '@lushly-dev/afd-core';
+import { AFD_CONTEXT_COMMAND_NAMES, failure, success } from '@lushly-dev/afd-core';
 import { z } from 'zod';
+import { canCall } from '../command-routing.js';
 import {
 	type ContextState,
 	DEFAULT_CONTEXT_MAX_DEPTH,
 	resolveContextState,
 } from '../context-scope.js';
+import { scopeViewOf } from '../scope-view.js';
 import type { ContextConfig } from '../server-types.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -26,6 +28,21 @@ export {
 	createContextState,
 	DEFAULT_CONTEXT_MAX_DEPTH,
 } from '../context-scope.js';
+
+/**
+ * Whether the caller of `context` can call the context command `name` (`spec/recovery.md`,
+ * "Engine errors"). The three are registered together, with one exposure and no contexts of
+ * their own, so a caller that reached one can call another unless the call's `allow` list or MCP
+ * authorization refuses it.
+ */
+function canCallContextCommand(context: CommandContext | undefined, name: string): boolean {
+	const surface = {
+		metaTools: false,
+		command: (command: string) => (AFD_CONTEXT_COMMAND_NAMES.includes(command) ? {} : undefined),
+		shown: (command: string) => scopeViewOf(context)?.shown(command) ?? true,
+	};
+	return canCall(surface, name, context, null);
+}
 
 /** Failure for context changes requested by a caller that has no session to hold them. */
 function sessionRequired(): CommandResult<never> {
@@ -145,10 +162,14 @@ export function createAfdContextEnterCommand(
 			const exists = configs.some((c) => c.name === contextName);
 			if (!exists) {
 				const available = configs.map((c) => c.name).join(', ');
+				const list = canCallContextCommand(context, 'afd-context-list');
 				return failure({
 					code: 'CONTEXT_NOT_FOUND',
 					message: `Context '${contextName}' is not configured`,
-					suggestion: `Available contexts: ${available}. Use afd-context-list to see all contexts.`,
+					suggestion: list
+						? `Available contexts: ${available}. Use afd-context-list to see all contexts.`
+						: `Available contexts: ${available}.`,
+					...(list && { recovery: { kind: 'call', command: 'afd-context-list' } }),
 				});
 			}
 
@@ -167,10 +188,14 @@ export function createAfdContextEnterCommand(
 			}
 			const maxDepth = state.maxDepth ?? DEFAULT_CONTEXT_MAX_DEPTH;
 			if (state.stack.length >= maxDepth) {
+				const exit = canCallContextCommand(context, 'afd-context-exit');
 				return failure({
 					code: 'CONTEXT_DEPTH_EXCEEDED',
 					message: `Context stack is limited to ${maxDepth} levels`,
-					suggestion: 'Call afd-context-exit to leave a context before entering another',
+					suggestion: exit
+						? 'Call afd-context-exit to leave a context before entering another'
+						: 'Leave a context before entering another',
+					...(exit && { recovery: { kind: 'call', command: 'afd-context-exit', thenRetry: true } }),
 				});
 			}
 			state.enter(contextName);

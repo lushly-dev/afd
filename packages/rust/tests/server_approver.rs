@@ -77,6 +77,8 @@ async fn gives_an_approver_its_token_on_a_2025_connection_and_refuses_the_key_th
     let params = json!({ "name": "todo-delete", "arguments": { "id": 7 } });
     let held = command_result(&stdio.request("tools/call", params).await);
     assert_eq!(held["error"]["code"], "APPROVAL_REQUIRED", "{held}");
+    // A person approves (`spec/recovery.md`, "Engine errors").
+    assert_eq!(held["error"]["recovery"], json!({ "kind": "external" }));
     let token = held["error"]["details"]["approvalToken"].as_str().unwrap();
     let retry = stdio
         .request(
@@ -94,6 +96,8 @@ async fn gives_an_approver_its_token_on_a_2025_connection_and_refuses_the_key_th
         .as_str()
         .unwrap()
         .contains("one command"));
+    // An approved call resent the wrong way: the caller reshapes it, so no recovery.
+    assert!(retry["error"].get("recovery").is_none(), "{retry}");
     assert_eq!(runs.load(Ordering::SeqCst), 0);
 }
 

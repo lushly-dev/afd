@@ -141,7 +141,8 @@ Before #533, `lazy` took the 0 default under contexts too. No AFD server sends
 Unless the server sets its own `instructions`, they are these sentences, joined by spaces:
 
 1. "`<name>` is an AFD server. Every tool returns a CommandResult as JSON text: { success, data,
-   error: { code, message, suggestion } }; follow error.suggestion to recover."
+   error: { code, message, suggestion, recovery } }; follow error.suggestion to recover. When
+   error.recovery is present, it is the same step in a form a program can follow."
 2. By strategy:
    - `lazy`: "Call afd-discover to find commands, afd-detail for a command schema, and afd-call to
      run one."
@@ -331,7 +332,8 @@ For each entry in `servers`:
 - **`ttlMs`:** the `ttlMs` of every `tools/list` result.
 - **`calls`:** a modern-era `tools/call` of `tool` with `arguments` (absent means `{}`) and the
   context as above, from a client that declares no elicitation capability. The `CommandResult` has
-  the expected `success`, and on failure the expected `error.code`. Suggestions are not compared.
+  the expected `success`, and on failure the expected `error.code` and, when `expected.recovery` is
+  given, `error.recovery` equal to it (`null`: no recovery). Suggestions are not compared.
 
 Each entry in `constructionFailures` must fail when the server is built, or, where
 [H2](#h2-validation-at-construction) allows it, before it answers its first request. When `entry`

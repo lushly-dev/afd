@@ -656,7 +656,9 @@ export const CEILINGS = Object.freeze({
 	// build measured 347,192 against `main` at `99359760a`; set to 347,600.
 	// #2107 (inject wrapper provenance and `redactWrapped` from `late/journal-wrappers.ts`):
 	// first-paint JS dropped from 349,265 to 344,982 (-4,283) against `main` at `bd30d790b`; lowered to 346,000.
-	jsMinified: 346_000,
+	// Raised under D115 by #2539 (engine errors carry a recovery in `afd-server`'s `command-routing.ts`, on top of
+	// #2576's `secret` commands): measured 346,326 with `main` at `ad9e42890` merged; set to 346,800.
+	jsMinified: 346_800,
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
@@ -760,7 +762,11 @@ export const CEILINGS = Object.freeze({
 	// `@lushly-dev/afd-server`): measured 164,413 against `main` at `adae8843`; set to 164,800.
 	// Lowered by #2107 (wrapper provenance and `redactWrapped` injected from `late/journal-wrappers.ts`):
 	// measured 158,530 against `main` at `bd30d790b` (-6,036); lowered to 159,000.
-	kernelMinified: 160_100, // D115, `secret` commands in afd-server's journal: 159,823 at `main` `e62387541`
+	// Raised under D115 by #2576 (`secret` commands in afd-server's journal): measured 159,823 at `main` `e62387541`; set to 160,100.
+	// Raised under D115 by #2539 (engine errors carry a recovery: `canCall` and its builders in `afd-server`'s
+	// `command-routing.ts`, through the kernel's direct registry): measured 160,603 with `main` at `ad9e42890`
+	// merged (after #2576's 159,823); set to 161,000.
+	kernelMinified: 161_000,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).

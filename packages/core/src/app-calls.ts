@@ -36,5 +36,6 @@ export function callNotGranted(): CommandError {
 		suggestion:
 			'Ask the deployer for a calls grant that names the command; the command must also set expose.apps',
 		retryable: false,
+		recovery: { kind: 'external' },
 	};
 }

@@ -141,24 +141,40 @@
 				{
 					"tool": "plan-draft",
 					"context": "review",
-					"expected": { "success": false, "code": "COMMAND_NOT_IN_CONTEXT" }
+					"expected": {
+						"success": false,
+						"code": "COMMAND_NOT_IN_CONTEXT",
+						"recovery": { "kind": "call", "command": "afd-context-list" }
+					}
 				},
 				{ "tool": "note-add", "context": "review", "expected": { "success": true } },
 				{ "tool": "tag-list", "context": null, "expected": { "success": true } },
 				{
 					"tool": "review-approve",
 					"context": "planning",
-					"expected": { "success": false, "code": "COMMAND_NOT_IN_CONTEXT" }
+					"expected": {
+						"success": false,
+						"code": "COMMAND_NOT_IN_CONTEXT",
+						"recovery": { "kind": "call", "command": "afd-context-list" }
+					}
 				},
 				{
 					"tool": "admin-reset",
 					"context": null,
-					"expected": { "success": false, "code": "COMMAND_NOT_FOUND" }
+					"expected": {
+						"success": false,
+						"code": "COMMAND_NOT_FOUND",
+						"recovery": { "kind": "call", "command": "afd-discover" }
+					}
 				},
 				{
 					"tool": "note-archive",
 					"context": null,
-					"expected": { "success": false, "code": "COMMAND_NOT_FOUND" }
+					"expected": {
+						"success": false,
+						"code": "COMMAND_NOT_FOUND",
+						"recovery": { "kind": "call", "command": "afd-discover" }
+					}
 				},
 				{
 					"tool": "afd-call",
@@ -170,13 +186,21 @@
 					"tool": "afd-call",
 					"arguments": { "command": "admin-reset" },
 					"context": null,
-					"expected": { "success": false, "code": "COMMAND_NOT_FOUND" }
+					"expected": {
+						"success": false,
+						"code": "COMMAND_NOT_FOUND",
+						"recovery": { "kind": "call", "command": "afd-discover" }
+					}
 				},
 				{
 					"tool": "afd-call",
 					"arguments": { "command": "plan-draft" },
 					"context": "review",
-					"expected": { "success": false, "code": "COMMAND_NOT_IN_CONTEXT" }
+					"expected": {
+						"success": false,
+						"code": "COMMAND_NOT_IN_CONTEXT",
+						"recovery": { "kind": "call", "command": "afd-context-list" }
+					}
 				}
 			]
 		},
@@ -218,7 +242,11 @@
 				{
 					"tool": "note-delete",
 					"context": null,
-					"expected": { "success": false, "code": "CONFIRMATION_REQUIRED" }
+					"expected": {
+						"success": false,
+						"code": "CONFIRMATION_REQUIRED",
+						"recovery": { "kind": "external" }
+					}
 				}
 			]
 		},

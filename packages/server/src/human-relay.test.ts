@@ -714,6 +714,8 @@ describe('HumanRelay end-to-end flow', () => {
 			ErrorCodes.CONFIRMATION_DECLINED
 		);
 		expect((declined.error as { retryable: boolean }).retryable).toBe(false);
+		// spec/recovery.md, "Engine errors": a decline is a stop.
+		expect((declined.error as { recovery?: unknown }).recovery).toEqual({ kind: 'stop' });
 
 		// resume -> Pending (keeps elicitationId for same URL, does not call begin)
 		relay.answer({
@@ -770,6 +772,8 @@ describe('HumanRelay end-to-end flow', () => {
 			const err = commandResult(json).error as { code: string; suggestion: string };
 			expect(err.code).toBe(ErrorCodes.CONFIRMATION_REQUIRED);
 			expect(err.suggestion).toContain('URL-mode elicitation');
+			// A person confirms through the host.
+			expect((err as { recovery?: unknown }).recovery).toEqual({ kind: 'external' });
 			expect(relay.lastCall().supportsUrlElicitation()).toBe(false);
 		}
 		// Pending also held to URL-mode capability
@@ -1508,6 +1512,8 @@ describe('HumanRelay with MCP authorization, scopes, hidden commands and M8', ()
 		expect((mutRes.error as { details?: { reason?: string } }).details?.reason).toBe(
 			'admission-mismatch'
 		);
+		// The operator fixes the middleware order.
+		expect((mutRes.error as { recovery?: unknown }).recovery).toEqual({ kind: 'external' });
 		expect(mutated.runs.show).toBe(0);
 
 		// 2. Retry middleware cannot re-invoke a non-approval host-verified handler under one

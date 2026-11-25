@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from afd import ExposeOptions, success
 from afd.core.commands import CommandContext
+from afd.core.errors import Recovery
 from afd.core.result import CommandError, CommandResult, failure
 from afd.direct import DirectClient, DirectClientOptions, create_direct_registry
 from afd.server import (
@@ -47,6 +48,8 @@ def expect_unavailable(result: Any, command: str, reason: str = "no-approval-ste
     assert error.retryable is False
     assert error.details == {"reason": reason}
     assert "do not retry" in error.suggestion.lower()
+    # The operator fixes the approval setup (spec/recovery.md, "Engine errors").
+    assert error.recovery == Recovery(kind="external")
 
 
 class Fixture:
@@ -514,8 +517,11 @@ def expect_not_canonical(error: Any, command: str) -> None:
             "suggestion": error.suggestion,
             "retryable": error.retryable,
             "details": error.details,
+            **({"recovery": error.recovery} if error.recovery is not None else {}),
         }
     )
+    # The caller reshapes the input itself: no recovery (spec/recovery.md, "Engine errors").
+    assert "recovery" not in wire
     assert wire["code"] == "APPROVAL_UNAVAILABLE"
     assert wire["message"] == (
         f"{command} needs a person's approval, and this input cannot be bound to one"

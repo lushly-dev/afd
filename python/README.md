@@ -505,7 +505,8 @@ outside registry middleware, within the call's total deadline. Thrown exceptions
 redacted as `COMMAND_EXECUTION_ERROR`. Direct registries serve registered commands;
 MCP meta-tools and the in-process tool surface remain outside this boundary.
 `DirectClientOptions(on_approval_needed=...)` asks trusted application code with token-free
-metadata; only `True` permits one retry. Public call/pipeline contexts cannot approve, and
+metadata; only `True` permits one retry, and only `False` declines (a hook that raises or answers
+anything else leaves the hold for a person). Public call/pipeline contexts cannot approve, and
 held results, observers and journals receive no token. A deadline includes the human wait.
 Use the server's `execute` only as a trusted host API when handling tokens out of band.
 Without an approval middleware, `create_server` and `create_direct_registry` refuse a command whose

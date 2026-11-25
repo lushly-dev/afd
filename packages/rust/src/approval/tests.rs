@@ -1891,3 +1891,51 @@ async fn an_approvers_carried_evidence_is_taken_once_by_the_first_command() {
     );
     assert_eq!(harness.handled(), 1);
 }
+
+/// `spec/recovery.md`, "Engine errors": a hold whose suggestion tells the caller to call the
+/// command on its own has no recovery (the caller reshapes the call), and a hold that waits on a
+/// person's approval is `external`.
+#[tokio::test]
+async fn a_hold_recovers_as_its_suggestion_says() {
+    let harness = setup_with(ApprovalPolicy::Required, |options| {
+        options
+            .with_relay(ApprovalRelay::McpElicitation)
+            .with_include_token(false)
+    });
+    let hold = |relay: Option<Arc<relay::ApprovalRelayChannel>>| {
+        let mut context = CommandContext::new();
+        context.server_mut().approval_relay = relay;
+        let registry = &harness.registry;
+        async move {
+            registry
+                .execute("todo-delete", json!({ "id": 1 }), Some(context))
+                .await
+                .error
+                .expect("held")
+        }
+    };
+
+    // Inside another command: the relay never asks, so the caller calls the command on its own.
+    let inside = hold(Some(Arc::new(relay::ApprovalRelayChannel::never_asks()))).await;
+    assert_eq!(inside.code, "APPROVAL_REQUIRED");
+    assert!(inside
+        .suggestion
+        .as_deref()
+        .unwrap()
+        .ends_with("Call todo-delete on its own so the client can ask the user."));
+    assert!(inside.recovery.is_none(), "{inside:?}");
+
+    // No relay on this request: a person approves and the application retries.
+    let outside = hold(None).await;
+    assert_eq!(outside.code, "APPROVAL_REQUIRED");
+    assert!(outside
+        .suggestion
+        .as_deref()
+        .unwrap()
+        .ends_with("the application retries the same call once it has recorded the approval."));
+    assert_eq!(
+        serde_json::to_value(&outside.recovery).unwrap(),
+        json!({ "kind": "external" })
+    );
+    assert_eq!(harness.handled.load(Ordering::SeqCst), 0);
+}

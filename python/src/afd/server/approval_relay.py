@@ -30,7 +30,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Literal, Protocol
 
 from afd.core.commands import CommandContext
-from afd.core.errors import ErrorCodes
+from afd.core.errors import ErrorCodes, Recovery
 from afd.core.pipeline import PipelineContext, resolve_variables
 from afd.core.pipeline_variables import parse_reference
 from afd.core.result import CommandError, CommandResult, failure
@@ -720,6 +720,7 @@ def not_canonical_error(command: str) -> CommandError:
             "integer a JavaScript number cannot hold exactly, such as 2^53 + 1, as a string)."
         ),
         retryable=False,
+        # No recovery: the caller reshapes the input itself (spec/recovery.md, "Engine errors").
         details={"reason": "input-not-canonical"},
     )
 
@@ -737,6 +738,7 @@ def input_changed_error(command: str) -> CommandError:
         ),
         retryable=False,
         details={"reason": "admission-mismatch"},
+        recovery=Recovery(kind="external"),
     )
 
 
@@ -781,6 +783,7 @@ def _declined_error(tool: str, gated: Sequence[_GatedStep]) -> CommandError:
         ),
         retryable=False,
         details={"reason": "declined", "summary": "; ".join(step.summary for step in gated)},
+        recovery=Recovery(kind="stop"),
     )
 
 
@@ -810,6 +813,7 @@ def _pending_error(tool: str, gated: Sequence[_GatedStep]) -> CommandError:
         suggestion=f'Wait for the user to approve "{summary}" in the client.',
         retryable=False,
         details={"summary": summary},
+        recovery=Recovery(kind="external"),
     )
 
 

@@ -152,8 +152,9 @@ def default_instructions(
     """The ``server/discover`` instructions: how an agent should use this server's tools."""
     lines = [
         f"{name} is an AFD server. Every tool returns a CommandResult as JSON text: "
-        "{ success, data, error: { code, message, suggestion } }; follow error.suggestion "
-        "to recover."
+        "{ success, data, error: { code, message, suggestion, recovery } }; follow "
+        "error.suggestion to recover. When error.recovery is present, it is the same step in a "
+        "form a program can follow."
     ]
     if tool_strategy == "lazy":
         lines.append(

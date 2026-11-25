@@ -201,6 +201,7 @@ describe('createAfdContextEnterCommand', () => {
 		expect(result.success).toBe(false);
 		expect(result.error?.code).toBe('CONTEXT_NOT_FOUND');
 		expect(result.error?.suggestion).toContain('afd-context-list');
+		expect(result.error?.recovery).toEqual({ kind: 'call', command: 'afd-context-list' });
 	});
 });
 

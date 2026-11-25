@@ -39,6 +39,7 @@ export function inputChanged(commandName: string): CommandError {
 		suggestion:
 			'Do not retry: this call is not the one the approval step decided on. The operator fixes the policy function or middleware that changes the input.',
 		retryable: false,
+		recovery: { kind: 'external' },
 		details: { reason: 'admission-mismatch' },
 	};
 }

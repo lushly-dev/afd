@@ -60,7 +60,7 @@ from afd.core.direct_approval import (
     _DirectApprovalExchange,
     _public_result,
 )
-from afd.core.errors import CommandError, not_found_error, validation_error
+from afd.core.errors import CommandError, Recovery, not_found_error, validation_error
 from afd.core.output_budget import ask_validation_failure, normalize_ask_option, parse_ask
 
 # Importable from afd.direct before DirectClient.pipe's runner moved to afd.direct_pipeline.
@@ -195,7 +195,9 @@ class DirectClientOptions:
     clock: Clock | None = None
     random: RandomSource | None = None
     on_approval_needed: Callable[[DirectApprovalRequest], Any] | None = None
-    """Trusted host hook. Only an explicit True permits one private retry."""
+    """Trusted host hook. Only an explicit True permits one private retry, and only an
+    explicit False declines; a hook that raises or answers anything else leaves the hold for a
+    person."""
     allow: Callable[[str], bool] | None = None
     """Permit only names for which this predicate returns True; exceptions deny."""
     middleware: list[Callable] = field(default_factory=list)
@@ -241,6 +243,24 @@ class UnknownToolError:
     available_tools: list[str] = field(default_factory=list)
     suggestions: list[str] = field(default_factory=list)
     hint: str | None = None
+
+
+def _declined_by_hook(result: Any) -> Any:
+    """A held call whose ``on_approval_needed`` hook answered ``False``: the user chose not to
+    proceed, so the recovery is ``stop`` and the suggestion says the same (spec/recovery.md,
+    "Engine errors"). Anything else is returned unchanged."""
+    if result.success or result.error is None or result.error.code != "APPROVAL_REQUIRED":
+        return result
+    declined = result.error.model_copy(
+        update={
+            "suggestion": (
+                "Do not run this again without asking the user first; the user chose not to "
+                "approve it."
+            ),
+            "recovery": Recovery(kind="stop"),
+        }
+    )
+    return result.model_copy(update={"error": declined})
 
 
 def _create_unknown_tool_error(requested: str, available: list[str]) -> UnknownToolError:
@@ -798,12 +818,15 @@ class DirectClient:
                     if inspect.isawaitable(answer):
                         answer = await answer
                 except Exception:
-                    answer = False
+                    # A failed hook is not a decision: the hold stands for a person.
+                    answer = None
                 # A blocking hook may prevent the event-loop timer from firing on time.
                 if expired():
                     return timed_out()
                 if answer is True and exchange.approve():
                     result = _public_result(await self._execute(name, args, cmd_context), name)
+                elif answer is False:
+                    result = _declined_by_hook(result)
             return timed_out() if expired() else result
 
         # Shield the worker so caller cancellation disposes authority immediately, even
@@ -1117,6 +1140,17 @@ class DirectCommandRegistry:
     def has_command(self, name: str) -> bool:
         return name in self.list_command_names()
 
+    def _can_call(self, name: str, context: Any) -> bool:
+        """Whether this boundary's caller can call the registered command ``name``: exposed to
+        the registry's interface, in the active context and admitted by any ``allow`` list."""
+        command = next((c for c in self._server.list_commands() if c.name == name), None)
+        if command is None or not _is_allowed(context, name):
+            return False
+        active = self._server._context_state.get_active()
+        return self._server._is_exposed_to(command, self._interface) and (
+            not active or not command.contexts or active in command.contexts
+        )
+
     async def execute(
         self,
         name: str,
@@ -1136,12 +1170,20 @@ class DirectCommandRegistry:
         # server.execute also routes MCP meta-tools, which build a fresh MCP context.
         # Only registered commands may cross this direct boundary; never dispatch a router.
         if not any(command.name == name for command in self._server.list_commands()):
+            # So afd-discover is never callable here; afd-help is when a registered command by
+            # that name is exposed to this interface, in context and allowed (spec/recovery.md).
+            help_callable = self._can_call("afd-help", context)
             return failure(
                 CommandError(
                     code="COMMAND_NOT_FOUND",
                     message=f"Command '{truncate_name(name)}' not found",
-                    suggestion="List available commands to see valid options",
+                    suggestion=(
+                        "Use afd-help to list all commands."
+                        if help_callable
+                        else "List available commands to see valid options"
+                    ),
                     retryable=False,
+                    recovery=Recovery(kind="call", command="afd-help") if help_callable else None,
                 )
             )
         definition = next(
@@ -1154,6 +1196,7 @@ class DirectCommandRegistry:
                     message=f"Command '{truncate_name(name)}' is not exposed to {self._interface}",
                     suggestion="Call a command exposed to the registry's configured interface",
                     retryable=False,
+                    recovery=Recovery(kind="external"),
                 )
             )
         exchange = _exchange(context)
@@ -1164,15 +1207,51 @@ class DirectCommandRegistry:
         clean.extra["interface"] = self._interface
         clean.extra.pop("remote", None)
         try:
-            return _public_result(
-                await self._server.execute(
-                    name, {} if args is None else args, clean, output_budget=output_budget
+            return self._callable_here(
+                _public_result(
+                    await self._server.execute(
+                        name, {} if args is None else args, clean, output_budget=output_budget
+                    ),
+                    name,
                 ),
-                name,
+                definition,
+                context,
             )
         finally:
             if owned:
                 exchange.dispose()
+
+    def _callable_here(self, result: Any, definition: Any, context: Any) -> Any:
+        """The server names the context commands its caller can call, but only registered
+        commands cross this boundary, never the context commands the server provides. Name them
+        only when this caller can call a registered command by that name, and otherwise the
+        command's own contexts, with no recovery (spec/recovery.md, rule 2)."""
+        from afd.server.tool_router import not_in_context_error
+
+        error = result.error if not result.success else None
+        active = self._server._context_state.get_active()
+        if (
+            error is None
+            or error.code != "COMMAND_NOT_IN_CONTEXT"
+            or error.recovery is None
+            or error.message
+            != f"Command '{definition.name}' is not available in context '{active}'"
+        ):
+            return result
+        here = not_in_context_error(
+            definition.name,
+            active,
+            can=lambda name: self._can_call(name, context),
+            belongs_to=definition.contexts,
+        ).error
+        assert here is not None
+        return result.model_copy(
+            update={
+                "error": error.model_copy(
+                    update={"suggestion": here.suggestion, "recovery": here.recovery}
+                )
+            }
+        )
 
 
 def create_direct_registry(

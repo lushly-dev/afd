@@ -33,7 +33,7 @@ from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
 from afd.core.commands import CommandDefinition
-from afd.core.errors import ErrorCodes
+from afd.core.errors import ErrorCodes, Recovery
 from afd.core.result import CommandError
 
 ConfirmationMode = Literal["off", "enforce", "require-human"]
@@ -207,6 +207,7 @@ class ConfirmationGate:
                 ),
                 retryable=False,
                 details={"commands": names},
+                recovery=Recovery(kind="stop"),
             ),
         )
 
@@ -274,6 +275,8 @@ class ConfirmationGate:
                 suggestion=suggestion,
                 retryable=False,
                 details={"commands": names},
+                # The user confirms; rule 5 keeps the acknowledgement out of a recovery's input.
+                recovery=Recovery(kind="external"),
             ),
         )
 

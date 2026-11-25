@@ -265,6 +265,7 @@ fn task_limit() -> CommandError {
     )
     .with_suggestion("Wait for one of your tasks to finish or expire, then call again.")
     .with_retryable(true)
+    .with_recovery(crate::errors::Recovery::engine_retry(None))
 }
 
 /// Unregisters a task from the running set however its runner ends.

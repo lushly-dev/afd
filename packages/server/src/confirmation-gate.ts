@@ -101,6 +101,7 @@ export function createConfirmationGate(
 						suggestion:
 							'Do not run this again without asking the user first; the user chose not to proceed.',
 						retryable: false,
+						recovery: { kind: 'stop' },
 						details: { commands: names },
 					},
 				};
@@ -133,6 +134,8 @@ export function createConfirmationGate(
 							? `Make sure the user intends this, then ${howToAcknowledge}.`
 							: 'This server accepts only a confirmation from the user: use an MCP client that supports elicitation.',
 					retryable: false,
+					// The user confirms, which never goes in a recovery's input (rule 5).
+					recovery: { kind: 'external' },
 					details: { commands: names },
 				},
 			};

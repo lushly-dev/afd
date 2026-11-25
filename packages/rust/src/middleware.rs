@@ -524,7 +524,8 @@ fn admit(
                     "Rate limit client capacity reached",
                 )
                 .with_suggestion("Retry after the current rate limit window expires")
-                .with_retryable(true),
+                .with_retryable(true)
+                .with_recovery(crate::errors::Recovery::engine_retry(None)),
             );
         }
         let reset_at = now.saturating_add(window_ms);
@@ -539,7 +540,10 @@ fn admit(
         return Some(
             CommandError::new(error_codes::RATE_LIMITED, "Too many requests")
                 .with_suggestion(format!("Try again in {seconds} seconds"))
-                .with_retryable(true),
+                .with_retryable(true)
+                .with_recovery(crate::errors::Recovery::engine_retry(
+                    u64::try_from(seconds).ok(),
+                )),
         );
     }
     window.count += 1;

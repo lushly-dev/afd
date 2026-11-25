@@ -28,6 +28,12 @@ pub fn expect_unavailable(result: &CommandResult<Value>, command: &str, reason: 
         suggestion.to_lowercase().contains("do not retry"),
         "{suggestion}"
     );
+    // The operator fixes the approval setup (`spec/recovery.md`, "Engine errors").
+    assert_eq!(
+        serde_json::to_value(&error.recovery).unwrap(),
+        json!({ "kind": "external" }),
+        "{error:?}"
+    );
 }
 
 pub fn code(result: &CommandResult<Value>) -> Option<&str> {

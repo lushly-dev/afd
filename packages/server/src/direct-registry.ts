@@ -448,7 +448,7 @@ export function createDirectRegistry(
 		contextDefaults: { clock: options.clock, random: options.random, actor: options.actor },
 		contextFields,
 		// Refusals name afd-discover and the context tools only where the surface serves them.
-		suggestTools: tools !== undefined,
+		metaTools: tools !== undefined,
 		maxBatchSize: options.maxBatchSize,
 		maxBatchParallelism: options.maxBatchParallelism,
 		maxValidationIssues,
@@ -508,6 +508,8 @@ export function createDirectRegistry(
 							? `Use one of the commands exposed to ${iface}: ${available.join(', ')}`
 							: `No commands are exposed to ${iface}; set expose.${iface} on the commands it should call`,
 					retryable: false,
+					// The command cannot be called from this interface: the step is the deployer's.
+					recovery: { kind: 'external' },
 				});
 			}
 			// Only the client-owned exchange can carry approval; raw execute calls are held.

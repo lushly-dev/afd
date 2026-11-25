@@ -80,6 +80,8 @@ async fn execution_rejects_commands_outside_the_active_context_before_validation
         error.suggestion.as_deref(),
         Some("Switch to a context this command belongs to ('planning'), or call it with no active context.")
     );
+    // The caller cannot call afd-context-list: no recovery (`spec/recovery.md`, "Engine errors").
+    assert!(error.recovery.is_none(), "{error:?}");
 
     let universal = registry
         .execute(
@@ -114,6 +116,74 @@ async fn batch_items_are_scoped_like_single_calls() {
         result.results[1].result.error.as_ref().unwrap().code,
         "COMMAND_NOT_IN_CONTEXT"
     );
+
+    // With the context tools, a batch item carries the single call's recovery.
+    register_context_commands(&registry, configs()).unwrap();
+    let request = BatchRequest::new(vec![BatchCommand::new(
+        "plan-create",
+        json!({ "title": "x" }),
+    )]);
+    let context = CommandContext::new()
+        .with_interface(CommandInterface::Mcp)
+        .with_active_context("review");
+    let result = registry.execute_batch_with_context(request, context).await;
+    let error = result.results[0].result.error.as_ref().unwrap();
+    assert_eq!(error.code, "COMMAND_NOT_IN_CONTEXT");
+    assert_eq!(
+        serde_json::to_value(&error.recovery).unwrap(),
+        json!({ "kind": "call", "command": "afd-context-list" })
+    );
+}
+
+/// `spec/recovery.md`, "Engine errors": the suggestion and the recovery name afd-context-list
+/// only when the caller can call it, decided once. The context commands are not exposed to the
+/// CLI, so a CLI caller gets the command's contexts and no recovery.
+#[tokio::test]
+async fn not_in_context_names_afd_context_list_only_when_the_caller_can_call_it() {
+    let registry = registry();
+    registry
+        .register(
+            CommandDefinition::new(
+                "plan-create-cli",
+                "Create a plan",
+                vec![CommandParameter::required_string("title", "Title")],
+                Echo,
+            )
+            .with_contexts(["planning"])
+            .with_expose(ExposeOptions::new().with_mcp(true).with_cli(true)),
+        )
+        .unwrap();
+    register_context_commands(&registry, configs()).unwrap();
+    for (interface, callable) in [
+        (CommandInterface::Mcp, true),
+        (CommandInterface::Cli, false),
+    ] {
+        let context = CommandContext::new()
+            .with_interface(interface)
+            .with_active_context("review");
+        let error = registry
+            .execute("plan-create-cli", json!({ "title": "x" }), Some(context))
+            .await
+            .error
+            .unwrap();
+        assert_eq!(error.code, "COMMAND_NOT_IN_CONTEXT", "{interface}");
+        let suggestion = error.suggestion.as_deref().unwrap();
+        assert_eq!(
+            suggestion.contains("afd-context-list"),
+            callable,
+            "{interface}: {suggestion}"
+        );
+        let expected = if callable {
+            json!({ "kind": "call", "command": "afd-context-list" })
+        } else {
+            Value::Null
+        };
+        assert_eq!(
+            serde_json::to_value(&error.recovery).unwrap(),
+            expected,
+            "{interface}"
+        );
+    }
 }
 
 #[tokio::test]
@@ -191,9 +261,14 @@ async fn context_commands_enter_list_and_exit_a_session_stack() {
     let denied = registry
         .execute("plan-create", json!({ "title": "x" }), session())
         .await;
+    let denied = denied.error.unwrap();
     assert_eq!(
-        denied.error.unwrap().suggestion.as_deref(),
+        denied.suggestion.as_deref(),
         Some("Use afd-context-list to see available contexts, or afd-context-enter to switch.")
+    );
+    assert_eq!(
+        serde_json::to_value(&denied.recovery).unwrap(),
+        json!({ "kind": "call", "command": "afd-context-list" })
     );
 
     let exited = registry
@@ -230,6 +305,10 @@ async fn context_commands_validate_names_and_depth() {
         unknown.suggestion.as_deref(),
         Some("Available contexts: planning, review. Use afd-context-list to see all contexts.")
     );
+    assert_eq!(
+        serde_json::to_value(&unknown.recovery).unwrap(),
+        json!({ "kind": "call", "command": "afd-context-list" })
+    );
 
     stack.enter("planning").unwrap();
     let full = registry
@@ -242,6 +321,11 @@ async fn context_commands_validate_names_and_depth() {
         .error
         .unwrap();
     assert_eq!(full.code, "CONTEXT_DEPTH_EXCEEDED");
+    assert_eq!(full.retryable, Some(false));
+    assert_eq!(
+        serde_json::to_value(&full.recovery).unwrap(),
+        json!({ "kind": "call", "command": "afd-context-exit", "thenRetry": true })
+    );
 
     let blank = registry
         .execute("afd-context-enter", json!({ "context": "" }), session)
@@ -333,4 +417,131 @@ fn context_commands_are_bootstrap_commands_exposed_to_mcp() {
     }
     assert!(!commands[0].mutation);
     assert!(commands[1].mutation && commands[2].mutation);
+}
+
+/// `names` as one of the server's per-caller filters.
+fn admitting(names: &[&str]) -> crate::commands::Visibility {
+    crate::commands::Visibility(Arc::new(
+        names.iter().map(|name| (*name).to_owned()).collect(),
+    ))
+}
+
+/// A session on `stack` whose caller the server's filters let call only `names` (with
+/// `plan-create`): through which commands exist for it when `known`, otherwise through its
+/// listing.
+fn admitting_only(stack: &ContextStack, names: &[&str], known: bool) -> CommandContext {
+    let mut context = CommandContext::new().with_context_stack(stack.clone());
+    let names: Vec<&str> = names.iter().copied().chain(["plan-create"]).collect();
+    let server = context.server_mut();
+    if known {
+        server.known = Some(admitting(&names));
+    } else {
+        server.tool_surface = Some(crate::commands::ToolSurface {
+            strategy: "individual",
+            first_class_tools: None,
+            visible: Some(admitting(&names)),
+        });
+    }
+    context
+}
+
+#[tokio::test]
+async fn a_context_refusal_names_afd_context_enter_only_when_the_caller_can_call_it() {
+    let registry = registry();
+    register_context_commands(&registry, configs()).unwrap();
+    let stack = ContextStack::new();
+    stack.enter("review").unwrap();
+    for known in [true, false] {
+        let context = admitting_only(&stack, &["afd-context-list", "afd-context-exit"], known);
+        let denied = registry
+            .execute("plan-create", json!({ "title": "x" }), Some(context))
+            .await
+            .error
+            .unwrap();
+        assert_eq!(denied.code, "COMMAND_NOT_IN_CONTEXT");
+        assert_eq!(
+            denied.suggestion.as_deref(),
+            Some("Use afd-context-list to see available contexts."),
+            "known: {known}"
+        );
+        assert_eq!(
+            serde_json::to_value(&denied.recovery).unwrap(),
+            json!({ "kind": "call", "command": "afd-context-list" }),
+            "known: {known}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn context_enter_names_only_context_commands_the_caller_can_call() {
+    let registry = registry();
+    register_context_commands(&registry, configs()).unwrap();
+    for known in [true, false] {
+        let stack = ContextStack::with_max_depth(1);
+        let unknown = registry
+            .execute(
+                "afd-context-enter",
+                json!({ "context": "nope" }),
+                Some(admitting_only(
+                    &stack,
+                    &["afd-context-enter", "afd-context-exit"],
+                    known,
+                )),
+            )
+            .await
+            .error
+            .unwrap();
+        assert_eq!(unknown.code, "CONTEXT_NOT_FOUND");
+        assert_eq!(
+            unknown.suggestion.as_deref(),
+            Some("Available contexts: planning, review."),
+            "known: {known}"
+        );
+        assert!(unknown.recovery.is_none(), "known: {known}: {unknown:?}");
+
+        stack.enter("planning").unwrap();
+        let full = registry
+            .execute(
+                "afd-context-enter",
+                json!({ "context": "review" }),
+                Some(admitting_only(
+                    &stack,
+                    &["afd-context-enter", "afd-context-list"],
+                    known,
+                )),
+            )
+            .await
+            .error
+            .unwrap();
+        assert_eq!(full.code, "CONTEXT_DEPTH_EXCEEDED");
+        assert_eq!(
+            full.suggestion.as_deref(),
+            Some("Leave a context before entering another"),
+            "known: {known}"
+        );
+        assert!(full.recovery.is_none(), "known: {known}: {full:?}");
+
+        // A caller that can call afd-context-exit is pointed to it.
+        let named = registry
+            .execute(
+                "afd-context-enter",
+                json!({ "context": "review" }),
+                Some(admitting_only(
+                    &stack,
+                    &["afd-context-enter", "afd-context-exit"],
+                    known,
+                )),
+            )
+            .await
+            .error
+            .unwrap();
+        assert_eq!(
+            named.suggestion.as_deref(),
+            Some("Call afd-context-exit to leave a context before entering another")
+        );
+        assert_eq!(
+            serde_json::to_value(&named.recovery).unwrap(),
+            json!({ "kind": "call", "command": "afd-context-exit", "thenRetry": true })
+        );
+    }
 }

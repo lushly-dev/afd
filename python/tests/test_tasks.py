@@ -787,6 +787,8 @@ async def test_cancellation_failed_command_result_size_cap_and_max_running():
         limited_body = _body(limited)
         assert limited_body["error"]["code"] == "RATE_LIMITED"
         assert limited_body["error"]["retryable"] is True
+        # A task limit gives no wait: retry with no minimum (spec/recovery.md, "Engine errors").
+        assert limited_body["error"]["recovery"] == {"kind": "retry"}
 
         # Cancel slow task
         await client.session.send_request(

@@ -1,5 +1,6 @@
 #include "afd/afd.hpp"
 
+#include <limits>
 #include <stdexcept>
 
 #include <doctest.h>
@@ -125,10 +126,30 @@ TEST_CASE("error constructors match the TypeScript text") {
     CHECK(limited.suggestion == "Wait 30 seconds and try again");
     CHECK(limited.details == afd::Json{{"retryAfterSeconds", 30}});
     CHECK(limited.retryable == true);
+    // rate_limit_error is a retry, after the wait when known (spec/recovery.md, "Engine errors").
+    CHECK(limited.recovery == afd::Recovery{.kind = afd::RecoveryKind::retry, .after_ms = 30000});
+    CHECK(afd::rate_limit_error(1.5).recovery ==
+          afd::Recovery{.kind = afd::RecoveryKind::retry, .after_ms = 1500});
+    // A fractional millisecond rounds up, so the caller waits at least as long as it is told.
+    CHECK(afd::rate_limit_error(0.0001).recovery ==
+          afd::Recovery{.kind = afd::RecoveryKind::retry, .after_ms = 1});
+    // A wait no afterMs can carry leaves a plain retry.
+    CHECK(afd::rate_limit_error(-5).recovery == afd::Recovery{.kind = afd::RecoveryKind::retry});
+    CHECK(afd::rate_limit_error(std::numeric_limits<double>::infinity()).recovery ==
+          afd::Recovery{.kind = afd::RecoveryKind::retry});
+    CHECK(afd::Json(limited).value("recovery", afd::Json()) ==
+          afd::Json{{"kind", "retry"}, {"afterMs", 30000}});
     const auto limited_unknown = afd::rate_limit_error();
     CHECK(limited_unknown.suggestion == "Wait a moment and try again");
     CHECK_FALSE(limited_unknown.details.has_value());
+    CHECK(limited_unknown.recovery == afd::Recovery{.kind = afd::RecoveryKind::retry});
     CHECK(afd::rate_limit_error(0).suggestion == "Wait a moment and try again");
+    CHECK(afd::rate_limit_error(0).recovery == afd::Recovery{.kind = afd::RecoveryKind::retry});
+    // The other helpers set no recovery.
+    CHECK_FALSE(validation.recovery.has_value());
+    CHECK_FALSE(not_found.recovery.has_value());
+    CHECK_FALSE(afd::timeout_error("sync", 1500).recovery.has_value());
+    CHECK_FALSE(afd::internal_error("boom").recovery.has_value());
 
     const auto timeout = afd::timeout_error("sync", 1500);
     CHECK(timeout.message == "Operation 'sync' timed out after 1500ms");

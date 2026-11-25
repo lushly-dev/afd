@@ -5,10 +5,11 @@ from __future__ import annotations
 import copy
 import math
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import Any, Literal
 
 from afd.core.approval import approval_mode
 from afd.core.commands import CommandDefinition, command_to_mcp_tool, serialize_command_examples
+from afd.core.errors import Recovery
 from afd.core.result import CommandResult, error, success
 from afd.core.similarity import find_similar_tools, truncate_name
 
@@ -16,21 +17,59 @@ from afd.core.similarity import find_similar_tools, truncate_name
 _MAX_NOT_FOUND_MATCHES = 3
 
 
-def not_found_suggestion(command_name: str, command_names: Sequence[str]) -> str:
+NotFoundGuide = Literal["afd-discover", "afd-help"] | None
+"""The command a ``COMMAND_NOT_FOUND`` suggestion and recovery point to, or ``None`` when the
+caller can call neither (``spec/recovery.md``, "Engine errors")."""
+
+_NOT_FOUND_NEXT: dict[str | None, str] = {
+    "afd-discover": "Use afd-discover to list all commands.",
+    "afd-help": "Use afd-help to list all commands.",
+    None: "Check the command name against the available commands.",
+}
+
+
+def not_found_suggestion(
+    command_name: str,
+    command_names: Sequence[str],
+    guide: NotFoundGuide = "afd-discover",
+) -> str:
     """Recovery guidance for an unknown (untrusted, never echoed) command name.
 
-    Names at most three close matches (none for very long names) and points
-    to afd-discover. It never lists every command, which in lazy mode would
-    load the whole surface into the agent's context on a single typo.
+    Names at most three close matches (none for very long names) and points to ``guide``, the
+    command the caller can call to list commands (``afd-discover``, else ``afd-help``), or to the
+    available commands when it can call neither: a suggestion never names a command the caller
+    cannot call (``spec/recovery.md``, rule 2). It never lists every command, which in lazy mode
+    would load the whole surface into the agent's context on a single typo.
     """
-    discover = "Use afd-discover to list all commands."
+    next_step = _NOT_FOUND_NEXT[guide]
     matches = find_similar_tools(command_name, command_names, _MAX_NOT_FOUND_MATCHES)
     if not matches:
-        return discover
+        return next_step
     best, *others = matches
     quoted_others = ", ".join(f"'{name}'" for name in others)
     also_close = f" Other close matches: {quoted_others}." if others else ""
-    return f"Did you mean '{best}'?{also_close} {discover}"
+    return f"Did you mean '{best}'?{also_close} {next_step}"
+
+
+def not_found_recovery(guide: NotFoundGuide) -> Recovery | None:
+    """The recovery of a ``COMMAND_NOT_FOUND`` whose suggestion points to ``guide``: a call of it,
+    or none (``spec/recovery.md``, "Engine errors")."""
+    return Recovery(kind="call", command=guide) if guide is not None else None
+
+
+def command_not_found(
+    command_name: str,
+    command_names: Sequence[str],
+    guide: NotFoundGuide,
+) -> CommandResult[Any]:
+    """The ``COMMAND_NOT_FOUND`` result for an unknown command name at lookup: the suggestion and
+    the recovery name ``guide``, decided once, so the two never disagree (rule 1)."""
+    return error(
+        "COMMAND_NOT_FOUND",
+        f"Command '{truncate_name(command_name)}' not found",
+        suggestion=not_found_suggestion(command_name, command_names, guide),
+        recovery=not_found_recovery(guide),
+    )
 
 
 def _truncate_description(description: str, max_length: int = 120) -> str:

@@ -35,12 +35,15 @@ import {
 import type { ContextState } from './bootstrap/afd-context.js';
 import { filterAllowed, isCommandAllowed } from './command-allow.js';
 import {
+	type CallableSurface,
+	canCall,
 	commandAction,
 	commandGroup,
 	filterByContext,
 	type GroupByFn,
 	isAccessibleInContext,
-	notFoundSuggestion,
+	notFoundError,
+	notFoundNext,
 	notInContextError,
 } from './command-routing.js';
 import {
@@ -171,16 +174,19 @@ function withoutConfirm<T>(args: T): T {
 /**
  * The `COMMAND_NOT_IN_CONTEXT` tool result when `cmd` exists but is outside the
  * active context; undefined otherwise (a missing command is left to execution).
+ *
+ * @param can - Whether the caller can call a command, for the suggestion and recovery
  */
 function contextDenial(
 	cmd: ZodCommandDefinition | undefined,
 	commandName: string,
-	contextState: ContextState | null | undefined
+	contextState: ContextState | null | undefined,
+	can: (name: string) => boolean
 ): ToolCallResult | undefined {
 	const activeContext = contextState?.getActive();
 	if (!cmd || !activeContext || isAccessibleInContext(cmd, activeContext)) return undefined;
 	return resultContent(
-		{ success: false, error: notInContextError(commandName, activeContext) },
+		{ success: false, error: notInContextError(commandName, activeContext, cmd.contexts, can) },
 		true
 	);
 }
@@ -284,6 +290,14 @@ export function createToolRouter(deps: ToolRouterDeps) {
 		}
 		const commands = knownOnly(deps.commands, callContext);
 		const allCommands = deps.allCommands && knownOnly(deps.allCommands, callContext);
+		// Whether the caller can call a command, decided once for each refusal's suggestion and
+		// recovery (`spec/recovery.md`, "Engine errors"). The router serves every meta-tool.
+		const surface: CallableSurface = {
+			metaTools: true,
+			command: (name: string) => commands.find((command) => command.name === name),
+			...(view && { shown: (name: string) => view.shown(name) }),
+		};
+		const can = (name: string) => canCall(surface, name, callContext, contextState?.getActive());
 		const exposedCommandNames = deps.exposedCommandNames;
 		/** The steps naming commands that exist for the caller: a confirmation names no other. */
 		const existing = <T extends { command: string }>(steps: T[]): T[] =>
@@ -326,23 +340,19 @@ export function createToolRouter(deps: ToolRouterDeps) {
 					callContext
 				);
 				return resultContent(
-					{
-						success: false,
-						error: {
-							code: 'COMMAND_NOT_FOUND',
-							message: `Command '${truncateName(commandName)}' not found`,
-							suggestion: notFoundSuggestion(
-								commandName,
-								callable.map((c) => c.name)
-							),
-						},
-					},
+					failure(
+						notFoundError(
+							commandName,
+							callable.map((c) => c.name),
+							notFoundNext(can)
+						)
+					),
 					true
 				);
 			}
 
 			// Context check: validate the command is accessible in current context
-			const denied = contextDenial(cmd, commandName, contextState);
+			const denied = contextDenial(cmd, commandName, contextState, can);
 			if (denied) return denied;
 
 			const hostVerified = await runHostVerified(cmd, input ?? {}, 'afd-call');
@@ -401,7 +411,12 @@ export function createToolRouter(deps: ToolRouterDeps) {
 				),
 				callContext
 			);
-			const result = executeDetail(contextFilteredCmds, exposedNames, parsed.data);
+			const result = executeDetail(
+				contextFilteredCmds,
+				exposedNames,
+				parsed.data,
+				notFoundNext(can)
+			);
 			return resultContent(result, false);
 		}
 
@@ -565,7 +580,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 				if (refused) return refused;
 
 				// Context check for grouped strategy
-				const denied = contextDenial(candidates[0], actualCommandName, contextState);
+				const denied = contextDenial(candidates[0], actualCommandName, contextState, can);
 				if (denied) return denied;
 
 				const hostVerified = await runHostVerified(candidates[0], commandParams, 'trace');
@@ -613,7 +628,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 		if (refused) return refused;
 		// Context check: validate the command is accessible in current context
 		const command = commands.find((c) => c.name === toolName);
-		const denied = contextDenial(command, toolName, contextState);
+		const denied = contextDenial(command, toolName, contextState, can);
 		if (denied) return denied;
 
 		// A confirm-gated tool advertises an optional `confirm` argument, removed here before the

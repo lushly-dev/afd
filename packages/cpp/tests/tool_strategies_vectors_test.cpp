@@ -215,6 +215,16 @@ TEST_CASE("spec/vectors/tool-strategies.json: servers") {
             if (expected["expected"].contains("code")) {
                 CHECK(result["error"]["code"] == expected["expected"]["code"]);
             }
+            // `expected.recovery`: `error.recovery` equals it, and `null` means none, which the
+            // wire omits (spec/tool-strategies.md, "Conformance").
+            if (expected["expected"].contains("recovery")) {
+                const Json& want = expected["expected"]["recovery"];
+                const Json& error = result["error"];
+                CHECK(error.value("recovery", Json(nullptr)) == want);
+                if (want.is_null()) {
+                    CHECK_FALSE(error.contains("recovery"));
+                }
+            }
         }
     }
 }

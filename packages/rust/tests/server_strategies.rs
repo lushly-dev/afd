@@ -377,6 +377,8 @@ async fn grouped_calls_route_actions_and_explain_bad_ones() {
         unknown["error"]["message"],
         "Action 'rename' does not identify one command in group 'todo'"
     );
+    // A grouped tool's unknown action has no recovery (`spec/recovery.md`, "Engine errors").
+    assert!(unknown["error"].get("recovery").is_none(), "{unknown}");
 
     // Invalid params are the command's own VALIDATION_ERROR.
     let (invalid, _) = call(&server, "todo", json!({ "action": "create", "params": {} })).await;
@@ -453,6 +455,11 @@ async fn private_commands_look_unknown_on_every_route() {
             "Use afd-discover to list all commands."
         );
     }
+    // Every route names afd-discover, as itself (`spec/recovery.md`, "Engine errors").
+    let discover = json!({ "kind": "call", "command": "afd-discover" });
+    for result in [&direct, &called, &unknown] {
+        assert_eq!(result["error"]["recovery"], discover, "{result}");
+    }
     // Close matches never name a private command.
     assert!(!unknown["error"]["suggestion"]
         .as_str()
@@ -469,6 +476,7 @@ async fn private_commands_look_unknown_on_every_route() {
         batch["results"][0]["result"]["error"]["code"],
         "COMMAND_NOT_FOUND"
     );
+    assert_eq!(batch["results"][0]["result"]["error"]["recovery"], discover);
     assert_eq!(batch["results"][1]["result"]["success"], true);
 
     let (pipe, failed) = call(
@@ -479,6 +487,7 @@ async fn private_commands_look_unknown_on_every_route() {
     .await;
     assert!(failed);
     assert_eq!(pipe["steps"][0]["error"]["code"], "COMMAND_NOT_FOUND");
+    assert_eq!(pipe["steps"][0]["error"]["recovery"], discover);
 
     let (discovered, _) = call(&server, "afd-discover", json!({ "search": "secret" })).await;
     assert_eq!(discovered["data"]["returned"], 0);
@@ -560,6 +569,8 @@ async fn detail_reports_every_field_and_bounds_unknown_names() {
         })
     );
     assert_eq!(entries[1]["error"]["code"], "COMMAND_NOT_FOUND");
+    // afd-detail's per-entry not-found has no recovery (`spec/recovery.md`, "Engine errors").
+    assert!(entries[1]["error"].get("recovery").is_none());
     assert_eq!(
         entries[1]["error"]["suggestion"],
         "Did you mean 'todo-create'? Other close matches: 'todo-list', 'todo-clear'. Use afd-discover to list all commands."
@@ -844,6 +855,16 @@ async fn instructions_describe_the_strategy() {
     let (lazy, _) = serve(ToolStrategy::Lazy);
     let response = rpc(&lazy, "server/discover", json!({}), json!({})).await;
     let instructions = response["result"]["instructions"].as_str().unwrap();
+    // The first sentence, exactly as `spec/tool-strategies.md` gives it.
+    assert!(
+        instructions.starts_with(
+            "strategies is an AFD server. Every tool returns a CommandResult as JSON text: \
+             { success, data, error: { code, message, suggestion, recovery } }; follow \
+             error.suggestion to recover. When error.recovery is present, it is the same step in \
+             a form a program can follow. "
+        ),
+        "{instructions}"
+    );
     assert!(
         instructions.contains("Call afd-discover to find commands"),
         "{instructions}"

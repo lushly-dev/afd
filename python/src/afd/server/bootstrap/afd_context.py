@@ -8,8 +8,11 @@ from typing import Any
 from pydantic import BaseModel, Field, ValidationError
 
 from afd.core.commands import CommandContext, CommandDefinition, ExposeOptions
+from afd.core.direct_allow import _is_allowed
+from afd.core.errors import Recovery
 from afd.core.result import CommandResult, error, success
 from afd.core.wire import WireModel
+from afd.server.auth_view import scope_view_of
 from afd.server.types import ContextConfig
 from afd.server.validation import _input_validation_failure
 
@@ -65,6 +68,15 @@ def create_context_state(
 ) -> ContextState:
     """Create a fresh mutable context state container."""
     return ContextState(max_depth, persistent=persistent)
+
+
+def _can_call_context_command(context: CommandContext | None, name: str) -> bool:
+    """Whether the caller of ``context`` can call the context command ``name``
+    (spec/recovery.md, "Engine errors"). The three are registered together, with one exposure and
+    no contexts of their own, so a caller that reached one can call another unless its ``allow``
+    list or its scope view refuses it."""
+    view = scope_view_of(context)
+    return (context is None or _is_allowed(context, name)) and (view is None or view.shown(name))
 
 
 def _session_required() -> CommandResult[Any]:
@@ -191,7 +203,6 @@ def create_afd_context_enter_command(
         input: Any,
         context: CommandContext | None = None,
     ) -> CommandResult[AfdContextEnterOutput]:
-        _ = context
         if not context_state.session_available:
             return _session_required()
         try:
@@ -202,12 +213,19 @@ def create_afd_context_enter_command(
             )
         except ValidationError as exc:
             return _input_validation_failure(AfdContextEnterInput, input, exc)
-        context_names = {item.name for item in get_contexts()}
+        context_names = [item.name for item in get_contexts()]
         if parsed.context not in context_names:
+            available = f"Available contexts: {', '.join(context_names)}."
+            listed = _can_call_context_command(context, "afd-context-list")
             return error(
                 "CONTEXT_NOT_FOUND",
                 f"Context '{parsed.context}' is not configured",
-                suggestion=("Use afd-context-list to see available contexts."),
+                suggestion=(
+                    f"{available} Use afd-context-list to see all contexts."
+                    if listed
+                    else available
+                ),
+                recovery=Recovery(kind="call", command="afd-context-list") if listed else None,
             )
 
         previous = context_state.get_active()
@@ -218,10 +236,20 @@ def create_afd_context_enter_command(
                 confidence=1.0,
             )
         if previous != parsed.context and len(context_state.stack) >= context_state.max_depth:
+            exit_callable = _can_call_context_command(context, "afd-context-exit")
             return error(
                 "CONTEXT_DEPTH_EXCEEDED",
                 f"Context stack is limited to {context_state.max_depth} levels",
-                suggestion="Call afd-context-exit before entering another context.",
+                suggestion=(
+                    "Call afd-context-exit to leave a context before entering another"
+                    if exit_callable
+                    else "Leave a context before entering another"
+                ),
+                recovery=(
+                    Recovery(kind="call", command="afd-context-exit", then_retry=True)
+                    if exit_callable
+                    else None
+                ),
             )
         context_state.enter(parsed.context)
         return success(

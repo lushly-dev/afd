@@ -488,6 +488,8 @@ TEST_CASE("2026-07-28: a confirmation is an input_required round trip bound to t
             {{"requestState", state}, {"inputResponses", {{"confirm", {{"action", "decline"}}}}}});
         CHECK(body(declined)["error"]["code"] == "CONFIRMATION_DECLINED");
         CHECK(body(declined)["error"]["retryable"] == false);
+        // The user chose not to proceed (spec/recovery.md, "Engine errors").
+        CHECK(body(declined)["error"].value("recovery", Json()) == Json{{"kind", "stop"}});
         CHECK(*notes.clears == 0);
     }
     SUBCASE("for other input, or with an altered state, it asks again") {
@@ -613,6 +615,7 @@ TEST_CASE("the approval relay asks the human, and an approval works once") {
                       {{"approval", {{"action", "accept"}, {"content", {{"approve", false}}}}}}}});
     CHECK(body(declined)["error"]["code"] == "APPROVAL_REQUIRED");
     CHECK(body(declined)["error"]["details"]["reason"] == "declined");
+    CHECK(body(declined)["error"].value("recovery", Json()) == Json{{"kind", "stop"}});
     CHECK(*notes.opens == 1);
 
     // Without elicitation, the hold is returned without a token, saying how to be asked.
@@ -623,6 +626,8 @@ TEST_CASE("the approval relay asks the human, and an approval works once") {
     CHECK(body(held)["error"]["suggestion"].get<std::string>().find(
               "Call vault-open from an MCP client that supports form elicitation") !=
           std::string::npos);
+    // A person approves, through another client or the application.
+    CHECK(body(held)["error"].value("recovery", Json()) == Json{{"kind", "external"}});
 }
 
 TEST_CASE("one state carries a confirmation and then an approval") {
@@ -680,6 +685,8 @@ TEST_CASE("a command run by another command's handler never claims the relay") {
     CHECK_FALSE(body(result)["error"]["details"].contains("approvalToken"));
     CHECK(body(result)["error"]["suggestion"].get<std::string>().find(
               "Call vault-open on its own so the client can ask the user") != std::string::npos);
+    // The caller reshapes the call, calling the gated command on its own: no recovery.
+    CHECK_FALSE(body(result)["error"].contains("recovery"));
     CHECK(*notes.opens == 0);
 }
 
@@ -1457,8 +1464,10 @@ TEST_CASE("server/discover never reads a context; without contexts nothing chang
     CHECK(discover["result"]["ttlMs"] == 300000);
     CHECK(discover["result"]["instructions"] ==
           "notes is an AFD server. Every tool returns a CommandResult as JSON text: { success, "
-          "data, error: { code, message, suggestion } }; follow error.suggestion to recover. "
-          "Each tool groups related commands: pass { action, params }. afd-detail returns a "
+          "data, error: { code, message, suggestion, recovery } }; follow error.suggestion to "
+          "recover. When error.recovery is present, it is the same step in a form a program "
+          "can follow. Each tool groups related commands: pass { action, params }. afd-detail "
+          "returns a "
           "command schema; afd-call runs any command by name. Use afd-batch for several "
           "independent commands and afd-pipe to chain them.");
 }
@@ -1470,8 +1479,10 @@ TEST_CASE("server/discover says the bootstrap tools describe the server, once al
     const auto discover = send(*server, request(1, "server/discover", {{"_meta", modern_meta()}}));
     CHECK(discover["result"]["instructions"] ==
           "notes is an AFD server. Every tool returns a CommandResult as JSON text: { success, "
-          "data, error: { code, message, suggestion } }; follow error.suggestion to recover. "
-          "Each tool groups related commands: pass { action, params }. afd-detail returns a "
+          "data, error: { code, message, suggestion, recovery } }; follow error.suggestion to "
+          "recover. When error.recovery is present, it is the same step in a form a program "
+          "can follow. Each tool groups related commands: pass { action, params }. afd-detail "
+          "returns a "
           "command schema; afd-call runs any command by name. Use afd-batch for several "
           "independent commands and afd-pipe to chain them. afd-help, afd-docs and afd-schema "
           "describe this server.");

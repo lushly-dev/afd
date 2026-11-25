@@ -494,6 +494,7 @@ async fn resume_outcomes_decline_ask_again_or_begin_again() {
         error_codes::CONFIRMATION_DECLINED
     );
     assert_eq!(declined["error"]["retryable"], false);
+    assert_eq!(declined["error"]["recovery"], json!({ "kind": "stop" }));
 
     // Pending: asked again with the same URL, so the same id, and the relay's fresh state.
     relay.answer(RelayOutcome::Pending(RelayPrompt::new(
@@ -577,6 +578,8 @@ async fn a_client_without_url_elicitation_never_gets_the_prompt() {
             .as_str()
             .unwrap()
             .contains("URL-mode elicitation"));
+        // The host's human relay is outside the command surface (`spec/recovery.md`).
+        assert_eq!(refused["error"]["recovery"], json!({ "kind": "external" }));
         assert!(!relay.last_call().supports_url_elicitation());
     }
     // A pending prompt is held to the same rule.

@@ -199,8 +199,10 @@ describe('P2-E1: one first paint', () => {
 		// every token property, measured 349,561 against `main` at `56a536413`), and #2524 (afd-server's
 		// `composeMiddleware` carries afd-auth's credentials mark, measured 349,989 against `main` at `11ed11650`), then
 		// lowered by #2107 (wrapper provenance and `redactWrapped` injected from `late/journal-wrappers.ts`, measured
-		// 344,982 against `main` at `bd30d790b`).
-		expect(javascript).toBeLessThanOrEqual(346_000);
+		// 344,982 against `main` at `bd30d790b`), and raised under D115 by #2539 (engine errors carry a recovery in
+		// `afd-server`'s `command-routing.ts`, on top of #2576's `secret` commands; measured 346,326 against `main` at
+		// `ad9e42890`).
+		expect(javascript).toBeLessThanOrEqual(346_800);
 		expect(javascript).toBe(budgetRow());
 		// Stage B still runs in every deployment: `late` loads after the mark, on the empty shell too.
 		await expect

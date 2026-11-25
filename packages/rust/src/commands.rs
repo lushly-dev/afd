@@ -38,7 +38,10 @@ pub use context::CommandContext;
 pub(crate) use context::InstanceGuard;
 // The MCP server sets these on a request's context.
 #[cfg(feature = "server")]
-pub(crate) use context::{ScopeCheck, ToolSurface, Visibility};
+pub(crate) use context::ScopeCheck;
+// The unit tests set the two filters a server would.
+#[cfg(any(feature = "server", test))]
+pub(crate) use context::{ToolSurface, Visibility};
 
 type BatchExecutionFuture<'a> =
     Pin<Box<dyn Future<Output = (usize, BatchCommandResult<serde_json::Value>)> + Send + 'a>>;

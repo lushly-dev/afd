@@ -1887,6 +1887,13 @@ fn assert_limited(answer: &Answer) {
     assert_eq!(error["code"], error_codes::RATE_LIMITED, "{}", answer.text);
     assert_eq!(error["retryable"], true);
     assert_eq!(error["message"], LIMIT_MESSAGE);
+    // No wait is known (`spec/recovery.md`, "Engine errors").
+    assert_eq!(
+        error["recovery"],
+        json!({ "kind": "retry" }),
+        "{}",
+        answer.text
+    );
 }
 
 #[tokio::test]

@@ -15,8 +15,9 @@ use afd::context_fields::ContextField;
 #[cfg(feature = "approval")]
 use afd::{create_approval_middleware, ApprovalMiddlewareOptions};
 use afd::{
-    success, Actor, ActorKind, ApprovalDecision, CommandContext, CommandDefinition, CommandHandler,
-    CommandInterface, CommandMiddleware, CommandRegistry, CommandResult, ExposeOptions,
+    register_context_commands, success, Actor, ActorKind, ApprovalDecision, CommandContext,
+    CommandDefinition, CommandHandler, CommandInterface, CommandMiddleware, CommandRegistry,
+    CommandResult, ContextConfig, ExposeOptions,
 };
 use async_trait::async_trait;
 use serde_json::{json, Value};
@@ -57,6 +58,7 @@ fn build_registry(
     case: &Value,
     hooks: Arc<Mutex<Vec<String>>>,
 ) -> CommandRegistry {
+    let surface = case["surface"].as_str().unwrap();
     let registry = CommandRegistry::new();
     for cmd in vectors["setup"]["commands"].as_array().unwrap() {
         let name = cmd["name"].as_str().unwrap();
@@ -91,6 +93,18 @@ fn build_registry(
         registry
             .register_with_schema(def, cmd["input"].clone())
             .unwrap();
+    }
+
+    // `setup.contextCommands: "plain"` (registry surface only): the context commands as plain
+    // commands, with no tool surface and no bootstrap or help commands.
+    if surface == "registry" && vectors["setup"]["contextCommands"] == json!("plain") {
+        let contexts = vectors["setup"]["contexts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|name| ContextConfig::new(name.as_str().unwrap()))
+            .collect();
+        register_context_commands(&registry, contexts).unwrap();
     }
 
     if case.get("withContextFields").and_then(Value::as_bool) == Some(true) {
@@ -244,6 +258,14 @@ async fn registry_dispatch_vectors() {
         if let Some(message) = expected.get("message").and_then(Value::as_str) {
             assert_eq!(result.error.as_ref().expect(id).message, message, "{id}");
         }
+        // `null` is no recovery (`spec/recovery.md`, "Engine errors").
+        if let Some(recovery) = expected.get("recovery") {
+            assert_eq!(
+                serde_json::to_value(&result.error.as_ref().expect(id).recovery).unwrap(),
+                *recovery,
+                "{id}"
+            );
+        }
         if let Some(data) = expected.get("data") {
             assert_eq!(result.data.as_ref(), Some(data), "{id}");
         }
@@ -322,6 +344,13 @@ async fn mcp_dispatch_vectors() {
         }
         if let Some(retryable) = expected.get("retryable") {
             assert_eq!(result["error"]["retryable"], *retryable, "{id}");
+        }
+        // `null` is no recovery: the error carries no `recovery` member.
+        if let Some(recovery) = expected.get("recovery") {
+            assert_eq!(result["error"]["recovery"], *recovery, "{id}");
+            if recovery.is_null() {
+                assert!(result["error"].get("recovery").is_none(), "{id}");
+            }
         }
         if let Some(data) = expected.get("data") {
             assert_eq!(result["data"], *data, "{id}");

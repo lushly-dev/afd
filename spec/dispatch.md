@@ -100,7 +100,9 @@ returns its `CommandResult` immediately; no later stage runs.
 ## Conformance
 
 [`vectors/dispatch.json`](./vectors/dispatch.json) drives a scripted registry and MCP server through
-every stage above, asserting the returned result, error code, metadata stamping and which hooks ran.
+every stage above, asserting the returned result, error code, the error's recovery where a case
+gives `expect.recovery` ([engine errors](./recovery.md#engine-errors)), metadata stamping and which
+hooks ran.
 All four languages load it; known language gaps are declared in its top-level `gaps` object with
 their tracking issues and skipped by that language's suite until closed.
 

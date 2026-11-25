@@ -59,7 +59,7 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
 use crate::approval::relay::{ApprovalHold, Asked, RoundAnswers, APPROVAL_INPUT_KEY};
-use crate::{error_codes, CommandError};
+use crate::{error_codes, CommandError, Recovery};
 
 /// How a server treats `confirm_prompt`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -450,6 +450,7 @@ pub(crate) fn declined(names: &[String]) -> CommandError {
         "Do not run this again without asking the user first; the user chose not to proceed.",
     )
     .with_retryable(false)
+    .with_recovery(Recovery::stop())
     .with_details(HashMap::from([("commands".to_owned(), json!(names))]))
 }
 
@@ -597,6 +598,7 @@ pub(crate) async fn check(
         CommandError::new(error_codes::CONFIRMATION_REQUIRED, message)
             .with_suggestion(suggestion)
             .with_retryable(false)
+            .with_recovery(Recovery::external())
             .with_details(HashMap::from([("commands".to_owned(), json!(names))])),
     )
 }

@@ -1,5 +1,5 @@
 {
-	"description": "Single-command dispatch order (spec/dispatch.md): lookup, exposure, active context, confirmation, input validation, declared context fields, middleware, approval admission, handler, metadata stamping and observer hooks.",
+	"description": "Single-command dispatch order (spec/dispatch.md): lookup, exposure, active context, confirmation, input validation, declared context fields, middleware, approval admission, handler, metadata stamping and observer hooks. A refusing case's expect.recovery is the error's recovery (spec/recovery.md, Engine errors), null for none. setup.contextCommands \"plain\": the registry surface registers afd-context-list, afd-context-enter and afd-context-exit as plain commands, with no tool surface and no bootstrap or help commands, so afd-context-list is callable there and afd-discover and afd-help are not.",
 	"gaps": {
 		"python": {
 			"hooks": "https://github.com/lushly-dev/afd/issues/1551"
@@ -10,6 +10,7 @@
 		}
 	},
 	"setup": {
+		"contextCommands": "plain",
 		"contexts": ["planning", "combat"],
 		"contextFields": [
 			{
@@ -101,6 +102,7 @@
 			"expect": {
 				"success": false,
 				"code": "COMMAND_NOT_FOUND",
+				"recovery": null,
 				"hooks": [],
 				"onCommand": false,
 				"onError": false
@@ -119,6 +121,7 @@
 			"expect": {
 				"success": false,
 				"code": "COMMAND_NOT_FOUND",
+				"recovery": null,
 				"hooks": [],
 				"onCommand": false,
 				"onError": false
@@ -136,6 +139,7 @@
 			"expect": {
 				"success": false,
 				"code": "COMMAND_NOT_EXPOSED",
+				"recovery": { "kind": "external" },
 				"retryable": false,
 				"hooks": [],
 				"onCommand": false,
@@ -155,6 +159,7 @@
 			"expect": {
 				"success": false,
 				"code": "COMMAND_NOT_EXPOSED",
+				"recovery": { "kind": "external" },
 				"retryable": false,
 				"hooks": [],
 				"onCommand": false,
@@ -174,6 +179,7 @@
 			"expect": {
 				"success": false,
 				"code": "COMMAND_NOT_IN_CONTEXT",
+				"recovery": { "kind": "call", "command": "afd-context-list" },
 				"hooks": [],
 				"onCommand": false,
 				"onError": false
@@ -192,6 +198,7 @@
 			"expect": {
 				"success": false,
 				"code": "COMMAND_NOT_IN_CONTEXT",
+				"recovery": { "kind": "call", "command": "afd-context-list" },
 				"hooks": [],
 				"onCommand": false,
 				"onError": false
@@ -210,6 +217,7 @@
 			"expect": {
 				"success": false,
 				"code": "VALIDATION_ERROR",
+				"recovery": null,
 				"message": "Input validation failed",
 				"hooks": [],
 				"onCommand": false,
@@ -230,6 +238,7 @@
 			"expect": {
 				"success": false,
 				"code": "VALIDATION_ERROR",
+				"recovery": null,
 				"message": "Input validation failed",
 				"hooks": [],
 				"onCommand": false,
@@ -250,6 +259,7 @@
 			"expect": {
 				"success": false,
 				"code": "VALIDATION_ERROR",
+				"recovery": null,
 				"hooks": [],
 				"onCommand": false,
 				"onError": false
@@ -270,6 +280,7 @@
 			"expect": {
 				"success": false,
 				"code": "VALIDATION_ERROR",
+				"recovery": null,
 				"hooks": [],
 				"onCommand": false,
 				"onError": false
@@ -288,6 +299,7 @@
 			"expect": {
 				"success": false,
 				"code": "APPROVAL_REQUIRED",
+				"recovery": { "kind": "external" },
 				"hooks": ["mw1:before", "mw1:after"],
 				"onCommand": true,
 				"onError": false
@@ -305,6 +317,7 @@
 			"expect": {
 				"success": false,
 				"code": "APPROVAL_UNAVAILABLE",
+				"recovery": { "kind": "external" },
 				"retryable": false,
 				"hooks": ["mw1:before", "mw2:before", "mw2:after", "mw1:after"],
 				"onCommand": true,
@@ -325,6 +338,7 @@
 			"expect": {
 				"success": false,
 				"code": "COMMAND_EXECUTION_ERROR",
+				"recovery": null,
 				"message": "An internal error occurred",
 				"hooks": ["mw1:before"],
 				"onCommand": false,
@@ -343,6 +357,7 @@
 			"expect": {
 				"success": false,
 				"code": "COMMAND_EXECUTION_ERROR",
+				"recovery": null,
 				"message": "An internal error occurred",
 				"hooks": ["mw1:before", "mw2:before", "handler"],
 				"onCommand": false,
@@ -404,6 +419,7 @@
 			"expect": {
 				"success": false,
 				"code": "COMMAND_NOT_FOUND",
+				"recovery": { "kind": "call", "command": "afd-discover" },
 				"hooks": []
 			}
 		},
@@ -418,6 +434,7 @@
 			"expect": {
 				"success": false,
 				"code": "CONFIRMATION_REQUIRED",
+				"recovery": { "kind": "external" },
 				"retryable": false,
 				"hooks": []
 			}

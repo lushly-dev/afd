@@ -67,7 +67,7 @@ from afd.core.commands import (
     validate_task_declaration,
 )
 from afd.core.direct_allow import _is_allowed, _not_allowed
-from afd.core.errors import CommandError, ErrorCodes
+from afd.core.errors import CommandError, ErrorCodes, Recovery
 from afd.core.meta_keys import assert_advertised_input_schema, assert_tool_meta
 from afd.core.output_budget import (
     OutputBudget,
@@ -92,7 +92,6 @@ from afd.core.schema_validation import (
     check_schema,
     resolve_max_validation_issues,
 )
-from afd.core.similarity import truncate_name
 from afd.core.single_executor import CommandExecutionConfig, execute_command
 from afd.core.streaming import StreamChunk, StreamOptions
 from afd.server.approval_admission import (
@@ -125,6 +124,7 @@ from afd.server.auth_view import (
 )
 from afd.server.batch_execution import execute_batch, execute_pipeline_request
 from afd.server.bootstrap import ContextState, get_bootstrap_commands
+from afd.server.callability import can_call, not_found_guide
 from afd.server.config import (
     DEFAULT_COMMAND_TIMEOUT_MS as DEFAULT_COMMAND_TIMEOUT_MS,
 )
@@ -181,7 +181,7 @@ from afd.server.human_relay import (
     bind_relay_wire,
 )
 from afd.server.instance_state import ServerInstances, check_instance_state, warn_instances_once
-from afd.server.lazy_tools import not_found_suggestion
+from afd.server.lazy_tools import command_not_found
 from afd.server.meta_argument import lift_meta_argument, meta_argument_keys
 from afd.server.middleware import CommandMiddleware
 from afd.server.principal import principal_binding, sdk_credentials
@@ -246,10 +246,10 @@ from afd.server.tool_results import (
     unanswered_approval as _unanswered_approval,
 )
 from afd.server.tool_router import (
-    NOT_IN_CONTEXT_SUGGESTION,
     ToolRouterDeps,
     create_tool_router,
     new_trace_id,
+    not_in_context_error,
 )
 from afd.server.tools import get_tools_list
 from afd.server.types import (
@@ -886,6 +886,7 @@ class MCPServer:
         context: CommandContext,
         *,
         check_before_request: bool = False,
+        meta_tools: bool = False,
     ) -> tuple[CommandDefinition, Any] | CommandResult[Any]:
         """Check a call before any middleware runs.
 
@@ -935,10 +936,12 @@ class MCPServer:
                 and (not interface or self._is_exposed_to(candidate, interface))
                 and (view is None or view.shown(candidate.name))
             ]
-            return error(
-                "COMMAND_NOT_FOUND",
-                f"Command '{truncate_name(name)}' not found",
-                suggestion=not_found_suggestion(name, callable_names),
+            return command_not_found(
+                name,
+                callable_names,
+                not_found_guide(
+                    self, context, active_context, remote=remote, meta_tools=meta_tools
+                ),
             )
 
         # An unknown interface exposes nothing, as in TypeScript's isExposedTo.
@@ -955,13 +958,15 @@ class MCPServer:
                     f"expose.{interface} to true in its definition"
                 ),
                 retryable=False,
+                recovery=Recovery(kind="external"),
             )
 
         if not _in_context(command, active_context):
-            return error(
-                "COMMAND_NOT_IN_CONTEXT",
-                f"Command '{command.name}' is not available in context '{active_context}'",
-                suggestion=NOT_IN_CONTEXT_SUGGESTION,
+            return not_in_context_error(
+                command.name,
+                active_context,
+                can=lambda name: can_call(self, name, context, active_context),
+                belongs_to=command.contexts,
             )
 
         metadata = get_command_metadata(command.handler)
@@ -1165,8 +1170,16 @@ class MCPServer:
         *,
         output_budget: Any = None,
         _check_before_request: bool = False,
+        _meta_tools: bool = False,
     ) -> Any:
-        """Run a command (never a built-in tool) through the shared single-command executor."""
+        """Run a command (never a built-in tool) through the shared single-command executor.
+
+        ``_meta_tools`` says the caller's entry point also routes the meta-tools, as ``execute``
+        does outside ``apps``.
+        """
+        remote = (
+            bool(context.extra.get("remote")) if context is not None and context.extra else False
+        )
         config = CommandExecutionConfig(
             lookup=self._find_command,
             lookup_apps=self._registry.get,
@@ -1177,14 +1190,23 @@ class MCPServer:
             context_defaults=ContextDefaults(clock=self.config.clock, random=self.config.random),
             default_timeout_ms=self._default_timeout_ms,
             logger=logger,
-            suggest_tools=True,
             stamp_metadata=True,
             context_scope=self._context_scope_for_execution,
             before_request=self._check_before_request if _check_before_request else None,
             active_context_getter=lambda _ctx: self._context_state.get_active(),
             is_hidden=self._is_hidden_for_execution,
             is_shown=self._is_shown_for_execution,
-            not_in_context_suggestion=NOT_IN_CONTEXT_SUGGESTION,
+            not_found_builder=lambda unknown, names: command_not_found(
+                unknown,
+                names,
+                not_found_guide(
+                    self,
+                    context,
+                    self._context_state.get_active(),
+                    remote=remote,
+                    meta_tools=_meta_tools,
+                ),
+            ),
             validate_input=self._validate_for_execution,
             post_validate=self._post_validate_for_execution,
             admission_scope=self._admission_scope_for_execution,
@@ -1248,7 +1270,9 @@ class MCPServer:
                 bind_output_budget_ask(budget_ask),
             ):
                 return await self.route_tool_call(name, lifted.arguments, caller_context=context)
-        return await self._execute_command(name, input, context, output_budget=output_budget)
+        return await self._execute_command(
+            name, input, context, output_budget=output_budget, _meta_tools=True
+        )
 
     def _refresh_dynamic_tools(self, name: str, result: Any) -> None:
         """Refresh caches and live MCP tools after context-changing commands."""
@@ -1383,10 +1407,13 @@ class MCPServer:
                         and active_context not in registered.contexts
                     ):
                         return _tool_call_result(
-                            error(
-                                "COMMAND_NOT_IN_CONTEXT",
-                                f"Command '{name}' is not available in context '{active_context}'",
-                                suggestion=NOT_IN_CONTEXT_SUGGESTION,
+                            not_in_context_error(
+                                name,
+                                active_context,
+                                can=lambda tool: can_call(
+                                    server, tool, None, active_context, interface="mcp"
+                                ),
+                                belongs_to=registered.contexts,
                             )
                         )
 

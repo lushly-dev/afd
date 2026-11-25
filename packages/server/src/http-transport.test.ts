@@ -291,6 +291,81 @@ describe('JSON-RPC errors', () => {
 	});
 });
 
+describe('HTTP lane refusals', () => {
+	// `/rpc`, `/batch` and `/stream` run commands without the router, which serves `afd-discover`
+	// only over MCP: an unknown command there must not recover with a call that is itself not
+	// found (`spec/recovery.md`, "Engine errors").
+	const checkName = 'Check the command name against the available commands.';
+
+	it.each([
+		[false, { suggestion: checkName }],
+		[
+			true,
+			{
+				suggestion: 'Use afd-help to list all commands.',
+				recovery: { kind: 'call', command: 'afd-help' },
+			},
+		],
+	])(
+		'answers an unknown /rpc method with bootstrap: %s without naming afd-discover',
+		async (bootstrap, ending) => {
+			const { url } = await host({ bootstrap });
+
+			const response = await post(url, '/rpc', { jsonrpc: '2.0', id: 1, method: 'zz' });
+
+			expect(response.status).toBe(200);
+			const body = (await response.json()) as { result: CommandResult };
+			expect(body.result).toEqual({
+				success: false,
+				error: { code: 'COMMAND_NOT_FOUND', message: "Command 'zz' not found", ...ending },
+			});
+		}
+	);
+
+	it('answers an unknown /batch item without naming afd-discover', async () => {
+		const { url } = await host({ bootstrap: true });
+
+		const response = await post(url, '/batch', { commands: [{ command: 'zz', input: {} }] });
+
+		expect(response.status).toBe(200);
+		const text = JSON.stringify(await response.json());
+		expect(text).toContain('COMMAND_NOT_FOUND');
+		expect(text).toContain('Use afd-help to list all commands.');
+		expect(text).not.toContain('afd-discover');
+	});
+
+	it("streams an unknown command's refusal without naming afd-discover", async () => {
+		const { url } = await host({ bootstrap: true });
+
+		const response = await post(url, '/stream/zz', {});
+
+		const text = await response.text();
+		expect(text).toContain('COMMAND_NOT_FOUND');
+		expect(text).toContain('Use afd-help to list all commands.');
+		expect(text).not.toContain('afd-discover');
+	});
+
+	it('still offers afd-discover over MCP, where the router serves it', async () => {
+		const { url } = await host();
+
+		const response = await post(url, '/message', {
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'tools/call',
+			params: { name: 'afd-call', arguments: { command: 'zz', input: {} } },
+		});
+
+		expect(toolText(await response.json())).toMatchObject({
+			success: false,
+			error: {
+				code: 'COMMAND_NOT_FOUND',
+				suggestion: 'Use afd-discover to list all commands.',
+				recovery: { kind: 'call', command: 'afd-discover' },
+			},
+		});
+	});
+});
+
 describe('GET /stream', () => {
 	it('refuses mutations with 405 and points to POST', async () => {
 		const { url } = await host();

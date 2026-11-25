@@ -331,6 +331,11 @@ async fn rate_limit_refuses_past_the_budget_until_the_window_ends() {
     assert_eq!(error.code, error_codes::RATE_LIMITED);
     assert_eq!(error.retryable, Some(true));
     assert_eq!(error.suggestion.as_deref(), Some("Try again in 2 seconds"));
+    // The same whole number of seconds as the suggestion (`spec/recovery.md`, "Engine errors").
+    assert_eq!(
+        serde_json::to_value(&error.recovery).unwrap(),
+        json!({ "kind": "retry", "afterMs": 2000 })
+    );
 
     clock.advance(1_100);
     assert!(registry.execute("echo-run", json!({}), None).await.success);
@@ -350,6 +355,11 @@ async fn rate_limit_keeps_a_budget_per_key_and_at_most_max_keys() {
     assert!(call("b").await.success);
     let full = call("c").await.error.unwrap();
     assert_eq!(full.message, "Rate limit client capacity reached");
+    assert_eq!(full.retryable, Some(true));
+    assert_eq!(
+        serde_json::to_value(&full.recovery).unwrap(),
+        json!({ "kind": "retry" })
+    );
     assert!(call("a").await.success, "a has its own budget");
 
     // Once the windows end, their keys are dropped and a new key fits.

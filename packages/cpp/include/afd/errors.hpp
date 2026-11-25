@@ -282,7 +282,9 @@ CommandError validation_error(std::string message, std::optional<Json> details =
 /// NOT_FOUND: "<Type> with ID '<id>' not found".
 CommandError not_found_error(std::string_view resource_type, std::string_view resource_id);
 
-/// RATE_LIMITED, retryable, suggesting how long to wait when known.
+/// RATE_LIMITED, retryable, suggesting how long to wait when known. Its recovery is `retry`, with
+/// `after_ms` the wait in milliseconds (rounded up) when it is known (`spec/recovery.md`). The
+/// other helpers set no recovery.
 CommandError rate_limit_error(std::optional<double> retry_after_seconds = std::nullopt);
 
 /// TIMEOUT: "Operation '<name>' timed out after <ms>ms", retryable.
@@ -299,7 +301,8 @@ CommandError wrap_error(const std::exception& error);
 CommandError wrap_error(std::string_view message);
 
 /// Fixed CALL_NOT_GRANTED refusal for app-to-app calls (`spec/command-metadata.md`,
-/// "App-to-app calls"). Names neither the command nor the reason.
+/// "App-to-app calls"). Names neither the command nor the reason. Its recovery is `external`: the
+/// deployer adds the grant.
 CommandError call_not_granted();
 
 /// Whether `value` has the shape of a CommandError: an object with string `code` and `message`.

@@ -546,6 +546,7 @@ def _not_canonical(result) -> None:
     assert result.success is False and result.error.code == "APPROVAL_UNAVAILABLE"
     assert result.error.details == {"reason": "input-not-canonical"}
     assert result.error.retryable is False
+    assert result.error.recovery is None
 
 
 async def test_an_unbindable_input_fails_the_call():

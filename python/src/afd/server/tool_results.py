@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 from afd.core.batch import BatchResult
-from afd.core.errors import CommandError, ErrorCodes
+from afd.core.errors import CommandError, ErrorCodes, Recovery
 from afd.core.pipeline import PipelineResult, StepStatus
 from afd.core.result import CommandResult, ResultMetadata, failure
 from afd.core.wire import to_wire
@@ -39,6 +39,8 @@ def approval_unavailable(command_name: str, admission: str) -> CommandResult[Any
             suggestion=suggestion,
             retryable=False,
             details={"reason": reason},
+            # The operator fixes the approval setup (spec/recovery.md, "Engine errors").
+            recovery=Recovery(kind="external"),
         )
     )
 
@@ -105,6 +107,8 @@ def unanswered_approval(tool_name: str) -> CommandResult[Any]:
             message=f"{tool_name} needs approval before it runs",
             suggestion="The client did not answer the approval question. Ask the user, then call again.",
             retryable=False,
+            # A person must answer (spec/recovery.md, "Engine errors").
+            recovery=Recovery(kind="external"),
         )
     )
 

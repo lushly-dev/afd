@@ -57,6 +57,7 @@ add_library(
     src/batch.cpp
     src/batch_execution.cpp
     src/bootstrap.cpp
+    src/canonical_json.cpp
     src/command.cpp
     src/context_fields.cpp
     src/contexts.cpp

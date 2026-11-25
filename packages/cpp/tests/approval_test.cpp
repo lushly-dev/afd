@@ -424,6 +424,8 @@ TEST_CASE("the approval middleware rejects") {
         CHECK(gate.requests.back().rejected == afd::ApprovalRejection::already_used);
         CHECK(again.error->suggestion->rfind(
                   "The approval token was not accepted (already-used). Ask the user", 0) == 0);
+        // A rejected token: a person approves again (spec/recovery.md, "Engine errors").
+        CHECK(again.error->recovery == afd::Recovery{.kind = afd::RecoveryKind::external});
     }
 
     SUBCASE("malformed evidence") {
@@ -552,6 +554,8 @@ TEST_CASE("approval policies") {
         REQUIRE(result.error);
         CHECK(result.error->code == "APPROVAL_UNAVAILABLE");
         CHECK(afd::Json(result)["error"]["details"]["reason"] == "input-not-canonical");
+        // The caller resends the input in canonical form: no recovery (spec/recovery.md).
+        CHECK_FALSE(result.error->recovery.has_value());
     }
 }
 
@@ -720,8 +724,15 @@ TEST_CASE("DirectClient asks once and only trusted approval releases evidence") 
         CHECK(result.success == approve);
         CHECK(decisions == 1);
         CHECK(*gate.runs == (approve ? 1 : 0));
-        if (!approve)
+        if (!approve) {
             CHECK_FALSE(result.error->details->contains("approvalToken"));
+            // The hook declined: no step makes the call succeed (spec/recovery.md).
+            CHECK(result.error->recovery == afd::Recovery{.kind = afd::RecoveryKind::stop});
+            // The prose says the same as the recovery (rule 1).
+            CHECK(result.error->suggestion == "Do not run this again without asking the user "
+                                              "first; the user chose not to approve it.");
+            CHECK(result.error->retryable == false);
+        }
     }
 }
 
@@ -757,6 +768,10 @@ TEST_CASE("DirectClient never retries after expiry, cancellation or decision dea
         CHECK(result.error->code == (mode == 2 ? "TIMEOUT" : "APPROVAL_REQUIRED"));
         if (mode == 0)
             CHECK((*result.error->details)["reason"] == "expired");
+        // Approved, then the token was rejected or the call cancelled: a person must approve
+        // again, which is outside the command surface.
+        if (mode != 2)
+            CHECK(result.error->recovery == afd::Recovery{.kind = afd::RecoveryKind::external});
         CHECK(gate.requests.size() == (mode == 0 ? 2 : 1));
     }
 }
@@ -772,6 +787,8 @@ TEST_CASE("DirectClient returns the original private hold when the hook throws")
     const auto result = client.call("todo-delete", {{"id", 42}});
     CHECK(result.error->code == "APPROVAL_REQUIRED");
     CHECK_FALSE(result.error->details->contains("approvalToken"));
+    // A hook that failed did not decline: the hold stays a person's to approve.
+    CHECK(result.error->recovery == afd::Recovery{.kind = afd::RecoveryKind::external});
     CHECK(*gate.runs == 0);
 }
 #endif
