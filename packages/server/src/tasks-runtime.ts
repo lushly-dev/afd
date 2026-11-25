@@ -30,6 +30,7 @@ import type { ZodCommandDefinition } from './schema.js';
 import { bindScopeView, type ScopeView, scopeViewOf } from './scope-view.js';
 import type { TaskDispatch } from './task-dispatch.js';
 import {
+	finishedTaskTtlFor,
 	InMemoryTaskStore,
 	isTaskExpired,
 	isTerminalTaskStatus,
@@ -257,7 +258,7 @@ function unidentifiedCallersError(command: string): CommandError {
 // RUNNER STATE & DEADLINE HELPERS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-type StopReason = 'cancelled' | 'token-expired' | 'ttl-ended' | 'lost';
+type StopReason = 'cancelled' | 'token-expired' | 'ttl-ended' | 'run-timeout' | 'lost';
 type StopStage = 'not-started' | 'running' | 'finished';
 
 interface RunningTask {
@@ -283,15 +284,38 @@ function createRunningTask(): RunningTask {
 	return running;
 }
 
-/** What deadline is due at `nowMs`: token expiry first, then TTL. */
+/** What deadline is due at `nowMs`: token expiry first, then TTL, then optional run budget. */
 export function dueTaskStop(
 	tokenDeadlineMs: number | undefined,
 	ttlDeadlineMs: number,
-	nowMs: number
+	nowMs: number,
+	runDeadlineMs?: number
 ): StopReason | undefined {
 	if (tokenDeadlineMs !== undefined && nowMs >= tokenDeadlineMs) return 'token-expired';
 	if (nowMs >= ttlDeadlineMs) return 'ttl-ended';
+	if (runDeadlineMs !== undefined && nowMs >= runDeadlineMs) return 'run-timeout';
 	return undefined;
+}
+
+/** Build `TIMEOUT` for a task whose run budget elapsed, retryable unless a mutation may have run. */
+export function taskRunTimeoutError(stage: StopStage, mutation: boolean): CommandError {
+	if (stage === 'not-started') {
+		return {
+			code: ErrorCodes.TIMEOUT,
+			message: 'The task did not start before its run budget elapsed',
+			suggestion:
+				'Nothing ran. Increase the task run budget or simplify the request and start it again.',
+			retryable: true,
+		};
+	}
+	return {
+		code: ErrorCodes.TIMEOUT,
+		message: 'The task stopped because its run budget elapsed',
+		suggestion: mutation
+			? 'The command may have made part of its change before it stopped: check its effect before starting it again.'
+			: 'Simplify or narrow the request, or increase the task run budget, and start it again.',
+		retryable: !mutation,
+	};
 }
 
 /** Build `TASK_TOKEN_EXPIRED`, retryable unless a mutation may have started. */
@@ -321,17 +345,22 @@ export function tokenExpiredError(stage: StopStage, mutation: boolean): CommandE
 	};
 }
 
-function completionChange(result: CommandResult, maxResultBytes: number, at: number): TaskChange {
+function completionChange(
+	result: CommandResult,
+	maxResultBytes: number,
+	at: number,
+	ttlMs: number
+): TaskChange {
 	const toolResult = resultContent(result, !result.success);
 	let serialized: string;
 	try {
 		serialized = JSON.stringify(toolResult);
 	} catch {
-		return { kind: 'failed', error: internalErrorObject(), at };
+		return { kind: 'failed', error: internalErrorObject(), at, ttlMs };
 	}
 	const size = utf8.encode(serialized).byteLength;
 	if (size <= maxResultBytes) {
-		return { kind: 'completed', result: toolResult, at };
+		return { kind: 'completed', result: toolResult, at, ttlMs };
 	}
 	const tooLarge: CommandError = {
 		code: ErrorCodes.INTERNAL_ERROR,
@@ -341,7 +370,7 @@ function completionChange(result: CommandResult, maxResultBytes: number, at: num
 		details: { limitBytes: maxResultBytes, actualBytes: size },
 		retryable: false,
 	};
-	return { kind: 'completed', result: resultContent(failure(tooLarge), true), at };
+	return { kind: 'completed', result: resultContent(failure(tooLarge), true), at, ttlMs };
 }
 
 /** Copy string-keyed properties and only the safe symbols (`scopeView`, `contextState`). */
@@ -354,8 +383,8 @@ function cloneTaskContext(
 	for (const key of Object.keys(context)) {
 		copy[key] = (context as Record<string, unknown>)[key];
 	}
-	// MCP Tasks are bounded by their own TTL (default 5 min) and cancellation signal rather than
-	// the inline server defaultTimeoutMs; keep an explicit per-request timeout if the hook set one.
+	// MCP Tasks are bounded by their own run budget (default 1 h), TTL and cancellation signal
+	// rather than the inline server defaultTimeoutMs; keep an explicit per-request timeout if set.
 	if (copy.timeout === undefined) {
 		copy.timeout = 0;
 	}
@@ -707,18 +736,25 @@ export class TaskRuntime {
 		};
 		const tokenDeadlineMs = expiresAtSeconds !== undefined ? expiresAtSeconds * 1000 : undefined;
 		const ttlDeadlineMs = record.createdAt + record.ttlMs;
+		const runDeadlineMs = Math.min(
+			Number.MAX_SAFE_INTEGER,
+			record.createdAt + this.options.maxRunMs
+		);
 
 		void this.runTask({
 			id,
 			owner,
 			commandName: command.name,
 			mutation: command.mutation === true,
+			createdAt: record.createdAt,
+			expiresAtSeconds,
 			input,
 			context: taskContext,
 			running,
 			takeProgress,
 			tokenDeadlineMs,
 			ttlDeadlineMs,
+			runDeadlineMs,
 			verifiedCredentials,
 		});
 
@@ -730,12 +766,15 @@ export class TaskRuntime {
 		owner: string;
 		commandName: string;
 		mutation: boolean;
+		createdAt: number;
+		expiresAtSeconds: number | undefined;
 		input: unknown;
 		context: CommandContext;
 		running: RunningTask;
 		takeProgress: () => string | undefined;
 		tokenDeadlineMs: number | undefined;
 		ttlDeadlineMs: number;
+		runDeadlineMs: number;
 		verifiedCredentials: object | undefined;
 	}): Promise<void> {
 		let outcome:
@@ -754,18 +793,27 @@ export class TaskRuntime {
 		}
 
 		const now = this.clock.now();
+		const finalTtlMs = finishedTaskTtlFor(this.options, job.createdAt, now, job.expiresAtSeconds);
 		let change: TaskChange;
 		if (outcome.kind === 'finished') {
-			change = completionChange(outcome.result, this.options.maxResultBytes, now);
+			change = completionChange(outcome.result, this.options.maxResultBytes, now, finalTtlMs);
 		} else if (outcome.kind === 'internal') {
-			change = { kind: 'failed', error: internalErrorObject(), at: now };
+			change = { kind: 'failed', error: internalErrorObject(), at: now, ttlMs: finalTtlMs };
 		} else if (outcome.stop === 'cancelled') {
-			change = { kind: 'cancelled', at: now };
+			change = { kind: 'cancelled', at: now, ttlMs: finalTtlMs };
 		} else if (outcome.stop === 'token-expired') {
 			change = completionChange(
 				failure(tokenExpiredError(outcome.stage, job.mutation)),
 				Number.MAX_SAFE_INTEGER,
-				now
+				now,
+				finalTtlMs
+			);
+		} else if (outcome.stop === 'run-timeout') {
+			change = completionChange(
+				failure(taskRunTimeoutError(outcome.stage, job.mutation)),
+				Number.MAX_SAFE_INTEGER,
+				now,
+				finalTtlMs
 			);
 		} else if (outcome.stop === 'ttl-ended') {
 			await this.store.expire(now).catch(() => {});
@@ -799,13 +847,15 @@ export class TaskRuntime {
 		takeProgress: () => string | undefined;
 		tokenDeadlineMs: number | undefined;
 		ttlDeadlineMs: number;
+		runDeadlineMs: number;
 	}): Promise<
 		| { kind: 'finished'; result: CommandResult }
 		| { kind: 'stopped'; stop: StopReason; stage: StopStage }
 		| { kind: 'internal' }
 	> {
 		const initialStop =
-			dueTaskStop(job.tokenDeadlineMs, job.ttlDeadlineMs, this.clock.now()) ?? job.running.reason;
+			dueTaskStop(job.tokenDeadlineMs, job.ttlDeadlineMs, this.clock.now(), job.runDeadlineMs) ??
+			job.running.reason;
 		if (initialStop !== undefined) {
 			return { kind: 'stopped', stop: initialStop, stage: 'not-started' };
 		}
@@ -845,6 +895,7 @@ export class TaskRuntime {
 			}
 			if (execSettled) {
 				if (execFailed || !execResult) return { kind: 'internal' };
+				// A handler that already returned keeps its result unless the token or TTL expired.
 				const due = dueTaskStop(job.tokenDeadlineMs, job.ttlDeadlineMs, this.clock.now());
 				return due !== undefined
 					? { kind: 'stopped', stop: due, stage: 'finished' }
@@ -852,7 +903,7 @@ export class TaskRuntime {
 			}
 
 			const now = this.clock.now();
-			const due = dueTaskStop(job.tokenDeadlineMs, job.ttlDeadlineMs, now);
+			const due = dueTaskStop(job.tokenDeadlineMs, job.ttlDeadlineMs, now, job.runDeadlineMs);
 			if (due !== undefined) {
 				job.running.stop(due);
 			}
@@ -890,10 +941,11 @@ export class TaskRuntime {
 				return { kind: 'stopped', stop: reason, stage: 'running' };
 			}
 
+			const hardDeadline = Math.min(job.ttlDeadlineMs, job.runDeadlineMs);
 			const nearest =
 				job.tokenDeadlineMs !== undefined
-					? Math.min(job.tokenDeadlineMs, job.ttlDeadlineMs)
-					: job.ttlDeadlineMs;
+					? Math.min(job.tokenDeadlineMs, hardDeadline)
+					: hardDeadline;
 			const until = Math.max(1, nearest - now);
 			const waitMs = Math.min(this.options.checkIntervalMs, until, MAX_TIMEOUT_MS);
 

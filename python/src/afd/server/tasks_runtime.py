@@ -55,6 +55,7 @@ from afd.server.tasks import (
     TaskStatus,
     TaskStore,
     TaskStoreError,
+    finished_task_ttl_for,
     is_task_expired,
     is_task_id,
     is_terminal_task_status,
@@ -66,7 +67,7 @@ from afd.server.tasks import (
 
 logger = logging.getLogger("afd.server")
 
-StopReason = Literal["cancelled", "token-expired", "ttl-ended", "lost"]
+StopReason = Literal["cancelled", "token-expired", "ttl-ended", "run-timeout", "lost"]
 StopStage = Literal["not-started", "running", "finished"]
 
 
@@ -235,13 +236,40 @@ def due_task_stop(
     token_deadline_ms: int | None,
     ttl_deadline_ms: int,
     now_ms: int,
+    run_deadline_ms: int | None = None,
 ) -> StopReason | None:
-    """What deadline is due at ``now_ms``: token expiry first, then TTL."""
+    """What deadline is due at ``now_ms``: token expiry first, then TTL, then optional run budget."""
     if token_deadline_ms is not None and now_ms >= token_deadline_ms:
         return "token-expired"
     if now_ms >= ttl_deadline_ms:
         return "ttl-ended"
+    if run_deadline_ms is not None and now_ms >= run_deadline_ms:
+        return "run-timeout"
     return None
+
+
+def task_run_timeout_error(stage: StopStage, mutation: bool) -> CommandError:
+    """Build ``TIMEOUT`` for a task whose run budget elapsed, retryable unless a mutation may have run."""
+    if stage == "not-started":
+        return CommandError(
+            code=ErrorCodes.TIMEOUT,
+            message="The task did not start before its run budget elapsed",
+            suggestion=(
+                "Nothing ran. Increase the task run budget or simplify the request and start it again."
+            ),
+            retryable=True,
+        )
+    return CommandError(
+        code=ErrorCodes.TIMEOUT,
+        message="The task stopped because its run budget elapsed",
+        suggestion=(
+            "The command may have made part of its change before it stopped: check its effect "
+            "before starting it again."
+            if mutation
+            else "Simplify or narrow the request, or increase the task run budget, and start it again."
+        ),
+        retryable=not mutation,
+    )
 
 
 def token_expired_error(stage: StopStage, mutation: bool) -> CommandError:
@@ -276,16 +304,18 @@ def token_expired_error(stage: StopStage, mutation: bool) -> CommandError:
     )
 
 
-def completion_change(result: Any, max_result_bytes: int, at: int) -> TaskChange:
+def completion_change(
+    result: Any, max_result_bytes: int, at: int, ttl_ms: int | None = None
+) -> TaskChange:
     """Build a ``TaskCompletedChange`` (or ``TaskFailedChange`` / size-capped failure)."""
     try:
         tool_result = task_tool_result(result)
         serialized = json.dumps(tool_result)
     except Exception:
-        return TaskFailedChange(error=_internal_error_object(), at=at)
+        return TaskFailedChange(error=_internal_error_object(), at=at, ttl_ms=ttl_ms)
     size = len(serialized.encode("utf-8"))
     if size <= max_result_bytes:
-        return TaskCompletedChange(result=tool_result, at=at)
+        return TaskCompletedChange(result=tool_result, at=at, ttl_ms=ttl_ms)
     too_large = CommandError(
         code=ErrorCodes.INTERNAL_ERROR,
         message="The command ran, but its result is larger than this server keeps for a task",
@@ -296,7 +326,9 @@ def completion_change(result: Any, max_result_bytes: int, at: int) -> TaskChange
         details={"limitBytes": max_result_bytes, "actualBytes": size},
         retryable=False,
     )
-    return TaskCompletedChange(result=task_tool_result(failure(too_large), is_error=True), at=at)
+    return TaskCompletedChange(
+        result=task_tool_result(failure(too_large), is_error=True), at=at, ttl_ms=ttl_ms
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -626,7 +658,7 @@ class TaskRuntime:
 
             task_context = CommandContext(
                 trace_id=context.trace_id,
-                # MCP Tasks are bounded by their own TTL (default 5 min) and cancel_event
+                # MCP Tasks are bounded by their own run budget (default 1 h), TTL and cancel_event
                 # rather than the inline server default_timeout_ms; keep an explicit timeout if set.
                 timeout=context.timeout if context.timeout is not None else 0,
                 extra=copy_extra(context.extra) if isinstance(context.extra, Mapping) else {},
@@ -645,6 +677,7 @@ class TaskRuntime:
                 expires_at_seconds * 1000 if expires_at_seconds is not None else None
             )
             ttl_deadline_ms = record.created_at + record.ttl_ms
+            run_deadline_ms = record.created_at + self.options.max_run_ms
 
             driver = asyncio.create_task(
                 self._run_task(
@@ -652,6 +685,8 @@ class TaskRuntime:
                     owner=owner,
                     command_name=command.name,
                     mutation=bool(command.mutation),
+                    created_at=record.created_at,
+                    expires_at_seconds=expires_at_seconds,
                     command_input=command_input,
                     task_context=task_context,
                     running=running,
@@ -659,6 +694,7 @@ class TaskRuntime:
                     progress_event=progress_event,
                     token_deadline_ms=token_deadline_ms,
                     ttl_deadline_ms=ttl_deadline_ms,
+                    run_deadline_ms=run_deadline_ms,
                 )
             )
             running.driver_task = driver
@@ -681,6 +717,8 @@ class TaskRuntime:
         owner: str,
         command_name: str,
         mutation: bool,
+        created_at: int,
+        expires_at_seconds: int | None,
         command_input: Any,
         task_context: CommandContext,
         running: _RunningTask,
@@ -688,6 +726,7 @@ class TaskRuntime:
         progress_event: asyncio.Event,
         token_deadline_ms: int | None,
         ttl_deadline_ms: int,
+        run_deadline_ms: int,
     ) -> None:
         outcome_kind: str
         outcome_payload: Any = None
@@ -706,6 +745,7 @@ class TaskRuntime:
                     progress_event=progress_event,
                     token_deadline_ms=token_deadline_ms,
                     ttl_deadline_ms=ttl_deadline_ms,
+                    run_deadline_ms=run_deadline_ms,
                 )
         except asyncio.CancelledError:
             outcome_kind = "stopped"
@@ -718,13 +758,16 @@ class TaskRuntime:
                 _unbrand_verified_credentials(task_context.credentials)
 
         now = int(self._clock.now())
+        final_ttl_ms = finished_task_ttl_for(self.options, created_at, now, expires_at_seconds)
         change: TaskChange
         if outcome_kind == "finished":
-            change = completion_change(outcome_payload, self.options.max_result_bytes, now)
+            change = completion_change(
+                outcome_payload, self.options.max_result_bytes, now, final_ttl_ms
+            )
         elif outcome_kind == "internal":
-            change = TaskFailedChange(error=_internal_error_object(), at=now)
+            change = TaskFailedChange(error=_internal_error_object(), at=now, ttl_ms=final_ttl_ms)
         elif outcome_payload == "cancelled":
-            change = TaskCancelledChange(at=now)
+            change = TaskCancelledChange(at=now, ttl_ms=final_ttl_ms)
         elif outcome_payload == "token-expired":
             change = TaskCompletedChange(
                 result=task_tool_result(
@@ -732,6 +775,16 @@ class TaskRuntime:
                     is_error=True,
                 ),
                 at=now,
+                ttl_ms=final_ttl_ms,
+            )
+        elif outcome_payload == "run-timeout":
+            change = TaskCompletedChange(
+                result=task_tool_result(
+                    failure(task_run_timeout_error(outcome_stage, mutation)),
+                    is_error=True,
+                ),
+                at=now,
+                ttl_ms=final_ttl_ms,
             )
         elif outcome_payload == "ttl-ended":
             with suppress(Exception):
@@ -762,9 +815,12 @@ class TaskRuntime:
         progress_event: asyncio.Event,
         token_deadline_ms: int | None,
         ttl_deadline_ms: int,
+        run_deadline_ms: int,
     ) -> tuple[str, Any, StopStage]:
         initial_stop = (
-            due_task_stop(token_deadline_ms, ttl_deadline_ms, int(self._clock.now()))
+            due_task_stop(
+                token_deadline_ms, ttl_deadline_ms, int(self._clock.now()), run_deadline_ms
+            )
             or running.reason
         )
         if initial_stop is not None:
@@ -790,6 +846,7 @@ class TaskRuntime:
                 if exc is not None:
                     return ("internal", None, "finished")
                 result = exec_task.result()
+                # A handler that already returned keeps its result unless token or TTL expired.
                 due = due_task_stop(token_deadline_ms, ttl_deadline_ms, int(self._clock.now()))
                 if due is not None:
                     return ("stopped", due, "finished")
@@ -804,7 +861,7 @@ class TaskRuntime:
                 return ("finished", result, "finished")
 
             now = int(self._clock.now())
-            due = due_task_stop(token_deadline_ms, ttl_deadline_ms, now)
+            due = due_task_stop(token_deadline_ms, ttl_deadline_ms, now, run_deadline_ms)
             if due is not None:
                 running.stop(due)
 
@@ -843,10 +900,11 @@ class TaskRuntime:
                     exec_task.cancel()
                 return ("stopped", reason, "running")
 
+            hard_deadline = min(ttl_deadline_ms, run_deadline_ms)
             nearest = (
-                min(token_deadline_ms, ttl_deadline_ms)
+                min(token_deadline_ms, hard_deadline)
                 if token_deadline_ms is not None
-                else ttl_deadline_ms
+                else hard_deadline
             )
             until_ms = max(1, nearest - now)
             wait_s = min(self.options.check_interval_ms, until_ms) / 1000.0
@@ -1100,6 +1158,7 @@ __all__ = [
     "missing_tasks_capability",
     "request_declares_tasks",
     "task_limit_error",
+    "task_run_timeout_error",
     "token_expired_error",
     "unidentified_callers_error",
 ]

@@ -13,6 +13,7 @@ import {
 	defineCommand,
 	type McpHandlerOptions,
 	success,
+	type TaskOptions,
 	type ZodCommandDefinition,
 } from '@lushly-dev/afd-server';
 import { z } from 'zod';
@@ -108,16 +109,80 @@ export function createTodoCommands(env: Env): ZodCommandDefinition[] {
 					const { approval: _approval, ...ungated } = command;
 					return ungated as ZodCommandDefinition;
 				});
-	if (env.PROTOCOL_CONFORMANCE !== '1') return base;
-	// Private command not exposed to MCP, for D4 protocol conformance (spec/protocol-conformance.json).
-	const internalPing = defineCommand({
-		name: 'todo-internal-ping',
-		description: 'Private internal probe not exposed to MCP',
-		expose: { mcp: false, agent: true },
-		input: z.object({}),
-		handler: async () => success({ pong: true }),
-	});
-	return [...base, internalPing];
+	const extra: ZodCommandDefinition[] = [];
+	if (env.PROTOCOL_CONFORMANCE === '1') {
+		// Private command not exposed to MCP, for D4 protocol conformance (spec/protocol-conformance.json).
+		extra.push(
+			defineCommand({
+				name: 'todo-internal-ping',
+				description: 'Private internal probe not exposed to MCP',
+				expose: { mcp: false, agent: true },
+				input: z.object({}),
+				handler: async () => success({ pong: true }),
+			})
+		);
+	}
+	if (env.TASK_CONFORMANCE === '1') {
+		extra.push(
+			defineCommand({
+				name: 'todo-slow-task',
+				description: 'Sleep for delayMs to test task execution budgets and retention',
+				expose: { mcp: true },
+				task: 'optional',
+				input: z.object({ delayMs: z.number().int().min(0).max(10_000) }),
+				async handler(input, context) {
+					await new Promise<void>((resolve) => {
+						if (context.signal?.aborted) {
+							resolve();
+							return;
+						}
+						const timer = setTimeout(() => {
+							context.signal?.removeEventListener('abort', onAbort);
+							resolve();
+						}, input.delayMs);
+						const onAbort = () => {
+							clearTimeout(timer);
+							resolve();
+						};
+						context.signal?.addEventListener('abort', onAbort, { once: true });
+					});
+					return success({ delayedMs: input.delayMs });
+				},
+			})
+		);
+	}
+	return extra.length > 0 ? [...base, ...extra] : base;
+}
+
+function parseOptionalPositiveInt(env: Env, name: string): number | undefined {
+	const raw = env[name]?.trim();
+	if (!raw) return undefined;
+	const parsed = Number(raw);
+	if (!Number.isInteger(parsed) || parsed < 1) {
+		throw new Error(`${name} must be a positive integer, not "${raw}"`);
+	}
+	return parsed;
+}
+
+export function resolveTaskOptionsFromEnv(env: Env): TaskOptions | undefined {
+	const maxRunMs = parseOptionalPositiveInt(env, 'TASK_MAX_RUN_MS');
+	const ttlMs = parseOptionalPositiveInt(env, 'TASK_RETENTION_MS');
+	const pollIntervalMs = parseOptionalPositiveInt(env, 'TASK_POLL_INTERVAL_MS');
+	const checkIntervalMs = parseOptionalPositiveInt(env, 'TASK_CHECK_INTERVAL_MS');
+	if (
+		maxRunMs === undefined &&
+		ttlMs === undefined &&
+		pollIntervalMs === undefined &&
+		checkIntervalMs === undefined
+	) {
+		return undefined;
+	}
+	return {
+		...(maxRunMs !== undefined ? { maxRunMs } : {}),
+		...(ttlMs !== undefined ? { ttlMs } : {}),
+		...(pollIntervalMs !== undefined ? { pollIntervalMs } : {}),
+		...(checkIntervalMs !== undefined ? { checkIntervalMs } : {}),
+	};
 }
 
 /** What the server is built with besides the environment, for tests and the replay module. */
@@ -188,6 +253,7 @@ export function createTodoMiddleware(env: Env, deps: TodoServerDeps = {}): Comma
 export function createTodoServerOptions(env: Env, deps: TodoServerDeps = {}): McpHandlerOptions {
 	const devMode = env.NODE_ENV === 'development';
 	const logLevel = env.LOG_LEVEL ?? 'info';
+	const taskOptions = resolveTaskOptionsFromEnv(env);
 
 	return {
 		name: 'todo-app',
@@ -205,6 +271,7 @@ export function createTodoServerOptions(env: Env, deps: TodoServerDeps = {}): Mc
 		confirmations: resolveConfirmations(env),
 		// Registers afd-context-list, -enter and -exit (src/contexts.ts).
 		contexts: TODO_CONTEXTS,
+		...(taskOptions ? { taskOptions } : {}),
 
 		middleware: createTodoMiddleware(env, deps),
 

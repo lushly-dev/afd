@@ -194,6 +194,7 @@ fn fixture() -> Fixture {
 /// The test options, without the hook declaration.
 fn plain_options() -> TaskOptions {
     TaskOptions::new()
+        .with_max_run_ms(TTL_MS)
         .with_ttl_ms(TTL_MS)
         .with_poll_interval_ms(250)
         .with_check_interval_ms(2)
@@ -488,7 +489,7 @@ async fn optional_is_a_task_only_for_a_request_that_declares_the_extension() {
             "status": "working",
             "createdAt": NOW_ISO,
             "lastUpdatedAt": NOW_ISO,
-            "ttlMs": TTL_MS,
+            "ttlMs": TTL_MS * 2,
             "pollIntervalMs": 250,
         })
     );
@@ -907,6 +908,7 @@ async fn failed_carries_the_json_rpc_error() {
             TaskChange::Failed {
                 error: error.as_object().unwrap().clone(),
                 at: NOW_MS + 5,
+                ttl_ms: None,
             },
         )
         .await
@@ -1128,7 +1130,7 @@ async fn at_its_ttl_a_running_task_is_stopped_and_gone() {
     );
     let runs = Arc::clone(&fixture.runs);
     eventually(|| Runs::count(&runs.started) == 1).await;
-    fixture.clock.advance(TTL_MS as i64);
+    fixture.clock.advance((TTL_MS * 2) as i64);
     eventually(|| Runs::count(&runs.dropped) == 1).await;
     let gone = send(&server, "tasks/get", task(&id), true, &[]).await;
     let unknown = send(&server, "tasks/get", task(&"q".repeat(26)), true, &[]).await;
@@ -1189,6 +1191,219 @@ async fn a_finished_task_is_gone_at_its_ttl_even_when_the_store_keeps_it() {
     for method in ["tasks/get", "tasks/cancel"] {
         assert_unknown(&send(&server, method, task(&id), true, &[]).await);
     }
+}
+
+#[tokio::test]
+async fn finished_task_lives_full_retention_past_run_budget_with_one_hour_defaults() {
+    use afd::server::tasks::{DEFAULT_TASK_MAX_RUN_MS, DEFAULT_TASK_TTL_MS};
+
+    let fixture = fixture();
+    let server = McpServer::new(Arc::clone(&fixture.registry), "retention", "1.0.0")
+        .with_clock(fixture.clock.clone())
+        .with_tool_strategy(ToolStrategy::Individual)
+        .with_context_hook(|_, context| async move { Ok(context) })
+        .with_task_options(
+            TaskOptions::new()
+                .with_poll_interval_ms(10)
+                .with_check_interval_ms(2)
+                .with_callers_identified_by_hook(),
+        );
+    let answer = send(
+        &server,
+        "tools/call",
+        call("job-wait", json!({})),
+        true,
+        &[],
+    )
+    .await;
+    assert_eq!(
+        answer.body["result"]["ttlMs"],
+        DEFAULT_TASK_MAX_RUN_MS + DEFAULT_TASK_TTL_MS
+    );
+    let id = created(&answer);
+    let runs = Arc::clone(&fixture.runs);
+    eventually(|| Runs::count(&runs.started) == 1).await;
+
+    // Task finishes at 55 minutes: stays readable past 1h run budget until finished_at + 1h.
+    fixture.clock.advance(55 * 60_000);
+    fixture.runs.release.notify_one();
+    let done = settle_over_http(&server, &id, &[]).await;
+    assert_eq!(done["result"]["status"], "completed", "{done}");
+    assert_eq!(done["result"]["ttlMs"], 55 * 60_000 + DEFAULT_TASK_TTL_MS);
+
+    fixture.clock.advance(10 * 60_000);
+    assert_eq!(
+        get_over_http(&server, &id, &[]).await["result"]["status"],
+        "completed"
+    );
+    fixture.clock.advance(50 * 60_000 - 1);
+    assert_eq!(
+        get_over_http(&server, &id, &[]).await["result"]["status"],
+        "completed"
+    );
+    fixture.clock.advance(1);
+    assert_unknown(&send(&server, "tasks/get", task(&id), true, &[]).await);
+}
+
+#[tokio::test]
+async fn exceeding_max_run_ms_stops_working_task_with_timeout_and_retains_it_for_ttl_ms() {
+    for (command, expected_retryable) in [("job-wait", true), ("job-write", false)] {
+        let fixture = fixture();
+        let server = McpServer::new(Arc::clone(&fixture.registry), "timeout", "1.0.0")
+            .with_clock(fixture.clock.clone())
+            .with_tool_strategy(ToolStrategy::Individual)
+            .with_context_hook(|_, context| async move { Ok(context) })
+            .with_task_options(
+                TaskOptions::new()
+                    .with_max_run_ms(10_000)
+                    .with_ttl_ms(30_000)
+                    .with_poll_interval_ms(10)
+                    .with_check_interval_ms(2)
+                    .with_callers_identified_by_hook(),
+            );
+        let answer = send(&server, "tools/call", call(command, json!({})), true, &[]).await;
+        assert_eq!(answer.body["result"]["ttlMs"], 40_000);
+        let id = created(&answer);
+        let runs = Arc::clone(&fixture.runs);
+        eventually(|| Runs::count(&runs.started) == 1).await;
+
+        fixture.clock.advance(10_000);
+        let done = settle_over_http(&server, &id, &[]).await;
+        assert_eq!(done["result"]["status"], "completed", "{done}");
+        let result = task_command_result(&done);
+        assert_eq!(result["success"], false);
+        assert_eq!(result["error"]["code"], error_codes::TIMEOUT);
+        assert_eq!(
+            result["error"]["retryable"], expected_retryable,
+            "{command}: {result}"
+        );
+
+        // Retained for ttl_ms (30s) after timeout, then gone.
+        fixture.clock.advance(29_999);
+        assert_eq!(
+            get_over_http(&server, &id, &[]).await["result"]["status"],
+            "completed"
+        );
+        fixture.clock.advance(1);
+        assert_unknown(&send(&server, "tasks/get", task(&id), true, &[]).await);
+    }
+}
+
+#[tokio::test]
+async fn handler_returning_after_max_run_ms_keeps_result_and_never_widens_ttl() {
+    let fixture = fixture();
+    let server = McpServer::new(Arc::clone(&fixture.registry), "late-return", "1.0.0")
+        .with_clock(fixture.clock.clone())
+        .with_tool_strategy(ToolStrategy::Individual)
+        .with_context_hook(|_, context| async move { Ok(context) })
+        .with_task_options(
+            TaskOptions::new()
+                .with_max_run_ms(10_000)
+                .with_ttl_ms(30_000)
+                .with_poll_interval_ms(10)
+                .with_check_interval_ms(5_000)
+                .with_callers_identified_by_hook(),
+        );
+    let answer = send(
+        &server,
+        "tools/call",
+        call("job-wait", json!({})),
+        true,
+        &[],
+    )
+    .await;
+    assert_eq!(answer.body["result"]["ttlMs"], 40_000);
+    let id = created(&answer);
+    let runs = Arc::clone(&fixture.runs);
+    eventually(|| Runs::count(&runs.started) == 1).await;
+
+    fixture.clock.advance(12_000);
+    fixture.runs.release.notify_one();
+    let done = settle_over_http(&server, &id, &[]).await;
+    assert_eq!(done["result"]["status"], "completed", "{done}");
+    assert_eq!(done["result"]["ttlMs"], 40_000);
+    let result = task_command_result(&done);
+    assert_eq!(result["success"], true);
+}
+
+#[tokio::test]
+async fn run_budget_elapsed_during_initial_store_io_stops_before_polling_mutation() {
+    struct ClockAdvancingHeartbeat {
+        inner: InMemoryTaskStore,
+        clock: afd::ManualClock,
+        advance_ms: i64,
+    }
+
+    #[async_trait]
+    impl TaskStore for ClockAdvancingHeartbeat {
+        async fn create(&self, record: TaskRecord) -> Result<(), TaskStoreError> {
+            self.inner.create(record).await
+        }
+        async fn get(
+            &self,
+            id: &str,
+            owner: &TaskOwner,
+        ) -> Result<Option<TaskRecord>, TaskStoreError> {
+            self.inner.get(id, owner).await
+        }
+        async fn update(
+            &self,
+            id: &str,
+            owner: &TaskOwner,
+            change: TaskChange,
+        ) -> Result<(), TaskStoreError> {
+            self.inner.update(id, owner, change).await
+        }
+        async fn expire(&self, now: i64) -> Result<u64, TaskStoreError> {
+            self.inner.expire(now).await
+        }
+        async fn heartbeat(
+            &self,
+            _id: &str,
+            _owner: &TaskOwner,
+            _now: i64,
+        ) -> Result<(), TaskStoreError> {
+            self.clock.advance(self.advance_ms);
+            Ok(())
+        }
+    }
+
+    let fixture = fixture();
+    let store = ClockAdvancingHeartbeat {
+        inner: InMemoryTaskStore::new(),
+        clock: fixture.clock.clone(),
+        advance_ms: 10_000,
+    };
+    let server = McpServer::new(Arc::clone(&fixture.registry), "io-timeout", "1.0.0")
+        .with_clock(fixture.clock.clone())
+        .with_task_store(store)
+        .with_tool_strategy(ToolStrategy::Individual)
+        .with_context_hook(|_, context| async move { Ok(context) })
+        .with_task_options(
+            TaskOptions::new()
+                .with_max_run_ms(10_000)
+                .with_ttl_ms(30_000)
+                .with_poll_interval_ms(10)
+                .with_check_interval_ms(2)
+                .with_callers_identified_by_hook(),
+        );
+    let id = created(
+        &send(
+            &server,
+            "tools/call",
+            call("job-write", json!({})),
+            true,
+            &[],
+        )
+        .await,
+    );
+    let done = settle_over_http(&server, &id, &[]).await;
+    assert_eq!(done["result"]["status"], "completed", "{done}");
+    let result = task_command_result(&done);
+    assert_eq!(result["error"]["code"], error_codes::TIMEOUT);
+    // Handler was never polled, so even a mutation is retryable.
+    assert_eq!(result["error"]["retryable"], true);
+    assert_eq!(Runs::count(&fixture.runs.started), 0);
 }
 
 /// A store that keeps what `create_for` saw of each call: the command, the input and the actor.
@@ -1304,7 +1519,15 @@ impl Shared {
         result.insert("content".into(), json!([]));
         result.insert("isError".into(), json!(true));
         self.inner
-            .update(id, &owner, TaskChange::Completed { result, at: NOW_MS })
+            .update(
+                id,
+                &owner,
+                TaskChange::Completed {
+                    result,
+                    at: NOW_MS,
+                    ttl_ms: None,
+                },
+            )
             .await
             .unwrap();
     }
@@ -1695,7 +1918,7 @@ async fn the_in_memory_store_refuses_working_tasks_over_its_limits() {
     let runs = Arc::clone(&fixture.runs);
     eventually(|| Runs::count(&runs.started) == 3).await;
     // Expired tasks free their places.
-    fixture.clock.advance(TTL_MS as i64);
+    fixture.clock.advance((TTL_MS * 2) as i64);
     eventually(|| Runs::count(&runs.dropped) == 3).await;
     created(&start("ada").await);
     created(&start("ada").await);
@@ -2099,13 +2322,27 @@ fn the_in_memory_store_checks_the_owner_and_keeps_a_finished_task() {
         );
         assert_eq!(store.get(&record.id, &other).await.unwrap(), None);
         store
-            .update(&record.id, &other, TaskChange::Cancelled { at: 1 })
+            .update(
+                &record.id,
+                &other,
+                TaskChange::Cancelled {
+                    at: 1,
+                    ttl_ms: None,
+                },
+            )
             .await
             .unwrap();
         let kept = store.get(&record.id, &owner).await.unwrap().unwrap();
         assert_eq!(kept.status, afd::server::TaskState::Working);
         store
-            .update(&record.id, &owner, TaskChange::Cancelled { at: 2 })
+            .update(
+                &record.id,
+                &owner,
+                TaskChange::Cancelled {
+                    at: 2,
+                    ttl_ms: None,
+                },
+            )
             .await
             .unwrap();
         store

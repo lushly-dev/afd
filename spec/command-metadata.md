@@ -726,9 +726,26 @@ Then:
   an internal error that names no one, and nothing runs.
 
 **Running one.** The command runs through the normal executor (validation, middleware, handler)
-with a fresh context carrying the call's actor, credentials and trace. Its cancellation signal
-fires on `tasks/cancel`, when the task's `ttlMs` ends, and at `credentials.expiresAt`, and the
-server then stops the handler; when its `ttlMs` ends the task is gone.
+with a fresh context carrying the call's actor, credentials and trace. A task's **run budget**
+(`maxRunMs`, default one hour) is separate from how long its finished result is kept
+(**post-completion retention**, `ttlMs` on `TaskOptions`, default one hour):
+- **Initial and finished `ttlMs`.** On `CreateTaskResult` and while `working`, the wire `ttlMs`
+  (counted from `createdAt`, per SEP-2663) is `maxRunMs + retention` (two hours by default), capped
+  by any host token-expiry grace and the JSON safe-integer ceiling (`2^53 - 1`). Once the task
+  reaches a terminal status (`completed`, `failed` or `cancelled`) at `finishedAt`, its stored and
+  reported `ttlMs` is tightened atomically to `min(maxRunMs, max(0, finishedAt - createdAt)) +
+  retention` (still capped by any token-expiry grace and never wider than the initial `ttlMs`), so
+  a task that finishes near its run budget stays readable for the full retention period after
+  finishing and expires once `finishedAt + retention` passes without ever widening past its
+  advertised TTL.
+- **Cancellation and deadlines.** The task's cancellation signal fires on `tasks/cancel`, when its
+  run budget (`createdAt + maxRunMs`) ends, when its `ttlMs` ends, and at `credentials.expiresAt`,
+  and the server then stops the handler. If the run budget ends while the task is still working
+  (before token expiry and before `ttlMs`), it completes with the failure `TIMEOUT` (retryable
+  unless the command is a `mutation` whose handler started, whose suggestion then says to check its
+  effect), kept for the retention period; a handler that had already returned before the run budget
+  stopped it keeps its result as long as the token and `ttlMs` still hold. When its `ttlMs` ends
+  the task is gone.
 - **Its result** is the `CallToolResult` an inline call would return, `structuredContent` included,
   with status `completed`; a failed `CommandResult` is `completed` with `isError: true`, as the
   extension says. `failed` is only for a JSON-RPC error. A task stopped by `tasks/cancel` is

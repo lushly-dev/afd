@@ -23,15 +23,18 @@
 //!   (validation, middleware, handler) on a fresh context with the call's actor, credentials,
 //!   trace id, declared context fields and output budget ask, and a
 //!   [`CancellationSignal`](crate::CancellationSignal). The signal fires on `tasks/cancel`, when
-//!   the task's `ttlMs` ends, and at the credentials' `expiresAt`; the server then stops the
+//!   the task's `max_run_ms` execution budget ends (default 1 hour; completes with `TIMEOUT`),
+//!   when its `ttlMs` ends, and at the credentials' `expiresAt`; the server then stops the
 //!   handler at its next `.await`. The result is the `CallToolResult` an inline call returns:
 //!   `completed`, with `isError` for a failed `CommandResult`; `failed` only for a JSON-RPC error;
 //!   `cancelled` after a `tasks/cancel` that stopped it (a handler that had already returned
 //!   keeps its result). A task still working at its token's expiry completes with the failure
 //!   `TASK_TOKEN_EXPIRED`, and so does one whose handler returned after it (the result is not
-//!   delivered) or whose token expired before it could start (the handler never runs); it is
-//!   retryable unless the command is a mutation whose handler started, which may have made its
-//!   change. At its `ttlMs` the task is gone; [`TaskOptions::with_ttl_capped_at_token_expiry`]
+//!   delivered) or whose token expired before it could start (the handler never runs); both
+//!   `TASK_TOKEN_EXPIRED` and `TIMEOUT` are retryable unless the command is a mutation whose
+//!   handler started, which may have made its change. Initial `ttlMs` is `max_run_ms + ttl_ms`
+//!   (two hours by default) and tightens on terminal transition to `min(max_run_ms, elapsed) +
+//!   ttl_ms`; at its `ttlMs` the task is gone; [`TaskOptions::with_ttl_capped_at_token_expiry`]
 //!   ends the TTL at the token's expiry plus a grace. Progress
 //!   ([`CommandContext::report_progress`](crate::CommandContext::report_progress)) sets
 //!   `statusMessage` and `lastUpdatedAt`; no notification is sent.
@@ -105,8 +108,11 @@ pub fn failure_result(error: CommandError) -> Option<Map<String, Value>> {
     runtime::call_tool_result(&crate::failure(error))
 }
 
-/// A task's default `ttlMs`: one hour, as Umbel's tasks (its section 12.2).
+/// A task's default post-completion retention (`TaskOptions::with_ttl_ms`): one hour.
 pub const DEFAULT_TASK_TTL_MS: u64 = 3_600_000;
+
+/// A task's default execution run budget (`TaskOptions::with_max_run_ms`): one hour.
+pub const DEFAULT_TASK_MAX_RUN_MS: u64 = 3_600_000;
 
 /// A task's default `pollIntervalMs`: one second.
 pub const DEFAULT_TASK_POLL_INTERVAL_MS: u64 = 1_000;
@@ -288,19 +294,28 @@ impl TaskRecord {
                 self.last_updated_at = *at;
             }
             TaskChange::CancelRequested => self.cancel_requested = true,
-            TaskChange::Completed { result, at } => {
+            TaskChange::Completed { result, at, ttl_ms } => {
                 self.status = TaskState::Completed;
                 self.result = Some(result.clone());
                 self.last_updated_at = *at;
+                if let Some(ttl_ms) = ttl_ms {
+                    self.ttl_ms = self.ttl_ms.min((*ttl_ms).clamp(1, MAX_SAFE_TTL_MS));
+                }
             }
-            TaskChange::Failed { error, at } => {
+            TaskChange::Failed { error, at, ttl_ms } => {
                 self.status = TaskState::Failed;
                 self.error = Some(error.clone());
                 self.last_updated_at = *at;
+                if let Some(ttl_ms) = ttl_ms {
+                    self.ttl_ms = self.ttl_ms.min((*ttl_ms).clamp(1, MAX_SAFE_TTL_MS));
+                }
             }
-            TaskChange::Cancelled { at } => {
+            TaskChange::Cancelled { at, ttl_ms } => {
                 self.status = TaskState::Cancelled;
                 self.last_updated_at = *at;
+                if let Some(ttl_ms) = ttl_ms {
+                    self.ttl_ms = self.ttl_ms.min((*ttl_ms).clamp(1, MAX_SAFE_TTL_MS));
+                }
             }
         }
         true
@@ -344,6 +359,8 @@ pub enum TaskChange {
         result: Map<String, Value>,
         /// When it finished.
         at: i64,
+        /// Updated `ttlMs` (counted from `created_at`) for post-completion retention, if any.
+        ttl_ms: Option<u64>,
     },
     /// It failed with this JSON-RPC error.
     Failed {
@@ -351,11 +368,15 @@ pub enum TaskChange {
         error: Map<String, Value>,
         /// When it failed.
         at: i64,
+        /// Updated `ttlMs` (counted from `created_at`) for post-completion retention, if any.
+        ttl_ms: Option<u64>,
     },
     /// It was cancelled.
     Cancelled {
         /// When it stopped.
         at: i64,
+        /// Updated `ttlMs` (counted from `created_at`) for post-completion retention, if any.
+        ttl_ms: Option<u64>,
     },
 }
 
@@ -364,9 +385,21 @@ impl fmt::Debug for TaskChange {
         match self {
             Self::Progress { at, .. } => f.debug_struct("Progress").field("at", at).finish(),
             Self::CancelRequested => f.write_str("CancelRequested"),
-            Self::Completed { at, .. } => f.debug_struct("Completed").field("at", at).finish(),
-            Self::Failed { at, .. } => f.debug_struct("Failed").field("at", at).finish(),
-            Self::Cancelled { at } => f.debug_struct("Cancelled").field("at", at).finish(),
+            Self::Completed { at, ttl_ms, .. } => f
+                .debug_struct("Completed")
+                .field("at", at)
+                .field("ttl_ms", ttl_ms)
+                .finish(),
+            Self::Failed { at, ttl_ms, .. } => f
+                .debug_struct("Failed")
+                .field("at", at)
+                .field("ttl_ms", ttl_ms)
+                .finish(),
+            Self::Cancelled { at, ttl_ms } => f
+                .debug_struct("Cancelled")
+                .field("at", at)
+                .field("ttl_ms", ttl_ms)
+                .finish(),
         }
     }
 }
@@ -714,6 +747,10 @@ fn largest_holder(records: &HashMap<String, TaskRecord>) -> Option<TaskOwner> {
 // OPTIONS
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/// JSON safe-integer ceiling (`2^53 - 1`), shared across TypeScript, Python, and Rust so wire
+/// `ttlMs` values round-trip exactly in JavaScript MCP clients.
+const MAX_SAFE_TTL_MS: u64 = 9_007_199_254_740_991;
+
 /// The default limit of tasks running at once in one server process
 /// ([`TaskOptions::with_max_running`]), whatever the store holds.
 pub const DEFAULT_MAX_RUNNING_TASKS: usize = 64;
@@ -724,6 +761,7 @@ pub const DEFAULT_MAX_RUNNING_TASKS: usize = 64;
 #[non_exhaustive]
 pub struct TaskOptions {
     ttl_ms: u64,
+    max_run_ms: u64,
     poll_interval_ms: u64,
     check_interval_ms: u64,
     max_result_bytes: usize,
@@ -736,6 +774,7 @@ impl Default for TaskOptions {
     fn default() -> Self {
         Self {
             ttl_ms: DEFAULT_TASK_TTL_MS,
+            max_run_ms: DEFAULT_TASK_MAX_RUN_MS,
             poll_interval_ms: DEFAULT_TASK_POLL_INTERVAL_MS,
             check_interval_ms: DEFAULT_TASK_CHECK_INTERVAL_MS,
             max_result_bytes: DEFAULT_MAX_TASK_RESULT_BYTES,
@@ -752,11 +791,18 @@ impl TaskOptions {
         Self::default()
     }
 
-    /// Every task's `ttlMs` (at least 1, at most `i64::MAX`; default [`DEFAULT_TASK_TTL_MS`]).
-    /// The task and its result are gone once it ends, and its handler is stopped if it is still
-    /// running.
+    /// Post-completion retention in milliseconds (counted from when a task finishes; at least 1,
+    /// at most `2^53 - 1`; default [`DEFAULT_TASK_TTL_MS`]).
     pub fn with_ttl_ms(mut self, ttl_ms: u64) -> Self {
-        self.ttl_ms = ttl_ms.clamp(1, i64::MAX as u64);
+        self.ttl_ms = ttl_ms.clamp(1, MAX_SAFE_TTL_MS);
+        self
+    }
+
+    /// Maximum execution run budget in milliseconds (counted from when a task is created; at least
+    /// 1, at most `2^53 - 1`; default [`DEFAULT_TASK_MAX_RUN_MS`]). A task still working when this
+    /// budget elapses is stopped and completes with `TIMEOUT`.
+    pub fn with_max_run_ms(mut self, max_run_ms: u64) -> Self {
+        self.max_run_ms = max_run_ms.clamp(1, MAX_SAFE_TTL_MS);
         self
     }
 
@@ -794,10 +840,11 @@ impl TaskOptions {
 
     /// End each task's `ttlMs` no later than `grace_ms` after the `expiresAt` of the token that
     /// started it (Umbel phase 5, section 12.2: "never past the starting token's `exp`" is a
-    /// grace of 0). Without it (the default) the TTL is [`Self::with_ttl_ms`] alone. A task of a
-    /// call without credentials is not capped. The capped `ttlMs` is the one the client sees.
+    /// grace of 0). Without it (the default) the initial TTL is `max_run_ms + ttl_ms` and the
+    /// finished TTL is `min(max_run_ms, elapsed) + ttl_ms`. A task of a call without credentials
+    /// is not capped. The capped `ttlMs` is the one the client sees.
     pub fn with_ttl_capped_at_token_expiry(mut self, grace_ms: u64) -> Self {
-        self.token_expiry_grace_ms = Some(grace_ms.min(i64::MAX as u64));
+        self.token_expiry_grace_ms = Some(grace_ms.min(MAX_SAFE_TTL_MS));
         self
     }
 
@@ -822,9 +869,14 @@ impl TaskOptions {
         self.callers_identified_by_hook
     }
 
-    /// Every task's `ttlMs`, before any cap at the token's expiry.
+    /// Post-completion retention in milliseconds, before any cap at the token's expiry.
     pub fn ttl_ms(&self) -> u64 {
         self.ttl_ms
+    }
+
+    /// Maximum execution run budget in milliseconds.
+    pub fn max_run_ms(&self) -> u64 {
+        self.max_run_ms
     }
 
     /// Every task's `pollIntervalMs`.
@@ -852,17 +904,43 @@ impl TaskOptions {
         self.token_expiry_grace_ms
     }
 
-    /// The `ttlMs` of a task created at `now` by a call whose credentials expire at
-    /// `expires_at` (seconds), if any: at least 1.
-    pub(crate) fn ttl_for(&self, now: i64, expires_at: Option<i64>) -> u64 {
+    fn cap_at_token_expiry(&self, created_at: i64, uncapped: u64, expires_at: Option<i64>) -> u64 {
+        let clamped = uncapped.clamp(1, MAX_SAFE_TTL_MS);
         let (Some(grace), Some(expires_at)) = (self.token_expiry_grace_ms, expires_at) else {
-            return self.ttl_ms;
+            return clamped;
         };
         let end = expires_at
             .saturating_mul(1000)
             .saturating_add(i64::try_from(grace).unwrap_or(i64::MAX));
-        let remaining = u64::try_from(end.saturating_sub(now)).unwrap_or(0);
-        self.ttl_ms.min(remaining).max(1)
+        let remaining = u64::try_from(end.saturating_sub(created_at)).unwrap_or(0);
+        clamped.min(remaining).max(1)
+    }
+
+    /// Initial `ttlMs` (counted from `now`) for a task created at `now` by a call whose
+    /// credentials expire at `expires_at` (seconds), if any: `max_run_ms + ttl_ms`, capped at
+    /// token expiry plus grace when configured (at least 1).
+    pub(crate) fn ttl_for(&self, now: i64, expires_at: Option<i64>) -> u64 {
+        let total = self
+            .max_run_ms
+            .saturating_add(self.ttl_ms)
+            .min(MAX_SAFE_TTL_MS);
+        self.cap_at_token_expiry(now, total, expires_at)
+    }
+
+    /// Final `ttlMs` (counted from `created_at`) for a task that reached a terminal state at
+    /// `finished_at`: `min(max_run_ms, max(0, finished_at - created_at)) + ttl_ms`, capped at
+    /// token expiry plus grace when configured (at least 1, never wider than initial `ttlMs`).
+    pub(crate) fn finished_ttl_for(
+        &self,
+        created_at: i64,
+        finished_at: i64,
+        expires_at: Option<i64>,
+    ) -> u64 {
+        let elapsed = u64::try_from(finished_at.saturating_sub(created_at))
+            .unwrap_or(0)
+            .min(self.max_run_ms);
+        let total = elapsed.saturating_add(self.ttl_ms).min(MAX_SAFE_TTL_MS);
+        self.cap_at_token_expiry(created_at, total, expires_at)
     }
 }
 
@@ -874,11 +952,13 @@ mod tests {
     fn options_clamp_to_at_least_one() {
         let options = TaskOptions::new()
             .with_ttl_ms(0)
+            .with_max_run_ms(0)
             .with_poll_interval_ms(0)
             .with_check_interval_ms(0)
             .with_max_result_bytes(0)
             .with_max_running(0);
         assert_eq!(options.ttl_ms(), 1);
+        assert_eq!(options.max_run_ms(), 1);
         assert_eq!(options.poll_interval_ms(), 1);
         assert_eq!(options.check_interval_ms(), 1);
         assert_eq!(options.max_result_bytes(), 1);
@@ -887,10 +967,49 @@ mod tests {
 
     #[test]
     fn the_ttl_is_capped_at_the_token_expiry_plus_grace() {
-        let options = TaskOptions::new().with_ttl_ms(60_000);
+        let options = TaskOptions::new()
+            .with_max_run_ms(20_000)
+            .with_ttl_ms(40_000);
         assert_eq!(options.ttl_for(1_000_000, Some(1_010)), 60_000);
+        assert_eq!(
+            options.finished_ttl_for(1_000_000, 1_015_000, Some(1_010)),
+            55_000
+        );
+        // Overshooting max_run_ms clamps elapsed so terminal ttlMs never widens past initial ttlMs.
+        assert_eq!(
+            options.finished_ttl_for(1_000_000, 1_035_000, Some(1_010)),
+            60_000
+        );
+        // Clock regression clamps elapsed to 0.
+        assert_eq!(
+            options.finished_ttl_for(1_000_000, 995_000, Some(1_010)),
+            40_000
+        );
+        // Safe integer ceiling matches TypeScript and Python.
+        let huge = TaskOptions::new()
+            .with_max_run_ms(MAX_SAFE_TTL_MS)
+            .with_ttl_ms(10);
+        assert_eq!(huge.ttl_for(0, None), MAX_SAFE_TTL_MS);
+        // Applying a wider ttl_ms on terminal transition clamps to the existing ttl_ms.
+        let mut record = TaskRecord::new(
+            "a".repeat(26),
+            TaskOwner::from_binding("alice"),
+            "job-echo",
+            1_000,
+            60_000,
+            100,
+        );
+        assert!(record.apply(&TaskChange::Cancelled {
+            at: 2_000,
+            ttl_ms: Some(90_000),
+        }));
+        assert_eq!(record.ttl_ms, 60_000);
         let capped = options.clone().with_ttl_capped_at_token_expiry(5_000);
         assert_eq!(capped.ttl_for(1_000_000, Some(1_010)), 15_000);
+        assert_eq!(
+            capped.finished_ttl_for(1_000_000, 1_005_000, Some(1_010)),
+            15_000
+        );
         assert_eq!(capped.ttl_for(1_000_000, Some(2_000)), 60_000);
         assert_eq!(capped.ttl_for(1_000_000, None), 60_000);
         // A token already past its grace still gets a TTL of at least 1.

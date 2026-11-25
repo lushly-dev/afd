@@ -1,5 +1,5 @@
 {
-	"description": "MCP Tasks (spec/command-metadata.md, \"Tasks\"; MCP 2026-07-28 SEP-2663) against a backend where todo-create-batch declares task: \"optional\". Each case names the client it needs: \"tasks\" declares the io.modelcontextprotocol/tasks capability on MCP 2026-07-28 and expects todo-create-batch to return a task polled via tasks/get to completion; \"no-tasks\" declares no tasks capability and expects todo-create-batch to run inline.",
+	"description": "MCP Tasks (spec/command-metadata.md, \"Tasks\"; MCP 2026-07-28 SEP-2663) against a backend where todo-create-batch declares task: \"optional\". Each case names the client it needs: \"tasks\" declares the io.modelcontextprotocol/tasks capability on MCP 2026-07-28 and expects todo-create-batch to return a task polled via tasks/get to completion; \"no-tasks\" declares no tasks capability and expects todo-create-batch to run inline. For TypeScript, Python and Rust backends, dx/run-conformance.ts also runs post-completion retention and execution run-budget timeout checks against todo-slow-task (TASK_CONFORMANCE=1).",
 	"tests": [
 		{
 			"name": "afd-detail reports task: optional on todo-create-batch",

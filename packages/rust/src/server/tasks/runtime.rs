@@ -157,6 +157,8 @@ enum Stop {
     TokenExpired,
     /// Its `ttlMs` ended, or its record is gone.
     TtlEnded,
+    /// Its `maxRunMs` execution budget ended while it was working.
+    RunTimeout,
     /// The store holds it finished though it still runs here: another process ended it (a
     /// host's store that found its lease run out). It stops, and writes nothing.
     Lost,
@@ -387,7 +389,10 @@ impl McpServer {
             options.poll_interval_ms(),
         );
         let task = wire_task(&record);
+        let created_at = record.created_at;
         let ttl_deadline = record.expires_at();
+        let run_deadline =
+            created_at.saturating_add(i64::try_from(options.max_run_ms()).unwrap_or(i64::MAX));
         // A place among the tasks this process runs, whatever the store allows.
         let Some(running) = runtime.reserve(&id) else {
             return refused(task_limit());
@@ -414,10 +419,7 @@ impl McpServer {
         let progress = Arc::new(TaskProgress::default());
         context.cancellation = Some(running.signal.clone());
         context.server_mut().task_progress = Some(Arc::clone(&progress));
-        let token_deadline = context
-            .credentials
-            .as_ref()
-            .map(|credentials| credentials.expires_at.saturating_mul(1000));
+        let token_deadline = expires_at.map(|exp| exp.saturating_mul(1000));
         let job = Job {
             registered,
             runtime,
@@ -431,8 +433,11 @@ impl McpServer {
             context,
             running,
             progress,
+            created_at,
+            expires_at,
             token_deadline,
             ttl_deadline,
+            run_deadline,
         };
         tokio::spawn(run(job));
         Ok(CallToolResponse::Task(CreateTaskResult::new(task)))
@@ -607,10 +612,16 @@ struct Job {
     context: CommandContext,
     running: Arc<Running>,
     progress: Arc<TaskProgress>,
+    /// When the task was created, in milliseconds.
+    created_at: i64,
+    /// The credentials' `expiresAt`, in seconds.
+    expires_at: Option<i64>,
     /// The credentials' `expiresAt`, in milliseconds.
     token_deadline: Option<i64>,
     /// When the task's `ttlMs` ends.
     ttl_deadline: i64,
+    /// When the task's `maxRunMs` execution budget ends.
+    run_deadline: i64,
 }
 
 /// How far the handler got when a task was stopped.
@@ -631,21 +642,29 @@ enum Outcome {
     Internal,
 }
 
-/// What is due at `now`: the token's expiry first, then the TTL.
-fn due(token_deadline: Option<i64>, ttl_deadline: i64, now: i64) -> Option<Stop> {
+/// What is due at `now`: the token's expiry first, then the TTL, then the execution run budget.
+fn due(
+    token_deadline: Option<i64>,
+    ttl_deadline: i64,
+    run_deadline: Option<i64>,
+    now: i64,
+) -> Option<Stop> {
     if token_deadline.is_some_and(|deadline| now >= deadline) {
         Some(Stop::TokenExpired)
     } else if now >= ttl_deadline {
         Some(Stop::TtlEnded)
+    } else if run_deadline.is_some_and(|deadline| now >= deadline) {
+        Some(Stop::RunTimeout)
     } else {
         None
     }
 }
 
 /// The outcome of a handler that returned: its result, unless the token had expired or the TTL
-/// had ended by then. A `tasks/cancel` that came too late to stop it does not discard a result
-/// the command already produced (SEP-2663: a cancelled task "MAY ultimately reach a terminal
-/// status other than `cancelled` if the work finished before cancellation could take effect").
+/// had ended by then. A `tasks/cancel` or `maxRunMs` timeout that came too late to stop it does
+/// not discard a result the command already produced (SEP-2663: a cancelled task "MAY ultimately
+/// reach a terminal status other than `cancelled` if the work finished before cancellation could
+/// take effect").
 fn finished(due: Option<Stop>, result: CommandResult<Value>) -> Outcome {
     match due {
         Some(stop) => Outcome::Stopped(stop, Stage::Finished),
@@ -660,18 +679,35 @@ async fn run(job: Job) {
     let id = job.id.clone();
     let owner = job.owner.clone();
     let mutation = job.mutation;
+    let created_at = job.created_at;
+    let expires_at = job.expires_at;
     let options = runtime.options.clone();
     let outcome = AssertUnwindSafe(drive(job))
         .catch_unwind()
         .await
         .unwrap_or(Outcome::Internal);
     let now = clock.now();
+    let final_ttl = options.finished_ttl_for(created_at, now, expires_at);
     let change = match outcome {
-        Outcome::Finished(result) => completion(&result, options.max_result_bytes(), now),
-        Outcome::Stopped(Stop::Cancelled, _) => TaskChange::Cancelled { at: now },
-        Outcome::Stopped(Stop::TokenExpired, stage) => {
-            completion(&failure(token_expired(stage, mutation)), usize::MAX, now)
+        Outcome::Finished(result) => {
+            completion(&result, options.max_result_bytes(), now, Some(final_ttl))
         }
+        Outcome::Stopped(Stop::Cancelled, _) => TaskChange::Cancelled {
+            at: now,
+            ttl_ms: Some(final_ttl),
+        },
+        Outcome::Stopped(Stop::TokenExpired, stage) => completion(
+            &failure(token_expired(stage, mutation)),
+            usize::MAX,
+            now,
+            Some(final_ttl),
+        ),
+        Outcome::Stopped(Stop::RunTimeout, stage) => completion(
+            &failure(run_timeout(stage, mutation)),
+            usize::MAX,
+            now,
+            Some(final_ttl),
+        ),
         Outcome::Stopped(Stop::TtlEnded, _) => {
             // Gone: its record goes with its TTL.
             let _ = store.expire(now).await;
@@ -682,6 +718,7 @@ async fn run(job: Job) {
         Outcome::Internal => TaskChange::Failed {
             error: internal_error_object(),
             at: now,
+            ttl_ms: Some(final_ttl),
         },
     };
     // A store that fails is asked again; the task stays `working` until its TTL if it never
@@ -712,20 +749,31 @@ async fn drive(job: Job) -> Outcome {
         context,
         running,
         progress,
+        created_at: _,
+        expires_at: _,
         token_deadline,
         ttl_deadline,
+        run_deadline,
     } = job;
     let store = Arc::clone(&runtime.store);
     let check = runtime.options.check_interval_ms();
     // A token that expired before the task could start, or a cancel that came first: the
     // handler never runs.
-    if let Some(stop) = due(token_deadline, ttl_deadline, clock.now()).or(running.reason()) {
+    if let Some(stop) = due(
+        token_deadline,
+        ttl_deadline,
+        Some(run_deadline),
+        clock.now(),
+    )
+    .or(running.reason())
+    {
         return Outcome::Stopped(stop, Stage::NotStarted);
     }
     let mut execution = Box::pin(registry.execute(&command, input, Some(context)));
+    let mut started = false;
     loop {
         let now = clock.now();
-        if let Some(stop) = due(token_deadline, ttl_deadline, now) {
+        if let Some(stop) = due(token_deadline, ttl_deadline, Some(run_deadline), now) {
             running.stop(stop);
         }
         if running.reason().is_none() {
@@ -746,24 +794,60 @@ async fn drive(job: Job) -> Outcome {
                 _ => {}
             }
         }
-        if let Some(stop) = running.reason() {
-            // Dropping the execution stops the handler at its next `.await`.
-            return Outcome::Stopped(stop, Stage::Running);
+        // Recheck deadlines after awaited store I/O so an expired run budget or token never
+        // polls an unstarted handler (e.g. a mutation) with a stale clock reading.
+        let after_io = clock.now();
+        if let Some(stop) = due(token_deadline, ttl_deadline, Some(run_deadline), after_io) {
+            running.stop(stop);
         }
-        let nearest = token_deadline.map_or(ttl_deadline, |token| token.min(ttl_deadline));
-        let until = u64::try_from(nearest.saturating_sub(now))
+        if let Some(stop) = running.reason() {
+            let stage = if started {
+                Stage::Running
+            } else {
+                Stage::NotStarted
+            };
+            // Dropping the execution stops the handler at its next `.await` (or never polls it).
+            return Outcome::Stopped(stop, stage);
+        }
+        let budget = ttl_deadline.min(run_deadline);
+        let nearest = token_deadline.map_or(budget, |token| token.min(budget));
+        let until = u64::try_from(nearest.saturating_sub(after_io))
             .unwrap_or(0)
             .max(1);
         let wait = Duration::from_millis(check.min(until));
         let stopped = running.signal.cancelled();
         let tick = Box::pin(tokio::time::sleep(wait));
+        started = true;
         match select(execution.as_mut(), select(stopped, tick)).await {
             Either::Left((result, _)) => {
-                return finished(due(token_deadline, ttl_deadline, clock.now()), result);
+                return finished(due(token_deadline, ttl_deadline, None, clock.now()), result);
             }
             Either::Right(_) => continue,
         }
     }
+}
+
+/// `TIMEOUT` when a task's `maxRunMs` execution run budget elapses while it is working. Retryable
+/// unless the command is a mutation whose handler started: it may then have made part of its
+/// change.
+fn run_timeout(stage: Stage, mutation: bool) -> CommandError {
+    let (message, suggestion) = match (stage, mutation) {
+        (Stage::NotStarted, _) => (
+            "The task did not start: its execution run budget elapsed",
+            "Nothing ran. Start the task again.",
+        ),
+        (Stage::Running | Stage::Finished, false) => (
+            "The task stopped because its execution run budget elapsed",
+            "Start the task again, or increase the server's maxRunMs for longer jobs.",
+        ),
+        (Stage::Running | Stage::Finished, true) => (
+            "The task stopped because its execution run budget elapsed",
+            "The command may have made part of its change before it stopped: check its effect, then start it again if it is still needed.",
+        ),
+    };
+    CommandError::new(error_codes::TIMEOUT, message)
+        .with_suggestion(suggestion)
+        .with_retryable(stage == Stage::NotStarted || !mutation)
 }
 
 /// `TASK_TOKEN_EXPIRED` (`spec/error-codes.md`). Retryable as it is unless the command is a
@@ -798,16 +882,26 @@ fn token_expired(stage: Stage, mutation: bool) -> CommandError {
 
 /// The change that completes a task with `result`, as an inline call would return it: a result
 /// larger than `limit` bytes is replaced by a failure that says the command ran.
-fn completion(result: &CommandResult<Value>, limit: usize, at: i64) -> TaskChange {
+fn completion(
+    result: &CommandResult<Value>,
+    limit: usize,
+    at: i64,
+    ttl_ms: Option<u64>,
+) -> TaskChange {
     let Some(kept) = call_tool_result(result) else {
         return TaskChange::Failed {
             error: internal_error_object(),
             at,
+            ttl_ms,
         };
     };
     let size = serde_json::to_vec(&kept).map_or(usize::MAX, |bytes| bytes.len());
     if size <= limit {
-        return TaskChange::Completed { result: kept, at };
+        return TaskChange::Completed {
+            result: kept,
+            at,
+            ttl_ms,
+        };
     }
     let too_large = CommandError::new(
         error_codes::INTERNAL_ERROR,
@@ -822,10 +916,11 @@ fn completion(result: &CommandResult<Value>, limit: usize, at: i64) -> TaskChang
     ]))
     .with_retryable(false);
     match call_tool_result(&failure(too_large)) {
-        Some(result) => TaskChange::Completed { result, at },
+        Some(result) => TaskChange::Completed { result, at, ttl_ms },
         None => TaskChange::Failed {
             error: internal_error_object(),
             at,
+            ttl_ms,
         },
     }
 }
@@ -867,11 +962,29 @@ mod tests {
     }
 
     #[test]
-    fn the_token_is_due_before_the_ttl() {
-        assert_eq!(due(Some(10), 10, 10), Some(Stop::TokenExpired));
-        assert_eq!(due(Some(20), 10, 10), Some(Stop::TtlEnded));
-        assert_eq!(due(None, 10, 9), None);
-        assert_eq!(due(Some(10), 20, 9), None);
+    fn the_token_is_due_before_the_ttl_and_run_timeout() {
+        assert_eq!(due(Some(10), 10, Some(10), 10), Some(Stop::TokenExpired));
+        assert_eq!(due(Some(20), 10, Some(10), 10), Some(Stop::TtlEnded));
+        assert_eq!(due(Some(20), 20, Some(10), 10), Some(Stop::RunTimeout));
+        assert_eq!(due(None, 20, None, 10), None);
+        assert_eq!(due(None, 10, Some(15), 9), None);
+        assert_eq!(due(Some(10), 20, Some(15), 9), None);
+    }
+
+    #[test]
+    fn run_timeout_is_retryable_unless_a_mutation_may_have_run() {
+        for (stage, mutation, retryable) in [
+            (Stage::NotStarted, true, true),
+            (Stage::NotStarted, false, true),
+            (Stage::Running, false, true),
+            (Stage::Running, true, false),
+            (Stage::Finished, false, true),
+            (Stage::Finished, true, false),
+        ] {
+            let error = run_timeout(stage, mutation);
+            assert_eq!(error.code, error_codes::TIMEOUT);
+            assert_eq!(error.retryable, Some(retryable), "{stage:?} {mutation}");
+        }
     }
 
     #[test]

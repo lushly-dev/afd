@@ -453,21 +453,63 @@ async def test_in_memory_task_store_crud_owner_isolation_and_eviction():
 
 
 def test_task_options_validation_and_helpers():
+    from afd.server import (
+        DEFAULT_TASK_MAX_RUN_MS,
+        DEFAULT_TASK_TTL_MS,
+        TaskCompletedChange,
+        finished_task_ttl_for,
+    )
+    from afd.server.tasks_runtime import task_run_timeout_error
+
     with pytest.raises(ValueError, match="ttl_ms"):
         TaskOptions(ttl_ms=0)
+    with pytest.raises(ValueError, match="max_run_ms"):
+        TaskOptions(max_run_ms=0)
     with pytest.raises(ValueError, match="poll_interval_ms"):
         TaskOptions(poll_interval_ms=True)  # type: ignore[arg-type]
     with pytest.raises(ValueError, match="token_expiry_grace_ms"):
         TaskOptions(token_expiry_grace_ms=-1)
 
-    opts = TaskOptions(ttl_ms=60_000, token_expiry_grace_ms=5_000)
+    # Legacy positional calls keep their meaning (max_run_ms and ttl_ms on changes are keyword-only)
+    positional_opts = TaskOptions(60_000, 250)
+    assert positional_opts.ttl_ms == 60_000
+    assert positional_opts.poll_interval_ms == 250
+    assert positional_opts.max_run_ms == DEFAULT_TASK_MAX_RUN_MS
+    positional_done = TaskCompletedChange({"content": [], "isError": False}, 120)
+    assert positional_done.kind == "completed"
+    assert positional_done.ttl_ms is None
+
+    defaults = TaskOptions()
+    assert defaults.max_run_ms == DEFAULT_TASK_MAX_RUN_MS
+    assert defaults.ttl_ms == DEFAULT_TASK_TTL_MS
+    assert task_ttl_for(defaults, now_ms=10_000, expires_at_seconds=None) == (
+        DEFAULT_TASK_MAX_RUN_MS + DEFAULT_TASK_TTL_MS
+    )
+
+    opts = TaskOptions(max_run_ms=20_000, ttl_ms=40_000, token_expiry_grace_ms=5_000)
     assert task_ttl_for(opts, now_ms=10_000, expires_at_seconds=20) == 15_000
     assert task_ttl_for(opts, now_ms=10_000, expires_at_seconds=1000) == 60_000
     assert task_ttl_for(opts, now_ms=50_000, expires_at_seconds=10) == 1
+    assert finished_task_ttl_for(opts, created_at_ms=10_000, finished_at_ms=25_000) == 55_000
+    # Finishing past max_run_ms clamps elapsed so ttl_ms never widens past max_run_ms + ttl_ms
+    assert finished_task_ttl_for(opts, created_at_ms=10_000, finished_at_ms=45_000) == 60_000
+    # Clock regression clamps elapsed to 0
+    assert finished_task_ttl_for(opts, created_at_ms=10_000, finished_at_ms=5_000) == 40_000
+    assert (
+        finished_task_ttl_for(
+            opts, created_at_ms=10_000, finished_at_ms=15_000, expires_at_seconds=20
+        )
+        == 15_000
+    )
+    # Safe integer ceiling matches TypeScript/Rust
+    huge_opts = TaskOptions(max_run_ms=(1 << 53) - 1, ttl_ms=10)
+    assert task_ttl_for(huge_opts, now_ms=0) == (1 << 53) - 1
 
-    assert due_task_stop(1000, 2000, 1000) == "token-expired"
-    assert due_task_stop(2000, 1500, 1500) == "ttl-ended"
-    assert due_task_stop(2000, 3000, 1500) is None
+    assert due_task_stop(1000, 2000, 1000, run_deadline_ms=1000) == "token-expired"
+    assert due_task_stop(2000, 1500, 1500, run_deadline_ms=1500) == "ttl-ended"
+    assert due_task_stop(2000, 3000, 1500, run_deadline_ms=1500) == "run-timeout"
+    assert due_task_stop(2000, 3000, 1500, run_deadline_ms=None) is None
+    assert due_task_stop(2000, 3000, 1499, run_deadline_ms=1500) is None
 
     assert token_expired_error("not-started", True).retryable is True
     assert token_expired_error("running", True).retryable is False
@@ -475,11 +517,35 @@ def test_task_options_validation_and_helpers():
     assert token_expired_error("finished", True).retryable is False
     assert token_expired_error("finished", False).retryable is True
 
-    r = _make_record(created_at=100, ttl_ms=50)
-    assert not is_task_expired(r, 149)
-    assert is_task_expired(r, 150)
+    assert task_run_timeout_error("not-started", True).retryable is True
+    assert task_run_timeout_error("running", True).retryable is False
+    assert task_run_timeout_error("running", False).retryable is True
+    assert task_run_timeout_error("running", False).code == "TIMEOUT"
+
+    r = _make_record(created_at=100, ttl_ms=100)
+    assert not is_task_expired(r, 199)
+    assert is_task_expired(r, 200)
     assert apply_task_change(r, TaskCancelRequestedChange()) is True
     assert r.cancel_requested is True
+    assert (
+        apply_task_change(
+            r,
+            TaskCompletedChange(result={"content": [], "isError": False}, at=120, ttl_ms=70),
+        )
+        is True
+    )
+    assert r.ttl_ms == 70
+
+    # Widening attempt is clamped to existing ttl_ms
+    r_no_widen = _make_record(created_at=100, ttl_ms=50)
+    assert (
+        apply_task_change(
+            r_no_widen,
+            TaskCompletedChange(result={"content": [], "isError": False}, at=120, ttl_ms=90),
+        )
+        is True
+    )
+    assert r_no_widen.ttl_ms == 50
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1359,3 +1425,160 @@ async def test_token_expiry_at_finished_stage_on_mutation():
         assert err["code"] == "TASK_TOKEN_EXPIRED"
         assert err["retryable"] is False
         assert "made its change" in err["suggestion"]
+
+
+async def test_post_completion_retention_and_run_timeout():
+    from afd.server.tasks import DEFAULT_TASK_MAX_RUN_MS, DEFAULT_TASK_TTL_MS
+
+    # 1. Task finishes at 55 minutes: stays readable past 1h run budget until finished_at + 1h
+    clock = fixed_clock(1_700_000_000_000)
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    server = create_server(
+        "retention-test",
+        tool_strategy="individual",
+        clock=clock,
+        task_options=TaskOptions(poll_interval_ms=10, check_interval_ms=10),
+    )
+
+    @server.command(name="job-slow", description="Waits for release", expose=MCP, task="required")
+    async def job_slow(input: Any) -> CommandResult[Any]:
+        started.set()
+        await release.wait()
+        return success({"done": True})
+
+    sdk = server._create_mcp_server()
+    async with Client(sdk, extensions=[_tasks_extension()]) as client:
+        seed = await client.session.call_tool("job-slow", {}, allow_claimed=True)
+        assert seed.ttl_ms == DEFAULT_TASK_MAX_RUN_MS + DEFAULT_TASK_TTL_MS
+        await asyncio.wait_for(started.wait(), timeout=2.0)
+
+        clock.advance(55 * 60_000)
+        release.set()
+        done = await _poll_until_done(client, seed.task_id)
+        assert done.status == "completed"
+        assert done.ttl_ms == 55 * 60_000 + DEFAULT_TASK_TTL_MS
+
+        # Past 1h from creation (5m after finish) and 1ms before finished_at + 1h -> readable
+        clock.advance(10 * 60_000)
+        mid = await client.session.send_request(
+            _GetTaskRequest(params=_TaskIdParams(taskId=seed.task_id)),
+            _DetailedTaskResult,
+        )
+        assert mid.status == "completed"
+
+        clock.advance(50 * 60_000 - 1)
+        last_ms = await client.session.send_request(
+            _GetTaskRequest(params=_TaskIdParams(taskId=seed.task_id)),
+            _DetailedTaskResult,
+        )
+        assert last_ms.status == "completed"
+
+        # Exactly at finished_at + 1h -> gone (-32602)
+        clock.advance(1)
+        with pytest.raises(MCPError) as gone:
+            await client.session.send_request(
+                _GetTaskRequest(params=_TaskIdParams(taskId=seed.task_id)),
+                _DetailedTaskResult,
+            )
+        assert gone.value.code == -32602
+
+    # 2. Working task exceeding max_run_ms stops with TIMEOUT (read retryable, mutation non-retryable)
+    # and keeps that TIMEOUT result for ttl_ms after it stops.
+    async def _check_timeout(mutation: bool, expected_retryable: bool) -> None:
+        t_clock = fixed_clock(1_700_000_000_000)
+        t_started = asyncio.Event()
+        t_gate = asyncio.Event()
+        t_server = create_server(
+            f"timeout-{mutation}",
+            tool_strategy="individual",
+            clock=t_clock,
+            task_options=TaskOptions(
+                max_run_ms=10_000,
+                ttl_ms=30_000,
+                poll_interval_ms=10,
+                check_interval_ms=10,
+            ),
+        )
+
+        @t_server.command(
+            name="job-hang",
+            description="Hangs",
+            expose=MCP,
+            mutation=mutation,
+            task="required",
+        )
+        async def job_hang(input: Any) -> CommandResult[Any]:
+            t_started.set()
+            await t_gate.wait()
+            return success({})
+
+        t_sdk = t_server._create_mcp_server()
+        async with Client(t_sdk, extensions=[_tasks_extension()]) as client:
+            seed = await client.session.call_tool("job-hang", {}, allow_claimed=True)
+            assert seed.ttl_ms == 40_000
+            await asyncio.wait_for(t_started.wait(), timeout=2.0)
+
+            t_clock.advance(10_000)
+            settled = await _poll_until_done(client, seed.task_id)
+            assert settled.status == "completed"
+            assert settled.result["isError"] is True
+            err = json.loads(settled.result["content"][0]["text"])["error"]
+            assert err["code"] == "TIMEOUT"
+            assert err["retryable"] is expected_retryable
+
+            # Retained for ttl_ms (30s) after timeout, then gone
+            t_clock.advance(29_999)
+            kept = await client.session.send_request(
+                _GetTaskRequest(params=_TaskIdParams(taskId=seed.task_id)),
+                _DetailedTaskResult,
+            )
+            assert kept.status == "completed"
+
+            t_clock.advance(1)
+            with pytest.raises(MCPError) as gone:
+                await client.session.send_request(
+                    _GetTaskRequest(params=_TaskIdParams(taskId=seed.task_id)),
+                    _DetailedTaskResult,
+                )
+            assert gone.value.code == -32602
+
+    for mutation, expected_retryable in [(False, True), (True, False)]:
+        await _check_timeout(mutation, expected_retryable)
+
+    # 3. Handler returning slightly past max_run_ms (before ttl_ms) keeps its result and caps ttl_ms
+    late_clock = fixed_clock(1_700_000_000_000)
+    late_started = asyncio.Event()
+    late_release = asyncio.Event()
+    late_server = create_server(
+        "late-return",
+        tool_strategy="individual",
+        clock=late_clock,
+        task_options=TaskOptions(
+            max_run_ms=10_000,
+            ttl_ms=30_000,
+            poll_interval_ms=10,
+            check_interval_ms=5_000,
+        ),
+    )
+
+    @late_server.command(
+        name="job-late", description="Returns after max_run_ms", expose=MCP, task="required"
+    )
+    async def job_late(input: Any) -> CommandResult[Any]:
+        late_started.set()
+        await late_release.wait()
+        return success({"kept": True})
+
+    late_sdk = late_server._create_mcp_server()
+    async with Client(late_sdk, extensions=[_tasks_extension()]) as client:
+        seed = await client.session.call_tool("job-late", {}, allow_claimed=True)
+        await asyncio.wait_for(late_started.wait(), timeout=2.0)
+        late_clock.advance(12_000)
+        late_release.set()
+        done = await _poll_until_done(client, seed.task_id)
+        assert done.status == "completed"
+        assert done.result["isError"] is False
+        assert json.loads(done.result["content"][0]["text"])["data"] == {"kept": True}
+        assert done.ttl_ms == 40_000
