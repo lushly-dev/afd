@@ -36,7 +36,7 @@ import { PERSON_SESSION } from '../identity/person-session.js';
 import { personalWrites } from '../identity/personal-writes.js';
 import type { SessionSettle } from '../identity/session-settle.js';
 import type { StoreOrderV1 } from '../journal-order.js';
-import type { JournalFilterContext } from '../journal-redact.js';
+import { type JournalFilterContext, journalsCommand } from '../journal-redact.js';
 import type { KeybindingRegistry } from '../keybindings.js';
 import { createDefaultLayout } from '../layout.js';
 import type { KernelLimits } from '../limits.js';
@@ -81,10 +81,7 @@ import {
 	withHost,
 } from './trust-wiring.js';
 
-/**
- * `DOCUMENTS_LAYOUT_ID`'s value, a literal here: imported, the first paint's `shell-state` chunk would export one
- * more binding for this chunk (`literals.test.ts` holds the two equal).
- */
+/** `DOCUMENTS_LAYOUT_ID` literal, avoiding an extra first-paint export (`literals.test.ts` holds equal). */
 export const DOCUMENTS_LAYOUT = 'loam.layout.~documents';
 
 /** What a layout read shows of the inspector: whether it is open, and the compact class's drawer. */
@@ -98,6 +95,7 @@ import type { Confirmations } from '../settings/confirmations.js';
 import { overBound } from '../settings/input-bound.js';
 import type { ActionVerdict } from '../settings/notifications.js';
 import { badCaller, confirmPromptFor, copilotPartsOf, genericAskedFor } from './copilot-wiring.js';
+import { createJournalWrappers, type JournalWrappers } from './journal-wrappers.js';
 import { createMountedApprovals } from './mounted-approvals.js';
 
 export { createOverlayStore } from '../overlays/store.js';
@@ -165,10 +163,6 @@ export type LateCommandDeps = ShellCommandDeps &
 			input: unknown,
 			fields: Record<string | symbol, unknown>
 		): Promise<CommandResult>;
-		/** The kernel's journal provenance: the command a notice's act runs, by the act's trace (step 6's sixth round, B7). */
-		noteAction?(trace: string, command: string): void;
-		/** The kernel's journal provenance: an act returns its action's failure as its own (step 6's ninth round). */
-		noteReturned?(trace: string): void;
 		/**
 		 * Whether the kernel is disposed, perhaps before the late load installed its hook: what it makes after stops at
 		 * once (step 7's fifth round, 1).
@@ -290,6 +284,8 @@ export interface LateParts {
 	copilot: Pick<CopilotParts, 'gate' | 'contextFields' | 'stopAll'>;
 	/** Phase 4's confirmations (its 7.2): the chain's last gate, after the copilot's, and their context fields. */
 	confirmations: Pick<Confirmations, 'gate' | 'contextFields' | 'recorded'>;
+	/** Injected wrapper provenance and redaction (#2107): loaded with `late/` so first paint stays lean. */
+	wrappers: JournalWrappers;
 	/**
 	 * Right inside the journal, before the scope middleware, whose own changes of person and scope it must see too:
 	 * `loam.apps` and `loam.scope` written through before the journal records the call that changed them (#861).
@@ -804,6 +800,7 @@ export async function createLateParts(
 			? { kind: 'own' }
 			: { kind: 'invalid', why: parsed.error.issues[0]?.message ?? 'the input is invalid' };
 	};
+	const wrappers = createJournalWrappers(deps.journaled ?? journalsCommand);
 	// The inbox (phase 4 specification, section 10), in `late-settings` beside the settings it reads (3.7).
 	const notifications = createNotifications({
 		store: deps.store,
@@ -840,8 +837,8 @@ export async function createLateParts(
 		run: (name, input, fields) =>
 			deps.run('palette', name, input, {}, fields as Parameters<typeof deps.run>[4]),
 		confirmationChain: (person, work) => confirmations.chain(person, work),
-		noteAction: (trace, command) => deps.noteAction?.(trace, command),
-		noteReturned: (trace) => deps.noteReturned?.(trace),
+		noteAction: wrappers.noteAction,
+		noteReturned: wrappers.noteReturned,
 		queueOf: (context) => {
 			const ticket = (context as unknown as Record<symbol, QueuedTicket | undefined>)[deps.queued];
 			return ticket ? { [deps.queued]: ticket } : {};
@@ -1238,6 +1235,7 @@ export async function createLateParts(
 		],
 		copilot,
 		confirmations,
+		wrappers,
 		writeThrough: writeThrough(deps.viewState, deps.state, quiet?.active),
 		// From `BOOT_ONLY` itself, so the boot registry can hold nothing else (2.2).
 		// The server registers two of the three settles (9.5), and `agent-member-settle` for the provider's hook (A4).

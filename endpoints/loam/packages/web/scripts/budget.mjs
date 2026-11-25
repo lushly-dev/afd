@@ -654,7 +654,9 @@ export const CEILINGS = Object.freeze({
 	// Raised under D115 by #2253/#2300 (`observeGate` + `gateRefusal` provenance in `journal-provenance.ts` and
 	// `observeThrows` + thrown `COMMAND_EXECUTION_ERROR` lossy marking in `kernel.ts`/`journal-redact.ts`): combined
 	// build measured 347,192 against `main` at `99359760a`; set to 347,600.
-	jsMinified: 350_300, // D115, #2524 (afd-auth's credentials mark in `composeMiddleware`): 349,989 at `main` `11ed11650`
+	// #2107 (inject wrapper provenance and `redactWrapped` from `late/journal-wrappers.ts`):
+	// first-paint JS dropped from 349,265 to 344,982 (-4,283) against `main` at `bd30d790b`; lowered to 346,000.
+	jsMinified: 346_000,
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.
@@ -691,7 +693,9 @@ export const CEILINGS = Object.freeze({
 	// measured 109,491; set to 109,900 under D115.
 	// #862 (one `$initial` code-splitting group for first paint): collapsed 14 chunks to 1 (`index`),
 	// lowering first-paint gzip from 109,973 to 103,971 (-6,002) against `main` at `bd374912`; lowered to 105,000.
-	jsGzip: 105_000,
+	// #2107 (inject wrapper provenance and `redactWrapped` from `late/journal-wrappers.ts`):
+	// first-paint gzip dropped from 104,118 to 102,691 (-1,427) against `main` at `bd30d790b`; lowered to 103,600.
+	jsGzip: 103_600,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
 	// stylesheet `index.html` links; measured 10,251, plus a margin.
@@ -754,7 +758,9 @@ export const CEILINGS = Object.freeze({
 	// Raised under D115 by #2105 (per-caller `journalsCommand` filter for `notification-list`, `listedUnit`
 	// marker redaction and `JOURNAL_REPLAY` guard in `journal-redact.ts`/`kernel.ts`, on top of #2514 in
 	// `@lushly-dev/afd-server`): measured 164,413 against `main` at `adae8843`; set to 164,800.
-	kernelMinified: 164_800,
+	// Lowered by #2107 (wrapper provenance and `redactWrapped` injected from `late/journal-wrappers.ts`):
+	// measured 158,530 against `main` at `bd30d790b` (-6,036); lowered to 159,000.
+	kernelMinified: 159_000,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).
@@ -783,7 +789,9 @@ export const CEILINGS = Object.freeze({
 	// Bug batch #2097/#2098/#2111/#2112/#2113 merged with `main` at `dbc84611`: 135,291, within 135,500.
 	// #2108 and #2117 (`tab-sync.ts` cross-tab sync, `recordOrder` in `document-types.ts`/`scope-commands.ts`/`links.ts`/`copilot-wiring.ts`, `suspendOrder`):
 	// measured 139,141 against `main` at `804e17cc`; set to 139,700 under D115.
-	lateMinified: 139_700,
+	// #2107 (moved `journal-provenance.ts` and `redactWrapped` from first paint into `late/journal-wrappers.ts`):
+	// measured 144,170 against `main` at `bd30d790b` (+4,850 moved from first paint); set to 144,700 under D115.
+	lateMinified: 144_700,
 	// #2117 (`recordOrder` calls in `documents.ts`): measured 13,584 against `main` at `804e17cc`; set to 13,800 under D115.
 	lateDocumentsMinified: 13_800,
 	// Bug batch #2113: 17,514 (`closeApp` across persisted scopes with R14 dirty re-check, `document-open` gated refusal, `isTypeGated`, `Editors.projects()`); set to 18,000 under D115.

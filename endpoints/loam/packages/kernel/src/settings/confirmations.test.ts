@@ -24,16 +24,13 @@ import {
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { createJournalProvenance } from '../journal-provenance.js';
+import { createKernel, createKernelParts, redactJournalRecord, redactSafely } from '../kernel.js';
+import { DOCUMENT_KIT } from '../late/command-kit.js';
 import {
-	createKernel,
-	createKernelParts,
-	redactJournalRecord,
-	redactSafely,
+	createJournalProvenance,
 	redactWrapped,
 	type WrapperProvenance,
-} from '../kernel.js';
-import { DOCUMENT_KIT } from '../late/command-kit.js';
+} from '../late/journal-wrappers.js';
 import { createOverlayStore } from '../overlays/store.js';
 import { personKey } from '../scope/access.js';
 import { createScopedWorkspace, type ScopedWorkspace, scopedPackages } from '../scope/fixtures.js';
