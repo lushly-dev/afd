@@ -71,7 +71,8 @@ The proposal lists six under "For the owner to decide". Each has its own line he
 - The hourly job's step, the record's folding and measured sizes (#2484): not started; follows
   #2481.
 
-- A docs topic the command line can print (#2479): not started.
+- A docs topic the command line can print (#2479): merged in #2533. `botcore docs <topic>` prints
+  what the server's docs tool returns, from the same function; `botcore docs` lists the topics.
 
 - The Botcore release that carries the commands, installed on each machine (the maintainer's): not
   started; follows #2484.

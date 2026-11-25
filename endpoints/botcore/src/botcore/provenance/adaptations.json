@@ -2659,11 +2659,11 @@
       "path": "src/botcore/cli.py",
       "upstream_sha256": "3f9c4f20694615b01b8edabc920c26662d065e09365161a493b41131a3d4a77f",
       "staged_sha256": "3f9c4f20694615b01b8edabc920c26662d065e09365161a493b41131a3d4a77f",
-      "current_import_sha256": "a257bda6e40083049e6680f7da4661170c7aa27fa1b616931ffd1b0b3bcc4d09",
+      "current_import_sha256": "c930ab135800a7bc505f1faaf414a3b35a1b3cc3aa86c6162636548b99e44552",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Describe skill-lint as the shared skill rule set; Add the host-token group for HTTP surface tokens; disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); botcore serve refuses a network transport, since its run tool executes any Python its client sends; tests and README say so; botcore serve refuses a network transport, since its run tool executes any Python its client sends; points to botcore.host_http for HTTP; tests, README and the server docstring say so; Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); The hourly job always ends and says what it waited for (#1902, #1903); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings; Add read-only pr_status, pr_wait, pr_drift, dev_snapshot commands, [pr] config, and SK020 openai.yaml skill lint rule; Add read-only pr_status, pr_wait, pr_drift, dev_snapshot commands, [pr] config, SK020 openai.yaml lint, and RunLock label; Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778); Format Botcore, add mypy type checking and py.typed marker (#1757); Add gate-outcome-collect and gate-outcome-report (lushly-dev/afd#2481)"
+      "import_reason": "Describe skill-lint as the shared skill rule set; Add the host-token group for HTTP surface tokens; disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); botcore serve refuses a network transport, since its run tool executes any Python its client sends; tests and README say so; botcore serve refuses a network transport, since its run tool executes any Python its client sends; points to botcore.host_http for HTTP; tests, README and the server docstring say so; Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); The hourly job always ends and says what it waited for (#1902, #1903); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings; Add read-only pr_status, pr_wait, pr_drift, dev_snapshot commands, [pr] config, and SK020 openai.yaml skill lint rule; Add read-only pr_status, pr_wait, pr_drift, dev_snapshot commands, [pr] config, SK020 openai.yaml lint, and RunLock label; Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778); Format Botcore, add mypy type checking and py.typed marker (#1757); Add gate-outcome-collect and gate-outcome-report (lushly-dev/afd#2481); Add the botcore docs command, printing the server's docs topics from a shared function (lushly-dev/afd#2479)"
     },
     {
       "path": "src/botcore/cli_cdp.py",
@@ -2675,6 +2675,17 @@
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
+    },
+    {
+      "path": "src/botcore/cli_docs.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "124ef3eb98d3660f471d66285101f65bc17c0f5359a6202f0e12934fd2ff4cbb",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Add the botcore docs command, printing the server's docs topics from a shared function (lushly-dev/afd#2479)"
     },
     {
       "path": "src/botcore/commands/__init__.py",
@@ -3554,11 +3565,11 @@
       "path": "src/botcore/server.py",
       "upstream_sha256": "6088aefc9d936a028f7e7f0b7d9b4db3c685868667faad6108c938cf93381b8d",
       "staged_sha256": "23b894e5f71c341ead8dd19c717527500856048d8a622f9e91925c1c14095dd9",
-      "current_import_sha256": "0e2d3b45c104019443b4f0ad8e34a4cb570d581c72320029a8f647eed4b80642",
+      "current_import_sha256": "9fea5e353741bd75c6e2e13017b9fd7c4e5d39608d4eee208e9c7b5225337de2",
       "stage_classification": "modified-upstream",
       "stage_reason": "Reject command/docs replacement while retaining legacy local tools",
       "import_classification": "modified-after-staging",
-      "import_reason": "Preserve legacy tool names and streaming under SDK 1/2 imports; botcore serve refuses a network transport, since its run tool executes any Python its client sends; points to botcore.host_http for HTTP; tests, README and the server docstring say so; Format Botcore, add mypy type checking and py.typed marker (#1757)"
+      "import_reason": "Preserve legacy tool names and streaming under SDK 1/2 imports; botcore serve refuses a network transport, since its run tool executes any Python its client sends; points to botcore.host_http for HTTP; tests, README and the server docstring say so; Format Botcore, add mypy type checking and py.typed marker (#1757); Add the botcore docs command, printing the server's docs topics from a shared function (lushly-dev/afd#2479)"
     },
     {
       "path": "src/botcore/skills/__init__.py",
@@ -6881,6 +6892,17 @@
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
       "import_reason": "The init tests run in pytest's tmp_path through contextlib.chdir instead of Click's isolated_filesystem, which Click deprecates for removal; otherwise imported exact frozen staged-input bytes; botcore serve refuses a network transport, since its run tool executes any Python its client sends; tests and README say so; botcore serve refuses a network transport, since its run tool executes any Python its client sends; points to botcore.host_http for HTTP; tests, README and the server docstring say so; Add read-only pr_status, pr_wait, pr_drift, dev_snapshot commands, [pr] config, and SK020 openai.yaml skill lint rule; Add read-only pr_status, pr_wait, pr_drift, dev_snapshot commands, [pr] config, SK020 openai.yaml lint, and RunLock label"
+    },
+    {
+      "path": "tests/test_cli_docs.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "e1e101a278a3554e076b85419608d4e14d2c3f0a8f9af54b9a9dd9eba8c17f25",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Add the botcore docs command, printing the server's docs topics from a shared function (lushly-dev/afd#2479)"
     },
     {
       "path": "tests/test_config.py",
