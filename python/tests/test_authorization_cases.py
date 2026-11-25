@@ -1,7 +1,8 @@
 """Shared MCP authorization conformance cases (``spec/authorization.json``) covering
-M2, M3 (rules 2–3 and 5–10), M3.1, M3.2, M4, M5, M6 (``staticScopes`` and ``batches``) and M7.
+M2, M3 (rules 2–3 and 5–10), M3.1, M3.2, M4, M5, M6 (``staticScopes`` and ``batches``), M7
+and ``inputDigests`` (``spec/command-metadata.md``, "Host-verified confirmation").
 
-``test_principal_binding.py`` loads ``principalBindings``.
+``test_principal_binding.py`` loads ``principalBindings``, bringing Python to all 13/13 sections.
 """
 
 from __future__ import annotations
@@ -26,17 +27,19 @@ from afd.server import (
     create_protected_resource,
     create_token_rules,
     extract_bearer,
+    input_digest,
     parse_scope_claim,
     request_decision,
     static_decision,
 )
+from afd.server.approval import _canonical_json
 from afd.server.auth_rules import _ABSENT
 
 CASES_PATH = Path(__file__).resolve().parents[2] / "spec" / "authorization.json"
 CASES: dict[str, Any] = json.loads(CASES_PATH.read_text(encoding="utf-8"))
 
 
-def test_loads_every_case_of_the_eleven_sections() -> None:
+def test_loads_every_case_of_the_twelve_sections() -> None:
     counts = [
         len(CASES[section])
         for section in (
@@ -51,9 +54,10 @@ def test_loads_every_case_of_the_eleven_sections() -> None:
             "claims",
             "staticScopes",
             "batches",
+            "inputDigests",
         )
     ]
-    assert counts == [19, 5, 4, 3, 20, 22, 24, 17, 43, 8, 7]
+    assert counts == [19, 5, 4, 3, 20, 22, 24, 17, 43, 8, 7, 5]
 
 
 @pytest.mark.parametrize(
@@ -331,3 +335,11 @@ def test_scope_challenge_formatting_and_validation() -> None:
     ):
         with pytest.raises(ValueError):
             ScopeChallenge("Gw", bad_params)
+
+
+@pytest.mark.parametrize(
+    "case", CASES["inputDigests"], ids=[case["description"] for case in CASES["inputDigests"]]
+)
+def test_input_digest_cases(case: dict[str, Any]) -> None:
+    assert _canonical_json(case["input"]) == case["canonical"]
+    assert input_digest(case["input"]) == case["inputDigest"]

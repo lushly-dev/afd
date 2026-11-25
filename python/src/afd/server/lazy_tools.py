@@ -286,6 +286,7 @@ def execute_detail(
             "handoffProtocol": command.handoff_protocol,
             "destructive": command.destructive,
             "confirmPrompt": command.confirm_prompt,
+            "confirmationMode": command.confirmation_mode,
             "undoable": command.undoable,
             "approval": approval_mode(command.approval),
             "task": command.task,

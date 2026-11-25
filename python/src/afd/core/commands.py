@@ -57,8 +57,24 @@ COMMAND_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)+$")
 TaskSupport = Literal["never", "optional", "required"]
 """Whether an MCP ``tools/call`` to a command may run as a task (``spec/command-metadata.md``, "Tasks")."""
 
+CommandConfirmationMode = Literal["host-verified"]
+"""How a command's confirmation is proved (``spec/command-metadata.md``, "Host-verified confirmation")."""
+
 _VALID_TASK_SUPPORTS = frozenset({"never", "optional", "required"})
+_VALID_CONFIRMATION_MODES = frozenset({"host-verified"})
 _SCOPE_TOKEN_RE = re.compile(r"\A[\x21\x23-\x5B\x5D-\x7E]+\Z", re.ASCII)
+
+
+def validate_confirmation_mode(name: str, confirmation_mode: Any) -> CommandConfirmationMode | None:
+    """Validate ``confirmation_mode`` metadata (``spec/command-metadata.md``, "Host-verified confirmation")."""
+    if confirmation_mode is None:
+        return None
+    if not isinstance(confirmation_mode, str) or confirmation_mode not in _VALID_CONFIRMATION_MODES:
+        raise ValueError(
+            f"command '{name}': invalid confirmation_mode {confirmation_mode!r} "
+            "(expected 'host-verified')"
+        )
+    return confirmation_mode  # type: ignore[return-value]
 
 
 def validate_command_scopes(name: str, scopes: Any) -> list[str]:
@@ -385,6 +401,7 @@ class CommandDefinition:
     advertised_input_schema: JsonSchema | None = None
     output_budget: OutputBudget | None = None
     scopes: list[str] = field(default_factory=list)
+    confirmation_mode: CommandConfirmationMode | None = None
 
 
 class CommandRegistry(Protocol):
@@ -495,12 +512,15 @@ class _CommandRegistryImpl:
             from afd.core.schema_validation import check_schema
 
             check_schema(command.input_schema)
+        normalized_confirmation_mode = validate_confirmation_mode(
+            command.name, command.confirmation_mode
+        )
         validate_task_declaration(
             command.name,
             command.task,
             confirm_prompt=command.confirm_prompt,
             approval=command.approval,
-            confirmation_mode=getattr(command, "confirmation_mode", None),
+            confirmation_mode=normalized_confirmation_mode,
         )
         from afd.core.meta_keys import assert_advertised_input_schema, assert_tool_meta
 
@@ -796,6 +816,8 @@ def command_to_mcp_tool(command: CommandDefinition) -> dict[str, Any]:
     approval = approval_mode(command.approval)
     if approval is not None:
         meta["approval"] = approval
+    if command.confirmation_mode is not None:
+        meta["confirmationMode"] = command.confirmation_mode
     if command.requires:
         meta["requires"] = list(command.requires)
     if command.examples:

@@ -826,9 +826,11 @@ phase 5 step 0c, [#532](https://github.com/lushly-dev/afd/issues/532)), and each
 `packages/server/src/principal-binding.test.ts`, Python in `python/tests/test_principal_binding.py`
 (C++'s `afd::mcp_stdio` signs confirmation `requestState` with HMAC bound to command, input and
 actor; stdio carries no HTTP credentials).
-Rust (`afd::input_digest`, step 0d) and TypeScript (`inputDigest`, [#2263](https://github.com/lushly-dev/afd/issues/2263),
-`packages/server/src/authorization-cases.test.ts`) load the `inputDigests` cases, the digest their
-`HumanRelay` gets and their approval middleware checks relay evidence with. Rust's task owners are the same
+Rust (`afd::input_digest`, step 0d), TypeScript (`inputDigest`, [#2263](https://github.com/lushly-dev/afd/issues/2263),
+`packages/server/src/authorization-cases.test.ts`) and Python (`afd.server.input_digest`,
+[#2264](https://github.com/lushly-dev/afd/issues/2264), `python/tests/test_authorization_cases.py`)
+load the `inputDigests` cases, the digest their `HumanRelay` gets and their approval middleware
+checks relay evidence with. Rust's task owners are the same
 binding (step 0e, `tests/server_tasks.rs`): a `tasks/*` request from another actor, issuer, subject
 or client gets the unknown-task answer, byte for byte.
 Each binds it to confirmation state as integrity-protected input, never as readable identity:
@@ -872,8 +874,10 @@ via `ResourceCaller` on Streamable HTTP (both eras), SSE and host-admitted reque
 `-32602` (`Resource not found`) identically for unreadable and absent URIs and emitting
 `cacheScope: "private"` on modern-era `resources/list` and provider-backed `resources/read` while
 keeping static `SkillCatalog` reads `"public"` ([#2266](https://github.com/lushly-dev/afd/issues/2266)).
-`python/tests/test_authorization_cases.py` loads all eleven verification and scope sections of
-`spec/authorization.json`; `test_auth_verifier.py` covers every M3 rule with signed tokens;
+`python/tests/test_authorization_cases.py` loads all twelve verification, scope and `inputDigests`
+sections of `spec/authorization.json` (with `test_principal_binding.py` loading `principalBindings`
+for all 13/13 sections); `test_human_relay.py` covers host-verified confirmation, `HumanRelay` and
+private relay evidence; `test_auth_verifier.py` covers every M3 rule with signed tokens;
 `test_mcp_auth.py` covers the HTTP bearer layer, header stripping, journal redaction, fail-closed
 M1, confirmation binding and MCP Tasks; `test_mcp_auth_scopes.py` covers M6 scopes, two-phase
 resolver checks, filtered listings, twin-server hidden-command parity, host admission and `tasks/*`;

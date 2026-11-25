@@ -148,7 +148,10 @@ def advertises_confirm_input(command: CommandDefinition) -> bool:
 def accepts_confirm(command: CommandDefinition, mode: str) -> bool:
     """Whether the command's tool advertises the ``confirm`` acknowledgement (``enforce`` only)."""
     return (
-        mode == "enforce" and bool(command.confirm_prompt) and not advertises_confirm_input(command)
+        mode == "enforce"
+        and getattr(command, "confirmation_mode", None) != "host-verified"
+        and bool(command.confirm_prompt)
+        and not advertises_confirm_input(command)
     )
 
 
@@ -173,7 +176,10 @@ class ConfirmationGate:
             raise ValueError("confirmations must be 'off', 'enforce' or 'require-human'")
         self.mode: str = mode
         self._prompts = {
-            command.name: command.confirm_prompt for command in commands if command.confirm_prompt
+            command.name: command.confirm_prompt
+            for command in commands
+            if command.confirm_prompt
+            and getattr(command, "confirmation_mode", None) != "host-verified"
         }
 
     def gated(self, steps: Sequence[ConfirmationStep]) -> list[ConfirmationStep]:

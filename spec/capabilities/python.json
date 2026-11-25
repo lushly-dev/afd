@@ -502,14 +502,19 @@
 			"evidence": ["python/src/afd/server/instance_state.py", "python/tests/test_instance_state.py"]
 		},
 		"mcp.host-verified-confirmation": {
-			"status": "planned",
-			"note": "(specified in `spec/command-metadata.md`)",
+			"status": "yes",
+			"note": "([#2264](https://github.com/lushly-dev/afd/issues/2264)): `confirmation_mode=\"host-verified\"` on `CommandDefinition`/`define_command`/`@server.command`, `HumanRelay` on `create_server` (single-command 2026-07-28, validated input, URL-mode elicitation, `approved_context`), private off-object relay evidence spent once as `relay:<decision_id>` by `create_approval_middleware`, `input_digest` (loads `inputDigests`)",
 			"views": {
-				"approvals": "",
-				"command-metadata": "",
-				"pc-hv": ""
+				"approvals": "([#2264](https://github.com/lushly-dev/afd/issues/2264)): an off-object private weakref carrier the server sets after `RelayApproved`, which `create_approval_middleware` checks in rule 3's order and spends once as `relay:<decision_id>` (24h TTL regardless of `replay`); cleared before the handler runs",
+				"command-metadata": "([#2264](https://github.com/lushly-dev/afd/issues/2264): `confirmation_mode=\"host-verified\"`, `create_server(..., human_relay=...)`, `input_digest`)",
+				"pc-hv": "(`test_human_relay.py`, `test_authorization_cases.py`, [#2264](https://github.com/lushly-dev/afd/issues/2264))"
 			},
-			"evidence": ["spec/command-metadata.md"]
+			"evidence": [
+				"python/src/afd/server/human_relay.py",
+				"python/src/afd/server/relay_evidence.py",
+				"python/tests/test_human_relay.py",
+				"python/tests/test_authorization_cases.py"
+			]
 		},
 		"mcp.tasks": {
 			"status": "yes",

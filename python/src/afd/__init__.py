@@ -117,6 +117,7 @@ from afd.core.clock import (
 from afd.core.commands import (
     DEFAULT_EXPOSE,
     CallGrant,
+    CommandConfirmationMode,
     CommandExample,
     CommandHandler,
     CommandMiddleware,
@@ -553,6 +554,7 @@ __all__ = [
     # Expose options
     "ExposeOptions",
     "DEFAULT_EXPOSE",
+    "CommandConfirmationMode",
     "CommandExample",
     "JsonSchema",
     "TaskSupport",

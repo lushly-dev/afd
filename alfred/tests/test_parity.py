@@ -899,9 +899,9 @@ NAME_GAP_BUDGET = {
     # CommandParameter, PipelineStep and PipelineResult were renamed to Direct* with a
     # one-minor deprecation __getattr__ instead of squatting in afd.__all__. Tracked in
     # #550 (Wave 3) to lower once the core types take the root names.
-    # Python 98 → 99, C++ 74 → 75 (#2263): CommandConfirmationMode in TypeScript (matching Rust's
-    # CommandConfirmationMode). Lower Python back to 98 when #2264 lands; HumanRelay is N/A for C++.
-    "missing_from_python": 99,
+    # Python 98 → 99 (#2263) → 98 (#2264): CommandConfirmationMode now exported in Python, matching
+    # TypeScript and Rust; HumanRelay is N/A for C++.
+    "missing_from_python": 98,
     "missing_from_rust": 7,
     # 73 at first measurement (Phase 5 of the C++ plan). The deferred groups: MCP JSON-RPC
     # types and helpers; the typed pipeline-condition structs and their guards (C++ keeps

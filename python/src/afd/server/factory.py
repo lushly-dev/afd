@@ -4,13 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import copy
-import dataclasses
-import json
 import logging
 import math
 import os
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator, Mapping, Sequence
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import asynccontextmanager, contextmanager, suppress
 from contextvars import ContextVar
 from typing import (
     Any,
@@ -41,6 +39,7 @@ from afd.core.clock import Clock, RandomSource, system_clock
 from afd.core.commands import (
     DEFAULT_EXPOSE,
     CallGrant,
+    CommandConfirmationMode,
     CommandContext,
     CommandDefinition,
     CommandExample,
@@ -51,6 +50,7 @@ from afd.core.commands import (
     call_not_granted,
     create_command_registry,
     validate_command_scopes,
+    validate_confirmation_mode,
     validate_task_declaration,
 )
 from afd.core.direct_allow import _is_allowed, _not_allowed
@@ -68,11 +68,9 @@ from afd.core.output_budget import (
 )
 from afd.core.pipeline import (
     PipelineResult,
-    StepStatus,
 )
 from afd.core.result import (
     CommandResult,
-    ResultMetadata,
     coerce_command_result,
     error,
     execution_failure,
@@ -84,7 +82,6 @@ from afd.core.schema_validation import (
     resolve_max_validation_issues,
 )
 from afd.core.similarity import truncate_name
-from afd.core.wire import to_wire
 from afd.server.approval_admission import (
     Admission,
     admission_for,
@@ -99,7 +96,6 @@ from afd.server.auth import (
     admitted_credentials_for,
     admitted_view_for,
     bind_trusted_transport,
-    claim_admitted_dispatch,
     create_auth_layer,
     credentials_actor,
     is_trusted_transport,
@@ -107,7 +103,12 @@ from afd.server.auth import (
 from afd.server.auth_resource import ProtectedResource
 from afd.server.auth_rules import Credentials
 from afd.server.auth_scopes import ScopeChallenge
-from afd.server.auth_view import ScopeAuthority, ScopeView, listed_commands, scope_view_of
+from afd.server.auth_view import (
+    ScopeAuthority,
+    ScopeView,
+    listed_commands,
+    scope_view_of,
+)
 from afd.server.batch_execution import execute_batch, execute_pipeline_request
 from afd.server.bootstrap import ContextState, get_bootstrap_commands
 from afd.server.config import (
@@ -132,6 +133,7 @@ from afd.server.confirmations import (
 )
 from afd.server.context_fields import (
     AFD_CONTEXT_FIELDS_META_KEY,
+    JOURNALED_CONTEXT_FIELDS,
     ContextField,
     apply_context_fields,
     bind_context_field_values,
@@ -157,11 +159,40 @@ from afd.server.decorators import (
 )
 from afd.server.elicitation import MAX_IN_BAND_ROUNDS, ElicitationRound
 from afd.server.first_class import check_first_class_tools, normalize_first_class_tools
+from afd.server.human_relay import (
+    HumanRelay,
+    HumanRelayChannel,
+    HumanRelayGate,
+    bind_human_relay_channel,
+    bind_relay_wire,
+)
 from afd.server.instance_state import ServerInstances, check_instance_state, warn_instances_once
 from afd.server.lazy_tools import not_found_suggestion
 from afd.server.meta_argument import lift_meta_argument, meta_argument_keys
 from afd.server.middleware import CommandMiddleware
-from afd.server.principal import IncompleteCredentials, principal_binding, sdk_credentials
+from afd.server.principal import principal_binding, sdk_credentials
+from afd.server.relay_evidence import (
+    RelayDispatchAdmission,
+    clear_relay_evidence,
+    clear_relay_state,
+    pop_relay_dispatch_admission,
+    take_relay_context_validated,
+    take_relay_validated_input,
+    transfer_relay_state,
+)
+from afd.server.relay_wire import (
+    in_context as _in_context,
+)
+from afd.server.relay_wire import (
+    install_pre_boundary_middleware,
+    targets_host_verified,
+)
+from afd.server.relay_wire import (
+    request_meta as _request_meta,
+)
+from afd.server.relay_wire import (
+    validated_input_for_resolver as _validated_input_for_resolver,
+)
 from afd.server.resources import (
     ResourceService,
     ResourcesOption,
@@ -184,6 +215,24 @@ from afd.server.tasks_runtime import (
     TaskRuntime,
     composite_task_error,
     is_created_task_sentinel,
+)
+from afd.server.tool_results import (
+    approval_unavailable as _approval_unavailable,
+)
+from afd.server.tool_results import (
+    is_input_required as _is_input_required,
+)
+from afd.server.tool_results import (
+    is_mcp_error as _is_mcp_error,
+)
+from afd.server.tool_results import (
+    tool_call_result as _tool_call_result,
+)
+from afd.server.tool_results import (
+    unanswered_approval as _unanswered_approval,
+)
+from afd.server.tool_results import (
+    with_execution_metadata as _with_execution_metadata,
 )
 from afd.server.tool_router import (
     NOT_IN_CONTEXT_SUGGESTION,
@@ -237,6 +286,14 @@ class MCPServer:
             raise TypeError("context_hook must be callable")
         if config.call_grant is not None and not callable(config.call_grant):
             raise TypeError("call_grant must be callable")
+        if config.human_relay is not None:
+            if not callable(getattr(config.human_relay, "begin", None)) or not callable(
+                getattr(config.human_relay, "resume", None)
+            ):
+                raise TypeError("human_relay must implement begin and resume")
+            approved_ctx = getattr(config.human_relay, "approved_context", None)
+            if approved_ctx is not None and not callable(approved_ctx):
+                raise TypeError("human_relay.approved_context must be callable")
         if config.task_options is not None and not isinstance(config.task_options, TaskOptions):
             raise TypeError("task_options must be a TaskOptions instance")
         if config.tools_list_ttl_ms is not None and (
@@ -285,6 +342,7 @@ class MCPServer:
         # Per-call caches, rebuilt after register() or a context change.
         self._command_index: dict[str, CommandDefinition] | None = None
         self._router: Callable[..., Awaitable[Any]] | None = None
+        self._human_relay_gate: HumanRelayGate | None = None
         self._scope_authority: ScopeAuthority | None = None
         self._first_class_checked = False
         self._auth_layer: AuthLayer | None = (
@@ -485,6 +543,7 @@ class MCPServer:
         advertised_input_schema: dict[str, Any] | None = None,
         output_budget: OutputBudget | dict[str, Any] | None = None,
         scopes: Sequence[str] | None = None,
+        confirmation_mode: CommandConfirmationMode | None = None,
     ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Decorator to register a command with this server (arguments as ``define_command``)."""
 
@@ -516,6 +575,7 @@ class MCPServer:
                 tool_meta=tool_meta,
                 advertised_input_schema=advertised_input_schema,
                 output_budget=output_budget,
+                confirmation_mode=confirmation_mode,
                 # Point a name warning at the user's @server.command line.
                 _stacklevel=3,
             )(func)
@@ -554,12 +614,15 @@ class MCPServer:
         reserved = self._reserved_name_error(definition.name)
         if reserved is not None:
             raise ValueError(reserved)
+        definition.confirmation_mode = validate_confirmation_mode(
+            definition.name, getattr(definition, "confirmation_mode", None)
+        )
         validate_task_declaration(
             definition.name,
             definition.task,
             confirm_prompt=definition.confirm_prompt,
             approval=definition.approval,
-            confirmation_mode=getattr(definition, "confirmation_mode", None),
+            confirmation_mode=definition.confirmation_mode,
         )
         definition.output_budget = validate_output_budget_declaration(
             definition.name, definition.output_budget
@@ -610,6 +673,7 @@ class MCPServer:
             tuple(context.name for context in self.config.contexts or ()),
             tuple(id(command) for command in commands),
             tuple(command.name for command in commands),
+            tuple(getattr(command, "confirmation_mode", None) for command in commands),
         )
         if key != self._names_key:
             self._bootstrap_commands = None
@@ -629,17 +693,21 @@ class MCPServer:
         """The registration checks that must hold before the server answers a request."""
         self._check_reserved_names()
         commands = self._registry.list()
-        assert_valid_task_commands(commands)
         for command in commands:
+            command.confirmation_mode = validate_confirmation_mode(
+                command.name, getattr(command, "confirmation_mode", None)
+            )
             command.output_budget = validate_output_budget_declaration(
                 command.name, command.output_budget
             )
             command.scopes = validate_command_scopes(command.name, command.scopes)
+        assert_valid_task_commands(commands)
         self._check_first_class_tools()
 
     def _invalidate_caches(self) -> None:
         self._command_index = None
         self._router = None
+        self._human_relay_gate = None
         self._scope_authority = None
         self._first_class_checked = False
 
@@ -873,6 +941,7 @@ class MCPServer:
         context: CommandContext,
         record: Admission,
         effective_budget: int | None = None,
+        relay_dispatch: RelayDispatchAdmission | None = None,
     ) -> Any:
         """Call the handler with validated input, run the B5 output-budget check, and stamp metadata.
 
@@ -883,12 +952,15 @@ class MCPServer:
         evaluated here; declaring one needs an approval step. The admission is taken here, so a
         second dispatch on the same call (a retry inside the chain) needs a second admission.
         """
+        if relay_dispatch is not None and relay_dispatch.consume(command.name, data) == "mismatch":
+            return _approval_unavailable(command.name, "mismatch")
         if admission_required(record, getattr(command, "approval", None)):
             admission = take_admission(record, command.name, data)
             if admission != "admitted":
                 return _approval_unavailable(command.name, admission)
         clock = getattr(context, "clock", None) or system_clock
         start = clock.now()
+        clear_relay_evidence(context)
         handler = getattr(command.handler, "__afd_validated_handler__", command.handler)
         result = await handler(data, context)
         if effective_budget is not None:
@@ -954,190 +1026,234 @@ class MCPServer:
         """
         # One context object, with a clock and a random source, flows through every
         # middleware into the handler.
+        caller_context = context
         context = with_context_defaults(
             context, ContextDefaults(clock=self.config.clock, random=self.config.random)
         )
-        if output_budget is not None:
-            context._output_budget_ask = normalize_ask_option(output_budget)
-        prepared = self._prepare_command(
-            name, input, context, check_before_request=_check_before_request
-        )
-        if isinstance(prepared, CommandResult):
-            return prepared
-        command, data = prepared
-
-        # A step of an afd-batch or afd-pipe approved up front runs on the input validated then
-        # (#1414): what the person was shown, not what this second validation gave (a default
-        # that is random or reads the clock differs, and the step would then match no approval
-        # after earlier steps ran). The step was still validated as sent just above, since a
-        # schema may check state an earlier step changed; only the value is kept. Every step, not
-        # only one whose command declares a policy: a gate given only in the approval middleware's
-        # list binds the input validated up front too. A step no approval covers runs as validated.
-        up_front = current_up_front_approval()
-        approved = None if up_front is None else await up_front.validated(name, input)
-        if approved is not None:
-            data = approved[0]
-
-        # M6 ("At execution: the resolver again"): re-check validated input (defaults applied,
-        # pipeline references resolved) before any middleware or handler runs, and enforce static
-        # scopes on nested in-process calls that bypassed tool routing.
-        view = scope_view_of(context)
-        if view is not None:
-            exec_input = _validated_input_for_resolver(data) if view.has_resolver else None
-            exec_decision = view.decide_execution(command.name, exec_input)
-            if exec_decision != "proceed":
-                return failure(view.insufficient_scope(exec_decision.forbidden))
-
-        # Declared context fields, validated in context.extra before any middleware runs.
-        invalid_field = apply_context_fields(self.config.context_fields, context, command.name)
-        if invalid_field is not None:
-            return invalid_field
-
-        # Output budget ask validated and effective budget set before middleware runs (B2-B4).
-        effective_budget, invalid_budget = apply_output_budget(command, context)
-        if invalid_budget is not None:
-            return invalid_budget
-
-        # The command this call runs, for the approval middleware to decide from and the
-        # handler's dispatch to check: this dispatch's own record, which the dispatch reads
-        # directly, wherever the chain ran it.
-        def _is_cancelled() -> bool:
-            cancel = getattr(context, "cancel", None)
-            signal = getattr(context, "signal", None)
-            return bool(
-                (cancel is not None and cancel.is_set()) or (signal is not None and signal.is_set())
+        if caller_context is not None:
+            transfer_relay_state(caller_context, context)
+        try:
+            if output_budget is not None:
+                context._output_budget_ask = normalize_ask_option(output_budget)
+            prepared = self._prepare_command(
+                name, input, context, check_before_request=_check_before_request
             )
+            if isinstance(prepared, CommandResult):
+                return prepared
+            command, data = prepared
 
-        def _cancelled_before_start() -> CommandResult[Any]:
-            return failure(
-                CommandError(
-                    code="COMMAND_CANCELLED",
-                    message=f"Command '{truncate_name(name)}' was cancelled before it started",
-                    suggestion="Retry with a fresh signal if the command is still needed.",
-                    retryable=False,
-                )
-            )
+            prevalidated = take_relay_validated_input(context, name)
+            if prevalidated is not None:
+                data = prevalidated[0]
 
-        if _is_cancelled():
-            return _cancelled_before_start()
+            # A step of an afd-batch or afd-pipe approved up front runs on the input validated then
+            # (#1414): what the person was shown, not what this second validation gave (a default
+            # that is random or reads the clock differs, and the step would then match no approval
+            # after earlier steps ran). The step was still validated as sent just above, since a
+            # schema may check state an earlier step changed; only the value is kept. Every step, not
+            # only one whose command declares a policy: a gate given only in the approval middleware's
+            # list binds the input validated up front too. A step no approval covers runs as validated.
+            up_front = current_up_front_approval()
+            approved = None if up_front is None else await up_front.validated(name, input)
+            if approved is not None:
+                data = approved[0]
 
-        caller_timeout = getattr(context, "timeout", None)
-        if caller_timeout is None:
-            effective_timeout: int | float | None = self._default_timeout_ms
-        elif (
-            isinstance(caller_timeout, (int, float))
-            and not isinstance(caller_timeout, bool)
-            and math.isfinite(caller_timeout)
-            and caller_timeout > 0
-        ):
-            effective_timeout = caller_timeout
-        else:
-            effective_timeout = None
+            # M6 ("At execution: the resolver again"): re-check validated input (defaults applied,
+            # pipeline references resolved) before any middleware or handler runs, and enforce static
+            # scopes on nested in-process calls that bypassed tool routing.
+            view = scope_view_of(context)
+            if view is not None:
+                exec_input = _validated_input_for_resolver(data) if view.has_resolver else None
+                exec_decision = view.decide_execution(command.name, exec_input)
+                if exec_decision != "proceed":
+                    return failure(view.insufficient_scope(exec_decision.forbidden))
 
-        with admission_for(context, command) as record:
-
-            async def run_handler() -> Any:
-                # Re-check immediately before handler start (including after approval/confirmation wait).
-                if _is_cancelled():
-                    return _cancelled_before_start()
-                return await self._run_handler(command, data, context, record, effective_budget)
-
-            next_fn: Callable[[], Any] = run_handler
-            for middleware in reversed(self._middleware):
-                next_fn = (lambda mw, nxt: lambda: mw(name, data, context, nxt))(
-                    middleware, next_fn
-                )
-
-            if effective_timeout is None:
-                try:
-                    result = await next_fn()
-                except Exception as exc:
-                    result = self._internal_error(name, exc)
+            # Declared context fields, validated in context.extra before any middleware runs
+            # (skipped when HumanRelayGate already validated them and any approved_context
+            # overrides for this dispatch, so dynamic context defaults never drift; re-stamp
+            # JOURNALED_CONTEXT_FIELDS because with_context_defaults copies CommandContext via
+            # dataclasses.replace and drops dynamic attributes).
+            if take_relay_context_validated(context):
+                if self.config.context_fields:
+                    journaled = tuple(
+                        declared.name for declared in self.config.context_fields if declared.journal
+                    )
+                    with suppress(AttributeError, TypeError):
+                        setattr(context, JOURNALED_CONTEXT_FIELDS, journaled)
             else:
-                caller_signal = getattr(context, "signal", None)
-                caller_cancel = getattr(context, "cancel", None)
-                has_signal_attr = hasattr(context, "signal")
-                has_cancel_attr = hasattr(context, "cancel")
-                has_server_signal_attr = hasattr(context, "_server_signal")
-                has_server_signal_fields_attr = hasattr(context, "_server_signal_fields")
-                deadline_event = asyncio.Event()
-                synthesized_fields: list[str] = []
-                # Link deadline cancellation onto context.signal/cancel while keeping
-                # journal context digests unchanged for any fields the caller left unset.
-                if has_signal_attr:
-                    context.signal = deadline_event
-                    if caller_signal is None:
-                        synthesized_fields.append("signal")
-                if has_cancel_attr:
-                    context.cancel = deadline_event
-                    if caller_cancel is None:
-                        synthesized_fields.append("cancel")
-                if synthesized_fields and has_server_signal_attr:
-                    context._server_signal = deadline_event
-                    if has_server_signal_fields_attr:
-                        context._server_signal_fields = tuple(synthesized_fields)
+                invalid_field = apply_context_fields(
+                    self.config.context_fields, context, command.name
+                )
+                if invalid_field is not None:
+                    return invalid_field
 
-                watcher: asyncio.Task[None] | None = None
-                caller_events = [e for e in (caller_signal, caller_cancel) if e is not None]
-                if any(ev.is_set() for ev in caller_events):
-                    deadline_event.set()
-                elif caller_events:
+            # Output budget ask validated and effective budget set before middleware runs (B2-B4).
+            effective_budget, invalid_budget = apply_output_budget(command, context)
+            if invalid_budget is not None:
+                return invalid_budget
 
-                    async def _mirror_caller() -> None:
-                        waits = [asyncio.create_task(ev.wait()) for ev in caller_events]
-                        try:
-                            await asyncio.wait(waits, return_when=asyncio.FIRST_COMPLETED)
-                            deadline_event.set()
-                        finally:
-                            for w in waits:
-                                if not w.done():
-                                    w.cancel()
+            # Pop the one-shot host-verified dispatch admission into this closure so even a
+            # deferred retry retaining next_fn after clear_relay_state stays refused, and nested
+            # calls never inherit it.
+            relay_dispatch = pop_relay_dispatch_admission(context)
 
-                    watcher = asyncio.create_task(_mirror_caller())
-                    watcher.add_done_callback(_consume_task_exception)
+            # The command this call runs, for the approval middleware to decide from and the
+            # handler's dispatch to check: this dispatch's own record, which the dispatch reads
+            # directly, wherever the chain ran it.
+            def _is_cancelled() -> bool:
+                cancel = getattr(context, "cancel", None)
+                signal = getattr(context, "signal", None)
+                return bool(
+                    (cancel is not None and cancel.is_set())
+                    or (signal is not None and signal.is_set())
+                )
 
-                task = asyncio.create_task(next_fn())
-                try:
-                    done, _ = await asyncio.wait({task}, timeout=effective_timeout / 1000.0)
-                    if task in done:
-                        if task.cancelled():
-                            result = _cancelled_before_start()
-                        else:
-                            task_exc = task.exception()
-                            if task_exc is not None:
-                                result = self._internal_error(name, task_exc)
-                            else:
-                                result = task.result()
-                    else:
+            def _cancelled_before_start() -> CommandResult[Any]:
+                return failure(
+                    CommandError(
+                        code="COMMAND_CANCELLED",
+                        message=f"Command '{truncate_name(name)}' was cancelled before it started",
+                        suggestion="Retry with a fresh signal if the command is still needed.",
+                        retryable=False,
+                    )
+                )
+
+            if _is_cancelled():
+                return _cancelled_before_start()
+
+            caller_timeout = getattr(context, "timeout", None)
+            if caller_timeout is None:
+                effective_timeout: int | float | None = self._default_timeout_ms
+            elif (
+                isinstance(caller_timeout, (int, float))
+                and not isinstance(caller_timeout, bool)
+                and math.isfinite(caller_timeout)
+                and caller_timeout > 0
+            ):
+                effective_timeout = caller_timeout
+            else:
+                effective_timeout = None
+
+            # Clear ambient MCP HumanRelay channel and wire box before middleware/handler run so
+            # nested server.call_tool / server.execute("afd-call") calls never inherit the outer
+            # request's relay channel or mutate its outbound RelayWireBox.
+            with (
+                bind_human_relay_channel(None),
+                bind_relay_wire(None),
+                admission_for(context, command) as record,
+            ):
+
+                async def run_handler() -> Any:
+                    # Re-check immediately before handler start (including after approval/confirmation wait).
+                    if _is_cancelled():
+                        return _cancelled_before_start()
+                    return await self._run_handler(
+                        command,
+                        data,
+                        context,
+                        record,
+                        effective_budget,
+                        relay_dispatch=relay_dispatch,
+                    )
+
+                next_fn: Callable[[], Any] = run_handler
+                for middleware in reversed(self._middleware):
+                    next_fn = (lambda mw, nxt: lambda: mw(name, data, context, nxt))(
+                        middleware, next_fn
+                    )
+
+                if effective_timeout is None:
+                    try:
+                        result = await next_fn()
+                    except Exception as exc:
+                        result = self._internal_error(name, exc)
+                else:
+                    caller_signal = getattr(context, "signal", None)
+                    caller_cancel = getattr(context, "cancel", None)
+                    has_signal_attr = hasattr(context, "signal")
+                    has_cancel_attr = hasattr(context, "cancel")
+                    has_server_signal_attr = hasattr(context, "_server_signal")
+                    has_server_signal_fields_attr = hasattr(context, "_server_signal_fields")
+                    deadline_event = asyncio.Event()
+                    synthesized_fields: list[str] = []
+                    # Link deadline cancellation onto context.signal/cancel while keeping
+                    # journal context digests unchanged for any fields the caller left unset.
+                    if has_signal_attr:
+                        context.signal = deadline_event
+                        if caller_signal is None:
+                            synthesized_fields.append("signal")
+                    if has_cancel_attr:
+                        context.cancel = deadline_event
+                        if caller_cancel is None:
+                            synthesized_fields.append("cancel")
+                    if synthesized_fields and has_server_signal_attr:
+                        context._server_signal = deadline_event
+                        if has_server_signal_fields_attr:
+                            context._server_signal_fields = tuple(synthesized_fields)
+
+                    watcher: asyncio.Task[None] | None = None
+                    caller_events = [e for e in (caller_signal, caller_cancel) if e is not None]
+                    if any(ev.is_set() for ev in caller_events):
                         deadline_event.set()
-                        task.cancel()
-                        task.add_done_callback(_consume_task_exception)
-                        await asyncio.sleep(0)
-                        result = failure(
-                            CommandError(
-                                code="TIMEOUT",
-                                message=f"Command '{truncate_name(name)}' timed out after {effective_timeout}ms",
-                                suggestion=(
-                                    "Retry with a larger timeout. The command was signalled to abort "
-                                    "but may have completed, so check its effect before retrying a mutation."
-                                ),
-                                retryable=True,
-                                details={"command": name, "timeoutMs": effective_timeout},
+                    elif caller_events:
+
+                        async def _mirror_caller() -> None:
+                            waits = [asyncio.create_task(ev.wait()) for ev in caller_events]
+                            try:
+                                await asyncio.wait(waits, return_when=asyncio.FIRST_COMPLETED)
+                                deadline_event.set()
+                            finally:
+                                for w in waits:
+                                    if not w.done():
+                                        w.cancel()
+
+                        watcher = asyncio.create_task(_mirror_caller())
+                        watcher.add_done_callback(_consume_task_exception)
+
+                    task = asyncio.create_task(next_fn())
+                    try:
+                        done, _ = await asyncio.wait({task}, timeout=effective_timeout / 1000.0)
+                        if task in done:
+                            if task.cancelled():
+                                result = _cancelled_before_start()
+                            else:
+                                task_exc = task.exception()
+                                if task_exc is not None:
+                                    result = self._internal_error(name, task_exc)
+                                else:
+                                    result = task.result()
+                        else:
+                            deadline_event.set()
+                            task.cancel()
+                            task.add_done_callback(_consume_task_exception)
+                            await asyncio.sleep(0)
+                            result = failure(
+                                CommandError(
+                                    code="TIMEOUT",
+                                    message=f"Command '{truncate_name(name)}' timed out after {effective_timeout}ms",
+                                    suggestion=(
+                                        "Retry with a larger timeout. The command was signalled to abort "
+                                        "but may have completed, so check its effect before retrying a mutation."
+                                    ),
+                                    retryable=True,
+                                    details={"command": name, "timeoutMs": effective_timeout},
+                                )
                             )
-                        )
-                except asyncio.CancelledError:
-                    deadline_event.set()
-                    if not task.done():
-                        task.cancel()
-                        await asyncio.gather(task, return_exceptions=True)
-                    raise
-                finally:
-                    if watcher is not None and not watcher.done():
-                        watcher.cancel()
-                    if not task.done():
-                        task.add_done_callback(_consume_task_exception)
-        self._refresh_dynamic_tools(name, result)
-        return result
+                    except asyncio.CancelledError:
+                        deadline_event.set()
+                        if not task.done():
+                            task.cancel()
+                            await asyncio.gather(task, return_exceptions=True)
+                        raise
+                    finally:
+                        if watcher is not None and not watcher.done():
+                            watcher.cancel()
+                        if not task.done():
+                            task.add_done_callback(_consume_task_exception)
+            self._refresh_dynamic_tools(name, result)
+            return result
+        finally:
+            clear_relay_state(context)
 
     async def execute(
         self,
@@ -1389,6 +1505,21 @@ class MCPServer:
 
     # ── Tool routing ───────────────────────────────────────────────────────
 
+    def _get_human_relay_gate(self, commands: list[CommandDefinition]) -> HumanRelayGate:
+        if self._human_relay_gate is None:
+            self._human_relay_gate = HumanRelayGate(
+                self.config.human_relay,
+                commands,
+                actor=self.config.actor or Actor(kind="agent"),
+                dev_mode=self.config.dev_mode,
+                context_fields=self.config.context_fields,
+                clock=self.config.clock,
+                max_validation_issues=self._max_validation_issues,
+                has_auth_layer=self._auth_layer is not None,
+                lookup_command=lambda name: self._find_command(name),
+            )
+        return self._human_relay_gate
+
     def _get_router(self) -> Callable[..., Awaitable[Any]]:
         """The tool router, built once and rebuilt after register() or a context change."""
         self._check_before_request()
@@ -1411,6 +1542,7 @@ class MCPServer:
                     context_state=self._context_state,
                     actor=self.config.actor or Actor(kind="agent"),
                     confirmations=ConfirmationGate(self._confirmations, commands),
+                    human_relay=self._get_human_relay_gate(commands),
                     can_run=self._step_can_run,
                     validate_step=self._validate_step,
                     dispatch_task=self._task_runtime.dispatch_command,
@@ -1595,16 +1727,25 @@ class MCPServer:
             round = None
         if round is None:
             # Nothing an enclosing call bound may answer for this one.
-            with bind_confirmation_channel(None), bind_approval_relay(None):
+            with (
+                bind_confirmation_channel(None),
+                bind_approval_relay(None),
+                bind_human_relay_channel(None),
+            ):
                 result = await self.route_tool_call(tool_name, payload)
                 if is_created_task_sentinel(result):
                     from mcp.types import CallToolResult
 
                     return CallToolResult(content=[])
                 return _tool_call_result(result)
+        relay_channel = HumanRelayChannel.from_sdk(afd_ctx, _CURRENT_REQUEST.get())
         for _ in range(MAX_IN_BAND_ROUNDS):
             relay = round.relay() if round.can_elicit else None
-            with bind_confirmation_channel(round), bind_approval_relay(relay):
+            with (
+                bind_confirmation_channel(round),
+                bind_approval_relay(relay),
+                bind_human_relay_channel(relay_channel),
+            ):
                 result = await self.route_tool_call(tool_name, payload)
             if _is_input_required(result):
                 return result
@@ -1909,113 +2050,29 @@ class MCPServer:
             credentials=self._current_admitted_credentials(),
         )
 
-    def _install_pre_boundary_middleware(self) -> None:
-        """Install middleware immediately before the SDK's ``RequestStateBoundary``.
-
-        1. Runs ``context_hook`` once per ``tools/call`` before request-state unsealing,
-           confirmation checks, context selection or command lookup, binding the hook's
-           snapshotted actor so ``RequestStateSecurity(bind_principal=...)`` binds the
-           actor the commands actually run with. On refusal, ``requestState`` is stripped
-           from the forwarded params so the boundary neither unseals nor leaks state
-           validity before ``call_tool`` returns the refusal through normal serialization.
-        2. Refuses any ``requestState`` retry whose verified credentials are incomplete
-           (``IncompleteCredentials``) with JSON-RPC ``INTERNAL_ERROR`` naming no one,
-           before the boundary would answer ``-32602``.
-
-        Without the boundary where it is expected, the server refuses to start rather than
-        accept requests without these guards.
-        """
-        from mcp import MCPError
-        from mcp.server.request_state import RequestStateBoundary
-        from mcp_types import INTERNAL_ERROR
-        from mcp_types.methods import INPUT_REQUIRED_METHODS
-
-        server = self
-
-        def check_bindable_principal(method: Any) -> None:
-            try:
-                server._request_principal()
-            except IncompleteCredentials:
-                # The reason only, never who: the credentials name the caller.
-                logger.warning("refusing requestState on %s: incomplete credentials", method)
-                raise MCPError(code=INTERNAL_ERROR, message="Internal error") from None
-
-        async def pre_boundary(ctx: Any, call_next: Any) -> Any:
-            with claim_admitted_dispatch(server._auth_layer):
-                params = getattr(ctx, "params", None)
-                method = getattr(ctx, "method", None)
-                # M1 fail closed: when authorization is configured, refuse any request whose
-                # credentials were not admitted by this server's own HTTP layer (unless stdio or
-                # explicitly marked trusted), before context_hook, requestState or lookup.
-                if not server._is_auth_admitted():
-                    if method == "tools/call":
-                        if isinstance(params, Mapping) and (
-                            params.get("requestState") is not None or "inputResponses" in params
-                        ):
-                            cleaned = {
-                                key: value
-                                for key, value in params.items()
-                                if key not in ("requestState", "inputResponses")
-                            }
-                            ctx = dataclasses.replace(ctx, params=cleaned)
-                        with bind_hook_outcome(HookOutcome(refusal=server._unauthorized_error())):
-                            return await call_next(ctx)
-                    raise server._unauthorized_rpc_error()
-
-                # M6: non-tool methods (tools/list, server/discover, resources/*, tasks/*, ...)
-                # require the server's required_scopes even when pre-dispatch could not decide.
-                view = server._current_scope_view()
-                if (
-                    view is not None
-                    and method != "tools/call"
-                    and not (isinstance(method, str) and method.startswith("notifications/"))
-                ):
-                    req_dec = view.decide_request()
-                    if req_dec != "proceed":
-                        raise server._insufficient_scope_rpc_error(view, req_dec.forbidden)
-
-                if server.config.context_hook is not None and method == "tools/call":
-                    raw_name = params.get("name") if isinstance(params, Mapping) else None
-                    tool_name = raw_name if isinstance(raw_name, str) else ""
-                    outcome = await server._run_context_hook(tool_name, ctx)
-                    if outcome.refusal is not None:
-                        if isinstance(params, Mapping) and (
-                            params.get("requestState") is not None or "inputResponses" in params
-                        ):
-                            cleaned = {
-                                key: value
-                                for key, value in params.items()
-                                if key not in ("requestState", "inputResponses")
-                            }
-                            ctx = dataclasses.replace(ctx, params=cleaned)
-                        with bind_hook_outcome(outcome):
-                            return await call_next(ctx)
-                    with bind_hook_outcome(outcome):
-                        if isinstance(params, Mapping) and params.get("requestState") is not None:
-                            check_bindable_principal(method)
-                        return await call_next(ctx)
-
-                if (
-                    method in INPUT_REQUIRED_METHODS
-                    and isinstance(params, Mapping)
-                    and params.get("requestState") is not None
-                ):
-                    check_bindable_principal(method)
-                return await call_next(ctx)
-
-        lowlevel = getattr(self._mcp_server, "_lowlevel_server", None)
-        chain = getattr(lowlevel, "middleware", None)
-        boundary = next(
-            (
-                index
-                for index, item in enumerate(chain or ())
-                if isinstance(item, RequestStateBoundary)
+    def _targets_host_verified(
+        self,
+        tool_name: Any,
+        arguments: Any,
+        meta: Any,
+        view: ScopeView | None,
+    ) -> bool:
+        return targets_host_verified(
+            tool_name=tool_name,
+            arguments=arguments,
+            meta=meta,
+            view=view,
+            context_fields=self.config.context_fields,
+            context_names={item.name for item in self.config.contexts},
+            exposed_commands=self.list_exposed_commands(
+                interface="mcp", include_bootstrap=True, context_filtered=False
             ),
-            None,
+            tool_strategy=self.config.tool_strategy,
+            group_by=self.config.group_by,
         )
-        if boundary is None or chain is None:
-            raise RuntimeError("the MCP SDK's request-state boundary was not found")
-        chain.insert(boundary, pre_boundary)
+
+    def _install_pre_boundary_middleware(self) -> None:
+        install_pre_boundary_middleware(self)
 
     def _request_principal(self) -> str:
         """The principal binding of the MCP request being served: the actor its commands run
@@ -2100,155 +2157,6 @@ class MCPServer:
             self.stop_tasks()
 
 
-def _validated_input_for_resolver(data: Any) -> Any:
-    """Build a plain dict of validated input fields using their input names (ignoring output
-    ``exclude``, ``serialization_alias``, and ``field_serializer``) so a :class:`ScopeResolver`
-    at execution sees the exact validated values the handler receives."""
-    if isinstance(data, BaseModel):
-        out: dict[str, Any] = {}
-        for field_name, field_info in type(data).model_fields.items():
-            key = field_name
-            if isinstance(field_info.validation_alias, str):
-                key = field_info.validation_alias
-            elif field_info.validation_alias is None and isinstance(field_info.alias, str):
-                key = field_info.alias
-            out[key] = _validated_input_for_resolver(getattr(data, field_name))
-        extras = data.__pydantic_extra__
-        if extras:
-            for extra_key, extra_val in extras.items():
-                out[extra_key] = _validated_input_for_resolver(extra_val)
-        return out
-    if isinstance(data, list):
-        return [_validated_input_for_resolver(item) for item in data]
-    if isinstance(data, tuple):
-        return tuple(_validated_input_for_resolver(item) for item in data)
-    if isinstance(data, dict):
-        return {k: _validated_input_for_resolver(v) for k, v in data.items()}
-    return data
-
-
-def _request_meta(request: Any) -> Any:
-    """The raw ``_meta`` of an SDK request (``ServerRequestContext.params``), or ``None``."""
-    params = getattr(request, "params", None)
-    return params.get("_meta") if isinstance(params, Mapping) else None
-
-
-def _in_context(command: CommandDefinition, active_context: str | None) -> bool:
-    """Whether a command is visible in the active context (universal commands always are)."""
-    return not active_context or not command.contexts or active_context in command.contexts
-
-
-def _approval_unavailable(command_name: str, admission: str) -> CommandResult[Any]:
-    """``APPROVAL_UNAVAILABLE`` for a gated dispatch no approval step admitted.
-
-    ``admission`` is ``"missing"`` (no approval step admitted this call) or ``"mismatch"``: an
-    approval step ran, but this dispatch is not the one it admitted (a retry placed after it, or
-    the input changed after it), so the operator fixes the order.
-    """
-    if admission == "missing":
-        reason = "no-approval-step"
-        suggestion = (
-            f"Tell the user that {command_name} needs their approval and this server has no "
-            "approval step; do not retry. The operator adds the approval middleware "
-            "(create_approval_middleware) or removes the command's approval policy."
-        )
-    else:
-        reason = "admission-mismatch"
-        suggestion = (
-            "Do not retry: this call is not the one approved. The operator moves middleware "
-            "that retries or changes input before the approval middleware."
-        )
-    return failure(
-        CommandError(
-            code=ErrorCodes.APPROVAL_UNAVAILABLE,
-            message=f"{command_name} needs a person's approval, and this server cannot ask for it",
-            suggestion=suggestion,
-            retryable=False,
-            details={"reason": reason},
-        )
-    )
-
-
-def _with_execution_metadata(
-    result: CommandResult[Any],
-    *,
-    execution_time_ms: float,
-    command_version: str | None,
-    trace_id: str | None,
-    actor_kind: str | None = None,
-) -> CommandResult[Any]:
-    """A copy of ``result`` whose metadata carries the server's execution fields.
-
-    The handler's own result object is never mutated (it may be shared).
-    """
-    updates: dict[str, Any] = {"execution_time_ms": round(execution_time_ms, 2)}
-    if command_version:
-        updates["command_version"] = command_version
-    if trace_id:
-        updates["trace_id"] = trace_id
-    if actor_kind:
-        updates["actor_kind"] = actor_kind
-    metadata = (
-        result.metadata.model_copy(update=updates)
-        if result.metadata is not None
-        else ResultMetadata(**updates)
-    )
-    return result.model_copy(update={"metadata": metadata})
-
-
-def _is_error_result(result: Any) -> bool:
-    """Return the MCP ``isError`` flag for a routed tool result.
-
-    Matches the TypeScript server: a failed CommandResult or BatchResult, or a
-    pipeline with a failed step, is an error.
-    """
-    if isinstance(result, (CommandResult, BatchResult)):
-        return not result.success
-    if isinstance(result, PipelineResult):
-        return any(step.status == StepStatus.FAILURE for step in result.steps)
-    if isinstance(result, dict) and isinstance(result.get("success"), bool):
-        return not result["success"]
-    return False
-
-
-def _is_input_required(result: Any) -> bool:
-    return type(result).__name__ == "InputRequiredResult"
-
-
-def _is_mcp_error(exc: BaseException) -> bool:
-    try:
-        from mcp import MCPError
-    except ImportError:  # pragma: no cover - optional dependency
-        return False
-    return isinstance(exc, MCPError)
-
-
-def _unanswered_approval(tool_name: str) -> CommandResult[Any]:
-    """The result when a 2025 client asked in band gave no answer."""
-    return failure(
-        CommandError(
-            code=ErrorCodes.APPROVAL_REQUIRED,
-            message=f"{tool_name} needs approval before it runs",
-            suggestion="The client did not answer the approval question. Ask the user, then call again.",
-            retryable=False,
-        )
-    )
-
-
-def _tool_call_result(result: Any) -> Any:
-    """Wrap a routed result in an MCP CallToolResult in the AFD wire format: the whole result
-    as ``structuredContent`` and the same JSON as text (``spec/command-metadata.md``,
-    "Structured results")."""
-    from mcp.types import CallToolResult, TextContent
-
-    wire = to_wire(result)
-    return CallToolResult(
-        content=[TextContent(type="text", text=json.dumps(wire))],
-        structured_content=wire if isinstance(wire, dict) else None,
-        is_error=_is_error_result(result),
-    )
-
-
 def create_server(
     name: str,
     version: str = "1.0.0",
@@ -2272,6 +2180,7 @@ def create_server(
     confirmations: str = "off",
     confirmation_key: bytes | bytearray | memoryview | str | None = None,
     instances: ServerInstances | None = None,
+    human_relay: HumanRelay | None = None,
     first_class_tools: Sequence[str] | None = None,
     context_fields: Sequence[ContextField | dict[str, Any]] | None = None,
     advertise_output_schema: bool = True,
@@ -2373,6 +2282,10 @@ def create_server(
             over HTTP logs one warning per process to stderr if a per-process default is in use;
             ``"single"`` silences the warning (a supplied ``confirmation_key`` is still validated).
             Stdio logs nothing.
+        human_relay: Host-verified confirmation relay (``afd.server.HumanRelay``;
+            ``spec/command-metadata.md``, "Host-verified confirmation") enforcing
+            ``confirmation_mode="host-verified"`` commands on single-command MCP 2026-07-28
+            calls regardless of ``confirmations``.
         advertise_output_schema: Advertise a top-level MCP ``outputSchema`` (the
             CommandResult envelope, with ``data`` typed by ``output_schema``) on each command
             listed as its own tool. MCP clients validate a result's ``structuredContent``
@@ -2430,6 +2343,7 @@ def create_server(
         confirmations=confirmations,
         confirmation_key=confirmation_key,
         instances=instances,
+        human_relay=human_relay,
         first_class_tools=first_class_tools,  # type: ignore[arg-type]  # MCPServer checks it
         advertise_output_schema=advertise_output_schema,
         bootstrap=bootstrap,

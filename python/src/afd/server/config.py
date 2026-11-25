@@ -20,6 +20,7 @@ from afd.server.auth import McpAuthOptions
 from afd.server.bootstrap.afd_context import AFD_CONTEXT_META_KEY
 from afd.server.context_fields import ContextField
 from afd.server.context_hook import ContextHook
+from afd.server.human_relay import HumanRelay
 from afd.server.instance_state import ServerInstances
 from afd.server.middleware import CommandMiddleware
 from afd.server.resources import ResourcesOption
@@ -141,6 +142,8 @@ class ServerConfig:
     approval middleware lacks a shared ``nonce_store``. When omitted, serving over HTTP logs
     one warning per process to stderr if a per-process default is in use; ``"single"``
     silences that warning. Stdio logs nothing."""
+    human_relay: HumanRelay | None = None
+    """Host-verified confirmation relay (``spec/command-metadata.md``, "Host-verified confirmation")."""
 
 
 def default_instructions(

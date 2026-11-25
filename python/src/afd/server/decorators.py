@@ -39,12 +39,14 @@ from pydantic import ValidationError as PydanticValidationError
 
 from afd.core.approval import ApprovalPolicy
 from afd.core.commands import (
+    CommandConfirmationMode,
     CommandDefinition,
     CommandExample,
     CommandParameter,
     ExposeOptions,
     TaskSupport,
     validate_command_scopes,
+    validate_confirmation_mode,
     validate_task_declaration,
     warn_invalid_command_name,
 )
@@ -99,6 +101,7 @@ class CommandMetadata:
     advertised_input_schema: dict[str, Any] | None = None
     output_budget: OutputBudget | None = None
     scopes: list[str] = field(default_factory=list)
+    confirmation_mode: CommandConfirmationMode | None = None
 
 
 def define_command(
@@ -128,6 +131,7 @@ def define_command(
     advertised_input_schema: dict[str, Any] | None = None,
     output_budget: OutputBudget | dict[str, Any] | None = None,
     scopes: Sequence[str] | None = None,
+    confirmation_mode: CommandConfirmationMode | None = None,
     _stacklevel: int = 2,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorator to define a command with metadata.
@@ -190,11 +194,13 @@ def define_command(
             f"Command '{name}' has an invalid approval policy: "
             "use 'required', 'not-required' or a function"
         )
+    normalized_confirmation_mode = validate_confirmation_mode(name, confirmation_mode)
     validate_task_declaration(
         name,
         task,
         confirm_prompt=confirm_prompt,
         approval=approval,
+        confirmation_mode=normalized_confirmation_mode,
     )
     checked_tool_meta = assert_tool_meta(name, tool_meta)
     checked_advertised = assert_advertised_input_schema(name, advertised_input_schema)
@@ -242,6 +248,7 @@ def define_command(
             tool_meta=checked_tool_meta,
             advertised_input_schema=checked_advertised,
             output_budget=normalized_output_budget,
+            confirmation_mode=normalized_confirmation_mode,
         )
         func.__afd_command__ = cmd_metadata  # type: ignore[attr-defined]
 
@@ -443,6 +450,7 @@ def command_to_definition(func: Callable[..., Any]) -> CommandDefinition | None:
         tool_meta=metadata.tool_meta,
         advertised_input_schema=metadata.advertised_input_schema,
         output_budget=metadata.output_budget,
+        confirmation_mode=metadata.confirmation_mode,
     )
 
 

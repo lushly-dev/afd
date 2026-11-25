@@ -51,6 +51,7 @@ from afd.core.clock import (
 from afd.core.commands import (
     DEFAULT_EXPOSE,
     CallGrant,
+    CommandConfirmationMode,
     CommandContext,
     CommandDefinition,
     CommandExample,
@@ -304,6 +305,7 @@ __all__ = [
     "create_warning",
     # Command types
     "CallGrant",
+    "CommandConfirmationMode",
     "CommandParameter",
     "CommandDefinition",
     "CommandExample",

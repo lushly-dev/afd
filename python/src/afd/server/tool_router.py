@@ -47,6 +47,7 @@ from afd.server.confirmations import (
 )
 from afd.server.context_fields import current_context_field_values
 from afd.server.context_hook import copy_extra, current_hook_outcome
+from afd.server.human_relay import HumanRelayGate, host_verified_unrelayable
 from afd.server.lazy_tools import execute_detail, execute_discover, not_found_suggestion
 from afd.server.tools import derive_group_name
 
@@ -68,6 +69,8 @@ class ToolRouterDeps:
     actor: Actor | None = None
     # Confirmation enforcement (`confirmations` server option); None means off.
     confirmations: ConfirmationGate | None = None
+    # Host-verified confirmation gate (always enforced on MCP regardless of `confirmations`).
+    human_relay: HumanRelayGate | None = None
     # For the up-front approval of afd-batch and afd-pipe over the MCP approval relay: whether
     # an MCP caller can run a command, and one step's validated input as it will run.
     can_run: Callable[[str], bool] | None = None
@@ -264,6 +267,44 @@ def create_tool_router(deps: ToolRouterDeps) -> Callable[..., Awaitable[Any]]:
             raise RuntimeError("confirmation gate refused without an error")
         return command_failure(refusal)
 
+    def refuse_host_verified_steps(
+        steps: list[ConfirmationStep], known: dict[str, CommandDefinition]
+    ) -> Any:
+        if deps.human_relay is not None:
+            return deps.human_relay.refuse_steps(steps)
+        names: list[str] = []
+        for step in steps:
+            cmd = known.get(step.command)
+            if (
+                cmd is not None
+                and getattr(cmd, "confirmation_mode", None) == "host-verified"
+                and step.command not in names
+            ):
+                names.append(step.command)
+        return host_verified_unrelayable(names, has_relay=False) if names else None
+
+    async def dispatch_host_verified(
+        command: CommandDefinition,
+        command_input: Any,
+        ctx: CommandContext,
+    ) -> Any:
+        """Gate and dispatch a single host-verified command (never form-elicited or acknowledged)."""
+        if deps.human_relay is None:
+            return command_failure(host_verified_unrelayable([command.name], has_relay=False))
+        outcome = await deps.human_relay.check(command, command_input, ctx)
+        if outcome.kind == "input-required":
+            return outcome.result
+        if outcome.kind == "error":
+            if outcome.error is None:
+                raise RuntimeError("human relay gate refused without an error")
+            return command_failure(outcome.error)
+        with bind_approval_relay(NEVER_ASKS):
+            return await deps.execute_command(
+                command.name,
+                command_input,
+                outcome.context if outcome.context is not None else ctx,
+            )
+
     def routed(command_name: str) -> None:
         """Name the one command this tool call routes to: only it may ask for approval."""
         relay = current_approval_relay()
@@ -352,6 +393,10 @@ def create_tool_router(deps: ToolRouterDeps) -> Callable[..., Awaitable[Any]]:
                 return not_in_context(command_name, active_context)
 
             command_input = payload.get("input", {})
+            if getattr(command, "confirmation_mode", None) == "host-verified":
+                ctx = mcp_context("afd-call", active_context, view, caller_context)
+                return await dispatch_host_verified(command, command_input, ctx)
+
             refused = await unconfirmed(
                 [ConfirmationStep(command_name, command_input)],
                 payload.get("confirm") is True,
@@ -415,6 +460,9 @@ def create_tool_router(deps: ToolRouterDeps) -> Callable[..., Awaitable[Any]]:
                 for step in _steps(args, "commands")
                 if view is None or view.known(step.command)
             ]
+            hv_refused = refuse_host_verified_steps(batch_steps, known_by_name)
+            if hv_refused is not None:
+                return create_failed_batch_result(hv_refused)
             refused = await unconfirmed(
                 batch_steps,
                 named_acknowledgement(args.get("confirm") if isinstance(args, dict) else None),
@@ -443,6 +491,9 @@ def create_tool_router(deps: ToolRouterDeps) -> Callable[..., Awaitable[Any]]:
             pipe_steps = [
                 step for step in _steps(args, "steps") if view is None or view.known(step.command)
             ]
+            hv_refused = refuse_host_verified_steps(pipe_steps, known_by_name)
+            if hv_refused is not None:
+                return create_pipeline_failure(hv_refused)
             refused = await unconfirmed(
                 pipe_steps,
                 named_acknowledgement(args.get("confirm") if isinstance(args, dict) else None),
@@ -503,6 +554,9 @@ def create_tool_router(deps: ToolRouterDeps) -> Callable[..., Awaitable[Any]]:
             if selection.kind == "command" and selection.command is not None:
                 command = selection.command
                 params = payload.get("params", {})
+                if getattr(command, "confirmation_mode", None) == "host-verified":
+                    ctx = mcp_context("trace", active_context, view, caller_context)
+                    return await dispatch_host_verified(command, params, ctx)
                 refused = await unconfirmed(
                     [ConfirmationStep(command.name, params)],
                     payload.get("confirm") is True,
@@ -528,7 +582,11 @@ def create_tool_router(deps: ToolRouterDeps) -> Callable[..., Awaitable[Any]]:
 
         # A confirm-gated tool advertises an optional `confirm` argument, removed here before
         # the command validates its input, unless the command's own schema declares it.
+        # Host-verified commands never advertise or accept `confirm`.
         command_input = {} if args is None else args
+        if command is not None and getattr(command, "confirmation_mode", None) == "host-verified":
+            ctx = mcp_context("trace", active_context, view, caller_context)
+            return await dispatch_host_verified(command, command_input, ctx)
         acknowledged = False
         if (
             gate is not None
