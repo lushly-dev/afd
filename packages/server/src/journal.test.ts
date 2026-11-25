@@ -1,6 +1,8 @@
 /**
  * `createJournalMiddleware()` (#273): what it records, what it never records, and its tape.
  */
+
+import { DirectClient } from '@lushly-dev/afd-client';
 import {
 	type CommandMiddleware,
 	failure,
@@ -180,7 +182,9 @@ describe('createJournalMiddleware', () => {
 
 	it('appends concurrent calls in the order they finished, whichever digest settles first', async () => {
 		const sink = new MemoryJournalSink();
-		const journal = createJournalMiddleware(sink);
+		// Called directly, outside an engine, where a `secret` declaration cannot be read: only a
+		// journal with `redact` records there.
+		const journal = createJournalMiddleware(sink, { redact: (record) => record });
 		// The first digest taken settles after the second, as the threadpool may order them.
 		const subtle = globalThis.crypto.subtle;
 		const digest = subtle.digest.bind(subtle);
@@ -280,6 +284,217 @@ describe('createJournalMiddleware', () => {
 
 		expect(entries.map((entry) => entry.command)).toEqual(['dice-roll']);
 		expect(JSON.stringify(entries)).not.toMatch(/hunter2|SECRET/);
+	});
+
+	it('never records a command that declares secret without redact, whatever its name or filter', async () => {
+		const login = defineCommand({
+			name: 'vault-unlock',
+			description: 'Unlock the vault',
+			input: z.object({ passphrase: z.string() }),
+			secret: true,
+			handler: async () => success({ key: 'SECRET-VAULT-KEY' }),
+		});
+		const run = async (options: Parameters<typeof createJournalMiddleware>[1]) => {
+			const sink = new MemoryJournalSink();
+			const host = createMcpServer({
+				name: 's',
+				version: '1',
+				commands: [login, roll],
+				middleware: [createJournalMiddleware(sink, options)],
+			});
+			await host.execute('vault-unlock', { passphrase: 'hunter2' });
+			await host.execute('dice-roll', { sides: 6 });
+			return sink.read();
+		};
+
+		for (const options of [
+			{},
+			{ filter: () => true },
+			{ recordFailures: true, filter: () => true },
+		]) {
+			const entries = await run(options);
+			expect(entries.map((entry) => entry.command)).toEqual(['dice-roll']);
+			expect(JSON.stringify(entries)).not.toMatch(/hunter2|SECRET/);
+		}
+
+		// With redact, the host removes the secret, and the call is recorded.
+		const redacted = await run({
+			filter: () => true,
+			redact: (record) => ({ ...record, input: {}, result: { success: true } }),
+		});
+		expect(redacted.map((entry) => entry.command)).toEqual(['vault-unlock', 'dice-roll']);
+		expect(JSON.stringify(redacted)).not.toMatch(/hunter2|SECRET/);
+
+		// A direct registry runs the same engine, so the same rule holds there.
+		const sink = new MemoryJournalSink();
+		const registry = createDirectRegistry([login], {
+			middleware: [createJournalMiddleware(sink, { filter: () => true })],
+		});
+		await registry.execute('vault-unlock', { passphrase: 'hunter2' });
+		expect(await sink.read()).toEqual([]);
+	});
+
+	it('tells redact which calls are secret, and uses the redact it was built with', async () => {
+		const login = defineCommand({
+			name: 'vault-unlock',
+			description: 'Unlock the vault',
+			input: z.object({ passphrase: z.string() }),
+			secret: true,
+			handler: async () => success({ key: 'SECRET-VAULT-KEY' }),
+		});
+		const seen: Array<[string, boolean | undefined]> = [];
+		const sink = new MemoryJournalSink();
+		const host = createMcpServer({
+			name: 's',
+			version: '1',
+			commands: [login, roll],
+			middleware: [
+				createJournalMiddleware(sink, {
+					filter: () => true,
+					redact: (record, { secret }) => {
+						seen.push([record.command, secret]);
+						return secret ? undefined : record;
+					},
+				}),
+			],
+		});
+		await host.execute('vault-unlock', { passphrase: 'hunter2' });
+		await host.execute('dice-roll', { sides: 6 });
+		expect(seen).toEqual([
+			['vault-unlock', true],
+			['dice-roll', false],
+		]);
+		expect((await sink.read()).map((entry) => entry.command)).toEqual(['dice-roll']);
+
+		// A redact added to the options after the middleware was built is not the one it applies,
+		// so it admits nothing either.
+		const options: Parameters<typeof createJournalMiddleware>[1] = { filter: () => true };
+		const later = new MemoryJournalSink();
+		const reused = createMcpServer({
+			name: 's',
+			version: '1',
+			commands: [login],
+			middleware: [createJournalMiddleware(later, options)],
+		});
+		options.redact = (record) => record;
+		await reused.execute('vault-unlock', { passphrase: 'hunter2' });
+		expect(await later.read()).toEqual([]);
+	});
+
+	it('records nothing without redact where it cannot read the declaration (a DirectClient)', async () => {
+		const login = defineCommand({
+			name: 'vault-unlock',
+			description: 'Unlock the vault',
+			input: z.object({ passphrase: z.string() }),
+			secret: true,
+			handler: async () => success({ key: 'SECRET-VAULT-KEY' }),
+		});
+		const sink = new MemoryJournalSink();
+		const client = new DirectClient(createDirectRegistry([login, roll]), {
+			middleware: [createJournalMiddleware(sink, { filter: () => true })],
+		});
+		await client.call('vault-unlock', { passphrase: 'hunter2' });
+		await client.call('dice-roll', { sides: 6 });
+		expect(await sink.read()).toEqual([]);
+
+		const told: Array<boolean | undefined> = [];
+		const redacting = new DirectClient(createDirectRegistry([roll]), {
+			middleware: [
+				createJournalMiddleware(new MemoryJournalSink(), {
+					redact: (record, { secret }) => {
+						told.push(secret);
+						return record;
+					},
+				}),
+			],
+		});
+		await redacting.call('dice-roll', { sides: 6 });
+		expect(told).toEqual([undefined]);
+	});
+
+	it('keeps a secret nested call off its recorded parent’s tape, and marks that tape', async () => {
+		let draws = 0;
+		const random = { next: () => 0.25 + 0.01 * ++draws };
+		const sink = new MemoryJournalSink();
+		const server: ReturnType<typeof createMcpServer> = createMcpServer({
+			name: 's',
+			version: '1',
+			random,
+			middleware: [createJournalMiddleware(sink)],
+			commands: [
+				defineCommand({
+					name: 'token-mint',
+					description: 'Mint a token from random values',
+					input: z.object({}),
+					secret: true,
+					handler: async (_input, context) =>
+						success({ token: `T-${context?.random?.next()}-${context?.random?.next()}` }),
+				}),
+				defineCommand({
+					name: 'session-open',
+					description: 'Open a session, minting its token',
+					input: z.object({}),
+					handler: async (_input, context) => {
+						await server.execute('token-mint', {}, context);
+						return success({ opened: true });
+					},
+				}),
+			],
+		});
+		await server.execute('session-open', {});
+		const entries = await sink.read();
+		expect(entries.map((entry) => entry.command)).toEqual(['session-open']);
+		expect(entries[0]?.tape?.random ?? []).toEqual([]);
+		expect(entries[0]?.tape?.truncated).toBe(true);
+		expect(draws).toBe(2);
+	});
+
+	it('keeps a recorded secret nested call’s reads on its own entry, never its parent’s', async () => {
+		let draws = 0;
+		const sink = new MemoryJournalSink();
+		const server: ReturnType<typeof createMcpServer> = createMcpServer({
+			name: 's',
+			version: '1',
+			random: { next: () => 0.25 + 0.01 * ++draws },
+			// A redact that keeps every record: the secret call is recorded, its secret left to redact.
+			middleware: [createJournalMiddleware(sink, { redact: (record) => record })],
+			commands: [
+				defineCommand({
+					name: 'token-mint',
+					description: 'Mint a token from random values',
+					input: z.object({}),
+					secret: true,
+					handler: async (_input, context) => success({ token: `T-${context?.random?.next()}` }),
+				}),
+				defineCommand({
+					name: 'session-open',
+					description: 'Open a session, minting its token',
+					input: z.object({}),
+					handler: async (_input, context) => {
+						await server.execute('token-mint', {}, context);
+						return success({ opened: true });
+					},
+				}),
+			],
+		});
+		await server.execute('session-open', {});
+		const [child, parent] = await sink.read();
+		expect([child?.command, parent?.command]).toEqual(['token-mint', 'session-open']);
+		expect(child?.tape?.random).toEqual([0.26]);
+		expect(parent?.tape?.random ?? []).toEqual([]);
+		expect(parent?.tape?.truncated).toBe(true);
+	});
+
+	it('refuses a secret that is not a boolean', () => {
+		expect(() =>
+			defineCommand({
+				name: 'vault-unlock',
+				description: 'Unlock the vault',
+				input: z.object({}),
+				secret: 'yes' as unknown as boolean,
+				handler: async () => success({}),
+			})
+		).toThrow(TypeError);
 	});
 
 	it('records JOURNAL_RESULT_UNSERIALIZABLE when a result cannot be copied as JSON (#865)', async () => {
@@ -403,7 +618,8 @@ describe('createJournalMiddleware', () => {
 	it('records JOURNAL_RESULT_UNSERIALIZABLE when reading result.success throws (including undefined)', async () => {
 		const sink = new MemoryJournalSink();
 		const onError = vi.fn();
-		const middleware = createJournalMiddleware(sink, { onError });
+		// Called directly, outside an engine: only a journal with `redact` records there.
+		const middleware = createJournalMiddleware(sink, { onError, redact: (record) => record });
 		let reads = 0;
 		const badSuccess = {
 			get success(): boolean {

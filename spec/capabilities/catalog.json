@@ -167,6 +167,10 @@
 			"label": "Journal append order for concurrent calls (#1650): entries appear in the order calls finished, whatever the sink's latency"
 		},
 		{
+			"id": "single.journal-secret",
+			"label": "`secret` commands in the journal ([`spec/journal.md`](../spec/journal.md)): a call to a command declaring `secret` is never recorded without `redact`, whatever `filter` says"
+		},
+		{
 			"id": "middleware.chain",
 			"label": "Middleware chain"
 		},
@@ -579,6 +583,9 @@
 				},
 				{
 					"capability": "single.journal-append-order"
+				},
+				{
+					"capability": "single.journal-secret"
 				}
 			]
 		},

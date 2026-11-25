@@ -378,6 +378,11 @@ describe('createAuthCommands', () => {
 				mcp: false,
 			});
 		});
+
+		it('declares secret, since it takes a password', () => {
+			expect(findCommand(new MockAuthAdapter(), 'auth-sign-in').secret).toBe(true);
+			expect(findCommand(new MockAuthAdapter(), 'auth-sign-out').secret).toBeUndefined();
+		});
 	});
 
 	describe('auth-sign-out', () => {

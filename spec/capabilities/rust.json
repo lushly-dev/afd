@@ -225,6 +225,11 @@
 			"note": "with the built-in sinks: the recorder awaits nothing before `append` and the sinks assign `seq` under a mutex; `AsyncFileJournalSink` takes a fair async lock before each append and holds it until the write returns (#1764); a custom async sink could reorder",
 			"evidence": ["packages/rust/src/journal.rs"]
 		},
+		"single.journal-secret": {
+			"status": "planned",
+			"note": "the next step of the `secret` change: the recorder still skips `auth-*` by name only",
+			"evidence": ["packages/rust/src/journal/recorder.rs"]
+		},
 		"middleware.chain": {
 			"status": "yes",
 			"evidence": ["packages/rust/src/commands.rs"]

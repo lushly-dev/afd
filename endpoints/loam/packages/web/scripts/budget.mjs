@@ -760,7 +760,7 @@ export const CEILINGS = Object.freeze({
 	// `@lushly-dev/afd-server`): measured 164,413 against `main` at `adae8843`; set to 164,800.
 	// Lowered by #2107 (wrapper provenance and `redactWrapped` injected from `late/journal-wrappers.ts`):
 	// measured 158,530 against `main` at `bd30d790b` (-6,036); lowered to 159,000.
-	kernelMinified: 159_000,
+	kernelMinified: 160_100, // D115, `secret` commands in afd-server's journal: 159,823 at `main` `e62387541`
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).

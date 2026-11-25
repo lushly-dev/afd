@@ -254,6 +254,11 @@
 			"note": "`createJournalMiddleware` takes a turn as a command returns and appends after the call ahead, since its context digest is asynchronous",
 			"evidence": ["packages/server/src/journal.ts"]
 		},
+		"single.journal-secret": {
+			"status": "yes",
+			"note": "`secret` on `CommandDefinition`/`defineCommand`; `createJournalMiddleware` reads it from the command the engine runs and passes `{ secret }` to `redact`",
+			"evidence": ["packages/server/src/journal.ts", "packages/server/src/journal.test.ts"]
+		},
 		"middleware.chain": {
 			"status": "yes",
 			"evidence": ["packages/server/src/middleware.ts"]

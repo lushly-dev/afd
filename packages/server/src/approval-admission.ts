@@ -31,6 +31,8 @@ export interface AdmissionCommand {
 	name: string;
 	approval?: ApprovalPolicy<never>;
 	confirmPrompt?: string;
+	/** The command's `secret` declaration, which the journal middleware reads. */
+	secret?: boolean;
 }
 
 /** The canonical JSON of a value, or undefined when it has none. */
@@ -128,6 +130,7 @@ export function beginAdmission(context: CommandContext, command: AdmissionComman
 			name: command.name,
 			approval: command.approval,
 			confirmPrompt: command.confirmPrompt,
+			...(command.secret === true && { secret: true }),
 		},
 		admitted: [],
 		steps: new Set(),

@@ -243,6 +243,19 @@ describe('the journal', () => {
 		expect(redactJournalRecord(noPassword)).toBe(noPassword);
 		const nullInput = { ...base, command: 'auth-sign-in', input: null };
 		expect(redactJournalRecord(nullInput)).toBe(nullInput);
+		// A `secret` command with no rule for its secret keeps its entry, but neither input nor result.
+		const secret = {
+			...base,
+			command: 'vault-unlock',
+			input: { passphrase: 'x' },
+			result: { success: true, data: { key: 'k' } },
+		};
+		expect(redactJournalRecord(secret, false, true)).toMatchObject({
+			input: {},
+			result: { success: true },
+			lossy: true,
+		});
+		expect(JSON.stringify(redactJournalRecord(secret, false, true))).not.toMatch(/passphrase|"k"/);
 	});
 
 	it('records failures and filters unjournaled commands and standalone notification-list', () => {

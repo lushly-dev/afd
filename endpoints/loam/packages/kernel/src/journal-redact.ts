@@ -102,7 +102,22 @@ const unitResult = (record: JournalRecord): boolean => {
  * error caught by the journal (`threw === true`) lossy so a replay stops there instead of diverging (#2300). A handler
  * that explicitly returns a `COMMAND_EXECUTION_ERROR` failure without throwing stays replayable.
  */
-export function redactJournalRecord(record: JournalRecord, threw = false): JournalRecord {
+export function redactJournalRecord(
+	record: JournalRecord,
+	threw = false,
+	secret: boolean | undefined = false
+): JournalRecord {
+	// A command that declares `secret` with no rule here for its secret (only `auth-sign-in`'s password has one) keeps
+	// its entry, but neither its input nor its result.
+	if (secret !== false && record.command !== 'auth-sign-in') {
+		return {
+			...record,
+			input: {},
+			result: { success: record.result.success },
+			unreplayable: true,
+			lossy: true,
+		} as unknown as JournalRecord;
+	}
 	if (unitSubmit(record)) {
 		const { result } = record;
 		return {
