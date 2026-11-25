@@ -16,6 +16,7 @@
 #include <thread>
 #endif
 
+#include "detail/approval_admission.hpp"
 #include "detail/exceptions.hpp"
 #include "detail/json_io.hpp"
 #include "detail/random_unit.hpp"
@@ -374,6 +375,9 @@ CommandMiddleware compose_middleware(std::vector<CommandMiddleware> middlewares)
                 return outer_next();
             }
             const Next next = [&, index] { return dispatch(index + 1); };
+            // A part the registry reaches through this composition is still the registry's
+            // (journal_replay.cpp, `live_secret`).
+            const detail::InheritRegistryNext inherit(context, outer_next, next);
             return (*chain)[index](name, input, context, next);
         };
         return dispatch(0);

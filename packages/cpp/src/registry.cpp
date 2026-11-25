@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <mutex>
 
 #include "detail/approval_admission.hpp"
@@ -664,6 +665,48 @@ CommandResult CommandRegistry::execute_impl(std::string_view name, const Json& i
     return result;
 }
 
+namespace detail {
+
+bool is_registry_next(const CommandContext& context, const Next& next) {
+    ApprovalAdmission* record = context.approval_admission.get();
+    if (!record) {
+        return false;
+    }
+    const Next* address = &next;
+    const std::less<const Next*> before;
+    const std::lock_guard lock(record->mutex);
+    if (record->chain_begin != nullptr && !before(address, record->chain_begin) &&
+        before(address, record->chain_end)) {
+        return true;
+    }
+    return std::find(record->inherited.begin(), record->inherited.end(), address) !=
+           record->inherited.end();
+}
+
+InheritRegistryNext::InheritRegistryNext(CommandContext& context, const Next& outer,
+                                         const Next& inner)
+    : inner_(&inner) {
+    if (is_registry_next(context, outer)) {
+        record_ = context.approval_admission;
+        const std::lock_guard lock(record_->mutex);
+        record_->inherited.push_back(inner_);
+    }
+}
+
+InheritRegistryNext::~InheritRegistryNext() {
+    if (!record_) {
+        return;
+    }
+    const std::lock_guard lock(record_->mutex);
+    auto& inherited = record_->inherited;
+    if (const auto it = std::find(inherited.begin(), inherited.end(), inner_);
+        it != inherited.end()) {
+        inherited.erase(it);
+    }
+}
+
+} // namespace detail
+
 CommandResult CommandRegistry::run_chain(const RegisteredCommand& command, const Json& input,
                                          CommandContext& context,
                                          detail::ApprovalAdmission& admission,
@@ -740,6 +783,25 @@ CommandResult CommandRegistry::run_chain(const RegisteredCommand& command, const
             return step(definition.name, input, context, inner);
         };
     }
+    // The continuations this chain hands its middleware, by address, so the journal reads the
+    // declaration only for a recorder the registry invoked (journal_replay.cpp, `live_secret`).
+    // Cleared by a destructor as the chain ends, so it holds without exceptions too.
+    struct ChainExtent {
+        detail::ApprovalAdmission& record;
+        ChainExtent(detail::ApprovalAdmission& admitted, const std::vector<Next>& built)
+            : record(admitted) {
+            const std::lock_guard lock(record.mutex);
+            record.chain_begin = built.data();
+            record.chain_end = built.data() + built.size();
+        }
+        ChainExtent(const ChainExtent&) = delete;
+        ChainExtent& operator=(const ChainExtent&) = delete;
+        ~ChainExtent() {
+            const std::lock_guard lock(record.mutex);
+            record.chain_begin = nullptr;
+            record.chain_end = nullptr;
+        }
+    } const extent{admission, chain};
     return chain.front()();
 }
 
