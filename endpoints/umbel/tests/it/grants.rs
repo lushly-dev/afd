@@ -273,3 +273,276 @@ fn write_pack_plugin(root: &std::path::Path, id: &str) {
     .unwrap();
     std::fs::write(dir.join("packs/voice/data/words.txt"), "hello").unwrap();
 }
+
+const STOPPER_MANIFEST: &str = r#"manifest_version = 2
+protocol = 1
+
+[plugin]
+id = "stopper"
+title = "Stopper"
+version = "0.1.0"
+description = "Test plugin verifying non-task inline cancellation stops host services."
+kind = "compiled"
+domains = ["stopper"]
+
+[[grants]]
+name = "config"
+reason = "Reads plugin config after cancellation."
+
+[[grants]]
+name = "clock"
+reason = "Reads the clock before and after cancellation."
+
+[[grants]]
+name = "index"
+reason = "Reads index applied revision after cancellation."
+
+[[grants]]
+name = "index_write"
+reason = "Opens an index writer before cancellation and tests post-cancel steps."
+
+[[commands]]
+name = "stopper-work"
+description = "Open an index writer, wait on a gate, then attempt further host services."
+effects = ["store-write"]
+input_schema = { type = "object", properties = {}, additionalProperties = false }
+"#;
+
+#[derive(Debug)]
+struct CancelReport {
+    before_ok: bool,
+    config: Result<(), String>,
+    now_ms: Result<(), String>,
+    derive_head: Result<(), String>,
+    checkpoint: Result<(), String>,
+    index_applied: Result<(), String>,
+    writer_applied: Result<(), String>,
+    writer_replace: Result<(), String>,
+    writer_clear: Result<(), String>,
+    writer_commit: Result<(), String>,
+}
+
+struct Stopper {
+    entered: std::sync::Mutex<Option<tokio::sync::oneshot::Sender<Result<(), String>>>>,
+    release: std::sync::Mutex<Option<std::sync::mpsc::Receiver<()>>>,
+    done: std::sync::Mutex<Option<tokio::sync::oneshot::Sender<CancelReport>>>,
+}
+
+impl umbel_sdk::Plugin for Stopper {
+    fn manifest(&self) -> &'static str {
+        STOPPER_MANIFEST
+    }
+
+    fn handle(&self, name: &str, _input: Value, cx: &mut umbel_sdk::Cx) -> umbel_sdk::Outcome {
+        assert_eq!(name, "stopper-work");
+        let before_ok = cx.now_ms().is_ok();
+        let mut writer = match cx.index_writer("main") {
+            Ok(writer) => writer,
+            Err(error) => {
+                let message = error.to_string();
+                if let Some(tx) = self.entered.lock().unwrap().take() {
+                    let _ = tx.send(Err(message.clone()));
+                }
+                return umbel_sdk::failure("STOPPER_WRITER", &message, "-");
+            }
+        };
+        if let Some(tx) = self.entered.lock().unwrap().take() {
+            let _ = tx.send(Ok(()));
+        }
+        if let Some(rx) = self.release.lock().unwrap().take() {
+            let _ = rx.recv_timeout(std::time::Duration::from_secs(10));
+        }
+        let doc: umbel_sdk::umbel_store::DocId = "doc-1".to_owned();
+        let map_host = |res: Result<_, umbel_sdk::HostError>| match res {
+            Ok(_) => Ok(()),
+            Err(umbel_sdk::HostError::NotGranted(message)) => Err(message),
+            Err(other) => Err(format!("UNEXPECTED_VARIANT:{other}")),
+        };
+        let map_store = |res: umbel_sdk::umbel_store::Result<()>| match res {
+            Ok(()) => Ok(()),
+            Err(umbel_sdk::umbel_store::StoreError::Invalid(message)) => Err(message),
+            Err(other) => Err(format!("UNEXPECTED_STORE_VARIANT:{other}")),
+        };
+        let report = CancelReport {
+            before_ok,
+            config: map_host(cx.config().map(|_| ())),
+            now_ms: map_host(cx.now_ms().map(|_| ())),
+            derive_head: map_host(cx.derive_head("main").map(|_| ())),
+            checkpoint: map_host(cx.checkpoint("main")),
+            index_applied: map_host(cx.index_applied("main").map(|_| ())),
+            writer_applied: map_store(writer.applied().map(|_| ())),
+            writer_replace: map_store(writer.replace(&doc, Vec::new())),
+            writer_clear: map_store(writer.clear()),
+            writer_commit: map_store(writer.commit(1)),
+        };
+        writer.abort();
+        let refused_config = report.config.clone().err().unwrap_or_default();
+        if let Some(tx) = self.done.lock().unwrap().take() {
+            let _ = tx.send(report);
+        }
+        umbel_sdk::success(json!({ "refused_config": refused_config }))
+    }
+}
+
+fn assert_cancelled_report(report: &CancelReport) {
+    assert!(
+        report.before_ok,
+        "host service before cancellation must succeed"
+    );
+    let checks: [(&str, &Result<(), String>); 9] = [
+        ("config", &report.config),
+        ("now_ms", &report.now_ms),
+        ("derive_head", &report.derive_head),
+        ("checkpoint", &report.checkpoint),
+        ("index_applied", &report.index_applied),
+        ("writer_applied", &report.writer_applied),
+        ("writer_replace", &report.writer_replace),
+        ("writer_clear", &report.writer_clear),
+        ("writer_commit", &report.writer_commit),
+    ];
+    for (label, outcome) in checks {
+        let Err(message) = outcome else {
+            panic!("{label} should be refused after cancellation");
+        };
+        assert!(
+            message.starts_with("COMMAND_CANCELLED:"),
+            "{label}: expected COMMAND_CANCELLED refusal, got `{message}`"
+        );
+        assert!(
+            !message.contains("TASK_STOPPED") && !message.contains("TASK_SPACE_UNREADABLE"),
+            "{label}: non-task refusal must not carry task error text: `{message}`"
+        );
+    }
+}
+
+fn stopper_workspace() -> tempfile::TempDir {
+    support::workspace(
+        r#"config_version = 3
+default_space = "main"
+
+[spaces.main]
+
+[plugins]
+enabled = ["stopper"]
+
+[plugins.stopper.grants.index_write]
+allow = ["main"]
+"#,
+    )
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn timed_out_inline_plugin_call_is_refused_subsequent_host_services_and_writer_steps() {
+    let dir = stopper_workspace();
+    let (entered_tx, entered_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::sync_channel(1);
+    let (done_tx, done_rx) = tokio::sync::oneshot::channel();
+    let stopper = Stopper {
+        entered: std::sync::Mutex::new(Some(entered_tx)),
+        release: std::sync::Mutex::new(Some(release_rx)),
+        done: std::sync::Mutex::new(Some(done_tx)),
+    };
+    let host = std::sync::Arc::new(seal(dir.path(), |b| b.with_compiled(sdk(stopper))).unwrap());
+    // Pre-warm the `main` space stores (SQLite + Tantivy) before arming the command deadline so
+    // cold disk initialization cannot race `cx.index_writer("main")` under heavy parallel test load.
+    let warm = call(&host, agent("a"), "store-show", json!({"space": "main"})).await;
+    assert!(warm.success, "store pre-warm must succeed: {warm:?}");
+
+    let before_counts = umbel::testkit::task_services("stopper-work");
+
+    let run_host = std::sync::Arc::clone(&host);
+    let handle = tokio::spawn(async move {
+        let ctx = run_host.context(agent("a")).with_timeout(250);
+        run_host
+            .registry()
+            .execute("stopper-work", json!({}), Some(ctx))
+            .await
+    });
+
+    // Ensure the plugin has entered `handle` and opened its index writer before timing out.
+    tokio::time::timeout(std::time::Duration::from_secs(5), entered_rx)
+        .await
+        .expect("plugin should enter handle")
+        .expect("entered channel closed")
+        .expect("plugin should open index writer before timeout");
+
+    let result = handle.await.unwrap();
+    assert!(!result.success, "timed-out call must fail: {result:?}");
+    assert_eq!(
+        result.error.as_ref().map(|e| e.code.as_str()),
+        Some("TIMEOUT"),
+        "{result:?}"
+    );
+
+    // Release the still-running blocking thread and verify every subsequent host service and
+    // writer step is refused with COMMAND_CANCELLED.
+    release_tx.send(()).unwrap();
+    let report = tokio::time::timeout(std::time::Duration::from_secs(5), done_rx)
+        .await
+        .expect("blocking thread should finish after release")
+        .expect("done channel closed");
+    assert_cancelled_report(&report);
+
+    // Non-task inline calls must never increment `testkit::task_services`.
+    assert_eq!(umbel::testkit::task_services("stopper-work"), before_counts);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn externally_cancelled_inline_plugin_call_refuses_host_services_and_preserves_result() {
+    let dir = stopper_workspace();
+    let (entered_tx, entered_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::sync_channel(1);
+    let (done_tx, done_rx) = tokio::sync::oneshot::channel();
+    let stopper = Stopper {
+        entered: std::sync::Mutex::new(Some(entered_tx)),
+        release: std::sync::Mutex::new(Some(release_rx)),
+        done: std::sync::Mutex::new(Some(done_tx)),
+    };
+    let host = std::sync::Arc::new(seal(dir.path(), |b| b.with_compiled(sdk(stopper))).unwrap());
+    let before_counts = umbel::testkit::task_services("stopper-work");
+
+    let signal = afd::CancellationSignal::new();
+    let run_host = std::sync::Arc::clone(&host);
+    let run_signal = signal.clone();
+    let handle = tokio::spawn(async move {
+        let ctx = run_host.context(agent("a")).with_cancellation(run_signal);
+        run_host
+            .registry()
+            .execute("stopper-work", json!({}), Some(ctx))
+            .await
+    });
+
+    tokio::time::timeout(std::time::Duration::from_secs(5), entered_rx)
+        .await
+        .expect("plugin should enter handle")
+        .expect("entered channel closed")
+        .expect("plugin should open index writer before cancel");
+
+    signal.cancel();
+    release_tx.send(()).unwrap();
+
+    let result = handle.await.unwrap();
+    // Per spec/execution-controls.md ("In-flight preservation"), an externally cancelled inline
+    // call that finishes before any deadline preserves the handler's own CommandResult.
+    assert!(
+        result.success,
+        "in-flight result must be preserved: {result:?}"
+    );
+    let refused = result
+        .data
+        .as_ref()
+        .and_then(|d| d["refused_config"].as_str())
+        .unwrap_or_default();
+    assert!(
+        refused.starts_with("COMMAND_CANCELLED:"),
+        "expected COMMAND_CANCELLED refusal, got `{refused}`"
+    );
+
+    let report = tokio::time::timeout(std::time::Duration::from_secs(5), done_rx)
+        .await
+        .expect("report should arrive")
+        .expect("done channel closed");
+    assert_cancelled_report(&report);
+
+    assert_eq!(umbel::testkit::task_services("stopper-work"), before_counts);
+}

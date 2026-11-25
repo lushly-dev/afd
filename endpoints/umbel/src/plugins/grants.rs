@@ -236,12 +236,14 @@ impl Services {
 /// A running task's space is no longer readable by its caller (phase 5 section 10.5).
 pub(crate) const TASK_SPACE_UNREADABLE: &str = "TASK_SPACE_UNREADABLE";
 
-/// Why a task's guard refused a host service.
+/// Why a call's guard refused a host service.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Refusal {
     /// The task was stopped: cancelled, its token expired, its time to live ended, or another
     /// process found it lost.
     Stopped,
+    /// A non-task call was cancelled: its deadline passed or its caller cancelled the signal.
+    Cancelled,
     /// A space of the call is no longer readable by the caller.
     Unreadable,
 }
@@ -250,6 +252,7 @@ impl Refusal {
     fn into_service_error(self) -> ServiceError {
         ServiceError::NotGranted(match self {
             Self::Stopped => "TASK_STOPPED: the task running this call was stopped (cancelled, its token expired, its time to live ended or it was lost), so it gets no more host services".to_owned(),
+            Self::Cancelled => "COMMAND_CANCELLED: this call was cancelled or timed out, so it gets no more host services".to_owned(),
             Self::Unreadable => format!(
                 "{TASK_SPACE_UNREADABLE}: a space of this task is no longer readable by its caller"
             ),
@@ -257,17 +260,25 @@ impl Refusal {
     }
 }
 
-/// A task's checks before each host service, its batches (phase 5 section 12.2): a stopped task
-/// gets nothing more, and the reader filter is rebuilt from the current configuration and the
-/// call's stored scopes and claim groups for every space of the call, refusing one the caller can
-/// no longer read. A call that is not a task passes.
+/// A call's checks before each host service, its batches (phase 5 section 12.2):
+/// - A non-task call whose cancellation signal has fired (deadline passed or caller cancelled)
+///   gets nothing more (`Refusal::Cancelled`), while space-readability revocation stays
+///   task-only.
+/// - A stopped task gets nothing more (`Refusal::Stopped`), and for a live task the reader
+///   filter is rebuilt from the current configuration and the call's stored scopes and claim
+///   groups for every space of the call, refusing one the caller can no longer read
+///   (`Refusal::Unreadable`).
 pub(crate) fn task_guard(
     config: &crate::workspace::Config,
     context: &CommandContext,
     spaces: &[SpaceId],
 ) -> Result<(), Refusal> {
     if !context.is_task() {
-        return Ok(());
+        return if context.is_cancelled() {
+            Err(Refusal::Cancelled)
+        } else {
+            Ok(())
+        };
     }
     if context.is_cancelled() {
         return Err(Refusal::Stopped);
@@ -468,10 +479,77 @@ impl CallServices {
         true
     }
 
+    /// The bytes consumed from the per-call log budget so far.
+    #[cfg(all(test, feature = "component"))]
+    pub(crate) fn log_bytes_used(&self) -> u64 {
+        self.log_bytes.load(Ordering::Relaxed)
+    }
+
+    /// Minimal `CallServices` for WASI unit tests in `plugins::component::wasi`.
+    #[cfg(all(test, feature = "component"))]
+    #[allow(clippy::unwrap_used)]
+    pub(crate) fn for_wasi_test(workspace: Workspace, context: CommandContext) -> Self {
+        let workspace = Arc::new(workspace);
+        let projector = Arc::new(Projector::new(Arc::clone(&workspace)));
+        let stores: Hub = Arc::new(crate::store::Stores::new(Arc::clone(&workspace)));
+        let meaning = Arc::new(crate::meaning::MeaningHub::load(
+            Arc::clone(&workspace),
+            BTreeMap::new(),
+        ));
+        let space = workspace.default_space().clone();
+        let files: Arc<dyn super::files::PluginFiles + Send + Sync> =
+            Arc::new(super::files::AssetFiles::new(&[]));
+        let packs = PackSet::load(
+            &workspace.root().join("spaces"),
+            "wasi-test",
+            &[],
+            &files,
+            std::slice::from_ref(&space),
+        )
+        .unwrap();
+        let shared = Arc::new(Shared {
+            instance: "wasi-test".to_owned(),
+            granted: BTreeSet::new(),
+            config: Value::Null,
+            spaces: vec![space.clone()],
+            packs,
+            workspace,
+            projector,
+            stores,
+            allow: BTreeMap::new(),
+            commands: BTreeMap::new(),
+            ledger: Arc::new(Ledger::default()),
+            attestations: Arc::new(PipelineAttestations::default()),
+            memory_policy: None,
+            prompts: Arc::new(std::sync::OnceLock::new()),
+            records: BTreeMap::new(),
+            records_default_access: crate::workspace::DefaultAccess::Private,
+            meaning,
+        });
+        Self {
+            shared,
+            context,
+            revoked: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            space: space.clone(),
+            spaces: vec![space],
+            command: None,
+            person_decision: None,
+            person_gate: None,
+            as_principal: None,
+            read_only: false,
+            pack_bytes: AtomicU64::new(0),
+            log_bytes: AtomicU64::new(0),
+            content_bytes: AtomicU64::new(0),
+        }
+    }
+
     /// A line a component wrote to stdout or stderr. Always linked, never granted, and under the
-    /// same per-call cap as the `log` grant (specification section 4).
+    /// same per-call cap and cancellation guard as the `log` grant (specification section 4).
     #[cfg_attr(not(feature = "component"), allow(dead_code))]
     pub(crate) fn wasi_line(&self, stderr: bool, line: &str) {
+        if self.task_guard().is_err() {
+            return;
+        }
         if !self.log_budget(line.len()) {
             return;
         }
@@ -483,18 +561,19 @@ impl CallServices {
         }
     }
 
-    /// Every host service a plugin calls passes here first: a call that runs as an MCP task and
-    /// was stopped (cancelled, its token expired, its TTL ended) gets no more host services, so
-    /// the plugin, which runs on a blocking thread AFD cannot stop, stops at its next host call:
-    /// between its batches (phase 5 section 12.2, "Cancel is cooperative, between batches").
+    /// Every host service a plugin calls passes here first: a stopped task or a cancelled/timed-out
+    /// inline call gets no more host services, so the plugin, which runs on a blocking thread AFD
+    /// cannot preempt, stops at its next host call (phase 5 section 12.2, "Cancel is cooperative,
+    /// between batches", and `spec/execution-controls.md`).
     pub(super) fn require(&self, grant: &str) -> Result<(), ServiceError> {
         self.task_guard()?;
         require(&self.shared, grant)
     }
 
-    /// A task's checks before every host service (phase 5 section 12.2), which every service
+    /// A call's checks before every host service (phase 5 section 12.2), which every service
     /// passes: [`Self::require`], the derivation reads, maintenance, `as_reader` and each step
-    /// of an index writer session. A call that is not a task passes.
+    /// of an index writer session. Non-task calls check only `context.is_cancelled()`; space
+    /// revocation and `testkit::note_task_service` stay strictly gated on `context.is_task()`.
     pub(super) fn task_guard(&self) -> Result<(), ServiceError> {
         let outcome = task_guard(self.shared.workspace.config(), &self.context, &self.spaces);
         if matches!(&outcome, Err(Refusal::Unreadable)) {
@@ -1162,13 +1241,45 @@ mod task_guard_tests {
             &ada,
             &[SpaceId::parse("gone").unwrap()]
         ));
-        // A call that is not a task is never refused by the guard, even when carrying a
-        // deadline-linked cancellation signal.
+        // A call that is not a task is never refused for unreadable spaces, even when carrying an
+        // uncancelled deadline-linked cancellation signal.
         assert_eq!(task_guard(after.config(), &ada, &alpha), Ok(()));
-        let inline_with_signal = ada.with_cancellation(afd::CancellationSignal::new());
+        let signal = afd::CancellationSignal::new();
+        let inline_with_signal = ada.with_cancellation(signal.clone());
         assert_eq!(
             task_guard(after.config(), &inline_with_signal, &alpha),
             Ok(())
         );
+        // Once that non-task signal is cancelled, the guard refuses with `Refusal::Cancelled`
+        // (and not `Stopped` or `Unreadable`), even when the space is readable.
+        signal.cancel();
+        assert_eq!(
+            task_guard(before.config(), &inline_with_signal, &alpha),
+            Err(Refusal::Cancelled)
+        );
+        assert_eq!(
+            task_guard(after.config(), &inline_with_signal, &alpha),
+            Err(Refusal::Cancelled)
+        );
+        match Refusal::Stopped.into_service_error() {
+            ServiceError::NotGranted(message) => {
+                assert!(message.starts_with("TASK_STOPPED:"), "{message}");
+            }
+            other => panic!("expected NotGranted for Stopped, got {other:?}"),
+        }
+        match Refusal::Unreadable.into_service_error() {
+            ServiceError::NotGranted(message) => {
+                assert!(message.starts_with("TASK_SPACE_UNREADABLE:"), "{message}");
+            }
+            other => panic!("expected NotGranted for Unreadable, got {other:?}"),
+        }
+        match Refusal::Cancelled.into_service_error() {
+            ServiceError::NotGranted(message) => {
+                assert!(message.starts_with("COMMAND_CANCELLED:"), "{message}");
+                assert!(!message.contains("TASK_STOPPED"), "{message}");
+                assert!(!message.contains(TASK_SPACE_UNREADABLE), "{message}");
+            }
+            other => panic!("expected NotGranted for Cancelled, got {other:?}"),
+        }
     }
 }

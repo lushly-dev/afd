@@ -575,13 +575,15 @@ impl CallServices {
         }))
     }
 
-    /// What a writer session needs to run a task's guard after the call that opened it returned.
+    /// What a writer session needs to run a call's guard after the call that opened it returned.
     fn guard_view(&self) -> GuardView {
         GuardView {
             workspace: Arc::clone(&self.shared.workspace),
             context: self.context.clone(),
             spaces: self.spaces().to_vec(),
             revoked: self.revoked(),
+            #[cfg(feature = "testkit")]
+            command: self.command.clone(),
         }
     }
 
@@ -771,37 +773,54 @@ impl CallServices {
     }
 }
 
-/// A task's guard, held by an index writer session ([`CallServices::task_guard`]).
+/// A call's guard, held by an index writer session ([`CallServices::task_guard`]).
 struct GuardView {
     workspace: Arc<crate::workspace::Workspace>,
     context: afd::CommandContext,
     spaces: Vec<crate::workspace::SpaceId>,
     revoked: Arc<std::sync::atomic::AtomicBool>,
+    #[cfg(feature = "testkit")]
+    command: Option<String>,
 }
 
 impl GuardView {
     fn check(&self) -> umbel_store::Result<()> {
-        match super::grants::task_guard(self.workspace.config(), &self.context, &self.spaces) {
+        let outcome =
+            super::grants::task_guard(self.workspace.config(), &self.context, &self.spaces);
+        if matches!(&outcome, Err(super::grants::Refusal::Unreadable)) {
+            self.revoked
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+        #[cfg(feature = "testkit")]
+        if self.context.is_task() {
+            crate::testkit::note_task_service(
+                self.command.as_deref().unwrap_or_default(),
+                outcome.is_err(),
+            );
+        }
+        match outcome {
             Ok(()) => Ok(()),
-            Err(refusal) => {
-                if refusal == super::grants::Refusal::Unreadable {
-                    self.revoked
-                        .store(true, std::sync::atomic::Ordering::SeqCst);
+            Err(refusal) => Err(umbel_store::StoreError::Invalid(match refusal {
+                super::grants::Refusal::Stopped => {
+                    "the task running this call was stopped, so its index writer reads, stages and commits nothing more"
+                        .to_owned()
                 }
-                Err(umbel_store::StoreError::Invalid(format!(
-                    "the task running this call {}, so its index writer stages and commits nothing more",
-                    match refusal {
-                        super::grants::Refusal::Stopped => "was stopped",
-                        super::grants::Refusal::Unreadable => "can no longer read its space",
-                    }
-                )))
-            }
+                super::grants::Refusal::Cancelled => {
+                    "COMMAND_CANCELLED: this call was cancelled or timed out, so its index writer reads, stages and commits nothing more"
+                        .to_owned()
+                }
+                super::grants::Refusal::Unreadable => {
+                    "the task running this call can no longer read its space, so its index writer reads, stages and commits nothing more"
+                        .to_owned()
+                }
+            })),
         }
     }
 }
 
-/// An index writer session that runs a task's guard before each step that changes the index, so a
-/// stopped task commits nothing more, even with a session it opened before it was stopped.
+/// An index writer session that runs a call's guard before each read or write step, so a stopped
+/// task or cancelled inline call reads, stages and commits nothing more, even with a session it
+/// opened before it was stopped. `abort` stays unguarded for cleanup.
 struct GuardedWriter {
     inner: Box<dyn IndexWriterSession>,
     services: GuardView,
@@ -809,6 +828,7 @@ struct GuardedWriter {
 
 impl IndexWriterSession for GuardedWriter {
     fn applied(&self) -> umbel_store::Result<Rev> {
+        self.services.check()?;
         self.inner.applied()
     }
 
