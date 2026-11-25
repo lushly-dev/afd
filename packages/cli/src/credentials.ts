@@ -27,9 +27,18 @@ function trimOws(text: string): string {
 }
 
 /** Query/fragment parameter names whose values are redacted when a URL is printed. */
-const SENSITIVE_PARAM = /token|key|secret|auth|pass(word)?|signature|credential/i;
+const SENSITIVE_PARAM =
+	/^(?:code|assertion|jwt)$|token|key|secret|auth|pass(word)?|signature|credential|code_verifier/i;
+
+/** OAuth-specific query/fragment parameters that must never be persisted to config.json (M9.5). */
+const OAUTH_URL_PARAM =
+	/^(?:code|code_verifier|access_token|refresh_token|id_token|client_secret|assertion|jwt)$/i;
+
+/** Request/response header names whose values are redacted when printed or logged. */
+const SENSITIVE_HEADER = /token|secret|auth|key|cookie|credential/i;
 
 const REDACTED = '***';
+const HEADER_REDACTED = '[redacted]';
 
 /**
  * Parse one `Name: value` header. Throws an `Error` whose message explains the
@@ -148,4 +157,78 @@ export function redactUrl(url: string): string {
 /** Whether printing or saving `url` would expose a credential. */
 export function urlHasCredentials(url: string): boolean {
 	return redact(url).redacted;
+}
+
+/**
+ * Strip OAuth-specific query/fragment parameters (`code`, `access_token`, `refresh_token`,
+ * `id_token`, `code_verifier`, `client_secret`, `assertion`, `jwt`) from `url` before saving it
+ * to `config.json` (`spec/authorization.md`, M9.5).
+ */
+export function stripOAuthUrlCredentials(url: string): { url: string; stripped: boolean } {
+	let parsed: URL;
+	try {
+		parsed = new URL(url);
+	} catch {
+		return { url, stripped: false };
+	}
+	let stripped = false;
+	const stripPart = (raw: string): string => {
+		if (!raw) return '';
+		const kept: string[] = [];
+		for (const param of raw.split('&')) {
+			if (!param) continue;
+			const eq = param.indexOf('=');
+			const rawName = eq === -1 ? param : param.slice(0, eq);
+			let name = rawName;
+			try {
+				name = decodeURIComponent(rawName.replace(/\+/g, ' '));
+			} catch {
+				// Keep rawName if malformed percent-encoding.
+			}
+			if (OAUTH_URL_PARAM.test(name)) {
+				stripped = true;
+			} else {
+				kept.push(param);
+			}
+		}
+		return kept.join('&');
+	};
+	const nextSearch = stripPart(parsed.search.slice(1));
+	const nextHash = stripPart(parsed.hash.slice(1));
+	if (!stripped) return { url, stripped: false };
+	parsed.search = nextSearch;
+	parsed.hash = nextHash;
+	return { url: parsed.toString(), stripped: true };
+}
+
+/** Whether `headers` already sets an `Authorization` header (case-insensitively). */
+export function hasAuthorizationHeader(headers: Readonly<Record<string, string>>): boolean {
+	return Object.keys(headers).some((name) => name.toLowerCase() === 'authorization');
+}
+
+/**
+ * Redact a single header value when its name looks sensitive (`Authorization`,
+ * `Proxy-Authorization`, `Cookie`, `Set-Cookie`, `X-Api-Key`, etc.).
+ */
+export function redactHeaderValue(name: string, value: string): string {
+	return SENSITIVE_HEADER.test(name) ? HEADER_REDACTED : value;
+}
+
+/** Return a copy of `headers` with sensitive header values replaced by `[redacted]`. */
+export function redactHeaders(headers: Readonly<Record<string, string>>): Record<string, string> {
+	const result: Record<string, string> = {};
+	for (const [name, value] of Object.entries(headers)) {
+		result[name] = redactHeaderValue(name, value);
+	}
+	return result;
+}
+
+/** Replace any known secret value occurring inside `text` with `[redacted]`. */
+export function redactSecrets(text: string, secrets: readonly (string | undefined)[]): string {
+	let output = text;
+	for (const secret of secrets) {
+		if (!secret || secret.length < 4) continue;
+		output = output.split(secret).join(HEADER_REDACTED);
+	}
+	return output;
 }

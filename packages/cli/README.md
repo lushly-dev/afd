@@ -27,11 +27,37 @@ afd status
 
 ### Authenticate
 
-Pass credentials as request headers, not in the URL. `-H, --header "Name: value"`
+#### OAuth 2.1 (MCP 2026-07-28)
+
+For hosted MCP servers that require OAuth 2.1 (`spec/authorization.md`, M9), sign in with `afd auth login`:
+
+```bash
+# Discover RFC 9728 + RFC 8414 metadata and sign in with PKCE (S256)
+afd auth login https://loam.example.com/mcp
+
+# Pre-registered confidential client (secret bound to --issuer / AFD_OAUTH_ISSUER)
+afd auth login https://loam.example.com/mcp --client-id my-cli-client \
+  --client-secret-file ~/.config/loam.secret --issuer https://auth.example.com
+
+# Print the authorize URL without launching a browser (also automatic when non-interactive)
+afd auth login https://loam.example.com/mcp --no-browser
+
+# Inspect stored sessions (never prints raw tokens), refresh, or log out
+afd auth status
+afd auth refresh https://loam.example.com/mcp
+afd auth logout https://loam.example.com/mcp
+```
+
+`afd auth login` probes the MCP endpoint for a 401 `WWW-Authenticate` challenge before falling back to RFC 9728 protected-resource metadata and RFC 8414 / OpenID Connect Discovery authorization-server metadata, supports Client ID Metadata Documents (CIMD, default `https://afd.dev/oauth/cli-client.json`) and pre-registered clients, runs the authorization code flow with PKCE (`S256`) on an ephemeral `127.0.0.1` loopback redirect, and stores tokens in a separate owner-only `tokens.json` file outside `config.json`. Subsequent Streamable HTTP commands (`connect`, `status`, `tools`, `call`, `batch`, `validate`, `shell`, `scenario run`) attach the stored bearer token automatically to the exact bound resource URL and refresh it when expiring. Derived routes (`afd stream` targeting `/stream/<command>` and legacy `http`/`sse` transports) never receive a stored OAuth token automatically; pass `--header` or `AFD_HEADERS` explicitly if trusted.
+
+#### Request Headers
+
+Pass static credentials as request headers, not in the URL. `-H, --header "Name: value"`
 is accepted by every command that connects (`connect`, `status`, `tools`,
 `call`, `batch`, `stream`, `validate`, `shell`, `scenario run`) and can be
 repeated. The `AFD_HEADERS` environment variable supplies the same headers, one
-`Name: value` per line; a `--header` with the same name wins.
+`Name: value` per line; a `--header` with the same name wins, and an explicit
+`Authorization` header always takes precedence over stored OAuth tokens.
 
 ```bash
 # One command
@@ -284,6 +310,7 @@ comparison.
 
 | Command | Description |
 |---------|-------------|
+| `auth login\|status\|refresh\|logout` | Sign in to OAuth 2.1 MCP servers and manage stored tokens |
 | `connect <url>` | Connect to an MCP server |
 | `disconnect` | Disconnect from server |
 | `status` | Show connection status |
@@ -313,6 +340,23 @@ comparison.
 | `--timeout <ms>` | Connection timeout. Default: 30000 |
 | `--no-reconnect` | Save the connection with auto-reconnect off, so `afd shell` does not reconnect it when it drops. One-shot commands never reconnect |
 | `-H, --header <header>` | Request header `"Name: value"`, repeatable. Not saved |
+
+### auth
+
+| Option | Description |
+|--------|-------------|
+| `login [url]` | Sign in via OAuth 2.1 authorization code + PKCE (`S256`). Default URL: saved connection |
+| `--client-id <id>` | Pre-registered client ID or CIMD HTTPS URL (also `AFD_OAUTH_CLIENT_ID`) |
+| `--client-secret-file <path>` | Owner-only file holding a confidential client secret (or `AFD_OAUTH_CLIENT_SECRET`; never persisted) |
+| `--issuer <url>` | Authorization server issuer (required when using a client secret; also `AFD_OAUTH_ISSUER`) |
+| `--scope <scopes>` | Space-separated OAuth scopes to request |
+| `--redirect-port <port>` | Pin the `127.0.0.1` loopback callback port (default: ephemeral) |
+| `--no-browser` | Print the authorization URL without opening a browser (automatic when non-interactive) |
+| `--no-offline` | Do not request `offline_access` automatically |
+| `--timeout <ms>` | Browser authorization timeout in milliseconds. Default: 300000 |
+| `status [url]` | List stored OAuth sessions without printing token values (`-f, --format json\|text`) |
+| `refresh [url]` | Force-refresh the stored token (`--client-secret-file`, `--issuer`, `-f, --format`) |
+| `logout [url]` | Remove stored tokens for one server, or `--all` to clear every session |
 
 ### tools
 

@@ -49,7 +49,7 @@ export function registerStreamCommand(program: Command): void {
 				return process.exit(1);
 			}
 
-			const client = await requireClient(options);
+			const client = await requireClient(options, { derivedRoute: true });
 
 			const timeout = Number.parseInt(options.timeout, 10);
 			const format = options.format;

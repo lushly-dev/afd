@@ -1,0 +1,9 @@
+{
+	"client_id": "https://afd.dev/oauth/cli-client.json",
+	"client_name": "AFD CLI",
+	"client_uri": "https://afd.dev",
+	"redirect_uris": ["http://127.0.0.1/callback"],
+	"grant_types": ["authorization_code", "refresh_token"],
+	"response_types": ["code"],
+	"token_endpoint_auth_method": "none"
+}

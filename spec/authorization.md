@@ -11,12 +11,14 @@ and 0c); TypeScript and Python follow, and already bind the principal (M8) in co
 (step 0c). C++ has no HTTP server, so none of this applies to it.
 
 **Sources.** MCP 2026-07-28 [Authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization)
-and its security considerations; RFC 6749 (OAuth 2.0) 3.3; RFC 6750 (bearer tokens) 2 and 3;
-RFC 7515 (JWS) 4.1; RFC 7517 (JWK) 4; RFC 7518 (JWA) 3; RFC 7519 (JWT) 4.1; RFC 7662
-(introspection) 2.2; RFC 8037 (EdDSA in JOSE) 3.1; RFC 8705 (mutual-TLS bound tokens) 3.1;
-RFC 8707 (resource indicators) 2; RFC 8725 (JWT best practices) 3.11; RFC 9068 (JWT access tokens)
-2 and 4; RFC 9110 (HTTP semantics) 11; RFC 9449 (DPoP) 6.1; RFC 9728 (protected-resource
-metadata) 2, 3 and 5.
+and its security considerations; RFC 6749 (OAuth 2.0) 3.3 and 6; RFC 6750 (bearer tokens) 2 and 3;
+RFC 7515 (JWS) 4.1; RFC 7517 (JWK) 4; RFC 7518 (JWA) 3; RFC 7519 (JWT) 4.1; RFC 7636 (PKCE) 4;
+RFC 7662 (introspection) 2.2; RFC 8037 (EdDSA in JOSE) 3.1; RFC 8252 (OAuth for native apps) 7.3;
+RFC 8414 (authorization-server metadata) 3; RFC 8705 (mutual-TLS bound tokens) 3.1; RFC 8707
+(resource indicators) 2; RFC 8725 (JWT best practices) 3.11; RFC 9068 (JWT access tokens) 2 and 4;
+RFC 9110 (HTTP semantics) 11; RFC 9207 (authorization server issuer identification) 2; RFC 9449
+(DPoP) 6.1; RFC 9728 (protected-resource metadata) 2, 3 and 5; OpenID Connect Discovery 1.0 4;
+OAuth Client ID Metadata Document (MCP 2026-07-28 profile).
 
 ## Terms
 
@@ -519,6 +521,182 @@ different principal. Over HTTP without credentials, every caller binds alike unl
 each to its own actor, so a server creates no task there unless the host declares that its hook
 does ([tasks](./command-metadata.md#tasks)).
 
+## M9. The OAuth client (CLI)
+
+How an AFD CLI obtains, stores, refreshes and redacts OAuth 2.1 bearer tokens to reach a protected
+MCP server under MCP 2026-07-28 ([#912](https://github.com/lushly-dev/afd/issues/912)). Applies to
+every language that ships an AFD CLI (TypeScript and Python; Rust and C++ have no CLI).
+
+### M9.1. Discovery
+
+Discovery resolves the server's canonical resource URI, its RFC 9728 protected-resource metadata,
+and its RFC 8414 (or OpenID Connect Discovery 1.0) authorization-server metadata before any
+credential or redirect is sent.
+
+- **Canonical resource URI.** Strip query and fragment from the MCP endpoint URL. For storage
+  keying, normalize scheme and host to ASCII lowercase while keeping port and path exact (matching
+  [M3.1](#m31-the-audience) comparison semantics).
+- **Transport security.** Every resource, `resource_metadata`, `authorization_servers`,
+  `authorization_endpoint`, `token_endpoint` and Client ID Metadata Document URL MUST use `https:`.
+  The only exception is loopback `http:` (`127.0.0.1`, `[::1]`, `localhost`) when the target MCP
+  server URL itself is loopback `http:` (for local development or testing). An `https:` server MUST
+  NEVER downgrade any discovered endpoint or metadata URL to `http:`, including loopback.
+- **HTTP hardening.** Metadata and token requests MUST NOT follow redirects (`redirect: "manual"`,
+  refusing 3xx responses), MUST cap response size (256 KiB) and request time, and MUST send
+  `Accept: application/json` and `Cache-Control: no-store`.
+- **Protected-resource metadata (RFC 9728).** Unless a 401 `WWW-Authenticate` challenge was
+  already obtained, send one unauthenticated Streamable HTTP probe (`POST` to the canonical
+  resource URI with `Accept: application/json, text/event-stream`,
+  `Content-Type: application/json`, `MCP-Protocol-Version: 2026-07-28`,
+  `Mcp-Method: server/discover`, body `{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}}`)
+  to capture any authoritative 401 `WWW-Authenticate: Bearer` challenge (`resource_metadata` and
+  `scope`). If a 401 `WWW-Authenticate: Bearer` challenge carries `resource_metadata`, verify that
+  it is same-origin with the MCP server URL (scheme, host and port match) and meets the transport
+  security rule, then fetch it first. Otherwise (or if the probe did not yield `resource_metadata`),
+  probe [M7](#m7-protected-resource-metadata)'s two well-known URLs in order:
+  `<origin>/.well-known/oauth-protected-resource<path>`, then
+  `<origin>/.well-known/oauth-protected-resource` (one probe when path is empty or `/`). Validate
+  that the returned JSON object's `resource` matches the MCP server's canonical resource URI under
+  [M3.1](#m31-the-audience) equality and that `authorization_servers` is a non-empty array of valid
+  issuer URLs. Select the first entry, or an explicit `--issuer` that appears in
+  `authorization_servers`.
+- **Authorization-server metadata (RFC 8414 and OIDC Discovery 1.0).** For an issuer
+  `<origin><path>` (dropping a bare trailing `/`), probe in order:
+  1. `<origin>/.well-known/oauth-authorization-server<path>`
+  2. `<origin>/.well-known/openid-configuration<path>`
+  3. `<origin><path>/.well-known/openid-configuration` (when `<path>` is non-empty)
+
+  Validate the returned JSON object:
+  - `issuer` MUST equal the selected authorization server string byte for byte (RFC 8414 3.3);
+  - `authorization_endpoint` and `token_endpoint` MUST be valid absolute URLs meeting the transport
+    security rule above, with no userinfo or fragment, no credential-like query parameters on
+    `authorization_endpoint`, and no query on `token_endpoint`;
+  - `code_challenge_methods_supported` MUST be an array containing `"S256"` (fail closed: PKCE S256
+    is mandatory);
+  - `response_types_supported`, when present, MUST contain `"code"`;
+  - `grant_types_supported`, when present, MUST contain `"authorization_code"`.
+
+### M9.2. Client registration
+
+Two registration modes are supported; Dynamic Client Registration (RFC 7591) is not used (MCP
+2026-07-28 deprecates it in favor of Client ID Metadata Documents):
+
+1. **Client ID Metadata Document (CIMD).** A `client_id` that is an `https:` URL with at least one
+   non-empty path segment (rejecting empty, `/`, and slash-only paths), no userinfo, no query, no
+   fragment, no `.` or `..` path segments (literal or percent-encoded), and no encoded path
+   separators (`%2f`/`%5c`) or malformed percent escapes. Syntactic validation follows the CIMD
+   draft and does not impose a client-side ban on IP-literal hosts (SSRF fetch policy belongs to
+   the authorization server). When the user supplies no `--client-id` and the authorization server
+   advertises `client_id_metadata_document_supported: true`, the CLI uses its configured or default
+   CIMD URL (`https://afd.dev/oauth/cli-client.json`, published in `site/oauth/cli-client.json` and
+   overridable by `--client-id` or `AFD_OAUTH_CLIENT_ID`). CIMD clients are always public
+   (`token_endpoint_auth_method: "none"`); combining a CIMD URL with a client secret is refused. If
+   the server explicitly sets `client_id_metadata_document_supported: false`, a CIMD flow is
+   refused with a suggestion to pass a pre-registered `--client-id`.
+2. **Pre-registration.** The user supplies `--client-id <id>` (or `AFD_OAUTH_CLIENT_ID`). Public
+   clients authenticate with `client_id` in the token request body (`none`). Confidential clients
+   supply their secret only through `AFD_OAUTH_CLIENT_SECRET` or `--client-secret-file <path>` (an
+   owner-only file; never a CLI flag value that would appear in process listings or shell history),
+   and MUST bind that secret to an expected issuer via `--issuer <url>` or `AFD_OAUTH_ISSUER`
+   matching the authorization server `issuer` byte for byte before login or refresh (so a resource
+   changing authorization servers cannot cause the CLI to send a previous issuer's secret to a
+   different server). At the token endpoint, confidential clients select `client_secret_basic`
+   (RFC 6749 2.3.1, preferred when listed in `token_endpoint_auth_methods_supported` or when the
+   field is absent) or `client_secret_post`, failing closed if the server supports neither.
+
+### M9.3. Authorization code flow with PKCE (S256) and loopback redirect
+
+- **Loopback callback (RFC 8252 7.3).** Bind an HTTP listener on `127.0.0.1` (IP literal, never
+  `localhost`) on an ephemeral port (`0`, or an explicit `--redirect-port` for pre-registered
+  clients that pin a port), accepting only `GET /callback`. `redirect_uri` is
+  `http://127.0.0.1:<port>/callback`.
+- **PKCE (S256) and CSRF state.** Generate a 32-byte cryptographically random `code_verifier`
+  (43 unpadded base64url characters), compute `code_challenge = base64url(SHA-256(ASCII(verifier)))`
+  with `code_challenge_method = "S256"`, and generate a 32-byte cryptographically random `state`.
+- **Authorization request.** Build `authorization_endpoint` query parameters: `response_type=code`,
+  `client_id`, `redirect_uri`, `code_challenge`, `code_challenge_method=S256`, `state`,
+  `resource=<canonical resource>` (RFC 8707), and `scope` (from `--scope`, else challenge `scope`,
+  else `scopes_supported`; append `offline_access` when supported and not disabled). Print the
+  authorization URL and open the system browser unless `--no-browser` or non-interactive (stdin or
+  stdout is not a TTY).
+- **Callback verification.**
+  - Compare `state` in constant time (`timingSafeEqual` over equal-length buffers). Requests with a
+    missing or mismatched `state` receive HTTP 400 static HTML and are ignored (aborting after a
+    small cap of invalid callbacks).
+  - **Issuer check (RFC 9207) before outcome dispatch.** If
+    `authorization_response_iss_parameter_supported` is `true` in AS metadata, `iss` MUST be
+    present and equal `metadata.issuer` byte for byte before processing either `code` or `error`;
+    if `iss` is present even when the metadata omits the flag, it MUST still equal
+    `metadata.issuer`. Refusing on mismatch prevents mix-up attacks.
+  - If `error` is present with matching `state` and valid `iss`, answer with static HTML and fail
+    with a sanitized/redacted OAuth error code (unrecognized or secret-bearing values fall back to
+    `unknown_error`).
+  - Answer the browser with static HTML (`Content-Type: text/html; charset=utf-8`,
+    `Cache-Control: no-store`, `Content-Security-Policy: default-src 'none'`,
+    `X-Content-Type-Options: nosniff`) that echoes NO query parameters, wait for the response to
+    flush, and close the loopback listener immediately before starting the token exchange.
+- **Token exchange.** `POST` `application/x-www-form-urlencoded` to `token_endpoint` with
+  `grant_type=authorization_code`, `code`, `redirect_uri`, `code_verifier`, `resource`, and client
+  authentication. On non-200 responses, map/sanitize `error` to recognized OAuth error codes (never
+  echoing arbitrary server strings or submitted secrets). Validate HTTP 200 JSON: `token_type` MUST
+  be `Bearer` (ASCII case-insensitive; unsupported schemes such as `DPoP` are refused),
+  `access_token` MUST match [M2](#m2-the-bearer-token)'s `b64token` grammar, `expires_in` (when
+  present) MUST be a positive finite number, and `refresh_token` (when present) MUST be a non-empty
+  string. `code_verifier`, `state`, and `code` remain in memory only and are never written to disk.
+
+### M9.4. Token storage and refresh on expiry
+
+- **Outside the config file.** Tokens MUST NOT be stored in the CLI config file (`config.json`).
+  They are persisted in a separate token store file (`tokens.json` beside the CLI config directory)
+  inside a versioned envelope, keyed by canonical resource URI so a token for one server is never
+  sent to another. Stored entries whose `resource` does not match their key are ignored.
+- **Exact resource binding on outgoing requests.** Automatic OAuth bearer attachment applies only
+  to exact-resource Streamable HTTP MCP connections (`transport === "streamable-http"`). Derived
+  routes (`afd stream` targeting `/stream/<command>`, or legacy `http`/`sse` transports probing
+  `/health` or secondary message endpoints) refuse to send a stored OAuth token automatically and
+  require an explicit `--header` / `AFD_HEADERS` override if trusted.
+- **Owner-only permissions, descriptor checks and atomic writes.** Writes go to an exclusive
+  sibling temporary file whose owner-only permissions (`0o600` on POSIX inside a `0o700`
+  owner-owned directory; current user, `SYSTEM`, and `Administrators` ACL on Windows) are applied
+  *before* writing token bytes, flushed, and atomically renamed into place. Reads enforce the
+  private directory, open the file with `O_NOFOLLOW` where available and check ownership, regular
+  file type and mode on the opened descriptor on POSIX (and verify the effective DACL via SDDL on
+  Windows), failing closed with a remediation suggestion. Neither `client_secret` nor transient
+  PKCE/auth-code state is persisted in the token store.
+- **Cross-process serialization.** Store mutations and token refreshes serialize through an
+  exclusive lockfile beside `tokens.json`; after acquiring the lock, refresh re-reads the store so
+  a token already rotated by another process is reused rather than refreshed twice, and permanent
+  error cleanup deletes an entry only if its stored `refreshToken` still matches the attempted one.
+- **Precedence.** An explicit `Authorization` header supplied via `--header` or `AFD_HEADERS`
+  always takes precedence over stored OAuth tokens.
+- **Proactive and reactive refresh.** Before using a stored token, if `expiresAt` is within the
+  expiry skew buffer (30 seconds) or already elapsed:
+  - with a `refreshToken`, `POST` `grant_type=refresh_token` with `refresh_token`, `resource` and
+    client authentication (requiring `--issuer` / `AFD_OAUTH_ISSUER` match for confidential
+    clients) to the stored `tokenEndpoint`, validate the response under M9.3, persist the rotated
+    `refresh_token` (or keep the existing one when the server omits it, RFC 6749 6), and use the
+    fresh `access_token`;
+  - if refresh fails with `invalid_grant`, `invalid_client` or `unauthorized_client`, delete the
+    invalid entry (only if its `refreshToken` still matches) and fail with a suggestion to
+    re-authenticate;
+  - if expired without a `refreshToken` (including mid-session in `afd shell`), refuse to send the
+    expired token and suggest running `afd auth login <url>`.
+  When an OAuth-backed connection receives a real transport HTTP 401 (never an application tool
+  result carrying error code `HTTP_401`) and holds a `refreshToken`, the CLI refreshes at most once
+  and retries; a second 401 fails without looping.
+
+### M9.5. Redaction
+
+- URLs printed or logged redact userinfo and credential query/fragment parameters, including OAuth
+  `code`, `code_verifier`, `access_token`, `refresh_token`, `id_token` and `client_secret`.
+  Persisted connection URLs (`afd connect`, `afd shell`) strip OAuth query/fragment credentials so
+  they never reach `config.json`.
+- Headers printed or logged redact sensitive headers (`Authorization`, `Proxy-Authorization`,
+  `Cookie`, `Set-Cookie`, and any header whose name matches `token`, `secret`, `auth`, `key`,
+  `cookie` or `credential`, case-insensitively) to `[redacted]`.
+- Raw access tokens, refresh tokens, authorization codes, PKCE verifiers and client secrets never
+  appear in stdout, stderr, error messages, debug output or `config.json`.
+
 ## Options
 
 | Option | Meaning | Default |
@@ -578,6 +756,15 @@ The file's sections and what a loader checks:
 - **`principalBindings`:** the actor and credentials give `binding`, and the credentials alone give
   relay evidence's `credentialsBinding`, both compared as strings.
 - **`inputDigests`:** the validated input gives its `canonical` JSON and the relay `inputDigest`.
+
+[`authorization-client.json`](./authorization-client.json) pins the language-neutral client parts
+of [M9](#m9-the-oauth-client-cli): `WWW-Authenticate` challenge parsing (`wwwAuthenticate`),
+RFC 9728 protected-resource metadata URLs (`protectedResourceMetadataUrls`), RFC 8414 and OIDC
+Discovery authorization-server metadata URLs (`authorizationServerMetadataUrls`), RFC 7636 PKCE
+S256 challenges (`pkceS256`), Client ID Metadata Document URL checks (`clientIdMetadataDocuments`),
+canonical resource and same-origin metadata validation (`resourceValidation`), and URL/header
+redaction (`redaction`). It sits beside `authorization.json` so server-only implementations without
+a CLI (such as Rust) keep loading every server section unchanged.
 
 ## Implementation status
 
@@ -702,6 +889,19 @@ same internal error, before any state is verified.
 A retry whose binding differs is refused as a tampered state is, in each language: TypeScript and
 Rust ask again, Python answers `-32602`.
 
+The CLI OAuth 2.1 client ([M9](#m9-the-oauth-client-cli)) is implemented in TypeScript
+(`@lushly-dev/afd-cli`, [#912](https://github.com/lushly-dev/afd/issues/912)): `afd auth login`,
+`afd auth status`, `afd auth logout` and `afd auth refresh`, plus transparent token attachment and
+expiry refresh across Streamable HTTP `connect`, `status`, `tools`, `call`, `batch`, `validate`,
+`shell` and `scenario run`. `packages/cli/src/oauth-cases.test.ts` loads every section of
+[`authorization-client.json`](./authorization-client.json); `oauth.test.ts` and `token-store.test.ts`
+cover discovery, transport security, CIMD and pre-registration, PKCE/state/RFC 9207 `iss`
+validation, owner-only token storage outside `config.json`, refresh rotation and redaction; and
+`oauth.e2e.test.ts` runs the built CLI against an auth-protected AFD MCP server
+(`createMcpHandler({ auth })`) and loopback OAuth 2.1 authorization server with a zero-leak secret
+canary. Python CLI parity is tracked in [#2491](https://github.com/lushly-dev/afd/issues/2491). Rust
+and C++ have no CLI.
+
 <!-- generated:capabilities:spec.authorization.status:start -->
 | Rule | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
@@ -713,4 +913,5 @@ Rust ask again, Python answers `-32602`.
 | Protected-resource metadata (M7) | Yes (step 0a; `createProtectedResource`) | Yes ([#2154](https://github.com/lushly-dev/afd/issues/2154); `create_protected_resource`, `ProtectedResource`) | Yes (step 0b; `ProtectedResource`) | N/A |
 | The principal binding in confirmation state ([#532](https://github.com/lushly-dev/afd/issues/532), M8) | Yes (step 0c; `principalBinding`, with `createContext`'s `actor` and `credentials`; loads `principalBindings`) | Yes (step 0c, [#800](https://github.com/lushly-dev/afd/issues/800), [#2154](https://github.com/lushly-dev/afd/issues/2154); `afd.server.principal_binding`, with AFD's verified credentials or the SDK token; loads `principalBindings`) | Yes (step 0c; `afd::principal_binding` in the gate's associated data; step 0d: the approval-relay state, `RelayCall::principal_binding` and relay evidence too) | Partial: `afd::mcp_stdio` binds `requestState` to command, input and actor; stdio carries no HTTP credentials |
 | `tasks/*` and task owners ([M6, other methods](#other-methods); M8; [tasks](./command-metadata.md#tasks)) | Yes ([#1971](https://github.com/lushly-dev/afd/issues/1971)): `tasks/get`, `tasks/update` and `tasks/cancel` fail closed, bind verified credentials as owner, enforce M6 command scopes and hidden commands, preserve verified credentials inside running tasks, and stop at `credentials.expiresAt` (`TASK_TOKEN_EXPIRED`); `tasks.test.ts` | Yes ([#1972](https://github.com/lushly-dev/afd/issues/1972), [#2154](https://github.com/lushly-dev/afd/issues/2154), [#2155](https://github.com/lushly-dev/afd/issues/2155)): `tasks/*` fail closed, require `required_scopes`, bind AFD verified credentials as owner, stop at `credentials.expires_at`, preserve cloned verified credentials and `ScopeView`, enforce command scopes and hidden commands on `tasks/get` and `tasks/update` (not `tasks/cancel`) | Yes (Umbel phase 5 step 0e): `tasks/get`, `tasks/update` and `tasks/cancel` fail closed, need required scopes and run the context hook; owner is principal binding, checked by `TaskStore` and server; owner must still hold command `scopes` (`visible`/`known`); stops at `credentials.expiresAt` | N/A: not planned for C++ |
+| CLI OAuth 2.1 client ([M9](#m9-the-oauth-client-cli)): PKCE S256 loopback flow, RFC 9728/8414 discovery, CIMD and pre-registration, separate owner-only token store with expiry refresh, and URL/header redaction ([#912](https://github.com/lushly-dev/afd/issues/912)) | Yes ([#912](https://github.com/lushly-dev/afd/issues/912)): `afd auth` (`login`, `status`, `refresh`, `logout`), RFC 9728/8414 discovery, CIMD and pre-registration, PKCE S256 loopback flow, separate `tokens.json` with refresh rotation and URL/header redaction; loads `spec/authorization-client.json` | Planned ([#2491](https://github.com/lushly-dev/afd/issues/2491)): OAuth 2.1 CLI client (`spec/authorization.md`, M9) | N/A: no Rust CLI | N/A: no C++ CLI |
 <!-- generated:capabilities:spec.authorization.status:end -->

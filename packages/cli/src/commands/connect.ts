@@ -13,14 +13,20 @@ import {
 } from '../config.js';
 import {
 	type ConnectFlags,
-	createCliClient,
+	connectWithAuth,
 	getClient,
 	headersOrExit,
 	inferTransport,
+	isUnauthorizedError,
 	setClient,
 	tryConnect,
 } from '../connection.js';
-import { HEADERS_ENV, redactUrl, urlHasCredentials } from '../credentials.js';
+import {
+	HEADERS_ENV,
+	redactUrl,
+	stripOAuthUrlCredentials,
+	urlHasCredentials,
+} from '../credentials.js';
 import {
 	printClientStatus,
 	printError,
@@ -71,7 +77,7 @@ export function registerConnectCommand(program: Command): void {
 				// `connect` is one-shot, so a dropped stream must not start a
 				// reconnect loop that keeps the process alive. `--no-reconnect`
 				// is saved for `afd shell`, the only long-lived client.
-				const client = createCliClient({
+				const { client, initResult: result } = await connectWithAuth({
 					url,
 					transport,
 					timeout,
@@ -79,8 +85,6 @@ export function registerConnectCommand(program: Command): void {
 					headers,
 				});
 				setClient(client);
-
-				const result = await client.connect();
 
 				spinner.succeed('Connected');
 				console.log();
@@ -93,15 +97,22 @@ export function registerConnectCommand(program: Command): void {
 				});
 
 				// Save every option needed to reproduce this connection in another
-				// process, except the headers: credentials are never written to disk.
+				// process, except headers and OAuth URL credentials (never written to config.json).
+				const sanitized = stripOAuthUrlCredentials(url);
 				saveConnection({
-					url,
+					url: sanitized.url,
 					transport,
 					timeout,
 					autoReconnect: options.reconnect !== false,
 				});
 
-				if (urlHasCredentials(url)) {
+				if (sanitized.stripped) {
+					console.log();
+					printWarning(
+						'OAuth credentials in the URL were stripped and not saved to config.json. Use "afd auth login <url>" instead.'
+					);
+				}
+				if (urlHasCredentials(sanitized.url)) {
 					console.log();
 					printWarning(
 						`The URL contains credentials and is saved in ${getConfigPath()} (readable only by you). ` +
@@ -124,6 +135,9 @@ export function registerConnectCommand(program: Command): void {
 					`Could not connect to ${redactUrl(url)}`,
 					error instanceof Error ? error : undefined
 				);
+				if (isUnauthorizedError(error)) {
+					printInfo(`If the server uses OAuth 2.1, run "afd auth login ${redactUrl(url)}" first.`);
+				}
 				process.exit(1);
 			}
 		});

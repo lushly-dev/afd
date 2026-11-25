@@ -1,0 +1,307 @@
+{
+	"description": "MCP OAuth 2.1 CLI client cases (spec/authorization.md, M9): WWW-Authenticate challenge parsing, RFC 9728 protected-resource metadata URLs, RFC 8414 and OIDC Discovery authorization-server metadata URLs, RFC 7636 PKCE S256 challenges, Client ID Metadata Document URL validation, canonical resource and same-origin metadata validation, and URL/header credential redaction.",
+	"wwwAuthenticate": [
+		{
+			"description": "401 challenge with resource_metadata and scope",
+			"header": "Bearer resource_metadata=\"https://todo.example.com/.well-known/oauth-protected-resource/mcp\", scope=\"todo:read todo:write\"",
+			"expected": {
+				"scheme": "Bearer",
+				"resourceMetadata": "https://todo.example.com/.well-known/oauth-protected-resource/mcp",
+				"scope": "todo:read todo:write"
+			}
+		},
+		{
+			"description": "401 challenge with lowercase scheme and error=invalid_token",
+			"header": "bearer resource_metadata=\"https://todo.example.com/.well-known/oauth-protected-resource/mcp\", error=\"invalid_token\"",
+			"expected": {
+				"scheme": "Bearer",
+				"resourceMetadata": "https://todo.example.com/.well-known/oauth-protected-resource/mcp",
+				"error": "invalid_token"
+			}
+		},
+		{
+			"description": "403 insufficient_scope challenge",
+			"header": "Bearer error=\"insufficient_scope\", scope=\"loam:write\", resource_metadata=\"https://loam.example.com/.well-known/oauth-protected-resource/mcp\"",
+			"expected": {
+				"scheme": "Bearer",
+				"resourceMetadata": "https://loam.example.com/.well-known/oauth-protected-resource/mcp",
+				"scope": "loam:write",
+				"error": "insufficient_scope"
+			}
+		},
+		{
+			"description": "multiple schemes where Bearer comes second",
+			"header": "Basic realm=\"legacy\", Bearer resource_metadata=\"https://api.example.com/.well-known/oauth-protected-resource\", scope=\"read\"",
+			"expected": {
+				"scheme": "Bearer",
+				"resourceMetadata": "https://api.example.com/.well-known/oauth-protected-resource",
+				"scope": "read"
+			}
+		},
+		{
+			"description": "unquoted token parameter values",
+			"header": "Bearer error=invalid_token, scope=read",
+			"expected": {
+				"scheme": "Bearer",
+				"error": "invalid_token",
+				"scope": "read"
+			}
+		},
+		{
+			"description": "quoted-pair escape inside quoted string",
+			"header": "Bearer error=\"invalid_token\", error_description=\"bad \\\"token\\\" value\"",
+			"expected": {
+				"scheme": "Bearer",
+				"error": "invalid_token",
+				"errorDescription": "bad \"token\" value"
+			}
+		},
+		{
+			"description": "multiple schemes where Bearer follows a ==-padded token68 challenge",
+			"header": "Basic dXNlcjpwYXNz==, Bearer resource_metadata=\"https://api.example.com/.well-known/oauth-protected-resource\", scope=\"read\"",
+			"expected": {
+				"scheme": "Bearer",
+				"resourceMetadata": "https://api.example.com/.well-known/oauth-protected-resource",
+				"scope": "read"
+			}
+		},
+		{
+			"description": "non-Bearer scheme alone returns null",
+			"header": "Basic realm=\"admin\"",
+			"expected": null
+		},
+		{
+			"description": "empty header returns null",
+			"header": "",
+			"expected": null
+		}
+	],
+	"protectedResourceMetadataUrls": [
+		{
+			"description": "resource with path probes path-inserted then root",
+			"resource": "https://todo.example.com/mcp",
+			"urls": [
+				"https://todo.example.com/.well-known/oauth-protected-resource/mcp",
+				"https://todo.example.com/.well-known/oauth-protected-resource"
+			]
+		},
+		{
+			"description": "resource with nested path",
+			"resource": "https://loam.example.com/app/mcp",
+			"urls": [
+				"https://loam.example.com/.well-known/oauth-protected-resource/app/mcp",
+				"https://loam.example.com/.well-known/oauth-protected-resource"
+			]
+		},
+		{
+			"description": "resource with origin only has one metadata URL",
+			"resource": "https://todo.example.com",
+			"urls": ["https://todo.example.com/.well-known/oauth-protected-resource"]
+		},
+		{
+			"description": "resource with root slash has one metadata URL",
+			"resource": "https://todo.example.com/",
+			"urls": ["https://todo.example.com/.well-known/oauth-protected-resource"]
+		},
+		{
+			"description": "resource with non-default port preserves port",
+			"resource": "https://127.0.0.1:8443/mcp",
+			"urls": [
+				"https://127.0.0.1:8443/.well-known/oauth-protected-resource/mcp",
+				"https://127.0.0.1:8443/.well-known/oauth-protected-resource"
+			]
+		}
+	],
+	"authorizationServerMetadataUrls": [
+		{
+			"description": "issuer with no path tries RFC 8414 then OIDC Discovery",
+			"issuer": "https://auth.example.com",
+			"urls": [
+				"https://auth.example.com/.well-known/oauth-authorization-server",
+				"https://auth.example.com/.well-known/openid-configuration"
+			]
+		},
+		{
+			"description": "issuer with trailing slash normalizes away single trailing slash",
+			"issuer": "https://auth.example.com/",
+			"urls": [
+				"https://auth.example.com/.well-known/oauth-authorization-server",
+				"https://auth.example.com/.well-known/openid-configuration"
+			]
+		},
+		{
+			"description": "issuer with path tries RFC 8414 path-inserted, OIDC path-inserted, then OIDC appended",
+			"issuer": "https://loam.example.com/api/auth",
+			"urls": [
+				"https://loam.example.com/.well-known/oauth-authorization-server/api/auth",
+				"https://loam.example.com/.well-known/openid-configuration/api/auth",
+				"https://loam.example.com/api/auth/.well-known/openid-configuration"
+			]
+		},
+		{
+			"description": "issuer with port and nested path",
+			"issuer": "https://127.0.0.1:9443/tenants/acme/auth",
+			"urls": [
+				"https://127.0.0.1:9443/.well-known/oauth-authorization-server/tenants/acme/auth",
+				"https://127.0.0.1:9443/.well-known/openid-configuration/tenants/acme/auth",
+				"https://127.0.0.1:9443/tenants/acme/auth/.well-known/openid-configuration"
+			]
+		}
+	],
+	"pkceS256": [
+		{
+			"description": "RFC 7636 Appendix B test vector",
+			"verifier": "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk",
+			"challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+		},
+		{
+			"description": "43-character verifier of all unreserved characters",
+			"verifier": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+			"challenge": "DwBzhbb51LfusnSGBa_hqYSgo7-j8BTQnip4TOnlzRo"
+		}
+	],
+	"clientIdMetadataDocuments": [
+		{
+			"description": "valid HTTPS CIMD URL with path",
+			"clientId": "https://afd.dev/oauth/cli-client.json",
+			"valid": true
+		},
+		{
+			"description": "valid HTTPS CIMD URL with port and nested path",
+			"clientId": "https://clients.example.com:8443/apps/afd-cli/metadata.json",
+			"valid": true
+		},
+		{
+			"description": "bare client identifier is not a CIMD URL",
+			"clientId": "my-registered-client",
+			"valid": false
+		},
+		{
+			"description": "HTTP scheme is rejected for CIMD",
+			"clientId": "http://afd.dev/oauth/cli-client.json",
+			"valid": false
+		},
+		{
+			"description": "HTTPS URL with empty path is rejected for CIMD",
+			"clientId": "https://afd.dev",
+			"valid": false
+		},
+		{
+			"description": "HTTPS URL with root slash only is rejected for CIMD",
+			"clientId": "https://afd.dev/",
+			"valid": false
+		},
+		{
+			"description": "HTTPS URL with query string is rejected for CIMD",
+			"clientId": "https://afd.dev/oauth/client.json?v=1",
+			"valid": false
+		},
+		{
+			"description": "HTTPS URL with fragment is rejected for CIMD",
+			"clientId": "https://afd.dev/oauth/client.json#top",
+			"valid": false
+		},
+		{
+			"description": "HTTPS URL with userinfo is rejected for CIMD",
+			"clientId": "https://user@afd.dev/oauth/client.json",
+			"valid": false
+		},
+		{
+			"description": "HTTPS URL with dot-segment traversal is rejected for CIMD",
+			"clientId": "https://afd.dev/oauth/../client.json",
+			"valid": false
+		},
+		{
+			"description": "HTTPS URL with percent-encoded dot-segment is rejected for CIMD",
+			"clientId": "https://afd.dev/oauth/%2e%2e/client.json",
+			"valid": false
+		},
+		{
+			"description": "HTTPS URL with slash-only path is rejected for CIMD",
+			"clientId": "https://afd.dev//",
+			"valid": false
+		},
+		{
+			"description": "HTTPS URL with percent-encoded path separator is rejected for CIMD",
+			"clientId": "https://afd.dev/oauth%2Fcli-client.json",
+			"valid": false
+		},
+		{
+			"description": "HTTPS URL with malformed percent-escape is rejected for CIMD",
+			"clientId": "https://afd.dev/oauth/%ZZ/client.json",
+			"valid": false
+		},
+		{
+			"description": "HTTPS URL with IP-literal host and valid path is syntactically valid CIMD (fetch SSRF policy belongs to the AS)",
+			"clientId": "https://192.0.2.1/oauth/cli-client.json",
+			"valid": true
+		}
+	],
+	"resourceValidation": [
+		{
+			"description": "canonical resource strips query and fragment and lowercases scheme and host",
+			"serverUrl": "HTTPS://Loam.Example.COM:8443/mcp?foo=bar#sec",
+			"expectedCanonical": "https://loam.example.com:8443/mcp"
+		},
+		{
+			"description": "same-origin resource_metadata accepted",
+			"serverUrl": "https://loam.example.com/mcp",
+			"resourceMetadata": "https://LOAM.EXAMPLE.COM/.well-known/oauth-protected-resource/mcp",
+			"sameOrigin": true
+		},
+		{
+			"description": "cross-origin resource_metadata rejected",
+			"serverUrl": "https://loam.example.com/mcp",
+			"resourceMetadata": "https://evil.example.com/.well-known/oauth-protected-resource/mcp",
+			"sameOrigin": false
+		},
+		{
+			"description": "scheme downgrade on resource_metadata rejected",
+			"serverUrl": "https://loam.example.com/mcp",
+			"resourceMetadata": "http://loam.example.com/.well-known/oauth-protected-resource/mcp",
+			"sameOrigin": false
+		},
+		{
+			"description": "port mismatch on resource_metadata rejected",
+			"serverUrl": "https://loam.example.com/mcp",
+			"resourceMetadata": "https://loam.example.com:8443/.well-known/oauth-protected-resource/mcp",
+			"sameOrigin": false
+		}
+	],
+	"redaction": [
+		{
+			"description": "OAuth callback URL redacts code and code_verifier",
+			"kind": "url",
+			"input": "http://127.0.0.1:43210/callback?code=authcode-secret&state=abc&code_verifier=pkce-secret",
+			"expected": "http://127.0.0.1:43210/callback?code=***&state=abc&code_verifier=***"
+		},
+		{
+			"description": "Authorization header value is redacted",
+			"kind": "header",
+			"name": "Authorization",
+			"value": "Bearer eyJhbGciOiJFZERTQSJ9.secret.sig",
+			"expected": "[redacted]"
+		},
+		{
+			"description": "lowercase authorization header is redacted",
+			"kind": "header",
+			"name": "authorization",
+			"value": "Basic dXNlcjpwYXNz",
+			"expected": "[redacted]"
+		},
+		{
+			"description": "Cookie header is redacted",
+			"kind": "header",
+			"name": "Cookie",
+			"value": "__Secure-session=secret",
+			"expected": "[redacted]"
+		},
+		{
+			"description": "non-sensitive header is preserved",
+			"kind": "header",
+			"name": "X-Tenant",
+			"value": "acme",
+			"expected": "acme"
+		}
+	]
+}
