@@ -189,7 +189,14 @@ machine with neither source succeeds with nothing read.
 - Several machines: each names itself and one shared folder in its machine settings
   (`disk.toml`: `skill_usage_machine = "<name>"`, its hostname when left out, and
   `skill_usage_shared = "<folder every machine can see>"`; `BOTCORE_SKILL_USAGE_MACHINE` and
-  `BOTCORE_SKILL_USAGE_SHARED` override them). Collection then also writes this machine's
+  `BOTCORE_SKILL_USAGE_SHARED` override them). `skill_usage_dirs` (full paths without `..`)
+  adds external skill folders alongside personal skill folders (`~/.claude/skills`,
+  `~/.agents/skills`, `~/.codex/skills`); `BOTCORE_SKILL_USAGE_USER_DIRS` overrides both the
+  personal folders and `skill_usage_dirs`, and `""` turns all of them off. Collection also
+  records locally where any loaded `SKILL.md` outside a project's configured skill folders
+  lives so its size and listing characters are measured and shared (never its path); use
+  `--rebuild` to backfill file locations from already-collected historical logs. Collection
+  then also writes this machine's
   record to `<shared>/<machine>/`, and the reports read every machine's. `shared` in the
   result says whether the folder `exists` and was `written`; a folder that is not there, or
   a machine's folder that holds another record of the same name (`error`), does not undo the
@@ -233,8 +240,13 @@ a shared folder, every other machine's, each session once; run `skill_usage_coll
   holds count toward that; a project that holds fewer than 12, or that no machine has a
   folder of, never has an audit, and an audit that takes longer than about 45 minutes is not
   seen as one.
-- `quiet`: skills a project holds (`.claude/skills`, `.agents/skills`, `.codex/skills`) that
-  nothing used in the window.
+- `quiet`: skills a project holds (`.claude/skills`, `.agents/skills`, `.codex/skills`, plus
+  any `[skills].extra_dirs` or custom `source_dir` declared in `botcore.toml` /
+  `pyproject.toml`, with `[skills.aliases]` folded into their target names) that nothing used
+  in the window; when no `project` filter is given, unused skills in personal/configured
+  external skill folders also appear under `project: "external"`. Loaded skills kept outside
+  a project's configured skill folders (plugins, unconfigured folders) get `size_bytes`,
+  `max_context_bytes` and `listing_chars` from the recorded file location.
 - What a project holds, with sizes and names, is what the tip of its default branch has, as
   a collection read it from git on a machine that has the project, and never the files as a
   folder lies: the report reads no checkout, and says the same on every machine once each

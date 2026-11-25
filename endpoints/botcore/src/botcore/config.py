@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import tomllib
 import warnings
 from pathlib import Path
@@ -47,6 +48,30 @@ class RequiredSkill(BaseModel):
         return paths
 
 
+_SKILL_ALIAS_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")
+
+
+def _check_skill_dir(path: str) -> str:
+    """A [skills].extra_dirs entry: repository-relative, forward slashes, no '.' or '..'."""
+    if "\x00" in path:
+        raise ValueError(f"[skills].extra_dirs {path!r}: may not contain NUL bytes")
+    text = path.strip().rstrip("/")
+    if not text:
+        raise ValueError("a [skills].extra_dirs entry is empty")
+    if text.startswith(":"):
+        raise ValueError(f"[skills].extra_dirs {path!r}: may not start with ':'")
+    if "\\" in text:
+        raise ValueError(f"[skills].extra_dirs {path!r}: use forward slashes")
+    if text.startswith("/") or (len(text) > 1 and text[1] == ":"):
+        raise ValueError(f"[skills].extra_dirs {path!r} must be relative to the repository")
+    parts = text.split("/")
+    if any(part in ("", ".", "..") for part in parts):
+        raise ValueError(
+            f"[skills].extra_dirs {path!r} may not contain '.', '..' or empty segments"
+        )
+    return text
+
+
 class SkillsConfig(BaseModel):
     """Skill registry settings."""
 
@@ -60,6 +85,35 @@ class SkillsConfig(BaseModel):
     listing_budget: int = Field(default=8000, gt=0, strict=True)
     # [[skills.required]]: the skills that kinds of change require
     required: list[RequiredSkill] = []
+    # Additional repository-relative skill folders (e.g. a source folder for generated skills)
+    extra_dirs: list[str] = []
+    # Canonical/alternate skill name -> name the project reports it under
+    aliases: dict[str, str] = {}
+
+    @field_validator("extra_dirs")
+    @classmethod
+    def _clean_extra_dirs(cls, dirs: list[str]) -> list[str]:
+        return list(dict.fromkeys(_check_skill_dir(entry) for entry in dirs))
+
+    @field_validator("aliases")
+    @classmethod
+    def _valid_aliases(cls, aliases: dict[str, str]) -> dict[str, str]:
+        for old, new in aliases.items():
+            if not _SKILL_ALIAS_NAME.fullmatch(old) or not _SKILL_ALIAS_NAME.fullmatch(new):
+                raise ValueError(
+                    f"[skills].aliases {old!r} -> {new!r}: both must be valid skill names"
+                )
+            if old == new:
+                raise ValueError(f"[skills].aliases {old!r}: a skill cannot alias itself")
+        for start in aliases:
+            seen = {start}
+            current = aliases[start]
+            while current in aliases:
+                if current in seen:
+                    raise ValueError(f"[skills].aliases contains a cycle at {current!r}")
+                seen.add(current)
+                current = aliases[current]
+        return aliases
 
 
 class SweepConfig(BaseModel):

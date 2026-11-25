@@ -24,13 +24,14 @@ from pathlib import Path
 
 from botcore.commands.disk.settings import expand, load_machine_settings
 from botcore.commands.disk.steps import doing
-from botcore.commands.skill_usage.events import Event, is_skill_folder
+from botcore.commands.skill_usage.events import Event, clean_skill_name, is_skill_folder
 
 STATE_ENV = "BOTCORE_SKILL_USAGE_STATE"
 T3_STORE_ENV = "BOTCORE_SKILL_USAGE_T3_STORE"
 MACHINE_ENV = "BOTCORE_SKILL_USAGE_MACHINE"
 SHARED_ENV = "BOTCORE_SKILL_USAGE_SHARED"
 AWAY_ENV = "BOTCORE_SKILL_USAGE_AWAY"
+USER_DIRS_ENV = "BOTCORE_SKILL_USAGE_USER_DIRS"
 TAIL = 1 << 16  # more than any event's line
 EVENTS_FILE = "events.jsonl"
 STATE_FILE = "state.json"
@@ -103,6 +104,13 @@ def default_machine() -> str:
         return "unknown"
 
 
+def _default_user_skill_dirs() -> list[Path]:
+    """A person's own skill folders outside any project."""
+    base = os.environ.get("CLAUDE_CONFIG_DIR")
+    claude_skills = (Path(base).expanduser() if base else Path.home() / ".claude") / "skills"
+    return [claude_skills, Path.home() / ".agents" / "skills", Path.home() / ".codex" / "skills"]
+
+
 @dataclass
 class Local:
     """What this machine says of itself."""
@@ -111,29 +119,61 @@ class Local:
     shared: Path | None  # the folder every machine can see, when one is named
     # The machines the owner says are switched off: not waited for before a miss is called
     away: frozenset[str] = frozenset()
+    # Skill folders outside any project (personal folders and configured skill_usage_dirs)
+    skill_dirs: tuple[Path, ...] = ()
+
+
+def _checked_skill_dir(entry: str, setting_label: str) -> Path:
+    """Validate an external skill folder path: no NUL bytes, no '..' traversal, must be absolute."""
+    if "\x00" in entry:
+        raise InvalidMachine(f"{setting_label} entries may not contain NUL bytes: {entry!r}")
+    if ".." in Path(entry).parts:
+        raise InvalidMachine(f"{setting_label} entries may not contain '..': {entry!r}")
+    candidate = expand(entry)
+    if "\x00" in str(candidate) or ".." in candidate.parts:
+        raise InvalidMachine(f"{setting_label} entries may not contain '..' or NUL: {entry!r}")
+    if not candidate.is_absolute():
+        raise InvalidMachine(f"{setting_label} entries must be full paths, not {entry!r}")
+    return candidate
 
 
 def local() -> Local:
-    """This machine's name, its shared folder and the machines it does not wait for: the
-    environment first, then the machine settings, then its hostname, no shared folder and
-    no machine away. Raises `SettingsError` when the machine settings cannot be read, and
+    """This machine's name, its shared folder, the machines it does not wait for and its
+    personal/external skill folders: the environment first, then the machine settings, then
+    defaults. Raises `SettingsError` when the machine settings cannot be read, and
     `InvalidMachine`."""
     name, shared = os.environ.get(MACHINE_ENV), os.environ.get(SHARED_ENV)
     listed = os.environ.get(AWAY_ENV)
     away = listed.split(",") if listed is not None else None
-    if not name or shared is None or away is None:  # an empty variable means none
+    user_dirs_env = os.environ.get(USER_DIRS_ENV)
+    extra_user_dirs: list[str] = []
+    if not name or shared is None or away is None or user_dirs_env is None:
         settings = load_machine_settings()[0]
         name = name or settings.skill_usage_machine
         shared = settings.skill_usage_shared or "" if shared is None else shared
         away = settings.skill_usage_away if away is None else away
+        extra_user_dirs = settings.skill_usage_dirs
     folder = expand(shared) if shared else None
     if folder is not None and not folder.is_absolute():
         # a job does not run where a person does: a relative folder would be two folders
         raise InvalidMachine(f"The shared folder must be a full path, not {shared!r}")
+    if user_dirs_env is not None:
+        raw_dirs = [part.strip() for part in user_dirs_env.split(os.pathsep) if part.strip()]
+        resolved_dirs = [_checked_skill_dir(entry, USER_DIRS_ENV) for entry in raw_dirs]
+        skill_dirs = tuple(dict.fromkeys(resolved_dirs))
+    else:
+        resolved_dirs = list(_default_user_skill_dirs())
+        for entry in extra_user_dirs:
+            text = entry.strip()
+            if not text:
+                continue
+            resolved_dirs.append(_checked_skill_dir(text, "skill_usage_dirs"))
+        skill_dirs = tuple(dict.fromkeys(resolved_dirs))
     return Local(
         checked_machine(name) if name else default_machine(),
         folder,
         frozenset(checked_machine(other.strip()) for other in away if other.strip()),
+        skill_dirs,
     )
 
 
@@ -389,10 +429,30 @@ def _moment(stamp: object) -> datetime | None:
     return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
 
 
+def _valid_skill_key(name: object, *, allow_scoped: bool) -> bool:
+    if not isinstance(name, str):
+        return False
+    return clean_skill_name(name) == name if allow_scoped else is_skill_folder(name)
+
+
+def _facts_map(value: object, *, allow_scoped: bool = False) -> dict[str, list[int]]:
+    """Validated `{skill: [size_bytes, listing_chars]}` map: skill names and non-negative ints
+    only, never file paths or arbitrary strings."""
+    return {
+        name: list(facts)
+        for name, facts in (value.items() if isinstance(value, dict) else [])
+        if _valid_skill_key(name, allow_scoped=allow_scoped)
+        and isinstance(facts, list)
+        and len(facts) == 2  # noqa: PLR2004
+        and all(type(number) is int and number >= 0 for number in facts)
+    }
+
+
 def as_inventory(value: object) -> dict | None:
-    """What a project holds, as a collection wrote it: `{"at", "commit", "held", "renames"}`.
-    `held` has each skill's SKILL.md size and what it adds to every session's skill listing;
-    `renames` is old name to new. `at` and `commit` say which commit of the project's
+    """What a project holds, as a collection wrote it: `{"at", "commit", "held", "renames"}`,
+    plus optional `"observed"` for loaded skills kept outside the project's configured skill
+    folders. `held` has each skill's SKILL.md size and what it adds to every session's skill
+    listing; `renames` is old name to new. `at` and `commit` say which commit of the project's
     default branch both were read from, and are None for a folder read as it lay. None for
     anything else.
 
@@ -403,17 +463,32 @@ def as_inventory(value: object) -> dict | None:
         return None
     moment, commit = _moment(value.get("at")), value.get("commit")
     dated = moment is not None and isinstance(commit, str) and _COMMIT.fullmatch(commit) is not None
-    return {
+    inventory: dict = {
         "at": moment.astimezone(UTC).isoformat() if dated and moment is not None else None,
         "commit": commit if dated else None,
-        "held": {
-            name: list(facts)
-            for name, facts in value["held"].items()
-            if is_skill_folder(name) and isinstance(facts, list) and len(facts) == 2
-            and all(type(number) is int and number >= 0 for number in facts)
-        },
+        "held": _facts_map(value["held"]),
         "renames": _pairs(value.get("renames")),
-    }  # fmt: skip
+    }
+    observed = _facts_map(value.get("observed"), allow_scoped=True)
+    if observed:
+        inventory["observed"] = observed
+    aliases = _pairs(value.get("aliases"))
+    if aliases:
+        inventory["aliases"] = aliases
+    return inventory
+
+
+def as_external(value: object) -> dict | None:
+    """Skills kept outside any project: `held` (from personal/configured external folders) and
+    `observed` (from loaded SKILL.md files outside projects). Only validated names and counts,
+    never file paths. None when both are empty."""
+    if not isinstance(value, dict):
+        return None
+    held = _facts_map(value.get("held"))
+    observed = _facts_map(value.get("observed"), allow_scoped=True)
+    if not held and not observed:
+        return None
+    return {"held": held, "observed": observed}
 
 
 def _read_at(inventory: dict) -> datetime:
@@ -514,6 +589,9 @@ def publish(directory: Path, shared: Path, machine: str) -> bool:
     shared_state["unreadable"] = unreadable
     shared_state["renames"] = _renames(state)
     shared_state["skills"] = _skills(state)
+    external = as_external(state.get("external"))
+    if external is not None:
+        shared_state["external"] = external
     shared_state["files"] = {name: _digest(data) for name, data in files.items()}
     files[STATE_FILE] = json.dumps(shared_state, indent=2, sort_keys=True).encode("utf-8") + b"\n"
     doing(SHARING, shared)  # said before anything is written: a step that was left stops here
@@ -588,6 +666,15 @@ class Record:
     renames: dict[str, dict[str, str]] = field(default_factory=dict)
     # project -> what it holds (`as_inventory`), from the machine that read the newest commit
     skills: dict[str, dict] = field(default_factory=dict)
+    # project -> configured [skills.aliases] from the selected inventory commit only
+    aliases: dict[str, dict[str, str]] = field(default_factory=dict)
+    # project -> skill -> [size, listing], for loaded files inside a project outside its
+    # configured skill folders, merged across machines (newest collected_at first)
+    project_observed: dict[str, dict[str, list[int]]] = field(default_factory=dict)
+    # skill -> [size, listing], for personal/external skill folders across machines
+    external_held: dict[str, list[int]] = field(default_factory=dict)
+    # skill -> [size, listing], for loaded skill files outside any project across machines
+    external_observed: dict[str, list[int]] = field(default_factory=dict)
     shared: Path | None = None
     missing: str | None = None  # why the shared folder was not read
 
@@ -637,9 +724,14 @@ def _merged(one: dict, other: dict) -> dict:
     return merged
 
 
-def _name_skills(record: Record, renames: dict[str, dict], skills: dict[str, dict]) -> None:
-    """Settle, from what each machine says, what every project holds and what its skills are
-    called now: the same whichever machine reads."""
+def _name_skills(
+    record: Record,
+    renames: dict[str, dict],
+    skills: dict[str, dict],
+    externals: dict[str, dict | None],
+) -> None:
+    """Settle, from what each machine says, what every project holds, what external/observed
+    skills exist, and what skills are called now: the same whichever machine reads."""
     for machine in sorted(renames, reverse=True):  # the first by name has the last word
         for project, pairs in renames[machine].items():
             record.renames.setdefault(project, {}).update(pairs)
@@ -654,8 +746,33 @@ def _name_skills(record: Record, renames: dict[str, dict], skills: dict[str, dic
     }
     for project, inventory in record.skills.items():
         # a skill's name now and the list it is looked up in come from one commit: where two
-        # machines' histories say otherwise of a name, the one whose list is used is right
+        # machines' histories say otherwise of a name, the one whose list is used is right.
+        # Configured aliases belong strictly to the selected commit so removing one takes effect.
         record.renames[project] = {**record.renames.get(project, {}), **inventory["renames"]}
+        aliases = inventory.get("aliases")
+        if isinstance(aliases, dict) and aliases:
+            record.aliases[project] = dict(aliases)
+    # External and observed skill facts: newest collection wins, first machine by name on ties
+    min_time = datetime.min.replace(tzinfo=UTC)
+    by_name = sorted(set(skills) | set(externals))
+    preferred = sorted(
+        by_name,
+        key=lambda machine: _moment(record.collected.get(machine)) or min_time,
+        reverse=True,
+    )
+    for machine in preferred:
+        for project, inventory in skills.get(machine, {}).items():
+            observed = inventory.get("observed")
+            if isinstance(observed, dict):
+                target = record.project_observed.setdefault(project, {})
+                for name, facts in observed.items():
+                    target.setdefault(name, facts)
+        ext = externals.get(machine)
+        if ext is not None:
+            for name, facts in ext["held"].items():
+                record.external_held.setdefault(name, facts)
+            for name, facts in ext["observed"].items():
+                record.external_observed.setdefault(name, facts)
 
 
 def load_record(directory: Path, here: Local) -> Record:
@@ -677,6 +794,7 @@ def load_record(directory: Path, here: Local) -> Record:
     machines: dict[str, tuple[list[Event], dict[str, dict]]] = {}
     renames = {here.machine: _renames(record.state)}
     skills = {here.machine: _skills(record.state)}
+    externals: dict[str, dict | None] = {here.machine: as_external(record.state.get("external"))}
     sessions = load_sessions(directory)
     if events or record.state or sessions:
         machines[here.machine] = (events, sessions)
@@ -717,6 +835,7 @@ def load_record(directory: Path, here: Local) -> Record:
             told = copy.state.get("skills")
             told = told if isinstance(told, dict) else {}
             skills[machine] = _skills({"projects": {n: {"skills": v} for n, v in told.items()}})
+            externals[machine] = as_external(copy.state.get("external"))
             record.collected[machine] = copy.state.get("collected_at")
             if copy.unreadable:
                 record.unreadable[machine] = copy.unreadable
@@ -725,7 +844,7 @@ def load_record(directory: Path, here: Local) -> Record:
             record.recognizer = (
                 rules if record.recognizer is None else min(record.recognizer, rules)
             )
-    _name_skills(record, renames, skills)
+    _name_skills(record, renames, skills, externals)
     seen: set[tuple[str, str]] = set()
     for machine in sorted(machines):  # by name, so that every reader merges alike
         theirs, entries = machines[machine]

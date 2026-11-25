@@ -55,6 +55,7 @@ AUDIT_SHARE = 2 / 3
 AUDIT_SKILLS = 12
 AUDIT_SPAN = timedelta(minutes=30)
 AGENTS = (MAIN, DELEGATE, SUBAGENT)
+EXTERNAL_PROJECT = "external"
 
 
 @dataclass
@@ -97,12 +98,20 @@ def _mapping(value: object) -> dict:
     return value if isinstance(value, dict) else {}
 
 
-def current_name(name: str, renames: dict[str, str], held: Container[str]) -> str:
-    """The name a skill has now. The project's own renames come first, then botcore's for the
-    skills it ships; a name the project still holds is never renamed."""
+def current_name(
+    name: str,
+    renames: dict[str, str],
+    held: Container[str],
+    external_known: Container[str] = (),
+) -> str:
+    """The name a skill has now. The project's own renames and aliases come first, then
+    botcore's bundled renames (skipped when the skill is held locally or known under that
+    name as an external/observed skill, so a personal skill keeps its measured identity)."""
     seen = {name}
     while name not in held:
-        following = renames.get(name) or SKILL_RENAMES.get(name)
+        following = renames.get(name)
+        if not following and name not in external_known:
+            following = SKILL_RENAMES.get(name)
         if not following or following in seen:
             break
         seen.add(following)
@@ -218,6 +227,21 @@ def held_skills(record: Record) -> dict[str, dict[str, Held]]:
     }
 
 
+def _external_held(record: Record) -> dict[str, Held]:
+    return {name: Held(*facts) for name, facts in record.external_held.items()}
+
+
+def _external_observed(record: Record) -> dict[str, Held]:
+    return {name: Held(*facts) for name, facts in record.external_observed.items()}
+
+
+def _project_observed(record: Record) -> dict[str, dict[str, Held]]:
+    return {
+        project: {name: Held(*facts) for name, facts in skills.items()}
+        for project, skills in record.project_observed.items()
+    }
+
+
 def _invalid(message: str, suggestion: str) -> CommandResult[dict]:
     return error("INVALID_INPUT", message, suggestion=suggestion)
 
@@ -308,7 +332,10 @@ def _skill_usage_report_sync(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
             suggestion="Run skill-usage-collect first; it reads what the harnesses recorded",
         )
 
-    renames, on_disk = record.renames, held_skills(record)
+    renames, aliases, on_disk = record.renames, record.aliases, held_skills(record)
+    proj_observed = _project_observed(record)
+    ext_held, ext_observed = _external_held(record), _external_observed(record)
+    ext_known = set(ext_held) | set(ext_observed)
     known_projects = {event.project for event in events} | set(on_disk)
     known_projects |= {
         entry["project"] for entry in recorded.values() if isinstance(entry.get("project"), str)
@@ -333,12 +360,23 @@ def _skill_usage_report_sync(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
     tool_loads: dict[tuple[str, str, str], list[datetime]] = {}
     authored: set[tuple[str, str, str]] = set()
     last_ever: dict[tuple[str, str], str] = {}
-    known_skills: set[str] = {name for held in on_disk.values() for name in held}
+    last_ever_any: dict[str, str] = {}
+    known_skills: set[str] = (
+        {name for held in on_disk.values() for name in held}
+        | {name for obs in proj_observed.values() for name in obs}
+        | set(ext_held)
+        | set(ext_observed)
+    )
     outdated = 0
+
+    def _resolve_name(raw_skill: str, in_project: str) -> str:
+        proj_map = {**renames.get(in_project, {}), **aliases.get(in_project, {})}
+        measured_outside = ext_known | set(proj_observed.get(in_project, {}))
+        return current_name(raw_skill, proj_map, on_disk.get(in_project, {}), measured_outside)
 
     def wanted(in_project: str) -> str:
         """The skill asked for, under the name it has now in a project."""
-        return current_name(skill or "", renames.get(in_project, {}), on_disk.get(in_project, {}))
+        return _resolve_name(skill or "", in_project)
 
     for event in events:
         outdated += event.v < RECOGNIZER
@@ -347,9 +385,7 @@ def _skill_usage_report_sync(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
             continue
         if event.path != EDIT and event.path not in PATHS:
             continue  # a kind of event a newer botcore wrote: not known to be a load
-        name = current_name(
-            event.skill, renames.get(event.project, {}), on_disk.get(event.project, {})
-        )
+        name = _resolve_name(event.skill, event.project)
         key = (event.project, name)
         known_skills |= {name, event.skill}
         if event.path == EDIT:
@@ -397,6 +433,10 @@ def _skill_usage_report_sync(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
             continue
         if event.at > last_ever.get(key, ""):
             last_ever[key] = event.at
+        if event.at > last_ever_any.get(key[1], ""):
+            last_ever_any[key[1]] = event.at
+        if event.at > last_ever_any.get(event.skill, ""):
+            last_ever_any[event.skill] = event.at
         if not since <= moment < until:
             continue
         row = rows.setdefault(key, Row(project=key[0], skill=key[1]))
@@ -463,6 +503,21 @@ def _skill_usage_report_sync(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
                 entry["authoring_sessions"] = len(authoring[(name, skill_name)])
             quiet.append(entry)
 
+    used_any: set[str] = {name for row in rows.values() for name in (row.skill, *row.names)}
+    if project is None:
+        for skill_name, facts in sorted(ext_held.items()):
+            if skill_name in used_any or (skill is not None and skill != skill_name):
+                continue
+            quiet.append(
+                {
+                    "project": EXTERNAL_PROJECT,
+                    "skill": skill_name,
+                    "last_used": last_ever_any.get(skill_name),
+                    "size_bytes": facts.size,
+                    "listing_chars": facts.listing,
+                }
+            )
+
     warnings = record_warnings(record, here, now)
     for machine, lines in sorted(record.unreadable.items()):
         whose = "the record" if machine == here.machine else f"{machine}'s record"
@@ -486,6 +541,14 @@ def _skill_usage_report_sync(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
             "audit, until skill-usage-collect runs on a machine that has them"
         )
 
+    def _facts_for(row: Row) -> Held | None:
+        return (
+            on_disk.get(row.project, {}).get(row.skill)
+            or proj_observed.get(row.project, {}).get(row.skill)
+            or ext_held.get(row.skill)
+            or ext_observed.get(row.skill)
+        )
+
     shown = ordered[:limit]
     sessions_seen = sum(len(sessions) for sessions in seen.values())
     data = {
@@ -505,10 +568,7 @@ def _skill_usage_report_sync(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915 
             "authoring_sessions": len({s for sessions in authoring.values() for s in sessions}),
             "audit_sessions": len(audit_sessions),
         },
-        "skills": [
-            _row_json(row, on_disk.get(row.project, {}).get(row.skill), len(seen[row.project]))
-            for row in shown
-        ],
+        "skills": [_row_json(row, _facts_for(row), len(seen[row.project])) for row in shown],
         "more": len(ordered) - len(shown),
         "quiet": quiet,
         "record": {

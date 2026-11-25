@@ -343,7 +343,7 @@ skill for `lefthook.yml`, `ci.yml` and `scripts/check-*.mjs`), before Lushly dec
 
 - Judging a change whose pull request a script opened, as a fleet's merge lane does (#1887): needs its design first.
 
-- Size and the quiet list for skills kept outside a project's skill folders (#1830): not started.
+- Size and the quiet list for skills kept outside a project's skill folders (#1830): merged in #2519.
 
 - PowerShell quoting in the shell reader (#1847): merged in #2222.
 

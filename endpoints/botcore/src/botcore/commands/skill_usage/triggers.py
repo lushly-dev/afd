@@ -393,10 +393,12 @@ def _skill_usage_triggers_sync(  # noqa: C901, PLR0911, PLR0912, PLR0915 - one r
         here_now = None
     accounts = [here_now, record.skills.get(project)]
     account: dict = newest_inventory([one for one in accounts if one]) or dict(NOTHING_HELD)
+    account_aliases = account.get("aliases")
     project_renames = {
         **(here_now["renames"] if here_now else {}),
         **record.renames.get(project, {}),
         **account["renames"],
+        **(account_aliases if isinstance(account_aliases, dict) else {}),
     }
     held = account["held"]
 

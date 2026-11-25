@@ -12,7 +12,7 @@ from __future__ import annotations
 import contextlib
 import json
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -28,9 +28,9 @@ from botcore.commands.skill_usage.events import (
     SUBAGENT,
     TYPED,
     clean_skill_name,
+    skill_files_read_by,
     skill_of_file,
     skill_of_folder,
-    skills_read_by,
     typed_skill,
 )
 
@@ -92,6 +92,7 @@ class Thread:
     updated_at: str | None = None
     # (owner/name#number, linked at, whether this thread opened it: None when not said)
     pull_requests: tuple[tuple[str, str | None, bool | None], ...] = ()
+    worktree_path: str | None = None
 
 
 @dataclass
@@ -109,6 +110,10 @@ class Load:
     agent: str
     project_id: str | None
     model: str | None
+    # Where the loaded SKILL.md lived on disk, in memory during collection only (never stored)
+    file: str | None = None
+    # The checkout/worktree directory the session ran in, in memory only (never stored)
+    cwd: str | None = None
 
 
 @dataclass
@@ -280,6 +285,7 @@ def _threads(connection: sqlite3.Connection) -> dict[str, Thread]:
             created_at=_text(payload.get("createdAt")),
             updated_at=_text(payload.get("updatedAt")),
             pull_requests=_pull_requests(payload.get("pullRequests")),
+            worktree_path=_text(payload.get("worktreePath")),
         )
     return threads
 
@@ -399,15 +405,17 @@ class _Shapes:
             raise SchemaChanged(missing)
 
 
-def _loads(kind: str, payload: dict) -> list[tuple[str, str]]:
-    """(skill, path) for each load one recorded item shows, and for each change to a skill's
-    files (path `edit`). A tool call, command or change counts only once it completed, and a
-    message only when the person wrote it."""
+def _loads(
+    kind: str, payload: dict, extra_dirs: Sequence[str] = ()
+) -> list[tuple[str, str, str | None]]:
+    """(skill, path, file) for each load one recorded item shows, and for each change to a
+    skill's files (path `edit`). A tool call, command or change counts only once it completed,
+    and a message only when the person wrote it."""
     if kind == MESSAGE:
         if payload.get("createdBy") != PERSON:  # a brief an agent or the system wrote
             return []
         name = typed_skill(_text(payload.get("text")) or "")
-        return [(name, TYPED)] if name else []
+        return [(name, TYPED, None)] if name else []
     if payload.get("status") != DONE:
         return []
     if kind == CHANGE:
@@ -416,21 +424,22 @@ def _loads(kind: str, payload: dict) -> list[tuple[str, str]]:
         files = [payload.get("fileName"), *(_mapping(change).get("path") for change in changes)]
         names: list[str] = []
         for file in files:
-            name = skill_of_folder(_text(file) or "")
+            name = skill_of_folder(_text(file) or "", extra_dirs)
             if name and name not in names:
                 names.append(name)
-        return [(name, EDIT) for name in names]
+        return [(name, EDIT, None) for name in names]
     if kind == TOOL:
         tool = _text(payload.get("toolName")) or ""
         tool_input = _mapping(payload.get("input"))
         if tool == "Skill":
             name = clean_skill_name(_text(tool_input.get("skill")) or "")
-            return [(name, SKILL_TOOL)] if name else []
+            return [(name, SKILL_TOOL, None)] if name else []
         if tool.lower() in READ_TOOLS:
             for key in FILE_KEYS:
-                name = skill_of_file(_text(tool_input.get(key)) or "")
+                raw_file = _text(tool_input.get(key)) or ""
+                name = skill_of_file(raw_file, extra_dirs)
                 if name:
-                    return [(name, FILE_READ)]
+                    return [(name, FILE_READ, raw_file.strip())]
         return []
     command = payload.get("input")
     if isinstance(command, dict):
@@ -438,7 +447,14 @@ def _loads(kind: str, payload: dict) -> list[tuple[str, str]]:
     if isinstance(command, list):
         command = " ".join(str(part) for part in command)
     command_text = _text(command)
-    return [(name, SHELL_READ) for name in skills_read_by(command_text)] if command_text else []
+    return (
+        [
+            (name, SHELL_READ, file_path)
+            for name, file_path in skill_files_read_by(command_text, extra_dirs=extra_dirs)
+        ]
+        if command_text
+        else []
+    )
 
 
 def _says_more(link: tuple[str, str | None, bool | None]) -> tuple[int, bool, str]:
@@ -495,8 +511,13 @@ def _native_ids(connection: sqlite3.Connection) -> set[str]:
 
 
 def read(
-    connection: sqlite3.Connection, *, since: str | None, all_items: bool = False,
-    natives: bool = False, path: Path | str = "",
+    connection: sqlite3.Connection,
+    *,
+    since: str | None,
+    all_items: bool = False,
+    natives: bool = False,
+    path: Path | str = "",
+    dirs_for_root: Callable[[str], tuple[str, ...]] | None = None,
 ) -> T3Read:  # fmt: skip
     """Every skill load, and change to a skill's files, the store shows at or after `since`
     (an ISO time), oldest first; and every session it holds.
@@ -514,6 +535,12 @@ def read(
     ):
         if _text(workspace_root):
             result.projects[project_id] = workspace_root
+    project_extra_dirs: dict[str, tuple[str, ...]] = {}
+    if dirs_for_root is not None:
+        for project_id, workspace_root in result.projects.items():
+            found_dirs = dirs_for_root(workspace_root)
+            if found_dirs:
+                project_extra_dirs[project_id] = found_dirs
     threads = _threads(connection)
     family = _Family(threads, _parents(connection))
     children = [
@@ -540,6 +567,20 @@ def read(
         )
         result.behind = {family.session(str(row[0])) for row in older}
     result.newest = _text(connection.execute(f"select max(updated_at) from {ITEMS}").fetchone()[0])
+    extra_leaves = sorted(
+        {
+            leaf
+            for dirs in project_extra_dirs.values()
+            for folder in dirs
+            if (leaf := folder.rsplit("/", 1)[-1]) and leaf != "skills"
+        }
+    )
+    change_match = "payload_json like '%skills%'"
+    change_args: list[str] = []
+    if extra_leaves:
+        extra_clauses = " or ".join("payload_json like ?" for _ in extra_leaves)
+        change_match = f"({change_match} or {extra_clauses})"
+        change_args = [f"%{leaf}%" for leaf in extra_leaves]
     rows = connection.execute(
         f"""
         select turn_item_id, thread_id, type, updated_at, {run_column}, payload_json from {ITEMS}
@@ -547,12 +588,12 @@ def read(
             (type = '{TOOL}'
                 and (payload_json like '%SKILL.md%' or payload_json like '%"Skill"%'))
             or (type = '{COMMAND}' and payload_json like '%SKILL.md%')
-            or (type = '{CHANGE}' and payload_json like '%skills%')
+            or (type = '{CHANGE}' and {change_match})
             or type = '{MESSAGE}'
         ) {where}
         order by updated_at
         """,
-        arguments,
+        [*change_args, *arguments],
     )
 
     shapes = _Shapes()
@@ -562,16 +603,19 @@ def read(
             doing("reading T3 Code's store", path)
         payload = _object(payload_json)
         shapes.note(kind, payload)
-        loads = _loads(kind, payload)
-        if not loads:
-            continue
         session = family.session(thread_id)
         own, top = threads.get(thread_id), threads.get(session)
+        proj_id = (top.project_id if top else None) or (own.project_id if own else None)
+        extra_dirs = project_extra_dirs.get(proj_id or "", ())
+        loads = _loads(kind, payload, extra_dirs=extra_dirs)
+        if not loads:
+            continue
         native = _mapping(payload.get("nativeItemRef"))
         driver = _text(native.get("driver")) or (own.provider if own else None) or ""
         harness = HARNESSES.get(driver, driver or "other")
         native_id = _text(native.get("nativeId"))
-        for name, load_path in loads:
+        load_cwd = (own.worktree_path if own else None) or (top.worktree_path if top else None)
+        for name, load_path, load_file in loads:
             result.loads.append(
                 Load(
                     item=str(item_id),
@@ -585,11 +629,12 @@ def read(
                     thread=session,
                     root=family.root(thread_id),
                     agent=family.role(thread_id, session),
-                    project_id=(top.project_id if top else None)
-                    or (own.project_id if own else None),
+                    project_id=proj_id,
                     model=models.get(run_id)
                     if run_id
                     else (own.model if own and thread_id != session else None),
+                    file=load_file,
+                    cwd=load_cwd,
                 )
             )
     shapes.check()

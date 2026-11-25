@@ -87,6 +87,8 @@ Defined but not used, so setting them changes nothing:
 | `skip` | `[]` | Never seeded or updated |
 | `agent_skills` | `false` | Also copy seeded and updated skills to `.agent/skills/` |
 | `listing_budget` | `8000` | Positive integer. skill-lint warns (SK019) when the skills' descriptions plus `when_to_use` exceed it; skills with `disable-model-invocation: true` don't count |
+| `extra_dirs` | `[]` | Additional repository-relative skill folders (forward slashes, no `.` or `..`) that `skill-usage-collect` scans alongside `.claude/skills`, `.agents/skills`, `.codex/skills` and custom `source_dir` for sizes, listing cost, renames and `quiet` |
+| `aliases` | `{}` | Map of canonical or alternate skill name to the name the project reports it under (e.g. `gate-discipline = "maintain-gates"`), folding both names into one row in `skill-usage-report` and `skill-usage-triggers` without duplicating `quiet` |
 | `[[skills.required]]` | none | One table per rule: `skill` (a skill's name) and `paths` (globs over repository-relative paths as git writes them: forward slashes, no leading `./`, matched by case; `*` stays in one folder, `**` spans folders). `skill-usage-triggers` reports the merged changes to those paths where the session that opened the pull request had not loaded the skill |
 
 Retired skills: on every run, not only with `--update`, skill-seed removes a retired skill's botcore-managed copy (frontmatter `metadata.source: botcore`, or a top-level `source: botcore` in older copies). It does so only when no `include` list is set and `skip` doesn't name the skill (`seed_manages_retired` in `botcore/commands/skill/renames.py`). Otherwise it leaves the copy and reports it under `retired_locally_owned`.
