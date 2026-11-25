@@ -37,11 +37,11 @@
       "path": "README.md",
       "upstream_sha256": "892db189b22b41214ab5637d9601beb0add2f9f2535c358c59cf5757e4d87979",
       "staged_sha256": "8ab2a275fdd389aca8353b3b2608698b30bc662d8a6612ce104319c1ee5fa781",
-      "current_import_sha256": "686b5acda672315f543edae7d65542ac12754b46749181a6b68016962a054a57",
+      "current_import_sha256": "f17e7802855a4ea83a714dd62101ee9e03be7cf5ea35b4aa8fdbeada5a395396",
       "stage_classification": "modified-upstream",
       "stage_reason": "Link the new managed-host compatibility documentation",
       "import_classification": "modified-after-staging",
-      "import_reason": "List the bundled skills that remain; record ownership under metadata; point the release badge and the repository note at AFD; Add the gate-discipline skill and its scripts; list all eleven skills; Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); botcore serve refuses a network transport, since its run tool executes any Python its client sends; tests and README say so; botcore serve refuses a network transport, since its run tool executes any Python its client sends; points to botcore.host_http for HTTP; tests, README and the server docstring say so; Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820); The hourly job always ends and says what it waited for (#1902, #1903); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); Removed references to projects outside this repository: a completed planning record, part of the author note and one example; Add gate-outcome-collect and gate-outcome-report (lushly-dev/afd#2481); Report gate outcomes by check: the checks known at the default branch's tip, a hook group step's commands from Lefthook's summary, verdict workflows left out of the totals, and scenarios 01 and 03 through the scenario runner (#2482); Gate outcome collection in the hourly job, the record's fold at 180 days and the lower report limit (lushly-dev/afd#2484)"
+      "import_reason": "List the bundled skills that remain; record ownership under metadata; point the release badge and the repository note at AFD; Add the gate-discipline skill and its scripts; list all eleven skills; Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); botcore serve refuses a network transport, since its run tool executes any Python its client sends; tests and README say so; botcore serve refuses a network transport, since its run tool executes any Python its client sends; points to botcore.host_http for HTTP; tests, README and the server docstring say so; Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820); The hourly job always ends and says what it waited for (#1902, #1903); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); Removed references to projects outside this repository: a completed planning record, part of the author note and one example; Add gate-outcome-collect and gate-outcome-report (lushly-dev/afd#2481); Report gate outcomes by check: the checks known at the default branch's tip, a hook group step's commands from Lefthook's summary, verdict workflows left out of the totals, and scenarios 01 and 03 through the scenario runner (#2482); Gate outcome collection in the hourly job, the record's fold at 180 days and the lower report limit (lushly-dev/afd#2484); Serve managed host MCP server through afd.server.create_server with policy middleware and compatibility aliases (#2499)"
     },
     {
       "path": "SETUP.md",
@@ -737,11 +737,11 @@
       "path": "docs/host-composition.md",
       "upstream_sha256": null,
       "staged_sha256": "770e808013d3d866493ed03690d48330a06ca076eec838f720449592103d53ce",
-      "current_import_sha256": "6f67cdee1ec4e79c55198dd0b1d5107dd8dc15a8f16414b3aab934824bf040f0",
+      "current_import_sha256": "2fb86e10eea40d336734267e728c988895d66bedbccc2834e67d2c863406c1ab",
       "stage_classification": "added-in-staging",
       "stage_reason": "Document bounded host capabilities and compatibility limits",
       "import_classification": "modified-after-staging",
-      "import_reason": "Describe versioning, SDK compatibility, optional integration and the AFD publisher; describe plugin-declared policies, catalog input schemas and argument refusals; say a host leaves unselected plugin sections alone; describe command name spellings, kebab_names, typed inputs, the per-call context and the remote-caller profile; describe serving hosts over HTTP: routes, tokens, the bind guard and the client; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Refuse intermediate reparse points and hold the directory chain open through each token-store operation on Windows; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; serve each host command as its own MCP tool with the host as the only validator (factory gateway change 3); Connectors read the GitHub token from the environment only and declare only the service effect"
+      "import_reason": "Describe versioning, SDK compatibility, optional integration and the AFD publisher; describe plugin-declared policies, catalog input schemas and argument refusals; say a host leaves unselected plugin sections alone; describe command name spellings, kebab_names, typed inputs, the per-call context and the remote-caller profile; describe serving hosts over HTTP: routes, tokens, the bind guard and the client; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Refuse intermediate reparse points and hold the directory chain open through each token-store operation on Windows; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; serve each host command as its own MCP tool with the host as the only validator (factory gateway change 3); Connectors read the GitHub token from the environment only and declare only the service effect; Serve managed host MCP server through afd.server.create_server with policy middleware and compatibility aliases (#2499); Serve managed host MCP through afd.create_server (#2499)"
     },
     {
       "path": "docs/operations/model-routing.md",
@@ -2358,10 +2358,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "40764a2e5306fbdfdca81ff403eabfafe84ae01ee4c0fb8fb1b5be80ac947916",
+      "current_import_sha256": "c26fc59eb85a7a910cfb85a0b95ca37f44b20df6aa9d274b93e01da199762fa3",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test (lushly-dev/afd#1793); Format Botcore, add mypy type checking and py.typed marker (#1757); Versioned by pnpm version-track python (afd-python 0.13.0); Versioned by pnpm version-track botcore (lushly-botcore 0.9.0)"
+      "import_reason": "Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test (lushly-dev/afd#1793); Format Botcore, add mypy type checking and py.typed marker (#1757); Versioned by pnpm version-track python (afd-python 0.13.0); Versioned by pnpm version-track botcore (lushly-botcore 0.9.0); Refresh botcore-factory lockfile for lushly-botcore[mcp] extra (#2499)"
     },
     {
       "path": "plugins/botcore-teams/LICENSE",
@@ -2567,21 +2567,21 @@
       "path": "pyproject.toml",
       "upstream_sha256": "0db2afb97d025f6b29d935402ce8656a7c288f4a111b74d9348649af9fddfef2",
       "staged_sha256": "0db2afb97d025f6b29d935402ce8656a7c288f4a111b74d9348649af9fddfef2",
-      "current_import_sha256": "fd6045340f14376aad48b8df92844ea19abcd5d6ed5b3a6fdb2b3f89fdb3975c",
+      "current_import_sha256": "f49236af18d17b76bb9e7b86b01c521bb08a1262fae8ebce327fca29b99fb35b",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Set root version 0.7.0, provenance, the AFD bootstrap override and AFD project URLs; pytest-asyncio's fixture loop scope set to function, its next default, so the tests do not warn that it is unset; ship skill scripts in the wheel; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610); Versioned by pnpm version-track botcore (lushly-botcore 0.8.0); Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test (lushly-dev/afd#1793); Format Botcore, add mypy type checking and py.typed marker (#1757); Versioned by pnpm version-track botcore (lushly-botcore 0.9.0)"
+      "import_reason": "Set root version 0.7.0, provenance, the AFD bootstrap override and AFD project URLs; pytest-asyncio's fixture loop scope set to function, its next default, so the tests do not warn that it is unset; ship skill scripts in the wheel; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610); Versioned by pnpm version-track botcore (lushly-botcore 0.8.0); Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test (lushly-dev/afd#1793); Format Botcore, add mypy type checking and py.typed marker (#1757); Versioned by pnpm version-track botcore (lushly-botcore 0.9.0); Serve managed host MCP server through afd.server.create_server with policy middleware and compatibility aliases (#2499)"
     },
     {
       "path": "scripts/package_smoke.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "c679f195418429e77dc7a0e1bf76bd3c71beb79b2f9984616e7bd3ea829c8a97",
+      "current_import_sha256": "28ffda901347d3b28f3b8195eaeca1cc04965e668bc1d3c939fe5ef9e9c3083c",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
-      "import_reason": "Build/audit all six artifacts and an isolated installed- wheel app; check the bloat-sweeper skill's script ships, among ten skills; Add the gate-discipline skill and its scripts; list all eleven skills; Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares.; Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); Add test-discovery guard (check-test-discovery.mjs, discovery-parsers.mjs) to gate-discipline skill, re-derived under MIT from the Lushly check-test-discovery.mjs pattern named in lushly-dev/afd#1387 and #1519; report discovery register changes in report-test-changes.mjs; verify wheel ships the new scripts in package_smoke.py; Add Health 1.0 trend measures producers to bloat-sweeper and gate-discipline skills (#1387); Replace production assert statements with explicit runtime checks and assert botcore/py.typed ships in wheel (#1757)"
+      "import_reason": "Build/audit all six artifacts and an isolated installed- wheel app; check the bloat-sweeper skill's script ships, among ten skills; Add the gate-discipline skill and its scripts; list all eleven skills; Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares.; Stamp the adaptations digest into the wheel and sdist at build, not in the repository (lushly-dev/afd#1610); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); Add test-discovery guard (check-test-discovery.mjs, discovery-parsers.mjs) to gate-discipline skill, re-derived under MIT from the Lushly check-test-discovery.mjs pattern named in lushly-dev/afd#1387 and #1519; report discovery register changes in report-test-changes.mjs; verify wheel ships the new scripts in package_smoke.py; Add Health 1.0 trend measures producers to bloat-sweeper and gate-discipline skills (#1387); Replace production assert statements with explicit runtime checks and assert botcore/py.typed ships in wheel (#1757); Serve managed host MCP server through afd.server.create_server with policy middleware and compatibility aliases (#2499)"
     },
     {
       "path": "scripts/package_tests.py",
@@ -2618,11 +2618,11 @@
       "path": "src/botcore/__init__.py",
       "upstream_sha256": "ecdb551f9b9774c5b2335e54eb9c7bf662cdf4e9fdbe4a557f5282cc08543edb",
       "staged_sha256": "44133242b17d6cad7515a5e9c9239ef053848114584c1cc3661b2aef6dc5612e",
-      "current_import_sha256": "95fdba012f5f045330d37b199b3164ad486f7bf7375e39a7c79e826927ac45d4",
+      "current_import_sha256": "8b2e79e09d2126d36daabf4b5ae5514721f1faf0c4b803b6e94000c4fbc2e026",
       "stage_classification": "modified-upstream",
       "stage_reason": "Export the additive managed-host API",
       "import_classification": "modified-after-staging",
-      "import_reason": "Set additive host API version to 0.7.0; Versioned by pnpm version-track botcore (lushly-botcore 0.8.0); Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778); Versioned by pnpm version-track botcore (lushly-botcore 0.9.0)"
+      "import_reason": "Set additive host API version to 0.7.0; Versioned by pnpm version-track botcore (lushly-botcore 0.8.0); Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778); Versioned by pnpm version-track botcore (lushly-botcore 0.9.0); Serve managed host MCP server through afd.server.create_server with policy middleware and compatibility aliases (#2499)"
     },
     {
       "path": "src/botcore/__main__.py",
@@ -3591,11 +3591,11 @@
       "path": "src/botcore/host.py",
       "upstream_sha256": null,
       "staged_sha256": "d8ecdd977b3e243f030834d4508e8f60e9dd660d4d0ff9280a1f5b3b75b545ba",
-      "current_import_sha256": "90a32008da0000544ecc50c07600ce9e710706f6afa972114ef84c17b845d8ec",
+      "current_import_sha256": "0615e5d38bc93edceaf042ceb77f6919898947d3bb7fb84a6cfef40602f21f0c",
       "stage_classification": "added-in-staging",
       "stage_reason": "Add shared dispatch, effects policy and quality-verdict adapters",
       "import_classification": "modified-after-staging",
-      "import_reason": "Map broken-link failures and typed infrastructure verdicts correctly; merge plugin-declared policies that a host may only narrow, carry input schemas and one-line descriptions in the catalog, refuse wrong argument names; load config as an explicit plugin selection; resolve either spelling of a command name with closest-name refusals, serve kebab-case names on request, validate typed inputs, build a context per call, admit effects by profile; Fix Batch 5 P0/P1 bugs (#1871-#1875); Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778); Format Botcore, add mypy type checking and py.typed marker (#1757); Format and type-check botcore after base sync (#1757); Replace production assert statements with explicit runtime checks and assert botcore/py.typed ships in wheel (#1757)"
+      "import_reason": "Map broken-link failures and typed infrastructure verdicts correctly; merge plugin-declared policies that a host may only narrow, carry input schemas and one-line descriptions in the catalog, refuse wrong argument names; load config as an explicit plugin selection; resolve either spelling of a command name with closest-name refusals, serve kebab-case names on request, validate typed inputs, build a context per call, admit effects by profile; Fix Batch 5 P0/P1 bugs (#1871-#1875); Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778); Format Botcore, add mypy type checking and py.typed marker (#1757); Format and type-check botcore after base sync (#1757); Replace production assert statements with explicit runtime checks and assert botcore/py.typed ships in wheel (#1757); Serve managed host MCP server through afd.server.create_server with policy middleware and compatibility aliases (#2499)"
     },
     {
       "path": "src/botcore/host_http.py",
@@ -3612,11 +3612,11 @@
       "path": "src/botcore/host_surfaces.py",
       "upstream_sha256": null,
       "staged_sha256": "9c9daa261ede670474aff53168b4d4095ad6a1b1b7371c46e595904fac0a806a",
-      "current_import_sha256": "27da5ee604d4ee2f0ba1baa747b891672e2474c23d254218222e61bb6e82d602",
+      "current_import_sha256": "fda46aa0773b77526e2b62a26225ed8fe365c1f61404d30fb8f57c7cf1328f14",
       "stage_classification": "added-in-staging",
       "stage_reason": "Expose managed CLI/MCP through the shared host dispatcher",
       "import_classification": "modified-after-staging",
-      "import_reason": "Support both SDKs and safe Python aliases for canonical kebab IDs; resolve raw-Python aliases through the host; call over MCP as an agent; Format Botcore, add mypy type checking and py.typed marker (#1757); serve each host command as its own MCP tool with the host as the only validator (factory gateway change 3)"
+      "import_reason": "Support both SDKs and safe Python aliases for canonical kebab IDs; resolve raw-Python aliases through the host; call over MCP as an agent; Format Botcore, add mypy type checking and py.typed marker (#1757); serve each host command as its own MCP tool with the host as the only validator (factory gateway change 3); Serve managed host MCP server through afd.server.create_server with policy middleware and compatibility aliases (#2499); Serve managed host MCP through afd.create_server (#2499)"
     },
     {
       "path": "src/botcore/host_tokens.py",
@@ -5696,11 +5696,11 @@
       "path": "src/botcore/skills/mcp-builder/SKILL.md",
       "upstream_sha256": "1ea861a24f1c0466a379136411d31277ae2cc2b1d3fdcf3090dc6604ff3ad3f6",
       "staged_sha256": "1ea861a24f1c0466a379136411d31277ae2cc2b1d3fdcf3090dc6604ff3ad3f6",
-      "current_import_sha256": "f328c56bb44d3bf999d04e3c22dfe05c62497dd50502925b42a101368f3092fa",
+      "current_import_sha256": "5e3eb3dc916a534b08e60756f676fa558fc85905f09471a8915fe5a6fa2c1a90",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrite on the MCP SDK and managed raw Python; fix client config locations; Point mcp-builder at spec/output-budgets.md for structured AFD command budgets (#1993)"
+      "import_reason": "Rewrite on the MCP SDK and managed raw Python; fix client config locations; Point mcp-builder at spec/output-budgets.md for structured AFD command budgets (#1993); Serve managed host MCP server through afd.server.create_server with policy middleware and compatibility aliases (#2499); Serve managed host MCP through afd.create_server (#2499)"
     },
     {
       "path": "src/botcore/skills/mcp-builder/references/fastmcp-patterns.md",
@@ -5906,11 +5906,11 @@
       "path": "src/botcore/skills/plugin-builder/SKILL.md",
       "upstream_sha256": "24bfda6bee3feb2ef7d67de7803618c14cfe1f3fe347effa1f817e4e24fa5bb6",
       "staged_sha256": "24bfda6bee3feb2ef7d67de7803618c14cfe1f3fe347effa1f817e4e24fa5bb6",
-      "current_import_sha256": "a18133fce7852cc250c1df90dbd0c7d478d54f893ed75d2804539d5d60ed351f",
+      "current_import_sha256": "115a2bd083037ee631280bd3b009a29b588049106dc66b83a8de873f943bdc8d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rebase on the managed host and the real error() and discovery APIs; Key botcore-memory agent memory on the caller a host verified and refuse host calls that name no one; carry the LLM session's agent name as the tool caller's id; document callers and moving default memories"
+      "import_reason": "Rebase on the managed host and the real error() and discovery APIs; Key botcore-memory agent memory on the caller a host verified and refuse host calls that name no one; carry the LLM session's agent name as the tool caller's id; document callers and moving default memories; Serve managed host MCP server through afd.server.create_server with policy middleware and compatibility aliases (#2499)"
     },
     {
       "path": "src/botcore/skills/plugin-builder/references/command-authoring.md",
@@ -7325,11 +7325,11 @@
       "path": "tests/test_host.py",
       "upstream_sha256": null,
       "staged_sha256": "f733296254d5b30e0c723330fc238748876afe0a43c8935ff9ad331959081621",
-      "current_import_sha256": "0b9f65f546d5abbb83c55b2af476087d5bb049d2783ba100b28ca55a27db8b4c",
+      "current_import_sha256": "46fb784a8feb2057fdf036fe3c92695d68faef6689d706e99c0b2db59436ed71",
       "stage_classification": "added-in-staging",
       "stage_reason": "Exercise context isolation, route parity, effects and protocol safety",
       "import_classification": "modified-after-staging",
-      "import_reason": "Test SDK 2 envelopes, real broken links, typed outcomes and raw aliases; expect a duplicate refusal for two spellings of one name; Fix Batch 5 P0/P1 bugs (#1871-#1875); Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778)"
+      "import_reason": "Test SDK 2 envelopes, real broken links, typed outcomes and raw aliases; expect a duplicate refusal for two spellings of one name; Fix Batch 5 P0/P1 bugs (#1871-#1875); Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778); Serve managed host MCP server through afd.server.create_server with policy middleware and compatibility aliases (#2499)"
     },
     {
       "path": "tests/test_host_calls.py",
@@ -7337,10 +7337,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "0bbafab4f2d48f4aad40e12dc743130ab24b8f5430cfed29bed691d370cceff1",
+      "current_import_sha256": "a4d044738041f89491dc6315dfa75f7641753fcbf617d29ac03cf32a30609ed0",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "serve each host command as its own MCP tool with the host as the only validator (factory gateway change 3)"
+      "import_reason": "serve each host command as its own MCP tool with the host as the only validator (factory gateway change 3); Serve managed host MCP server through afd.server.create_server with policy middleware and compatibility aliases (#2499); Serve managed host MCP through afd.create_server (#2499)"
     },
     {
       "path": "tests/test_host_http.py",
@@ -7686,11 +7686,11 @@
       "path": "uv.lock",
       "upstream_sha256": "de195f74ec7cf4a8bc26f1d03a89ece63b7607f23433c23b86ab342dc335cd95",
       "staged_sha256": "de195f74ec7cf4a8bc26f1d03a89ece63b7607f23433c23b86ab342dc335cd95",
-      "current_import_sha256": "0a54f617604bacd1d0c581af5f1c67ca5224cd6a530a7a38eee93a777fbb86f4",
+      "current_import_sha256": "efe39f3e2cbeba98c41306dbd704b0db3c91996b5e370974c9d93805b3637f04",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Lock local AFD 0.10 and MCP 2.3; refresh dependencies within declared constraints; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Lock the editable afd source at 0.11.0; Versioned by pnpm version-track botcore (lushly-botcore 0.8.0); Versioned by pnpm version-track python (afd-python 0.12.0); Refresh uv.lock after promoting pyyaml to afd[server] (#1981); Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test (lushly-dev/afd#1793); Format Botcore, add mypy type checking and py.typed marker (#1757); Versioned by pnpm version-track python (afd-python 0.13.0); Versioned by pnpm version-track botcore (lushly-botcore 0.9.0)"
+      "import_reason": "Lock local AFD 0.10 and MCP 2.3; refresh dependencies within declared constraints; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Lock the editable afd source at 0.11.0; Versioned by pnpm version-track botcore (lushly-botcore 0.8.0); Versioned by pnpm version-track python (afd-python 0.12.0); Refresh uv.lock after promoting pyyaml to afd[server] (#1981); Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test (lushly-dev/afd#1793); Format Botcore, add mypy type checking and py.typed marker (#1757); Versioned by pnpm version-track python (afd-python 0.13.0); Versioned by pnpm version-track botcore (lushly-botcore 0.9.0); Serve managed host MCP server through afd.server.create_server with policy middleware and compatibility aliases (#2499)"
     }
   ]
 }

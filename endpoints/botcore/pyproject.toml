@@ -44,7 +44,8 @@ quality = [
     "httpx>=0.24.0",
 ]
 mcp = [
-    "mcp>=1.0.0",
+    "afd[server]>=0.13.0",
+    "mcp>=2.3,<3",
 ]
 all = [
     "lushly-botcore[cdp,research,quality,mcp]",

@@ -15,7 +15,7 @@ metadata:
 
 # MCP servers
 
-Botcore uses the official MCP Python SDK (`mcp`), not the standalone `fastmcp` package: `botcore._mcp.sdk_types()` returns SDK 2's `MCPServer` or SDK 1's `FastMCP`. To expose Botcore commands, write a plugin and serve it with `create_host_mcp_server` (see the Botcore plugin skill).
+Botcore's managed MCP server (`create_host_mcp_server`) runs on `afd.server.create_server` and the official MCP Python SDK 2 (`mcp>=2.3,<3`, not the standalone `fastmcp` package). Legacy `create_mcp_server` keeps the `botcore._mcp.sdk_types()` SDK 1/2 adapter. To expose Botcore commands, write a plugin and serve it with `create_host_mcp_server` (see the Botcore plugin skill).
 
 ## Measure what the tool list costs
 
@@ -33,7 +33,7 @@ Record the figure next to the tool list and re-measure whenever tools change.
 
 Where it costs depends on the client. Claude Code's tool search is on by default and loads only tool names and server instructions up front; `/context` shows which tools are deferred. Clients without deferral, and Claude Code with tool search off, load everything.
 
-- **Instructions.** Set the server's `instructions` to say what tasks its tools handle, so tool search can find them. Botcore's factories set only a name.
+- **Instructions.** Set the server's `instructions` to say what tasks its tools handle, so tool search can find them. The legacy `create_mcp_server` sets only a name; `create_host_mcp_server` emits AFD's default instructions and accepts `instructions=...`.
 - **Descriptions.** Give purpose and call shape, with searchable words first. Claude Code cuts long descriptions and instructions; [its MCP docs](https://code.claude.com/docs/en/mcp) give the current limits. Put reference text behind a docs tool, as Botcore's `{name}-docs` does.
 - **Growth.** When the payload grows, consolidate related operations behind one dispatcher, such as an `action` argument or Botcore's `{name}-call(command, arguments)`.
 

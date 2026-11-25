@@ -184,7 +184,8 @@ async def main():
     assert not (root / ".changeset").exists()
     server = create_host_mcp_server(host)
     assert {tool.name for tool in await server.list_tools()} == {
-        "consumer-start", "consumer-docs", "consumer-call"
+        "afd-discover", "afd-detail", "afd-call", "afd-batch", "afd-pipe",
+        "consumer-start", "consumer-docs", "consumer-call",
     }
     assert len(list(get_bundled_skills_dir().glob("*/SKILL.md"))) == 12
     print(json.dumps({"installed_wheel": True, "application_platform_dependencies": [],

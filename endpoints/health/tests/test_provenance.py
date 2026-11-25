@@ -13,7 +13,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 RECORD = ROOT / "provenance" / "provenance.json"
 # Pinned so a changed claim cannot pass by rehashing the record alone.
-RECORD_SHA256 = "eef68974d680eebae6ed08e6e275fb9e56436351b0911f76b54428770b140ec8"
+RECORD_SHA256 = "de6a852ec6fb8982f6604940c99bbac02859a7ffed9d4cdcee15c2d8deac5412"
 SOURCE_REVISION = "35e3cf041f9daff1354c9e8aee05388389397a0d"
 IGNORED = {".venv", "__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", "dist", "build"}
 

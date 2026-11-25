@@ -16,6 +16,7 @@ from botcore.host import (
     QualityVerdict,
     aggregate_quality,
     build_host,
+    create_host_policy_middleware,
 )
 from botcore.host_surfaces import create_host_cli, create_host_mcp_server
 from botcore.plugin import (
@@ -43,6 +44,7 @@ __all__ = [
     "build_host",
     "create_host_cli",
     "create_host_mcp_server",
+    "create_host_policy_middleware",
     # Config
     "BotCoreConfig",
     "SkillsConfig",

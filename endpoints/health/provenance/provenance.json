@@ -451,7 +451,8 @@
     },
     {
       "path": "uv.lock",
-      "origin": "authored"
+      "origin": "authored",
+      "adaptation": "Refresh lockfile for lushly-botcore[mcp] extra (#2499)."
     }
   ]
 }

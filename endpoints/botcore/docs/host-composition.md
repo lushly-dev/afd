@@ -17,14 +17,30 @@ server = create_host_mcp_server(host)
 client = host.direct_client()
 ```
 
-The host owns CLI/MCP names. The managed MCP tools are `alfred-start`,
-`alfred-docs`, and `alfred-call`; the CLI offers `catalog` and `call NAME JSON`.
-All three surfaces enter `host.execute`. `host.direct_client()` returns the AFD
-DirectClient, including its normal pipeline support. Quality verdicts live in
-`result.metadata.quality` with `status`, `target`, and `evidence`.
-`CommandResult.success` keeps its original execution meaning. CLI exit status
-also rejects nonpassing quality verdicts. Use `aggregate_quality` for required
-check plans; empty plans and required skipped/unavailable checks never pass.
+The host owns CLI/MCP names. `create_host_mcp_server(host)` serves the host
+through `afd.server.create_server`, exposing AFD's five standard meta-tools
+(`afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe`) and dual-era
+MCP (`2026-07-28` `server/discover` and `2025` `initialize`), while keeping the
+legacy `{name}-start`, `{name}-call`, and `{name}-docs` tools as compatibility
+aliases (deprecated; planned for retirement in a later release; omitted when a
+host named `afd` would collide with an AFD built-in). Host policy, execution
+profiles and path bounds run as AFD middleware
+(`create_host_policy_middleware(host)`) before downstream AFD middleware and
+handlers, and every admitted call enters `host.execute`. Additional AFD server
+options (`skills`, `resources`, `auth`, `context_hook`, `context_fields`,
+`middleware`, `tool_strategy`, `first_class_tools`, `default_timeout_ms`) may
+be passed directly to `create_host_mcp_server` (`default_timeout_ms` defaults
+to `None` so long-running commands are not cut off unless configured); the
+returned MCP SDK server also exposes `.afd_server` for inspecting the
+underlying AFD server (call transport methods such as `run` and
+`streamable_http_app` on the returned server). The CLI offers `catalog` and
+`call NAME JSON`. All surfaces enter `host.execute`. `host.direct_client()`
+returns the AFD DirectClient, including its normal pipeline support. Quality
+verdicts live in `result.metadata.quality` with `status`, `target`, and
+`evidence`. `CommandResult.success` keeps its original execution meaning. CLI
+exit status also rejects nonpassing quality verdicts. Use `aggregate_quality`
+for required check plans; empty plans and required skipped/unavailable checks
+never pass.
 
 Host plugins are explicitly selected by entry-point name (`plugins=("alfred",)`).
 Missing, duplicate, or failing selections reject construction. Registration
@@ -173,26 +189,32 @@ middleware (`afd.server.journal.create_journal_middleware`) runs behind the host
 and records the actor, and a handler reads it with
 `botcore.context.current_call()` instead of taking the caller as an input.
 
-`create_host_mcp_server(host, command_tools=True)` also serves each command as its own MCP
-tool, named as the host serves it, beside the `start`, `call` and `docs` meta-tools. Its input
-schema is the catalog's `input_schema`, and its annotations come from the command's declared
-effects: `readOnlyHint` when every possible effect is `inspect`, otherwise `destructiveHint`,
-so a client's permission rules can tell a write from a read. The MCP SDK does not model a
-command tool's arguments (SDK 2 only compares `Mcp-Param` headers with the catalog schema, which
-declares none): a call is handed whole to the `call` meta-tool, so it enters
-`host.execute` as any other call does, as an agent unless the host names its actor, and the
-host is the only validator. A `**kwargs` handler is served, and an unknown or ill-typed input is
-refused with AFD's `VALIDATION_ERROR` and its suggestion instead of being dropped or refused by
-the SDK. A command named like a meta-tool (`start`, `call`, `docs`, or `run` even when raw
-Python is off) is refused when the server is built. Commands are read on each request, so one
-registered later is listed and called alike. Only the served spelling is a tool (`issue_claim`
-does not reach `issue-claim`), and each tool declares the `call` meta-tool's output schema, the
-reply it shares.
+`create_host_mcp_server(host, command_tools=True)` maps to AFD's
+`tool_strategy="individual"` (`command_tools=False` uses `"lazy"`), serving each
+command as its own MCP tool, named as the host serves it, beside AFD's five
+meta-tools and the compatibility `start`, `call` and `docs` aliases. Callers
+may also pass `tool_strategy="grouped"` or `tool_strategy="hybrid"` (with
+`first_class_tools`). Each command tool publishes the catalog's `input_schema`
+as AFD's `advertised_input_schema` (so the host stays the sole validator) and
+carries annotations from the command's declared effects: `readOnlyHint` when
+every possible effect is `inspect`, otherwise `destructiveHint`, so a client's
+permission rules can tell a write from a read. A `**kwargs` handler is served,
+and an unknown or ill-typed input is refused with AFD's `VALIDATION_ERROR` and
+its `suggestedFields` instead of being dropped or refused by the SDK. A command
+named like a compatibility meta-tool (`start`, `call`, `docs`, or `run` even
+when raw Python is off) or a reserved AFD meta-tool (`afd-discover`,
+`afd-detail`, `afd-call`, `afd-batch`, `afd-pipe`) is refused when the server is
+built. Commands are synced on each request, so one registered later is listed
+and called alike (late commands colliding with reserved names are skipped). Only
+the served spelling is a command tool (`issue_claim` returns `COMMAND_NOT_FOUND`
+rather than reaching `issue-claim`).
 
-The annotations are hints for a client's own rules, not a boundary: `<host>-call`, and
-`<host>-run` when raw Python is on, still reach every command, so a rule that denies `pr-merge`
-must deny those too. A host's profile still decides: an `inspection` host lists its write
-commands, marked destructive, and refuses each call with `EFFECT_DENIED`, as `start` lists them.
+The annotations are hints for a client's own rules, not a boundary: `afd-call`,
+`afd-batch`, `afd-pipe`, `<host>-call`, and `<host>-run` when raw Python is on,
+still reach every command, so a rule that denies `pr-merge` must deny those too.
+A host's profile still decides: an `inspection` host lists its write commands,
+marked destructive, and refuses each call with `EFFECT_DENIED` in
+`create_host_policy_middleware`, as `afd-discover` and `<host>-start` list them.
 
 Managed raw Python requires BOTH `raw_python=True` and an explicit
 `ExecutionContext(..., profile="trusted-local")`. It adds `alfred-run` and is
@@ -215,16 +237,22 @@ other distributions remain quarantined until a separately approved release plan.
 extra for wildcard discovery; requesting that integration while unavailable
 returns actionable INTEGRATION_UNAVAILABLE before creating an LLM session.
 
-The local-source bootstrap uses Python AFD 0.10 and MCP SDK 2.3. A small lazy
-import adapter supports MCP SDK 1 and 2 while retaining tool names and wire
-payloads. SDK-level Python `call_tool` return objects follow the installed SDK
-version; clients should use that SDK's supported content access API.
+The local-source bootstrap uses Python AFD 0.13 and MCP SDK 2.3. Managed hosts
+(`create_host_mcp_server`) require the `mcp` extra (`afd[server]>=0.13.0` and
+`mcp>=2.3,<3`). Legacy `create_mcp_server` keeps its small lazy import adapter
+supporting MCP SDK 1 and 2 while retaining tool names and wire payloads.
+SDK-level Python `call_tool` return objects follow the installed SDK version;
+clients should use that SDK's supported content access API. Register host
+commands before serving with `auth` so initial scope views cover every command.
 
 ## Serving hosts over HTTP
 
 `botcore.host_http.create_host_http_app({"lane": host, ...}, tokens, uploads=...)`
-serves several hosts from one process, each under its own route, with the
-`mcp` extra's Starlette. Under `/<route>` it answers `POST call`
+remains Botcore's multi-host HTTP and upload gateway, serving several hosts from
+one process under `/<route>` with the `mcp` extra's Starlette (for standard
+single-host MCP over Streamable HTTP — including `2026-07-28` `server/discover`,
+Skills, resources and OAuth bearer verification — use
+`create_host_mcp_server(host).streamable_http_app(...)` instead). Under `/<route>` it answers `POST call`
 (`{"command", "arguments"?, "onBehalfOf"?}`), `GET catalog`, `GET docs/<topic>`
 and, when given an upload handler, `POST uploads` (raw bytes; the handler also
 receives the query string's parameters). Every answer is a CommandResult: a

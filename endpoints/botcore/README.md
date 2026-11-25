@@ -470,5 +470,17 @@ botcore grew from managing AI agents across dozens of repositories — and the r
 
 For explicit per-worktree context, host-owned identity, effects policy and
 quality verdicts shared by CLI/MCP/DirectClient, see
-[host composition](docs/host-composition.md). This opt-in API retains the legacy
-trusted local interfaces and does not transfer package publication authority.
+[host composition](docs/host-composition.md). `create_host_mcp_server(host)`
+serves managed hosts through `afd.server.create_server` (requires the `mcp`
+extra: `afd[server]>=0.13.0`, `mcp>=2.3,<3`), exposing dual-era MCP
+`2026-07-28` `server/discover` and `2025` `initialize`, AFD meta-tools
+(`afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe`), AFD tool
+strategies, Skills (`io.modelcontextprotocol/skills`), resources, OAuth bearer
+auth, `context_hook` and `context_fields`. Host policy and execution profiles
+run as AFD middleware (`create_host_policy_middleware`), `default_timeout_ms`
+defaults to `None` (no cutoff unless configured), `command_tools=True` maps to
+AFD's `"individual"` tool strategy (`"lazy"` by default), and `{name}-start`,
+`{name}-call` and `{name}-docs` remain available as deprecated compatibility
+aliases. Legacy trusted-local `create_mcp_server` and `botcore.host_http` keep
+their existing behavior. This opt-in API does not transfer package publication
+authority.
