@@ -1,12 +1,17 @@
 /**
- * The documents section's and New's fixtures (documents specification, 7, 8 and D10, step 11): `loam-tree`
- * as the section's sidebar, with its row menu open, and as an app's tree; the section's list, its trash and
- * its empty state; and the New menu with a heading per plugin. Each comfortable and compact; Specimen renders
- * each in the light, dark and high-contrast contexts. A stub kernel answers the reads, so no app is loaded.
+ * The documents section's and New's fixtures (documents specification, 7, 8, 10 and D10, steps 11 and 12):
+ * `loam-tree` as the section's sidebar, with its row menu and Rename/Links dialogs open, and as an app's tree;
+ * the documents inspector mounted in its `loam-inspector` shell part; the section's list, its trash and its
+ * empty state; and the New menu with a heading per plugin. Each comfortable and compact; Specimen renders each
+ * in the light, dark and high-contrast contexts. A stub kernel answers the reads, so no app is loaded.
  */
 
+import type { DocumentRefV1 } from '@lushly-dev/loam-sdk';
 import type { SpecimenDefinition } from '@lushly-dev/specimen';
+import { defineAppElements, type LoamMount } from '../dist/apps/index.js';
+import type { LoamShell } from '../dist/index.js';
 import { LoamNewMenu, newMenuDefinition } from '../dist/new/new-menu.js';
+import { syncInspector } from '../dist/sections/documents-inspector.js';
 import {
 	documentsSectionDefinition,
 	type LoamDocumentsSection,
@@ -17,8 +22,8 @@ import {
 	type LoamDocumentsSidebar,
 	LoamDocumentsSidebar as Sidebar,
 } from '../dist/sections/documents-sidebar.js';
-import { defineTree, type LoamTree } from '../dist/sections/tree.js';
-import { type Density, themePart } from './support.js';
+import { defineTree, type LoamTree, TREE_ACTION_EVENT } from '../dist/sections/tree.js';
+import { type Density, themePart, until } from './support.js';
 
 type Box = { inline: string; block: string };
 
@@ -59,15 +64,20 @@ const JOTS = {
 	icon: 'system/document',
 	instance: 'jots',
 	app: 'jots',
+	editorKind: 'native',
 	scopeLevels: ['workspace', 'project'],
 	templates: [{ id: 'blank', title: 'Blank jot' }],
 };
 
-/** A kernel that answers each read the section, its sidebar and New make, and changes nothing. */
-function stubKernel(answers: Record<string, (input: Record<string, unknown>) => unknown>) {
+/** A kernel that answers each read the section, its sidebar, its inspector and New make, and changes nothing. */
+function stubKernel(
+	answers: Record<string, (input: Record<string, unknown>) => unknown>,
+	manifests: Record<string, unknown> = {}
+) {
 	return {
 		subscribe: () => () => {},
 		listCommands: () => [],
+		appPort: (instance: string) => ({ manifest: manifests[instance] ?? {} }),
 		async call(name: string, input: Record<string, unknown> = {}) {
 			const answer = answers[name];
 			return answer ? { success: true, data: answer(input) } : { success: true, data: {} };
@@ -83,6 +93,8 @@ const DOCUMENTS = [
 
 const READS = {
 	'document-type-list': () => ({ types: [JOTS] }),
+	'document-get': (input: Record<string, unknown>) =>
+		DOCUMENTS.find((each) => each.id === input.document) ?? DOCUMENTS[0],
 	'document-list': (input: Record<string, unknown>) =>
 		input.status === 'trashed'
 			? {
@@ -92,6 +104,29 @@ const READS = {
 					total: 1,
 				}
 			: { documents: DOCUMENTS, total: DOCUMENTS.length },
+	'document-link-list': () => ({
+		out: [
+			{
+				link: { id: 'lnk_1' },
+				document: {
+					id: 'doc_ideas',
+					title: 'Ideas for the quarter',
+					type: 'jots',
+					status: 'active',
+				},
+			},
+		],
+		in: [
+			{
+				link: { id: 'lnk_2' },
+				document: { id: 'doc_old', title: 'Old plan', type: 'jots', status: 'trashed' },
+			},
+		],
+	}),
+	'editor-get': () => ({
+		activeGroup: 'g1',
+		groups: [{ id: 'g1', active: 't1', tabs: [{ id: 't1', document: 'doc_roadmap' }] }],
+	}),
 	'workspace-get': () => ({ trashDays: 30 }),
 	'new-list': () => ({
 		items: [
@@ -122,6 +157,7 @@ const READS = {
 };
 
 async function defineAll(): Promise<void> {
+	await defineAppElements();
 	await defineTree();
 	if (!customElements.get(documentsSectionDefinition.name))
 		await Section.define(documentsSectionDefinition);
@@ -203,6 +239,120 @@ export const [DocumentsTreeMenu, DocumentsTreeMenuCompact] = both(
 		if (row) tree.openMenu('recent:doc_roadmap', row, true);
 	},
 	{ inline: '320px', block: '420px' }
+);
+
+/** Open the sidebar's Rename or Links modal dialog for Roadmap (#873). */
+async function openSidebarDialog(wrapper: HTMLElement, action: 'rename' | 'links'): Promise<void> {
+	const element = await sidebar(wrapper);
+	element.tree.dispatchEvent(
+		new CustomEvent(TREE_ACTION_EVENT, {
+			detail: { id: 'recent:doc_roadmap', action },
+			bubbles: true,
+			composed: true,
+		})
+	);
+	await until(() => {
+		const dialog = element.shadowRoot?.querySelector('dialog');
+		if (!dialog?.matches(':modal')) return false;
+		if (action === 'rename') {
+			return (
+				(dialog.querySelector<HTMLInputElement>('[data-ref="title"]')?.value ?? '') === 'Roadmap'
+			);
+		}
+		return Boolean(dialog.querySelector('table[data-ref="links"] tbody tr'));
+	});
+}
+
+const DIALOG_BOX: Box = { inline: '640px', block: '420px' };
+
+/** The documents sidebar's Rename modal dialog, open on Roadmap (#873). */
+export const [DocumentsTreeRename, DocumentsTreeRenameCompact] = both(
+	'loam-documents-sidebar',
+	(wrapper) => openSidebarDialog(wrapper, 'rename'),
+	DIALOG_BOX
+);
+
+/** The documents sidebar's Links modal dialog, open on Roadmap with active and trashed rows (#873). */
+export const [DocumentsTreeLinks, DocumentsTreeLinksCompact] = both(
+	'loam-documents-sidebar',
+	(wrapper) => openSidebarDialog(wrapper, 'links'),
+	DIALOG_BOX
+);
+
+/** A stub document type inspector element mounted in its own scoped registry for `DocumentsInspector` (#868). */
+class FixtureDocumentInspector extends HTMLElement {
+	document?: DocumentRefV1;
+
+	connectedCallback(): void {
+		this.replaceChildren();
+		const links = document.createElement('section');
+		links.setAttribute('aria-label', 'Links');
+		const linksHeading = document.createElement('h3');
+		linksHeading.textContent = 'Links';
+		const outLink = document.createElement('p');
+		outLink.textContent = `Outgoing from ${this.document?.title ?? 'Document'}: Ideas for the quarter`;
+		links.append(linksHeading, outLink);
+		const backlinks = document.createElement('section');
+		backlinks.setAttribute('aria-label', 'Backlinks');
+		const backlinksHeading = document.createElement('h3');
+		backlinksHeading.textContent = 'Backlinks';
+		const inLink = document.createElement('p');
+		inLink.textContent = 'Old plan (In trash)';
+		backlinks.append(backlinksHeading, inLink);
+		this.append(links, backlinks);
+	}
+}
+
+/** The documents inspector mounted in the shell's `loam-inspector` part via `syncInspector` (#868). */
+export const [DocumentsInspector, DocumentsInspectorCompact] = both(
+	'loam-inspector',
+	async (wrapper) => {
+		const registry = new CustomElementRegistry();
+		registry.define('jots-inspector', class extends FixtureDocumentInspector {});
+		const shell = document.createElement('loam-shell') as LoamShell;
+		shell.style.setProperty('display', 'block');
+		shell.style.setProperty('inline-size', '100%');
+		shell.style.setProperty('block-size', '100%');
+		wrapper.append(shell);
+		const part = document.createElement('loam-inspector');
+		part.setAttribute('heading', 'Inspector');
+		part.style.setProperty('inline-size', '100%');
+		part.style.setProperty('block-size', '100%');
+		const empty = document.createElement('loam-empty-state');
+		empty.setAttribute('message', 'Properties of the selection will appear here.');
+		part.append(empty);
+		shell.shadowRoot?.append(part);
+		shell.kernel = stubKernel(READS, {
+			jots: { ui: { documents: [{ id: 'jots', inspector: { element: 'jots-inspector' } }] } },
+		});
+		shell.apps = {
+			host: () => ({
+				ensureActivated: async () => {},
+				createMount: (
+					_instance: string,
+					element: string,
+					options: { document?: DocumentRefV1 }
+				) => {
+					const mount = document.createElement('loam-mount') as LoamMount;
+					mount.configure({
+						registry,
+						element,
+						context: {} as never,
+						...(options.document ? { document: options.document } : {}),
+					});
+					return mount;
+				},
+			}),
+		} as never;
+		const shown = await syncInspector(shell, true, () => {});
+		if (!shown) throw new Error('DocumentsInspector fixture: syncInspector did not mount');
+		await until(
+			() =>
+				part.getAttribute('heading') === 'Jot details' &&
+				Boolean(part.querySelector('loam-mount')?.shadowRoot?.querySelector('jots-inspector'))
+		);
+	},
+	{ inline: '300px', block: '480px' }
 );
 
 /** An app's `tree` sidebar, three levels deep, with a description. */
