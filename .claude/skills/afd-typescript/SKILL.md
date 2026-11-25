@@ -99,6 +99,13 @@ export const panelOpen = defineCommandWithSchema({
 - Importing `defineCommand` or `createDirectToolSurface` brings `toJSONSchema` back, and the tool surface brings classic Zod.
 - Mini loads no locale, so `VALIDATION_ERROR` rebuilds the common messages itself; a format keeps its own name (`Invalid email`) and a rarer code says `Invalid input` with the path. Don't assert on that wording where classic Zod may also load.
 
+### Strict CSP (`script-src 'self'`)
+
+Classic `z.object()` uses `$ZodObjectJIT` and probes `new Function` unless `jitless` is set, firing a `securitypolicyviolation` despite catching the error. `zod/mini` uses non-JIT objects, but a classic object schema loaded alongside it (such as `createDirectToolSurface` or another dependency) still triggers the probe; both share `zod/v4/core`'s `globalConfig`, so one setting covers both. AFD leaves `jitless` to the host:
+
+- **Single-chunk bundle:** make the entry's first import a module that calls `config({ jitless: true })` from `'zod/v4/core'` (or `'zod/mini'` / `'zod'`) before any object schema is constructed.
+- **Code-split bundle (Vite, Rollup):** shared chunks evaluate before the entry runs, so an entry import comes too late. Either change Zod core's initial config at build time (see `zodJitlessByDefault` on `zod/v4/core/core.js` in `endpoints/loam/packages/web/scripts/narrow-zod.mjs`) or run `(globalThis.__zod_globalConfig ??= {}).jitless = true` in an earlier same-origin script before the bundle loads; mutating via `??=` preserves existing settings and stays visible to any copy of Zod already loaded in the same realm.
+
 ## Servers
 
 `createMcpServer()` is the standalone server (`start()`, `stop()`, `getUrl()`, `execute()`). `createMcpHandler()` returns a Node request handler for a host that owns the HTTP server; call `handler.dispose()` on shutdown.
