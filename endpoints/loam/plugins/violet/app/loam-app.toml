@@ -239,7 +239,7 @@ description = "Write the tree back as DTCG files, one per node with only that no
 category = "violet"
 effects = ["inspect"]
 input_schema = "schemas/violet-tree-export.input.json"
-errors = ["OPERATION_NOT_ALLOWED", "INVALID_TOKEN_VALUE"]
+errors = ["OPERATION_NOT_ALLOWED", "INVALID_TOKEN_VALUE", "VALIDATION_ERROR"]
 
 [ui.surfaces.rail]
 label = "Violet"

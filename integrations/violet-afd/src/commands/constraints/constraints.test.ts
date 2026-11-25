@@ -4,6 +4,7 @@
 
 import { createMemoryDatabase } from '@lushly-dev/violet-core/engine';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { auditListCommand } from '../audit/list.js';
 import { nodeCreateCommand } from '../node/create.js';
 import type { CommandContext } from '../registry.js';
 import { tokenAddCommand } from '../token/add.js';
@@ -180,6 +181,268 @@ describe('constraints commands', () => {
 
 			expect(result.success).toBe(false);
 			expect(result.error?.code).toBe('NODE_NOT_FOUND');
+		});
+
+		it('records audit events on replace and merge: true, visible in audit.list (#2329)', async () => {
+			const colorRule = {
+				id: 'brand-colors',
+				name: 'Brand Colors',
+				config: { type: 'enum' as const, values: ['#0078D4'] },
+				severity: 'error' as const,
+				applyTo: 'color.*',
+			};
+			const spacingRule = {
+				id: 'spacing-grid',
+				name: 'Spacing Grid',
+				config: { type: 'scale' as const, base: 8 },
+				severity: 'warning' as const,
+				applyTo: 'spacing.*',
+			};
+			const aliceContext: CommandContext = { ...context, actor: 'alice' };
+			const bobContext: CommandContext = { ...context, actor: 'bob' };
+
+			// 1. Replace from empty
+			const first = await constraintsSetCommand.handler(
+				{ nodeId: 'global', constraints: [colorRule] },
+				aliceContext,
+			);
+			expect(first.success).toBe(true);
+
+			// 2. Merge an additional rule
+			const merged = await constraintsSetCommand.handler(
+				{ nodeId: 'global', constraints: [spacingRule], merge: true },
+				bobContext,
+			);
+			expect(merged.success).toBe(true);
+
+			// 3. Replace back to empty
+			const cleared = await constraintsSetCommand.handler(
+				{ nodeId: 'global', constraints: [], merge: false },
+				aliceContext,
+			);
+			expect(cleared.success).toBe(true);
+
+			const audit = await auditListCommand.handler(
+				{ nodeId: 'global', eventTypes: ['constraint_set'] },
+				context,
+			);
+			expect(audit.success).toBe(true);
+			expect(audit.data?.summary.total).toBe(3);
+			expect(audit.data?.summary.byType).toEqual({ constraint_set: 3 });
+
+			// audit.list returns newest first
+			const [evClear, evMerge, evFirst] = audit.data?.events ?? [];
+			expect(evFirst).toMatchObject({
+				eventType: 'constraint_set',
+				actor: 'alice',
+				targetNode: 'global',
+				oldValue: [],
+				newValue: [expect.objectContaining({ id: 'brand-colors', enabled: true })],
+				metadata: { merge: false, constraintsSet: 1, totalConstraints: 1 },
+			});
+			expect(evFirst?.targetToken).toBeUndefined();
+
+			expect(evMerge).toMatchObject({
+				eventType: 'constraint_set',
+				actor: 'bob',
+				targetNode: 'global',
+				oldValue: [expect.objectContaining({ id: 'brand-colors' })],
+				newValue: [
+					expect.objectContaining({ id: 'brand-colors' }),
+					expect.objectContaining({
+						id: 'spacing-grid',
+						config: { type: 'scale', base: 8, tolerance: 0 },
+					}),
+				],
+				metadata: { merge: true, constraintsSet: 1, totalConstraints: 2 },
+			});
+
+			expect(evClear).toMatchObject({
+				eventType: 'constraint_set',
+				actor: 'alice',
+				targetNode: 'global',
+				oldValue: [
+					expect.objectContaining({ id: 'brand-colors' }),
+					expect.objectContaining({ id: 'spacing-grid' }),
+				],
+				newValue: [],
+				metadata: { merge: false, constraintsSet: 0, totalConstraints: 0 },
+			});
+		});
+
+		it('does not record an audit event when validation fails (#2329)', async () => {
+			const before = await auditListCommand.handler({ eventTypes: ['constraint_set'] }, context);
+			expect(before.data?.summary.total).toBe(0);
+
+			// Missing node
+			await constraintsSetCommand.handler(
+				{
+					nodeId: 'missing',
+					constraints: [
+						{
+							id: 'r1',
+							name: 'R1',
+							config: { type: 'enum', values: ['a'] },
+							applyTo: '*',
+						},
+					],
+				},
+				context,
+			);
+			// Duplicate IDs
+			await constraintsSetCommand.handler(
+				{
+					nodeId: 'global',
+					constraints: [
+						{ id: 'dup', name: 'A', config: { type: 'enum', values: ['a'] }, applyTo: '*' },
+						{ id: 'dup', name: 'B', config: { type: 'enum', values: ['b'] }, applyTo: '*' },
+					],
+				},
+				context,
+			);
+			// Catastrophic regex
+			await constraintsSetCommand.handler(
+				{
+					nodeId: 'global',
+					constraints: [
+						{
+							id: 'bad-re',
+							name: 'Bad',
+							config: { type: 'pattern', pattern: '^(a+)+$' },
+							applyTo: '*',
+						},
+					],
+				},
+				context,
+			);
+
+			const after = await auditListCommand.handler({ eventTypes: ['constraint_set'] }, context);
+			expect(after.data?.summary.total).toBe(0);
+		});
+
+		it('rolls back constraints and returns a failure with suggestion when addAuditEvent throws (#2329)', async () => {
+			const initialRule = {
+				id: 'initial-rule',
+				name: 'Initial rule',
+				config: { type: 'enum' as const, values: ['#0078D4'] },
+				severity: 'error' as const,
+				applyTo: 'color.*',
+			};
+			expect(
+				(
+					await constraintsSetCommand.handler(
+						{ nodeId: 'global', constraints: [initialRule] },
+						context,
+					)
+				).success,
+			).toBe(true);
+
+			const failingDb = new Proxy(db, {
+				get(target, key) {
+					if (key === 'addAuditEvent') {
+						return async () => {
+							throw new Error('simulated audit write failure');
+						};
+					}
+					const value = Reflect.get(target, key, target);
+					return typeof value === 'function' ? value.bind(target) : value;
+				},
+			});
+
+			const failed = await constraintsSetCommand.handler(
+				{
+					nodeId: 'global',
+					constraints: [
+						{
+							id: 'replacement-rule',
+							name: 'Replacement rule',
+							config: { type: 'scale', base: 8 },
+							severity: 'warning',
+							applyTo: 'spacing.*',
+						},
+					],
+				},
+				{ ...context, db: failingDb },
+			);
+			expect(failed.success).toBe(false);
+			expect(failed.error?.code).toBe('INTERNAL_ERROR');
+			expect(failed.error?.message).toContain('simulated audit write failure');
+			expect(failed.error?.suggestion).toBeTruthy();
+
+			// Previous constraints remain intact and no second constraint_set event was recorded
+			expect(await db.getConstraints('global')).toEqual([
+				expect.objectContaining({ id: 'initial-rule' }),
+			]);
+			const audit = await auditListCommand.handler(
+				{ nodeId: 'global', eventTypes: ['constraint_set'] },
+				context,
+			);
+			expect(audit.data?.summary.total).toBe(1);
+		});
+
+		it('stamps constraint_set audit events deterministically from context now() and random() (#2329)', async () => {
+			const runSequence = async () => {
+				let tick = Date.UTC(2026, 5, 1, 12, 0, 0);
+				let state = 1337;
+				const deterministicContext: CommandContext = {
+					db: createMemoryDatabase(),
+					actor: 'replay-agent',
+					now: () => {
+						const current = tick;
+						tick += 1000;
+						return current;
+					},
+					random: () => {
+						state = (state * 48271) % 2147483647;
+						return state / 2147483647;
+					},
+				};
+				await nodeCreateCommand.handler(
+					{ name: 'root', type: 'root', parentId: null },
+					deterministicContext,
+				);
+				await constraintsSetCommand.handler(
+					{
+						nodeId: 'root',
+						constraints: [
+							{
+								id: 'c1',
+								name: 'Contrast',
+								config: { type: 'contrast', against: 'color.bg', min: 4.5 },
+								applyTo: 'color.text.*',
+							},
+						],
+					},
+					deterministicContext,
+				);
+				await constraintsSetCommand.handler(
+					{
+						nodeId: 'root',
+						merge: true,
+						constraints: [
+							{
+								id: 'c2',
+								name: 'Space ramp',
+								config: { type: 'ramp', ramp: 'ref.space.*', repeatThreshold: 2 },
+								applyTo: 'space.*',
+							},
+						],
+					},
+					deterministicContext,
+				);
+				const audit = await auditListCommand.handler(
+					{ nodeId: 'root', eventTypes: ['constraint_set'] },
+					deterministicContext,
+				);
+				return audit.data?.events ?? [];
+			};
+
+			const first = await runSequence();
+			const second = await runSequence();
+			expect(first).toHaveLength(2);
+			expect(second).toEqual(first);
+			expect(first[0]?.timestamp).toBe('2026-06-01T12:00:02.000Z');
+			expect(first[1]?.timestamp).toBe('2026-06-01T12:00:01.000Z');
 		});
 	});
 

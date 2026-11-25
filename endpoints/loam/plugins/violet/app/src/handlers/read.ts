@@ -45,6 +45,8 @@ function mapAuditOperation(entry: AuditEntryRow): string {
 			return 'node-restore';
 		case 'node_deleted':
 			return 'node-delete';
+		case 'constraint_set':
+			return 'constraint-set';
 		default:
 			return entry.eventType;
 	}

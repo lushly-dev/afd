@@ -33,7 +33,14 @@ import {
 	type VioletTreeRecordsV1,
 	type VioletTreeSeedV1,
 } from './content.js';
-import { buildFromRecords, buildFromSeed, cloneDatabase, extractRecords } from './records.js';
+import {
+	buildFromRecords,
+	buildFromSeed,
+	cloneDatabase,
+	extractRecords,
+	MAX_LOCAL_CONSTRAINTS,
+	mergeConstraintsById,
+} from './records.js';
 import { byCodePoint, orderNodesPreOrder } from './results.js';
 import { rewriteVioletError } from './suggestions.js';
 
@@ -364,7 +371,15 @@ export function createVioletPort(): VioletPort {
 
 			if (files.length === 0) {
 				for (const [nodeId, list] of Object.entries(constraints)) {
-					if (list.length > 0) await targetDb.setConstraints(nodeId, structuredClone(list));
+					const merged = mergeConstraintsById(await targetDb.getConstraints(nodeId), list);
+					if (merged.length > MAX_LOCAL_CONSTRAINTS) {
+						return failure({
+							code: 'VALIDATION_ERROR',
+							message: `Node '${nodeId}' has ${merged.length} local constraints, over the ${MAX_LOCAL_CONSTRAINTS}-rule limit`,
+							suggestion: `Keep at most ${MAX_LOCAL_CONSTRAINTS} local rules per node before importing with violet-tree-import`,
+						});
+					}
+					if (merged.length > 0) await targetDb.setConstraints(nodeId, merged);
 				}
 				return success({ db: targetDb, nodes: [] });
 			}
@@ -377,9 +392,18 @@ export function createVioletPort(): VioletPort {
 				return res as CommandResult<never>;
 			}
 			for (const [nodeId, list] of Object.entries(constraints)) {
-				if (list.length > 0) await targetDb.setConstraints(nodeId, structuredClone(list));
+				const merged = mergeConstraintsById(await targetDb.getConstraints(nodeId), list);
+				if (merged.length > MAX_LOCAL_CONSTRAINTS) {
+					return failure({
+						code: 'VALIDATION_ERROR',
+						message: `Node '${nodeId}' has ${merged.length} local constraints, over the ${MAX_LOCAL_CONSTRAINTS}-rule limit`,
+						suggestion: `Keep at most ${MAX_LOCAL_CONSTRAINTS} local rules per node before importing with violet-tree-import`,
+					});
+				}
+				if (merged.length > 0) await targetDb.setConstraints(nodeId, merged);
 			}
-			// Verify no imported node id contains '#' (spec §4.4, §6.5) and no imported node targets a soft-deleted parent.
+			// Verify no imported node id contains '#', no imported node targets a soft-deleted parent,
+			// and every imported node stays within Loam's 50-rule local constraint limit (spec §4.4, §5.7, §6.5).
 			const importedNodes: Array<{ id: string; parent: string | null; tokens: number }> = [];
 			for (const entry of res.data.nodes) {
 				if (entry.id.includes('#')) {
@@ -387,6 +411,14 @@ export function createVioletPort(): VioletPort {
 						code: 'VALIDATION_ERROR',
 						message: `Node id '${entry.id}' cannot contain '#'`,
 						suggestion: "Remove '#' from the node id in its token file before importing",
+					});
+				}
+				const localRules = await targetDb.getConstraints(entry.id);
+				if (localRules.length > MAX_LOCAL_CONSTRAINTS) {
+					return failure({
+						code: 'VALIDATION_ERROR',
+						message: `Node '${entry.id}' defines ${localRules.length} local constraints, over the ${MAX_LOCAL_CONSTRAINTS}-rule limit`,
+						suggestion: `Keep at most ${MAX_LOCAL_CONSTRAINTS} local rules per node in its token file before importing with violet-tree-import`,
 					});
 				}
 				const stored = await targetDb.getNode(entry.id);

@@ -4,10 +4,16 @@ import {
 	resolveNodeTokenMap,
 	validateTokenId,
 } from '@lushly-dev/violet-core/engine';
-import type { Node, OperationRecord, TokenMetadata } from '@lushly-dev/violet-core/types';
-import { TokenMetadataSchema } from '@lushly-dev/violet-core/types';
+import type {
+	Constraint,
+	Node,
+	OperationRecord,
+	TokenMetadata,
+} from '@lushly-dev/violet-core/types';
+import { ConstraintSchema, TokenMetadataSchema } from '@lushly-dev/violet-core/types';
 import { z } from 'zod';
 import { ErrorCodes, failure, success } from '../../types/command-result.js';
+import { findDuplicateConstraintIds, validateConstraintSemantics } from '../constraints/set.js';
 import { dtcgTypeToCategory } from '../import/flatten.js';
 import { VIOLET_EXTENSION_KEY, nodeIdFromFileName } from '../import/tree.js';
 import { selectSubtree } from '../node/scope.js';
@@ -255,18 +261,47 @@ function unsafeWrittenValues(
 	});
 }
 
+/** Validate and canonically sort a node's constraints so import.tree reads them back identically (#2330) */
+function serializeConstraints(
+	nodeId: string,
+	rawConstraints: Constraint[],
+	invalid: string[],
+): Constraint[] {
+	const parsed: Constraint[] = [];
+	for (const constraint of rawConstraints) {
+		const check = ConstraintSchema.safeParse(constraint);
+		if (!check.success) {
+			const issues = check.error.issues
+				.map((issue) => `${issue.path.join('.')} ${issue.message}`.trim())
+				.join('; ');
+			invalid.push(`${nodeId}: invalid constraint (${issues})`);
+			continue;
+		}
+		parsed.push(check.data);
+	}
+	const duplicateIds = findDuplicateConstraintIds(parsed);
+	if (duplicateIds.length > 0) {
+		invalid.push(`${nodeId}: duplicate constraint IDs: ${duplicateIds.join(', ')}`);
+	}
+	const semanticError = validateConstraintSemantics(parsed);
+	if (semanticError) {
+		invalid.push(`${nodeId}: ${semanticError.message}`);
+	}
+	return parsed.sort((a, b) => byCodePoint(a.id, b.id));
+}
+
 /**
  * export.tree command
  *
  * Write a tree as files, one per node, each holding only that node's own
- * operations: the inverse of import.tree (#1322). Reading the files back with
- * import.tree builds a tree that resolves the same, and exporting that tree
- * again gives the same files.
+ * operations and constraints: the inverse of import.tree (#1322, #2330).
+ * Reading the files back with import.tree builds a tree that resolves and
+ * validates the same, and exporting that tree again gives the same files.
  */
 export const exportTreeCommand: CommandDefinition<typeof InputSchema, Output> = {
 	name: 'export.tree',
 	description:
-		"Write a node tree as DTCG token files, one per node with only that node's own tokens (the inverse of import.tree)",
+		"Write a node tree as DTCG token files, one per node with only that node's own tokens and constraints (the inverse of import.tree)",
 	category: 'export',
 	inputSchema: InputSchema,
 	outputSchema: OutputSchema,
@@ -288,6 +323,7 @@ export const exportTreeCommand: CommandDefinition<typeof InputSchema, Output> = 
 		const dropped: Output['dropped'] = [];
 		const unwritable: Unwritable[] = [];
 		const unsafe: string[] = [];
+		const invalidConstraints: string[] = [];
 		const names = fileNames(nodes.map((node) => node.id));
 
 		for (const node of nodes) {
@@ -300,6 +336,11 @@ export const exportTreeCommand: CommandDefinition<typeof InputSchema, Output> = 
 			unsafe.push(...unsafeWrittenValues(node.id, tokens, await resolveNodeTokenMap(db, node.id)));
 			const tiers = tokens.some((token) => token.tier);
 			const groups = nestTokens(node.id, tokens, tiers, unwritable);
+			const constraints = serializeConstraints(
+				node.id,
+				await db.getConstraints(node.id),
+				invalidConstraints,
+			);
 			const name = names.get(node.id) as string;
 			const extension = {
 				...(nodeIdFromFileName(name) === node.id ? {} : { node: node.id }),
@@ -308,11 +349,20 @@ export const exportTreeCommand: CommandDefinition<typeof InputSchema, Output> = 
 				...(node.includes.length > 0 ? { includes: node.includes } : {}),
 				...(node.includePolicy !== 'merge' ? { includePolicy: node.includePolicy } : {}),
 				...(tiers ? { tiers: true } : {}),
+				...(constraints.length > 0 ? { constraints } : {}),
 			};
 			const content = { $extensions: { [VIOLET_EXTENSION_KEY]: extension }, ...groups };
 			files.push({ name, node: node.id, content: `${JSON.stringify(content, null, 2)}\n` });
 		}
 		files.sort((a, b) => byCodePoint(a.name, b.name));
+
+		if (invalidConstraints.length > 0) {
+			return failure({
+				code: ErrorCodes.VALIDATION_ERROR,
+				message: `${invalidConstraints.length} stored constraint(s) cannot be written as files import.tree would read: ${invalidConstraints.slice(0, 10).join('; ')}${invalidConstraints.length > 10 ? '; …' : ''}`,
+				suggestion: "Fix each invalid constraint with 'constraints.set', then export again",
+			});
+		}
 
 		if (unsafe.length > 0) {
 			return failure({

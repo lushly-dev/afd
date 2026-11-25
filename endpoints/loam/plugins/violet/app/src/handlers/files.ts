@@ -4,7 +4,6 @@
 import { type AppCallContextV1, type CommandResult, failure, success } from '@lushly-dev/loam-sdk';
 import { resolveInterface } from '../interface.js';
 import { defaultPort, type TreeFile, type VioletPort } from '../port/engine.js';
-import { orderNodesPreOrder } from '../port/results.js';
 
 export function createFileHandlers(port: VioletPort = defaultPort) {
 	return {
@@ -94,28 +93,19 @@ export function createFileHandlers(port: VioletPort = defaultPort) {
 				input.document,
 				context,
 				'violet-tree-export',
-				async ({ db, engine, content }) => {
+				async ({ engine, content }) => {
 					const res = await engine.call<{
 						files: Array<{ name: string; content: string }>;
 						dropped: Array<{ node: string; token?: string; fields: string[] }>;
 					}>('export.tree', {});
 					if (!res.success || !res.data) return res as CommandResult<never>;
 
-					// Add each node's constraint set to `dropped` because tree files do not carry rules yet (F9, Q8).
-					const dropped = [...res.data.dropped];
-					for (const node of orderNodesPreOrder(await db.listNodes())) {
-						const rules = await db.getConstraints(node.id);
-						if (rules.length > 0) {
-							dropped.push({ node: node.id, fields: ['constraints'] });
-						}
-					}
-
 					return success({
 						content: {
 							files: res.data.files.map((f) => ({ name: f.name, content: f.content })),
 						},
 						rev: content.rev,
-						dropped,
+						dropped: [...res.data.dropped],
 					});
 				}
 			);

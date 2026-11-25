@@ -52,12 +52,12 @@ here; the resolution is normative, and those that change an approved choice are 
 | F6 | The interface is contract version 3 with 98 ids, not version 1 with 89 | `foundations/fast-af/packages/violet-elements/tokens/interface.json` | Read the version from the file; nothing pins 89 |
 | F7 | `violet-elements`' theme set is global: `installVioletThemeSet` replaces the active set and rewrites every adopted runtime sheet, in every document and shadow root | `src/theme/violet-theme-runtime.ts:250-282` | The preview sets custom properties with CSSOM on its own root, and never installs a theme set (7.4) |
 | F8 | A `tree` sidebar's command takes `{}`, so it cannot list one document's nodes | Scope and projects specification, 7.4 (`2-scope-projects/spec.md:1151`) | A UX decision (7.2, U1) |
-| F9 | Constraints do not travel in tree files | `export.tree` writes adds and overrides; `import.tree`'s extension has `node`, `parent`, `type`, `includes`, `tiers` (`import/tree.ts:23-33`) | Export lists them in `dropped`; a follow-up for `violet-afd` (Q8) |
+| F9 | Constraints did not travel in tree files in slice 1 | `export.tree` originally wrote adds and overrides only (`import/tree.ts:23-33`) | Resolved in #2330: `export.tree` and `import.tree` now carry `$extensions["dev.lushly.violet"].constraints` with `dropped: []` (Q8) |
 | F10 | A deleted node cannot be brought back by any command: deletion is soft, and `node.create` refuses an existing id | `node/delete.ts` sets `deletedAt`; `node/create.ts:60-69` | `violet-node-create` takes `restore: true` (6.4, Q9) |
 | F11 | Violet's registry stamps `metadata.executionTimeMs` from the wall clock and `traceId` | `commands/registry.ts`, `execute` | The port drops Violet's metadata, so a replay compares equal (5.6) |
 | F12 | Violet's `INVALID_TOKEN_VALUE` suggestion says "colour", and scenario 07 asserts "color" | `value-checks.ts`, `unsafeValueSuggestion` | The port names the token's type (5.8) |
 | F13 | `NODE_HAS_CHILDREN` names the children only in a warning | `node/delete.ts:68-82` | The port puts them in the suggestion (5.8) |
-| F14 | `audit.list` has no operation field, and `constraints.set` writes no audit event | `audit/list.ts:28-38`; no `addAuditEvent` in `constraints/set.ts` | The port maps events to operations (6.4, `violet-change-list`); constraint changes are not in the history (Q10) |
+| F14 | `audit.list` has no operation field, and `constraints.set` originally wrote no audit event | `audit/list.ts:28-38`; `constraints/set.ts` | The port maps events to operations (6.2, `violet-change-list`), including `constraint_set` → `constraint-set` (resolved in #2329, Q10) |
 | F15 | `initializeWorkerCore()` registers into one global registry and throws if called twice | `commands/registry.ts`, `register` | The port initializes once per module (5.1) |
 | F16 | `node.create` requires `name`; `interface.check` requires the interface as input | `CreateNodeInputSchema`; `analyze/interface.ts:32-37` | The port passes the id as the name, and the bundled interface unless config pins one (5.2, 6.4) |
 | F17 | `import.tree` needs at least one file, so an empty seed cannot go through it | `import/tree.ts:41-50`, `files.min(1)` | An empty seed, or no content, is an empty database built without it (5.2) |
@@ -243,7 +243,7 @@ interface VioletTreeContentV1 {
 	/** Exactly one of `seed` and `records`. */
 	seed?: {
 		files: Array<{ name: string; content: string }>;   // DTCG, as import.tree reads them
-		constraints?: Record<string, Constraint[]>;       // by node id; files cannot hold them (F9)
+		constraints?: Record<string, Constraint[]>;       // optional template rules by node id, merged over file-embedded rules (#2330)
 	};
 	records?: {
 		nodes: Node[];                           // creation order, deleted nodes included
@@ -613,7 +613,8 @@ first, with the old and new value, who made each and the reason given."
 - Output: `{ changes: [{ node, token: string | null, operation, oldValue, value, reason: string | null, actor, at }], total }`.
 - Operations: `token_created` is `add`; `token_updated` whose new value is `{ reset: true }` is
   `reset`, otherwise `override`; `operation_removed` is `reset` (5.7); `node_created`,
-  `node_updated`, `node_deleted` are `node-create`, `node-restore`, `node-delete`. `audit.list`
+  `node_updated`, `node_deleted` are `node-create`, `node-restore`, `node-delete`; `constraint_set`
+  is `constraint-set` (#2329). `audit.list`
   already parses JSON strings (`audit/list.ts:112-117`) and omits absent fields; the port unwraps
   `newValue.value` for `token_created` (`token/add.ts:154-157`), normalizes omitted `targetToken`,
   `oldValue`, `newValue` and `reason` to `null`, reads `reason` from the event's metadata, and maps
@@ -802,11 +803,13 @@ tree back as DTCG files, one per node with only that node's own values, and the 
 later replacing import."
 
 - Input: `{ document }`.
-- Output: `{ content: { files: [{ name, content }] }, rev, dropped }`. `dropped` is Violet's list,
-  with each node's constraint set added (F9). It reports no `unexported`: that is
+- Output: `{ content: { files: [{ name, content }] }, rev, dropped }`. `dropped` is Violet's list
+  (constraints now round-trip in `$extensions["dev.lushly.violet"].constraints`, #2330). It reports
+  no `unexported`: that is
   `violet-node-list`'s, and an export changes nothing (F1). Scenario 11's `unexported: 0`
   becomes `rev: { exists: true }` when it moves (Q7).
-- Errors: `OPERATION_NOT_ALLOWED` (an operation a file cannot hold), `INVALID_TOKEN_VALUE`.
+- Errors: `OPERATION_NOT_ALLOWED` (an operation a file cannot hold), `INVALID_TOKEN_VALUE`,
+  `VALIDATION_ERROR` (an invalid stored constraint a file cannot carry).
   Scenario 11.
 
 ### 6.6 `document-create` and coverage
@@ -1005,8 +1008,8 @@ plugin", and "the boundary check is due with the first plugin that has a TypeScr
   `violet-tree-import`, which advertises no undo), a unit runs the mutation, runs its `undoCommand`
   with `undoArgs`, and asserts `violet-tree-export`'s `files` and `violet-node-list`'s `root` and
   `nodes` equal those before, that `unexported` advanced by 2 (mutation + undo), and for
-  `violet-constraint-set` that `constraints.list { includeInherited: false }` equals `previous`
-  (since Q8 excludes constraints from tree files). Cases cover: an inherited override (reset), an
+  `violet-constraint-set` that `constraints.list { includeInherited: false }` equals
+  `previous` (alongside the exported files, which now carry constraints per #2330). Cases cover: an inherited override (reset), an
   own override, an add, a multi-change apply, a delete with `restore`, a constraint set (including
   a merged child rule set where the parent also has rules), the reset of a removed add, resetting a
   token with >50 historical overrides (collapsed to 1 inverse change), and undoing an edit on an

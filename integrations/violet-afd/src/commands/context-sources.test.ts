@@ -5,6 +5,7 @@
 import { createMemoryDatabase } from '@lushly-dev/violet-core/engine';
 import { describe, expect, it } from 'vitest';
 import { analyzeSnapshotCommand } from './analyze/snapshot.js';
+import { setCommand as constraintsSetCommand } from './constraints/set.js';
 import { contextId, contextMillis, contextNow } from './context-sources.js';
 import { importJsonCommand } from './import/json.js';
 import { nodeCreateCommand } from './node/create.js';
@@ -81,6 +82,39 @@ async function recordedRun(context: CommandContext): Promise<void> {
 	await run(
 		importJsonCommand.handler(
 			{ targetNode: 'app', content: JSON.stringify({ color: { d: { $value: '#444444' } } }) },
+			context,
+		),
+	);
+	await run(
+		constraintsSetCommand.handler(
+			{
+				nodeId: 'base',
+				constraints: [
+					{
+						id: 'hex-colors',
+						name: 'Hex colors',
+						config: { type: 'pattern', pattern: '^#[0-9a-fA-F]{6}$' },
+						applyTo: 'color.*',
+					},
+				],
+			},
+			context,
+		),
+	);
+	await run(
+		constraintsSetCommand.handler(
+			{
+				nodeId: 'base',
+				merge: true,
+				constraints: [
+					{
+						id: 'text-contrast',
+						name: 'Text contrast',
+						config: { type: 'contrast', against: 'color.a', min: 4.5 },
+						applyTo: 'color.b',
+					},
+				],
+			},
 			context,
 		),
 	);

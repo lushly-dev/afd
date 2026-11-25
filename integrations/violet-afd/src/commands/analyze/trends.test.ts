@@ -96,14 +96,19 @@ describe('analyze.trends command', () => {
 		});
 
 		expect(data.days.map((day) => [day.date, day.changes, day.tokenChanges])).toEqual([
-			[`${DAY}01`, 7, 3],
+			[`${DAY}01`, 8, 3],
 			[`${DAY}02`, 0, 0],
 			[`${DAY}03`, 1, 1],
 			[`${DAY}04`, 1, 1],
 			[`${DAY}05`, 0, 0],
 		]);
-		expect(data.summary).toMatchObject({ nodes: 4, changes: 9, tokenChanges: 5 });
-		expect(data.summary.byType).toEqual({ node_created: 4, token_created: 3, token_updated: 2 });
+		expect(data.summary).toMatchObject({ nodes: 4, changes: 10, tokenChanges: 5 });
+		expect(data.summary.byType).toEqual({
+			node_created: 4,
+			token_created: 3,
+			constraint_set: 1,
+			token_updated: 2,
+		});
 		expect(data.summary.violations).toBeUndefined();
 		expect(data.days[0].open).toBeUndefined();
 	});
