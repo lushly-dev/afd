@@ -304,6 +304,108 @@ declared today judges the record as it stands.
   wait for its copy to finish syncing), `RECORD_UNAVAILABLE`, `MACHINE_SETTINGS_INVALID`,
   `INVALID_INPUT`.
 """,
+    "gate-outcome": """\
+# Gate Outcome Commands
+
+What each workflow's runs observed and what they cost, read from GitHub into a record every
+machine shares. Both commands work on the repository of the checkout they are called from
+(`owner/name` from its `origin`); two repositories' records are never mixed. Design:
+`docs/features/active/test-effectiveness/` in lushly-dev/afd.
+
+## gate_outcome_collect(since_days=7, sources=["ci"], requests=1000, rebuild=False)
+Reads, through `gh api`, the Actions runs created in the last `since_days` whole UTC days
+(today included), then the earlier attempts of each run that has more than one, then the jobs
+and steps of each attempt: those that did not pass first, then the others, newest first. An
+attempt that ended `action_required` or `skipped` ran no step, and its jobs are not asked for.
+- The run lists are read with no event filter, so every event is kept. GitHub gives at most
+  1,000 runs for one query, so a span whose count is over that is split in two until each part
+  fits.
+- It goes on from what every machine's record holds (this machine's, and each copy in the
+  shared folder): a span listed within the last hour, or listed two days or more after it ended
+  with every run in it finished, is not listed again, and an attempt or its steps on record are
+  not asked for again. So collecting the same window again adds nothing, here or on another
+  machine. A run rerun more than two days after its day ended is seen by a rebuild only.
+- It stops at `requests` (counting every `gh api` call, the allowance checks too) or when the
+  account's core allowance (`gh api rate_limit`, checked before the first request and every
+  100) is at half or less, whichever comes first. The source is then `partly`, and the next
+  collection goes on from there.
+- `since_days`: 1 to 365. `sources`: `ci`; the plan's `main`, `reviews` and `runs` are refused
+  (`VALIDATION_ERROR`) until a botcore collects them. `requests`: 1 to 5000. `rebuild`: ask
+  GitHub again for everything in the window; what GitHub no longer has (a deleted run) keeps
+  what was read before and is marked `unreadable`. A rebuild cut short goes on at the next
+  collection, over the window it was asked for.
+- Result: `machine`, `repository`, `state_dir`, `window` (`since_days`, `first_day`,
+  `last_day`), `sources` (one entry: `source: ci`, `status` `read` or `partly`, `found` (runs in
+  the window), `added` (lines written), `still_going` (runs not finished when listed), and when
+  `partly`, `why` (begins `requests`, `allowance` or `github`) and `reached`: `step` (`lists`,
+  `attempts` or `jobs`), `window_listed` (share of the window listed), `runs`,
+  `attempts_left`, `steps_left`; a share reads 1.0 only when whole), `requests_used`,
+  `allowance` (`remaining`, `limit`, as last seen) and, with a shared folder, `shared`
+  (`path`, `written`, `error`). `read` means the window is all listed and every finished
+  attempt that ran has its steps, or is on record as one GitHub no longer gives; a run still
+  going does not keep it from `read`.
+- The record (`record.jsonl` in `<state>/<owner>/<name>/`, where `<state>` is botcore's state
+  folder's `gate-outcome`, or `BOTCORE_GATE_OUTCOME_STATE`) is appended to and never rewritten;
+  each line has an `id`, `kind`, the rules' version `v` and when it was written `at`, and a newer
+  line for an id wins. `run` lines (`run:<run id>:<attempt>`): `workflow` (its file), `name`,
+  `event`, `status`, `conclusion`, `head` (the revision tested), `base` (its base, from the pull
+  request or the queue group), `pr`, `created`, `started`, `updated`. `shape` lines
+  (`shape:<digest>`): a workflow's job and step names, once for each version of them. `steps`
+  lines (`steps:<run id>:<attempt>`): the `shape`, the `seconds` of each job and step, and for an
+  attempt that did not pass their `conclusions`. Nothing else: no log, output, title, branch
+  name, actor or file contents. `state.json` beside it holds the spans listed and how the last
+  collection ended.
+- Several machines: a machine that names a shared folder (`skill_usage_shared`, as skill usage
+  does; `BOTCORE_SKILL_USAGE_SHARED` overrides it) also writes its record to
+  `<shared>/<machine>/gate-outcome/<owner>/<name>/`, and both commands read every machine's.
+  A copy whose state does not name its record's digest is not read (a sync part way through).
+- Errors: `VALIDATION_ERROR` (a value outside its list or range; the suggestion gives it),
+  `NO_WORKSPACE` (not in a checkout whose origin names a GitHub repository),
+  `SERVICE_UNAVAILABLE` (`gh` missing or not signed in, or GitHub not answering, before anything
+  was read; retryable), `SOURCE_UNREADABLE` (GitHub will not give the runs), `CONFLICT`
+  (another collection is running on this machine), `RECORD_UNAVAILABLE`,
+  `MACHINE_SETTINGS_INVALID`. GitHub failing after some was read gives `partly` instead.
+
+## gate_outcome_report(days=7, ending_days_ago=0, by="workflow", where=None, workflow=None,
+##   sort="minutes", limit=25)
+Read-only. For the window of `days` whole UTC days whose last is `ending_days_ago` days before
+today (today 25 Nov, `days: 7, ending_days_ago: 2` is 17 to 23 Nov), one row for each workflow
+and event, a run counted once as its latest attempt, by its creation time.
+- `by`: `workflow`; the plan's `check`, `area`, `class` and `decision` are refused until a
+  botcore reports them. `where`: one of `pull_request`, `merge_group`, `schedule`, `push`,
+  `workflow_dispatch` (`local` is refused until it is collected); left out, all five. `workflow`:
+  a workflow by its name or its file. `sort`: `minutes` (wall time, the default), `failed` or
+  `runs`, largest first. `limit`: 1 to 200; `more.rows` says how many rows were left out.
+- A row: `workflow` (its name), `file`, `where`, `runs` (finished runs), `passed`, `failed`
+  (GitHub's `failure`, `timed_out` and `startup_failure`), `cancelled`, `action_required`,
+  `skipped` and, when any, `other` (any other conclusion), each counted apart;
+  `passed_on_later_attempt` (passed on attempt 2 or later after an earlier one failed or was
+  cancelled, or one not read yet), split in `passed_after` (`failed`, `cancelled`,
+  `unknown`); `wall_hours` (creation to last update, at most six hours a
+  run, so queue time is in and it is not billed minutes); for `merge_group`, `groups` (head
+  revisions) and `groups_failed` (those with a failed run); `rates`: `given` with
+  `failed_per_100_completed` (failed per 100 runs that passed or failed) on 20 such runs or
+  more, else `too-few`.
+- `totals`: the same over every row in scope, shown or not, and, where the queue is in scope,
+  its `groups` and `groups_failed`; `null` when nothing of the window was collected. A workflow
+  that judges the others (a verdict) is counted like any other.
+- `window` (`days`, `ending_days_ago`, `first_day`, `last_day`, `since`, `until`); `coverage`:
+  `sources.ci` (`read` when every moment of the window was listed and every run that ran has
+  its steps, `absent` when nothing of it was, else `partly`), `collected.ci` (`newest`
+  collection and its `age_hours`), `events`, `other_events_left_out` (runs of other events, by
+  event), `window_listed` (the share of the window any machine listed; the time since a
+  collection within the hour that listed up to the moment it began counts as listed),
+  `listed_until` (where the newest listing ends), `steps_share` (the share
+  of runs that ran whose steps are on record), `steps_unreadable` (runs whose jobs GitHub no
+  longer gives) and `not_seen`; `machines` (each machine's
+  `collected_at`, `ci` status and `why`); `warnings` (runs still going, in no count; days not
+  all listed; a machine whose collection is over a day old; a shared copy not read; lines that
+  could not be read; runs of other events left out); `more`.
+- Errors: `VALIDATION_ERROR` (a value outside its list or range, with the list),
+  `INVALID_INPUT` (a workflow the record does not know, with the closest names and how many it
+  knows), `NOT_COLLECTED` (no machine's record holds this repository), `NO_WORKSPACE`,
+  `RECORD_UNAVAILABLE`, `MACHINE_SETTINGS_INVALID`.
+""",
     "docs": """\
 # Docs Commands
 

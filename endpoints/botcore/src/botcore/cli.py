@@ -571,6 +571,137 @@ def skill_usage_triggers_cmd(
     _format_result(result, _is_json(ctx))
 
 
+@cli.command("gate-outcome-collect")
+@click.option(
+    "--since-days",
+    type=click.IntRange(1, 365),
+    default=7,
+    show_default=True,
+    help="Whole UTC days to collect, today included: 1 to 365",
+)
+@click.option(
+    "--source",
+    "sources",
+    multiple=True,
+    help="What to read; repeat for several. ci (the Actions runs) is the only one this "
+    "botcore collects; main, reviews and runs are refused. Default: ci",
+)
+@click.option(
+    "--requests",
+    type=click.IntRange(1, 5000),
+    default=1000,
+    show_default=True,
+    help="The most GitHub requests to make: 1 to 5000. It also stops when the account's "
+    "hourly allowance is down to half",
+)
+@click.option(
+    "--rebuild",
+    is_flag=True,
+    default=False,
+    help="Ask GitHub again for everything in the window, whatever the record holds",
+)
+@_json_option
+@click.pass_context
+def gate_outcome_collect_cmd(
+    ctx: click.Context,
+    since_days: int,
+    sources: tuple[str, ...],
+    requests: int,
+    rebuild: bool,
+    **_kwargs: Any,
+) -> None:
+    """Read this checkout's repository's workflow runs from GitHub into the gate outcome
+    record."""
+    from botcore.commands.gate_outcome import gate_outcome_collect
+
+    result = _run_async(
+        gate_outcome_collect(
+            since_days=since_days,
+            sources=list(sources) or None,
+            requests=requests,
+            rebuild=rebuild,
+        )
+    )
+    _format_result(result, _is_json(ctx))
+
+
+@cli.command("gate-outcome-report")
+@click.option(
+    "--days",
+    type=click.IntRange(1, 365),
+    default=7,
+    show_default=True,
+    help="Whole UTC days in the window: 1 to 365",
+)
+@click.option(
+    "--ending-days-ago",
+    type=click.IntRange(0, 365),
+    default=0,
+    show_default=True,
+    help="The window's last day is this many days before today: 0 to 365",
+)
+@click.option(
+    "--by",
+    type=click.Choice(["workflow", "check", "area", "class", "decision"]),
+    default="workflow",
+    show_default=True,
+    help="Rows by workflow and event; check, area, class and decision are refused until a "
+    "botcore reports them",
+)
+@click.option(
+    "--where",
+    type=click.Choice(
+        ["pull_request", "merge_group", "schedule", "push", "workflow_dispatch", "local"]
+    ),
+    default=None,
+    help="Only runs of this event (local is refused until it is collected); default: all five",
+)
+@click.option("--workflow", default=None, help="Only this workflow, by its name or its file")
+@click.option(
+    "--sort",
+    type=click.Choice(["minutes", "failed", "runs"]),
+    default="minutes",
+    show_default=True,
+    help="Row order, largest first",
+)
+@click.option(
+    "--limit",
+    type=click.IntRange(1, 200),
+    default=25,
+    show_default=True,
+    help="Rows to give: 1 to 200",
+)
+@_json_option
+@click.pass_context
+def gate_outcome_report_cmd(  # noqa: PLR0913 - the command's options
+    ctx: click.Context,
+    days: int,
+    ending_days_ago: int,
+    by: str,
+    where: str | None,
+    workflow: str | None,
+    sort: str,
+    limit: int,
+    **_kwargs: Any,
+) -> None:
+    """Report each workflow's runs by event: how they ended, wall hours, queue groups.
+    Read-only."""
+    from botcore.commands.gate_outcome import gate_outcome_report
+
+    result = _run_async(
+        gate_outcome_report(
+            days=days,
+            ending_days_ago=ending_days_ago,
+            by=by,
+            where=where,
+            workflow=workflow,
+            sort=sort,
+            limit=limit,
+        )
+    )
+    _format_result(result, _is_json(ctx))
+
+
 @cli.command("disk-report")
 @click.option("--repo", default=None, help="Report one repository instead of the registered ones")
 @click.option(

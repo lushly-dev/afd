@@ -22,6 +22,8 @@ def _no_real_skill_usage(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setenv("BOTCORE_SKILL_USAGE_SHARED", "")
     monkeypatch.setenv("BOTCORE_SKILL_USAGE_AWAY", "")
     monkeypatch.setenv("BOTCORE_SKILL_USAGE_MACHINE", "bench")
+    # nor the gate outcome record
+    monkeypatch.setenv("BOTCORE_GATE_OUTCOME_STATE", str(tmp_path / "gate-outcome-record"))
 
 
 @pytest.fixture(autouse=True)
