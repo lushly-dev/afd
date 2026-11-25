@@ -14,6 +14,30 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 
 ## Findings
 
+### Hero verification checklist and in-tree Umbel/Rust disk guards, 2026-11-24 (#1693, #2241)
+
+- **Hero checklist verified (#1693):** `lushly-botcore` v0.8.0 (`87d0a184e`) is healthy on Hero
+  with Task Scheduler active, `last_apply` `2026-11-24T22:03:38Z` (`ok: true`, `271.25 GB`
+  reclaimed on `D:\`), `C:\` at `2,911.64 GB` free and `D:\` at `2,590.06 GB` free (both verified),
+  and `skill_usage` healthy (+13). `disk-report --repo C:\Users\falki\afd --unclassified --budget 600`
+  completed across all 115 afd worktrees (`complete: True`); the top 3 planned tier-1 strips
+  (15.7, 4.39 and 3.18 GB `**/target` dirs) all verified `ignored=True`, `tracked=0`,
+  `LinkType=''`, and `disk-setup` produced an empty diff (`remove_landed: false`, `[tools]`
+  unchanged). The only unnamed rebuildable cache was `.mypy_cache/` (26 copies across five Python
+  units), now added to `.gitignore` and `botcore.toml`'s `[disk].regenerable`.
+- **In-tree Rust target disk guards (#2241):** Added `scripts/cargo-target.mjs` so
+  `scripts/umbel-components.mjs`, `scripts/build-site-umbel.mjs` and `scripts/rust-sweep.mjs`
+  resolve external Cargo target directories (`UMBEL_TARGET_DIR`, `CARGO_TARGET_DIR`,
+  `CARGO_BUILD_TARGET_DIR`, `.cargo/config[.toml]` `[build] target-dir`) instead of relying on
+  in-tree `endpoints/umbel/target` (Umbel's Rust test helpers already gained `build.build-dir` and
+  `CARGO_TARGET_DIR` support in #2425). `pnpm verify` (`scripts/affected.mjs`) now checks free
+  space on every planned Rust step's target/build volume via `fs.statfsSync` after `rust-sweep`
+  and refuses to start below `AFD_VERIFY_MIN_DISK_GB` (default `15` GiB). `botcore disk-reclaim`
+  now runs a largest-first `pressure-large` tier-1 pass on still-low volumes for `when = "idle"`
+  build directories `>= 5 GiB` in strippable worktrees idle at least `1 hour` (pairing ancestor
+  build-info file strips first and stopping per volume as soon as it recovers), and `_recheck_strip`
+  now guards directories whose `.cargo-lock` is held.
+
 ### Cargo build-dir bloat and aged-folder pressure escalation, 2026-11-23 (#2373)
 
 - **Random's `/Volumes/Dev` filled to 100% (163 MB free) with ~555 GB in `/Volumes/Dev/cargo-build`**
@@ -250,7 +274,7 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 
 - Adoption in Lushly ([lushly#2697](https://github.com/lushly-dev/lushly/issues/2697)): after the release.
 
-- Rollout to the Air, Random and Hero, and retiring the cleanup agent (#1693): rolled out 2026-11-20; afd's `regenerable` list finished and Random set up again 2026-11-22 (see Findings); a week of receipts, then the cleanup agent is retired.
+- Rollout to the Air, Random and Hero, and retiring the cleanup agent (#1693): rolled out 2026-11-20; afd's `regenerable` list finished and Random set up again 2026-11-22, Air verified 2026-11-23, Hero verified 2026-11-24 (see Findings); a week of receipts, then the cleanup agent is retired.
 
 - A scheduled run that waits for ever (#1902): merged in #1923.
 
@@ -267,3 +291,5 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 - `git gc` no longer makes every worktree look active (#1814): in this pull request.
 
 - Cargo `build-dir` defaults, per-workspace bucket eviction, scoped Rust build protection, and `[[aged]]` low-space pressure escalation (#2373): merged in #2377.
+
+- External Umbel Cargo target resolution, `pnpm verify` Rust disk-floor preflight, and `disk-reclaim` large in-tree output pressure escalation (#2241): merged in #2523.

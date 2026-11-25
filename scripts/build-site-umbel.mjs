@@ -46,8 +46,9 @@ import {
 	statSync,
 	writeFileSync,
 } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveCargoTargetDir } from './cargo-target.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const specimen = join(root, 'endpoints/specimen-cli/dist/bin.js');
@@ -58,9 +59,16 @@ const exe = process.platform === 'win32' ? '.exe' : '';
 
 /** The newest build of the binary with the first-party plugins compiled in, release before debug. */
 function findUmbel() {
-	const targets = [process.env.CARGO_TARGET_DIR, join(root, 'endpoints/umbel/target')].filter(
-		Boolean
-	);
+	const umbelRoot = join(root, 'endpoints/umbel');
+	const targets = [
+		...new Set(
+			[
+				process.env.UMBEL_TARGET_DIR?.trim() ? resolve(process.env.UMBEL_TARGET_DIR.trim()) : null,
+				resolveCargoTargetDir(umbelRoot),
+				join(umbelRoot, 'target'),
+			].filter(Boolean)
+		),
+	];
 	for (const profile of ['release', 'debug']) {
 		const found = targets
 			.map((target) => join(target, profile, `umbel-first-party${exe}`))

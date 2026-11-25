@@ -32,6 +32,11 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_BASES, resolveScope } from './affected/scope.mjs';
 import { matchesFilters, readSuiteTrigger, SUITES } from './affected/suites.mjs';
+import {
+	checkRustDiskFloor,
+	formatRustDiskFloorError,
+	rustOutputDirsForPlan,
+} from './cargo-target.mjs';
 import { bashCommand } from './release/exec-tool.mjs';
 import { defaultTargets, sweep } from './rust-sweep.mjs';
 import { buildRecord, currentIdentity, recordPath, writeRecord } from './verify-record.mjs';
@@ -358,6 +363,55 @@ function runCheck(all) {
 	});
 }
 
+/**
+ * Preflights a verify plan's Cargo-invoking steps: runs `rust-sweep` to reclaim stale target
+ * artifacts, then refuses to start if any target or build volume is still below
+ * `AFD_VERIFY_MIN_DISK_GB` (#2241). Emits diagnostic lines via `onMessage` before throwing so
+ * sweep context is never lost on a disk-floor refusal.
+ */
+export function preflightRustVerify(
+	plan,
+	{
+		root: dir = root,
+		env = process.env,
+		homeDir,
+		statfs,
+		minGb,
+		onMessage = () => {},
+		runSweep = () =>
+			sweep(defaultTargets(dir, env, ...(homeDir !== undefined ? [{ homeDir }] : [])), {
+				days: 3,
+				maxGb: 60,
+			}),
+	} = {}
+) {
+	const messages = [];
+	const outputDirs = rustOutputDirsForPlan(plan, {
+		root: dir,
+		env,
+		...(homeDir !== undefined ? { homeDir } : {}),
+	});
+	if (outputDirs.length === 0) return messages;
+	const emit = (line) => {
+		messages.push(line);
+		onMessage(line);
+	};
+	try {
+		for (const line of runSweep()) emit(`[verify] rust-sweep: ${line}`);
+	} catch (error) {
+		emit(`[verify] rust-sweep: ${error.message}`);
+	}
+	const disk = checkRustDiskFloor(plan, {
+		root: dir,
+		env,
+		...(homeDir !== undefined ? { homeDir } : {}),
+		...(statfs !== undefined ? { statfs } : {}),
+		...(minGb !== undefined ? { minGb } : {}),
+	});
+	if (!disk.ok) throw new Error(formatRustDiskFloorError(disk));
+	return messages;
+}
+
 function verify(scope, options) {
 	const plan = planSuites(scope, { root });
 	console.error(`[verify] check (ci.yml): ${describeRun(scope, scope.affected)}`);
@@ -375,15 +429,7 @@ function verify(scope, options) {
 	if (options.list) return;
 	const missing = missingTools(plan);
 	if (missing.length > 0) throw new Error(`missing tools: ${missing.join('; ')}`);
-	// Before building Rust, evict what no build has read for days, so a shared CARGO_TARGET_DIR
-	// does not grow without bound (scripts/rust-sweep.mjs). A sweep never fails verify.
-	if (plannedTools(plan).has('cargo'))
-		try {
-			for (const line of sweep(defaultTargets(root), { days: 3, maxGb: 60 }))
-				console.error(`[verify] rust-sweep: ${line}`);
-		} catch (error) {
-			console.error(`[verify] rust-sweep: ${error.message}`);
-		}
+	preflightRustVerify(plan, { root, onMessage: (line) => console.error(line) });
 
 	const before = currentIdentity(git);
 	const results = [];

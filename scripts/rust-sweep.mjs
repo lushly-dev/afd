@@ -16,14 +16,17 @@
  *     some worktree's build graph stays;
  *   - wipes the profile directories if the target directory is still over `--max-gb`
  *     (default 60), and the next build starts clean.
- * Without `--dir` it sweeps $CARGO_TARGET_DIR, $LOAM_UMBEL_TARGET_DIR and the `target/` beside each
- * of the repository's Cargo workspaces. It touches only directories holding Cargo's CACHEDIR.TAG,
- * and none while a cargo, rustc or clippy-driver process runs, unless `--force`.
+ * Without `--dir` it sweeps $CARGO_TARGET_DIR, $CARGO_BUILD_TARGET_DIR, $UMBEL_TARGET_DIR,
+ * $LOAM_UMBEL_TARGET_DIR, each Cargo workspace's resolved `[build] target-dir` (`.cargo/config[.toml]`
+ * or `$CARGO_HOME/config[.toml]`), and the `target/` beside each workspace. It touches only
+ * directories holding Cargo's CACHEDIR.TAG, and none while a cargo, rustc or clippy-driver process
+ * runs, unless `--force`.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, lstatSync, readdirSync, rmSync } from 'node:fs';
 import { dirname, join, resolve, win32 } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveCargoTargetDir } from './cargo-target.mjs';
 
 const DAY = 24 * 60 * 60 * 1000;
 const GIB = 1024 ** 3;
@@ -94,8 +97,8 @@ export function rustBuildRunning(
 	return lines.some((line) => BUILDERS.has(processName(line)));
 }
 
-/** The default target directories: the environment's, then each Cargo workspace's own. */
-export function defaultTargets(root, env = process.env) {
+/** The default target directories: the environment's, each workspace's resolved Cargo target-dir, and each workspace's own `target/`. */
+export function defaultTargets(root, env = process.env, { homeDir } = {}) {
 	let manifests = [];
 	try {
 		manifests = execFileSync('git', ['ls-files', '*Cargo.toml', 'Cargo.toml'], {
@@ -105,10 +108,14 @@ export function defaultTargets(root, env = process.env) {
 			.split('\n')
 			.filter(Boolean);
 	} catch {}
+	const resolveOpts = homeDir !== undefined ? { env, homeDir } : { env };
+	const workspaces = manifests.map((manifest) => join(root, dirname(manifest)));
 	const dirs = [
 		env.CARGO_TARGET_DIR,
+		env.CARGO_BUILD_TARGET_DIR,
+		env.UMBEL_TARGET_DIR,
 		env.LOAM_UMBEL_TARGET_DIR,
-		...manifests.map((manifest) => join(root, dirname(manifest), 'target')),
+		...workspaces.flatMap((ws) => [resolveCargoTargetDir(ws, resolveOpts), join(ws, 'target')]),
 	].filter(Boolean);
 	return [...new Set(dirs.map((dir) => resolve(root, dir)))];
 }

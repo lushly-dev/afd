@@ -45,9 +45,45 @@ test('release builds come before debug, the shared target before the checkout', 
 		at('/cache/target', 'debug', BINARY),
 		at('/r', 'endpoints/umbel/target', 'debug', BINARY),
 	]);
+	assert.deepEqual(binaryCandidates({ CARGO_BUILD_TARGET_DIR: '/build/target' }, '/r', 'linux'), [
+		at('/build/target', 'release', BINARY),
+		at('/r', 'endpoints/umbel/target', 'release', BINARY),
+		at('/build/target', 'debug', BINARY),
+		at('/r', 'endpoints/umbel/target', 'debug', BINARY),
+	]);
+	assert.deepEqual(
+		binaryCandidates(
+			{ UMBEL_TARGET_DIR: '/umbel/target', CARGO_TARGET_DIR: '/cache/target' },
+			'/r',
+			'linux'
+		),
+		[
+			at('/umbel/target', 'release', BINARY),
+			at('/cache/target', 'release', BINARY),
+			at('/r', 'endpoints/umbel/target', 'release', BINARY),
+			at('/umbel/target', 'debug', BINARY),
+			at('/cache/target', 'debug', BINARY),
+			at('/r', 'endpoints/umbel/target', 'debug', BINARY),
+		]
+	);
 	assert.deepEqual(binaryCandidates({}, '/r', 'linux'), [
 		at('/r', 'endpoints/umbel/target', 'release', BINARY),
 		at('/r', 'endpoints/umbel/target', 'debug', BINARY),
+	]);
+});
+
+test('binaryCandidates resolves Cargo config [build] target-dir outside the worktree (#2241)', (t) => {
+	const root = scratch(t);
+	const home = join(root, 'cargo-home');
+	const external = join(root, 'dev', 'umbel-target');
+	mkdirSync(join(root, 'endpoints', 'umbel'), { recursive: true });
+	mkdirSync(home, { recursive: true });
+	writeFileSync(join(home, 'config.toml'), `[build]\ntarget-dir = ${JSON.stringify(external)}\n`);
+	assert.deepEqual(binaryCandidates({ CARGO_HOME: home }, root, 'linux'), [
+		at(external, 'release', BINARY),
+		at(root, 'endpoints/umbel/target', 'release', BINARY),
+		at(external, 'debug', BINARY),
+		at(root, 'endpoints/umbel/target', 'debug', BINARY),
 	]);
 });
 
