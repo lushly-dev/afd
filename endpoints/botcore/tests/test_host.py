@@ -305,6 +305,11 @@ async def test_legacy_and_managed_mcp_exposure_transition(tmp_path):
         "compat-run",
     }
     assert {tool.name for tool in await managed.list_tools()} == {
+        "afd-discover",
+        "afd-detail",
+        "afd-call",
+        "afd-batch",
+        "afd-pipe",
         "alfred-start",
         "alfred-docs",
         "alfred-call",

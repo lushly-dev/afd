@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.15'",
@@ -15,6 +15,12 @@ version = "0.13.0"
 source = { editable = "../../python" }
 dependencies = [
     { name = "pydantic" },
+]
+
+[package.optional-dependencies]
+server = [
+    { name = "mcp" },
+    { name = "pyyaml" },
 ]
 
 [package.metadata]
@@ -1442,6 +1448,7 @@ dependencies = [
 
 [package.optional-dependencies]
 all = [
+    { name = "afd", extra = ["server"] },
     { name = "httpx" },
     { name = "mcp" },
     { name = "openai" },
@@ -1462,6 +1469,7 @@ dev = [
     { name = "vulture" },
 ]
 mcp = [
+    { name = "afd", extra = ["server"] },
     { name = "mcp" },
 ]
 quality = [
@@ -1484,11 +1492,12 @@ packages = [
 [package.metadata]
 requires-dist = [
     { name = "afd", editable = "../../python" },
+    { name = "afd", extras = ["server"], marker = "extra == 'mcp'", editable = "../../python" },
     { name = "click", specifier = ">=8.1.0" },
     { name = "httpx", marker = "extra == 'cdp'", specifier = ">=0.24.0" },
     { name = "httpx", marker = "extra == 'quality'", specifier = ">=0.24.0" },
     { name = "lushly-botcore", extras = ["cdp", "research", "quality", "mcp"], marker = "extra == 'all'" },
-    { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.0.0" },
+    { name = "mcp", marker = "extra == 'mcp'", specifier = ">=2.3,<3" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0" },
     { name = "openai", marker = "extra == 'research'", specifier = ">=3.37.0" },
     { name = "perfetto", marker = "extra == 'cdp'", specifier = ">=0.16.0" },

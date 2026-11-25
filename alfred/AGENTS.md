@@ -129,13 +129,14 @@ Recognized imperative verbs include: get, list, create, update, delete, validate
 
 ## MCP Server
 
-Uses Botcore's `create_host_mcp_server()` factory and Alfred's `build_alfred_host()`:
+Uses Botcore's `create_host_mcp_server()` factory (backed by `afd.server.create_server`) and Alfred's `build_alfred_host()`:
 
 | Tool | Description |
 |------|-------------|
-| `alfred-start` | Discovery — available commands and capabilities |
-| `alfred-docs` | Reference documentation by topic |
-| `alfred-call` | Execute one admitted command with structured JSON arguments |
+| `afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe` | Standard AFD meta-tools for discovery, schemas, execution, batches and pipelines |
+| `alfred-start` | Compatibility alias — discovery, available commands and capabilities |
+| `alfred-docs` | Compatibility alias — reference documentation by topic |
+| `alfred-call` | Compatibility alias — execute one admitted command with structured JSON arguments |
 
 ---
 

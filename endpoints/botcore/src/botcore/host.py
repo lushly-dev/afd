@@ -10,13 +10,13 @@ import asyncio
 import difflib
 import inspect
 import uuid
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass
 from pathlib import PureWindowsPath
 from typing import Any, cast
 
 from afd import Actor, CommandResult, DirectClient, error, system_clock, system_random
-from afd.core.commands import CommandContext
+from afd.core.commands import CommandContext, CommandMiddleware
 from afd.core.result import ResultMetadata
 from afd.direct import CommandContext as DirectCommandContext
 from afd.direct import CommandInfo
@@ -260,12 +260,16 @@ class CommandHost:
             details={"suggestedCommand": meant} if meant else None,
         )
 
-    async def execute(
+    def validate_call(
         self,
         name: str,
         args: dict[str, Any] | None = None,
-        context: CommandContext | DirectCommandContext | None = None,
-    ) -> CommandResult[Any]:
+    ) -> tuple[str, dict[str, Any]] | CommandResult[Any]:
+        """Validate command existence, arguments, policy effects and target paths.
+
+        Returns ``(served_name, resolved_kwargs)`` when the call is admitted by this host's
+        policy and execution profile, or a failure ``CommandResult`` otherwise.
+        """
         registered = self.resolve(name)
         if registered is None:
             return self._not_found(name)
@@ -335,6 +339,20 @@ class CommandHost:
                 str(exc),
                 suggestion="Use declared arguments and paths within the host target",
             )
+        return served, kwargs
+
+    async def execute(
+        self,
+        name: str,
+        args: dict[str, Any] | None = None,
+        context: CommandContext | DirectCommandContext | None = None,
+    ) -> CommandResult[Any]:
+        checked = self.validate_call(name, args)
+        if isinstance(checked, CommandResult):
+            return checked
+        served, kwargs = checked
+        policy = self._policies[served]
+        handler = self._commands[served]
 
         async def invoke() -> Any:
             if inspect.iscoroutinefunction(handler) or inspect.iscoroutinefunction(
@@ -375,6 +393,30 @@ class CommandHost:
                 str(exc),
                 suggestion="Inspect the selected target and command configuration",
             )
+
+
+def create_host_policy_middleware(host: CommandHost) -> CommandMiddleware:
+    """AFD middleware enforcing a managed host's policy, execution profile and path bounds.
+
+    Runs before downstream AFD middleware and command handlers so calls refused by the
+    host's profile, declared effects, argument schema or target path bounds short-circuit
+    at the AFD middleware boundary without reaching handlers or approval prompts.
+    """
+
+    async def host_policy_middleware(
+        command_name: str,
+        input: Any,
+        context: CommandContext,
+        next_fn: Callable[[], Awaitable[CommandResult[Any]]],
+    ) -> CommandResult[Any]:
+        if not host.has_command(command_name):
+            return await next_fn()
+        checked = host.validate_call(command_name, input)
+        if isinstance(checked, CommandResult):
+            return checked
+        return await next_fn()
+
+    return host_policy_middleware
 
 
 # Audited common commands. No AFD architectural policy is imposed on consumers.
