@@ -7,10 +7,11 @@ claims a cause that the evidence does not hold. A session writes three things it
 today, each from a fixed list: a finding's class and disposition, the decision about its check,
 and a line on a fix commit that says how the bug was found.
 
-Proposed 2026-11-24, from the owner's request the same day. Revised twice that day: after an
-independent review ([The review](#the-review)) and after its jobs were walked ([Walked
-by](#jobs)). It extends the test integrity epic
-([#1387](https://github.com/lushly-dev/afd/issues/1387)), whose test-change report it adds to.
+Proposed 2026-11-24, from the owner's request the same day, and active since then: progress is
+in [STATUS.md](STATUS.md). It was revised twice before it was approved, after an independent
+review ([The review](#the-review)) and after its jobs were walked ([Jobs](#jobs)). It extends
+the test integrity epic ([#1387](https://github.com/lushly-dev/afd/issues/1387)), whose
+test-change report it adds to.
 
 Words used here:
 
@@ -108,7 +109,7 @@ six hours, so they include queue time and are not billed minutes. Commits:
   checks and tests, durations and counts only.
 - **No new gate on a number**, which would be met by checking less.
 - **No hosted service.** A file on each machine and a shared folder, as [skill
-  usage](../../active/skill-usage/skill-usage.proposal.md) does it.
+  usage](../skill-usage/skill-usage.proposal.md) does it.
 
 ## Jobs
 
@@ -859,6 +860,9 @@ Every scenario tagged `slice` passes for phase 1, and each other after its phase
 ## For the owner to decide
 
 1. **The jobs:** cut, add and rank them. Recommended: all twelve, in the order of the phases.
+   On 2026-11-24 the owner told the session to go on with the recommended tasks and changed
+   nothing in the list, so the jobs are built in that order. He can still cut or reorder the
+   later ones.
 2. **Retiring a test.** The request raises removing a test that is no longer needed, and this
    plan stops at moving one to daily. Recommended: allow removal as the owner's decision, on
    one of two proofs. Either every confirmed catch of the test in the record was also failed by
