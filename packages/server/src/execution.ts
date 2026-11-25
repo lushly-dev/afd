@@ -30,7 +30,12 @@ import {
 	withContextDefaults,
 } from '@lushly-dev/afd-core';
 import { commandNotAllowed } from '@lushly-dev/afd-core/internal/direct-allow';
-import { beginAdmission, needsAdmission, takeAdmission } from './approval-admission.js';
+import {
+	beginAdmission,
+	markEngineNext,
+	needsAdmission,
+	takeAdmission,
+} from './approval-admission.js';
 import { filterAllowed, isCommandAllowed } from './command-allow.js';
 import {
 	type CallableSurface,
@@ -336,6 +341,8 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 			const mw = middleware[i];
 			if (!mw) continue;
 			const currentNext = next;
+			// The journal reads a command's `secret` only from a middleware the engine invoked.
+			markEngineNext(context, currentNext);
 			next = () => mw(commandName, data, context, currentNext);
 		}
 

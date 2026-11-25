@@ -24,7 +24,7 @@ import {
 	systemClock,
 	systemRandom,
 } from '@lushly-dev/afd-core';
-import { liveCommand } from './approval-admission.js';
+import { liveSecret } from './approval-admission.js';
 import { JOURNALED_CONTEXT_FIELDS } from './context-fields.js';
 import { EFFECTIVE_OUTPUT_BUDGET } from './output-budget.js';
 
@@ -89,10 +89,12 @@ export const JOURNAL_REPLAY: unique symbol = Symbol.for('@lushly-dev/afd-server/
 const SPENT_REPLAY: JournalReplayMarker = { rewind() {}, end() {} };
 
 /** On a recording clock: the clock it wraps, for timing that must stay off the tape. */
-const UNTAPED = Symbol('afd.journal.untaped');
+// Registered, so the recording layers of separately installed copies of afd-server recognise
+// each other's and a tape walk crosses them.
+const UNTAPED = Symbol.for('dev.afd/journal-untaped');
 
 /** On a recording clock and random source: the tape they write to. */
-const TAPE = Symbol('afd.journal.tape');
+const TAPE = Symbol.for('dev.afd/journal-tape');
 
 /** The clock under any recording wrappers, so a journal's own timing lands on no tape. */
 function untaped(clock: Clock): Clock {
@@ -121,14 +123,26 @@ export interface JournalRedactInfo {
 /**
  * Run `next` off every tape: a call the journal leaves unrecorded because it may carry a secret
  * reads the clock and random source a recording parent wrapped, which would put the values that
- * built the secret on the parent's tape. The parent's tape is marked `truncated` instead, so its
- * replay says it cannot restore every value.
+ * built the secret on the parent's tape. Each recording layer's tape is marked `truncated`
+ * instead, so its replay says it cannot restore every value. A clock or random source a host
+ * wraps around a recording one hides the recording one, so keep the journal's own sources on the
+ * context rather than wrapping them.
  */
 async function offTape(context: CommandContext, next: () => Promise<CommandResult>) {
 	const { clock, random } = context;
-	const tapes = [clock, random]
-		.map((source) => (source as { [TAPE]?: JournalTape } | undefined)?.[TAPE])
-		.filter((tape) => tape !== undefined);
+	// Every recording layer's tape, not only the nearest: an outer journal around the parent loses
+	// these reads too, so its replay must also say it cannot restore every value.
+	const tapes: JournalTape[] = [];
+	for (let source = clock as unknown; source; ) {
+		const layer = source as { [TAPE]?: JournalTape; [UNTAPED]?: unknown };
+		if (layer[TAPE]) tapes.push(layer[TAPE]);
+		source = layer[UNTAPED];
+	}
+	for (let source = random as unknown; source; ) {
+		const layer = source as { [TAPE]?: JournalTape; [UNTAPED]?: unknown };
+		if (layer[TAPE] && !tapes.includes(layer[TAPE])) tapes.push(layer[TAPE]);
+		source = layer[UNTAPED];
+	}
 	if (tapes.length === 0) return next();
 	for (const tape of tapes) tape.truncated = true;
 	if (clock) context.clock = untaped(clock);
@@ -303,7 +317,9 @@ function recordingSources(
  * reorders them. So an `append` that never settles holds every later recorded call, and a sink
  * whose `append` runs a command this middleware records would wait on itself. A sink error goes to `onError` and never changes the command
  * result. Commands named `auth-*` are not recorded unless `filter` allows them, and a command
- * that declares `secret` is not recorded without `redact`. During
+ * that declares `secret` is not recorded without `redact`. The declaration is read through the
+ * `next` the engine hands this middleware, so pass it on unchanged or compose with
+ * `composeMiddleware`; a recorder given any other `next` reads it as unknown. During
  * `replayJournal()` this middleware records nothing; it restarts the replay tape at its position.
  *
  * @example
@@ -354,12 +370,12 @@ export function createJournalMiddleware(
 		// A command declaring `secret` is recorded only when a `redact` can remove the secret: a
 		// filter alone never admits it (`spec/journal.md`). Outside the engine (a DirectClient's
 		// own middleware) the declaration cannot be read, so no call is recorded without `redact`.
-		const command = liveCommand(context);
-		const secret = command === undefined ? undefined : command.secret === true;
+		const secret = liveSecret(context, next);
 		if (secret !== false && givenRedact === undefined) return offTape(context, next);
-		// A secret call recorded or skipped by `filter` reads off its parent's tape too: its own
-		// recording, if any, keeps its reads on its own entry, for `redact` to drop.
-		if (secret === true && !offParentTape.has(context)) {
+		// A secret call, or one whose declaration cannot be read, recorded or skipped by `filter`,
+		// reads off its parent's tape too: its own recording, if any, keeps its reads on its own
+		// entry, for `redact` to drop.
+		if (secret !== false && !offParentTape.has(context)) {
 			offParentTape.add(context);
 			return offTape(context, () => middleware(commandName, input, context, next));
 		}

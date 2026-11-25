@@ -310,6 +310,9 @@ const HOST_IMPORTS =
  *   `lush/engine-recoveries` at `00c702e98`. With `main` at `3403a6e02` (#2263) merged, host,
  *   approval, tool-surface and every-export measure 51,258 / 66,609 / 90,598 / 118,150 bytes
  *   (esbuild 0.28.2), within #2263's 52,300 / 67,000 / 91,200 / 119,500.
+ *   Journal secret scope: marking the engine's continuations (`markEngineNext`,
+ *   `inheritEngineNext`, `liveSecret`) and walking every recording layer's tape bring every-export,
+ *   with `main` at `bede7d3fd` merged, to 119,592 bytes (raised 119,500 → 120,000).
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
@@ -334,7 +337,7 @@ const DIRECT_BUDGETS = [
 		imports: `${HOST_IMPORTS}, createDirectToolSurface`,
 		bytes: 91_800,
 	},
-	{ what: 'every export', imports: undefined, bytes: 119_500 },
+	{ what: 'every export', imports: undefined, bytes: 120_000 },
 ];
 
 /** The modules only the tool surface needs. */

@@ -4,6 +4,7 @@
 
 import { DirectClient } from '@lushly-dev/afd-client';
 import {
+	type CommandContext,
 	type CommandMiddleware,
 	failure,
 	fixedClock,
@@ -20,6 +21,7 @@ import {
 	JOURNAL_RESULT_UNSERIALIZABLE,
 	type JournalMiddlewareOptions,
 } from './journal.js';
+import { composeMiddleware } from './middleware.js';
 import { defineCommand } from './schema.js';
 import { createMcpServer } from './server.js';
 
@@ -483,6 +485,168 @@ describe('createJournalMiddleware', () => {
 		expect(child?.tape?.random).toEqual([0.26]);
 		expect(parent?.tape?.random ?? []).toEqual([]);
 		expect(parent?.tape?.truncated).toBe(true);
+	});
+
+	it('gives a recorder a handler runs on its own context no declaration to read', async () => {
+		const handlerSink = new MemoryJournalSink();
+		const ownChain = createJournalMiddleware(handlerSink, { filter: () => true });
+		const server = createMcpServer({
+			name: 's',
+			version: '1',
+			commands: [
+				defineCommand({
+					name: 'report-build',
+					description: 'Build a report through a chain of its own',
+					input: z.object({}),
+					handler: async (_input, context) =>
+						ownChain('vault-read', { passphrase: 'hunter2' }, context ?? {}, async () =>
+							success({ key: 'SECRET-VAULT-KEY' })
+						),
+				}),
+			],
+		});
+		const built = await server.execute('report-build', {});
+		expect(built.success).toBe(true);
+		// The engine's declaration (not secret) is not this recorder's: it reads unknown and,
+		// with no redact, records nothing.
+		expect(await handlerSink.read()).toEqual([]);
+	});
+
+	it('still reads the declaration for a journal inside composeMiddleware, or after the handler', async () => {
+		const login = defineCommand({
+			name: 'vault-unlock',
+			description: 'Unlock the vault',
+			input: z.object({}),
+			secret: true,
+			handler: async () => success({ key: 'SECRET-VAULT-KEY' }),
+		});
+		const sink = new MemoryJournalSink();
+		const seen: Array<boolean | undefined> = [];
+		const passThrough: CommandMiddleware = (_name, _input, _context, next) => next();
+		const host = createMcpServer({
+			name: 's',
+			version: '1',
+			commands: [login, roll],
+			middleware: [
+				composeMiddleware(
+					passThrough,
+					createJournalMiddleware(sink, {
+						redact: (record, { secret }) => {
+							seen.push(secret);
+							return secret ? undefined : record;
+						},
+					})
+				),
+			],
+		});
+		await host.execute('vault-unlock', {});
+		await host.execute('dice-roll', { sides: 6 });
+		expect(seen).toEqual([true, false]);
+		expect((await sink.read()).map((entry) => entry.command)).toEqual(['dice-roll']);
+	});
+
+	it('records both attempts of a middleware that retries through the engine’s next', async () => {
+		const sink = new MemoryJournalSink();
+		const retryOnce: CommandMiddleware = async (_name, _input, _context, next) => {
+			await next();
+			return next();
+		};
+		const host = createMcpServer({
+			name: 's',
+			version: '1',
+			commands: [roll],
+			middleware: [retryOnce, createJournalMiddleware(sink)],
+		});
+		await host.execute('dice-roll', { sides: 6 });
+		expect((await sink.read()).map((entry) => entry.command)).toEqual(['dice-roll', 'dice-roll']);
+	});
+
+	it('tells a handler-owned recorder with redact that the declaration is unknown', async () => {
+		const told: Array<boolean | undefined> = [];
+		const ownChain = createJournalMiddleware(new MemoryJournalSink(), {
+			redact: (_record, { secret }) => {
+				told.push(secret);
+				return undefined;
+			},
+		});
+		const server = createMcpServer({
+			name: 's',
+			version: '1',
+			commands: [
+				defineCommand({
+					name: 'report-build',
+					description: 'Build a report through a chain of its own',
+					input: z.object({}),
+					handler: async (_input, context) =>
+						ownChain('vault-read', {}, context ?? {}, async () => success({})),
+				}),
+			],
+		});
+		expect((await server.execute('report-build', {})).success).toBe(true);
+		expect(told).toEqual([undefined]);
+	});
+
+	it('gives a recorder the handler keeps and runs later no declaration either', async () => {
+		const later = new MemoryJournalSink();
+		const ownChain = createJournalMiddleware(later, { filter: () => true });
+		let kept: CommandContext | undefined;
+		const server = createMcpServer({
+			name: 's',
+			version: '1',
+			commands: [
+				defineCommand({
+					name: 'report-build',
+					description: 'Keep the context for later',
+					input: z.object({}),
+					handler: async (_input, context) => {
+						kept = context;
+						return success({});
+					},
+				}),
+			],
+		});
+		await server.execute('report-build', {});
+		await ownChain('vault-read', { passphrase: 'hunter2' }, kept ?? {}, async () =>
+			success({ key: 'SECRET-VAULT-KEY' })
+		);
+		expect(await later.read()).toEqual([]);
+	});
+
+	it('marks every recording layer’s tape when a secret nested call reads off them', async () => {
+		const outer = new MemoryJournalSink();
+		const inner = new MemoryJournalSink();
+		let draws = 0;
+		const server: ReturnType<typeof createMcpServer> = createMcpServer({
+			name: 's',
+			version: '1',
+			random: { next: () => 0.25 + 0.01 * ++draws },
+			middleware: [createJournalMiddleware(outer), createJournalMiddleware(inner)],
+			commands: [
+				defineCommand({
+					name: 'token-mint',
+					description: 'Mint a token from random values',
+					input: z.object({}),
+					secret: true,
+					handler: async (_input, context) => success({ token: `T-${context?.random?.next()}` }),
+				}),
+				defineCommand({
+					name: 'session-open',
+					description: 'Open a session, minting its token',
+					input: z.object({}),
+					handler: async (_input, context) => {
+						await server.execute('token-mint', {}, context);
+						return success({ opened: true });
+					},
+				}),
+			],
+		});
+		await server.execute('session-open', {});
+		for (const sink of [outer, inner]) {
+			const [entry] = await sink.read();
+			expect(entry?.command).toBe('session-open');
+			expect(entry?.tape?.random ?? []).toEqual([]);
+			expect(entry?.tape?.truncated).toBe(true);
+		}
 	});
 
 	it('refuses a secret that is not a boolean', () => {
