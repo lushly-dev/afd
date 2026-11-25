@@ -238,3 +238,44 @@ pub(super) fn virtualized(services: &Arc<CallServices>, draw_seed: bool) -> (Was
         (builder.build(), Flush(sink))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+
+    #[test]
+    fn cancelled_call_emits_and_consumes_nothing_on_wasi_write_or_flush() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("umbel.toml"),
+            "config_version = 1\ndefault_space = \"main\"\n[spaces.main]\n",
+        )
+        .unwrap();
+        let workspace = crate::workspace::Workspace::open(dir.path()).unwrap();
+        let signal = afd::CancellationSignal::new();
+        let context = CommandContext::new().with_cancellation(signal.clone());
+        let services = Arc::new(CallServices::for_wasi_test(workspace, context));
+        let sink = LogSink {
+            services: Arc::clone(&services),
+            out: Mutex::new(Vec::new()),
+            err: Mutex::new(Vec::new()),
+        };
+
+        // Before cancellation, both complete lines and buffered flush consume log budget.
+        sink.write(false, b"hello\n");
+        sink.write(true, b"tail");
+        sink.finish();
+        let before = services.log_bytes_used();
+        assert_eq!(before, "hello".len() as u64 + "tail".len() as u64);
+
+        // Once cancelled, neither complete writes nor final buffered flushes consume budget or emit.
+        signal.cancel();
+        sink.write(false, b"after-out\n");
+        sink.write(true, b"after-err\n");
+        sink.write(false, b"buffered-out");
+        sink.write(true, b"buffered-err");
+        sink.finish();
+        assert_eq!(services.log_bytes_used(), before);
+    }
+}
