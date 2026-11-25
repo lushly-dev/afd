@@ -1,0 +1,66 @@
+# The fixture's session control lowers the most seats to two when it is set to the evening,
+# which stands in for a rule of the application's.
+name: One change moves another control
+description: >-
+  When setting one control changes another, its choices or its value or whether it can be
+  edited, I want the answer to carry the controls that moved, so that I have them without
+  reading the screen again.
+job: one-change-moves-another
+tags: [slice]
+fixture:
+  file: fixtures/workshop-form.json
+steps:
+  - description: The screen is read
+    command: control-list
+    input: {}
+    expect:
+      success: true
+      data:
+        controls.5.id: seats
+        controls.5.max: 4
+
+  - description: Setting the session moves the seats, and the answer carries the seats as they now are
+    command: control-set
+    input:
+      values:
+        - { id: session, value: evening, rev: "${{ steps[0].data.controls[4].rev }}" }
+    expect:
+      success: true
+      data:
+        changed.0.id: session
+        affected: { length: 1 }
+        affected.0.id: seats
+        affected.0.max: 2
+        affected.0.rev: { exists: true }
+
+  - description: The rev the seats had before they moved is refused
+    command: control-set
+    input:
+      values:
+        - { id: seats, value: 2, rev: "${{ steps[0].data.controls[5].rev }}" }
+    expect:
+      success: false
+      error:
+        code: CONFLICT
+        suggestion: { contains: control-list }
+
+  - description: With the rev the answer carried, the new limit is what a refusal names
+    command: control-set
+    input:
+      values:
+        - { id: seats, value: 3, rev: "${{ steps[1].data.affected[0].rev }}" }
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR
+        suggestion: { contains: between 1 and 2 }
+
+  - description: A value inside it is accepted, with no read in between
+    command: control-set
+    input:
+      values:
+        - { id: seats, value: 2, rev: "${{ steps[1].data.affected[0].rev }}" }
+    expect:
+      success: true
+      data:
+        changed.0.value: 2

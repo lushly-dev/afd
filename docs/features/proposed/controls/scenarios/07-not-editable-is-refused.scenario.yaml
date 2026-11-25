@@ -1,0 +1,65 @@
+# A scenario cannot assert `recovery`, which differs here: `stop` for a control that is disabled
+# or read-only, `external` for one that is not shown.
+name: A control the person could not change refuses the change
+description: >-
+  When a control is disabled, read-only or not shown to the person, I want my change refused
+  with the reason, so that nothing changes that the person could not have changed or cannot see.
+job: not-editable-is-refused
+tags: [slice]
+fixture:
+  file: fixtures/workshop-form.json
+steps:
+  - description: The screen is read
+    command: control-list
+    input: {}
+    expect:
+      success: true
+      data:
+        controls: { length: 12 }
+
+  - description: A disabled control refuses, and says it is disabled
+    command: control-set
+    input:
+      values:
+        - { id: voucher, value: SPRING, rev: "${{ steps[0].data.controls[9].rev }}" }
+    expect:
+      success: false
+      error:
+        code: CONFLICT
+        suggestion: { contains: disabled }
+
+  - description: A read-only control refuses, and says it is read-only
+    command: control-set
+    input:
+      values:
+        - { id: member-id, value: M-1, rev: "${{ steps[0].data.controls[2].rev }}" }
+    expect:
+      success: false
+      error:
+        code: CONFLICT
+        suggestion: { contains: read-only }
+
+  - description: A control in a closed part of the screen refuses, and says it is not shown
+    command: control-set
+    input:
+      values:
+        - { id: gift-message, value: Happy birthday, rev: "${{ steps[0].data.controls[11].rev }}" }
+    expect:
+      success: false
+      error:
+        code: CONFLICT
+        suggestion: { contains: not shown }
+
+  - description: All three hold what they held
+    command: control-list
+    input: {}
+    expect:
+      success: true
+      data:
+        controls.2.id: member-id
+        controls.2.value: M-20418
+        controls.2.readOnly: true
+        controls.9.id: voucher
+        controls.9.value: ""
+        controls.11.id: gift-message
+        controls.11.value: ""

@@ -104,7 +104,8 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
 | Open the epic | Not started; the owner's call | |
 | The owner answers the proposal's section 9 | In progress. Answered 2026-11-14: questions 1, 2, 3, 5, 6, 11 and 12, and the todo example in question 7. Answered 2026-11-15: the bench's domain in 7 and the budget in 12. Answered 2026-11-16: question 13. Open: 4, 8, 9 and 10 | Proposal, section 9 |
 | Amend with where the parts live (5.10) | Done 2026-11-16, merged in #1386: the owner's test for the component layer, the layer map, two facts in section 2 and question 13. Its code changes are [epic #1385](https://github.com/lushly-dev/afd/issues/1385)'s | Proposal, sections 2 and 5.10 |
-| Amend with the screen an agent sees (5.10) | Done 2026-11-24, merged in #2466: a row in the layer map for an agent seeing and filling what is on the screen, the owner's answer under question 13, and UI SDK as a published design to compare. Open: where its code goes, in `afd-view-state` or in a layer of its own, and how much of the screen an agent sees. [#2275](https://github.com/lushly-dev/afd/issues/2275)'s scope covers neither until its approach or a new sub-issue under [epic #1385](https://github.com/lushly-dev/afd/issues/1385) says so | Proposal, sections 5.10 and 9 |
+| Amend with the screen an agent sees (5.10) | Done 2026-11-24, merged in #2466: a row in the layer map for an agent seeing and filling what is on the screen, the owner's answer under question 13, and UI SDK as a published design to compare. Open: where its code goes, in `afd-view-state` or in a layer of its own, and how much of the screen an agent sees. [#2275](https://github.com/lushly-dev/afd/issues/2275)'s scope covers neither until its approach or a new sub-issue under [epic #1385](https://github.com/lushly-dev/afd/issues/1385) says so. Superseded on what is open by the row below | Proposal, sections 5.10 and 9 |
+| Record the owner's clarification, and point 5.10 at the Controls proposal | Done 2026-11-24, merged in #2480: the owner's reply is quoted under question 13. The session reads it as a case for a designed path in place of a workaround, naming no layer, so the [Controls proposal](../controls/controls.proposal.md) places the code and puts how much of the screen an agent sees to the owner as its question 4 | Proposal, sections 5.10 and 9 |
 | Move each part into the proposal that owns it | Not started. Ready to move: customizing a default (5.1) and who owns the result-state patterns (5.2) into Patterns; the panel's provisional answer and the triggers (5.5) into Design Decisions | Question 1 |
 | Draft the commands against the ranked jobs | Not started. The rank is confirmed; this is phase A's, after phase 0's decision | |
 | Write each job as a scenario and run the checks | Not started | [Jobs first](../../../../.claude/skills/afd/references/jobs-first.md) |
@@ -181,7 +182,10 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
     refusal's feedback in the reference build and its seeded copy;
   - on 2026-11-24, an addition to question 13: an agent inside an application sees and fills
     what is on the screen, with no actions declared by components. Where its code goes, and how
-    much of the screen an agent sees, stay open.
+    much of the screen an agent sees, stay open;
+  - on 2026-11-24, clarifying that answer: the sentence about shoehorning made a case for a
+    designed path in place of a workaround (a command that sets values, and code in the
+    interface that applies them).
 
 ## How it was checked
 
@@ -445,6 +449,13 @@ Run 2026-11-14 in this worktree at `545316f2`, and the links again after merging
     the additions first made to the State line and to the row for the owner's answers, which
     are lines every pull request to this file would edit; this entry and the step's own row
     carry them.
+- **The amendment of 2026-11-24, later** (the owner's clarification under question 13, and
+  the 5.10 row and section 6 pointed at the Controls proposal), on a branch from `main` at
+  `8347a597`:
+  - *The owner's clarification* is quoted whole in question 13, and what the session reads
+    into it is marked as the session's.
+  - *Links:* the throwaway script, over the proposal and this file, found none broken.
+  - *Review:* with the Controls proposal, in its pull request.
 
 ## The runner
 
@@ -858,3 +869,4 @@ Read on 2026-11-24, for the amendment of that day:
 | 2026-11-21 | The rules for "go", and step 0.1's first fifteen builds | The owner confirmed the rules for "go" and the reading of a path for step 0.4 as proposed, reading step 0.3's "a persona of that modality" as one persona alone, and gave the word for the first fifteen builds under a cap of $50. The runner's reports of steps 0.1 to 0.4 and step 0.2's statistics were written and tested on invented runs. The allowance week's reset was corrected to 04:00. The builds ran after the reset for $25.67 at list prices, one cut off and one thrown out among them, and paused for the owner |
 | 2026-11-24 | Step 0.1's first fifteen builds, scored | The owner looked again at the reference build's screenshot page made on 2026-11-16 and marked none. The scoring checkout was found stripped a second time, by Botcore's disk cleaner, which also explains 2026-11-20; it was rebuilt, scores the reference build 308 of 308, and is kept from the cleaner. The builds were scored, the five bare builds' readers ran at the owner's word for $0.86, and the step's report was written. Both arms pass nine checks in ten, which puts whether to go on to the owner, and the weekly figure was not read when the builds ended, so they give no conversion |
 | 2026-11-24 | The screen an agent sees | The owner asked how UI SDK's concepts align with AFD's FAST-AF components. Its documentation was read: a core of interface behaviours with five renderers, and a bridge through which an agent reads and changes the components on a page. The bridge is close to what `fast-element`'s command layer was before #1398, and to what epic #1385's step 8 plans for `afd-view-state`. Asked whether an agent inside an application should see and fill what is on the screen, the owner agreed, with no actions declared by components. Section 5.10 gains the row and UI SDK as a published design to compare, and question 13 the answer in the owner's words. Where its code goes, in `afd-view-state` or in a layer of its own, and how much of the screen an agent sees, stay open. Two independent reviewers found five blockers, all fixed. Nothing was built |
+| 2026-11-24 | The owner's clarification | Asked which layer the answer of that day had meant, the owner said it was a case for a designed path, a system built to let an agent edit controls and their content, over a workaround of a command that sets values and code in the interface that applies them. Question 13 gains the reply, and the 5.10 row and section 6 now point at the [Controls proposal](../controls/controls.proposal.md), written the same day, which places the code and carries what is still the owner's to decide |

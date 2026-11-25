@@ -1,0 +1,60 @@
+# A scenario cannot take a control off the screen between two steps: every step is a command,
+# and no command unbinds a control. The steps below name a control that was never bound, which
+# the commands answer in the same way. The unit's tests unbind one between a read and a write,
+# and bind another form under the same names, whose controls have new revs (section 4.4).
+name: A control that is not on the screen
+description: >-
+  When a control I mean to change is not on the screen, I want to be told and sent back to
+  read the screen, so that I do not act on a screen that is gone.
+job: left-the-screen
+tags: [slice]
+fixture:
+  file: fixtures/workshop-form.json
+steps:
+  - description: The screen is read
+    command: control-list
+    input: {}
+    expect:
+      success: true
+      data:
+        controls: { length: 12 }
+
+  - description: Setting a control that is not bound is refused, with the command that reads the screen
+    command: control-set
+    input:
+      values:
+        - { id: billing-address, value: 4 Quay Street, rev: none }
+    expect:
+      success: false
+      error:
+        code: NOT_FOUND
+        message: billing-address
+        suggestion: { contains: control-list }
+
+  - description: One missing control stops the others sent with it
+    command: control-set
+    input:
+      values:
+        - { id: attendee-name, value: Ada Okafor, rev: "${{ steps[0].data.controls[0].rev }}" }
+        - { id: billing-address, value: 4 Quay Street, rev: none }
+    expect:
+      success: false
+      error:
+        code: NOT_FOUND
+
+  - description: Nothing was changed
+    command: control-list
+    input: { group: Attendee }
+    expect:
+      success: true
+      data:
+        controls.0.value: ""
+
+  - description: Its choices cannot be searched either
+    command: control-choices
+    input: { id: billing-address }
+    expect:
+      success: false
+      error:
+        code: NOT_FOUND
+        suggestion: { contains: control-list }

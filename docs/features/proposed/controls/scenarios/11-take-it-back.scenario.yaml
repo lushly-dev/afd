@@ -1,0 +1,80 @@
+# A scenario cannot assert `undoCommand` or `undoArgs`. The fourth step makes the call they
+# describe: `control-restore` with the id and rev of each control the fill changed. The third
+# step stands in for the person changing one control after the fill. A control that is
+# disabled or leaves the screen after a fill is skipped in the same way, which the unit's
+# tests show; a fixture cannot disable one between two steps.
+name: Take back what the agent filled
+description: >-
+  When an agent has filled controls on my screen, I want one step that puts back what was
+  there and keeps anything I changed since, so that a wrong fill costs me nothing.
+job: take-it-back
+tags: [slice]
+fixture:
+  file: fixtures/workshop-form.json
+steps:
+  - description: The screen is read
+    command: control-list
+    input: {}
+    expect:
+      success: true
+      data:
+        controls.3.id: country
+        controls.3.value: ""
+
+  - description: The agent fills four controls
+    command: control-set
+    input:
+      values:
+        - { id: notes, value: Please seat me near the door., rev: "${{ steps[0].data.controls[8].rev }}" }
+        - { id: session, value: evening, rev: "${{ steps[0].data.controls[4].rev }}" }
+        - { id: dietary, value: [vegetarian, gluten-free], rev: "${{ steps[0].data.controls[6].rev }}" }
+        - { id: country, value: nor, rev: "${{ steps[0].data.controls[3].rev }}" }
+    expect:
+      success: true
+      data:
+        changed: { length: 4 }
+        changed.0.previous: Arriving ten minutes late.
+        changed.1.previous: morning
+        changed.2.previous: { length: 0 }
+        changed.3.previous: ""
+
+  - description: One of them changes after the fill
+    command: control-set
+    input:
+      values:
+        - { id: session, value: afternoon, rev: "${{ steps[1].data.changed[1].rev }}" }
+    expect:
+      success: true
+
+  - description: One call puts back the three that still hold the fill, and says which it left alone and why
+    command: control-restore
+    input:
+      controls:
+        - { id: notes, rev: "${{ steps[1].data.changed[0].rev }}" }
+        - { id: session, rev: "${{ steps[1].data.changed[1].rev }}" }
+        - { id: dietary, rev: "${{ steps[1].data.changed[2].rev }}" }
+        - { id: country, rev: "${{ steps[1].data.changed[3].rev }}" }
+    expect:
+      success: true
+      data:
+        restored: { length: 3 }
+        restored.0.id: notes
+        restored.0.value: Arriving ten minutes late.
+        restored.1.id: dietary
+        restored.2.id: country
+        restored.2.value: ""
+        skipped: { length: 1 }
+        skipped.0.id: session
+        skipped.0.reason: { contains: changed }
+
+  - description: The screen is as it was, but for the control that changed after the fill
+    command: control-list
+    input: {}
+    expect:
+      success: true
+      data:
+        controls.3.value: ""
+        controls.4.id: session
+        controls.4.value: afternoon
+        controls.6.value: { length: 0 }
+        controls.8.value: Arriving ten minutes late.

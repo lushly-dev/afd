@@ -1,0 +1,48 @@
+# The fixture's email control rejects one address, which stands in for a check the application
+# makes before the write returns. A check that answers later is not in the answer: section 9.
+name: An error the form shows after a fill
+description: >-
+  When a value I set is accepted and the form then shows an error for it, I want that error in
+  the answer, so that I can correct it without reading the screen again.
+job: errors-after-a-fill
+tags: [slice]
+fixture:
+  file: fixtures/workshop-form.json
+steps:
+  - description: The screen is read
+    command: control-list
+    input: {}
+    expect:
+      success: true
+      data:
+        controls: { length: 12 }
+
+  - description: A well-formed value is written, and the answer carries the error the form now shows
+    command: control-set
+    input:
+      values:
+        - { id: email, value: taken@example.org, rev: "${{ steps[0].data.controls[1].rev }}" }
+    expect:
+      success: true
+      data:
+        changed.0.id: email
+        changed.0.error: { contains: already has a booking }
+
+  - description: A read shows the same error beside the control
+    command: control-list
+    input: { group: Attendee }
+    expect:
+      success: true
+      data:
+        controls.1.id: email
+        controls.1.error: { contains: already has a booking }
+
+  - description: A corrected value clears it
+    command: control-set
+    input:
+      values:
+        - { id: email, value: ada@example.org, rev: "${{ steps[1].data.changed[0].rev }}" }
+    expect:
+      success: true
+      data:
+        changed.0.error: { notExists: true }
