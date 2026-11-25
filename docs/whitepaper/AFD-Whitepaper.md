@@ -401,7 +401,7 @@ Well-calibrated confidence scores enable appropriate UI treatment:
 // AI-powered content review command
 const result = await call('content.review', {
   content: documentText,
-  guidelines: ['microsoft-style', 'inclusive-language']
+  guidelines: ['house-style', 'inclusive-language']
 });
 
 // Returns:
@@ -416,9 +416,9 @@ const result = await call('content.review', {
     "summary": "Document is well-written with minor style improvements suggested"
   },
   "confidence": 0.87,
-  "reasoning": "Based on Microsoft Style Guide v3.2 and inclusive language guidelines. High confidence due to clear rule matches.",
+  "reasoning": "Based on the house style guide v3.2 and inclusive language guidelines. High confidence due to clear rule matches.",
   "sources": [
-    { "type": "document", "title": "Microsoft Style Guide", "location": "Section 3.2" },
+    { "type": "document", "title": "House Style Guide", "location": "Section 3.2" },
     { "type": "document", "title": "Inclusive Language Guide", "version": "2025.1" }
   ],
   "alternatives": [
@@ -601,9 +601,9 @@ Commands can actively build trust by returning more than just data:
 {
   "data": { "recommendation": "Use active voice" },
   "confidence": 0.73,
-  "reasoning": "The passive construction 'was completed by the team' obscures the actor. Active voice ('the team completed') is clearer per Microsoft Style Guide section 3.2.",
+  "reasoning": "The passive construction 'was completed by the team' obscures the actor. Active voice ('the team completed') is clearer per the house style guide, section 3.2.",
   "sources": [
-    { "type": "document", "title": "Microsoft Style Guide", "location": "3.2" }
+    { "type": "document", "title": "House Style Guide", "location": "3.2" }
   ]
 }
 ```
@@ -1292,9 +1292,8 @@ AFD isn't just architecture. It's a bet: that the best interface is a shared lan
 ## References
 
 1. Model Context Protocol (MCP) Specification. Anthropic, 2024.
-2. "Agentic AI UX Design Principles." Jason Falk, Microsoft Horizon Framework, 2025.
-3. Zod Schema Validation Library. https://zod.dev
-4. OpenTelemetry Specification. https://opentelemetry.io
+2. Zod Schema Validation Library. https://zod.dev
+3. OpenTelemetry Specification. https://opentelemetry.io
 
 ---
 

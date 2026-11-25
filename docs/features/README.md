@@ -94,7 +94,6 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 | [Rust Distribution](./proposed/rust-distribution/) | Rust-based distribution layer |
 | [Rust Support](./proposed/rust-support/) | Core crate published as 0.1.0; broader MCP transport and distribution proposal remains open |
 | [Skill Knowledge Layer](./proposed/skill-knowledge-layer/) | Skills as structured knowledge for agents |
-| [Zero Chat Tools](./proposed/zero-chat-tools/) | Canvas-aware AFD commands for Zero chat agent |
 
 ### Closeout (2026-11-14)
 
@@ -149,7 +148,6 @@ Each proposed folder was compared with the code on `main`, merged PRs and the ac
 | plugin-discovery | Proposed | No `AfdPlugin` or discovery option in `afd-server` |
 | skill-knowledge-layer | Proposed | No `skill` option, `validateCommandSkills()` or `skill-docs` command |
 | chat-history-panel | Proposed | No session-history UI; `packages/examples/chat` is a WebSocket server |
-| zero-chat-tools | Proposed | Targets the external `fabric-ux-prototype` app |
 
 At that audit, no folder was superseded. The current lifecycle reconciliation above updates
 that snapshot; the older disposition notes remain historical evidence.

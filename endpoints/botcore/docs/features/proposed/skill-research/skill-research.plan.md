@@ -4,7 +4,7 @@
 
 ## Summary
 
-Creating skills from external documentation (Convex, Stripe, Fabric APIs, etc.) requires significant manual research and synthesis. A `skill-research` botcore command would automate the initial crawl-and-draft phase.
+Creating skills from external documentation (Convex, Stripe, etc.) requires significant manual research and synthesis. A `skill-research` botcore command would automate the initial crawl-and-draft phase.
 
 ## Workflow
 

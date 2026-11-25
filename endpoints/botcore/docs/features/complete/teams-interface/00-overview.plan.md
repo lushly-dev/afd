@@ -292,8 +292,8 @@ class TeamsPlugin(BotCorePlugin):
 
 | Factor | Teams | Others |
 |--------|-------|--------|
-| Auth | Azure AD built-in, same tenant | Custom OAuth per platform |
-| Enterprise | Standard at Microsoft | Varies |
+| Auth | Azure AD built-in | Custom OAuth per platform |
+| Enterprise | Common in enterprises | Varies |
 | Adaptive Cards | Rich, interactive, updatable | Platform-specific formatting |
 | Graph API | Unified backend for email, calendar, files | Separate APIs per integration |
 | Security | Managed by Azure Bot Service | Self-managed webhooks |
