@@ -9,7 +9,7 @@
   - All eight scenario files pass the three `jobs-first` checks plus a `REF IN EXPECT` scan ([STATUS.md](STATUS.md#how-the-jobs-were-checked)).
   - Fresh three-seat reader walk and two-model independent review completed ([section 4](#4-what-the-walk-and-review-changed)); every blocker and improvement was applied and the checks re-run clean.
 - **Not verified:**
-  - Phase 2 ([#2197](https://github.com/lushly-dev/afd/issues/2197), Loam / `violet-elements` `contractVersion: 3` cutover) and Phase 3 / Slice 2 ([#2198](https://github.com/lushly-dev/afd/issues/2198), `warnUneven`) are not implemented yet.
+  - Phase 2 ([#2197](https://github.com/lushly-dev/afd/issues/2197), Loam / `violet-elements` `contractVersion: 3` cutover) is tracked separately.
 
 | Field | Value |
 | --- | --- |
@@ -76,7 +76,7 @@ Verified first-hand on 2026-11-22 against `main` at `2ba52efcb0e`, with Loam's D
 
 ## 3. Jobs
 
-Approved and ranked by the owner in Pass 2 (2026-11-22). Each job is written as a scenario against an invented example design system (`studio`, fixture [`studio.json`](../../../../integrations/violet-afd/scenarios/fixtures/studio.json)): Slice 1 (`01`–`07`, `slice`) lives beside `violet-afd` in `integrations/violet-afd/scenarios/`, while Slice 2 (`08`, `optional`) remains in [`scenarios/`](scenarios/) until Phase 3.
+Approved and ranked by the owner in Pass 2 (2026-11-22). Each job is written as a scenario against an invented example design system (`studio`, fixture [`studio.json`](../../../../integrations/violet-afd/scenarios/fixtures/studio.json)): all eight scenarios (`01`–`07` `slice`, `08` `optional`) live beside `violet-afd` in `integrations/violet-afd/scenarios/`.
 
 | Rank | Job | Sentence | Scenario | Tags | Slice |
 | --- | --- | --- | --- | --- | --- |
@@ -87,7 +87,7 @@ Approved and ranked by the owner in Pass 2 (2026-11-22). Each job is written as 
 | 5 | `stay-quiet-when-compliant` | When semantic tokens point to their family's ramp, an off-ramp value has a unique reason, and some ramp steps are unused, I want checks to report nothing, so that only real drift draws attention. | [05](../../../../integrations/violet-afd/scenarios/05-stay-quiet-when-compliant.scenario.yaml) | `slice`, `quiet` | Slice 1 |
 | 6 | `flag-repeated-off-ramp` | When two or more semantic tokens in a family share the same off-ramp literal, I want checks to warn and list them, so that I see when the ramp is missing a step and can promote it to clear the warning. | [06](../../../../integrations/violet-afd/scenarios/06-flag-repeated-off-ramp.scenario.yaml) | `slice` | Slice 1 |
 | 7 | `refuse-broken-or-leaked-ramp` | When a semantic token references a missing step, wrong ramp family, or cycle, or a `ref.*` / global-tier token leaks into a component interface, I want it refused or failed with the cause and fix, so that broken or raw ramp values never ship in a public contract. | [07](../../../../integrations/violet-afd/scenarios/07-refuse-broken-or-leaked-ramp.scenario.yaml) | `slice`, `refuse` | Slice 1 |
-| 8 | `warn-uneven-ramp-jumps` | When I check a hand-picked ramp's progression, I want uneven jumps between adjacent steps surfaced as an optional warning, so that accidental gaps or crowding are caught without forcing a strict ratio. | [08](scenarios/08-warn-uneven-ramp-jumps.scenario.yaml) | `optional` | Slice 2 |
+| 8 | `warn-uneven-ramp-jumps` | When I check a hand-picked ramp's progression, I want uneven jumps between adjacent steps surfaced as an optional warning, so that accidental gaps or crowding are caught without forcing a strict ratio. | [08](../../../../integrations/violet-afd/scenarios/08-warn-uneven-ramp-jumps.scenario.yaml) | `optional` | Slice 2 |
 
 ---
 

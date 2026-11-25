@@ -8,6 +8,7 @@
  * - Off-ramp literals require a non-empty human `reason` (`ramp:unreasoned`), reporting
  *   nearest unit-matched ramp steps
  * - Repeated off-ramp literals across `applyTo` emit advisory warnings (`ramp:repeat`)
+ * - Optional `warnUneven` checks progression jumps across `config.ramp` steps (`ramp:uneven`)
  */
 
 import type {
@@ -23,7 +24,12 @@ import type { ValidatorToken } from './validators.js';
 export const LEGACY_IMPORT_REASON = 'Imported from JSON';
 
 /** Advisory sub-check codes whose `'warning'` severity is never overwritten by `constraint.severity`. */
-export const ADVISORY_VIOLATION_CODES = new Set<string>(['ramp:repeat']);
+export const ADVISORY_VIOLATION_CODES = new Set<string>(['ramp:repeat', 'ramp:uneven']);
+
+/** Deterministic locale-independent token ID comparator (UTF-16 code unit order). */
+function compareIds(a: string, b: string): number {
+	return a < b ? -1 : a > b ? 1 : 0;
+}
 
 /** A numeric value paired with its normalized CSS unit (empty string for unitless numbers). */
 export interface ParsedNumericUnit {
@@ -100,6 +106,108 @@ export function buildRampRepeatGroups(
 		list.sort();
 	}
 	return groups;
+}
+
+interface RampNumericStep {
+	id: string;
+	raw: string;
+	value: number;
+}
+
+function collectRampStepsByUnit(
+	rampGlob: string,
+	ignoreAbove: number | undefined,
+	allTokens: Map<string, ValidatorToken>,
+): Map<string, RampNumericStep[]> {
+	const byUnit = new Map<string, RampNumericStep[]>();
+	const rampTokens = Array.from(allTokens.values())
+		.filter((candidate) => !candidate.referenceError && matchesGlob(candidate.id, rampGlob))
+		.sort((a, b) => compareIds(a.id, b.id));
+
+	for (const candidate of rampTokens) {
+		const parsed = parseNumericWithUnit(candidate.resolvedValue);
+		if (!parsed || parsed.value <= 0) continue;
+		if (ignoreAbove !== undefined && parsed.value > ignoreAbove) continue;
+		const entry: RampNumericStep = {
+			id: candidate.id,
+			raw: String(candidate.resolvedValue),
+			value: parsed.value,
+		};
+		const list = byUnit.get(parsed.unit);
+		if (list) list.push(entry);
+		else byUnit.set(parsed.unit, [entry]);
+	}
+	return byUnit;
+}
+
+function collectUnitUnevenViolations(
+	steps: RampNumericStep[],
+	maxRatioSpread: number,
+	constraintId: string,
+	constraintName: string,
+	violations: Map<string, ConstraintViolation>,
+): void {
+	if (steps.length < 3) return;
+	steps.sort((a, b) => a.value - b.value || compareIds(a.id, b.id));
+
+	const pairs = steps.slice(1).map((upper, index) => {
+		const lower = steps[index];
+		return { lower, upper, ratio: upper.value / lower.value };
+	});
+	const minRatio = Math.min(...pairs.map((pair) => pair.ratio));
+	const limit = minRatio * maxRatioSpread;
+
+	for (const pair of pairs) {
+		if (pair.ratio <= limit) continue;
+		violations.set(pair.upper.id, {
+			constraintId,
+			constraintName,
+			severity: 'warning',
+			code: 'ramp:uneven',
+			message: `Uneven ramp jump on '${pair.upper.id}' (${pair.lower.raw} -> ${pair.upper.raw}, ${pair.ratio.toFixed(2)}x exceeds ${limit.toFixed(2)}x from min ratio ${minRatio.toFixed(2)}x * ${maxRatioSpread})`,
+			expected: `adjacent step ratio <= ${limit.toFixed(2)}x (min ratio ${minRatio.toFixed(2)}x * maxRatioSpread ${maxRatioSpread})`,
+			actual: `${pair.ratio.toFixed(2)}x (${pair.lower.raw} -> ${pair.upper.raw})`,
+		});
+	}
+}
+
+/**
+ * Precompute advisory `ramp:uneven` violations for a `ramp` constraint's `warnUneven` check
+ * across all tokens matching `config.ramp` (not `constraint.applyTo`).
+ *
+ * Collects unit-matched positive numeric steps (excluding any step `> ignoreAbove`), sorts each
+ * unit group ascending by value (tie-breaking deterministically by token id), computes adjacent
+ * ratios `r_i = v[i] / v[i-1]`, and emits an advisory `'warning'` on each upper step `v[i]` whose
+ * ratio exceeds `min(r) * maxRatioSpread`.
+ */
+export function buildRampUnevenViolations(
+	constraint: Constraint & { config: RampConfig },
+	allTokens: Map<string, ValidatorToken>,
+): Map<string, ConstraintViolation> {
+	const violations = new Map<string, ConstraintViolation>();
+	const warnUneven = constraint.config.warnUneven;
+	if (
+		!warnUneven ||
+		!Number.isFinite(warnUneven.maxRatioSpread) ||
+		warnUneven.maxRatioSpread <= 1
+	) {
+		return violations;
+	}
+
+	const byUnit = collectRampStepsByUnit(constraint.config.ramp, warnUneven.ignoreAbove, allTokens);
+	for (const unit of Array.from(byUnit.keys()).sort(compareIds)) {
+		const steps = byUnit.get(unit);
+		if (steps) {
+			collectUnitUnevenViolations(
+				steps,
+				warnUneven.maxRatioSpread,
+				constraint.id,
+				constraint.name,
+				violations,
+			);
+		}
+	}
+	return violations;
 }
 
 /** Follow `aliasOf` links to the terminal token id, with a cycle guard. */
@@ -292,28 +400,13 @@ function evaluateOffRampLiteral(
 	return violations;
 }
 
-/**
- * Evaluate a single `type: 'ramp'` constraint against one token.
- *
- * Returns all matching violations (0, 1, or 2: e.g. `ramp:unreasoned` error plus
- * `ramp:repeat` warning). Primary violations carry `constraint.severity`;
- * advisory `ramp:repeat` always keeps `severity: 'warning'`.
- */
-export function evaluateRampConstraint(
+function evaluateSemanticRampToken(
 	token: ValidatorToken,
 	constraint: Constraint & { config: RampConfig },
 	allTokens: Map<string, ValidatorToken>,
 	repeatGroups?: Map<string, string[]>,
 ): ConstraintViolation[] {
-	const { id: constraintId, name: constraintName, applyTo, severity, config } = constraint;
-
-	if (isStageOneRefToken(token.id)) {
-		return [];
-	}
-
-	if (!matchesGlob(token.id, applyTo)) {
-		return evaluateSiblingPairOnly(token, constraint, allTokens);
-	}
+	const { id: constraintId, name: constraintName, severity, config } = constraint;
 
 	// 1. Broken reference first (before aliasOf)
 	if (token.referenceError) {
@@ -368,4 +461,40 @@ export function evaluateRampConstraint(
 
 	// 3. Off-ramp literal: check unreasoned + repeat clustering
 	return evaluateOffRampLiteral(token, constraint, allTokens, repeatGroups);
+}
+
+/**
+ * Evaluate a single `type: 'ramp'` constraint against one token.
+ *
+ * Returns all matching violations (e.g. `ramp:unreasoned` error plus `ramp:repeat`
+ * warning, or `ramp:uneven` advisory warning on `config.ramp` steps). Primary
+ * violations carry `constraint.severity`; advisory `ramp:repeat` and `ramp:uneven`
+ * always keep `severity: 'warning'`.
+ */
+export function evaluateRampConstraint(
+	token: ValidatorToken,
+	constraint: Constraint & { config: RampConfig },
+	allTokens: Map<string, ValidatorToken>,
+	repeatGroups?: Map<string, string[]>,
+	unevenViolations?: Map<string, ConstraintViolation>,
+): ConstraintViolation[] {
+	const { applyTo, config } = constraint;
+	const trailing: ConstraintViolation[] = [];
+
+	if (config.warnUneven && matchesGlob(token.id, config.ramp)) {
+		const uneven = (unevenViolations ?? buildRampUnevenViolations(constraint, allTokens)).get(
+			token.id,
+		);
+		if (uneven) trailing.push(uneven);
+	}
+
+	if (isStageOneRefToken(token.id)) {
+		return trailing;
+	}
+
+	if (!matchesGlob(token.id, applyTo)) {
+		return [...evaluateSiblingPairOnly(token, constraint, allTokens), ...trailing];
+	}
+
+	return [...evaluateSemanticRampToken(token, constraint, allTokens, repeatGroups), ...trailing];
 }

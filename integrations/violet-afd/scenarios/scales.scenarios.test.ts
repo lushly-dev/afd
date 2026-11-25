@@ -1,6 +1,6 @@
 /**
- * @fileoverview Scales Slice 1 JTBD scenarios (01–07) executed in-process against `@lushly-dev/violet-afd`
- * through the `app: 'violet'` fixture adapter.
+ * @fileoverview Scales JTBD scenarios (01–08: Slice 1 + Slice 2 optional `warnUneven`) executed
+ * in-process against `@lushly-dev/violet-afd` through the `app: 'violet'` fixture adapter.
  */
 
 import { readdirSync } from 'node:fs';
@@ -58,7 +58,7 @@ function validateOutputSchema(
 	return result;
 }
 
-describe('Scales Slice 1 scenarios (01–07)', () => {
+describe('Scales scenarios (01–08)', () => {
 	beforeAll(() => {
 		initializeCore();
 		if (!getAdapter('violet')) {
@@ -66,7 +66,7 @@ describe('Scales Slice 1 scenarios (01–07)', () => {
 		}
 	});
 
-	it('discovers all 7 Slice 1 scenarios', () => {
+	it('discovers all 8 Scales scenarios', () => {
 		expect(SCENARIO_FILES).toEqual([
 			'01-add-between-steps.scenario.yaml',
 			'02-retune-ramp-step.scenario.yaml',
@@ -75,6 +75,7 @@ describe('Scales Slice 1 scenarios (01–07)', () => {
 			'05-stay-quiet-when-compliant.scenario.yaml',
 			'06-flag-repeated-off-ramp.scenario.yaml',
 			'07-refuse-broken-or-leaked-ramp.scenario.yaml',
+			'08-warn-uneven-ramp-jumps.scenario.yaml',
 		]);
 	});
 

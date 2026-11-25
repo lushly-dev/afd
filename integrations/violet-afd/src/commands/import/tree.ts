@@ -10,6 +10,7 @@ import {
 	PatternConfigSchema,
 	RampConfigSchema,
 	RampPairWithSchema,
+	RampWarnUnevenSchema,
 	RangeConfigSchema,
 	ReferenceConfigSchema,
 	ScaleConfigSchema,
@@ -42,7 +43,10 @@ const StrictConstraintConfigSchema = z.discriminatedUnion('type', [
 	ScaleConfigSchema.strict(),
 	ContrastConfigSchema.strict(),
 	ReferenceConfigSchema.strict(),
-	RampConfigSchema.extend({ pairWith: RampPairWithSchema.strict().optional() }).strict(),
+	RampConfigSchema.extend({
+		pairWith: RampPairWithSchema.strict().optional(),
+		warnUneven: RampWarnUnevenSchema.strict().optional(),
+	}).strict(),
 ]);
 
 const StrictConstraintSchema = ConstraintSchema.extend({

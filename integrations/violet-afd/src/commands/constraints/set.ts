@@ -60,6 +60,16 @@ export function validateConstraintSemantics(
 						"Set 'repeatThreshold' to an integer >= 2 (default: 2) so repeat warnings fire when two or more tokens share an off-ramp value",
 				};
 			}
+			if (constraint.config.warnUneven !== undefined) {
+				const { maxRatioSpread } = constraint.config.warnUneven;
+				if (!Number.isFinite(maxRatioSpread) || maxRatioSpread <= 1) {
+					return {
+						message: `Constraint '${constraint.id}' has warnUneven.maxRatioSpread ${maxRatioSpread}, which must be greater than 1`,
+						suggestion:
+							"Set 'warnUneven.maxRatioSpread' to a number greater than 1 (for example, 1.5) so uneven ramp jumps are flagged relative to the smallest adjacent step ratio",
+					};
+				}
+			}
 		}
 	}
 

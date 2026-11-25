@@ -49,6 +49,8 @@ export interface ValidatorContext {
 	severity?: ConstraintSeverity;
 	/** Optional precomputed normalized off-ramp literal groups for O(n) ramp repeat checks */
 	rampRepeatGroups?: Map<string, string[]>;
+	/** Optional precomputed advisory uneven-jump violations for O(n log n) ramp progression checks */
+	rampUnevenViolations?: Map<string, ConstraintViolation>;
 }
 
 export interface Validator<T extends ConstraintConfig = ConstraintConfig> {
@@ -375,6 +377,7 @@ export const rampValidator: Validator<RampConfig> = {
 			},
 			context.allTokens,
 			context.rampRepeatGroups,
+			context.rampUnevenViolations,
 		);
 	},
 
@@ -448,7 +451,7 @@ export function validateValues(
 /**
  * Evaluate one constraint against a token through the validator registry, returning all violations.
  *
- * Advisory sub-checks (such as `ramp:repeat`) keep `severity: 'warning'`
+ * Advisory sub-checks (such as `ramp:repeat` and `ramp:uneven`) keep `severity: 'warning'`
  * instead of being overwritten by `constraint.severity`.
  */
 export function validateConstraintForToken(
@@ -456,6 +459,7 @@ export function validateConstraintForToken(
 	constraint: Constraint,
 	allTokens: Map<string, ValidatorToken>,
 	rampRepeatGroups?: Map<string, string[]>,
+	rampUnevenViolations?: Map<string, ConstraintViolation>,
 ): ConstraintViolation[] {
 	if (constraint.config.type !== 'ramp' && !matchesPattern(token.id, constraint.applyTo)) {
 		return [];
@@ -472,6 +476,7 @@ export function validateConstraintForToken(
 			applyTo: constraint.applyTo,
 			severity: constraint.severity,
 			rampRepeatGroups,
+			rampUnevenViolations,
 		},
 	);
 

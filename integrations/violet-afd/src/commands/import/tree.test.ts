@@ -437,6 +437,41 @@ describe('import.tree command', () => {
 						},
 					],
 				},
+				{
+					name: 'unknown nested ramp warnUneven field',
+					constraints: [
+						{
+							id: 'extra-uneven',
+							name: 'Extra warnUneven',
+							applyTo: 'radius.*',
+							config: {
+								type: 'ramp',
+								ramp: 'ref.radius.*',
+								warnUneven: {
+									maxRatioSpread: 1.5,
+									ignoreOver: 1000,
+								},
+							},
+						},
+					],
+				},
+				{
+					name: 'invalid ramp warnUneven maxRatioSpread <= 1',
+					constraints: [
+						{
+							id: 'bad-uneven',
+							name: 'Bad warnUneven spread',
+							applyTo: 'radius.*',
+							config: {
+								type: 'ramp',
+								ramp: 'ref.radius.*',
+								warnUneven: {
+									maxRatioSpread: 1,
+								},
+							},
+						},
+					],
+				},
 			];
 
 			for (const testCase of invalidCases) {

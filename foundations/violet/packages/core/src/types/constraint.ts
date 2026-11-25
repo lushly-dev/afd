@@ -85,6 +85,15 @@ export const RampPairWithSchema = z.object({
 
 export type RampPairWith = z.infer<typeof RampPairWithSchema>;
 
+export const RampWarnUnevenSchema = z.object({
+	/** Max ratio between the largest and smallest adjacent step multiplier (must be > 1, e.g. 1.5) */
+	maxRatioSpread: z.number(),
+	/** Skip numeric sentinel steps above this value (e.g. 1000 skips 9999px pill radius) */
+	ignoreAbove: z.number().positive().optional(),
+});
+
+export type RampWarnUneven = z.infer<typeof RampWarnUnevenSchema>;
+
 export const RampConfigSchema = z.object({
 	type: z.literal('ramp'),
 	/** Glob matching allowed Stage 1 ramp tokens, e.g. 'ref.space.*' or 'ref.type.*.size' */
@@ -95,6 +104,8 @@ export const RampConfigSchema = z.object({
 	repeatThreshold: z.number().int().default(2),
 	/** Optional sibling pairing check (e.g. type.*.size paired with type.*.line on the same step) */
 	pairWith: RampPairWithSchema.optional(),
+	/** Optional progression check across ordered steps matching `ramp` */
+	warnUneven: RampWarnUnevenSchema.optional(),
 });
 
 export type RampConfig = z.infer<typeof RampConfigSchema>;

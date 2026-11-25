@@ -1,6 +1,6 @@
 /**
- * @fileoverview Phase 1 regression tests for Scales (#2195):
- * - constraints.set ramp handler validation
+ * @fileoverview Scales regression tests (#2195, #2198):
+ * - constraints.set ramp handler validation (ramp, repeatThreshold >= 2, warnUneven.maxRatioSpread > 1)
  * - constraints.validate onlyViolating & multi-violation severities
  * - analyze.violations multi-node ramp errors + advisory warnings
  * - changes.impact reason on add/override, reason-only diffViolations, and error+warning diff
@@ -84,7 +84,7 @@ describe('Scales Phase 1 command regressions', () => {
 	});
 
 	describe('constraints.set handler validation for type: "ramp"', () => {
-		it('rejects empty ramp glob and repeatThreshold < 2 with field-specific suggestions', async () => {
+		it('rejects empty ramp glob, repeatThreshold < 2, and warnUneven.maxRatioSpread <= 1 with field-specific suggestions', async () => {
 			const reg = new CommandRegistry();
 			reg.register(constraintsSetCommand);
 
@@ -129,6 +129,33 @@ describe('Scales Phase 1 command regressions', () => {
 			expect(lowThreshold.success).toBe(false);
 			expect(lowThreshold.error?.code).toBe('VALIDATION_ERROR');
 			expect(lowThreshold.error?.suggestion).toContain('repeatThreshold');
+
+			for (const badSpread of [1, 0, -0.5]) {
+				const badUneven = await reg.execute(
+					'constraints.set',
+					{
+						nodeId: 'studio',
+						merge: true,
+						constraints: [
+							{
+								id: 'bad-uneven',
+								name: 'Bad uneven spread',
+								applyTo: 'space.*',
+								severity: 'error',
+								config: {
+									type: 'ramp',
+									ramp: 'ref.space.*',
+									warnUneven: { maxRatioSpread: badSpread },
+								},
+							},
+						],
+					},
+					context,
+				);
+				expect(badUneven.success).toBe(false);
+				expect(badUneven.error?.code).toBe('VALIDATION_ERROR');
+				expect(badUneven.error?.suggestion).toContain('maxRatioSpread');
+			}
 		});
 	});
 
