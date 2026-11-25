@@ -325,6 +325,9 @@ export const SUITES = [
 		"remote": "Python 3.11",
 		"steps": [
 			{
+				"run": "pnpm -F \"@lushly-dev/afd-testing...\" build"
+			},
+			{
 				"cwd": "endpoints/botcore",
 				"run": "uv lock --check"
 			},

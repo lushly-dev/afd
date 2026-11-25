@@ -242,7 +242,8 @@ question about a proposed change.
 A run is read from the Actions API with its event (`pull_request`, `merge_group`, `schedule`,
 `push`, `workflow_dispatch`), its attempt, the revision it tested and that revision's base (a
 pull request tests a merge ref, whose base moves). Jobs and steps are read with their own
-conclusions and times.
+conclusions and times. Runs of other events (`workflow_run`, `issues`, `dynamic`) are kept,
+given no rows, and named with their counts in the coverage.
 
 - **A check is the workflow, the job with its matrix leg, the step and, inside a step that runs
   a group, the command.** It is written
@@ -251,16 +252,29 @@ conclusions and times.
   job is named as GitHub names it, leg included, so a leg that runs only daily is not confused
   with the one that runs on pull requests. A step goes by its name in the workflow file, or by
   its command where it has none. Every row of a report carries this id, and the `check` input
-  takes it as written.
-- **A group is split by what the hook runner reports.** `pnpm check` is Lefthook's `check`
-  group, and Lefthook ends a run with each command's result and time. A failed group step
-  always has its failing command named, from the log that is read for failing tests anyway.
-  Where a step passed, its commands are counted as run only where their lines were read: in CI
-  as the collection's allowance permits, and locally once `pnpm verify` keeps that summary,
-  which it passes straight through today (phase 2). The coverage gives the share.
+  takes it as written. A job that calls a workflow of the repository is named as GitHub names
+  it, `<caller> / <job of the called workflow>`. Where an expression decides the matrix (as in
+  `ci.yml`), the file cannot say which legs there are: the legs known are the job names the
+  record has seen, and until one is seen the job is listed once under its name in the file.
+- **A group is split by what the hook runner reports.** A group step is a step whose command
+  comes down, through the root `package.json` scripts, to `lefthook run <group>`; `pnpm check`
+  is Lefthook's `check` group. The step is then not a check itself: each command of the group
+  in `lefthook.yml` is. Lefthook ends a run with each command's result and time. When the jobs
+  of an attempt are read and a group step failed, that job's log is read once (one counted
+  request), and of its closing summary each command's name, result and seconds are kept and
+  nothing else: a name only where the group has it at the default branch's tip, so no line of
+  the log reaches the record. A summary that cannot be read is said to be so, and its
+  commands' results are unknown, never guessed. Where a step passed, its commands passed with
+  it, and their seconds are known only where its summary was read: in CI as the collection's
+  allowance permits, since those logs are what a collection reads last, and locally once
+  `pnpm verify` keeps that summary, which it passes straight through today (phase 2). A command
+  a read summary does not name did not run. The coverage gives the share of group steps whose
+  summary was read.
 - **A step that did not run is not a run of that check.** A job that fails at its linter has a
-  failed lint step and steps that never ran; those are counted as `not-run`, apart. A job's
-  time outside its steps is kept as the job's overhead.
+  failed lint step and steps that never ran; those, and any step GitHub marks skipped for
+  whatever reason, are counted as `not-run`, apart. A passed attempt in which a step was
+  skipped keeps its conclusions for that reason. A job's time outside its steps is kept as the
+  job's overhead.
 - **A check that ran and never failed is marked `quiet`,** with its local runs and failures
   beside it and what the record cannot see. Quiet in CI is not quiet: the checks agents satisfy
   before they push fail locally. Where local runs were not collected the row says `absent`, not
@@ -666,8 +680,11 @@ a line in #1387's plan, not a command of this feature.
 Events are lines of a file in botcore's state folder, appended and never rewritten, each with
 an id and the version of the rules that made it. A fact learned late (a pass that arrives after
 a report, a rebuilt collection) is appended as a newer line for the same id, and a reader keeps
-the newest, so an event is never counted twice. Machines share records through the folder skill
-usage already uses, by the same rules.
+one line for each id, so an event is never counted twice: the one made by the newer rules, then
+the one that holds what the other could not read (a line that could not read an attempt's
+steps or a summary never displaces one that did), then for a run the one GitHub updated last,
+then the one written later, and last the machine whose name sorts later. Machines share
+records through the folder skill usage already uses, by the same rules.
 
 **Size.** A week is about 17,000 workflow runs. A run that passed is one line holding the
 seconds of its jobs, steps and group commands; their names are kept once for each version of
@@ -684,12 +701,15 @@ branch itself. The job runs the botcore that is installed, so a machine starts c
 it has the release that carries these commands, and cutting that release is the maintainer's.
 
 A collection first reads what the shared folder holds and asks GitHub only for the rest: the
-lists of runs, then the jobs and steps of runs that did not pass, then of the others, newest
-first, then the changed paths of each head. GitHub's hourly allowance belongs to the account,
+lists of runs, then the jobs and steps of runs that did not pass, with the log of a job whose
+group step failed, then of the others, newest first, then the logs of jobs whose group step
+passed, then the changed paths of each head. GitHub's hourly allowance belongs to the account,
 so every machine and every session draws on the same one. A collection stops at its own limit
 (`requests`, 1,000 unless given) or when the account's remaining allowance falls to half,
 whichever comes first. The source is then `partly` read with how far it got, and the next
-collection goes on from there. A first collection of sixty days therefore takes several days,
+collection goes on from there. A source is `read` while runs in its window are still going:
+those runs are in no count, are named in the report's warnings, and are counted when a later
+collection sees them end. A first collection of sixty days therefore takes several days,
 and until it ends the coverage says what share of runs have their steps.
 
 **Surface.** The commands are botcore's, beside `skill-usage-*`, and are served as those are:
@@ -705,7 +725,7 @@ inspects. `gate-outcome-replay` inspects, runs git for `from_branch` and writes 
 | Command | Input | Result | Refuses with |
 | --- | --- | --- | --- |
 | `gate-outcome-collect` | `since_days`, `sources` (`ci`, `main`, `reviews`, `runs`), `requests`, `rebuild` | `machine`, per source `status` (`read`, `partly`, `absent`) with `why`, `found`, `added` and, when `partly`, `reached`; `pairs`, `unresolved`, `superseded`, `requests_used` | `VALIDATION_ERROR`, `NO_WORKSPACE`, `SOURCE_UNREADABLE`, `SERVICE_UNAVAILABLE`, `RECORD_UNAVAILABLE`, `CONFLICT` |
-| `gate-outcome-report` | `days`, `ending_days_ago`, `compare_ending_days_ago`, `by` (`workflow`, `check`, `area`, `class`, `decision`), the filters `where`, `check`, `area`, `finding_class`, `decision`, `pull_request`, `due`, then `sort` and `limit` | `window`, `totals`, `rows`, `examples` when a filter narrows the answer, `not_observed`, `undecided`, `coverage`, `machines`, `warnings`, `more`; with a second window, `compare` | `VALIDATION_ERROR`, `INVALID_INPUT`, `NOT_COLLECTED`, `NO_WORKSPACE`, `RECORD_UNAVAILABLE` |
+| `gate-outcome-report` | `days`, `ending_days_ago`, `compare_ending_days_ago`, `by` (`workflow`, `check`, `area`, `class`, `decision`), the filters `where`, `workflow`, `check`, `area`, `finding_class`, `decision`, `pull_request`, `due`, then `sort` and `limit` | `window`, `totals`, `rows`, `examples` when a filter narrows the answer, `not_observed`, `undecided`, `coverage`, `machines`, `warnings`, `more`; with a second window, `compare` | `VALIDATION_ERROR`, `INVALID_INPUT`, `NOT_COLLECTED`, `NO_WORKSPACE`, `RECORD_UNAVAILABLE` |
 | `gate-outcome-replay` | `days`, `workflow`, `job`, one of `paths`, `events` or `from_branch`, and `decision_out` | `proposed`, `runs_considered`, `runs_skipped`, `minutes`, `failures` with labels and how many another check also failed, `still_ran`, `not_replayed`, `local`, `decisions`, `warnings`; with `decision_out`, `written` | `VALIDATION_ERROR`, `INVALID_INPUT`, `NOT_COLLECTED`, `NO_WORKSPACE`, `RECORD_UNAVAILABLE` |
 
 **Bounds.** `limit` is 25 unless given and at most 200. It applies to each list of an answer by
@@ -722,17 +742,19 @@ limits are lowered if either is over.
 the command gives the list. What a schema cannot describe is `INVALID_INPUT`: a check, area or
 workflow that is not known, refused with the closest names and the number known, since listing
 hundreds of checks would not help; a filter that does not go with `by`, refused with those that
-do; a path filter the queue job could not read; two proposals in one replay. `where` is one of
-the five events or `local`. The filters are `where` with `workflow`; `where` and `check` with
-`check`; `area` with `area`; `finding_class`, `area`, `check`, `decision` and `pull_request`
-with `class`; `check`, `area` and `due` with `decision`. A managed host would refuse a listed
-value itself, before the command, with the same code and a less specific suggestion; making it
-name the values is the host's change.
+do; a path filter the queue job could not read; two proposals in one replay. A `by` value or a
+filter that no piece has built yet is refused with what is built. `where` is one of the five
+events or `local`. The filters are `where` and `workflow` with `workflow`; `where`, `workflow`
+and `check` with `check`; `area` with `area`; `finding_class`, `area`, `check`, `decision` and
+`pull_request` with `class`; `check`, `area` and `due` with `decision`. A managed host would
+refuse a listed value itself, before the command, with the same code and a less specific
+suggestion; making it name the values is the host's change.
 
-**What is known and what was observed.** The checks known come from the workflows, the
-generated local suites and the hook groups at the default branch's tip, not from whatever
-branch the caller is on. What was observed comes from the record. So a check can be listed as
-not observed before anything about CI has been collected.
+**What is known and what was observed.** The checks known come from the workflows and the hook
+groups at the default branch's tip, read through git, not from whatever branch the caller is
+on. The generated local suites join them in phase 2, when the generator names the job and
+step each local step came from. What was observed comes from the record. So a check can be
+listed as not observed before anything about CI has been collected.
 
 GitHub is read through `gh`. Without it, a collection reads what it can: `ci` and `reviews` are
 `absent` and `main` is `partly` read, each with the reason. One that asks for only `ci` or
@@ -741,9 +763,17 @@ GitHub is read through `gh`. Without it, a collection reads what it can: `ci` an
 as [The problem](#the-problem) measures them and, for the queue, the groups and how many had a
 failure.
 
+**A verdict workflow** judges the others (`ci-ok.yml` fails when any workflow did), so counted
+like the rest it counts one failure twice. Nothing in a run says that a workflow is one, so a
+repository names its verdict workflows in botcore's configuration (`botcore.toml`), and
+nothing is guessed. A named one keeps its own row, marked; the totals and the queue's groups
+with a failure leave it out and say which workflows they left out. With none named, every
+workflow is counted alike.
+
 **Coverage** is part of every answer: which sources and events the figures rest on and how old
-each is, the share of runs with their steps, the share of failures with named tests, the share
-of proofs that are `recorded`, the pull requests with no Review section, the share of changes
+each is, the runs of other events, the share of runs with their steps, the share of group
+steps whose summary was read, the share of failures with named tests, the share of proofs
+that are `recorded`, the pull requests with no Review section, the share of changes
 attributed, and what is known not to be seen.
 
 ## Guardrails
@@ -767,6 +797,13 @@ attributed, and what is known not to be seen.
 
 ## Limits
 
+- **A pull-request run's base is known only while its pull request is open.** GitHub drops a
+  pull-request run's link to its pull request once the pull request closes, so a run's base
+  is known for queue runs, from the group's branch, and for pull-request runs collected while
+  the pull request was open.
+- **A group's commands are those at the default branch's tip.** Where a group step passed
+  and its summary was not read, each command the group has now is counted as passed with it,
+  one added since included; a summary that was read says what ran.
 - **Work before `pnpm verify` is not seen.** An agent that runs one package's tests, fixes what
   fails and only then runs `pnpm verify` leaves nothing in the record. Local figures are a
   floor, and a quiet check is reported with that said.

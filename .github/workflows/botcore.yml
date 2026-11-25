@@ -8,9 +8,16 @@ on:
     paths:
       - 'endpoints/botcore/**'
       - 'python/**'
+      - 'packages/core/**'
+      - 'packages/server/**'
+      - 'packages/client/**'
+      - 'packages/testing/**'
+      - 'pnpm-lock.yaml'
       - '.github/workflows/publish-botcore.yml'
+      - 'docs/features/active/test-effectiveness/scenarios/**'
       - '.github/workflows/botcore.yml'
       - '.github/workflows/queue.yml'
+      - '.github/actions/setup-node-pnpm/**'
   # The merge queue. No path filter applies to it: the `queue` job below does that work.
   merge_group:
   pull_request:
@@ -18,9 +25,16 @@ on:
     paths:
       - 'endpoints/botcore/**'
       - 'python/**'
+      - 'packages/core/**'
+      - 'packages/server/**'
+      - 'packages/client/**'
+      - 'packages/testing/**'
+      - 'pnpm-lock.yaml'
       - '.github/workflows/publish-botcore.yml'
+      - 'docs/features/active/test-effectiveness/scenarios/**'
       - '.github/workflows/botcore.yml'
       - '.github/workflows/queue.yml'
+      - '.github/actions/setup-node-pnpm/**'
   schedule:
     - cron: '5 7 * * *'
   workflow_dispatch:
@@ -63,6 +77,13 @@ jobs:
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python }}
+      # The core tests run the test effectiveness plan's gate outcome jobs through AFD's
+      # TypeScript scenario runner (tests/test_gate_outcome_scenarios.py).
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+      - name: Build AFD's scenario runner
+        working-directory: .
+        run: pnpm -F "@lushly-dev/afd-testing..." build
       - name: Verify lock and install core development environment
         run: |
           uv lock --check

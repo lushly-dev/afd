@@ -247,7 +247,11 @@ const SUITE_CONFIG = [
 		tools: ['uv'],
 		remote: 'Python 3.11',
 		extract(wf) {
-			const steps = extractUvSteps(wf, 'core-and-package', { includeRuffFormat: true });
+			const buildStep = findStep(wf, 'core-and-package', (s) =>
+				s.run.includes('afd-testing..." build')
+			);
+			const steps = [{ run: buildStep.run }];
+			steps.push(...extractUvSteps(wf, 'core-and-package', { includeRuffFormat: true }));
 			for (const script of ['scripts/package_tests.py', 'scripts/package_smoke.py']) {
 				const s = findStep(wf, 'core-and-package', (st) => st.run.includes(script));
 				steps.push({ cwd: wf.jobs['core-and-package'].defaultWorkingDirectory, run: s.run });

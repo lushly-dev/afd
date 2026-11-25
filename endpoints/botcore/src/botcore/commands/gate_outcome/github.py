@@ -31,6 +31,10 @@ class SourceUnreadable(Exception):
     """GitHub answered, and not with something this collection can use."""
 
 
+class LogUnreadable(SourceUnreadable):
+    """GitHub answered for a job's log, and not with the log."""
+
+
 class NotFound(Exception):
     """GitHub no longer has what was asked for: a run that was deleted."""
 
@@ -48,6 +52,7 @@ class Answer:
     status: int  # the HTTP status; 200 when `gh` succeeded
     body: object  # the parsed JSON, or None when the body was not JSON
     message: str = ""  # what `gh` said when it failed
+    text: str = ""  # the body as text: a job's log is not JSON
 
 
 def call(endpoint: str) -> Answer:
@@ -75,7 +80,7 @@ def call(endpoint: str) -> Answer:
     except ValueError:
         body = None
     if done.returncode == 0:
-        return Answer(200, body)
+        return Answer(200, body, text=stdout)
     found = _STATUS.search(stderr)
     if found is None:  # no HTTP answer: not signed in, no network
         raise ServiceUnavailable(stderr.splitlines()[-1] if stderr else "gh api failed")
@@ -112,13 +117,35 @@ class GitHub:
         if remaining <= limit / 2:
             raise Stop("allowance")
 
+    def _allowance_due(self) -> None:
+        if self.checked_at is None or self.used - self.checked_at >= CHECK_EVERY:
+            self.checked_at = self.used
+            self.check_allowance()
+
+    def log(self, job: int) -> str:
+        """A job's log as text: one request, counted like any other. The caller keeps nothing
+        of it but what it parses. Raises NotFound when GitHub no longer has it (logs expire),
+        and as `get` does otherwise."""
+        self._allowance_due()
+        endpoint = f"repos/{self.repo}/actions/jobs/{job}/logs"
+        answer = self._request(endpoint)
+        if answer.status >= 500:  # noqa: PLR2004 - GitHub's own failure: once more
+            answer = self._request(endpoint)
+            if answer.status >= 500:  # noqa: PLR2004
+                raise ServiceUnavailable(f"GitHub answered {answer.status} for {endpoint}")
+        if answer.status in (404, 410):  # noqa: PLR2004
+            raise NotFound(endpoint)
+        if answer.status in (403, 429) and _RATE.search(answer.message):  # noqa: PLR2004
+            raise Stop("allowance")
+        if answer.status != 200:  # noqa: PLR2004
+            raise LogUnreadable(f"GitHub answered {answer.status} for {endpoint}")
+        return answer.text
+
     def get(self, path: str, **params: object) -> dict:
         """GET `repos/<repo>/<path>` with `params`. Raises NotFound for a 404, Stop when a
         limit is reached, SourceUnreadable for an answer that cannot be used, and
         ServiceUnavailable when GitHub fails twice running."""
-        if self.checked_at is None or self.used - self.checked_at >= CHECK_EVERY:
-            self.checked_at = self.used
-            self.check_allowance()
+        self._allowance_due()
         query = urlencode({key: value for key, value in params.items() if value is not None})
         endpoint = f"repos/{self.repo}/{path}" + (f"?{query}" if query else "")
         answer = self._request(endpoint)
