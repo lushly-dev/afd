@@ -252,19 +252,24 @@ def define_command(
         )
         func.__afd_command__ = cmd_metadata  # type: ignore[attr-defined]
 
-        @wraps(func)
-        async def wrapper(raw_input: Any, context: Any | None = None) -> CommandResult[Any]:
-            """Wrapper that validates input and calls the handler."""
+        def _validate_decorated_input(raw_input: Any) -> tuple[bool, Any]:
             try:
-                validated_input = validate_command_input(input_schema, raw_input)
+                return True, validate_command_input(input_schema, raw_input)
             except (PydanticValidationError, SchemaValidationError) as exc:
                 if input_schema is None:
                     raise
-                return _input_validation_failure(
+                return False, _input_validation_failure(
                     input_schema, {} if raw_input is None else raw_input, exc
                 )
 
-            return await validated_handler(validated_input, context)
+        @wraps(func)
+        async def wrapper(raw_input: Any, context: Any | None = None) -> CommandResult[Any]:
+            """Wrapper that validates input and calls the handler."""
+            valid, validated_or_failure = _validate_decorated_input(raw_input)
+            if not valid:
+                failure_result: CommandResult[Any] = validated_or_failure
+                return failure_result
+            return await validated_handler(validated_or_failure, context)
 
         async def validated_handler(
             validated_input: Any, context: Any | None = None
@@ -275,6 +280,8 @@ def define_command(
             result = await func(validated_input)
             return result
 
+        if input_schema is not None:
+            wrapper.__afd_validate_input__ = _validate_decorated_input  # type: ignore[attr-defined]
         wrapper.__afd_validated_handler__ = validated_handler  # type: ignore[attr-defined]
         # Copy metadata to wrapper
         wrapper.__afd_command__ = cmd_metadata  # type: ignore[attr-defined]

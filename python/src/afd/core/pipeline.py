@@ -998,15 +998,49 @@ def _unsupported_option(request: PipelineRequest) -> tuple[int, CommandError] | 
 
 
 async def _call_step(
-    executor: Callable[[str, dict[str, Any]], Any],
+    executor: Callable[..., Any],
     command: str,
-    payload: dict[str, Any],
+    payload: Any,
+    context: Any,
     dev_mode: bool,
+    *,
+    deadline_event: asyncio.Event | None = None,
 ) -> Any:
     """Run one step. An exception from the executor becomes a failed result
     whose message is redacted unless ``dev_mode`` is set."""
+    from collections.abc import Mapping
+
+    from afd.core.command_execution import (
+        clone_context_with,
+        copy_extra,
+        deadline_signal_updates,
+        invoke_executor,
+    )
+    from afd.core.commands import CommandContext as CoreCommandContext
+
+    per_step: Any
+    if context is not None:
+        import copy as _copy
+
+        extra_src = getattr(context, "extra", None)
+        actor = getattr(context, "actor", None)
+        updates: dict[str, Any] = {
+            "extra": copy_extra(extra_src) if isinstance(extra_src, Mapping) else {},
+            "actor": _copy.copy(actor) if actor is not None else None,
+            "output_budget": None,
+        }
+        if deadline_event is not None:
+            updates.update(deadline_signal_updates(context, deadline_event))
+        per_step = clone_context_with(context, **updates)
+    else:
+        per_step = CoreCommandContext()
+        if deadline_event is not None:
+            per_step = clone_context_with(
+                per_step, **deadline_signal_updates(per_step, deadline_event)
+            )
+
     try:
-        return await executor(command, payload)
+        return await invoke_executor(executor, command, payload, per_step)
     except Exception as exc:
         logger.error("Pipeline step '%s' raised an unhandled exception", command, exc_info=exc)
         return execution_failure(exc, dev_mode)
@@ -1014,15 +1048,20 @@ async def _call_step(
 
 async def execute_pipeline(
     request: PipelineRequest,
-    executor: Callable[[str, dict[str, Any]], Any],
+    executor: Callable[..., Any],
+    context: Any = None,
     *,
     dev_mode: bool = False,
+    _when_overrides: dict[int, Callable[[PipelineContext], bool]] | None = None,
+    _raw_results: dict[int, CommandResult[Any]] | None = None,
+    _preserve_none_input: bool = False,
 ) -> PipelineResult[Any]:
     """Execute a pipeline of chained commands.
 
     This is a standalone function that executes a pipeline using the provided
     executor function. The executor should be an async function that takes
-    a command name and input dict, and returns a CommandResult.
+    ``(command, input)`` or ``(command, input, context)`` and returns a
+    CommandResult.
 
     Options the request accepts but the executor does not implement,
     ``options.parallel`` and a step's ``stream: true``, fail that step (step 0
@@ -1036,25 +1075,14 @@ async def execute_pipeline(
     Args:
         request: The pipeline request with steps and options.
         executor: Async function to execute individual commands.
-            Signature: async def executor(command: str, input: dict) -> CommandResult
+            Signature: ``async def executor(command, input[, context]) -> CommandResult``
+        context: Optional CommandContext passed to three-argument executors per step
+            (never exposed to ``$input`` variable resolution).
         dev_mode: Put the exception text in a raising step's error message
             instead of the generic one.
 
     Returns:
         The pipeline result with aggregated metadata.
-
-    Example:
-        >>> from afd.core.pipeline import execute_pipeline, PipelineRequest, PipelineStep
-        >>> from afd.core.commands import create_command_registry
-        >>>
-        >>> registry = create_command_registry()
-        >>> # ... register commands ...
-        >>>
-        >>> request = PipelineRequest(steps=[
-        ...     PipelineStep(command="user-get", input={"id": 123}, as_="user"),
-        ...     PipelineStep(command="order-list", input={"userId": "$prev.id"}),
-        ... ])
-        >>> result = await execute_pipeline(request, registry.execute)
     """
     invalid = validate_pipeline_request(request)
     if invalid is not None:
@@ -1091,12 +1119,50 @@ async def execute_pipeline(
             steps=step_results,
         )
 
-    for i, step in enumerate(request.steps):
-        step_start_time = time.perf_counter()
+    from afd.core.command_execution import (
+        _caller_cancelled,
+        _cancel_timed_out,
+        _link_deadline_signal,
+    )
 
-        # Check condition if present
-        if step.when is not None:
-            should_run = evaluate_condition(step.when, pipeline_context)
+    pipeline_deadline_event: asyncio.Event | None = None
+    pipeline_watcher: asyncio.Task[None] | None = None
+    if options and options.timeout_ms is not None:
+        pipeline_deadline_event, pipeline_watcher = _link_deadline_signal(context)
+
+    try:
+        for i, step in enumerate(request.steps):
+            if _caller_cancelled(context):
+                cancelled_error = CommandError(
+                    code="COMMAND_CANCELLED",
+                    message="Command cancelled before starting",
+                    suggestion="Start the command again if the result is still needed",
+                    retryable=False,
+                )
+                for j, remaining_step in enumerate(request.steps[i:], i):
+                    step_results.append(
+                        StepResult(
+                            index=j,
+                            alias=remaining_step.as_,
+                            command=remaining_step.command,
+                            status=StepStatus.SKIPPED,
+                            error=cancelled_error,
+                            execution_time_ms=0,
+                        )
+                    )
+                break
+
+            step_start_time = time.perf_counter()
+
+            # Check condition if present (including DirectClient.pipe string references)
+            override_when = _when_overrides.get(i) if _when_overrides else None
+            if override_when is not None:
+                should_run = override_when(pipeline_context)
+            elif step.when is not None:
+                should_run = evaluate_condition(step.when, pipeline_context)
+            else:
+                should_run = True
+
             if not should_run:
                 step_result = StepResult(
                     index=i,
@@ -1109,122 +1175,154 @@ async def execute_pipeline(
                 pipeline_context.steps.append(step_result)
                 continue
 
-        # Resolve variable references in input. A step input over the limits
-        # fails the step without running the command.
-        resolution_failure: CommandResult[Any] | None = None
-        resolved_input: Any = {}
-        try:
-            if step.input:
-                resolved_input = resolve_variables(step.input, pipeline_context)
-        except PipelineResolutionLimitError as exc:
-            resolution_failure = resolution_limit_failure(exc, i)
+            # Resolve variable references in input. A step input over the limits
+            # fails the step without running the command.
+            resolution_failure: CommandResult[Any] | None = None
+            resolved_input: Any = None if (_preserve_none_input and step.input is None) else {}
+            try:
+                if step.input is not None:
+                    resolved_input = resolve_variables(step.input, pipeline_context)
+            except PipelineResolutionLimitError as exc:
+                resolution_failure = resolution_limit_failure(exc, i)
 
-        # Execute the command. _call_step never raises (except on cancellation),
-        # so a TimeoutError here is always the pipeline deadline, never one
-        # the command raised itself.
-        try:
-            if resolution_failure is not None:
-                raw_result = resolution_failure
-            elif options and options.timeout_ms is not None:
-                elapsed_ms = (time.perf_counter() - total_start_time) * 1000
-                remaining_s = (options.timeout_ms - elapsed_ms) / 1000
-                if remaining_s <= 0:
-                    raise TimeoutError
-                raw_result = await asyncio.wait_for(
-                    _call_step(executor, step.command, resolved_input, dev_mode),
-                    timeout=remaining_s,
+            # Execute the command. _call_step never raises (except on cancellation),
+            # so a TimeoutError here is always the pipeline deadline, never one
+            # the command raised itself.
+            try:
+                if resolution_failure is not None:
+                    raw_result = resolution_failure
+                elif options and options.timeout_ms is not None:
+                    elapsed_ms = (time.perf_counter() - total_start_time) * 1000
+                    remaining_s = (options.timeout_ms - elapsed_ms) / 1000
+                    if remaining_s <= 0:
+                        if pipeline_deadline_event is not None:
+                            pipeline_deadline_event.set()
+                        raise TimeoutError
+                    step_task: asyncio.Task[Any] = asyncio.create_task(
+                        _call_step(
+                            executor,
+                            step.command,
+                            resolved_input,
+                            context,
+                            dev_mode,
+                            deadline_event=pipeline_deadline_event,
+                        )
+                    )
+                    try:
+                        done, _ = await asyncio.wait({step_task}, timeout=remaining_s)
+                        if step_task not in done:
+                            if pipeline_deadline_event is not None:
+                                pipeline_deadline_event.set()
+                            await _cancel_timed_out([step_task])
+                            raise TimeoutError
+                        if step_task.cancelled():
+                            raise asyncio.CancelledError
+                        raw_result = step_task.result()
+                    except asyncio.CancelledError:
+                        if pipeline_deadline_event is not None:
+                            pipeline_deadline_event.set()
+                        if not step_task.done():
+                            step_task.cancel()
+                            await asyncio.gather(step_task, return_exceptions=True)
+                        raise
+                else:
+                    raw_result = await _call_step(
+                        executor, step.command, resolved_input, context, dev_mode
+                    )
+            except TimeoutError:
+                timeout_error = CommandError(
+                    code="PIPELINE_TIMEOUT",
+                    message=f"Pipeline timeout exceeded ({options.timeout_ms if options else 0}ms)",
+                    suggestion="Increase timeout_ms or reduce the number of pipeline steps",
+                    retryable=True,
+                )
+                step_results.append(
+                    StepResult(
+                        index=i,
+                        alias=step.as_,
+                        command=step.command,
+                        status=StepStatus.FAILURE,
+                        error=timeout_error,
+                        execution_time_ms=(time.perf_counter() - step_start_time) * 1000,
+                    )
+                )
+                for j, remaining_step in enumerate(request.steps[i + 1 :], i + 1):
+                    step_results.append(
+                        StepResult(
+                            index=j,
+                            alias=remaining_step.as_,
+                            command=remaining_step.command,
+                            status=StepStatus.SKIPPED,
+                            error=timeout_error,
+                            execution_time_ms=0,
+                        )
+                    )
+                break
+
+            # The command has run: from here on nothing may raise. A handler that
+            # returned a plain dict (or anything else) becomes a failed step.
+            result = coerce_command_result(raw_result, step.command)
+            if _raw_results is not None:
+                _raw_results[i] = result
+
+            step_end_time = time.perf_counter()
+            execution_time_ms = (step_end_time - step_start_time) * 1000
+
+            if result.success:
+                # Step metadata carries the result's trust signals, as in TypeScript.
+                step_metadata: dict[str, Any] = {
+                    key: value
+                    for key, value in (
+                        ("confidence", result.confidence),
+                        ("reasoning", result.reasoning),
+                        ("warnings", result.warnings),
+                        ("sources", result.sources),
+                        ("alternatives", result.alternatives),
+                    )
+                    if value is not None
+                }
+                step_result = StepResult(
+                    index=i,
+                    alias=step.as_,
+                    command=step.command,
+                    status=StepStatus.SUCCESS,
+                    execution_time_ms=execution_time_ms,
+                    metadata=ResultMetadata(**step_metadata),
+                    **step_data(result),
                 )
             else:
-                raw_result = await _call_step(executor, step.command, resolved_input, dev_mode)
-        except TimeoutError:
-            timeout_error = CommandError(
-                code="PIPELINE_TIMEOUT",
-                message=f"Pipeline timeout exceeded ({options.timeout_ms if options else 0}ms)",
-                suggestion="Increase timeout_ms or reduce the number of pipeline steps",
-                retryable=True,
-            )
-            step_results.append(
-                StepResult(
+                step_result = StepResult(
                     index=i,
                     alias=step.as_,
                     command=step.command,
                     status=StepStatus.FAILURE,
-                    error=timeout_error,
-                    execution_time_ms=(time.perf_counter() - step_start_time) * 1000,
+                    error=result.error,
+                    execution_time_ms=execution_time_ms,
                 )
-            )
-            for j, remaining_step in enumerate(request.steps[i + 1 :], i + 1):
-                step_results.append(
-                    StepResult(
+
+            step_results.append(step_result)
+            pipeline_context.steps.append(step_result)
+            if step_result.status == StepStatus.SUCCESS:
+                # $prev is the data of the most recent successful step.
+                pipeline_context.previous_result = step_result
+
+            # Stop on failure unless continue_on_failure is set
+            if not result.success and not continue_on_failure:
+                # Mark remaining steps as skipped
+                for j in range(i + 1, len(request.steps)):
+                    remaining_step = request.steps[j]
+                    skipped_result = StepResult(
                         index=j,
                         alias=remaining_step.as_,
                         command=remaining_step.command,
                         status=StepStatus.SKIPPED,
-                        error=timeout_error,
                         execution_time_ms=0,
                     )
-                )
-            break
-
-        # The command has run: from here on nothing may raise. A handler that
-        # returned a plain dict (or anything else) becomes a failed step.
-        result = coerce_command_result(raw_result, step.command)
-
-        step_end_time = time.perf_counter()
-        execution_time_ms = (step_end_time - step_start_time) * 1000
-
-        if result.success:
-            # Step metadata carries the result's trust signals, as in TypeScript.
-            step_metadata: dict[str, Any] = {
-                key: value
-                for key, value in (
-                    ("confidence", result.confidence),
-                    ("reasoning", result.reasoning),
-                    ("warnings", result.warnings),
-                    ("sources", result.sources),
-                    ("alternatives", result.alternatives),
-                )
-                if value is not None
-            }
-            step_result = StepResult(
-                index=i,
-                alias=step.as_,
-                command=step.command,
-                status=StepStatus.SUCCESS,
-                execution_time_ms=execution_time_ms,
-                metadata=ResultMetadata(**step_metadata),
-                **step_data(result),
-            )
-        else:
-            step_result = StepResult(
-                index=i,
-                alias=step.as_,
-                command=step.command,
-                status=StepStatus.FAILURE,
-                error=result.error,
-                execution_time_ms=execution_time_ms,
-            )
-
-        step_results.append(step_result)
-        pipeline_context.steps.append(step_result)
-        if step_result.status == StepStatus.SUCCESS:
-            # $prev is the data of the most recent successful step.
-            pipeline_context.previous_result = step_result
-
-        # Stop on failure unless continue_on_failure is set
-        if not result.success and not continue_on_failure:
-            # Mark remaining steps as skipped
-            for j in range(i + 1, len(request.steps)):
-                remaining_step = request.steps[j]
-                skipped_result = StepResult(
-                    index=j,
-                    alias=remaining_step.as_,
-                    command=remaining_step.command,
-                    status=StepStatus.SKIPPED,
-                    execution_time_ms=0,
-                )
-                step_results.append(skipped_result)
-            break
+                    step_results.append(skipped_result)
+                break
+    finally:
+        if pipeline_watcher is not None and not pipeline_watcher.done():
+            pipeline_watcher.cancel()
 
     total_end_time = time.perf_counter()
     total_execution_time_ms = (total_end_time - total_start_time) * 1000

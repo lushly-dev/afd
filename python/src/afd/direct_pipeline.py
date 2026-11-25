@@ -1,8 +1,12 @@
-"""How ``DirectClient.pipe()`` runs a pipeline of commands in-process.
+"""Public-shape adapter for ``DirectClient.pipe()`` over the core pipeline executor.
 
-The client supplies ``call``, which runs one command the way ``DirectClient.call``
-does; this module owns step normalization, validation, conditions, variable
-resolution and the result. ``afd.direct`` re-exports the pipeline types.
+All pipeline semantics — depth validation, ``stream: true`` rejection,
+variable resolution (``$prev``, ``$first``, ``$steps[N]``, ``$steps.alias``,
+``$input``), ``when`` condition evaluation, resolution limits, result coercion,
+and fail-fast stepping — live in :func:`afd.core.pipeline.execute_pipeline`.
+This module only normalizes ``DirectPipelineStep`` / ``dict`` inputs (including
+legacy string ``when`` references) and adapts the ``PipelineResult`` into the
+documented :class:`DirectPipelineResult` shape.
 """
 
 from __future__ import annotations
@@ -13,31 +17,28 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
+from pydantic import ValidationError as PydanticValidationError
+
 from afd.core.errors import CommandError
 from afd.core.pipeline import (
     PipelineContext as _PipelineContext,
 )
 from afd.core.pipeline import (
-    StepResult as _StepResult,
+    PipelineRequest as _PipelineRequest,
+)
+from afd.core.pipeline import (
+    PipelineStep as _PipelineStep,
 )
 from afd.core.pipeline import (
     StepStatus as _StepStatus,
 )
 from afd.core.pipeline import (
-    _stream_unsupported_error,
     condition_error,
-    evaluate_condition,
-    resolution_limit_failure,
+    execute_pipeline,
     resolve_variable,
-    resolve_variables,
-    step_data,
 )
-from afd.core.pipeline_variables import (
-    MAX_INPUT_DEPTH,
-    PipelineResolutionLimitError,
-    exceeds_depth,
-)
-from afd.core.result import CommandResult, coerce_command_result, failure, success
+from afd.core.pipeline_variables import MAX_INPUT_DEPTH, exceeds_depth
+from afd.core.result import CommandResult, failure, success
 
 
 @dataclass
@@ -101,14 +102,10 @@ async def run_direct_pipeline(
     trace_id: str,
     start_time: float,
 ) -> DirectPipelineResult:
-    """Run ``steps`` with ``call``; see ``DirectClient.pipe`` for the semantics.
-
-    ``start_time`` is the ``time.perf_counter()`` reading the pipeline's duration counts from.
-    """
+    """Run ``steps`` through :func:`afd.core.pipeline.execute_pipeline` and adapt the result."""
     debug(f"[{trace_id}] Starting pipeline with {len(steps)} steps")
 
-    # Normalize steps to DirectPipelineStep objects
-    normalized_steps = []
+    normalized_steps: list[DirectPipelineStep] = []
     for step in steps:
         if isinstance(step, dict):
             normalized_steps.append(
@@ -133,152 +130,184 @@ async def run_direct_pipeline(
             final=failure(invalid),
             total_duration_ms=(time.perf_counter() - start_time) * 1000,
         )
-    streaming = next(
-        (index for index, step in enumerate(normalized_steps) if step.stream is True),
-        None,
-    )
-    if streaming is not None:
-        debug(f"[{trace_id}] Pipeline rejected: step {streaming} sets stream")
-        return _reject_streaming_step(normalized_steps, streaming, start_time)
 
-    step_results: list[DirectPipelineStepResult] = []
-    outputs: dict[str, Any] = {}
-    prev_result: CommandResult[Any] | None = None
-    all_success = True
-    variables = _PipelineContext(pipeline_input=input)
+    def _make_string_when(expression: str) -> Callable[[_PipelineContext], bool]:
+        return lambda ctx: bool(resolve_variable(expression, ctx))
 
-    for i, step in enumerate(normalized_steps):
-        step_start = time.perf_counter()
-
-        debug(f"[{trace_id}] Step {i + 1}/{len(normalized_steps)}: {step.command}")
-
-        # Check 'when' condition
-        if step.when:
-            should_run = _evaluate_condition(step.when, variables)
-            if not should_run:
-                debug(f"[{trace_id}] Skipped due to condition: {step.when}")
-                step_results.append(
-                    DirectPipelineStepResult(
-                        command=step.command,
-                        alias=step.alias,
-                        result=success(
-                            {"skipped": True, "reason": f"Condition not met: {step.when}"}
-                        ),
-                        duration_ms=0,
-                        skipped=True,
-                    )
-                )
-                variables.steps.append(
-                    _StepResult(
-                        index=i,
-                        alias=step.alias,
-                        command=step.command,
-                        status=_StepStatus.SKIPPED,
-                    )
-                )
-                continue
-
-        # Resolve variables in input. A step input over the limits fails
-        # the step without running the command.
+    when_overrides: dict[int, Callable[[_PipelineContext], bool]] = {}
+    core_steps: list[_PipelineStep] = []
+    for index, step in enumerate(normalized_steps):
+        core_when: Any = None
+        if isinstance(step.when, str):
+            if step.when:
+                when_overrides[index] = _make_string_when(step.when)
+        elif step.when:
+            core_when = step.when
         try:
-            resolved_input = (
-                resolve_variables(step.input, variables) if step.input is not None else None
+            core_steps.append(
+                _PipelineStep.model_construct(
+                    command=step.command,
+                    input=step.input,
+                    as_=step.alias,
+                    when=_PipelineStep(command="x", when=core_when).when
+                    if core_when is not None
+                    else None,
+                    stream=step.stream,
+                )
             )
-        except PipelineResolutionLimitError as exc:
-            result = resolution_limit_failure(exc, i)
-        else:
-            # Execute the command. A handler that returned something other
-            # than a CommandResult is a failed step, never an exception.
-            result = coerce_command_result(await call(step.command, resolved_input), step.command)
+        except PydanticValidationError as exc:
+            from afd.core.command_execution import describe_validation_error
 
-        step_duration = (time.perf_counter() - step_start) * 1000
-
-        step_results.append(
-            DirectPipelineStepResult(
-                command=step.command,
-                alias=step.alias,
-                result=result,
-                duration_ms=step_duration,
+            err = CommandError(
+                code="VALIDATION_ERROR",
+                message=f"Step {index} has an invalid when condition",
+                suggestion="Provide valid command names, object inputs, and conditions",
+                retryable=False,
+                details={"stepIndex": index, "errors": describe_validation_error(exc)},
             )
-        )
-        step_record = _StepResult(
-            index=i,
-            alias=step.alias,
-            command=step.command,
-            status=_StepStatus.SUCCESS if result.success else _StepStatus.FAILURE,
-            execution_time_ms=step_duration,
-            **(step_data(result) if result.success else {}),
-        )
-        variables.steps.append(step_record)
-        if result.success:
-            variables.previous_result = step_record
+            return DirectPipelineResult(
+                success=False,
+                steps=[],
+                outputs={},
+                final=failure(err),
+                total_duration_ms=(time.perf_counter() - start_time) * 1000,
+            )
 
-        # Store in outputs if aliased
-        if step.alias:
-            outputs[step.alias] = result.data if result.success else None
+    raw_results: dict[int, CommandResult[Any]] = {}
+    request = _PipelineRequest.model_construct(steps=core_steps, input=input)
 
-        prev_result = result
+    async def step_executor(command: str, payload: dict[str, Any] | None) -> Any:
+        return await call(command, payload)
 
-        # Track overall success
-        if not result.success:
-            all_success = False
-            debug(f"[{trace_id}] Step failed: {step.command}")
-            break  # Stop pipeline on first failure
+    pipeline_result = await execute_pipeline(
+        request,
+        step_executor,
+        dev_mode=False,
+        _when_overrides=when_overrides or None,
+        _raw_results=raw_results,
+        _preserve_none_input=True,
+    )
 
     total_duration = (time.perf_counter() - start_time) * 1000
 
-    debug(f"[{trace_id}] Pipeline complete in {total_duration:.2f}ms, success={all_success}")
+    # Handle whole-pipeline preflight failure (index -1) from core execute_pipeline.
+    if len(pipeline_result.steps) == 1 and pipeline_result.steps[0].index == -1:
+        err = pipeline_result.steps[0].error or CommandError(
+            code="VALIDATION_ERROR",
+            message="Invalid pipeline request",
+            suggestion="Check pipeline step inputs and conditions",
+        )
+        return DirectPipelineResult(
+            success=False,
+            steps=[],
+            outputs={},
+            final=failure(err),
+            total_duration_ms=total_duration,
+        )
 
+    # Check if the core pipeline rejected a streaming step before running any command.
+    streaming_index = next(
+        (
+            step.index
+            for step in pipeline_result.steps
+            if step.status == _StepStatus.FAILURE
+            and step.error is not None
+            and step.error.code == "UNSUPPORTED_OPTION"
+            and not raw_results
+        ),
+        None,
+    )
+    if streaming_index is not None:
+        streaming_error = pipeline_result.steps[streaming_index].error
+        assert streaming_error is not None
+        skipped_result = success(
+            {
+                "skipped": True,
+                "reason": f"Pipeline rejected: step {streaming_index} sets stream: true",
+            }
+        )
+        return DirectPipelineResult(
+            success=False,
+            steps=[
+                DirectPipelineStepResult(
+                    command=step.command,
+                    alias=step.alias,
+                    result=failure(streaming_error)
+                    if step.index == streaming_index
+                    else skipped_result,
+                    duration_ms=0,
+                    skipped=step.index != streaming_index,
+                )
+                for step in pipeline_result.steps
+            ],
+            outputs={},
+            final=failure(streaming_error),
+            total_duration_ms=total_duration,
+        )
+
+    step_results: list[DirectPipelineStepResult] = []
+    outputs: dict[str, Any] = {}
+    final_result: CommandResult[Any] | None = None
+    all_success = True
+
+    for core_step in pipeline_result.steps:
+        orig_step = normalized_steps[core_step.index]
+        if core_step.status == _StepStatus.SKIPPED:
+            if not all_success:
+                # Trailing steps skipped after an earlier failure are omitted from
+                # DirectPipelineResult.steps to preserve the historical public shape.
+                break
+            debug(f"[{trace_id}] Skipped due to condition: {orig_step.when}")
+            step_results.append(
+                DirectPipelineStepResult(
+                    command=core_step.command,
+                    alias=core_step.alias,
+                    result=success(
+                        {"skipped": True, "reason": f"Condition not met: {orig_step.when}"}
+                    ),
+                    duration_ms=0,
+                    skipped=True,
+                )
+            )
+            continue
+
+        result = raw_results.get(core_step.index)
+        if result is None:
+            result = (
+                success(core_step.data)
+                if core_step.status == _StepStatus.SUCCESS
+                else failure(
+                    core_step.error
+                    or CommandError(
+                        code="COMMAND_EXECUTION_ERROR",
+                        message="An internal error occurred",
+                        suggestion="Contact support if this persists",
+                    )
+                )
+            )
+
+        step_results.append(
+            DirectPipelineStepResult(
+                command=core_step.command,
+                alias=core_step.alias,
+                result=result,
+                duration_ms=core_step.execution_time_ms,
+            )
+        )
+        if core_step.alias:
+            outputs[core_step.alias] = result.data if result.success else None
+        final_result = result
+        if not result.success:
+            all_success = False
+            debug(f"[{trace_id}] Step failed: {core_step.command}")
+
+    debug(f"[{trace_id}] Pipeline complete in {total_duration:.2f}ms, success={all_success}")
     return DirectPipelineResult(
         success=all_success,
         steps=step_results,
         outputs=outputs,
-        final=prev_result,
+        final=final_result,
         total_duration_ms=total_duration,
-    )
-
-
-def _evaluate_condition(
-    condition: str | dict[str, Any],
-    variables: _PipelineContext,
-) -> bool:
-    """Evaluate a step's ``when`` condition.
-
-    A dict is a pipeline condition (``$exists``, ``$eq``, ``$and``, ...).
-    A string is resolved as a reference and must be truthy; an unresolved
-    reference is false.
-    """
-    if isinstance(condition, str):
-        return bool(resolve_variable(condition, variables))
-    return evaluate_condition(condition, variables)  # type: ignore[arg-type]
-
-
-def _reject_streaming_step(
-    steps: list[DirectPipelineStep],
-    failed_index: int,
-    start_time: float,
-) -> DirectPipelineResult:
-    """Fail the streaming step with UNSUPPORTED_OPTION and skip the others, as
-    ``afd-pipe`` does. No command runs."""
-    error = _stream_unsupported_error(failed_index)
-    skipped = success(
-        {"skipped": True, "reason": f"Pipeline rejected: step {failed_index} sets stream: true"}
-    )
-    return DirectPipelineResult(
-        success=False,
-        steps=[
-            DirectPipelineStepResult(
-                command=step.command,
-                alias=step.alias,
-                result=failure(error) if index == failed_index else skipped,
-                duration_ms=0,
-                skipped=index != failed_index,
-            )
-            for index, step in enumerate(steps)
-        ],
-        outputs={},
-        final=failure(error),
-        total_duration_ms=(time.perf_counter() - start_time) * 1000,
     )
 
 

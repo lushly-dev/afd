@@ -40,6 +40,13 @@ Bootstrap Commands:
     ... )
 """
 
+from afd.core.command_execution import (
+    CommandExecutor,
+    ExecutorOptions,
+    StreamExecutorOptions,
+    execute_batch,
+    execute_stream,
+)
 from afd.core.commands import CommandConfirmationMode
 from afd.core.meta_keys import (
     MCP_APPS_META_KEY,
@@ -528,4 +535,10 @@ __all__ = [
     "assert_tool_meta",
     "assert_advertised_input_schema",
     "ServerInstances",
+    # Shared core executors
+    "CommandExecutor",
+    "ExecutorOptions",
+    "StreamExecutorOptions",
+    "execute_batch",
+    "execute_stream",
 ]

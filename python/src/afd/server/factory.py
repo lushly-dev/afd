@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
-import asyncio
 import copy
 import logging
-import math
 import os
-from collections.abc import AsyncIterator, Awaitable, Callable, Iterator, Mapping, Sequence
+from collections.abc import (
+    AsyncGenerator,
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Iterator,
+    Mapping,
+    Sequence,
+)
 from contextlib import asynccontextmanager, contextmanager, suppress
 from contextvars import ContextVar
 from typing import (
@@ -19,7 +25,7 @@ from typing import (
 from pydantic import BaseModel, ConfigDict, create_model
 from pydantic import ValidationError as PydanticValidationError
 
-from afd.core.actor import Actor, ContextDefaults, actor_kind_of, with_context_defaults
+from afd.core.actor import Actor, ContextDefaults
 from afd.core.approval import ApprovalPolicy
 from afd.core.batch import (
     DEFAULT_MAX_BATCH_PARALLELISM as DEFAULT_MAX_BATCH_PARALLELISM,
@@ -35,7 +41,13 @@ from afd.core.builtin_names import (
     AFD_CONTEXT_COMMAND_NAMES,
     AFD_META_TOOL_NAMES,
 )
-from afd.core.clock import Clock, RandomSource, system_clock
+from afd.core.clock import Clock, RandomSource
+from afd.core.command_execution import (
+    StreamExecutorOptions,
+)
+from afd.core.command_execution import (
+    execute_stream as _execute_core_stream,
+)
 from afd.core.commands import (
     DEFAULT_EXPOSE,
     CallGrant,
@@ -58,10 +70,7 @@ from afd.core.errors import CommandError, ErrorCodes
 from afd.core.meta_keys import assert_advertised_input_schema, assert_tool_meta
 from afd.core.output_budget import (
     OutputBudget,
-    apply_output_budget,
     bind_output_budget_ask,
-    check_output_budget,
-    coerce_budgeted_result,
     normalize_ask_option,
     output_budget_ask_from_meta,
     validate_output_budget_declaration,
@@ -82,6 +91,8 @@ from afd.core.schema_validation import (
     resolve_max_validation_issues,
 )
 from afd.core.similarity import truncate_name
+from afd.core.single_executor import CommandExecutionConfig, execute_command
+from afd.core.streaming import StreamChunk, StreamOptions
 from afd.server.approval_admission import (
     Admission,
     admission_for,
@@ -231,9 +242,6 @@ from afd.server.tool_results import (
 from afd.server.tool_results import (
     unanswered_approval as _unanswered_approval,
 )
-from afd.server.tool_results import (
-    with_execution_metadata as _with_execution_metadata,
-)
 from afd.server.tool_router import (
     NOT_IN_CONTEXT_SUGGESTION,
     ToolRouterDeps,
@@ -245,7 +253,6 @@ from afd.server.types import (
     ContextConfig,
     GroupByFn,
     ToolStrategy,
-    _consume_task_exception,
 )
 from afd.server.validation import _input_validation_failure
 
@@ -934,50 +941,144 @@ class MCPServer:
             )
         return command, data
 
-    async def _run_handler(
+    async def _validate_for_execution(
+        self,
+        command: CommandDefinition,
+        input: Any,
+        context: CommandContext,
+    ) -> tuple[bool, Any]:
+        metadata = get_command_metadata(command.handler)
+        input_schema = metadata.input_schema if metadata is not None else command.input_schema
+        try:
+            data = validate_command_input(
+                input_schema, input, max_issues=self._max_validation_issues
+            )
+        except (PydanticValidationError, SchemaValidationError) as exc:
+            if input_schema is None:
+                raise
+            return (
+                False,
+                _input_validation_failure(
+                    input_schema,
+                    {} if input is None else input,
+                    exc,
+                    max_issues=self._max_validation_issues,
+                ),
+            )
+        except Exception as exc:
+            logger.error("Input validation for '%s' raised", command.name, exc_info=exc)
+            return (
+                False,
+                error(
+                    "VALIDATION_ERROR",
+                    "Input validation failed",
+                    suggestion=(
+                        f"Input validation threw: {exc}"
+                        if self.config.dev_mode
+                        else f"Check the input against the input schema of '{command.name}' "
+                        "(afd-detail returns it) and retry"
+                    ),
+                ),
+            )
+
+        prevalidated = take_relay_validated_input(context, command.name)
+        if prevalidated is not None:
+            data = prevalidated[0]
+
+        up_front = current_up_front_approval()
+        approved = None if up_front is None else await up_front.validated(command.name, input)
+        if approved is not None:
+            data = approved[0]
+        return True, data
+
+    def _post_validate_for_execution(
         self,
         command: CommandDefinition,
         data: Any,
         context: CommandContext,
-        record: Admission,
-        effective_budget: int | None = None,
-        relay_dispatch: RelayDispatchAdmission | None = None,
-    ) -> Any:
-        """Call the handler with validated input, run the B5 output-budget check, and stamp metadata.
+    ) -> CommandResult[Any] | None:
+        view = scope_view_of(context)
+        if view is not None:
+            exec_input = _validated_input_for_resolver(data) if view.has_resolver else None
+            exec_decision = view.decide_execution(command.name, exec_input)
+            if exec_decision != "proceed":
+                return failure(view.insufficient_scope(exec_decision.forbidden))
+        if take_relay_context_validated(context):
+            if self.config.context_fields:
+                journaled = tuple(
+                    declared.name for declared in self.config.context_fields if declared.journal
+                )
+                with suppress(AttributeError, TypeError):
+                    setattr(context, JOURNALED_CONTEXT_FIELDS, journaled)
+            return None
+        return apply_context_fields(self.config.context_fields, context, command.name)
 
-        A declared approval policy holds without the approval middleware (#1886): a command whose
-        policy is neither unset nor ``"not-required"`` runs only when an approval step admitted
-        this call, for this command and this validated input. So does a call the approval step
-        held under a policy given only in its ``commands`` list. A policy function is not
-        evaluated here; declaring one needs an approval step. The admission is taken here, so a
-        second dispatch on the same call (a retry inside the chain) needs a second admission.
-        """
+    def _is_hidden_for_execution(
+        self,
+        command: CommandDefinition,
+        context: CommandContext,
+    ) -> bool:
+        interface = context.extra.get("interface") if context.extra else None
+        remote = bool(context.extra.get("remote")) if context.extra else False
+        view = scope_view_of(context)
+        if interface == "apps":
+            return view is not None and not view.known(command.name)
+        return (remote and not self._is_exposed_to(command, interface)) or (
+            view is not None and not view.known(command.name)
+        )
+
+    def _is_shown_for_execution(
+        self,
+        command: CommandDefinition,
+        context: CommandContext,
+    ) -> bool:
+        view = scope_view_of(context)
+        return view is None or view.shown(command.name)
+
+    @contextmanager
+    def _context_scope_for_execution(
+        self, caller_context: CommandContext | None, exec_context: CommandContext
+    ) -> Iterator[None]:
+        if caller_context is not None:
+            transfer_relay_state(caller_context, exec_context)
+        try:
+            yield
+        finally:
+            clear_relay_state(exec_context)
+
+    @contextmanager
+    def _admission_scope_for_execution(
+        self, context: CommandContext, command: CommandDefinition
+    ) -> Iterator[tuple[Admission, RelayDispatchAdmission | None]]:
+        relay_dispatch = pop_relay_dispatch_admission(context)
+        with (
+            bind_human_relay_channel(None),
+            bind_relay_wire(None),
+            admission_for(context, command) as record,
+        ):
+            yield record, relay_dispatch
+
+    def _check_admission_for_execution(
+        self,
+        admission_tuple: tuple[Admission, RelayDispatchAdmission | None],
+        command: CommandDefinition,
+        data: Any,
+    ) -> CommandResult[Any] | None:
+        record, relay_dispatch = admission_tuple
         if relay_dispatch is not None and relay_dispatch.consume(command.name, data) == "mismatch":
             return _approval_unavailable(command.name, "mismatch")
         if admission_required(record, getattr(command, "approval", None)):
             admission = take_admission(record, command.name, data)
             if admission != "admitted":
                 return _approval_unavailable(command.name, admission)
-        clock = getattr(context, "clock", None) or system_clock
-        start = clock.now()
+        return None
+
+    def _invoke_handler_for_execution(
+        self, command: CommandDefinition, data: Any, context: CommandContext
+    ) -> Awaitable[Any]:
         clear_relay_evidence(context)
         handler = getattr(command.handler, "__afd_validated_handler__", command.handler)
-        result = await handler(data, context)
-        if effective_budget is not None:
-            normalized = coerce_budgeted_result(result)
-            if normalized is not None:
-                result = check_output_budget(command, effective_budget, normalized)
-        if isinstance(result, CommandResult):
-            # Server metadata, as in TypeScript: executionTimeMs, commandVersion, traceId,
-            # actorKind. Read the actor after the handler: middleware may have refined it.
-            result = _with_execution_metadata(
-                result,
-                execution_time_ms=max(0, clock.now() - start),
-                command_version=command.version,
-                trace_id=context.trace_id,
-                actor_kind=actor_kind_of(getattr(context, "actor", None)),
-            )
-        return result
+        return handler(data, context)
 
     def _internal_error(self, command_name: str, exc: BaseException) -> CommandResult[Any]:
         """Log an unexpected exception and return a failure that is safe to send remotely.
@@ -1011,249 +1112,39 @@ class MCPServer:
         output_budget: Any = None,
         _check_before_request: bool = False,
     ) -> Any:
-        """Run a command (never a built-in tool) in the reference order.
-
-        As in ``packages/server/src/execution.ts``: lookup, exposure, active
-        context and input validation run first (``_prepare_command``), so
-        middleware only sees calls that reach a handler, and sees their
-        validated input. The middleware chain then wraps the handler, whose
-        result is stamped with execution metadata.
-
-        An exception from a handler or a middleware passes back out through
-        the middleware and becomes a sanitized COMMAND_EXECUTION_ERROR result
-        (see ``_internal_error``), so it never reaches the transport with its
-        text.
-        """
-        # One context object, with a clock and a random source, flows through every
-        # middleware into the handler.
-        caller_context = context
-        context = with_context_defaults(
-            context, ContextDefaults(clock=self.config.clock, random=self.config.random)
+        """Run a command (never a built-in tool) through the shared single-command executor."""
+        config = CommandExecutionConfig(
+            lookup=self._find_command,
+            lookup_apps=self._registry.get,
+            list_commands=lambda: list(self._get_command_index().values()),
+            middleware=self._middleware,
+            dev_mode=self.config.dev_mode,
+            call_grant=self.config.call_grant,
+            context_defaults=ContextDefaults(clock=self.config.clock, random=self.config.random),
+            default_timeout_ms=self._default_timeout_ms,
+            logger=logger,
+            suggest_tools=True,
+            stamp_metadata=True,
+            context_scope=self._context_scope_for_execution,
+            before_request=self._check_before_request if _check_before_request else None,
+            active_context_getter=lambda _ctx: self._context_state.get_active(),
+            is_hidden=self._is_hidden_for_execution,
+            is_shown=self._is_shown_for_execution,
+            not_in_context_suggestion=NOT_IN_CONTEXT_SUGGESTION,
+            validate_input=self._validate_for_execution,
+            post_validate=self._post_validate_for_execution,
+            admission_scope=self._admission_scope_for_execution,
+            check_admission=self._check_admission_for_execution,
+            invoke_handler=self._invoke_handler_for_execution,
+            after_execute=self._refresh_dynamic_tools,
         )
-        if caller_context is not None:
-            transfer_relay_state(caller_context, context)
-        try:
-            if output_budget is not None:
-                context._output_budget_ask = normalize_ask_option(output_budget)
-            prepared = self._prepare_command(
-                name, input, context, check_before_request=_check_before_request
-            )
-            if isinstance(prepared, CommandResult):
-                return prepared
-            command, data = prepared
-
-            prevalidated = take_relay_validated_input(context, name)
-            if prevalidated is not None:
-                data = prevalidated[0]
-
-            # A step of an afd-batch or afd-pipe approved up front runs on the input validated then
-            # (#1414): what the person was shown, not what this second validation gave (a default
-            # that is random or reads the clock differs, and the step would then match no approval
-            # after earlier steps ran). The step was still validated as sent just above, since a
-            # schema may check state an earlier step changed; only the value is kept. Every step, not
-            # only one whose command declares a policy: a gate given only in the approval middleware's
-            # list binds the input validated up front too. A step no approval covers runs as validated.
-            up_front = current_up_front_approval()
-            approved = None if up_front is None else await up_front.validated(name, input)
-            if approved is not None:
-                data = approved[0]
-
-            # M6 ("At execution: the resolver again"): re-check validated input (defaults applied,
-            # pipeline references resolved) before any middleware or handler runs, and enforce static
-            # scopes on nested in-process calls that bypassed tool routing.
-            view = scope_view_of(context)
-            if view is not None:
-                exec_input = _validated_input_for_resolver(data) if view.has_resolver else None
-                exec_decision = view.decide_execution(command.name, exec_input)
-                if exec_decision != "proceed":
-                    return failure(view.insufficient_scope(exec_decision.forbidden))
-
-            # Declared context fields, validated in context.extra before any middleware runs
-            # (skipped when HumanRelayGate already validated them and any approved_context
-            # overrides for this dispatch, so dynamic context defaults never drift; re-stamp
-            # JOURNALED_CONTEXT_FIELDS because with_context_defaults copies CommandContext via
-            # dataclasses.replace and drops dynamic attributes).
-            if take_relay_context_validated(context):
-                if self.config.context_fields:
-                    journaled = tuple(
-                        declared.name for declared in self.config.context_fields if declared.journal
-                    )
-                    with suppress(AttributeError, TypeError):
-                        setattr(context, JOURNALED_CONTEXT_FIELDS, journaled)
-            else:
-                invalid_field = apply_context_fields(
-                    self.config.context_fields, context, command.name
-                )
-                if invalid_field is not None:
-                    return invalid_field
-
-            # Output budget ask validated and effective budget set before middleware runs (B2-B4).
-            effective_budget, invalid_budget = apply_output_budget(command, context)
-            if invalid_budget is not None:
-                return invalid_budget
-
-            # Pop the one-shot host-verified dispatch admission into this closure so even a
-            # deferred retry retaining next_fn after clear_relay_state stays refused, and nested
-            # calls never inherit it.
-            relay_dispatch = pop_relay_dispatch_admission(context)
-
-            # The command this call runs, for the approval middleware to decide from and the
-            # handler's dispatch to check: this dispatch's own record, which the dispatch reads
-            # directly, wherever the chain ran it.
-            def _is_cancelled() -> bool:
-                cancel = getattr(context, "cancel", None)
-                signal = getattr(context, "signal", None)
-                return bool(
-                    (cancel is not None and cancel.is_set())
-                    or (signal is not None and signal.is_set())
-                )
-
-            def _cancelled_before_start() -> CommandResult[Any]:
-                return failure(
-                    CommandError(
-                        code="COMMAND_CANCELLED",
-                        message=f"Command '{truncate_name(name)}' was cancelled before it started",
-                        suggestion="Retry with a fresh signal if the command is still needed.",
-                        retryable=False,
-                    )
-                )
-
-            if _is_cancelled():
-                return _cancelled_before_start()
-
-            caller_timeout = getattr(context, "timeout", None)
-            if caller_timeout is None:
-                effective_timeout: int | float | None = self._default_timeout_ms
-            elif (
-                isinstance(caller_timeout, (int, float))
-                and not isinstance(caller_timeout, bool)
-                and math.isfinite(caller_timeout)
-                and caller_timeout > 0
-            ):
-                effective_timeout = caller_timeout
-            else:
-                effective_timeout = None
-
-            # Clear ambient MCP HumanRelay channel and wire box before middleware/handler run so
-            # nested server.call_tool / server.execute("afd-call") calls never inherit the outer
-            # request's relay channel or mutate its outbound RelayWireBox.
-            with (
-                bind_human_relay_channel(None),
-                bind_relay_wire(None),
-                admission_for(context, command) as record,
-            ):
-
-                async def run_handler() -> Any:
-                    # Re-check immediately before handler start (including after approval/confirmation wait).
-                    if _is_cancelled():
-                        return _cancelled_before_start()
-                    return await self._run_handler(
-                        command,
-                        data,
-                        context,
-                        record,
-                        effective_budget,
-                        relay_dispatch=relay_dispatch,
-                    )
-
-                next_fn: Callable[[], Any] = run_handler
-                for middleware in reversed(self._middleware):
-                    next_fn = (lambda mw, nxt: lambda: mw(name, data, context, nxt))(
-                        middleware, next_fn
-                    )
-
-                if effective_timeout is None:
-                    try:
-                        result = await next_fn()
-                    except Exception as exc:
-                        result = self._internal_error(name, exc)
-                else:
-                    caller_signal = getattr(context, "signal", None)
-                    caller_cancel = getattr(context, "cancel", None)
-                    has_signal_attr = hasattr(context, "signal")
-                    has_cancel_attr = hasattr(context, "cancel")
-                    has_server_signal_attr = hasattr(context, "_server_signal")
-                    has_server_signal_fields_attr = hasattr(context, "_server_signal_fields")
-                    deadline_event = asyncio.Event()
-                    synthesized_fields: list[str] = []
-                    # Link deadline cancellation onto context.signal/cancel while keeping
-                    # journal context digests unchanged for any fields the caller left unset.
-                    if has_signal_attr:
-                        context.signal = deadline_event
-                        if caller_signal is None:
-                            synthesized_fields.append("signal")
-                    if has_cancel_attr:
-                        context.cancel = deadline_event
-                        if caller_cancel is None:
-                            synthesized_fields.append("cancel")
-                    if synthesized_fields and has_server_signal_attr:
-                        context._server_signal = deadline_event
-                        if has_server_signal_fields_attr:
-                            context._server_signal_fields = tuple(synthesized_fields)
-
-                    watcher: asyncio.Task[None] | None = None
-                    caller_events = [e for e in (caller_signal, caller_cancel) if e is not None]
-                    if any(ev.is_set() for ev in caller_events):
-                        deadline_event.set()
-                    elif caller_events:
-
-                        async def _mirror_caller() -> None:
-                            waits = [asyncio.create_task(ev.wait()) for ev in caller_events]
-                            try:
-                                await asyncio.wait(waits, return_when=asyncio.FIRST_COMPLETED)
-                                deadline_event.set()
-                            finally:
-                                for w in waits:
-                                    if not w.done():
-                                        w.cancel()
-
-                        watcher = asyncio.create_task(_mirror_caller())
-                        watcher.add_done_callback(_consume_task_exception)
-
-                    task = asyncio.create_task(next_fn())
-                    try:
-                        done, _ = await asyncio.wait({task}, timeout=effective_timeout / 1000.0)
-                        if task in done:
-                            if task.cancelled():
-                                result = _cancelled_before_start()
-                            else:
-                                task_exc = task.exception()
-                                if task_exc is not None:
-                                    result = self._internal_error(name, task_exc)
-                                else:
-                                    result = task.result()
-                        else:
-                            deadline_event.set()
-                            task.cancel()
-                            task.add_done_callback(_consume_task_exception)
-                            await asyncio.sleep(0)
-                            result = failure(
-                                CommandError(
-                                    code="TIMEOUT",
-                                    message=f"Command '{truncate_name(name)}' timed out after {effective_timeout}ms",
-                                    suggestion=(
-                                        "Retry with a larger timeout. The command was signalled to abort "
-                                        "but may have completed, so check its effect before retrying a mutation."
-                                    ),
-                                    retryable=True,
-                                    details={"command": name, "timeoutMs": effective_timeout},
-                                )
-                            )
-                    except asyncio.CancelledError:
-                        deadline_event.set()
-                        if not task.done():
-                            task.cancel()
-                            await asyncio.gather(task, return_exceptions=True)
-                        raise
-                    finally:
-                        if watcher is not None and not watcher.done():
-                            watcher.cancel()
-                        if not task.done():
-                            task.add_done_callback(_consume_task_exception)
-            self._refresh_dynamic_tools(name, result)
-            return result
-        finally:
-            clear_relay_state(context)
+        return await execute_command(
+            name,
+            input,
+            context,
+            config=config,
+            output_budget=output_budget,
+        )
 
     async def execute(
         self,
@@ -1467,7 +1358,41 @@ class MCPServer:
         tool_manager.call_tool = wrapped_call_tool
         tool_manager._afd_context_error_translation = True
 
-    # ── Batch and pipeline (afd.server.batch_execution) ────────────────────
+    # ── Batch, pipeline and stream (shared core executors) ─────────────────
+
+    async def _run_apps_isolated(
+        self, command_name: str, input: Any, context: CommandContext
+    ) -> CommandResult[Any]:
+        """Run one batch item or stream command with app-grant-before-preflight ordering."""
+        try:
+            result = await self._execute_command(
+                command_name, input, context, _check_before_request=True
+            )
+        except Exception as exc:
+            result = self._internal_error(command_name, exc)
+        return self._as_command_result(command_name, result)
+
+    async def execute_batch(
+        self,
+        request: Any,
+        context: CommandContext | None = None,
+    ) -> BatchResult[Any]:
+        """Run a batch with partial-success semantics through the shared core executor."""
+        raw_extra = getattr(context, "extra", None)
+        interface = raw_extra.get("interface") if isinstance(raw_extra, Mapping) else None
+        if interface != "apps":
+            self._check_before_request()
+            runner = self._run_isolated
+        else:
+            runner = self._run_apps_isolated
+        return await execute_batch(
+            request,
+            context,
+            run_command=runner,
+            max_batch_size=self.config.max_batch_size,
+            max_batch_parallelism=self.config.max_batch_parallelism,
+            dev_mode=self.config.dev_mode,
+        )
 
     async def _execute_batch(
         self,
@@ -1475,12 +1400,30 @@ class MCPServer:
         context: CommandContext | None = None,
     ) -> BatchResult[Any]:
         """Run a batch with partial-success semantics (see ``execute_batch``)."""
-        return await execute_batch(
-            request,
+        return await self.execute_batch(request, context)
+
+    def execute_stream(
+        self,
+        name: str,
+        input: Any,
+        options: StreamOptions | None = None,
+        context: CommandContext | None = None,
+    ) -> AsyncGenerator[StreamChunk, None]:
+        """Run a command through this server's executor and stream its result chunks."""
+        raw_extra = getattr(context, "extra", None)
+        interface = raw_extra.get("interface") if isinstance(raw_extra, Mapping) else None
+        if interface != "apps":
+            self._check_before_request()
+            runner = self._run_isolated
+        else:
+            runner = self._run_apps_isolated
+        timeout = options.timeout if options is not None else None
+        return _execute_core_stream(
+            name,
+            input,
+            runner,
             context,
-            run_command=self._run_isolated,
-            max_batch_size=self.config.max_batch_size,
-            max_batch_parallelism=self.config.max_batch_parallelism,
+            StreamExecutorOptions(dev_mode=self.config.dev_mode, timeout=timeout),
         )
 
     async def _execute_pipeline(

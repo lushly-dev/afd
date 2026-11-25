@@ -60,12 +60,7 @@ Implemented on `lush/fleet-545-python-wave2-runtime`:
 - `create_handoff` supplies the shared reconnect policy (allowed, 3 attempts, 1000 ms).
   The client inherits metadata or this fallback; explicitly supplied options win.
 
-The one-executor item is split to [#1535](https://github.com/lushly-dev/afd/issues/1535)
-(`status:planned`, `execution:integrative`): consolidating the core registry,
-SimpleRegistry, MockServer and DirectClient.pipe, plus public batch/stream executors,
-is a separate architectural PR. Per-call contexts/tool surfaces and server deadlines
-remain the matrix's existing gaps. Focused regressions cover this candidate; full
-validation and landing belong to the lane.
+The one-executor item ([#1535](https://github.com/lushly-dev/afd/issues/1535)) is implemented (in PR): single-command execution across `CommandRegistry`, `SimpleRegistry`, `MockServer` and `MCPServer` shares `afd.core.single_executor.execute_command`; `DirectClient.pipe` delegates to core `execute_pipeline` behind a public-shape adapter; and public `execute_batch` and `execute_stream` (plus `ExecutorOptions`, `StreamExecutorOptions` and `CommandRegistryOptions`) are exported from `afd`, `afd.core` and `afd.server` with methods on all four registries/servers. Per-call contexts/tool surfaces remain the matrix's existing gap.
 
 ## Rust runtime (#546's split issues)
 
