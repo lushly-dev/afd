@@ -31,8 +31,9 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
   2026-11-14 and merged in #1234. On 2026-11-15 the owner decided its domain, its model and
   budget, and its bare arm, and an independent reader reviewed it. The owner confirmed its rules
   for "go" on 2026-11-21. Its application, held material and reference build are built; its
-  runner is written but for arm 2's statements and arm 3's skill, and its pilots and step 0.1's
-  first fifteen builds have run ([Step 0.1](#step-01)).
+  runner is written but for arm 2's statements and arm 3's skill. Its pilots, step 0.1 (ended at
+  its first fifteen builds by the owner's decision) and steps 0.3 and 0.4 have run
+  ([Step 0.1](#step-01), [Steps 0.3 and 0.4](#steps-03-and-04)); steps 0.2 and 0.5 are deferred.
 - **In progress:** the seed library's
   [jobs and drafted commands](bench/seed-library.md), drafted 2026-11-15 and merged in
   #1236: seventeen jobs as scenario files and twenty-four commands. The scenario checks
@@ -71,22 +72,22 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
   [the reference build](#the-reference-build).
 - **Not done:** for the proposal's own thirteen jobs, drafted commands, scenario files, the
   three scenario checks and reader walks; the owner's remaining answers; moving each part
-  into the proposal that owns it; step 0.1's other 30 builds and 10 readers, the rest of
-  phase 0, and phases A to D. See
+  into the proposal that owns it; steps 0.2, 0.5 and 0.6 of phase 0, and phases A to D. See
   [What is not done](#what-is-not-done).
-- **Blocked on:** the owner, after step 0.1's first fifteen builds ([Step 0.1](#step-01)):
-  arms 0 and 1 both pass nine checks in ten, so whether to go on is the owner's to decide, and
-  the weekly figure was not read when the builds ended, so how to measure the share of the
-  allowance is too, and so is confirming the reading that let the runs go on past a build
-  that reported no cost. Every session needs the owner's word, since it spends the owner's
-  allowance. Questions 4, 8, 9 and 10 of the proposal are open and
+- **Blocked on:** the owner choosing the next area after steps 0.3 and 0.4: tuning the
+  pipeline from what the walks showed, reshaping step 0.4's measure, or reshaping steps 0.2
+  and 0.5 ([Steps 0.3 and 0.4](#steps-03-and-04)). The owner's questions after step 0.1 were
+  answered on 2026-11-24 ([Step 0.1](#step-01)). Every session needs the owner's word, since it
+  spends the owner's allowance. Questions 4, 8, 9 and 10 of the proposal are open and
   block nothing yet.
 - **Order:** the owner answers the direction and ranks the draft jobs before commands are
   drafted, as the [Scales scaffold](../../active/scales/STATUS.md) does. The
   [jobs-first guide](../../../../.claude/skills/afd/references/jobs-first.md) puts the owner's
   ranking after the scenarios and the reader walks, and they still follow.
 - **Last verified:** 2026-11-24 for the reference build at `f4eeba0c` (308 of 308 checks on the
-  rebuilt scoring checkout) and step 0.1's first fifteen builds and their report.
+  rebuilt scoring checkout), step 0.1's first fifteen builds and their report, and steps 0.3
+  and 0.4: both builds proved, the walks' reports and the independent sample check
+  ([Steps 0.3 and 0.4](#steps-03-and-04)).
   2026-11-18 for the reference build at `f4eeba0c` (308 of 308 checks, its
   scripted browser runs clean), the twelve faults' proofs on both builds, three runs each, and the stage 2
   manifest. 2026-11-16 for section 5.10 and the two facts it added to section 2: the
@@ -120,8 +121,11 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
 | The bench: the runner | In progress. Written 2026-11-15 outside the repository, on the second machine's external drive, as the owner decided for the held material, and approved in its design by the owner the same day. Session setup, the `claude -p` session, the leak check, the budget and scoring the checks are written and tested without a model session, and two smoke sessions ran, the second inside the sandbox with the narrowed tools. Recorded in #1253. Walks, the reading of a path and the readers written 2026-11-18 and tested without a model session. Each step's report from 0.1 to 0.4 and step 0.2's statistics written 2026-11-21 and tested on invented runs. Not written: arm 2's statements and arm 3's skill | [The runner](#the-runner) |
 | The bench: the reference build | Done. Built 2026-11-15 outside the repository, on the second machine's external drive, kept there like the held material because it answers every task, T4 included; the session sandbox refuses it. All four screens, one story per state and the running app with its journal. It passes all 308 checks and every walked job runs end to end. Three reviewers of different models reviewed it, then a five-lens panel in four rounds, with three more checking the fixes; the owner looked at every state on 2026-11-16 and approved the result on 2026-11-18. The twelve faults are planted in a copy, each with its proof run on both builds. On 2026-11-21, by the owner's decision after a pilot walk, a refusal's feedback was corrected in both builds, with every proof and check run again ([The pilots](#the-pilots)). On 2026-11-24 the owner looked again at the screenshot page made on 2026-11-16 and marked none | [The reference build](#the-reference-build) |
 | The bench: the pilots | Done 2026-11-21, except the conversion, which step 0.1's first fifteen builds did not give either ([Step 0.1](#step-01)). Run at the owner's word: two builds and two walks, $3.67 at list prices, and on 2026-11-21 the bare build's reader. No leak, and no session over twice its line. The weekly figure was not read first. Their records are the runner's ledger and run folders and the held folder's notes on stage 2, committed with the record after phase 0 | [The pilots](#the-pilots) |
-| Phase 0, step 0.1 | In progress. The first fifteen of its 45 builds ran on 2026-11-21 at the owner's word, and on 2026-11-24 they were scored, the five bare builds' readers ran at the owner's word and the step's report was written. Paused for the owner: both arms pass nine checks in ten, and the weekly figure was not read when the builds ended | [Step 0.1](#step-01) |
-| Phase 0, steps 0.2 to 0.6 | Not started. Step 0.2 waits on step 0.1 and arm 2's statements | Proposal, section 7 |
+| Phase 0, step 0.1 | Done 2026-11-24 at its first fifteen of 45 builds, by the owner's decision: the builds ran on 2026-11-21 at the owner's word and were scored on 2026-11-24 with the five bare builds' readers. Both arms pass nine checks in ten; the owner approved the builds and ended the step there, since the process is what phase 0 proves | [Step 0.1](#step-01) |
+| Phase 0, steps 0.2 and 0.5 | Deferred by the owner on 2026-11-24: at arm 0's 92 to 95 %, a perfect arm 2 gains 5 to 8 points, short of step 0.2's 15, and step 0.5 builds on step 0.2's arm 2 | [Step 0.1](#step-01) |
+| Phase 0, step 0.3 | Done 2026-11-24, met: the panel found 12 of 12 planted faults, each modality's own persona 3 of 3; an independent reviewer, by the owner's decision, judged 20 of 20 matches right and 23 of 30 other findings real | [Steps 0.3 and 0.4](#steps-03-and-04) |
+| Phase 0, step 0.4 | Done 2026-11-24, not met: 3 of 13 pairs that meet a fault were worse in both seeded walks; a likely reason is that the path the rule reads counts only commands, so trouble a persona reports but works around does not show in it | [Steps 0.3 and 0.4](#steps-03-and-04) |
+| Phase 0, step 0.6 | Not started: the decision, after the owner chooses what of steps 0.2, 0.4 and 0.5 to reshape | Proposal, section 7 |
 | Phases A to D | Not started; each needs phase 0's decision | Proposal, section 7 |
 
 ## What is not done
@@ -130,8 +134,8 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
   jobs.** They are sentences, and nothing shows that commands can express them. The seed
   library's seventeen jobs are a different list: the bench's application, not this proposal's
   product.
-- **The bench is built but for arm 2's statements and arm 3's skill, and only its pilots and
-  step 0.1's first fifteen builds have run.** Its application is built and merged in #1239 (2026-11-15). Outside the repository, its
+- **The bench is built but for arm 2's statements and arm 3's skill, and steps 0.2, 0.5 and 0.6
+  have not run.** Its pilots, step 0.1's first fifteen builds and steps 0.3 and 0.4 have. Its application is built and merged in #1239 (2026-11-15). Outside the repository, its
   held material is written and frozen, its reference build is approved and a copy of it holds
   the faults, and its runner is written, its reports and statistics included (2026-11-21). The pilots and
   the first fifteen builds measured what a session costs at list prices, not what share of the
@@ -139,8 +143,10 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
 - **No reader has walked the proposal's jobs.** There are no commands to walk. The design
   direction is one session's draft, written with the owner in conversation and reviewed
   once.
-- **Nothing in it is measured.** Phase 0 exists to measure it. Its claim that a default pattern
-  set or a skill improves an agent's screens is untested, and Component Briefs' prototype is
+- **Little in it is measured.** Phase 0 exists to measure it. Step 0.3 showed a persona panel
+  finds planted faults (12 of 12) and step 0.1 that agents build screens passing nine checks in
+  ten without a default pattern set; its claim that a default pattern set or a skill improves an
+  agent's screens is untested, and Component Briefs' prototype is
   evidence that added context alone does not.
 - **Copying a default is not designed.** A record of source on a pattern file, the comparison
   by statement id, the source as it was, and how a product's screens are held to a copied
@@ -648,7 +654,8 @@ states have a story, by its reader (ruling 3), with its checks only as a diagnos
 
 - **Both arms already pass nine checks in ten.** Step 0.1's row in the
   [rules for "go"](bench.md#rules-for-go) leaves it to the owner whether to go on when arms 0
-  and 1 do, since a default then has little to fix. The mean in the table is over runs, so T3's
+  and 1 do, since a default then has little to fix (decided 2026-11-24: the step ends here,
+  below). The mean in the table is over runs, so T3's
   one run weighs half what T1's or T2's two do; averaged by screen, arm 0 is at 92.5 % and arm 1
   at 90.0 %, on the line. The rule reads the whole step; these are the first five runs an arm.
   T3 is where both fall short.
@@ -664,8 +671,8 @@ states have a story, by its reader (ruling 3), with its checks only as a diagnos
   was cut off when the program hosting the runs restarted; it never ended, so it reported no
   cost, and about $0.60 is an estimate. The Budget says a session that reports no cost stops
   the runs; the session running the builds read that as not meeting a session the runner
-  itself lost, and restarted the runs at once without asking the owner, so the reading is the
-  owner's to confirm. The runner's own ledger rule counts such a session at its maximum,
+  itself lost, and restarted the runs at once without asking the owner, so the reading was the
+  owner's to confirm (superseded: the owner accepted it on 2026-11-24, below). The runner's own ledger rule counts such a session at its maximum,
   $3.00, which would put the week at $28.93 rather than $26.53, still under the cap. One was
   thrown out by the leak check, at $1.56: a shell command named the session's own folder,
   above its tree, and Claude Code refused it, so nothing was read. Each was run again. The five
@@ -674,7 +681,8 @@ states have a story, by its reader (ruling 3), with its checks only as a diagnos
   reset, so the weekly figure stood at a full week before them. It was not read when they
   ended, and other sessions on that machine used the allowance in the days before anyone
   looked, so the fifteen builds do not give the share of the allowance a dollar takes. How to
-  measure it is the owner's.
+  measure it was the owner's (superseded: on 2026-11-24 the owner decided not to measure it
+  again for now, below).
 - **The scoring checkout, stripped again.** On 2026-11-23 the scoring checkout lost its
   packages and builds as well, and on 2026-11-24 the cause of both losses was found: Botcore's disk cleaner,
   run by other sessions on the second machine, strips build output from linked worktrees, which
@@ -685,8 +693,60 @@ states have a story, by its reader (ruling 3), with its checks only as a diagnos
   page looked right, none marked. That page was made on 2026-11-16, before the theme changed with
   the pin and before the refusal change of 2026-11-21; the owner approved the build on a phone
   on 2026-11-18, before that change. Its screenshots were taken again from the current build.
+- **The owner's decisions after it,** on 2026-11-24: the step ends at its first fifteen
+  builds, which are approved ("more interested in that we have proven the process than these
+  specific pages"; "the agents did a good job of making it very shippable. Tuning is just on
+  top"); the weekly figure is not measured again for now, so caps stay dollar figures the owner
+  sets; the reading that the no-cost stop does not meet a build cut off from outside is
+  accepted, and that build counts at its $3.00 maximum, putting the week at $28.93 before the
+  walks; and steps 0.2 and 0.5 wait until after the walks.
 - **Records:** the runner's ledger, run folders and report, committed with the record after
   phase 0.
+
+## Steps 0.3 and 0.4
+
+Run on 2026-11-24 on the second machine at the owner's word, under $50 for the batch, after a
+dry run of all of it with a stand-in for the model: five personas (two pointer, keyboard only,
+screen reader, low vision) walked each screen's job twice on the seeded build and once on the
+clean one, 60 walks, then a reader matched each seeded walk's findings to the planted faults,
+40 readers. Both builds were proved first: the seeded one carries all twelve faults, the clean
+one none. The walks cost $16.28 (none over $0.56) and the readers $1.92, $18.20 in all, with no
+stop, throw-out or error; the week stood at $47.13. The owner's aim for the panel, given that
+day: to catch the 85 to 95 % case and anything blocking, with people's feedback over time for
+the rest, not to replace human review.
+
+- **Step 0.3, met.** The panel found 12 of the 12 planted faults (the rule asks 8), 12 in its
+  first walks alone and 11 in its second. Each modality's own persona found all 3 faults aimed
+  at it, so two of three is met by one persona alone, as confirmed, and by the modality's
+  personas together.
+- **Its check, by an independent reviewer.** On 2026-11-24 the owner delegated the sample
+  check to an independent reviewer on GPT-6.2 Astra, in place of making it by hand. Astra at
+  `high`, a model family apart from the readers' (Claude Opus 5.5), judged from each walk's screenshots, or what
+  the screen reader said, and the persona's report, seeing the readers' reasons for the 20
+  matches (so those may lean on them) and not for the 30 other findings: 20 of the 20 sampled matches right, and 23
+  of the 30 sampled other findings real (the rule asks half). Three of those 23 are planted
+  faults the readers had not matched. Five
+  of the seven not real compared the application's fixed clock, set years ahead, with the
+  persona's own date. The material went to that machine outside any checkout and was removed
+  after.
+- **Step 0.4, not met.** Of the 13 persona and job pairs that meet a fault, 3 had a path worse
+  than the clean one in both seeded walks (the rule asks three quarters); all 7 pairs that meet
+  none stayed within the seeded walks' own spread. A likely reason, not shown: the path is read
+  from the application's journal and counts only commands, and each fault leaves a way past, as
+  designed, so a persona can report a fault (step 0.3) and still send the clean walk's
+  commands. The unfinished clean walks on T2, below, also
+  leave those pairs no room to be worse.
+- **A gap in the clean build.** On T2, three of the five personas left the job unfinished on the
+  clean build as well, at the same point, and their reports name what the screen does not
+  explain there. It is recorded with the held material, and the reference build is left as the
+  walks measured it.
+- **What to tune,** from the walks: tell a persona the application's date, since its fixed clock
+  made most of the findings that were not real; five walks ended without the word that says
+  whether the job was done; the readers missed three findings that were a fault's consequences;
+  and step 0.4 needs a measure that sees trouble a persona works around, such as whether a persona's report
+  names it.
+- **Records:** the runner's ledger, walk folders, reports and the reviewer's check, committed
+  with the record after phase 0.
 
 ## The reference build
 
@@ -838,6 +898,8 @@ Read on 2026-11-24, for the amendment of that day:
 | 2026-11-15 | The bench's runner, the smoke session | Proposals that discuss result states and design review (Patterns, Design Decisions, Screens from Jobs, Pointing, Scales, Component Briefs) are in every arm's tree. The runner counts reads of them; whether to remove them is the owner's call | Closed 2026-11-15: the owner decided to remove them from every arm's tree, and the runner does |
 | 2026-11-21 | The pilots | The scoring checkout's Rust builds (Specimen's host, Umbel's components server) were deleted on 2026-11-20 by something other than the runner; the cause is unknown. The runner now refuses to start build sessions or score without them | Closed 2026-11-24: Botcore's disk cleaner, run by other sessions on the second machine, strips build output from linked worktrees, which the scoring checkouts are. The checkout in use is now kept with `botcore disk-keep` |
 | 2026-11-24 | Step 0.1 | The leak check throws out a build whose shell command names the session's own folder, the one above its tree, though Claude Code refuses the change of directory and nothing is read: one build of the first fifteen, $1.56, went that way | Closed 2026-11-24, not changed: that folder also holds the session's server configuration and sandbox profile, so the check is right to count it. A throw-out for this cause counts toward the runner's limit like any other: a run thrown out a third time stops the runs |
+| 2026-11-24 | Steps 0.3 and 0.4 | A persona is not told the application's date, so it compares the fixed clock with its own and reports dates as wrong: five of the seven findings judged not real in the sample. The persona prompt could name the date. Changing it is a change to the walks, for the owner | Open |
+| 2026-11-24 | Steps 0.3 and 0.4 | Step 0.4's path, read from the journal, counts only commands and may not show trouble a persona reports but works around, a likely reason its rule was not met (3 of 13). A measure that does, such as whether a persona's report names the trouble, is the owner's to choose | Open |
 | 2026-11-24 | The comparison with UI SDK | UI SDK's benchmark task is public (`benchmarks/agent` in `vercel-labs/ui`): one settings screen, where its bridge took 2 tool calls and 21.8k tokens. No AFD application has been measured on it, so that commands need fewer calls than a bridge is reasoning, not a result. Running the task against an AFD application through its commands would measure it | Open; the owner's call |
 
 ## Session log
@@ -868,6 +930,7 @@ Read on 2026-11-24, for the amendment of that day:
 | 2026-11-18 | The faults, and the freeze of stage 2 | The pinned commit moved to `42473ccc`, then to `f4eeba0c` with AFD's Refined theme as Violet's default; the checks stand and the reference build passes all 308 at each. The owner looked at it again on a phone and approved it. The twelve faults were planted in a copy, eight reworded to fit the build, and each proof ran three times on both builds with the expected result every time. An independent reviewer read the faults, proofs and walks, stage 2 was frozen, and its manifest's hash recorded here. `bench.md` now says stage 2 was frozen before any walk, the pilots' included, as the held material's own record says. Recorded in #1574 |
 | 2026-11-20 | The pilots | On 2026-11-18 the runner's walks and readers were written and reviewed with no model session, the walks on a server of the runner's on Playwright rather than Botcore's `cdp_*` commands. The owner gave the word for the four pilots under a cap of $15, and for filing #1699, which the owner's phone look had met. The two builds and two walks ran for $3.67 at list prices with no leak; a build costs about its line and a walk far less. The weekly figure was not read first, so step 0.1's first fifteen builds give the conversion (superseded: they did not; see the 2026-11-24 row). Three runner changes followed: two faults fixed, and the screen reader hearing live regions inside shadow roots. On 2026-11-21 the owner agreed to run the bare build's reader ($0.18), to cap the first fifteen builds at $50, and to correct a refusal's feedback in the reference build, done in both builds with every proof and check as before. Recorded in #1811 |
 | 2026-11-21 | The rules for "go", and step 0.1's first fifteen builds | The owner confirmed the rules for "go" and the reading of a path for step 0.4 as proposed, reading step 0.3's "a persona of that modality" as one persona alone, and gave the word for the first fifteen builds under a cap of $50. The runner's reports of steps 0.1 to 0.4 and step 0.2's statistics were written and tested on invented runs. The allowance week's reset was corrected to 04:00. The builds ran after the reset for $25.67 at list prices, one cut off and one thrown out among them, and paused for the owner |
-| 2026-11-24 | Step 0.1's first fifteen builds, scored | The owner looked again at the reference build's screenshot page made on 2026-11-16 and marked none. The scoring checkout was found stripped a second time, by Botcore's disk cleaner, which also explains 2026-11-20; it was rebuilt, scores the reference build 308 of 308, and is kept from the cleaner. The builds were scored, the five bare builds' readers ran at the owner's word for $0.86, and the step's report was written. Both arms pass nine checks in ten, which puts whether to go on to the owner, and the weekly figure was not read when the builds ended, so they give no conversion |
+| 2026-11-24 | Step 0.1's first fifteen builds, scored | The owner looked again at the reference build's screenshot page made on 2026-11-16 and marked none. The scoring checkout was found stripped a second time, by Botcore's disk cleaner, which also explains 2026-11-20; it was rebuilt, scores the reference build 308 of 308, and is kept from the cleaner. The builds were scored, the five bare builds' readers ran at the owner's word for $0.86, and the step's report was written. Both arms pass nine checks in ten, which puts whether to go on to the owner, and the weekly figure was not read when the builds ended, so they give no conversion (superseded: the owner decided on 2026-11-24, in the Steps 0.3 and 0.4 row) |
 | 2026-11-24 | The screen an agent sees | The owner asked how UI SDK's concepts align with AFD's FAST-AF components. Its documentation was read: a core of interface behaviours with five renderers, and a bridge through which an agent reads and changes the components on a page. The bridge is close to what `fast-element`'s command layer was before #1398, and to what epic #1385's step 8 plans for `afd-view-state`. Asked whether an agent inside an application should see and fill what is on the screen, the owner agreed, with no actions declared by components. Section 5.10 gains the row and UI SDK as a published design to compare, and question 13 the answer in the owner's words. Where its code goes, in `afd-view-state` or in a layer of its own, and how much of the screen an agent sees, stay open. Two independent reviewers found five blockers, all fixed. Nothing was built |
 | 2026-11-24 | The owner's clarification | Asked which layer the answer of that day had meant, the owner said it was a case for a designed path, a system built to let an agent edit controls and their content, over a workaround of a command that sets values and code in the interface that applies them. Question 13 gains the reply, and the 5.10 row and section 6 now point at the [Controls proposal](../../active/controls/controls.proposal.md), written the same day, which places the code and carries what is still the owner's to decide |
+| 2026-11-24 | Steps 0.3 and 0.4 | The owner ended step 0.1 at its fifteen approved builds, decided not to measure the weekly figure again for now, counted the cut-off build at its maximum, and deferred steps 0.2 and 0.5. At the owner's word the 60 walks and 40 readers ran for $18.20 after a clean dry run. Step 0.3 is met: 12 of 12 faults found; an independent reviewer on GPT-6.2 Astra, by the owner's decision, judged 20 of 20 matches right and 23 of 30 other findings real. Step 0.4 is not met, 3 of 13; its path counts only commands and likely misses trouble a persona works around. What to tune is recorded |

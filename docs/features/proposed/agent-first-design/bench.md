@@ -11,8 +11,8 @@ owner to approve the domain and the budget before any session runs. Read
   material is written and frozen, the runner is written, its reports and statistics included
   ([STATUS.md](STATUS.md#the-runner)), and the reference build is written,
   reviewed and approved by the owner, and a copy of it holds the faults
-  ([STATUS.md](STATUS.md#the-reference-build)). The pilots and step 0.1's first fifteen builds have run
-  ([STATUS.md](STATUS.md#step-01)).
+  ([STATUS.md](STATUS.md#the-reference-build)). The pilots, step 0.1's first fifteen builds and steps 0.3
+  and 0.4 have run ([STATUS.md](STATUS.md#steps-03-and-04)).
 - **Decided by the owner on 2026-11-15** ([For the owner](#for-the-owner)): the domain, the
   model, the bare arm, and the budget. The sessions run on a second machine of the owner's,
   draw on its subscription allowance and not on API billing, and take no more than a fifth
@@ -22,6 +22,11 @@ owner to approve the domain and the budget before any session runs. Read
 - **Confirmed by the owner on 2026-11-21:** the [rules for "go"](#rules-for-go) and how step
   0.4 reads a path, as proposed, with step 0.3's "a persona of that modality" read as one
   persona alone.
+- **Decided by the owner on 2026-11-24,** after step 0.1's first fifteen builds: step 0.1
+  ends there; the weekly figure is not measured again for now; steps 0.2 and 0.5 are deferred;
+  and step 0.3's check of matches and findings is made by an independent reviewer of another
+  model family in place of the owner ([STATUS.md](STATUS.md#step-01),
+  [STATUS.md](STATUS.md#steps-03-and-04)).
 - **Not approved:** the rest of this file. The owner was asked three questions, which cover the points above, and later ruled on the
   runner's points named there; nothing else here is the owner's.
 - **Measured:** the cost and size of a page-building session, from the [Component Briefs
@@ -293,7 +298,7 @@ the two-fault threshold on its own. Every persona's findings count toward the pa
 | --- | --- |
 | 0.1 | No rule. It records what goes wrong. If arms 0 and 1 pass nine checks in ten, there is little for a default to fix, and the owner decides whether to go on. If runs of one arm differ so much that fifteen cannot resolve 15 points, the owner chooses, before arm 2 runs, whether both arms get more runs |
 | 0.2 | On T1 to T3, arm 2's mean share of checks passed is at least 15 points above arm 0's, at p < 0.05 by the test in [Scoring](#scoring). Arm 2's median tokens are no more than 20 % above arm 0's. T4 is reported beside it and is not part of the rule: five runs against five cannot resolve it |
-| 0.3 | Of the 12 planted faults, the panel reports at least 8 in at least one of its two walks of the seeded build, and of the 3 aimed at each modality, a persona of that modality reports at least 2. The share found in a single walk is reported beside it. A reader matches findings to faults, and the owner checks 20 of those matches. At least half of a sample of the panel's other findings, up to 30, are real in the owner's judgement |
+| 0.3 | Of the 12 planted faults, the panel reports at least 8 in at least one of its two walks of the seeded build, and of the 3 aimed at each modality, a persona of that modality reports at least 2. The share found in a single walk is reported beside it. A reader matches findings to faults, and the owner checks 20 of those matches. At least half of a sample of the panel's other findings, up to 30, are real in the owner's judgement (on 2026-11-24 the owner delegated both the match check and the judgement of other findings to an independent reviewer of another model family; [STATUS.md](STATUS.md#steps-03-and-04)) |
 | 0.4 | A persona and job pair meets a fault when its screen carries a fault aimed at its modality. A path is worse when the job's last command never ran, or when failed commands, repeated commands and commands outside the scenario's steps add up to more. In at least three quarters of the pairs that meet a fault, the path is worse than the clean one in both walks of the seeded build. In the pairs that meet none, if there are any, that total on a seeded walk differs from the clean walk's by no more than the two seeded walks' totals differ from each other |
 | 0.5 | The owner, blind, prefers arm 3's build in at least 10 of 12 pairs with arm 2's, which chance alone gives about one time in fifty. The pairs are three a screen, each an arm 2 build and an arm 3 build of that screen drawn at random. Arm 3's mean share of checks passed is not below arm 2's. Otherwise the skill is not written |
 
@@ -370,7 +375,8 @@ a list of the scenario's steps, and the journal is read against it:
 - **The owner's time,** which no session replaces: confirming the rules for "go"; naming the
   faults in a blind sample of 12 of step 0.1's builds, two each from arms 0 and 1 for each
   screen; approving the statements; looking at the reference build; checking 20 of the
-  readers' matches and judging up to 30 findings in step 0.3; choosing between 12 pairs in
+  readers' matches and judging up to 30 findings in step 0.3 (delegated by the owner on
+  2026-11-24 to an independent reviewer; [STATUS.md](STATUS.md#steps-03-and-04)); choosing between 12 pairs in
   step 0.5; the decision in step 0.6.
 
 ## When it runs
