@@ -127,9 +127,14 @@ export const WORKFLOW_GRAPH = {
 		],
 	},
 	'botcore.yml': {
-		usesSetupAction: false,
-		groups: ['botcore', 'python'],
-		extra: ['.github/workflows/publish-botcore.yml'],
+		// The core tests run the gate outcome jobs through AFD's scenario runner, which is
+		// afd-testing built with its dependencies.
+		usesSetupAction: true,
+		groups: ['botcore', 'python', 'afdCore', 'afdServer', 'afdClient', 'afdTesting', 'pnpmLock'],
+		extra: [
+			'.github/workflows/publish-botcore.yml',
+			'docs/features/active/test-effectiveness/scenarios/**',
+		],
 	},
 	'conformance.yml': {
 		usesSetupAction: true,

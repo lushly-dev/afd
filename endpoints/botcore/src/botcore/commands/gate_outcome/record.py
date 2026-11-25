@@ -6,7 +6,7 @@ rewritten; each has an `id`, the version of the rules that made it (`v`) and whe
 (`at`). A fact learned later is a newer line for the same id, and a reader keeps the newest.
 `state.json` beside it says which spans of time were listed and how the last collection ended.
 
-Three kinds of line:
+Four kinds of line:
 
 - `run`: one attempt of a workflow run, as the run list or the attempt says: the workflow's
   file and name, the event, the attempt, the revision tested and its base, the pull request's
@@ -15,8 +15,14 @@ Three kinds of line:
 - `shape`: the names of a workflow's jobs and their steps, once for each version of them. Its
   id is `shape:<digest of the names>`.
 - `steps`: for one attempt, the seconds of each job and step, in its shape's order, and, for
-  an attempt that did not pass, each one's conclusion. `unreadable` marks an attempt GitHub no
-  longer has.
+  an attempt that did not pass or where a job or step did not succeed (one skipped included),
+  each one's conclusion. `groups` gives, for each job with a hook group step, its place in the
+  shape and GitHub's id for it, so its log can be read later. `unreadable` marks an attempt
+  GitHub no longer has.
+- `group`: for one attempt, what the hook runner's closing summary said in each hook group step
+  whose log was read: each command's name, how it ended and its seconds. A command's name is
+  kept only when the group has it at the default branch's tip, so no text of the log is kept;
+  a summary that could not be read says why, from a fixed list.
 
 Nothing else is kept: no log, no output, no title, no branch name, no file contents.
 
@@ -41,12 +47,18 @@ from botcore.commands.disk.steps import doing
 from botcore.commands.skill_usage.store import Local
 
 STATE_ENV = "BOTCORE_GATE_OUTCOME_STATE"
-RULES = 1  # the version of the rules lines are made by
+# The version of the rules lines are made by. 2: a passed attempt keeps its conclusions where
+# a job or step did not succeed, so a step that was skipped is told from one that passed
+RULES = 2
 RECORD_FILE = "record.jsonl"
 STATE_FILE = "state.json"
 LOCK_FILE = "collect.lock"
 SHARED_FOLDER = "gate-outcome"  # inside a machine's folder in the shared one
-KINDS = ("run", "shape", "steps")
+KINDS = ("run", "shape", "steps", "group")
+# How reading a group step's summary ended: read, or why not
+SUMMARY = ("read", "no-summary", "mismatch", "log-gone", "unreadable")
+COMMAND_ENDS = ("passed", "failed")
+COMMAND = re.compile(r"[A-Za-z0-9][A-Za-z0-9 :_.@+-]{0,99}")  # a command name the record keeps
 _PART = re.compile(r"[a-z0-9_][a-z0-9._-]{0,99}")
 _SHA = re.compile(r"[0-9a-f]{40}")
 _NAME_MAX = 300  # longer than any workflow, job or step name GitHub allows
@@ -58,6 +70,11 @@ _DEVICES = {
     "nul",
     *(f"{port}{n}" for port in ("com", "lpt") for n in range(10)),
 }
+
+
+def now() -> datetime:
+    """The time, from one place, so a scenario harness can set it."""
+    return datetime.now(UTC)
 
 
 def state_dir() -> Path:
@@ -141,8 +158,8 @@ def shape_digest(workflow: str, jobs: list) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:24]
 
 
-def checked(line: object) -> dict | None:  # noqa: C901, PLR0911 - one check per field
-    """A line as this botcore can use it: one of the three kinds with every field of the type
+def checked(line: object) -> dict | None:  # noqa: C901, PLR0911, PLR0912 - one check per field
+    """A line as this botcore can use it: one of the four kinds with every field of the type
     it should have, and nothing else (`checked` drops unknown fields, so a hand or another
     program cannot put text into what is shared). None for anything else."""
     if not isinstance(line, dict) or line.get("kind") not in KINDS:
@@ -164,6 +181,11 @@ def checked(line: object) -> dict | None:  # noqa: C901, PLR0911 - one check per
     run, attempt = line.get("run"), line.get("attempt")
     if not _count(run) or not _count(attempt) or identifier != f"{kind}:{run}:{attempt}":
         return None
+    if kind == "group":
+        entries = line.get("steps")
+        if not isinstance(entries, list) or not all(_group_entry(e) for e in entries):
+            return None
+        return {**base, "run": run, "attempt": attempt, "steps": entries}
     if kind == "steps":
         shape, seconds, ends = line.get("shape"), line.get("seconds"), line.get("conclusions")
         if not _opt(shape, lambda s: isinstance(s, str) and len(s) == 24):  # noqa: PLR2004
@@ -174,10 +196,15 @@ def checked(line: object) -> dict | None:  # noqa: C901, PLR0911 - one check per
             or not _opt(ends, lambda e: _nested(e, _conclusion, len(seconds)))
         ):
             return None
+        groups = line.get("groups")
+        if not _opt(groups, lambda g: isinstance(g, list) and all(_pair(p) for p in g)):
+            return None
         unreadable = line.get("unreadable") is True
         out = {**base, "run": run, "attempt": attempt, "shape": shape, "seconds": seconds}
         if ends is not None:
             out["conclusions"] = ends
+        if groups:
+            out["groups"] = groups
         if unreadable:
             out["unreadable"] = True
         return out
@@ -196,6 +223,30 @@ def checked(line: object) -> dict | None:  # noqa: C901, PLR0911 - one check per
     if line.get("unreadable") is True:  # read once, and GitHub no longer has it
         out["unreadable"] = True
     return out
+
+
+def _pair(value: object) -> bool:
+    return isinstance(value, list) and len(value) == 2 and all(_count(v) for v in value)  # noqa: PLR2004
+
+
+def _group_entry(value: object) -> bool:
+    """`[job, step, how the read ended, commands not kept, [[command, end, seconds], ...]]`."""
+    if not (isinstance(value, list) and len(value) == 5):  # noqa: PLR2004
+        return False
+    job, step, status, dropped, commands = value
+    if not (_name(job) and _name(step) and status in SUMMARY and _count(dropped)):
+        return False
+    if not isinstance(commands, list):
+        return False
+    for command in commands:
+        if not (isinstance(command, list) and len(command) == 3):  # noqa: PLR2004
+            return False
+        name, end, seconds = command
+        if not (isinstance(name, str) and COMMAND.fullmatch(name) and end in COMMAND_ENDS):
+            return False
+        if not (seconds is None or (type(seconds) in (int, float) and 0 <= seconds < 10**6)):  # noqa: PLR2004
+            return False
+    return True
 
 
 RUN_FACTS = (
@@ -272,6 +323,8 @@ def _rank(line: dict, machine: str) -> tuple:
     for a run what GitHub last updated, then the later written, then the machine by name."""
     if line["kind"] == "steps":
         known = not line.get("unreadable") or bool(line["seconds"])
+    elif line["kind"] == "group":  # one that read a summary outranks one that could not
+        known = sum(entry[2] == "read" for entry in line["steps"])  # type: ignore[assignment]
     else:
         known = line.get("status") != "unreadable"
     updated = line.get("updated") or "" if line["kind"] == "run" else ""
@@ -284,6 +337,7 @@ class Record:
 
     runs: dict[str, dict] = field(default_factory=dict)  # id -> newest run line
     steps: dict[str, dict] = field(default_factory=dict)  # id -> newest steps line
+    groups: dict[str, dict] = field(default_factory=dict)  # id -> newest group line
     shapes: dict[str, dict] = field(default_factory=dict)  # digest -> shape line
     states: dict[str, dict] = field(default_factory=dict)  # machine -> its state
     unreadable: dict[str, int] = field(default_factory=dict)  # machine -> lines not read
@@ -300,7 +354,8 @@ class Record:
         held = self._ranks.get(line["id"])
         if held is None or rank > held:
             self._ranks[line["id"]] = rank
-            (self.runs if line["kind"] == "run" else self.steps)[line["id"]] = line
+            kept = {"run": self.runs, "steps": self.steps, "group": self.groups}[line["kind"]]
+            kept[line["id"]] = line
 
     @property
     def empty(self) -> bool:
@@ -414,7 +469,10 @@ def publish(folder: Path, shared: Path, machine: str, repo: str) -> bool:
     newest = Record()
     for line in lines:
         newest.add(line, machine)
-    kept = [*newest.shapes.values(), *newest.runs.values(), *newest.steps.values()]
+    kept = [
+        *newest.shapes.values(), *newest.runs.values(), *newest.steps.values(),
+        *newest.groups.values(),
+    ]  # fmt: skip
     record = b"".join(_serialize(line) for line in sorted(kept, key=lambda line: line["id"]))
     theirs = load_state(target).get("record_id")
     if theirs and theirs != state.get("record_id"):

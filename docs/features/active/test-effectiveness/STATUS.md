@@ -33,6 +33,37 @@ The proposal lists six under "For the owner to decide". Each has its own line he
 
 ## Findings
 
+### 2026-11-25: the report by check on real data (#2482)
+
+- With `ci-ok.yml` named as the verdict in a scratch configuration, the totals for 17 to 23 Nov
+  are the proposal's: on pull requests 8,237 runs, 313 failed (5,680 passed, 1,315 cancelled,
+  929 `action_required`, 30 passed on a later attempt), and in the queue 23 of 363 groups with
+  a failed run. Without it they are 9,542 and 437, as the finding of 2026-11-24 says.
+- A failed `Quality gate` step has its failing command named: in run 45393856666, a
+  pull request's `ci.yml` run on 24 Nov, attempt 1's summary gives `test` failed after 194
+  seconds and 18 commands passed. `process` is absent because it joined the group (#2453) after
+  that run, so it counts as not run there. The run passed on attempt 2, and a run counts as its
+  latest attempt, so the failure shows in the check's `examples` and not in its row until
+  attempt 2's steps are read.
+- A collection of 17 to 25 Nov held to 1,000 requests spent about 460 on the lists and earlier
+  attempts of 25,915 runs, then read the jobs of 528 attempts that did not pass, newest first,
+  and one log. Every run of 25 Nov (listed to 04:45) that did not pass has its steps, but
+  `steps_share` for that day is 0.18: a passed run's steps come after every run in the window
+  that did not pass. Until passed runs are read, rows by check count mostly failed and cancelled
+  runs. At one request an attempt, a day here costs 2,800 to 9,000 requests for its jobs alone,
+  which #2484's hourly step has to fit into the allowance.
+- A deleted workflow (path `BuildFailed`, no name, created 23 Nov) keeps starting `workflow_run`
+  runs, triggered by the release tags app, that fail at startup: 1,406 on 23 Nov, 4,036 on
+  24 Nov and 1,388 on 25 Nov to 04:45. #2481's collection refused their nameless lines and
+  dropped them; a run with no name now goes by its path and counts among other events, so the
+  754 runs of other events in the finding of 2026-11-24 leave out about 1,400 of these. Why
+  they start is not this plan's to answer.
+- 22 and 23 Nov listed 5,150 and 8,955 runs, three to five times the other days of the week,
+  and 23 Nov had 1,130 runs that did not pass, most of them cancelled.
+- The generated local suites are not among the checks known yet: a local step maps to a check
+  only once the generator names its origin (phase 2), so until then they would be checks of
+  their own that no collected run can observe.
+
 ### 2026-11-24: the first collection of 17 to 23 Nov (#2481)
 
 - The report by workflow on pull requests gives the nine rows of the proposal's table: runs and
@@ -45,7 +76,7 @@ The proposal lists six under "For the owner to decide". Each has its own line he
   botcore setting could name it, but every section of botcore's configuration refuses a key it
   does not know, so a new key in the repository's `botcore.toml` would stop each machine's older
   botcore from reading the file. Deciding how the verdict is left out is open; until then a
-  reader takes its row off.
+  reader takes its row off. (Superseded: decided and built, see the finding of 2026-11-25.)
 - GitHub drops a pull-request run's link to its pull request once the pull request is closed:
   of the 11,529 pull-request runs listed from 17 to 25 Nov, 11,208 (97%) had no pull request
   and so no base revision. A merge-queue run's base comes from its branch name and was there for
@@ -63,7 +94,8 @@ The proposal lists six under "For the owner to decide". Each has its own line he
   proposal's table exactly; see the finding of 2026-11-24 for the verdict and the base revision.
 
 - The checks known, the report by check with quiet and not-observed checks, and a group step's
-  failing command (#2482): not started; follows #2481.
+  failing command (#2482): built and in review in #2535; scenarios 01 and 03 run in Botcore's
+  core tests, 03's steps 3, 4 and 6 waiting on #2483. See the finding of 2026-11-25.
 
 - The fix commits and the escapes they close, and the report by area (#2483): not started; follows
   #2481.
@@ -76,6 +108,11 @@ The proposal lists six under "For the owner to decide". Each has its own line he
 
 - The Botcore release that carries the commands, installed on each machine (the maintainer's): not
   started; follows #2484.
+
+- Naming the verdict in this repository's `botcore.toml` (the maintainer's): not started; follows
+  the release. Once that Botcore is installed on every machine, add `[gate_outcome]
+  verdict_workflows = ["ci-ok.yml"]`; an older Botcore refuses a key it does not know, so it
+  cannot go in before.
 
 ## Phase 2. Findings to checks
 

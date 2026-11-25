@@ -1,23 +1,33 @@
-"""`gate-outcome-report`: how often each workflow ran in each event, how its runs ended and what
-they cost, from every machine's gate outcome record. Read-only.
+"""`gate-outcome-report`: how often each workflow, or each check, ran in each event, how its runs
+ended and what they cost, from every machine's gate outcome record. Read-only.
 
 A run is counted once, as its latest attempt, in the window of whole UTC days its creation
 falls in. How a run ended is never merged: passed, failed, cancelled, `action_required`,
 skipped (and any other conclusion, as `other`) are counted apart. A run still going is in no
-count and is named in `warnings`.
+count and is named in `warnings`. By check, see report_checks.py.
+
+A repository can name its verdict workflows (botcore.toml `[gate_outcome] verdict_workflows`):
+one that judges the others fails whenever another did, so it keeps its own row, marked, and the
+totals and the queue's failed groups leave it out and say so.
 """
 
 from __future__ import annotations
 
 import difflib
+import tomllib
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 from afd import CommandResult, error, success
+from pydantic import ValidationError
 
 from botcore.commands.disk.settings import SettingsError
 from botcore.commands.disk.steps import run_blocking
+from botcore.commands.gate_outcome import record as record_module
+from botcore.commands.gate_outcome.checks import Known, read_known, toplevel
 from botcore.commands.gate_outcome.collect import (
     FRESH,
     MAX_DAYS,
@@ -36,13 +46,30 @@ from botcore.commands.gate_outcome.record import (
     repo_folder,
     state_dir,
 )
+from botcore.commands.gate_outcome.report_checks import (
+    by_check,
+    close_checks,
+    observed_ids,
+    observed_jobs,
+)
 from botcore.commands.skill_usage.collect import settings_refused
 from botcore.commands.skill_usage.store import InvalidMachine, local
+from botcore.config import GateOutcomeConfig, config_table
 
 EVENTS = ("pull_request", "merge_group", "schedule", "push", "workflow_dispatch")
 WHERE = (*EVENTS, "local")  # the plan's values; `local` is not collected yet
 BY = ("workflow", "check", "area", "class", "decision")  # the plan's groupings
-BY_BUILT = ("workflow",)
+BY_BUILT = ("workflow", "check")
+# The plan's filters, and the groupings each goes with
+FILTERS = ("where", "workflow", "check", "area", "finding_class", "decision", "pull_request", "due")
+GOES_WITH = {
+    "workflow": ("where", "workflow"),
+    "check": ("where", "workflow", "check"),
+    "area": ("area",),
+    "class": ("finding_class", "area", "check", "decision", "pull_request"),
+    "decision": ("check", "area", "due"),
+}
+SOURCES = ("ci", "main", "reviews", "runs")  # the plan's; this botcore collects `ci`
 SORTS = ("minutes", "failed", "runs")
 DEFAULT_LIMIT, MAX_LIMIT = 25, 200
 WALL_CAP = timedelta(hours=6)  # a run's wall time counts at most this
@@ -72,8 +99,9 @@ def _validation(message: str, suggestion: str) -> CommandResult[dict]:
 
 
 def _check_inputs(  # noqa: PLR0911, PLR0913 - one refusal per input
-    days: int, ending_days_ago: int, by: str, where: str | None, sort: str, limit: int
-) -> CommandResult[dict] | None:
+    days: int, ending_days_ago: int, by: str, where: str | None, sort: str, limit: int,
+    filters: Mapping[str, object],
+) -> CommandResult[dict] | None:  # fmt: skip
     if type(days) is not int or not 1 <= days <= MAX_DAYS:
         return _validation(
             f"days must be a whole number from 1 to {MAX_DAYS}",
@@ -91,7 +119,18 @@ def _check_inputs(  # noqa: PLR0911, PLR0913 - one refusal per input
     if by not in BY_BUILT:
         return _validation(
             f"This botcore does not report by {by} yet",
-            f"Pass by: {', '.join(BY_BUILT)}, the grouping this botcore reports",
+            f"Pass by: {' or '.join(BY_BUILT)}, the groupings this botcore reports",
+        )
+    given = [name for name in FILTERS if filters.get(name) is not None]
+    stray = [name for name in given if name not in GOES_WITH[by]]
+    if stray:
+        name = stray[0]
+        others = [grouping for grouping, names in GOES_WITH.items() if name in names]
+        return error(
+            "INVALID_INPUT",
+            f"The filter {name} does not go with by {by}",
+            suggestion=f"With by {by}, filter by {', '.join(GOES_WITH[by])}; {name} goes with "
+            f"by {' or '.join(others)}",
         )
     if where is not None and where not in WHERE:
         return _validation(
@@ -103,6 +142,9 @@ def _check_inputs(  # noqa: PLR0911, PLR0913 - one refusal per input
             "Local runs are not collected by this botcore yet",
             f"Pass where as one of {', '.join(EVENTS)}, or leave it out for every event",
         )
+    for name in ("workflow", "check"):
+        if filters.get(name) is not None and not isinstance(filters[name], str):
+            return _validation(f"{name} must be text", f"Pass {name} as it is written")
     if sort not in SORTS:
         return _validation(
             f"sort must be one of {', '.join(SORTS)}",
@@ -122,6 +164,7 @@ class Row:
     where: str
     name: str = ""
     named_at: str = ""
+    verdict: bool = False
     counts: Counter = field(default_factory=Counter)
     later: Counter = field(default_factory=Counter)  # passed after: failed, cancelled, unknown
     wall: float = 0.0  # seconds
@@ -135,6 +178,8 @@ class Row:
     def to_json(self) -> dict:
         data: dict = {"workflow": self.name, "file": self.file, "where": self.where,
                       "runs": self.runs}  # fmt: skip
+        if self.verdict:
+            data["verdict"] = True
         for end in COUNTS:
             if end != "other" or self.counts[end]:
                 data[end] = self.counts[end]
@@ -155,17 +200,30 @@ def rate(counts: Counter) -> dict:
     return {"rates": "given", "failed_per_100_completed": round(100 * counts["failed"] / over, 1)}
 
 
+def later_kind(earlier: list[str], missing: bool) -> str | None:
+    """What came before a pass on a later attempt, from how the earlier attempts ended."""
+    if "failed" in earlier:
+        return "failed"
+    if "cancelled" in earlier:
+        return "cancelled"
+    if missing:
+        return "unknown"  # an earlier attempt not read yet
+    return None  # passed again after passing: no failure to follow
+
+
 def _file(path: str) -> str:
     return path.rsplit("/", 1)[-1]
 
 
-def _known_workflows(record: Record) -> dict[str, set[str]]:
+def _known_workflows(record: Record, known: Known | None = None) -> dict[str, set[str]]:
     """Each workflow's file path, by every way a person may name it: its name, its file."""
-    known: dict[str, set[str]] = {}
+    found: dict[str, set[str]] = {}
     for line in record.runs.values():
         for name in (line["name"], _file(line["workflow"]), line["workflow"]):
-            known.setdefault(name.lower(), set()).add(line["workflow"])
-    return known
+            found.setdefault(name.lower(), set()).add(line["workflow"])
+    for file in known.files if known else ():
+        found.setdefault(file.lower(), set()).add(f".github/workflows/{file}")
+    return found
 
 
 def _unknown_workflow(workflow: str, record: Record) -> CommandResult[dict]:
@@ -181,46 +239,220 @@ def _unknown_workflow(workflow: str, record: Record) -> CommandResult[dict]:
     )
 
 
+def _unparsed(top: Path) -> str | None:
+    """The configuration file botcore would read that does not parse, if one does not."""
+    for name in ("pyproject.toml", "botcore.toml"):
+        path = top / name
+        try:
+            data = tomllib.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            continue
+        except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
+            return name
+        if name == "pyproject.toml" and "botcore" not in data.get("tool", {}):
+            continue
+        return None
+    return None
+
+
+def verdict_workflows(root: Path, record: Record) -> tuple[set[str], list[str]]:
+    """The paths of the workflows the repository's botcore.toml (at the top of the checkout,
+    as it is in the working tree) names as verdicts, and what to warn of."""
+    top = toplevel(root)
+    broken = _unparsed(top)
+    if broken:
+        return set(), [f"{broken} does not parse: no verdict workflow is left out of the totals"]
+    table = config_table(top).get("gate_outcome", {})
+    try:
+        names = GateOutcomeConfig.model_validate(table).verdict_workflows
+    except ValidationError as exc:
+        first = exc.errors()[0]
+        return set(), [
+            f"botcore.toml's [gate_outcome] is not valid for this botcore ({first['msg']}): "
+            "no verdict workflow is left out of the totals"
+        ]
+    known = _known_workflows(record)
+    paths: set[str] = set()
+    warnings = []
+    for name in names:
+        found = known.get(name.lower())
+        if found:
+            paths |= found
+        else:
+            warnings.append(
+                f"The verdict workflow {name} named in botcore.toml is not in the record"
+            )
+    return paths, warnings
+
+
 async def gate_outcome_report(  # noqa: PLR0913 - the command's inputs
     days: int = 7,
     ending_days_ago: int = 0,
     by: str = "workflow",
     where: str | None = None,
     workflow: str | None = None,
+    check: str | None = None,
+    area: str | None = None,
+    finding_class: str | None = None,
+    decision: str | None = None,
+    pull_request: int | None = None,
+    due: bool | None = None,
     sort: str = "minutes",
     limit: int = DEFAULT_LIMIT,
 ) -> CommandResult[dict]:
-    """Report, for the repository of this checkout, each workflow's runs in each event over a
-    window of whole UTC days: how they ended, counted apart, their wall hours and, for the
-    merge queue, its groups and how many had a failure. Read-only.
+    """Report, for the repository of this checkout, each workflow's or each check's runs in
+    each event over a window of whole UTC days: how they ended, counted apart, what they cost
+    and, for the merge queue, its groups and how many had a failure. Read-only.
 
     Args:
         days: Whole UTC days in the window: 1 to 365 (default 7).
         ending_days_ago: The window's last day is this many days before today: 0 to 365.
-        by: `workflow`. The plan's `check`, `area`, `class` and `decision` are refused until
-            a botcore reports them.
+        by: `workflow` or `check` (a step of a job, or a command of a hook group step). The
+            plan's `area`, `class` and `decision` are refused until a botcore reports them.
         where: Only runs of this event: `pull_request`, `merge_group`, `schedule`, `push` or
-            `workflow_dispatch`. Left out, every one of them.
-        workflow: Only this workflow, by its name (`CI`) or its file (`ci.yml`).
-        sort: `minutes` (wall time, the default), `failed` or `runs`; largest first.
-        limit: Rows to give: 1 to 200 (default 25); `more` says how many were left out.
+            `workflow_dispatch`. Left out, every one of them. Goes with both groupings.
+        workflow: Only this workflow, by its name (`CI`) or its file (`ci.yml`). Goes with
+            both groupings.
+        check: Only this check, written as its id (`ci.yml / TypeScript (Node 26.x) / Quality
+            gate / lint`). Goes with `by: check`.
+        area: The plan's filter for `by: area`, `class` and `decision`; refused here.
+        finding_class: The plan's filter for `by: class`; refused here.
+        decision: The plan's filter for `by: class` and `decision`; refused here.
+        pull_request: The plan's filter for `by: class`; refused here.
+        due: The plan's filter for `by: decision`; refused here.
+        sort: `minutes` (the default), `failed` or `runs`; largest first.
+        limit: Rows to give, and entries of each other list: 1 to 200 (default 25); `more`
+            says how many each list left out.
     """
-    refused = _check_inputs(days, ending_days_ago, by, where, sort, limit)
+    filters = {"where": where, "workflow": workflow, "check": check, "area": area,
+               "finding_class": finding_class, "decision": decision,
+               "pull_request": pull_request, "due": due}  # fmt: skip
+    refused = _check_inputs(days, ending_days_ago, by, where, sort, limit, filters)
     if refused is not None:
         return refused
     return await run_blocking(
-        _report_sync, days, ending_days_ago, where, workflow, sort, limit, datetime.now(UTC)
-    )
+        _report_sync, days, ending_days_ago, by, where, workflow, check, sort, limit,
+        record_module.now(),
+    )  # fmt: skip
 
 
-def _report_sync(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one pass over the record
-    days: int, ending_days_ago: int, where: str | None, workflow: str | None, sort: str,
-    limit: int, now: datetime,
+@dataclass
+class Window:
+    first: object
+    last: object
+    since: datetime
+    until: datetime
+
+
+@dataclass
+class Scan:
+    """One pass over the window's runs."""
+
+    rows: dict[tuple[str, str], Row] = field(default_factory=dict)
+    finished: list[tuple[dict, dict[int, dict]]] = field(default_factory=list)
+    left_out: Counter = field(default_factory=Counter)
+    going: list[int] = field(default_factory=list)
+    ran: int = 0
+    with_steps: int = 0
+    unreadable_steps: int = 0
+    queue_heads: set[str] = field(default_factory=set)
+    queue_failed: set[str] = field(default_factory=set)
+
+
+def _scan(  # noqa: C901, PLR0912 - one pass over the record
+    record: Record, window: Window, where: str | None, wanted: set[str] | None,
+    verdicts: set[str],
+) -> Scan:  # fmt: skip
+    scan = Scan()
+    attempts: dict[int, dict[int, dict]] = {}
+    for line in record.runs.values():
+        attempts.setdefault(line["run"], {})[line["attempt"]] = line
+    for run_id, held in attempts.items():
+        latest = held[max(held)]
+        created = parse_time(latest["created"])
+        if created is None or not window.since <= created < window.until:
+            continue
+        if latest["event"] not in EVENTS:
+            scan.left_out[latest["event"]] += 1
+            continue
+        if (where is not None and latest["event"] != where) or (
+            wanted is not None and latest["workflow"] not in wanted
+        ):
+            continue
+        if latest["status"] != "completed":
+            scan.going.append(run_id)
+            continue
+        scan.finished.append((latest, held))
+        end = ENDS.get(latest["conclusion"] or "", "other")
+        key = (latest["workflow"], latest["event"])
+        verdict = latest["workflow"] in verdicts
+        row = scan.rows.setdefault(
+            key, Row(file=_file(latest["workflow"]), where=latest["event"], verdict=verdict)
+        )
+        if latest["created"] >= row.named_at:
+            row.name, row.named_at = latest["name"], latest["created"]
+        row.counts[end] += 1
+        updated = parse_time(latest["updated"]) or created
+        row.wall += min(max(updated - created, timedelta(0)), WALL_CAP).total_seconds()
+        if end == "passed" and latest["attempt"] > 1:
+            earlier = [held[k] for k in range(1, latest["attempt"]) if k in held]
+            kind = later_kind(
+                [ENDS.get(line["conclusion"] or "", "other") for line in earlier],
+                len(earlier) < latest["attempt"] - 1
+                or any(line["status"] != "completed" for line in earlier),
+            )
+            if kind is not None:
+                row.later[kind] += 1
+        if end in RAN:
+            scan.ran += 1
+            steps = record.steps.get(f"steps:{run_id}:{latest['attempt']}")
+            if steps is not None and steps.get("unreadable") and not steps["seconds"]:
+                scan.unreadable_steps += 1  # GitHub no longer has them: on record as unreadable
+            else:
+                scan.with_steps += steps is not None
+        if latest["event"] == "merge_group" and latest["head"]:
+            row.heads.add(latest["head"])
+            if end == "failed":
+                row.failed_heads.add(latest["head"])
+            if not verdict:
+                scan.queue_heads.add(latest["head"])
+                if end == "failed":
+                    scan.queue_failed.add(latest["head"])
+    return scan
+
+
+def _totals(scan: Scan, where: str | None) -> dict:
+    """Every row in scope, shown or not, but a verdict's."""
+    counted = [row for row in scan.rows.values() if not row.verdict]
+    totals: Counter = Counter()
+    after: Counter = Counter()
+    for row in counted:
+        totals.update(row.counts)
+        after.update(row.later)
+    data: dict = {"runs": sum(totals.values())}
+    for end in COUNTS:
+        if end != "other" or totals[end]:
+            data[end] = totals[end]
+    data["passed_on_later_attempt"] = sum(after.values())
+    data["passed_after"] = {kind: after[kind] for kind in AFTER}
+    data["wall_hours"] = round(sum(row.wall for row in counted) / 3600, 1)
+    if where in (None, "merge_group") and scan.queue_heads:
+        data["groups"], data["groups_failed"] = len(scan.queue_heads), len(scan.queue_failed)
+    data.update(rate(totals))
+    left_out = sorted({row.file for row in scan.rows.values() if row.verdict})
+    if left_out:
+        data["verdicts_left_out"] = left_out
+    return data
+
+
+def _report_sync(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one report
+    days: int, ending_days_ago: int, by: str, where: str | None, workflow: str | None,
+    check: str | None, sort: str, limit: int, now: datetime,
 ) -> CommandResult[dict]:  # fmt: skip
     found = workspace_repo()
     if found is None:
         return no_workspace()
-    _root, repo = found
+    root, repo = found
     base = state_dir()
     try:
         here = local()
@@ -229,6 +461,20 @@ def _report_sync(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one pass over the r
         return settings_refused(exc)
     except OSError as exc:
         return record_unavailable(repo_folder(base, repo), exc)
+    known = read_known(root) if by == "check" else None
+    if check is not None and known is not None:
+        ids = set(known.ids(observed_jobs(record))) | observed_ids(record, known)
+        if check not in ids:
+            close = close_checks(check, ids)
+            return error(
+                "INVALID_INPUT",
+                f"No check '{check}' is known or on record",
+                suggestion=(f"Closest: {'; '.join(close)}. " if close else "")
+                + f"{len(ids)} checks are known; pass one as its id is written, "
+                "<workflow file> / <job> / <step>[ / <command>], or leave check out to list them. "
+                "The legs of a job whose matrix an expression decides are known by the names a "
+                "collection has seen: run gate-outcome-collect first",
+            )
     if record.empty:
         return error(
             "NOT_COLLECTED",
@@ -238,76 +484,17 @@ def _report_sync(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one pass over the r
         )
     wanted: set[str] | None = None
     if workflow is not None:
-        wanted = _known_workflows(record).get(workflow.lower())
+        wanted = _known_workflows(record, known).get(workflow.lower())
         if wanted is None:
             return _unknown_workflow(workflow, record)
+    verdicts, warnings = verdict_workflows(root, record)
 
     last = now.date() - timedelta(days=ending_days_ago)
     first = last - timedelta(days=days - 1)
     since = datetime(first.year, first.month, first.day, tzinfo=UTC)
-    until = since + timedelta(days=days)
-    seen_until = min(until, now)
-
-    attempts: dict[int, dict[int, dict]] = {}
-    for line in record.runs.values():
-        attempts.setdefault(line["run"], {})[line["attempt"]] = line
-    rows: dict[tuple[str, str], Row] = {}
-    left_out: Counter = Counter()
-    going: list[int] = []
-    ran = with_steps = unreadable_steps = 0
-    queue_heads: set[str] = set()
-    queue_failed: set[str] = set()
-    for run_id, held in attempts.items():
-        latest = held[max(held)]
-        created = parse_time(latest["created"])
-        if created is None or not since <= created < until:
-            continue
-        if latest["event"] not in EVENTS:
-            left_out[latest["event"]] += 1
-            continue
-        if (where is not None and latest["event"] != where) or (
-            wanted is not None and latest["workflow"] not in wanted
-        ):
-            continue
-        if latest["status"] != "completed":
-            going.append(run_id)
-            continue
-        end = ENDS.get(latest["conclusion"] or "", "other")
-        key = (latest["workflow"], latest["event"])
-        row = rows.setdefault(key, Row(file=_file(latest["workflow"]), where=latest["event"]))
-        if latest["created"] >= row.named_at:
-            row.name, row.named_at = latest["name"], latest["created"]
-        row.counts[end] += 1
-        updated = parse_time(latest["updated"]) or created
-        row.wall += min(max(updated - created, timedelta(0)), WALL_CAP).total_seconds()
-        if end == "passed" and latest["attempt"] > 1:
-            earlier = [held[k] for k in range(1, latest["attempt"]) if k in held]
-            ends = {ENDS.get(line["conclusion"] or "", "other") for line in earlier}
-            if "failed" in ends:
-                kind: str | None = "failed"
-            elif "cancelled" in ends:
-                kind = "cancelled"
-            elif len(earlier) < latest["attempt"] - 1 or any(
-                line["status"] != "completed" for line in earlier
-            ):
-                kind = "unknown"  # an earlier attempt not read yet
-            else:
-                kind = None  # passed again after passing: no failure to follow
-            if kind is not None:
-                row.later[kind] += 1
-        if end in RAN:
-            ran += 1
-            steps = record.steps.get(f"steps:{run_id}:{latest['attempt']}")
-            if steps is not None and steps.get("unreadable") and not steps["seconds"]:
-                unreadable_steps += 1  # GitHub no longer has them: on record as not readable
-            else:
-                with_steps += steps is not None
-        if latest["event"] == "merge_group" and latest["head"]:
-            row.heads.add(latest["head"])
-            queue_heads.add(latest["head"])
-            if end == "failed":
-                row.failed_heads.add(latest["head"])
-                queue_failed.add(latest["head"])
+    window = Window(first, last, since, since + timedelta(days=days))
+    seen_until = min(window.until, now)
+    scan = _scan(record, window, where, wanted, verdicts)
 
     # what of the window was listed, by any machine, at any time
     told = [
@@ -326,9 +513,9 @@ def _report_sync(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one pass over the r
     unlisted = sum((end - begun).total_seconds() for begun, end in missing)
     length = (seen_until - since).total_seconds()
     listed_share = share(length - unlisted, length)
-    steps_share = share(with_steps, ran) if ran else None  # runs whose steps are known
-    observed = bool(rows or going or left_out)  # a run in the window is on record
-    if not missing and with_steps + unreadable_steps == ran:
+    steps_share = share(scan.with_steps, scan.ran) if scan.ran else None
+    observed = bool(scan.rows or scan.going or scan.left_out)  # a run in the window is on record
+    if not missing and scan.with_steps + scan.unreadable_steps == scan.ran:
         status = "read"
     elif unlisted >= length and not observed:
         status = "absent"  # nothing of the window was read: no counts are given
@@ -340,29 +527,12 @@ def _report_sync(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one pass over the r
         "failed": lambda row: row.counts["failed"],
         "runs": lambda row: row.runs,
     }[sort]
-    ordered = sorted(rows.values(), key=lambda row: (row.name, row.file, row.where))
+    ordered = sorted(scan.rows.values(), key=lambda row: (row.name, row.file, row.where))
     ordered.sort(key=key_of, reverse=True)
     shown = ordered[:limit]
-
-    totals: Counter = Counter()
-    for row in ordered:
-        totals.update(row.counts)
-    total_json: dict = {"runs": sum(totals.values())}
-    for end in COUNTS:
-        if end != "other" or totals[end]:
-            total_json[end] = totals[end]
-    after: Counter = Counter()
-    for row in ordered:
-        after.update(row.later)
-    total_json["passed_on_later_attempt"] = sum(after.values())
-    total_json["passed_after"] = {kind: after[kind] for kind in AFTER}
-    total_json["wall_hours"] = round(sum(row.wall for row in ordered) / 3600, 1)
-    if where in (None, "merge_group") and queue_heads:
-        total_json["groups"], total_json["groups_failed"] = len(queue_heads), len(queue_failed)
-    total_json.update(rate(totals))
+    total_json = _totals(scan, where)
 
     machines: dict[str, dict] = {}
-    warnings: list[str] = []
     newest: datetime | None = None
     for machine, state in sorted(record.states.items()):
         collected = state.get("collected_at")
@@ -378,11 +548,16 @@ def _report_sync(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one pass over the r
                 f"{machine} last collected {collected or 'never'}: run gate-outcome-collect "
                 "for current numbers"
             )
-    if going:
-        listed = ", ".join(str(run) for run in sorted(going)[:5])
+    if status == "absent":
         warnings.append(
-            f"{len(going)} runs were still going when last listed and are in no count "
-            f"(runs {listed}{' and more' if len(going) > 5 else ''})"  # noqa: PLR2004
+            f"ci is absent: nothing of {first} to {last} was collected, so no figure is given; "
+            "run gate-outcome-collect"
+        )
+    if scan.going:
+        listed = ", ".join(str(run) for run in sorted(scan.going)[:5])
+        warnings.append(
+            f"{len(scan.going)} runs were still going when last listed and are in no count "
+            f"(runs {listed}{' and more' if len(scan.going) > 5 else ''})"  # noqa: PLR2004
         )
     if missing:
         named = sorted({begun.date().isoformat() for begun, _ in missing})
@@ -402,13 +577,15 @@ def _report_sync(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one pass over the r
         )
     for machine, lines in sorted(record.unreadable.items()):
         warnings.append(f"{lines} lines of {machine}'s record could not be read and were skipped")
-    if left_out:
+    if scan.left_out:
         warnings.append(
-            f"{sum(left_out.values())} runs of other events are left out: "
-            + ", ".join(f"{event} {count}" for event, count in sorted(left_out.items()))
+            f"{sum(scan.left_out.values())} runs of other events are left out: "
+            + ", ".join(f"{event} {count}" for event, count in sorted(scan.left_out.items()))
         )
 
-    data = {
+    sources = dict.fromkeys(SOURCES, "absent")  # the others are not collected yet
+    sources["ci"] = status
+    data: dict = {
         "repository": repo,
         "window": {
             "days": days,
@@ -416,12 +593,12 @@ def _report_sync(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one pass over the r
             "first_day": first.isoformat(),
             "last_day": last.isoformat(),
             "since": since.isoformat(),
-            "until": until.isoformat(),
+            "until": window.until.isoformat(),
         },
         "totals": total_json if status != "absent" else None,
         "rows": [row.to_json() for row in shown],
         "coverage": {
-            "sources": {"ci": status},
+            "sources": sources,
             "collected": {
                 "ci": {
                     "newest": newest.isoformat() if newest else None,
@@ -431,17 +608,27 @@ def _report_sync(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one pass over the r
                 }
             },
             "events": [where] if where else list(EVENTS),
-            "other_events_left_out": dict(sorted(left_out.items())),
+            "other_events_left_out": dict(sorted(scan.left_out.items())),
             "window_listed": listed_share,
             "listed_until": listed_until.isoformat() if listed_until else None,
             "steps_share": steps_share,
-            "steps_unreadable": unreadable_steps,
+            "steps_unreadable": scan.unreadable_steps,
             "not_seen": list(NOT_SEEN),
         },
         "machines": machines,
         "warnings": warnings,
         "more": {"rows": len(ordered) - len(shown)},
     }
+    if by == "check":
+        assert known is not None
+        by_check(data, record, known, scan.finished, verdicts, where, wanted, check, sort,
+                 limit, status)  # fmt: skip
+        return success(
+            data,
+            reasoning=f"{len(data['rows'])} of {len(data['rows']) + data['more']['rows']} check "
+            f"rows and {data['more']['not_observed'] + len(data['not_observed'])} checks not "
+            f"observed, {first} to {last}; ci is {status} and steps_share {steps_share}",
+        )
     return success(
         data,
         reasoning=(

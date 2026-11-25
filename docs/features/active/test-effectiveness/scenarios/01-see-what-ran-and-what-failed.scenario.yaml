@@ -1,6 +1,8 @@
-# JTBD scenario for the Test effectiveness proposal. The data is invented. Nothing is built, so
-# this file is checked, not run. Once built it runs against a prepared repository, a recorded
-# set of API answers and a record.
+# JTBD scenario for the Test effectiveness proposal. The data is invented. It runs in Botcore's
+# core tests (endpoints/botcore/tests/test_gate_outcome_scenarios.py) through AFD's scenario
+# runner, against a prepared repository, a recorded set of API answers and a temporary record;
+# the world it reads is described in endpoints/botcore/tests/scenarios/gate_outcome/world.py.
+# `found` counts the runs of every event: the week's 409 on pull requests and 90 in the queue.
 name: See how often each check ran, how its runs ended and what it cost
 description: >-
   When I ask what the checks cost, I want each check's runs by how they ended, its minutes and
@@ -26,7 +28,7 @@ steps:
       success: true
       data:
         sources:
-          - { source: ci, status: read, found: 409 }
+          - { source: ci, status: read, found: 499 }
   - description: Collecting again adds nothing, on this machine or another
     command: gate-outcome-collect
     input: { sources: [ci], since_days: 7 }
@@ -34,7 +36,7 @@ steps:
       success: true
       data:
         sources:
-          - { source: ci, status: read, found: 409, added: 0 }
+          - { source: ci, status: read, found: 499, added: 0 }
   - description: The two costliest checks on pull requests, each with its runs by how they ended
     command: gate-outcome-report
     input: { days: 7, by: check, where: pull_request, sort: minutes, limit: 2 }
@@ -91,6 +93,7 @@ steps:
         coverage:
           sources: { ci: read, runs: absent }
           not_seen:
+            - { contains: rerun }
             - { contains: before pnpm verify }
   - description: By workflow, the queue has its groups, how many had a failure and its wall hours
     command: gate-outcome-report
@@ -99,7 +102,7 @@ steps:
       success: true
       data:
         rows:
-          - workflow: shed.yml
+          - file: shed.yml
             where: merge_group
             runs: 90
             passed: 85

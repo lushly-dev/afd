@@ -160,7 +160,7 @@ Language detection is automatic. botcore inspects workspace markers (`Cargo.toml
 |--------|----------|-------------|
 | **Dev** | `dev_lint`, `dev_test`, `dev_build` + 9 more | Language-aware linting, testing, building, quality gates, static analysis |
 | **Skills** | `skill_seed`, `skill_list`, `skill_status`, `skill_lint`, `skill_adopt`, `skill_index`, `skill_usage_collect`, `skill_usage_report`, `skill_usage_triggers` | Seed, track, lint, and manage skill ownership across repos; report which skills agents load |
-| **Gate outcomes** | `gate_outcome_collect`, `gate_outcome_report` | Read a repository's workflow runs, attempts, jobs and steps from GitHub; report each workflow's runs by event, how they ended and their wall hours |
+| **Gate outcomes** | `gate_outcome_collect`, `gate_outcome_report` | Read a repository's workflow runs, attempts, jobs, steps and hook group summaries from GitHub; report each workflow's or each check's runs by event, how they ended and what they cost, with quiet and never-observed checks |
 | **CDP** | 33 `cdp_*` functions | Browser automation from Python (`botcore.commands.cdp`; not registered on the MCP server or CLI): launch, navigate, click, screenshot, forms, console, traces |
 | **Docs** | `docs_lint`, `docs_check_changelog`, `docs_check_agents` | Documentation quality checks |
 | **Info** | `info_workspace`, `info_env`, `info_scripts` | Workspace discovery and environment inspection |
@@ -382,12 +382,22 @@ botcore gate-outcome-report --days 7 --ending-days-ago 2 --where pull_request
 
 # The merge queue's groups and how many had a failure
 botcore gate-outcome-report --days 7 --where merge_group
+
+# Each check on pull requests, the costliest first: a step of a job, or a command of a hook group
+botcore gate-outcome-report --days 7 --by check --where pull_request
+
+# One check, with the runs it failed in
+botcore gate-outcome-report --by check --check "ci.yml / TypeScript (Node 26.x) / Quality gate / test"
 ```
 
 A collection reads GitHub through `gh` within its own `--requests` limit and stops when the
 account's hourly allowance is down to half; the next one goes on from where it stopped. The
 record holds paths, digests, names, durations and counts only, and is shared with other machines
-through the same shared folder as skill usage. Every input and field is in the `gate-outcome`
+through the same shared folder as skill usage. The checks known are read from the default
+branch's tip, and where a hook group step failed, the job's log is read once for the hook
+runner's summary, of which only each command's name, result and seconds are kept. A repository
+names the workflows that judge the others in `botcore.toml` (`[gate_outcome] verdict_workflows`),
+so the totals do not count one failure twice. Every input and field is in the `gate-outcome`
 topic of the MCP server's docs tool.
 
 ## Development

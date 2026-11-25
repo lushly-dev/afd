@@ -218,6 +218,18 @@ class PRConfig(BaseModel):
     default_interval: int = Field(default=20, ge=5, strict=True)
 
 
+class GateOutcomeConfig(BaseModel):
+    """The gate-outcome-* commands' settings for this repository (botcore.toml [gate_outcome])."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Workflows that judge the others, such as a required check that waits for every workflow
+    # and fails when one did: each keeps its own row, marked, and the report's totals and the
+    # queue's failed groups leave it out, so one failure is not counted twice. By file
+    # (ci-ok.yml) or by name; none named, each counts like any other
+    verdict_workflows: list[str] = []
+
+
 class LanguageConfig(BaseModel):
     """Per-language tooling configuration."""
 
@@ -282,6 +294,7 @@ class BotCoreConfig(BaseModel):
     sweep: SweepConfig = SweepConfig()
     disk: DiskConfig = DiskConfig()
     pr: PRConfig = PRConfig()
+    gate_outcome: GateOutcomeConfig = GateOutcomeConfig()
     language_config: dict[str, LanguageConfig] = {}
     packages: dict[str, PackageOverrideConfig] = {}
     plugins: dict[str, dict[str, Any]] = {}
@@ -345,6 +358,13 @@ def _read_toml(workspace: Path) -> dict[str, Any]:
             pass
 
     return {}
+
+
+def config_table(workspace: Path) -> dict[str, Any]:
+    """The botcore table of a checkout's configuration, unvalidated, with botcore's precedence
+    (pyproject.toml's [tool.botcore] over botcore.toml), for a command that validates only its
+    own section."""
+    return _read_toml(workspace)
 
 
 def _apply_language_defaults(config: BotCoreConfig, workspace: Path | None) -> None:

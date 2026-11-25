@@ -1,13 +1,17 @@
 """`gate-outcome-collect`: read the repository's workflow runs from GitHub into the record.
 
-Three steps, in order, each going on where the record already holds what GitHub would say:
+Four steps, in order, each going on where the record already holds what GitHub would say:
 
 1. The run lists for the window, every event. GitHub answers one query with at most 1,000
    runs, so a span whose count is over that is split in two until each part fits.
 2. The earlier attempts of a run that has more than one.
 3. The jobs and steps of each attempt: those that did not pass first, then the others,
    newest first. An attempt that ended `action_required` or `skipped` ran no step, and its
-   jobs are not asked for.
+   jobs are not asked for. Where a hook group step failed, that job's log is read with them,
+   once, for the hook runner's summary (summary.py).
+4. The logs of the other jobs with a group step that ran: a failed one whose log a limit kept
+   from being read first, then those that passed, newest first. These are what a collection
+   reads last, so a group step that passed has its commands' seconds as the allowance permits.
 
 A collection stops at its own limit (`requests`) or when the account's allowance is down to
 half, whichever comes first, and the next goes on from there.
@@ -26,7 +30,8 @@ from afd import CommandResult, error, success
 from botcore.commands.disk.lock import LockHeld, RunLock
 from botcore.commands.disk.settings import SettingsError
 from botcore.commands.disk.steps import run_blocking
-from botcore.commands.gate_outcome import github
+from botcore.commands.gate_outcome import github, record
+from botcore.commands.gate_outcome.checks import Job, Known, read_known
 from botcore.commands.gate_outcome.github import GitHub, NotFound, Stop
 from botcore.commands.gate_outcome.record import (
     LOCK_FILE,
@@ -46,6 +51,7 @@ from botcore.commands.gate_outcome.record import (
     stamp,
     state_dir,
 )
+from botcore.commands.gate_outcome.summary import Read, read_steps
 from botcore.commands.skill_usage.collect import project_remote, settings_refused
 from botcore.commands.skill_usage.store import InvalidMachine, Local, local
 from botcore.utils.workspace import find_workspace
@@ -65,6 +71,10 @@ FRESH = timedelta(hours=1)  # a span listed this recently is not listed again ei
 NOT_RUN = ("action_required", "skipped")
 _QUEUE_BRANCH = re.compile(r"/pr-(\d+)-([0-9a-f]{40})$")
 _NAME_MAX = 300
+
+
+def record_now() -> datetime:
+    return record.now()
 
 
 def share(part: float, whole: float) -> float:
@@ -242,7 +252,9 @@ def run_line(run: dict, at: str, attempt: int | None = None) -> dict | None:
         "run": run.get("id"),
         "attempt": attempt or run.get("run_attempt") or 1,
         "workflow": run.get("path"),
-        "name": run.get("name"),
+        # A run of a workflow that failed to start has no name (and a path such as
+        # `BuildFailed`): it goes by its path, so it is counted and not dropped
+        "name": run.get("name") or run.get("path"),
         "event": run.get("event"),
         "status": run.get("status"),
         "conclusion": run.get("conclusion"),
@@ -279,7 +291,26 @@ def _named(value: object, fallback: str) -> str:
     return (value if isinstance(value, str) and value else fallback)[:_NAME_MAX]
 
 
-def steps_lines(workflow: str, run: dict, jobs: list[dict], at: str) -> list[dict]:
+def group_steps(known: Known | None, workflow: str, names: list) -> dict[int, list]:
+    """A shape's hook group steps, by the place of their job: [(step's place, Step)]."""
+    found: dict[int, list] = {}
+    if known is None or known.error:
+        return found
+    file = workflow.rsplit("/", 1)[-1]
+    for place, (job_name, step_names) in enumerate(names):
+        job: Job | None = known.job(file, job_name)
+        if job is None:
+            continue
+        steps = [(index, job.step(name)) for index, name in enumerate(step_names)]
+        grouped = [(index, step) for index, step in steps if step is not None and step.group]
+        if grouped:
+            found[place] = grouped
+    return found
+
+
+def steps_lines(
+    workflow: str, run: dict, jobs: list[dict], at: str, known: Known | None = None
+) -> list[dict]:
     """An attempt's jobs as a shape line and a steps line. Jobs go by name, so one version of
     a workflow has one shape whatever order GitHub lists its jobs in."""
     ordered = sorted(
@@ -308,9 +339,29 @@ def steps_lines(workflow: str, run: dict, jobs: list[dict], at: str) -> list[dic
         "shape": digest,
         "seconds": seconds,
     }
-    if run.get("conclusion") != "success":
+    # A passed attempt keeps them too where anything did not succeed: a skipped step
+    if run.get("conclusion") != "success" or any(
+        job_end != "success" or any(end != "success" for end in step_ends or [])
+        for job_end, step_ends in ends
+    ):
         line["conclusions"] = ends
+    grouped = group_steps(known, workflow, names)
+    ids = [job.get("id") for job in ordered]
+    pairs = [[place, ids[place]] for place in sorted(grouped) if type(ids[place]) is int]
+    if pairs:
+        line["groups"] = pairs
     return [line for line in (checked(shape), checked(line)) if line is not None]
+
+
+def _step_end(steps: dict, place: int, index: int) -> str | None:
+    """How a step of an attempt ended: a line without conclusions is one where all passed."""
+    ends = steps.get("conclusions")
+    if ends is None:
+        return "success"
+    try:
+        return ends[place][1][index]
+    except IndexError:
+        return None
 
 
 def _read_jobs(gh: GitHub, run: dict) -> list[dict]:
@@ -337,16 +388,17 @@ class Collection:
 
     def __init__(  # noqa: PLR0913 - the collection's inputs
         self, gh: GitHub, record: Record, folder: Path, state: dict, start: datetime,
-        now: datetime, rebuild: Rebuild | None,
+        now: datetime, rebuild: Rebuild | None, known: Known | None = None,
     ) -> None:  # fmt: skip
         self.gh, self.record, self.folder, self.state = gh, record, folder, state
         self.start, self.now, self.rebuild = start, now, rebuild
+        self.known = known
         self.added = 0
         self.step = "lists"
         self.listed_now = 0  # spans listed whole by this collection
 
     def _at(self) -> str:
-        return stamp(datetime.now(UTC))
+        return stamp(record.now())
 
     def _write(self, lines: list[dict]) -> None:
         append_lines(self.folder, lines)
@@ -360,7 +412,7 @@ class Collection:
             return True
         at = parse_time(line["at"])
         created = parse_time(line.get("created")) if line["kind"] == "run" else None
-        if line["kind"] == "steps":
+        if line["kind"] in ("steps", "group"):
             run = self.record.runs.get(f"run:{line['run']}:{line['attempt']}")
             created = parse_time(run["created"]) if run else None
         return self.rebuild is not None and self.rebuild.stale(at, created)
@@ -381,7 +433,7 @@ class Collection:
                     self._keep_runs(runs)
                     if whole:
                         finished = all(run.get("status") == "completed" for run in runs)
-                        listed_at = datetime.now(UTC)
+                        listed_at = record.now()
                         for begun_at, ended_at, _ in spans({"lists": dict(lists)}):
                             if start <= begun_at and ended_at <= end:  # this span holds it
                                 lists.pop(_span_key(begun_at, ended_at), None)
@@ -458,23 +510,33 @@ class Collection:
             if self.in_window(line)
             and line["status"] == "completed"
             and line["conclusion"] not in NOT_RUN
-            and self._stale(self.record.steps.get(f"steps:{line['run']}:{line['attempt']}"))
+            and self._steps_stale(self.record.steps.get(f"steps:{line['run']}:{line['attempt']}"))
         ]
         # those that did not pass first, then the others; newest first in each
         wanted.sort(key=lambda line: (line["created"], line["run"], line["attempt"]), reverse=True)
         wanted.sort(key=lambda line: line["conclusion"] == "success")
         return wanted
 
+    def _steps_stale(self, line: dict | None) -> bool:
+        """A steps line to read again: not there, before a rebuild, or made by older rules
+        (which did not tell a skipped step of a passed attempt from one that passed)."""
+        return self._stale(line) or (
+            line is not None and line["v"] < RULES and not line.get("unreadable")
+        )
+
     def jobs(self) -> None:
         self.step = "jobs"
         for run in self.steps_left():
             held = self.record.steps.get(f"steps:{run['run']}:{run['attempt']}")
             try:
-                lines = steps_lines(run["workflow"], run, _read_jobs(self.gh, run), self._at())
+                jobs = _read_jobs(self.gh, run)
+                lines = steps_lines(run["workflow"], run, jobs, self._at(), self.known)
             except NotFound:  # GitHub no longer has it: what was read before is kept
                 line = checked({
                     **(held or {"seconds": [], "shape": None}),
-                    "id": f"steps:{run['run']}:{run['attempt']}", "kind": "steps", "v": RULES,
+                    # what was read before keeps the rules it was read by
+                    "id": f"steps:{run['run']}:{run['attempt']}", "kind": "steps",
+                    "v": held["v"] if held else RULES,
                     "at": self._at(), "run": run["run"], "attempt": run["attempt"],
                     "unreadable": True,
                 })  # fmt: skip
@@ -483,6 +545,85 @@ class Collection:
                 [line for line in lines if line["kind"] != "shape"
                  or line["id"].removeprefix("shape:") not in self.record.shapes]
             )  # fmt: skip
+            # A failed group step: its job's log, read once, now
+            for job in self.groups_left(run, failed_only=True):
+                self._read_summary(run, *job)
+
+    # ── Group steps' summaries ──────────────────────────────────────────────
+
+    def groups_left(self, run: dict, failed_only: bool = False) -> list[tuple]:
+        """The jobs of an attempt whose group steps ran and have no summary on record:
+        (job's place, its id, its name, [(step name, Step)], whether one failed)."""
+        steps = self.record.steps.get(f"steps:{run['run']}:{run['attempt']}")
+        if steps is None or not steps.get("groups") or self.known is None:
+            return []
+        shape = self.record.shapes.get(steps["shape"] or "")
+        if shape is None:
+            return []
+        held = self.record.groups.get(f"group:{run['run']}:{run['attempt']}")
+        done = {(entry[0], entry[1]) for entry in held["steps"]} if held and not (
+            self._stale(held)
+        ) else set()  # fmt: skip
+        grouped = group_steps(self.known, run["workflow"], shape["jobs"])
+        left = []
+        for place, job_id in steps["groups"]:
+            if place >= len(shape["jobs"]) or place not in grouped:
+                continue
+            job_name, step_names = shape["jobs"][place]
+            ran, failed = [], False
+            for index, step in grouped[place]:
+                end = _step_end(steps, place, index)
+                if end in ("success", "failure", "timed_out"):
+                    ran.append((step_names[index], step))
+                    failed = failed or end != "success"
+            if not ran or all((job_name, name) in done for name, _ in ran):
+                continue
+            if failed or not failed_only:
+                left.append((place, job_id, job_name, ran, failed))
+        return left
+
+    def _read_summary(  # noqa: PLR0913 - one job of one attempt
+        self, run: dict, _place: int, job_id: int, job_name: str, ran: list, _failed: bool
+    ) -> None:
+        commands: list[tuple[str, ...]] = [step.commands for _, step in ran]
+        try:
+            reads = read_steps(self.gh.log(job_id), commands)
+        except NotFound:  # logs expire
+            reads = [Read("log-gone", []) for _ in ran]
+        except github.LogUnreadable:  # GitHub answered, not with the log: said, and gone on
+            reads = [Read("unreadable", []) for _ in ran]
+        identifier = f"group:{run['run']}:{run['attempt']}"
+        held = self.record.groups.get(identifier)
+        entries = {(entry[0], entry[1]): entry for entry in (held["steps"] if held else [])}
+        for (name, _step), read in zip(ran, reads, strict=True):
+            kept = entries.get((job_name, name))
+            if read.status != "read" and kept is not None and kept[2] == "read":
+                continue  # a summary read before is kept when it cannot be read again
+            entries[(job_name, name)] = [job_name, name, read.status, read.dropped, read.commands]
+        line = checked({"id": identifier, "kind": "group", "v": RULES, "at": self._at(),
+                        "run": run["run"], "attempt": run["attempt"],
+                        "steps": [entries[key] for key in sorted(entries)]})  # fmt: skip
+        if line is not None:
+            self._write([line])
+
+    def summaries_left(self) -> list[tuple[dict, tuple]]:
+        """Every job left to read a summary from: failed ones first, then the others, newest
+        first in each."""
+        left = [
+            (run, job)
+            for run in self.record.runs.values()
+            if self.in_window(run) and run["status"] == "completed"
+            for job in self.groups_left(run)
+        ]
+        left.sort(key=lambda item: (item[0]["created"], item[0]["run"], item[0]["attempt"]),
+                  reverse=True)  # fmt: skip
+        left.sort(key=lambda item: not item[1][4])
+        return left
+
+    def logs(self) -> None:
+        self.step = "logs"
+        for run, job in self.summaries_left():
+            self._read_summary(run, *job)
 
     def reached(self) -> dict:
         window = (self.now - self.start).total_seconds()
@@ -490,6 +631,7 @@ class Collection:
         missing = gaps(self.start, self.now, have)
         left = sum((end - begun).total_seconds() for begun, end in missing)
         latest = self.latest()
+        summaries = self.summaries_left()
         return {
             "step": self.step,
             "window_listed": share(window - left, window),
@@ -497,6 +639,8 @@ class Collection:
             "runs": len(latest),
             "attempts_left": len(self.attempts_left()),
             "steps_left": len(self.steps_left()),
+            "failed_summaries_left": sum(job[4] for _, job in summaries),
+            "passed_summaries_left": sum(not job[4] for _, job in summaries),
         }
 
 
@@ -557,16 +701,17 @@ def _collect_sync(since_days: int, requests: int, rebuild: bool) -> CommandResul
     found = workspace_repo()
     if found is None:
         return no_workspace()
-    _root, repo = found
+    root, repo = found
     try:
         here = local()
     except (SettingsError, InvalidMachine) as exc:
         return settings_refused(exc)
     base = state_dir()
     folder = repo_folder(base, repo)
+    known = read_known(root)
     try:
         with RunLock(base / LOCK_FILE, label="gate-outcome-collect"):
-            result = _collect(repo, folder, here, since_days, requests, rebuild)
+            result = _collect(repo, folder, here, since_days, requests, rebuild, known)
             _publish(result, folder, here, repo)
     except LockHeld:
         return _fail(
@@ -591,16 +736,17 @@ def _publish(result: CommandResult[dict], folder: Path, here: Local, repo: str) 
     result.data["shared"] = shared
 
 
-def _collect(  # noqa: PLR0913 - one collection, start to end
-    repo: str, folder: Path, here: Local, since_days: int, requests: int, rebuild: bool
-) -> CommandResult[dict]:
+def _collect(  # noqa: PLR0913, C901 - one collection, start to end
+    repo: str, folder: Path, here: Local, since_days: int, requests: int, rebuild: bool,
+    known: Known | None = None,
+) -> CommandResult[dict]:  # fmt: skip
     record = load_record(state_dir(), repo, here)
     state = load_state(folder)
-    now = datetime.now(UTC).replace(microsecond=0)
+    now = record_now().replace(microsecond=0)
     start = _day(now) - timedelta(days=since_days - 1)
     pending = state.get("rebuild") if isinstance(state.get("rebuild"), dict) else None
     if rebuild:  # to the millisecond: what this collection writes is after it
-        pending = {"since": stamp(datetime.now(UTC)), "start": _iso(start)}
+        pending = {"since": stamp(record_now()), "start": _iso(start)}
     since, begun = (parse_time(pending.get(k)) for k in ("since", "start")) if pending else (
         None, None
     )  # fmt: skip
@@ -613,12 +759,13 @@ def _collect(  # noqa: PLR0913 - one collection, start to end
         state["rebuild"] = pending
     record.states[here.machine] = state  # what this collection lists counts as it goes
     gh = GitHub(repo, requests)
-    collection = Collection(gh, record, folder, state, start, now, redo)
+    collection = Collection(gh, record, folder, state, start, now, redo, known)
     why: str | None = None
     try:
         collection.lists()
         collection.attempts()
         collection.jobs()
+        collection.logs()
     except Stop as stop:
         why = {
             "requests": f"requests: reached the limit of {requests} requests",
@@ -643,6 +790,7 @@ def _collect(  # noqa: PLR0913 - one collection, start to end
     whole = (
         why is None and reached.pop("listed_whole")
         and not reached["attempts_left"] and not reached["steps_left"]
+        and not reached["failed_summaries_left"]
     )  # fmt: skip
     status = "read" if whole else "partly"
     if whole and pending and (redo is None or start <= redo.start):
@@ -653,7 +801,7 @@ def _collect(  # noqa: PLR0913 - one collection, start to end
     if not whole:
         source["why"] = why or "the window is not all read"
         source["reached"] = reached
-    state["collected_at"] = stamp(datetime.now(UTC))
+    state["collected_at"] = stamp(record_now())
     state["ci"] = {k: v for k, v in source.items() if k in ("status", "why", "reached")}
     state["ci"]["at"] = state["collected_at"]
     save_state(folder, state)
@@ -671,6 +819,11 @@ def _collect(  # noqa: PLR0913 - one collection, start to end
     }
     if gh.allowance is not None:
         data["allowance"] = gh.allowance
+    if known is not None and known.error:
+        data["warnings"] = [
+            f"No hook group step's summary was read: {known.error}, so the checks known "
+            "could not be read"
+        ]
     reasoning = (
         f"{reached['runs']} runs in the window; {collection.added} lines added; ci is {status}"
         + (f" ({source['why']})" if not whole else "")

@@ -645,8 +645,8 @@ def gate_outcome_collect_cmd(
     type=click.Choice(["workflow", "check", "area", "class", "decision"]),
     default="workflow",
     show_default=True,
-    help="Rows by workflow and event; check, area, class and decision are refused until a "
-    "botcore reports them",
+    help="Rows by workflow, or by check (a step of a job, or a command of a hook group step), "
+    "and event; area, class and decision are refused until a botcore reports them",
 )
 @click.option(
     "--where",
@@ -657,6 +657,17 @@ def gate_outcome_collect_cmd(
     help="Only runs of this event (local is refused until it is collected); default: all five",
 )
 @click.option("--workflow", default=None, help="Only this workflow, by its name or its file")
+@click.option(
+    "--check",
+    default=None,
+    help="Only this check, by its id as written: '<workflow file> / <job> / <step>' with "
+    "' / <command>' inside a hook group step (with --by check)",
+)
+@click.option("--area", default=None, help="The plan's filter for --by area, class, decision")
+@click.option("--finding-class", default=None, help="The plan's filter for --by class")
+@click.option("--decision", default=None, help="The plan's filter for --by class and decision")
+@click.option("--pull-request", type=int, default=None, help="The plan's filter for --by class")
+@click.option("--due/--not-due", default=None, help="The plan's filter for --by decision")
 @click.option(
     "--sort",
     type=click.Choice(["minutes", "failed", "runs"]),
@@ -680,12 +691,18 @@ def gate_outcome_report_cmd(  # noqa: PLR0913 - the command's options
     by: str,
     where: str | None,
     workflow: str | None,
+    check: str | None,
+    area: str | None,
+    finding_class: str | None,
+    decision: str | None,
+    pull_request: int | None,
+    due: bool | None,
     sort: str,
     limit: int,
     **_kwargs: Any,
 ) -> None:
-    """Report each workflow's runs by event: how they ended, wall hours, queue groups.
-    Read-only."""
+    """Report each workflow's or each check's runs by event: how they ended, what they cost,
+    queue groups, quiet and not-observed checks. Read-only."""
     from botcore.commands.gate_outcome import gate_outcome_report
 
     result = _run_async(
@@ -695,6 +712,12 @@ def gate_outcome_report_cmd(  # noqa: PLR0913 - the command's options
             by=by,
             where=where,
             workflow=workflow,
+            check=check,
+            area=area,
+            finding_class=finding_class,
+            decision=decision,
+            pull_request=pull_request,
+            due=due,
             sort=sort,
             limit=limit,
         )

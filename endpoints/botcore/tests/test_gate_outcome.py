@@ -53,6 +53,11 @@ class FakeGitHub:
         self.remaining = 5000
         self.fail: dict[str, github.Answer | Exception] = {}  # endpoint prefix -> answer
         self.next_id = 1000
+        # (workflow, conclusion, created, minutes, attempt) -> the attempt's jobs; a job's
+        # `_log` is its log's text
+        self.make_jobs = None
+        self.logs: dict[int, str] = {}
+        self.next_job = 5000
 
     def add(  # noqa: PLR0913 - a run's facts
         self, workflow: str = "beds", event: str = "pull_request",
@@ -89,7 +94,7 @@ class FakeGitHub:
                 **base, "run_attempt": number, "conclusion": ended,
                 "updated_at": iso(created + timedelta(minutes=minutes)),
             }  # fmt: skip
-            self.jobs[(run_id, number)] = self._jobs(ended, created, minutes)
+            self.jobs[(run_id, number)] = self._jobs(ended, created, minutes, workflow, number)
         attempt = max(attempt, len(earlier) + 1)
         latest = {
             **base,
@@ -99,10 +104,22 @@ class FakeGitHub:
         }
         self.runs[run_id] = latest
         self.attempts[(run_id, attempt)] = latest
-        self.jobs[(run_id, attempt)] = self._jobs(conclusion, created, minutes)
+        self.jobs[(run_id, attempt)] = self._jobs(conclusion, created, minutes, workflow, attempt)
         return run_id
 
-    def _jobs(self, conclusion: str | None, created: datetime, minutes: float) -> list[dict]:
+    def _jobs(  # noqa: PLR0913 - an attempt's facts
+        self, conclusion: str | None, created: datetime, minutes: float, workflow: str = "beds",
+        attempt: int = 1,
+    ) -> list[dict]:  # fmt: skip
+        if self.make_jobs is not None:
+            jobs = self.make_jobs(workflow, conclusion, created, minutes, attempt)
+            for job in jobs:
+                self.next_job += 1
+                job.setdefault("id", self.next_job)
+                log = job.pop("_log", None)
+                if log is not None:
+                    self.logs[job["id"]] = log
+            return jobs
         end = created + timedelta(minutes=minutes)
         failing = conclusion if conclusion not in (None, "success") else "success"
         return [
@@ -132,6 +149,11 @@ class FakeGitHub:
             return github.Answer(200, {"resources": {"core": {"remaining": self.remaining,
                                                               "limit": 5000}}})  # fmt: skip
         path, query = urlsplit(endpoint).path, parse_qs(urlsplit(endpoint).query)
+        if path.startswith(f"repos/{REPO}/actions/jobs/") and path.endswith("/logs"):
+            log = self.logs.get(int(path.split("/")[-2]))
+            if log is None:
+                return github.Answer(404, None, "Not Found (HTTP 404)")
+            return github.Answer(200, None, text=log)
         parts = path.removeprefix(f"repos/{REPO}/actions/runs").strip("/").split("/")
         if parts == [""]:
             return self._list(query)
@@ -170,6 +192,8 @@ class FakeGitHub:
             return [c for c in self.calls if "/actions/runs?" in c]
         if kind == "jobs":
             return [c for c in self.calls if c.split("?")[0].endswith("/jobs")]
+        if kind == "logs":
+            return [c for c in self.calls if c.endswith("/logs")]
         return [c for c in self.calls if "/attempts/" in c and "/jobs" not in c]
 
 
@@ -200,6 +224,21 @@ class Bench:
         self.monkeypatch.setenv(store.MACHINE_ENV, machine)
         self.monkeypatch.setenv(store.SHARED_ENV, str(self.shared) if shared else "")
         return state
+
+    def tip(self, files: dict[str, str], message: str = "tip") -> str:
+        """Commit `files` and make the commit the default branch's tip (origin/main)."""
+        for name, text in files.items():
+            path = self.checkout / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+        git = ["git", "-C", str(self.checkout), "-c", "user.name=Bench",
+               "-c", "user.email=bench@example.invalid", "-c", "commit.gpgsign=false"]  # fmt: skip
+        subprocess.run([*git, "add", "-A"], check=True)
+        subprocess.run([*git, "commit", "-q", "--allow-empty", "-m", message], check=True)
+        subprocess.run([*git, "update-ref", "refs/remotes/origin/main", "HEAD"], check=True)
+        return subprocess.run(
+            [*git, "rev-parse", "HEAD"], check=True, capture_output=True, text=True
+        ).stdout.strip()
 
     def folder(self, machine: str = "bench") -> Path:
         return record.repo_folder(self.tmp / f"record-{machine}", REPO)
@@ -480,6 +519,17 @@ def test_the_record_holds_no_output_titles_branches_or_contents(bench: Bench) ->
             assert CANARY.encode() not in data, path
             assert b"example.com" not in data, path
             assert b"\r\n" not in data, path  # the same bytes on every system
+
+
+def test_a_run_with_no_name_is_kept_by_its_path_and_counted(bench: Bench) -> None:
+    run = bench.github.add(event="workflow_run", conclusion="startup_failure")
+    bench.github.runs[run].update(name="", path="BuildFailed")
+    ok(collect_cmd(since_days=7))
+    lines, _ = record.parse_lines((bench.folder() / record.RECORD_FILE).read_bytes())
+    (line,) = [line for line in lines if line["kind"] == "run"]
+    assert (line["name"], line["workflow"]) == ("BuildFailed", "BuildFailed")
+    data = ok(report_cmd(days=7))
+    assert data["coverage"]["other_events_left_out"] == {"workflow_run": 1}
 
 
 def test_the_base_of_a_queue_group_and_a_pull_request_is_kept(bench: Bench) -> None:
@@ -845,8 +895,8 @@ def test_a_report_before_any_collection_is_refused(bench: Bench) -> None:
         ({"ending_days_ago": -1}, "ending_days_ago"),
         ({"ending_days_ago": 366}, "ending_days_ago"),
         ({"by": "team"}, "workflow"),
-        ({"by": "check"}, "workflow"),
-        ({"by": "area"}, "workflow"),
+        ({"by": "area"}, "workflow or check"),
+        ({"by": "class"}, "workflow or check"),
         ({"where": "pull-request"}, "merge_group"),
         ({"where": "local"}, "pull_request"),
         ({"sort": "seconds"}, "minutes, failed, runs"),
@@ -885,7 +935,7 @@ def test_the_answers_name_no_field_a_later_piece_builds(bench: Bench) -> None:
     collected = ok(collect_cmd(since_days=7))
     reported = ok(report_cmd(days=7))
     text = json.dumps([collected, reported])
-    for later in ("pairs", "unresolved", "superseded", "not_observed", "undecided"):
+    for later in ("pairs", "unresolved", "superseded", "undecided"):
         assert f'"{later}"' not in text
 
 
