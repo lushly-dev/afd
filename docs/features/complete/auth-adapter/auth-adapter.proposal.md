@@ -13,7 +13,7 @@ spec: [auth-adapter.spec.md](./auth-adapter.spec.md)
 
 > **Delivery status (2026-11-13): complete for the adapter package and auth commands**
 > in `packages/auth` (#125), with later integration and refresh fixes. This is application sign-in;
-> [MCP authorization](../../active/mcp-authorization/STATUS.md) has its own remaining ports.
+> [MCP authorization](../mcp-authorization/STATUS.md) has its own remaining ports.
 
 ## Problem
 

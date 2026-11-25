@@ -10,7 +10,7 @@
 | Author | jasfalk (drafted with Claude) |
 | Spec | [MRTR](https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/mrtr), [elicitation](https://modelcontextprotocol.io/specification/2026-07-28/client/elicitation) |
 | Packages | `spec/`, `packages/core`, `packages/server`, `packages/client`, `packages/cli`, `python/`, `packages/rust`, the C++ todo backend |
-| Related | [Command trust config](../../complete/command-trust-config/) (added `destructive` and `confirmPrompt`), [command exposure and undo](../../complete/command-exposure-undo/), [MCP authorization](../../active/mcp-authorization/mcp-authorization.proposal.md) (supplies the principal that confirmations bind to) |
+| Related | [Command trust config](../../complete/command-trust-config/) (added `destructive` and `confirmPrompt`), [command exposure and undo](../../complete/command-exposure-undo/), [MCP authorization](../mcp-authorization/mcp-authorization.proposal.md) (supplies the principal that confirmations bind to) |
 
 ## Why this is first
 

@@ -1,16 +1,16 @@
 # MCP authorization for AFD servers
 
-> **Current status:** See [STATUS.md](STATUS.md) (source of truth for delivery state, merged pull requests and remaining sub-issues under [#1552](https://github.com/lushly-dev/afd/issues/1552)).
+> **Current status:** See [STATUS.md](STATUS.md) (source of truth for delivery state, merged pull requests and epic [#1552](https://github.com/lushly-dev/afd/issues/1552) closure).
 
 > **Goal**: Let an AFD server on HTTP act as an OAuth 2.1 protected resource under MCP 2026-07-28. It publishes its metadata, rejects requests without a valid token for its own audience, and hands commands a verified caller identity and scopes.
 
 | Field | Value |
 |---|---|
-| Status | Active. Proposed 2026-10-25; approved 2026-11-04 with the [Umbel phase 5 specification](../../../../endpoints/umbel/docs/phases/5-auth-hosted/spec.md#31-afd-first-step-0-d106) (decision D106, under the owner's 2026-10-31 delegation), which amends A4 and A5 (below). Phase 1 (`spec/authorization.md`, `spec/authorization.json`, `spec/command-metadata.md`) landed 2026-11-07 as Umbel step 0a. Current delivery state and open sub-issues live in [STATUS.md](STATUS.md) (epic [#1552](https://github.com/lushly-dev/afd/issues/1552)). Ranked 2 of 4 among the [MCP 2026-07-28 Phase 7 follow-ons](../../complete/mcp-2026-07-28/proposal.md#phase-7-optional-follow-ons-each-its-own-proposal). Answers that plan's open question 5. |
+| Status | Complete 2026-11-24 (epic [#1552](https://github.com/lushly-dev/afd/issues/1552)). Proposed 2026-10-25; approved 2026-11-04 with the [Umbel phase 5 specification](../../../../endpoints/umbel/docs/phases/5-auth-hosted/spec.md#31-afd-first-step-0-d106) (decision D106, under the owner's 2026-10-31 delegation), which amends A4 and A5 (below). Phase 1 (`spec/authorization.md`, `spec/authorization.json`, `spec/command-metadata.md`) landed 2026-11-07 as Umbel step 0a; Rust, TypeScript and Python M1–M8, per-caller `ResourceProvider` and `HumanRelay` are merged on `main`. See [STATUS.md](STATUS.md) for evidence and separate follow-on work. Ranked 2 of 4 among the [MCP 2026-07-28 Phase 7 follow-ons](../mcp-2026-07-28/proposal.md#phase-7-optional-follow-ons-each-its-own-proposal). Answers that plan's open question 5. |
 | Author | jasfalk (drafted with Claude) |
 | Spec | [Authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization), [authorization server discovery](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery), RFC 9728, RFC 8707, RFC 6750 |
 | Packages | `spec/`, `packages/core`, `packages/server`, `python/`, `packages/rust` (`server` feature), `packages/auth` (coexistence only) |
-| Related | [Auth adapter](../../complete/auth-adapter/) (`@lushly-dev/afd-auth`, application sign-in), [MCP confirmations](../../complete/mcp-confirmations/mcp-confirmations.proposal.md) (binds `requestState` to the principal), [MCP tasks](../../complete/mcp-tasks/mcp-tasks.proposal.md) (task access checks) |
+| Related | [Auth adapter](../auth-adapter/) (`@lushly-dev/afd-auth`, application sign-in), [MCP confirmations](../mcp-confirmations/mcp-confirmations.proposal.md) (binds `requestState` to the principal), [MCP tasks](../mcp-tasks/mcp-tasks.proposal.md) (task access checks) |
 
 ## Why this is second
 

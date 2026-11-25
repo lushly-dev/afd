@@ -292,7 +292,7 @@
 		},
 		{
 			"id": "mcp.transport-context",
-			"label": "Per-request context from the transport (actor and credentials) ([MCP authorization proposal](features/active/mcp-authorization/mcp-authorization.proposal.md))"
+			"label": "Per-request context from the transport (actor and credentials) ([MCP authorization proposal](features/complete/mcp-authorization/mcp-authorization.proposal.md))"
 		},
 		{
 			"id": "mcp.auth.verification",
