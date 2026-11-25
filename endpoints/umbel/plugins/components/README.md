@@ -8,10 +8,11 @@ The design is in the [plugin specification](../../docs/plugins/components/spec.m
 `source`, or both. `components-list` lists a library's tags, and `components-open` returns one
 component's whole record. `components-check` reads markup an agent has written, as text, for tags
 of a served prefix that no catalog has and attributes a known component does not declare (see
-[Checking markup](#checking-markup)).
+[Checking markup](#checking-markup)). `components-pattern-list` and `components-pattern-open`
+discover and inspect portable UI patterns and their cross-library implementations.
 
 `components-brief` is the plugin's one first-class suggestion, so an MCP client sees it in
-`tools/list`; the other three are found through `afd-discover` and called by name. With every
+`tools/list`; the other five are found through `afd-discover` and called by name. With every
 first-party plugin enabled the first-class set is the two built-ins and five suggestions, under the
 host's cap of eight. A deployer's `mcp.first_class_tools` replaces the set.
 
@@ -158,6 +159,8 @@ keep = ["space", "library"]
 [plugins.components.journal.commands]
 components-brief = { mode = "digest", keep = ["space", "library", "detail", "render", "consumer"] }
 components-open = { mode = "digest", keep = ["space", "library", "tag"] }
+components-pattern-list = { mode = "digest", keep = ["space", "library", "scope"] }
+components-pattern-open = { mode = "digest", keep = ["space", "library", "pattern"] }
 ```
 
 Without it, the journal records each call in full, including a page's `source`. The doctor's

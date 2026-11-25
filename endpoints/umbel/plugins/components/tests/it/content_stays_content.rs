@@ -100,7 +100,8 @@ fn assert_flagged(value: &Value, inherited: bool) {
             .for_each(|item| assert_flagged(item, inherited)),
         Value::Object(map) => {
             let own = inherited || instruction_flagged(value);
-            let is_entry = map.contains_key("tag") && map.contains_key("status");
+            let is_entry = (map.contains_key("tag") || map.contains_key("pattern"))
+                && map.contains_key("status");
             for item in map.values() {
                 let covered = if item.is_string() || !is_entry {
                     own
@@ -177,6 +178,85 @@ async fn pack_text_is_served_only_inside_the_content_part_and_flagged() {
     // The log grant carries counts and identifiers only.
     assert!(
         !logs::lines("components-brief").is_empty(),
+        "nothing was logged"
+    );
+    assert_eq!(logs::lines(CANARY), Vec::<String>::new());
+}
+
+/// D153 canary containment across all pattern fields in `components-pattern-list` and
+/// `components-pattern-open` (including `summary`, `useWhen`, `avoidWhen`, `keep`, `customize`,
+/// `setups.*.text`, `implementations[].contexts.reason`, and `implementations[].keep[].reason`).
+#[tokio::test]
+async fn pattern_text_is_served_only_inside_the_content_part_and_flagged() {
+    logs::install();
+    let mut pack = Pack::example();
+    pack.edit("data/example/patterns/select.json", |pat| {
+        set_text(pat, "summary");
+        for key in ["useWhen", "avoidWhen", "keep", "customize"] {
+            each(&mut pat[key], |st| set_text(st, "text"));
+        }
+        if let Some(setups) = pat["setups"].as_object_mut() {
+            for setup in setups.values_mut() {
+                set_text(setup, "text");
+                if let Some(targets) = setup.get_mut("targets").and_then(Value::as_object_mut) {
+                    for target in targets.values_mut() {
+                        set_text(target, "name");
+                        set_text(target, "nameStartsWith");
+                    }
+                }
+            }
+        }
+        if let Some(gates) = pat["gates"].as_object_mut() {
+            for gate in gates.values_mut() {
+                each(&mut gate["scenario"], |step| {
+                    if let Some(a11y) = step
+                        .get_mut("expect")
+                        .and_then(|e| e.get_mut("a11y"))
+                        .and_then(Value::as_object_mut)
+                        && a11y.get("nameContains").is_some_and(Value::is_string)
+                    {
+                        a11y.insert("nameContains".to_owned(), json!(SENTENCE));
+                    }
+                });
+            }
+        }
+    });
+    pack.edit(&record_path("select"), |rec| {
+        rec["patterns"][0]["contexts"] = json!({
+            "viewport": { "minWidth": 1024 },
+            "reason": SENTENCE,
+        });
+        rec["patterns"][0]["keep"][2] = json!({
+            "id": "pattern.select.fits-narrow",
+            "basis": "out-of-context",
+            "reason": SENTENCE,
+        });
+    });
+    pack.edit("data/example/library.json", |catalog| {
+        catalog["title"] = json!(SENTENCE);
+        for pat in catalog["patterns"].as_array_mut().unwrap() {
+            if pat["pattern"] == "select" {
+                pat["summary"] = json!(SENTENCE);
+            }
+        }
+    });
+    pack.regenerate("example");
+
+    let fx = pack.host();
+    let listed = fx.pattern_list(json!({})).await;
+    assert_only_in_content(&listed);
+    assert_eq!(data(&listed)["content"]["trust"], "content");
+    assert_flagged(&data(&listed)["content"], false);
+
+    let opened = fx
+        .pattern_open(json!({ "library": "example", "pattern": "select" }))
+        .await;
+    assert_only_in_content(&opened);
+    assert_eq!(data(&opened)["content"]["trust"], "content");
+    assert_flagged(&data(&opened)["content"], false);
+
+    assert!(
+        !logs::lines("components-pattern-open").is_empty(),
         "nothing was logged"
     );
     assert_eq!(logs::lines(CANARY), Vec::<String>::new());

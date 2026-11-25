@@ -6,8 +6,8 @@
 //!
 //! - [`pack`]: a second reader of Specimen's pack format, held equal to `checkPack` by Specimen's
 //!   fixtures; a library with any problem is refused whole (D152).
-//! - `brief`, `list` and `open`: the three commands that serve a pack; `entry` builds an entry,
-//!   `fit` measures as AFD measures, `render` writes the text block.
+//! - `brief`, `list`, `open`, `pattern_list` and `pattern_open`: the commands that serve a pack;
+//!   `entry` builds an entry, `fit` measures as AFD measures, `render` writes the text block.
 //! - `check`: `components-check`, a page's source read as text for undeclared tags and
 //!   attributes (amendment A30); it renders nothing.
 //! - `scan`: `umbel-scan` over identifiers and over served text (D153).
@@ -30,6 +30,8 @@ mod input;
 mod list;
 mod open;
 mod pack;
+mod pattern_list;
+mod pattern_open;
 mod render;
 mod scan;
 mod select;
@@ -64,10 +66,12 @@ impl Plugin for Components {
             "components-list" => list::run(&input, cx),
             "components-open" => open::run(&input, cx),
             "components-check" => check::run(&input, cx),
+            "components-pattern-list" => pattern_list::run(&input, cx),
+            "components-pattern-open" => pattern_open::run(&input, cx),
             other => failure(
                 "COMMAND_NOT_FOUND",
                 &format!("the components plugin has no command `{other}`"),
-                "Call components-brief, components-list, components-open or components-check.",
+                "Call components-brief, components-list, components-open, components-check, components-pattern-list or components-pattern-open.",
             ),
         }
     }

@@ -118,6 +118,8 @@ async fn plugin_show_reports_the_plugin_and_the_default_pack_in_every_space() {
             ("components-list", false),
             ("components-open", false),
             ("components-check", false),
+            ("components-pattern-list", false),
+            ("components-pattern-open", false),
         ]
     );
     // The default pack carries its own version from its pack.toml, in both spaces.
@@ -205,7 +207,7 @@ async fn the_doctor_passes_the_plugin_and_counts_only_the_override_as_a_pack_dir
         ),
         (
             "plugins.loaded",
-            "1 instance(s) loaded: components (compiled, 4 command(s)); compiled instance(s) \
+            "1 instance(s) loaded: components (compiled, 6 command(s)); compiled instance(s) \
              components are trusted, not sandboxed: grants are a declaration, not a sandbox",
         ),
         (
@@ -307,6 +309,12 @@ async fn components_brief_is_the_one_first_class_suggestion_on_every_lane() {
             (
                 "components-check",
                 json!({ "source": "<example-select label=\"Size\"></example-select>" }),
+            ),
+            // Not first-class: found through afd-discover and run by name (amendment A31.2).
+            ("components-pattern-list", json!({})),
+            (
+                "components-pattern-open",
+                json!({ "library": "example", "pattern": "select" }),
             ),
         ] {
             assert!(!listed.contains(&name.to_owned()), "{lane}: {listed:?}");

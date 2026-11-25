@@ -5,7 +5,7 @@
 
 use std::collections::{BTreeMap, HashSet};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::patterns;
@@ -917,21 +917,25 @@ pub(crate) struct KeepBasis {
 }
 
 /// Optional viewport bounds for a context-scoped implementation.
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-#[allow(dead_code)]
 pub(crate) struct ViewportBounds {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) min_width: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) max_width: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) min_height: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) max_height: Option<u32>,
 }
 
 /// Optional applicability contexts for an implementation.
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
-#[allow(dead_code)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub(crate) struct ImplementationContexts {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) viewport: Option<ViewportBounds>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) themes: Option<Vec<String>>,
     pub(crate) reason: String,
 }
