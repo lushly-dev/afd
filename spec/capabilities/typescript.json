@@ -510,14 +510,19 @@
 			]
 		},
 		"mcp.host-verified-confirmation": {
-			"status": "planned",
-			"note": "(specified in `spec/command-metadata.md`)",
+			"status": "yes",
+			"note": "([#2263](https://github.com/lushly-dev/afd/issues/2263)): `confirmationMode: 'host-verified'` on `CommandDefinition`/`defineCommand`, `HumanRelay` on `createMcpServer`/`createMcpHandler` (single-command 2026-07-28, validated input, URL-mode elicitation, `approvedContext`), private relay evidence spent once as `relay:<decisionId>` by `createApprovalMiddleware`, `inputDigest` (loads `inputDigests`)",
 			"views": {
-				"approvals": "",
-				"command-metadata": "",
-				"pc-hv": ""
+				"approvals": "([#2263](https://github.com/lushly-dev/afd/issues/2263)): an off-object private `WeakMap` carrier the server sets after `Approved`, which `createApprovalMiddleware` checks in rule 3's order and spends once as `relay:<decisionId>` (24h TTL regardless of `replay`); cleared before the handler runs",
+				"command-metadata": "([#2263](https://github.com/lushly-dev/afd/issues/2263): `confirmationMode: 'host-verified'`, `createMcpServer({ humanRelay })`, `inputDigest`)",
+				"pc-hv": "(`human-relay.test.ts`, `authorization-cases.test.ts`, [#2263](https://github.com/lushly-dev/afd/issues/2263))"
 			},
-			"evidence": ["spec/command-metadata.md"]
+			"evidence": [
+				"packages/server/src/human-relay.ts",
+				"packages/server/src/relay-evidence.ts",
+				"packages/server/src/human-relay.test.ts",
+				"packages/server/src/authorization-cases.test.ts"
+			]
 		},
 		"mcp.tasks": {
 			"status": "yes",

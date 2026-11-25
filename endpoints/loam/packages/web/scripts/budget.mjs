@@ -897,9 +897,9 @@ export const CEILINGS = Object.freeze({
 	// the bootstrap tools' describers) and what it shares with `apps`; 36,799, and 37,624 merged with step 5, plus a margin.
 	// #1989 / PR #2215 (TypeScript output budgets and `assertToolMeta` on `createDirectToolSurface`, plus `outputBudget`
 	// in `afd-detail`/`afd-help`/`afd-docs`) on `main` at `0b56ceecb`: measured 41,008; set to 41,500 under D115.
-	// #2128 (`checkBatchLimits` in the direct tool surface's router) merged on `main` at `9c3f9f24c`: measured 41,202,
-	// within the 41,500 ceiling.
-	inboundMinified: 41_500,
+	// #2128 (`checkBatchLimits`, 41,202) and #2263 (`confirmationMode` / `humanRelay` in `tool-router`/`tools`/`lazy-tools`,
+	// measured 41,977 against `main` at `4da8efebe`); raised 41,500 → 42,500 under D115.
+	inboundMinified: 42_500,
 	mountMinified: 238_268,
 	switcherMinified: 12_100,
 	switcherColdMinified: 45_163,

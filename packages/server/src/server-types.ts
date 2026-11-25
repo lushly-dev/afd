@@ -15,6 +15,7 @@ import type {
 } from '@lushly-dev/afd-core';
 import type { ApproverPredicate } from './approver.js';
 import type { ContextField } from './context-fields.js';
+import type { HumanRelay } from './human-relay.js';
 import type { McpAuthOptions, PreDispatchCheck, PreDispatchCheckOptions } from './mcp-auth.js';
 import type { Credentials } from './mcp-auth-rules.js';
 import type { ResourcesOption } from './resources.js';
@@ -294,6 +295,14 @@ export interface McpServerOptions {
 	 * `taskStore` is shared separately.
 	 */
 	instances?: 'single' | 'multiple';
+
+	/**
+	 * Host-verified confirmation relay (`spec/command-metadata.md`, "Host-verified confirmation"):
+	 * required to confirm commands with `confirmationMode: 'host-verified'` over MCP 2026-07-28,
+	 * regardless of `confirmations` (`'off'` included). Without one, MCP and HTTP calls to a
+	 * host-verified command fail with `CONFIRMATION_REQUIRED`.
+	 */
+	humanRelay?: HumanRelay;
 
 	/**
 	 * Which callers are approvers (`spec/command-metadata.md`, "Approval evidence from an approver

@@ -60,6 +60,7 @@ import {
 	inputNotCanonical,
 	randomBytes,
 	safeEqualText,
+	sha256Base64url,
 	toKeys,
 } from './approval-crypto.js';
 import { markApprovalProcessState } from './approval-process-state.js';
@@ -71,7 +72,12 @@ import {
 	upFrontApproval,
 } from './approval-relay.js';
 import { approverCall, takeApproverEvidence } from './approver.js';
-import { type PrincipalCredentials, principalBinding } from './principal-binding.js';
+import {
+	credentialsBinding,
+	type PrincipalCredentials,
+	principalBinding,
+} from './principal-binding.js';
+import { type RelayEvidence, relayEvidenceOf } from './relay-evidence.js';
 
 export { type ApprovalSecret, canonicalJson };
 
@@ -454,6 +460,45 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 			: (await options.nonceStore?.consume(nonce, expiresAt)) === true;
 	}
 
+	/**
+	 * Check server-private relay evidence against this call (`spec/command-metadata.md`, "Relay
+	 * evidence", rule 3), in exact order with constant-time comparisons.
+	 */
+	async function checkRelayEvidence(
+		evidence: RelayEvidence,
+		commandName: string,
+		inputBinding: string,
+		actorBinding: string,
+		context: CommandContext
+	): Promise<ApprovalRejection | undefined> {
+		if (!safeEqualText(evidence.command, commandName)) return 'command-mismatch';
+		if (!safeEqualText(evidence.inputDigest, await sha256Base64url(inputBinding))) {
+			return 'input-mismatch';
+		}
+		if (!safeEqualText(evidence.actor, actorBinding)) return 'actor-mismatch';
+		let creds: string;
+		try {
+			creds = credentialsBinding(context.credentials as PrincipalCredentials | undefined);
+		} catch {
+			return 'credentials-mismatch';
+		}
+		if (!safeEqualText(evidence.credentialsBinding, creds)) return 'credentials-mismatch';
+		return undefined;
+	}
+
+	/**
+	 * Spend a relay decision once as `relay:<decisionId>` for 24 hours regardless of `replay`
+	 * (`spec/command-metadata.md`, "Relay evidence", rule 4).
+	 */
+	async function spendRelayDecision(decisionId: string, now: number): Promise<boolean> {
+		if (decisionId.length === 0) return false;
+		const key = `relay:${decisionId}`;
+		const expiresAt = now + MAX_TTL_MS;
+		return memoryStore
+			? memoryStore.consume(key, expiresAt, now)
+			: (await options.nonceStore?.consume(key, expiresAt)) === true;
+	}
+
 	function summarize(commandName: string, input: unknown, context: CommandContext): string {
 		return (
 			options.summarize?.(commandName, input, context) ||
@@ -552,34 +597,57 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		const now = clock.now();
 		const inputBinding = decidedOn;
 		const actorBinding = actorJson(context.actor);
-		const who: Binding = approver
-			? {
-					purpose: 'principal',
-					value: principalBinding(
-						context.actor,
-						context.credentials as PrincipalCredentials | undefined
-					),
-				}
-			: { purpose: 'actor', value: actorBinding };
+		const relayedEvidence = relayEvidenceOf(context);
+		// Defer approver principalBinding construction until needed so incomplete credentials
+		// never preempt relay evidence's ordered mismatch checks (`command` -> `input` -> `actor`
+		// -> `credentials`).
+		const resolveWho = (): Binding =>
+			approver && !relayedEvidence
+				? {
+						purpose: 'principal',
+						value: principalBinding(
+							context.actor,
+							context.credentials as PrincipalCredentials | undefined
+						),
+					}
+				: { purpose: 'actor', value: actorBinding };
 
 		let rejected: ApprovalRejection | undefined;
 		const directExchange = directApprovalExchange(context);
-		const evidence = directExchange
-			? takeDirectApproval(context)
-			: carried !== undefined
-				? carried
-				: context.approval;
-		if (evidence !== undefined) {
-			const verdict = await verify(evidence, commandName, inputBinding, who, now);
-			if (verdict.ok) {
-				if (await spend(verdict.nonce, verdict.expiresAt, now)) return next(inputBinding);
+		if (relayedEvidence) {
+			// Relay evidence is the only evidence considered when present (rule 2): no token, no
+			// in-process exchange and no form answer.
+			const mismatch = await checkRelayEvidence(
+				relayedEvidence,
+				commandName,
+				inputBinding,
+				actorBinding,
+				context
+			);
+			if (!mismatch) {
+				if (await spendRelayDecision(relayedEvidence.decisionId, now)) return next(inputBinding);
 				rejected = 'already-used';
 			} else {
-				rejected = verdict.reason;
+				rejected = mismatch;
+			}
+		} else {
+			const evidence = directExchange
+				? takeDirectApproval(context)
+				: carried !== undefined
+					? carried
+					: context.approval;
+			if (evidence !== undefined) {
+				const verdict = await verify(evidence, commandName, inputBinding, resolveWho(), now);
+				if (verdict.ok) {
+					if (await spend(verdict.nonce, verdict.expiresAt, now)) return next(inputBinding);
+					rejected = 'already-used';
+				} else {
+					rejected = verdict.reason;
+				}
 			}
 		}
 
-		if (relay) {
+		if (relay && !relayedEvidence) {
 			const bindings = await relayBindings(commandName, inputBinding, actorBinding);
 			const answer = await relay.answer(bindings);
 			if (answer.kind === 'decline') {
@@ -624,12 +692,14 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 			});
 		}
 
-		const payload = await issue(commandName, inputBinding, who, now);
+		const payload = await issue(commandName, inputBinding, resolveWho(), now);
 		const approvalToken = await sign(payload);
 		const expiresAt = new Date(payload.exp).toISOString();
-		// An approver always gets its token; anyone else as the option says.
+		// An approver always gets its token (except when relay evidence was what failed); anyone
+		// else as the option says.
 		const includeToken =
-			!directExchange && (!!approver || (options.includeToken ?? context.interface !== 'mcp'));
+			!directExchange &&
+			((!relayedEvidence && !!approver) || (options.includeToken ?? context.interface !== 'mcp'));
 		// Checked again after the awaits since the first check, before anyone is told of the call.
 		if (changed()) return failure(inputChanged(commandName));
 		if (directExchange) {
@@ -654,15 +724,16 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		const why = rejected ? `The approval token was not accepted (${rejected}). ` : '';
 		// Addressed to whoever relays the decision: the token is the approval, so the gated
 		// caller must not resubmit it on its own, and tool arguments cannot carry it.
-		const retry = approver
-			? `once they approve, the approver retries the same call with the same input and details.approvalToken in _meta["dev.afd/approval"]. The token expires at ${expiresAt}${singleUse ? ' and works once' : ''}.`
-			: includeToken
-				? `once they approve, the application retries the same call with the same input and details.approvalToken as its approval evidence (tool arguments cannot carry it). The token expires at ${expiresAt}${singleUse ? ' and works once' : ''}.`
-				: bound
-					? `the client could not be asked from inside afd-batch, afd-pipe or another command. Call ${commandName} on its own so the client can ask the user.`
-					: relayMode === 'mcp-elicitation' && context.interface === 'mcp'
-						? `the client could not be asked here. Call ${commandName} from an MCP client that supports form elicitation, or the application records the approval and retries.`
-						: 'the application retries the same call once it has recorded the approval.';
+		const retry =
+			approver && !relayedEvidence
+				? `once they approve, the approver retries the same call with the same input and details.approvalToken in _meta["dev.afd/approval"]. The token expires at ${expiresAt}${singleUse ? ' and works once' : ''}.`
+				: includeToken
+					? `once they approve, the application retries the same call with the same input and details.approvalToken as its approval evidence (tool arguments cannot carry it). The token expires at ${expiresAt}${singleUse ? ' and works once' : ''}.`
+					: bound && !relayedEvidence
+						? `the client could not be asked from inside afd-batch, afd-pipe or another command. Call ${commandName} on its own so the client can ask the user.`
+						: relayMode === 'mcp-elicitation' && context.interface === 'mcp' && !relayedEvidence
+							? `the client could not be asked here. Call ${commandName} from an MCP client that supports form elicitation, or the application records the approval and retries.`
+							: 'the application retries the same call once it has recorded the approval.';
 		return failure({
 			code: ErrorCodes.APPROVAL_REQUIRED,
 			message: `${commandName} needs approval before it runs`,
@@ -679,6 +750,7 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 	markApprovalProcessState(middleware, {
 		relay: relayMode === 'mcp-elicitation',
 		perProcessNonces: singleUse && !options.nonceStore,
+		perProcessRelayNonces: !options.nonceStore,
 	});
 	return middleware;
 }

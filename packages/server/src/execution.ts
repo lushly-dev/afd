@@ -12,6 +12,7 @@ import type {
 	BatchRequest,
 	BatchResult,
 	CommandContext,
+	CommandError,
 	CommandMiddleware,
 	CommandResult,
 	ContextDefaults,
@@ -93,6 +94,19 @@ export interface ExecutionDeps {
 	maxBatchParallelism?: number;
 	/** Maximum validation issues reported in a single `VALIDATION_ERROR` (default: 100). */
 	maxValidationIssues?: number;
+	/**
+	 * Optional host-verified relay hooks passed only by the Node MCP server (`server.ts`), keeping
+	 * `relay-evidence.ts` out of browser `/direct` first-paint bundles.
+	 */
+	relay?: {
+		transfer(from: CommandContext, to: CommandContext): void;
+		takeDispatch(
+			context: CommandContext,
+			commandName: string,
+			data: unknown
+		): CommandError | undefined;
+		clear(context: CommandContext): void;
+	};
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -150,6 +164,7 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 			(callerContext as unknown as Record<symbol, unknown>)[SKIP_OUTPUT_BUDGET]
 		);
 		const context = withContextDefaults(callerContext, deps.contextDefaults);
+		deps.relay?.transfer(callerContext, context);
 		// A command hidden from the caller (MCP authorization, M6) is looked up as a name that
 		// does not exist, before validation, middleware or the handler.
 		const command = deps.hidden?.(commandName, callerContext)
@@ -271,6 +286,10 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 					details: { reason: admission === 'missing' ? 'no-approval-step' : 'admission-mismatch' },
 				});
 			}
+			const relayMismatch = deps.relay?.takeDispatch(context, commandName, data);
+			if (relayMismatch) return failure(relayMismatch);
+			// Clear private relay evidence before the handler runs so nested in-process calls never see it.
+			deps.relay?.clear(context);
 			const { clock } = context;
 			const startTime = clock.now();
 			const rawResult = await command.handler(data, context);

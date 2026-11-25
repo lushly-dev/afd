@@ -53,7 +53,12 @@ const CONFIRM_PROPERTY = {
  * command with `confirmPrompt` whose own schema has no `confirm` (`spec/command-metadata.md`).
  */
 function acceptsConfirm(cmd: ZodCommandDefinition, mode: ConfirmationMode | undefined): boolean {
-	return mode === 'enforce' && !!cmd.confirmPrompt && !declaresConfirmInput(cmd);
+	return (
+		mode === 'enforce' &&
+		cmd.confirmationMode !== 'host-verified' &&
+		!!cmd.confirmPrompt &&
+		!declaresConfirmInput(cmd)
+	);
 }
 
 /** The individual tool `inputSchema`, with `confirm` when the command accepts it. */

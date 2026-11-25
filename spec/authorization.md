@@ -639,8 +639,9 @@ phase 5 step 0c, [#532](https://github.com/lushly-dev/afd/issues/532)), and each
 `packages/server/src/principal-binding.test.ts`, Python in `python/tests/test_principal_binding.py`
 (C++'s `afd::mcp_stdio` signs confirmation `requestState` with HMAC bound to command, input and
 actor; stdio carries no HTTP credentials).
-Rust loads the `inputDigests` cases through `afd::input_digest`, the digest its `HumanRelay` gets
-and its approval middleware checks relay evidence with (step 0d). Rust's task owners are the same
+Rust (`afd::input_digest`, step 0d) and TypeScript (`inputDigest`, [#2263](https://github.com/lushly-dev/afd/issues/2263),
+`packages/server/src/authorization-cases.test.ts`) load the `inputDigests` cases, the digest their
+`HumanRelay` gets and their approval middleware checks relay evidence with. Rust's task owners are the same
 binding (step 0e, `tests/server_tasks.rs`): a `tasks/*` request from another actor, issuer, subject
 or client gets the unknown-task answer, byte for byte.
 Each binds it to confirmation state as integrity-protected input, never as readable identity:

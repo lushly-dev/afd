@@ -48,6 +48,7 @@ import {
 	type ConfirmationGate,
 	type ConfirmationOutcome,
 	declaresConfirmInput,
+	type HumanRelayGate,
 	InputRequiredSignal,
 } from './confirmations.js';
 import { resolveContextState } from './context-scope.js';
@@ -97,6 +98,8 @@ export interface ToolRouterDeps {
 	contextState?: ContextState;
 	/** Confirmation enforcement (`confirmations` server option); none means off. */
 	confirmations?: ConfirmationGate;
+	/** Host-verified confirmation gate (`confirmationMode: 'host-verified'`); MCP servers only. */
+	humanRelay?: HumanRelayGate;
 	/** Maximum commands accepted in a single batch (default: 500). */
 	maxBatchSize?: number;
 	/** Maximum parallelism accepted in a single batch (default: 16). */
@@ -236,6 +239,18 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			...callContext,
 			traceId: `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
 		});
+		const runHostVerified = async (
+			cmd: ZodCommandDefinition | undefined,
+			input: unknown,
+			prefix: string
+		): Promise<ToolCallResult | undefined> => {
+			if (!deps.humanRelay || cmd?.confirmationMode !== 'host-verified') return undefined;
+			const outcome = await deps.humanRelay.check(cmd, input, traced(prefix));
+			if (outcome.kind === 'input-required') throw new InputRequiredSignal(outcome.result);
+			if (outcome.kind === 'error') return resultContent(failure(outcome.error), true);
+			const result = await executeCommand(cmd.name, input, outcome.context);
+			return resultContent(result, !result.success);
+		};
 		/**
 		 * The context of a batch's or pipeline's steps. Steps cannot ask for approval mid-run (the
 		 * retry would run the earlier steps again), so a call that can ask is approved up front, as
@@ -330,6 +345,9 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			const denied = contextDenial(cmd, commandName, contextState);
 			if (denied) return denied;
 
+			const hostVerified = await runHostVerified(cmd, input ?? {}, 'afd-call');
+			if (hostVerified) return hostVerified;
+
 			const unconfirmed = await confirm(
 				[{ command: commandName, input: input ?? {} }],
 				confirmArg === true ? 'all' : undefined,
@@ -421,8 +439,15 @@ export function createToolRouter(deps: ToolRouterDeps) {
 					true
 				);
 			}
+			const batchSteps = existing(
+				args.commands.map((item) => ({ command: item.command, input: item.input ?? {} }))
+			);
+			const hostVerifiedBatch = deps.humanRelay?.refuseSteps(batchSteps);
+			if (hostVerifiedBatch) {
+				return resultContent(createFailedBatchResult(hostVerifiedBatch, {}), true);
+			}
 			const unconfirmed = await confirm(
-				existing(args.commands.map((item) => ({ command: item.command, input: item.input ?? {} }))),
+				batchSteps,
 				namedAcknowledgement(batchArgs.confirm),
 				'repeat the afd-batch with confirm: [the command names]',
 				(outcome) => resultContent(createFailedBatchResult(outcome.error, {}), true)
@@ -474,8 +499,15 @@ export function createToolRouter(deps: ToolRouterDeps) {
 					true
 				);
 			}
+			const pipeSteps = existing(
+				args.steps.map((step) => ({ command: step.command, input: step.input ?? {} }))
+			);
+			const hostVerifiedPipe = deps.humanRelay?.refuseSteps(pipeSteps);
+			if (hostVerifiedPipe) {
+				return resultContent(failedPipeline(hostVerifiedPipe), true);
+			}
 			const unconfirmed = await confirm(
-				existing(args.steps.map((step) => ({ command: step.command, input: step.input ?? {} }))),
+				pipeSteps,
 				namedAcknowledgement(pipeArgs.confirm),
 				'repeat the afd-pipe with confirm: [the command names]',
 				(outcome) => resultContent(failedPipeline(outcome.error), true)
@@ -536,6 +568,9 @@ export function createToolRouter(deps: ToolRouterDeps) {
 				const denied = contextDenial(candidates[0], actualCommandName, contextState);
 				if (denied) return denied;
 
+				const hostVerified = await runHostVerified(candidates[0], commandParams, 'trace');
+				if (hostVerified) return hostVerified;
+
 				const unconfirmed = await confirm(
 					[{ command: actualCommandName, input: commandParams }],
 					typedArgs?.confirm === true ? 'all' : undefined,
@@ -583,9 +618,19 @@ export function createToolRouter(deps: ToolRouterDeps) {
 
 		// A confirm-gated tool advertises an optional `confirm` argument, removed here before the
 		// command validates its input, unless the command's own schema declares `confirm`.
+		// A host-verified command never advertises or accepts `confirm`, so its input is left intact.
 		let input: unknown = args ?? {};
+		const hostVerified = await runHostVerified(command, input, 'trace');
+		if (hostVerified) return hostVerified;
+
 		let acknowledged: Acknowledgement;
-		if (gate && gate.mode !== 'off' && command?.confirmPrompt && isRecord(input)) {
+		if (
+			gate &&
+			gate.mode !== 'off' &&
+			command?.confirmPrompt &&
+			command.confirmationMode !== 'host-verified' &&
+			isRecord(input)
+		) {
 			acknowledged = input.confirm === true ? 'all' : undefined;
 			if (!declaresConfirmInput(command)) input = withoutConfirm(input);
 		}

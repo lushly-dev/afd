@@ -52,6 +52,7 @@
 export type {
 	ApprovalDecision,
 	ApprovalPolicy,
+	CommandConfirmationMode,
 	CommandMiddleware,
 	CreateHandoffOptions,
 	ExposeOptions,
@@ -139,6 +140,18 @@ export {
 	type HandoffResultOutput,
 	HandoffResultSchema,
 } from './handoff-schema.js';
+// Host-verified confirmation relay and input digest (spec/command-metadata.md)
+export {
+	allowsUrlElicitation,
+	type HumanRelay,
+	inputDigest,
+	isRelayUrl,
+	RELAY_INPUT_KEY,
+	type RelayBeginResult,
+	type RelayCall,
+	type RelayOutcome,
+	type RelayPrompt,
+} from './human-relay.js';
 // Command journal: recording middleware and replay
 export {
 	createJournalMiddleware,

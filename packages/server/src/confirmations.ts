@@ -134,3 +134,19 @@ export interface ConfirmationGate {
 		howToAcknowledge: string
 	): Promise<ConfirmationOutcome>;
 }
+
+/** What the host-verified confirmation gate decided for one call. */
+export type HumanRelayOutcome =
+	| { kind: 'proceed'; context: CommandContext }
+	| { kind: 'error'; error: CommandError }
+	| { kind: 'input-required'; result: unknown };
+
+/** Host-verified confirmation gate wired into `createToolRouter` on MCP servers. */
+export interface HumanRelayGate {
+	refuseSteps(steps: readonly ConfirmationStep[]): CommandError | undefined;
+	check(
+		command: ZodCommandDefinition,
+		input: unknown,
+		callContext: CommandContext
+	): Promise<HumanRelayOutcome>;
+}

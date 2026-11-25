@@ -2,7 +2,13 @@
  * @fileoverview Lazy-loading discovery tools: afd-discover, afd-detail.
  */
 
-import type { CommandResult, JsonSchema, OutputBudget, TaskSupport } from '@lushly-dev/afd-core';
+import type {
+	CommandConfirmationMode,
+	CommandResult,
+	JsonSchema,
+	OutputBudget,
+	TaskSupport,
+} from '@lushly-dev/afd-core';
 import { approvalMode, success, truncateName } from '@lushly-dev/afd-core';
 import { defaultCommandGroup, notFoundSuggestion } from './command-routing.js';
 import type { DetailInput, DiscoverInput } from './meta-tools.js';
@@ -59,6 +65,8 @@ interface DetailResult {
 	toolMeta?: Record<string, unknown>;
 	/** The OAuth scopes the command needs over authorized HTTP (`spec/authorization.md`, M6). */
 	scopes?: string[];
+	/** Host-verified confirmation mode (`spec/command-metadata.md`), reported only when set. */
+	confirmationMode?: CommandConfirmationMode;
 	/** MCP task support (`spec/command-metadata.md`, "Tasks"), reported only when set. */
 	task?: TaskSupport;
 	/** Declared output budget (`spec/output-budgets.md`, B1), reported only when set. */
@@ -236,6 +244,7 @@ export function executeDetail(
 			...(cmd.contexts?.length && { contexts: cmd.contexts }),
 			...(cmd.toolMeta && Object.keys(cmd.toolMeta).length > 0 && { toolMeta: cmd.toolMeta }),
 			...(cmd.scopes?.length && { scopes: cmd.scopes }),
+			...(cmd.confirmationMode !== undefined && { confirmationMode: cmd.confirmationMode }),
 			...(cmd.task !== undefined && { task: cmd.task }),
 			...(cmd.outputBudget && {
 				outputBudget: {

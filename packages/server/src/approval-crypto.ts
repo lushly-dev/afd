@@ -103,6 +103,12 @@ export async function hmac(key: ApprovalKey, data: string): Promise<Uint8Array> 
 	return new Uint8Array(mac);
 }
 
+/** Unpadded base64url SHA-256 of the UTF-8 bytes of `data` (WebCrypto, Node and browser). */
+export async function sha256Base64url(data: string): Promise<string> {
+	const hash = await cryptoApi().subtle.digest('SHA-256', encoder.encode(data));
+	return base64url(new Uint8Array(hash));
+}
+
 /**
  * A keyed digest; `purpose` keeps an input digest from ever matching an actor digest, and an
  * approver's principal digest from matching either.
