@@ -99,44 +99,27 @@ class TestGitHubAuthChain:
             token = await resolver.resolve("github")
         assert token == "custom-token"
 
-    async def test_falls_back_to_gh_cli(self) -> None:
+    async def test_never_runs_the_gh_cli(self) -> None:
+        """Credentials come from the environment only: no subprocess, so connector commands
+        declare none and a remote-caller host can run them."""
         resolver = DefaultCredentialResolver()
         with (
-            patch.dict("os.environ", {}, clear=False),
-            patch("os.environ.get", return_value=""),
-            patch("shutil.which", return_value="/usr/bin/gh"),
-            patch(
-                "botcore_connectors.auth.DefaultCredentialResolver._resolve_github_cli",
-                new_callable=AsyncMock,
-                return_value="cli-token-456",
-            ) as mock_cli,
-        ):
-            token = await resolver.resolve("github")
-        assert token == "cli-token-456"
-        mock_cli.assert_awaited_once()
-
-    async def test_returns_empty_when_both_fail(self) -> None:
-        resolver = DefaultCredentialResolver()
-        with (
-            patch.dict("os.environ", {}, clear=False),
-            patch("os.environ.get", return_value=""),
-            patch("shutil.which", return_value=None),
+            patch.dict("os.environ", {}, clear=True),
+            patch("shutil.which", return_value="/usr/bin/gh") as which,
+            patch("botcore.utils.runner.run_command", new_callable=AsyncMock) as run,
+            patch("subprocess.run") as sub_run,
+            patch("asyncio.create_subprocess_exec", new_callable=AsyncMock) as exec_,
         ):
             token = await resolver.resolve("github")
         assert token == ""
+        run.assert_not_awaited()
+        sub_run.assert_not_called()
+        exec_.assert_not_awaited()
+        which.assert_not_called()
 
-    async def test_returns_empty_when_gh_cli_errors(self) -> None:
+    async def test_returns_empty_when_the_variable_is_unset(self) -> None:
         resolver = DefaultCredentialResolver()
-        with (
-            patch.dict("os.environ", {}, clear=False),
-            patch("os.environ.get", return_value=""),
-            patch("shutil.which", return_value="/usr/bin/gh"),
-            patch(
-                "botcore_connectors.auth.DefaultCredentialResolver._resolve_github_cli",
-                new_callable=AsyncMock,
-                return_value="",
-            ),
-        ):
+        with patch.dict("os.environ", {}, clear=True):
             token = await resolver.resolve("github")
         assert token == ""
 

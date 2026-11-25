@@ -1,12 +1,11 @@
-"""Credential resolution for connectors — env var + CLI fallback chains."""
+"""Credential resolution for connectors: from the environment only."""
 
 from __future__ import annotations
 
 import logging
 import os
-import shutil
 import time
-from typing import Any, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
 
@@ -60,10 +59,11 @@ class CredentialResolver(Protocol):
 
 
 class DefaultCredentialResolver:
-    """Resolves credentials via env var → CLI fallback chains.
+    """Resolves credentials from environment variables only.
 
-    Currently supports GitHub only. Azure/Graph chains will be added in
-    later phases.
+    It never runs a CLI such as ``gh auth token``, so connector commands declare no
+    ``subprocess`` effect and a ``remote-caller`` host can run them. Currently supports
+    GitHub only; Azure/Graph chains will be added in later phases.
     """
 
     def __init__(self, config: AuthConfig | None = None) -> None:
@@ -97,37 +97,9 @@ class DefaultCredentialResolver:
         return ""
 
     async def _resolve_github(self) -> str:
-        # 1. Env var (primary).
         token = os.environ.get(self._config.github_token_env, "")
         if token:
             logger.debug("github auth resolved from env var %s", self._config.github_token_env)
-            return token
-
-        # 2. gh CLI fallback.
-        if shutil.which("gh") is None:
-            logger.debug("gh CLI not found on PATH; skipping CLI fallback")
-            return ""
-
-        return await self._resolve_github_cli()
-
-    async def _resolve_github_cli(self) -> str:
-        try:
-            from botcore.utils.runner import run_command
-        except ImportError:
-            logger.debug("botcore.utils.runner not available; skipping CLI fallback")
-            return ""
-
-        try:
-            result: dict[str, Any] = await run_command(["gh", "auth", "token"], timeout=10)
-        except Exception:  # noqa: BLE001
-            logger.debug("gh auth token subprocess failed unexpectedly")
-            return ""
-
-        if result.get("success"):
-            token = result.get("output", "").strip()
-            if token:
-                logger.debug("github auth resolved from gh CLI")
-                return token
-
-        logger.debug("gh auth token failed: %s", result.get("error", "unknown"))
-        return ""
+        else:
+            logger.debug("env var %s is unset; no github credential", self._config.github_token_env)
+        return token

@@ -120,7 +120,9 @@ class ConnectorBase:
 
         result = await self._execute_with_retry(method, path, json, params, merged_headers)
 
-        # Auth retry — on 401, invalidate + re-resolve once.
+        # Auth retry — on 401, invalidate + re-resolve once. The default resolver reads the
+        # environment only, so this resends a changed token only if the variable changed; a
+        # custom resolver (one that refreshes) is what makes the retry useful.
         if (
             self._resolver is not None
             and result.error is not None

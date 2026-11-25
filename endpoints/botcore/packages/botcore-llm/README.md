@@ -37,22 +37,34 @@ The default `inspection` profile admits only read-only commands (`info_workspace
 `spec_status`, `spec_validate`, `changeset_status` and the like). Linting, testing, writes and
 connector calls are refused.
 
-### Opting a local setup into `trusted-local`
+### Letting agents use connectors: `remote-caller`
 
-A setup on your own machine, where the model may run the commands you would, opts in under
-the LLM plugin's section of `botcore.toml` (or `[tool.botcore.plugins.llm]` in
-`pyproject.toml`):
+An agent that only needs the connectors runs under `remote-caller`, which admits inspection,
+service calls and history writes, and no subprocess or local source write. Its connector calls
+act on GitHub with the token's permissions: they can create issues and pull requests and post
+reviews. Give the host its GitHub token in the environment (`GH_TOKEN`), since connectors never
+run `gh auth token`, and enable the GitHub connector, which registers no commands otherwise.
+In `pyproject.toml`:
 
 ```toml
 [tool.botcore.plugins.llm]
 default_model = "<model-id>"
-tool_profile = "trusted-local"   # admits every effect a command declares
+tool_profile = "remote-caller"   # connector calls; no subprocesses or local source writes
 tool_plugins = ["connectors"]    # optional; the default when connectors is installed
+
+[tool.botcore.plugins.connectors]
+enabled = ["github"]
 ```
 
-`trusted-local` admits subprocesses (`dev_lint`, `dev_test`, `dev_build`), source, config and
-release writes, and the GitHub connector commands, which declare `service` and `subprocess`.
-`remote-caller` sits between the two: inspection, service calls and history writes. A Python
+In a standalone `botcore.toml` the same sections are `[plugins.llm]` and `[plugins.connectors]`.
+`remote-caller` admits history writes from any plugin `tool_plugins` selects, not only the
+connectors: add a plugin there only if its agents may run its history-writing commands.
+
+### Opting a local setup into `trusted-local`
+
+A setup on your own machine, where the model may run the commands you would, sets
+`tool_profile = "trusted-local"`, which admits every effect a command declares: subprocesses
+(`dev_lint`, `dev_test`, `dev_build`), source, config and release writes, and the connectors. A Python
 embedder can instead pass a host of its own to `botcore_llm.commands.set_tool_host(host)`, for
 example one built with `botcore.build_host` and narrower policies.
 

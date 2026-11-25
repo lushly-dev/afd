@@ -33,11 +33,11 @@ with core commands/docs. Plugins cannot override host branding. Every plugin
 command needs an explicit policy, and plugins must declare
 `host_context_safe = True` after a per-host state audit. The connectors plugin
 has: its configuration, connectors and credential cache live on the instance each
-host discovers, and every GitHub command declares the `service` and `subprocess`
-effects (credential lookup may run `gh auth token`), so only a `trusted-local`
-host admits its calls. `build_host` keeps the selected plugin instances on
-`host.plugins`, and `await host.aclose()` calls each one's `close()` (the
-connectors' HTTP clients). The bundled optional LLM, agents, memory and Teams
+host discovers, and every GitHub command declares only the `service` effect
+(credentials come from the environment, never from `gh auth token`), so a
+`remote-caller` or `trusted-local` host admits its calls. `build_host` keeps the
+selected plugin instances on `host.plugins`, and `await host.aclose()` calls each
+one's `close()` (the connectors' HTTP clients). The bundled optional LLM, agents, memory and Teams
 distributions remain preserved; this change does not claim their stateful
 implementations are admitted to a managed multi-worktree host. In particular,
 their module-global configuration needs adapters before such admission. The LLM

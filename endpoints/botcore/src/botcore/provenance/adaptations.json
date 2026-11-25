@@ -107,21 +107,21 @@
       "path": "botcore-connectors/src/botcore_connectors/auth.py",
       "upstream_sha256": "7d885c4fe4bbb237e85861d2110dd85510ac98eaa7f8cac1f4212a428c11408a",
       "staged_sha256": "7d885c4fe4bbb237e85861d2110dd85510ac98eaa7f8cac1f4212a428c11408a",
-      "current_import_sha256": "a70daa05c9652f438b83ec7143f2245d96e7e4092fe2d55c4ea440b64512eda1",
+      "current_import_sha256": "d0596e0eb57bf68b797d7ab7ffea1b925d957ee400e0f50b4d6eaf7ec05a645e",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Format Botcore, add mypy type checking and py.typed marker (#1757)"
+      "import_reason": "Imported exact frozen staged-input bytes; Format Botcore, add mypy type checking and py.typed marker (#1757); Connectors read the GitHub token from the environment only and declare only the service effect"
     },
     {
       "path": "botcore-connectors/src/botcore_connectors/base.py",
       "upstream_sha256": "2199ae2f68c4075bf3cf84da779ff6e3e49b754d92339eff80c22f67f5780e5f",
       "staged_sha256": "2199ae2f68c4075bf3cf84da779ff6e3e49b754d92339eff80c22f67f5780e5f",
-      "current_import_sha256": "24d6629c2025785ed7042692173f5d90472df83dee643f2449764b3e338ac5a1",
+      "current_import_sha256": "ae950cbe5105ad03a611a9468e1ae5e43295c6b954a6b88b04fee09e57138699",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Format Botcore, add mypy type checking and py.typed marker (#1757)"
+      "import_reason": "Imported exact frozen staged-input bytes; Format Botcore, add mypy type checking and py.typed marker (#1757); Connectors read the GitHub token from the environment only and declare only the service effect"
     },
     {
       "path": "botcore-connectors/src/botcore_connectors/config.py",
@@ -137,11 +137,11 @@
       "path": "botcore-connectors/src/botcore_connectors/errors.py",
       "upstream_sha256": "7e27e1306ce0234c469eb0278697e6f69d6692c82e4a4fb95faf6b38b4a50f5f",
       "staged_sha256": "7e27e1306ce0234c469eb0278697e6f69d6692c82e4a4fb95faf6b38b4a50f5f",
-      "current_import_sha256": "a0ee45668e25205a54143820b034edfff4c76fe7b6a44d3866aee8abeb1ee3e5",
+      "current_import_sha256": "76940f7435eaac9ec461230ae122c807e12f4ed7bb95a4f09515f04a06160a0b",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Format Botcore, add mypy type checking and py.typed marker (#1757)"
+      "import_reason": "Imported exact frozen staged-input bytes; Format Botcore, add mypy type checking and py.typed marker (#1757); Connectors read the GitHub token from the environment only and declare only the service effect"
     },
     {
       "path": "botcore-connectors/src/botcore_connectors/github.py",
@@ -167,11 +167,11 @@
       "path": "botcore-connectors/src/botcore_connectors/plugin.py",
       "upstream_sha256": "1d0d0eb880fba09657132e7a3bdaca2e411d8466c69cfd785a012193b24e69fd",
       "staged_sha256": "1d0d0eb880fba09657132e7a3bdaca2e411d8466c69cfd785a012193b24e69fd",
-      "current_import_sha256": "d8bf45ade73448e8ed7109df02c8db0c80558604c2c71ceea954607b82487086",
+      "current_import_sha256": "f43d19890f04e6f0afdc746124a66caf00a61c79feb8f77d4b78fae391ee9dba",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in"
+      "import_reason": "Imported exact frozen staged-input bytes; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Connectors read the GitHub token from the environment only and declare only the service effect"
     },
     {
       "path": "botcore-connectors/src/botcore_connectors/validation.py",
@@ -207,11 +207,11 @@
       "path": "botcore-connectors/tests/test_auth.py",
       "upstream_sha256": "4d94415edef261874994db6e1ec8c00b7cb9f7fc253572300cb05f5ad1a8890c",
       "staged_sha256": "4d94415edef261874994db6e1ec8c00b7cb9f7fc253572300cb05f5ad1a8890c",
-      "current_import_sha256": "55a1b59af544df3963118e55cf738a1f2615e350c04446465916898f19dcc44c",
+      "current_import_sha256": "701cde81d4a16146553a4c763e81434c26b2142c683cc8468f93775e49303279",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Format Botcore, add mypy type checking and py.typed marker (#1757)"
+      "import_reason": "Imported exact frozen staged-input bytes; Format Botcore, add mypy type checking and py.typed marker (#1757); Connectors read the GitHub token from the environment only and declare only the service effect"
     },
     {
       "path": "botcore-connectors/tests/test_base.py",
@@ -737,11 +737,11 @@
       "path": "docs/host-composition.md",
       "upstream_sha256": null,
       "staged_sha256": "770e808013d3d866493ed03690d48330a06ca076eec838f720449592103d53ce",
-      "current_import_sha256": "34489347f0cc90e0cebacad6ceaca48ac3b661330fc09bbf595616ad11842653",
+      "current_import_sha256": "6f67cdee1ec4e79c55198dd0b1d5107dd8dc15a8f16414b3aab934824bf040f0",
       "stage_classification": "added-in-staging",
       "stage_reason": "Document bounded host capabilities and compatibility limits",
       "import_classification": "modified-after-staging",
-      "import_reason": "Describe versioning, SDK compatibility, optional integration and the AFD publisher; describe plugin-declared policies, catalog input schemas and argument refusals; say a host leaves unselected plugin sections alone; describe command name spellings, kebab_names, typed inputs, the per-call context and the remote-caller profile; describe serving hosts over HTTP: routes, tokens, the bind guard and the client; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Refuse intermediate reparse points and hold the directory chain open through each token-store operation on Windows; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; serve each host command as its own MCP tool with the host as the only validator (factory gateway change 3)"
+      "import_reason": "Describe versioning, SDK compatibility, optional integration and the AFD publisher; describe plugin-declared policies, catalog input schemas and argument refusals; say a host leaves unselected plugin sections alone; describe command name spellings, kebab_names, typed inputs, the per-call context and the remote-caller profile; describe serving hosts over HTTP: routes, tokens, the bind guard and the client; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Refuse intermediate reparse points and hold the directory chain open through each token-store operation on Windows; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; serve each host command as its own MCP tool with the host as the only validator (factory gateway change 3); Connectors read the GitHub token from the environment only and declare only the service effect"
     },
     {
       "path": "docs/operations/model-routing.md",
@@ -954,10 +954,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "10a1c19b19832352f19a0f59a4b4db79ded7a1bb363409d97e17fe4d4e1374f9",
+      "current_import_sha256": "ff47f5a841f0f5f4a2d3e34d3187e7cf1f82b86f83668d18d31d77abdf38d475",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing"
+      "import_reason": "Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; Connectors read the GitHub token from the environment only and declare only the service effect"
     },
     {
       "path": "packages/botcore-agents/tests/test_models.py",
@@ -1046,10 +1046,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "038c9f7abad0c654c4b1392bb531be25f92ef62afac7c745554d62c9a64a0025",
+      "current_import_sha256": "871f2909b7c5c421cd510729364eee212ca315b5ba0b6addacc585ea23f76f20",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; Review follow-ups: session built-in tool list, refuse tool hosts with actors a model cannot act for, document that pinned patterns can still write; Key botcore-memory agent memory on the caller a host verified and refuse host calls that name no one; carry the LLM session's agent name as the tool caller's id; document callers and moving default memories; Keep principals lowercase so case-only id differences never share a store file; require Botcore 0.8.0 and refuse unnamed managed calls; keep agent_name descriptive inside named host calls; add a verified, backed-up move of default memory; refuse trailing newlines in scope ids and keys; Write the moved memory store once under its lock, complete interrupted moves on rerun and always report backups; keep agent_name a label in any host call; require Botcore 0.8.0 in botcore-llm"
+      "import_reason": "Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; Review follow-ups: session built-in tool list, refuse tool hosts with actors a model cannot act for, document that pinned patterns can still write; Key botcore-memory agent memory on the caller a host verified and refuse host calls that name no one; carry the LLM session's agent name as the tool caller's id; document callers and moving default memories; Keep principals lowercase so case-only id differences never share a store file; require Botcore 0.8.0 and refuse unnamed managed calls; keep agent_name descriptive inside named host calls; add a verified, backed-up move of default memory; refuse trailing newlines in scope ids and keys; Write the moved memory store once under its lock, complete interrupted moves on rerun and always report backups; keep agent_name a label in any host call; require Botcore 0.8.0 in botcore-llm; Connectors read the GitHub token from the environment only and declare only the service effect"
     },
     {
       "path": "packages/botcore-llm/pyproject.toml",
@@ -1065,11 +1065,11 @@
       "path": "packages/botcore-llm/src/botcore_llm/__init__.py",
       "upstream_sha256": "81369746eba67af0c9c715bb50bea1eb2257926aeea841dc985e7a99794b60d1",
       "staged_sha256": "81369746eba67af0c9c715bb50bea1eb2257926aeea841dc985e7a99794b60d1",
-      "current_import_sha256": "223985a56d6b48e71bb3e4f3ca5e8e6533fe45dbda960a6631bc242d00b1c773",
+      "current_import_sha256": "a3a8e8743bcbf622998ccbfe94072abe8121aee939c3bf200d19812a45396e6b",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing"
+      "import_reason": "Imported exact frozen staged-input bytes; Bridged LLM tools dispatch through a managed host under its policy; shell allowlist admits one simple command only; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; Connectors read the GitHub token from the environment only and declare only the service effect"
     },
     {
       "path": "packages/botcore-llm/src/botcore_llm/bridge.py",
