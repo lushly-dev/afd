@@ -38,8 +38,13 @@ stdin EOF or a termination signal.
 
 Use trusted local projects: render, run, inspect and other bench operations can
 launch Chromium and execute project code. Writes retain the shared command
-metadata, including baseline, migration, static build and pack operations. No new
-command policy or browser permission layer is introduced by this transport.
+metadata, including baseline, migration, static build and pack operations. Commands
+declaring `confirmPrompt` (such as `decision-record`, and later `decision-discard`
+and `decision-restore`) enforce `confirmations: 'require-human'` over MCP form
+elicitation: unelicited clients are refused with `CONFIRMATION_REQUIRED`, declined
+or cancelled elicitations fail with `CONFIRMATION_DECLINED`, and accepted human
+confirmations record `decidedBy: { kind: 'person' }` (while the CLI records
+`decidedBy: { kind: 'script' }`).
 Listing native specimens needs neither Chromium nor a native host. Rendering and
 retained-story discovery need the same host/browser setup as the CLI; see the
 [Specimen README](../../foundations/specimen/README.md#install).

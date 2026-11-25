@@ -1,5 +1,5 @@
 /** AFD command definitions shared by the CLI and MCP hosts. */
-import type { CommandResult } from '@lushly-dev/afd-core';
+import type { Actor, CommandContext, CommandResult } from '@lushly-dev/afd-core';
 import {
 	defineCommand,
 	failure,
@@ -988,12 +988,21 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		input: decisionRecordRequestSchema,
 		output: decisionRecordResultSchema,
 		handler: async (input, context) => {
-			// Phase 5 (#2213) wires `confirmations: 'require-human'` so `person` provenance comes
-			// exclusively from accepted human elicitation, never from unverified `context.actor.kind`.
-			const decidedBy: DecisionActor =
-				context.actor?.kind === 'test'
-					? { kind: 'test', ...(context.actor?.id ? { id: context.actor.id } : {}) }
-					: { kind: 'script', ...(context.actor?.id ? { id: context.actor.id } : {}) };
+			// `person` provenance comes exclusively from accepted human elicitation under
+			// `confirmations: 'require-human'`, never from copying `context.actor.kind`.
+			const confirmation = (context as SpecimenCommandContext)[HUMAN_CONFIRMED];
+			const actorId = normalizeOptionalId(context.actor?.id);
+			const decidedBy: DecisionActor = confirmation
+				? {
+						kind: 'person',
+						...(confirmation.confirmedBy ? { id: confirmation.confirmedBy } : {}),
+					}
+				: context.actor?.kind === 'test'
+					? { kind: 'test', ...(actorId ? { id: actorId } : {}) }
+					: {
+							kind: 'script',
+							...(context.actor?.kind === 'script' && actorId ? { id: actorId } : {}),
+						};
 			return result(
 				() => bench.recordDecision(input, { decidedBy }),
 				decisionRecordResultSchema,
@@ -1090,9 +1099,35 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 	] as const;
 }
 
+/** Execution provenance passed into `executeSpecimenCommand`. */
+export interface ExecuteSpecimenCommandOptions {
+	/** Invoking AFD actor (defaults to `{ kind: 'script' }` when omitted, e.g. CLI). */
+	actor?: Actor;
+	/**
+	 * Set to `true` only by an MCP host after a person accepted an elicitation under
+	 * `confirmations: 'require-human'`. Never derived from `actor.kind`.
+	 */
+	humanConfirmed?: boolean;
+	/** Optional host-verified identifier for the confirming person. */
+	confirmedBy?: string;
+}
+
+const HUMAN_CONFIRMED = Symbol('specimen.humanConfirmed');
+
+interface SpecimenCommandContext extends CommandContext {
+	[HUMAN_CONFIRMED]?: { confirmedBy?: string };
+}
+
+function normalizeOptionalId(value: unknown): string | undefined {
+	if (typeof value !== 'string') return undefined;
+	const trimmed = value.trim();
+	return trimmed.length > 0 ? trimmed : undefined;
+}
+
 async function execute<TInput extends z.ZodType, TOutput>(
 	command: ZodCommandDefinition<TInput, TOutput>,
-	input: unknown
+	input: unknown,
+	options?: ExecuteSpecimenCommandOptions
 ): Promise<CommandResult<TOutput>> {
 	const parsed = command.inputSchema.safeParse(input);
 	if (!parsed.success)
@@ -1101,14 +1136,26 @@ async function execute<TInput extends z.ZodType, TOutput>(
 			message: parsed.error.message,
 			suggestion: `Provide input matching the ${command.name} schema.`,
 		});
-	return command.handler(parsed.data, { actor: { kind: 'script' } });
+	const confirmedBy = normalizeOptionalId(options?.confirmedBy);
+	const context: SpecimenCommandContext = {
+		actor: options?.actor ?? { kind: 'script' },
+		...(options?.humanConfirmed === true && command.confirmPrompt
+			? {
+					[HUMAN_CONFIRMED]: {
+						...(confirmedBy ? { confirmedBy } : {}),
+					},
+				}
+			: {}),
+	};
+	return command.handler(parsed.data, context);
 }
 
 /** Execute through the command schema; adapters must not call handlers with unvalidated data. */
 export async function executeSpecimenCommand(
 	bench: SpecimenCommandBench,
 	name: string,
-	input: unknown
+	input: unknown,
+	options?: ExecuteSpecimenCommandOptions
 ): Promise<CommandResult<unknown>> {
 	const [
 		list,
@@ -1150,77 +1197,77 @@ export async function executeSpecimenCommand(
 	] = createSpecimenCommands(bench);
 	switch (name) {
 		case 'specimen-list':
-			return execute(list, input);
+			return execute(list, input, options);
 		case 'specimen-render':
-			return execute(render, input);
+			return execute(render, input, options);
 		case 'specimen-capture':
-			return execute(capture, input);
+			return execute(capture, input, options);
 		case 'specimen-compare':
-			return execute(compare, input);
+			return execute(compare, input, options);
 		case 'specimen-diff':
-			return execute(diff, input);
+			return execute(diff, input, options);
 		case 'specimen-build':
-			return execute(build, input);
+			return execute(build, input, options);
 		case 'specimen-validate':
-			return execute(validate, input);
+			return execute(validate, input, options);
 		case 'specimen-run':
-			return execute(runStory, input);
+			return execute(runStory, input, options);
 		case 'specimen-a11y':
-			return execute(a11y, input);
+			return execute(a11y, input, options);
 		case 'specimen-profile':
-			return execute(profile, input);
+			return execute(profile, input, options);
 		case 'specimen-baseline':
-			return execute(baseline, input);
+			return execute(baseline, input, options);
 		case 'specimen-suggest':
-			return execute(suggest, input);
+			return execute(suggest, input, options);
 		case 'specimen-contract':
-			return execute(contract, input);
+			return execute(contract, input, options);
 		case 'specimen-coverage':
-			return execute(coverage, input);
+			return execute(coverage, input, options);
 		case 'specimen-matrix':
-			return execute(matrix, input);
+			return execute(matrix, input, options);
 		case 'specimen-inspect':
-			return execute(inspect, input);
+			return execute(inspect, input, options);
 		case 'specimen-migrate':
-			return execute(migrate, input);
+			return execute(migrate, input, options);
 		case 'specimen-pack':
-			return execute(pack, input);
+			return execute(pack, input, options);
 		case 'specimen-pack-check':
-			return execute(packCheck, input);
+			return execute(packCheck, input, options);
 		case 'specimen-pack-export':
-			return execute(packExport, input);
+			return execute(packExport, input, options);
 		case 'specimen-themes':
-			return execute(themes, input);
+			return execute(themes, input, options);
 		case 'specimen-point':
-			return execute(point, input);
+			return execute(point, input, options);
 		case 'specimen-point-move':
-			return execute(pointMove, input);
+			return execute(pointMove, input, options);
 		case 'specimen-point-check':
-			return execute(pointCheck, input);
+			return execute(pointCheck, input, options);
 		case 'specimen-note-add':
-			return execute(noteAdd, input);
+			return execute(noteAdd, input, options);
 		case 'specimen-note-list':
-			return execute(noteList, input);
+			return execute(noteList, input, options);
 		case 'specimen-note-check':
-			return execute(noteCheck, input);
+			return execute(noteCheck, input, options);
 		case 'specimen-note-move':
-			return execute(noteMove, input);
+			return execute(noteMove, input, options);
 		case 'specimen-note-resolve':
-			return execute(noteResolve, input);
+			return execute(noteResolve, input, options);
 		case 'specimen-note-reopen':
-			return execute(noteReopen, input);
+			return execute(noteReopen, input, options);
 		case 'specimen-job-create':
-			return execute(jobCreate, input);
+			return execute(jobCreate, input, options);
 		case 'specimen-job-run':
-			return execute(jobRun, input);
+			return execute(jobRun, input, options);
 		case 'decision-record':
-			return execute(decisionRecord, input);
+			return execute(decisionRecord, input, options);
 		case 'decision-get':
-			return execute(decisionGet, input);
+			return execute(decisionGet, input, options);
 		case 'decision-list':
-			return execute(decisionList, input);
+			return execute(decisionList, input, options);
 		case 'decision-check':
-			return execute(decisionCheck, input);
+			return execute(decisionCheck, input, options);
 		default:
 			return failure({
 				code: 'COMMAND_NOT_FOUND',

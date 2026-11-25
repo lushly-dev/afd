@@ -2344,7 +2344,7 @@ describe('specimen commands', () => {
 				suggestion: expect.stringContaining('decision-list'),
 			});
 
-			// decidedBy reserves kind: 'person' for Phase 5 confirmation; even with actor.kind='human', Phase 3 records 'script'.
+			// decidedBy derives kind: 'person' exclusively from accepted humanConfirmed provenance, never actor.kind.
 			const decisionRecordCmd = createSpecimenCommands(instance)[32];
 			expect(decisionRecordCmd.name).toBe('decision-record');
 			const humanActorRecorded = await decisionRecordCmd.handler(
@@ -2365,6 +2365,93 @@ describe('specimen commands', () => {
 			expect(fetchedListDecision.success).toBe(true);
 			expect(fetchedListDecision.data).toMatchObject({
 				decidedBy: { kind: 'script' },
+			});
+
+			// executeSpecimenCommand distinguishes test actor, unconfirmed human/agent actor (-> script), and humanConfirmed (-> person).
+			const testRecorded = await executeSpecimenCommand(
+				instance,
+				'decision-record',
+				{
+					slug: 'list-empty-test',
+					question: 'Include hint in test?',
+					set: undecidedSet,
+					chosen: 'list--empty',
+					reason: 'Scenario test actor.',
+				},
+				{ actor: { kind: 'test', id: 'scenario-runner' } }
+			);
+			expect(testRecorded.success).toBe(true);
+			const fetchedTest = await executeSpecimenCommand(instance, 'decision-get', {
+				decision: (testRecorded.data as { decision: string }).decision,
+			});
+			expect(fetchedTest.data).toMatchObject({
+				decidedBy: { kind: 'test', id: 'scenario-runner' },
+			});
+
+			const unconfirmedHuman = await executeSpecimenCommand(
+				instance,
+				'decision-record',
+				{
+					slug: 'list-empty-unconfirmed',
+					question: 'Unconfirmed human?',
+					set: undecidedSet,
+					chosen: 'list--empty',
+					reason: 'No elicitation happened.',
+				},
+				{ actor: { kind: 'human', id: 'alice' }, confirmedBy: 'alice' }
+			);
+			expect(unconfirmedHuman.success).toBe(true);
+			const fetchedUnconfirmed = await executeSpecimenCommand(instance, 'decision-get', {
+				decision: (unconfirmedHuman.data as { decision: string }).decision,
+			});
+			expect(fetchedUnconfirmed.data).toMatchObject({
+				decidedBy: { kind: 'script' },
+			});
+			expect(
+				(fetchedUnconfirmed.data as { decidedBy: { id?: string } }).decidedBy.id
+			).toBeUndefined();
+
+			const confirmedAgent = await executeSpecimenCommand(
+				instance,
+				'decision-record',
+				{
+					slug: 'list-empty-confirmed',
+					question: 'Confirmed via elicitation?',
+					set: undecidedSet,
+					chosen: 'list--empty',
+					reason: 'Human accepted MCP elicitation.',
+				},
+				{ actor: { kind: 'agent' }, humanConfirmed: true, confirmedBy: '   ' }
+			);
+			expect(confirmedAgent.success).toBe(true);
+			const fetchedConfirmed = await executeSpecimenCommand(instance, 'decision-get', {
+				decision: (confirmedAgent.data as { decision: string }).decision,
+			});
+			expect(fetchedConfirmed.data).toMatchObject({
+				decidedBy: { kind: 'person' },
+			});
+			expect(
+				(fetchedConfirmed.data as { decidedBy: { id?: string } }).decidedBy.id
+			).toBeUndefined();
+
+			const confirmedWithId = await executeSpecimenCommand(
+				instance,
+				'decision-record',
+				{
+					slug: 'list-empty-confirmed-id',
+					question: 'Confirmed with host-verified id?',
+					set: undecidedSet,
+					chosen: 'list--empty',
+					reason: 'Host verified person id.',
+				},
+				{ actor: { kind: 'agent' }, humanConfirmed: true, confirmedBy: '  alice  ' }
+			);
+			expect(confirmedWithId.success).toBe(true);
+			const fetchedConfirmedId = await executeSpecimenCommand(instance, 'decision-get', {
+				decision: (confirmedWithId.data as { decision: string }).decision,
+			});
+			expect(fetchedConfirmedId.data).toMatchObject({
+				decidedBy: { kind: 'person', id: 'alice' },
 			});
 
 			// Default review resolution through executeSpecimenCommand enforces REVIEW_ITEM_NOT_FOUND with zero injection.
