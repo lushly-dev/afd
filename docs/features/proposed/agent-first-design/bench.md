@@ -24,8 +24,10 @@ owner to approve the domain and the budget before any session runs. Read
   persona alone.
 - **Decided by the owner on 2026-11-24,** after step 0.1's first fifteen builds: step 0.1
   ends there; the weekly figure is not measured again for now; steps 0.2 and 0.5 are deferred;
-  and step 0.3's check of matches and findings is made by an independent reviewer of another
-  model family in place of the owner ([STATUS.md](STATUS.md#step-01),
+  step 0.3's check of matches and findings is made by an independent reviewer of another
+  model family in place of the owner; and, after steps 0.3 and 0.4, the walks are tuned (app
+  date in prompt, explicit ending line, and a report-based measure for step 0.4) and confirmed
+  with a small rerun ([STATUS.md](STATUS.md#step-01),
   [STATUS.md](STATUS.md#steps-03-and-04)).
 - **Not approved:** the rest of this file. The owner was asked three questions, which cover the points above, and later ruled on the
   runner's points named there; nothing else here is the owner's.
@@ -299,7 +301,7 @@ the two-fault threshold on its own. Every persona's findings count toward the pa
 | 0.1 | No rule. It records what goes wrong. If arms 0 and 1 pass nine checks in ten, there is little for a default to fix, and the owner decides whether to go on. If runs of one arm differ so much that fifteen cannot resolve 15 points, the owner chooses, before arm 2 runs, whether both arms get more runs |
 | 0.2 | On T1 to T3, arm 2's mean share of checks passed is at least 15 points above arm 0's, at p < 0.05 by the test in [Scoring](#scoring). Arm 2's median tokens are no more than 20 % above arm 0's. T4 is reported beside it and is not part of the rule: five runs against five cannot resolve it |
 | 0.3 | Of the 12 planted faults, the panel reports at least 8 in at least one of its two walks of the seeded build, and of the 3 aimed at each modality, a persona of that modality reports at least 2. The share found in a single walk is reported beside it. A reader matches findings to faults, and the owner checks 20 of those matches. At least half of a sample of the panel's other findings, up to 30, are real in the owner's judgement (on 2026-11-24 the owner delegated both the match check and the judgement of other findings to an independent reviewer of another model family; [STATUS.md](STATUS.md#steps-03-and-04)) |
-| 0.4 | A persona and job pair meets a fault when its screen carries a fault aimed at its modality. A path is worse when the job's last command never ran, or when failed commands, repeated commands and commands outside the scenario's steps add up to more. In at least three quarters of the pairs that meet a fault, the path is worse than the clean one in both walks of the seeded build. In the pairs that meet none, if there are any, that total on a seeded walk differs from the clean walk's by no more than the two seeded walks' totals differ from each other |
+| 0.4 | A persona and job pair meets a fault when its screen carries a fault aimed at its modality. A path is worse when the job's last command never ran, or when failed commands, repeated commands and commands outside the scenario's steps add up to more. In at least three quarters of the pairs that meet a fault, the path is worse than the clean one in both walks of the seeded build. In the pairs that meet none, if there are any, that total on a seeded walk differs from the clean walk's by no more than the two seeded walks' totals differ from each other (on 2026-11-24, after the path-only rule missed worked-around faults, the owner agreed to judge step 0.4 by whether a persona's report names the trouble; the runner reports a blind pairwise comparison beside the path rule, for the owner to confirm at step 0.6; [STATUS.md](STATUS.md#steps-03-and-04)) |
 | 0.5 | The owner, blind, prefers arm 3's build in at least 10 of 12 pairs with arm 2's, which chance alone gives about one time in fifty. The pairs are three a screen, each an arm 2 build and an arm 3 build of that screen drawn at random. Arm 3's mean share of checks passed is not below arm 2's. Otherwise the skill is not written |
 
 **How step 0.4 reads a path,** proposed with its rule and confirmed with it on 2026-11-21. Each walked job has

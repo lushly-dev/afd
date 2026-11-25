@@ -74,20 +74,20 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
   three scenario checks and reader walks; the owner's remaining answers; moving each part
   into the proposal that owns it; steps 0.2, 0.5 and 0.6 of phase 0, and phases A to D. See
   [What is not done](#what-is-not-done).
-- **Blocked on:** the owner choosing the next area after steps 0.3 and 0.4: tuning the
-  pipeline from what the walks showed, reshaping step 0.4's measure, or reshaping steps 0.2
-  and 0.5 ([Steps 0.3 and 0.4](#steps-03-and-04)). The owner's questions after step 0.1 were
-  answered on 2026-11-24 ([Step 0.1](#step-01)). Every session needs the owner's word, since it
-  spends the owner's allowance. Questions 4, 8, 9 and 10 of the proposal are open and
-  block nothing yet.
+- **Blocked on:** the owner's step 0.6 decision (go, go with changes, or stop) after the walk
+  tuning and confirmation rerun of 2026-11-24 ([Steps 0.3 and 0.4](#steps-03-and-04)), including
+  whether the blind pairwise report comparison counts for step 0.4's rule and whether steps 0.2
+  and 0.5 remain deferred. Every session needs the owner's word, since it spends the owner's
+  allowance. Questions 4, 8, 9 and 10 of the proposal are open and block nothing yet.
 - **Order:** the owner answers the direction and ranks the draft jobs before commands are
   drafted, as the [Scales scaffold](../../active/scales/STATUS.md) does. The
   [jobs-first guide](../../../../.claude/skills/afd/references/jobs-first.md) puts the owner's
   ranking after the scenarios and the reader walks, and they still follow.
 - **Last verified:** 2026-11-24 for the reference build at `f4eeba0c` (308 of 308 checks on the
-  rebuilt scoring checkout), step 0.1's first fifteen builds and their report, and steps 0.3
-  and 0.4: both builds proved, the walks' reports and the independent sample check
-  ([Steps 0.3 and 0.4](#steps-03-and-04)).
+  rebuilt scoring checkout), step 0.1's first fifteen builds and their report, steps 0.3 and 0.4
+  (both builds proved, the walks' reports and the independent sample check), and the tuned runner
+  (54 unit tests, a full dry run of the confirmation batch, both builds proved, and both frozen
+  manifests verified unchanged; [Steps 0.3 and 0.4](#steps-03-and-04)).
   2026-11-18 for the reference build at `f4eeba0c` (308 of 308 checks, its
   scripted browser runs clean), the twelve faults' proofs on both builds, three runs each, and the stage 2
   manifest. 2026-11-16 for section 5.10 and the two facts it added to section 2: the
@@ -124,8 +124,8 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
 | Phase 0, step 0.1 | Done 2026-11-24 at its first fifteen of 45 builds, by the owner's decision: the builds ran on 2026-11-21 at the owner's word and were scored on 2026-11-24 with the five bare builds' readers. Both arms pass nine checks in ten; the owner approved the builds and ended the step there, since the process is what phase 0 proves | [Step 0.1](#step-01) |
 | Phase 0, steps 0.2 and 0.5 | Deferred by the owner on 2026-11-24: at arm 0's 92 to 95 %, a perfect arm 2 gains 5 to 8 points, short of step 0.2's 15, and step 0.5 builds on step 0.2's arm 2 | [Step 0.1](#step-01) |
 | Phase 0, step 0.3 | Done 2026-11-24, met: the panel found 12 of 12 planted faults, each modality's own persona 3 of 3; an independent reviewer, by the owner's decision, judged 20 of 20 matches right and 23 of 30 other findings real | [Steps 0.3 and 0.4](#steps-03-and-04) |
-| Phase 0, step 0.4 | Done 2026-11-24, not met: 3 of 13 pairs that meet a fault were worse in both seeded walks; a likely reason is that the path the rule reads counts only commands, so trouble a persona reports but works around does not show in it | [Steps 0.3 and 0.4](#steps-03-and-04) |
-| Phase 0, step 0.6 | Not started: the decision, after the owner chooses what of steps 0.2, 0.4 and 0.5 to reshape | Proposal, section 7 |
+| Phase 0, step 0.4 | Done 2026-11-24, not met on the original journal-path rule (3 of 13 pairs worse in both seeded walks); tuned 2026-11-24 with a blind pairwise report comparison (4 of 4 fault-meeting and 1 of 1 no-fault on a 15-walk confirmation rerun; 12 of 13 fault-meeting and 6 of 7 no-fault on the 60 original walks, awaiting owner confirmation) | [Steps 0.3 and 0.4](#steps-03-and-04) |
+| Phase 0, step 0.6 | Not started: the owner's decision (go, go with changes, or stop), including whether the tuned report comparison counts for step 0.4 and whether steps 0.2 and 0.5 stay deferred | Proposal, section 7 |
 | Phases A to D | Not started; each needs phase 0's decision | Proposal, section 7 |
 
 ## What is not done
@@ -192,7 +192,10 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
     much of the screen an agent sees, stay open;
   - on 2026-11-24, clarifying that answer: the sentence about shoehorning made a case for a
     designed path in place of a workaround (a command that sets values, and code in the
-    interface that applies them).
+    interface that applies them);
+  - on 2026-11-24, after steps 0.3 and 0.4: agreed to tune the walks (tell each persona the
+    application's date, require an ending line, and judge step 0.4 by whether a persona's report
+    names the trouble) and rerun 10 to 15 walks for a few dollars to confirm the changes.
 
 ## How it was checked
 
@@ -745,6 +748,49 @@ the rest, not to replace human review.
   whether the job was done; the readers missed three findings that were a fault's consequences;
   and step 0.4 needs a measure that sees trouble a persona works around, such as whether a persona's report
   names it.
+- **Walk tuning and confirmation rerun (2026-11-24):** the owner agreed ("Agree") to tune the
+  walks (tell each persona the application's date, require every persona to say whether it
+  finished, and judge step 0.4 by whether a persona's report names the trouble) and rerun 10 to
+  15 walks for a few dollars to confirm the changes. The runner was updated without editing any
+  frozen stage 2 file (both manifests verify unchanged):
+  - *Prompt and ending parser:* each walk prompt now states the application's fixed date from
+    the fixture (`9 March 2030`) and asks for `Done.` or `Stopped, because ...` on a separate
+    last line after findings. In the same update, the session also widened the ending parser to
+    recognise a verdict placed before findings (all five walks counted as unsaid in the 60
+    original walks had stated their verdict at the top of their final message).
+  - *Fault reader (session addition):* from "What to tune" above, the session also updated step
+    0.3's fault reader to match a finding that describes a direct consequence of meeting a
+    planted problem. That change was not part of the owner's "Agree" and is for the owner to
+    confirm; step 0.3's 12-of-12 result did not depend on it.
+  - *Blind pairwise report comparison for step 0.4:* to implement the report-based measure the
+    owner agreed to, the runner compares each seeded walk against its pair's clean walk in
+    deterministic randomized order, with neither build named and no faults shown, weighing
+    completion, observed obstacles (including trouble worked around) and extra steps, and
+    judging which walk met worse trouble or whether both were the same. Step 0.4's report now
+    shows both the original journal-path rule and this comparison side by side; whether it counts
+    for step 0.4's rule is for the owner to confirm at step 0.6.
+  - *Confirmation rerun:* 15 walks across 5 persona-and-screen pairs covering all five personas,
+    all four modalities and all four screens (four fault-meeting pairs that had all failed the
+    path-only rule in the 60 original walks, plus one no-fault pair; two seeded and one clean
+    each), 10 fault readers and 10 blind comparisons, after 54 unit tests and a full dry run
+    passed and both builds were proved. Because the owner agreed to "a few dollars" without
+    naming a figure, the session set a weekly cap of $58 ($10.87 above the $47.13 already spent).
+    Cost: $5.43 ($4.48 walks, $0.50 readers, $0.45 comparisons). Results: 15 of 15 walks ended
+    on the last line with `Done.` or `Stopped` (0 unsaid); 0 of 15 walks and 0 of 29 other
+    findings reported clock or date mismatches; every fault aimed at those pairs was found in
+    both seeded walks; in the rerun, the blind report comparison judged seeded worse in both
+    walks for 4 of 4 fault-meeting pairs (8 of 8 calls, while the path-only rule caught 1 of 4)
+    and not worse in both for 1 of 1 no-fault pair (1 same, 1 clean).
+- **Re-evaluating the 60 original walks (run by the session without separate sign-off):** under
+  the same $58 cap, the session also ran 40 blind pairwise comparisons across all 20 pairs of
+  the 60 original walks, costing $1.79 (bringing the week to $54.35). That extra batch went
+  beyond the 10-to-15-walk rerun the owner agreed to, and is noted here for the owner to accept
+  or reject. Fault-meeting pairs: 12 of 13 (92.3 %) judged seeded worse in both walks (25 of 26
+  individual calls seeded, 1 same, 0 clean; the one pair not worse in both includes the single
+  walk that missed its fault in step 0.3). No-fault pairs: 6 of 7 not worse in both (2 seeded,
+  5 same, 7 clean); the one exception came from the single clean walk stopping earlier than both
+  seeded walks and missing a pre-existing issue present on both builds, showing baseline
+  variance when a pair has only one clean walk.
 - **Records:** the runner's ledger, walk folders, reports and the reviewer's check, committed
   with the record after phase 0.
 
@@ -898,8 +944,8 @@ Read on 2026-11-24, for the amendment of that day:
 | 2026-11-15 | The bench's runner, the smoke session | Proposals that discuss result states and design review (Patterns, Design Decisions, Screens from Jobs, Pointing, Scales, Component Briefs) are in every arm's tree. The runner counts reads of them; whether to remove them is the owner's call | Closed 2026-11-15: the owner decided to remove them from every arm's tree, and the runner does |
 | 2026-11-21 | The pilots | The scoring checkout's Rust builds (Specimen's host, Umbel's components server) were deleted on 2026-11-20 by something other than the runner; the cause is unknown. The runner now refuses to start build sessions or score without them | Closed 2026-11-24: Botcore's disk cleaner, run by other sessions on the second machine, strips build output from linked worktrees, which the scoring checkouts are. The checkout in use is now kept with `botcore disk-keep` |
 | 2026-11-24 | Step 0.1 | The leak check throws out a build whose shell command names the session's own folder, the one above its tree, though Claude Code refuses the change of directory and nothing is read: one build of the first fifteen, $1.56, went that way | Closed 2026-11-24, not changed: that folder also holds the session's server configuration and sandbox profile, so the check is right to count it. A throw-out for this cause counts toward the runner's limit like any other: a run thrown out a third time stops the runs |
-| 2026-11-24 | Steps 0.3 and 0.4 | A persona is not told the application's date, so it compares the fixed clock with its own and reports dates as wrong: five of the seven findings judged not real in the sample. The persona prompt could name the date. Changing it is a change to the walks, for the owner | Open |
-| 2026-11-24 | Steps 0.3 and 0.4 | Step 0.4's path, read from the journal, counts only commands and may not show trouble a persona reports but works around, a likely reason its rule was not met (3 of 13). A measure that does, such as whether a persona's report names the trouble, is the owner's to choose | Open |
+| 2026-11-24 | Steps 0.3 and 0.4 | A persona is not told the application's date, so it compares the fixed clock with its own and reports dates as wrong: five of the seven findings judged not real in the sample. The persona prompt could name the date. Changing it is a change to the walks, for the owner | Closed 2026-11-24: by the owner's decision, the runner's walk prompt now gives the fixture's date (`9 March 2030`) without editing frozen stage 2 files; 0 of 15 rerun walks and 0 of 29 other findings reported clock mismatches |
+| 2026-11-24 | Steps 0.3 and 0.4 | Step 0.4's path, read from the journal, counts only commands and may not show trouble a persona reports but works around, a likely reason its rule was not met (3 of 13). A measure that does, such as whether a persona's report names the trouble, is the owner's to choose | In progress: the owner agreed on 2026-11-24 to judge step 0.4 by whether a persona's report names the trouble; the runner implements a blind pairwise report comparison reported beside the journal-path rule (4 of 4 fault-meeting and 1 of 1 no-fault on the 15-walk rerun; 12 of 13 and 6 of 7 on the 60 original walks). Whether it counts for step 0.4's rule waits for step 0.6 |
 | 2026-11-24 | The comparison with UI SDK | UI SDK's benchmark task is public (`benchmarks/agent` in `vercel-labs/ui`): one settings screen, where its bridge took 2 tool calls and 21.8k tokens. No AFD application has been measured on it, so that commands need fewer calls than a bridge is reasoning, not a result. Running the task against an AFD application through its commands would measure it | Open; the owner's call |
 
 ## Session log
@@ -934,3 +980,4 @@ Read on 2026-11-24, for the amendment of that day:
 | 2026-11-24 | The screen an agent sees | The owner asked how UI SDK's concepts align with AFD's FAST-AF components. Its documentation was read: a core of interface behaviours with five renderers, and a bridge through which an agent reads and changes the components on a page. The bridge is close to what `fast-element`'s command layer was before #1398, and to what epic #1385's step 8 plans for `afd-view-state`. Asked whether an agent inside an application should see and fill what is on the screen, the owner agreed, with no actions declared by components. Section 5.10 gains the row and UI SDK as a published design to compare, and question 13 the answer in the owner's words. Where its code goes, in `afd-view-state` or in a layer of its own, and how much of the screen an agent sees, stay open. Two independent reviewers found five blockers, all fixed. Nothing was built |
 | 2026-11-24 | The owner's clarification | Asked which layer the answer of that day had meant, the owner said it was a case for a designed path, a system built to let an agent edit controls and their content, over a workaround of a command that sets values and code in the interface that applies them. Question 13 gains the reply, and the 5.10 row and section 6 now point at the [Controls proposal](../../active/controls/controls.proposal.md), written the same day, which places the code and carries what is still the owner's to decide |
 | 2026-11-24 | Steps 0.3 and 0.4 | The owner ended step 0.1 at its fifteen approved builds, decided not to measure the weekly figure again for now, counted the cut-off build at its maximum, and deferred steps 0.2 and 0.5. At the owner's word the 60 walks and 40 readers ran for $18.20 after a clean dry run. Step 0.3 is met: 12 of 12 faults found; an independent reviewer on GPT-6.2 Astra, by the owner's decision, judged 20 of 20 matches right and 23 of 30 other findings real. Step 0.4 is not met, 3 of 13; its path counts only commands and likely misses trouble a persona works around. What to tune is recorded |
+| 2026-11-24 | Walk tuning and step 0.4 rerun | The owner agreed to tune the walks (fixture date, ending line, report-based measure for step 0.4) and rerun 10 to 15 walks; the session also updated the ending parser and the fault reader's consequence matching, without touching frozen stage 2 files. The 15-walk rerun ($5.43, under a $58 weekly cap) gave 15 of 15 last-line endings, 0 clock mismatches, every aimed fault found in both walks, and 4 of 4 fault-meeting plus 1 of 1 no-fault on the blind pairwise report comparison. Without separate sign-off, the session also ran 40 blind comparisons on the 60 original walks ($1.79; week $54.35), scoring 12 of 13 fault-meeting and 6 of 7 no-fault ([Steps 0.3 and 0.4](#steps-03-and-04)) |
