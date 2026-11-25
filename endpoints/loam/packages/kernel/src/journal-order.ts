@@ -25,6 +25,7 @@
  */
 
 import type { CommandContext, CommandMiddleware, CommandResult } from '@lushly-dev/afd-core';
+import type { JournalFilterContext } from './journal-redact.js';
 
 /**
  * Set by `replayKernel` alone, on an entry it answers from its record whose call the enforcement gate decided (its
@@ -106,7 +107,8 @@ export interface JournalOrder {
 		mutation: boolean,
 		fields: { parent?: unknown; origin?: unknown },
 		internal: unknown,
-		command?: string
+		command?: string,
+		context?: JournalFilterContext
 	): void;
 	/** The sink accepted its entry. */
 	appended(traceId: string | undefined): void;
@@ -137,7 +139,7 @@ export interface JournalOrder {
 }
 
 export function createJournalOrder(
-	journaled: (command: string) => boolean,
+	journaled: (command: string, context?: JournalFilterContext) => boolean,
 	replaying: () => boolean,
 	isMutation: (command: string) => boolean = () => false
 ): JournalOrder {
@@ -234,7 +236,7 @@ export function createJournalOrder(
 			if (signal && onAbort) signal.removeEventListener('abort', onAbort);
 		}
 	};
-	const begin: JournalOrder['begin'] = (traceId, mutation, fields, internal, command) => {
+	const begin: JournalOrder['begin'] = (traceId, mutation, fields, internal, command, context) => {
 		const parent = typeof fields.parent === 'string' ? fields.parent : undefined;
 		const origin =
 			typeof fields.origin === 'string' && fields.origin !== '' ? fields.origin : undefined;
@@ -243,7 +245,7 @@ export function createJournalOrder(
 			traceId,
 			mutation,
 			top,
-			journaled: command === undefined ? true : journaled(command),
+			journaled: command === undefined ? true : journaled(command, context),
 			internal: Boolean(internal),
 			done: false,
 			...(parent !== undefined ? { parent } : {}),
@@ -331,7 +333,8 @@ export function createJournalOrder(
 				isMutation(name),
 				context as { parent?: unknown; origin?: unknown },
 				false,
-				name
+				name,
+				context
 			);
 			try {
 				return await next();
@@ -359,7 +362,7 @@ export function createJournalOrder(
 				(context as Record<symbol, unknown>)[RECORDED_TAINT] = Array.isArray(taint) ? taint : [];
 			else delete (context as Record<symbol, unknown>)[RECORDED_TAINT];
 			const call = typeof context.traceId === 'string' ? calls.get(context.traceId) : undefined;
-			const waits = journaled(name);
+			const waits = journaled(name, context);
 			if (call) call.journaled = waits;
 			let result: CommandResult;
 			try {

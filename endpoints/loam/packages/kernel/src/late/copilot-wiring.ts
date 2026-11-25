@@ -476,7 +476,7 @@ export function copilotPartsOf(
 		heldBy: (name) => heldByOf(name, refs.definitionOf(name), deps.apps()),
 		// A mounted instance that does not serve the call's project refuses before any question (6.1's order, B7).
 		preflight: (name, context) => mountPreflight(name, context, deps.apps(), deps.scope),
-		journaled: (name) => deps.journaled?.(name) ?? true,
+		journaled: (name, context) => deps.journaled?.(name, context) ?? true,
 		declares: (name) => refs.confirmPromptOf(name) !== undefined,
 		personSession: refs.personSession,
 		confirmationOf: (id, person, options = {}) => {

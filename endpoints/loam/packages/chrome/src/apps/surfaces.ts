@@ -457,12 +457,19 @@ export class AppSurfaces implements ShellApps {
 		// The status bar's project item left the app: main's heading, as the switcher's All projects (7.8).
 		const fromHome =
 			deepActiveElement(this.#shell.ownerDocument)?.classList.contains('project-home') === true;
-		const focusLeaves = this.#leave();
+		const leftFocus = this.#leave();
 		this.#showing = active;
 		await this.#shell.readLayout();
 		await Updates.next();
+		const nowFocused = deepActiveElement(this.#shell.ownerDocument);
 		if (fromHome && active === null) focusMainHeading(this.#shell);
-		else if (focusLeaves) focusFallback(this.#shell);
+		else if (
+			leftFocus !== null &&
+			(!nowFocused ||
+				nowFocused === this.#shell.ownerDocument.body ||
+				this.#inside(nowFocused, leftFocus))
+		)
+			focusFallback(this.#shell);
 		if (active === null) {
 			this.#overlays.announce('No app is open');
 			return;
@@ -475,7 +482,7 @@ export class AppSurfaces implements ShellApps {
 	 * What the catalog does on a switch (4.2): park the sidebar and panel, drop the rest. After a change of
 	 * scope nothing is parked, and what each app had parked is dropped: it was made in the scope left (7.6).
 	 */
-	#leave(): boolean {
+	#leave(): readonly Element[] | null {
 		this.#token++;
 		const rescoped = this.#rescoped;
 		this.#rescoped = false;
@@ -483,11 +490,20 @@ export class AppSurfaces implements ShellApps {
 		const shell = this.#shell;
 		const held = this.#showing === null ? undefined : this.#held.get(this.#showing);
 		const focus = deepActiveElement(shell.ownerDocument);
-		const leavingFocus = focus !== null && this.#insideAppSurface(focus);
+		const leaving: Element[] = [
+			...this.#mainElements,
+			...this.#inspectorElements,
+			...this.#status.elements,
+		];
+		let leavingFocus = focus !== null && this.#inside(focus, leaving);
+		const wasConnected = focus?.isConnected === true;
 		if (held) {
 			held.sidebar = park(this.#part('sidebar'), held.sidebar);
 			held.panel = park(this.#part('panel'), held.panel);
 		}
+		// Focus inside a parked sidebar or panel app element disconnects synchronously during `park`;
+		// focus inside a shell section (such as `loam-inbox` in `loam-main`) or `loam-copilot-panel` stays connected (#2301).
+		if (wasConnected && !focus?.isConnected) leavingFocus = true;
 		if (rescoped) {
 			for (const each of this.#held.values()) {
 				each.sidebar = undefined;
@@ -495,11 +511,7 @@ export class AppSurfaces implements ShellApps {
 				each.lists = undefined;
 			}
 		}
-		for (const element of [
-			...this.#mainElements,
-			...this.#inspectorElements,
-			...this.#status.elements,
-		]) {
+		for (const element of leaving) {
 			// A view is told first, and goes when it has answered (6.2).
 			if (element.localName === 'loam-view-frame') (element as LoamViewFrame).leave();
 			else element.remove();
@@ -516,15 +528,13 @@ export class AppSurfaces implements ShellApps {
 		this.#declared = null;
 		this.#applyToggles();
 		this.#setEmptyStates(true);
-		return leavingFocus;
+		return leavingFocus ? leaving : null;
 	}
 
-	#insideAppSurface(node: Node): boolean {
-		const surfaces = PARTS.map((part) => this.#part<Element>(part));
-		surfaces.push(this.#part<Element>('main'), this.#part<Element>('statusbar'));
+	#inside(node: Node, roots: readonly Element[]): boolean {
 		let current: Node | null = node;
 		while (current) {
-			if (current instanceof Element && surfaces.includes(current)) return true;
+			if (current instanceof Element && roots.includes(current)) return true;
 			const root = current.getRootNode();
 			current = current.parentNode ?? (root instanceof ShadowRoot ? root.host : null);
 		}

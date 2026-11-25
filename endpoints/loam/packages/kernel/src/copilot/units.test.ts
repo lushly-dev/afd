@@ -730,6 +730,37 @@ describe('P5-A7: a turn’s units (4.4)', () => {
 		);
 		expect(JSON.stringify(read)).not.toContain(ADA_QUESTION);
 		expect(read).toMatchObject({ unreplayable: true, lossy: true });
+		// A copilot's journaled notification-list returning a confirmation with a unit outcome is redacted too (#2105).
+		const listed = redactJournalRecord(
+			traced(
+				'cpc_0001',
+				{
+					success: true,
+					data: {
+						notifications: [
+							{
+								id: 'ntf_0000000000000001',
+								kind: 'confirmation',
+								confirmation: {
+									result: {
+										success: true,
+										data: {
+											'dev.loam/unit': { id: 'unt_1' },
+											message: { trust: 'content', text: ADA_QUESTION },
+										},
+									},
+								},
+							},
+						],
+						cursor: null,
+						unread: 1,
+					},
+				},
+				'notification-list'
+			)
+		);
+		expect(JSON.stringify(listed)).not.toContain(ADA_QUESTION);
+		expect(listed).toMatchObject({ unreplayable: true, lossy: true });
 		// An untraced entry, even one holding a marker, and a traced one with no marker, are left as they were.
 		const plain = traced(
 			'cpc_0002',

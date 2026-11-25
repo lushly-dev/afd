@@ -8,6 +8,9 @@
 
 import type { JournalRecord } from '@lushly-dev/afd-core';
 
+/** `replayJournal`'s mark (afd-server's `JOURNAL_REPLAY`, a registered symbol): the journal rewinds the tape there. */
+export const JOURNAL_REPLAY = Symbol.for('@lushly-dev/afd-server/journal-replay');
+
 /** The `call` of a unit's submit's trace ends with this (the `late-copilot` chunk's `UNIT_TRACE_SUFFIX`). */
 const UNIT_SUBMIT = '~unit';
 
@@ -20,14 +23,78 @@ const marked = (value: unknown): boolean =>
 	typeof value === 'object' && value !== null && Object.hasOwn(value, 'dev.loam/unit');
 
 /**
+ * Commands the one journal middleware always leaves out: `palette-search` runs per keystroke, and `scope-get` and
+ * `section-get` at every re-read of the rail, reading memory and writing nothing, so an empty shell's boot
+ * journals no more than it did (phase 2 specification, 4.3). `editor-selection-set` runs per selection
+ * change, holds what a replay need not reproduce, and is a query (documents specification, 5.4).
+ * `persona-list` is the shell's read of the active persona, the same way (phase 3 specification, 6.3).
+ * `trust-record-snapshot` is phase 6's snapshot (its 6.1), read after every routed call and refresh.
+ * (`notification-list` is filtered per caller by {@link journalsCommand}: unjournaled for the shell's own read,
+ * journaled for agents and apps, #2105.)
+ */
+export const UNJOURNALED_COMMANDS: readonly string[] = Object.freeze([
+	'palette-search',
+	'scope-get',
+	'section-get',
+	'editor-selection-set',
+	'persona-list',
+	'trust-record-snapshot',
+]);
+
+/** Context fields the per-caller journal filter reads (#2105). */
+export interface JournalFilterContext {
+	readonly interface?: unknown;
+	readonly actor?: { readonly kind?: unknown } | undefined;
+	readonly caller?: unknown;
+}
+
+/**
+ * Whether the journal records a call of `command` in `context` (#2105): every command outside `unjournaled`
+ * is recorded, and `notification-list` is recorded for an agent or an app (leaving out only the shell's own read).
+ */
+export function journalsCommand(
+	command: string,
+	context?: JournalFilterContext,
+	unjournaled: readonly string[] = UNJOURNALED_COMMANDS
+): boolean {
+	if (command === 'notification-list') {
+		return (
+			context?.interface === 'agent' ||
+			context?.interface === 'mcp' ||
+			context?.actor?.kind === 'agent' ||
+			typeof context?.caller === 'string'
+		);
+	}
+	return !unjournaled.includes(command);
+}
+
+/** Whether a `notification-list` result carries a unit marker inside any listed confirmation outcome (#2105). */
+const listedUnit = (data: unknown): boolean => {
+	const notices = (data as { notifications?: unknown } | undefined)?.notifications;
+	return (
+		Array.isArray(notices) &&
+		notices.some((notice) =>
+			marked(
+				(notice as { confirmation?: { result?: { data?: unknown } } } | null | undefined)
+					?.confirmation?.result?.data
+			)
+		)
+	);
+};
+
+/**
  * A copilot call whose result carries a unit's marker, whatever then became of it: in its own data (the port's call, or
- * a stored outcome answered again, which keeps it there), or in a stored outcome `confirmation-get` returns. The
- * inbox's reads are never journaled.
+ * a stored outcome answered again, which keeps it there), in a stored outcome `confirmation-get` returns, or in a
+ * listed confirmation's outcome returned by a journaled `notification-list` (#2105).
  */
 const unitResult = (record: JournalRecord): boolean => {
 	if (record.context?.trace === undefined) return false;
 	const data = (record.result as { data?: { result?: { data?: unknown } } } | undefined)?.data;
-	return marked(data) || marked(data?.result?.data);
+	return (
+		marked(data) ||
+		marked(data?.result?.data) ||
+		(record.command === 'notification-list' && listedUnit(data))
+	);
 };
 
 /**

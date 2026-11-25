@@ -858,6 +858,220 @@ describe('P4-E15: replay', () => {
 			await replayed.dispose();
 		}
 	});
+
+	it('journals an agent notification-list (with wrapped secrets redacted) while leaving out the shell read, and replays the same (#2105)', async () => {
+		const { kernel, journal, probe } = await boot();
+		await kernel.call('notification-push', {
+			title: 'Sign in again',
+			body: 'Private notice body',
+			action: {
+				command: 'auth-sign-in',
+				label: 'Sign in',
+				input: { method: 'credentials', email: 'ada@example.com', password: 'secret-password' },
+			},
+		});
+		// Shell read: not journaled.
+		expect((await kernel.call('notification-list', { body: true })).success).toBe(true);
+		const afterShell = await journal.read();
+		expect(afterShell.filter((entry) => entry.command === 'notification-list')).toEqual([]);
+
+		// Agent read: journaled, with wrapped action secrets redacted.
+		const agentRead = await kernel.agent.call<Listed>('notification-list', { body: true });
+		expect(agentRead.success).toBe(true);
+		expect(agentRead.data?.notifications).toHaveLength(1);
+
+		// App call: refused at port boundary via app-call-refuse, journaled with app caller and command name.
+		expect((await probe.call('notification-list', { body: true })).error?.code).toBe(
+			'CALL_NOT_GRANTED'
+		);
+
+		const entries = await journal.read();
+		const listedEntries = entries.filter((entry) => entry.command === 'notification-list');
+		expect(listedEntries).toHaveLength(1);
+		expect(listedEntries[0]?.actor).toMatchObject({ kind: 'agent' });
+		expect(listedEntries[0]?.contextDigest.interface).toBe('agent');
+		expect(JSON.stringify(listedEntries[0])).not.toContain('secret-password');
+		expect(JSON.stringify(listedEntries[0])).toContain('Private notice body');
+		expect(JSON.stringify(listedEntries[0])).toContain('ada@example.com');
+
+		const refused = entries.filter((entry) => entry.command === 'app-call-refuse');
+		expect(refused).toHaveLength(1);
+		expect(refused[0]?.context?.caller).toBe('probe');
+		expect(refused[0]?.input).toMatchObject({ command: 'notification-list' });
+
+		// Replays both the journaled agent notification-list and the app-call-refuse cleanly with zero divergence.
+		const { report } = await replayKernel(entries, {
+			deployment: probeDeployment([entry('probe'), entry('sums')]),
+			ports: ports(),
+		});
+		expect(report.diverged).toBe(false);
+		expect(report.same).toBe(report.entries.length);
+		expect(report.entries.some((entry) => entry.command === 'notification-list')).toBe(true);
+		expect(report.entries.some((entry) => entry.command === 'app-call-refuse')).toBe(true);
+	});
+
+	it('replays a shell notification-act whose action is notification-list without recording an extra nested entry (#2105)', async () => {
+		const { kernel, journal } = await boot();
+		const pushed = await kernel.call<{ notification: NotificationV1 }>('notification-push', {
+			title: 'Refresh inbox',
+			action: { command: 'notification-list', label: 'List', input: {} },
+		});
+		expect(pushed.success).toBe(true);
+		const acted = await kernel.call('notification-act', {
+			notification: pushed.data?.notification.id,
+		});
+		expect(acted.success).toBe(true);
+		const entries = await journal.read();
+		expect(entries.filter((entry) => entry.command === 'notification-list')).toEqual([]);
+		const { report } = await replayKernel(entries, {
+			deployment: probeDeployment([entry('probe'), entry('sums')]),
+			ports: ports(),
+		});
+		expect(report.diverged).toBe(false);
+		expect(report.same).toBe(report.entries.length);
+	});
+
+	it('orders a concurrent notification-push after an agent notification-list that already read the empty inbox (#2105)', async () => {
+		const now = 1_800_000_000_000;
+		const journal = new MemoryJournalSink();
+		const baseStore = new MemoryAdapter();
+		let releaseList!: () => void;
+		let listHeld!: () => void;
+		const waitingForList = new Promise<void>((resolve) => {
+			listHeld = resolve;
+		});
+		const gate = new Promise<void>((resolve) => {
+			releaseList = resolve;
+		});
+		let holdNextList = false;
+		const store = Object.assign(Object.create(Object.getPrototypeOf(baseStore)), baseStore, {
+			async list<T>(table: string, query?: unknown) {
+				const result = await baseStore.list<T>(table, query as never);
+				if (table === NOTIFICATION_TABLE && holdNextList) {
+					holdNextList = false;
+					listHeld();
+					await gate;
+				}
+				return result;
+			},
+		}) as MemoryAdapter;
+		const kernel = await createKernel({
+			store,
+			storeKind: 'memory',
+			journal,
+			auth: new MockAuthAdapter({ clock: { now: () => now } }),
+			environment: createFixedEnvironment(),
+			host: 'test',
+			clock: () => now,
+			deployment: probeDeployment([entry('probe'), entry('sums')]),
+			ports: ports(),
+			overlayAnchors: { resolve: () => true },
+		});
+		kernels.push(kernel);
+		await kernel.appsReady;
+
+		holdNextList = true;
+		const listPromise = kernel.agent.call<Listed>('notification-list', {});
+		await waitingForList;
+		const pushPromise = kernel.call('notification-push', { title: 'Arrived during read' });
+		await Promise.resolve();
+		releaseList();
+		const [listRes, pushRes] = await Promise.all([listPromise, pushPromise]);
+		expect(listRes.success).toBe(true);
+		expect(listRes.data?.notifications).toEqual([]);
+		expect(pushRes.success).toBe(true);
+
+		const entries = await journal.read();
+		const listSeq = entries.find((entry) => entry.command === 'notification-list')?.seq ?? -1;
+		const pushSeq = entries.find((entry) => entry.command === 'notification-push')?.seq ?? -1;
+		expect(listSeq).toBeGreaterThan(0);
+		expect(pushSeq).toBeGreaterThan(listSeq);
+
+		const { report } = await replayKernel(entries, {
+			deployment: probeDeployment([entry('probe'), entry('sums')]),
+			ports: ports(),
+		});
+		expect(report.diverged).toBe(false);
+		expect(report.same).toBe(report.entries.length);
+	});
+
+	it('replays a budget-truncated agent notification-list over redacted wrapped notices without cursor divergence (#2105)', async () => {
+		const { kernel, journal, advance } = await boot();
+		const longSecret = 'p'.repeat(1_800);
+		for (let index = 0; index < 24; index++) {
+			if (index > 0 && index % 10 === 0) advance(61_000);
+			const pushed = await kernel.call('notification-push', {
+				title: `Sign in ${index}`,
+				body: 'Notice body',
+				action: {
+					command: 'auth-sign-in',
+					label: 'Sign in',
+					input: { method: 'credentials', email: `u${index}@example.com`, password: longSecret },
+				},
+			});
+			expect(pushed.success).toBe(true);
+		}
+		const page = await kernel.agent.call<Listed>('notification-list', { body: true, limit: 100 });
+		expect(page.success).toBe(true);
+		expect(page.data?.cursor).not.toBeNull();
+		expect(page.data?.notifications.length).toBeLessThan(24);
+
+		const entries = await journal.read();
+		const listEntry = entries.find((entry) => entry.command === 'notification-list');
+		expect(listEntry?.context?.replay).toBe('recorded');
+		expect(JSON.stringify(listEntry)).not.toContain(longSecret);
+
+		const { report } = await replayKernel(entries, {
+			deployment: probeDeployment([entry('probe'), entry('sums')]),
+			ports: ports(),
+		});
+		expect(report.diverged).toBe(false);
+		expect(report.same).toBe(report.entries.length);
+		expect(report.recorded).toContain(listEntry?.seq);
+	});
+
+	it('redacts a listed confirmation input in a journaled agent notification-list (#2105)', async () => {
+		const { kernel, journal, store } = await boot();
+		// A pending confirmation raised by this agent whose input carries a secret (`auth-sign-in` password).
+		await store.create(NOTIFICATION_TABLE, {
+			id: 'ntf_0000000000000099',
+			workspace: 'personal',
+			person: 'local',
+			source: 'agent:shell-agent',
+			kind: 'confirmation',
+			title: 'Sign in',
+			tone: 'warning',
+			scope: { workspace: 'personal' },
+			createdAt: 1_800_000_000_000,
+			cbucket: 'agents:local',
+			ckey: 'confirm-key-99',
+			confirmation: {
+				command: 'auth-sign-in',
+				caller: 'agent:shell-agent',
+				header: 'Requested by shell-agent for you',
+				prompt: 'Confirm sign in',
+				title: 'Sign in',
+				expiresAt: 1_800_000_600_000,
+				state: 'pending',
+				input: {
+					method: 'credentials',
+					email: 'ada@example.com',
+					password: 'confirm-secret-password',
+				},
+			},
+		});
+		const listedRes = await kernel.agent.call<Listed>('notification-list', { body: true });
+		expect(listedRes.success).toBe(true);
+		expect(listedRes.data?.notifications[0]?.confirmation?.input).toMatchObject({
+			email: 'ada@example.com',
+			password: 'confirm-secret-password',
+		});
+		const entries = await journal.read();
+		const listEntry = entries.find((entry) => entry.command === 'notification-list');
+		expect(listEntry).toBeDefined();
+		expect(JSON.stringify(listEntry)).not.toContain('confirm-secret-password');
+		expect(JSON.stringify(listEntry)).toContain('ada@example.com');
+	});
 });
 
 describe("the shell's own notices, the seam of steps 8 to 10 (10.2)", () => {

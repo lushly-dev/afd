@@ -265,7 +265,14 @@ export function createPaletteRun(deps: ConfirmationDeps, shared: PaletteRunShare
 			consumed.add(promptId);
 			// A target the journal does not record leaves no entry to replay: this call's own outcome is replayed instead,
 			// answered from its record (blocker 11).
-			if (!deps.journaled(input.command)) (context as { replay?: string }).replay = 'recorded';
+			if (
+				!deps.journaled(input.command, {
+					interface: 'palette',
+					actor: context.actor,
+					caller: (context as { caller?: unknown }).caller,
+				})
+			)
+				(context as { replay?: string }).replay = 'recorded';
 			const fields: Record<string | symbol, unknown> = {
 				origin: traceId,
 				...(context.actor !== undefined ? { actor: context.actor } : {}),

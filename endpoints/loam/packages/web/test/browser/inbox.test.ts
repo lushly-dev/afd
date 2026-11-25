@@ -99,11 +99,52 @@ describe('P4-E6: the inbox', () => {
 		expect(
 			dismissals.map((entry) => [(entry.input as { reason?: string }).reason, entry.success])
 		).toEqual([['inbox', true]]);
+		// Wait for the inbox to render the target notice and for the leaving app's teardown to settle (#2301).
+		await inbox(page).locator('.notice[data-target]').waitFor();
+		await settle(page);
 		// Focus is on the notice it opened at, which names itself unread.
 		await expect.poll(async () => (await focused(page)).label).toBe('Ada signed the book, unread');
 		await expect
 			.poll(() => inbox(page).locator('.notice').first().locator('.meta').textContent())
 			.toMatch(/^Unread · From Hello/);
+		expect(errors).toEqual([]);
+		await page.context().close();
+	});
+
+	it('P4-E13: P4-E6: keeps focus on the target notice when the leaving app tears down after the inbox renders (#2301)', async () => {
+		const { page, errors } = await openShell(browser, site.origin);
+		await openApp(page, 'hello');
+		await helloCall(page, 'toast-show', { message: 'Ada signed the book', sticky: true });
+		await expect.poll(() => inboxButton(page).getAttribute('aria-label')).toBe('Inbox 1 unread');
+		// Hold the rail refresh that drives AppSurfaces.#sync so the inbox renders and focuses the
+		// target notice before AppSurfaces.#leave removes Hello's surfaces.
+		await page.evaluate(() => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				rail: { fresh(): Promise<unknown> };
+			};
+			const orig = shell.rail.fresh.bind(shell.rail);
+			let release!: () => void;
+			const gate = new Promise<void>((resolve) => {
+				release = resolve;
+			});
+			(window as unknown as { __releaseLeave?: () => void }).__releaseLeave = release;
+			shell.rail.fresh = async () => {
+				await gate;
+				shell.rail.fresh = orig;
+				return orig();
+			};
+		});
+		const toast = page.locator('loam-toast[message="Ada signed the book"]');
+		await toast.locator('button.inbox').click();
+		await inbox(page).locator('.notice[data-target]').waitFor();
+		await expect.poll(async () => (await focused(page)).label).toBe('Ada signed the book, unread');
+		// Now let AppSurfaces.#leave run while focus is already on the inbox notice.
+		await page.evaluate(() =>
+			(window as unknown as { __releaseLeave?: () => void }).__releaseLeave?.()
+		);
+		await expect.poll(() => page.locator('hello-main').count()).toBe(0);
+		await settle(page);
+		expect((await focused(page)).label).toBe('Ada signed the book, unread');
 		expect(errors).toEqual([]);
 		await page.context().close();
 	});

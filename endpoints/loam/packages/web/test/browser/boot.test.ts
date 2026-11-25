@@ -386,7 +386,7 @@ describe("P4-E12: phase 4's chunks in Chromium", () => {
 		);
 		const listed = /const FIRST_PAINT_CHUNKS = \[([^\]]+)\]/.exec(source)?.[1] ?? '';
 		const expected = [...listed.matchAll(/'([\w.-]+)'/g)].map((match) => match[1]).sort();
-		expect(expected.length).toBeGreaterThan(10);
+		expect(expected).toEqual(['index']);
 		const opened = await openShell(browser, site.origin);
 		try {
 			const requested = (await measureFirstPaint(opened.page))
