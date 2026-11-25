@@ -34,6 +34,7 @@ mod file_async;
 mod file_shared;
 mod recorder;
 mod replay;
+pub(crate) mod secret_scope;
 
 #[cfg(feature = "journal-file")]
 pub use file::FileJournalSink;
@@ -41,8 +42,8 @@ pub use file::FileJournalSink;
 pub use file_async::AsyncFileJournalSink;
 #[cfg(feature = "journal-file-shared")]
 pub use file_shared::{JournalFileLock, JournalLockError};
-pub use recorder::JournalRecorder;
-pub(crate) use recorder::{iso_timestamp, JournalContextState};
+pub(crate) use recorder::{iso_timestamp, off_tape, JournalContextState, Taping};
+pub use recorder::{JournalRecorder, JournalRedactInfo};
 pub use replay::{
     replay_journal, ReplayDifference, ReplayDifferenceKind, ReplayEntryReport,
     ReplayJournalOptions, ReplayReport, ReplayStatus,
@@ -566,3 +567,6 @@ pub fn parse_journal(text: &str) -> Result<Vec<JournalEntry>, String> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod secret_tests;

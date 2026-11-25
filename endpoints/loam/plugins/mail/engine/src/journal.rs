@@ -121,6 +121,16 @@ pub fn redact(mut record: JournalRecord) -> Option<JournalRecord> {
     Some(record)
 }
 
+/// The entry to store for `record`: none for a command declaring `secret`
+/// (`spec/journal.md`), since `redact` knows only the commands it names, and
+/// none before the engine owns the store; otherwise `record` redacted.
+fn admit(record: JournalRecord, secret: bool, owns_store: bool) -> Option<JournalRecord> {
+    if secret || !owns_store {
+        return None;
+    }
+    redact(record)
+}
+
 /// Removes content payloads from the result of `command`, when its input
 /// already carries them or the result would copy mail text in (13.1): ids,
 /// revision, and metadata stay.
@@ -180,10 +190,11 @@ pub fn recorder(home: &Home, registry: &CommandRegistry, engine: Arc<Engine>) ->
         .with_record_failures(true)
         .with_filter(move |command| changes.contains(command))
         // Asked after the call, so a command that opened the store first is
-        // recorded.
-        .with_redact({
+        // recorded. A command declaring `secret` is never recorded: `redact`
+        // knows only the commands it names.
+        .with_redact_info({
             let engine = Arc::clone(&engine);
-            move |record| engine.owns_store().then(|| redact(record)).flatten()
+            move |record, info| admit(record, info.secret, engine.owns_store())
         })
         // The crate's message names the file and the system's error: the
         // engine's words, never text from mail.
@@ -194,7 +205,37 @@ pub fn recorder(home: &Home, registry: &CommandRegistry, engine: Arc<Engine>) ->
 mod tests {
     use serde_json::json;
 
-    use super::drop_draft_text;
+    use super::{admit, drop_draft_text};
+
+    fn record(command: &str) -> afd::JournalRecord {
+        afd::JournalRecord {
+            timestamp: "2026-01-01T00:00:00.000Z".to_owned(),
+            trace_id: None,
+            command: command.to_owned(),
+            input: json!({ "password": "hunter2" }),
+            actor: None,
+            context_digest: afd::JournalContextDigest {
+                hash: "sha256:00".to_owned(),
+                interface: None,
+            },
+            context: None,
+            context_omitted: None,
+            output_budget: None,
+            result: afd::success(json!({ "token": "issued" })),
+            duration_ms: 0.0,
+            tape: None,
+        }
+    }
+
+    /// A command declaring `secret` is never stored, whatever `redact` would
+    /// make of it; any other is redacted once the engine owns the store.
+    #[test]
+    fn a_secret_command_is_never_stored() {
+        assert_eq!(admit(record("mail-vault-unlock"), true, true), None);
+        assert_eq!(admit(record("mail-vault-unlock"), false, false), None);
+        let kept = admit(record("mail-vault-unlock"), false, true).expect("an entry");
+        assert_eq!(kept.command, "mail-vault-unlock");
+    }
 
     /// A discard or a restore would copy a draft's text into the journal
     /// though its input held none: its result keeps ids and revision only.

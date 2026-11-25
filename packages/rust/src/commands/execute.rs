@@ -263,13 +263,35 @@ impl CommandRegistry {
                 "ServerInstances::Multiple cannot run per-process approval state; configure a shared confirmation key and nonce_store",
             ));
         }
-        // Replayed calls, and the calls nested in them, are never recorded.
-        let journal = read_lock(&self.journal)
-            .clone()
-            .filter(|recorder| !context.journal_state.replaying && recorder.records(name));
-        let recording = journal
-            .as_ref()
-            .map(|recorder| recorder.start(&command.name, &input, &mut context, &context_fields.0));
+        // A command declaring `secret` reads off every recording parent's tape, recorded or not
+        // (`spec/journal.md`): it runs on the sources under the recording ones, and in a secret
+        // scope, where every parent's tape refuses the readings that still reach it (through a
+        // host's wrapper around a recording source).
+        let secret_scope = command.secret.then(crate::journal::secret_scope::enter);
+        if command.secret {
+            crate::journal::off_tape(&mut context);
+        }
+        // Replayed calls, and the calls nested in them, are never recorded, and a secret call
+        // only by a recorder with a redactor. The recorder read here decides and records.
+        let journal = read_lock(&self.journal).clone().filter(|recorder| {
+            !context.journal_state.replaying && recorder.records_call(name, command.secret)
+        });
+        // A secret call's recorder reads its own timing inside the call's scope too, so a
+        // reading through a host's wrapper reaches no other call's tape.
+        let recording = journal.as_ref().map(|recorder| {
+            crate::journal::secret_scope::within(secret_scope.as_ref(), || {
+                recorder.start(
+                    &command.name,
+                    command.secret,
+                    secret_scope
+                        .clone()
+                        .or_else(crate::journal::secret_scope::current),
+                    &input,
+                    &mut context,
+                    &context_fields.0,
+                )
+            })
+        });
 
         #[cfg(feature = "native")]
         let deadline_signal = effective_timeout_ms.map(|_| match &context.cancellation {
@@ -284,21 +306,27 @@ impl CommandRegistry {
         // `run_handler` and `chain(context)` run inside the guarded future, so a middleware
         // layer that panics while building its future is caught too. With no middleware the
         // handler takes the validated input itself, without a copy.
-        let run = run_guarded(async move {
-            if middleware.layers.is_empty() {
-                run_handler(command, input, context, check_output_budget).await
-            } else {
-                let state = CallState::of(&context);
-                let chain = middleware_chain(
-                    &command,
-                    &middleware.layers,
-                    Arc::new(input),
-                    state,
-                    check_output_budget,
-                );
-                chain(context).await
-            }
-        });
+        let chain_scope = secret_scope.clone();
+        let finish_scope = secret_scope.clone();
+        let run = crate::journal::secret_scope::scoped(
+            secret_scope,
+            run_guarded(async move {
+                if middleware.layers.is_empty() {
+                    run_handler(command, input, context, check_output_budget).await
+                } else {
+                    let state = CallState::of(&context);
+                    let chain = middleware_chain(
+                        &command,
+                        &middleware.layers,
+                        Arc::new(input),
+                        state,
+                        check_output_budget,
+                        chain_scope,
+                    );
+                    chain(context).await
+                }
+            }),
+        );
 
         // The deadline covers the chain only: a slow journal append cannot turn a finished call
         // into a TIMEOUT, and a call that timed out is not recorded.
@@ -318,7 +346,13 @@ impl CommandRegistry {
             _ => run.await,
         };
         match (journal, recording) {
-            (Some(recorder), Some(recording)) => recorder.finish(recording, result).await,
+            (Some(recorder), Some(recording)) => {
+                crate::journal::secret_scope::scoped(
+                    finish_scope,
+                    recorder.finish(recording, result),
+                )
+                .await
+            }
             _ => result,
         }
     }

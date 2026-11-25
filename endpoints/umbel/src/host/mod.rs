@@ -8,6 +8,7 @@
 mod approvals;
 mod digest;
 mod error;
+mod journal_redact;
 mod space;
 
 pub(crate) use approvals::as_registered;
@@ -998,7 +999,8 @@ fn digest_commands(loaded: &LoadedPlugins) -> digest::DigestCommands {
 /// journal alone is enough to rebuild every stream. Its redact step first puts back the host
 /// metadata a sealed result left out (phase 5 section 9.3), so every entry records it whole, then
 /// reduces the entry of every digest command, on every route that records: a direct call, a
-/// batch item, a pipe or pipeline step, each journaled under its own name.
+/// batch item, a pipe or pipeline step, each journaled under its own name. It drops the entry of
+/// every command declaring `secret` ([`journal_redact::entry`]).
 fn install_journal(
     registry: &CommandRegistry,
     workspace: &Workspace,
@@ -1009,38 +1011,11 @@ fn install_journal(
     registry.set_journal(
         JournalRecorder::new(Arc::new(ProjectingSink::new(Arc::clone(projector))))
             .with_record_failures(workspace.config().journal.record_failures)
-            .with_redact(move |mut record| {
-                restore_sealed(&mut record, &stash);
-                Some(digest::redact(&digests, record))
+            .with_redact_info(move |record, info| {
+                journal_redact::entry(&digests, &stash, record, info.secret)
             })
             .with_on_error(|message| tracing::error!("journal: {message}")),
     );
-}
-
-/// Put back into a journal record what the plugin gate left out of a sealed result (phase 5
-/// section 9.3): its `dev.umbel/changes` and record `version`, found by the reference the result
-/// carries, which the record does not keep.
-fn restore_sealed(record: &mut afd::JournalRecord, stash: &crate::positions::Stash) {
-    let Some(metadata) = record.result.metadata.as_mut() else {
-        return;
-    };
-    let Some(Value::String(reference)) = metadata.extra.remove(middleware::JOURNAL_REF_KEY) else {
-        return;
-    };
-    let Some(mut raw) = stash.take(&reference) else {
-        tracing::error!(
-            "journal: a sealed result's metadata was no longer kept; its event names no changes"
-        );
-        return;
-    };
-    if let Some(version) = raw.remove("version")
-        && let Some(Value::Object(found)) = metadata.extra.get_mut(crate::events::RECORD_KEY)
-    {
-        found.insert("version".to_owned(), version);
-    }
-    for (key, value) in raw {
-        metadata.extra.insert(key, value);
-    }
 }
 
 /// A sealed host: the registry, the workspace, and the surfaces built over them.
