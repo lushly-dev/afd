@@ -11,7 +11,7 @@ rerun protocol or conformance suites.
 | Phases 0 to 6: spike, dual-era servers and clients, tool fields, conformance and migration docs | Done for the recorded scope | #391 to #396; [migration guide](migration.md), [protocol acceptance index](../../../../spec/protocol-conformance.md) |
 | Phase 5's deferred structured results | Done | Rust implemented `structuredContent` and `outputSchema` in #523; Python and C++ (`afd::mcp_stdio`) on branch `lush/fleet-465-structured-content-parity`, closing [#465](https://github.com/lushly-dev/afd/issues/465) |
 | Phase 5's deferred metadata | Partially delivered | `title` (#585) and the meta-tool `meta` argument (#589) landed; `x-mcp-header` was not adopted. See [command metadata](../../../../spec/command-metadata.md) |
-| Phase 7: separate follow-on proposals | Proposals delivered (#407), implementations tracked separately | [Confirmations](../mcp-confirmations/STATUS.md), [authorization](../../active/mcp-authorization/STATUS.md), [progress](../../proposed/mcp-progress/mcp-progress.proposal.md), [tasks](../mcp-tasks/STATUS.md) |
+| Phase 7: separate follow-on proposals | Proposals delivered (#407), implementations tracked separately | [Confirmations](../mcp-confirmations/STATUS.md), [authorization](../mcp-authorization/STATUS.md), [progress](../../proposed/mcp-progress/mcp-progress.proposal.md), [tasks](../mcp-tasks/STATUS.md) |
 | Phase 8: legacy removal | Not started; next major and owner decision required | [#469](https://github.com/lushly-dev/afd/issues/469) remains open; dual-era support is still intentional |
 
 ## Closure

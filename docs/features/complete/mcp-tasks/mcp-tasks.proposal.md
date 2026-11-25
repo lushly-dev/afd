@@ -10,7 +10,7 @@
 | Author | jasfalk (drafted with Claude) |
 | Spec | [SEP-2663: Tasks extension](https://modelcontextprotocol.io/seps/2663-tasks-extension) (Final, Extensions Track), [extensions overview](https://modelcontextprotocol.io/extensions/overview) |
 | Packages | `spec/`, `packages/core`, `packages/server`, `packages/client`, `python/`, `packages/rust` |
-| Related | [Command progress](../../proposed/mcp-progress/mcp-progress.proposal.md) (status messages), [MCP confirmations](../mcp-confirmations/mcp-confirmations.proposal.md) (the `input_required` status), [MCP authorization](../../active/mcp-authorization/mcp-authorization.proposal.md) (task access checks), [handoff pattern](../handoff-pattern/) (AFD's command-level start-and-poll pattern) |
+| Related | [Command progress](../../proposed/mcp-progress/mcp-progress.proposal.md) (status messages), [MCP confirmations](../mcp-confirmations/mcp-confirmations.proposal.md) (the `input_required` status), [MCP authorization](../mcp-authorization/mcp-authorization.proposal.md) (task access checks), [handoff pattern](../handoff-pattern/) (AFD's command-level start-and-poll pattern) |
 
 ## Why this is fourth
 
@@ -48,7 +48,7 @@ Until then, a Rust pilot on rmcp's `TaskManager` is cheap and would test the des
 
 ### Task store
 
-A `TaskStore` interface holds task records and results: `create`, `get`, `update`, `cancel`, `expire`. An in-memory store is the default and is documented as single-instance only. Hosts with several instances plug in a shared store. Records carry the principal from [authorization](../../active/mcp-authorization/mcp-authorization.proposal.md) when present, and every `tasks/*` call checks it.
+A `TaskStore` interface holds task records and results: `create`, `get`, `update`, `cancel`, `expire`. An in-memory store is the default and is documented as single-instance only. Hosts with several instances plug in a shared store. Records carry the principal from [authorization](../mcp-authorization/mcp-authorization.proposal.md) when present, and every `tasks/*` call checks it.
 
 ### Execution
 

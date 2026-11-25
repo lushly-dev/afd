@@ -59,7 +59,7 @@ never edited; a change of status goes in the index.
   `TASK_TOKEN_EXPIRED` specified in [`spec/error-codes.md`](../../../spec/error-codes.md) (joining the catalog in
   0b and 0e, so `vectors/error-codes.json` is unchanged); `tool-strategies.md`, `protocol-conformance.md`,
   `CHANGELOG.md` (`VERSION` unchanged) and the language parity rows (Planned); the
-  [MCP Authorization](../../../docs/features/active/mcp-authorization/mcp-authorization.proposal.md) and
+  [MCP Authorization](../../../docs/features/complete/mcp-authorization/mcp-authorization.proposal.md) and
   [MCP Tasks](../../../docs/features/complete/mcp-tasks/mcp-tasks.proposal.md) proposals moved to
   `docs/features/active/` with A4, A5, T1 and T5 annotated. Fifteen choices the specification left open are in its
   [Amendments from step 0a](phases/5-auth-hosted/spec.md#amendments-from-step-0a), none on the trust model.

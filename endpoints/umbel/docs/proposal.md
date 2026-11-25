@@ -245,7 +245,7 @@ script as its input.
   Umbel is a candidate first host. Its "modules" are Umbel's plugins, and its
   observe, propose, decide, promote loop overlaps the curator; the two share
   vocabulary and should share the proposal record.
-- [MCP Authorization](../../../docs/features/active/mcp-authorization/mcp-authorization.proposal.md):
+- [MCP Authorization](../../../docs/features/complete/mcp-authorization/mcp-authorization.proposal.md):
   Umbel builds on its Rust layer, `scopes` and `credentials`, and adds
   enterprise-managed authorization as an extension.
 - [MCP Tasks](../../../docs/features/complete/mcp-tasks/mcp-tasks.proposal.md)

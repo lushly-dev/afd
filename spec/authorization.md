@@ -5,7 +5,7 @@ requests need a token, how a token is verified, what commands see of it, how sco
 call, and the 401 and 403 answers. It is opt-in: a server without it behaves as before.
 
 Specified 2026-11-07 as step 0a of [Umbel phase 5](../endpoints/umbel/docs/phases/5-auth-hosted/spec.md)
-(decision D106), from the [MCP Authorization proposal](../docs/features/active/mcp-authorization/mcp-authorization.proposal.md),
+(decision D106), from the [MCP Authorization proposal](../docs/features/complete/mcp-authorization/mcp-authorization.proposal.md),
 whose decisions A4 and A5 it amends ([M6](#m6-scopes)). Rust implements it first (Umbel steps 0b
 and 0c); TypeScript and Python follow, and already bind the principal (M8) in confirmation state
 (step 0c). C++ has no HTTP server, so none of this applies to it.

@@ -183,7 +183,7 @@
   - `Cargo.toml:20-40`: features `native`, `wasm`, `journal-file`, `journal-file-shared`, `approval`, `server`
     and `frontmatter`, with `native`, `journal-file` and `approval` the defaults. No auth feature.
 - **Read in the repository:**
-  - The [MCP Authorization proposal](../../../../../docs/features/active/mcp-authorization/mcp-authorization.proposal.md),
+  - The [MCP Authorization proposal](../../../../../docs/features/complete/mcp-authorization/mcp-authorization.proposal.md),
     A1 to A7. A4 says scopes are "not inferred from `mutation`", and A5 gives a 403 through `Mcp-Name`.
   - The [MCP Tasks proposal](../../../../../docs/features/complete/mcp-tasks/mcp-tasks.proposal.md).
   - [`spec/command-metadata.md`](../../../../../spec/command-metadata.md) lines 234-294.
