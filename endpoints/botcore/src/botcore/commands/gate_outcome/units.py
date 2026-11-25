@@ -1,4 +1,11 @@
-"""Where a commit's files belong and which of them are test paths, for the `main` source.
+"""Where a commit's files belong, which are records, and which are test paths, for `main`.
+
+**Records.** Changelogs (`CHANGELOG*`), changeset fragments (`.changeset/*.md`), provenance
+records (any file under a `provenance/` folder), status and other prose files (`.md`, `.mdx`,
+`.txt`, `.rst`), and lockfiles (`pnpm-lock.yaml`, `package-lock.json`, `*.lock`) are records,
+not source or test code. A commit's units and the lines whose last edit is read come from its
+non-record files; a commit that changes records only is counted by where those records sit and
+marked `records_only`.
 
 **Areas.** A file's area is the unit whose manifest's folder holds it, the deepest where
 several do. The units are the repository's list, read through git at the default branch's
@@ -6,9 +13,8 @@ tip: in a repository with an `architecture.json`, every unit it lists, and every
 (`package.json`, `pyproject.toml`, `Cargo.toml`, and a `CMakeLists.txt` that declares a
 project `VERSION`) under its `discoveryRoots`, outside `exclude` and `quarantine` and outside
 build folders, as the repository's own boundary check finds them. A repository without that
-file gets the nearest folder below its top that holds a manifest. A commit whose files no unit
-holds is `repository`; one whose files belong to more than one unit is `several`, with each
-unit named. A file outside every unit does not make a commit `several`.
+file gets the nearest folder below its top that holds a manifest. A commit counts in every
+unit its non-record files touch; one whose files no unit holds is `repository`.
 
 **Test paths.** A path is a test path when a folder on it is `tests`, `test` or `__tests__`;
 when its name holds `.test.`, `.spec.` or `.scenario.`; when it is a Python or C-style test
@@ -33,7 +39,8 @@ SKIP = {
     "coverage", "temp", "test-results", "playwright-report",
 }  # fmt: skip
 REPOSITORY = "repository"
-SEVERAL = "several"
+RECORD_EXTENSIONS = (".md", ".mdx", ".txt", ".rst")
+LOCKFILES = ("pnpm-lock.yaml", "package-lock.json")
 TEST_FOLDERS = {"tests", "test", "__tests__"}
 _TEST_NAME = re.compile(
     r"\.(?:test|spec|scenario)\.|^test_[^/]*\.(?:py|c|cc|cpp|cxx)$|_test\.(?:py|c|cc|cpp|cxx|h|hpp)$"
@@ -41,6 +48,22 @@ _TEST_NAME = re.compile(
 _CMAKE_VERSION = re.compile(r"\bproject\s*\([^)]*\bVERSION\b", re.IGNORECASE | re.DOTALL)
 _CFG_TEST = re.compile(r"#\[cfg\(\s*(?:(?:all|any)\(\s*(?:[^()]*,\s*)?)?test\b")
 _MOD = re.compile(r"\s*(?:#\[[^\]]*\]\s*)*(?:pub(?:\([^)]*\))?\s+)?mod\s+[A-Za-z_]\w*\s*\{")
+
+
+def is_record(path: str) -> bool:
+    """Whether `path` is a record rather than source or test code: changelogs, changeset
+    fragments, provenance records, status and other prose files, and lockfiles."""
+    parts = path.split("/")
+    name = parts[-1].lower()
+    if name == "cmakelists.txt":
+        return False
+    if any(part.lower() == "provenance" for part in parts[:-1]):
+        return True
+    if name in LOCKFILES or name.endswith(".lock"):
+        return True
+    if name == "changelog":
+        return True
+    return name.endswith(RECORD_EXTENSIONS)
 
 
 @dataclass
@@ -58,18 +81,19 @@ class Units:
                 return folder
         return None
 
-    def area(self, paths: list[str]) -> tuple[str, list[str]]:
-        """A commit's area and its units, those that hold most of its files first, then by
-        name: one unit, `repository` where none holds any file, `several` where more do."""
+    def units_for(self, paths: list[str]) -> tuple[list[str], bool]:
+        """A commit's units (those holding most of its files first, then by name) and whether
+        it changes records only. Units come from non-record files; when every changed file is a
+        record, units come from where those records sit and `records_only` is True."""
+        non_records = [path for path in paths if not is_record(path)]
+        records_only = not non_records and bool(paths)
+        chosen = paths if records_only else non_records
         held: dict[str, int] = {}
-        for path in paths:
+        for path in chosen:
             unit = self.of(path)
             if unit is not None:
                 held[unit] = held.get(unit, 0) + 1
-        units = sorted(held, key=lambda unit: (-held[unit], unit))
-        if not units:
-            return REPOSITORY, []
-        return (units[0] if len(units) == 1 else SEVERAL), units
+        return sorted(held, key=lambda unit: (-held[unit], unit)), records_only
 
 
 def _within(path: str, root: str) -> bool:

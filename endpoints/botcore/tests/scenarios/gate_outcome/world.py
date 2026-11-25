@@ -25,8 +25,8 @@ commits, a feat commit and 34 others. Its units are `packages/beds` (listed in i
 - #36 (repository, 7 March) closes nothing and has no `Found-by:` line; it replaces lines forty
   days old.
 - #33 (beds, 9 March) closes nothing, only adds lines, and was found by a check.
-- #37 (several: two files in beds, one in shed, one in no unit, 10 March) closes the security
-  issue #50 through its pull request, and only adds files.
+- #37 (beds and shed: two files in beds, one in shed, one record in no unit, 10 March) closes
+  the security issue #50 through its pull request, and only adds files.
 - #31 (beds, 11 March) closes #27 and #28 through its pull request only, and replaces lines a
   feat commit wrote four days before.
 

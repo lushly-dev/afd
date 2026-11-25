@@ -36,26 +36,31 @@ steps:
           found_by_absent: 1
         rows:
           - area: packages/beds
-            fix_commits: 3
-            escapes: 5
+            fix_commits: 4
+            also_other_units: 1
+            records_only: 0
+            escapes: 6
             unconfirmed: 1
-            with_test_path: 3
+            with_test_path: 4
             last_edit: { read: 2, median_days: 6 }
             rates: too-few
-          - area: repository
+          - area: endpoints/shed
             fix_commits: 1
-            escapes: 0
-            unconfirmed: 1
-            with_test_path: 0
-            last_edit: { read: 1, median_days: 40 }
-            rates: too-few
-          - area: several
-            fix_commits: 1
+            also_other_units: 1
+            records_only: 0
             escapes: 1
             unconfirmed: 0
             with_test_path: 1
             last_edit: { read: 0 }
-            units: [packages/beds, endpoints/shed]
+            rates: too-few
+          - area: repository
+            fix_commits: 1
+            also_other_units: 0
+            records_only: 0
+            escapes: 0
+            unconfirmed: 1
+            with_test_path: 0
+            last_edit: { read: 1, median_days: 40 }
             rates: too-few
         coverage:
           not_seen:
@@ -74,8 +79,9 @@ steps:
               - { issue: 28, found_by: use, class: contract }
             test_paths: 1
           - commit: { matches: '^[0-9a-f]{7,40}$' }
-            pull_request: 33
-            escapes: { length: 0 }
-            found_by: check
+            pull_request: 37
+            escapes:
+              - { issue: 50, found_by: use, class: contract }
+            units: [packages/beds, endpoints/shed]
             test_paths: 1
-        more: { examples: 1 }
+        more: { examples: 2 }

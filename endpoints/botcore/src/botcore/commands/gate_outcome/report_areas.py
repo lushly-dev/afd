@@ -26,8 +26,8 @@ from pathlib import Path
 from botcore.commands.gate_outcome.checks import default_ref
 from botcore.commands.gate_outcome.collect import FRESH, MAX_DAYS, share
 from botcore.commands.gate_outcome.main import days_known, units_at
-from botcore.commands.gate_outcome.record import CHANNELS, CLASSES, Record, parse_time
-from botcore.commands.gate_outcome.units import REPOSITORY, SEVERAL, Units
+from botcore.commands.gate_outcome.record import CHANNELS, CLASSES, MAIN_RULES, Record, parse_time
+from botcore.commands.gate_outcome.units import REPOSITORY, Units
 
 MIN_RATE = 20  # fix commits a rate needs
 BUG_LABELS = ("bug", "security")
@@ -42,10 +42,8 @@ def is_bug(label: str) -> bool:
     return name in BUG_LABELS or name.endswith(tuple(f":{kind}" for kind in BUG_LABELS))
 
 
-def area_of(units: list[str]) -> str:
-    if not units:
-        return REPOSITORY
-    return units[0] if len(units) == 1 else SEVERAL
+def areas_of(units: list[str]) -> list[str]:
+    return list(units) if units else [REPOSITORY]
 
 
 @dataclass
@@ -54,7 +52,7 @@ class Fix:
 
     line: dict
     landed: datetime
-    area: str
+    areas: list[str]
     closed: list[int] | None  # every issue it closes; None where GitHub was not read
     escapes: list[int] | None  # those that are closed and carry a bug label
 
@@ -93,14 +91,15 @@ def read_fix(line: dict) -> Fix | None:
     landed = parse_time(line["landed"])
     if landed is None:
         return None
+    areas = areas_of(line["units"])
     if line["issues"] is None:
-        return Fix(line, landed, area_of(line["units"]), None, None)
+        return Fix(line, landed, areas, None, None)
     issues = {number: (state, labels) for number, state, labels in line["issues"]}
     closed = sorted(issues)
     escapes = [
         n for n in closed if issues[n][0] == "closed" and any(map(is_bug, issues[n][1]))
     ] if line["type"] == "fix" else []  # fmt: skip
-    return Fix(line, landed, area_of(line["units"]), closed, escapes)
+    return Fix(line, landed, areas, closed, escapes)
 
 
 def median_days(ages: list[float]) -> float | None:
@@ -112,17 +111,21 @@ class AreaRow:
     area: str
     fixes: list[Fix] = field(default_factory=list)
     reverts: int = 0
-    reverted: list[Fix] = field(default_factory=list)  # the reverts, for the units they name
 
     def to_json(self) -> dict:
         fixes = self.fixes
         unread = sum(not fix.github for fix in fixes)
+        older = sum(fix.line["v"] < MAIN_RULES for fix in fixes)
         escapes = {n for fix in fixes for n in fix.escapes or []}
         tested = sum(fix.line["tests"] > 0 for fix in fixes)
         ages = [age for fix in fixes if (age := fix.age_days) is not None]
         data: dict = {
             "area": self.area,
             "fix_commits": len(fixes),
+            "also_other_units": sum(len(fix.areas) > 1 for fix in fixes),
+            "records_only": (
+                sum(bool(fix.line.get("records_only")) for fix in fixes) if not older else None
+            ),
             "reverts": self.reverts,
             "escapes": len(escapes) if not unread else None,
             "unconfirmed": sum(not fix.closed for fix in fixes) if not unread else None,
@@ -131,8 +134,8 @@ class AreaRow:
         }
         if unread:
             data["github_unread"] = unread
-        if self.area == SEVERAL:
-            data["units"] = several_units(fixes or self.reverted)
+        if older:
+            data["older_rules"] = older
         if len(fixes) < MIN_RATE:
             data["rates"] = "too-few"
         else:
@@ -141,18 +144,6 @@ class AreaRow:
             if data["unconfirmed"] is not None:
                 data["unconfirmed_per_100"] = round(100 * data["unconfirmed"] / len(fixes), 1)
         return data
-
-
-def several_units(fixes: list[Fix]) -> list[str]:
-    """The units the commits of `several` name: named by most commits first, then where they
-    stand in a commit (the unit that holds most of its files first), then by name."""
-    named: Counter = Counter()
-    place: dict[str, int] = {}
-    for fix in fixes:
-        for index, unit in enumerate(fix.line["units"]):
-            named[unit] += 1
-            place[unit] = min(place.get(unit, index), index)
-    return sorted(named, key=lambda unit: (-named[unit], place[unit], unit))
 
 
 @dataclass
@@ -186,7 +177,7 @@ def main_coverage(record: Record, since: datetime, until: datetime, now: datetim
     merged = sum(known[key]["merged"] for key in listed) if whole else None
     if not listed and not lines:
         status = "absent"
-    elif whole and all(line["issues"] is not None for line in lines):
+    elif whole and all(line["issues"] is not None and line["v"] >= MAIN_RULES for line in lines):
         status = "read"
     else:
         status = "partly"
@@ -195,10 +186,10 @@ def main_coverage(record: Record, since: datetime, until: datetime, now: datetim
 
 def known_areas(root: Path, record: Record) -> tuple[set[str], Units | None]:
     """Every area a person may name: the units at the default branch's tip, those the record's
-    commits name, `repository` and `several`."""
+    commits name, and `repository`."""
     found = default_ref(root)
     units = units_at(root, found[1]) if found else None
-    areas = {REPOSITORY, SEVERAL, *(units.folders if units else [])}
+    areas = {REPOSITORY, *(units.folders if units else [])}
     for line in record.commits.values():
         areas.update(line["units"])
     return areas, units
@@ -209,8 +200,8 @@ def unknown_area(area: str, areas: set[str]) -> dict:
     return {
         "message": f"No area '{area}' is known or on record",
         "suggestion": (f"Closest: {', '.join(close)}. " if close else "")
-        + f"{len(areas)} areas are known: a unit's folder (as packages/core), repository or "
-        "several; leave area out to list them by fix commits",
+        + f"{len(areas)} areas are known: a unit's folder (as packages/core) or repository; "
+        "leave area out to list them by fix commits",
     }
 
 
@@ -235,14 +226,16 @@ def _example(fix: Fix) -> dict:
         "test_paths": line["tests"],
         "last_edit": line["last_edit_status"],
         "last_edit_days": None if fix.age_days is None else round(fix.age_days, 1),
+        "records_only": (bool(line.get("records_only")) if line["v"] >= MAIN_RULES else None),
     }
-    if fix.area == SEVERAL:
+    if len(line["units"]) > 1:
         data["units"] = line["units"]
     return data
 
 
 def _totals(fixes: list[Fix], reverts: int, merged: int | None) -> dict:
     unread = sum(not fix.github for fix in fixes)
+    older = sum(fix.line["v"] < MAIN_RULES for fix in fixes)
     by_issue: dict[int, tuple[str, str | None]] = {}
     for fix in sorted(fixes, key=lambda fix: fix.landed, reverse=True):
         for issue in fix.escapes or []:
@@ -253,6 +246,10 @@ def _totals(fixes: list[Fix], reverts: int, merged: int | None) -> dict:
     data: dict = {
         "merged": merged,
         "fix_commits": len(fixes),
+        "multi_unit": sum(len(fix.areas) > 1 for fix in fixes),
+        "records_only": (
+            sum(bool(fix.line.get("records_only")) for fix in fixes) if not older else None
+        ),
         "reverts": reverts,
         "escapes": len(by_issue) if not unread else None,
         "unconfirmed": sum(not fix.closed for fix in fixes) if not unread else None,
@@ -273,6 +270,8 @@ def _totals(fixes: list[Fix], reverts: int, merged: int | None) -> dict:
     }
     if unread:
         data["github_unread"] = unread
+    if older:
+        data["older_rules"] = older
     return data
 
 
@@ -289,14 +288,14 @@ def by_area(  # noqa: PLR0913 - one report
         fix = read_fix(line)
         if fix is None:
             continue
-        row = rows.setdefault(fix.area, AreaRow(fix.area))
         if line["type"] == "revert":
-            row.reverts += 1
-            row.reverted.append(fix)
             reverts += 1
+            for name in fix.areas:
+                rows.setdefault(name, AreaRow(name)).reverts += 1
         else:
-            row.fixes.append(fix)
             fixes.append(fix)
+            for name in fix.areas:
+                rows.setdefault(name, AreaRow(name)).fixes.append(fix)
     ordered = sorted(rows.values(), key=lambda row: (-len(row.fixes), -row.reverts, row.area))
     if area is not None:
         ordered = [row for row in ordered if row.area == area]
@@ -307,7 +306,7 @@ def by_area(  # noqa: PLR0913 - one report
     if area is not None:
         commits = [read_fix(line) for line in cover.lines]
         mine = sorted(
-            (fix for fix in commits if fix is not None and fix.area == area),
+            (fix for fix in commits if fix is not None and area in fix.areas),
             key=lambda fix: (fix.landed, fix.line["sha"]),
             reverse=True,
         )
@@ -369,6 +368,14 @@ def by_area(  # noqa: PLR0913 - one report
             f"{unread} commits have no pull request or issue read from GitHub, so their areas "
             "give no escapes or unconfirmed count: run gate-outcome-collect with sources: [main] "
             "where gh is signed in"
+        )
+    older = sum(line["v"] < MAIN_RULES for line in cover.lines)
+    if older:
+        reach = (now.date() - window.first).days + 1
+        warnings.append(
+            f"{older} commits were read by earlier rules (v < {MAIN_RULES}), so their units, "
+            "records_only and last_edit may include records: run gate-outcome-collect with "
+            f"sources: [main] and since_days {min(reach, MAX_DAYS)} to update them"
         )
     if units is not None and units.problem:
         warnings.append(f"The units could not all be read: {units.problem}")

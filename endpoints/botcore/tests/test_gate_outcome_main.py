@@ -218,20 +218,60 @@ def test_a_repository_without_the_list_gets_the_nearest_folder_with_a_manifest()
     )  # fmt: skip
     assert found.source == "manifests"
     assert found.folders == ["packages/beds", "tools/kit"]
-    assert found.area(["README.md"]) == ("repository", [])
+    assert found.units_for(["README.md"]) == ([], True)
 
 
-def test_an_area_is_one_unit_repository_or_several_named_by_most_files() -> None:
+@pytest.mark.parametrize(
+    ("path", "is_rec"),
+    [
+        ("CHANGELOG.md", True),
+        ("CHANGELOG", True),
+        ("packages/rust/CHANGELOG.md", True),
+        ("endpoints/botcore/CHANGELOG.md", True),
+        (".changeset/botcore-gate-outcome-by-area.md", True),
+        ("endpoints/botcore/provenance/adaptations.json", True),
+        ("endpoints/botcore/src/botcore/provenance/provenance.json", True),
+        ("foundations/violet/PROVENANCE/upstream-selected.json", True),
+        ("docs/features/active/test-effectiveness/STATUS.md", True),
+        ("docs/page.mdx", True),
+        ("AGENTS.md", True),
+        ("README.md", True),
+        ("LICENSE.txt", True),
+        ("docs/guide.rst", True),
+        ("pnpm-lock.yaml", True),
+        ("package-lock.json", True),
+        ("endpoints/botcore/uv.lock", True),
+        ("packages/rust/Cargo.lock", True),
+        ("packages/core/src/index.ts", False),
+        ("packages/cpp/CMakeLists.txt", False),
+        ("endpoints/botcore/src/botcore/commands/docs/changelog.py", False),
+        ("packages/core/src/changelog.test.ts", False),
+        ("endpoints/botcore/src/botcore/commands/gate_outcome/units.py", False),
+        ("endpoints/botcore/tests/test_gate_outcome_main.py", False),
+        ("packages/core/package.json", False),
+        ("endpoints/botcore/pyproject.toml", False),
+        (".github/workflows/ci.yml", False),
+        ("architecture.json", False),
+        (".changeset/config.json", False),
+    ],
+)
+def test_is_record_classifies_this_repositorys_records_and_source(path: str, is_rec: bool) -> None:
+    assert units.is_record(path) is is_rec
+
+
+def test_units_for_excludes_records_and_falls_back_for_records_only() -> None:
     found = units.Units(["packages/beds/inner", "endpoints/shed", "packages/beds"])
-    assert found.area(["packages/beds/a.ts", ".changeset/x.md"]) == (
-        "packages/beds",
-        ["packages/beds"],
-    ), "a file no unit owns does not make a commit several"
-    assert found.area([".changeset/x.md", "docs/a.md"]) == ("repository", [])
-    assert found.area(
+    assert found.units_for([]) == ([], False)
+    assert found.units_for(["packages/beds/a.ts", ".changeset/x.md"]) == (["packages/beds"], False)
+    assert found.units_for(
+        ["packages/beds/a.ts", "endpoints/shed/CHANGELOG.md", "endpoints/shed/provenance/a.json"]
+    ) == (["packages/beds"], False)
+    assert found.units_for([".changeset/x.md", "docs/a.md"]) == ([], True)
+    assert found.units_for(["endpoints/shed/CHANGELOG.md"]) == (["endpoints/shed"], True)
+    assert found.units_for(
         ["endpoints/shed/a.ts", "packages/beds/a.ts", "packages/beds/b.ts",
          "packages/beds/inner/c.ts"]
-    ) == ("several", ["packages/beds", "endpoints/shed", "packages/beds/inner"])  # fmt: skip
+    ) == (["packages/beds", "endpoints/shed", "packages/beds/inner"], False)  # fmt: skip
 
 
 @pytest.mark.parametrize(
@@ -381,12 +421,20 @@ def test_the_inventory_reads_each_fix_and_revert_once_and_counts_every_commit(
     assert totals["escapes_found_by"]["absent"] == 1  # 40: its commit has no line
     assert totals["escapes_by_class"] == {**dict.fromkeys(record.CLASSES, 0),
                                           "contract": 1, "logic": 1, "absent": 1}  # fmt: skip
-    assert [row["area"] for row in report["rows"]] == ["packages/pots", "repository", "several"]
+    assert [row["area"] for row in report["rows"]] == [
+        "packages/pots",
+        "endpoints/shed/tool",
+        "packages/beds",
+        "repository",
+    ]
+    assert totals["multi_unit"] == 1 and totals["records_only"] == 0
     pots = area_row(report, "packages/pots")
-    assert (pots["fix_commits"], pots["reverts"], pots["escapes"], pots["unconfirmed"]) == (
-        2, 1, 1, 0
-    )  # fmt: skip
-    assert area_row(report, "several")["units"] == ["packages/beds", "endpoints/shed/tool"]
+    assert (pots["fix_commits"], pots["also_other_units"], pots["reverts"], pots["escapes"],
+            pots["unconfirmed"]) == (2, 0, 1, 1, 0)  # fmt: skip
+    beds = area_row(report, "packages/beds")
+    shed = area_row(report, "endpoints/shed/tool")
+    assert (beds["fix_commits"], beds["also_other_units"], beds["escapes"]) == (1, 1, 2)
+    assert (shed["fix_commits"], shed["also_other_units"], shed["escapes"]) == (1, 1, 2)
     assert report["coverage"]["sources"]["main"] == "read"
     assert report["coverage"]["not_seen"] == [report_not_seen()]
 
@@ -583,9 +631,10 @@ def test_the_docs_topic_and_the_command_line_name_the_main_source(bench: Bench) 
     from botcore.docs import CORE_DOCS
 
     topic = CORE_DOCS["gate-outcome"]
-    for said in ("`main`", "#[cfg(test)]", "__tests__", "`several`", "`repository`", "Found-by",
-                 "`:security`", "`unconfirmed`", "`too-many-files`", "the age of the bug",
-                 "`github_unread`", "`escapes_found_by`"):  # fmt: skip
+    for said in ("`main`", "#[cfg(test)]", "__tests__", "`records_only`", "`also_other_units`",
+                 "`repository`", "provenance/", "pnpm-lock.yaml", "Found-by", "`:security`",
+                 "`unconfirmed`", "`too-many-files`", "the age of the bug", "`github_unread`",
+                 "`escapes_found_by`"):  # fmt: skip
         assert said in topic, said
     runner = CliRunner()
     assert "main (the fix commits" in runner.invoke(cli, ["gate-outcome-collect", "--help"]).output
@@ -699,3 +748,150 @@ def test_a_diff_header_of_a_path_with_a_space_ends_with_a_tab() -> None:
     diff = "diff --git a/x y.rs b/x y.rs\n--- a/x y.rs\t\n+++ b/x y.rs\t\n@@ -2 +2 @@\n-a\n+b\n"
     (change,) = units.parse_diff(diff)
     assert (change.old, change.new, change.removed, change.added) == ("x y.rs", "x y.rs", [2], [2])
+
+
+def test_changelog_and_provenance_do_not_pull_a_unit_in_or_skew_last_edit(garden: Garden) -> None:
+    garden.land(
+        "chore: old source\n",
+        {"endpoints/shed/tool/src/lib.py": "x = 1\n", "packages/beds/CHANGELOG.md": "# Log\n- a\n",
+         "packages/beds/provenance/adaptations.json": '{"v": 1}\n'},
+        day(10),
+    )  # fmt: skip
+    garden.land(
+        "chore: recent record edit\n",
+        {"packages/beds/CHANGELOG.md": "# Log\n- b\n",
+         "packages/beds/provenance/adaptations.json": '{"v": 2}\n'},
+        day(3),
+    )  # fmt: skip
+    fix = garden.land(
+        "fix(tool): fix logic and update parent records (#51)\n",
+        {"endpoints/shed/tool/src/lib.py": "x = 2\n",
+         "packages/beds/CHANGELOG.md": "# Log\n- c\n",
+         "packages/beds/provenance/adaptations.json": '{"v": 3}\n'},
+        day(2),
+    )  # fmt: skip
+    garden.graph.pulls[51] = []
+    ok(collect_cmd(sources=["main"], since_days=7))
+    line = commit_line(garden.bench, fix)
+    assert line["units"] == ["endpoints/shed/tool"]
+    assert line["records_only"] is False
+    assert line["last_edit_status"] == "read"
+    assert record.parse_time(line["last_edit"]) == day(10), "ignores newer changelog/provenance"
+    report = ok(report_cmd(days=7, by="area"))
+    assert [row["area"] for row in report["rows"]] == ["endpoints/shed/tool"]
+    row = area_row(report, "endpoints/shed/tool")
+    assert row["also_other_units"] == 0 and row["records_only"] == 0
+    assert row["last_edit"] == {"read": 1, "of": 1, "median_days": 8.0}
+
+
+def test_a_records_only_commit_counts_where_its_records_sit_and_is_marked(garden: Garden) -> None:
+    garden.land("chore: seed changelog\n", {"packages/beds/CHANGELOG.md": "# Log\n- a\n"}, day(5))
+    fix = garden.land(
+        "fix(beds): correct changelog entry (#52)\n",
+        {"packages/beds/CHANGELOG.md": "# Log\n- fixed\n"},
+        day(2),
+    )
+    garden.graph.pulls[52] = []
+    ok(collect_cmd(sources=["main"], since_days=7))
+    line = commit_line(garden.bench, fix)
+    assert line["units"] == ["packages/beds"]
+    assert line["records_only"] is True
+    assert line["last_edit_status"] == "no-lines"
+    report = ok(report_cmd(days=7, by="area"))
+    assert report["totals"]["records_only"] == 1
+    row = area_row(report, "packages/beds")
+    assert row["fix_commits"] == 1 and row["records_only"] == 1
+    detail = ok(report_cmd(days=7, by="area", area="packages/beds"))
+    assert detail["examples"][0]["records_only"] is True
+
+
+def test_a_commit_line_from_rule_v1_is_rebuilt_under_v2(garden: Garden) -> None:
+    garden.land(
+        "chore: seed\n",
+        {"endpoints/shed/tool/src/lib.py": "x = 1\n", "packages/beds/CHANGELOG.md": "# Log\n- a\n"},
+        day(8),
+    )
+    fix = garden.land(
+        "fix(tool): mend (#53)\n",
+        {"endpoints/shed/tool/src/lib.py": "x = 2\n", "packages/beds/CHANGELOG.md": "# Log\n- b\n"},
+        day(2),
+    )
+    garden.graph.pulls[53] = []
+    # Write a v1 commit line as the earlier rule produced (both units, no records_only)
+    old_line = {
+        "id": f"commit:{fix}", "kind": "commit", "v": 1, "at": record.stamp(day(2)),
+        "sha": fix, "landed": record.stamp(day(2)), "type": "fix", "pr": 53, "files": 2,
+        "units": ["endpoints/shed/tool", "packages/beds"], "test_paths": [], "tests": 0,
+        "closes": [], "found_by": [], "found_by_unread": 0,
+        "last_edit": record.stamp(day(3)), "last_edit_status": "read",
+        "pr_closes": [], "issues": [],
+    }  # fmt: skip
+    record.append_lines(garden.bench.folder(), [old_line])
+    data = ok(collect_cmd(sources=["main"], since_days=7))
+    assert main_source(data)["added"] == 1
+    upgraded = commit_line(garden.bench, fix)
+    assert upgraded["v"] == record.MAIN_RULES == 2
+    assert upgraded["units"] == ["endpoints/shed/tool"]
+    assert upgraded["records_only"] is False
+    assert record.parse_time(upgraded["last_edit"]) == day(8)
+
+
+def test_cmakelists_is_source_not_record_for_units_and_last_edit(garden: Garden) -> None:
+    garden.land(
+        "chore: add cmake\n",
+        {"endpoints/shed/tool/CMakeLists.txt": "cmake_minimum_required(VERSION 3.20)\n"},
+        day(9),
+    )
+    fix = garden.land(
+        "fix(tool): fix cmake and beds (#54)\n",
+        {"endpoints/shed/tool/CMakeLists.txt": "cmake_minimum_required(VERSION 3.25)\n",
+         "packages/beds/src/a.ts": "export const a = 9;\n"},
+        day(2),
+    )  # fmt: skip
+    garden.graph.pulls[54] = []
+    ok(collect_cmd(sources=["main"], since_days=7))
+    line = commit_line(garden.bench, fix)
+    assert line["units"] == ["endpoints/shed/tool", "packages/beds"]
+    assert line["records_only"] is False
+    assert line["last_edit_status"] == "read"
+
+
+def test_report_marks_v1_records_partly_and_warns_before_recollection(garden: Garden) -> None:
+    fix_v1 = garden.land("fix(beds): old (#55)\n", {"packages/beds/src/a.ts": "x = 1\n"}, day(3))
+    fix_v2 = garden.land("fix(pots): new (#56)\n", {"packages/pots/src/b.ts": "y = 1\n"}, day(2))
+    garden.graph.pulls.update({55: [], 56: []})
+    ok(collect_cmd(sources=["main"], since_days=7))
+    # Replace fix_v1's line in the record with a v1 line (no records_only)
+    v2_line = commit_line(garden.bench, fix_v2)
+    old_line = {
+        "id": f"commit:{fix_v1}", "kind": "commit", "v": 1, "at": record.stamp(day(3)),
+        "sha": fix_v1, "landed": record.stamp(day(3)), "type": "fix", "pr": 55, "files": 1,
+        "units": ["packages/beds"], "test_paths": [], "tests": 0, "closes": [], "found_by": [],
+        "found_by_unread": 0, "last_edit": None, "last_edit_status": "no-lines",
+        "pr_closes": [], "issues": [],
+    }  # fmt: skip
+    (garden.bench.folder() / record.RECORD_FILE).write_text("", encoding="utf-8")
+    record.append_lines(garden.bench.folder(), [old_line, v2_line])
+    report = ok(report_cmd(days=7, by="area"))
+    assert report["coverage"]["sources"]["main"] == "partly"
+    assert any("earlier rules" in w for w in report["warnings"])
+    assert report["totals"]["records_only"] is None and report["totals"]["older_rules"] == 1
+    assert area_row(report, "packages/beds")["records_only"] is None
+    assert area_row(report, "packages/pots")["records_only"] == 0
+    detail = ok(report_cmd(days=7, by="area", area="packages/beds"))
+    assert detail["examples"][0]["records_only"] is None
+    # `several` is no longer a known area
+    refused(report_cmd(days=7, by="area", area="several"), "INVALID_INPUT")
+
+
+def test_a_multi_unit_revert_counts_in_both_rows_and_once_in_totals(garden: Garden) -> None:
+    garden.land(
+        'Revert "fix: both (#57)"\n',
+        {"packages/beds/src/a.ts": "x\n", "endpoints/shed/tool/src/lib.py": "y\n"},
+        day(2),
+    )
+    ok(collect_cmd(sources=["main"], since_days=7))
+    report = ok(report_cmd(days=7, by="area"))
+    assert report["totals"]["reverts"] == 1
+    assert area_row(report, "packages/beds")["reverts"] == 1
+    assert area_row(report, "endpoints/shed/tool")["reverts"] == 1

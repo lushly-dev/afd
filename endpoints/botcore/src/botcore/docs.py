@@ -363,9 +363,14 @@ first, as the limit permits. Each log read is one counted request.
   `pyproject.toml`, `Cargo.toml`, a `CMakeLists.txt` that declares a project `VERSION`) under
   its `discoveryRoots`, outside `exclude`, `quarantine` and build folders (`node_modules`,
   `dist`, `build`, `target` and the like); without that file, the nearest folder below the top
-  that holds a manifest. A commit whose files no unit holds is `repository`; one whose files
-  more than one unit holds is `several`, with each unit named, those holding most of its files
-  first; a file outside every unit does not make it `several`. A test path: a `tests`, `test` or
+  that holds a manifest. Changelogs (`CHANGELOG`, `CHANGELOG.md`/`.txt`/`.rst`), changeset
+  fragments (`.changeset/*.md`), provenance records (any file under a `provenance/` folder),
+  status and other prose files (`.md`, `.mdx`, `.txt` except `CMakeLists.txt`, `.rst`) and
+  lockfiles (`pnpm-lock.yaml`, `package-lock.json`, `*.lock`) are records, not source or test
+  code. A commit's units and the lines whose last edit is read come from its non-record files,
+  with those holding most files first; a commit whose files are all records is counted by where
+  those records sit and marked `records_only`. A commit whose files no unit holds is
+  `repository`. A test path: a `tests`, `test` or
   `__tests__` folder on it; `.test.`, `.spec.` or `.scenario.` in its name; a Python or C-style
   test file (`test_<name>` or `<name>_test` with `.py`, `.c`, `.cc`, `.cpp` or `.cxx`, or
   `<name>_test.h`/`.hpp`); or a Rust file whose changed lines, on either side of the change, sit
@@ -380,10 +385,10 @@ first, as the limit permits. Each log read is one counted request.
   read, not required; a commit without one is `absent`, and one off the lists is counted as
   unread. The age of its last edit: the lines it removes are blamed at its parent and the newest
   committer time kept (`no-lines` when it only adds, `too-many-files` when it replaces lines in
-  more than 20 files, `no-parent`, `unreadable`). Then GitHub, through its GraphQL API, up to 40
-  numbers to a request, each request counted against `requests` and held to the account's
-  GraphQL allowance as `ci` is to its core one: the issues the pull request its subject ends
-  with (`(#N)`) closes, or, for a subject with no number, the pull request GitHub says the
+  more than 20 non-record files, `no-parent`, `unreadable`). Then GitHub, through its GraphQL
+  API, up to 40 numbers to a request, each request counted against `requests` and held to the
+  account's GraphQL allowance as `ci` is to its core one: the issues the pull request its subject
+  ends with (`(#N)`) closes, or, for a subject with no number, the pull request GitHub says the
   commit merged; and the state and labels of every issue it closes. Without GitHub the commits
   are read and the source is `partly`, its `why` beginning `gh`; a later collection with GitHub
   reads only GitHub for them. An answer without the repository, or without a commit's pull
@@ -425,15 +430,15 @@ first, as the limit permits. Each log read is one counted request.
   was read, `[job, step, how the read ended (read, no-summary, mismatch, log-gone, unreadable),
   commands not kept, [[command, passed or failed, seconds], ...]]`; a command is kept only when
   its group has it at the default branch's tip. `commit` lines (`commit:<revision>`, made by the
-  main source's rules, `v` 1): `sha`, `landed`, `type` (`fix` or `revert`), `pr`, `files` (how
-  many), `units`, `test_paths` (at most 100) and `tests` (how many), `closes` (by its message),
-  `found_by` (`[channel, class, issue or null]`), `found_by_unread`, `last_edit` and
-  `last_edit_status`, and, once GitHub is read, `pr_closes` and `issues` (`[number, open or
-  closed, [label, ...]]`; both null until then). Nothing else: no line of a log, no output,
-  title, branch name, actor, file contents, commit subject, message or diff text. Lines carry
-  the rules' version; a steps line made by older rules is read again. `state.json` beside it
-  holds the spans listed, the commits that landed each day (`main.days`) and how the last
-  collection ended.
+  main source's rules, `v` 2): `sha`, `landed`, `type` (`fix` or `revert`), `pr`, `files` (how
+  many), `units`, `records_only`, `test_paths` (at most 100) and `tests` (how many), `closes`
+  (by its message), `found_by` (`[channel, class, issue or null]`), `found_by_unread`,
+  `last_edit` and `last_edit_status`, and, once GitHub is read, `pr_closes` and `issues`
+  (`[number, open or closed, [label, ...]]`; both null until then). Nothing else: no line of a
+  log, no output, title, branch name, actor, file contents, commit subject, message or diff
+  text. Lines carry the rules' version; a steps line made by older rules is read again.
+  `state.json` beside it holds the spans listed, the commits that landed each day (`main.days`)
+  and how the last collection ended.
 - The fold. At the end of each collection, under its lock, every whole UTC day more than 180
   days before today that is wholly collected (every moment of it listed, every earlier attempt
   on record, every attempt that ran with its steps or on record as one GitHub no longer gives)
@@ -535,28 +540,31 @@ or each check, and event, a run counted once as its latest attempt, by its creat
   earlier attempt of a run included (`latest` says whether it was the run's last). A check
   that is not known or on record is `INVALID_INPUT` with the closest ids and how many are known.
 - By area (from the `main` source; a commit is in the window by when it landed). One row for
-  each area with fix commits, most first, then by name: `area` (a unit's folder, `repository`
-  or `several`), `fix_commits`, `reverts` (counted apart; they close no escape),
+  each unit (or `repository`) with fix commits, most first, then by name; a commit that touches
+  more than one unit counts in each of them: `area` (a unit's folder or `repository`),
+  `fix_commits`, `also_other_units` (those that also touch another unit), `records_only` (those
+  that change records only), `reverts` (counted apart; they close no escape),
   `escapes` (closed issues with a bug label, one named `bug` or `security` or ending `:bug` or
   `:security`, that its fix commits close, each counted once), `unconfirmed` (fix commits that
   close no issue, whatever its state now: a bug, a planned change or the answer to a check that
   worked),
   `with_test_path`, `last_edit` (`read`, `of` and `median_days`: the median time from the
-  newest replaced line landing to the fix landing, over the commits it could be read for; not
-  the age of the bug), `units` for `several`, `rates` (`too-few` under 20 fix commits, else
+  newest replaced non-record line landing to the fix landing, over the commits it could be read
+  for; not the age of the bug), `rates` (`too-few` under 20 fix commits, else
   `given` with `with_test_path_per_100` and `unconfirmed_per_100`). A `sort` other than the
   default does not go with it (`INVALID_INPUT`). Where GitHub was not read
   for a commit, its row's `escapes` and `unconfirmed` are null and `github_unread` says how
   many: no count is given for what was not read. `totals`: `merged` (every commit but merges
-  that landed in the window; null unless every day of it was listed), the same counts over every
-  row, `escapes_found_by` (by channel, and `absent` where the commit has no line naming the
+  that landed in the window; null unless every day of it was listed), the same counts with each
+  commit and escape counted once (`multi_unit` and `records_only` included), `escapes_found_by`
+  (by channel, and `absent` where the commit has no line naming the
   issue or none naming no issue), `escapes_by_class`, `found_by_absent` and
   `found_by_unreadable` (fix commits), `github_unread`. With `area`, `examples` are its commits,
   newest first: `commit`, `landed`, `type`, `pull_request`, `closes` (every issue it closes, null
   without GitHub), `escapes` (`issue`, `found_by`, `class`), `found_by` (the channel its lines
   name, `several`, `unreadable` or `absent`), `found_by_lines`, `test_paths` (how many),
-  `last_edit` and `last_edit_days`, and `units` in `several`; a commit of `several` is listed
-  only under `several`. An area that is not known is `INVALID_INPUT` with the closest names and
+  `last_edit` and `last_edit_days`, `records_only`, and `units` when a commit touches more than
+  one unit. An area that is not known is `INVALID_INPUT` with the closest names and
   how many are known. `coverage` gives `sources.main` (`read` when every day of the window was
   listed and every commit has GitHub's answer, `absent` when nothing was, else `partly`),
   `collected.main`, `days_listed`, `github_read`, `last_edit_read`, `found_by_share`, `units`
