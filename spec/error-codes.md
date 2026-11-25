@@ -346,7 +346,7 @@ does not define them.
 | `SESSION_LIMIT_REACHED` | HTTP 503 whose JSON-RPC `-32000` error carries `data.code: "SESSION_LIMIT_REACHED"`: the server refused `initialize` because its session store is full and the caller holds no session. Neither a bare `-32000` nor `-32002` is read as this | Yes (retry after `Retry-After`) | TypeScript |
 | `MISSING_CLIENT_CAPABILITY` | JSON-RPC `-32021`: the server requires a client capability (such as `io.modelcontextprotocol/tasks`) the request did not declare | No | TypeScript, Python |
 | `JSON_RPC_ERROR` | Any other JSON-RPC error code | No | TypeScript |
-| `OUTCOME_UNKNOWN` | A call (not positively marked read-only), batch or pipeline request got no result after it may have reached the server, so the command or commands may have run | No | TypeScript, Python (`call()`, `afd batch`) |
+| `OUTCOME_UNKNOWN` | A call (not positively marked read-only), batch or pipeline request got no result after it may have reached the server, so the command or commands may have run. A server may send it too, for a command it stopped waiting for that may still run: Umbel does for a compiled-plugin call past its deadline | No | TypeScript, Python (`call()`, `afd batch`); Umbel (server, compiled-plugin calls) |
 | `TOOL_ERROR` | The tool failed and its content is not a `CommandResult` | No | TypeScript, Python |
 | `BATCH_ERROR`, `PIPELINE_ERROR` | `afd-batch` or `afd-pipe` failed and its content is not a result | No | TypeScript |
 | `STREAM_CANCELLED` | The caller, `disconnect()` or the transport cancelled the stream | No | TypeScript |

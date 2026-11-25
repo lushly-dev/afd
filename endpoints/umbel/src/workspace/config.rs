@@ -512,7 +512,7 @@ impl ConfigFile {
 
     /// The unknown and reserved keys.
     pub fn scan_keys(&self) -> KeyScan {
-        self.scan_keys_as(self.version)
+        super::call_limits::known(self.version, self.scan_keys_as(self.version))
     }
 
     /// The unknown and reserved keys, were the file of configuration version `version`.

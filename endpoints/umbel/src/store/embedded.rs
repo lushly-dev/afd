@@ -4,7 +4,9 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use umbel_store::StoreError;
-use umbel_store_embedded::{SqliteMemoryStore, SqliteStore, StoreOptions, TantivyIndex};
+use umbel_store_embedded::{
+    ConnectionLimit, SqliteMemoryStore, SqliteStore, StoreOptions, TantivyIndex,
+};
 
 use super::SpaceStores;
 use crate::workspace::{SpaceId, Workspace};
@@ -14,11 +16,14 @@ pub(crate) struct Stores {
     workspace: Arc<Workspace>,
     opened: Mutex<BTreeMap<String, Arc<SpaceStores>>>,
     memories: Mutex<BTreeMap<String, Arc<SqliteMemoryStore>>>,
+    /// `store.max_connections` (D204): the cap every SQLite store of this host shares.
+    connections: ConnectionLimit,
 }
 
 impl Stores {
     pub(crate) fn new(workspace: Arc<Workspace>) -> Self {
         Self {
+            connections: workspace.connection_limit().clone(),
             workspace,
             opened: Mutex::new(BTreeMap::new()),
             memories: Mutex::new(BTreeMap::new()),
@@ -58,12 +63,14 @@ impl Stores {
         }
         let dir = self.workspace.layout().space_state_dir(&id);
         let memory = Arc::new(
-            SqliteMemoryStore::open(&dir, space, self.options())?.with_machine_backup_exclusion(
-                self.workspace
-                    .config()
-                    .store
-                    .exclude_memory_from_machine_backup,
-            ),
+            SqliteMemoryStore::open(&dir, space, self.options())?
+                .with_machine_backup_exclusion(
+                    self.workspace
+                        .config()
+                        .store
+                        .exclude_memory_from_machine_backup,
+                )
+                .with_connection_limit(self.connections.clone()),
         );
         memories.insert(space.to_owned(), Arc::clone(&memory));
         Ok(memory)
@@ -84,7 +91,12 @@ impl Stores {
         }
         let dir = self.workspace.layout().space_state_dir(&id);
         let options = self.options();
-        let sqlite = Arc::new(SqliteStore::open(&dir, space, options)?);
+        let sqlite = Arc::new(SqliteStore::open_with_limit(
+            &dir,
+            space,
+            options,
+            self.connections.clone(),
+        )?);
         let tantivy = Arc::new(TantivyIndex::open(&dir, space, options)?);
         let memory = self.memory(space)?;
         let stores = Arc::new(SpaceStores {

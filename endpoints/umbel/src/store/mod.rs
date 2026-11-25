@@ -84,7 +84,8 @@ pub mod codes {
     pub const STORE_PROVENANCE_REQUIRED: &str = "STORE_PROVENANCE_REQUIRED";
     /// A compare-and-set or revision check failed.
     pub const STORE_CONFLICT: &str = "STORE_CONFLICT";
-    /// A lock wait ran past `store.lock_timeout_ms`.
+    /// A lock wait, or the wait for a turn at the stores (`store.max_connections`, D204), ran past
+    /// `store.lock_timeout_ms`.
     pub const STORE_BUSY: &str = "STORE_BUSY";
     /// The stored data is not what the store wrote.
     pub const STORE_CORRUPT: &str = "STORE_CORRUPT";
@@ -166,7 +167,10 @@ pub(crate) fn host_error(error: StoreError) -> umbel_sdk::HostError {
         StoreError::Conflict { current } => HostError::Conflict { current },
         StoreError::NotFound => HostError::NotFound("nothing is stored there".to_owned()),
         StoreError::Busy => {
-            HostError::Busy("a lock wait ran past store.lock_timeout_ms; retry".to_owned())
+            HostError::Busy(
+                "a lock wait, or the wait for a store connection (store.max_connections), ran past store.lock_timeout_ms; retry"
+                    .to_owned(),
+            )
         }
         StoreError::Invalid(reason) => HostError::Invalid(reason),
         StoreError::TooLarge(reason) => HostError::TooLarge(reason),
@@ -217,7 +221,7 @@ pub(crate) fn command_error(error: &StoreError) -> CommandError {
         ),
         StoreError::Busy => (
             codes::STORE_BUSY,
-            "Another process holds the store's lock; retry in a moment.",
+            "Another process holds the store's lock, or every store connection of this host (store.max_connections) is at work; retry in a moment.",
             true,
         ),
         StoreError::Corrupt(_) => (

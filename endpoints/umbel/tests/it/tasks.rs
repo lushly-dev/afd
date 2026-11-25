@@ -369,6 +369,16 @@ impl World {
     }
 
     async fn start_with(extra: &str) -> Self {
+        Self::start_on(extra, "config_version = 5").await
+    }
+
+    /// [`Self::start_with`] on configuration version 7, whose `[limits]` has the compiled-call
+    /// bound and deadline (D204).
+    async fn start_v7(extra: &str) -> Self {
+        Self::start_on(extra, "config_version = 7").await
+    }
+
+    async fn start_on(extra: &str, version: &str) -> Self {
         let kit = TestIdp::start().await.unwrap();
         let rest = format!("{SPACES}\n{TASKER_PLUGINS}{extra}");
         let setup = support::oauth::Setup {
@@ -376,11 +386,13 @@ impl World {
             ..support::oauth::Setup::default()
         };
         // The identity provider issues access tokens too: a second issuer of the namespace.
-        let config = support::oauth::config(&kit, &setup).replacen(
-            "access_tokens = false",
-            "access_tokens = true\nalgorithms = [\"ES256\", \"RS256\"]",
-            1,
-        );
+        let config = support::oauth::config(&kit, &setup)
+            .replacen(
+                "access_tokens = false",
+                "access_tokens = true\nalgorithms = [\"ES256\", \"RS256\"]",
+                1,
+            )
+            .replacen("config_version = 5", version, 1);
         let dir = support::workspace(&config);
         let clock = clock_now();
         let gate = Arc::new(Gate::default());
@@ -1378,4 +1390,60 @@ async fn a_task_command_must_be_a_mutation_exposed_to_mcp() {
         .err()
         .unwrap();
     assert!(error.message().contains("not exposed to MCP"), "{error:?}");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_compiled_call_deadline_answers_over_mcp_and_spares_a_task() {
+    let world = World::start_v7("\n[limits]\ncompiled_timeout_ms = 200\n").await;
+    let ada = bearer(&world.token("ada", "app"));
+    // Inline over MCP: the host answers OUTCOME_UNKNOWN at the deadline, before AFD's own MCP
+    // timer, and the plugin's next host call is refused.
+    let tag = "deadline-inline";
+    let started = std::time::Instant::now();
+    let reply = call(
+        &world.a.client,
+        &ada,
+        "tasker-loop",
+        json!({ "tag": tag }),
+        false,
+    )
+    .await;
+    let result = inline(&reply);
+    assert_eq!(
+        result["error"]["code"],
+        json!("OUTCOME_UNKNOWN"),
+        "{result}"
+    );
+    assert_eq!(result["error"]["retryable"], json!(false), "{result}");
+    assert!(
+        started.elapsed() < Duration::from_secs(10),
+        "the host answered at its deadline"
+    );
+    eventually(|| seen_of(tag).refused).await;
+
+    // As a task it has no such deadline: it calls the host past 200 ms until it is cancelled.
+    let tag = "deadline-task";
+    let id = id_of(
+        &call(
+            &world.a.client,
+            &ada,
+            "tasker-loop",
+            json!({ "tag": tag }),
+            true,
+        )
+        .await,
+    );
+    eventually(|| seen_of(tag).calls > 0).await;
+    tokio::time::sleep(Duration::from_millis(600)).await;
+    assert!(
+        !seen_of(tag).refused,
+        "a task has no compiled-call deadline"
+    );
+    assert_eq!(
+        get(&world.a.client, &id, &ada).await["result"]["status"],
+        json!("working")
+    );
+    let reply = task_rpc(&world.b.client, "tasks/cancel", &id, &ada).await;
+    assert_eq!(reply.status, 200, "{}", reply.text);
+    eventually(|| seen_of(tag).refused).await;
 }

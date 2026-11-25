@@ -39,7 +39,7 @@ component = ["dep:bytes", "dep:rand", "dep:wasmtime", "dep:wasmtime-wasi", "dep:
 # `umbel::testkit`: `TestHost` and its MCP drivers, for plugin crates' tests and the host's own
 # (specification section 10.1). The specification names `tempfile` and `rmcp`; the drivers also
 # need `http` and `http-body-util` to speak to the router in process.
-testkit = ["dep:tempfile", "dep:rmcp", "dep:http", "dep:http-body-util"]
+testkit = ["dep:tempfile", "dep:rmcp", "dep:http", "dep:http-body-util", "umbel-store-embedded?/testkit"]
 # The doctor's hosted profile (step 2c) reads certificate validity with `x509-parser` and, on
 # Linux and macOS, the file system type of `state/shared/` with `rustix`'s `statfs`; both were
 # already in the lock; on Windows, the files' owners and ACLs and the drive type of
