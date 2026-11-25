@@ -62,7 +62,53 @@ sentence; edit only your step's line. Keep earlier entries as history.
     for each `call`, and shows a planted wrong recovery failing the job it follows, with and
     without an assertion on its fields.
 
-- **Step 4, small worlds:** waits for the owner's decision after step 3.
+- **Step 4, small worlds:** merged 2026-11-25 as [#2518](https://github.com/lushly-dev/afd/pull/2518). The owner agreed on
+  2026-11-24 to a pilot on the factory.
+  - `tests/small_worlds.py` in the factory plugin explores the factory host in process:
+    - worlds: four scenario fixtures (fresh, backlog, ejected, host-offline), each merged over
+      `fresh.json`;
+    - depth: sequences of up to two calls;
+    - inputs: drawn from each state's issues, branches, machines, events and runs, plus missing
+      and out-of-range values.
+  - For every refusal with a `call`, `fix-input` or `retry` recovery, it checks the recovery
+    before following it: each `needs` field must be a parameter of the command, and `input` and
+    `needs` must not share a field (rule 3). It then follows it as the scenario runners do:
+    - the recovery's own call must not refuse;
+    - a `thenRetry` repeat must succeed;
+    - no followed call may come back with the same refusal.
+    Last, it checks that the refused call succeeds, or can still succeed within the bound,
+    counting the states one step past the bound. `lane-run`, which blocks, and `lane-host-set`
+    with `recover`, the wholesale rebuild, are left out.
+  - For a `call` without `thenRetry` (all reads in the factory), the check is that the call is
+    enabled and does not destroy reachability. Whether the read is the right one is what a
+    scenario's `follow.expect` checks.
+  - One run: 1,058 states, 15,667 calls, 2,385 followable refusals, 2,659 follows, in about 20
+    seconds. 1,658 refusals were judged sound, and 727 had a refused call that cannot succeed from
+    their own state at this depth. The test pins every (command, code) pair it judges sound, and
+    caps the calls at 19,000.
+  - **What it found:**
+    - `lane-report` on a lane that never ran sent the caller to `lane-start`, which refuses on any
+      machine that does not host the lane. It now sends it to `lane-status`, which is judged sound,
+      and the test lists no known violations.
+    - It also listed `FOREMAN_BUSY` and `NOT_FOREMAN`, whose `stop` is followed by a success once
+      `foreman-handoff` is called with the holder's session. That step belongs to the holding
+      foreman, so `stop` stays, but any caller can take it: see the follow-ups.
+  - Eight planted wrong recoveries are caught. Each failed against an explorer without the check
+    that catches it:
+    - a `call` that comes back with the same refusal;
+    - a `call` after which the refused call can never succeed;
+    - a `call` that refuses itself;
+    - a misspelled `needs` field;
+    - a field in both `input` and `needs`;
+    - a `thenRetry` whose repeat refuses;
+    - a recovery that leads away one step past the bound;
+    - a `fix-input` whose fixed call fails with another code, which the test's pinned pairs
+      catch.
+  - Whether to build it for other surfaces is the owner's decision.
+
+- **Step 5, engine recoveries:** not started. The owner agreed on 2026-11-24 to take it after step
+  4. It takes up step 2's two follow-up rows: engine-emitted errors carry a recovery in all four
+  languages, and the default server instructions say to follow it.
 
 ## Follow-ups
 
@@ -72,3 +118,6 @@ sentence; edit only your step's line. Keep earlier entries as history.
 | 2026-11-24 | Step 2 | The server's default instructions still say "follow error.suggestion to recover"; once engines set `recovery`, say to follow it when present |
 | 2026-11-24 | Step 3 | `botcore-factory` still requires `afd>=0.9.0` though its refusals use `recovery`; raise the floor to the first afd release that ships it |
 | 2026-11-24 | Step 3 | A malformed `expect.error.suggestion` matcher is worded differently by the runners: TypeScript says `Invalid assertion at error.suggestion: 'contains' expects a string`, Python `'expect.error.suggestion.contains' expects a string`. Recovery assertions are worded alike. Give suggestions TypeScript's wording in Python, which also drops the doubled field name in a `follow.expect` message (`'follow.expect': 'follow.expect.error.suggestion…'`). One more gap: each runner checks `matches` with its own regular-expression engine, so `(?P<a>x)` passes only in Python and `(?<a>x)` only in TypeScript. Python refuses `not_exists` in a recovery assertion, where TypeScript would read it as a field name, and prints a whole-number float in an unreadable recovery as `1.0` where TypeScript prints `1` |
+| 2026-11-24 | Step 4 | `foreman-handoff` frees the foreman for whoever passes the holder's session id, which `FOREMAN_BUSY`'s details show. So a refused foreman can take over instead of stopping. Decide whether a handoff needs more than the id |
+| 2026-11-24 | Step 4 | The explorer accepts a `fix-input` or `retry` whose call made again refuses with another code when the refused call can still succeed, where the scenario runners' default expects success; 9 such cases pass today. Two branches of its judgement are untested: a `fix-input` or `retry` whose call leaves the explored states is out of reach and never fires, and only the first remaining way is checked for that. Decide the rule for both if the explorer grows |
+| 2026-11-24 | Step 4 | `gate-allow` records an allowance for a head no branch has (the explorer passes `0000000` on a working cell). Decide whether it should refuse a head that does not exist |

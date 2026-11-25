@@ -142,8 +142,10 @@ def lane_report(factory: Factory, run: str | None, compare: str | None) -> dict[
         raise Refusal(
             "NOT_FOUND",
             "The lane has not run yet",
-            "Start it with lane-start",
-            recovery=call("lane-start"),
+            "There is a report once the lane has run; lane-status says whether it runs and where",
+            # Not lane-start: it refuses on a machine that does not host the lane, and starting
+            # a lane is not the way to read a report (found by tests/test_small_worlds.py).
+            recovery=call("lane-status"),
         )
     report = {"run": run_id, **numbers(run_summary(factory, state, run_id))}
     if compare:
