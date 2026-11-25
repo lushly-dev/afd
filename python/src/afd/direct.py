@@ -1176,13 +1176,13 @@ class DirectCommandRegistry:
 
 
 def create_direct_registry(
-    commands: list[Callable],
+    commands: Sequence[Callable[..., Any] | _CoreCommandDefinition],
     *,
     middleware: list[Any] | None = None,
     interface: str = "agent",
     **options: Any,
 ) -> DirectCommandRegistry:
-    """Create an agent boundary for decorated commands using the validating server engine."""
+    """Create an agent boundary for decorated commands or ``CommandDefinition`` objects."""
     from afd.server import create_server
 
     server = create_server("direct-registry", middleware=middleware, **options)

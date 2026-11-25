@@ -1,15 +1,14 @@
 ---
 name: afd-auth
 description: >
-  Adds sign-in to AFD apps with @lushly-dev/afd-auth: the AuthAdapter contract, auth
-  middleware, auth-* commands, SessionSync across tabs, React hooks and the Mock, Convex
-  and Better Auth adapters. Use when gating commands behind sign-in or writing an adapter;
-  for approval gates, see afd-typescript.
+  Adds sign-in to AFD apps with @lushly-dev/afd-auth and Python afd.auth: AuthAdapter,
+  auth middleware, auth-* commands, Mock/Convex/Better Auth, plus TS SessionSync and React
+  hooks. Use when gating commands behind sign-in or writing an adapter.
 ---
 
 # AFD auth
 
-`packages/auth/README.md` is the package reference. The package is in the fixed `afd-npm` release group: read its version in `packages/auth/package.json`, and the published one with `npm view @lushly-dev/afd-auth version`.
+`packages/auth/README.md` is the TypeScript package reference (`@lushly-dev/afd-auth`, in the fixed `afd-npm` release group: read its version in `packages/auth/package.json`, and the published one with `npm view @lushly-dev/afd-auth version`). Python implements the same core adapter, middleware (`is_verified_credentials` backstop included), built-in `auth-*` commands and `MockAuthAdapter` in `afd.auth` (`python/src/afd/auth/`); browser-only `SessionSync`, React hooks and third-party JS adapters remain TypeScript-only.
 
 | Import | Exports | Needs |
 |---|---|---|

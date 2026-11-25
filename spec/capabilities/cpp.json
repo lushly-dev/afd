@@ -401,9 +401,9 @@
 			"evidence": ["packages/cpp/include/afd/handoff.hpp", "packages/cpp/tests/handoff_test.cpp"]
 		},
 		"hts.handoff-client": {
-			"status": "no",
-			"note": "not declared",
-			"evidence": ["docs/language-parity.md"]
+			"status": "na",
+			"note": "no remote client (D6)",
+			"evidence": ["docs/features/active/parity-closure/parity-closure.plan.md"]
 		},
 		"hts.telemetry-types": {
 			"status": "yes",
@@ -717,9 +717,9 @@
 			"evidence": ["docs/language-parity.md"]
 		},
 		"tooling.mcp-client": {
-			"status": "no",
-			"note": "not declared",
-			"evidence": ["docs/language-parity.md"]
+			"status": "na",
+			"note": "no remote client (D6)",
+			"evidence": ["docs/features/active/parity-closure/parity-closure.plan.md"]
 		},
 		"tooling.browser-transport": {
 			"status": "na",
@@ -740,7 +740,8 @@
 		},
 		"tooling.cli": {
 			"status": "na",
-			"evidence": ["docs/language-parity.md"]
+			"note": "no C++ CLI (D6)",
+			"evidence": ["docs/features/active/parity-closure/parity-closure.plan.md"]
 		},
 		"tooling.auth-adapter": {
 			"status": "na",
@@ -748,9 +749,9 @@
 			"evidence": ["docs/features/complete/cpp-support/proposal.md"]
 		},
 		"tooling.testing": {
-			"status": "no",
-			"note": "(N/A per D6)",
-			"evidence": ["docs/language-parity.md"]
+			"status": "na",
+			"note": "exercised through the TypeScript CLI and scenario runner over MCP (D6)",
+			"evidence": ["docs/features/active/parity-closure/parity-closure.plan.md"]
 		},
 		"tooling.ui-packages": {
 			"status": "na",
@@ -761,9 +762,9 @@
 			"evidence": ["docs/language-parity.md"]
 		},
 		"tooling.platform-connectors": {
-			"status": "deferred",
-			"note": "(connectors)",
-			"evidence": ["docs/features/complete/cpp-support/proposal.md"]
+			"status": "na",
+			"note": "no connectors beyond existing implementations (D6)",
+			"evidence": ["docs/features/active/parity-closure/parity-closure.plan.md"]
 		},
 		"single.context-fields-meta-delivery": {
 			"status": "no",
