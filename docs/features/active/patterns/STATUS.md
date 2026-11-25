@@ -29,7 +29,11 @@ not, so an agent never has to scan the code to learn what is current. It follows
   [#2525](https://github.com/lushly-dev/afd/pull/2525); Phase B Step B5 Slice 1
   [#2147](https://github.com/lushly-dev/afd/issues/2147) and Phase C Step C1
   [#2148](https://github.com/lushly-dev/afd/issues/2148) merged in
-  [#2565](https://github.com/lushly-dev/afd/pull/2565)).
+  [#2565](https://github.com/lushly-dev/afd/pull/2565); Phase C Step C2 Slice 1
+  [#2149](https://github.com/lushly-dev/afd/issues/2149) merged in
+  [#2573](https://github.com/lushly-dev/afd/pull/2573); Phase C Step C3 Slice 1
+  [#2150](https://github.com/lushly-dev/afd/issues/2150) merged in
+  [#2581](https://github.com/lushly-dev/afd/pull/2581)).
 - **Epic:** [#1073](https://github.com/lushly-dev/afd/issues/1073). Work happens in its sub-issues;
   this file is the source of truth for progress.
 - **Done:** the proposal; owner walkthrough decisions (section 12 and decisions 1–20); ten jobs as
@@ -42,10 +46,12 @@ not, so an agent never has to scan the code to learn what is current. It follows
   ([#2144](https://github.com/lushly-dev/afd/issues/2144), [#2203](https://github.com/lushly-dev/afd/pull/2203));
   Phase B Step B2 `press`, capture 0.10 ARIA states, role sets/name matchers, and portable expectations with host-climb ([#2145](https://github.com/lushly-dev/afd/issues/2145), [#2306](https://github.com/lushly-dev/afd/pull/2306));
   Phase B Step B3 gate setups, filtered `specimen-list`, native portable gate run, `patterns@1` coverage, `specimen-suggest` setup stubs, PA-8 capture skip, and P0-4 fixture upgrades ([#2146](https://github.com/lushly-dev/afd/issues/2146), [#2525](https://github.com/lushly-dev/afd/pull/2525));
-  Phase B Step B5 Slice 1 Pack Format 2 and Phase C Step C1 Umbel format 2 reader & cross-library aggregation ([#2147](https://github.com/lushly-dev/afd/issues/2147), [#2148](https://github.com/lushly-dev/afd/issues/2148), [#2565](https://github.com/lushly-dev/afd/pull/2565)).
-- **Not done:** Phase B Slice 2 (B4 saved copies, B5 Slice 2), Phase C steps C2–C3, and Phase D. See [Delivery steps](#delivery-steps) and
+  Phase B Step B5 Slice 1 Pack Format 2 and Phase C Step C1 Umbel format 2 reader & cross-library aggregation ([#2147](https://github.com/lushly-dev/afd/issues/2147), [#2148](https://github.com/lushly-dev/afd/issues/2148), [#2565](https://github.com/lushly-dev/afd/pull/2565));
+  Phase C Step C2 Slice 1 `components-pattern-list` and `components-pattern-open` ([#2149](https://github.com/lushly-dev/afd/issues/2149), [#2573](https://github.com/lushly-dev/afd/pull/2573));
+  Phase C Step C3 Slice 1 patterns in `components-brief` and `components-open` ([#2150](https://github.com/lushly-dev/afd/issues/2150), [#2581](https://github.com/lushly-dev/afd/pull/2581)).
+- **Not done:** Phase B Slice 2 (B4 saved copies, B5 Slice 2), Phase C Slice 2 (`content.copies`, `components-check` `OUTDATED_COPIES`), and Phase D. See [Delivery steps](#delivery-steps) and
   [What is not done](#what-is-not-done).
-- **Last verified:** 2026-11-25 on Rust 1.100.0: C2 Slice 1 (#2149) `components-pattern-list` and `components-pattern-open` (manifest/component parity, 7/8 first-class slot cap, facet/scope/contains/cursor filters, `availableFacets`, cross-library owning-library-first aggregation, `minimum_basis` with `out-of-context` preservation, `gates`/`implementations` `skip` pagination and budget shedding, `PATTERN_NOT_FOUND`/`PATTERN_AMBIGUOUS`, D153 canary containment, and compiled vs `.wasm` parity).
+- **Last verified:** 2026-11-25 on Rust 1.100.0: C3 Slice 1 (#2150) patterns in `components-brief` and `components-open` (compact vs `out-of-context` object links, deduplicated `content.patterns`, `known` statement ids, cross-library owner envelope, `detail: "api"` omissions, Phase 0.4 shedding order Step 5b `patternCustomize` before `usage` / Step 10b `patternKeep` after `ruleText` / Step 13 `patterns` link, `minimum_basis` preserving `out-of-context`, `render: "text"` quoting & golden files, D153 canary containment, and compiled vs `.wasm` parity).
 - **Follow-ups:** the [table below](#follow-ups-not-yet-issues).
 
 ## Delivery steps
@@ -56,7 +62,7 @@ Each step sits on its own blank-line-separated list item so concurrent pull requ
 
 - **Phase B — Specimen (B1–B5):** In progress. B1 ([#2144](https://github.com/lushly-dev/afd/issues/2144), merged in [#2203](https://github.com/lushly-dev/afd/pull/2203)) pattern schema/validation; B2 ([#2145](https://github.com/lushly-dev/afd/issues/2145), [#2306](https://github.com/lushly-dev/afd/pull/2306)) `press`, capture 0.10 ARIA states (incl. `invalid`), `a11y`/`focus`/`layout` + host-climb; B3 ([#2146](https://github.com/lushly-dev/afd/issues/2146), merged in [#2525](https://github.com/lushly-dev/afd/pull/2525)) setups, filtered `specimen-list`, native gate `specimen-run`, `patterns@1` (`patternLibrary`), upgraded `fixtures/pack-library/{select,field}.js` stubs (P0-4); B4 (Slice 2, not yet filed) `specimen-pattern-save` (zero-error remount, `tokens`, `pack.localElements`, downgrade guard, batch refresh); B5 Slice 1 ([#2147](https://github.com/lushly-dev/afd/issues/2147), merged in [#2565](https://github.com/lushly-dev/afd/pull/2565)) Pack Format 2 (`docs/pack-format.md`, `checkPack`, `PATTERN_SETUP_MISSING`, per-error suggestions; Slice 2 copy records and `fingerprintsOnly` follow with B4).
 
-- **Phase C — Umbel `components` plugin (C1–C3):** In progress. C1 ([#2148](https://github.com/lushly-dev/afd/issues/2148), merged in [#2565](https://github.com/lushly-dev/afd/pull/2565)) format 2 reader & cross-library aggregation; C2 Slice 1 ([#2149](https://github.com/lushly-dev/afd/issues/2149), in progress) `components-pattern-list` & `components-pattern-open`; C3 Slice 1 ([#2150](https://github.com/lushly-dev/afd/issues/2150)) `components-brief` patterns (compact links, `patternCustomize` shed before `usage`, `out-of-context` vs `minimum_basis`), with Slice 2 `content.copies` & `components-check` `OUTDATED_COPIES` following Slice 2.
+- **Phase C — Umbel `components` plugin (C1–C3):** In progress. C1 ([#2148](https://github.com/lushly-dev/afd/issues/2148), merged in [#2565](https://github.com/lushly-dev/afd/pull/2565)) format 2 reader & cross-library aggregation; C2 Slice 1 ([#2149](https://github.com/lushly-dev/afd/issues/2149), merged in [#2573](https://github.com/lushly-dev/afd/pull/2573)) `components-pattern-list` & `components-pattern-open`; C3 Slice 1 ([#2150](https://github.com/lushly-dev/afd/issues/2150), merged in [#2581](https://github.com/lushly-dev/afd/pull/2581)) `components-brief` patterns (compact links, `patternCustomize` shed before `usage`, `out-of-context` vs `minimum_basis`), with Slice 2 `content.copies` & `components-check` `OUTDATED_COPIES` following Slice 2.
 
 - **Phase D — First consumers (D1–D3):** Not started (gated on Phases B & C). D1 `violet-elements` (`select`, `field`, `dialog.modal` + builder re-measurement per P0-7); D2 Loam (`pack.localElements`, saved copies, checklist gates); D3 second consumer library (Lushly).
 

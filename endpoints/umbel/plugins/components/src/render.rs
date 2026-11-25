@@ -253,6 +253,48 @@ fn component(component: &Value, several: bool, out: &mut String) {
                 words.extend(ids(Some(section)));
                 header(&words, out);
             }
+            "patterns" => {
+                let entries = section.as_array().map_or(&[][..], Vec::as_slice);
+                let mut words = vec!["patterns"];
+                for entry in entries {
+                    if let Some(id) = entry.as_str() {
+                        words.push(id);
+                    } else if let Some(id) = entry.get("pattern").and_then(Value::as_str) {
+                        words.push(id);
+                    }
+                }
+                header(&words, out);
+                for entry in entries {
+                    let Some(obj) = entry.as_object() else {
+                        continue;
+                    };
+                    let pat = obj
+                        .get("pattern")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default();
+                    if let Some(ctx) = obj.get("contexts")
+                        && let Some(reason) = ctx.get("reason").and_then(Value::as_str)
+                    {
+                        let mut text = format!("{pat} contexts: {reason}");
+                        flagged(&mut text, ctx.get("flags"));
+                        quote(&text, out);
+                    }
+                    for ooc in obj
+                        .get("outOfContext")
+                        .and_then(Value::as_array)
+                        .into_iter()
+                        .flatten()
+                    {
+                        let mut text = format!(
+                            "{} (out-of-context): {}",
+                            str_of(ooc, "id"),
+                            str_of(ooc, "reason")
+                        );
+                        flagged(&mut text, ooc.get("flags"));
+                        quote(&text, out);
+                    }
+                }
+            }
             "gaps" => {
                 header(&["gaps"], out);
                 for gap in section.as_array().into_iter().flatten() {
@@ -353,6 +395,36 @@ pub(crate) fn text(data: &Value) -> String {
         flagged(&mut text, rule.get("flags"));
         quote(&text, &mut out);
     }
+    let patterns = content["patterns"]
+        .as_array()
+        .map_or(&[][..], Vec::as_slice);
+    if !patterns.is_empty() {
+        out.push('\n');
+    }
+    for pat in patterns {
+        let qualified = format!("{}/{}", str_of(pat, "library"), str_of(pat, "pattern"));
+        let mut words = vec!["pattern", &qualified, str_of(pat, "status")];
+        if let Some(replacement) = pat.get("replacedBy").and_then(Value::as_str) {
+            words.extend(["replaced-by", replacement]);
+        }
+        header(&words, &mut out);
+        for item in pat["keep"].as_array().into_iter().flatten() {
+            let mut text = match item.get("text").and_then(Value::as_str) {
+                Some(body) => format!("keep {}: {body}", str_of(item, "id")),
+                None => format!("keep {}: (known)", str_of(item, "id")),
+            };
+            flagged(&mut text, item.get("flags"));
+            quote(&text, &mut out);
+        }
+        for item in pat["customize"].as_array().into_iter().flatten() {
+            let mut text = match item.get("text").and_then(Value::as_str) {
+                Some(body) => format!("customize {}: {body}", str_of(item, "id")),
+                None => format!("customize {}: (known)", str_of(item, "id")),
+            };
+            flagged(&mut text, item.get("flags"));
+            quote(&text, &mut out);
+        }
+    }
     let unknown = data["unknown"].as_array().map_or(&[][..], Vec::as_slice);
     let omitted = data["omitted"].as_array().map_or(&[][..], Vec::as_slice);
     if !unknown.is_empty() || !omitted.is_empty() {
@@ -378,6 +450,7 @@ pub(crate) fn text(data: &Value) -> String {
                 &["omitted consumer", str_of(item, "consumer"), &rules],
                 &mut out,
             );
+            continue;
         } else if item["reason"] == "minimum-basis" {
             let facts = item["facts"].as_u64().unwrap_or_default();
             header(
@@ -393,6 +466,14 @@ pub(crate) fn text(data: &Value) -> String {
         } else {
             "left out to fit"
         };
+        if let Some(pat) = item.get("pattern").and_then(Value::as_str) {
+            let words = format!(
+                "{why}: {pat} ({}); components-pattern-open returns them",
+                names.join(" ")
+            );
+            header(&[&words], &mut out);
+            continue;
+        }
         let words = format!("{why}: {}; components-open returns them", names.join(" "));
         header(&[&words], &mut out);
     }

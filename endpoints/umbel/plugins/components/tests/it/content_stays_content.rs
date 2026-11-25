@@ -152,7 +152,7 @@ async fn pack_text_is_served_only_inside_the_content_part_and_flagged() {
 
     // Shed to the floors: what is left is still only in the content part.
     let shed = fx
-        .brief(json!({ "tags": tags, "detail": "full", "maxBytes": 2_000 }))
+        .brief(json!({ "tags": tags, "detail": "full", "maxBytes": 2_400 }))
         .await;
     assert_only_in_content(&shed);
     assert_flagged(&data(&shed)["content"], false);
@@ -254,6 +254,28 @@ async fn pattern_text_is_served_only_inside_the_content_part_and_flagged() {
     assert_only_in_content(&opened);
     assert_eq!(data(&opened)["content"]["trust"], "content");
     assert_flagged(&data(&opened)["content"], false);
+
+    // `components-brief` (JSON and `render: "text"`) and `components-open { sections: ["patterns"] }`
+    // keep every pattern/context/out-of-context canary strictly inside `content` / quoted lines.
+    let brief_json = fx.brief(json!({ "tags": ["example-select"] })).await;
+    assert_only_in_content(&brief_json);
+    assert_flagged(&data(&brief_json)["content"], false);
+
+    let brief_text = fx
+        .brief(json!({ "tags": ["example-select"], "render": "text" }))
+        .await;
+    assert_only_in_content(&brief_text);
+    let block = data(&brief_text)["text"].as_str().unwrap();
+    for line in block.lines().filter(|line| line.contains(CANARY)) {
+        assert!(line.starts_with("> "), "{line}");
+    }
+    assert!(block.contains("(flagged: instruction-like)"));
+
+    let open_patterns = fx
+        .open(json!({ "tag": "example-select", "sections": ["patterns"] }))
+        .await;
+    assert_only_in_content(&open_patterns);
+    assert_flagged(&data(&open_patterns)["content"], false);
 
     assert!(
         !logs::lines("components-pattern-open").is_empty(),

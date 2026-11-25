@@ -10,16 +10,16 @@ description: How to read a component library's facts through the components plug
 1. Brief once for the whole page with `components-brief`: pass `source` (the page's markup or
    code) when the page exists, and `tags` when it does not.
 2. Write the page from the brief.
-3. Open a component with `components-open` only when the brief's `omitted` names something you
-   need, or for its examples. `omitted`'s `open` gives the sections to ask for.
+3. Reopen omitted content only when you need it (or for examples): follow `omitted[].open` —
+   `components-open` for components, or `components-pattern-open` (via `afd-call`) for patterns.
 4. Before handing the change off, pass what you wrote as `source` to `components-check`, and fix
    each `unknown-tag` and `unknown-attribute` (a name the component ignores silently; `nearest`
    names the likely one). It reads text and renders nothing: it skips `:x`, `.x` and `@x` bindings
    and judges no values, so a clean answer is no proof the page works. Specimen's story checks
    (`pnpm test:stories`) are the real check.
 
-`components-list` shows the libraries in the space's pack and their tags. Pass `known` with the
-rule ids you already hold, and their text is not sent again. A deployment may name a `consumer`
+`components-list` shows the libraries and tags in the pack. Pass `known` with rule or pattern
+statement ids you already hold, and their text is not sent again. A deployment may name a `consumer`
 (Loam uses `"loam"` here); pass it to `components-brief` to leave out inapplicable rules. `omitted`
 with reason `consumer` names those exclusions and has no `open` action. Omit `consumer` for the
 deployment's default, if any, else general guidance.
@@ -46,10 +46,10 @@ usually a typo; an `ambiguous` one is in several libraries, so pass `library`.
 
 ## Fitting a budget
 
-A brief leaves out the long form, CSS properties and the rules attributes name (an `omitted` entry
-with reason `detail` says where they are), and sheds more to fit the call's output budget, examples
-first, naming them in `omitted`. A harness that injects `render: "text"` into a session passes
-`maxBytes` to stay inside its own cap. `maxBytes` only lowers the budget.
+A brief leaves out the long form, CSS properties and attribute-named rules (an `omitted` entry with
+reason `detail` says where they are), and sheds more to fit the budget — examples, then `content.patterns`
+(`patternCustomize`, `patternKeep`), naming them in `omitted`. A harness injecting `render: "text"` passes
+`maxBytes` to stay inside its own cap (`maxBytes` only lowers the budget).
 
 ## Refusals
 

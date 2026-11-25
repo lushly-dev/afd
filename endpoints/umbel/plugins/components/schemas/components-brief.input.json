@@ -28,7 +28,7 @@
 			"type": "string",
 			"enum": ["brief", "api", "full"],
 			"default": "brief",
-			"description": "api: the floor and the API sections with rule ids only. brief: every section but detail and cssProperties, without the rules the attributes name. full: every section"
+			"description": "api: the floor and the API sections with rule ids and pattern links only (omits content.rules and content.patterns). brief: every section but detail and cssProperties, without the rules the attributes name. full: every section"
 		},
 		"sections": {
 			"type": "array",
@@ -47,6 +47,7 @@
 					"a11y",
 					"usage",
 					"rules",
+					"patterns",
 					"examples",
 					"gaps",
 					"detail"
@@ -61,7 +62,7 @@
 				"type": "string",
 				"maxLength": 193
 			},
-			"description": "Rule ids the caller already holds, each bare or <library>/<id>: their ids stay in entries and their text is not sent"
+			"description": "Rule and pattern statement ids the caller already holds, each bare or <library>/<id>: rule ids stay in entries without content.rules text, and pattern statements keep their ids without text"
 		},
 		"versions": {
 			"type": "object",

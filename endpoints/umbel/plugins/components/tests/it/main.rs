@@ -4,6 +4,7 @@
 #[path = "../support/mod.rs"]
 mod support;
 
+mod brief_patterns;
 mod budget;
 mod canonical;
 mod check;
