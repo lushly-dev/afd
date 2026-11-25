@@ -68,7 +68,7 @@ LOCK_FILE = "collect.lock"
 SHARED_FOLDER = "gate-outcome"  # inside a machine's folder in the shared one
 KINDS = ("run", "shape", "steps", "group", "commit")
 FOLDED = ("folded-workflow", "folded-check")  # the fold's lines (fold.py)
-MAIN_RULES = 1  # the version of the rules a commit line is made by
+MAIN_RULES = 2  # the version of the rules a commit line is made by (2: records excluded)
 COMMIT_TYPES = ("fix", "revert")
 # How a `Found-by:` line says a bug was found, and its class: the plan's lists
 CHANNELS = ("review", "check", "daily", "use", "sweep", "unknown")
@@ -326,10 +326,13 @@ def _commit(line: dict, base: dict) -> dict | None:  # noqa: C901, PLR0911 - one
         return None
     if (pr_closes is None) != (issues is None):  # GitHub was read for both, or for neither
         return None
+    records_only = line.get("records_only", False)
+    if type(records_only) is not bool:
+        return None
     keys = ("sha", "landed", "type", "pr", "files", "units", "test_paths", "tests", "closes",
             "found_by", "found_by_unread", "last_edit", "last_edit_status", "pr_closes",
             "issues")  # fmt: skip
-    return {**base, **{key: line.get(key) for key in keys}}
+    return {**base, **{key: line.get(key) for key in keys}, "records_only": records_only}
 
 
 def _pair(value: object) -> bool:

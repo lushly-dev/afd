@@ -33,6 +33,19 @@ The proposal lists six under "For the owner to decide". Each has its own line he
 
 ## Findings
 
+### 2026-11-25: multi-unit area counting and records-vs-source on 17 to 23 Nov (#2551)
+
+- With records excluded from unit attribution and `last_edit`, and each commit counted in every
+  unit it touches (no `several` row), 17 to 23 Nov keeps the same totals: 449 merged, 124 fix
+  commits (54 touching more than one unit, down from 74; 1 records-only), 0 reverts, 196
+  escapes, 25 unconfirmed, 118 with a test path.
+- The top areas over 50 rows are `endpoints/loam/packages/web` (22 fix commits, 22 also other
+  units, 67 escapes), `endpoints/botcore` (21, 8, 37), `endpoints/botcore/plugins/botcore-factory`
+  (19, 3, 29), `foundations/fast-af/packages/violet-elements` (18, 7, 33), and `packages/server`
+  (16, 15, 25).
+- `last_edit` over non-record lines is read for 119 of 124 fix commits with a median of 0.7
+  days (up from 0.2 days over 111 commits when records were blamed).
+
 ### 2026-11-25: the record's sizes on a whole day, and the fold on real data (#2484)
 
 - 20 Nov, the quietest day of 16 to 24 Nov (1,063 runs listed; 22 to 24 Nov list 2,500 or
@@ -171,6 +184,9 @@ The proposal lists six under "For the owner to decide". Each has its own line he
 - The fix commits and the escapes they close, and the report by area (#2483): merged in
   #2547; scenario 02 and the three held steps of 03 pass. See the finding of 2026-11-25
   on the inventory.
+
+- Counting fix commits in every unit they touch, and telling records from source (#2551): merged
+  in #2570; see the finding of 2026-11-25.
 
 - The hourly job's step, the record's folding and measured sizes (#2484): merged in #2568;
   the sizes of a whole day are in the finding of 2026-11-25. Open: the hourly job

@@ -305,11 +305,18 @@ it closes. A commit's lines in the record hold no subject, message or diff text.
 - **Areas come from the repository's list of units,** read through git at the default branch's
   tip: a file's area is the unit whose manifest's folder holds it, the deepest where several
   do. The units are those `architecture.json` lists and the manifests the repository's boundary
-  check finds under its `discoveryRoots` (most of Loam's packages are units only that way). A
-  commit whose files no unit holds is `repository`; one whose files belong to more than one is
-  `several`, with each unit named. A repository without that file gets the nearest folder that
-  holds a package manifest. `scripts/affected/scope.mjs` answers a different question, what a
-  change affects with its dependents, so it is not used.
+  check finds under its `discoveryRoots` (most of Loam's packages are units only that way).
+  Changelogs (`CHANGELOG`, `CHANGELOG.md`/`.txt`/`.rst`), changeset fragments
+  (`.changeset/*.md`), provenance records (any file under a `provenance/` folder), status and
+  other prose files (`.md`, `.mdx`, `.txt` except `CMakeLists.txt`, `.rst`), and lockfiles
+  (`pnpm-lock.yaml`, `package-lock.json`, `*.lock`) are records, not
+  source or test code: a commit's units come from its non-record files, and a commit that
+  changes records only is counted by where those sit and marked `records_only`. A commit counts
+  in every unit it touches (each row says how many of its commits also touch another unit, and
+  totals still count each commit once); one whose files no unit holds is `repository`. A
+  repository without `architecture.json` gets the nearest folder that holds a package manifest.
+  `scripts/affected/scope.mjs` answers a different question, what a change affects with its
+  dependents, so it is not used.
 - **A test path is told by Botcore's own rule:** a `tests`, `test` or `__tests__` folder, a
   `.test.`, `.spec.` or `.scenario.` name, a Python or C-style test file name, and a Rust file
   whose changed lines sit inside a test module, so a Rust test inside a source file counts.
@@ -325,10 +332,11 @@ it closes. A commit's lines in the record hold no subject, message or diff text.
   request, so without it the commits are read and the escapes are not: the source is `partly`
   read and says so, and the report gives no escape count for what it lacks. An issue's state
   and labels are read once, with its commit; a label added later is seen by a rebuild.
-- **Age is the age of the last edit.** The lines a fix replaces are blamed at its parent, and
-  the newest of them is reported as that, by area as a median with how many commits it could be
-  read for. A fix that replaces lines in more than 20 files is not read, and is counted as not
-  read. It is not called the age of the bug, and nothing is inferred from it.
+- **Age is the age of the last edit.** The non-record lines a fix replaces are blamed at its
+  parent, and the newest of them is reported as that, by area as a median with how many commits
+  it could be read for. A fix that replaces lines in more than 20 non-record files is not read,
+  and is counted as not read. It is not called the age of the bug, and nothing is inferred from
+  it.
 - **How it was found, and its class** is a `Found-by:` trailer on the commit that lands. It is
   read from phase 1 where a fix commit has one, and required from phase 2: the channel
   (`review`, `check`, `daily`, `use`, `sweep` or `unknown`), the class from the findings' list

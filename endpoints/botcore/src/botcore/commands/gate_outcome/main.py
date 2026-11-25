@@ -44,6 +44,7 @@ from botcore.commands.gate_outcome.units import (
     FileChange,
     Units,
     in_spans,
+    is_record,
     named_test,
     parse_diff,
     read_units,
@@ -248,8 +249,11 @@ def _ranges(lines: list[int]) -> list[tuple[int, int]]:
 
 
 def last_edit(root: Path, landed: Landed, changes: list[FileChange]) -> tuple[str, str | None]:
-    """How blaming the lines a fix replaces ended, and the newest time any of them landed."""
-    replaced = [change for change in changes if change.old and change.removed]
+    """How blaming the non-record lines a fix replaces ended, and the newest time any of them
+    landed."""
+    replaced = [
+        change for change in changes if change.old and change.removed and not is_record(change.old)
+    ]
     if not replaced:
         return "no-lines", None
     if landed.parent is None:
@@ -293,14 +297,14 @@ def read_commit(root: Path, repo: str, landed: Landed, units: Units, at: str) ->
         ):
             tests.append(path)
     kept = [path for path in tests if path_ok(path)]  # a name the record cannot hold is counted
-    _area, held = units.area(files)
+    held, records_only = units.units_for(files)
     held = [unit for unit in held if path_ok(unit)]
     lines, unread = found_by(message)
     status, newest = last_edit(root, landed, changes)
     return checked({
         "id": f"commit:{landed.sha}", "kind": "commit", "v": MAIN_RULES, "at": at,
         "sha": landed.sha, "landed": stamp(landed.landed), "type": landed.type,
-        "pr": landed.pr, "files": len(files), "units": held,
+        "pr": landed.pr, "files": len(files), "units": held, "records_only": records_only,
         "test_paths": kept[:MAX_TEST_PATHS], "tests": len(tests),
         "closes": closes(message, repo), "found_by": lines, "found_by_unread": unread,
         "last_edit": newest, "last_edit_status": status, "pr_closes": None, "issues": None,
