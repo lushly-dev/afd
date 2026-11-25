@@ -2,6 +2,8 @@
 
 > Reusable Violet web components for FAST-AF.
 
+Built on `@lushly-dev/fast-element`, an independent fork of Microsoft's open-source FAST Element. FAST-AF is not affiliated with or endorsed by Microsoft.
+
 This package is the home for reusable platform components built on FAST-AF and Violet semantics.
 
 ## Scope
