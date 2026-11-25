@@ -36,6 +36,7 @@ import { PERSON_SESSION } from '../identity/person-session.js';
 import { personalWrites } from '../identity/personal-writes.js';
 import type { SessionSettle } from '../identity/session-settle.js';
 import type { StoreOrderV1 } from '../journal-order.js';
+import type { JournalFilterContext } from '../journal-redact.js';
 import type { KeybindingRegistry } from '../keybindings.js';
 import { createDefaultLayout } from '../layout.js';
 import type { KernelLimits } from '../limits.js';
@@ -153,8 +154,8 @@ export type LateCommandDeps = ShellCommandDeps &
 		agentCommands?(): Array<{ name: string; description: string; inputSchema?: unknown }>;
 		/** Every registered command's name, the live registry's (phase 4's step 8, R4). */
 		commandNames?(): readonly string[];
-		/** Whether the journal records a call of `command` (`UNJOURNALED_COMMANDS`; phase 4's 7.1). */
-		journaled?(command: string): boolean;
+		/** Whether the journal records a call of `command` (`UNJOURNALED_COMMANDS` and per-caller rules; #2105). */
+		journaled?(command: string, context?: JournalFilterContext): boolean;
 		/** The palette registry's commands, with their input schemas: `palette-run`'s prompt (phase 4's 7.1). */
 		paletteCommands?(): Array<{ name: string; inputSchema?: unknown }>;
 		/** The kernel's `execute`, past the queue: a top-level call journaled as its own (phase 4's 7.1, 7.2). */
@@ -830,8 +831,6 @@ export async function createLateParts(
 		prefs: (context) => (settings as Settings).notificationPrefs(context),
 		landsInInbox,
 		overlays: deps.overlays,
-		// The owner line step 3 gives a toast (6.6): an app's title as the rail shows it, told apart from a twin's, never
-		// one that says "Loam"; an agent's name, for the person.
 		fromOf: (source) =>
 			source === 'shell'
 				? undefined
@@ -850,6 +849,7 @@ export async function createLateParts(
 		kit: { ...DOCUMENT_KIT, archivedRefusal, personKey },
 		answer: (row, answer, context) => confirmations.answer(row, answer, context),
 		bucketOf: (context) => bucketOf(openerOf(context, isHumanGesture)),
+		...(deps.recordOrder ? { recordOrder: deps.recordOrder } : {}),
 	});
 	/** Whether an app is active, or owns the active tab (6.1). */
 	const appActive = async (instance: string): Promise<boolean> =>
@@ -888,7 +888,7 @@ export async function createLateParts(
 				const json = deps.paletteCommands?.().find((each) => each.name === command)?.inputSchema;
 				return definition ? { definition, json } : undefined;
 			},
-			journaled: (command) => deps.journaled?.(command) ?? true,
+			journaled: (command, context) => deps.journaled?.(command, context) ?? true,
 			inputFault(command, input) {
 				const parsed = z.safeParse(command.inputSchema as z.ZodMiniType, input);
 				return parsed.success ? undefined : (parsed.error.issues[0]?.message ?? 'it is invalid');

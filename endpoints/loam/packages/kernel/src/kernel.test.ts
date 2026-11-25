@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { COPILOT_QUERIES } from './copilot/commands.js';
 import { LoamKernelError } from './errors.js';
+import { journalsCommand } from './journal-redact.js';
 import {
 	COMMAND_NAME_SUGGESTION,
 	createKernel,
@@ -241,12 +242,31 @@ describe('the journal', () => {
 		expect(redactJournalRecord(nullInput)).toBe(nullInput);
 	});
 
-	it('records failures and filters only palette-search', () => {
+	it('records failures and filters unjournaled commands and standalone notification-list', () => {
 		const journalOptions = kernelJournalOptions();
 		expect(journalOptions.recordFailures).toBe(true);
 		expect(journalOptions.filter?.('palette-search')).toBe(false);
+		expect(journalOptions.filter?.('notification-list')).toBe(false);
 		expect(journalOptions.filter?.('auth-sign-in')).toBe(true);
 		expect(journalOptions.filter?.('layout-set')).toBe(true);
+	});
+
+	it('filters notification-list per caller: unjournaled for the shell, journaled for agents and apps (#2105)', () => {
+		expect(journalsCommand('notification-list')).toBe(false);
+		expect(journalsCommand('notification-list', { interface: 'palette' })).toBe(false);
+		expect(
+			journalsCommand('notification-list', { interface: 'palette', actor: { kind: 'user' } })
+		).toBe(false);
+		expect(journalsCommand('notification-list', { interface: 'agent' })).toBe(true);
+		expect(journalsCommand('notification-list', { interface: 'mcp' })).toBe(true);
+		expect(
+			journalsCommand('notification-list', { interface: 'palette', actor: { kind: 'agent' } })
+		).toBe(true);
+		expect(journalsCommand('notification-list', { interface: 'palette', caller: 'hello' })).toBe(
+			true
+		);
+		expect(journalsCommand('palette-search', { interface: 'agent' })).toBe(false);
+		expect(journalsCommand('scope-get', { interface: 'palette', caller: 'hello' })).toBe(false);
 	});
 
 	it('passes an abort signal to the call', async () => {

@@ -50,7 +50,14 @@ export interface ConfirmationDeps {
 	/** Why `input` does not fit the command's own schema, or undefined when it does. */
 	inputFault(command: ZodCommandDefinition, input: unknown): string | undefined;
 	/** Whether the journal records a call of `command`: one it does not leaves no entry for a replay to run (11). */
-	journaled(command: string): boolean;
+	journaled(
+		command: string,
+		context?: {
+			readonly interface?: unknown;
+			readonly actor?: { readonly kind?: unknown };
+			readonly caller?: unknown;
+		}
+	): boolean;
 	/** `decideAccess` on a scope: whether the actor may enter it now, line 0 included. */
 	allows(actor: AccessActorV1, scope: ScopeV1): boolean;
 	/**

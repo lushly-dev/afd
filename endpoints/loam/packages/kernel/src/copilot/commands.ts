@@ -185,7 +185,7 @@ export interface CopilotDeps {
 	/** A refusal a command's own path makes before it runs, which no question may precede (6.1's order). */
 	preflight?(name: string, context: CommandContext): CommandResult<never> | undefined;
 	/** Whether the journal records a call of `name` (approval health counts what a replay sees). Absent: all. */
-	journaled?(name: string): boolean;
+	journaled?(name: string, context?: CommandContext): boolean;
 	/** A command that declares a `confirm_prompt` (phase 4's 7.2). */
 	declares?(name: string): boolean;
 	/** Never asked or suggested (6.1), beside `humanOnly`, `handlerRefuses` and `internal`: person-session commands. */
@@ -364,7 +364,7 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 		isMounted: deps.isMounted,
 		heldBy: (name) => deps.heldBy?.(name),
 		preflight: (name, context) => deps.preflight?.(name, context),
-		journaled: (name) => deps.journaled?.(name) ?? true,
+		journaled: (name, context) => deps.journaled?.(name, context) ?? true,
 		// Marking read or archiving one notice that is a pending confirmation: refused as its handler refuses an agent
 		// (10.2), on the call's own clock, so nothing ends between the decision and a write (re-check 2, B3).
 		async handOff(name, input, context) {

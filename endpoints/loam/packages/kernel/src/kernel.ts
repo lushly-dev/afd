@@ -55,7 +55,15 @@ import {
 	type JournalProvenance,
 	observeGate,
 } from './journal-provenance.js';
-import { redactJournalRecord } from './journal-redact.js';
+import {
+	JOURNAL_REPLAY,
+	type JournalFilterContext,
+	journalsCommand,
+	redactJournalRecord,
+} from './journal-redact.js';
+
+export { UNJOURNALED_COMMANDS } from './journal-redact.js';
+
 import {
 	createKeybindings,
 	type KeybindingRegistry,
@@ -107,34 +115,9 @@ export const NEEDS_STAGE_B: readonly string[] = [
 ];
 
 /**
- * Commands the one journal middleware leaves out: `palette-search` runs per keystroke, and `scope-get` and
- * `section-get` at every re-read of the rail, reading memory and writing nothing, so an empty shell's boot
- * journals no more than it did (phase 2 specification, 4.3). `editor-selection-set` runs per selection
- * change, holds what a replay need not reproduce, and is a query (documents specification, 5.4).
- * `persona-list` is the shell's read of the active persona, the same way (phase 3 specification, 6.3), and
- * `notification-list` the Inbox count's (phase 4 specification, 10.3).
- */
-export const UNJOURNALED_COMMANDS: readonly string[] = Object.freeze([
-	'palette-search',
-	'scope-get',
-	'section-get',
-	'editor-selection-set',
-	// The shell reads it at stage B, at each change of person and at each switch (phase 3 specification, 6.3), as it
-	// reads `scope-get`: journaled, an empty shell's boot would gain an entry. It reads and writes nothing else.
-	'persona-list',
-	// The Inbox count reads it at stage B and after each call that may change it (phase 4 specification, 10.3, step 5),
-	// as the shell reads `persona-list`: journaled, an empty shell's boot would gain an entry. It reads and writes nothing
-	// else, so an agent's or an app's read of it is not journaled either.
-	'notification-list',
-	// Phase 6's snapshot (its 6.1), which the transport reads after every routed call and each tab on every refresh:
-	// journaled, the server's journal would hold the person's whole view each time. It reads and writes nothing else.
-	'trust-record-snapshot',
-]);
-
-/**
- * The journal options (phase 0 specification, 6.4): failures recorded, every command but
- * `palette-search` (so `auth-*` is journaled and replayable), and `input.password` removed from
- * `auth-sign-in` entries. The clock and random tape stay on.
+ * The journal options (phase 0 specification, 6.4): failures recorded, every command outside
+ * {@link UNJOURNALED_COMMANDS} (leaving out `notification-list` for standalone callers; #2105),
+ * and `input.password` removed from `auth-sign-in` entries.
  */
 export function kernelJournalOptions(
 	onError: (error: Error) => void = reportKernelError
@@ -142,7 +125,7 @@ export function kernelJournalOptions(
 	return {
 		recordFailures: true,
 		onError,
-		filter: (command) => !UNJOURNALED_COMMANDS.includes(command),
+		filter: (command) => journalsCommand(command),
 		redact: redactJournalRecord,
 	};
 }
@@ -168,7 +151,9 @@ const changed = (
  * commands the journal holds an entry of, so an act whose action has none (an unjournaled query) is redacted by the
  * action's own rule instead.
  */
-export type WrapperProvenance = JournalProvenance & { journals(command: string): boolean };
+export type WrapperProvenance = JournalProvenance & {
+	journals(command: string, context?: JournalFilterContext): boolean;
+};
 
 /** The metadata the registry sets on every result, the wrapper's own and never the child's server content. */
 const REGISTRY_METADATA = ['actorKind', 'commandVersion', 'executionTimeMs', 'traceId'] as const;
@@ -297,6 +282,11 @@ export function redactWrapped(
 		const own = redact({ ...record, command, input: {}, result: { success: true, data } });
 		return resultOf(command, objectOf(own.result?.data) ?? {}) ?? {};
 	}
+	const wrappedContext = {
+		interface: 'palette',
+		actor: record.actor,
+		caller: record.context?.caller,
+	};
 	const { command } = record;
 	let input = objectOf(record.input);
 	let data = objectOf(record.result?.data);
@@ -317,7 +307,10 @@ export function redactWrapped(
 					};
 				// It ran its target, whose entry is not held: a journaled target's is missing, so fail closed; an unjournaled
 				// one's never is, and its own rule applies (Opus I3).
-				if (provenance.startedOrigin(record.traceId) && provenance.journals(String(input.command)))
+				if (
+					provenance.startedOrigin(record.traceId) &&
+					provenance.journals(String(input.command), wrappedContext)
+				)
 					return closedEntry(record, within(input));
 			}
 			if (data) data = forwarded(input.command, data);
@@ -382,7 +375,7 @@ export function redactWrapped(
 				};
 			}
 			const action = provenance.action(record.traceId);
-			if (action === undefined || provenance.journals(action))
+			if (action === undefined || provenance.journals(action, wrappedContext))
 				return closedEntry(record, record.input);
 			const object = objectOf(given);
 			return {
@@ -704,7 +697,7 @@ export async function createKernelParts(
 	const tracker = createJournalProvenance();
 	const provenance: WrapperProvenance = {
 		...tracker,
-		journals: (command) => !UNJOURNALED_COMMANDS.includes(command),
+		journals: (command, ctx) => journalsCommand(command, ctx),
 	};
 	const order = createJournalOrder(
 		provenance.journals,
@@ -742,6 +735,7 @@ export async function createKernelParts(
 		),
 		{
 			...kernelJournalOptions(),
+			filter: (command) => command === 'notification-list' || journalsCommand(command),
 			redact: (record) => {
 				const threw = record.traceId !== undefined && thrownTraces.delete(record.traceId);
 				const own = (each: JournalRecord) => apps.redact(redactJournalRecord(each, threw));
@@ -786,7 +780,11 @@ export async function createKernelParts(
 		),
 		// Outside the journal: tracks hosted MCP calls that enter the chain without `execute` (#2117).
 		order.track,
-		journal,
+		// Per-caller journal gate (#2105): keep tape rewind on replayed entries; skip unjournaled calls otherwise.
+		(name, input, context, next) =>
+			!(JOURNAL_REPLAY in context) && !provenance.journals(name, context)
+				? next()
+				: journal(name, input, context, next),
 		observeThrows,
 		// Right inside the journal: a read waits for the writes it saw (#1936, #2117); `order.handler` is last.
 		order.turn,
@@ -890,7 +888,7 @@ export async function createKernelParts(
 				},
 				agentCommands: () => registries.agent.listCommands(),
 				paletteCommands: () => registries.palette.listCommands(),
-				journaled: (name) => !UNJOURNALED_COMMANDS.includes(name),
+				journaled: (name, ctx) => provenance.journals(name, ctx),
 				// A top-level call past the queue, journaled as its own: a confirmed run, or `palette-run`'s (phase 4's 7.1, 7.2).
 				runNow: (iface, name, input, fields) =>
 					execute(iface, name, input, {}, fields as KernelCallFields),
@@ -1296,7 +1294,11 @@ export async function createKernelParts(
 		// A wrapper is tracked while it runs: its entry, written before `execute` returns, forwards its children's.
 		const wrapping = JOURNAL_WRAPPERS.includes(name) && tracker.begin(traceId);
 		const writes = mutations.get(name) === true || fields === BOOT_FIELDS;
-		order.begin(traceId, writes, fields, own, name);
+		order.begin(traceId, writes, fields, own, name, {
+			interface: iface,
+			actor: context.actor,
+			caller: context.caller,
+		});
 		try {
 			result = await registry.execute<T>(name, input ?? {}, context);
 		} catch (thrown) {

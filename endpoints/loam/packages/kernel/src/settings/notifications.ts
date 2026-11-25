@@ -22,6 +22,7 @@ import type {
 import type { DataAdapter } from '@lushly-dev/local-db';
 import type { KernelFieldContext } from '../context-fields.js';
 import type { LoamKernelErrorCode } from '../errors.js';
+import type { StoreOrderV1 } from '../journal-order.js';
 import type { PushRate } from '../overlays/push-rate.js';
 import type { OverlayStore } from '../overlays/store.js';
 import type { AccessActorV1 } from '../scope/access.js';
@@ -138,6 +139,8 @@ export interface NotificationDeps {
 		answer: 'confirm' | 'decline' | undefined,
 		context: CommandContext
 	): Promise<CommandResult>;
+	/** The journal's read/write order tracker for the notification table (#2105, #2117). */
+	recordOrder?(traceId: string, resource: string): StoreOrderV1;
 }
 
 export interface Notifications {
@@ -273,8 +276,20 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 		);
 	}
 
+	const readOrder = (context: CommandContext) => {
+		if (context.traceId === undefined) return;
+		deps.recordOrder?.(context.traceId, 'record:notification')?.read();
+		deps.recordOrder?.(context.traceId, 'record:confirmation')?.read();
+	};
+	const wroteOrder = (context: CommandContext, confirmation = false) => {
+		if (context.traceId === undefined) return;
+		deps.recordOrder?.(context.traceId, 'record:notification')?.wrote();
+		if (confirmation) deps.recordOrder?.(context.traceId, 'record:confirmation')?.wrote();
+	};
+
 	/** What the call's actor may read (10.1): the person's own, in a scope the actor may enter now. */
 	async function readable(context: CommandContext, person: string): Promise<NotificationV1[]> {
+		readOrder(context);
 		const actor = context.actor as AccessActorV1;
 		return (await noticesOf(person)).filter((row) => deps.allows(actor, row.scope));
 	}
@@ -355,6 +370,7 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 		const spare = notices.filter((row) => !unread(row)).sort((a, b) => -newestFirst(a, b));
 		const evicted = spare.slice(0, Math.max(0, notices.length - NOTIFICATION_QUOTA + 1));
 		const record = stamp(context, person, source, fields);
+		wroteOrder(context);
 		const { summary } = await store.batch([
 			...evicted.map((row) => ({
 				method: 'DELETE' as const,
@@ -708,6 +724,9 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 				const size = bytesOf(item) + 1;
 				// A read of one notice by id shows it whole (blocker 9): a confirmation's input is bounded by the call's own.
 				if (bytes + size > NOTIFICATION_LIST_BUDGET && !reader.one) {
+					// A page cut by the byte budget may depend on bytes the journal later redacts (wrapped action or
+					// confirmation inputs), so replay answers from the recorded redacted page (#2105).
+					(context as KernelFieldContext).replay = 'recorded';
 					if (page.length > 0) break;
 					// One row past the budget alone: a bounded refusal, never a page past it.
 					return fail(
@@ -801,6 +820,7 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 					const marked = await chained(async () => {
 						const now = await store.get<NotificationV1>(NOTIFICATION_TABLE, row.id);
 						if (!now || now[field] !== undefined) return false;
+						wroteOrder(context, now.kind === 'confirmation');
 						await store.update(NOTIFICATION_TABLE, row.id, { [field]: at } as never);
 						return true;
 					});
@@ -919,6 +939,7 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 			acting.add(row.id);
 			try {
 				const claim = `${context.traceId ?? ''}:${newId(context)}`;
+				wroteOrder(context);
 				await store.update(NOTIFICATION_TABLE, row.id, { state: 'acting', claim } as never);
 				const claimed = await reread(row.id);
 				// Unread, gone or claimed by another: nothing runs. A claim this call wrote but could not read back stays,

@@ -63,6 +63,7 @@ export const writesRecords = (name: string, input: unknown): boolean =>
 export const CONFIRMATION_OWN: readonly string[] = [
 	'confirmation-get',
 	'confirmation-withdraw',
+	'notification-list',
 	'autonomy-get',
 	'autonomy-list',
 ];

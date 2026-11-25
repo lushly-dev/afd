@@ -90,7 +90,7 @@ export interface EnforcementDeps {
 	 */
 	preflight(name: string, context: CommandContext): CommandResult<never> | undefined;
 	/** Whether the journal records a call of `name`: approval health counts only what a replay sees (6.3). */
-	journaled(name: string): boolean;
+	journaled(name: string, context?: CommandContext): boolean;
 	/** A command that declares a `confirm_prompt`: the confirmations' gate asks for it in `act` too. */
 	declares(name: string): boolean;
 	/**
@@ -242,7 +242,7 @@ export function createEnforcement(deps: EnforcementDeps): Enforcement {
 	): Promise<CommandResult> {
 		delete call.taint;
 		if (call.confirmation !== undefined) return next();
-		if (deps.exempt(name, input) || !deps.journaled(name)) return next();
+		if (deps.exempt(name, input) || !deps.journaled(name, call)) return next();
 		const recordedTaint = (call as unknown as Record<symbol, unknown>)[RECORDED_TAINT];
 		const sources = Array.isArray(recordedTaint)
 			? (recordedTaint as string[])
@@ -304,7 +304,7 @@ export function createEnforcement(deps: EnforcementDeps): Enforcement {
 			);
 		}
 		// What the journal leaves out (a search, the scope, a list) is a read no replay could ask again: never asked.
-		if (deps.exempt(name, input) || !deps.journaled(name)) return next();
+		if (deps.exempt(name, input) || !deps.journaled(name, call)) return next();
 		const handedOff = await deps.handOff(name, input, context);
 		if (handedOff) return handedOff;
 		const trace = call.trace;

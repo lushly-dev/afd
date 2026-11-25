@@ -689,7 +689,9 @@ export const CEILINGS = Object.freeze({
 	// measured 109,066; set to 109,500 under D115.
 	// #2253/#2300 (`observeGate`/`gateRefusal` and `observeThrows` throw tracking) merged on `main` at `2b134a73`:
 	// measured 109,491; set to 109,900 under D115.
-	jsGzip: 110_300,
+	// #862 (one `$initial` code-splitting group for first paint): collapsed 14 chunks to 1 (`index`),
+	// lowering first-paint gzip from 109,973 to 103,971 (-6,002) against `main` at `bd374912`; lowered to 105,000.
+	jsGzip: 105_000,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
 	// stylesheet `index.html` links; measured 10,251, plus a margin.
@@ -749,7 +751,10 @@ export const CEILINGS = Object.freeze({
 	// `main` at `2b134a73`; set to 163,300.
 	// Raised under D115 by #2325 (`rerun.done` early-return/throw handling in `kernel.ts` and `contextOmitted` taint
 	// unreplayable marking in `journal-redact.ts`): measured 163,350 against `main` at `f7bdb229`; set to 163,900.
-	kernelMinified: 163_900,
+	// Raised under D115 by #2105 (per-caller `journalsCommand` filter for `notification-list`, `listedUnit`
+	// marker redaction and `JOURNAL_REPLAY` guard in `journal-redact.ts`/`kernel.ts`, on top of #2514 in
+	// `@lushly-dev/afd-server`): measured 164,413 against `main` at `adae8843`; set to 164,800.
+	kernelMinified: 164_800,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).
@@ -809,7 +814,9 @@ export const CEILINGS = Object.freeze({
 	// its run, a changed preview's new confirmation); set to 125,500 under D115.
 	// #2108, #2114, #2117 (cross-tab sync change detection + R14 deferral, SemVer stale-shell protection, confirmation `recordOrder`):
 	// measured 129,394 against `main` at `804e17cc`; set to 129,900 under D115.
-	lateSettingsMinified: 129_900,
+	// #2105 (`recordOrder` for `notification-list`/mutations and budget-cut `replay = 'recorded'`):
+	// measured 130,186 against `main` at `05885007`; set to 130,500 under D115.
+	lateSettingsMinified: 130_500,
 	// Phase 6's step 5: the trust records' routing, the copy and its settle, 3,964 at its first measurement; set to 4,400,
 	// that plus 10%. After its trust review and re-check, 5,829 (the copy's holder record and one batch, the person rule, the journal's
 	// bound, the strip, the agent reads from the copy and a replay's periods); set to 6,200 under D115.
@@ -833,7 +840,9 @@ export const CEILINGS = Object.freeze({
 	// `shell-name`), the app's settings delivered through `surface-calls` (1,700, shared with `surfaces`), the change of
 	// person and main's gate, the view's teardown and the wait for the app surfaces; set to 39,900 under D115.
 	accountMinified: 40_400,
-	urlMinified: 6_600, // D115 (measured 6,411): Navigation API rejection handling (#2444)
+	// Raised under D115 by #862 (`__vite__mapDeps` table emitted in `url-sync` once `vite/preload-helper` lives in the
+	// single `$initial` `index` chunk): measured 6,601 against `main` at `bd374912`; set to 6,900.
+	urlMinified: 6_900,
 	// Step 2 too: 396,210 of 395,700, the stage B reader of the projection's `copilot`; set to 397,000.
 	// Phase 4's step 1 on top: 417,099, the manifest validator's `ui.settings`; set to 417,500.
 	// Phase 4's step 5 on top: 417,629, the SDK's notices; set to 418,000. Step 4's own rows: 418,500 and 93,500.
@@ -1010,27 +1019,10 @@ async function measurePage() {
 	if (stageB.length > 0) {
 		throw new Error(`budget: first paint holds a chunk of stage B: ${stageB.join(', ')}`);
 	}
-	// First paint's chunks, by name without their hash: a chunk split off, or merged, by any cause, fails here
-	// (step 9's review): a lazy chunk that statically imports what first paint shares parts first paint's
-	// chunks, each an import line and its gzip overhead. A deliberate change edits this list in its own step.
-	// `violet-icon.define` is `violet-icon` since violet-elements split each element's define module from
-	// its class (AFD #1785): the chunk is named after the define module Loam imports.
-	const FIRST_PAINT_CHUNKS = [
-		'api',
-		'events',
-		'focus',
-		'icon-registry',
-		'index',
-		'layout',
-		'shell-state',
-		'system-close',
-		'system-folder',
-		'template',
-		'types',
-		'violet-icon.define',
-		'violet-token-defaults',
-		'when',
-	];
+	// First paint's chunks, by name without their hash: one `index` chunk via `vite.config.ts`'s `$initial`
+	// code-splitting group (#862), holding the entry, Vite's preload helper and every shared first-paint module.
+	// Any chunk split off by a lazy import fails here.
+	const FIRST_PAINT_CHUNKS = ['index'];
 	const held = [...initial]
 		.map((name) => name.replace(/^assets\//, '').replace(/-[\w-]{8}\.js$/, ''))
 		.sort();
@@ -1039,36 +1031,20 @@ async function measurePage() {
 			`budget: first paint's chunks changed: ${held.join(', ')}, not ${FIRST_PAINT_CHUNKS.join(', ')}`
 		);
 	}
-	// `vite.config.ts`'s `events` group keeps Vite's preload helper in first paint's `events` chunk (step 7):
-	// a chunk of its own would cost first paint an import line and its gzip overhead.
+	// `vite.config.ts`'s `$initial` group keeps Vite's preload helper in first paint's single `index` chunk (#862):
+	// a chunk of its own would cost first paint an extra request and its gzip overhead.
 	if ([...initial].some((name) => /^assets\/preload-helper-/.test(name))) {
 		throw new Error(
-			'budget: first paint holds a `preload-helper-` chunk: check the `events` group'
+			'budget: first paint holds a `preload-helper-` chunk: check the `$initial` group'
 		);
 	}
-	// Exactly one `events-` chunk, holding the helper and the group's four chrome modules: a module renamed
-	// or moved out of the group's pattern fails here, not silently in a larger first paint.
-	const events = [...initial].filter((name) => /^assets\/events-/.test(name));
-	if (events.length !== 1) {
-		throw new Error(
-			`budget: first paint holds ${events.length} \`events-\` chunks, not 1: check the \`events\` group`
-		);
-	}
-	const inEvents = Object.keys(chunks.get(events[0]).modules ?? {}).map((id) =>
+	const inInitial = Object.keys(chunks.get([...initial][0]).modules ?? {}).map((id) =>
 		id.replace(/\\/g, '/')
 	);
-	for (const module of [
-		'vite/preload-helper',
-		'chrome/dist/elements/events.js',
-		'chrome/dist/elements/entry-styles.js',
-		'chrome/dist/elements/app-entry.js',
-		'chrome/dist/elements/notice-loader.js',
-	]) {
-		if (!inEvents.some((id) => id.includes(module))) {
-			throw new Error(
-				`budget: first paint's \`events\` chunk does not hold ${module}: check the \`events\` group`
-			);
-		}
+	if (!inInitial.some((id) => id.includes('vite/preload-helper'))) {
+		throw new Error(
+			'budget: first paint `index` chunk does not hold vite/preload-helper: check the `$initial` group'
+		);
 	}
 	// With what it imports statically and what loaded before it has not, such as the listbox.
 	const closure = (pattern, loaded) => {
