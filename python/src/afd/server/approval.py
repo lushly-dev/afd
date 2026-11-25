@@ -65,6 +65,7 @@ from afd.server.approval_relay import (
     relay_message,
 )
 from afd.server.instance_state import ApprovalProcessState, mark_approval_process_state
+from afd.server.relay_evidence import relay_evidence_of
 
 __all__ = [
     "ApprovalCommand",
@@ -99,9 +100,10 @@ ApprovalRejection = Literal[
     "command-mismatch",
     "input-mismatch",
     "actor-mismatch",
+    "credentials-mismatch",
     "already-used",
 ]
-"""Why a supplied approval token was not accepted."""
+"""Why a supplied approval token or relay evidence was not accepted."""
 
 
 @runtime_checkable
@@ -379,10 +381,8 @@ def create_approval_middleware(
         signing_input = f"{_TOKEN_PREFIX}.{_b64url(payload.encode('utf-8'))}"
         return f"{signing_input}.{_b64url(_hmac(key, signing_input))}", expires_at
 
-    async def spend(nonce: str, expires_at: float, now: float) -> bool:
-        """Spend a single-use nonce; ``True`` when it was fresh (or reuse is allowed)."""
-        if not single_use:
-            return True
+    async def spend_nonce(nonce: str, expires_at: float, now: float) -> bool:
+        """Spend a nonce unconditionally (used by single-use tokens and relay evidence)."""
         if memory_store is not None:
             return memory_store.consume(nonce, expires_at, now)
         if nonce_store is None:
@@ -392,6 +392,12 @@ def create_approval_middleware(
             outcome = await outcome
         # Only an explicit True from the store counts as fresh.
         return outcome is True
+
+    async def spend(nonce: str, expires_at: float, now: float) -> bool:
+        """Spend a single-use nonce; ``True`` when it was fresh (or reuse is allowed)."""
+        if not single_use:
+            return True
+        return await spend_nonce(nonce, expires_at, now)
 
     def summary_of(command_name: str, input: Any, context: CommandContext) -> str:
         return (
@@ -517,17 +523,60 @@ def create_approval_middleware(
 
         rejected: ApprovalRejection | None = None
         exchange = _exchange(context)
-        evidence = exchange.take() if exchange is not None else getattr(context, "approval", None)
-        if evidence is not None:
-            verdict = verify(evidence, command_name, input_binding, actor_binding, now)
-            if isinstance(verdict, _Accepted):
-                if await spend(verdict.nonce, verdict.expires_at, now):
-                    return await next_fn(input_binding)
-                rejected = "already-used"
-            else:
-                rejected = verdict
+        relay_ev = relay_evidence_of(context)
+        if relay_ev is not None:
+            # Relay evidence rule 2: when present, consider it and nothing else.
+            # Rule 3 order: command -> input -> actor -> credentials, then spend once for 24h.
+            from afd.server.principal import (
+                IncompleteCredentials,
+                credentials_binding,
+                sdk_credentials,
+            )
 
-        if relay_here is not None:
+            digest = _b64url(hashlib.sha256(_utf8(input_binding)).digest())
+            try:
+                ctx_creds = getattr(context, "credentials", None)
+                if ctx_creds is None and relay_ev.use_sdk_credentials:
+                    ctx_creds = sdk_credentials()
+                creds_binding: str | None = credentials_binding(ctx_creds)
+            except IncompleteCredentials:
+                creds_binding = None
+            if not hmac.compare_digest(_utf8(relay_ev.command), _utf8(command_name)):
+                rejected = "command-mismatch"
+            elif not hmac.compare_digest(_utf8(relay_ev.input_digest), _utf8(digest)):
+                rejected = "input-mismatch"
+            elif not hmac.compare_digest(_utf8(relay_ev.actor), _utf8(actor_binding)):
+                rejected = "actor-mismatch"
+            elif creds_binding is None or not hmac.compare_digest(
+                _utf8(relay_ev.credentials_binding), _utf8(creds_binding)
+            ):
+                rejected = "credentials-mismatch"
+            elif (
+                isinstance(relay_ev.decision_id, str)
+                and len(relay_ev.decision_id) > 0
+                and await spend_nonce(f"relay:{relay_ev.decision_id}", now + _MAX_TTL_MS, now)
+            ):
+                return await next_fn(input_binding)
+            else:
+                rejected = "already-used"
+        else:
+            evidence = (
+                exchange.take() if exchange is not None else getattr(context, "approval", None)
+            )
+            if evidence is not None:
+                verdict = verify(evidence, command_name, input_binding, actor_binding, now)
+                if isinstance(verdict, _Accepted):
+                    if await spend(verdict.nonce, verdict.expires_at, now):
+                        return await next_fn(input_binding)
+                    rejected = "already-used"
+                else:
+                    rejected = verdict
+
+        host_verified = (
+            getattr(command_for(command_name, context), "confirmation_mode", None)
+            == "host-verified"
+        )
+        if relay_ev is None and not host_verified and relay_here is not None:
             bindings = relay_bindings(command_name, input_binding, actor_binding)
             answer = await relay_here.answer(bindings)
             if answer.kind == "decline":
@@ -614,7 +663,15 @@ def create_approval_middleware(
         on_mcp = (context.extra or {}).get("interface") == "mcp"
         # Rule 6: omit details.approvalToken on MCP by default unless the server opted in.
         public_token = exchange is None and (not on_mcp if include_token is None else include_token)
-        why = f"The approval token was not accepted ({rejected}). " if rejected else ""
+        why = (
+            (
+                f"The relay approval was not accepted ({rejected}). "
+                if relay_ev is not None
+                else f"The approval token was not accepted ({rejected}). "
+            )
+            if rejected
+            else ""
+        )
         # Addressed to whoever relays the decision: the token is the approval, so the gated
         # caller must not resubmit it on its own, and tool arguments cannot carry it.
         if public_token:
@@ -623,12 +680,12 @@ def create_approval_middleware(
                 "and details.approvalToken as its approval evidence (tool arguments cannot carry "
                 f"it). The token expires at {expires_at}{' and works once' if single_use else ''}."
             )
-        elif bound is not None:
+        elif bound is not None and relay_ev is None and not host_verified:
             retry = (
                 "the client could not be asked from inside afd-batch, afd-pipe or another "
                 f"command. Call {command_name} on its own so the client can ask the user."
             )
-        elif relays and on_mcp:
+        elif relays and on_mcp and relay_ev is None and not host_verified:
             retry = (
                 f"the client could not be asked here. Call {command_name} from an MCP client "
                 "that supports form elicitation, or the application records the approval and "
@@ -771,8 +828,9 @@ def _check_bindable(value: Any) -> None:
             raise TypeError(
                 f"Cannot bind an approval to {model.__name__}: it has a custom serializer"
             )
+        seen_output_keys: set[str] = set()
         for name, info in model.model_fields.items():
-            if info.exclude:
+            if info.exclude or getattr(info, "exclude_if", None) is not None:
                 raise TypeError(
                     f"Cannot bind an approval to {model.__name__}: field '{name}' is excluded "
                     "from its dump"
@@ -782,8 +840,25 @@ def _check_bindable(value: Any) -> None:
                     f"Cannot bind an approval to {model.__name__}: field '{name}' has a "
                     "custom serializer"
                 )
+            out_key = (
+                info.serialization_alias
+                if isinstance(info.serialization_alias, str)
+                else (info.alias if isinstance(info.alias, str) else name)
+            )
+            if out_key in seen_output_keys:
+                raise TypeError(
+                    f"Cannot bind an approval to {model.__name__}: serialization key '{out_key}' "
+                    "collides with another field"
+                )
+            seen_output_keys.add(out_key)
             _check_bindable(getattr(value, name))
-        for item in (value.__pydantic_extra__ or {}).values():
+        for extra_key, item in (value.__pydantic_extra__ or {}).items():
+            if extra_key in seen_output_keys:
+                raise TypeError(
+                    f"Cannot bind an approval to {model.__name__}: extra field '{extra_key}' "
+                    "collides with a model field"
+                )
+            seen_output_keys.add(extra_key)
             _check_bindable(item)
     elif isinstance(value, (SecretStr, SecretBytes)):
         raise TypeError("Cannot bind an approval to a secret field")

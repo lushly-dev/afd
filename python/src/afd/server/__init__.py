@@ -40,6 +40,7 @@ Bootstrap Commands:
     ... )
 """
 
+from afd.core.commands import CommandConfirmationMode
 from afd.core.meta_keys import (
     MCP_APPS_META_KEY,
     assert_advertised_input_schema,
@@ -171,6 +172,21 @@ from afd.server.handoff_schemas import (
     HandoffResultSchema,
     ReconnectPolicySchema,
     validate_handoff,
+)
+from afd.server.human_relay import (
+    RELAY_INPUT_KEY,
+    HumanRelay,
+    RelayApproved,
+    RelayBeginResult,
+    RelayCall,
+    RelayDeclined,
+    RelayInvalid,
+    RelayOutcome,
+    RelayPending,
+    RelayPrompt,
+    allows_url_elicitation,
+    input_digest,
+    is_relay_url,
 )
 from afd.server.instance_state import ServerInstances
 from afd.server.journal import (
@@ -325,6 +341,21 @@ __all__ = [
     "ApprovalRejection",
     "ApprovalRequest",
     "ApprovalSecret",
+    # Host-verified confirmation (spec/command-metadata.md, "Host-verified confirmation")
+    "CommandConfirmationMode",
+    "HumanRelay",
+    "RELAY_INPUT_KEY",
+    "RelayApproved",
+    "RelayBeginResult",
+    "RelayCall",
+    "RelayDeclined",
+    "RelayInvalid",
+    "RelayOutcome",
+    "RelayPending",
+    "RelayPrompt",
+    "allows_url_elicitation",
+    "input_digest",
+    "is_relay_url",
     # The principal binding (spec/authorization.md, M8)
     "IncompleteCredentials",
     "PrincipalCredentials",

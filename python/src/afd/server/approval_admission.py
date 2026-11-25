@@ -43,6 +43,7 @@ class AdmissionCommand:
     name: str
     approval: Any = None
     confirm_prompt: str | None = None
+    confirmation_mode: str | None = None
 
 
 @dataclass(frozen=True)
@@ -114,6 +115,7 @@ def admission_for(context: Any, command: Any) -> Iterator[Admission]:
             name=command.name,
             approval=getattr(command, "approval", None),
             confirm_prompt=getattr(command, "confirm_prompt", None),
+            confirmation_mode=getattr(command, "confirmation_mode", None),
         ),
     )
     key = id(context)
