@@ -62,6 +62,11 @@ describe('P2-E13: E1: hello loads native', () => {
 		expect(await page.locator('loam-part-header .title').textContent()).toBe('Hello');
 		expect(await page.locator('loam-sidebar .title').textContent()).toBe('Greetings');
 		expect(await page.locator('hello-main').count()).toBe(1);
+		expect(
+			await page
+				.locator('hello-main h1')
+				.evaluate((heading) => getComputedStyle(heading).fontFamily)
+		).toMatch(/^"?Space Grotesk"?,/);
 
 		// The registry is the app's own: the element is not global, and `kit` reached its template.
 		expect(await page.evaluate(() => customElements.get('hello-main') === undefined)).toBe(true);

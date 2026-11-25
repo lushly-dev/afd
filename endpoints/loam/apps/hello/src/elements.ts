@@ -65,6 +65,7 @@ const mainStyles = css`
 	}
 	h1 {
 		margin: 0;
+		font-family: var(--violet-font-family-heading);
 		font-size: var(--violet-type-heading-page-size);
 		line-height: var(--violet-type-heading-page-line);
 		font-weight: var(--violet-type-heading-page-weight);

@@ -1010,18 +1010,25 @@ describe('P2-E13: E2: the host context', () => {
 			.toBe(1);
 		const faces = await inner.evaluate(async () => {
 			await document.fonts.load('400 14px Inter');
+			await document.fonts.load('600 24px "Space Grotesk"');
 			await document.fonts.ready;
+			const h1 = document.querySelector('h1');
 			return {
 				family: getComputedStyle(document.body).fontFamily,
+				headingFamily: h1 ? getComputedStyle(h1).fontFamily : '',
 				inter: document.fonts.check('400 14px Inter'),
+				spaceGrotesk: document.fonts.check('600 24px "Space Grotesk"'),
 				loaded: [...document.fonts]
 					.filter((face) => face.status === 'loaded')
 					.map((face) => `${face.family.replaceAll('"', '')} ${face.weight}`),
 			};
 		});
 		expect(faces.family).toMatch(/^"?Inter"?,/);
+		expect(faces.headingFamily).toMatch(/^"?Space Grotesk"?,/);
 		expect(faces.inter).toBe(true);
+		expect(faces.spaceGrotesk).toBe(true);
 		expect(faces.loaded).toContain('Inter 400');
+		expect(faces.loaded.some((entry) => entry.startsWith('Space Grotesk '))).toBe(true);
 		expect(opened.violations).toEqual([]);
 		expect(opened.errors).toEqual([]);
 		await opened.context.close();
