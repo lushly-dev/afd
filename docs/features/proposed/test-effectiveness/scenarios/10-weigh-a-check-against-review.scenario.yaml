@@ -1,0 +1,73 @@
+# JTBD scenario for the Test effectiveness proposal. The data is invented. Nothing is built, so
+# this file is checked, not run. Once built it runs against a prepared repository, a recorded
+# set of API answers and a record.
+#
+# Not shown: the reviews themselves. The fixture holds each review's tree and its findings.
+name: Weigh a check by what it caught, what it missed and what review did
+description: >-
+  When I weigh a check, I want what it caught beside what it ran on and missed, and whether
+  reviewers had reported its catches on the states they read, so that a check is judged by
+  what review alone would have let through and not by how seldom it fails.
+job: weigh-a-check-against-review
+steps:
+  - description: Local runs, CI runs and reviews are read
+    command: gate-outcome-collect
+    input: { sources: [ci, runs, reviews], since_days: 30 }
+    expect:
+      success: true
+      data:
+        sources:
+          - { source: ci, status: read }
+          - { source: reviews, status: read }
+          - { source: runs, status: read }
+  - description: One row holds a check's catches, its misses and what review did with the catches
+    command: gate-outcome-report
+    input: { days: 30, by: check, check: 'beds.yml / test / pnpm test:beds', where: local, limit: 3 }
+    expect:
+      success: true
+      data:
+        rows:
+          - check: 'beds.yml / test / pnpm test:beds'
+            where: local
+            failures: 6
+            catches: { confirmed: 1, likely: 3 }
+            findings_passed: 2
+            review: { review-reported: 1, review-missed: 2, not-reviewed: 1 }
+            review_by_model:
+              - { model: model-a, read: 3, reported: 1 }
+            review_rates: too-few
+        examples:
+          - pull_request: 12
+            label: likely-catch
+            review: review-missed
+            reviewed_tree: { matches: '^[0-9a-f]{40}$' }
+          - pull_request: 18
+            label: confirmed-catch
+            review: review-reported
+            finding: { pull_request: 18, finding: 1, class: logic }
+          - pull_request: 20
+            label: repeat-passed
+        more: { examples: 3 }
+  - description: The findings a check ran on and did not see are listed by naming the check
+    command: gate-outcome-report
+    input: { days: 30, by: class, check: 'beds.yml / test / pnpm test:beds' }
+    expect:
+      success: true
+      data:
+        examples:
+          - { pull_request: 12, finding: 1, class: parity, checks_on_state: [{ check: 'beds.yml / test / pnpm test:beds', result: passed }] }
+          - { pull_request: 14, finding: 1, class: parity, checks_on_state: [{ check: 'beds.yml / test / pnpm test:beds', result: passed }] }
+        more: { examples: 0 }
+  - description: A check whose catches all came before any review says nothing about review
+    command: gate-outcome-report
+    input: { days: 30, by: check, check: 'shed.yml / browser / pnpm test:browser', where: pull_request }
+    expect:
+      success: true
+      data:
+        rows:
+          - check: 'shed.yml / browser / pnpm test:browser'
+            where: pull_request
+            catches: { confirmed: 2, likely: 0 }
+            findings_passed: 0
+            review: { review-reported: 0, review-missed: 0, not-reviewed: 2 }
+            review_rates: too-few

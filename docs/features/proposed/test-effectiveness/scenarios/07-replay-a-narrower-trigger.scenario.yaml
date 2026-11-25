@@ -1,0 +1,106 @@
+# JTBD scenario for the Test effectiveness proposal. The data is invented. Nothing is built, so
+# this file is checked, not run. Once built it runs against a prepared repository, a recorded
+# set of API answers and a record.
+name: Replay a narrower trigger or a move to daily before deciding
+description: >-
+  When I propose a narrower trigger or a move to daily, I want the runs it would have saved
+  and the failures it would have delayed, in CI and locally, so that the decision rests on
+  that change and not on how quiet a filter looks.
+job: replay-a-narrower-trigger
+steps:
+  - description: Sixty days of runs are read with the paths each change touched
+    command: gate-outcome-collect
+    input: { sources: [ci, runs], since_days: 60 }
+    expect:
+      success: true
+      data:
+        sources:
+          - { source: ci, status: read }
+          - { source: runs, status: read }
+  - description: Leaving documents out of one filter would have skipped these runs and no failure
+    command: gate-outcome-replay
+    input:
+      days: 60
+      workflow: shed.yml
+      paths: ['endpoints/shed/**', 'packages/beds/**', '!packages/beds/**/*.md']
+    expect:
+      success: true
+      data:
+        runs_considered: 320
+        runs_skipped: 48
+        minutes: 610
+        failures: { length: 0 }
+        still_ran:
+          - { workflow: beds.yml, runs: 48 }
+        not_replayed: 3
+        local: { runs: 0, failed: 0 }
+        decisions: { length: 0 }
+        rates: given
+  - description: The same proposal is read from the branch that makes it, and its decision is drafted
+    command: gate-outcome-replay
+    input:
+      days: 60
+      workflow: shed.yml
+      from_branch: true
+      decision_out: scripts/policy/gate-decisions/shed-documents-trigger.json
+    expect:
+      success: true
+      data:
+        proposed:
+          paths: ['endpoints/shed/**', 'packages/beds/**', '!packages/beds/**/*.md']
+        runs_skipped: 48
+        minutes: 610
+        written: scripts/policy/gate-decisions/shed-documents-trigger.json
+  - description: Moving a job to daily would have saved more and delayed real failures, few of them caught elsewhere
+    command: gate-outcome-replay
+    input: { days: 60, workflow: shed.yml, job: browser, events: [schedule] }
+    expect:
+      success: true
+      data:
+        runs_considered: 500
+        runs_skipped: 500
+        minutes: 6500
+        failures:
+          - { label: confirmed-catch, count: 3, also_failed_elsewhere: 1 }
+          - { label: likely-catch, count: 6, also_failed_elsewhere: 2 }
+          - { label: repeat-passed, count: 4 }
+        still_ran: { length: 0 }
+        not_replayed: 0
+        decisions:
+          - { decision: shed-browser-kept, kind: kept }
+  - description: A check that is quiet in CI and fails locally comes with that said
+    command: gate-outcome-replay
+    input: { days: 60, workflow: beds.yml, job: gate, events: [schedule] }
+    expect:
+      success: true
+      data:
+        runs_skipped: 480
+        minutes: 80
+        failures: { length: 0 }
+        local: { runs: 62, failed: 5 }
+        warnings:
+          - { contains: locally }
+  - description: A workflow that is not known is refused with the closest name
+    command: gate-outcome-replay
+    input: { days: 60, workflow: shd.yml, events: [schedule] }
+    expect:
+      success: false
+      error:
+        code: INVALID_INPUT
+        suggestion: { contains: shed.yml }
+  - description: A filter the queue job could not read is refused
+    command: gate-outcome-replay
+    input: { days: 60, workflow: shed.yml, paths: ['packages/{beds,shed}/**'] }
+    expect:
+      success: false
+      error:
+        code: INVALID_INPUT
+        suggestion: { contains: '**' }
+  - description: Two proposals in one call are refused
+    command: gate-outcome-replay
+    input: { days: 60, workflow: shed.yml, paths: ['endpoints/shed/**'], events: [schedule] }
+    expect:
+      success: false
+      error:
+        code: INVALID_INPUT
+        suggestion: { contains: from_branch }

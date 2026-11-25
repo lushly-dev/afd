@@ -1,0 +1,72 @@
+# JTBD scenario for the Test effectiveness proposal. The data is invented. Nothing is built, so
+# this file is checked, not run. Once built it runs against a prepared repository, a recorded
+# set of API answers and a record.
+name: Compare two periods when the models change
+description: >-
+  When the models change, I want the same numbers before and after, check by check, with the
+  mix of work and the models of each period and how much is attributed, so that I revisit a
+  testing decision on evidence and do not read a quieter fortnight as a better model.
+job: compare-two-periods
+steps:
+  - description: Four weeks of runs, fix commits and findings are read
+    command: gate-outcome-collect
+    input: { sources: [ci, main, reviews, runs], since_days: 28 }
+    expect:
+      success: true
+      data:
+        sources:
+          - { source: ci, status: read }
+          - { source: main, status: read }
+          - { source: reviews, status: read }
+          - { source: runs, status: read }
+  - description: Findings by class for the last fortnight and the one before it, with who wrote each
+    command: gate-outcome-report
+    input: { days: 14, compare_ending_days_ago: 14, by: class }
+    expect:
+      success: true
+      data:
+        totals: { pull_requests: 60, valid: 22 }
+        coverage:
+          attributed_share: 0.5
+          models:
+            - { model: model-b, role: author, changes: 30 }
+            - { model: mixed, role: author, changes: 6 }
+            - { model: unknown, role: author, changes: 24 }
+        compare:
+          totals: { pull_requests: 44, valid: 31 }
+          mix:
+            now: { changes: 60, by_type: { feat: 30, fix: 20, docs: 10 } }
+            before: { changes: 44, by_type: { feat: 14, fix: 24, docs: 6 } }
+          coverage:
+            attributed_share: 0.75
+            models:
+              - { model: model-a, role: author, changes: 33 }
+              - { model: unknown, role: author, changes: 11 }
+  - description: One check's catches and what review did with them, in each fortnight
+    command: gate-outcome-report
+    input:
+      days: 14
+      compare_ending_days_ago: 14
+      by: check
+      where: pull_request
+      check: 'beds.yml / test / pnpm test:beds'
+    expect:
+      success: true
+      data:
+        rows:
+          - check: 'beds.yml / test / pnpm test:beds'
+            runs: 120
+            changes: 52
+            failed: 2
+            catches: { confirmed: 1, likely: 0 }
+            catches_per_100_changes: 1.9
+            review: { review-reported: 1, review-missed: 0, not-reviewed: 0 }
+        compare:
+          rows:
+            - check: 'beds.yml / test / pnpm test:beds'
+              runs: 96
+              changes: 40
+              failed: 9
+              catches: { confirmed: 4, likely: 2 }
+              catches_per_100_changes: 15
+              review: { review-reported: 1, review-missed: 3, not-reviewed: 2 }

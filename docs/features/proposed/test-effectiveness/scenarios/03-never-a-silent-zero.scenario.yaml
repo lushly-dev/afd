@@ -1,0 +1,65 @@
+# JTBD scenario for the Test effectiveness proposal. The data is invented. Nothing is built, so
+# this file is checked, not run. Once built it runs against a prepared repository, a recorded
+# set of API answers and a record.
+name: Be told when a number is missing and not zero
+description: >-
+  When nothing has been collected, a source could not be read or a check was never observed, I
+  want the commands to say so, so that a silent zero is never read as a check that catches
+  nothing.
+job: never-a-silent-zero
+tags: [slice]
+steps:
+  - description: A report before any collection is refused, with the way forward
+    command: gate-outcome-report
+    expect:
+      success: false
+      error:
+        code: NOT_COLLECTED
+        suggestion: { contains: gate-outcome-collect }
+  - description: A window that makes no sense is refused
+    command: gate-outcome-collect
+    input: { since_days: 0 }
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR
+        suggestion: { contains: since_days }
+  - description: With no way to reach GitHub, what can be read is read and the rest is named
+    command: gate-outcome-collect
+    input: { sources: [ci, main], since_days: 7 }
+    expect:
+      success: true
+      data:
+        sources:
+          - { source: ci, status: absent, why: { contains: gh } }
+          - { source: main, status: partly, found: 5, added: 5, why: { contains: gh } }
+  - description: The report names the source it lacks and gives no row of zeros for it
+    command: gate-outcome-report
+    input: { days: 7, by: check }
+    expect:
+      success: true
+      data:
+        rows: { length: 0 }
+        not_observed:
+          - { check: 'beds.yml / test / pnpm test:beds', why: { contains: ci } }
+          - { check: 'shed.yml / browser / pnpm test:browser', why: { contains: ci } }
+        coverage:
+          sources: { ci: absent, main: partly }
+        warnings:
+          - { contains: ci }
+  - description: A check that is not known is refused with the closest names, never answered with zeros
+    command: gate-outcome-report
+    input: { days: 7, by: check, check: 'beds.yml / test / pnpm tset:beds' }
+    expect:
+      success: false
+      error:
+        code: INVALID_INPUT
+        suggestion: { contains: 'beds.yml / test / pnpm test:beds' }
+  - description: So is an area that is not known
+    command: gate-outcome-report
+    input: { days: 7, by: area, area: packages/bedz }
+    expect:
+      success: false
+      error:
+        code: INVALID_INPUT
+        suggestion: { contains: packages/beds }

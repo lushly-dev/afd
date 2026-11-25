@@ -1,0 +1,134 @@
+# JTBD scenario for the Test effectiveness proposal. The data is invented. Nothing is built, so
+# this file is checked, not run. Once built it runs against a prepared repository, a recorded
+# set of API answers and a record.
+#
+# Not shown: time passing between the decision and what came later, and the session's own
+# writing (the findings it records, the proof it runs, the decision file that settles a finding
+# later). The fixture holds their results.
+name: Follow a reviewer's finding to the check that was added for it
+description: >-
+  When a reviewer finds a defect, I want to know whether the checks had run on the code it
+  read, which check was added and whether that check is shown failing without the fix, so that
+  a new test is one that catches the mistake, an unproven one is not counted and a recurring
+  class is seen.
+job: follow-a-finding-to-a-check
+steps:
+  - description: Findings, proofs, local runs and CI runs are read
+    command: gate-outcome-collect
+    input: { sources: [reviews, runs, ci], since_days: 30 }
+    expect:
+      success: true
+      data:
+        sources:
+          - { source: ci, status: read }
+          - { source: reviews, status: read, found: 9, added: 9 }
+          - { source: runs, status: read }
+  - description: Each class has its findings, what the checks had done and what was decided
+    command: gate-outcome-report
+    input: { days: 30, by: class }
+    expect:
+      success: true
+      data:
+        totals:
+          pull_requests: 7
+          findings: 8
+          valid: 6
+          overlap: 1
+          noise: 1
+          declined: 0
+          missing-test: 1
+        rows:
+          - class: parity
+            valid: 4
+            checks_on_state: { passed: 2, failed: 0, not-run: 2, unknown: 0 }
+            decisions: { check-added: 1, check-unproven: 1, no-check: 1, deferred: 0, open: 1 }
+            proofs: { failed-as-expected: 2, passed-without-the-change: 0, failed-otherwise: 0, could-not-replay: 0 }
+            proof_runs: { recorded: 1, claimed: 1 }
+            later: { findings: 2, escapes: 1 }
+            rates: too-few
+          - class: logic
+            valid: 2
+            checks_on_state: { passed: 1, failed: 0, not-run: 1, unknown: 0 }
+            decisions: { check-added: 1, check-unproven: 0, no-check: 0, deferred: 1, open: 0 }
+            proofs: { failed-as-expected: 1, passed-without-the-change: 0, failed-otherwise: 0, could-not-replay: 0 }
+            proof_runs: { recorded: 1, claimed: 0 }
+            later: { findings: 0, escapes: 0 }
+            rates: too-few
+        coverage:
+          unreviewed: 2
+  - description: One class shows each finding with the tree it was made on, its checks and its proof
+    command: gate-outcome-report
+    input: { days: 30, by: class, finding_class: parity }
+    expect:
+      success: true
+      data:
+        rows:
+          - { class: parity, area: packages/beds, valid: 4 }
+        examples:
+          - pull_request: 12
+            finding: 1
+            files: ['packages/beds/src/rows.ts:40-52']
+            tree: { matches: '^[0-9a-f]{40}$' }
+            checks_on_state:
+              - { check: 'beds.yml / test / pnpm test:beds', result: passed }
+            decision: check-added
+            added: { tests: [packages/beds/src/rows.test.ts] }
+            proof: failed-as-expected
+            proof_run: recorded
+          - pull_request: 14
+            finding: 1
+            checks_on_state:
+              - { check: 'beds.yml / test / pnpm test:beds', result: passed }
+            decision: check-unproven
+            proof: failed-as-expected
+            proof_run: claimed
+          - pull_request: 19
+            finding: 2
+            checks_on_state:
+              - { check: 'beds.yml / test / pnpm test:beds', result: not-run }
+            decision: open
+            age_days: 23
+          - pull_request: 21
+            finding: 1
+            decision: no-check
+            reason: one-off
+            settled_by: beds-columns-order
+  - description: What is still open in a class, with its age
+    command: gate-outcome-report
+    input: { days: 30, by: class, finding_class: parity, decision: open }
+    expect:
+      success: true
+      data:
+        examples:
+          - { pull_request: 19, finding: 2, decision: open, age_days: 23 }
+        more: { examples: 0 }
+  - description: A check can be a command shown failing, not only a test
+    command: gate-outcome-report
+    input: { days: 30, by: class, pull_request: 22 }
+    expect:
+      success: true
+      data:
+        examples:
+          - pull_request: 22
+            finding: 1
+            class: logic
+            decision: check-added
+            added: { command: 'pnpm check:beds-order' }
+            proof: failed-as-expected
+            proof_run: recorded
+  - description: A finding that merged unfixed is deferred to its issue, not left open
+    command: gate-outcome-report
+    input: { days: 30, by: class, finding_class: logic, decision: deferred }
+    expect:
+      success: true
+      data:
+        examples:
+          - { pull_request: 23, finding: 1, decision: deferred, issue: 41, issue_state: open }
+  - description: A class outside the list is refused with the list
+    command: gate-outcome-report
+    input: { days: 30, by: class, finding_class: paritty }
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR
+        suggestion: { contains: parity }
