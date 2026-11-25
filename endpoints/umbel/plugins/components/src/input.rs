@@ -2,6 +2,8 @@
 //! caller's identifiers are checked here, against the format's own patterns, before they can
 //! appear in an answer or a message.
 
+use std::collections::HashSet;
+
 use serde_json::Value;
 use umbel_sdk::Outcome;
 
@@ -124,4 +126,111 @@ pub(crate) fn check_check(input: &Value) -> Result<(), Outcome> {
     }
     check(input, "library", patterns::LIBRARY)?;
     check_versions(input)
+}
+
+/// At most 8 facet keys in a pattern-list filter (matching the pack format cap).
+const MAX_FACET_KEYS: usize = 8;
+/// At most 16 values per facet key.
+const MAX_FACET_VALUES: usize = 16;
+
+/// `components-pattern-list`'s fields (amendment A31.3).
+pub(crate) fn check_pattern_list(input: &Value) -> Result<(), Outcome> {
+    check(input, "library", patterns::LIBRARY)?;
+    if let Some(facets) = input.get("facets").and_then(Value::as_object) {
+        if facets.len() > MAX_FACET_KEYS {
+            return Err(fail::invalid("`facets` holds more than 8 facet keys"));
+        }
+        for (key, values) in facets {
+            if !patterns::FACET_KEY.accepts(key) {
+                return Err(fail::invalid(
+                    "each key of `facets` must match the format's facetKey pattern",
+                ));
+            }
+            let Some(arr) = values.as_array() else {
+                return Err(fail::invalid(
+                    "each value of `facets` must be an array of facet values",
+                ));
+            };
+            if arr.is_empty() || arr.len() > MAX_FACET_VALUES {
+                return Err(fail::invalid(
+                    "each value list in `facets` must hold 1 to 16 facet values",
+                ));
+            }
+            if arr
+                .iter()
+                .any(|v| !v.as_str().is_some_and(|s| patterns::FACET_VALUE.accepts(s)))
+            {
+                return Err(fail::invalid(
+                    "each value in `facets` must match the format's facetValue pattern",
+                ));
+            }
+        }
+    }
+    let Some(after) = input.get("after").and_then(Value::as_str) else {
+        return Ok(());
+    };
+    let (library, pattern) = match after.split_once('/') {
+        Some((library, pattern)) => (Some(library), pattern),
+        None => (None, after),
+    };
+    if library.is_some_and(|id| !patterns::LIBRARY.accepts(id))
+        || !patterns::PATTERN.accepts(pattern)
+    {
+        return Err(fail::invalid(
+            "`after` must be a pattern id, or <library>/<pattern>, as the last answer's next.after gave it",
+        ));
+    }
+    Ok(())
+}
+
+/// `components-pattern-open`'s fields (amendment A31.4).
+pub(crate) fn check_pattern_open(input: &Value) -> Result<(), Outcome> {
+    let Some(pattern) = input.get("pattern").and_then(Value::as_str) else {
+        return Err(fail::invalid("pass `pattern`, the pattern id to open"));
+    };
+    if !patterns::PATTERN.accepts(pattern) {
+        return Err(fail::invalid(
+            "`pattern` does not match the format's pattern",
+        ));
+    }
+    check(input, "library", patterns::LIBRARY)?;
+    if let Some(sections) = input.get("sections").and_then(Value::as_array) {
+        let mut seen = HashSet::new();
+        for item in sections {
+            let Some(name) = item.as_str() else {
+                return Err(fail::invalid("each of `sections` must be a section name"));
+            };
+            if !seen.insert(name) {
+                return Err(fail::invalid("`sections` must not repeat a section name"));
+            }
+        }
+    }
+    if let Some(implementation) = input.get("implementation").and_then(Value::as_str) {
+        let valid = match implementation.split_once('/') {
+            Some((library, target)) => {
+                patterns::LIBRARY.accepts(library)
+                    && (patterns::TAG.accepts(target) || patterns::COPY_NAME.accepts(target))
+            }
+            None => {
+                patterns::TAG.accepts(implementation) || patterns::COPY_NAME.accepts(implementation)
+            }
+        };
+        if !valid {
+            return Err(fail::invalid(
+                "`implementation` must be a tag, a copy name, or <library>/<tag|copyName>",
+            ));
+        }
+    }
+    if input.get("skip").is_some() {
+        let sections = input.get("sections").and_then(Value::as_array);
+        let single_paginated = sections.is_some_and(|list| {
+            list.len() == 1 && matches!(list[0].as_str(), Some("implementations" | "gates"))
+        });
+        if !single_paginated {
+            return Err(fail::invalid(
+                "`skip` requires `sections` to name exactly one paginated section (`implementations` or `gates`)",
+            ));
+        }
+    }
+    Ok(())
 }

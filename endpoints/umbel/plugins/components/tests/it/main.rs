@@ -19,6 +19,7 @@ mod list;
 mod no_plugin_dependency;
 mod open;
 mod pack_format_2;
+mod pattern_commands;
 mod patterns;
 mod refusal;
 mod render;

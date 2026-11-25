@@ -138,6 +138,23 @@ async fn the_component_answers_every_call_as_the_compiled_build() {
             json!({ "source": "<example-field>", "library": "missing" }),
             false,
         ),
+        // `components-pattern-list` and `components-pattern-open` (amendment A31.2–A31.4).
+        ("components-pattern-list", json!({}), true),
+        (
+            "components-pattern-list",
+            json!({ "facets": { "purpose": ["single-choice"] } }),
+            true,
+        ),
+        (
+            "components-pattern-open",
+            json!({ "library": "example", "pattern": "select" }),
+            true,
+        ),
+        (
+            "components-pattern-open",
+            json!({ "pattern": "selct" }),
+            false,
+        ),
     ];
     for (command, input, succeeds) in cases {
         let ours = wasm.call(command, input.clone()).await;

@@ -1,0 +1,38 @@
+{
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["pattern"],
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"pattern": {
+			"type": "string",
+			"maxLength": 64,
+			"description": "The pattern to open"
+		},
+		"library": {
+			"type": "string",
+			"description": "Look for the pattern in this owning library; resolves ambiguity when more than one library defines it"
+		},
+		"sections": {
+			"type": "array",
+			"items": {
+				"type": "string",
+				"enum": ["keep", "customize", "setups", "gates", "implementations"]
+			},
+			"description": "Unique subset of sections to return; default: keep, customize, setups, gates and implementations"
+		},
+		"implementation": {
+			"type": "string",
+			"maxLength": 165,
+			"description": "Filter implementations to one <tag>, <copyName> or <library>/<tag|copyName>"
+		},
+		"skip": {
+			"type": "integer",
+			"minimum": 0,
+			"description": "Only when sections names exactly one paginated section (implementations or gates): how many items to skip from its start"
+		}
+	}
+}

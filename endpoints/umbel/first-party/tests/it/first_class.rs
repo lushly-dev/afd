@@ -131,6 +131,14 @@ async fn the_six_plugins_suggest_five_first_class_tools_under_the_cap() {
             assert!(listed.contains(&name.to_owned()), "{lane}: {listed:?}");
         }
         assert!(!listed.contains(&"components-list".to_owned()), "{lane}");
+        assert!(
+            !listed.contains(&"components-pattern-list".to_owned()),
+            "{lane}"
+        );
+        assert!(
+            !listed.contains(&"components-pattern-open".to_owned()),
+            "{lane}"
+        );
 
         // Every plugin's skill, in `plugins.enabled` order.
         let skills = client.request("skills/list", json!({})).await;

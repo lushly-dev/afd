@@ -143,6 +143,26 @@ pub(crate) fn tag_ambiguous(tag: &str, libraries: &[String]) -> Outcome {
     .with_error_details(json!({ "tag": tag, "libraries": libraries }))
 }
 
+/// `PATTERN_NOT_FOUND` (amendment A31.9).
+pub(crate) fn pattern_not_found(pattern: &str, nearest: &[String]) -> Outcome {
+    failure(
+        "PATTERN_NOT_FOUND",
+        &format!("no library in the pack has the pattern `{pattern}`"),
+        "Check the name against details.nearest, or call components-pattern-list.",
+    )
+    .with_error_details(json!({ "pattern": pattern, "nearest": nearest }))
+}
+
+/// `PATTERN_AMBIGUOUS` (amendment A31.9).
+pub(crate) fn pattern_ambiguous(pattern: &str, libraries: &[String]) -> Outcome {
+    failure(
+        "PATTERN_AMBIGUOUS",
+        &format!("the pattern `{pattern}` is in more than one library"),
+        "Pass `library` with one of the libraries in details.",
+    )
+    .with_error_details(json!({ "pattern": pattern, "libraries": libraries }))
+}
+
 /// `OUTPUT_BUDGET_EXCEEDED` for an item that cannot fit.
 pub(crate) fn budget_exceeded() -> Outcome {
     failure(

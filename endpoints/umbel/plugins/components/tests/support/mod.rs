@@ -581,6 +581,48 @@ impl Fx {
         serde_json::to_value(self.host.call("components-open", input).await).unwrap()
     }
 
+    pub async fn pattern_list(&self, input: Value) -> Value {
+        serde_json::to_value(self.host.call("components-pattern-list", input).await).unwrap()
+    }
+
+    pub async fn pattern_open(&self, input: Value) -> Value {
+        serde_json::to_value(self.host.call("components-pattern-open", input).await).unwrap()
+    }
+
+    pub async fn pattern_open_with_budget(&self, input: Value, ask: u64) -> Value {
+        let context = self
+            .host
+            .host()
+            .context(Actor::new(ActorKind::Test).with_id("testkit"))
+            .with_interface(CommandInterface::Mcp)
+            .with_output_budget_ask(ask);
+        serde_json::to_value(
+            self.host
+                .host()
+                .registry()
+                .execute("components-pattern-open", input, Some(context))
+                .await,
+        )
+        .unwrap()
+    }
+
+    pub async fn pattern_list_with_budget(&self, input: Value, ask: u64) -> Value {
+        let context = self
+            .host
+            .host()
+            .context(Actor::new(ActorKind::Test).with_id("testkit"))
+            .with_interface(CommandInterface::Mcp)
+            .with_output_budget_ask(ask);
+        serde_json::to_value(
+            self.host
+                .host()
+                .registry()
+                .execute("components-pattern-list", input, Some(context))
+                .await,
+        )
+        .unwrap()
+    }
+
     pub async fn brief(&self, input: Value) -> Value {
         brief_on(&self.host, input).await
     }

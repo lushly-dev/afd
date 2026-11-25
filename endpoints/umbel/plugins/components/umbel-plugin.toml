@@ -73,6 +73,30 @@ output_budget = { default_bytes = 16000, max_bytes = 64000 }
 journal = { mode = "digest", keep = ["space", "library"] }
 examples = [{ title = "Check a field's markup", input = { source = "<example-field label=\"Name\" error-text=\"Required\"></example-field>" } }]
 
+[[commands]]
+name = "components-pattern-list"
+description = "List portable UI patterns across the space's libraries with their facets and aggregated implementations, filtered by library, scope, facets or a substring; paged by the output budget."
+effects = ["inspect"]
+input_schema = "schemas/components-pattern-list.input.json"
+category = "components"
+tags = ["components", "patterns"]
+version = "1.0.0"
+output_budget = { default_bytes = 16000, max_bytes = 64000 }
+journal = { mode = "digest", keep = ["space", "library", "scope"] }
+examples = [{ title = "Find patterns by facet", input = { facets = { purpose = ["single-choice"] } } }]
+
+[[commands]]
+name = "components-pattern-open"
+description = "Open one pattern's guidance, setups, portable gates and aggregated implementations across all libraries in the space. Sections that do not fit are named in omitted with a follow-up call."
+effects = ["inspect"]
+input_schema = "schemas/components-pattern-open.input.json"
+category = "components"
+tags = ["components", "patterns"]
+version = "1.0.0"
+output_budget = { default_bytes = 32000, max_bytes = 96000 }
+journal = { mode = "digest", keep = ["space", "library", "pattern"] }
+examples = [{ title = "Open a pattern's requirements and implementations", input = { library = "example", pattern = "select" } }]
+
 [[packs]]
 id = "library"
 path = "packs/library"
