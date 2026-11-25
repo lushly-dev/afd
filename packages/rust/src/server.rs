@@ -130,6 +130,7 @@ pub mod confirmations;
 pub mod context_hook;
 mod encoding;
 pub mod human_relay;
+mod instance_state;
 mod meta_argument;
 pub mod meta_tools;
 mod panic_guard;
@@ -145,6 +146,7 @@ pub use confirmations::{ConfirmationMode, AFD_CONFIRM_META_KEY};
 use context_hook::ContextHook;
 pub use context_hook::ContextHookRequest;
 pub use human_relay::{HumanRelay, RelayCall, RelayOutcome, RelayPrompt, RELAY_INPUT_KEY};
+pub use instance_state::ServerInstances;
 pub use resources::{
     ResourceCaller, ResourceContents, ResourceEntry, ResourceProvider, ResourceReadError,
     DIGEST_META_KEY, MCP_APP_MIME_TYPE,
@@ -194,6 +196,7 @@ struct Inner {
     contexts: Option<Arc<Vec<ContextConfig>>>,
     context_defaults: ContextDefaults,
     confirmations: Arc<Gate>,
+    instances: Option<ServerInstances>,
     /// The host's relay for host-verified commands.
     human_relay: Option<Arc<dyn HumanRelay>>,
     /// Which callers are approvers ("Approval evidence from an approver client").
@@ -257,6 +260,7 @@ impl McpServer {
                     Gate::new(ConfirmationMode::Off, None)
                         .expect("the OS random source is available"),
                 ),
+                instances: None,
                 human_relay: None,
                 approver: None,
                 context_hook: None,
@@ -288,6 +292,7 @@ impl McpServer {
             contexts: shared.contexts.clone(),
             context_defaults: shared.context_defaults.clone(),
             confirmations: Arc::clone(&shared.confirmations),
+            instances: shared.instances,
             human_relay: shared.human_relay.clone(),
             approver: shared.approver.clone(),
             context_hook: shared.context_hook.clone(),
@@ -373,13 +378,40 @@ impl McpServer {
     /// The message names the offending option or entry. For resources: a provider entry that
     /// breaks a rule of `spec/mcp-resources.md` R2 (a bad or repeated `uri`, an empty `name`, a
     /// `skill://` entry, a `ui://` entry without the MCP Apps `mimeType`, a `size` that does not
-    /// match the bytes, a `_meta` key the key rule refuses). For the tool strategy: a first-class set without the hybrid
-    /// strategy, a hybrid server without one or with an empty one, and an entry that is not a
-    /// registered command, is not exposed to MCP, is a meta-tool or context tool, repeats, or is
-    /// beyond [`MAX_FIRST_CLASS_TOOLS`] (the first one beyond it).
+    /// match the bytes, a `_meta` key the key rule refuses). For the tool strategy: a first-class
+    /// set without the hybrid strategy, a hybrid server without one or with an empty one, and an
+    /// entry that is not a registered command, is not exposed to MCP, is a meta-tool or context
+    /// tool, repeats, or is beyond [`MAX_FIRST_CLASS_TOOLS`] (the first one beyond it). For
+    /// [`ServerInstances::Multiple`]: an active confirmation mode or `ApprovalRelay::McpElicitation`
+    /// without a shared confirmation key, or an approval middleware keeping single-use tokens or
+    /// `HumanRelay` decisions in process memory without a shared `nonce_store`.
     pub fn validate(&self) -> Result<(), String> {
         self.validate_strategy()?;
-        self.validate_resources()
+        self.validate_resources()?;
+        self.validate_instances().map(|_| ())
+    }
+
+    /// Check `with_instances` against active per-process defaults and return any HTTP warning.
+    fn validate_instances(&self) -> Result<Option<String>, String> {
+        let approvals = self.inner.registry.approval_process_state();
+        instance_state::check_instance_state(
+            &self.inner.name,
+            self.inner.instances,
+            self.inner.confirmations.mode,
+            self.inner.confirmations.has_shared_key,
+            self.inner.human_relay.is_some(),
+            approvals,
+        )
+    }
+
+    /// Enforce `with_instances` on an incoming request and, on HTTP, log any newly active
+    /// per-process warning once per process.
+    fn check_request_instances(&self) -> Result<(), String> {
+        let warning = self.validate_instances()?;
+        if self.inner.serves_http {
+            instance_state::warn_instances_once(warning.as_deref());
+        }
+        Ok(())
     }
 
     /// The tool strategy's checks alone, run on every tools request.
@@ -443,12 +475,10 @@ impl McpServer {
     /// advertises an optional `confirm` argument. The confirmation `requestState` is bound to the
     /// call's [`principal_binding`](crate::principal_binding), the actor the context hook left and
     /// the verified credentials' issuer, subject and client, so it confirms nothing for another
-    /// caller (see [`confirmations`]).
-    ///
-    /// # Panics
-    /// When the OS random source that makes the per-process key is unavailable.
+    /// caller (see [`confirmations`]). Preserves any key already set with
+    /// [`Self::with_confirmation_key`] or [`Self::with_confirmations_key`].
     pub fn with_confirmations(self, mode: ConfirmationMode) -> Self {
-        let gate = Gate::new(mode, None).expect("the OS random source is available");
+        let gate = self.inner.confirmations.with_mode(mode);
         self.with(|inner| inner.confirmations = Arc::new(gate))
     }
 
@@ -465,6 +495,29 @@ impl McpServer {
     ) -> Result<Self, String> {
         let gate = Gate::new(mode, Some(key.into()))?;
         Ok(self.with(|inner| inner.confirmations = Arc::new(gate)))
+    }
+
+    /// Set the shared confirmation key (at least 32 bytes) that signs elicitation `requestState`,
+    /// keeping the server's current [`ConfirmationMode`].
+    ///
+    /// # Errors
+    /// The key is shorter than 32 bytes.
+    pub fn with_confirmation_key(self, key: impl Into<Vec<u8>>) -> Result<Self, String> {
+        let mode = self.inner.confirmations.mode;
+        self.with_confirmations_key(mode, key)
+    }
+
+    /// Declare how many processes serve this server's URL ([`ServerInstances`]).
+    ///
+    /// With [`ServerInstances::Multiple`], [`Self::validate`] (called by
+    /// [`Self::try_streamable_http_service`], [`Self::streamable_http_service`],
+    /// `authorized_http_service` and [`Self::serve_stdio`]) returns `Err` when confirmations or
+    /// an approval middleware with `ApprovalRelay::McpElicitation` lacks a shared confirmation
+    /// key, or when an approval middleware keeps single-use nonces in process memory. When
+    /// omitted, starting an HTTP service logs one warning per process to stderr if a per-process
+    /// default is in use; [`ServerInstances::Single`] silences it. Stdio logs nothing.
+    pub fn with_instances(self, instances: ServerInstances) -> Self {
+        self.with(|inner| inner.instances = Some(instances))
     }
 
     /// Install the host's [`HumanRelay`]: the only way a
@@ -775,11 +828,23 @@ impl McpServer {
         tools
     }
 
+    /// Execute-time multi-instance guard for [`ServerInstances::Multiple`], applied on every
+    /// server dispatch context so a context hook returning a fresh context cannot drop it.
+    pub(crate) fn instance_guard(&self) -> Option<crate::commands::InstanceGuard> {
+        (self.inner.instances == Some(ServerInstances::Multiple)).then_some(
+            crate::commands::InstanceGuard {
+                require_shared_key_for_relay: !self.inner.confirmations.has_shared_key,
+                has_human_relay: self.inner.human_relay.is_some(),
+            },
+        )
+    }
+
     /// The context command executions start from: interface `mcp`, the configured actor, clock
     /// and random source, and the remote flag (D4).
     fn base_context(&self) -> CommandContext {
         let mut context = CommandContext::new().with_interface(CommandInterface::Mcp);
         context.server_mut().remote = true;
+        context.server_mut().instance_guard = self.instance_guard();
         with_context_defaults(context, &self.inner.context_defaults)
     }
 
@@ -899,7 +964,10 @@ impl McpServer {
         &self,
         options: HttpOptions,
     ) -> Result<StreamableHttpService<McpServer, LocalSessionManager>, String> {
-        self.validate()?;
+        self.validate_strategy()?;
+        self.validate_resources()?;
+        let warning = self.validate_instances()?;
+        instance_state::warn_instances_once(warning.as_deref());
         let mut config = StreamableHttpServerConfig::default()
             .with_legacy_session_mode(false)
             .with_json_response(true)
@@ -1017,6 +1085,7 @@ impl ServerHandler for McpServer {
         panic_guard::guard_request(async {
             let credentials = authz::check_request(self, &context)?;
             self.validate_strategy().map_err(internal)?;
+            self.check_request_instances().map_err(internal)?;
             let active = self
                 .request_scope(&context)?
                 .and_then(|scope| scope.active());
@@ -1069,6 +1138,7 @@ impl ServerHandler for McpServer {
     ) -> Result<DiscoverResult, ErrorData> {
         authz::check_request(self, &context)?;
         self.validate_strategy().map_err(internal)?;
+        self.check_request_instances().map_err(internal)?;
         let mut info = self.get_info();
         if !self.declares_tasks_to(&context) {
             tasks::without_tasks(&mut info.capabilities);
@@ -1160,7 +1230,10 @@ impl ServerHandler for McpServer {
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, ErrorData> {
-        if let Err(message) = self.validate_strategy() {
+        if let Err(message) = self
+            .validate_strategy()
+            .and_then(|()| self.check_request_instances())
+        {
             return Err(internal(message));
         }
         panic_guard::guard_call(router::route(self, &request, &context)).await

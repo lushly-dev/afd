@@ -333,7 +333,8 @@ pub fn declares_confirm(tool: Option<&Value>) -> bool {
 /// The gate of one server: its mode and the key that signs confirmation state.
 pub(crate) struct Gate {
     pub(crate) mode: ConfirmationMode,
-    codec: RequestStateCodec,
+    pub(crate) has_shared_key: bool,
+    codec: Arc<RequestStateCodec>,
 }
 
 impl Gate {
@@ -342,6 +343,7 @@ impl Gate {
     /// # Errors
     /// The key is shorter than 32 bytes.
     pub(crate) fn new(mode: ConfirmationMode, key: Option<Vec<u8>>) -> Result<Self, String> {
+        let has_shared_key = key.is_some();
         let key = match key {
             Some(key) => key,
             None => {
@@ -351,8 +353,21 @@ impl Gate {
                 bytes
             }
         };
-        let codec = RequestStateCodec::try_new(key).map_err(|error| error.to_string())?;
-        Ok(Self { mode, codec })
+        let codec = Arc::new(RequestStateCodec::try_new(key).map_err(|error| error.to_string())?);
+        Ok(Self {
+            mode,
+            has_shared_key,
+            codec,
+        })
+    }
+
+    /// A gate with `mode` keeping this gate's key (shared or per-process).
+    pub(crate) fn with_mode(&self, mode: ConfirmationMode) -> Self {
+        Self {
+            mode,
+            has_shared_key: self.has_shared_key,
+            codec: Arc::clone(&self.codec),
+        }
     }
 }
 

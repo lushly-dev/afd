@@ -80,6 +80,7 @@ validation and landing belong to the lane.
 ## Follow-up parity items
 
 - Python `McpClient.call()` fail-closed `OUTCOME_UNKNOWN` ([#2319](https://github.com/lushly-dev/afd/issues/2319)): `McpClient.call()` snapshots read-only `_meta.mutation: false` (without contradicting destructive or non-read-only markers) before dispatch, clears cached tool metadata on reconnect discovery failure, and returns non-retryable `OUTCOME_UNKNOWN` with `details.cause` on timeout, transport loss, HTTP 5xx, JSON-RPC `-32603`, or failed task poll; `spec/error-codes.md` updated (merged in #2511).
+- Python & Rust `instances` setting ([#2242](https://github.com/lushly-dev/afd/issues/2242)): Python `create_server(..., instances="single" | "multiple")` and Rust `McpServer::with_instances(ServerInstances::Single | Multiple)` + `with_confirmation_key` refuse multi-instance startup when active confirmations, `relay="mcp-elicitation"`, or in-memory approval nonce stores (including inside `compose_middleware`) rely on per-process defaults, and warn once per process over HTTP when omitted (silent on stdio); C++ `afd::mcp_stdio` verified stdio-only with `state_secret` ≥ 32 bytes and `nonce_store` already supported (merged in #2527).
 
 ## Historical checkpoints
 

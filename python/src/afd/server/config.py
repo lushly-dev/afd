@@ -20,6 +20,7 @@ from afd.server.auth import McpAuthOptions
 from afd.server.bootstrap.afd_context import AFD_CONTEXT_META_KEY
 from afd.server.context_fields import ContextField
 from afd.server.context_hook import ContextHook
+from afd.server.instance_state import ServerInstances
 from afd.server.middleware import CommandMiddleware
 from afd.server.resources import ResourcesOption
 from afd.server.skills import SkillCatalog
@@ -103,7 +104,7 @@ class ServerConfig:
     """Per-request hook (``afd.server.context_hook``) invoked once per MCP ``tools/call`` before
     the request-state boundary, confirmation gate and command lookup."""
     confirmations: str = "off"
-    confirmation_key: bytes | str | None = None
+    confirmation_key: bytes | bytearray | memoryview | str | None = None
     first_class_tools: list[str] | None = None
     """``tool_strategy="hybrid"`` only: the commands listed as tools after the meta-tools, in
     order (1 to 8 names). Checked against the registered commands before the first request."""
@@ -131,6 +132,15 @@ class ServerConfig:
     """Host grant predicate ``(command_name, context) -> bool`` for app-to-app calls
     (``context.extra["interface"] == "apps"``; ``spec/command-metadata.md``, "App-to-app calls").
     When omitted, every ``apps`` call is refused with ``CALL_NOT_GRANTED``."""
+    instances: ServerInstances | None = None
+    """How many processes serve this server's URL: ``"single"`` or ``"multiple"``.
+
+    Appended after existing fields so positional ``ServerConfig(...)`` callers stay compatible.
+    With ``"multiple"``, server creation raises ``ValueError`` when confirmations or
+    ``relay="mcp-elicitation"`` lacks a shared ``confirmation_key``, or when a single-use
+    approval middleware lacks a shared ``nonce_store``. When omitted, serving over HTTP logs
+    one warning per process to stderr if a per-process default is in use; ``"single"``
+    silences that warning. Stdio logs nothing."""
 
 
 def default_instructions(

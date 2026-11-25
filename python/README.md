@@ -541,6 +541,22 @@ runs once the person approves; a decline fails it with `APPROVAL_REQUIRED` and
 runs. The relay trusts the client application to show the question to a person, so leave it off
 where the agent's own code is the MCP client.
 
+### Several instances
+
+By default, an MCP server signs elicitation `requestState` with a random per-server key and each
+single-use approval middleware records spent nonces in memory. When several processes serve one
+URL, share both and pass `instances="multiple"` to `create_server(...)`:
+
+- `confirmation_key` (string or bytes, at least 32 bytes; validated and copied at creation) must be
+  supplied when `confirmations` is not `"off"` or an approval middleware uses
+  `relay="mcp-elicitation"`.
+- `nonce_store` must be supplied on every single-use `create_approval_middleware(...)` (seen
+  directly or inside `compose_middleware`).
+- With `instances="multiple"`, creating the server raises `ValueError` if an active per-process
+  default is missing. When `instances` is omitted, serving over HTTP (`streamable_http_app`,
+  `sse_app`, or `run` / `run_async` over HTTP) logs one warning per process to stderr;
+  `instances="single"` silences it, and stdio logs nothing.
+
 ## CLI
 
 ```bash

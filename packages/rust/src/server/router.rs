@@ -289,6 +289,7 @@ impl Call<'_> {
         server.known = self.known.clone();
         server.approver = self.approver.clone();
         server.scope_check = scope_check;
+        server.instance_guard = self.server.instance_guard();
         context
     }
 

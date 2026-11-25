@@ -385,6 +385,12 @@ pub fn create_approval_middleware(
             "Approval ttl_ms must be a positive number of milliseconds, at most 24 hours".into(),
         );
     }
+    let process_state = crate::middleware::process_state::ApprovalProcessState {
+        relay: options.relay == ApprovalRelay::McpElicitation,
+        per_process_nonces: options.replay == ApprovalReplay::SingleUse
+            && options.nonce_store.is_none(),
+        per_process_relay_nonces: options.nonce_store.is_none(),
+    };
     // Numbers each approval step, so an admission record can tell two apart.
     static STEPS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let gate = Arc::new(Gate {
@@ -395,10 +401,12 @@ pub fn create_approval_middleware(
             .then(|| Mutex::new(HashMap::new())),
         options,
     });
-    Ok(Arc::new(move |name, input, context, next| {
+    let middleware: CommandMiddleware = Arc::new(move |name, input, context, next| {
         let gate = Arc::clone(&gate);
         Box::pin(async move { gate.run(name, input, context, next).await })
-    }))
+    });
+    crate::middleware::process_state::mark_approval_process_state(&middleware, process_state);
+    Ok(middleware)
 }
 
 struct Gate {

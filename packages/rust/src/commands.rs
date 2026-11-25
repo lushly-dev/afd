@@ -34,6 +34,8 @@ mod context;
 use chain::{middleware_chain, run_handler};
 pub(crate) use context::CallState;
 pub use context::CommandContext;
+#[cfg(feature = "server")]
+pub(crate) use context::InstanceGuard;
 // The MCP server sets these on a request's context.
 #[cfg(feature = "server")]
 pub(crate) use context::{ScopeCheck, ToolSurface, Visibility};

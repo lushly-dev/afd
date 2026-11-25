@@ -460,7 +460,12 @@ Dropping the call cancels the flow. Raw registry execution remains a trusted hos
   `tools/call` from `params._meta[field.meta]` on both eras and both transports (a name the context
   hook set wins; undeclared keys are dropped; `tools/list` never varies by them), and
   `server/discover` lists them under `_meta["dev.afd/context-fields"]`. `with_resources` and
-  `with_skills` serve MCP resources and the Skills extension (below). **The `server` feature
+  `with_skills` serve MCP resources and the Skills extension (below). `with_instances(ServerInstances::Single | Multiple)`
+  makes per-process confirmation keys (`with_confirmations_key` / `with_confirmation_key`) and
+  in-memory approval nonce stores (`ApprovalMiddlewareOptions::with_nonce_store`, seen directly or
+  inside `compose_middleware`) explicit: `Multiple` fails `validate()` (and every serve helper)
+  when an active per-process default is missing, omitted logs one warning per process to stderr
+  when starting HTTP (`Single` silences it), and stdio logs nothing. **The `server` feature
   needs Rust 1.88** (`rmcp`'s minimum); the rest of the crate keeps the 1.85 minimum.
 - `server-auth` - MCP authorization over HTTP (`afd::server::auth`, `spec/authorization.md`):
   the server becomes an OAuth 2.1 protected resource. `McpServer::with_authorization` takes the

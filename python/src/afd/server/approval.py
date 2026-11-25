@@ -64,6 +64,7 @@ from afd.server.approval_relay import (
     not_canonical_error,
     relay_message,
 )
+from afd.server.instance_state import ApprovalProcessState, mark_approval_process_state
 
 __all__ = [
     "ApprovalCommand",
@@ -652,6 +653,13 @@ def create_approval_middleware(
             )
         )
 
+    mark_approval_process_state(
+        approval_middleware,
+        ApprovalProcessState(
+            relay=relays,
+            per_process_nonces=single_use and nonce_store is None,
+        ),
+    )
     return approval_middleware
 
 

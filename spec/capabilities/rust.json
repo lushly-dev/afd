@@ -478,6 +478,15 @@
 			},
 			"evidence": ["packages/rust/tests/server_confirmations.rs"]
 		},
+		"mcp.server-instances": {
+			"status": "yes",
+			"note": "([#2242](https://github.com/lushly-dev/afd/issues/2242)): `McpServer::with_instances(ServerInstances::Single` or `Multiple)` and `with_confirmation_key`; `Multiple` fails `validate()`/startup without shared key (≥ 32 B) or `nonce_store` (sees `compose_middleware`, `HumanRelay`); omitted warns once on HTTP, silent on stdio",
+			"evidence": [
+				"packages/rust/src/server/instance_state.rs",
+				"packages/rust/src/middleware/process_state.rs",
+				"packages/rust/tests/server_instance_state.rs"
+			]
+		},
 		"mcp.host-verified-confirmation": {
 			"status": "yes",
 			"note": "(Umbel phase 5 step 0d): `CommandDefinition::with_confirmation_mode(CommandConfirmationMode::HostVerified)`, `HumanRelay` trait on `McpServer::with_human_relay` (single-command 2026-07-28, validated input, URL-mode elicitation), relay evidence spent once by `create_approval_middleware`, `afd::input_digest`",

@@ -496,6 +496,11 @@
 			},
 			"evidence": ["python/src/afd/server/principal.py", "python/tests/test_principal_binding.py"]
 		},
+		"mcp.server-instances": {
+			"status": "yes",
+			"note": "([#2242](https://github.com/lushly-dev/afd/issues/2242)): `instances` (`'single'` or `'multiple'`) on `create_server` and `ServerConfig`; `'multiple'` refuses unshared `confirmation_key` (≥ 32 B, copied) or `nonce_store` (sees `compose_middleware`); omitted warns once on HTTP, silent on stdio",
+			"evidence": ["python/src/afd/server/instance_state.py", "python/tests/test_instance_state.py"]
+		},
 		"mcp.host-verified-confirmation": {
 			"status": "planned",
 			"note": "(specified in `spec/command-metadata.md`)",

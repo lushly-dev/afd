@@ -518,6 +518,15 @@
 				"packages/cpp/tests/mcp_stdio_test.cpp"
 			]
 		},
+		"mcp.server-instances": {
+			"status": "na",
+			"note": "stdio-only (`afd::mcp_stdio` has no HTTP server; `state_secret` ≥ 32 B and `nonce_store` already supported)",
+			"evidence": [
+				"packages/cpp/include/afd/mcp_stdio.hpp",
+				"packages/cpp/src/mcp_stdio/server.cpp",
+				"packages/cpp/include/afd/approval.hpp"
+			]
+		},
 		"mcp.host-verified-confirmation": {
 			"status": "na",
 			"note": "`afd::mcp_stdio` has no host-verified mode and no `HumanRelay`",

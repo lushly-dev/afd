@@ -169,6 +169,27 @@ pub struct CommandContext {
     pub(crate) server: Option<Arc<ServerCall>>,
 }
 
+/// Execute-time guard set by `McpServer` when `ServerInstances::Multiple` is active, checked
+/// atomically against the exact middleware snapshot `CommandRegistry::execute` is about to run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct InstanceGuard {
+    pub(crate) require_shared_key_for_relay: bool,
+    pub(crate) has_human_relay: bool,
+}
+
+impl InstanceGuard {
+    /// Whether `state` (the exact middleware snapshot about to execute) breaks the server's
+    /// `ServerInstances::Multiple` contract.
+    pub(crate) fn violated_by(
+        self,
+        state: crate::middleware::process_state::ApprovalProcessState,
+    ) -> bool {
+        (self.require_shared_key_for_relay && state.relay)
+            || state.per_process_nonces
+            || (self.has_human_relay && state.per_process_relay_nonces)
+    }
+}
+
 /// The state of one call that only the MCP server sets ([`CommandContext::server`]).
 #[derive(Clone, Default)]
 pub(crate) struct ServerCall {
@@ -204,6 +225,9 @@ pub(crate) struct ServerCall {
     pub(crate) approver: Option<Arc<crate::approval::approver::ApproverCall>>,
     /// Where a task's progress goes ([`CommandContext::report_progress`]): only the server sets it.
     pub(crate) task_progress: Option<Arc<crate::cancellation::TaskProgress>>,
+    /// Multi-instance middleware guard (`ServerInstances::Multiple`): checked atomically against
+    /// the exact middleware snapshot `CommandRegistry::execute` runs.
+    pub(crate) instance_guard: Option<InstanceGuard>,
 }
 
 impl fmt::Debug for ServerCall {
@@ -222,6 +246,7 @@ impl fmt::Debug for ServerCall {
             .field("up_front_approval", &self.up_front_approval)
             .field("approver", &self.approver)
             .field("task_progress", &self.task_progress)
+            .field("instance_guard", &self.instance_guard)
             .finish()
     }
 }
@@ -237,6 +262,7 @@ static NO_SERVER_CALL: ServerCall = ServerCall {
     up_front_approval: None,
     approver: None,
     task_progress: None,
+    instance_guard: None,
 };
 
 impl fmt::Debug for CommandContext {

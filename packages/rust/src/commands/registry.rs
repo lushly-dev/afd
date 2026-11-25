@@ -52,12 +52,20 @@ pub(super) type CompiledContextFields = (
     Vec<Arc<crate::schema_validation::CompiledSchema>>,
 );
 
+/// Immutable middleware snapshot shared across concurrent calls alongside its cached
+/// aggregated [`ApprovalProcessState`](crate::middleware::process_state::ApprovalProcessState).
+#[derive(Default, Clone)]
+pub(super) struct MiddlewareSnapshot {
+    pub(super) layers: Vec<CommandMiddleware>,
+    pub(super) approval_state: crate::middleware::process_state::ApprovalProcessState,
+}
+
 /// Registry that stores AFD command definitions and dispatches validated executions.
 #[derive(Default)]
 pub struct CommandRegistry {
     pub(super) commands: RwLock<RegisteredCommands>,
-    /// Copied on write, so a call takes the list with one reference count.
-    pub(super) middleware: RwLock<Arc<Vec<CommandMiddleware>>>,
+    /// Copied on write, so a call takes the list and its cached approval state with one refcount.
+    pub(super) middleware: RwLock<Arc<MiddlewareSnapshot>>,
     pub(super) journal: RwLock<Option<Arc<JournalRecorder>>>,
     pub(super) context_fields: RwLock<Arc<CompiledContextFields>>,
     pub(super) call_grant: RwLock<Option<CallGrant>>,
@@ -430,7 +438,22 @@ impl CommandRegistry {
     /// calls `next(context)` to run the rest of the chain with the context it passes, and can
     /// inspect or replace the result, or return without calling `next` to short-circuit.
     pub fn add_middleware(&self, middleware: CommandMiddleware) {
-        Arc::make_mut(&mut write_lock(&self.middleware)).push(middleware);
+        let state = crate::middleware::process_state::approval_process_state(&middleware);
+        let mut guard = write_lock(&self.middleware);
+        let snapshot = Arc::make_mut(&mut guard);
+        if let Some(state) = state {
+            snapshot.approval_state.merge(state);
+        }
+        snapshot.layers.push(middleware);
+    }
+
+    /// Cached aggregated per-process approval state for all middleware installed on this registry
+    /// (directly or inside [`crate::middleware::compose_middleware`]).
+    #[cfg(feature = "server")]
+    pub(crate) fn approval_process_state(
+        &self,
+    ) -> crate::middleware::process_state::ApprovalProcessState {
+        read_lock(&self.middleware).approval_state
     }
 
     /// Record every accepted call to a journal (`spec/journal.md`), replacing any recorder set
