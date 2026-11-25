@@ -34,6 +34,12 @@ import {
 	writePack,
 	writePackIndex,
 } from './pack-files.js';
+import {
+	checkImplementationContexts,
+	effectiveGateContext,
+	filterAndPaginateListEntries,
+	listEntriesOf,
+} from './pattern-gates.js';
 import { withPatterns } from './patterns.js';
 import {
 	diffRecordedDigests,
@@ -76,6 +82,7 @@ import type {
 	DecisionRecordRequest,
 	DecisionRecordResult,
 	DiffRequest,
+	GateRun,
 	InspectRequest,
 	InspectResult,
 	JobCreateRequest,
@@ -151,6 +158,7 @@ import {
 	parsePointMoveRequest,
 	parsePointRequest,
 	parseProfileRequest,
+	parseRunRequest,
 	parseSuggestRequest,
 	parseSuiteRequest,
 	parseThemesRequest,
@@ -204,10 +212,11 @@ export interface SpecimenBench {
 	/** Compare two observations or `{ set, id }` set references against `.specimen/sets/`. */
 	diff(request: DiffRequest): Promise<ObservationDiff>;
 	/**
-	 * Run a retained story as Storybook's Vitest addon runs it: render, play, then the
-	 * accessibility check under its effective policy. A story that fails to render fails its run.
+	 * Run a retained story (render, play, accessibility check) or a synthesized pattern gate case
+	 * (setup mount + portable gate steps). A story or gate that fails its assertions still returns
+	 * a structured outcome.
 	 */
-	run(request: RunRequest): Promise<StoryRun>;
+	run(request: RunRequest): Promise<StoryRun | GateRun>;
 	/**
 	 * Run a suite of retained stories against one snapshot of the sources, with worker limits and
 	 * an optional once-only retry of failures.
@@ -531,12 +540,10 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 	};
 	return {
 		list(filter?: SpecimenListFilter) {
-			const entries = ensureDiscovered().entries.map((entry) => ({
-				...entry,
-				kind: (entry.job ? 'job' : 'component') as 'job' | 'component',
-			}));
-			if (!filter?.kind) return entries;
-			return entries.filter((entry) => entry.kind === filter.kind);
+			const snapshot = ensureDiscovered();
+			const localLibrary = snapshot.config.pack?.library;
+			const entries = listEntriesOf(snapshot.entries, snapshot.gateCases, localLibrary);
+			return filterAndPaginateListEntries(entries, filter, localLibrary).specimens;
 		},
 		validate(target) {
 			const snapshot = ensureOpen();
@@ -590,7 +597,14 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 				(snapshot.jobSourceModules.length > 0 ||
 					(runtimeIsolation !== 'process' && inlineJobSources.length > 0)) &&
 				snapshot.plugins.length > 0;
-			selectCaptureEntries(snapshot.entries, request, snapshot.root, { includeJobs });
+			const allEntries = [
+				...snapshot.entries,
+				...(snapshot.gateCases ?? []).map((gateCase) => gateCase.entry),
+			];
+			selectCaptureEntries(allEntries, request, snapshot.root, {
+				includeJobs,
+				localLibrary: snapshot.config.pack?.library,
+			});
 			resolveContext(request.context);
 			return enqueue((client) => client.captureSet(request));
 		},
@@ -808,9 +822,23 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		},
 		async run(rawRequest) {
 			const snapshot = ensureDiscovered();
-			const request = parseCaptureRequest(rawRequest);
-			if (request.checkpoint !== undefined || request.set !== undefined)
+			const raw = rawRequest as Record<string, unknown> | undefined;
+			if (raw && (raw.checkpoint !== undefined || raw.set !== undefined))
 				throw new Error('A run always ends at the after-run checkpoint; omit checkpoint and set.');
+			const request = parseRunRequest(rawRequest);
+			const gateCase = snapshot.gateCases?.find((item) => item.id === request.id);
+			if (gateCase) {
+				const effective = effectiveGateContext(gateCase.gate, request.context);
+				const reason = checkImplementationContexts(effective, gateCase.contexts);
+				if (reason !== undefined) {
+					return {
+						id: gateCase.id,
+						outcome: { status: 'out-of-context', reason, failures: [] },
+						observation: null,
+					};
+				}
+				return enqueue((client) => client.run(request));
+			}
 			if (!snapshot.entries.some((entry) => entry.id === request.id))
 				throw new Error(`Specimen not found: ${request.id}`);
 			resolveContext(request.context);

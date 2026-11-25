@@ -9,6 +9,52 @@ const coverageCountsSchema = z.strictObject({
 	unknown: z.number(),
 });
 
+const patternCoverageLevelSchema = z.enum(['verified', 'missing', 'ungated', 'out-of-context']);
+const patternContextsSchema = z.strictObject({
+	viewport: z
+		.strictObject({
+			minWidth: z.number().int().min(1).max(8192).optional(),
+			maxWidth: z.number().int().min(1).max(8192).optional(),
+			minHeight: z.number().int().min(1).max(8192).optional(),
+			maxHeight: z.number().int().min(1).max(8192).optional(),
+		})
+		.optional(),
+	themes: z
+		.array(z.enum(['dark', 'high-contrast', 'light']))
+		.min(1)
+		.max(3)
+		.optional(),
+	reason: z.string().min(1),
+});
+export const patternCoverageSchema = z.strictObject({
+	obligations: z.literal('patterns@1'),
+	complete: z.boolean(),
+	implementations: z.array(
+		z.strictObject({
+			patternLibrary: z.string().min(1),
+			pattern: z.string().min(1),
+			kind: z.enum(['component', 'copy', 'case']),
+			tag: z.string().min(1).optional(),
+			name: z.string().min(1).optional(),
+			case: z.string().min(1).optional(),
+			contexts: patternContextsSchema.optional(),
+			keep: z.array(
+				z.strictObject({
+					id: z.string().min(1),
+					level: patternCoverageLevelSchema,
+					reason: z.string().min(1).optional(),
+				})
+			),
+		})
+	),
+	counts: z.strictObject({
+		verified: z.number().int().nonnegative(),
+		missing: z.number().int().nonnegative(),
+		ungated: z.number().int().nonnegative(),
+		'out-of-context': z.number().int().nonnegative(),
+	}),
+});
+
 export const coverageRunSchema = z.strictObject({
 	obligations: z.string().min(1),
 	complete: z.boolean(),
@@ -102,6 +148,7 @@ export const coverageRunSchema = z.strictObject({
 			),
 		})
 		.optional(),
+	patterns: patternCoverageSchema.optional(),
 	cases: z.strictObject({
 		total: z.number(),
 		passed: z.number(),

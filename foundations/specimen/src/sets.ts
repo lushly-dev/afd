@@ -337,7 +337,7 @@ export function selectCaptureEntries(
 	entries: readonly SpecimenEntry[],
 	request: CaptureSetRequest,
 	root: string,
-	options: { includeJobs?: boolean } = {}
+	options: { includeJobs?: boolean; localLibrary?: string } = {}
 ): { selected: SpecimenEntry[]; skipped: CaptureSetRun['skipped'] } {
 	if (request.ids !== undefined) {
 		const byId = new Map(entries.map((entry) => [entry.id, entry]));
@@ -364,7 +364,9 @@ export function selectCaptureEntries(
 	}
 	const { kind: kinds, ...suiteFilter } = request.filter ?? {};
 	const hasSuiteFilter = Object.keys(suiteFilter).length > 0;
-	const matched = hasSuiteFilter ? selectEntries(entries, suiteFilter, root) : [...entries];
+	const matched = hasSuiteFilter
+		? selectEntries(entries, suiteFilter, root, options.localLibrary)
+		: [...entries];
 	const kindSet = kinds ? new Set(kinds) : null;
 	const selected: SpecimenEntry[] = [];
 	let skippedJobs = 0;
@@ -997,6 +999,7 @@ export interface CaptureSetHost {
 		stagingDir: string;
 		timeoutMs?: number;
 	}) => Promise<WriteCaptureSetItem[]>;
+	localLibrary?: string;
 }
 
 /** Orchestrate `specimen-capture`: select entries, check theme support, capture with axe and screenshots, persist set. */
@@ -1006,6 +1009,7 @@ export async function runCaptureSet(
 ): Promise<CaptureSetRun> {
 	const { selected, skipped } = selectCaptureEntries(host.entries, request, host.root, {
 		includeJobs: host.runJob !== undefined,
+		localLibrary: host.localLibrary,
 	});
 	if (selected.length === 0 && skipped.jobs === 0 && skipped.gates === 0 && request.filter) {
 		throw new Error('No specimen matches the filter.');

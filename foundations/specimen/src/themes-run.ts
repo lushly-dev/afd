@@ -24,6 +24,7 @@ import { THEMES } from './validate.js';
 export interface ThemesHost {
 	entries: readonly SpecimenEntry[];
 	root: string;
+	localLibrary?: string;
 	workers: number;
 	/** Bundle the sources once, for every render. */
 	prepare(): Promise<void>;
@@ -41,7 +42,7 @@ export interface ThemesHost {
 export async function runThemes(host: ThemesHost, request: ThemesRequest): Promise<ThemesRun> {
 	const entries = request.id
 		? host.entries.filter((entry) => entry.id === request.id)
-		: selectEntries(host.entries, request.filter, host.root);
+		: selectEntries(host.entries, request.filter, host.root, host.localLibrary);
 	if (request.id && !entries.length) throw new Error(`Specimen not found: ${request.id}`);
 	if (!entries.length) throw new Error('No specimen or retained story matches the filter.');
 	const themes = request.themes ?? [...THEMES];

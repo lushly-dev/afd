@@ -127,6 +127,22 @@ export {
 	withNoteLock,
 	writeNoteFile,
 } from './note.js';
+export { computePatternCoverage, PATTERNS_OBLIGATIONS } from './pattern-coverage.js';
+export {
+	checkImplementationContexts,
+	DEFAULT_PATTERN_LIBRARY,
+	effectiveGateContext,
+	filterAndPaginateListEntries,
+	gateEventDeclarations,
+	listEntriesOf,
+	matchesListKind,
+	matchesPatternRef,
+	parsePatternFilter,
+	type ResolvedPatternTarget,
+	resolvePatternTarget,
+	type SynthesizedGateCase,
+	synthesizeGateCases,
+} from './pattern-gates.js';
 export {
 	type CommandRunner,
 	type ComponentSchema,

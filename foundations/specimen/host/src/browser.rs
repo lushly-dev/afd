@@ -8,6 +8,7 @@
 use crate::aria;
 use crate::cdp::{self, Cdp};
 use crate::console::{Collector, Messages};
+use crate::gate::{GateExec, GateRunRequest, run_gate};
 use crate::isolation::{Network, SANDBOX_VARIABLE, Sandbox, StartFailure};
 use crate::keyboard::Keyboard;
 use crate::page::{Page, Viewport, emulate, prepare};
@@ -327,6 +328,9 @@ pub struct RenderRequest {
     /// Optional in-page job driver run coordinated via CDP bindings.
     #[serde(default)]
     pub job_run: Option<JobRunRequest>,
+    /// Optional native portable pattern gate run (`spec.md` §4.3).
+    #[serde(default)]
+    pub gate: Option<GateRunRequest>,
 }
 
 pub struct RenderOutcome {
@@ -356,6 +360,7 @@ pub struct RenderOutcome {
 }
 
 /// What one attempt produced before its context was disposed.
+#[derive(Default)]
 struct Attempted {
     captured: Value,
     snapshot: String,
@@ -509,9 +514,10 @@ impl Browser {
         // Startup has its own bound, as the browser launch does in Playwright.
         self.ready().await?;
         let attempt = Attempt::default();
+        let attempt_deadline = Instant::now() + Duration::from_millis(request.timeout_ms);
         let (outcome, timed_out) = match timeout(
             Duration::from_millis(request.timeout_ms),
-            self.attempt(&attempt, url, network, request),
+            self.attempt(&attempt, url, network, request, attempt_deadline),
         )
         .await
         {
@@ -621,6 +627,7 @@ impl Browser {
         url: &str,
         network: &Network,
         request: &RenderRequest,
+        attempt_deadline: Instant,
     ) -> Result<Attempted> {
         attempt.enter("opening the page");
         let context = self
@@ -971,22 +978,37 @@ impl Browser {
             }
 
             return Ok(Attempted {
-                captured: Value::Null,
-                snapshot: String::new(),
-                screenshot: None,
                 context,
-                outcome: None,
-                accessibility: None,
-                profile: None,
-                resolved_target_ref: None,
-                element_texts: None,
-                slotted_parents: None,
                 captures: Some(captures),
-                job_outcome: None,
+                ..Default::default()
             });
         }
         let mut outcome = None;
-        if retained {
+        if let Some(gate) = &request.gate {
+            let capture_on_failure = request.capture.as_deref() != Some("none");
+            match run_gate(
+                &page,
+                gate,
+                &request.entry,
+                retained,
+                &context,
+                request.timeout_ms,
+                attempt_deadline,
+                capture_on_failure,
+                |phase| attempt.enter(phase),
+            )
+            .await?
+            {
+                GateExec::MountFailed(failure_outcome) => {
+                    return Ok(Attempted {
+                        context,
+                        outcome: Some(failure_outcome),
+                        ..Default::default()
+                    });
+                }
+                GateExec::Completed(gate_outcome) => outcome = Some(gate_outcome),
+            }
+        } else if retained {
             if !matches!(request.checkpoint.as_str(), "mount" | "after-run") {
                 return Err(anyhow!(
                     "A retained story has the mount and after-run checkpoints, not '{}'",
@@ -1042,16 +1064,18 @@ impl Browser {
             attempt.enter("running the specimen's scenario");
             page.steps(&mounted, &request.checkpoint).await?;
         }
-        // A retained story's run has its own check, under its policy, in its outcome.
-        let accessibility = if request.accessibility && outcome.is_none() {
-            attempt.enter("running the accessibility check");
-            Some(
-                page.evaluate("window.__specimen.checkAccessibility()")
-                    .await?,
-            )
-        } else {
-            None
-        };
+        // A retained story's run has its own check, under its policy, in its outcome; a gate
+        // run does not run axe unless requested (e.g. explicit `specimen-capture` with `axe: true`).
+        let accessibility =
+            if request.accessibility && (outcome.is_none() || request.gate.is_some()) {
+                attempt.enter("running the accessibility check");
+                Some(
+                    page.evaluate("window.__specimen.checkAccessibility()")
+                        .await?,
+                )
+            } else {
+                None
+            };
         let mut profile = if request.profile {
             attempt.enter("measuring the page");
             let mut metrics = page.evaluate("window.__specimen.profileMetrics()").await?;
@@ -1072,18 +1096,11 @@ impl Browser {
         };
         if !keep {
             return Ok(Attempted {
-                captured: Value::Null,
-                snapshot: String::new(),
-                screenshot: None,
                 context,
                 outcome,
                 accessibility,
                 profile,
-                resolved_target_ref: None,
-                element_texts: None,
-                slotted_parents: None,
-                captures: None,
-                job_outcome: None,
+                ..Default::default()
             });
         }
         let resolved_target_ref = if let Some(target) = &request.resolve_target {

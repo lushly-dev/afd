@@ -34,6 +34,7 @@ import {
 	pointMoveRequestSchema,
 	pointRequestSchema,
 	profileRequestSchema,
+	runRequestSchema,
 	suggestRequestSchema,
 	suiteRequestSchema,
 	themesRequestSchema,
@@ -66,6 +67,7 @@ import {
 	parsePointMoveRequest,
 	parsePointRequest,
 	parseProfileRequest,
+	parseRunRequest,
 	parseSuggestRequest,
 	parseSuiteRequest,
 	parseThemesRequest,
@@ -798,6 +800,12 @@ describe('request parsing agrees with the public schemas', () => {
 			{ component: 'x-a', gaps: [] },
 			{ component: 'x-a', gaps: [''] },
 			{ component: 'x-a', gaps: 'default' },
+			{ component: 'x-a', pattern: 'select', gaps: ['pattern:select.keep.named'] },
+			{ pattern: 'select', gaps: ['pattern:select.keep.named'] },
+			{ pattern: 'example/select', gaps: ['pattern:example/select.keep.shows-choice'] },
+			{ pattern: 'select' },
+			{ pattern: 'select', gaps: [] },
+			{ pattern: '', gaps: ['pattern:select.keep.named'] },
 			{ component: 'x-a', timeoutMs: 1 },
 			{ component: 'x-a', timeoutMs: 60_001 },
 			{ component: 'x-a', workers: 1 },
@@ -806,6 +814,33 @@ describe('request parsing agrees with the public schemas', () => {
 			null,
 		];
 		for (const value of values) agrees(suggestRequestSchema, parseSuggestRequest, value);
+	});
+
+	it('agrees on run requests and suite filter pattern/kind options', () => {
+		const runValues: unknown[] = [
+			{ id: 'story-a' },
+			{ id: 'select--gate--named', capture: 'none' },
+			{ id: 'select--gate--named', capture: 'failed' },
+			{ id: 'select--gate--named', capture: 'all' },
+			{ id: 'select--gate--named', capture: 'always' },
+			{ id: 'select--gate--named', checkpoint: 'mount' },
+			{ id: 'select--gate--named', set: 'main' },
+			{ id: 'select--gate--named', context: { theme: 'dark' }, timeoutMs: 5000 },
+			{ id: '' },
+			{},
+			null,
+		];
+		for (const value of runValues) agrees(runRequestSchema, parseRunRequest, value);
+
+		const suiteValues: unknown[] = [
+			{ filter: { kind: ['gate'] } },
+			{ filter: { kind: ['story', 'gate'], pattern: 'example/select' } },
+			{ filter: { kind: [] } },
+			{ filter: { kind: ['job'] } },
+			{ filter: { pattern: 'select' } },
+			{ filter: { pattern: '' } },
+		];
+		for (const value of suiteValues) agrees(suiteRequestSchema, parseSuiteRequest, value);
 	});
 
 	it('agrees on coverage requests', () => {
@@ -825,6 +860,15 @@ describe('request parsing agrees with the public schemas', () => {
 		for (const value of values) {
 			agrees(coverageRequestSchema, parseCoverageRequest, value);
 			agrees(contractRequestSchema, parseContractRequest, value);
+		}
+		const patternValues = [
+			{ pattern: 'select' },
+			{ pattern: 'example/select', component: 'example-select' },
+			{ pattern: '' },
+			{ pattern: 123 },
+		];
+		for (const value of patternValues) {
+			agrees(coverageRequestSchema, parseCoverageRequest, value);
 		}
 		const jobsValues = [
 			{ obligations: 'schema-partitions@1' },

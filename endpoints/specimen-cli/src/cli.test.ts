@@ -154,7 +154,15 @@ function harness() {
 		})),
 		runSuite: vi.fn(async () => ({
 			outcome: 'passed' as const,
-			counts: { total: 0, passed: 0, failed: 0, flaky: 0, skipped: 0, excluded: 0 },
+			counts: {
+				total: 0,
+				passed: 0,
+				failed: 0,
+				flaky: 0,
+				skipped: 0,
+				excluded: 0,
+				outOfContext: 0,
+			},
 			retry: { ran: false, reason: 'no story failed' },
 			stories: [],
 			workers: 2,
@@ -526,7 +534,15 @@ describe('specimen CLI', () => {
 		});
 		h.bench.runSuite = vi.fn(async () => ({
 			outcome: 'failed-after-retry' as const,
-			counts: { total: 1, passed: 0, failed: 1, flaky: 0, skipped: 0, excluded: 0 },
+			counts: {
+				total: 1,
+				passed: 0,
+				failed: 1,
+				flaky: 0,
+				skipped: 0,
+				excluded: 0,
+				outOfContext: 0,
+			},
 			retry: { ran: true },
 			stories: [],
 			workers: 2,
@@ -1636,6 +1652,113 @@ describe('specimen CLI', () => {
 		expect(JSON.parse(h.output.at(-1) ?? '')).toMatchObject({
 			success: false,
 			error: { code: 'VALIDATION_ERROR' },
+		});
+	});
+
+	it('forwards Patterns B3 flags for list, run, coverage, and tagless suggest', async () => {
+		const h = harness();
+		const root = await directory();
+		h.bench.list = vi.fn(() => [
+			{
+				id: 'sel--gate--named',
+				title: 'select / named',
+				module: 'specimens/patterns/select/pattern.json',
+				exportName: 'named',
+				kind: 'gate' as const,
+				component: 'example-select',
+				pattern: { library: 'example', pattern: 'select', setup: 'default', gate: 'named' },
+			},
+		]);
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'list',
+					'--kind',
+					'gate',
+					'--component',
+					'example-select',
+					'--pattern',
+					'select',
+					'--match',
+					'named',
+					'--limit',
+					'10',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(JSON.parse(h.output.at(-1) ?? '')).toMatchObject({
+			success: true,
+			data: { specimens: [{ id: 'sel--gate--named', kind: 'gate' }] },
+		});
+
+		h.bench.run = vi.fn(async () => ({
+			id: 'sel--gate--named',
+			outcome: { status: 'passed' as const, failures: [] },
+			observation: null,
+		}));
+		expect(
+			await runCli(['--root', root, 'run', 'sel--gate--named', '--capture', 'none'], h.io)
+		).toBe(0);
+		expect(h.bench.run).toHaveBeenLastCalledWith({
+			id: 'sel--gate--named',
+			context: {},
+			capture: 'none',
+		});
+
+		expect(
+			await runCli(['--root', root, 'run', '--kind', 'gate', '--pattern', 'select'], h.io)
+		).toBe(0);
+		expect(h.bench.runSuite).toHaveBeenLastCalledWith({
+			context: {},
+			filter: { kind: ['gate'], pattern: 'select' },
+		});
+
+		expect(await runCli(['--root', root, 'coverage', '--pattern', 'example/select'], h.io)).toBe(0);
+		expect(h.bench.coverage).toHaveBeenLastCalledWith({ pattern: 'example/select' });
+
+		h.bench.suggest = vi.fn(async () => ({
+			status: 'unverified' as const,
+			file: 'select.specimens.ts',
+			source: '// stub\n',
+			entries: [
+				{
+					id: 'select-default-setup',
+					title: 'select/SelectDefaultSetup',
+					module: './select.specimens.ts',
+					exportName: 'SelectDefaultSetup',
+					patternSetup: { library: 'example', pattern: 'select', setup: 'default' },
+				},
+			],
+			suggestions: [
+				{
+					obligation: 'pattern:example/select.keep.named',
+					exportName: 'SelectDefaultSetup',
+					placeholder: true,
+				},
+			],
+			skipped: [],
+			elapsedMs: 1,
+		}));
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'suggest',
+					'--pattern',
+					'example/select',
+					'--gaps',
+					'pattern:example/select.keep.named',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.suggest).toHaveBeenLastCalledWith({
+			pattern: 'example/select',
+			gaps: ['pattern:example/select.keep.named'],
 		});
 	});
 

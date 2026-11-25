@@ -1,4 +1,9 @@
-import type { FormExpectation, SpecimenContext, ValidityExpectation } from './types.js';
+import type {
+	FormExpectation,
+	Observation,
+	SpecimenContext,
+	ValidityExpectation,
+} from './types.js';
 
 /** Public contracts for pattern files, portable gates, guide links and setup bindings. */
 
@@ -174,4 +179,76 @@ export interface PatternSetupBinding {
 	pattern: string;
 	/** Setup key declared in the pattern's `setups`. */
 	setup: string;
+}
+
+/** Pattern metadata attached to setup cases and synthesized gate cases in `specimen-list`. */
+export interface SpecimenListPatternMeta {
+	library: string;
+	pattern: string;
+	setup: string;
+	gate?: string;
+}
+
+export interface GateFailure {
+	stepId: string;
+	kind:
+		| 'target'
+		| 'action'
+		| 'event'
+		| 'form'
+		| 'validity'
+		| 'a11y'
+		| 'focus'
+		| 'layout'
+		| 'render';
+	code?: 'TARGET_NOT_FOUND' | 'TARGET_AMBIGUOUS';
+	message: string;
+}
+
+export interface GateOutcome {
+	status: 'passed' | 'failed' | 'out-of-context';
+	/** Present when `status === 'out-of-context'`: the implementation's declared context reason. */
+	reason?: string;
+	/** Empty when `passed` or `out-of-context`; ordered failing steps when `failed`. */
+	failures: GateFailure[];
+}
+
+export interface GateRun {
+	id: string;
+	outcome: GateOutcome;
+	/** Populated only when `capture: 'all'` or (`capture: 'failed'` and `outcome.status === 'failed'`). */
+	observation: Observation | null;
+}
+
+export type PatternCoverageLevel = 'verified' | 'missing' | 'ungated' | 'out-of-context';
+
+export interface PatternKeepCoverage {
+	id: string;
+	level: PatternCoverageLevel;
+	/** Present when `level === 'out-of-context'`. */
+	reason?: string;
+}
+
+export interface PatternImplementationCoverage {
+	/** Owning library of the pattern (distinct from the implementing library). */
+	patternLibrary: string;
+	pattern: string;
+	kind: 'component' | 'copy' | 'case';
+	/** Present when `kind === 'component'`. */
+	tag?: string;
+	/** Present when `kind === 'copy'`. */
+	name?: string;
+	/** Present when `kind === 'case'` (consumer adapted region). */
+	case?: string;
+	contexts?: ImplementationContexts;
+	/** Ordered identically to the pattern file's `keep` array. */
+	keep: PatternKeepCoverage[];
+}
+
+export interface PatternCoverage {
+	obligations: 'patterns@1';
+	/** `true` iff every gated keep statement across reported implementations is `verified` or `out-of-context`. */
+	complete: boolean;
+	implementations: PatternImplementationCoverage[];
+	counts: Record<PatternCoverageLevel, number>;
 }

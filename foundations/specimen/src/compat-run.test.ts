@@ -102,12 +102,17 @@ async function candidate(
 	const bench = await createSpecimenBench({ root: join(compat, project) });
 	try {
 		const runs = [];
-		for (const entry of bench.list())
+		for (const entry of bench.list()) {
+			const run = await bench.run({ id: entry.id });
+			if (!('a11y' in run.outcome)) {
+				throw new Error(`Expected retained story run for ${entry.id}`);
+			}
 			runs.push({
 				file: entry.module,
 				name: entry.story?.name ?? '',
-				run: await bench.run({ id: entry.id }),
+				run: run as StoryRun,
 			});
+		}
 		return runs;
 	} finally {
 		await bench.close();

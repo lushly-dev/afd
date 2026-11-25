@@ -723,7 +723,7 @@ fn unresolved(level: &'static str, value: &Value, out: &mut Vec<Unresolved>) {
 }
 
 /// Convert a statically evaluated `Value` into JSON when every leaf is a literal JSON value.
-fn value_to_json(value: &Value) -> Option<serde_json::Value> {
+pub(super) fn value_to_json(value: &Value) -> Option<serde_json::Value> {
     match value {
         Value::Null => Some(serde_json::Value::Null),
         Value::Bool(flag) => Some(serde_json::Value::Bool(*flag)),

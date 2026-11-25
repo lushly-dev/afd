@@ -1,5 +1,7 @@
+import { DEFAULT_PATTERN_LIBRARY, matchesPatternRef, parsePatternFilter } from './pattern-gates.js';
+import type { LoadedPatterns } from './patterns.js';
 import type { ComponentSchema, PropertySchema, SchemaValue } from './plugin.js';
-import type { SuggestRun } from './types.js';
+import type { PatternFile, PatternSetupBinding, SuggestRun } from './types.js';
 
 /**
  * Proposed specimens for a component's gaps: a starting point an agent runs and corrects. Nothing
@@ -10,6 +12,91 @@ import type { SuggestRun } from './types.js';
 
 /** In an expectation only a person can complete: it fails until replaced. */
 export const REPLACE_ME = 'REPLACE_WITH_WHAT_THIS_SHOULD_BE';
+
+export const PATTERN_GAP_PREFIX = 'pattern:';
+
+interface PatternKeepCandidate {
+	library: string;
+	external: boolean;
+	pattern: PatternFile;
+	statementId: string;
+	gateName?: string;
+}
+
+function findPatternKeep(
+	patterns: LoadedPatterns | undefined,
+	localLibrary: string | undefined,
+	obligation: string,
+	patternFilter?: string
+): PatternKeepCandidate | string {
+	if (!patterns) return `No patterns are configured to resolve '${obligation}'.`;
+	const rest = obligation.slice(PATTERN_GAP_PREFIX.length);
+	const parsed = parsePatternFilter(rest);
+	const wantedLib = parsed.library;
+	const colon = parsed.pattern.indexOf(':');
+	const qualifiedPattern = colon >= 0 ? parsed.pattern.slice(0, colon) : undefined;
+	const statementId = colon >= 0 ? parsed.pattern.slice(colon + 1) : parsed.pattern;
+	const localLib = localLibrary ?? DEFAULT_PATTERN_LIBRARY;
+	const filterLib = patternFilter ? parsePatternFilter(patternFilter).library : undefined;
+	// Per spec §4.5: `pattern:<id>` resolves in the local library; `pattern:<library>/<id>`
+	// resolves in the named library (unless `patternFilter` explicitly targets an external library).
+	const effectiveLib = wantedLib ?? filterLib;
+
+	const candidates: PatternKeepCandidate[] = [];
+	const searchLocal = effectiveLib === undefined || effectiveLib === localLib;
+	if (searchLocal) {
+		for (const local of patterns.patterns) {
+			if (qualifiedPattern !== undefined && local.pattern !== qualifiedPattern) continue;
+			if (patternFilter !== undefined && !matchesPatternRef(localLib, local.pattern, patternFilter))
+				continue;
+			const keep = local.keep?.find((item) => item.id === statementId);
+			if (keep) {
+				candidates.push({
+					library: localLib,
+					external: false,
+					pattern: local,
+					statementId: keep.id,
+					...(keep.gate ? { gateName: keep.gate } : {}),
+				});
+			}
+		}
+	}
+	if (effectiveLib !== undefined) {
+		for (const ext of Object.values(patterns.external)) {
+			if (ext.library !== effectiveLib) continue;
+			if (qualifiedPattern !== undefined && ext.pattern !== qualifiedPattern) continue;
+			if (
+				patternFilter !== undefined &&
+				!matchesPatternRef(ext.library, ext.pattern, patternFilter)
+			)
+				continue;
+			const keep = ext.data.keep?.find((item) => item.id === statementId);
+			if (keep) {
+				candidates.push({
+					library: ext.library,
+					external: true,
+					pattern: ext.data,
+					statementId: keep.id,
+					...(keep.gate ? { gateName: keep.gate } : {}),
+				});
+			}
+		}
+	}
+
+	if (candidates.length === 0) {
+		return `No configured pattern declares keep statement '${statementId}'.`;
+	}
+	if (candidates.length > 1) {
+		return `Keep statement '${statementId}' matches multiple patterns; qualify with pattern:<pattern>:${statementId}, pattern:<library>/<pattern>:${statementId}, or pass pattern.`;
+	}
+	return candidates[0] as PatternKeepCandidate;
+}
+
+export interface SuggestPatternsOptions {
+	patterns?: LoadedPatterns;
+	localLibrary?: string;
+	patternFilter?: string;
+}
 
 interface Proposal {
 	/** Statements in `render`, with `element` in scope. */
@@ -142,28 +229,141 @@ function proposalFor(schema: ComponentSchema, obligation: string): Proposal | st
 
 /** The module and entries proposed for these gaps, all of it unverified. */
 export function suggestSpecimens(
-	schema: ComponentSchema,
-	gaps: readonly string[]
+	schema: ComponentSchema | undefined,
+	gaps: readonly string[],
+	options: SuggestPatternsOptions = {}
 ): Omit<SuggestRun, 'elapsedMs'> {
-	const file = (schema.module ?? `${schema.tag}.ts`).replace(/\.[cm]?[jt]s$/, '.specimens.ts');
-	const base = (schema.module ?? '')
+	const patternSlug = options.patternFilter?.split('/').at(-1)?.replaceAll('.', '-') ?? 'pattern';
+	const file = schema
+		? (schema.module ?? `${schema.tag}.ts`).replace(/\.[cm]?[jt]s$/, '.specimens.ts')
+		: `${patternSlug}.specimens.ts`;
+	const base = (schema?.module ?? '')
 		.split('/')
 		.at(-1)
 		?.replace(/\.[cm]?[jt]s$/, '');
+	const moduleRel = `./${file.split('/').at(-1)}`;
 	const suggestions: SuggestRun['suggestions'] = [];
 	const skipped: SuggestRun['skipped'] = [];
+	const entries: SuggestRun['entries'] = [];
 	const blocks: string[] = [];
 	const used = new Set<string>();
+	const emittedSetups = new Map<string, string>();
+
+	const allocExportName = (seed: string): string => {
+		let exportName = exportNameOf(seed) || 'Case';
+		for (let index = 2; used.has(exportName); index++) {
+			exportName = `${exportNameOf(seed)}${index}`;
+		}
+		used.add(exportName);
+		return exportName;
+	};
+
 	for (const obligation of gaps) {
+		if (obligation.startsWith(PATTERN_GAP_PREFIX)) {
+			const candidate = findPatternKeep(
+				options.patterns,
+				options.localLibrary,
+				obligation,
+				options.patternFilter
+			);
+			if (typeof candidate === 'string') {
+				skipped.push({ obligation, reason: candidate });
+				continue;
+			}
+			if (!candidate.gateName) {
+				skipped.push({
+					obligation,
+					reason: `Keep statement '${candidate.statementId}' has no gate; nothing to set up.`,
+				});
+				continue;
+			}
+			const gate = candidate.pattern.gates?.[candidate.gateName];
+			if (!gate) {
+				skipped.push({
+					obligation,
+					reason: `Pattern '${candidate.pattern.pattern}' does not declare gate '${candidate.gateName}'.`,
+				});
+				continue;
+			}
+			const setup = candidate.pattern.setups?.[gate.setup];
+			if (!setup) {
+				skipped.push({
+					obligation,
+					reason: `Pattern '${candidate.pattern.pattern}' does not declare setup '${gate.setup}'.`,
+				});
+				continue;
+			}
+			const setupKey = `${candidate.library}\0${candidate.pattern.pattern}\0${gate.setup}`;
+			const existingExport = emittedSetups.get(setupKey);
+			const note = `Mount setup '${gate.setup}' for pattern '${candidate.pattern.pattern}': ${setup.text}`;
+			if (existingExport !== undefined) {
+				suggestions.push({
+					obligation,
+					exportName: existingExport,
+					note,
+					placeholder: true,
+				});
+				continue;
+			}
+			const exportName = allocExportName(`${candidate.pattern.pattern}-${gate.setup}-setup`);
+			emittedSetups.set(setupKey, exportName);
+			const binding: PatternSetupBinding = {
+				...(candidate.external ? { library: candidate.library } : {}),
+				pattern: candidate.pattern.pattern,
+				setup: gate.setup,
+			};
+			const targetAliases = Object.keys(setup.targets).join(', ');
+			const placeholderMessage = `${REPLACE_ME}: mount setup '${gate.setup}' (${setup.text})`;
+			blocks.push(
+				[
+					`/** Pattern setup placeholder for ${candidate.pattern.pattern} / ${gate.setup}. */`,
+					`export const ${exportName} = {`,
+					`\tpatternSetup: ${JSON.stringify(binding)},`,
+					'\trender: () => {',
+					`\t\t// Required portable target aliases: ${targetAliases}`,
+					...(schema
+						? [
+								`\t\t// const element = document.createElement(${JSON.stringify(schema.tag)});`,
+								'\t\t// return element;',
+							]
+						: ['\t\t// Return the mounted HTMLElement for this pattern setup.']),
+					`\t\tthrow new Error(${JSON.stringify(placeholderMessage)});`,
+					'\t},',
+					'};',
+				].join('\n')
+			);
+			const slug = exportName.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+			entries.push({
+				id: schema ? `${schema.tag}-${slug}` : slug,
+				title: schema
+					? `${schema.tag}/${exportName}`
+					: `${candidate.pattern.pattern}/${exportName}`,
+				module: moduleRel,
+				exportName,
+				...(schema ? { component: schema.tag } : {}),
+				patternSetup: binding,
+			});
+			suggestions.push({
+				obligation,
+				exportName,
+				note,
+				placeholder: true,
+			});
+			continue;
+		}
+		if (!schema) {
+			skipped.push({
+				obligation,
+				reason: `Schema obligation '${obligation}' requires a component tag in the manifest.`,
+			});
+			continue;
+		}
 		const proposal = proposalFor(schema, obligation);
 		if (typeof proposal === 'string') {
 			skipped.push({ obligation, reason: proposal });
 			continue;
 		}
-		let exportName = exportNameOf(obligation) || 'Case';
-		for (let index = 2; used.has(exportName); index++)
-			exportName = `${exportNameOf(obligation)}${index}`;
-		used.add(exportName);
+		const exportName = allocExportName(obligation);
 		const scenario = [
 			...(proposal.before ?? []),
 			{ id: 'holds', expect: { target: 'control', ...proposal.expect } },
@@ -196,6 +396,13 @@ export function suggestSpecimens(
 				'};',
 			].join('\n')
 		);
+		entries.push({
+			id: `${schema.tag}-${exportName.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()}`,
+			title: `${schema.tag}/${exportName}`,
+			module: moduleRel,
+			exportName,
+			component: schema.tag,
+		});
 		suggestions.push({
 			obligation,
 			exportName,
@@ -205,17 +412,11 @@ export function suggestSpecimens(
 	}
 	const importLine = base ? `import './${base}.js';\n\n` : '';
 	return {
-		component: schema.tag,
+		...(schema ? { component: schema.tag } : {}),
 		status: 'unverified',
 		file,
 		source: `// Proposed by specimen-suggest. Unverified: run it, and correct what it assumes.\n${importLine}${blocks.join('\n\n')}\n`,
-		entries: suggestions.map(({ exportName }) => ({
-			id: `${schema.tag}-${exportName.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()}`,
-			title: `${schema.tag}/${exportName}`,
-			module: `./${file.split('/').at(-1)}`,
-			exportName,
-			component: schema.tag,
-		})),
+		entries,
 		suggestions,
 		skipped,
 	};

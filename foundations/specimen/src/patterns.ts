@@ -3,7 +3,8 @@ import { readdir, readFile, realpath } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { guidePatternRegExp, type LoadedGuides } from './guides.js';
-import type { PatternFile, PatternSetupBinding } from './pattern-types.js';
+import { PACK_PATTERNS } from './pack-schema.js';
+import type { ImplementationContexts, PatternFile, PatternSetupBinding } from './pattern-types.js';
 import { type StoryPatternBinding, sameFile } from './stories.js';
 import type {
 	SpecimenEntry,
@@ -65,6 +66,11 @@ export interface LoadedPatterns {
 	external: Record<string, ExternalPattern>;
 	/** Resolved pack root directories from `patternSources`. */
 	sources: string[];
+	/** Validated story-level setup bindings and contexts (keyed by story id), for play-free stories. */
+	storySetups: Record<
+		string,
+		{ patternSetup?: PatternSetupBinding; contexts?: ImplementationContexts }
+	>;
 	problems: PatternProblem[];
 }
 
@@ -694,6 +700,7 @@ export async function loadPatterns(options: LoadPatternsOptions): Promise<Loaded
 		patterns: [],
 		external: {},
 		sources: [],
+		storySetups: {},
 		problems,
 	};
 
@@ -1055,8 +1062,10 @@ export async function loadPatterns(options: LoadPatternsOptions): Promise<Loaded
 		const setupField = isStory ? 'parameters.specimen.patternSetup' : 'patternSetup';
 		const contextsField = isStory ? 'parameters.specimen.contexts' : 'contexts';
 
+		const isPlayFreeStory = entry.story === undefined || entry.story.play === 'absent';
 		if (rawBinding !== undefined) {
-			if (rawBinding.contexts !== undefined) {
+			let parsedStoryContexts: ImplementationContexts | undefined;
+			if (rawBinding.contexts !== undefined && entry.contexts === undefined) {
 				const parsedContexts = implementationContextsSchema.safeParse(rawBinding.contexts);
 				if (!parsedContexts.success) {
 					for (const issue of flattenZodIssues(
@@ -1073,9 +1082,12 @@ export async function loadPatterns(options: LoadPatternsOptions): Promise<Loaded
 							field: issue.path.length ? `${contextsField}.${fieldOf(issue.path)}` : contextsField,
 						});
 					}
+				} else {
+					parsedStoryContexts = parsedContexts.data;
 				}
 			}
-			if (rawBinding.patternSetup !== undefined) {
+			let parsedStorySetup: PatternSetupBinding | undefined;
+			if (rawBinding.patternSetup !== undefined && entry.patternSetup === undefined) {
 				const parsedSetup = patternSetupBindingSchema.safeParse(rawBinding.patternSetup);
 				if (!parsedSetup.success) {
 					resolvedBinding = undefined;
@@ -1095,17 +1107,29 @@ export async function loadPatterns(options: LoadPatternsOptions): Promise<Loaded
 					}
 				} else {
 					resolvedBinding = parsedSetup.data;
+					if (isPlayFreeStory) {
+						parsedStorySetup = parsedSetup.data;
+					}
 				}
+			}
+			if (parsedStorySetup !== undefined || parsedStoryContexts !== undefined) {
+				loaded.storySetups[entry.id] = {
+					...(parsedStorySetup !== undefined ? { patternSetup: parsedStorySetup } : {}),
+					...(parsedStoryContexts !== undefined ? { contexts: parsedStoryContexts } : {}),
+				};
 			}
 		}
 
 		if (!resolvedBinding) continue;
 
-		if (entry.story?.play === 'present') {
+		if (!isPlayFreeStory) {
 			problems.push({
 				severity: 'error',
 				code: 'PATTERN_SCHEMA_INVALID',
-				message: `${entry.id}: stories with a play function cannot serve as pattern setups`,
+				message:
+					entry.story?.play === 'present'
+						? `${entry.id}: stories with a play function cannot serve as pattern setups`
+						: `${entry.id}: stories whose play function cannot be statically confirmed absent cannot serve as pattern setups; make the story plainly play-free or use a native specimen setup`,
 				id: entry.id,
 				file: entryFile,
 				exportName: entry.exportName,
@@ -1151,6 +1175,18 @@ export async function loadPatterns(options: LoadPatternsOptions): Promise<Loaded
 		for (const [gateKey, gate] of Object.entries(targetPattern.gates)) {
 			if (!isPlainObject(gate) || gate.setup !== resolvedBinding.setup) continue;
 			const synthesized = `${entry.id}--gate--${gateKey}`;
+			if (!PACK_PATTERNS.story.test(synthesized) || synthesized.length > 200) {
+				problems.push({
+					severity: 'error',
+					code: 'PATTERN_SCHEMA_INVALID',
+					message: `${entry.id}: synthesized gate case id '${synthesized}' must match lowercase PACK_PATTERNS.story (^[a-z0-9][a-z0-9._-]*$) and be at most 200 characters; give the bound setup a shorter lowercase id`,
+					id: entry.id,
+					file: entryFile,
+					...(isStory ? { exportName: entry.exportName } : {}),
+					field: setupField,
+				});
+				continue;
+			}
 			if (explicitIds.has(synthesized) || synthesizedIds.has(synthesized)) {
 				problems.push({
 					severity: 'error',

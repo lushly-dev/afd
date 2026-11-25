@@ -27,6 +27,8 @@ export const browserSuites = [
 	'src/pick.test.ts',
 	'src/point.test.ts',
 	'src/note.test.ts',
+	'src/pattern-gates.test.ts',
+	'src/pattern-gates-edge.test.ts',
 	'src/portable-gates.test.ts',
 	'src/targets.test.ts',
 	'src/network.test.ts',

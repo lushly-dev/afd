@@ -17,12 +17,14 @@
 //! Replies are `{"id", "ok": true, "result"}` or `{"id", "ok": false, "error": {"message", "causes", "code"?, "suggestion"?, "details"?}}`.
 //! End of input means the owner is gone: Chromium's process group is killed at once.
 
+mod a11y_expect;
 mod aria;
 mod browser;
 mod bundle;
 mod cdp;
 mod console;
 mod csf;
+mod gate;
 mod glob;
 mod isolation;
 mod keyboard;
@@ -365,6 +367,31 @@ async fn main() -> Result<()> {
                             Err(error) => {
                                 failure(&id, anyhow!("Invalid migrate request: {error}").into())
                             }
+                        };
+                    let _ = replies.send(reply);
+                });
+            }
+            Some("native_bindings") => {
+                let replies = replies.clone();
+                work.spawn(async move {
+                    let reply =
+                        match serde_json::from_value::<csf::native::NativeBindingsRequest>(message)
+                        {
+                            Ok(request) => match tokio::task::spawn_blocking(move || {
+                                csf::native::extract_native_bindings(&request)
+                            })
+                            .await
+                            {
+                                Ok(result) => json!({ "id": id, "ok": true, "result": result }),
+                                Err(error) => failure(
+                                    &id,
+                                    anyhow!("Native binding extraction failed: {error}").into(),
+                                ),
+                            },
+                            Err(error) => failure(
+                                &id,
+                                anyhow!("Invalid native_bindings request: {error}").into(),
+                            ),
                         };
                     let _ = replies.send(reply);
                 });

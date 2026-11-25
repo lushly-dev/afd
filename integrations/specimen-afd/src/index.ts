@@ -17,6 +17,7 @@ export {
 	decisionListResultSchema,
 	decisionRecordRequestSchema,
 	decisionRecordResultSchema,
+	gateRunSchema,
 	inspectResultSchema,
 	jobCreateRequestSchema,
 	jobCreateResultSchema,

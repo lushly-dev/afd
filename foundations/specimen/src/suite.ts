@@ -1,5 +1,11 @@
 import { relative, resolve } from 'node:path';
+import {
+	DEFAULT_PATTERN_LIBRARY,
+	matchesPatternRef,
+	type SynthesizedGateCase,
+} from './pattern-gates.js';
 import type {
+	GateOutcome,
 	MatrixAxes,
 	Observation,
 	SpecimenContext,
@@ -11,10 +17,10 @@ import type {
 } from './types.js';
 
 /**
- * A suite of retained stories: selection, the worker pool and the once-only retry. The rules
- * follow the final-validation protocol a consumer already holds its flake records under: at most
- * `flakeCap` failures may be retried, once, one at a time, and the run passes with a flake only
- * when every one of them passes on that retry.
+ * A suite of retained stories and/or synthesized gate cases: selection, the worker pool and the
+ * once-only retry. The rules follow the final-validation protocol a consumer already holds its
+ * flake records under: at most `flakeCap` failures may be retried, once, one at a time, and the
+ * run passes with a flake only when every one of them passes on that retry.
  */
 
 export interface SuiteOptions {
@@ -27,10 +33,15 @@ export const DEFAULT_SUITE_WORKERS = 2;
 export const DEFAULT_FLAKE_CAP = 2;
 
 export type StoryEntry = SpecimenEntry & { story: NonNullable<SpecimenEntry['story']> };
+export type SuiteTarget = StoryEntry | SynthesizedGateCase;
 
 export interface StoryAttempt {
-	outcome: StoryOutcome;
+	outcome: StoryOutcome | GateOutcome;
 	observation: Observation | null;
+}
+
+export function isSynthesizedGateCase(item: SuiteTarget): item is SynthesizedGateCase {
+	return 'gate' in item && 'setupEntry' in item;
 }
 
 /**
@@ -58,21 +69,49 @@ export function matrixCells(axes: MatrixAxes): Partial<SpecimenContext>[] {
 	return cells;
 }
 
+function entrySuiteKind(entry: SpecimenEntry): 'story' | 'native' | 'gate' {
+	if (entry.kind === 'gate') return 'gate';
+	if (entry.story !== undefined) return 'story';
+	return 'native';
+}
+
+function entryMatchesPattern(
+	entry: SpecimenEntry,
+	wantedPattern: string,
+	localLibrary?: string
+): boolean {
+	if (entry.pattern) {
+		return matchesPatternRef(entry.pattern.library, entry.pattern.pattern, wantedPattern);
+	}
+	if (entry.patternSetup) {
+		return matchesPatternRef(
+			entry.patternSetup.library ?? localLibrary ?? DEFAULT_PATTERN_LIBRARY,
+			entry.patternSetup.pattern,
+			wantedPattern
+		);
+	}
+	return false;
+}
+
 /** The entries a filter selects, in discovery order. A native specimen has no tags to match. */
 export function selectEntries(
 	entries: readonly SpecimenEntry[],
 	filter: SuiteFilter | undefined,
-	root: string
+	root: string,
+	localLibrary?: string
 ): SpecimenEntry[] {
 	const ids = filter?.ids && new Set(filter.ids);
 	const file = filter?.file && resolve(root, filter.file);
+	const kinds = filter?.kind && new Set(filter.kind);
 	return entries.filter(
 		(entry) =>
 			(!ids || ids.has(entry.id)) &&
 			(!file || resolve(root, entry.module) === file) &&
 			(!filter?.tags || filter.tags.some((tag) => entry.story?.tags.includes(tag))) &&
+			(!kinds || kinds.has(entrySuiteKind(entry))) &&
+			(!filter?.pattern || entryMatchesPattern(entry, filter.pattern, localLibrary)) &&
 			(!filter?.match ||
-				`${entry.title} ${entry.story?.name ?? entry.exportName}`
+				`${entry.id} ${entry.title} ${entry.story?.name ?? entry.exportName}`
 					.toLowerCase()
 					.includes(filter.match.toLowerCase()))
 	);
@@ -82,23 +121,72 @@ export function selectEntries(
 export function selectStories(
 	entries: readonly SpecimenEntry[],
 	filter: SuiteFilter | undefined,
-	root: string
+	root: string,
+	localLibrary?: string
 ): StoryEntry[] {
-	return selectEntries(entries, filter, root).filter(
+	return selectEntries(entries, filter, root, localLibrary).filter(
 		(entry): entry is StoryEntry => entry.story !== undefined
 	);
 }
 
-function storyRecord(root: string, entry: StoryEntry, attempts: StoryAttempt[]): SuiteStory {
-	const file = relative(root, resolve(root, entry.module)).replaceAll('\\', '/');
+/** Select retained stories and/or synthesized gate cases for `specimen-run` suite mode. */
+export function selectSuiteCases(
+	entries: readonly SpecimenEntry[],
+	gateCases: readonly SynthesizedGateCase[],
+	filter: SuiteFilter | undefined,
+	root: string,
+	localLibrary?: string
+): SuiteTarget[] {
+	const gateById = new Map(gateCases.map((gateCase) => [gateCase.id, gateCase]));
+	const includeStories =
+		filter?.kind !== undefined ? filter.kind.includes('story') : filter?.pattern === undefined;
+	const includeGates =
+		filter?.kind !== undefined ? filter.kind.includes('gate') : gateCases.length > 0;
+
+	const results: SuiteTarget[] = [];
+	if (includeStories) {
+		const storyFilter = filter?.kind
+			? { ...filter, kind: ['story'] as ('story' | 'native' | 'gate')[] }
+			: filter;
+		for (const story of selectStories(entries, storyFilter, root, localLibrary)) {
+			results.push(story);
+		}
+	}
+	if (includeGates && gateCases.length > 0) {
+		const gateEntries = gateCases.map((gateCase) => gateCase.entry);
+		const gateFilter = filter?.kind
+			? { ...filter, kind: ['gate'] as ('story' | 'native' | 'gate')[] }
+			: filter;
+		for (const matched of selectEntries(gateEntries, gateFilter, root, localLibrary)) {
+			const gateCase = gateById.get(matched.id);
+			if (gateCase) results.push(gateCase);
+		}
+	}
+	return results;
+}
+
+function storyRecord(root: string, item: SuiteTarget, attempts: StoryAttempt[]): SuiteStory {
 	const last = attempts.at(-1) as StoryAttempt;
 	const retriedAway = attempts.length > 1 && last.outcome.status === 'passed';
+	if (isSynthesizedGateCase(item)) {
+		return {
+			id: item.id,
+			file: item.file,
+			title: item.title,
+			name: item.id,
+			flakeId: item.id,
+			status: retriedAway ? 'flaky' : last.outcome.status,
+			attempts: attempts.map((attempt) => attempt.outcome),
+			observation: last.observation,
+		};
+	}
+	const file = relative(root, resolve(root, item.module)).replaceAll('\\', '/');
 	return {
-		id: entry.id,
+		id: item.id,
 		file,
-		title: entry.title,
-		name: entry.story.name,
-		flakeId: flakeId(file, [entry.story.name]),
+		title: item.title,
+		name: item.story.name,
+		flakeId: flakeId(file, [item.story.name]),
 		status: retriedAway ? 'flaky' : last.outcome.status,
 		attempts: attempts.map((attempt) => attempt.outcome),
 		observation: last.observation,
@@ -123,10 +211,10 @@ export async function pool<T, R>(
 	return results;
 }
 
-export async function executeSuite(
+export async function executeSuite<T extends SuiteTarget>(
 	root: string,
-	stories: readonly StoryEntry[],
-	run: (entry: StoryEntry) => Promise<StoryAttempt>,
+	stories: readonly T[],
+	run: (entry: T) => Promise<StoryAttempt>,
 	options: SuiteOptions
 ): Promise<Pick<SuiteRun, 'outcome' | 'counts' | 'retry' | 'stories'>> {
 	const first = await pool(stories, options.workers, run);
@@ -167,6 +255,7 @@ export async function executeSuite(
 			flaky: count('flaky'),
 			skipped: count('skipped'),
 			excluded: count('excluded'),
+			outOfContext: count('out-of-context'),
 		},
 		retry,
 		stories: records,
