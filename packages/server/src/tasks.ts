@@ -457,6 +457,11 @@ const VALID_TASK_SUPPORT = new Set<TaskSupport>(['never', 'optional', 'required'
  */
 export function assertValidTaskCommands(commands: readonly ZodCommandDefinition[]): void {
 	for (const cmd of commands) {
+		if (cmd.confirmationMode !== undefined && cmd.confirmationMode !== 'host-verified') {
+			throw new Error(
+				`command "${cmd.name}": invalid confirmationMode "${String(cmd.confirmationMode)}" (expected "host-verified")`
+			);
+		}
 		const task = cmd.task;
 		if (task === undefined) continue;
 		if (!VALID_TASK_SUPPORT.has(task)) {
@@ -465,11 +470,10 @@ export function assertValidTaskCommands(commands: readonly ZodCommandDefinition[
 			);
 		}
 		if (task !== 'optional' && task !== 'required') continue;
-		const confirmationMode = (cmd as { confirmationMode?: unknown }).confirmationMode;
 		const conflicts: string[] = [];
 		if (cmd.confirmPrompt !== undefined) conflicts.push('confirmPrompt');
 		if (cmd.approval !== undefined && cmd.approval !== 'not-required') conflicts.push('approval');
-		if (confirmationMode !== undefined) conflicts.push('confirmationMode');
+		if (cmd.confirmationMode !== undefined) conflicts.push('confirmationMode');
 		if (conflicts.length > 0) {
 			throw new Error(
 				`command "${cmd.name}": task: "${task}" cannot be combined with ${conflicts.join(', ')}`

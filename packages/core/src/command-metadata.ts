@@ -13,6 +13,7 @@ type MetadataFields = Pick<
 	| 'examples'
 	| 'contexts'
 	| 'scopes'
+	| 'confirmationMode'
 	| 'toolMeta'
 	| 'task'
 >;
@@ -54,6 +55,7 @@ export function commandToolMeta(
 		...(outputSchema && { outputSchema: { ...outputSchema } }),
 		...(command.contexts?.length && { contexts: command.contexts }),
 		...(command.scopes?.length && { scopes: command.scopes }),
+		...(command.confirmationMode != null && { confirmationMode: command.confirmationMode }),
 		...(command.task != null && { task: command.task }),
 		...(command.outputBudget && {
 			[AFD_OUTPUT_BUDGET_META_KEY]: {

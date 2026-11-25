@@ -9,6 +9,7 @@
 
 import type {
 	ApprovalPolicy,
+	CommandConfirmationMode,
 	CommandContext,
 	CommandDefinition,
 	CommandExample,
@@ -100,6 +101,13 @@ export interface ZodCommandOptions<TInput extends $ZodType, TOutput> {
 	 * @example "Delete 'Buy groceries' permanently?"
 	 */
 	confirmPrompt?: string;
+
+	/**
+	 * Host-verified confirmation mode (`spec/command-metadata.md`, "Host-verified confirmation").
+	 * When `'host-verified'`, only the host's `HumanRelay` may confirm the command over MCP,
+	 * regardless of the server's `confirmations` option (`'off'` included).
+	 */
+	confirmationMode?: CommandConfirmationMode;
 
 	/**
 	 * Whether this command can be undone.
@@ -230,6 +238,9 @@ export interface ZodCommandDefinition<TInput extends $ZodType = ZodType, TOutput
 	/** Custom confirmation prompt message */
 	confirmPrompt?: string;
 
+	/** Host-verified confirmation mode (`spec/command-metadata.md`, "Host-verified confirmation") */
+	confirmationMode?: CommandConfirmationMode;
+
 	/** Whether this command can be undone */
 	undoable?: boolean;
 
@@ -330,6 +341,9 @@ export function defineCommandWithSchema<TInput extends $ZodType, TOutput>(
 	if (!isJsonObject(options.jsonSchema)) {
 		throw new Error(`command "${options.name}": jsonSchema must be an object`);
 	}
+	if (options.confirmationMode !== undefined && options.confirmationMode !== 'host-verified') {
+		throw new Error(`command "${options.name}": invalid confirmationMode`);
+	}
 	const outputBudget =
 		options.outputBudget !== undefined
 			? validateOutputBudget(options.outputBudget, options.name)
@@ -371,8 +385,9 @@ export function defineCommandWithSchema<TInput extends $ZodType, TOutput>(
 		undoable: options.undoable,
 		approval: options.approval,
 		expose: options.expose,
-		// Only when set, so a command without scopes, task or outputBudget keeps the keys it always had.
+		// Only when set, so a command without scopes, confirmationMode, task or outputBudget keeps the keys it always had.
 		...(options.scopes && { scopes: options.scopes }),
+		...(options.confirmationMode !== undefined && { confirmationMode: options.confirmationMode }),
 		...(options.task !== undefined && { task: options.task }),
 		...(outputBudget && { outputBudget }),
 	};

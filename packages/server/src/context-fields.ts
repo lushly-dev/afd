@@ -23,8 +23,8 @@ export interface ContextField<T = unknown> {
 	required?: boolean;
 }
 
-/** Context keys AFD or its packages set, which a declared field cannot take. */
-const RESERVED_NAMES = new Set([
+/** Context keys AFD or its packages set, which a declared field or host annotation cannot take. */
+export const RESERVED_CONTEXT_NAMES = new Set([
 	'actor',
 	'approval',
 	'auth',
@@ -39,6 +39,7 @@ const RESERVED_NAMES = new Set([
 	'timeout',
 	'traceId',
 ]);
+const RESERVED_NAMES = RESERVED_CONTEXT_NAMES;
 
 const LABEL = '[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?';
 /** A reverse-DNS prefix of two or more labels, a slash, then the key's name. */

@@ -73,7 +73,12 @@ export function createConfirmationGate(
 	}
 	const byName = new Map(commands.map((command) => [command.name, command]));
 	const gated = (steps: readonly ConfirmationStep[]) =>
-		mode === 'off' ? [] : steps.filter((step) => !!byName.get(step.command)?.confirmPrompt);
+		mode === 'off'
+			? []
+			: steps.filter((step) => {
+					const command = byName.get(step.command);
+					return !!command?.confirmPrompt && command.confirmationMode !== 'host-verified';
+				});
 
 	return {
 		mode,

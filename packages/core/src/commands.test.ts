@@ -515,9 +515,9 @@ describe('createCommandRegistry - register', () => {
 			expect(() => r3.register({ ...base, task, approval: () => 'required' })).toThrow(/approval/);
 
 			const r4 = createCommandRegistry();
-			expect(() =>
-				r4.register({ ...base, task, confirmationMode: 'require-human' } as CommandDefinition)
-			).toThrow(/confirmationMode/);
+			expect(() => r4.register({ ...base, task, confirmationMode: 'host-verified' })).toThrow(
+				/confirmationMode/
+			);
 
 			const rOk = createCommandRegistry();
 			expect(() => rOk.register({ ...base, task, approval: 'not-required' })).not.toThrow();
@@ -530,6 +530,7 @@ describe('createCommandRegistry - register', () => {
 				task: 'never',
 				confirmPrompt: 'Sure?',
 				approval: 'required',
+				confirmationMode: 'host-verified',
 			})
 		).not.toThrow();
 	});

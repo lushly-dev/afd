@@ -11,6 +11,7 @@
 export interface ApprovalProcessState {
 	relay: boolean;
 	perProcessNonces: boolean;
+	perProcessRelayNonces?: boolean;
 }
 
 const MARK = Symbol.for('dev.afd/approval-process-state');
@@ -35,6 +36,7 @@ export function carryApprovalProcessState(composed: object, parts: readonly unkn
 		markApprovalProcessState(composed, {
 			relay: any('relay'),
 			perProcessNonces: any('perProcessNonces'),
+			perProcessRelayNonces: any('perProcessRelayNonces'),
 		});
 	}
 }

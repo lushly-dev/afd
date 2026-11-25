@@ -26,6 +26,7 @@ import { createContextState, resolveContextState } from './context-scope.js';
 import { createExecutionEngine } from './execution.js';
 import { createHttpHandler } from './http-handler.js';
 import { createSessionStore, DEFAULT_MAX_SESSIONS, sessionLimits } from './http-sessions.js';
+import { createHttpHostVerifiedCheck, createHumanRelayGate } from './human-relay.js';
 import { checkInstanceState, warnInstancesOnce } from './instance-state.js';
 import {
 	createAuthLayer,
@@ -41,6 +42,12 @@ import {
 	serveModernStdio,
 } from './mcp-modern.js';
 import { assertToolMeta } from './meta-keys.js';
+import {
+	clearRelayEvidence,
+	takeRelayDispatchAdmission,
+	takeRelayValidatedInput,
+	transferRelayState,
+} from './relay-evidence.js';
 import { createResourceService } from './resources.js';
 import type { ZodCommandDefinition } from './schema.js';
 import { listedCommands, scopeViewOf, shownOnly } from './scope-view.js';
@@ -107,6 +114,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		instances: options.instances,
 		confirmationKey: options.confirmationKey,
 		confirmations: options.confirmations,
+		hasHumanRelay: Boolean(options.humanRelay),
 		middleware,
 	});
 	// A copy: the set must not change while the server runs.
@@ -202,6 +210,21 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 
 	const contextDefaults = { clock: options.clock, random: options.random };
 	const commandMiddleware = withCommandDeadlines(middleware, defaultTimeoutMs);
+	const relayHooks = {
+		transfer: transferRelayState,
+		takeDispatch(context: CommandContext, commandName: string, data: unknown) {
+			if (takeRelayDispatchAdmission(context, commandName, data) !== 'mismatch') return undefined;
+			return {
+				code: 'CONFIRMATION_REQUIRED',
+				message: `'${commandName}' needs a person's confirmation through the host`,
+				suggestion:
+					'Do not retry: this call is not the one the person confirmed. Move middleware that retries or changes input before confirmation.',
+				retryable: false,
+				details: { commands: [commandName], reason: 'admission-mismatch' },
+			};
+		},
+		clear: clearRelayEvidence,
+	};
 	const engine = createExecutionEngine({
 		commandMap,
 		middleware: commandMiddleware,
@@ -213,6 +236,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		maxBatchSize,
 		maxBatchParallelism,
 		maxValidationIssues,
+		relay: relayHooks,
 	});
 
 	const remoteCommands = registeredCommands.filter((command) => isMcpExposed(command));
@@ -233,6 +257,10 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		// is random or reads the clock differs). The step is still validated as sent when it
 		// runs, since a schema may check state an earlier step changed; only the value is kept.
 		validated: async (commandName, input, context) => {
+			// A host-verified call already validated its input before calling `HumanRelay`, so
+			// it runs on that exact validated object even when a schema default is non-deterministic.
+			const prevalidated = takeRelayValidatedInput(context, commandName);
+			if (prevalidated) return { success: true, data: prevalidated.data, errors: [] };
 			const command = remoteCommandMap.get(commandName);
 			const approved = command && (await upFrontApproval(context)?.validated(commandName, input));
 			if (!approved) return undefined;
@@ -248,9 +276,25 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		maxBatchSize,
 		maxBatchParallelism,
 		maxValidationIssues,
+		relay: relayHooks,
 	});
 	const exposedCommandNames = new Set(remoteCommands.map((c) => c.name));
 	const confirmations = createConfirmationGate(options.confirmations ?? 'off', remoteCommands);
+	const defaultActor = options.actor ?? { kind: 'agent' as const };
+	const humanRelay = createHumanRelayGate({
+		relay: options.humanRelay,
+		commands: remoteCommands,
+		actor: defaultActor,
+		devMode,
+		contextFields,
+		clock,
+		maxValidationIssues,
+		onError,
+	});
+	const hostVerifiedCheck = createHttpHostVerifiedCheck(
+		remoteCommands,
+		Boolean(options.humanRelay)
+	);
 	const mutationNames = new Set(
 		remoteCommands.filter((command) => command.mutation === true).map((command) => command.name)
 	);
@@ -267,6 +311,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		exposedCommandNames,
 		contextState,
 		confirmations,
+		humanRelay,
 		maxBatchSize,
 		maxBatchParallelism,
 	});
@@ -352,6 +397,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		executeStream: remoteEngine.executeStream,
 		isMutation: (commandName) => mutationNames.has(commandName),
 		confirmations,
+		hostVerifiedCheck,
 		sessions,
 		createContext: options.createContext,
 		contextFields,

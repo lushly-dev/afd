@@ -293,6 +293,15 @@ const HOST_IMPORTS =
  *   `tags`, and `examples` in `direct-registry.ts` brings the approval bundle on `main` at
  *   `bc316e8e4` (esbuild 0.28.2) to 64,203 bytes (raised 64,200 → 64,600); host (50,347),
  *   tool-surface (88,450), and every-export (114,344) stay within their ceilings.
+ *   Host-verified confirmation mode and private relay evidence (#2263, under D115):
+ *   `confirmationMode` metadata/validation in `commands.ts`, `command-metadata.ts`, `define-core.ts`,
+ *   `tools.ts`, `lazy-tools.ts`, `tool-router.ts`, off-object WeakMap `relay-evidence.ts` carrier &
+ *   one-shot host-verified dispatch admission in `execution.ts`, and relay-evidence verification
+ *   (`sha256Base64url`, `checkRelayEvidence`, `spendRelayDecision`) in `approval.ts` /
+ *   `approval-crypto.ts` (keeping `human-relay.ts` and `node:crypto` out of `/direct`) bring host,
+ *   approval, and tool-surface on `main` at `bd3749120` (esbuild 0.28.2) to 51,910 / 66,576 /
+ *   90,788 bytes (raised 50,500 → 52,300, 64,600 → 67,000, 88,500 → 91,200); every-export stays
+ *   within 119,500.
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
@@ -305,17 +314,17 @@ const DIRECT_BUDGETS = [
 	{
 		what: 'a host that imports the registry, the journal and defineCommand',
 		imports: HOST_IMPORTS,
-		bytes: 50_500,
+		bytes: 52_300,
 	},
 	{
 		what: 'the same host with the approval middleware',
 		imports: `${HOST_IMPORTS}, createApprovalMiddleware`,
-		bytes: 64_600,
+		bytes: 67_000,
 	},
 	{
 		what: 'a host with the tool surface',
 		imports: `${HOST_IMPORTS}, createDirectToolSurface`,
-		bytes: 88_500,
+		bytes: 91_200,
 	},
 	{ what: 'every export', imports: undefined, bytes: 119_500 },
 ];

@@ -899,7 +899,9 @@ NAME_GAP_BUDGET = {
     # CommandParameter, PipelineStep and PipelineResult were renamed to Direct* with a
     # one-minor deprecation __getattr__ instead of squatting in afd.__all__. Tracked in
     # #550 (Wave 3) to lower once the core types take the root names.
-    "missing_from_python": 98,
+    # Python 98 → 99, C++ 74 → 75 (#2263): CommandConfirmationMode in TypeScript (matching Rust's
+    # CommandConfirmationMode). Lower Python back to 98 when #2264 lands; HumanRelay is N/A for C++.
+    "missing_from_python": 99,
     "missing_from_rust": 7,
     # 73 at first measurement (Phase 5 of the C++ plan). The deferred groups: MCP JSON-RPC
     # types and helpers; the typed pipeline-condition structs and their guards (C++ keeps
@@ -914,7 +916,8 @@ NAME_GAP_BUDGET = {
     # 73 → 74 (#1989): OutputBudget, AFD_OUTPUT_BUDGET_META_KEY, MAX_OUTPUT_BUDGET_BYTES in
     # TypeScript (Python #2186 and Rust export all three; C++ #2187 exports OutputBudget and
     # MAX_OUTPUT_BUDGET_BYTES, using output_budget_meta_key without the afd_ prefix).
-    "missing_from_cpp": 74,
+    # 74 → 75 (#2263): CommandConfirmationMode in TypeScript (matching Rust; HumanRelay is N/A for C++).
+    "missing_from_cpp": 75,
 }
 
 # Exports every language must have; if one disappears the parser is broken.

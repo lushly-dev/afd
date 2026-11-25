@@ -18,6 +18,7 @@ export interface InstanceStateOptions {
 	instances?: ServerInstances;
 	confirmationKey?: string | Uint8Array;
 	confirmations?: string;
+	hasHumanRelay?: boolean;
 	middleware?: readonly CommandMiddleware[];
 }
 
@@ -78,7 +79,11 @@ export function checkInstanceState(options: InstanceStateOptions): InstanceState
 			'confirmationKey (each process signs elicitation requestState with its own random key, so an answer must reach the process that asked)'
 		);
 	}
-	if (approvals.some((state) => state.perProcessNonces)) {
+	if (
+		approvals.some(
+			(state) => state.perProcessNonces || (options.hasHumanRelay && state.perProcessRelayNonces)
+		)
+	) {
 		missing.push(
 			"the approval middleware's nonceStore (spent single-use tokens are kept in this process's memory, so a token works once on each process)"
 		);

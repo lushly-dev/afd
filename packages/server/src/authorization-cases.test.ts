@@ -8,6 +8,8 @@
 
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { canonicalJson, sha256Base64url } from './approval-crypto.js';
+import { inputDigest } from './human-relay.js';
 import { extractBearer } from './mcp-auth-bearer.js';
 import { audienceAccepts, createProtectedResource } from './mcp-auth-resource.js';
 import {
@@ -77,6 +79,12 @@ interface Cases {
 		certificate: string | null;
 		config?: Record<string, unknown>;
 		expected: Expected<{ credentials: unknown }>;
+	}[];
+	inputDigests: {
+		description: string;
+		input: unknown;
+		canonical: string;
+		inputDigest: string;
 	}[];
 }
 
@@ -208,7 +216,7 @@ describe('P3-E9: spec/authorization.json: claims (M3 rules 5 to 10, M4)', () => 
 		}
 	});
 
-	it('loads every case of the nine sections', () => {
+	it('loads every case of the ten sections', () => {
 		expect(cases.bearer.length).toBeGreaterThan(0);
 		expect(
 			[
@@ -221,7 +229,19 @@ describe('P3-E9: spec/authorization.json: claims (M3 rules 5 to 10, M4)', () => 
 				cases.jwtHeaders,
 				cases.keys,
 				cases.claims,
+				cases.inputDigests,
 			].map((section) => section.length)
-		).toEqual([19, 5, 4, 3, 20, 22, 24, 17, 43]);
+		).toEqual([19, 5, 4, 3, 20, 22, 24, 17, 43, 5]);
 	});
+});
+
+describe('spec/authorization.json: inputDigests (Host-verified confirmation)', () => {
+	it.each(cases.inputDigests)(
+		'$description',
+		async ({ input, canonical, inputDigest: expected }) => {
+			expect(canonicalJson(input)).toBe(canonical);
+			expect(inputDigest(input)).toBe(expected);
+			expect(await sha256Base64url(canonical)).toBe(expected);
+		}
+	);
 });

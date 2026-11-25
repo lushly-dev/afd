@@ -44,6 +44,7 @@
 export type {
 	ApprovalDecision,
 	ApprovalPolicy,
+	CommandConfirmationMode,
 	CommandContext,
 	CommandError,
 	CommandExample,

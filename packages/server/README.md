@@ -787,7 +787,7 @@ Two things are kept per process unless you share them:
 | What | Default | Used when | Share it with |
 |------|---------|-----------|---------------|
 | The key that signs elicitation `requestState` | A random key per server or handler, so even two handlers in one process do not share it | `confirmations` is not `'off'`, or an approval middleware has `relay: 'mcp-elicitation'` | `confirmationKey` on every instance (32 bytes or more) |
-| Spent single-use approval tokens | In memory, per `createApprovalMiddleware` | An approval middleware with the default `replay: 'single-use'` | `nonceStore` on every instance's approval middleware |
+| Spent single-use approval tokens and relay decisions | In memory, per `createApprovalMiddleware` | An approval middleware with `replay: 'single-use'`, or any approval middleware on a server with `humanRelay` | `nonceStore` on every instance's approval middleware |
 
 Behind one process the defaults are enough. Behind several (a load balancer, or several engines answering the same callers), a `requestState` signed by one process is unanswered on another, so the person is asked again, and a single-use token works once on each process. Say which you run with `instances`:
 
@@ -1195,6 +1195,7 @@ Create a command definition with Zod schema.
 | `expose` | ExposeOptions | No | Surfaces the command is exposed to; `{ mcp: true }` is required for MCP tools |
 | `examples` | `{ title, input }[]` | No | Example inputs, validated against `input` at define time |
 | `approval` | `'required'` \| `'not-required'` \| `(input, context) => …` | No | Whether a call needs human approval before the handler runs (default `'not-required'`); enforced by [`createApprovalMiddleware`](#approvals), and refused with `APPROVAL_UNAVAILABLE` when no approval middleware admits the call |
+| `confirmationMode` | `'host-verified'` | No | Requires a person's out-of-band confirmation through `createMcpServer({ humanRelay })`; never accepts `confirm`, form elicitation or form-mode approval relay, and cannot be combined with `task: 'optional' \| 'required'` |
 | `toolMeta` | `Record<string, unknown>` | No | Extra `_meta` entries on the command's tool, grouped action entry and `afd-detail`: prefixed keys with two or more labels, or `ui`; the server refuses others (see [Resources, Skills and Tool `_meta`](#resources-skills-and-tool-_meta)) |
 | `advertisedInputSchema` | JSON Schema object | No | The input schema shown on every surface in place of the one generated from `input`, which still validates |
 
@@ -1234,6 +1235,7 @@ Create an MCP server from commands.
 | `resources` | `ResourceProvider \| ResourceEntry[]` | No | MCP resources served on `/mcp` and stdio; declares the `resources` capability |
 | `skills` | `SkillCatalog` | No | Agent Skills served through `skills/list`, `skills/get` and as `skill://` resources; declares `io.modelcontextprotocol/skills` |
 | `confirmations` | `'off' \| 'enforce' \| 'require-human'` | No | Enforce `confirmPrompt` on the MCP and HTTP surfaces (default: `'off'`) |
+| `humanRelay` | `HumanRelay` | No | Host-owned out-of-band confirmation relay (`begin`, `resume`, optional `approvedContext`) for commands with `confirmationMode: 'host-verified'` |
 | `confirmationKey` | `string \| Uint8Array` | No | Key (32 bytes or more) that signs elicitation `requestState` (default: a random key per process) |
 | `instances` | `'single' \| 'multiple'` | No | `'multiple'` refuses per-process defaults in use; left out, HTTP logs one warning when it relies on one ([Several instances](#several-instances)) |
 | `middleware` | array | No | Middleware functions |

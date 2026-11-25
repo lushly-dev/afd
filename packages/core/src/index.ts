@@ -77,6 +77,7 @@ export {
 } from './command-metadata.js';
 // Command types
 export type {
+	CommandConfirmationMode,
 	CommandContext,
 	CommandDefinition,
 	CommandExample,

@@ -79,6 +79,7 @@ import {
 	type RoundState,
 } from './elicitation-state.js';
 import { prereadBody } from './http-security.js';
+import { bindHumanRelayChannel, RELAY_INPUT_KEY } from './human-relay.js';
 import type { AuthLayer } from './mcp-auth.js';
 import { liftMetaArgument, metaArgumentKeys } from './meta-argument.js';
 import { withMetaOutputBudget } from './output-budget.js';
@@ -674,12 +675,25 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 			if (carrier.kind === 'refuse') return resultContent(failure(carrier.error), true) as never;
 			const approver = carrier.approver;
 			const relay = canElicit && !approver ? approvalRelayFor(round) : undefined;
-			let context = bindConfirmationChannel(
-				bindScopeView(
-					scoped({ ...callValues, signal: ctx.mcpReq.signal, interface: 'mcp' }, state),
-					options.requestView?.()
+			const rawCaps = (ctx.mcpReq.envelope as Record<string, unknown> | undefined)?.[
+				CLIENT_CAPABILITIES_META_KEY
+			];
+			const relayView = inputResponse(ctx.mcpReq.inputResponses, RELAY_INPUT_KEY);
+			const rawState = ctx.mcpReq.requestState();
+			let context = bindHumanRelayChannel(
+				bindConfirmationChannel(
+					bindScopeView(
+						scoped({ ...callValues, signal: ctx.mcpReq.signal, interface: 'mcp' }, state),
+						options.requestView?.()
+					),
+					confirmationChannelFor(canElicit, round, ctx)
 				),
-				confirmationChannelFor(canElicit, round, ctx)
+				{
+					modern: era === 'modern',
+					...(isRecord(rawCaps) && { clientCapabilities: rawCaps }),
+					...(typeof rawState === 'string' && rawState.length > 0 && { requestState: rawState }),
+					...(relayView.kind === 'elicit' && { relayAction: relayView.action }),
+				}
 			);
 			if (relay) context = bindApprovalRelay(context, relay.relay);
 			if (approver) context = bindApprover(context, approver);

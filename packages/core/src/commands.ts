@@ -193,6 +193,15 @@ export interface CommandExample<TInput = unknown> {
 }
 
 /**
+ * Confirmation mode for a command (`spec/command-metadata.md`, "Host-verified confirmation").
+ *
+ * - `'host-verified'`: only the host's `HumanRelay` may confirm the command over MCP, regardless
+ *   of the server's `confirmations` option (`'off'` included). Form elicitation and
+ *   acknowledgements are never advertised or accepted.
+ */
+export type CommandConfirmationMode = 'host-verified';
+
+/**
  * Whether an MCP `tools/call` to a command may run as a task under the Tasks extension
  * (`io.modelcontextprotocol/tasks`, SEP-2663; `spec/command-metadata.md`, "Tasks").
  *
@@ -325,6 +334,14 @@ export interface CommandDefinition<TInput = unknown, TOutput = unknown> {
 	 * @example "Delete 'Buy groceries' permanently?"
 	 */
 	confirmPrompt?: string;
+
+	/**
+	 * Host-verified confirmation mode (`spec/command-metadata.md`, "Host-verified confirmation").
+	 * When `'host-verified'`, only the host's `HumanRelay` may confirm the command over MCP,
+	 * regardless of the server's `confirmations` option (`'off'` included). Reported in
+	 * `_meta.confirmationMode` and `afd-detail`. Refused at registration beside `task: 'optional' | 'required'`.
+	 */
+	confirmationMode?: CommandConfirmationMode;
 
 	/**
 	 * Whether this command can be undone.
@@ -628,6 +645,9 @@ export function createCommandRegistry(options: CommandRegistryOptions = {}): Com
 			if (commands.has(command.name)) {
 				throw new Error(`Command '${command.name}' is already registered`);
 			}
+			if (command.confirmationMode !== undefined && command.confirmationMode !== 'host-verified') {
+				throw new Error(`Invalid confirmationMode for '${command.name}'`);
+			}
 			if (command.task !== undefined) {
 				if (
 					command.task !== 'never' &&
@@ -642,8 +662,7 @@ export function createCommandRegistry(options: CommandRegistryOptions = {}): Com
 					if (
 						command.confirmPrompt !== undefined ||
 						(command.approval !== undefined && command.approval !== 'not-required') ||
-						('confirmationMode' in command &&
-							(command as { confirmationMode?: unknown }).confirmationMode !== undefined)
+						command.confirmationMode !== undefined
 					) {
 						throw new Error(
 							`Command '${command.name}' cannot declare task: '${command.task}' beside confirmPrompt, an approval policy other than 'not-required', or confirmationMode`

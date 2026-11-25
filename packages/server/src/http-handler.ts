@@ -28,7 +28,7 @@ import {
 } from './approver.js';
 import type { ContextState } from './bootstrap/afd-context.js';
 import { createHttpConfirmationCheck } from './confirmation-gate.js';
-import type { ConfirmationGate } from './confirmations.js';
+import type { ConfirmationGate, ConfirmationStep } from './confirmations.js';
 import { type ContextField, contextFieldValues } from './context-fields.js';
 import { bindContextState } from './context-scope.js';
 import {
@@ -110,6 +110,8 @@ export interface HttpHandlerDeps extends HttpSecurityOptions {
 	modern?: ModernHttpLane;
 	/** Confirmation enforcement for `/rpc`, `/batch` and `/stream` (acknowledged by `Afd-Confirm`). */
 	confirmations?: ConfirmationGate;
+	/** Host-verified confirmation check for `/rpc`, `/batch` and `/stream` (always refused). */
+	hostVerifiedCheck?: (steps: readonly ConfirmationStep[]) => CommandError | undefined;
 	/**
 	 * MCP authorization (`spec/authorization.md`): every route but the metadata needs a verified
 	 * token, and every command context carries the request's credentials.
@@ -162,6 +164,7 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		onError,
 		modern,
 		confirmations,
+		hostVerifiedCheck,
 		auth,
 	} = deps;
 	const unconfirmed = createHttpConfirmationCheck(confirmations);
@@ -431,7 +434,11 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 			const keyed = approvalKeyInInput(input);
 			if (keyed) return { success: false, error: keyed };
 			const steps = [{ command: message.method, input }];
-			const refused = scopeRefusal(req, steps) ?? (await unconfirmed(req, existing(req, steps)));
+			const existingSteps = existing(req, steps);
+			const refused =
+				scopeRefusal(req, steps) ??
+				hostVerifiedCheck?.(existingSteps) ??
+				(await unconfirmed(req, existingSteps));
 			if (refused) return { success: false, error: refused };
 			return executeCommand(message.method, input, {
 				...(await commandContext(req, res, state, undefined, meta)),
@@ -491,10 +498,12 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		const split = splitMeta(input);
 		input = split.input;
 		const steps = [{ command: commandName, input }];
+		const existingSteps = existing(req, steps);
 		const refused =
 			approvalKeyInInput(input) ??
 			scopeRefusal(req, steps) ??
-			(await unconfirmed(req, existing(req, steps)));
+			hostVerifiedCheck?.(existingSteps) ??
+			(await unconfirmed(req, existingSteps));
 		if (refused) {
 			res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
 			res.end(`event: chunk\ndata: ${JSON.stringify(createErrorChunk(refused, 0, false))}\n\n`);
@@ -635,10 +644,12 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 				input: item.input ?? {},
 			}));
 			// A batch fails as a whole before its first step (M6), as a confirmation does.
+			const existingSteps = existing(req, steps);
 			const refused =
 				approvalKeyInInput(steps.map((step) => step.input)) ??
 				scopeRefusal(req, steps) ??
-				(await unconfirmed(req, existing(req, steps)));
+				hostVerifiedCheck?.(existingSteps) ??
+				(await unconfirmed(req, existingSteps));
 			if (refused) {
 				json(res, 200, createFailedBatchResult(refused, {}));
 				return;
