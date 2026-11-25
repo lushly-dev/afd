@@ -8,11 +8,13 @@ import {
 	observedProperties,
 } from './coverage.js';
 import { computeGuideCoverage } from './guide-coverage.js';
+import { computePatternCoverage, hasPatternCoverageScope } from './pattern-coverage.js';
 import type { ComponentSchema } from './plugin.js';
 import { DEFAULT_SUITE_WORKERS, pool, selectEntries } from './suite.js';
 import type {
 	CoverageRequest,
 	CoverageRun,
+	GateRun,
 	Observation,
 	SpecimenEntry,
 	StoryOutcome,
@@ -30,6 +32,7 @@ export interface CoverageHost {
 		timeoutMs: number | undefined,
 		observe: Observed
 	): Promise<{ outcome: StoryOutcome; observation: Observation | null }>;
+	runGate?(id: string, timeoutMs: number | undefined): Promise<GateRun>;
 	render(
 		id: string,
 		checkpoint: string,
@@ -89,7 +92,9 @@ export async function collectCases(
 ): Promise<CollectedCases> {
 	const { config, prepare, runStory, render } = host;
 	const tags = options.schemas ? [] : schemaTags(config, request.component);
-	const entries = options.entries ?? selectEntries(config.entries, request.filter, config.root);
+	const entries =
+		options.entries ??
+		selectEntries(config.entries, request.filter, config.root, config.config.pack?.library);
 	if (!entries.length) throw new Error('No specimen or retained story matches the filter.');
 	const workers = request.workers ?? config.config.test?.workers ?? DEFAULT_SUITE_WORKERS;
 	await prepare();
@@ -161,6 +166,17 @@ export async function runCoverage(
 		config.guides || claimsGuide
 			? computeGuideCoverage(config.guides, schemas, [...cases, ...guideCases], request.component)
 			: undefined;
+	const patterns =
+		(hasPatternCoverageScope(config) || request.pattern !== undefined) && host.runGate
+			? await computePatternCoverage({
+					config,
+					...(request.component ? { component: request.component } : {}),
+					...(request.pattern ? { pattern: request.pattern } : {}),
+					workers,
+					...(request.timeoutMs !== undefined ? { timeoutMs: request.timeoutMs } : {}),
+					runGate: host.runGate,
+				})
+			: undefined;
 	return {
 		obligations: COVERAGE_OBLIGATIONS,
 		...report,
@@ -171,6 +187,7 @@ export async function runCoverage(
 				: unusedWaivers,
 		},
 		...(guides ? { guides } : {}),
+		...(patterns ? { patterns } : {}),
 		cases: {
 			total: entries.length,
 			passed: new Set(cases.map((item) => item.id)).size,

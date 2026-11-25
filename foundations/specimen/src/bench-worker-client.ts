@@ -19,6 +19,7 @@ import type {
 	ContractRun,
 	CoverageRequest,
 	CoverageRun,
+	GateRun,
 	InspectRequest,
 	InspectResult,
 	JobRun,
@@ -314,12 +315,12 @@ export class BenchWorkerClient {
 			(request.timeoutMs ?? 30_000) + 30_000
 		)) as JobRun;
 	}
-	async run(request: RunRequest): Promise<StoryRun> {
+	async run(request: RunRequest): Promise<StoryRun | GateRun> {
 		await this.ready;
 		return (await this.request(
 			{ operation: 'run', request },
 			(request.timeoutMs ?? 10_000) + 15_000
-		)) as StoryRun;
+		)) as StoryRun | GateRun;
 	}
 	async matrix(request: MatrixRequest): Promise<MatrixRun> {
 		await this.ready;

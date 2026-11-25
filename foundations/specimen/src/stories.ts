@@ -117,6 +117,22 @@ const INDEX_TIMEOUT = 60_000;
 
 const withThemes = (themes: ThemeSupport | undefined) => (themes ? { themes } : {});
 
+/** Statically extract `patternSetup` and `contexts` from native specimen modules without executing them. */
+export async function discoverNativeBindings(
+	entries: readonly { id: string; file: string; exportName: string }[]
+): Promise<StoryPatternBinding[]> {
+	if (entries.length === 0) return [];
+	const host = new HostProcess();
+	try {
+		const result = (await host.request('native_bindings', { entries }, INDEX_TIMEOUT)) as {
+			bindings?: StoryPatternBinding[];
+		};
+		return result.bindings ?? [];
+	} finally {
+		await host.close();
+	}
+}
+
 /** Index the configuration's stories in a short-lived host process. */
 export async function discoverStories(
 	root: string,

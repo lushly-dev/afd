@@ -107,7 +107,8 @@ export async function runContract(
 	const entries = selectEntries(
 		config.entries,
 		own ? { file: own } : request.filter,
-		config.root
+		config.root,
+		config.config.pack?.library
 	).filter((entry) => entry.story);
 	const selectedFiles = new Set(entries.map((entry) => resolve(config.root, entry.module)));
 	const scoped = request.component || request.filter;

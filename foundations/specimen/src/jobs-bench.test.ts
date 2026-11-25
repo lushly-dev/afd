@@ -428,8 +428,8 @@ export const NotesAppCompact = createNotesMount('compact');
 
 	it('lists/validates job entries, runs two variants sharing one scenario with <id>/<step> keys, and refuses captures after failed steps', async () => {
 		expect(bench.list().map((e) => [e.id, e.kind])).toEqual([
-			['clock-counter', 'component'],
-			['absent-event-clock', 'component'],
+			['clock-counter', 'native'],
+			['absent-event-clock', 'native'],
 			['example-keep-a-draft', 'job'],
 			['example-keep-a-draft-compact', 'job'],
 			['example-keep-a-draft-continue', 'job'],

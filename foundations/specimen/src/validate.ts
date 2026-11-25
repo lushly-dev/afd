@@ -33,6 +33,7 @@ import type {
 	PointMoveRequest,
 	PointRequest,
 	ProfileRequest,
+	RunRequest,
 	SpecimenAction,
 	SpecimenContext,
 	SuggestRequest,
@@ -156,24 +157,50 @@ export function parseContext(
 
 const MAX_SUITE_WORKERS = 32;
 
+const SUITE_FILTER_KINDS = ['story', 'native', 'gate'] as const;
+
 function suiteFilter(value: unknown, path: string): SuiteFilter {
-	const filter = record(value, path, ['ids', 'file', 'tags', 'match']);
+	const filter = record(value, path, ['ids', 'file', 'tags', 'match', 'kind', 'pattern']);
+	let kind: SuiteFilter['kind'];
+	if (filter.kind !== undefined) {
+		if (!Array.isArray(filter.kind) || filter.kind.length < 1)
+			fail(`${path}.kind`, 'expected at least one kind');
+		kind = filter.kind.map((item, index) =>
+			choice(item, `${path}.kind[${index}]`, SUITE_FILTER_KINDS)
+		);
+	}
 	return {
 		...(filter.ids === undefined ? {} : { ids: tagList(filter.ids, `${path}.ids`) }),
 		...(filter.file === undefined ? {} : { file: text(filter.file, `${path}.file`) }),
 		...(filter.tags === undefined ? {} : { tags: tagList(filter.tags, `${path}.tags`) }),
 		...(filter.match === undefined ? {} : { match: text(filter.match, `${path}.match`) }),
+		...(kind === undefined ? {} : { kind }),
+		...(filter.pattern === undefined ? {} : { pattern: text(filter.pattern, `${path}.pattern`) }),
 	};
 }
 
 export function parseSuggestRequest(value: unknown): SuggestRequest {
-	const fields = record(value, 'suggest request', ['component', 'gaps', 'timeoutMs', 'workers']);
-	const request: SuggestRequest = {
-		component: text(fields.component, 'suggest request.component'),
-	};
+	const fields = record(value, 'suggest request', [
+		'component',
+		'pattern',
+		'gaps',
+		'timeoutMs',
+		'workers',
+	]);
+	const request: SuggestRequest = {};
+	if (fields.component !== undefined)
+		request.component = text(fields.component, 'suggest request.component');
+	if (fields.pattern !== undefined)
+		request.pattern = text(fields.pattern, 'suggest request.pattern');
 	if (fields.gaps !== undefined) {
 		if (!Array.isArray(fields.gaps)) fail('suggest request.gaps', 'expected an array');
 		request.gaps = fields.gaps.map((gap, index) => text(gap, `suggest request.gaps[${index}]`));
+	}
+	if (
+		request.component === undefined &&
+		!(request.pattern !== undefined && request.gaps !== undefined && request.gaps.length > 0)
+	) {
+		fail('suggest request', 'give a component tag, or give pattern and non-empty gaps');
 	}
 	if (fields.timeoutMs !== undefined)
 		request.timeoutMs = integer(fields.timeoutMs, 'suggest request.timeoutMs', 1, 60_000);
@@ -201,6 +228,7 @@ const COVERAGE_OBLIGATION_SETS = ['schema-partitions@1', 'jobs@1'] as const;
 export function parseCoverageRequest(value: unknown): CoverageRequest {
 	const fields = record(value, 'coverage request', [
 		'component',
+		'pattern',
 		'filter',
 		'obligations',
 		'captures',
@@ -210,6 +238,8 @@ export function parseCoverageRequest(value: unknown): CoverageRequest {
 	const request: CoverageRequest = {};
 	if (fields.component !== undefined)
 		request.component = text(fields.component, 'coverage request.component');
+	if (fields.pattern !== undefined)
+		request.pattern = text(fields.pattern, 'coverage request.pattern');
 	if (fields.filter !== undefined)
 		request.filter = suiteFilter(fields.filter, 'coverage request.filter');
 	if (fields.obligations !== undefined)
@@ -461,6 +491,29 @@ export function parseSuiteRequest(value: unknown): SuiteRequest {
 	if (fields.capture !== undefined) {
 		if (fields.capture !== 'all' && fields.capture !== 'failed' && fields.capture !== 'none')
 			fail('suite request.capture', 'expected all, failed or none');
+		request.capture = fields.capture;
+	}
+	return request;
+}
+
+export function parseRunRequest(value: unknown): RunRequest {
+	const fields = record(value, 'run request', [
+		'id',
+		'context',
+		'screenshot',
+		'timeoutMs',
+		'capture',
+	]);
+	const request: RunRequest = { id: text(fields.id, 'run request.id') };
+	if (fields.context !== undefined)
+		request.context = parseContext(fields.context, 'run request.context', true);
+	if (fields.screenshot !== undefined)
+		request.screenshot = text(fields.screenshot, 'run request.screenshot');
+	if (fields.timeoutMs !== undefined)
+		request.timeoutMs = integer(fields.timeoutMs, 'run request.timeoutMs', 1, 60_000);
+	if (fields.capture !== undefined) {
+		if (fields.capture !== 'all' && fields.capture !== 'failed' && fields.capture !== 'none')
+			fail('run request.capture', 'expected all, failed or none');
 		request.capture = fields.capture;
 	}
 	return request;

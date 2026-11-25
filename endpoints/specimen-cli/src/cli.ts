@@ -45,6 +45,10 @@ const valueOptions = new Set([
 	'ids',
 	'label',
 	'kind',
+	'component',
+	'pattern',
+	'limit',
+	'after',
 	'left-set',
 	'left-id',
 	'right-set',
@@ -84,8 +88,6 @@ const valueOptions = new Set([
 	'assignee',
 	'specimen',
 	'state',
-	'limit',
-	'after',
 	'reason',
 	'outcome',
 	'slug',
@@ -143,7 +145,17 @@ function dimensions(value: string): { width: number; height: number } {
 }
 function validateOptions(parsed: ParsedArguments): void {
 	const allowed: Record<string, Set<string>> = {
-		list: new Set(['root', 'config', 'output', 'kind']),
+		list: new Set([
+			'root',
+			'config',
+			'output',
+			'kind',
+			'component',
+			'pattern',
+			'match',
+			'limit',
+			'after',
+		]),
 		validate: new Set(['root', 'config', 'output', 'id', 'file']),
 		migrate: new Set(['root', 'config', 'output', 'files', 'apply', 'helpers']),
 		render: new Set([
@@ -185,6 +197,8 @@ function validateOptions(parsed: ParsedArguments): void {
 			'file',
 			'tag',
 			'match',
+			'kind',
+			'pattern',
 			'workers',
 			'retry',
 			'flake-cap',
@@ -197,12 +211,13 @@ function validateOptions(parsed: ParsedArguments): void {
 			'file',
 			'tag',
 			'match',
+			'pattern',
 			'workers',
 			'obligations',
 			'captures',
 		]),
 		contract: new Set(['root', 'config', 'output', 'file', 'tag', 'match', 'workers']),
-		suggest: new Set(['root', 'config', 'output', 'gaps', 'out', 'workers']),
+		suggest: new Set(['root', 'config', 'output', 'pattern', 'gaps', 'out', 'workers']),
 		a11y: new Set([
 			'root',
 			'config',
@@ -529,8 +544,12 @@ function validateOptions(parsed: ParsedArguments): void {
 	const suite =
 		(selects && parsed.positionals.length === 0) ||
 		(['coverage', 'contract', 'pack', 'pack-check'].includes(parsed.action) &&
-			parsed.positionals.length <= 1);
-	const suiteOptions = ['file', 'tag', 'match', 'workers', 'retry', 'flake-cap', 'capture'];
+			parsed.positionals.length <= 1) ||
+		(parsed.action === 'suggest' &&
+			parsed.positionals.length === 0 &&
+			parsed.options.has('pattern') &&
+			parsed.options.has('gaps'));
+	const suiteOptions = ['file', 'tag', 'match', 'kind', 'pattern', 'workers', 'retry', 'flake-cap'];
 	// How many runs apply to one entry as to many.
 	if (selects && !suite)
 		for (const option of suiteOptions)
@@ -549,6 +568,12 @@ function suiteInput(parsed: ParsedArguments): Record<string, unknown> {
 			? { tags: (parsed.options.get('tag') ?? '').split(',').filter(Boolean) }
 			: {}),
 		...(parsed.options.has('match') ? { match: parsed.options.get('match') } : {}),
+		...(parsed.action === 'run' && parsed.options.has('kind')
+			? { kind: (parsed.options.get('kind') ?? '').split(',').filter(Boolean) }
+			: {}),
+		...(parsed.action === 'run' && parsed.options.has('pattern')
+			? { pattern: parsed.options.get('pattern') }
+			: {}),
 	};
 	const whole = (option: string) => {
 		const value = Number(parsed.options.get(option));
@@ -687,11 +712,26 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 				root,
 				configFile: parsed.options.get('config'),
 			});
-			if (parsed.action === 'list')
+			if (parsed.action === 'list') {
+				const rawLimit = parsed.options.get('limit');
+				let limit: number | undefined;
+				if (rawLimit !== undefined) {
+					const parsedLimit = Number(rawLimit);
+					if (!rawLimit.trim() || !Number.isInteger(parsedLimit))
+						throw new Error('--limit expects a whole number');
+					limit = parsedLimit;
+				}
 				result = await executeSpecimenCommand(bench, 'specimen-list', {
 					...(parsed.options.has('kind') ? { kind: parsed.options.get('kind') } : {}),
+					...(parsed.options.has('component')
+						? { component: parsed.options.get('component') }
+						: {}),
+					...(parsed.options.has('pattern') ? { pattern: parsed.options.get('pattern') } : {}),
+					...(parsed.options.has('match') ? { match: parsed.options.get('match') } : {}),
+					...(limit !== undefined ? { limit } : {}),
+					...(parsed.options.has('after') ? { after: parsed.options.get('after') } : {}),
 				});
-			else if (parsed.action === 'migrate')
+			} else if (parsed.action === 'migrate')
 				result = await executeSpecimenCommand(bench, 'specimen-migrate', {
 					...(parsed.options.has('files')
 						? { files: (parsed.options.get('files') ?? '').split(',').filter(Boolean) }
@@ -879,7 +919,8 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 					);
 				} else if (parsed.action === 'suggest') {
 					result = await executeSpecimenCommand(bench, 'specimen-suggest', {
-						component: parsed.positionals[0],
+						...(parsed.positionals[0] ? { component: parsed.positionals[0] } : {}),
+						...(parsed.options.has('pattern') ? { pattern: parsed.options.get('pattern') } : {}),
 						...(parsed.options.has('gaps')
 							? { gaps: (parsed.options.get('gaps') ?? '').split(',').filter(Boolean) }
 							: {}),
@@ -899,6 +940,7 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 				} else if (parsed.action === 'coverage') {
 					result = await executeSpecimenCommand(bench, 'specimen-coverage', {
 						...(parsed.positionals[0] ? { component: parsed.positionals[0] } : {}),
+						...(parsed.options.has('pattern') ? { pattern: parsed.options.get('pattern') } : {}),
 						...(parsed.options.has('obligations')
 							? { obligations: parsed.options.get('obligations') }
 							: {}),
@@ -1163,6 +1205,9 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 							: {}),
 						...(parsed.options.has('screenshot')
 							? { screenshot: resolve(root, parsed.options.get('screenshot') ?? '') }
+							: {}),
+						...(parsed.action === 'run' && parsed.options.has('capture')
+							? { capture: parsed.options.get('capture') }
 							: {}),
 					};
 					result = await executeSpecimenCommand(

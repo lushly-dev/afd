@@ -6,9 +6,10 @@ import { type LoadedGuides, loadGuides } from './guides.js';
 import { type JobSource, loadJobSourceModule } from './job-source.js';
 import { type JobValidationResult, validateJobEntries } from './jobs.js';
 import { readManifest } from './manifest.js';
+import { type SynthesizedGateCase, synthesizeGateCases } from './pattern-gates.js';
 import { DEFAULT_PATTERNS_DIRECTORY, type LoadedPatterns, loadPatterns } from './patterns.js';
 import type { ComponentSchema } from './plugin.js';
-import { type Discovery, discoverStories } from './stories.js';
+import { type Discovery, discoverNativeBindings, discoverStories } from './stories.js';
 import type { BenchConfig, BenchOptions, SpecimenContext, SpecimenEntry } from './types.js';
 import { parseConfig, parseContext } from './validate.js';
 
@@ -50,6 +51,8 @@ export interface LoadedConfig {
 	guides?: LoadedGuides;
 	/** Local pattern files, offline `patternSources`, and static pattern validation findings. */
 	patterns?: LoadedPatterns;
+	/** Synthesized native gate cases derived from valid bound setup cases and patterns. */
+	gateCases?: SynthesizedGateCase[];
 	/** Configured Node-side job source modules, resolved inside root. */
 	jobSourceModules: string[];
 	/** Precomputed static validation findings for job entries. */
@@ -169,6 +172,24 @@ export async function loadConfig(options: BenchOptions): Promise<LoadedConfig> {
 					guideSources
 				)
 			: undefined;
+	const nativeCandidates: { id: string; file: string; exportName: string }[] = [];
+	const fileTextCache = new Map<string, string>();
+	for (const entry of entries) {
+		if (entry.story !== undefined || entry.job !== undefined) continue;
+		if (entry.patternSetup !== undefined && entry.contexts !== undefined) continue;
+		const moduleFile = modules[entry.id];
+		if (!moduleFile) continue;
+		let source = fileTextCache.get(moduleFile);
+		if (source === undefined) {
+			source = await readFile(moduleFile, 'utf8').catch(() => '');
+			fileTextCache.set(moduleFile, source);
+		}
+		if (source.includes('patternSetup') || source.includes('contexts')) {
+			nativeCandidates.push({ id: entry.id, file: moduleFile, exportName: entry.exportName });
+		}
+	}
+	const nativeBindings = await discoverNativeBindings(nativeCandidates);
+	const allExtractedBindings = [...(stories?.discovery.patternBindings ?? []), ...nativeBindings];
 	const defaultPatternsDir = resolve(dirname(file), DEFAULT_PATTERNS_DIRECTORY);
 	const hasDefaultPatternsDir =
 		existsSync(defaultPatternsDir) && statSync(defaultPatternsDir).isDirectory();
@@ -178,7 +199,7 @@ export async function loadConfig(options: BenchOptions): Promise<LoadedConfig> {
 		hasDefaultPatternsDir ||
 		Boolean(guides?.components.some((guide) => guide.implements && guide.implements.length > 0)) ||
 		entries.some((entry) => entry.patternSetup !== undefined) ||
-		Boolean(stories?.discovery.patternBindings?.length);
+		allExtractedBindings.length > 0;
 	const patterns = needsPatterns
 		? await loadPatterns({
 				root,
@@ -188,9 +209,26 @@ export async function loadConfig(options: BenchOptions): Promise<LoadedConfig> {
 				...(config.pack?.library === undefined ? {} : { localLibrary: config.pack.library }),
 				...(guides ? { guides } : {}),
 				entries,
-				...(stories?.discovery.patternBindings
-					? { storyBindings: stories.discovery.patternBindings }
-					: {}),
+				...(allExtractedBindings.length > 0 ? { storyBindings: allExtractedBindings } : {}),
+			})
+		: undefined;
+	if (patterns) {
+		for (const entry of entries) {
+			const extracted = patterns.storySetups[entry.id];
+			if (!extracted) continue;
+			if (entry.patternSetup === undefined && extracted.patternSetup !== undefined)
+				entry.patternSetup = extracted.patternSetup;
+			if (entry.contexts === undefined && extracted.contexts !== undefined)
+				entry.contexts = extracted.contexts;
+		}
+	}
+	const gateCases = patterns
+		? synthesizeGateCases({
+				root,
+				entries,
+				patterns,
+				guides,
+				...(config.pack?.library === undefined ? {} : { localLibrary: config.pack.library }),
 			})
 		: undefined;
 	const jobSourceModules: string[] = [];
@@ -233,6 +271,7 @@ export async function loadConfig(options: BenchOptions): Promise<LoadedConfig> {
 		...(stories ? { stories } : {}),
 		...(guides ? { guides } : {}),
 		...(patterns ? { patterns } : {}),
+		...(gateCases ? { gateCases } : {}),
 		...(jobValidation ? { jobValidation } : {}),
 	};
 }

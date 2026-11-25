@@ -6,7 +6,7 @@ import {
 	success,
 	type ZodCommandDefinition,
 } from '@lushly-dev/afd-server/define';
-import { diffCaptures } from '@lushly-dev/specimen';
+import { diffCaptures, filterAndPaginateListEntries } from '@lushly-dev/specimen';
 import {
 	a11yRequestSchema,
 	a11yRunSchema,
@@ -30,6 +30,7 @@ import {
 	decisionListResultSchema,
 	decisionRecordRequestSchema,
 	decisionRecordResultSchema,
+	gateRunSchema,
 	inspectRequestSchema,
 	inspectResultSchema,
 	jobConfigSchema,
@@ -79,6 +80,7 @@ import { z } from 'zod';
 export {
 	buildOutputSchema,
 	contextSchema,
+	gateRunSchema,
 	inspectResultSchema,
 	noteCheckResultSchema,
 	noteListResultSchema,
@@ -115,6 +117,7 @@ import type {
 	DecisionRecordRequest,
 	DecisionRecordResult,
 	DiffRequest,
+	GateRun,
 	InspectRequest,
 	InspectResult,
 	JobCreateRequest,
@@ -201,24 +204,45 @@ const implementationContextsSchema = z
 		reason: z.string().min(1),
 	})
 	.strict();
+const listPatternMetaSchema = z
+	.object({
+		library: z.string().min(1),
+		pattern: z.string().min(1),
+		setup: z.string().min(1),
+		gate: z.string().min(1).optional(),
+	})
+	.strict();
+const listKindEnum = z.enum(['job', 'component', 'story', 'native', 'gate']);
 const entrySchema = z
 	.object({
 		id: z.string(),
 		title: z.string(),
 		module: z.string(),
 		exportName: z.string(),
-		kind: z.enum(['job', 'component']),
+		kind: listKindEnum,
 		component: z.string().optional(),
 		story: storySchema.optional(),
 		job: jobConfigSchema.optional(),
 		themes: themeSupportSchema.optional(),
 		patternSetup: patternSetupSchema.optional(),
+		pattern: listPatternMetaSchema.optional(),
 		contexts: implementationContextsSchema.optional(),
 	})
 	.strict();
 const listInput = z
 	.object({
-		kind: z.enum(['job', 'component']).optional(),
+		kind: listKindEnum.optional(),
+		component: z.string().min(1).optional(),
+		pattern: z.string().min(1).optional(),
+		match: z.string().min(1).optional(),
+		limit: z.number().int().min(1).max(500).optional(),
+		after: z.string().min(1).optional(),
+	})
+	.strict();
+const listOutput = z
+	.object({
+		specimens: z.array(entrySchema),
+		next: z.string().min(1).optional(),
 	})
 	.strict();
 const validateInput = z
@@ -289,7 +313,7 @@ export interface SpecimenCommandBench {
 	captureSet(request?: CaptureSetRequest): Promise<CaptureSetRun>;
 	compare(request: CompareRequest): Promise<CompareRun>;
 	diff(request: DiffRequest): Promise<ObservationDiff>;
-	run(request: RunRequest): Promise<StoryRun>;
+	run(request: RunRequest): Promise<StoryRun | GateRun>;
 	runSuite(request?: SuiteRequest): Promise<SuiteRun>;
 	a11y(request?: A11yRequest): Promise<A11yRun>;
 	themes(request?: ThemesRequest): Promise<ThemesRun>;
@@ -325,9 +349,9 @@ export interface SpecimenCommandBench {
 	checkDecisions(request?: DecisionCheckRequest): Promise<DecisionCheckResult>;
 }
 
-/** One story by id, or a suite by filter; the handler tells them apart. */
+/** One story or synthesized gate by id, or a suite by filter; the handler tells them apart. */
 const runInputSchema = runRequestSchema.partial({ id: true }).extend(suiteRequestSchema.shape);
-const runOutputSchema = z.union([storyRunSchema, suiteRunSchema]);
+const runOutputSchema = z.union([storyRunSchema, gateRunSchema, suiteRunSchema]);
 
 function safeErrorDetails(value: unknown): Record<string, unknown> | undefined {
 	if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
@@ -417,26 +441,36 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		...common,
 		name: 'specimen-list',
 		description:
-			'List registered specimens without executing their modules, optionally filtered by kind (job or component)',
+			'List registered specimens and synthesized pattern gate cases without executing their modules, with optional kind, component, pattern, match filters and cursor pagination (limit/after)',
 		mutation: false,
 		input: listInput,
-		output: z.object({ specimens: z.array(entrySchema) }).strict(),
+		output: listOutput,
 		handler: async (input) =>
 			result(
 				() => {
-					const raw = bench.list(input.kind ? { kind: input.kind } : undefined);
+					const hasFilter =
+						input.kind !== undefined ||
+						input.component !== undefined ||
+						input.pattern !== undefined ||
+						input.match !== undefined;
+					const benchFilter = hasFilter
+						? {
+								...(input.kind !== undefined ? { kind: input.kind } : {}),
+								...(input.component !== undefined ? { component: input.component } : {}),
+								...(input.pattern !== undefined ? { pattern: input.pattern } : {}),
+								...(input.match !== undefined ? { match: input.match } : {}),
+							}
+						: undefined;
+					const raw = bench.list(benchFilter);
 					const normalized = raw.map((entry) => ({
 						...entry,
-						kind: (entry.kind ?? (entry.job ? 'job' : 'component')) as 'job' | 'component',
+						kind: (entry.kind ?? (entry.job ? 'job' : 'component')) as z.infer<typeof listKindEnum>,
 					}));
-					const specimens = input.kind
-						? normalized.filter((entry) => entry.kind === input.kind)
-						: normalized;
-					return { specimens };
+					return filterAndPaginateListEntries(normalized, input);
 				},
-				z.object({ specimens: z.array(entrySchema) }).strict(),
+				listOutput,
 				'SPECIMEN_LIST_FAILED',
-				'Check the specimen configuration and try specimen-list again.'
+				'Check the specimen configuration and list filters, then try specimen-list again.'
 			),
 	});
 	const validate = defineCommand({
@@ -475,7 +509,7 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		...common,
 		name: 'specimen-run',
 		description:
-			'Run one retained story by id, or a suite of them by filter (no id and no filter runs them all), as their Storybook tests run: render, play, then the accessibility check under each policy. A suite has worker limits, an optional once-only retry and per-story flake ids. A failing story is a successful command: read data.outcome.status for one story and data.outcome for a suite.',
+			'Run one retained story or synthesized pattern gate case by id, or a suite of them by filter (no id and no filter runs them all). For gate cases, single-id runs default capture to none (pass capture: failed or all to keep observations) and report out-of-context when outside declared contexts. A failing story or gate is a successful command: read data.outcome.status for one run and data.outcome for a suite.',
 		mutation: false,
 		input: runInputSchema,
 		output: runOutputSchema,
@@ -489,13 +523,18 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 						return bench.runSuite(suite);
 					}
 					const { filter, workers, retry, flakeCap, capture, ...single } = suite;
-					if (filter || workers || retry !== undefined || flakeCap !== undefined || capture)
+					if (filter || workers || retry !== undefined || flakeCap !== undefined)
 						throw new Error('Give an id for one story, or suite options, not both.');
-					return bench.run({ id, ...single, ...(screenshot ? { screenshot } : {}) });
+					return bench.run({
+						id,
+						...single,
+						...(capture !== undefined ? { capture } : {}),
+						...(screenshot ? { screenshot } : {}),
+					});
 				},
 				runOutputSchema,
 				'SPECIMEN_RUN_FAILED',
-				'Use specimen-list to check the id or filter names retained stories, then validate them and check the browser installation.'
+				'Use specimen-list to check the id or filter names retained stories or gate cases, then validate them and check the browser installation.'
 			),
 	});
 	const a11y = defineCommand({
@@ -566,7 +605,7 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		...common,
 		name: 'specimen-suggest',
 		description:
-			"Propose native specimens and claims for a component's gaps, always as unverified: run them and correct them. Nothing it returns counts as coverage, and an expectation it cannot derive fails until replaced.",
+			"Propose native specimens and claims for a component's gaps, or placeholder pattern gate setup stubs (for a component or a tagless consumer case via pattern + gaps), always as unverified: run them and correct them. Nothing it returns counts as coverage, and placeholders fail until replaced.",
 		mutation: false,
 		input: suggestRequestSchema,
 		output: suggestRunSchema,
@@ -575,7 +614,7 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				() => bench.suggest(input),
 				suggestRunSchema,
 				'SPECIMEN_SUGGEST_FAILED',
-				'Configure a custom elements manifest that describes the component.'
+				'Configure a custom elements manifest describing the component, or pass pattern and gaps for tagless pattern setup stubs.'
 			),
 	});
 	const contract = defineCommand({
@@ -598,7 +637,7 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		...common,
 		name: 'specimen-coverage',
 		description:
-			"Run the selected cases and report each component's required partitions, from its schema, at the level those runs earn: represented, asserted, verified, missing or unknown. Unknown never counts as covered, and only verified counts toward complete. With obligations: 'jobs@1' and captures (a capture set id or label), read recorded job captures from that set without launching a browser and report components[].jobs (reachedBy, unreached, and reason when no job renders a component), applying unreached:<partition> waivers.",
+			"Run the selected cases and report each component's required partitions (`schema-partitions@1`), optional guide obligations (`guides@1`), and optional pattern gate coverage (`patterns@1`, narrowed via `pattern`). Unknown never counts as covered, and only verified counts toward complete. With obligations: 'jobs@1' and captures (a capture set id or label), read recorded job captures from that set without launching a browser and report components[].jobs (reachedBy, unreached, and reason when no job renders a component), applying unreached:<partition> waivers.",
 		mutation: false,
 		input: coverageRequestSchema,
 		output: coverageRunSchema,
@@ -662,7 +701,7 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		...common,
 		name: 'specimen-capture',
 		description:
-			'Capture specimens in one context and checkpoint into a content-addressed capture set under .specimen/sets/, with axe enabled by default. Runs job specimens through the configured job runner when available, or skips them with a reason otherwise. Returns set id, revision, counts, unavailable ids and skipped counts only (never observations). A label is a local name for a set, not a git ref; capture main from a checkout of main.',
+			'Capture specimens in one context and checkpoint into a content-addressed capture set under .specimen/sets/, with axe enabled by default. Runs job specimens through the configured job runner when available, skips synthesized pattern gate cases by default (reporting skipped.gates unless explicitly requested via ids or filter.kind: ["gate"]), and returns set id, revision, counts, unavailable ids and skipped counts only (never observations). A label is a local name for a set, not a git ref; capture main from a checkout of main.',
 		mutation: true,
 		input: captureSetRequestSchema,
 		output: captureSetRunSchema,

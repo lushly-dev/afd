@@ -151,7 +151,8 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 	/** Load a retained story's module and preview after the plugins, and compose it. */
 	async function prepareRetained(
 		entry: SpecimenEntry,
-		requestedContext: Partial<SpecimenContext>
+		requestedContext: Partial<SpecimenContext>,
+		options?: { authoritative?: boolean }
 	): Promise<PreparedStory> {
 		await plugins();
 		const load = loaders[entry.id];
@@ -163,7 +164,8 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 			{ id: entry.id, title: entry.title, name: entry.story.name, exportName: entry.exportName },
 			project as StoryModule | undefined,
 			module as StoryModule,
-			requestedContext
+			requestedContext,
+			options
 		);
 	}
 	let motion: 'natural' | 'settled' = 'natural';
@@ -354,13 +356,17 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 			if (!entry.story) return null;
 			// A run counts what the story's module raises as it loads, as Vitest does.
 			if (options.check) watchPageErrors();
-			const prepared = await prepareRetained(entry, requestedContext);
+			const prepared = await prepareRetained(entry, requestedContext, {
+				authoritative: options.authoritative,
+			});
 			const { prepareAccessibility, storyRenderContext } = await storyRuntime();
 			// Only a run has a check to prepare for; a profile at mount should not count axe's bytes.
 			if (options.check) await prepareAccessibility(prepared);
 			story = { prepared };
 			return {
-				context: storyRenderContext(prepared, requestedContext, defaults),
+				context: options.authoritative
+					? ({ ...defaults, ...requestedContext } as SpecimenContext)
+					: storyRenderContext(prepared, requestedContext, defaults),
 				limitations: prepared.mismatches,
 			};
 		},
@@ -432,6 +438,12 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 		bindEventTarget(name, element) {
 			namedTargets.set(name, element);
 			eventRecorder?.bind(name, element);
+		},
+		installEvents(declared) {
+			if (!declared.length) return;
+			const recorder = recordEvents(mountRoot, declared);
+			eventRecorder = recorder;
+			disposers.push(() => recorder.dispose());
 		},
 		stepStarted(id) {
 			eventRecorder?.stepStarted(id);

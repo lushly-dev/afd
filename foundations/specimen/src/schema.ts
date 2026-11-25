@@ -297,8 +297,10 @@ export const buildOutputSchema = z
 		files: z.array(z.string()),
 	})
 	.strict();
-/** A retained story's run request: a capture request without a checkpoint or set, which is `after-run`. */
-export const runRequestSchema = captureRequestSchema.omit({ checkpoint: true, set: true });
+/** A retained story's or synthesized gate's run request: a capture request without checkpoint or set. */
+export const runRequestSchema = captureRequestSchema
+	.omit({ checkpoint: true, set: true })
+	.extend({ capture: z.enum(['all', 'failed', 'none']).optional() });
 export const suiteRequestSchema = z.strictObject({
 	filter: z
 		.strictObject({
@@ -306,6 +308,11 @@ export const suiteRequestSchema = z.strictObject({
 			file: z.string().min(1).optional(),
 			tags: z.array(z.string().min(1)).optional(),
 			match: z.string().min(1).optional(),
+			kind: z
+				.array(z.enum(['story', 'native', 'gate']))
+				.min(1)
+				.optional(),
+			pattern: z.string().min(1).optional(),
 		})
 		.optional(),
 	context: captureRequestSchema.shape.context,
@@ -314,6 +321,32 @@ export const suiteRequestSchema = z.strictObject({
 	retry: z.boolean().optional(),
 	flakeCap: z.number().int().min(0).max(1000).optional(),
 	capture: z.enum(['all', 'failed', 'none']).optional(),
+});
+export const gateFailureSchema = z.strictObject({
+	stepId: z.string().min(1),
+	kind: z.enum([
+		'target',
+		'action',
+		'event',
+		'form',
+		'validity',
+		'a11y',
+		'focus',
+		'layout',
+		'render',
+	]),
+	code: z.enum(['TARGET_NOT_FOUND', 'TARGET_AMBIGUOUS']).optional(),
+	message: z.string(),
+});
+export const gateOutcomeSchema = z.strictObject({
+	status: z.enum(['passed', 'failed', 'out-of-context']),
+	reason: z.string().min(1).optional(),
+	failures: z.array(gateFailureSchema),
+});
+export const gateRunSchema = z.strictObject({
+	id: z.string(),
+	outcome: gateOutcomeSchema,
+	observation: observationSchema.nullable(),
 });
 const storyOutcomeSchema = z.strictObject({
 	status: z.enum(['passed', 'failed', 'skipped', 'excluded']),
@@ -350,6 +383,7 @@ export const suiteRunSchema = z.strictObject({
 		flaky: z.number().int().nonnegative(),
 		skipped: z.number().int().nonnegative(),
 		excluded: z.number().int().nonnegative(),
+		outOfContext: z.number().int().nonnegative(),
 	}),
 	retry: z.strictObject({ ran: z.boolean(), reason: z.string().optional() }),
 	stories: z.array(
@@ -359,8 +393,8 @@ export const suiteRunSchema = z.strictObject({
 			title: z.string(),
 			name: z.string(),
 			flakeId: z.string(),
-			status: z.enum(['passed', 'failed', 'flaky', 'skipped', 'excluded']),
-			attempts: z.array(storyOutcomeSchema),
+			status: z.enum(['passed', 'failed', 'flaky', 'skipped', 'excluded', 'out-of-context']),
+			attempts: z.array(z.union([storyOutcomeSchema, gateOutcomeSchema])),
 			observation: observationSchema.nullable(),
 		})
 	),
@@ -528,14 +562,22 @@ export const profileRunSchema = z.strictObject({
 	elapsedMs: z.number().nonnegative(),
 });
 
-export const suggestRequestSchema = z.strictObject({
-	component: z.string().min(1),
-	gaps: z.array(z.string().min(1)).optional(),
-	timeoutMs: suiteRequestSchema.shape.timeoutMs,
-	workers: suiteRequestSchema.shape.workers,
-});
+export const suggestRequestSchema = z
+	.strictObject({
+		component: z.string().min(1).optional(),
+		pattern: z.string().min(1).optional(),
+		gaps: z.array(z.string().min(1)).optional(),
+		timeoutMs: suiteRequestSchema.shape.timeoutMs,
+		workers: suiteRequestSchema.shape.workers,
+	})
+	.refine(
+		(value) =>
+			value.component !== undefined ||
+			(value.pattern !== undefined && value.gaps !== undefined && value.gaps.length > 0),
+		'Give a component tag, or give pattern and non-empty gaps.'
+	);
 export const suggestRunSchema = z.strictObject({
-	component: z.string(),
+	component: z.string().optional(),
 	status: z.literal('unverified'),
 	file: z.string(),
 	source: z.string(),
@@ -545,7 +587,14 @@ export const suggestRunSchema = z.strictObject({
 			title: z.string(),
 			module: z.string(),
 			exportName: z.string(),
-			component: z.string(),
+			component: z.string().optional(),
+			patternSetup: z
+				.strictObject({
+					library: z.string().min(1).optional(),
+					pattern: z.string().min(1),
+					setup: z.string().min(1),
+				})
+				.optional(),
 		})
 	),
 	suggestions: z.array(
@@ -592,6 +641,7 @@ export const contractRunSchema = z.strictObject({
 export const coverageRequestSchema = z
 	.strictObject({
 		component: z.string().min(1).optional(),
+		pattern: z.string().min(1).optional(),
 		filter: suiteRequestSchema.shape.filter,
 		obligations: z.enum(['schema-partitions@1', 'jobs@1']).optional(),
 		captures: z.string().min(1).optional(),
@@ -606,7 +656,7 @@ export const coverageRequestSchema = z
 		(value) => value.captures === undefined || value.obligations === 'jobs@1',
 		'captures applies only when obligations is jobs@1.'
 	);
-export { coverageRunSchema } from './schema-coverage.js';
+export { coverageRunSchema, patternCoverageSchema } from './schema-coverage.js';
 export const matrixRequestSchema = z.strictObject({
 	id: z.string().min(1),
 	// Each axis's values are what the same context field accepts.

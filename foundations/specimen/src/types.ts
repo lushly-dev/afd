@@ -15,9 +15,12 @@ import type { PackConfig } from './pack-types.js';
 import type {
 	A11yExpectation,
 	FocusExpectation,
+	GateOutcome,
 	ImplementationContexts,
 	LayoutExpectation,
+	PatternCoverage,
 	PatternSetupBinding,
+	SpecimenListPatternMeta,
 } from './pattern-types.js';
 
 export interface SpecimenContext {
@@ -239,9 +242,19 @@ export type {
 
 import type { JobConfig, JobScenario, JobSource, ResolvedJobCapture } from './job-types.js';
 /** High-level specimen list kind filter and entry classification. */
-export type SpecimenListKind = 'job' | 'component';
+export type SpecimenListKind = 'job' | 'component' | 'story' | 'native' | 'gate';
 export interface SpecimenListFilter {
 	kind?: SpecimenListKind;
+	/** Filter to entries associated with this custom element tag. */
+	component?: string;
+	/** Filter to gate cases or setup cases for a pattern (`<pattern>` or `<library>/<pattern>`). */
+	pattern?: string;
+	/** Case-insensitive substring match against `id` and `title`. */
+	match?: string;
+	/** Maximum entries returned per page (integer 1..500). */
+	limit?: number;
+	/** Cursor from a previous page's `next`. */
+	after?: string;
 }
 export interface SpecimenEntry {
 	id: string;
@@ -249,7 +262,7 @@ export interface SpecimenEntry {
 	/** A native entry's module, relative to the configuration file; a story's import path. */
 	module: string;
 	exportName: string;
-	/** Classified kind when listed (`'job'` if `job` is declared, otherwise `'component'`). */
+	/** Classified kind when listed (`'gate'`, `'job'`, `'story'`, `'native'`, or `'component'`). */
 	kind?: SpecimenListKind;
 	component?: string;
 	/** Present on retained stories discovered in CSF compatibility mode. */
@@ -260,6 +273,8 @@ export interface SpecimenEntry {
 	themes?: ThemeSupport;
 	/** Pattern setup this entry mounts, when bound to a pattern's gates. */
 	patternSetup?: PatternSetupBinding;
+	/** Pattern metadata attached when listed (setup cases and synthesized gate cases). */
+	pattern?: SpecimenListPatternMeta;
 	/** Declared context limits for this implementation of a pattern. */
 	contexts?: ImplementationContexts;
 	/** Sent with a render, not discovered: properties to read live on each tag, for coverage. */
@@ -471,7 +486,7 @@ export interface InspectResult {
 }
 /** Which stories in a suite keep their capture. A capture costs more than some stories' runs. */
 export type SuiteCapture = 'all' | 'failed' | 'none';
-/** The retained stories to run; every condition given must hold. */
+/** The retained stories or synthesized gate cases to run; every condition given must hold. */
 export interface SuiteFilter {
 	ids?: string[];
 	/** An import path such as `./src/button.stories.ts`, or a path relative to the root. */
@@ -480,6 +495,10 @@ export interface SuiteFilter {
 	tags?: string[];
 	/** Text in the story's title and name, in any case. */
 	match?: string;
+	/** Filter by case kind (`story`, `native`, or `gate`). */
+	kind?: ('story' | 'native' | 'gate')[];
+	/** Filter to gate cases or setup cases for a pattern (`<pattern>` or `<library>/<pattern>`). */
+	pattern?: string;
 }
 /** Obligations deliberately not required, versioned so a report can say which set it applied. */
 export interface CoverageWaivers {
@@ -487,14 +506,17 @@ export interface CoverageWaivers {
 	entries: { component: string; obligation: string; reason: string }[];
 }
 export interface SuggestRequest {
-	component: string;
+	/** Custom element tag; optional when `pattern` and non-empty `gaps` are given. */
+	component?: string;
+	/** Pattern id (`<pattern>` or `<library>/<pattern>`) for proposing pattern setup cases. */
+	pattern?: string;
 	/** Obligation ids to propose for; defaults to what a coverage run leaves unverified. */
 	gaps?: string[];
 	workers?: number;
 	timeoutMs?: number;
 }
 export interface SuggestRun {
-	component: string;
+	component?: string;
 	/** Always: a proposal is not evidence until it has been run and corrected. */
 	status: 'unverified';
 	/** Where the module could go, relative to the manifest, beside the component. */
@@ -502,7 +524,14 @@ export interface SuggestRun {
 	/** The proposed native specimens, as a TypeScript module. */
 	source: string;
 	/** Configuration entries for those specimens. */
-	entries: { id: string; title: string; module: string; exportName: string; component: string }[];
+	entries: {
+		id: string;
+		title: string;
+		module: string;
+		exportName: string;
+		component?: string;
+		patternSetup?: PatternSetupBinding;
+	}[];
 	suggestions: {
 		obligation: string;
 		exportName: string;
@@ -548,6 +577,8 @@ export type CoverageObligations = 'schema-partitions@1' | 'jobs@1';
 export interface CoverageRequest {
 	/** One component's tag; defaults to every component the schemas describe. */
 	component?: string;
+	/** Filter `patterns@1` coverage to a pattern (`<pattern>` or `<library>/<pattern>`). */
+	pattern?: string;
 	filter?: SuiteFilter;
 	/** Obligation set to evaluate; defaults to `'schema-partitions@1'`. */
 	obligations?: CoverageObligations;
@@ -614,6 +645,11 @@ export interface CoverageRun {
 	 * claims one. It never changes the fields above.
 	 */
 	guides?: GuideCoverage;
+	/**
+	 * Pattern keep statements' own obligation set, `patterns@1`, when patterns or pattern setups are
+	 * configured. It never changes `schema-partitions@1` or `guides@1`.
+	 */
+	patterns?: PatternCoverage;
 	/** What the evidence came from: only cases that passed count. */
 	cases: {
 		total: number;
@@ -644,10 +680,10 @@ export interface SuiteStory {
 	name: string;
 	/** The story's key in a consumer's flake records, as the incumbent's runner writes it. */
 	flakeId: string;
-	/** `flaky`: failed, then passed on its retry. */
-	status: StoryOutcome['status'] | 'flaky';
+	/** `flaky`: failed, then passed on its retry. `out-of-context`: gate outside declared contexts. */
+	status: StoryOutcome['status'] | 'flaky' | 'out-of-context';
 	/** One outcome per attempt, the first run's first. */
-	attempts: StoryOutcome[];
+	attempts: Array<StoryOutcome | GateOutcome>;
 	/** The last attempt's capture, as `capture` selects. */
 	observation: Observation | null;
 }
@@ -660,6 +696,7 @@ export interface SuiteRun {
 		flaky: number;
 		skipped: number;
 		excluded: number;
+		outOfContext: number;
 	};
 	retry: { ran: boolean; reason?: string };
 	stories: SuiteStory[];
@@ -668,8 +705,11 @@ export interface SuiteRun {
 	/** A bundled source changed during the run; the stories ran against the sources at its start. */
 	sourcesChanged: boolean;
 }
-/** A retained story's run: like a capture request, always at the after-run checkpoint. */
-export type RunRequest = Omit<CaptureRequest, 'checkpoint' | 'set'>;
+/** A retained story's or synthesized gate's run request, always at the after-run checkpoint. */
+export type RunRequest = Omit<CaptureRequest, 'checkpoint' | 'set'> & {
+	/** Which capture to keep: defaults to `'none'` for synthesized gate cases and `'all'` for retained stories. */
+	capture?: SuiteCapture;
+};
 export interface StoryRun {
 	id: string;
 	outcome: StoryOutcome;
@@ -820,7 +860,7 @@ export interface ObservationDiff {
 /** What kind of specimen entry a capture filter can select or skip. */
 export type CaptureEntryKind = 'component' | 'story' | 'job' | 'gate';
 /** Filter for `specimen-capture`: extends `SuiteFilter` with optional entry kinds. */
-export interface CaptureFilter extends SuiteFilter {
+export interface CaptureFilter extends Omit<SuiteFilter, 'kind' | 'pattern'> {
 	kind?: CaptureEntryKind[];
 }
 /** Capture many specimens into a content-addressed capture set under `.specimen/sets/`. */
@@ -1319,7 +1359,7 @@ export interface BrowserRuntime {
 		entry: SpecimenEntry,
 		requested: Partial<SpecimenContext>,
 		defaults: SpecimenContext,
-		options?: { check?: boolean }
+		options?: { check?: boolean; authoritative?: boolean }
 	): Promise<{ context: SpecimenContext; limitations: string[] } | null>;
 	/** Signal deadline cancellation to any running job driver or retained story before disposal. */
 	cancel(): void;
@@ -1350,6 +1390,8 @@ export interface BrowserRuntime {
 	}>;
 	/** Check what is mounted, at this point: a retained story under its policy, or a specimen. */
 	checkAccessibility(): Promise<AxeOutcome>;
+	/** Install declared standard DOM event listeners for a portable pattern gate run. */
+	installEvents(declared: EventDeclaration[]): void;
 	/** A declared event target's element, once the host has resolved it. */
 	bindEventTarget(name: string, element: Element): void;
 	stepStarted(id: string | null): void;

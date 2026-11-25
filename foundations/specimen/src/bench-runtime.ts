@@ -7,6 +7,7 @@ import { resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { RANDOM_SEED } from './baseline.js';
 import type { BenchRuntime } from './bench.js';
+import { runGateInRuntime, suggestInRuntime } from './bench-gates.js';
 import { captureCheckpointsInRuntime, runJobForCaptureSet, runJobInRuntime } from './bench-jobs.js';
 import { runCompare } from './compare.js';
 import {
@@ -32,6 +33,13 @@ import { type JobSource, loadJobSourceModule } from './job-source.js';
 import { readA11yFromSet, readObservationFromSet } from './jobs.js';
 import * as noteRun from './note-run.js';
 import { type PackHost, runPack } from './pack-run.js';
+import {
+	checkImplementationContexts,
+	effectiveGateContext,
+	filterAndPaginateListEntries,
+	listEntriesOf,
+	type SynthesizedGateCase,
+} from './pattern-gates.js';
 import type { JobDriverResult } from './plugin.js';
 import * as pointRun from './point-run.js';
 import {
@@ -46,15 +54,15 @@ import {
 } from './profile.js';
 import { dependencyIdentity, sourceState } from './provenance.js';
 import { runCaptureSet } from './sets.js';
-import { suggestSpecimens } from './suggest.js';
 import {
 	DEFAULT_FLAKE_CAP,
 	DEFAULT_SUITE_WORKERS,
 	executeSuite,
+	isSynthesizedGateCase,
 	matrixCells,
 	pool,
 	selectEntries,
-	selectStories,
+	selectSuiteCases,
 } from './suite.js';
 import { runThemes } from './themes-run.js';
 import { startTrace, traced } from './trace.js';
@@ -79,6 +87,9 @@ import {
 	type ContractRun,
 	type CoverageRequest,
 	type CoverageRun,
+	type EventDeclaration,
+	type GateOutcome,
+	type GateRun,
 	type InspectRequest,
 	type InspectResult,
 	type JobRun,
@@ -90,6 +101,7 @@ import {
 	type Observation,
 	type PackBuildRequest,
 	type PackBuildRun,
+	type PortableScenarioStep,
 	type ProfileBaseline,
 	type ProfileBaselines,
 	type ProfileReport,
@@ -106,6 +118,7 @@ import {
 	type SuiteCapture,
 	type SuiteRequest,
 	type SuiteRun,
+	type Target,
 	type ThemesRequest,
 	type ThemesRun,
 } from './types.js';
@@ -120,7 +133,7 @@ import {
 	parseMatrixRequest,
 	parsePackRequest,
 	parseProfileRequest,
-	parseSuggestRequest,
+	parseRunRequest,
 	parseSuiteRequest,
 	parseThemesRequest,
 } from './validate.js';
@@ -178,8 +191,8 @@ interface HostRender extends pointRun.PointRenderFields {
 	browser: string;
 	/** The context the page rendered in; a retained story settles its own. */
 	context: SpecimenContext;
-	/** A retained story's run, at the after-run checkpoint. */
-	outcome: StoryOutcome | null;
+	/** A retained story's or synthesized gate's run outcome, at the after-run checkpoint. */
+	outcome: StoryOutcome | GateOutcome | null;
 	/** An accessibility check the request asked for. */
 	accessibility?: AxeOutcome | null;
 	/** The page's measurements at the checkpoint, when the request asked for them. */
@@ -402,10 +415,17 @@ export async function createInProcessBench(
 			observe?: SpecimenEntry['observe'];
 			/** Mount this markup, after loading the entry's module, in place of the entry. */
 			remount?: string;
+			/** Native portable gate execution payload (`spec.md` §4.3). */
+			gate?: {
+				id: string;
+				targets: Record<string, Target>;
+				scenario: PortableScenarioStep[];
+				events: EventDeclaration[];
+			};
 		} & pointRun.PointCaptureOptions = {}
 	): Promise<{
 		observation: Observation | null;
-		outcome: StoryOutcome | null;
+		outcome: StoryOutcome | GateOutcome | null;
 		accessibility: AxeOutcome | null;
 		profile: PageMeasurements | null;
 		pointMeta: pointRun.PointCaptureMeta;
@@ -426,7 +446,10 @@ export async function createInProcessBench(
 		const provisional: SpecimenContext = entry.story
 			? resolveContext({ ...request.context, themeMedia: 'browser-default' })
 			: resolveContext(request.context);
-		const trace = startTrace('render', { id: entry.id, checkpoint: request.checkpoint });
+		const trace = startTrace('render', {
+			id: options.gate?.id ?? entry.id,
+			checkpoint: request.checkpoint,
+		});
 		try {
 			const runtime = await traced(trace, host ? 'host-ready' : 'host-start', ensureHost);
 			const screenshot = request.screenshot ? resolve(config.root, request.screenshot) : null;
@@ -451,8 +474,17 @@ export async function createInProcessBench(
 								...(options.reuseBundle ? { reuseBundle: true } : {}),
 								...(options.accessibility ? { accessibility: true } : {}),
 								...(options.profile ? { profile: true } : {}),
+								...(options.gate
+									? {
+											gate: {
+												targets: options.gate.targets,
+												scenario: options.gate.scenario,
+												events: options.gate.events,
+											},
+										}
+									: {}),
 								...pointRun.pointRequestFields(options),
-								...(entry.story && config.config.test?.settledAccessibility
+								...(entry.story && !options.gate && config.config.test?.settledAccessibility
 									? { settled: true }
 									: {}),
 							},
@@ -478,11 +510,12 @@ export async function createInProcessBench(
 					profile,
 					pointMeta,
 				};
+			const storyOutcome = rendered.outcome && 'a11y' in rendered.outcome ? rendered.outcome : null;
 			// The capture is of the settled page, so it records the settled check when one ran.
 			const axe =
 				options.accessibility === false
 					? undefined
-					: (accessibility ?? rendered.outcome?.settled ?? rendered.outcome?.a11y);
+					: (accessibility ?? storyOutcome?.settled ?? storyOutcome?.a11y);
 			const [source, dependencies] =
 				identity ??
 				(await Promise.all([sourceState(config.root), dependencyIdentity(config.root)]));
@@ -500,17 +533,19 @@ export async function createInProcessBench(
 				manifest: {
 					captureVersion: CAPTURE_VERSION,
 					normalizationVersion: NORMALIZATION_VERSION,
-					specimenId: entry.id,
+					specimenId: options.gate?.id ?? entry.id,
 					capturedUtc: new Date().toISOString(),
 					bench: { name: bench.name, version: bench.version, plugins: captured.plugins },
 					driver: { name: 'host' as const, emulates: HOST_EMULATES },
 					checkpoint: {
 						name: request.checkpoint,
-						actionMode: (request.checkpoint === 'mount'
-							? 'none'
-							: entry.story
-								? 'play'
-								: 'real-input') as CaptureCheckpoint['actionMode'],
+						actionMode: (options.gate
+							? 'real-input'
+							: request.checkpoint === 'mount'
+								? 'none'
+								: entry.story
+									? 'play'
+									: 'real-input') as CaptureCheckpoint['actionMode'],
 						ready: { ...captured.ready, deadlineMs: request.timeoutMs },
 						baseline: {
 							clock: 'real' as const,
@@ -721,13 +756,14 @@ export async function createInProcessBench(
 			);
 			// A project that asks for the settled check is checked there; the earlier check stays in
 			// the story's run.
-			const axe = accessibility ?? outcome?.settled ?? outcome?.a11y;
+			const storyOutcome = outcome && 'a11y' in outcome ? outcome : null;
+			const axe = accessibility ?? storyOutcome?.settled ?? storyOutcome?.a11y;
 			if (!axe) throw new Error('The host returned no accessibility check');
 			return {
 				...axe,
 				id: entry.id,
 				checkpoint,
-				failures: (outcome?.failures ?? []).flatMap((failure) =>
+				failures: (storyOutcome?.failures ?? []).flatMap((failure) =>
 					failure.category === 'a11y' ||
 					failure.category === 'settled-a11y' ||
 					failure.category === 'error'
@@ -806,7 +842,8 @@ export async function createInProcessBench(
 				},
 				options
 			);
-			if (!outcome) throw new Error('The host returned no outcome for the run');
+			if (!outcome || !('a11y' in outcome))
+				throw new Error('The host returned no outcome for the run');
 			return { id: entry.id, outcome, observation };
 		} catch (error) {
 			// A story that fails to compose or render fails its run, as its test does.
@@ -831,6 +868,16 @@ export async function createInProcessBench(
 			};
 		}
 	}
+
+	const gateById = new Map((config.gateCases ?? []).map((gateCase) => [gateCase.id, gateCase]));
+
+	/** Run one synthesized portable pattern gate case (`spec.md` §4.3). */
+	const runGate = (
+		gateCase: SynthesizedGateCase,
+		parsed: RunRequest,
+		options?: { capture?: SuiteCapture; reuseBundle?: boolean }
+	): Promise<GateRun> =>
+		runGateInRuntime(capture, DEFAULT_STORY_TIMEOUT_MS, gateCase, parsed, options);
 
 	/** What coverage and a pack need: each case run or rendered on the shared bundle. */
 	const caseHost = (accessibility = false): PackHost => {
@@ -869,6 +916,15 @@ export async function createInProcessBench(
 					{ id, ...(timeoutMs ? { timeoutMs } : {}) },
 					{ capture: 'all', reuseBundle: true, observe }
 				),
+			runGate: (id, timeoutMs) => {
+				const gateCase = gateById.get(id);
+				if (!gateCase) throw new Error(`Gate case not found: ${id}`);
+				return runGate(
+					gateCase,
+					{ id, ...(timeoutMs !== undefined ? { timeoutMs } : {}) },
+					{ capture: 'none', reuseBundle: true }
+				);
+			},
 			render: (id, checkpoint, timeoutMs, observe) => render(id, checkpoint, timeoutMs, observe),
 			capture: (id, { timeoutMs, observe, remount }) =>
 				render(
@@ -891,7 +947,8 @@ export async function createInProcessBench(
 
 	const captureSetHost = () => ({
 		root: config.root,
-		entries: config.entries,
+		localLibrary: config.config.pack?.library,
+		entries: [...config.entries, ...(config.gateCases ?? []).map((gateCase) => gateCase.entry)],
 		workers: config.config.test?.workers ?? DEFAULT_SUITE_WORKERS,
 		prepare: async () => {
 			const runtime = await ensureHost();
@@ -913,6 +970,34 @@ export async function createInProcessBench(
 			screenshot: string;
 			timeoutMs?: number;
 		}) => {
+			const gateCase = gateById.get(entry.id);
+			if (gateCase) {
+				const effective = effectiveGateContext(gateCase.gate, context);
+				const outOfContext = checkImplementationContexts(effective, gateCase.contexts);
+				if (outOfContext !== undefined) throw new Error(outOfContext);
+				const { observation } = await capture(
+					{
+						id: gateCase.setupEntry.id,
+						checkpoint: 'after-run',
+						context: effective,
+						screenshot,
+						timeoutMs: timeoutMs ?? DEFAULT_STORY_TIMEOUT_MS,
+					},
+					{
+						reuseBundle: true,
+						accessibility: axe,
+						capture: 'all',
+						gate: {
+							id: gateCase.id,
+							targets: gateCase.setup.targets,
+							scenario: gateCase.gate.scenario,
+							events: gateCase.events,
+						},
+					}
+				);
+				if (!observation) throw new Error('The gate render captured no observation.');
+				return observation;
+			}
 			const { observation } = await capture(
 				{
 					id: entry.id,
@@ -941,12 +1026,9 @@ export async function createInProcessBench(
 	const api: BenchRuntime = {
 		list(filter) {
 			ensureOpen();
-			const entries = config.entries.map((entry) => ({
-				...entry,
-				kind: (entry.job ? 'job' : 'component') as 'job' | 'component',
-			}));
-			if (!filter?.kind) return entries;
-			return entries.filter((entry) => entry.kind === filter.kind);
+			const localLibrary = config.config.pack?.library;
+			const entries = listEntriesOf(config.entries, config.gateCases, localLibrary);
+			return filterAndPaginateListEntries(entries, filter, localLibrary).specimens;
 		},
 		async build(outDir) {
 			ensureOpen();
@@ -1028,9 +1110,15 @@ export async function createInProcessBench(
 			)) as HostRender;
 			return inspected.captured as unknown as InspectResult;
 		},
-		async run(rawRequest: RunRequest): Promise<StoryRun> {
+		async run(rawRequest: RunRequest): Promise<StoryRun | GateRun> {
 			ensureOpen();
-			return runStory(parseCaptureRequest(rawRequest));
+			const request = parseRunRequest(rawRequest);
+			const gateCase = gateById.get(request.id);
+			if (gateCase) {
+				return runGate(gateCase, request, { capture: request.capture ?? 'none' });
+			}
+			const { capture: captureMode, ...storyReq } = request;
+			return runStory(storyReq, { ...(captureMode ? { capture: captureMode } : {}) });
 		},
 		async matrix(rawRequest: MatrixRequest): Promise<MatrixRun> {
 			ensureOpen();
@@ -1126,7 +1214,7 @@ export async function createInProcessBench(
 			const entries = request.id
 				? config.entries.filter((entry) => entry.id === request.id)
 				: request.filter
-					? selectEntries(config.entries, request.filter, config.root)
+					? selectEntries(config.entries, request.filter, config.root, config.config.pack?.library)
 					: config.entries.filter((entry) => baselines?.stories[entry.id]);
 			const orphaned = Object.keys(baselines?.stories ?? {}).filter(
 				(id) => !config.entries.some((entry) => entry.id === id)
@@ -1170,7 +1258,7 @@ export async function createInProcessBench(
 				throw new Error('Give an id or a filter; recording replaces what is there.');
 			const entries = request.id
 				? config.entries.filter((entry) => entry.id === request.id)
-				: selectEntries(config.entries, request.filter, config.root);
+				: selectEntries(config.entries, request.filter, config.root, config.config.pack?.library);
 			if (request.id && !entries.length) throw new Error(`Specimen not found: ${request.id}`);
 			if (!entries.length) throw new Error('No specimen or retained story matches the filter.');
 			const started = performance.now();
@@ -1221,21 +1309,7 @@ export async function createInProcessBench(
 		},
 		async suggest(rawRequest: SuggestRequest): Promise<SuggestRun> {
 			ensureOpen();
-			const started = performance.now();
-			const { component, gaps, ...limits } = parseSuggestRequest(rawRequest);
-			const known = config.schemas[component];
-			if (!known) throw new Error(`The manifest does not describe ${component}.`);
-			// Only a run can say what is unverified, unless the caller already knows.
-			const wanted =
-				gaps ??
-				(await api.coverage({ component, ...limits })).components
-					.flatMap((item) => item.obligations)
-					.filter((item) => item.level !== 'verified' && !item.waiver)
-					.map((item) => item.id);
-			return {
-				...suggestSpecimens(known, wanted),
-				elapsedMs: performance.now() - started,
-			};
+			return suggestInRuntime(config, (request) => api.coverage(request), rawRequest);
 		},
 		async contract(rawRequest: ContractRequest = {}): Promise<ContractRun> {
 			ensureOpen();
@@ -1285,7 +1359,7 @@ export async function createInProcessBench(
 			}
 			const entries = request.id
 				? config.entries.filter((entry) => entry.id === request.id)
-				: selectEntries(config.entries, request.filter, config.root);
+				: selectEntries(config.entries, request.filter, config.root, config.config.pack?.library);
 			if (request.id && !entries.length) throw new Error(`Specimen not found: ${request.id}`);
 			if (!entries.length) throw new Error('No specimen or retained story matches the filter.');
 			const workers = request.workers ?? config.config.test?.workers ?? DEFAULT_SUITE_WORKERS;
@@ -1315,6 +1389,7 @@ export async function createInProcessBench(
 				{
 					entries: config.entries,
 					root: config.root,
+					localLibrary: config.config.pack?.library,
 					workers: config.config.test?.workers ?? DEFAULT_SUITE_WORKERS,
 					prepare: async () => void (await runtime.request('prepare', {}, BUNDLE_GRACE)),
 					render: async (id, checkpoint, context, screenshot, timeoutMs) => {
@@ -1336,21 +1411,57 @@ export async function createInProcessBench(
 		async runSuite(rawRequest: SuiteRequest = {}): Promise<SuiteRun> {
 			ensureOpen();
 			const request = parseSuiteRequest(rawRequest);
-			const stories = selectStories(config.entries, request.filter, config.root);
-			if (!stories.length) throw new Error('No retained story matches the filter.');
+			const targets = selectSuiteCases(
+				config.entries,
+				config.gateCases ?? [],
+				request.filter,
+				config.root,
+				config.config.pack?.library
+			);
+			if (!targets.length) {
+				const mentionsGates =
+					(config.gateCases?.length ?? 0) > 0 ||
+					Boolean(request.filter?.kind?.includes('gate')) ||
+					request.filter?.pattern !== undefined;
+				throw new Error(
+					mentionsGates
+						? 'No retained story or gate case matches the filter.'
+						: 'No retained story matches the filter.'
+				);
+			}
 			const workers = request.workers ?? config.config.test?.workers ?? DEFAULT_SUITE_WORKERS;
 			const started = performance.now();
-			const runtime = await ensureHost();
-			// One snapshot of the sources for the whole suite, so that a change during the run cannot
-			// mix two generations; `sourcesChanged` reports one.
-			await runtime.request('prepare', {}, BUNDLE_GRACE);
+			const needsHost = targets.some((item) => {
+				if (!isSynthesizedGateCase(item)) return true;
+				const effective = effectiveGateContext(item.gate, request.context);
+				return checkImplementationContexts(effective, item.contexts) === undefined;
+			});
+			let runtime: HostProcess | undefined;
+			if (needsHost) {
+				runtime = await ensureHost();
+				// One snapshot of the sources for the whole suite, so that a change during the run cannot
+				// mix two generations; `sourcesChanged` reports one.
+				await runtime.request('prepare', {}, BUNDLE_GRACE);
+			}
 			const suite = await executeSuite(
 				config.root,
-				stories,
-				async (entry) => {
+				targets,
+				async (item) => {
+					if (isSynthesizedGateCase(item)) {
+						const { outcome, observation } = await runGate(
+							item,
+							{
+								id: item.id,
+								...(request.context ? { context: request.context } : {}),
+								...(request.timeoutMs ? { timeoutMs: request.timeoutMs } : {}),
+							},
+							{ capture: request.capture ?? 'failed', reuseBundle: true }
+						);
+						return { outcome, observation };
+					}
 					const { outcome, observation } = await runStory(
 						{
-							id: entry.id,
+							id: item.id,
 							...(request.context ? { context: request.context } : {}),
 							...(request.timeoutMs ? { timeoutMs: request.timeoutMs } : {}),
 						},
@@ -1364,7 +1475,9 @@ export async function createInProcessBench(
 					flakeCap: request.flakeCap ?? DEFAULT_FLAKE_CAP,
 				}
 			);
-			const { stale } = (await runtime.request('stale', {}, HOST_GRACE)) as { stale: boolean };
+			const stale = runtime
+				? ((await runtime.request('stale', {}, HOST_GRACE)) as { stale: boolean }).stale
+				: false;
 			return {
 				...suite,
 				workers,

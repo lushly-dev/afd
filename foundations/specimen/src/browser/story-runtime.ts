@@ -135,7 +135,8 @@ export function prepareStory(
 	identity: StoryIdentity,
 	preview: StoryModule | undefined,
 	module: StoryModule,
-	requested: Partial<SpecimenContext>
+	requested: Partial<SpecimenContext>,
+	options: { authoritative?: boolean } = {}
 ): PreparedStory {
 	const project = projectAnnotations(preview);
 	const meta = (module.default ?? {}) as Annotations;
@@ -162,8 +163,12 @@ export function prepareStory(
 		if (['mount', 'canvas', 'userEvent'].includes(field))
 			unsupported.push(`play context \`${field}\``);
 	const mismatches: string[] = [];
-	// A requested theme selects the project's theme global, as its toolbar would.
-	if (requested.theme !== undefined && project.globalTypes?.theme !== undefined)
+	// A requested theme selects the project's theme global, as its toolbar would. When the caller's
+	// context is authoritative (pattern gate execution), it overrides story globals unconditionally.
+	if (
+		requested.theme !== undefined &&
+		(options.authoritative || project.globalTypes?.theme !== undefined)
+	)
 		composed.globals = { ...composed.globals, theme: requested.theme };
 	const themes = globalValues(project, 'theme');
 	if (themes && composed.globals.theme !== undefined && !themes.has(composed.globals.theme))

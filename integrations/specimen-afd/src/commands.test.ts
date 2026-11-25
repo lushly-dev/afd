@@ -320,7 +320,15 @@ function bench(): SpecimenCommandBench {
 		})),
 		runSuite: vi.fn(async () => ({
 			outcome: 'passed' as const,
-			counts: { total: 0, passed: 0, failed: 0, flaky: 0, skipped: 0, excluded: 0 },
+			counts: {
+				total: 0,
+				passed: 0,
+				failed: 0,
+				flaky: 0,
+				skipped: 0,
+				excluded: 0,
+				outOfContext: 0,
+			},
 			retry: { ran: false, reason: 'no story failed' },
 			stories: [],
 			workers: 2,
@@ -1893,6 +1901,92 @@ describe('specimen commands', () => {
 		expect(missing.success).toBe(false);
 		expect(missing.error?.code).toBe('CAPTURE_SET_NOT_FOUND');
 		expect(missing.error?.suggestion).toContain('specimen-capture');
+	});
+
+	it('filters and paginates specimen-list and validates GateRun + single-id capture on specimen-run', async () => {
+		const instance = bench();
+		instance.list = vi.fn(() => [
+			{
+				id: 'select-setup',
+				title: 'Select / Setup',
+				module: './select.js',
+				exportName: 'Setup',
+				kind: 'native' as const,
+				component: 'example-select',
+				pattern: { library: 'example', pattern: 'select', setup: 'three-options' },
+			},
+			{
+				id: 'select-setup--gate--named',
+				title: 'select / named',
+				module: 'specimens/patterns/select/pattern.json',
+				exportName: 'named',
+				kind: 'gate' as const,
+				component: 'example-select',
+				pattern: { library: 'example', pattern: 'select', setup: 'three-options', gate: 'named' },
+			},
+			{
+				id: 'select-setup--gate--escape-closes',
+				title: 'select / escape-closes',
+				module: 'specimens/patterns/select/pattern.json',
+				exportName: 'escape-closes',
+				kind: 'gate' as const,
+				component: 'example-select',
+				pattern: {
+					library: 'example',
+					pattern: 'select',
+					setup: 'three-options',
+					gate: 'escape-closes',
+				},
+			},
+		]);
+
+		const page1 = await executeSpecimenCommand(instance, 'specimen-list', {
+			kind: 'gate',
+			pattern: 'example/select',
+			component: 'example-select',
+			limit: 1,
+		});
+		expect(page1.success).toBe(true);
+		expect(page1.data).toMatchObject({
+			specimens: [{ id: 'select-setup--gate--named', kind: 'gate' }],
+			next: 'select-setup--gate--named',
+		});
+
+		const page2 = await executeSpecimenCommand(instance, 'specimen-list', {
+			kind: 'gate',
+			pattern: 'example/select',
+			limit: 1,
+			after: 'select-setup--gate--named',
+		});
+		expect(page2.success).toBe(true);
+		expect(page2.data).toMatchObject({
+			specimens: [{ id: 'select-setup--gate--escape-closes', kind: 'gate' }],
+		});
+		expect((page2.data as { next?: string }).next).toBeUndefined();
+
+		instance.run = vi.fn(async () => ({
+			id: 'select-setup--gate--escape-closes',
+			outcome: {
+				status: 'out-of-context' as const,
+				reason: 'Desktop only.',
+				failures: [],
+			},
+			observation: null,
+		}));
+		const gateResult = await executeSpecimenCommand(instance, 'specimen-run', {
+			id: 'select-setup--gate--escape-closes',
+			capture: 'none',
+		});
+		expect(gateResult.success).toBe(true);
+		expect(instance.run).toHaveBeenCalledWith({
+			id: 'select-setup--gate--escape-closes',
+			capture: 'none',
+		});
+		expect(gateResult.data).toEqual({
+			id: 'select-setup--gate--escape-closes',
+			outcome: { status: 'out-of-context', reason: 'Desktop only.', failures: [] },
+			observation: null,
+		});
 	});
 
 	it('exposes the 6 specimen-note-* commands with mutation metadata, schema validation, and structured errors', async () => {
