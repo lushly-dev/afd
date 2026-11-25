@@ -27,7 +27,7 @@ REFUSALS = [
     ("running", {}, "wt/half-done", "DIRTY_WORKTREE", "commit"),
     ("running", {}, "wt/unreviewed", "REVIEW_MISSING", "prepare-pr"),
     ("ejected", {}, "wt/type-slip", "PREQUEUE_FAILED", "lane-enqueue"),
-    ("ejected", {}, "wt/loosened", "GATE_EDIT_IN_REPAIR", "gate-allow"),
+    ("ejected", {}, "wt/loosened", "GATE_EDIT_IN_REPAIR", "report that to your foreman"),
 ]
 
 
@@ -134,11 +134,44 @@ async def test_re_enqueueing_replaces_the_branch_s_entry_and_counts_the_attempt(
 
 async def test_gate_allow_lets_the_diagnosed_gate_repair_in(make_run):
     run = make_run("ejected")
-    allowed = await run.call("gate_allow", branch="fix/loosened-check", reason="Diagnosed")
-    assert allowed.data == {"allowed": True, "branch": "fix/loosened-check"}
+    session = await run.take_lane()
+    allowed = await run.call(
+        "gate_allow",
+        branch="fix/loosened-check",
+        reason="Diagnosed",
+        session=session,
+        head="d4e5f6a",
+    )
+    assert allowed.data == {"allowed": True, "branch": "fix/loosened-check", "head": "d4e5f6a"}
     assert (await run.call("lane_enqueue", worktree="wt/loosened")).data["state"] == "queued"
-    missing = await run.call("gate_allow", branch="nope", reason="x")
+    missing = await run.call(
+        "gate_allow", branch="nope", reason="x", session=session, head="d4e5f6a"
+    )
     assert missing.error.code == "NOT_FOUND"
+
+
+async def test_the_gate_refusal_sends_the_cell_to_its_foreman_not_to_gate_allow(make_run):
+    """A cell following its refusal's suggestion must not find the foreman's command in it."""
+    run = make_run("ejected")
+    refused = await run.call("lane_enqueue", worktree="wt/loosened")
+    assert refused.error.code == "GATE_EDIT_IN_REPAIR"
+    assert "gate-allow" not in refused.error.suggestion
+    assert "gate_allow" not in refused.error.suggestion
+    assert refused.error.details["head"] == "d4e5f6a"  # What the foreman's gate-allow names.
+
+
+async def test_gate_allow_covers_the_head_it_names_and_no_later_one(make_run):
+    run = make_run("ejected")
+    session = await run.take_lane()
+    await run.call(
+        "gate_allow",
+        branch="fix/loosened-check",
+        reason="Diagnosed",
+        session=session,
+        head="0ld0ld0",
+    )
+    refused = await run.call("lane_enqueue", worktree="wt/loosened")
+    assert refused.error.code == "GATE_EDIT_IN_REPAIR", refused.error
 
 
 async def test_a_repair_whose_gate_edits_cannot_be_read_waits(make_run):
@@ -154,12 +187,14 @@ async def test_a_repair_whose_gate_edits_cannot_be_read_waits(make_run):
     assert run.snapshot() == before
 
 
-async def test_an_area_ci_issue_may_repair_its_gate(make_run):
+async def test_no_label_lets_a_repair_edit_its_gate(make_run):
+    """A label a cell's own sign-in can add is no exemption: only the live foreman's gate-allow."""
     run = make_run("ejected")
     data = run.world_data()
     next(i for i in data["issues"] if i["number"] == 103)["labels"].append("area:ci")
     run.world_path.write_text(json.dumps(data))
-    assert (await run.call("lane_enqueue", worktree="wt/loosened")).success
+    refused = await run.call("lane_enqueue", worktree="wt/loosened")
+    assert refused.error.code == "GATE_EDIT_IN_REPAIR", refused.error
 
 
 async def test_a_stage_that_cannot_run_did_not_pass(make_run):

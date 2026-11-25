@@ -266,20 +266,23 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable[..., Any]]:
         )
 
     async def gate_allow(
-        branch: str, reason: str, session: str | None = None
+        branch: str, reason: str, head: str, session: str | None = None
     ) -> CommandResult[Any]:
-        """Record that a diagnosis found a repair's gate edit to be the right repair.
+        """Record that a diagnosis found a repair's gate edit to be the right repair, for one head.
 
         Args:
             branch: The ejected cell's branch.
             reason: What the diagnosis found.
-            session: The foreman's own session (its T3 Code thread id); the owner names none.
+            session: The foreman's own session (its T3 Code thread id), which must hold the
+                lane's lease now.
+            head: The commit diagnosed, as the cell's GATE_EDIT_IN_REPAIR names it. A later
+                commit needs a new gate-allow.
         """
 
         return await run(
             lambda: success(
                 cells.gate_allow(
-                    get(), branch, reason, foreman.acting(get(), session, "gate-allow", True)
+                    get(), branch, reason, foreman.leased(get(), session, "gate-allow"), head
                 )
             )
         )

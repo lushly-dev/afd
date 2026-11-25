@@ -314,7 +314,10 @@ class FixtureGit:
         self, worktree: str, base: str, since: str | None, keep: Callable[[str], bool]
     ) -> list[str]:
         """The branch's own changes the fixture names that ``keep`` selects; ``base`` and
-        ``since`` are not modelled (``test_lane_git`` runs the real comparison)."""
+        ``since`` are not modelled (``test_lane_git`` runs the real comparison).
+        ``outcomes.repairEdits`` ``fail: ...`` refuses the read in a lane slot."""
+        if worktree.startswith("slots/"):
+            _fail(self.store, "repairEdits", self._slot(worktree)["branch"])
         return [path for path in self.changed_files(worktree) if keep(path)]
 
     def push_queue_ref(self, worktree: str, branch: str, head: str) -> None:

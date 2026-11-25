@@ -45,7 +45,7 @@ import hashlib
 import re
 from typing import Any
 
-from botcore_factory import change_report, job
+from botcore_factory import change_report, job, queue
 from botcore_factory.adapter import matches
 from botcore_factory.cells import disk_short
 from botcore_factory.events import is_open
@@ -368,6 +368,11 @@ class Step(Merging, Coverage):
                     )
                     return False
                 raise LaneTrouble(f"Preparing slot {slot} for {branch} failed: {exc}") from exc
+            # Read at the queued head itself, before main is merged in, and held at once: an
+            # ejection on the way (a conflict, a refused fold) must not carry the edits past it.
+            repair = self.repair_gate_edits(entry, path, base)
+            if repair and self.hold_for_gate_change(entry, [], None, repair):
+                return False
             try:
                 merged = self.world.git.merge_main(path, base, keep_open=self.regenerable)
             except WorldError as exc:
@@ -569,32 +574,57 @@ class Step(Merging, Coverage):
         except WorldError as exc:
             raise LaneTrouble(f"Reading test changes for {entry['branch']} failed: {exc}") from exc
 
+    def repair_gate_edits(self, entry: dict[str, Any], path: str, base: str) -> list[str]:
+        """What a repair's queued head newly edits in ``gate_paths``, as reasons to hold it.
+
+        ``lane-enqueue`` refused these already, but it ran the cell's own copy of that check
+        and of ``gate_paths``, which the branch can change. This one binds: the lane's code and
+        config, the lane's fetch of the base, and the slot checked out at the queued head. Empty
+        for a branch never ejected for a failing check, or whose queued head ``gate-allow``
+        covers. Edits that cannot be read are a reason too, so the repair waits for a person
+        rather than passing unread."""
+        branch = entry["branch"]
+        repair = queue.repair_since(
+            self.factory, branch, self.cell(branch), self.state, entry.get("head", "")
+        )
+        if repair is None:
+            return []
+        cause, since = repair
+        try:
+            edits = self.world.git.repair_edits(
+                path, base, since, lambda name: matches(name, self.config.gate_paths)
+            )
+        except WorldError as exc:
+            return [f"its repair after {cause} has gate edits the lane could not read: {exc}"]
+        return [f"its repair after {cause} edits gate path {name}" for name in sorted(edits)]
+
     def hold_for_gate_change(
-        self, entry: dict[str, Any], changed: list[str], report: dict[str, Any] | None
+        self,
+        entry: dict[str, Any],
+        changed: list[str],
+        report: dict[str, Any] | None,
+        repair: list[str] | None = None,
     ) -> bool:
-        """Authoritative Phase 5 "never improves by checking less" hold for ``area:factory``.
+        """Authoritative Phase 5 "never improves by checking less" hold for ``area:factory``,
+        and for any repair whose gate edits ``repair_gate_edits`` found.
 
         Even if a branch slipped past ``lane-enqueue``'s advisory check (e.g. by altering its
         own copy of ``report-test-changes.mjs`` or ``.gitattributes``), the lane holds it here
         before validation and persists the authoritative report on a ``held`` attempt record.
         """
         changed_gate = [path for path in changed if matches(path, self.config.gate_paths)]
-        reasons = change_report.check_less_reasons(report, gate_paths=changed_gate)
-        if not reasons:
+        reasons = list(repair or [])
+        checks_less = change_report.check_less_reasons(report, gate_paths=changed_gate)
+        if not reasons and not checks_less:
             return False
         branch = entry["branch"]
         cell = self.cell(branch)
         if change_report.is_gate_change_approved(cell, entry.get("head", "")):
             return False
-        if not (cell or {}).get("improvement"):
-            try:
-                issues = [self.world.github.get_issue(number) for number in entry.get("issues", [])]
-            except WorldError as exc:
-                raise LaneTrouble(
-                    f"Reading issues for {branch} gate-change check failed: {exc}"
-                ) from exc
-            if not change_report.is_factory_branch(issues, cell):
-                return False
+        if checks_less and self.changes_the_factory(entry, cell):
+            reasons += checks_less
+        if not reasons:
+            return False
         self.state["queue"].remove(entry)
         for key in VALIDATION_FIELDS:
             entry.pop(key, None)
@@ -636,6 +666,18 @@ class Step(Merging, Coverage):
         )
         self.actions.append(f"held {branch} ({change_report.GATE_CHANGE_HOLD})")
         return True
+
+    def changes_the_factory(self, entry: dict[str, Any], cell: dict[str, Any] | None) -> bool:
+        """Whether the branch is an improvement cell or one of its issues is ``area:factory``."""
+        if (cell or {}).get("improvement"):
+            return True
+        try:
+            issues = [self.world.github.get_issue(number) for number in entry.get("issues", [])]
+        except WorldError as exc:
+            raise LaneTrouble(
+                f"Reading issues for {entry['branch']} gate-change check failed: {exc}"
+            ) from exc
+        return change_report.is_factory_branch(issues, cell)
 
     def review_verified(self, entry: dict[str, Any], base: str) -> bool:
         """Whether the base's review verifier accepts the cell's review of the queued head.

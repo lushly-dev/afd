@@ -29,7 +29,6 @@ from botcore_factory.world import LANE_HOST_VARIABLE, Issue, WorldError
 
 FIRST_LINES = 20
 REVIEW_TIMEOUT = 120  # Seconds; the verifier only reads a record.
-AREA_CI = "area:ci"
 
 
 def _first_lines(text: str) -> list[str]:
@@ -115,19 +114,55 @@ def _check_review(factory: Factory, worktree: str, head: str) -> None:
         )
 
 
-def _check_gate(
-    factory: Factory, worktree: str, branch: str, cell: dict[str, Any], state: dict[str, Any]
-) -> None:
-    """A branch ejected for a failing check may not come back with new gate-path edits."""
+def gate_allowed(cell: dict[str, Any] | None, head: str) -> bool:
+    """Whether the foreman's ``gate-allow`` covers this exact head: a later commit needs a new
+    diagnosis, as a later commit needs ``measure-approve`` again."""
+    allowed = (cell or {}).get("gateAllowed")
+    return isinstance(allowed, dict) and bool(head) and allowed.get("head") == head
+
+
+def repair_since(
+    factory: Factory, branch: str, cell: dict[str, Any] | None, state: dict[str, Any], head: str
+) -> tuple[str, str | None] | None:
+    """For a branch ejected for a failing check whose ``head`` no ``gate-allow`` covers: the
+    failing check's cause and the head it was ejected at (None when nothing kept it). None when
+    its repair may edit gate paths.
+
+    The cell keeps its latest failing-check ejection (``checkFailed``), so an ejection for another
+    cause since then does not end the check; a cell from before it was kept is read from its
+    last ejection."""
+    if gate_allowed(cell, head):
+        return None
+    kept = (cell or {}).get("checkFailed")
+    if isinstance(kept, dict) and kept.get("cause") in records.FAILING_CHECK_CAUSES:
+        return str(kept["cause"]), kept.get("head")
     ejection = factory.store.last_ejection(branch)
     cause = ejection.get("cause") if ejection else None
     if ejection is None:
         events = [e for e in state["events"] if e.get("type") == "ejected"]
         event = next((e for e in reversed(events) if e.get("branch") == branch), None)
         cause = event.get("reason") if event else None
-    if cause not in records.FAILING_CHECK_CAUSES or cell.get("gateAllowed"):
+    if cause not in records.FAILING_CHECK_CAUSES:
+        return None
+    return cause, ejection.get("head") if ejection else None
+
+
+def _check_gate(
+    factory: Factory,
+    worktree: str,
+    branch: str,
+    head: str,
+    cell: dict[str, Any],
+    state: dict[str, Any],
+) -> None:
+    """A branch ejected for a failing check may not come back with new gate-path edits.
+
+    This is the cell's early answer; the lane checks again with its own copy of this code and
+    of ``gate_paths`` before it validates (``Step.repair_gate_edits``)."""
+    repair = repair_since(factory, branch, cell, state, head)
+    if repair is None:
         return
-    since = ejection.get("head") if ejection else None
+    cause, since = repair
     # Only the branch's own change counts: a repair that rebases onto main, or merges it, brings
     # in main's gate edits too, and those are not the repair's (lushly-dev/afd#1374).
     # The base is the lane's own fetch, never a ref in the cell's worktree it could repoint.
@@ -146,16 +181,15 @@ def _check_gate(
         ) from exc
     if not edits:
         return
-    issues = [factory.world.github.get_issue(number) for number in cell.get("issues", [])]
-    if any(AREA_CI in issue.labels for issue in issues):
-        return
     raise Refusal(
         "GATE_EDIT_IN_REPAIR",
         f"{branch} was ejected ({cause}) and its repair edits gate paths: {', '.join(edits)}",
-        "Repair it without editing the gate; if a diagnosis on the stronger route finds the gate "
-        "edit is the right repair, the foreman records that with gate-allow",
+        "Repair it without editing these paths. If you find the gate edit is the right repair, "
+        "stop and report that to your foreman, with what you found and this head; the repair "
+        "waits for its decision",
         recovery=EXTERNAL,
         paths=edits,
+        head=head,
     )
 
 
@@ -307,7 +341,7 @@ def enqueue(
     _check_host(factory)
     _check_clean(factory, worktree)
     _check_review(factory, worktree, head)
-    _check_gate(factory, worktree, branch, cell, factory.store.read())
+    _check_gate(factory, worktree, branch, head, cell, factory.store.read())
     stages = _prequeue(factory, worktree)
     issues = [factory.world.github.get_issue(number) for number in cell.get("issues", [])]
     profile = _profile_from_issues(issues)
