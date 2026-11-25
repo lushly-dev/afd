@@ -5,6 +5,7 @@
 //! default applies. Routing, every header and key rule, and every claim rule are this module's
 //! and [`super::claims`]'s own code, in the specification's order.
 
+use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 
@@ -148,12 +149,15 @@ pub enum KeyError {
     Unavailable,
 }
 
-/// Where an issuer's signing keys come from. The host fetches them (its JWKS, its cache, its
-/// refetch policy); AFD opens no socket.
+/// Where an issuer's signing keys come from (`spec/authorization.md`, M3 rule 3). AFD opens no
+/// socket: [`StaticKeys`] holds a fixed key set, and [`JwksKeySource`](super::JwksKeySource) caches
+/// the JWKS document the host's [`JwksLoader`](super::JwksLoader) fetches, with a maximum age, the
+/// last good keys kept while loads fail, and refetches on an unknown `kid` rate-limited per issuer.
 ///
-/// The `kid` comes from a token AFD has not yet verified, so it is the caller's choice: refetch
-/// on an unknown `kid` at most once in a while per issuer, and keep the last good keys, rather
-/// than let a stream of made-up `kid`s drive requests to the issuer.
+/// A host's own source must do the same: the `kid` comes from a token AFD has not yet verified,
+/// so it is the caller's choice. Refetch on an unknown `kid` at most once in a while per issuer,
+/// and keep the last good keys, rather than let a stream of made-up `kid`s drive requests to the
+/// issuer.
 #[async_trait]
 pub trait KeySource: Send + Sync {
     /// The key of `issuer` (its exact configured string) with this `kid`.
@@ -163,7 +167,7 @@ pub trait KeySource: Send + Sync {
 /// A fixed key set, for an issuer whose keys are configured rather than fetched (and for tests).
 #[derive(Debug, Clone)]
 pub struct StaticKeys {
-    keys: Vec<Jwk>,
+    keys: HashMap<String, Jwk>,
 }
 
 impl StaticKeys {
@@ -173,33 +177,35 @@ impl StaticKeys {
     /// The document has no `keys` array, or a key is not an object with a non-empty string
     /// `kid` that no other key has.
     pub fn from_jwks(document: &Value) -> Result<Self, String> {
-        let keys = document
-            .get("keys")
-            .and_then(Value::as_array)
-            .ok_or("[AFD] a JWKS document has a \"keys\" array")?;
-        let mut parsed: Vec<Jwk> = Vec::new();
-        for key in keys {
-            let key = Jwk::from_value(key.clone())?;
-            let Some(kid) = key.kid().filter(|kid| !kid.is_empty()) else {
-                return Err("[AFD] every key of a JWKS document needs a non-empty kid".to_owned());
-            };
-            if parsed.iter().any(|kept| kept.kid() == Some(kid)) {
-                return Err(format!("[AFD] kid {kid:?} appears more than once"));
-            }
-            parsed.push(key);
-        }
-        Ok(Self { keys: parsed })
+        read_jwks(document).map(|keys| Self { keys })
     }
+}
+
+/// The keys of a JWKS document (RFC 7517 5) by `kid`, or why it is not one: no `keys` array, or a
+/// key that is not an object with a non-empty string `kid` that no other key has.
+pub(super) fn read_jwks(document: &Value) -> Result<HashMap<String, Jwk>, String> {
+    let keys = document
+        .get("keys")
+        .and_then(Value::as_array)
+        .ok_or("[AFD] a JWKS document has a \"keys\" array")?;
+    let mut parsed: HashMap<String, Jwk> = HashMap::with_capacity(keys.len());
+    for key in keys {
+        let key = Jwk::from_value(key.clone())?;
+        let Some(kid) = key.kid().filter(|kid| !kid.is_empty()).map(str::to_owned) else {
+            return Err("[AFD] every key of a JWKS document needs a non-empty kid".to_owned());
+        };
+        if parsed.contains_key(&kid) {
+            return Err(format!("[AFD] kid {kid:?} appears more than once"));
+        }
+        parsed.insert(kid, key);
+    }
+    Ok(parsed)
 }
 
 #[async_trait]
 impl KeySource for StaticKeys {
     async fn key(&self, _issuer: &str, kid: &str) -> Result<Jwk, KeyError> {
-        self.keys
-            .iter()
-            .find(|key| key.kid() == Some(kid))
-            .cloned()
-            .ok_or(KeyError::Unknown)
+        self.keys.get(kid).cloned().ok_or(KeyError::Unknown)
     }
 }
 

@@ -778,7 +778,10 @@ the test (RSA, EC P-256 and P-384, Ed25519), `tests/server_auth.rs` the layer en
 for a name it does not have, `tests/server_auth_pre_dispatch.rs` a host's own layer running the
 decision before dispatch, each answer compared byte for byte with the bearer layer's, and
 `tests/auth_canary.rs` the token canary over every log line. Rust serves the layer and the service
-together through `McpServer::authorized_http_service`.
+together through `McpServer::authorized_http_service`. Its keys come from a `KeySource`:
+`StaticKeys` for a fixed JWKS, or `JwksKeySource` over the host's `JwksLoader`, which applies
+`jwksKeySource`'s maximum age, maximum staleness, unknown-`kid` refetch interval and shared load
+to each issuer's keys (`tests/auth_jwks.rs`, on a manual clock).
 
 TypeScript verifies (Loam phase 3 step 0a) on every HTTP route of `createMcpHandler({ auth })`
 and `createMcpServer({ auth })`: `/mcp`, the deprecated `/sse` and `/message` lane, `/rpc`,
@@ -909,7 +912,7 @@ and C++ have no CLI.
 <!-- generated:capabilities:spec.authorization.status:start -->
 | Rule | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| Bearer token, verification, audience, credentials (M1 to M4) | Yes (Loam phase 3 step 0a; `createMcpHandler({ auth })`, `JwtVerifier` on `jose`, `KeySource`, `jwksKeySource`, `createIntrospectionVerifier`, `TokenVerifier`, `context.credentials`) | Yes ([#2154](https://github.com/lushly-dev/afd/issues/2154); `create_server(auth=McpAuthOptions(...))`, `JwtVerifier` on `cryptography`, `KeySource`, `jwks_key_source`, `create_introspection_verifier`, `TokenVerifier`, `context.credentials`, `is_verified_credentials`) | Yes (Umbel phase 5 step 0b; `server-auth`: `BearerLayer`, `JwtVerifier`, `KeySource`, `TokenVerifier`, `CommandContext::credentials`) | N/A: no HTTP server |
+| Bearer token, verification, audience, credentials (M1 to M4) | Yes (Loam phase 3 step 0a; `createMcpHandler({ auth })`, `JwtVerifier` on `jose`, `KeySource`, `jwksKeySource`, `createIntrospectionVerifier`, `TokenVerifier`, `context.credentials`) | Yes ([#2154](https://github.com/lushly-dev/afd/issues/2154); `create_server(auth=McpAuthOptions(...))`, `JwtVerifier` on `cryptography`, `KeySource`, `jwks_key_source`, `create_introspection_verifier`, `TokenVerifier`, `context.credentials`, `is_verified_credentials`) | Yes (Umbel phase 5 step 0b; `server-auth`: `BearerLayer`, `JwtVerifier`, `KeySource`, `StaticKeys`, `JwksKeySource`, `TokenVerifier`, `CommandContext::credentials`) | N/A: no HTTP server |
 | 401 and 403, rule codes (M5) | Yes (step 0a; 401 and 403 challenges and bodies; rule codes to `auth.onRefusal`) | Yes ([#2154](https://github.com/lushly-dev/afd/issues/2154), [#2155](https://github.com/lushly-dev/afd/issues/2155); 401 and 403 sent; rule codes to `auth.on_refusal`) | Yes (step 0b) | N/A |
 | Static scopes, the resolver, the 403 before dispatch, `INSUFFICIENT_SCOPE`, listing (M6) | Yes (Loam phase 3 step 0c, #2265; `scopes`, `requiredScopes`, `ScopeResolver`, `filterToolsByScope`, `staticDecision`, `requestDecision`, per-caller `ResourceProvider`) | Yes ([#2155](https://github.com/lushly-dev/afd/issues/2155), [#2266](https://github.com/lushly-dev/afd/issues/2266); `scopes`, `required_scopes`, `ScopeResolver`, `filter_tools_by_scope`, `static_decision`, `request_decision`, per-caller `ResourceProvider`) | Yes (step 0b; `ScopeResolver`, `Authorization::with_filter_tools_by_scope`) | N/A |
 | [A host's own layer](#before-dispatch-the-403) running the decision before dispatch (M6) | Yes (step 0c; `handler.admit`, `handler.preDispatchCheck`, `ScopeChallenge`; `mcp-auth-host.test.ts`) | Yes ([#2155](https://github.com/lushly-dev/afd/issues/2155); `server.admit`, `server.pre_dispatch_check`, `PreDispatchCheck`, `ScopeChallenge`; `test_mcp_auth_scopes.py`) | Yes (`McpServer::pre_dispatch_check`, `PreDispatchCheck`, `ScopeChallenge`; `tests/server_auth_pre_dispatch.rs`) | N/A |

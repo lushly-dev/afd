@@ -471,20 +471,22 @@ Dropping the call cancels the flow. Raw registry execution remains a trusted hos
   the server becomes an OAuth 2.1 protected resource. `McpServer::with_authorization` takes the
   RFC 9728 metadata (`ProtectedResource`), a `TokenVerifier` (AFD's `JwtVerifier`, which verifies
   RFC 9068 JWT access tokens by every rule of M3 in its own code and uses `jsonwebtoken`'s
-  `aws-lc-rs` backend only for the signature; or a host verifier for introspection, with
-  `check_introspection`), the required scopes, an optional `ScopeResolver` and list filtering;
-  `McpServer::authorized_http_service(HttpOptions)` builds the Streamable HTTP service behind its
-  bearer layer, which serves the metadata, refuses requests with the exact 401 and 403 answers,
-  decides every command a `tools/call` names before dispatch, and admits the verified
-  `Credentials` while stripping the token. A host whose own layer admits credentials instead
-  (`Authorization::admit`) runs the same decision before dispatch with
-  `McpServer::pre_dispatch_check`, optionally with its own challenge scheme (`ScopeChallenge`).
-  A server with authorization fails closed on any
-  request whose credentials its own layer did not admit, and on any transport but stdio
-  (`serve_stdio`) unless the host marks it trusted (`with_trusted_transport`). A resolver is asked
-  again at execution on the validated input. Implies `server`; needs Rust 1.88. A command's
-  `scopes` (`CommandDefinition::with_scopes`, reported in `_meta` and `afd-detail`) and
-  `Credentials` need no feature.
+  `aws-lc-rs` backend only for the signature, with each issuer's keys from a `KeySource`:
+  `StaticKeys` for a fixed JWKS, or `JwksKeySource`, which caches the JWKS the host's
+  `JwksLoader` fetches, as TypeScript's `jwksKeySource` does, since AFD opens no socket; or a
+  host verifier for introspection, with `check_introspection`), the required scopes, an optional
+  `ScopeResolver` and list filtering; `McpServer::authorized_http_service(HttpOptions)` builds
+  the Streamable HTTP service behind its bearer layer, which serves the metadata, refuses
+  requests with the exact 401 and 403 answers, decides every command a `tools/call` names before
+  dispatch, and admits the verified `Credentials` while stripping the token. A host whose own
+  layer admits credentials instead (`Authorization::admit`) runs the same decision before
+  dispatch with `McpServer::pre_dispatch_check`, optionally with its own challenge scheme
+  (`ScopeChallenge`). A server with authorization fails closed on any request whose credentials
+  its own layer did not admit, and on any transport but stdio (`serve_stdio`) unless the host
+  marks it trusted (`with_trusted_transport`). A resolver is asked again at execution on the
+  validated input. Implies `server`; needs Rust 1.88. A command's `scopes`
+  (`CommandDefinition::with_scopes`, reported in `_meta` and `afd-detail`) and `Credentials` need
+  no feature.
 
 ```rust,ignore
 use afd::server::auth::{
@@ -492,7 +494,9 @@ use afd::server::auth::{
     TokenRules,
 };
 let resource = "https://todo.example.com/mcp";
-let keys = StaticKeys::from_jwks(&jwks)?; // or the host's own `KeySource`, which fetches and caches
+let keys = StaticKeys::from_jwks(&jwks)?; // a fixed JWKS document
+// Or cache what the host fetches: `JwksKeySource::new(loader, JwksKeySourceOptions::default())?`,
+// where `loader` is a `JwksLoader` (any `Fn(&str) -> impl Future<Output = Result<Value, E>>`).
 let issuer = JwtIssuer::new("auth", "https://auth.example.com", [SigningAlgorithm::ES256], keys)?;
 let verifier = JwtVerifier::new(TokenRules::new(resource)?, vec![issuer])?;
 let metadata = ProtectedResource::new(resource, ["https://auth.example.com"])?
