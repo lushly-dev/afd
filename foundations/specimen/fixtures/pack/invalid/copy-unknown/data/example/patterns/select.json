@@ -1,0 +1,170 @@
+{
+	"avoidWhen": [
+		{
+			"id": "pattern.select.avoid-when",
+			"text": "Avoid for free-text input or lists long enough to need search."
+		}
+	],
+	"customize": [
+		{
+			"id": "pattern.select.option-order",
+			"text": "Order options by the user's most likely choice or natural sequence."
+		}
+	],
+	"facets": {
+		"purpose": [
+			"single-choice"
+		],
+		"structure": [
+			"popup"
+		]
+	},
+	"format": 2,
+	"gates": {
+		"escape-closes": {
+			"scenario": [
+				{
+					"action": {
+						"press": "ArrowDown",
+						"target": "control"
+					},
+					"id": "open"
+				},
+				{
+					"expect": {
+						"a11y": {
+							"expanded": true
+						},
+						"target": "control"
+					},
+					"id": "is-open"
+				},
+				{
+					"action": {
+						"press": "Escape"
+					},
+					"id": "esc"
+				},
+				{
+					"expect": {
+						"a11y": {
+							"expanded": false
+						},
+						"target": "control"
+					},
+					"id": "closed"
+				},
+				{
+					"expect": {
+						"focus": true,
+						"target": "control"
+					},
+					"id": "back"
+				}
+			],
+			"setup": "default"
+		},
+		"fits-narrow": {
+			"context": {
+				"viewport": {
+					"height": 844,
+					"width": 390
+				}
+			},
+			"scenario": [
+				{
+					"expect": {
+						"layout": {
+							"minHeight": 36,
+							"noOuterMargin": true,
+							"noOverflow": true
+						},
+						"target": "control"
+					},
+					"id": "narrow-layout"
+				}
+			],
+			"setup": "default"
+		},
+		"named": {
+			"scenario": [
+				{
+					"expect": {
+						"a11y": {
+							"expanded": false,
+							"nameContains": "Size",
+							"role": [
+								"combobox",
+								"button"
+							]
+						},
+						"target": "control"
+					},
+					"id": "check-name"
+				}
+			],
+			"setup": "default"
+		}
+	},
+	"implementations": [
+		{
+			"kind": "component",
+			"linkage": "instance",
+			"tag": "example-select"
+		},
+		{
+			"kind": "copy",
+			"linkage": "copy",
+			"name": "missing"
+		}
+	],
+	"keep": [
+		{
+			"gate": "named",
+			"id": "pattern.select.named",
+			"text": "Exposes an accessible name and starts collapsed."
+		},
+		{
+			"gate": "escape-closes",
+			"id": "pattern.select.escape-closes",
+			"text": "Pressing Escape closes the popup and keeps focus on the control."
+		},
+		{
+			"gate": "fits-narrow",
+			"id": "pattern.select.fits-narrow",
+			"text": "Fits a narrow viewport without horizontal overflow or outer margin."
+		},
+		{
+			"id": "pattern.select.concise-labels",
+			"text": "Keep option labels concise and scannable."
+		}
+	],
+	"pattern": "select",
+	"scope": "control",
+	"setups": {
+		"default": {
+			"targets": {
+				"control": {
+					"nameStartsWith": "Size",
+					"role": [
+						"combobox",
+						"button"
+					]
+				},
+				"medium": {
+					"name": "Medium",
+					"role": "option"
+				}
+			},
+			"text": "Mount a select labeled \"Size\" with Small and Medium options."
+		}
+	},
+	"status": "stable",
+	"summary": "Choose one value from a short, fixed list.",
+	"useWhen": [
+		{
+			"id": "pattern.select.use-when",
+			"text": "Use when the user picks one value from a short, known set of options."
+		}
+	]
+}

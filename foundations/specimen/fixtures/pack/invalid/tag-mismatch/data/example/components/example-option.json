@@ -45,7 +45,7 @@
 		]
 	},
 	"examples": [],
-	"format": 1,
+	"format": 2,
 	"gaps": [
 		{
 			"kind": "a11y-statement"
@@ -58,7 +58,7 @@
 	"rules": [],
 	"status": "stable",
 	"summary": "One choice in an example-select list.",
-	"tag": "example-choice",
+	"tag": "example-other",
 	"usage": [
 		{
 			"basis": "authored",

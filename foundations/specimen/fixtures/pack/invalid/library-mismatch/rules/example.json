@@ -1,6 +1,6 @@
 {
-	"format": 1,
-	"library": "sample",
+	"format": 2,
+	"library": "other",
 	"rules": [
 		{
 			"appliesTo": {

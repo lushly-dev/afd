@@ -510,7 +510,7 @@
 			"html": "<violet-data-grid density=\"natural\" focus-mode=\"row\" selection-mode=\"none\" sort-mode=\"local\"></violet-data-grid>"
 		}
 	],
-	"format": 1,
+	"format": 2,
 	"gaps": [
 		{
 			"kind": "summary"

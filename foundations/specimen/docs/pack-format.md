@@ -1,46 +1,54 @@
-# Component pack format, version 1
+# Component pack format, version 2
 
-A component pack tells an agent what it needs to use a library's components:
-each component's attributes, slots, events and accessibility facts, the
-guidance written for it, and the rules the library states once for many
-components. Every fact says where it came from. Specimen builds packs from
-what it observes when it runs a library's stories (`bench.pack()`; see
-[How Specimen builds a pack](#how-specimen-builds-a-pack)), and an Umbel plugin
-serves them in batches. The plan is the
-[Component Briefs proposal](https://github.com/lushly-dev/afd/blob/main/docs/features/complete/component-briefs/component-briefs.proposal.md).
+A component pack tells an agent what it needs to use a library's components
+and design patterns: each component's attributes, slots, events,
+accessibility facts and implemented patterns, the guidance written for it,
+the library's shared rules, and its pattern and saved-copy records. Every
+fact says where it came from. Specimen builds packs from what it observes
+when it runs a library's stories and pattern gates (`bench.pack()`; see
+[How Specimen builds a pack](#how-specimen-builds-a-pack)), and an Umbel
+plugin serves them in batches. The plans are the
+[Component Briefs proposal](https://github.com/lushly-dev/afd/blob/main/docs/features/complete/component-briefs/component-briefs.proposal.md)
+and the
+[Patterns specification](https://github.com/lushly-dev/afd/blob/main/docs/features/active/patterns/spec.md).
 
-**Version 1 is fixed.** A reader refuses a key it does not know, so any
+**Version 2 adds patterns and saved copies while readers still read uniform
+version 1 libraries.** A reader refuses a key it does not know, so any
 change to what a file may hold, an added key included, is a new version
 with its own number, and a reader reads only the versions it names
-(`FORMAT_UNSUPPORTED` otherwise). Version 0 was the trial form through the
-proposal's phases B and C; version 1 is the same shape, fixed once Specimen
-built a real library's pack and the Umbel plugin served it (the proposal's
-step C4). Nothing deployed version 0, so no reader keeps it.
+(`FORMAT_UNSUPPORTED` otherwise). Every file in a library must carry the
+same version: mixing format 1 and format 2 files in one library is
+`FORMAT_UNSUPPORTED`. Pattern and copy records exist only in version 2.
+Version 0 was the trial form through Component Briefs phases B and C; no
+reader keeps it.
 
 The package exports it in two ways:
 
 - `@lushly-dev/specimen/pack`: the Zod schemas, `checkPack`, the catalog
   writer and the helpers below.
 - `@lushly-dev/specimen/pack/<kind>.schema.json`: a JSON Schema (draft
-  2020-12) for each file kind, `component`, `rules` and `library`, for
-  readers in other languages and for editors. A JSON Schema checks one file;
-  the rules that span files are `checkPack`'s alone (see
-  [Checking a pack](#checking-a-pack)).
+  2020-12) for each format 2 file kind, `component`, `rules`, `library`,
+  `pattern` and `copy`, for readers in other languages and for editors. A
+  JSON Schema checks one file; the rules that span files are `checkPack`'s
+  alone (see [Checking a pack](#checking-a-pack)).
 
 ## Layout and forms
 
 ```text
 <pack root>/
-├── data/<library>/library.json          # exported form only: the catalog and stamp
-├── data/<library>/components/<tag>.json # one record per component
-└── rules/<library>.json                 # the library's shared rules
+├── data/<library>/library.json                    # exported form only: the catalog and stamp
+├── data/<library>/components/<tag>.json           # one record per component
+├── data/<library>/patterns/<pattern>.json         # version 2: one record per pattern
+├── data/<library>/patterns/<pattern>/<name>.json  # version 2: one record per saved copy
+└── rules/<library>.json                           # the library's shared rules
 ```
 
 A pack can hold several libraries side by side. A `pack.toml` at the root
 belongs to the deployment that serves the pack, not to the format, and a check
-skips it. Any other file, and any file whose library or tag in its path fails
-its pattern, is a `LAYOUT_INVALID` problem. The format sets no limit on the
-number of files; a reader applies its own (Umbel's is 1 000 files a pack).
+skips it. Any other file, and any file whose library, tag, pattern or copy name
+in its path fails its pattern, is a `LAYOUT_INVALID` problem. The format sets
+no limit on the number of files; a reader applies its own (Umbel's is 1 000
+files a pack).
 
 **The committed form** is the records and the rules. A library commits them
 to its repository. They carry no package version, no digest and no Git
@@ -85,6 +93,15 @@ crate.
 | State | `^[a-z][a-z0-9-]*$` | 64 |
 | ARIA role | `^[a-z]+$` | 32 |
 | axe rule | `^[a-z0-9-]+$` | 64 |
+| Pattern id | `^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$` | 64 |
+| Qualified pattern id | `^[a-z][a-z0-9-]{0,63}/[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$` (each segment ≤ 64) | 129 |
+| Copy name | `^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$` | 64 |
+| Setup id | `^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$` | 64 |
+| Gate id | `^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$` | 64 |
+| Target alias | `^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$` | 64 |
+| Facet key | `^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$` | 64 |
+| Facet value | `^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$` | 64 |
+| Step id | `^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$` | 64 |
 
 ## Text
 
@@ -101,12 +118,15 @@ dropping whole facts and never has to cut one.
 | A string value or default | 200 | one |
 | An example's markup | 4 000 | several |
 | A record's long form, `detail` | 8 000 | several |
+| A saved copy's HTML, `copyHtml` | 16 000 | several |
+| A saved copy's CSS, `copyCss` | 8 000 | several |
 
 A one-line text has no control character (C0, DEL or C1), no line break, no
 bidirectional embedding, override or isolate (U+202A to U+202E, U+2066 to
 U+2069) and no lone surrogate (`TEXT_INVALID`). A text of several lines may
 also hold line feeds and tabs. Over its limit, a text is `TEXT_TOO_LONG`. Text
-is never empty, except that a string value or default may be `""`.
+is never empty, except that a string value or default, saved copy `css`,
+gate `fill.value`, `form.value`, and `a11y.name` may be `""`.
 
 ## Basis
 
@@ -133,6 +153,7 @@ Each kind of fact allows only the words that can be true of it:
 | Role | `observed`, `authored` |
 | axe result, example | `observed` |
 | Themes | `declared`, `observed` |
+| Pattern `keep` entry (version 2) | `verified`, `ungated`, `out-of-context` (with required `reason`) |
 
 A summary and a record's long form are descriptions, not facts, and carry no
 basis.
@@ -144,7 +165,7 @@ other (`SCHEMA_INVALID`).
 
 | Key | Holds |
 | --- | --- |
-| `format` | `1` |
+| `format` | `2` (or `1` in a uniform version 1 library, without `patterns`) |
 | `tag` | The custom-element name; equal to the file's name (`TAG_MISMATCH`) |
 | `summary` | Optional: one line on what it is for |
 | `status` | `stable`, `preview` or `deprecated` |
@@ -165,6 +186,7 @@ other (`SCHEMA_INVALID`).
 | `detail` | Optional: the long form |
 | `gaps` | What is missing: `summary`, `usage`, `a11y-statement`, `role`, `example`, or `unobserved` with the `section` and `name` of a member the manifest declares and no case showed |
 | `themes` | Optional: the themes it renders as intended, `supported` (one or more of `dark`, `high-contrast` and `light`), `basis`, and an optional one-line `reason`, such as "Matches the marketing site." Absent when nothing has declared or observed them |
+| `patterns` | Version 2, optional: patterns this component implements, sorted by `(library, pattern)`: `library`, `pattern`, optional `contexts` (`viewport` with `minWidth`/`maxWidth`/`minHeight`/`maxHeight`, `themes`, required `reason`), and `keep` (`id`, `basis`, optional `reason` required iff `out-of-context`) |
 
 A component that supports every theme follows the theme, so a record needs
 `themes` only to say that one does not, or to record that Specimen saw it
@@ -204,13 +226,42 @@ exported separately, and two may choose the same id. A reader that names ids
 from more than one library qualifies each as `<library>/<id>`; neither
 pattern contains `/`.
 
+## Pattern record (version 2)
+
+`data/<library>/patterns/<pattern>.json`. Holds portable guidance, setups,
+portable gates and same-library implementations for one design pattern.
+
+| Key | Holds |
+| --- | --- |
+| `format` | `2` |
+| `pattern` | The pattern id, equal to the file's name (`PATTERN_MISMATCH`) |
+| `summary` | Optional: one line on what the pattern is for |
+| `status` | `stable`, `preview` or `deprecated` |
+| `replacedBy` | Optional, and only when `deprecated`: a local `<pattern>` or `<library>/<pattern>` id |
+| `scope` | `control` or `composition` |
+| `facets` | Map of facet key to ascending unique facet values |
+| `useWhen`, `avoidWhen`, `customize` | Statements (`id`, `text`) whose ids share the library-wide namespace (`DUPLICATE_ID`) |
+| `keep` | Requirements (`id`, `text`, optional `gate`) |
+| `setups` | Named setup contracts (`text`, `targets`) |
+| `gates` | Portable gate scenarios (`setup`, `scenario`, optional `context`) |
+| `implementations` | Same-library implementations sorted by `(kind, tag ?? name)`: `{ kind: "component", tag, linkage: "instance" }` or `{ kind: "copy", name, linkage: "copy" }` |
+
+## Saved copy record (version 2)
+
+`data/<library>/patterns/<pattern>/<name>.json`. Holds a complete saved copy
+of a pattern (`html`, `css`, `dependencies`, `tokens`, optional
+`themeStylesheet`/`setup`/`contexts`/`changeNote`, `revision` and
+`fingerprint` digests, `origin`, and `keep` bases). `pattern` must match the
+parent directory (`PATTERN_MISMATCH`) and `name` must match the file name
+(`COPY_MISMATCH`).
+
 ## Catalog
 
 `data/<library>/library.json`, in the exported form only.
 
 | Key | Holds |
 | --- | --- |
-| `format` | `1` |
+| `format` | `2` (or `1` for a uniform version 1 library, without `patterns` and `copies`) |
 | `library` | The library id, equal to its directory's name |
 | `title` | The library's name, as text |
 | `package` | `name` and `version` of the package that ships the components |
@@ -218,7 +269,9 @@ pattern contains `/`.
 | `revision` | Optional: the Git revision export ran on |
 | `digest` | The pack digest, below |
 | `rules` | The rules file's digest |
-| `components` | One entry per record: `tag`, `summary`, `status` and `digest`, the summary and status equal to the record's |
+| `components` | One entry per record: `tag`, `summary`, `status` and `digest`, the summary and status equal to the record's (may be empty in a pattern-only version 2 library) |
+| `patterns` | Version 2: one entry per pattern record sorted by `pattern`: `pattern`, `summary`, `status`, `replacedBy`, `scope`, `facets`, `digest` |
+| `copies` | Version 2: one entry per saved copy sorted by `(pattern, name)`: `pattern`, `name`, `status`, `replacedBy`, `revision`, `fingerprint`, `digest` |
 
 It names no Specimen version, so an export of the same records is the same
 file whatever Specimen wrote it.
@@ -254,11 +307,16 @@ Lists of named
 things are in ascending order with no repeats: a record's attributes, slots,
 events, commands and CSS properties by name; its roles by state; its rule
 ids, an attribute's rule ids, a slot's accepted elements, the axe
-exceptions and the supported themes; a rules file's rules by id and each rule's tags and attributes;
-a catalog's components by tag, each compared by UTF-16 code unit (byte order
-for these ASCII names). Statements, values, examples and gaps keep the
-order they are written in. Anything else is `NOT_CANONICAL`, and a repeat is
-`DUPLICATE_ID`.
+exceptions, the supported themes, its `patterns` by `(library, pattern)` and
+each pattern claim's `contexts.themes`; a rules file's rules by id and each
+rule's tags and attributes; a pattern record's `facets` values per key and
+its `implementations` by `(kind, tag ?? name)`; a saved copy's
+`dependencies`, `tokens` and `contexts.themes`; a catalog's `components` by
+tag, `patterns` by pattern and `copies` by `(pattern, name)`, each compared
+by UTF-16 code unit (byte order for these ASCII names). Statements, values,
+examples, gaps and `keep` bases keep the order they are written in (with
+unique ids inside `keep`). Anything else is `NOT_CANONICAL`, and a repeat
+is `DUPLICATE_ID`.
 
 So two builds from the same inputs are the same bytes, and a change to a
 record is a change to one file.
@@ -274,21 +332,25 @@ place in it.
 | --- | --- |
 | `LAYOUT_INVALID` | A file the format does not define, a library with no rules file, a catalog in the committed form or none in the exported form |
 | `JSON_INVALID` | Not UTF-8 JSON |
-| `FORMAT_UNSUPPORTED` | Not a JSON object, or a `format` missing or other than 1; nothing else in the file is checked |
-| `SCHEMA_INVALID` | A missing or unknown key, a wrong type, a basis the fact does not allow, a replacement for a component that is not deprecated, a gap with the wrong keys |
+| `FORMAT_UNSUPPORTED` | Not a JSON object, a `format` missing or other than 1 or 2, mixed format versions in one library, or a pattern/copy record in a format 1 library; nothing else in the file is checked |
+| `SCHEMA_INVALID` | A missing or unknown key, a wrong type, a basis the fact does not allow, a replacement for a component/pattern/copy that is not deprecated, a gap with the wrong keys |
 | `IDENTIFIER_INVALID` | An identifier that fails its pattern or is too long |
 | `TEXT_TOO_LONG`, `TEXT_INVALID` | See [Text](#text) |
 | `NOT_CANONICAL` | Not the canonical bytes, or a list out of order |
 | `DUPLICATE_ID` | A repeated name in a list, or a statement or rule id stated twice in a library |
 | `RULE_UNKNOWN`, `TAG_UNKNOWN` | A reference to a rule or tag the library does not have |
+| `PATTERN_UNKNOWN`, `COPY_UNKNOWN` | A same-library reference to a pattern or copy record that does not exist |
 | `TAG_MISMATCH`, `LIBRARY_MISMATCH` | A tag or library id that is not its file's or directory's name |
+| `PATTERN_MISMATCH`, `COPY_MISMATCH` | A pattern id or copy name that is not its file's or directory's name |
 | `PREFIX_MISMATCH` | A listed tag that does not start with the catalog's prefix |
-| `CATALOG_MISMATCH` | The catalog and the records disagree on which tags exist or on a summary or status |
+| `CATALOG_MISMATCH` | The catalog and the records disagree on which tags, patterns or copies exist or on their catalog metadata |
 | `DIGEST_MISMATCH` | A record, the rules or the pack does not match its digest |
 
 A problem's message never quotes text from the pack. A path the layout does
-not place is shown only up to its first segment that is not a plain name
-(letters, digits, `.`, `_` and `-`), which is replaced, with the rest, by `…`.
+not place — and a JSON Pointer whose pack-supplied map key (`facets`, `setups`,
+`targets`, `gates`) is not a plain name — is shown only up to its first segment
+that is not a plain name (letters, digits, `.`, `_` and `-`), which is
+replaced, with the rest, by `…`.
 
 The JSON Schema files cover, one file at a time, what Zod checks within a
 file: `FORMAT_UNSUPPORTED`, `SCHEMA_INVALID`, `IDENTIFIER_INVALID`,

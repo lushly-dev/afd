@@ -146,7 +146,7 @@
 			"html": "<violet-icon-button appearance=\"quiet\" disabled label=\"Archive item\" type=\"button\"><violet-icon decorative icon=\"system/search\" label></violet-icon></violet-icon-button>"
 		}
 	],
-	"format": 1,
+	"format": 2,
 	"gaps": [
 		{
 			"kind": "unobserved",

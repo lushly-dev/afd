@@ -114,7 +114,7 @@
 			"html": "<div style=\"display:flex;gap:16px;align-items:center;\">\n            <violet-color-swatch label=\"Mint ink swatch\" shape=\"square\" size=\"comfortable\" value=\"#2c5e4b\"></violet-color-swatch>\n            <violet-color-swatch label=\"Red ink swatch\" shape=\"circle\" size=\"comfortable\" value=\"#c42a1a\"></violet-color-swatch>\n            <violet-color-swatch label=\"Blue ink swatch\" shape=\"circle\" size=\"comfortable\" value=\"#146ba0\"></violet-color-swatch>\n        </div>"
 		}
 	],
-	"format": 1,
+	"format": 2,
 	"gaps": [
 		{
 			"kind": "summary"

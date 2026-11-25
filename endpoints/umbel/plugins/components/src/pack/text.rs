@@ -12,6 +12,10 @@ pub(crate) const VALUE: usize = 200;
 pub(crate) const DETAIL: usize = 8000;
 /// Longest example.
 pub(crate) const EXAMPLE: usize = 4000;
+/// Longest saved copy HTML.
+pub(crate) const COPY_HTML: usize = 16_000;
+/// Longest saved copy CSS.
+pub(crate) const COPY_CSS: usize = 8000;
 
 /// A one-line text refuses every C0 and C1 control and DEL, and bidirectional embeddings,
 /// overrides and isolates; a multi-line text also allows tab and line feed.

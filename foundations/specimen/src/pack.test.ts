@@ -48,9 +48,9 @@ async function overlaid(entry: Case) {
 }
 
 describe('component pack format', () => {
-	it('is version 1', () => {
-		expect(PACK_FORMAT_VERSION).toBe(1);
-		expect(manifest.format).toBe(1);
+	it('is version 2', () => {
+		expect(PACK_FORMAT_VERSION).toBe(2);
+		expect(manifest.format).toBe(2);
 	});
 
 	it('accepts the example in its committed form', () => {
@@ -59,6 +59,8 @@ describe('component pack format', () => {
 			'data/example/components/example-field.json',
 			'data/example/components/example-option.json',
 			'data/example/components/example-select.json',
+			'data/example/patterns/field.json',
+			'data/example/patterns/select.json',
 			'rules/example.json',
 		]);
 		expect(checkPack(committed, { form: 'committed' })).toEqual({
@@ -128,7 +130,7 @@ describe('component pack format', () => {
 	});
 
 	it('names every invalid case, each with its own overlay', () => {
-		expect(manifest.cases.length).toBe(28);
+		expect(manifest.cases.length).toBe(38);
 		expect(new Set(manifest.cases.map((entry) => entry.name)).size).toBe(manifest.cases.length);
 		expect(
 			manifest.cases.flatMap((entry) => entry.problems.map((problem) => problem.code))
@@ -150,8 +152,77 @@ describe('component pack format', () => {
 				'PREFIX_MISMATCH',
 				'CATALOG_MISMATCH',
 				'DIGEST_MISMATCH',
+				'PATTERN_MISMATCH',
+				'COPY_MISMATCH',
+				'PATTERN_UNKNOWN',
+				'COPY_UNKNOWN',
 			])
 		);
+	});
+
+	it('still accepts a uniform format 1 library, and accepts an empty-component format 2 app library', () => {
+		const enc = new TextEncoder();
+		const v1Rules = canonicalJson({ format: 1, library: 'legacy', rules: [] });
+		const v1Component = canonicalJson({
+			format: 1,
+			tag: 'legacy-button',
+			status: 'stable',
+			api: { attributes: [], slots: [], events: [], commands: [], cssProperties: [] },
+			a11y: { role: [], statements: [] },
+			usage: [],
+			rules: [],
+			examples: [],
+			gaps: [],
+		});
+		const v1Committed = new Map<string, Uint8Array>([
+			['rules/legacy.json', enc.encode(v1Rules)],
+			['data/legacy/components/legacy-button.json', enc.encode(v1Component)],
+		]);
+		expect(checkPack(v1Committed, { form: 'committed' }).problems).toEqual([]);
+		const v1Catalog = packCatalog(v1Committed, 'legacy', {
+			title: 'Legacy',
+			package: { name: 'legacy-ui', version: '1.0.0' },
+			prefix: 'legacy-',
+		});
+		expect((JSON.parse(v1Catalog) as { format: number; patterns?: unknown }).format).toBe(1);
+		expect((JSON.parse(v1Catalog) as { patterns?: unknown }).patterns).toBeUndefined();
+		const v1Exported = new Map(v1Committed).set('data/legacy/library.json', enc.encode(v1Catalog));
+		expect(checkPack(v1Exported, { form: 'exported' }).problems).toEqual([]);
+
+		// Pattern files in a format 1 library are rejected as FORMAT_UNSUPPORTED.
+		const v1WithPattern = new Map(v1Committed).set(
+			'data/legacy/patterns/select.json',
+			committed.get('data/example/patterns/select.json') as Uint8Array
+		);
+		expect(checkPack(v1WithPattern, { form: 'committed' }).problems).toEqual([
+			expect.objectContaining({
+				code: 'FORMAT_UNSUPPORTED',
+				path: 'data/legacy/patterns/select.json',
+				at: '/format',
+			}),
+		]);
+
+		// Format 2 app library with zero components and one pattern passes.
+		const appRules = canonicalJson({ format: 2, library: 'myapp', rules: [] });
+		const appPattern = canonicalJson({
+			...(json(committed.get('data/example/patterns/field.json')) as Record<string, unknown>),
+			implementations: [],
+		});
+		const appCommitted = new Map<string, Uint8Array>([
+			['rules/myapp.json', enc.encode(appRules)],
+			['data/myapp/patterns/field.json', enc.encode(appPattern)],
+		]);
+		expect(checkPack(appCommitted, { form: 'committed' }).problems).toEqual([]);
+		const appCatalog = packCatalog(appCommitted, 'myapp', {
+			title: 'My App',
+			package: { name: 'my-app', version: '1.0.0' },
+			prefix: 'myapp-',
+		});
+		const appExported = new Map(appCommitted).set(
+			'data/myapp/library.json',
+			enc.encode(appCatalog)
+		);
+		expect(checkPack(appExported, { form: 'exported' }).problems).toEqual([]);
 	});
 
 	for (const entry of manifest.cases)
@@ -257,6 +328,42 @@ describe('what a problem quotes', () => {
 			expect.objectContaining({ code: 'JSON_INVALID', path: 'rules/example.json' }),
 		]);
 	});
+
+	it('cuts free-text map keys out of problem.at in format 2 pattern records', () => {
+		const patPath = 'data/example/patterns/field.json';
+		const pat = json(committed.get(patPath)) as Record<string, unknown>;
+		pat.facets = { [injected]: ['text-entry'] };
+		const files = new Map(committed).set(patPath, new TextEncoder().encode(canonicalJson(pat)));
+		const result = checkPack(files, { form: 'committed' });
+		expect(result.valid).toBe(false);
+		expect(JSON.stringify(result.problems)).not.toContain('Ignore');
+		expect(result.problems).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ code: 'SCHEMA_INVALID', path: patPath, at: '/facets/…' }),
+			])
+		);
+	});
+
+	it('refuses fractional layout.minHeight as SCHEMA_INVALID (safe integers only)', () => {
+		const patPath = 'data/example/patterns/select.json';
+		const pat = json(committed.get(patPath)) as {
+			gates: { 'fits-narrow': { scenario: Array<{ expect: { layout: { minHeight: number } } }> } };
+		};
+		const step = pat.gates['fits-narrow'].scenario[0];
+		expect(step).toBeDefined();
+		if (step) {
+			step.expect.layout.minHeight = 36.5;
+		}
+		const files = new Map(committed).set(patPath, new TextEncoder().encode(canonicalJson(pat)));
+		const result = checkPack(files, { form: 'committed' });
+		expect(result.valid).toBe(false);
+		expect(result.problems).toEqual([
+			expect.objectContaining({
+				code: 'SCHEMA_INVALID',
+				path: patPath,
+			}),
+		]);
+	});
 });
 
 describe('values and text', () => {
@@ -336,9 +443,18 @@ describe('JSON Schema', () => {
 			component: ajv.compile(schemas.component as object),
 			rules: ajv.compile(schemas.rules as object),
 			library: ajv.compile(schemas.library as object),
+			pattern: ajv.compile(schemas.pattern as object),
+			copy: ajv.compile(schemas.copy as object),
 		};
-		const kindOf = (path: string) =>
-			path.startsWith('rules/') ? 'rules' : path.endsWith('library.json') ? 'library' : 'component';
+		const kindOf = (path: string): keyof typeof validate => {
+			if (path.startsWith('rules/')) return 'rules';
+			if (path.endsWith('library.json')) return 'library';
+			if (path.includes('/patterns/')) {
+				const rest = path.split('/patterns/')[1] ?? '';
+				return rest.includes('/') ? 'copy' : 'pattern';
+			}
+			return 'component';
+		};
 		for (const [path, bytes] of exported)
 			expect(validate[kindOf(path)](json(bytes)), `${path}: ${ajv.errorsText()}`).toBe(true);
 		// Every case that is a shape problem in one file is a JSON Schema failure too.
@@ -355,7 +471,7 @@ describe('JSON Schema', () => {
 				entry.name !== 'text-lone-surrogate' &&
 				entry.problems.every((problem) => shape.has(problem.code))
 		);
-		expect(cases.length).toBe(10);
+		expect(cases.length).toBe(13);
 		for (const entry of cases) {
 			const files = await overlaid(entry);
 			const path = entry.problems[0]?.path as string;

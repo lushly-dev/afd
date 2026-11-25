@@ -41,13 +41,14 @@ not, so an agent never has to scan the code to learn what is current. It follows
   Phase B Step B3 gate setups, filtered `specimen-list`, native portable gate run, `patterns@1` coverage, `specimen-suggest` setup stubs, PA-8 capture skip, and P0-4 fixture upgrades ([#2146](https://github.com/lushly-dev/afd/issues/2146), [#2525](https://github.com/lushly-dev/afd/pull/2525)).
 - **Not done:** Phase B steps B4–B5 and Phases C to D. See [Delivery steps](#delivery-steps) and
   [What is not done](#what-is-not-done).
-- **Last verified:** 2026-11-24 on Node 26.13.1 (`.nvmrc`): B3 gate setup synthesis (native +
-  play-free stories), filtered & paginated `specimen-list`, native gate execution in `specimen-host`
-  and `specimen-run` (single-id `capture: 'none'` default, failure-time capture, `out-of-context`,
-  suite `counts.outOfContext`), `patterns@1` coverage (with byte-identical `schema-partitions@1` and
-  `guides@1`), `specimen-suggest` `pattern:*` stubs (component & tagless), PA-8 `specimen-capture`
-  gate skip, and P0-4 upgraded `fixtures/pack-library/{select,field}.js` stubs (16/16 baseline
-  portable gates passing, 10/10 seeded faults caught, byte-for-byte `pack-run.test.ts` green).
+- **Last verified:** 2026-11-25 on Node 26.13.1 (`.nvmrc`) and Rust 1.100.0: B5 Slice 1 (#2147) Pack
+  Format 2 (`PACK_FORMAT_VERSION = 2`, `pattern.schema.json` + `copy.schema.json`, 38 invalid cases,
+  uniform format 1 + format 2 reader compatibility, `PATTERN_SETUP_MISSING` and `GATE_FAILED` build
+  refusals, empty-component pattern-only app packs, `pack-export` pattern/guide staleness, and all
+  10 per-error recovery suggestions in `@lushly-dev/specimen-afd`) and C1 (#2148) Umbel `components`
+  plugin format 2 reader (all 30 identifier patterns locked to Specimen schemas, all 38 invalid
+  fixtures agreeing with `checkPack`, D153 identifier & map-key pointer sanitization, cross-library
+  implementation aggregation, `wasm32-wasip2` build/clippy, and `violet-elements` format 2 pack).
 - **Follow-ups:** the [table below](#follow-ups-not-yet-issues).
 
 ## Delivery steps
@@ -56,9 +57,9 @@ Each step sits on its own blank-line-separated list item so concurrent pull requ
 
 - **Phase A — Specifications and Pack Format 2 ([#2133](https://github.com/lushly-dev/afd/issues/2133)):** Done 2026-11-22 ([#2139](https://github.com/lushly-dev/afd/pull/2139)). [`spec.md`](spec.md), [Umbel Amendment A31](../../../../endpoints/umbel/docs/plugins/components/spec.md#amendment-a31-patterns-and-saved-copies-1073), [Design Decisions gate-case skip](../design-decisions/design-decisions.proposal.md), and all 10 revised scenarios merged.
 
-- **Phase B — Specimen (B1–B5):** In progress. B1 ([#2144](https://github.com/lushly-dev/afd/issues/2144), merged in [#2203](https://github.com/lushly-dev/afd/pull/2203)) pattern schema/validation; B2 ([#2145](https://github.com/lushly-dev/afd/issues/2145), [#2306](https://github.com/lushly-dev/afd/pull/2306)) `press`, capture 0.10 ARIA states (incl. `invalid`), `a11y`/`focus`/`layout` + host-climb; B3 ([#2146](https://github.com/lushly-dev/afd/issues/2146), merged in [#2525](https://github.com/lushly-dev/afd/pull/2525)) setups, filtered `specimen-list`, native gate `specimen-run`, `patterns@1` (`patternLibrary`), upgraded `fixtures/pack-library/{select,field}.js` stubs (P0-4); B4 (Slice 2, not yet filed) `specimen-pattern-save` (zero-error remount, `tokens`, `pack.localElements`, downgrade guard, batch refresh); B5 Slice 1 ([#2147](https://github.com/lushly-dev/afd/issues/2147)) Pack Format 2 (`docs/pack-format.md`, `checkPack`, `PATTERN_SETUP_MISSING`, per-error suggestions; Slice 2 copy records and `fingerprintsOnly` follow with B4).
+- **Phase B — Specimen (B1–B5):** In progress. B1 ([#2144](https://github.com/lushly-dev/afd/issues/2144), merged in [#2203](https://github.com/lushly-dev/afd/pull/2203)) pattern schema/validation; B2 ([#2145](https://github.com/lushly-dev/afd/issues/2145), [#2306](https://github.com/lushly-dev/afd/pull/2306)) `press`, capture 0.10 ARIA states (incl. `invalid`), `a11y`/`focus`/`layout` + host-climb; B3 ([#2146](https://github.com/lushly-dev/afd/issues/2146), merged in [#2525](https://github.com/lushly-dev/afd/pull/2525)) setups, filtered `specimen-list`, native gate `specimen-run`, `patterns@1` (`patternLibrary`), upgraded `fixtures/pack-library/{select,field}.js` stubs (P0-4); B4 (Slice 2, not yet filed) `specimen-pattern-save` (zero-error remount, `tokens`, `pack.localElements`, downgrade guard, batch refresh); B5 Slice 1 ([#2147](https://github.com/lushly-dev/afd/issues/2147), in progress alongside C1) Pack Format 2 (`docs/pack-format.md`, `checkPack`, `PATTERN_SETUP_MISSING`, per-error suggestions; Slice 2 copy records and `fingerprintsOnly` follow with B4).
 
-- **Phase C — Umbel `components` plugin (C1–C3):** Open (blocked on Phase B). C1 ([#2148](https://github.com/lushly-dev/afd/issues/2148)) format 2 reader & cross-library aggregation; C2 Slice 1 ([#2149](https://github.com/lushly-dev/afd/issues/2149)) `components-pattern-list` & `components-pattern-open`; C3 Slice 1 ([#2150](https://github.com/lushly-dev/afd/issues/2150)) `components-brief` patterns (compact links, `patternCustomize` shed before `usage`, `out-of-context` vs `minimum_basis`), with Slice 2 `content.copies` & `components-check` `OUTDATED_COPIES` following Slice 2.
+- **Phase C — Umbel `components` plugin (C1–C3):** In progress. C1 ([#2148](https://github.com/lushly-dev/afd/issues/2148), in progress alongside B5 Slice 1) format 2 reader & cross-library aggregation; C2 Slice 1 ([#2149](https://github.com/lushly-dev/afd/issues/2149)) `components-pattern-list` & `components-pattern-open`; C3 Slice 1 ([#2150](https://github.com/lushly-dev/afd/issues/2150)) `components-brief` patterns (compact links, `patternCustomize` shed before `usage`, `out-of-context` vs `minimum_basis`), with Slice 2 `content.copies` & `components-check` `OUTDATED_COPIES` following Slice 2.
 
 - **Phase D — First consumers (D1–D3):** Not started (gated on Phases B & C). D1 `violet-elements` (`select`, `field`, `dialog.modal` + builder re-measurement per P0-7); D2 Loam (`pack.localElements`, saved copies, checklist gates); D3 second consumer library (Lushly).
 

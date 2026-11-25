@@ -77,12 +77,16 @@ pub fn export_catalog(files: &BTreeMap<String, Vec<u8>>, library: &str, stamp: &
         .collect();
     let digested = files
         .iter()
-        .filter(|(path, _)| **path == rules_path || path.starts_with(&prefix))
+        .filter(|(path, _)| {
+            **path == rules_path
+                || path.starts_with(&prefix)
+                || path.starts_with(&format!("data/{library}/patterns/"))
+        })
         .map(|(path, bytes)| (path.as_str(), bytes.as_slice()));
     // `packCatalog` writes `PACK_FORMAT_VERSION`; every file of a pack the reader accepts carries
     // that same version, so the rules file's is it.
     let format = serde_json::from_slice::<Value>(rules).unwrap()["format"].clone();
-    let catalog = json!({
+    let mut catalog = json!({
         "format": format,
         "library": library,
         "title": stamp["title"],
@@ -92,6 +96,69 @@ pub fn export_catalog(files: &BTreeMap<String, Vec<u8>>, library: &str, stamp: &
         "rules": digest::file_digest(rules),
         "components": components,
     });
+    if format.as_u64() == Some(2) {
+        let pat_prefix = format!("data/{library}/patterns/");
+        let mut pat_names: Vec<&str> = files
+            .keys()
+            .filter_map(|path| {
+                let tail = path.strip_prefix(&pat_prefix)?.strip_suffix(".json")?;
+                (!tail.contains('/')).then_some(tail)
+            })
+            .collect();
+        pat_names.sort_by(|a, b| digest::utf16_cmp(a, b));
+        let patterns: Vec<Value> = pat_names
+            .iter()
+            .map(|name| {
+                let bytes = &files[&format!("{pat_prefix}{name}.json")];
+                let record: Value = serde_json::from_slice(bytes).unwrap();
+                let mut entry = json!({
+                    "pattern": name,
+                    "status": record["status"],
+                    "scope": record["scope"],
+                    "facets": record["facets"],
+                    "digest": digest::file_digest(bytes),
+                });
+                if let Some(summary) = record.get("summary") {
+                    entry["summary"] = summary.clone();
+                }
+                if let Some(replaced) = record.get("replacedBy") {
+                    entry["replacedBy"] = replaced.clone();
+                }
+                entry
+            })
+            .collect();
+        let mut copy_pairs: Vec<(&str, &str)> = files
+            .keys()
+            .filter_map(|path| {
+                let tail = path.strip_prefix(&pat_prefix)?.strip_suffix(".json")?;
+                let (pat, name) = tail.split_once('/')?;
+                (!name.contains('/')).then_some((pat, name))
+            })
+            .collect();
+        copy_pairs
+            .sort_by(|a, b| digest::utf16_cmp(a.0, b.0).then_with(|| digest::utf16_cmp(a.1, b.1)));
+        let copies: Vec<Value> = copy_pairs
+            .iter()
+            .map(|(pat, name)| {
+                let bytes = &files[&format!("{pat_prefix}{pat}/{name}.json")];
+                let record: Value = serde_json::from_slice(bytes).unwrap();
+                let mut entry = json!({
+                    "pattern": pat,
+                    "name": name,
+                    "status": record["status"],
+                    "revision": record["revision"],
+                    "fingerprint": record["fingerprint"],
+                    "digest": digest::file_digest(bytes),
+                });
+                if let Some(replaced) = record.get("replacedBy") {
+                    entry["replacedBy"] = replaced.clone();
+                }
+                entry
+            })
+            .collect();
+        catalog["patterns"] = Value::Array(patterns);
+        catalog["copies"] = Value::Array(copies);
+    }
     canonical::canonical_json(&catalog).into_bytes()
 }
 
@@ -207,6 +274,7 @@ impl Pack {
         let catalog_path = format!("data/{library}/library.json");
         let rules_path = format!("rules/{library}.json");
         let prefix = format!("data/{library}/components/");
+        let pat_prefix = format!("data/{library}/patterns/");
         let mut catalog = self.json(&catalog_path);
         catalog["rules"] = json!(digest::file_digest(&self.files[&rules_path]));
         for entry in catalog["components"].as_array_mut().unwrap() {
@@ -215,10 +283,32 @@ impl Pack {
                 entry["digest"] = json!(digest::file_digest(bytes));
             }
         }
+        if let Some(patterns) = catalog.get_mut("patterns").and_then(Value::as_array_mut) {
+            for entry in patterns {
+                let file = format!("{pat_prefix}{}.json", entry["pattern"].as_str().unwrap());
+                if let Some(bytes) = self.files.get(&file) {
+                    entry["digest"] = json!(digest::file_digest(bytes));
+                }
+            }
+        }
+        if let Some(copies) = catalog.get_mut("copies").and_then(Value::as_array_mut) {
+            for entry in copies {
+                let file = format!(
+                    "{pat_prefix}{}/{}.json",
+                    entry["pattern"].as_str().unwrap(),
+                    entry["name"].as_str().unwrap()
+                );
+                if let Some(bytes) = self.files.get(&file) {
+                    entry["digest"] = json!(digest::file_digest(bytes));
+                }
+            }
+        }
         let digested = self
             .files
             .iter()
-            .filter(|(path, _)| **path == rules_path || path.starts_with(&prefix))
+            .filter(|(path, _)| {
+                **path == rules_path || path.starts_with(&prefix) || path.starts_with(&pat_prefix)
+            })
             .map(|(path, bytes)| (path.as_str(), bytes.as_slice()));
         catalog["digest"] = json!(digest::pack_digest(digested));
         self.set_json(&catalog_path, &catalog);

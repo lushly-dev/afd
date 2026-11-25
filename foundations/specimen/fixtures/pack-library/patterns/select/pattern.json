@@ -1,0 +1,111 @@
+{
+	"pattern": "select",
+	"summary": "Choose one value from a short, fixed list.",
+	"status": "stable",
+	"scope": "control",
+	"facets": {
+		"purpose": ["single-choice"],
+		"structure": ["popup"]
+	},
+	"useWhen": [
+		{
+			"id": "pattern.select.use-when",
+			"text": "Use when the user picks one value from a short, known set of options."
+		}
+	],
+	"avoidWhen": [
+		{
+			"id": "pattern.select.avoid-when",
+			"text": "Avoid for free-text input or lists long enough to need search."
+		}
+	],
+	"keep": [
+		{
+			"id": "pattern.select.named",
+			"text": "Exposes an accessible name and starts collapsed.",
+			"gate": "named"
+		},
+		{
+			"id": "pattern.select.escape-closes",
+			"text": "Pressing Escape closes the popup and keeps focus on the control.",
+			"gate": "escape-closes"
+		},
+		{
+			"id": "pattern.select.fits-narrow",
+			"text": "Fits a narrow viewport without horizontal overflow or outer margin.",
+			"gate": "fits-narrow"
+		},
+		{
+			"id": "pattern.select.concise-labels",
+			"text": "Keep option labels concise and scannable."
+		}
+	],
+	"customize": [
+		{
+			"id": "pattern.select.option-order",
+			"text": "Order options by the user's most likely choice or natural sequence."
+		}
+	],
+	"setups": {
+		"default": {
+			"text": "Mount a select labeled \"Size\" with Small and Medium options.",
+			"targets": {
+				"control": {
+					"role": ["combobox", "button"],
+					"nameStartsWith": "Size"
+				},
+				"medium": {
+					"role": "option",
+					"name": "Medium"
+				}
+			}
+		}
+	},
+	"gates": {
+		"named": {
+			"setup": "default",
+			"scenario": [
+				{
+					"id": "check-name",
+					"expect": {
+						"target": "control",
+						"a11y": {
+							"role": ["combobox", "button"],
+							"nameContains": "Size",
+							"expanded": false
+						}
+					}
+				}
+			]
+		},
+		"escape-closes": {
+			"setup": "default",
+			"scenario": [
+				{ "id": "open", "action": { "press": "ArrowDown", "target": "control" } },
+				{ "id": "is-open", "expect": { "target": "control", "a11y": { "expanded": true } } },
+				{ "id": "esc", "action": { "press": "Escape" } },
+				{ "id": "closed", "expect": { "target": "control", "a11y": { "expanded": false } } },
+				{ "id": "back", "expect": { "target": "control", "focus": true } }
+			]
+		},
+		"fits-narrow": {
+			"setup": "default",
+			"context": {
+				"viewport": { "width": 390, "height": 844 }
+			},
+			"scenario": [
+				{
+					"id": "narrow-layout",
+					"expect": {
+						"target": "control",
+						"layout": {
+							"minHeight": 36,
+							"noOverflow": true,
+							"noOuterMargin": true
+						}
+					}
+				}
+			]
+		}
+	}
+}

@@ -230,7 +230,7 @@
 			"html": "<div style=\"min-block-size: 22rem; max-inline-size: 24rem;\">\n                <violet-date-range-picker disabled end=\"2026-03-27\" error-text label=\"Harvest window\" locale=\"en-US\" max=\"2026-04-30\" min=\"2026-03-01\" size=\"natural\" start=\"2026-03-20\" supporting-text=\"This range is inherited from the parent greenhouse template.\"></violet-date-range-picker>\n            </div>"
 		}
 	],
-	"format": 1,
+	"format": 2,
 	"gaps": [
 		{
 			"kind": "summary"

@@ -46,6 +46,15 @@ patterns! {
     ROLE = 18, r"^[a-z]+$", 32;
     AXE_RULE = 19, r"^[a-z0-9-]+$", 64;
     GAP_NAME = 20, r"^(?:|(?:--)?[A-Za-z][A-Za-z0-9_.:-]*)$", 100;
+    PATTERN = 21, r"^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$", 64;
+    QUALIFIED_PATTERN = 22, r"^[a-z][a-z0-9-]{0,63}\/[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$", 129;
+    COPY_NAME = 23, r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$", 64;
+    SETUP = 24, r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$", 64;
+    GATE = 25, r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$", 64;
+    ALIAS = 26, r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$", 64;
+    FACET_KEY = 27, r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$", 64;
+    FACET_VALUE = 28, r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$", 64;
+    STEP_ID = 29, r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$", 64;
 }
 
 fn compiled() -> &'static [Option<Regex>] {

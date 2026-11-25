@@ -133,10 +133,47 @@ describe('specimen pack-export', () => {
 			'"role": "menu"',
 			'data/example/components/example-select.json: Its authored roles differ from its guide.',
 		],
+		[
+			'a pattern.json summary changed',
+			'pack-library/patterns/select/pattern.json',
+			'Choose one value from a short, fixed list.',
+			'Choose a single option from a popup list.',
+			'data/example/patterns/select.json: Its pattern record differs from its pattern.json or implementing guides.',
+		],
+		[
+			'a guide’s implements claim changed',
+			'pack-library/guides/select.guide.json',
+			'"implements": ["select"]',
+			'"implements": ["field", "select"]',
+			'data/example/components/example-select.json: Its patterns differs from its guide.',
+		],
 	])('refuses, naming the record, when %s', async (_, file, from, to, named) => {
 		const root = await copy();
 		await edit(join(root, file), from, to);
 		await expect(exportFrom(root, '../out')).rejects.toThrow(named);
+	});
+
+	it('exports cleanly when a component binds a pattern via patternSetup without guide implements, even with setup-level entry.contexts', async () => {
+		const root = await copy();
+		// Remove `"implements": ["select"]` from select.guide.json and add setup-level `contexts`
+		// on the specimen entry: `pattern-coverage.ts` scopes component-level `record.patterns[].contexts`
+		// strictly from `guide.contexts`, not `entry.contexts`, so export must not falsely fail.
+		const guidePath = join(root, 'pack-library/guides/select.guide.json');
+		const guide = JSON.parse(await readFile(guidePath, 'utf8')) as Record<string, unknown>;
+		delete guide.implements;
+		await writeFile(guidePath, JSON.stringify(guide, null, '\t'));
+		const cfgPath = join(root, 'pack-library/specimen.config.json');
+		const cfg = JSON.parse(await readFile(cfgPath, 'utf8')) as {
+			specimens: Array<Record<string, unknown>>;
+		};
+		for (const entry of cfg.specimens) {
+			if (entry.id === 'example-select--default') {
+				entry.contexts = { themes: ['light'], reason: 'Setup-only theme check.' };
+			}
+		}
+		await writeFile(cfgPath, JSON.stringify(cfg, null, '\t'));
+		const run = packExportRunSchema.parse(await exportFrom(root, '../out'));
+		expect(run.library).toBe('example');
 	});
 
 	it('rebuilds a guide source’s rules, with no browser, and refuses one that changed', async () => {

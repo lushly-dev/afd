@@ -1,5 +1,5 @@
 {
-	"format": 1,
+	"format": 2,
 	"library": "example",
 	"rules": [
 		{
@@ -26,8 +26,7 @@
 		{
 			"appliesTo": {
 				"tags": [
-					"example-menu",
-					"example-select"
+					"example-missing"
 				]
 			},
 			"basis": "verified",

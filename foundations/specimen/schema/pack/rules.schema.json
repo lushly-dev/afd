@@ -5,7 +5,7 @@
 	"properties": {
 		"format": {
 			"type": "number",
-			"const": 1
+			"const": 2
 		},
 		"library": {
 			"type": "string",

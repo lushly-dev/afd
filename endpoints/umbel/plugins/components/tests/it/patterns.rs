@@ -18,8 +18,13 @@ fn schema(name: &str) -> Value {
 
 #[test]
 fn every_pattern_equals_specimens_json_schema() {
-    let (component, library) = (schema("component"), schema("library"));
-    let cases: [(Pattern, &Value, &str); 21] = [
+    let (component, library, pattern, copy) = (
+        schema("component"),
+        schema("library"),
+        schema("pattern"),
+        schema("copy"),
+    );
+    let cases: [(Pattern, &Value, &str); 30] = [
         (LIBRARY, &library, "/properties/library"),
         (TAG, &component, "/properties/tag"),
         (PREFIX, &library, "/properties/prefix"),
@@ -89,6 +94,31 @@ fn every_pattern_equals_specimens_json_schema() {
             &component,
             "/properties/gaps/items/properties/name",
         ),
+        (PATTERN, &pattern, "/properties/pattern"),
+        (
+            QUALIFIED_PATTERN,
+            &pattern,
+            "/properties/replacedBy/anyOf/1",
+        ),
+        (COPY_NAME, &copy, "/properties/name"),
+        (SETUP, &copy, "/properties/setup"),
+        (GATE, &pattern, "/properties/keep/items/properties/gate"),
+        (
+            ALIAS,
+            &pattern,
+            "/properties/setups/additionalProperties/properties/targets/propertyNames",
+        ),
+        (FACET_KEY, &pattern, "/properties/facets/propertyNames"),
+        (
+            FACET_VALUE,
+            &pattern,
+            "/properties/facets/additionalProperties/items",
+        ),
+        (
+            STEP_ID,
+            &pattern,
+            "/properties/gates/additionalProperties/properties/scenario/items/anyOf/0/properties/id",
+        ),
     ];
     assert_eq!(cases.len(), ALL.len());
     for (pattern, file, pointer) in cases {
@@ -141,4 +171,18 @@ fn samples_at_each_boundary() {
     assert!(CSS_PROPERTY.accepts("--size"));
     assert!(COMMAND.accepts("--toggle"));
     assert!(ROLE.accepts("button"));
+    assert!(PATTERN.accepts("dialog.modal"));
+    assert!(!PATTERN.accepts("Dialog"));
+    assert!(!PATTERN.accepts("a..b"));
+    assert!(QUALIFIED_PATTERN.accepts("example/dialog.modal"));
+    assert!(!QUALIFIED_PATTERN.accepts("example"));
+    assert!(!QUALIFIED_PATTERN.accepts("example/a/b"));
+    assert!(COPY_NAME.accepts("compact-inline"));
+    assert!(!COPY_NAME.accepts("compact.inline"));
+    assert!(SETUP.accepts("three-options"));
+    assert!(GATE.accepts("escape-closes"));
+    assert!(ALIAS.accepts("trigger-1"));
+    assert!(FACET_KEY.accepts("purpose"));
+    assert!(FACET_VALUE.accepts("single-choice"));
+    assert!(STEP_ID.accepts("check-name"));
 }

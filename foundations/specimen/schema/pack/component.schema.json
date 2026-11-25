@@ -5,7 +5,7 @@
 	"properties": {
 		"format": {
 			"type": "number",
-			"const": 1
+			"const": 2
 		},
 		"tag": {
 			"type": "string",
@@ -515,6 +515,132 @@
 			},
 			"required": ["supported", "basis"],
 			"additionalProperties": false
+		},
+		"patterns": {
+			"maxItems": 16,
+			"type": "array",
+			"items": {
+				"type": "object",
+				"properties": {
+					"library": {
+						"type": "string",
+						"maxLength": 64,
+						"pattern": "^[a-z][a-z0-9-]{0,63}$"
+					},
+					"pattern": {
+						"type": "string",
+						"maxLength": 64,
+						"pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$"
+					},
+					"contexts": {
+						"type": "object",
+						"properties": {
+							"viewport": {
+								"type": "object",
+								"properties": {
+									"minWidth": {
+										"type": "integer",
+										"minimum": 1,
+										"maximum": 8192
+									},
+									"maxWidth": {
+										"type": "integer",
+										"minimum": 1,
+										"maximum": 8192
+									},
+									"minHeight": {
+										"type": "integer",
+										"minimum": 1,
+										"maximum": 8192
+									},
+									"maxHeight": {
+										"type": "integer",
+										"minimum": 1,
+										"maximum": 8192
+									}
+								},
+								"additionalProperties": false,
+								"minProperties": 1
+							},
+							"themes": {
+								"minItems": 1,
+								"maxItems": 3,
+								"type": "array",
+								"items": {
+									"type": "string",
+									"enum": ["dark", "high-contrast", "light"]
+								}
+							},
+							"reason": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 240,
+								"pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u202A-\\u202E\\u2066-\\u2069]*$"
+							}
+						},
+						"required": ["reason"],
+						"additionalProperties": false,
+						"anyOf": [
+							{
+								"required": ["viewport"]
+							},
+							{
+								"required": ["themes"]
+							}
+						]
+					},
+					"keep": {
+						"maxItems": 64,
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"id": {
+									"type": "string",
+									"maxLength": 128,
+									"pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$"
+								},
+								"basis": {
+									"type": "string",
+									"enum": ["verified", "ungated", "out-of-context"]
+								},
+								"reason": {
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 240,
+									"pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u202A-\\u202E\\u2066-\\u2069]*$"
+								}
+							},
+							"required": ["id", "basis"],
+							"additionalProperties": false,
+							"anyOf": [
+								{
+									"properties": {
+										"basis": {
+											"const": "out-of-context"
+										}
+									},
+									"required": ["reason"]
+								},
+								{
+									"properties": {
+										"basis": {
+											"not": {
+												"const": "out-of-context"
+											}
+										}
+									},
+									"not": {
+										"required": ["reason"]
+									}
+								}
+							]
+						}
+					}
+				},
+				"required": ["library", "pattern", "keep"],
+				"additionalProperties": false
+			}
 		}
 	},
 	"required": ["format", "tag", "status", "api", "a11y", "usage", "rules", "examples", "gaps"],

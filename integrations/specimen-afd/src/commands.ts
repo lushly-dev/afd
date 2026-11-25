@@ -367,6 +367,28 @@ function safeErrorDetails(value: unknown): Record<string, unknown> | undefined {
 	}
 }
 
+/** Per-error-code recovery suggestions (`docs/features/active/patterns/spec.md` §5.5). */
+const ERROR_SUGGESTIONS: Readonly<Record<string, string>> = {
+	TARGET_NOT_FOUND:
+		'Run specimen-list or name a { role, name } target (or Pointing point) that matches an accessible element in the rendered specimen.',
+	TARGET_AMBIGUOUS:
+		'Narrow the target with name, nameStartsWith, or nameContains (or pass a Pointing point) so it matches one element.',
+	SPECIMEN_NOT_FOUND:
+		'Use one of the nearest specimen ids listed in details, or run specimen-list.',
+	ALREADY_EXISTS: 'Choose another copy name, or pass replace: true to overwrite the existing copy.',
+	PATTERN_UNKNOWN:
+		'Use one of the nearest local patterns in specimens/patterns/, or pass createPattern: true to start a new pattern.',
+	COPY_NOT_FOUND:
+		'Run specimen-pattern-save in capture mode (id + target/point) before re-verifying in place.',
+	COPY_DOWNGRADE_REFUSED:
+		'Fix the stripped items or remount errors so the copy stays complete, or pass allowDowngrade: true to demote it to draft.',
+	COPY_REFRESH_UNSUPPORTED:
+		'Update .html/.css on disk and run specimen-pattern-save with { pattern, name, replace: true } (copy was edited in place or lacks a durable origin.target).',
+	PATTERN_SETUP_MISSING:
+		'Add the missing setup case (run specimen-suggest with the reported pattern: obligation) or declare a contexts limit on the implementation.',
+	POINT_STALE: 'Run specimen-point again to capture a fresh point id before saving.',
+};
+
 async function result<T>(
 	operation: () => T | Promise<T>,
 	output: z.ZodType<T>,
@@ -396,7 +418,7 @@ async function result<T>(
 		const errorSuggestion =
 			typeof structured?.suggestion === 'string' && structured.suggestion.trim().length > 0
 				? structured.suggestion
-				: suggestion;
+				: (ERROR_SUGGESTIONS[errorCode] ?? suggestion);
 		const errorDetails = safeErrorDetails(structured?.details);
 		return failure({
 			code: errorCode,

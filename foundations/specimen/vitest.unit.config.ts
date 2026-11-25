@@ -66,6 +66,7 @@ export default defineConfig({
 				'src/normalize.ts',
 				'src/normalize-ids.ts',
 				'src/pack.ts',
+				'src/pack-atoms.ts',
 				'src/pack-files.ts',
 				'src/pack-schema.ts',
 				'src/pattern-schema.ts',

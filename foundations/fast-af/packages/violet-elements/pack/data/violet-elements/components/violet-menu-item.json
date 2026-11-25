@@ -92,7 +92,7 @@
 			"html": "<div role=\"menu\"><violet-menu-item>Simple action</violet-menu-item></div>"
 		}
 	],
-	"format": 1,
+	"format": 2,
 	"gaps": [],
 	"import": "@lushly-dev/violet-elements",
 	"rules": [

@@ -127,8 +127,8 @@ async fn plugin_show_reports_the_plugin_and_the_default_pack_in_every_space() {
             "id": "library",
             "path": "packs/library",
             "spaces": [
-                { "space": "main", "source": "default", "version": "0.1.0", "files": 7 },
-                { "space": "beta", "source": "default", "version": "0.1.0", "files": 7 },
+                { "space": "main", "source": "default", "version": "0.1.0", "files": 9 },
+                { "space": "beta", "source": "default", "version": "0.1.0", "files": 9 },
             ],
         }, {
             "id": "consumers",
@@ -161,8 +161,8 @@ async fn plugin_show_reports_an_override_in_its_space_alone() {
     assert_eq!(
         data(&shown)["packs"][0]["spaces"],
         json!([
-            { "space": "main", "source": "override", "version": "1.0.0", "files": 11 },
-            { "space": "beta", "source": "default", "version": "0.1.0", "files": 7 },
+            { "space": "main", "source": "override", "version": "1.0.0", "files": 13 },
+            { "space": "beta", "source": "default", "version": "0.1.0", "files": 9 },
         ])
     );
 }

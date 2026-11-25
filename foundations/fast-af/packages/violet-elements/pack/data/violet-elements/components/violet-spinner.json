@@ -100,7 +100,7 @@
 			"html": "<violet-spinner label=\"Loading crop plan\" size=\"md\"></violet-spinner>"
 		}
 	],
-	"format": 1,
+	"format": 2,
 	"gaps": [],
 	"import": "@lushly-dev/violet-elements",
 	"rules": [

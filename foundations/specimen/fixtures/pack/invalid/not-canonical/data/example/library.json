@@ -1,37 +1,70 @@
 {
 	"components": [
 		{
-			"digest": "sha256:1696d3d9df5200596ce28cde28434c8c0ce02471def7993c21e5a1aa8c60508f",
+			"digest": "sha256:9cd02a21423018e2ede7797270463cabaee0f9dcf88b25e92e1f396ce8e3de33",
 			"status": "deprecated",
 			"tag": "example-dropdown"
 		},
 		{
-			"digest": "sha256:2cbc3079187a9b6603cb998df6c6d3b6c19e9d65e528a46860e2fb6373c6b2d7",
+			"digest": "sha256:e5b4dd72b49fdd1bc437dcd2621192a2782743cb5219ddf3aea940e4ca979191",
 			"status": "stable",
 			"summary": "One line of text that takes part in a form, with a visible label and optional hint.",
 			"tag": "example-field"
 		},
 		{
-			"digest": "sha256:1e06988804e62aa6fc607efc7ff113146364775e147e3f3e97850d353815623c",
+			"digest": "sha256:044cbc7eea8d3efcd84a9005b389ee89f296d006bbbb7452ab02a13667c6e322",
 			"status": "stable",
 			"summary": "One choice in an example-select list.",
 			"tag": "example-option"
 		},
 		{
-			"digest": "sha256:3d0ffe0aecb1eaee35defa1b59fe30eb8ced6acdc9860bc374189c8db34dfc3a",
+			"digest": "sha256:c70930912844e68977ee6edb81bc85740fefd89fe7125e5dee5b4dff6c31b32e",
 			"status": "preview",
 			"summary": "Pick one value from a short, fixed list that opens as a popup.",
 			"tag": "example-select"
 		}
 	],
-	"digest": "sha256:3ed416294438af79e60fcf9845f7b5de71cc0433c861d38dec353bb3b487a168",
-	"format": 1,
+	"copies": [],
+	"digest": "sha256:851d161d1977bdf64420ac916efe1bc6fbe6f2005295fe24fd368a3d74126073",
+	"format": 2,
 	"library": "example",
 	"package": {
 		"name": "example-components",
 		"version": "1.0.0"
 	},
+	"patterns": [
+		{
+			"digest": "sha256:388e33fcf315ef5e366c295d5c90f575d9f160e896fcb3d9f3a53d54507819f6",
+			"facets": {
+				"purpose": [
+					"text-entry"
+				],
+				"structure": [
+					"inline"
+				]
+			},
+			"pattern": "field",
+			"scope": "control",
+			"status": "stable",
+			"summary": "Single-line text input with a visible label and optional validation message."
+		},
+		{
+			"digest": "sha256:e4e5699517503565861bf8af8122a306579666885848cacfdfd00b63f93c521c",
+			"facets": {
+				"purpose": [
+					"single-choice"
+				],
+				"structure": [
+					"popup"
+				]
+			},
+			"pattern": "select",
+			"scope": "control",
+			"status": "stable",
+			"summary": "Choose one value from a short, fixed list."
+		}
+	],
 	"prefix": "example-",
-	"rules": "sha256:4d08605523d4f013042af4f2a01dee4826c54b46101d29d4ada75e7243463d13",
+	"rules": "sha256:9bcc0f096b9b96070d71a4ce3bcfbbb183ffa6bb1bc93e89f77b4adfd34c26f5",
 	"title": "Example components"
 }

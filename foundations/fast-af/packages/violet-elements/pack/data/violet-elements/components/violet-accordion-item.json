@@ -164,7 +164,7 @@
 			"html": "<div style=\"max-inline-size: 42rem;\"><violet-accordion-item expanded heading-level=\"3\"><span slot=\"heading\">Propagation planning</span>Coordinate sowing windows, propagation media, and bench allocation before crop launch.</violet-accordion-item></div>"
 		}
 	],
-	"format": 1,
+	"format": 2,
 	"gaps": [
 		{
 			"kind": "unobserved",

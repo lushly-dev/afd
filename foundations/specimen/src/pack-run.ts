@@ -10,12 +10,17 @@ import { computeGuideCoverage } from './guide-coverage.js';
 import { checkPack } from './pack.js';
 import { buildPack, libraryTags, type PackCase, type PackExample } from './pack-build.js';
 import { PACK_TEXT_LIMITS } from './pack-schema.js';
+import { computePatternCoverage, hasPatternCoverageScope } from './pattern-coverage.js';
+import { resolvePatternTarget } from './pattern-gates.js';
 import type { ComponentSchema } from './plugin.js';
+import { DEFAULT_SUITE_WORKERS } from './suite.js';
 import type {
+	GateRun,
 	Observation,
 	PackBuildRequest,
 	PackBuildRun,
 	PackIndex,
+	PatternCoverage,
 	SpecimenEntry,
 } from './types.js';
 
@@ -221,9 +226,12 @@ export async function runPack(host: PackHost, request: PackBuildRequest): Promis
 	const pack = config.config.pack;
 	if (!pack) throw new Error('This configuration has no pack key; add one to build a pack.');
 	const started = performance.now();
-	if (!config.entries.length)
+	const hasLocalPatterns = (config.patterns?.patterns.length ?? 0) > 0;
+	if (!config.entries.length && !hasLocalPatterns)
 		throw new Error('No specimen or retained story to build a pack from.');
-	await host.prepare();
+	if (config.entries.length > 0 || (config.gateCases?.length ?? 0) > 0) {
+		await host.prepare();
+	}
 	const schemas = await runSchemas(host);
 	const bySchema = new Map(schemas.map((schema) => [schema.tag, schema]));
 	const tags = new Set(libraryTags(pack, schemas));
@@ -275,6 +283,31 @@ export async function runPack(host: PackHost, request: PackBuildRequest): Promis
 
 	const coverage = computeCoverage(schemas, cases);
 	const guideCoverage = computeGuideCoverage(config.guides, schemas, [...cases, ...guideCases]);
+	const failedGateRuns = new Map<string, GateRun>();
+	const runGateHost = host.runGate;
+	const patternCoverage: PatternCoverage | undefined =
+		hasPatternCoverageScope(config) && runGateHost
+			? await computePatternCoverage({
+					config,
+					...(component ? { component } : {}),
+					workers: request.workers ?? config.config.test?.workers ?? DEFAULT_SUITE_WORKERS,
+					...(request.timeoutMs !== undefined ? { timeoutMs: request.timeoutMs } : {}),
+					runGate: async (id, timeoutMs) => {
+						const run = await runGateHost(id, timeoutMs);
+						if (run.outcome.status === 'failed') failedGateRuns.set(id, run);
+						return run;
+					},
+				})
+			: undefined;
+	for (const [gateId, run] of failedGateRuns) {
+		if (!failed.some((item) => item.id === gateId)) {
+			failed.push({
+				id: gateId,
+				message: run.outcome.failures[0]?.message ?? 'The pattern gate failed.',
+			});
+		}
+	}
+	failed.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 	const componentOf = new Map(config.entries.map((entry) => [entry.id, entry.component]));
 	const themesOf = new Map(config.entries.map((entry) => [entry.id, entry.themes]));
 
@@ -360,8 +393,10 @@ export async function runPack(host: PackHost, request: PackBuildRequest): Promis
 		config: pack,
 		schemas,
 		...(config.guides ? { guides: config.guides } : {}),
+		...(config.patterns ? { patterns: config.patterns } : {}),
 		coverage,
 		guideCoverage,
+		...(patternCoverage ? { patternCoverage } : {}),
 		cases: packCases,
 		examples,
 	});
@@ -373,9 +408,11 @@ export async function runPack(host: PackHost, request: PackBuildRequest): Promis
 		new Map([...built.files].map(([path, text]) => [path, encoder.encode(text)])),
 		{ form: 'committed' }
 	).problems.filter((problem) => !record || problem.path === record);
-	// A guide with an error is left out of every record, so the build is not sound: the records
-	// would lose that guide's statements with nothing said (#1243).
-	for (const problem of config.guides?.problems ?? []) {
+	// A guide or pattern file with an error is left out of every record, so the build is not sound.
+	for (const problem of [
+		...(config.guides?.problems ?? []),
+		...(config.patterns?.problems ?? []),
+	]) {
 		if (problem.severity !== 'error') continue;
 		problems.push({
 			code: problem.code,
@@ -383,6 +420,44 @@ export async function runPack(host: PackHost, request: PackBuildRequest): Promis
 			...(problem.field ? { at: `#${problem.field}` } : {}),
 			message: problem.message,
 		});
+	}
+	// Format 2 holds only verified, ungated, and out-of-context keep bases: any missing gated
+	// setup blocks packing with PATTERN_SETUP_MISSING (`spec.md` §5.5, §6.2).
+	for (const impl of patternCoverage?.implementations ?? []) {
+		if (impl.kind !== 'component' || !impl.tag || !tags.has(impl.tag)) continue;
+		if (component && impl.tag !== component) continue;
+		const resolvedPattern = resolvePatternTarget(config.patterns, pack.library, config.root, {
+			library: impl.patternLibrary,
+			pattern: impl.pattern,
+		});
+		const recordPath = `data/${pack.library}/components/${impl.tag}.json`;
+		for (const item of impl.keep) {
+			if (item.level !== 'missing') continue;
+			const keepDef = resolvedPattern?.data.keep?.find((k) => k.id === item.id);
+			const gateName = keepDef?.gate;
+			const matchingGateCases = (config.gateCases ?? []).filter(
+				(gc) =>
+					gc.setupEntry.component === impl.tag &&
+					gc.patternLibrary === impl.patternLibrary &&
+					gc.pattern === impl.pattern &&
+					gc.gateName === gateName
+			);
+			const ranAndFailed = matchingGateCases.some((gc) => failedGateRuns.has(gc.id));
+			if (ranAndFailed) {
+				problems.push({
+					code: 'GATE_FAILED',
+					path: recordPath,
+					message: `Pattern gate ${gateName ?? item.id} failed for ${impl.tag} (${impl.patternLibrary}/${impl.pattern}).`,
+				});
+			} else {
+				const obligation = `pattern:${impl.patternLibrary}/${item.id}`;
+				problems.push({
+					code: 'PATTERN_SETUP_MISSING',
+					path: recordPath,
+					message: `${impl.tag} claims ${impl.patternLibrary}/${impl.pattern} but is missing a setup case for ${obligation}.`,
+				});
+			}
+		}
 	}
 	const claimed = new Set(
 		[...cases, ...guideCases].flatMap(({ observation }) =>

@@ -1,0 +1,71 @@
+{
+	"components": [
+		{
+			"digest": "sha256:9cd02a21423018e2ede7797270463cabaee0f9dcf88b25e92e1f396ce8e3de33",
+			"status": "deprecated",
+			"tag": "example-dropdown"
+		},
+		{
+			"digest": "sha256:e5b4dd72b49fdd1bc437dcd2621192a2782743cb5219ddf3aea940e4ca979191",
+			"status": "stable",
+			"summary": "One line of text that takes part in a form, with a visible label and optional hint.",
+			"tag": "example-field"
+		},
+		{
+			"digest": "sha256:4a5fcbbc4f162bae9ad88259c864d23ad269519b2ed2fd783212251425aacf59",
+			"status": "stable",
+			"summary": "One choice in an example-select list.",
+			"tag": "example-option"
+		},
+		{
+			"digest": "sha256:c70930912844e68977ee6edb81bc85740fefd89fe7125e5dee5b4dff6c31b32e",
+			"status": "preview",
+			"summary": "Pick one value from a short, fixed list that opens as a popup.",
+			"tag": "example-select"
+		}
+	],
+	"copies": [],
+	"digest": "sha256:192b2d1d1592deace9619af475eacbc8b9f929dd0bd68c4f4eb11a3eeb685992",
+	"format": 2,
+	"library": "example",
+	"package": {
+		"name": "example-components",
+		"version": "1.0.0"
+	},
+	"patterns": [
+		{
+			"digest": "sha256:e52fa9cf541b673952da0a1d1579d192ccfddd8cc9867aa4d34ee8c2f2e02fbc",
+			"facets": {
+				"purpose": [
+					"text-entry"
+				],
+				"structure": [
+					"inline"
+				]
+			},
+			"pattern": "field",
+			"replacedBy": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/select",
+			"scope": "control",
+			"status": "deprecated",
+			"summary": "Single-line text input with a visible label and optional validation message."
+		},
+		{
+			"digest": "sha256:e4e5699517503565861bf8af8122a306579666885848cacfdfd00b63f93c521c",
+			"facets": {
+				"purpose": [
+					"single-choice"
+				],
+				"structure": [
+					"popup"
+				]
+			},
+			"pattern": "select",
+			"scope": "control",
+			"status": "stable",
+			"summary": "Choose one value from a short, fixed list."
+		}
+	],
+	"prefix": "example-",
+	"rules": "sha256:9bcc0f096b9b96070d71a4ce3bcfbbb183ffa6bb1bc93e89f77b4adfd34c26f5",
+	"title": "Example components"
+}

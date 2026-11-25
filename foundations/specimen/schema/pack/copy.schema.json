@@ -1,0 +1,239 @@
+{
+	"title": "Specimen component pack: saved copy record",
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"format": {
+			"type": "number",
+			"const": 2
+		},
+		"pattern": {
+			"type": "string",
+			"maxLength": 64,
+			"pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$"
+		},
+		"name": {
+			"type": "string",
+			"maxLength": 64,
+			"pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+		},
+		"status": {
+			"type": "string",
+			"enum": ["stable", "preview", "deprecated"]
+		},
+		"replacedBy": {
+			"type": "string",
+			"maxLength": 64,
+			"pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+		},
+		"html": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 16000,
+			"pattern": "^[^\\u0000-\\u0008\\u000B-\\u001F\\u007F-\\u009F\\u202A-\\u202E\\u2066-\\u2069]*$"
+		},
+		"css": {
+			"type": "string",
+			"minLength": 0,
+			"maxLength": 8000,
+			"pattern": "^[^\\u0000-\\u0008\\u000B-\\u001F\\u007F-\\u009F\\u202A-\\u202E\\u2066-\\u2069]*$"
+		},
+		"dependencies": {
+			"maxItems": 64,
+			"type": "array",
+			"items": {
+				"type": "string",
+				"maxLength": 100,
+				"pattern": "^[a-z][a-z0-9._]*-[a-z0-9._-]*$"
+			}
+		},
+		"tokens": {
+			"maxItems": 256,
+			"type": "array",
+			"items": {
+				"type": "string",
+				"maxLength": 100,
+				"pattern": "^--[A-Za-z0-9_-]+$"
+			}
+		},
+		"themeStylesheet": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 200,
+			"pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u202A-\\u202E\\u2066-\\u2069]*$"
+		},
+		"setup": {
+			"type": "string",
+			"maxLength": 64,
+			"pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+		},
+		"contexts": {
+			"type": "object",
+			"properties": {
+				"viewport": {
+					"type": "object",
+					"properties": {
+						"minWidth": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 8192
+						},
+						"maxWidth": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 8192
+						},
+						"minHeight": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 8192
+						},
+						"maxHeight": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 8192
+						}
+					},
+					"additionalProperties": false,
+					"minProperties": 1
+				},
+				"themes": {
+					"minItems": 1,
+					"maxItems": 3,
+					"type": "array",
+					"items": {
+						"type": "string",
+						"enum": ["dark", "high-contrast", "light"]
+					}
+				},
+				"reason": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 240,
+					"pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u202A-\\u202E\\u2066-\\u2069]*$"
+				}
+			},
+			"required": ["reason"],
+			"additionalProperties": false,
+			"anyOf": [
+				{
+					"required": ["viewport"]
+				},
+				{
+					"required": ["themes"]
+				}
+			]
+		},
+		"revision": {
+			"type": "string",
+			"maxLength": 71,
+			"pattern": "^sha256:[0-9a-f]{64}$"
+		},
+		"fingerprint": {
+			"type": "string",
+			"maxLength": 71,
+			"pattern": "^sha256:[0-9a-f]{64}$"
+		},
+		"changeNote": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 240,
+			"pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u202A-\\u202E\\u2066-\\u2069]*$"
+		},
+		"origin": {
+			"type": "object",
+			"properties": {
+				"id": {
+					"type": "string",
+					"maxLength": 200,
+					"pattern": "^[a-z0-9][a-z0-9._-]*$"
+				},
+				"checkpoint": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 160,
+					"pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u202A-\\u202E\\u2066-\\u2069]*$"
+				}
+			},
+			"required": ["id"],
+			"additionalProperties": false
+		},
+		"keep": {
+			"maxItems": 64,
+			"type": "array",
+			"items": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"maxLength": 128,
+						"pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$"
+					},
+					"basis": {
+						"type": "string",
+						"enum": ["verified", "ungated", "out-of-context"]
+					},
+					"reason": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 240,
+						"pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u202A-\\u202E\\u2066-\\u2069]*$"
+					}
+				},
+				"required": ["id", "basis"],
+				"additionalProperties": false,
+				"anyOf": [
+					{
+						"properties": {
+							"basis": {
+								"const": "out-of-context"
+							}
+						},
+						"required": ["reason"]
+					},
+					{
+						"properties": {
+							"basis": {
+								"not": {
+									"const": "out-of-context"
+								}
+							}
+						},
+						"not": {
+							"required": ["reason"]
+						}
+					}
+				]
+			}
+		}
+	},
+	"required": [
+		"format",
+		"pattern",
+		"name",
+		"status",
+		"html",
+		"css",
+		"dependencies",
+		"tokens",
+		"revision",
+		"fingerprint",
+		"origin",
+		"keep"
+	],
+	"additionalProperties": false,
+	"anyOf": [
+		{
+			"not": {
+				"required": ["replacedBy"]
+			}
+		},
+		{
+			"properties": {
+				"status": {
+					"const": "deprecated"
+				}
+			}
+		}
+	]
+}

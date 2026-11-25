@@ -4,8 +4,9 @@ use crate::support;
 use serde_json::{Value, json};
 use support::*;
 
-const INCONSISTENT: [&str; 5] = [
+const INCONSISTENT: [&str; 6] = [
     "catalog-summary",
+    "catalog-pattern-mismatch",
     "record-not-listed",
     "record-missing",
     "record-digest",
@@ -35,7 +36,7 @@ async fn every_invalid_case_agrees_with_specimen() {
     let manifest: Value =
         serde_json::from_slice(&std::fs::read(root.join("cases.json")).unwrap()).unwrap();
     let cases = manifest["cases"].as_array().unwrap();
-    assert!(cases.len() >= 26, "{} cases", cases.len());
+    assert!(cases.len() >= 38, "{} cases", cases.len());
     for case in cases {
         let name = case["name"].as_str().unwrap();
         let mut pack = Pack::example();

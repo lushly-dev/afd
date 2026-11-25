@@ -138,7 +138,7 @@
 			"html": "<div style=\"max-inline-size:20rem;\"><violet-skeleton aria-hidden=\"true\" lines=\"3\" shape=\"text\" size=\"md\"></violet-skeleton></div>"
 		}
 	],
-	"format": 1,
+	"format": 2,
 	"gaps": [
 		{
 			"kind": "role"

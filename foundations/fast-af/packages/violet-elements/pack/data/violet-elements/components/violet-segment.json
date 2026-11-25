@@ -113,7 +113,7 @@
 			"html": "<div style=\"max-inline-size: 12rem;\"><violet-segment checked value=\"overview\">Overview</violet-segment></div>"
 		}
 	],
-	"format": 1,
+	"format": 2,
 	"gaps": [],
 	"import": "@lushly-dev/violet-elements",
 	"rules": [

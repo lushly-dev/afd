@@ -311,12 +311,16 @@ assert.deepEqual(Object.keys(types).sort(), ['CAPTURE_VERSION', 'NORMALIZATION_V
 assert.deepEqual(Object.keys(schema).sort(), ['a11yRequestSchema', 'a11yRunSchema', 'baselineRequestSchema', 'buildOutputSchema', 'captureFilterSchema', 'captureRefSchema', 'captureRequestSchema', 'captureSetRequestSchema', 'captureSetRunSchema', 'checkpointsRequestSchema', 'checkpointsRunSchema', 'compareRequestSchema', 'compareRunSchema', 'componentSchemaSchema', 'contextSchema', 'contractRequestSchema', 'contractRunSchema', 'coverageRequestSchema', 'coverageRunSchema', 'decisionActorSchema', 'decisionAnswerEntrySchema', 'decisionCheckRequestSchema', 'decisionCheckResultSchema', 'decisionGetRequestSchema', 'decisionGetResultSchema', 'decisionListRequestSchema', 'decisionListResultSchema', 'decisionRecordRequestSchema', 'decisionRecordResultSchema', 'decisionRecordSingleResultSchema', 'decisionSubjectsSchema', 'gateFailureSchema', 'gateOutcomeSchema', 'gateRunSchema', 'inspectRequestSchema', 'inspectResultSchema', 'jobCapturePointSchema', 'jobCaptureSelectionSchema', 'jobConfigSchema', 'jobCreateRequestSchema', 'jobCreateResultSchema', 'jobPinSchema', 'jobRunRequestSchema', 'jobRunSchema', 'matrixRequestSchema', 'matrixRunSchema', 'migrateRequestSchema', 'migrationReportSchema', 'noteAddRequestSchema', 'noteCheckRequestSchema', 'noteCheckResultSchema', 'noteEvidenceSchema', 'noteHistoryEntrySchema', 'noteListRequestSchema', 'noteListResultSchema', 'noteListStateSchema', 'noteMoveRequestSchema', 'noteOutcomeSchema', 'noteReopenRequestSchema', 'noteResolutionSchema', 'noteResolveRequestSchema', 'noteResolveResultSchema', 'noteResultSchema', 'noteSchema', 'noteStateSchema', 'noteSubjectSchema', 'observationSchema', 'packCheckRunSchema', 'packExportRequestSchema', 'packExportRunSchema', 'packRequestSchema', 'packRunSchema', 'patternCoverageSchema', 'pointCheckRequestSchema', 'pointCheckResultSchema', 'pointContextInputSchema', 'pointMoveDirectionSchema', 'pointMoveRequestSchema', 'pointRequestSchema', 'pointResultSchema', 'pointSchema', 'profileRequestSchema', 'profileRunSchema', 'runRequestSchema', 'storyRunSchema', 'suggestRequestSchema', 'suggestRunSchema', 'suiteRequestSchema', 'suiteRunSchema', 'targetSchema', 'themeSupportSchema', 'themesRequestSchema', 'themesRunSchema']);
 assert.deepEqual(Object.keys(evidence), ['claim']);
 const pack = await import('@lushly-dev/specimen/pack');
-assert.equal(pack.PACK_FORMAT_VERSION, 1);
+assert.equal(pack.PACK_FORMAT_VERSION, 2);
 const packRoot = fileURLToPath(new URL('./fixtures/pack/', import.meta.url));
 for (const form of ['committed', 'exported'])
 	assert.deepEqual(pack.checkPack(await pack.readPackFiles(packRoot + form), { form }).problems, []);
 const { default: componentSchema } = await import('@lushly-dev/specimen/pack/component.schema.json', { with: { type: 'json' } });
 assert.deepEqual(componentSchema, pack.packJsonSchemas().component);
+const { default: patternSchema } = await import('@lushly-dev/specimen/pack/pattern.schema.json', { with: { type: 'json' } });
+assert.deepEqual(patternSchema, pack.packJsonSchemas().pattern);
+const { default: copySchema } = await import('@lushly-dev/specimen/pack/copy.schema.json', { with: { type: 'json' } });
+assert.deepEqual(copySchema, pack.packJsonSchemas().copy);
 assert.equal(pack.packComponentSchema.safeParse({ format: 0 }).success, false);
 assert.equal(evidence.claim({}, 'default', 'an-expectation'), undefined);
 const { setCustomElementsManifest } = await import('@lushly-dev/specimen/preview');
