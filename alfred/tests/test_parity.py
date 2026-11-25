@@ -901,7 +901,12 @@ NAME_GAP_BUDGET = {
     # #550 (Wave 3) to lower once the core types take the root names.
     # Python 98 → 99 (#2263) → 98 (#2264): CommandConfirmationMode now exported in Python, matching
     # TypeScript and Rust; HumanRelay is N/A for C++.
-    "missing_from_python": 98,
+    # Python 98 → 89 (#1535) → 10 (#550 PR 1): executor/exposure exports (#1535) plus Wave 2
+    # (handoff reconnect policy + MCP codes/types/helpers), Wave 3 (all non-colliding pipeline
+    # types, condition guards and helpers), Wave 4 (similarity helpers) and execution_failure.
+    # Remaining 10: the 5 colliding root names deferred to #550 PR 2 until Botcore drops the #2455
+    # deprecation shim, plus the 5 approval-display helpers tracked in #1466.
+    "missing_from_python": 10,
     "missing_from_rust": 7,
     # 73 at first measurement (Phase 5 of the C++ plan). The deferred groups: MCP JSON-RPC
     # types and helpers; the typed pipeline-condition structs and their guards (C++ keeps

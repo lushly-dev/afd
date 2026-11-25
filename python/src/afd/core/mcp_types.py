@@ -23,6 +23,7 @@ Example:
 
 from __future__ import annotations
 
+import itertools
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -44,6 +45,41 @@ LEGACY_PROTOCOL_VERSIONS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-0
 
 JSONRPC_VERSION: Literal["2.0"] = "2.0"
 """JSON-RPC version used by MCP."""
+
+McpId = int | str
+"""Request/response identifier in MCP JSON-RPC messages."""
+
+
+class McpErrorCodes:
+    """Standard MCP / JSON-RPC numeric error codes."""
+
+    PARSE_ERROR: Literal[-32700] = -32700
+    INVALID_REQUEST: Literal[-32600] = -32600
+    METHOD_NOT_FOUND: Literal[-32601] = -32601
+    INVALID_PARAMS: Literal[-32602] = -32602
+    INTERNAL_ERROR: Literal[-32603] = -32603
+    HEADER_MISMATCH: Literal[-32020] = -32020
+    MISSING_REQUIRED_CLIENT_CAPABILITY: Literal[-32021] = -32021
+    UNSUPPORTED_PROTOCOL_VERSION: Literal[-32022] = -32022
+    SERVER_NOT_INITIALIZED: Literal[-32002] = -32002
+    REQUEST_CANCELLED: Literal[-32800] = -32800
+    CONTENT_MODIFIED: Literal[-32801] = -32801
+
+
+McpErrorCode = Literal[
+    -32700,
+    -32600,
+    -32601,
+    -32602,
+    -32603,
+    -32020,
+    -32021,
+    -32022,
+    -32002,
+    -32800,
+    -32801,
+]
+"""Literal union of standard MCP numeric error codes."""
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -233,6 +269,37 @@ class McpErrorResponse(BaseModel):
     jsonrpc: Literal["2.0"] = JSONRPC_VERSION
     id: int | str
     error: JsonRpcError
+
+
+class McpNotification(BaseModel):
+    """MCP JSON-RPC notification message (no ``id``, no response expected)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    jsonrpc: Literal["2.0"] = JSONRPC_VERSION
+    method: str
+    params: dict[str, Any] | None = None
+
+
+class McpToolsListResult(BaseModel):
+    """Result payload for ``tools/list``."""
+
+    model_config = ConfigDict(frozen=True)
+
+    tools: list[ToolDefinition] = Field(default_factory=list)
+
+
+# Cross-language type aliases matching TypeScript's ``@lushly-dev/afd-core`` names.
+McpError = JsonRpcError
+McpTool = ToolDefinition
+McpToolCallParams = ToolCallParams
+McpToolCallResult = ToolResult
+McpContent = Content
+McpTextContent = TextContent
+McpImageContent = ImageContent
+McpResourceContent = EmbeddedResource
+McpServerCapabilities = dict[str, Any]
+McpClientCapabilities = dict[str, Any]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -557,4 +624,74 @@ def initialize_result(
         protocolVersion=protocol_version,
         capabilities=capabilities or {},
         serverInfo=ServerInfo(name=server_name, version=server_version),
+    )
+
+
+McpInitializeParams = InitializeParams
+McpInitializeResult = InitializeResult
+
+_NEXT_REQUEST_ID = itertools.count(1)
+
+
+def create_mcp_request(
+    method: str,
+    params: Any | None = None,
+    *,
+    id: McpId | None = None,
+) -> McpRequest:
+    """Create an MCP JSON-RPC request with an auto-incrementing id when omitted."""
+    req_id: McpId = next(_NEXT_REQUEST_ID) if id is None else id
+    return mcp_request(method, id=req_id, params=params)
+
+
+def create_mcp_response(id: McpId, result: Any) -> McpResponse:
+    """Create an MCP JSON-RPC success response."""
+    return mcp_response(id, result)
+
+
+def create_mcp_error_response(
+    id: McpId,
+    code: int,
+    message: str,
+    data: Any | None = None,
+) -> McpErrorResponse:
+    """Create an MCP JSON-RPC error response."""
+    return mcp_error_response(id, code, message, data=data)
+
+
+def is_mcp_request(value: Any) -> bool:
+    """Type guard for MCP JSON-RPC requests."""
+    if isinstance(value, McpRequest):
+        return True
+    return (
+        isinstance(value, dict)
+        and value.get("jsonrpc") == JSONRPC_VERSION
+        and "id" in value
+        and "method" in value
+        and isinstance(value.get("method"), str)
+    )
+
+
+def is_mcp_response(value: Any) -> bool:
+    """Type guard for MCP JSON-RPC responses (success or error)."""
+    if isinstance(value, (McpResponse, McpErrorResponse)):
+        return True
+    return (
+        isinstance(value, dict)
+        and value.get("jsonrpc") == JSONRPC_VERSION
+        and "id" in value
+        and ("result" in value or "error" in value)
+    )
+
+
+def is_mcp_notification(value: Any) -> bool:
+    """Type guard for MCP JSON-RPC notifications (no ``id``)."""
+    if isinstance(value, McpNotification):
+        return True
+    return (
+        isinstance(value, dict)
+        and value.get("jsonrpc") == JSONRPC_VERSION
+        and "method" in value
+        and isinstance(value.get("method"), str)
+        and "id" not in value
     )

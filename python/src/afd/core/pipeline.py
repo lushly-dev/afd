@@ -51,13 +51,15 @@ from afd.core.pipeline_variables import (
     PipelineResolutionLimitError,
     VariableReference,
     exceeds_depth,
-    get_nested_value,  # noqa: F401 - re-exported
     is_number,
     json_equals,
     pipeline_view,
     resolve_input,
     resolve_operand,
     resolve_string,
+)
+from afd.core.pipeline_variables import (
+    get_nested_value as get_nested_value,
 )
 from afd.core.result import (
     CommandError,
@@ -504,6 +506,62 @@ def is_pipeline_condition(value: Any) -> bool:
         }
         return keys[0] in valid_keys
     return False
+
+
+def _is_single_operator_condition(value: Any, model_cls: type[BaseModel], operator: str) -> bool:
+    if isinstance(value, model_cls):
+        return True
+    return isinstance(value, dict) and len(value) == 1 and operator in value
+
+
+def is_exists_condition(condition: Any) -> bool:
+    """Type guard for ``$exists`` pipeline conditions."""
+    return _is_single_operator_condition(condition, PipelineConditionExists, "$exists")
+
+
+def is_eq_condition(condition: Any) -> bool:
+    """Type guard for ``$eq`` pipeline conditions."""
+    return _is_single_operator_condition(condition, PipelineConditionEq, "$eq")
+
+
+def is_ne_condition(condition: Any) -> bool:
+    """Type guard for ``$ne`` pipeline conditions."""
+    return _is_single_operator_condition(condition, PipelineConditionNe, "$ne")
+
+
+def is_gt_condition(condition: Any) -> bool:
+    """Type guard for ``$gt`` pipeline conditions."""
+    return _is_single_operator_condition(condition, PipelineConditionGt, "$gt")
+
+
+def is_gte_condition(condition: Any) -> bool:
+    """Type guard for ``$gte`` pipeline conditions."""
+    return _is_single_operator_condition(condition, PipelineConditionGte, "$gte")
+
+
+def is_lt_condition(condition: Any) -> bool:
+    """Type guard for ``$lt`` pipeline conditions."""
+    return _is_single_operator_condition(condition, PipelineConditionLt, "$lt")
+
+
+def is_lte_condition(condition: Any) -> bool:
+    """Type guard for ``$lte`` pipeline conditions."""
+    return _is_single_operator_condition(condition, PipelineConditionLte, "$lte")
+
+
+def is_and_condition(condition: Any) -> bool:
+    """Type guard for ``$and`` pipeline conditions."""
+    return _is_single_operator_condition(condition, PipelineConditionAnd, "$and")
+
+
+def is_or_condition(condition: Any) -> bool:
+    """Type guard for ``$or`` pipeline conditions."""
+    return _is_single_operator_condition(condition, PipelineConditionOr, "$or")
+
+
+def is_not_condition(condition: Any) -> bool:
+    """Type guard for ``$not`` pipeline conditions."""
+    return _is_single_operator_condition(condition, PipelineConditionNot, "$not")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
