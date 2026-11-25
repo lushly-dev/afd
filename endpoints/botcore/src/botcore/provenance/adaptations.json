@@ -37,11 +37,11 @@
       "path": "README.md",
       "upstream_sha256": "892db189b22b41214ab5637d9601beb0add2f9f2535c358c59cf5757e4d87979",
       "staged_sha256": "8ab2a275fdd389aca8353b3b2608698b30bc662d8a6612ce104319c1ee5fa781",
-      "current_import_sha256": "e970496a0fe1d63b61cb96ce3d08c35e0204307a5d255967cd9d2814d4f0cdfd",
+      "current_import_sha256": "f9840e295b50227735de935f6d329f35ae6e0cf3d83a6578f7b2a79cf9d53656",
       "stage_classification": "modified-upstream",
       "stage_reason": "Link the new managed-host compatibility documentation",
       "import_classification": "modified-after-staging",
-      "import_reason": "List the bundled skills that remain; record ownership under metadata; point the release badge and the repository note at AFD; Add the gate-discipline skill and its scripts; list all eleven skills; Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); botcore serve refuses a network transport, since its run tool executes any Python its client sends; tests and README say so; botcore serve refuses a network transport, since its run tool executes any Python its client sends; points to botcore.host_http for HTTP; tests, README and the server docstring say so; Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820); The hourly job always ends and says what it waited for (#1902, #1903); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904)"
+      "import_reason": "List the bundled skills that remain; record ownership under metadata; point the release badge and the repository note at AFD; Add the gate-discipline skill and its scripts; list all eleven skills; Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); botcore serve refuses a network transport, since its run tool executes any Python its client sends; tests and README say so; botcore serve refuses a network transport, since its run tool executes any Python its client sends; points to botcore.host_http for HTTP; tests, README and the server docstring say so; Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820); The hourly job always ends and says what it waited for (#1902, #1903); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); Removed references to projects outside this repository: a completed planning record, part of the author note and one example"
     },
     {
       "path": "SETUP.md",
@@ -417,121 +417,121 @@
       "path": "docs/features/complete/botcore-skill-registry/00-overview.md",
       "upstream_sha256": "f8155e689b6df0d85a266ac93e519cabdd808cd34f1258cfcebb50ac41026a4f",
       "staged_sha256": "f8155e689b6df0d85a266ac93e519cabdd808cd34f1258cfcebb50ac41026a4f",
-      "current_import_sha256": "f8155e689b6df0d85a266ac93e519cabdd808cd34f1258cfcebb50ac41026a4f",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Removed references to projects outside this repository: a completed planning record, part of the author note and one example"
     },
     {
       "path": "docs/features/complete/botcore-skill-registry/01-context-and-problem.md",
       "upstream_sha256": "7cc16e92fc45c0bef1fd4dbe8f33b1fd8e8159c9aaa5cdf1bb50c9bf9a4572df",
       "staged_sha256": "7cc16e92fc45c0bef1fd4dbe8f33b1fd8e8159c9aaa5cdf1bb50c9bf9a4572df",
-      "current_import_sha256": "7cc16e92fc45c0bef1fd4dbe8f33b1fd8e8159c9aaa5cdf1bb50c9bf9a4572df",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Removed references to projects outside this repository: a completed planning record, part of the author note and one example"
     },
     {
       "path": "docs/features/complete/botcore-skill-registry/02-architecture.md",
       "upstream_sha256": "8c14d3d3f39bbc8a5a05bf411c29a014ffec443566dde22156703869379e1663",
       "staged_sha256": "8c14d3d3f39bbc8a5a05bf411c29a014ffec443566dde22156703869379e1663",
-      "current_import_sha256": "8c14d3d3f39bbc8a5a05bf411c29a014ffec443566dde22156703869379e1663",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Removed references to projects outside this repository: a completed planning record, part of the author note and one example"
     },
     {
       "path": "docs/features/complete/botcore-skill-registry/03-configuration.md",
       "upstream_sha256": "473fa4d4cb28a5dd84595c14d6154a49e01b4afa232cb75c9185c5194f8ff054",
       "staged_sha256": "473fa4d4cb28a5dd84595c14d6154a49e01b4afa232cb75c9185c5194f8ff054",
-      "current_import_sha256": "473fa4d4cb28a5dd84595c14d6154a49e01b4afa232cb75c9185c5194f8ff054",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Removed references to projects outside this repository: a completed planning record, part of the author note and one example"
     },
     {
       "path": "docs/features/complete/botcore-skill-registry/04-mcp-tool-architecture.md",
       "upstream_sha256": "fff67fd472e166d98b94090e935f46854574c67f1521f8076f0e774ae05656d5",
       "staged_sha256": "fff67fd472e166d98b94090e935f46854574c67f1521f8076f0e774ae05656d5",
-      "current_import_sha256": "fff67fd472e166d98b94090e935f46854574c67f1521f8076f0e774ae05656d5",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Removed references to projects outside this repository: a completed planning record, part of the author note and one example"
     },
     {
       "path": "docs/features/complete/botcore-skill-registry/05-afd-leverage.md",
       "upstream_sha256": "4e0b771f9b4b2f400fabf8cddcef7416c47169b9c4f8f1aba373b130b441eb78",
       "staged_sha256": "4e0b771f9b4b2f400fabf8cddcef7416c47169b9c4f8f1aba373b130b441eb78",
-      "current_import_sha256": "4e0b771f9b4b2f400fabf8cddcef7416c47169b9c4f8f1aba373b130b441eb78",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Removed references to projects outside this repository: a completed planning record, part of the author note and one example"
     },
     {
       "path": "docs/features/complete/botcore-skill-registry/06-portability.md",
       "upstream_sha256": "a50b6347c1495f49b8cfd48f9b7597deaf3b034288ecf449192458a35b9f55e7",
       "staged_sha256": "a50b6347c1495f49b8cfd48f9b7597deaf3b034288ecf449192458a35b9f55e7",
-      "current_import_sha256": "a50b6347c1495f49b8cfd48f9b7597deaf3b034288ecf449192458a35b9f55e7",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Removed references to projects outside this repository: a completed planning record, part of the author note and one example"
     },
     {
       "path": "docs/features/complete/botcore-skill-registry/07-phases.md",
       "upstream_sha256": "8c7890057417d45a21229cf430dacb335f424b55308bd3d5cce0eb5cbc4104bc",
       "staged_sha256": "8c7890057417d45a21229cf430dacb335f424b55308bd3d5cce0eb5cbc4104bc",
-      "current_import_sha256": "8c7890057417d45a21229cf430dacb335f424b55308bd3d5cce0eb5cbc4104bc",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Removed references to projects outside this repository: a completed planning record, part of the author note and one example"
     },
     {
       "path": "docs/features/complete/botcore-skill-registry/08-migration-and-testing.md",
       "upstream_sha256": "3ebbc29072ce36bb47bf2d8808e81c23c337c6547a3135710c167c9f67e919f8",
       "staged_sha256": "3ebbc29072ce36bb47bf2d8808e81c23c337c6547a3135710c167c9f67e919f8",
-      "current_import_sha256": "3ebbc29072ce36bb47bf2d8808e81c23c337c6547a3135710c167c9f67e919f8",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Removed references to projects outside this repository: a completed planning record, part of the author note and one example"
     },
     {
       "path": "docs/features/complete/botcore-skill-registry/09-extraction-manifest.md",
       "upstream_sha256": "8a129703458696f1e2861c0a2c6d75b5d2255227b4ac3a2d0f5865cb4d10db19",
       "staged_sha256": "8a129703458696f1e2861c0a2c6d75b5d2255227b4ac3a2d0f5865cb4d10db19",
-      "current_import_sha256": "8a129703458696f1e2861c0a2c6d75b5d2255227b4ac3a2d0f5865cb4d10db19",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Removed references to projects outside this repository: a completed planning record, part of the author note and one example"
     },
     {
       "path": "docs/features/complete/botcore-skill-registry/10-appendix-module-architecture.md",
       "upstream_sha256": "404994cdfa298c91447177bc175381339069cd12af295051084b23d3a74f00e8",
       "staged_sha256": "404994cdfa298c91447177bc175381339069cd12af295051084b23d3a74f00e8",
-      "current_import_sha256": "404994cdfa298c91447177bc175381339069cd12af295051084b23d3a74f00e8",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Removed references to projects outside this repository: a completed planning record, part of the author note and one example"
     },
     {
       "path": "docs/features/complete/botcore-skill-registry/11-review-log.md",
       "upstream_sha256": "267bd818653973a133f33adfab713fa56a3281bc6be88816a86344a7b3189181",
       "staged_sha256": "267bd818653973a133f33adfab713fa56a3281bc6be88816a86344a7b3189181",
-      "current_import_sha256": "267bd818653973a133f33adfab713fa56a3281bc6be88816a86344a7b3189181",
+      "current_import_sha256": null,
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "deleted-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Removed references to projects outside this repository: a completed planning record, part of the author note and one example"
     },
     {
       "path": "docs/features/complete/connectors/00-overview.plan.md",
@@ -677,11 +677,11 @@
       "path": "docs/features/complete/teams-interface/00-overview.plan.md",
       "upstream_sha256": "d9339c66af60cca0745890dfd2362c2dd1d935c2118039719f906551721432ae",
       "staged_sha256": "d9339c66af60cca0745890dfd2362c2dd1d935c2118039719f906551721432ae",
-      "current_import_sha256": "d9339c66af60cca0745890dfd2362c2dd1d935c2118039719f906551721432ae",
+      "current_import_sha256": "7f973810993737467c3d37482a92d825524508b17de89627d653d105472dda61",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Reworded two cells of a comparison table"
     },
     {
       "path": "docs/features/proposed/async-task-execution/async-task-execution.plan.md",
@@ -717,11 +717,11 @@
       "path": "docs/features/proposed/skill-research/skill-research.plan.md",
       "upstream_sha256": "1db97fa6e4ca590686f000f6503b2cc66e36075d38f56631098ff9545068fe99",
       "staged_sha256": "1db97fa6e4ca590686f000f6503b2cc66e36075d38f56631098ff9545068fe99",
-      "current_import_sha256": "1db97fa6e4ca590686f000f6503b2cc66e36075d38f56631098ff9545068fe99",
+      "current_import_sha256": "1f2482aa9e28c9c543e939b8f10d9aef099e961028d94769f321b59876a16cf3",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Removed references to projects outside this repository: a completed planning record, part of the author note and one example"
     },
     {
       "path": "docs/features/proposed/sqlite-memory-backend/sqlite-memory-backend.plan.md",

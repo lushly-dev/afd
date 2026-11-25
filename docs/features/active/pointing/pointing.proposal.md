@@ -92,8 +92,6 @@ Read first-hand on 2026-11-13 at `f7ecbd43`, with `endpoints/specimen-server` (`
   inspect a page by selector. There is no picker for a person.
 - **Loam** has document selections (`editor-selection-set`, a text range or an item), not UI
   elements. Its phase 5, the copilot, is not started (`endpoints/loam/docs/STATUS.md:46`).
-- An earlier proposal, [Zero Chat Tools](../../proposed/zero-chat-tools/), drafted selection
-  commands for an application outside this repository. Nothing here implements them.
 
 ## 3. Jobs
 

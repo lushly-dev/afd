@@ -1,12 +1,12 @@
 # Development model routing
 
-Snapshot: 2026-11-23, after Gemini 4 Neon's release (2026-11-18), updated Artificial Analysis figures supplied by the owner, hands-on experience with Neon, Opus 5.5 and GPT-6.2 Sol, and the owner's plan shift (OpenAI plans reduced from $200 to $100 to expand Google plans). This guide selects models for agents developing AFD. It does not select models for applications built with AFD. Lushly's routing policy is updated in step with this guide.
+Snapshot: 2026-11-23, after Gemini 4 Neon's release (2026-11-18), updated Artificial Analysis figures supplied by the owner, hands-on experience with Neon, Opus 5.5 and GPT-6.2 Sol, and a shift in the owner's plans from OpenAI toward Google. This guide selects models for agents developing AFD. It does not select models for applications built with AFD. Lushly's routing policy is updated in step with this guide.
 
 Four models do the work:
 
 - **Gemini 4 Neon (`gemini-4-neon`)** in T3 Code's Antigravity harness as the preferred default when Google plans have room: `medium` for standard work, `high` for harder bounded work and review, and bounded `xhigh` for a named escalation gap. No other Google model is a route.
 - **Claude Opus 5.5** in Claude Code as the co-default on Claude plans: `medium` for standard work, `high` for harder bounded work and review, and bounded `xhigh` only as the escalation fallback when the Fable weekly window is exhausted.
-- **GPT-6.2 Astra (`gpt-6.2-astra`)** in Codex at `high` only, reserved for high-recall cross-provider review on `risk:high`, security or deep-logic pull requests (and Codex advisor work when the owner asks). With OpenAI plans stepped down to $100, that allowance goes to Astra review rather than implementation.
+- **GPT-6.2 Astra (`gpt-6.2-astra`)** in Codex at `high` only, reserved for high-recall cross-provider review on `risk:high`, security or deep-logic pull requests (and Codex advisor work when the owner asks). With the OpenAI plans reduced, that allowance goes to Astra review rather than implementation.
 - **Claude Fable 5.2** in Claude Code at `high` only, reserved for the three escalation cases (stuck work, high blast radius, strategy). `low` and `medium` are retired: Neon `medium` (55 at $1.90) beats Fable `low` (54 at $3.10) for 39% less cost, and Neon `high` (60 at $3.74) beats Fable `medium` (56.5 at $3.80) at about the same cost.
 
 **GPT-6.2 Sol is retired**, closing the 2026-11-17 trial. In practice Sol drifted out of scope, burned tokens on detours, and stopped to re-ask already-answered questions—matching its 3-point drop on Artificial Analysis's Coding Agent Index and its elevated Blocker Deception rate. Lower-end models (Claude Sonnet 5.5, Haiku 5.5, Gemini 4 Carbon/Argon/Hydrogen, Gemini 3.8 Flash) are not routes: the owner has enough capacity in the Neon and Opus class to stay on `medium` for routine work and bump to `high` for harder work.
@@ -43,7 +43,7 @@ Fable 5.2 has its own weekly limit on a Claude subscription plan, so keeping it 
 
 A branch's first review uses two fresh, independent reviewers from the three-model review triangle—**Gemini 4 Neon `high`**, **Claude Opus 5.5 `high`**, and **GPT-6.2 Astra `high`**—always on two different providers, working from the same brief:
 
-- **Routine PRs** pair the two primary pools (`Neon high` + `Opus 5.5 high`, in either order) to conserve the smaller $100 OpenAI plans.
+- **Routine PRs** pair the two primary pools (`Neon high` + `Opus 5.5 high`, in either order) to conserve the smaller OpenAI plans.
 - **`risk:high`, security, or deep-logic PRs** (or PRs when one primary pool is tight) pull in **`GPT-6.2 Astra high`** as the second reviewer beside Neon or Opus.
 - **PRs from a Codex session the owner explicitly starts** pair `GPT-6.2 Astra high` with `Gemini 4 Neon high` or `Claude Opus 5.5 high`.
 

@@ -1,7 +1,7 @@
 ---
 status: complete
 created: 2026-03-01
-origin: fabric-ux-prototype — UI view state managed outside the command system, invisible to agents and tests
+origin: UI view state managed outside the command system, invisible to agents and tests
 effort: S (1-2 days for Option A docs, M 3-5 days for Option B package)
 package: "@lushly-dev/afd-view-state"
 depends-on: "@lushly-dev/local-db"
@@ -63,13 +63,13 @@ The registry persists to the `@lushly-dev/local-db` DataAdapter (settings table,
 - **Debounced persistence** — batches rapid changes (e.g., panel resize) into a single server write
 - **Offline-safe** — falls back to defaults if server is unavailable
 
-## Reference implementation
+## Example registrations
 
-The pattern is validated in [fabric-ux-prototype](https://github.com/azure-data-intelligence-platform/fabric-ux-prototype) with these registered view states:
+The pattern was first used in an application outside this repository, which registered view states like these:
 
 | ID | State | Component |
 |---|---|---|
-| `zero-shell` | toolMode, copilotOpen, sidebarWidth | Shell chrome |
+| `shell` | toolMode, copilotOpen, sidebarWidth | Shell chrome |
 | `theme` | darkMode, wireframeMode | Theme system |
 | `design-panel` | open, tab, width | Design inspector |
 | `selection` | selector (CSS selector) | Canvas selection |
@@ -95,8 +95,7 @@ Start with **Option A** (docs), promote to **Option B** when a second consumer v
 
 ## Follow-up tasks
 
-- [ ] Document the pattern in AFD docs (after merge in fabric-ux-prototype)
-- [ ] Migrate fabric-ux-prototype to use the package once published
+- [ ] Document the pattern in AFD docs
 - [ ] Update AFD todo example with view state (selected item, filter mode)
 - [ ] Add view state section to AFD skills
 
@@ -107,4 +106,3 @@ Start with **Option A** (docs), promote to **Option B** when a second consumer v
 - **Output schemas** — view-state commands should declare `output` so agents know response shapes before calling
 - **Context scoping** — consider whether view-state commands should be universal or scoped to a UI context via `contexts`
 - **Lazy discovery** — `afd-call` universal dispatcher works with view-state commands out of the box
-- fabric-ux-prototype PR (view-state-commands branch)
