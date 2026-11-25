@@ -172,6 +172,7 @@ from afd.server.handoff_schemas import (
     ReconnectPolicySchema,
     validate_handoff,
 )
+from afd.server.instance_state import ServerInstances
 from afd.server.journal import (
     MAX_JOURNAL_CONTEXT_BYTES,
     JournalReplayTarget,
@@ -495,4 +496,5 @@ __all__ = [
     "check_meta_entry",
     "assert_tool_meta",
     "assert_advertised_input_schema",
+    "ServerInstances",
 ]

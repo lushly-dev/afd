@@ -37,6 +37,8 @@ use crate::errors::{error_codes, CommandError};
 use crate::result::{failure, CommandResult};
 use crate::telemetry::{TelemetryEvent, TelemetrySink};
 
+pub(crate) mod process_state;
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // TRACE ID
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -677,7 +679,8 @@ fn telemetry_event(
 /// back, as the registry's layers do, whatever context the one before it passes on.
 pub fn compose_middleware(middlewares: Vec<CommandMiddleware>) -> CommandMiddleware {
     let middlewares: Arc<[CommandMiddleware]> = middlewares.into();
-    Arc::new(move |name, input, context, next| {
+    let parts = Arc::clone(&middlewares);
+    let composed: CommandMiddleware = Arc::new(move |name, input, context, next| {
         let state = Arc::new(CallState::of(&context));
         let chain = middlewares.iter().rev().fold(next, |next, layer| {
             let layer = Arc::clone(layer);
@@ -691,7 +694,9 @@ pub fn compose_middleware(middlewares: Vec<CommandMiddleware>) -> CommandMiddlew
             step
         });
         chain(context)
-    })
+    });
+    process_state::carry_approval_process_state(&composed, &parts);
+    composed
 }
 
 #[cfg(test)]

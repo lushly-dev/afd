@@ -157,6 +157,7 @@ from afd.server.decorators import (
 )
 from afd.server.elicitation import MAX_IN_BAND_ROUNDS, ElicitationRound
 from afd.server.first_class import check_first_class_tools, normalize_first_class_tools
+from afd.server.instance_state import ServerInstances, check_instance_state, warn_instances_once
 from afd.server.lazy_tools import not_found_suggestion
 from afd.server.meta_argument import lift_meta_argument, meta_argument_keys
 from afd.server.middleware import CommandMiddleware
@@ -249,6 +250,18 @@ class MCPServer:
             if config.tools_list_ttl_ms is not None
             else DEFAULT_TOOLS_LIST_TTL_MS
         )
+        if config.confirmations not in CONFIRMATION_MODES:
+            raise ValueError("confirmations must be 'off', 'enforce' or 'require-human'")
+        instance_state = check_instance_state(
+            name=config.name,
+            instances=config.instances,
+            confirmation_key=config.confirmation_key,
+            confirmations=config.confirmations,
+            middleware=config.middleware,
+        )
+        self._confirmations: str = config.confirmations
+        self._confirmation_key: bytes | None = instance_state.confirmation_key
+        self._instances_http_warning: str | None = instance_state.http_warning
         # The set's options are checked here; its entries once the commands are registered.
         first_class = normalize_first_class_tools(config.tool_strategy, config.first_class_tools)
         config.first_class_tools = first_class
@@ -1397,7 +1410,7 @@ class MCPServer:
                     exposed_command_names={command.name for command in commands},
                     context_state=self._context_state,
                     actor=self.config.actor or Actor(kind="agent"),
-                    confirmations=ConfirmationGate(self.config.confirmations, commands),
+                    confirmations=ConfirmationGate(self._confirmations, commands),
                     can_run=self._step_can_run,
                     validate_step=self._validate_step,
                     dispatch_task=self._task_runtime.dispatch_command,
@@ -1474,7 +1487,7 @@ class MCPServer:
             self.config.tool_strategy,
             group_by_fn=self.config.group_by,
             active_context=self._context_state.get_active(),
-            confirmations=self.config.confirmations,
+            confirmations=self._confirmations,
             first_class_tools=self.config.first_class_tools,
             output_schema=self.config.advertise_output_schema,
         )
@@ -1501,7 +1514,7 @@ class MCPServer:
             self.config.tool_strategy,
             group_by_fn=self.config.group_by,
             active_context=None,
-            confirmations=self.config.confirmations,
+            confirmations=self._confirmations,
             first_class_tools=self.config.first_class_tools,
             output_schema=self.config.advertise_output_schema,
         )
@@ -1701,6 +1714,7 @@ class MCPServer:
 
         class SessionMCPServer(SdkMCPServer):
             def streamable_http_app(self, **options: Any) -> Any:
+                warn_instances_once(server._instances_http_warning)
                 app = super().streamable_http_app(**options)
                 if server._auth_layer is not None:
                     return server._auth_layer.wrap_asgi_app(
@@ -1711,6 +1725,7 @@ class MCPServer:
                 return app
 
             def sse_app(self, **options: Any) -> Any:
+                warn_instances_once(server._instances_http_warning)
                 app = super().sse_app(**options)
                 if server._auth_layer is not None:
                     return server._auth_layer.wrap_asgi_app(
@@ -1727,6 +1742,7 @@ class MCPServer:
             async def run_sse_async(
                 self, *, host: str = "127.0.0.1", port: int = 8000, **options: Any
             ) -> None:
+                warn_instances_once(server._instances_http_warning)
                 if server._auth_layer is None:
                     await super().run_sse_async(host=host, port=port, **options)
                     return
@@ -1748,6 +1764,7 @@ class MCPServer:
             async def run_streamable_http_async(
                 self, *, host: str = "127.0.0.1", port: int = 8000, **options: Any
             ) -> None:
+                warn_instances_once(server._instances_http_warning)
                 if server._auth_layer is None:
                     await super().run_streamable_http_async(host=host, port=port, **options)
                     return
@@ -1854,9 +1871,7 @@ class MCPServer:
             # Without a configured key each process uses its own, as the SDK's default would.
             request_state_security=RequestStateSecurity(
                 keys=[
-                    self.config.confirmation_key
-                    if self.config.confirmation_key is not None
-                    else os.urandom(32)
+                    self._confirmation_key if self._confirmation_key is not None else os.urandom(32)
                 ],
                 bind_principal=lambda _ctx: self._request_principal(),
             ),
@@ -2255,7 +2270,8 @@ def create_server(
     actor: Actor | None = None,
     context_hook: ContextHook | None = None,
     confirmations: str = "off",
-    confirmation_key: bytes | str | None = None,
+    confirmation_key: bytes | bytearray | memoryview | str | None = None,
+    instances: ServerInstances | None = None,
     first_class_tools: Sequence[str] | None = None,
     context_fields: Sequence[ContextField | dict[str, Any]] | None = None,
     advertise_output_schema: bool = True,
@@ -2344,12 +2360,19 @@ def create_server(
             (an accepted elicitation only). Otherwise the call fails with
             ``CONFIRMATION_REQUIRED`` or ``CONFIRMATION_DECLINED`` before the handler
             runs. ``server.execute()`` and DirectClient calls are never gated.
-        confirmation_key: Key (32 bytes or more) that seals the ``requestState`` of
-            confirmation elicitations, shared by every instance behind one URL.
-            Default: a random key per process. The state is bound to the call's
-            principal binding (``afd.server.principal``, #532, #800): the actor from
-            ``context_hook`` (or ``actor``) and the issuer, subject and client of the
-            access token the SDK verified.
+        confirmation_key: Key (32 bytes or more, as a string or bytes) that seals the
+            ``requestState`` of confirmation and approval elicitations, shared by every instance
+            behind one URL. Validated and copied at creation. Default: a random key per server.
+            The state is bound to the call's principal binding (``afd.server.principal``, #532,
+            #800): the actor from ``context_hook`` (or ``actor``) and the issuer, subject and
+            client of the access token the SDK verified.
+        instances: How many processes serve this server's URL: ``"single"`` or ``"multiple"``.
+            With ``"multiple"``, creating the server raises ``ValueError`` when confirmations or
+            an approval middleware with ``relay="mcp-elicitation"`` lacks ``confirmation_key``,
+            or when a single-use approval middleware lacks ``nonce_store``. When omitted, serving
+            over HTTP logs one warning per process to stderr if a per-process default is in use;
+            ``"single"`` silences the warning (a supplied ``confirmation_key`` is still validated).
+            Stdio logs nothing.
         advertise_output_schema: Advertise a top-level MCP ``outputSchema`` (the
             CommandResult envelope, with ``data`` typed by ``output_schema``) on each command
             listed as its own tool. MCP clients validate a result's ``structuredContent``
@@ -2406,6 +2429,7 @@ def create_server(
         context_hook=context_hook,
         confirmations=confirmations,
         confirmation_key=confirmation_key,
+        instances=instances,
         first_class_tools=first_class_tools,  # type: ignore[arg-type]  # MCPServer checks it
         advertise_output_schema=advertise_output_schema,
         bootstrap=bootstrap,

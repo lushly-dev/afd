@@ -191,6 +191,7 @@ pub(crate) async fn build_context(
         return Ok(base);
     };
     let trace_id = base.trace_id.clone();
+    let instance_guard = base.server().instance_guard;
     // The hook is given the defaults too, so it can refine the actor rather than start over.
     let answer =
         AssertUnwindSafe(async { hook(ContextHookRequest::new(tool, request), base).await })
@@ -203,6 +204,7 @@ pub(crate) async fn build_context(
     };
     context.interface = Some(CommandInterface::Mcp);
     context.server_mut().remote = true;
+    context.server_mut().instance_guard = instance_guard;
     if context.trace_id.is_none() {
         context.trace_id = trace_id;
     }

@@ -46,6 +46,7 @@ from afd.core.commands import (
     NextFn as NextFn,
 )
 from afd.core.result import CommandError, CommandResult
+from afd.server.instance_state import carry_approval_process_state
 
 # =============================================================================
 # TELEMETRY TYPES
@@ -698,6 +699,7 @@ def compose_middleware(*middlewares: CommandMiddleware) -> CommandMiddleware:
 
         return await dispatch()
 
+    carry_approval_process_state(composed, middlewares)
     return composed
 
 

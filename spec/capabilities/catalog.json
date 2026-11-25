@@ -311,6 +311,10 @@
 			"label": "Confirmation and approval-relay `requestState` bound to the principal ([#532](https://github.com/lushly-dev/afd/issues/532); [`spec/command-metadata.md`](../spec/command-metadata.md#confirmations))"
 		},
 		{
+			"id": "mcp.server-instances",
+			"label": "Explicit per-process vs multi-instance server state (`instances`: `'single'` or `'multiple'`, shared `confirmationKey` and `nonceStore`, [#2224](https://github.com/lushly-dev/afd/issues/2224), [#2242](https://github.com/lushly-dev/afd/issues/2242))"
+		},
+		{
 			"id": "mcp.host-verified-confirmation",
 			"label": "Host-verified confirmation mode, `HumanRelay` and relay evidence ([`spec/command-metadata.md`](../spec/command-metadata.md#host-verified-confirmation))"
 		},
@@ -705,6 +709,9 @@
 				},
 				{
 					"capability": "mcp.confirmation-principal-binding"
+				},
+				{
+					"capability": "mcp.server-instances"
 				},
 				{
 					"capability": "mcp.host-verified-confirmation"

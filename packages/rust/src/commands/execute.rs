@@ -252,6 +252,15 @@ impl CommandRegistry {
         }
 
         let middleware = Arc::clone(&read_lock(&self.middleware));
+        if context
+            .server()
+            .instance_guard
+            .is_some_and(|guard| guard.violated_by(middleware.approval_state))
+        {
+            return failure(CommandError::internal(
+                "ServerInstances::Multiple cannot run per-process approval state; configure a shared confirmation key and nonce_store",
+            ));
+        }
         // Replayed calls, and the calls nested in them, are never recorded.
         let journal = read_lock(&self.journal)
             .clone()
@@ -274,13 +283,13 @@ impl CommandRegistry {
         // layer that panics while building its future is caught too. With no middleware the
         // handler takes the validated input itself, without a copy.
         let run = run_guarded(async move {
-            if middleware.is_empty() {
+            if middleware.layers.is_empty() {
                 run_handler(command, input, context, check_output_budget).await
             } else {
                 let state = CallState::of(&context);
                 let chain = middleware_chain(
                     &command,
-                    &middleware,
+                    &middleware.layers,
                     Arc::new(input),
                     state,
                     check_output_budget,

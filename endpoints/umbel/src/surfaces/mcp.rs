@@ -4,7 +4,7 @@
 use crate::host::HostError;
 use crate::principal;
 use crate::workspace::{Confirmations, Workspace};
-use afd::server::{ConfirmationMode, McpServer, ToolStrategy};
+use afd::server::{ConfirmationMode, McpServer, ServerInstances, ToolStrategy};
 use afd::{Clock, CommandRegistry, ContextConfig};
 use std::sync::Arc;
 
@@ -82,6 +82,14 @@ pub(crate) fn build_server(
         )
         .into());
     }
+    // Hosted modes share both the confirmation key and the approval nonce store across processes
+    // behind one URL; mode `none` serves one local process with in-memory approval nonces.
+    let instances = if workspace.config().auth.mode.is_hosted() {
+        ServerInstances::Multiple
+    } else {
+        ServerInstances::Single
+    };
+    server = server.with_instances(instances);
     if !contexts.is_empty() {
         server = server.with_contexts(contexts.to_vec()).map_err(|message| {
             HostError::config_invalid(
