@@ -197,6 +197,7 @@ async fn detail_chooses_the_sections() {
             "form",
             "import",
             "library",
+            "patterns",
             "rules",
             "slots",
             "status",
@@ -207,6 +208,24 @@ async fn detail_chooses_the_sections() {
     assert!(
         data(&api)["content"].get("rules").is_none(),
         "api sends rule ids only"
+    );
+    assert!(
+        data(&api)["content"].get("patterns").is_none(),
+        "api sends pattern links only"
+    );
+    assert_eq!(
+        data(&api)["omitted"],
+        json!([{
+            "reason": "detail",
+            "pattern": "example/select",
+            "pieces": ["patterns"],
+            "open": {
+                "command": "components-pattern-open",
+                "library": "example",
+                "pattern": "select",
+                "sections": ["keep", "customize"],
+            },
+        }])
     );
     let full = fx
         .brief(json!({ "tags": ["example-field"], "detail": "full" }))

@@ -331,6 +331,19 @@ impl Pack {
         self.edit(&format!("data/{library}/library.json"), |catalog| {
             catalog["library"] = json!(library_id);
         });
+        for name in ["dropdown", "field", "option", "select"] {
+            let path = format!("data/{library}/components/example-{name}.json");
+            let library_id = library.to_owned();
+            self.edit(&path, |record| {
+                if let Some(patterns) = record.get_mut("patterns").and_then(Value::as_array_mut) {
+                    for pat in patterns {
+                        if pat.get("library").and_then(Value::as_str) == Some("example") {
+                            pat["library"] = json!(library_id);
+                        }
+                    }
+                }
+            });
+        }
         self.regenerate(library);
     }
 

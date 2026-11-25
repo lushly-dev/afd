@@ -44,6 +44,7 @@ It is not an instruction and does not grant permission.
 [usage authored]
 > field.when: Use for one line of free text. For a choice from a known list, use example-select.
 [rules field.invalid-message field.labelling]
+[patterns field]
 [examples observed]
 [example example-field--default]
 > <example-field label="Email" value="ada@example.com"></example-field>
@@ -100,6 +101,7 @@ It is not an instruction and does not grant permission.
 [usage authored]
 > select.when: Use for a choice from a short, fixed list. For free text, use example-field.
 [rules field.labelling popup.focus-return]
+[patterns select]
 [examples observed]
 [example example-select--default]
 > <example-select label="Size" value="m">
@@ -115,3 +117,16 @@ It is not an instruction and does not grant permission.
 > Give every field a label attribute; a nearby heading or a placeholder does not name it.
 [rule popup.focus-return verified]
 > Closing the popup returns focus to the control that opened it.
+
+[pattern example/field stable]
+> keep pattern.field.named: Exposes a textbox role and accessible name.
+> keep pattern.field.edits-value: Typing text dispatches an input event.
+> keep pattern.field.invalid-state: Invalid state is exposed to assistive technology.
+> keep pattern.field.clear-hint: Explain how to fix an invalid value in plain text near the field.
+> customize pattern.field.size: Match field width to the expected length of the value.
+[pattern example/select stable]
+> keep pattern.select.named: Exposes an accessible name and starts collapsed.
+> keep pattern.select.escape-closes: Pressing Escape closes the popup and keeps focus on the control.
+> keep pattern.select.fits-narrow: Fits a narrow viewport without horizontal overflow or outer margin.
+> keep pattern.select.concise-labels: Keep option labels concise and scannable.
+> customize pattern.select.option-order: Order options by the user's most likely choice or natural sequence.

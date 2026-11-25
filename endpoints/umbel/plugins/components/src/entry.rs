@@ -8,10 +8,12 @@ use serde_json::{Map, Value, json};
 use crate::Settings;
 use crate::pack::Library;
 use crate::pack::schema::{Attribute, Record, Rule, Statement};
+use crate::pack::schema_pattern::ComponentPattern;
 use crate::scan;
 
-/// A section's name and its data, in the order of section 5.3.
-pub(crate) const SECTIONS: [&str; 15] = [
+/// A section's name and its data, in the order of section 5.3 (with `patterns` after `rules`,
+/// amendment A31.5 & A31.8).
+pub(crate) const SECTIONS: [&str; 16] = [
     "attributes",
     "slots",
     "events",
@@ -24,6 +26,7 @@ pub(crate) const SECTIONS: [&str; 15] = [
     "a11y",
     "usage",
     "rules",
+    "patterns",
     "examples",
     "gaps",
     "detail",
@@ -38,6 +41,9 @@ pub(crate) enum Section {
     One(Value),
     /// Rule ids, written as an array.
     Ids(Vec<String>),
+    /// Component pattern links (amendment A31.5), formatted as compact strings or objects with
+    /// `outOfContext` when any gated `keep` is `out-of-context`.
+    Patterns(Vec<ComponentPattern>),
     /// As the record has them, written as an array.
     Plain(Vec<Value>),
     /// The long form.
@@ -50,6 +56,7 @@ impl Section {
         match self {
             Self::Items(items) | Self::Plain(items) => Some(items.len()),
             Self::Ids(ids) => Some(ids.len()),
+            Self::Patterns(patterns) => Some(patterns.len()),
             Self::One(_) | Self::Detail(_) => None,
         }
     }
@@ -63,27 +70,36 @@ impl Section {
             Self::Items(items) => Self::Items(part(items, skip, count)),
             Self::Plain(items) => Self::Plain(part(items, skip, count)),
             Self::Ids(ids) => Self::Ids(part(ids, skip, count)),
+            Self::Patterns(patterns) => Self::Patterns(part(patterns, skip, count)),
             other => other.clone(),
         }
     }
 
-    fn to_json(&self) -> Value {
+    /// Serializes this section to JSON and returns `(value, flagged_count)`.
+    fn render_json(&self, component_library: &str, multi_library: bool) -> (Value, usize) {
+        let flagged_count = |item: &Value| usize::from(item.get("flags").is_some());
         match self {
-            Self::Items(items) => json!({ "items": items }),
-            Self::One(item) => json!({ "items": [item] }),
-            Self::Ids(ids) => json!(ids),
-            Self::Plain(items) => Value::Array(items.clone()),
-            Self::Detail(text) => Value::String(text.clone()),
-        }
-    }
-
-    /// How many of this section's items carry flags.
-    fn flagged(&self) -> usize {
-        let flagged = |item: &Value| usize::from(item.get("flags").is_some());
-        match self {
-            Self::Items(items) | Self::Plain(items) => items.iter().map(flagged).sum(),
-            Self::One(item) => flagged(item),
-            _ => 0,
+            Self::Items(items) => {
+                let f = items.iter().map(flagged_count).sum();
+                (json!({ "items": items }), f)
+            }
+            Self::One(item) => (json!({ "items": [item] }), flagged_count(item)),
+            Self::Ids(ids) => (json!(ids), 0),
+            Self::Patterns(patterns) => {
+                let mut links = Vec::with_capacity(patterns.len());
+                let mut flagged = 0;
+                for cp in patterns {
+                    let (link, count) = format_pattern_link(cp, component_library, multi_library);
+                    flagged += count;
+                    links.push(link);
+                }
+                (Value::Array(links), flagged)
+            }
+            Self::Plain(items) => {
+                let f = items.iter().map(flagged_count).sum();
+                (Value::Array(items.clone()), f)
+            }
+            Self::Detail(text) => (Value::String(text.clone()), 0),
         }
     }
 
@@ -105,6 +121,7 @@ impl Section {
 /// A record prepared for answering.
 #[derive(Debug, Clone)]
 pub(crate) struct Entry {
+    library_id: String,
     floor: Map<String, Value>,
     /// The section's name and data, for each non-empty section, in order.
     pub(crate) sections: Vec<(&'static str, Section)>,
@@ -361,6 +378,9 @@ pub(crate) fn build(library: &Library, record: &Record, settings: &Settings) -> 
     if !rule_ids.is_empty() {
         sections.push(("rules", Section::Ids(rule_ids)));
     }
+    if !record.patterns.is_empty() {
+        sections.push(("patterns", Section::Patterns(record.patterns.clone())));
+    }
     let examples: Vec<Value> = record
         .examples
         .iter()
@@ -401,6 +421,7 @@ pub(crate) fn build(library: &Library, record: &Record, settings: &Settings) -> 
         .cloned()
         .collect();
     Entry {
+        library_id: library.id.clone(),
         floor,
         sections,
         left_out: build.left_out,
@@ -408,6 +429,54 @@ pub(crate) fn build(library: &Library, record: &Record, settings: &Settings) -> 
         detail_flags,
         attribute_rules,
     }
+}
+
+/// Formats one component pattern link (amendment A31.5 & A31.6): compact string when every gated
+/// `keep` is `verified` (zero `out-of-context` entries), or object carrying `contexts` and
+/// `outOfContext` when any gated `keep` is `out-of-context`. Returns `(value, flagged_count)`.
+pub(crate) fn format_pattern_link(
+    cp: &ComponentPattern,
+    component_library: &str,
+    multi_library: bool,
+) -> (Value, usize) {
+    let pat_ref = if !multi_library && cp.library == component_library {
+        cp.pattern.clone()
+    } else {
+        format!("{}/{}", cp.library, cp.pattern)
+    };
+    let ooc: Vec<_> = cp
+        .keep
+        .iter()
+        .filter(|entry| entry.basis == "out-of-context")
+        .collect();
+    if ooc.is_empty() {
+        return (Value::String(pat_ref), 0);
+    }
+    let mut flagged = 0usize;
+    let mut map = Map::new();
+    map.insert("pattern".to_owned(), Value::String(pat_ref));
+    if let Some(contexts) = &cp.contexts {
+        let mut ctx = json!(contexts);
+        if ctx.as_object_mut().is_some_and(scan::flag_item) {
+            flagged += 1;
+        }
+        map.insert("contexts".to_owned(), ctx);
+    }
+    let mut out_of_context = Vec::with_capacity(ooc.len());
+    for entry in ooc {
+        let mut item = Map::new();
+        item.insert("id".to_owned(), Value::String(entry.id.clone()));
+        item.insert(
+            "reason".to_owned(),
+            Value::String(entry.reason.clone().unwrap_or_default()),
+        );
+        if scan::flag_item(&mut item) {
+            flagged += 1;
+        }
+        out_of_context.push(Value::Object(item));
+    }
+    map.insert("outOfContext".to_owned(), Value::Array(out_of_context));
+    (Value::Object(map), flagged)
 }
 
 fn names_rule(record: &Record, id: &str) -> bool {
@@ -473,8 +542,18 @@ impl Entry {
         removed.into_iter().collect()
     }
 
-    /// The entry with exactly `sections`.
+    /// The entry with exactly `sections` (single-library formatting for `components-open`).
     pub(crate) fn serve(&self, sections: &[(&'static str, Section)]) -> Served {
+        self.serve_with(sections, false)
+    }
+
+    /// The entry with exactly `sections`, formatting pattern links for single- or multi-library
+    /// answers (amendment A31.5).
+    pub(crate) fn serve_with(
+        &self,
+        sections: &[(&'static str, Section)],
+        multi_library: bool,
+    ) -> Served {
         let mut component = self.floor.clone();
         let mut flags = scan::text_flags(
             component
@@ -495,8 +574,9 @@ impl Entry {
         let mut flagged = 0;
         let mut named: Vec<String> = Vec::new();
         for (name, section) in sections {
-            component.insert((*name).to_owned(), section.to_json());
-            flagged += section.flagged();
+            let (value, count) = section.render_json(&self.library_id, multi_library);
+            component.insert((*name).to_owned(), value);
+            flagged += count;
             named.extend(section.rule_ids(name));
             if *name == "detail" {
                 for flag in &self.detail_flags {

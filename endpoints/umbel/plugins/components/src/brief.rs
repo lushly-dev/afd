@@ -16,8 +16,8 @@ use crate::{Settings, basis_rank, fail, input, render, scan, select};
 /// At most this many tags in all, from `tags` and `source` (section 6.2).
 const MAX_TAGS: usize = 128;
 
-/// The sections `detail: "api"` serves; `rules` as ids only.
-const API: [&str; 7] = [
+/// The sections `detail: "api"` serves; `rules` as ids and `patterns` as links only (amendment A31.5).
+const API: [&str; 8] = [
     "attributes",
     "slots",
     "events",
@@ -25,9 +25,10 @@ const API: [&str; 7] = [
     "cssProperties",
     "form",
     "rules",
+    "patterns",
 ];
 
-/// One step of the shedding order (section 6.4).
+/// One step of the shedding order (section 6.4; Phase 0.4 P0-6 / amendment A31.5).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Step {
     /// Whole sections, from every entry at once.
@@ -36,24 +37,30 @@ enum Step {
     EventDetail,
     /// Attributes whose basis is `declared` and that have no `values`.
     DeclaredAttributes,
+    /// Step 5b: `content.patterns[].customize` (after `declaredAttributes`, before `usage`).
+    PatternCustomize,
     /// `content.rules`; the ids stay in each entry.
     RuleText,
+    /// Step 10b: `content.patterns` (after `ruleText`, before `a11y`); component `patterns` links stay.
+    PatternKeep,
 }
 
-const ORDER: [Step; 13] = [
+const ORDER: [Step; 15] = [
     Step::Sections(&["detail"]),
     Step::Sections(&["examples"]),
     Step::Sections(&["cssProperties"]),
     Step::EventDetail,
     Step::DeclaredAttributes,
+    Step::PatternCustomize,
     Step::Sections(&["usage"]),
     Step::Sections(&["events", "commands"]),
     Step::Sections(&["form", "roles", "axe"]),
     Step::Sections(&["slots"]),
     Step::RuleText,
+    Step::PatternKeep,
     Step::Sections(&["a11y"]),
     Step::Sections(&["attributes"]),
-    Step::Sections(&["themes", "gaps", "rules"]),
+    Step::Sections(&["themes", "gaps", "rules", "patterns"]),
 ];
 
 impl Step {
@@ -64,6 +71,7 @@ impl Step {
             Self::EventDetail => &["events"],
             Self::DeclaredAttributes => &["attributes"],
             Self::RuleText => &["rules"],
+            Self::PatternCustomize | Self::PatternKeep => &[],
         }
     }
 }
@@ -73,11 +81,13 @@ impl Step {
 struct Effect {
     sections: Vec<&'static str>,
     piece: Option<&'static str>,
+    /// `(library, pattern)` pairs affected by `Step::PatternCustomize` or `Step::PatternKeep`.
+    patterns: Vec<(String, String)>,
 }
 
 impl Effect {
     fn is_empty(&self) -> bool {
-        self.sections.is_empty() && self.piece.is_none()
+        self.sections.is_empty() && self.piece.is_none() && self.patterns.is_empty()
     }
 }
 
@@ -268,11 +278,13 @@ fn brief_form(mut component: Value, library: Option<&str>) -> Value {
 
 /// The parts of one answer before it is written.
 struct Assembled {
-    /// Indices of the libraries that answer an entry, in library order.
+    /// Indices of the libraries that answer an entry or own a served pattern, in library order.
     served: Vec<usize>,
     components: Vec<Value>,
     /// `None` when no rule text is sent: `detail: "api"`, or shed.
     rules: Option<Vec<Value>>,
+    /// Deduplicated `content.patterns` (amendment A31.5), omitted when empty, `detail: "api"`, or shed.
+    patterns: Option<Vec<Value>>,
     unknown: Vec<Value>,
     flagged: usize,
     left_out: usize,
@@ -283,12 +295,16 @@ struct Brief<'a> {
     asked: Vec<Asked>,
     /// The requested sections, in the order of section 5.3.
     names: Vec<&'static str>,
-    /// Whether the rules' text is sent at all (not with `detail: "api"`).
+    /// Whether the rules' text and shared `content.patterns` are sent at all (not with `detail: "api"`).
     rule_text: bool,
     /// Whether the rules the attributes name are served (`detail: "full"` and `sections`).
     attribute_rules: bool,
     /// Whether `detail: "brief"` chose the sections, so `omitted` names what it leaves out.
     by_default: bool,
+    /// Whether `detail: "api"` chose the sections, so `omitted` names omitted pattern content.
+    by_api: bool,
+    /// Whether `minimum_basis` allows `authored` statements (amendment A31.6).
+    serves_authored: bool,
     known: HashSet<String>,
     versions: Map<String, Value>,
     text: bool,
@@ -365,12 +381,67 @@ impl Brief<'_> {
         (!qualify && self.known.contains(id)) || self.known.contains(&format!("{library}/{id}"))
     }
 
+    /// Resolves `(library_id, pattern_name)` to `(library_index, &PatternRecord)` when loaded.
+    fn find_pattern(
+        &self,
+        library: &str,
+        pattern: &str,
+    ) -> Option<(usize, &crate::pack::schema_pattern::PatternRecord)> {
+        let index = self.libraries.iter().position(|lib| lib.id == library)?;
+        let record = self.libraries[index]
+            .patterns
+            .iter()
+            .find(|p| p.pattern == pattern)?;
+        Some((index, record))
+    }
+
+    /// Unique loaded `(library_index, &PatternRecord)` referenced by the first `count` entries
+    /// (in first-referenced order), when `patterns` is in the requested sections.
+    fn referenced_patterns(
+        &self,
+        count: usize,
+    ) -> Vec<(usize, &crate::pack::schema_pattern::PatternRecord)> {
+        if !self.names.contains(&"patterns") {
+            return Vec::new();
+        }
+        let mut seen: HashSet<(String, String)> = HashSet::new();
+        let mut out = Vec::new();
+        for (_, entry) in self.entries(count) {
+            for (name, section) in &entry.sections {
+                if *name != "patterns" {
+                    continue;
+                }
+                if let Section::Patterns(links) = section {
+                    for cp in links {
+                        if seen.insert((cp.library.clone(), cp.pattern.clone()))
+                            && let Some(found) = self.find_pattern(&cp.library, &cp.pattern)
+                        {
+                            out.push(found);
+                        }
+                    }
+                }
+            }
+        }
+        out
+    }
+
     fn assemble(&self, steps: usize, count: usize) -> Assembled {
+        let send_rules = self.rule_text && !ORDER[..steps].contains(&Step::RuleText);
+        let send_patterns = self.rule_text
+            && self.names.contains(&"patterns")
+            && !ORDER[..steps].contains(&Step::PatternKeep);
+        let shed_customize = ORDER[..steps].contains(&Step::PatternCustomize);
+        let referenced = self.referenced_patterns(count);
+
         let mut served: Vec<usize> = self.entries(count).map(|(library, _)| library).collect();
+        if send_patterns {
+            for (owner_index, _) in &referenced {
+                served.push(*owner_index);
+            }
+        }
         served.sort_unstable();
         served.dedup();
         let qualify = served.len() > 1;
-        let send_rules = self.rule_text && !ORDER[..steps].contains(&Step::RuleText);
         let mut components = Vec::new();
         let mut unknown = Vec::new();
         let mut rules: BTreeMap<(usize, String), Value> = BTreeMap::new();
@@ -385,7 +456,10 @@ impl Brief<'_> {
                 Asked::Entry { library, entry, .. } => (*library, entry),
             };
             let library = &self.libraries[index];
-            let content = entry.serve(&shed(entry, &self.names, steps, self.attribute_rules));
+            let content = entry.serve_with(
+                &shed(entry, &self.names, steps, self.attribute_rules),
+                qualify,
+            );
             let rule_flags = content
                 .rules
                 .iter()
@@ -417,10 +491,72 @@ impl Brief<'_> {
             .flatten()
             .filter(|r| r.get("flags").is_some())
             .count();
+
+        // Count `minimum_basis` omissions for referenced patterns once per pattern whenever pattern
+        // content is active for this request (amendment A31.6).
+        if self.rule_text && !self.serves_authored {
+            for (_, record) in &referenced {
+                left_out += record.keep.iter().filter(|st| st.gate.is_none()).count();
+                left_out += record.customize.len();
+            }
+        }
+
+        let patterns = if send_patterns && !referenced.is_empty() {
+            let mut items = Vec::with_capacity(referenced.len());
+            for (owner_index, record) in &referenced {
+                let owner_id = self.libraries[*owner_index].id.as_str();
+                let mut keep = Vec::new();
+                for st in &record.keep {
+                    if st.gate.is_none() && !self.serves_authored {
+                        continue;
+                    }
+                    let mut obj = Map::new();
+                    obj.insert("id".to_owned(), Value::String(st.id.clone()));
+                    if !self.is_known(owner_id, &st.id, qualify) {
+                        obj.insert("text".to_owned(), Value::String(st.text.clone()));
+                        if scan::flag_item(&mut obj) {
+                            flagged += 1;
+                        }
+                    }
+                    keep.push(Value::Object(obj));
+                }
+                let mut customize = Vec::new();
+                if self.serves_authored && !shed_customize {
+                    for st in &record.customize {
+                        let mut obj = Map::new();
+                        obj.insert("id".to_owned(), Value::String(st.id.clone()));
+                        if !self.is_known(owner_id, &st.id, qualify) {
+                            obj.insert("text".to_owned(), Value::String(st.text.clone()));
+                            if scan::flag_item(&mut obj) {
+                                flagged += 1;
+                            }
+                        }
+                        customize.push(Value::Object(obj));
+                    }
+                }
+                let mut entry = Map::new();
+                entry.insert("library".to_owned(), Value::String(owner_id.to_owned()));
+                entry.insert("pattern".to_owned(), Value::String(record.pattern.clone()));
+                entry.insert("status".to_owned(), Value::String(record.status.clone()));
+                if let Some(replaced_by) = &record.replaced_by {
+                    entry.insert("replacedBy".to_owned(), Value::String(replaced_by.clone()));
+                }
+                entry.insert("keep".to_owned(), Value::Array(keep));
+                if !customize.is_empty() {
+                    entry.insert("customize".to_owned(), Value::Array(customize));
+                }
+                items.push(Value::Object(entry));
+            }
+            Some(items)
+        } else {
+            None
+        };
+
         Assembled {
             served,
             components,
             rules,
+            patterns,
             unknown,
             flagged,
             left_out,
@@ -459,6 +595,7 @@ impl Brief<'_> {
                             })
                             .collect(),
                         piece: None,
+                        patterns: Vec::new(),
                     },
                     Step::EventDetail => Effect {
                         sections: Vec::new(),
@@ -466,6 +603,7 @@ impl Brief<'_> {
                             .iter()
                             .any(|item| item.get("detail").is_some())
                             .then_some("eventDetail"),
+                        patterns: Vec::new(),
                     },
                     Step::DeclaredAttributes => Effect {
                         sections: Vec::new(),
@@ -473,6 +611,22 @@ impl Brief<'_> {
                             .iter()
                             .any(is_declared_only)
                             .then_some("declaredAttributes"),
+                        patterns: Vec::new(),
+                    },
+                    Step::PatternCustomize => Effect {
+                        sections: Vec::new(),
+                        piece: None,
+                        patterns: if self.rule_text && self.serves_authored {
+                            self.referenced_patterns(count)
+                                .into_iter()
+                                .filter(|(_, record)| !record.customize.is_empty())
+                                .map(|(owner, record)| {
+                                    (self.libraries[owner].id.clone(), record.pattern.clone())
+                                })
+                                .collect()
+                        } else {
+                            Vec::new()
+                        },
                     },
                     Step::RuleText => Effect {
                         sections: Vec::new(),
@@ -481,75 +635,142 @@ impl Brief<'_> {
                             .rules
                             .is_some_and(|rules| !rules.is_empty())
                             .then_some("ruleText"),
+                        patterns: Vec::new(),
+                    },
+                    Step::PatternKeep => Effect {
+                        sections: Vec::new(),
+                        piece: None,
+                        patterns: if self.rule_text {
+                            self.referenced_patterns(count)
+                                .into_iter()
+                                .map(|(owner, record)| {
+                                    (self.libraries[owner].id.clone(), record.pattern.clone())
+                                })
+                                .collect()
+                        } else {
+                            Vec::new()
+                        },
                     },
                 }
             })
             .collect()
     }
 
-    /// What the default brief leaves out of the first `count` requested tags that a full one
-    /// would serve, as an `omitted` entry (section 6.3); the long form is not named.
-    fn left_out_by_default(&self, count: usize) -> Option<Value> {
-        if !self.by_default {
-            return None;
+    /// What `detail` (`"brief"` or `"api"`) leaves out of the first `count` requested tags
+    /// (section 6.3 and amendment A31.5).
+    fn left_out_by_detail(&self, count: usize) -> Vec<Value> {
+        let mut out = Vec::new();
+        if self.by_default {
+            let mut sections = Vec::new();
+            let mut pieces = Vec::new();
+            let mut open = Vec::new();
+            if self.entries(count).any(|(_, entry)| {
+                entry
+                    .sections
+                    .iter()
+                    .any(|(name, _)| *name == "cssProperties")
+            }) {
+                sections.push("cssProperties");
+                open.push("cssProperties");
+            }
+            if self
+                .entries(count)
+                .any(|(_, entry)| !entry.attribute_rules.is_empty())
+            {
+                pieces.push("attributeRules");
+                open.push("rules");
+            }
+            if !open.is_empty() {
+                out.push(json!({
+                    "reason": "detail",
+                    "sections": sections,
+                    "pieces": pieces,
+                    "open": { "command": "components-open", "sections": open },
+                }));
+            }
         }
-        let mut sections = Vec::new();
-        let mut pieces = Vec::new();
-        let mut open = Vec::new();
-        if self.entries(count).any(|(_, entry)| {
-            entry
-                .sections
-                .iter()
-                .any(|(name, _)| *name == "cssProperties")
-        }) {
-            sections.push("cssProperties");
-            open.push("cssProperties");
+        if self.by_api {
+            for (owner_index, record) in self.referenced_patterns(count) {
+                let owner_id = &self.libraries[owner_index].id;
+                out.push(json!({
+                    "reason": "detail",
+                    "pattern": format!("{owner_id}/{}", record.pattern),
+                    "pieces": ["patterns"],
+                    "open": {
+                        "command": "components-pattern-open",
+                        "library": owner_id,
+                        "pattern": record.pattern,
+                        "sections": ["keep", "customize"],
+                    },
+                }));
+            }
         }
-        if self
-            .entries(count)
-            .any(|(_, entry)| !entry.attribute_rules.is_empty())
-        {
-            pieces.push("attributeRules");
-            open.push("rules");
-        }
-        (!open.is_empty()).then(|| {
-            json!({
-                "reason": "detail",
-                "sections": sections,
-                "pieces": pieces,
-                "open": { "command": "components-open", "sections": open },
-            })
-        })
+        out
     }
 
     fn omitted(
         effects: &[Effect],
         steps: usize,
         left_out: usize,
-        by_default: Option<Value>,
+        by_detail: Vec<Value>,
     ) -> Vec<Value> {
         let mut omitted = Vec::new();
         if left_out > 0 {
             omitted.push(json!({ "reason": "minimum-basis", "facts": left_out }));
         }
-        omitted.extend(by_default);
+        omitted.extend(by_detail);
         let mut sections: Vec<&str> = Vec::new();
         let mut pieces: Vec<&str> = Vec::new();
         let mut open: Vec<&str> = Vec::new();
+        // Per-pattern callable budget omissions (amendment A31.5), in shedding order (matching
+        // component `open.sections` per A9).
+        let mut pattern_omissions: Vec<(String, String, Vec<&'static str>, Vec<&'static str>)> =
+            Vec::new();
         for (step, effect) in ORDER.iter().zip(effects).take(steps) {
             if effect.is_empty() {
                 continue;
             }
-            sections.extend(&effect.sections);
-            pieces.extend(effect.piece);
-            let opens: &[&str] = if effect.piece.is_some() {
-                step.opens()
-            } else {
-                &effect.sections
-            };
-            for name in opens {
-                if !open.contains(name) {
-                    open.push(name);
+            match step {
+                Step::PatternCustomize | Step::PatternKeep => {
+                    let (piece, open_section) = if *step == Step::PatternCustomize {
+                        ("patternCustomize", "customize")
+                    } else {
+                        ("patternKeep", "keep")
+                    };
+                    for (lib, pat) in &effect.patterns {
+                        if let Some((_, _, pcs, secs)) = pattern_omissions
+                            .iter_mut()
+                            .find(|(l, p, _, _)| l == lib && p == pat)
+                        {
+                            if !pcs.contains(&piece) {
+                                pcs.push(piece);
+                            }
+                            if !secs.contains(&open_section) {
+                                secs.push(open_section);
+                            }
+                        } else {
+                            pattern_omissions.push((
+                                lib.clone(),
+                                pat.clone(),
+                                vec![piece],
+                                vec![open_section],
+                            ));
+                        }
+                    }
+                }
+                _ => {
+                    sections.extend(&effect.sections);
+                    pieces.extend(effect.piece);
+                    let opens: &[&str] = if effect.piece.is_some() {
+                        step.opens()
+                    } else {
+                        &effect.sections
+                    };
+                    for name in opens {
+                        if !open.contains(name) {
+                            open.push(name);
+                        }
+                    }
                 }
             }
         }
@@ -559,6 +780,20 @@ impl Brief<'_> {
                 "sections": sections,
                 "pieces": pieces,
                 "open": { "command": "components-open", "sections": open },
+            }));
+        }
+        for (lib, pat, pcs, secs) in pattern_omissions {
+            omitted.push(json!({
+                "reason": "budget",
+                "pattern": format!("{lib}/{pat}"),
+                "sections": [],
+                "pieces": pcs,
+                "open": {
+                    "command": "components-pattern-open",
+                    "library": lib,
+                    "pattern": pat,
+                    "sections": secs,
+                },
             }));
         }
         omitted
@@ -583,6 +818,9 @@ impl Brief<'_> {
         if let Some(rules) = assembled.rules {
             content["rules"] = Value::Array(rules);
         }
+        if let Some(patterns) = assembled.patterns {
+            content["patterns"] = Value::Array(patterns);
+        }
         if let Some(guidance) = &self.guidance.block {
             content["guidance"] = guidance.clone();
         }
@@ -590,7 +828,7 @@ impl Brief<'_> {
             effects,
             steps,
             assembled.left_out + self.guidance.left_out,
-            self.left_out_by_default(count),
+            self.left_out_by_detail(count),
         );
         let excluded: std::collections::BTreeSet<&str> = self.asked[..count]
             .iter()
@@ -907,6 +1145,9 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
                 input.get("detail").and_then(Value::as_str),
                 Some("api" | "full")
             ),
+        by_api: input.get("sections").is_none()
+            && input.get("detail").and_then(Value::as_str) == Some("api"),
+        serves_authored: settings.serves("authored"),
         known: input
             .get("known")
             .and_then(Value::as_array)

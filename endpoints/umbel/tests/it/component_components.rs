@@ -155,6 +155,17 @@ async fn the_component_answers_every_call_as_the_compiled_build() {
             json!({ "pattern": "selct" }),
             false,
         ),
+        // Patterns in `components-brief` and `components-open` (amendment A31.5).
+        (
+            "components-brief",
+            json!({ "tags": ["example-select"], "detail": "api" }),
+            true,
+        ),
+        (
+            "components-open",
+            json!({ "tag": "example-select", "sections": ["patterns"] }),
+            true,
+        ),
     ];
     for (command, input, succeeds) in cases {
         let ours = wasm.call(command, input.clone()).await;
