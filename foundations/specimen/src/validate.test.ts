@@ -20,6 +20,12 @@ import {
 	jobCreateRequestSchema,
 	jobRunRequestSchema,
 	matrixRequestSchema,
+	noteAddRequestSchema,
+	noteCheckRequestSchema,
+	noteListRequestSchema,
+	noteMoveRequestSchema,
+	noteReopenRequestSchema,
+	noteResolveRequestSchema,
 	pointCheckRequestSchema,
 	pointMoveRequestSchema,
 	pointRequestSchema,
@@ -42,6 +48,12 @@ import {
 	parseJobCreateRequest,
 	parseJobRunRequest,
 	parseMatrixRequest,
+	parseNoteAddRequest,
+	parseNoteCheckRequest,
+	parseNoteListRequest,
+	parseNoteMoveRequest,
+	parseNoteReopenRequest,
+	parseNoteResolveRequest,
 	parsePointCheckRequest,
 	parsePointMoveRequest,
 	parsePointRequest,
@@ -1184,5 +1196,129 @@ describe('request parsing agrees with the public schemas', () => {
 			null,
 		];
 		for (const value of values) agrees(compareRequestSchema, parseCompareRequest, value);
+	});
+
+	it('accepts and rejects note requests as the note Zod schemas do', () => {
+		const addValues: unknown[] = [
+			{ point: 'pt-5r8k2w9m4c1x', text: 'Check contrast' },
+			{
+				pointer: 'specimen:example-toolbar#ref=root/div:1',
+				text: 'Check contrast',
+				assignee: 'agent',
+				timeoutMs: 5000,
+			},
+			{ pointer: 'specimen:example-toolbar#ref=root/div:1', text: '' },
+			{ pointer: '', text: 'Bad pointer passed to handler' },
+			{ point: 'pt-5r8k2w9m4c1x', pointer: 'specimen:a#ref=root/div:1', text: 'Both' },
+			{ text: 'Neither' },
+			{ point: '', text: 'Empty point id' },
+			{ point: 'pt-5r8k2w9m4c1x', text: 'Ok', assignee: '' },
+			{ point: 'pt-5r8k2w9m4c1x', text: 'a'.repeat(4_001) },
+			{ point: 'pt-5r8k2w9m4c1x', text: 'Ok', assignee: 'a'.repeat(201) },
+			{ point: 'pt-5r8k2w9m4c1x', text: 'Ok', timeoutMs: 0 },
+			{ point: 'pt-5r8k2w9m4c1x', text: 'Ok', extra: true },
+			null,
+		];
+		for (const value of addValues) agrees(noteAddRequestSchema, parseNoteAddRequest, value);
+
+		const listValues: unknown[] = [
+			{},
+			{
+				specimen: 'example-toolbar',
+				state: 'open',
+				assignee: 'agent',
+				orphaned: false,
+				limit: 20,
+				after: 'note-111111111111',
+			},
+			{ state: 'resolved' },
+			{ state: 'all', limit: 100 },
+			{ state: 'closed' },
+			{ limit: 0 },
+			{ limit: 101 },
+			{ limit: 1.5 },
+			{ orphaned: 'true' },
+			{ specimen: '' },
+			{ after: '' },
+			{ extra: true },
+			null,
+		];
+		for (const value of listValues) agrees(noteListRequestSchema, parseNoteListRequest, value);
+
+		const checkValues: unknown[] = [
+			{},
+			{ specimen: 'example-toolbar' },
+			{ specimen: 'example-toolbar', timeoutMs: 15_000 },
+			{ specimen: '' },
+			{ timeoutMs: 0 },
+			{ extra: true },
+			null,
+		];
+		for (const value of checkValues) agrees(noteCheckRequestSchema, parseNoteCheckRequest, value);
+
+		const moveValues: unknown[] = [
+			{ id: 'note-7k2m9q4x1r8t', point: 'pt-5r8k2w9m4c1x', reason: 'Moved' },
+			{
+				id: 'note-7k2m9q4x1r8t',
+				pointer: 'specimen:a#ref=root/div:1',
+				reason: 'Moved',
+				timeoutMs: 5000,
+			},
+			{ id: 'note-7k2m9q4x1r8t', point: 'pt-5r8k2w9m4c1x' },
+			{ id: 'note-7k2m9q4x1r8t', point: 'pt-5r8k2w9m4c1x', reason: '' },
+			{
+				id: 'note-7k2m9q4x1r8t',
+				point: 'pt-5r8k2w9m4c1x',
+				pointer: 'specimen:a#ref=root/div:1',
+				reason: 'Both',
+			},
+			{ id: 'note-7k2m9q4x1r8t', reason: 'Neither' },
+			{ id: '', point: 'pt-5r8k2w9m4c1x', reason: 'Empty id' },
+			{ id: 'note-7k2m9q4x1r8t', point: 'pt-5r8k2w9m4c1x', reason: 123 },
+			{ id: 'note-7k2m9q4x1r8t', point: 'pt-5r8k2w9m4c1x', extra: true },
+			null,
+		];
+		for (const value of moveValues) agrees(noteMoveRequestSchema, parseNoteMoveRequest, value);
+
+		const resolveValues: unknown[] = [
+			{
+				id: 'note-9v4b7n2k5m1c',
+				outcome: 'fixed',
+				reason: 'Done',
+				evidence: { revision: '4f2c9a1' },
+			},
+			{ ids: ['note-111111111111', 'note-222222222222'], outcome: 'obsolete', reason: 'Removed' },
+			{ id: 'note-9v4b7n2k5m1c', outcome: 'withdrawn' },
+			{ id: 'note-9v4b7n2k5m1c', outcome: 'declined', reason: '' },
+			{ id: 'note-9v4b7n2k5m1c', ids: ['note-9v4b7n2k5m1c'], outcome: 'fixed', reason: 'Both' },
+			{ outcome: 'fixed', reason: 'Neither' },
+			{ ids: [], outcome: 'fixed', reason: 'Empty ids' },
+			{
+				ids: Array.from({ length: 101 }, (_, i) => `note-${String(i).padStart(12, '0')}`),
+				outcome: 'fixed',
+				reason: 'Too many',
+			},
+			{ id: 'note-9v4b7n2k5m1c', outcome: 'fixed', reason: 'r'.repeat(2_001) },
+			{ ids: [''], outcome: 'fixed', reason: 'Empty id in array' },
+			{ id: 'note-9v4b7n2k5m1c', outcome: 'unknown', reason: 'Bad outcome' },
+			{ id: 'note-9v4b7n2k5m1c', outcome: 'fixed', reason: 'Ok', evidence: { revision: '' } },
+			{ id: 'note-9v4b7n2k5m1c', outcome: 'fixed', reason: 'Ok', evidence: { extra: 'x' } },
+			{ id: 'note-9v4b7n2k5m1c', outcome: 'fixed', reason: 'Ok', extra: true },
+			null,
+		];
+		for (const value of resolveValues)
+			agrees(noteResolveRequestSchema, parseNoteResolveRequest, value);
+
+		const reopenValues: unknown[] = [
+			{ id: 'note-9v4b7n2k5m1c', reason: 'PDF fails' },
+			{ id: 'note-9v4b7n2k5m1c' },
+			{ id: 'note-9v4b7n2k5m1c', reason: '' },
+			{ id: '', reason: 'Empty id' },
+			{ id: 'note-9v4b7n2k5m1c', reason: 42 },
+			{ id: 'note-9v4b7n2k5m1c', reason: 'Ok', extra: true },
+			null,
+		];
+		for (const value of reopenValues)
+			agrees(noteReopenRequestSchema, parseNoteReopenRequest, value);
 	});
 });

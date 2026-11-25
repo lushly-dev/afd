@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFile, realpath } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { BenchWorkerClient } from './bench-worker-client.js';
@@ -16,6 +17,15 @@ import {
 	withJobValidation,
 } from './jobs.js';
 import {
+	listNotes,
+	readAllNoteFiles,
+	readNoteFile,
+	reopenNote,
+	requireNoteReason,
+	requireNoteText,
+	resolveNotes,
+} from './note.js';
+import {
 	checkCommitted,
 	exportPack,
 	packConfig,
@@ -24,7 +34,13 @@ import {
 	writePackIndex,
 } from './pack-files.js';
 import { withPatterns } from './patterns.js';
-import { normalizePointContextInput, readPointFile, specimenNotFoundError } from './point.js';
+import {
+	diffRecordedDigests,
+	normalizePointContextInput,
+	pointError,
+	readPointFile,
+	specimenNotFoundError,
+} from './point.js';
 import { parsePointer } from './pointer.js';
 import {
 	assertRealContained,
@@ -62,6 +78,16 @@ import type {
 	MatrixRun,
 	MigrateRequest,
 	MigrationReport,
+	NoteAddRequest,
+	NoteCheckRequest,
+	NoteCheckResult,
+	NoteListRequest,
+	NoteListResult,
+	NoteMoveRequest,
+	NoteReopenRequest,
+	NoteResolveRequest,
+	NoteResolveResult,
+	NoteResult,
 	Observation,
 	ObservationDiff,
 	PackBuildRequest,
@@ -104,6 +130,12 @@ import {
 	parseJobCreateRequest,
 	parseJobRunRequest,
 	parseMatrixRequest,
+	parseNoteAddRequest,
+	parseNoteCheckRequest,
+	parseNoteListRequest,
+	parseNoteMoveRequest,
+	parseNoteReopenRequest,
+	parseNoteResolveRequest,
 	parsePackExportRequest,
 	parsePackRequest,
 	parsePointCheckRequest,
@@ -251,6 +283,18 @@ export interface SpecimenBench {
 	pointMove(request: PointMoveRequest): Promise<PointResult>;
 	/** Re-render a stored point's specimen and report whether its source or identity is current or stale. */
 	pointCheck(request: PointCheckRequest): Promise<PointCheckResult>;
+	/** Pin a new note to a fresh point or pointer URI and write it under `specimens/notes/<id>.json`. */
+	noteAdd(request: NoteAddRequest): Promise<NoteResult>;
+	/** List committed notes from `specimens/notes/` with filtering and cursor paging (no browser). */
+	noteList(request?: NoteListRequest): Promise<NoteListResult>;
+	/** Re-resolve open notes against current renders, updating `orphaned` flags and reporting weakened/unchecked/restored notes. */
+	noteCheck(request?: NoteCheckRequest): Promise<NoteCheckResult>;
+	/** Re-pin a note to a fresh point or pointer URI with a reason, clearing `orphaned` and recording history. */
+	noteMove(request: NoteMoveRequest): Promise<NoteResult>;
+	/** Resolve one (`id`) or several (`ids`) notes with an outcome, required reason, and optional evidence (no browser). */
+	noteResolve(request: NoteResolveRequest): Promise<NoteResolveResult>;
+	/** Reopen a resolved note with a reason, preserving its prior resolution in history (no browser). */
+	noteReopen(request: NoteReopenRequest): Promise<NoteResult>;
 	build(
 		outDir: string
 	): Promise<{ directory: string; shellBytes: number; budget: number; files: string[] }>;
@@ -260,7 +304,16 @@ export interface SpecimenBench {
 /** What runs a bench's browser work, in this process or a worker: the bench without its file work. */
 export type BenchRuntime = Omit<
 	SpecimenBench,
-	'validate' | 'migrate' | 'pack' | 'packCheck' | 'packExport' | 'diff' | 'createJob'
+	| 'validate'
+	| 'migrate'
+	| 'pack'
+	| 'packCheck'
+	| 'packExport'
+	| 'diff'
+	| 'createJob'
+	| 'noteList'
+	| 'noteResolve'
+	| 'noteReopen'
 > & {
 	/** Build the configured pack from two passes over every case, and write nothing. */
 	packBuild(request?: PackBuildRequest): Promise<PackBuildRun>;
@@ -358,6 +411,9 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		| 'point'
 		| 'pointMove'
 		| 'pointCheck'
+		| 'noteAdd'
+		| 'noteCheck'
+		| 'noteMove'
 		| 'build'
 		| 'close'
 	>;
@@ -384,28 +440,59 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		if (errors.length) throw new DiscoveryError(errors.map((problem) => problem.message));
 		return snapshot;
 	};
+	const ensureBackend = async (current: LoadedConfig): Promise<Backend> => {
+		if (!backend) {
+			backend =
+				runtimeIsolation === 'process'
+					? new BenchWorkerClient(current, executablePath)
+					: await (await import('./bench-runtime.js')).createInProcessBench(
+							{
+								root: current.root,
+								executablePath,
+								...(inlineJobSources.length > 0 ? { jobSources: inlineJobSources } : {}),
+							},
+							current
+						);
+		}
+		return backend;
+	};
 	const enqueue = <T>(operation: (runtime: Backend) => Promise<T>): Promise<T> => {
 		ensureOpen();
-		const result = pending.then(async () => {
-			const current = currentConfig();
-			if (!backend) {
-				backend =
-					runtimeIsolation === 'process'
-						? new BenchWorkerClient(current, executablePath)
-						: await (await import('./bench-runtime.js')).createInProcessBench(
-								{
-									root: current.root,
-									executablePath,
-									...(inlineJobSources.length > 0 ? { jobSources: inlineJobSources } : {}),
-								},
-								current
-							);
-			}
-			return operation(backend);
-		});
+		const result = pending.then(async () => operation(await ensureBackend(currentConfig())));
 		// An individual render error must not poison later work or close.
 		pending = result.catch(() => {});
 		return result;
+	};
+	const enqueueLocal = <T>(operation: (current: LoadedConfig) => Promise<T>): Promise<T> => {
+		ensureOpen();
+		const result = pending.then(() => operation(currentConfig()));
+		pending = result.catch(() => {});
+		return result;
+	};
+	const refreshConfigIfChanged = async (current: LoadedConfig): Promise<LoadedConfig> => {
+		const configText = await readFile(current.file, 'utf8').catch(() => null);
+		const configDigest =
+			configText === null ? null : createHash('sha256').update(configText).digest('hex');
+		let manifestChanged = false;
+		if (current.manifestFile) {
+			const manifestText = await readFile(current.manifestFile, 'utf8').catch(() => null);
+			const manifestDigest =
+				manifestText === null ? null : createHash('sha256').update(manifestText).digest('hex');
+			manifestChanged = manifestDigest !== (current.manifestDigest ?? null);
+		}
+		if (configDigest === current.digest && !manifestChanged) return current;
+		const reloaded = freezeConfig(await loadConfig(options));
+		if (reloaded.stories?.discovery.errors.length) {
+			throw new Error(reloaded.stories.discovery.errors.join('\n'));
+		}
+		config = reloaded;
+		loadedJobSources = undefined;
+		if (backend) {
+			const oldBackend = backend;
+			backend = undefined;
+			await oldBackend.close();
+		}
+		return reloaded;
 	};
 	/** Build with the last full build's index for one component, and keep a full build's index. */
 	const packBuild = async (snapshot: LoadedConfig, rawRequest: PackRequest) => {
@@ -800,22 +887,27 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 			return enqueue((client) => client.build(directory));
 		},
 		async point(rawRequest) {
-			const snapshot = ensureDiscovered();
+			ensureDiscovered();
 			const request = parsePointRequest(rawRequest);
-			const knownIds = snapshot.entries.map((item) => item.id);
 			if ('pointer' in request) {
 				const parsed = parsePointer(request.pointer);
-				if (!snapshot.entries.some((item) => item.id === parsed.specimen)) {
-					throw specimenNotFoundError(parsed.specimen, knownIds);
-				}
 				normalizePointContextInput(parsed.context, 'pointer');
 			} else {
-				if (!snapshot.entries.some((item) => item.id === request.id)) {
-					throw specimenNotFoundError(request.id, knownIds);
-				}
 				normalizePointContextInput(request.context, 'request');
 			}
-			return enqueue((client) => client.point(request));
+			return enqueueLocal(async (initial) => {
+				const current = await refreshConfigIfChanged(initial);
+				const knownIds = current.entries.map((item) => item.id);
+				if ('pointer' in request) {
+					const parsed = parsePointer(request.pointer);
+					if (!current.entries.some((item) => item.id === parsed.specimen)) {
+						throw specimenNotFoundError(parsed.specimen, knownIds);
+					}
+				} else if (!current.entries.some((item) => item.id === request.id)) {
+					throw specimenNotFoundError(request.id, knownIds);
+				}
+				return (await ensureBackend(current)).point(request);
+			});
 		},
 		async pointMove(rawRequest) {
 			const snapshot = ensureDiscovered();
@@ -828,6 +920,118 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 			const request = parsePointCheckRequest(rawRequest);
 			await readPointFile(snapshot.root, request.id);
 			return enqueue((client) => client.pointCheck(request));
+		},
+		async noteAdd(rawRequest) {
+			ensureDiscovered();
+			const request = parseNoteAddRequest(rawRequest);
+			requireNoteText(request.text);
+			if ('pointer' in request) {
+				const parsed = parsePointer(request.pointer);
+				normalizePointContextInput(parsed.context, 'pointer');
+			}
+			return enqueueLocal(async (initial) => {
+				const current = await refreshConfigIfChanged(initial);
+				const knownIds = current.entries.map((item) => item.id);
+				if ('pointer' in request) {
+					const parsed = parsePointer(request.pointer);
+					if (!current.entries.some((item) => item.id === parsed.specimen)) {
+						throw specimenNotFoundError(parsed.specimen, knownIds);
+					}
+					return (await ensureBackend(current)).noteAdd(request);
+				}
+				const stored = await readPointFile(current.root, request.point);
+				const changedFiles = await diffRecordedDigests(current.root, stored.source.digests);
+				if (changedFiles.length > 0) {
+					throw pointError(
+						'POINT_STALE',
+						`Point ${stored.id} is stale (${changedFiles.join(', ')}).`,
+						'Run specimen-point to point again.',
+						{ id: stored.id, changed: changedFiles }
+					);
+				}
+				return (await ensureBackend(current)).noteAdd(request);
+			});
+		},
+		async noteList(rawRequest = {}) {
+			ensureOpen();
+			const request = parseNoteListRequest(rawRequest);
+			return enqueueLocal((current) => listNotes(current.root, request));
+		},
+		async noteCheck(rawRequest = {}) {
+			ensureDiscovered();
+			const request = parseNoteCheckRequest(rawRequest);
+			return enqueueLocal(async (initial) => {
+				const current = await refreshConfigIfChanged(initial);
+				const allNotes = await readAllNoteFiles(current.root);
+				const openNotes = allNotes.filter(
+					(note) =>
+						note.state === 'open' &&
+						(request.specimen === undefined || note.subject.specimen === request.specimen)
+				);
+				const known = new Set(current.entries.map((entry) => entry.id));
+				if (!openNotes.some((note) => known.has(note.subject.specimen))) {
+					const uncheckedBySpecimen = new Map<string, string[]>();
+					for (const note of openNotes) {
+						const list = uncheckedBySpecimen.get(note.subject.specimen);
+						if (list) list.push(note.id);
+						else uncheckedBySpecimen.set(note.subject.specimen, [note.id]);
+					}
+					const unchecked = [...uncheckedBySpecimen.entries()]
+						.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+						.map(([specimen, notes]) => ({
+							specimen,
+							reason: 'specimen-missing' as const,
+							notes: [...notes].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
+						}));
+					return { checked: 0, orphaned: [], weakened: [], unchecked, restored: [] };
+				}
+				return (await ensureBackend(current)).noteCheck(request);
+			});
+		},
+		async noteMove(rawRequest) {
+			ensureDiscovered();
+			const request = parseNoteMoveRequest(rawRequest);
+			requireNoteReason(request.reason, 'moving a note');
+			if ('pointer' in request) {
+				const parsed = parsePointer(request.pointer);
+				normalizePointContextInput(parsed.context, 'pointer');
+			}
+			return enqueueLocal(async (initial) => {
+				const current = await refreshConfigIfChanged(initial);
+				const knownIds = current.entries.map((item) => item.id);
+				if ('pointer' in request) {
+					const parsed = parsePointer(request.pointer);
+					if (!current.entries.some((item) => item.id === parsed.specimen)) {
+						throw specimenNotFoundError(parsed.specimen, knownIds);
+					}
+				}
+				await readNoteFile(current.root, request.id);
+				if ('point' in request) {
+					const stored = await readPointFile(current.root, request.point);
+					const changedFiles = await diffRecordedDigests(current.root, stored.source.digests);
+					if (changedFiles.length > 0) {
+						throw pointError(
+							'POINT_STALE',
+							`Point ${stored.id} is stale (${changedFiles.join(', ')}).`,
+							'Run specimen-point to point again.',
+							{ id: stored.id, changed: changedFiles }
+						);
+					}
+				}
+				return (await ensureBackend(current)).noteMove(request);
+			});
+		},
+		async noteResolve(rawRequest) {
+			ensureOpen();
+			const request = parseNoteResolveRequest(rawRequest);
+			requireNoteReason(request.reason, 'resolving a note');
+			return enqueueLocal((current) => resolveNotes(current.root, request));
+		},
+		async noteReopen(rawRequest) {
+			ensureOpen();
+			const request = parseNoteReopenRequest(rawRequest);
+			requireNoteReason(request.reason, 'reopening a note');
+			return enqueueLocal((current) => reopenNote(current.root, request));
 		},
 		close() {
 			closing ??= (async () => {

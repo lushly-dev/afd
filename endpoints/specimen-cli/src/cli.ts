@@ -78,8 +78,26 @@ const valueOptions = new Set([
 	'captures',
 	'obligations',
 	'timeout',
+	'point',
+	'pointer',
+	'text',
+	'assignee',
+	'specimen',
+	'state',
+	'limit',
+	'after',
+	'reason',
+	'outcome',
 ]);
-const flagOptions = new Set(['require-visual', 'apply', 'helpers', 'retry', 'no-axe']);
+const flagOptions = new Set([
+	'require-visual',
+	'apply',
+	'helpers',
+	'retry',
+	'no-axe',
+	'orphaned',
+	'no-orphaned',
+]);
 function parseArguments(args: string[]): ParsedArguments {
 	const positionals: string[] = [];
 	const options = new Map<string, string>();
@@ -99,13 +117,15 @@ function parseArguments(args: string[]): ParsedArguments {
 		}
 		if (!valueOptions.has(key)) throw new Error(`Unknown option: ${item}`);
 		const value = args[++i];
-		if (!value || value.startsWith('--')) throw new Error(`Option ${item} needs a value`);
+		const allowEmpty = key === 'text' || key === 'reason';
+		if (value === undefined || value.startsWith('--') || (!value && !allowEmpty))
+			throw new Error(`Option ${item} needs a value`);
 		options.set(key, value);
 	}
 	const action = positionals.shift();
 	if (!action)
 		throw new Error(
-			'Choose a command: list, validate, inspect, render, capture, compare, run, themes, diff, build, job-create, or job-run'
+			'Choose a command: list, validate, inspect, render, capture, compare, run, themes, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, or job-run'
 		);
 	return { action, positionals, options, flags };
 }
@@ -321,6 +341,41 @@ function validateOptions(parsed: ParsedArguments): void {
 		]),
 		'point-move': new Set(['root', 'config', 'output', 'index']),
 		'point-check': new Set(['root', 'config', 'output']),
+		'note-add': new Set([
+			'root',
+			'config',
+			'output',
+			'point',
+			'pointer',
+			'text',
+			'assignee',
+			'timeout',
+		]),
+		'note-list': new Set([
+			'root',
+			'config',
+			'output',
+			'specimen',
+			'state',
+			'assignee',
+			'orphaned',
+			'no-orphaned',
+			'limit',
+			'after',
+		]),
+		'note-check': new Set(['root', 'config', 'output', 'specimen', 'timeout']),
+		'note-move': new Set(['root', 'config', 'output', 'point', 'pointer', 'reason', 'timeout']),
+		'note-resolve': new Set([
+			'root',
+			'config',
+			'output',
+			'ids',
+			'outcome',
+			'reason',
+			'revision',
+			'capture',
+		]),
+		'note-reopen': new Set(['root', 'config', 'output', 'reason']),
 		'job-create': new Set([
 			'root',
 			'config',
@@ -385,6 +440,53 @@ function validateOptions(parsed: ParsedArguments): void {
 	if (parsed.action === 'compare') {
 		if (parsed.options.has('ids') && parsed.positionals.length > 0)
 			throw new Error('Give variant ids positionally or with --ids, not both.');
+		return;
+	}
+	if (parsed.action === 'note-add') {
+		const hasPoint = parsed.options.has('point');
+		const hasPointer = parsed.options.has('pointer');
+		if (hasPoint && hasPointer) throw new Error('Give either --point or --pointer, not both.');
+		if ((hasPoint || hasPointer) && parsed.positionals.length > 0)
+			throw new Error('Give a point/pointer positionally or via --point/--pointer, not both.');
+		if (!hasPoint && !hasPointer && parsed.positionals.length !== 1)
+			throw new Error('note-add expects a --point, --pointer, or 1 positional target');
+		return;
+	}
+	if (parsed.action === 'note-list') {
+		if (parsed.flags.has('orphaned') && parsed.flags.has('no-orphaned'))
+			throw new Error('Give either --orphaned or --no-orphaned, not both.');
+		if (parsed.positionals.length !== 0)
+			throw new Error('note-list expects 0 positional arguments');
+		return;
+	}
+	if (parsed.action === 'note-check') {
+		if (parsed.options.has('specimen') && parsed.positionals.length > 0)
+			throw new Error('Give a specimen id positionally or with --specimen, not both.');
+		if (parsed.positionals.length > 1)
+			throw new Error('note-check expects at most 1 positional argument');
+		return;
+	}
+	if (parsed.action === 'note-move') {
+		const hasPoint = parsed.options.has('point');
+		const hasPointer = parsed.options.has('pointer');
+		if (hasPoint && hasPointer) throw new Error('Give either --point or --pointer, not both.');
+		if (hasPoint || hasPointer) {
+			if (parsed.positionals.length !== 1)
+				throw new Error(
+					'note-move expects 1 positional argument (note id) when using --point/--pointer'
+				);
+		} else if (parsed.positionals.length !== 2) {
+			throw new Error(
+				'note-move expects 2 positional arguments (note id and point/pointer) or --point/--pointer'
+			);
+		}
+		return;
+	}
+	if (parsed.action === 'note-resolve') {
+		if (parsed.options.has('ids') && parsed.positionals.length > 0)
+			throw new Error('Give note ids positionally or with --ids, not both.');
+		if (!parsed.options.has('ids') && parsed.positionals.length === 0)
+			throw new Error('note-resolve expects at least 1 note id positionally or via --ids');
 		return;
 	}
 	const expected =
@@ -774,6 +876,120 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 					result = await executeSpecimenCommand(bench, 'specimen-point-check', {
 						id: parsed.positionals[0],
 					});
+				} else if (parsed.action === 'note-add') {
+					const rawTimeout = parsed.options.get('timeout');
+					let timeoutMs: number | undefined;
+					if (rawTimeout !== undefined) {
+						const parsedTimeout = Number(rawTimeout);
+						if (!rawTimeout.trim() || !Number.isInteger(parsedTimeout)) {
+							throw new Error('--timeout expects a whole number');
+						}
+						timeoutMs = parsedTimeout;
+					}
+					const targetPos = parsed.positionals[0];
+					const point = parsed.options.get('point');
+					const pointer = parsed.options.get('pointer');
+					const targetField =
+						point !== undefined
+							? { point }
+							: pointer !== undefined
+								? { pointer }
+								: targetPos?.startsWith('specimen:')
+									? { pointer: targetPos }
+									: { point: targetPos };
+					result = await executeSpecimenCommand(bench, 'specimen-note-add', {
+						...targetField,
+						text: parsed.options.get('text') ?? '',
+						...(parsed.options.has('assignee') ? { assignee: parsed.options.get('assignee') } : {}),
+						...(timeoutMs !== undefined ? { timeoutMs } : {}),
+					});
+				} else if (parsed.action === 'note-list') {
+					const rawLimit = parsed.options.get('limit');
+					let limit: number | undefined;
+					if (rawLimit !== undefined) {
+						const parsedLimit = Number(rawLimit);
+						if (!rawLimit.trim() || !Number.isInteger(parsedLimit)) {
+							throw new Error('--limit expects a whole number');
+						}
+						limit = parsedLimit;
+					}
+					result = await executeSpecimenCommand(bench, 'specimen-note-list', {
+						...(parsed.options.has('specimen') ? { specimen: parsed.options.get('specimen') } : {}),
+						...(parsed.options.has('state') ? { state: parsed.options.get('state') } : {}),
+						...(parsed.options.has('assignee') ? { assignee: parsed.options.get('assignee') } : {}),
+						...(parsed.flags.has('orphaned') ? { orphaned: true } : {}),
+						...(parsed.flags.has('no-orphaned') ? { orphaned: false } : {}),
+						...(limit !== undefined ? { limit } : {}),
+						...(parsed.options.has('after') ? { after: parsed.options.get('after') } : {}),
+					});
+				} else if (parsed.action === 'note-check') {
+					const rawTimeout = parsed.options.get('timeout');
+					let timeoutMs: number | undefined;
+					if (rawTimeout !== undefined) {
+						const parsedTimeout = Number(rawTimeout);
+						if (!rawTimeout.trim() || !Number.isInteger(parsedTimeout)) {
+							throw new Error('--timeout expects a whole number');
+						}
+						timeoutMs = parsedTimeout;
+					}
+					const specimen = parsed.options.get('specimen') ?? parsed.positionals[0];
+					result = await executeSpecimenCommand(bench, 'specimen-note-check', {
+						...(specimen !== undefined ? { specimen } : {}),
+						...(timeoutMs !== undefined ? { timeoutMs } : {}),
+					});
+				} else if (parsed.action === 'note-move') {
+					const rawTimeout = parsed.options.get('timeout');
+					let timeoutMs: number | undefined;
+					if (rawTimeout !== undefined) {
+						const parsedTimeout = Number(rawTimeout);
+						if (!rawTimeout.trim() || !Number.isInteger(parsedTimeout)) {
+							throw new Error('--timeout expects a whole number');
+						}
+						timeoutMs = parsedTimeout;
+					}
+					const targetPos = parsed.positionals[1];
+					const point = parsed.options.get('point');
+					const pointer = parsed.options.get('pointer');
+					const targetField =
+						point !== undefined
+							? { point }
+							: pointer !== undefined
+								? { pointer }
+								: targetPos?.startsWith('specimen:')
+									? { pointer: targetPos }
+									: { point: targetPos };
+					result = await executeSpecimenCommand(bench, 'specimen-note-move', {
+						id: parsed.positionals[0],
+						...targetField,
+						...(parsed.options.has('reason') ? { reason: parsed.options.get('reason') } : {}),
+						...(timeoutMs !== undefined ? { timeoutMs } : {}),
+					});
+				} else if (parsed.action === 'note-resolve') {
+					const revision = parsed.options.get('revision');
+					const capture = parsed.options.get('capture');
+					const evidence =
+						revision !== undefined || capture !== undefined
+							? {
+									...(revision !== undefined ? { revision } : {}),
+									...(capture !== undefined ? { capture } : {}),
+								}
+							: undefined;
+					const idFields = parsed.options.has('ids')
+						? { ids: (parsed.options.get('ids') ?? '').split(',').filter(Boolean) }
+						: parsed.positionals.length === 1
+							? { id: parsed.positionals[0] }
+							: { ids: parsed.positionals };
+					result = await executeSpecimenCommand(bench, 'specimen-note-resolve', {
+						...idFields,
+						outcome: parsed.options.get('outcome'),
+						...(parsed.options.has('reason') ? { reason: parsed.options.get('reason') } : {}),
+						...(evidence !== undefined ? { evidence } : {}),
+					});
+				} else if (parsed.action === 'note-reopen') {
+					result = await executeSpecimenCommand(bench, 'specimen-note-reopen', {
+						id: parsed.positionals[0],
+						...(parsed.options.has('reason') ? { reason: parsed.options.get('reason') } : {}),
+					});
 				} else if (parsed.action === 'job-create') {
 					const rawCaptures = parsed.options.get('captures');
 					const pinClock = parsed.options.get('pin-clock');
@@ -871,7 +1087,7 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 			code: 'SPECIMEN_CLI_ERROR',
 			message,
 			suggestion:
-				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID [--set SET], capture [IDS...] [--label NAME], compare ID1 ID2..., run ID, a11y [ID] [--set SET], themes [ID] [--theme light,dark] [--threshold 0.02], migrate [--files A,B] [--helpers] [--apply], diff LEFT RIGHT, build OUTDIR, pack [TAG], pack-check [TAG], pack-export DIR, point POINTER | ID (--role ROLE [--name NAME] | --selector CSS), point-move POINT_ID DIRECTION [--index N], point-check POINT_ID, job-create ID --scenario PATH --module PATH --export-name NAME --target ID --captures STEPS, or job-run ID [--label NAME]; check option values and file paths.',
+				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID [--set SET], capture [IDS...] [--label NAME], compare ID1 ID2..., run ID, a11y [ID] [--set SET], themes [ID] [--theme light,dark] [--threshold 0.02], migrate [--files A,B] [--helpers] [--apply], diff LEFT RIGHT, build OUTDIR, pack [TAG], pack-check [TAG], pack-export DIR, point POINTER | ID (--role ROLE [--name NAME] | --selector CSS), point-move POINT_ID DIRECTION [--index N], point-check POINT_ID, note-add (--point ID | --pointer URI) --text TEXT [--assignee NAME], note-list [--specimen ID] [--state open|resolved|all] [--assignee NAME] [--orphaned] [--limit N] [--after ID], note-check [SPECIMEN_ID], note-move NOTE_ID (--point ID | --pointer URI) --reason TEXT, note-resolve (NOTE_ID | --ids A,B) --outcome OUTCOME --reason TEXT [--revision SHA] [--capture REF], note-reopen NOTE_ID --reason TEXT, job-create ID --scenario PATH --module PATH --export-name NAME --target ID --captures STEPS, or job-run ID [--label NAME]; check option values and file paths.',
 		});
 	} finally {
 		if (bench) {

@@ -30,6 +30,7 @@ import {
 import { JOBS_COVERAGE_OBLIGATIONS, readJobCoverageFromSet } from './job-coverage.js';
 import { type JobSource, loadJobSourceModule } from './job-source.js';
 import { readA11yFromSet, readObservationFromSet } from './jobs.js';
+import * as noteRun from './note-run.js';
 import { type PackHost, runPack } from './pack-run.js';
 import type { JobDriverResult } from './plugin.js';
 import * as pointRun from './point-run.js';
@@ -984,6 +985,7 @@ export async function createInProcessBench(
 			return (await capture(request)).observation as Observation;
 		},
 		...pointRun.createPointApi(ensureOpen, { config, capture }),
+		...noteRun.createNoteApi(ensureOpen, { config, capture }),
 		async captureSet(rawRequest: CaptureSetRequest = {}): Promise<CaptureSetRun> {
 			ensureOpen();
 			const request = parseCaptureSetRequest(rawRequest);

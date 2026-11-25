@@ -25,6 +25,11 @@ import type {
 	JobRunRequest,
 	MatrixRequest,
 	MatrixRun,
+	NoteAddRequest,
+	NoteCheckRequest,
+	NoteCheckResult,
+	NoteMoveRequest,
+	NoteResult,
 	Observation,
 	PackBuildRequest,
 	PackBuildRun,
@@ -67,6 +72,9 @@ type WorkerOperation =
 	| { operation: 'point'; request: PointRequest }
 	| { operation: 'pointMove'; request: PointMoveRequest }
 	| { operation: 'pointCheck'; request: PointCheckRequest }
+	| { operation: 'noteAdd'; request: NoteAddRequest }
+	| { operation: 'noteCheck'; request: NoteCheckRequest }
+	| { operation: 'noteMove'; request: NoteMoveRequest }
 	| { operation: 'build'; outDir: string }
 	| { operation: 'close' }
 	| { operation: 'abort' };
@@ -383,6 +391,24 @@ export class BenchWorkerClient {
 			{ operation: 'pointCheck', request },
 			(request.timeoutMs ?? 10_000) + 15_000
 		)) as PointCheckResult;
+	}
+	async noteAdd(request: NoteAddRequest): Promise<NoteResult> {
+		await this.ready;
+		return (await this.request(
+			{ operation: 'noteAdd', request },
+			(request.timeoutMs ?? 10_000) + 15_000
+		)) as NoteResult;
+	}
+	async noteCheck(request: NoteCheckRequest = {}): Promise<NoteCheckResult> {
+		await this.ready;
+		return (await this.request({ operation: 'noteCheck', request }, 3_600_000)) as NoteCheckResult;
+	}
+	async noteMove(request: NoteMoveRequest): Promise<NoteResult> {
+		await this.ready;
+		return (await this.request(
+			{ operation: 'noteMove', request },
+			(request.timeoutMs ?? 10_000) + 15_000
+		)) as NoteResult;
 	}
 	async build(outDir: string): ReturnType<SpecimenBench['build']> {
 		await this.ready;

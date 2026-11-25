@@ -1079,6 +1079,27 @@ export const pointCheckResultSchema = z.strictObject({
 	status: z.enum(['current', 'stale']),
 	changed: z.array(z.string()),
 });
+export {
+	noteAddRequestSchema,
+	noteCheckRequestSchema,
+	noteCheckResultSchema,
+	noteEvidenceSchema,
+	noteHistoryEntrySchema,
+	noteListRequestSchema,
+	noteListResultSchema,
+	noteListStateSchema,
+	noteMoveRequestSchema,
+	noteOutcomeSchema,
+	noteReopenRequestSchema,
+	noteResolutionSchema,
+	noteResolveRequestSchema,
+	noteResolveResultSchema,
+	noteResultSchema,
+	noteSchema,
+	noteStateSchema,
+	noteSubjectSchema,
+} from './note-schema.js';
+
 const captureEntryKindSchema = z.enum(['component', 'story', 'job', 'gate']);
 const captureLabelSchema = z
 	.string()
