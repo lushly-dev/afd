@@ -159,7 +159,8 @@ export interface McpServerOptions {
 	 * also runs afd-auth's middleware passes `isVerifiedCredentials` to it**
 	 * (`createAuthMiddleware(adapter, { isVerifiedCredentials })`, from
 	 * `@lushly-dev/afd-server/credentials`), so a token's call keeps the actor its credentials
-	 * map to instead of being gated on the adapter's session.
+	 * map to instead of being gated on the adapter's session. The server refuses to be built with
+	 * afd-auth's middleware without it, in `middleware` directly or in `composeMiddleware`.
 	 *
 	 * Scopes (M6: `requiredScopes`, `resolver`, `filterToolsByScope`) are not enforced by this
 	 * version; passing one throws rather than being ignored.

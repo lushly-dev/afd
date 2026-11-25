@@ -85,8 +85,14 @@ const middleware = createAuthMiddleware(adapter, { isVerifiedCredentials });
 ```
 
 - A host that serves MCP with token authorization through this middleware
-  must pass it. Without it, a token's call is gated on the adapter's session
-  and its actor is stamped with the session user, as for any other call.
+  must pass it. Without it, a token's call would be gated on the adapter's
+  session and its actor stamped with the session user, so afd-server's
+  `createMcpServer` and `createMcpHandler` with `auth` throw when they are
+  built with this middleware lacking it, in `middleware` directly or inside
+  `composeMiddleware`. A server without `auth` is unaffected. A middleware
+  wrapped in a function of your own is not seen, so pass the option there too,
+  and take `isVerifiedCredentials` from the copy of afd-server that serves the
+  request: each copy keeps its own brand.
 - afd-server marks the `credentials` object it sets after verifying a token
   with a private brand, and freezes it; `isVerifiedCredentials` recognises only
   that object, and only until its `expiresAt` (or the end of its request).

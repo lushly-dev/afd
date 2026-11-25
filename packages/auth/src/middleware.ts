@@ -22,6 +22,12 @@ declare module '@lushly-dev/afd-core' {
 
 const SESSION_COMMANDS: ReadonlySet<string> = new Set(AUTH_COMMAND_NAMES);
 
+/**
+ * Registered, so afd-server (from any installed copy) can see whether this middleware was given
+ * `isVerifiedCredentials`, and refuse a server with `auth` that runs it without.
+ */
+const CREDENTIALS_MARK = Symbol.for('dev.afd/auth-middleware-credentials');
+
 export interface AuthMiddlewareOptions {
 	/**
 	 * Command names that bypass auth checks. The built-in auth commands
@@ -37,7 +43,9 @@ export interface AuthMiddlewareOptions {
 	 * actor, never reads the session for it, deletes `context.auth` and runs the command.
 	 *
 	 * A host that serves MCP with token authorization through this middleware must pass it, or
-	 * the session's user is stamped on every token's call. Without it, no call is treated so:
+	 * the session's user is stamped on every token's call: afd-server's `createMcpServer` and
+	 * `createMcpHandler` with `auth` refuse to be built with this middleware without it, in
+	 * `middleware` directly or inside `composeMiddleware`. Without it, no call is treated so:
 	 * every call is gated on the session, as before. `credentials` a caller put on the context
 	 * itself (a direct-registry call, say) are never recognised, since only afd-server can mark
 	 * them.
@@ -102,7 +110,7 @@ export function createAuthMiddleware(
 	const excluded = new Set<string>([...AUTH_COMMAND_NAMES, ...(options.exclude ?? [])]);
 	const { isVerifiedCredentials, clock } = options;
 
-	return async (commandName, _input, context, next) => {
+	const middleware: CommandMiddleware = async (commandName, _input, context, next) => {
 		const now = clock ? clock.now() : Date.now();
 		if (context.credentials !== undefined && isVerifiedCredentials !== undefined) {
 			if (isVerifiedCredentials(context.credentials, now) === true) {
@@ -175,4 +183,8 @@ export function createAuthMiddleware(
 			retryable: false,
 		});
 	};
+	Object.defineProperty(middleware, CREDENTIALS_MARK, {
+		value: { recognisesVerifiedCredentials: isVerifiedCredentials !== undefined },
+	});
+	return middleware;
 }
