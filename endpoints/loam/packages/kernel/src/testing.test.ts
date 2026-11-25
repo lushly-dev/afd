@@ -103,6 +103,36 @@ describe('P2-E13: E2: a replayed journal reproduces the layout', () => {
 		expect((error as LoamKernelError).details).toEqual({ firstSeq: 6 });
 	});
 
+	it('replays an agent sign-in journaled before afd-auth took it off the agent surface', async () => {
+		const { entries } = await recordSession(SESSION_50);
+		const agent = entries.find(
+			(entry) => entry.contextDigest?.interface === 'agent'
+		) as JournalEntry;
+		const last = entries.at(-1) as JournalEntry;
+		// The agent entry's own fields, without its context or trace, which would tie this one to its call.
+		const { context: _context, traceId: _traceId, ...fields } = structuredClone(agent);
+		const refused: JournalEntry = {
+			...fields,
+			seq: last.seq + 1,
+			command: 'auth-sign-in',
+			input: { method: 'credentials', email: 'person@example.com' },
+			result: {
+				success: false,
+				error: {
+					code: 'HUMAN_REQUIRED',
+					message:
+						"'auth-sign-in' changes or lists what only the person may, so an agent cannot run it",
+					suggestion: 'A person must do this in the shell',
+					retryable: false,
+				},
+			},
+		};
+		const replayed = await replayKernel([...entries, refused]);
+		expect(replayed.report.different).toBe(0);
+		expect(replayed.report.errors).toBe(0);
+		expect(replayed.report.same).toBe(entries.length + 1);
+	});
+
 	it('fails a divergence with the first difference', async () => {
 		const { entries } = await recordSession(SESSION_50);
 		const tampered: JournalEntry[] = structuredClone(entries);

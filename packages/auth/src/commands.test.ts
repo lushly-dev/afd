@@ -367,13 +367,13 @@ describe('createAuthCommands', () => {
 			expect(adapter.listenerCount()).toBe(0);
 		});
 
-		it('has correct expose settings (no mcp)', () => {
+		it('has correct expose settings (no mcp, and no agent: a person signs in)', () => {
 			const adapter = new MockAuthAdapter();
 			const signIn = findCommand(adapter, 'auth-sign-in');
 
 			expect(signIn.expose).toEqual({
 				palette: true,
-				agent: true,
+				agent: false,
 				cli: true,
 				mcp: false,
 			});

@@ -171,7 +171,7 @@ export function createAuthMiddleware(
 				code: 'TOKEN_EXPIRED',
 				message: 'Session has expired',
 				suggestion:
-					'Try again once the auth provider has refreshed the session, or sign in again with auth-sign-in',
+					'Try again once the auth provider has refreshed the session, or sign in again with auth-sign-in (an agent asks the person to)',
 				retryable: true,
 			});
 		}
@@ -179,7 +179,8 @@ export function createAuthMiddleware(
 		return failure({
 			code: 'UNAUTHORIZED',
 			message: 'Authentication required',
-			suggestion: 'Sign in with auth-sign-in to access this command',
+			suggestion:
+				'Sign in with auth-sign-in to access this command; an agent asks the person to sign in, then calls again',
 			retryable: false,
 		});
 	};

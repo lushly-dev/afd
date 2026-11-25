@@ -96,7 +96,8 @@ function notMember(actor: AccessActorV1): CommandResult<never> {
 		return failure({
 			code: 'UNAUTHORIZED',
 			message: 'Authentication required',
-			suggestion: 'Sign in with auth-sign-in to access this command',
+			suggestion:
+				'Sign in with auth-sign-in to access this command; an agent asks the person to sign in, then calls again',
 			retryable: false,
 		});
 	}

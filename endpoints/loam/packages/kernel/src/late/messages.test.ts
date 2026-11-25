@@ -95,7 +95,9 @@ async function registry() {
 					queued: Symbol(),
 				}
 			)
-		).shell
+		).shell,
+		// The person's interface: `auth-sign-in` is not on the agent's.
+		{ interface: 'palette' }
 	);
 }
 
@@ -105,6 +107,8 @@ async function refusals(cases: Array<{ name: string; input: unknown }>) {
 		cases.map(async ({ name, input }) => {
 			const result = await commands.execute(name, input);
 			expect(result.success, `${name} ${JSON.stringify(input)}`).toBe(false);
+			// Refused by its schema, never because the interface does not list it.
+			expect(result.error?.code, name).not.toBe('COMMAND_NOT_EXPOSED');
 			return { name, input, error: result.error };
 		})
 	);

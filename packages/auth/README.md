@@ -55,6 +55,9 @@ const middleware = createAuthMiddleware(adapter, { exclude: ['public-cmd'] });
 - The built-in commands `auth-sign-in`, `auth-sign-out` and `auth-session-get`
   (`AUTH_COMMAND_NAMES`) always run, so a signed-out caller can sign in.
   `exclude` adds more commands.
+- `auth-sign-in` is exposed to the palette and the CLI, not to agents or MCP:
+  a person signs in, so an agent is never handed a password or a sign-in to
+  drive, and asks the person instead.
 - The middleware sets or deletes `context.auth` on every call, excluded
   commands included. A handler never sees a `context.auth` that the caller
   supplied.

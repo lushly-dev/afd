@@ -623,11 +623,12 @@ describe('the trust review’s findings (step 3)', () => {
 	it('refuses an agent the person’s session, and lists it no sign-in or sign-out (C)', async () => {
 		const { kernel } = await setup();
 		await kernel.call('autonomy-set', { level: 'workspace', mode: 'act' });
-		for (const [name, input] of [
-			['auth-sign-out', {}],
-			['auth-sign-in', { method: 'credentials', email: 'a@example.com', password: 'x' }],
-		] as const)
-			expect((await kernel.agent.call(name, input)).error?.code, name).toBe('HUMAN_REQUIRED');
+		expect((await kernel.agent.call('auth-sign-out', {})).error?.code).toBe('HUMAN_REQUIRED');
+		// afd-auth keeps sign-in off the agent surface, so the agent is never handed it to run.
+		const signIn = { method: 'credentials', email: 'a@example.com', password: 'x' } as const;
+		expect((await kernel.agent.call('auth-sign-in', signIn)).error?.code).toBe(
+			'COMMAND_NOT_EXPOSED'
+		);
 	});
 
 	it('holds the person’s appearance and inbox to their setting, and the alias too (D, I2)', async () => {

@@ -296,6 +296,8 @@ export function createEnforcement(deps: EnforcementDeps): Enforcement {
 		// The shell's run of a call a person confirmed: the confirmations' gate checks its id against the act that holds it.
 		if (call.confirmation !== undefined) return next();
 		// A person's session is theirs (6.1: one needing PERSON_SESSION is never asked): signing in or out is refused.
+		// afd-auth keeps `auth-sign-in` off the agent surface, so the registry refuses it before this; kept as a second
+		// guard should a host expose it.
 		if (name === 'auth-sign-in' || name === 'auth-sign-out') {
 			return deps.kernelFailure(
 				'HUMAN_REQUIRED',
