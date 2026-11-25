@@ -2,7 +2,8 @@
  * @fileoverview CLI configuration management
  */
 
-import { chmodSync, statSync } from 'node:fs';
+import { chmodSync, lstatSync, statSync } from 'node:fs';
+import { dirname } from 'node:path';
 import Conf from 'conf';
 
 /** Transports the CLI can use. */
@@ -59,6 +60,22 @@ const store = new Conf<StoredConfig>({
  * writes, and reading the config never writes it.
  */
 export function restrictConfigFile(path: string): void {
+	try {
+		if (process.platform !== 'win32') {
+			const dir = dirname(path);
+			const dirStats = lstatSync(dir);
+			if (
+				!dirStats.isSymbolicLink() &&
+				dirStats.isDirectory() &&
+				(typeof process.getuid !== 'function' || dirStats.uid === process.getuid()) &&
+				(dirStats.mode & 0o077) !== 0
+			) {
+				chmodSync(dir, 0o700);
+			}
+		}
+	} catch {
+		// Directory does not exist yet, or a filesystem without POSIX modes.
+	}
 	try {
 		if ((statSync(path).mode & 0o077) !== 0) chmodSync(path, CONFIG_FILE_MODE);
 	} catch {

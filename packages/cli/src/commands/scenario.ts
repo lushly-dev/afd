@@ -20,7 +20,7 @@ import ora, { type Ora } from 'ora';
 import type { CliTransport } from '../config.js';
 import {
 	type ConnectFlags,
-	createCliClient,
+	connectWithAuth,
 	headersOrExit,
 	inferTransport,
 	setClient,
@@ -219,16 +219,16 @@ async function runScenarios(path: string, options: RunOptions): Promise<void> {
 		let client: McpClient;
 
 		try {
-			client = createCliClient({
+			const connected = await connectWithAuth({
 				url: options.server,
 				transport: options.transport ?? inferTransport(options.server),
 				timeout: Number.parseInt(options.timeout, 10),
 				autoReconnect: false,
 				headers,
 			});
+			client = connected.client;
 			// Registered so the CLI entry point disconnects it on every exit path.
 			setClient(client);
-			await client.connect();
 			connectSpinner.succeed('Connected to server');
 		} catch (error) {
 			connectSpinner.fail('Failed to connect to server');

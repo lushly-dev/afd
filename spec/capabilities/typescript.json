@@ -537,6 +537,18 @@
 			"note": "([#1971](https://github.com/lushly-dev/afd/issues/1971)): `tasks/get`, `tasks/update` and `tasks/cancel` fail closed, bind verified credentials as owner, enforce M6 command scopes and hidden commands, preserve verified credentials inside running tasks, and stop at `credentials.expiresAt` (`TASK_TOKEN_EXPIRED`); `tasks.test.ts`",
 			"evidence": ["packages/server/src/tasks-runtime.ts", "packages/server/src/tasks.test.ts"]
 		},
+		"mcp.auth.cli-client": {
+			"status": "yes",
+			"note": "([#912](https://github.com/lushly-dev/afd/issues/912)): `afd auth` (`login`, `status`, `refresh`, `logout`), RFC 9728/8414 discovery, CIMD and pre-registration, PKCE S256 loopback flow, separate `tokens.json` with refresh rotation and URL/header redaction; loads `spec/authorization-client.json`",
+			"evidence": [
+				"packages/cli/src/oauth-protocol.ts",
+				"packages/cli/src/oauth-client.ts",
+				"packages/cli/src/token-store.ts",
+				"packages/cli/src/commands/auth.ts",
+				"packages/cli/src/oauth-cases.test.ts",
+				"packages/cli/src/oauth.e2e.test.ts"
+			]
+		},
 		"mcp.tool-strategies": {
 			"status": "yes",
 			"note": "(default grouped; the #533 lists)",

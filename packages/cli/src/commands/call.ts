@@ -11,7 +11,12 @@ import ora from 'ora';
 import { approvalDetails, callWithApproval, interactiveApproval } from '../approval.js';
 import { describeArgsError, parseToolArgs } from '../args.js';
 import type { CliTransport } from '../config.js';
-import { type ConnectFlags, headersOrExit, requireClient } from '../connection.js';
+import {
+	type ConnectFlags,
+	callWithOAuthRetry,
+	headersOrExit,
+	requireClient,
+} from '../connection.js';
 import { type OutputFormat, printError, printResult } from '../output.js';
 import { terminalText } from '../terminal.js';
 import { headerOption, transportOption } from './options.js';
@@ -112,7 +117,7 @@ it, and MCP has no trusted channel for it yet. The result is printed unchanged.`
 			const spinner = ora(`Calling ${terminalText(name)}...`).start();
 
 			try {
-				const result = await client.call(name, parsedArgs);
+				const result = await callWithOAuthRetry(client, name, parsedArgs);
 				spinner.stop();
 
 				printResult(result, {

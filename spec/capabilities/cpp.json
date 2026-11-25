@@ -542,6 +542,11 @@
 			"note": "not planned for C++",
 			"evidence": ["docs/features/complete/mcp-tasks/mcp-tasks.proposal.md"]
 		},
+		"mcp.auth.cli-client": {
+			"status": "na",
+			"note": "no C++ CLI",
+			"evidence": ["docs/language-parity.md"]
+		},
 		"mcp.tool-strategies": {
 			"status": "yes",
 			"note": "(`StdioServerOptions::tool_strategy`, default `grouped`, and `group_by`; the #533 lists)",

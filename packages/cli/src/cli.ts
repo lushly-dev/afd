@@ -3,6 +3,7 @@
  */
 
 import { Command } from 'commander';
+import { registerAuthCommand } from './commands/auth.js';
 import { registerBatchCommand } from './commands/batch.js';
 import { registerCallCommand } from './commands/call.js';
 import {
@@ -32,6 +33,7 @@ export function createCli(): Command {
 		.version(CLI_VERSION);
 
 	// Register commands
+	registerAuthCommand(program);
 	registerConnectCommand(program);
 	registerDisconnectCommand(program);
 	registerStatusCommand(program);

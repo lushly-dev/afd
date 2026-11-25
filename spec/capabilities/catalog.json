@@ -323,6 +323,10 @@
 			"label": "`tasks/*` and task owners ([M6, other methods](#other-methods); M8; [tasks](./command-metadata.md#tasks))"
 		},
 		{
+			"id": "mcp.auth.cli-client",
+			"label": "CLI OAuth 2.1 client ([M9](#m9-the-oauth-client-cli)): PKCE S256 loopback flow, RFC 9728/8414 discovery, CIMD and pre-registration, separate owner-only token store with expiry refresh, and URL/header redaction ([#912](https://github.com/lushly-dev/afd/issues/912))"
+		},
+		{
 			"id": "mcp.tool-strategies",
 			"label": "Tool strategies: individual, grouped, lazy ([`spec/tool-strategies.md`](../spec/tool-strategies.md)): the five meta-tools first, in the hybrid order; lazy adds the context tools (#533)"
 		},
@@ -773,6 +777,10 @@
 					"capability": "tooling.cli"
 				},
 				{
+					"capability": "mcp.auth.cli-client",
+					"label": "CLI OAuth 2.1 client ([`spec/authorization.md`](../spec/authorization.md#m9-the-oauth-client-cli), M9)"
+				},
+				{
 					"capability": "tooling.auth-adapter"
 				},
 				{
@@ -1119,6 +1127,9 @@
 				},
 				{
 					"capability": "mcp.auth.tasks"
+				},
+				{
+					"capability": "mcp.auth.cli-client"
 				}
 			]
 		},

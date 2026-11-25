@@ -9,16 +9,29 @@ import { describeArgsError, parseToolArgs } from '../args.js';
 import { type CliTransport, getConfig, saveConnection } from '../config.js';
 import {
 	type ConnectFlags,
+	callWithOAuthRetry,
 	closeClient,
-	createCliClient,
+	connectWithAuth,
 	getClient,
 	headersOrExit,
 	inferTransport,
+	isUnauthorizedError,
+	setActiveClientAuth,
 	setClient,
 } from '../connection.js';
-import { redactUrl } from '../credentials.js';
-import { printClientStatus, printError, printResult, printSuccess, printTools } from '../output.js';
+import { redactUrl, stripOAuthUrlCredentials } from '../credentials.js';
+import { OAuthFlowError } from '../oauth-client.js';
+import { isTokenExpiring } from '../oauth-protocol.js';
+import {
+	printClientStatus,
+	printError,
+	printResult,
+	printSuccess,
+	printTools,
+	printWarning,
+} from '../output.js';
 import { terminalText } from '../terminal.js';
+import { getStoredToken, tryDefaultTokenStorePath } from '../token-store.js';
 import { matchesCategory } from '../tool-category.js';
 import { headerOption, TRANSPORTS, transportOption } from './options.js';
 
@@ -36,6 +49,14 @@ interface ShellSession {
 	reconnect: boolean;
 	/** Request headers; never saved. */
 	headers: Record<string, string>;
+	/** Active connection target when OAuth-backed, so expiring tokens can refresh mid-session. */
+	activeTarget?: {
+		url: string;
+		transport: CliTransport;
+		autoReconnect: boolean;
+		usedOAuth: boolean;
+		hasRefreshToken: boolean;
+	};
 	/** Set by `exit`: lines still queued after it are ignored. */
 	exiting: boolean;
 	close: () => void;
@@ -183,7 +204,7 @@ async function processCommand(session: ShellSession, input: string): Promise<voi
 			break;
 
 		case 'disconnect':
-			await handleDisconnect();
+			await handleDisconnect(session);
 			break;
 
 		case 'status':
@@ -192,12 +213,12 @@ async function processCommand(session: ShellSession, input: string): Promise<voi
 
 		case 'tools':
 		case 'list':
-			await handleTools(rest);
+			await handleTools(session, rest);
 			break;
 
 		case 'call': {
 			const { head: name, rest: args } = splitHead(rest);
-			await handleCall(name, args);
+			await handleCall(session, name, args);
 			break;
 		}
 
@@ -206,8 +227,8 @@ async function processCommand(session: ShellSession, input: string): Promise<voi
 			break;
 
 		default:
-			if (await isToolName(cmd)) {
-				await handleCall(cmd, rest);
+			if (await isToolName(session, cmd)) {
+				await handleCall(session, cmd, rest);
 			} else {
 				printError(
 					`Unknown command: ${cmd}. Type "help" for shell commands or "tools" to list tools.`
@@ -221,7 +242,8 @@ async function processCommand(session: ShellSession, input: string): Promise<voi
  * names a listed tool, or it has the shape of an AFD command name. The second
  * case covers grouped and lazy servers, which do not list every command.
  */
-async function isToolName(name: string): Promise<boolean> {
+async function isToolName(session: ShellSession, name: string): Promise<boolean> {
+	await refreshShellOAuthIfNeeded(session);
 	const client = getClient();
 	if (client?.isConnected()) {
 		let tools = client.getTools();
@@ -264,21 +286,92 @@ async function openConnection(
 	save: boolean
 ): Promise<void> {
 	await closeClient();
+	session.activeTarget = undefined;
 	const shownUrl = redactUrl(target.url);
 	console.log(chalk.dim(`Connecting to ${terminalText(shownUrl)}...`));
 
-	const client = createCliClient({ ...target, timeout: session.timeout, headers: session.headers });
 	try {
-		await client.connect();
+		const { client, usedOAuth, hasRefreshToken } = await connectWithAuth({
+			...target,
+			timeout: session.timeout,
+			headers: session.headers,
+		});
 		setClient(client);
+		setActiveClientAuth({
+			url: target.url,
+			transport: target.transport,
+			timeout: session.timeout,
+			autoReconnect: target.autoReconnect,
+			headers: session.headers,
+			usedOAuth,
+			hasRefreshToken,
+		});
+		session.activeTarget = { ...target, usedOAuth, hasRefreshToken };
 		if (save) {
-			saveConnection({ ...target, timeout: session.timeout });
+			const sanitized = stripOAuthUrlCredentials(target.url);
+			saveConnection({ ...target, url: sanitized.url, timeout: session.timeout });
+			if (sanitized.stripped) {
+				printWarning(
+					'OAuth credentials in the URL were stripped and not saved to config.json. Use "afd auth login <url>" instead.'
+				);
+			}
 		}
 		printSuccess(`Connected to ${shownUrl}`);
 	} catch (error) {
-		await client.disconnect().catch(() => undefined);
 		printError('Connection failed', error instanceof Error ? error : undefined);
 	}
+}
+
+/**
+ * Reconnect with a refreshed OAuth token when an active OAuth-backed shell session's
+ * stored access token is expiring (or after a reactive 401), or refuse expired tokens
+ * that have no refresh token before dispatching any command.
+ */
+async function refreshShellOAuthIfNeeded(session: ShellSession, force = false): Promise<boolean> {
+	const target = session.activeTarget;
+	if (!target?.usedOAuth) return false;
+	const storePath = tryDefaultTokenStorePath();
+	if (!storePath) return false;
+	const stored = getStoredToken(target.url, storePath);
+	if (!target.hasRefreshToken) {
+		if (stored && isTokenExpiring(stored.expiresAt, Math.floor(Date.now() / 1000), 0)) {
+			await closeClient();
+			session.activeTarget = undefined;
+			throw new OAuthFlowError(
+				'OAUTH_TOKEN_EXPIRED',
+				`Stored OAuth token for ${redactUrl(target.url)} has expired and has no refresh token.`,
+				`Run "afd auth login ${redactUrl(target.url)}" to sign in again.`
+			);
+		}
+		return false;
+	}
+	if (!force) {
+		if (!stored || !isTokenExpiring(stored.expiresAt)) return false;
+	}
+	await closeClient();
+	const { client, usedOAuth, hasRefreshToken } = await connectWithAuth(
+		{
+			url: target.url,
+			transport: target.transport,
+			autoReconnect: target.autoReconnect,
+			timeout: session.timeout,
+			headers: session.headers,
+		},
+		{ storePath, forceRefresh: force }
+	);
+	setClient(client);
+	setActiveClientAuth({
+		url: target.url,
+		transport: target.transport,
+		timeout: session.timeout,
+		autoReconnect: target.autoReconnect,
+		headers: session.headers,
+		storePath,
+		usedOAuth,
+		hasRefreshToken,
+	});
+	session.activeTarget = { ...target, usedOAuth, hasRefreshToken };
+	return true;
 }
 
 /**
@@ -306,20 +399,22 @@ async function handleConnect(session: ShellSession, rest: string): Promise<void>
 /**
  * Handle disconnect command.
  */
-async function handleDisconnect(): Promise<void> {
+async function handleDisconnect(session: ShellSession): Promise<void> {
 	if (!getClient()) {
 		printError('Not connected');
 		return;
 	}
 
 	await closeClient();
+	session.activeTarget = undefined;
 	printSuccess('Disconnected');
 }
 
 /**
  * Handle `tools [category]`.
  */
-async function handleTools(rest: string): Promise<void> {
+async function handleTools(session: ShellSession, rest: string): Promise<void> {
+	await refreshShellOAuthIfNeeded(session);
 	const client = getClient();
 	if (!client?.isConnected()) {
 		printError('Not connected');
@@ -328,7 +423,20 @@ async function handleTools(rest: string): Promise<void> {
 
 	let tools = client.getTools();
 	if (tools.length === 0) {
-		tools = await client.refreshTools();
+		try {
+			tools = await client.refreshTools();
+		} catch (error) {
+			if (isUnauthorizedError(error) && (await refreshShellOAuthIfNeeded(session, true))) {
+				const refreshedClient = getClient();
+				if (refreshedClient?.isConnected()) {
+					tools = await refreshedClient.refreshTools();
+				} else {
+					throw error;
+				}
+			} else {
+				throw error;
+			}
+		}
 	}
 
 	const category = rest.trim();
@@ -342,7 +450,8 @@ async function handleTools(rest: string): Promise<void> {
 /**
  * Handle a tool call; `rawArgs` is the unsplit rest of the line.
  */
-async function handleCall(name: string, rawArgs: string): Promise<void> {
+async function handleCall(session: ShellSession, name: string, rawArgs: string): Promise<void> {
+	await refreshShellOAuthIfNeeded(session);
 	const client = getClient();
 	if (!client?.isConnected()) {
 		printError('Not connected');
@@ -363,7 +472,15 @@ async function handleCall(name: string, rawArgs: string): Promise<void> {
 	}
 
 	try {
-		const result = await client.call(name, parsedArgs);
+		const result = await callWithOAuthRetry(client, name, parsedArgs, (next) => {
+			if (session.activeTarget) {
+				session.activeTarget = {
+					...session.activeTarget,
+					usedOAuth: next.usedOAuth,
+					hasRefreshToken: next.hasRefreshToken,
+				};
+			}
+		});
 		printResult(result);
 	} catch (error) {
 		printError('Call failed', error instanceof Error ? error : undefined);

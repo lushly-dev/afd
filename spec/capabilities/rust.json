@@ -505,6 +505,11 @@
 			"note": "(Umbel phase 5 step 0e): `tasks/get`, `tasks/update` and `tasks/cancel` fail closed, need required scopes and run the context hook; owner is principal binding, checked by `TaskStore` and server; owner must still hold command `scopes` (`visible`/`known`); stops at `credentials.expiresAt`",
 			"evidence": ["packages/rust/tests/server_tasks.rs"]
 		},
+		"mcp.auth.cli-client": {
+			"status": "na",
+			"note": "no Rust CLI",
+			"evidence": ["docs/language-parity.md"]
+		},
 		"mcp.tool-strategies": {
 			"status": "yes",
 			"note": "(default grouped, `with_tool_strategy`, `with_group_by`; the #533 lists)",

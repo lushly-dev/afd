@@ -201,6 +201,15 @@ export function printError(message: string, error?: Error): void {
 	if (error?.message && error.message !== message) {
 		console.error(chalk.dim(terminalText(error.message)));
 	}
+	const suggestion =
+		error &&
+		'suggestion' in error &&
+		typeof (error as { suggestion?: unknown }).suggestion === 'string'
+			? (error as { suggestion: string }).suggestion
+			: undefined;
+	if (suggestion) {
+		console.error(chalk.dim('Suggestion:'), terminalText(suggestion));
+	}
 }
 
 /**

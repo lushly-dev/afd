@@ -529,6 +529,11 @@
 				"python/tests/test_tasks.py"
 			]
 		},
+		"mcp.auth.cli-client": {
+			"status": "planned",
+			"note": "([#2491](https://github.com/lushly-dev/afd/issues/2491)): OAuth 2.1 CLI client (`spec/authorization.md`, M9)",
+			"evidence": ["spec/authorization.md"]
+		},
 		"mcp.tool-strategies": {
 			"status": "yes",
 			"note": "(default `grouped`; the #533 lists, with `meta-tools.json`'s definitions)",
