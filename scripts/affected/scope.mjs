@@ -120,11 +120,11 @@ export const EXTRA_INPUTS = [
 	// The seed library's tests check the bench's results against its output schemas, and its
 	// confirmation prompts against the tasks that quote them.
 	{
-		prefix: 'docs/features/proposed/agent-first-design/bench/results/',
+		prefix: 'docs/features/active/agent-first-design/bench/results/',
 		packages: ['@afd/example-seed-library'],
 	},
 	{
-		prefix: 'docs/features/proposed/agent-first-design/bench/tasks/',
+		prefix: 'docs/features/active/agent-first-design/bench/tasks/',
 		packages: ['@afd/example-seed-library'],
 	},
 	// specimen-fast-af's portable-gates browser test bundles real Violet elements directly by path

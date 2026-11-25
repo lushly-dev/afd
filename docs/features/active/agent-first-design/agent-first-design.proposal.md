@@ -6,12 +6,14 @@ defaults. Agents review early and often, and a person decides at the points that
 
 ## Status
 
-- **State:** scaffold with a design direction and Phase A draft specification. Written 2026-11-14
-  against `545316f2`. It states the problem, what exists, a model, draft jobs, a design direction
-  and the owner's decisions. The owner answered the direction and ranked the jobs first, the order
-  the [Scales scaffold](../../active/scales/STATUS.md) set; on 2026-11-24 Phase A drafted the
-  commands, 12 ranked-job scenario files and proposed companion amendments in
-  [`spec.md`](spec.md) and [`scenarios/`](scenarios/), walked by three fresh readers.
+- **State:** active feature (promoted 2026-11-24 under Epic
+  [#2544](https://github.com/lushly-dev/afd/issues/2544)). Written 2026-11-14 against `545316f2`;
+  phase 0 closed 2026-11-24 (**go with changes**, [#2530](https://github.com/lushly-dev/afd/pull/2530));
+  phase A specification and 12 ranked-job scenarios merged in [#2537](https://github.com/lushly-dev/afd/pull/2537)
+  ([`spec.md`](spec.md), [`scenarios/`](scenarios/)), walked by three fresh readers and reviewed by
+  two models; all four companion amendments accepted by the owner on 2026-11-24 and applied to
+  Patterns, Design Decisions, Screens from Jobs, and section 10 below. The owner answered the
+  direction and ranked the jobs first, the order the [Scales scaffold](../scales/STATUS.md) set.
   [STATUS.md](STATUS.md) tracks progress.
 - **Amended:** 2026-11-16, with [5.10](#510-where-the-parts-live), where the result-state work
   and interface state live, and two facts in [section 2](#specimen-violet-and-umbel) about the
@@ -20,7 +22,7 @@ defaults. Agents review early and often, and a person decides at the points that
   of the screen ([question 13](#9-for-the-owner)) and a published design to compare it with,
   both in [5.10](#510-where-the-parts-live).
 - **Amended 2026-11-24, later:** with the owner's clarification of that answer, under
-  question 13, and the [Controls proposal](../../active/controls/controls.proposal.md), which now
+  question 13, and the [Controls proposal](../controls/controls.proposal.md), which now
   carries the work.
 - **Verified:** every claim in [What exists today](#2-what-exists-today) was read first-hand on
   2026-11-14 at `545316f2`, except where a line says otherwise.
@@ -42,19 +44,17 @@ defaults. Agents review early and often, and a person decides at the points that
     repository. Nothing here depends on them, and none of their text or data is used.
   - [UI SDK](https://ui-sdk.dev/)'s documentation for agents, read on 2026-11-24. It was not
     installed or run. [Section 5.10](#a-published-design-to-compare) says what it bears on.
-- **Next:** phase 0 closed on 2026-11-24 with the owner's step 0.6 decision (**go with changes**;
-  [`bench/record/`](bench/record/README.md)), keeping steps 0.2 and 0.5 deferred. Phase A's
-  drafted commands, 12 scenarios, three-seat walks and proposed companion amendments are in
-  [`spec.md`](spec.md) and [`scenarios/`](scenarios/), waiting on the owner to accept or refuse
-  [`spec.md` §4](spec.md#4-proposed-amendments-for-the-owner) before moving them into Patterns,
-  Design Decisions and Screens from Jobs. The owner also answers the questions still open in
-  [For the owner](#9-for-the-owner): 4, 8, 9 and 10.
+- **Next:** phases B–D under Epic [#2544](https://github.com/lushly-dev/afd/issues/2544)
+  (and Q4 confidence-band cleanup in [#2545](https://github.com/lushly-dev/afd/issues/2545)):
+  default result-state patterns and copied-pattern commands, modality-enforced persona panels and
+  blind calibration, unified decision cards and `design-release`, and post-release journal
+  observation.
 
 | Field | Value |
 | --- | --- |
-| Epic | None for this proposal yet; opening one is the owner's call. [#1385](https://github.com/lushly-dev/afd/issues/1385) carries the code of [5.10](#510-where-the-parts-live) |
+| Epic | [#2544](https://github.com/lushly-dev/afd/issues/2544) (Agent-First Design); [#1385](https://github.com/lushly-dev/afd/issues/1385) carries the code of [5.10](#510-where-the-parts-live) |
 | Units likely touched | The `afd` skill and `packages/core` documentation; `foundations/specimen` and `integrations/specimen-afd` (a persona runner, statuses, a decision card); `endpoints/umbel` (its `components` plugin, later a copy plugin); `packages/examples` (the bench); a new local skill; for [5.10](#510-where-the-parts-live), `foundations/fast-af`, `packages/client` and `packages/view-state` |
-| Related | [Patterns](../../active/patterns/patterns.proposal.md), [Design Decisions](../../active/design-decisions/design-decisions.proposal.md), [Screens from Jobs](../../active/screens-from-jobs/screens-from-jobs.proposal.md), [Pointing](../../active/pointing/pointing.proposal.md), [Scales](../../active/scales/scales.proposal.md), [Component Briefs](../../complete/component-briefs/STATUS.md), [Agent Engine research](../agent-engine/research.md), [epic #1385](https://github.com/lushly-dev/afd/issues/1385) (where FAST-AF's parts live) |
+| Related | [Patterns](../patterns/patterns.proposal.md), [Design Decisions](../design-decisions/design-decisions.proposal.md), [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md), [Pointing](../pointing/pointing.proposal.md), [Scales](../scales/scales.proposal.md), [Component Briefs](../../complete/component-briefs/STATUS.md), [Agent Engine research](../../proposed/agent-engine/research.md), [epic #1385](https://github.com/lushly-dev/afd/issues/1385) (where FAST-AF's parts live) |
 | Rank | Not ranked. It frames the five design proposals and adds what none of them covers |
 
 ## 1. Problem
@@ -206,13 +206,13 @@ Read first-hand on 2026-11-14 at `545316f2`.
 
 | Proposal | What it gives this one | What it leaves open |
 | --- | --- | --- |
-| [Patterns](../../active/patterns/patterns.proposal.md) | Statements (`useWhen`, `avoidWhen`, `keep`, `customize`), portable gates, reuse by instance or by copy, a brief that carries patterns | Who owns a pattern (its question 4); inheritance is a non-goal; a copy is `complete` or `draft`, with no record that a person approved it |
-| [Design Decisions](../../active/design-decisions/design-decisions.proposal.md) | Variants as specimens, a recorded choice with its reason, a review that shows only what no gate settled, `decidedBy` as `person` or `script` | Agents are told not to answer a review item; nothing reviews judgement before the person |
-| [Screens from Jobs](../../active/screens-from-jobs/screens-from-jobs.proposal.md) | A job's scenario drives the application through its states | "No automated check here can judge layout or hierarchy" |
-| [Pointing](../../active/pointing/pointing.proposal.md) | A person shows an agent which element they mean | Pointing starts on Specimen's review page; pointing in the running application is deferred |
-| [Scales](../../active/scales/scales.proposal.md) | Two-stage ramps (`ref.*`), purpose-named semantic tokens and governed off-ramp reasons | Approved under [#1111](https://github.com/lushly-dev/afd/issues/1111) (Slice 1 + Slice 2); implementation open |
+| [Patterns](../patterns/patterns.proposal.md) | Statements (`useWhen`, `avoidWhen`, `keep`, `customize`), portable gates, reuse by instance or by copy, a brief that carries patterns | Who owns a pattern (its question 4); inheritance is a non-goal; a copy is `complete` or `draft`, with no record that a person approved it |
+| [Design Decisions](../design-decisions/design-decisions.proposal.md) | Variants as specimens, a recorded choice with its reason, a review that shows only what no gate settled, `decidedBy` as `person` or `script` | Agents are told not to answer a review item; nothing reviews judgement before the person |
+| [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md) | A job's scenario drives the application through its states | "No automated check here can judge layout or hierarchy" |
+| [Pointing](../pointing/pointing.proposal.md) | A person shows an agent which element they mean | Pointing starts on Specimen's review page; pointing in the running application is deferred |
+| [Scales](../scales/scales.proposal.md) | Two-stage ramps (`ref.*`), purpose-named semantic tokens and governed off-ramp reasons | Approved under [#1111](https://github.com/lushly-dev/afd/issues/1111) (Slice 1 + Slice 2); implementation open |
 
-The [design-to-code proposal](../design-to-code/00-overview.md) assumes designs are made in a
+The [design-to-code proposal](../../proposed/design-to-code/00-overview.md) assumes designs are made in a
 drawing tool. The Patterns status file already asks whether to retire or rewrite it.
 
 ### Evidence
@@ -657,7 +657,7 @@ Four questions place a part:
 | Turning a result into what a piece shows: loading, ready, empty or error, with the message, suggestion, `retryable`, code, warnings and the rest of the result kept | AFD's browser client, beside the browser-safe DirectClient ([#655](https://github.com/lushly-dev/afd/issues/655)). The direct registry's command summary should also carry `confirmPrompt`, `examples`, `requires` and `tags`, which it drops today (`packages/server/src/direct-registry.ts:214`) |
 | Wording, which command a control calls, and what happens after | The application |
 | An agent seeing and setting interface state (an open panel, a selection, a tab) | `@lushly-dev/afd-view-state`, which Loam already uses with handlers it writes by hand; Lushly describes where the person is in a string it sets by hand. Proposed: a helper in that package that binds an element's properties and change events to a view-state id, and a rule Specimen can check, that a stateful component exposes its state as a settable property with a change event |
-| An agent seeing and filling what is on the screen (a field's label, its value, its choices) | Decided 2026-11-24 ([question 13](#9-for-the-owner)): an agent inside an application can, where today it can only call commands and set the state in the row above. Components still declare no actions. The recommendation the owner agreed to named `afd-view-state`. The [Controls proposal](../../active/controls/controls.proposal.md), which the owner approved the same day, places commands of its own there, with its jobs as scenarios. Its phases are sub-issues of the epic, [#2487](https://github.com/lushly-dev/afd/issues/2487) first; they replace #2275. Nothing is built |
+| An agent seeing and filling what is on the screen (a field's label, its value, its choices) | Decided 2026-11-24 ([question 13](#9-for-the-owner)): an agent inside an application can, where today it can only call commands and set the state in the row above. Components still declare no actions. The recommendation the owner agreed to named `afd-view-state`. The [Controls proposal](../controls/controls.proposal.md), which the owner approved the same day, places commands of its own there, with its jobs as scenarios. Its phases are sub-issues of the epic, [#2487](https://github.com/lushly-dev/afd/issues/2487) first; they replace #2275. Nothing is built |
 | What an agent knows about a component | Specimen's pack and Umbel's `components-brief`, as now |
 | Scoped registries in the render path, the loader for their polyfill, and the opt-in definition schema Specimen reads | The component runtime (`fast-element`). Its scoped mixin and registry builders went with the command layer on 2026-11-17 ([#1398](https://github.com/lushly-dev/afd/pull/1398)): Loam, the application that needs scoped registries, uses the browser's own API |
 
@@ -757,7 +757,10 @@ application has been measured on that task.
 
 ## 6. What this changes elsewhere
 
-Each is an amendment for the owner to accept, not an edit made here.
+*(Accepted 2026-11-24 at Phase A exit: the Patterns, Design Decisions, Screens from Jobs and §10
+amendments from [`spec.md` §4](spec.md#4-proposed-amendments-for-the-owner) have been applied to
+their owning documents; Q4 confidence-band cleanup is filed as [#2545](https://github.com/lushly-dev/afd/issues/2545);
+Design to Code is deferred past Phases B–C.)*
 
 | Document | Change |
 | --- | --- |
@@ -767,7 +770,7 @@ Each is an amendment for the owner to accept, not an edit made here.
 | Pointing | No change. Its question about pointing in the running application stands |
 | `afd` skill, `command-schema.md`, `result.ts` comments, the whitepaper | The edits in [5.3](#53-default-opinions-move-out-of-the-contract) |
 | Design to Code | Retire or rewrite it; the owner's call, already raised in the Patterns status file |
-| `fast-element`, `violet-elements`, AFD's browser client, `afd-view-state` | Where the result-state work and interface state live ([5.10](#510-where-the-parts-live)). Decided 2026-11-16 (question 13), with an addition on 2026-11-24: an agent inside an application sees and fills what is on the screen, which the [Controls proposal](../../active/controls/controls.proposal.md) carries. The code changes are [epic #1385](https://github.com/lushly-dev/afd/issues/1385)'s, not this document's |
+| `fast-element`, `violet-elements`, AFD's browser client, `afd-view-state` | Where the result-state work and interface state live ([5.10](#510-where-the-parts-live)). Decided 2026-11-16 (question 13), with an addition on 2026-11-24: an agent inside an application sees and fills what is on the screen, which the [Controls proposal](../controls/controls.proposal.md) carries. The code changes are [epic #1385](https://github.com/lushly-dev/afd/issues/1385)'s, not this document's |
 
 ## 7. Phases
 
@@ -863,6 +866,12 @@ Each recommendation is for the owner to decide.
 4. **Which opinions move out of the contract.** *Recommendation: all four in
    [5.3](#53-default-opinions-move-out-of-the-contract).* The suggestion question and the
    philosophy page are separate and yours.
+   **Decided 2026-11-24: agreed** to file follow-up
+   [#2545](https://github.com/lushly-dev/afd/issues/2545) under Epic
+   [#2544](https://github.com/lushly-dev/afd/issues/2544) for the four-language confidence-band
+   auto-apply wording in the contract; the remaining prose/skill edits in
+   [5.3](#53-default-opinions-move-out-of-the-contract) (whitepaper confidence meters and `afd`
+   skill steps 3–4) remain open doc/skill follow-ups.
 5. **Whether a panel may answer provisionally.** *Recommendation: yes, never the author of the
    change, and never for release.* Design Decisions says agents do not answer review items.
    **Decided 2026-11-14: agreed.**
@@ -876,9 +885,12 @@ Each recommendation is for the owner to decide.
    **Decided 2026-11-15: a seed library,** as the [bench specification](bench.md) describes.
 8. **Non-web applications.** Whether statements without gates are enough for an engine or a
    native interface, for now.
+   **Decided 2026-11-24: deferred past Phases B–C.**
 9. **The skill.** *Recommendation: one skill with a reference per topic, written only if step
    0.5 shows it helps.* Its name is open; `afd-design` fits the existing names.
+   **Decided 2026-11-24: remains deferred** (matching step 0.5 / step 0.6).
 10. **Design to Code.** Retire it, or rewrite it around the rendered screen.
+    **Decided 2026-11-24: deferred past Phases B–C.**
 11. **The jobs.** Cut, add and rank the fourteen jobs of the first draft. The owner asked for
     a proposal on 2026-11-14. **Decided 2026-11-14: the [rank](#rank) as proposed,** with
     job 3 merged into job 2, job 11 folded into job 10, job 13 deferred and job 15 added.
@@ -915,7 +927,7 @@ Each recommendation is for the owner to decide.
     we should have a proper path to allow the UI on AFD to be manipulated by an agent (fields
     updated, etc).." The session reads that as a case for a designed path in place of a
     workaround, which names no layer. On that reading the
-    [Controls proposal](../../active/controls/controls.proposal.md) places the code itself, as
+    [Controls proposal](../controls/controls.proposal.md) places the code itself, as
     commands of its own inside `afd-view-state`, and put how much of the screen an agent sees
     to the owner as its question 4. The owner approved that proposal on 2026-11-24, agreeing
     with all six of its recommendations.
@@ -924,7 +936,9 @@ Each recommendation is for the owner to decide.
 
 - Publishing any unit.
 - Research with people. The loop proposes it; a person authorizes it.
-- Measuring outcomes with real users in production.
+- Analytics and user-outcome telemetry outside AFD command journals (post-release AFD
+  command-journal observation against what a decision was meant to fix is in scope via Job 15 /
+  `design-observe`, amended 2026-11-24).
 - Token names, scales and derived values, which are Scales'.
 - Journeys across several products.
 - An agent inside a product acting for its user. Approving a change to an interface does not

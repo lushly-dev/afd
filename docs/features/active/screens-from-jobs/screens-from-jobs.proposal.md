@@ -669,7 +669,14 @@ Exit is gated per slice:
 
 **The limit:** no automated check here can judge layout or hierarchy. A review shows that a
 screen changed, not that it is wrong. Patterns' layout expectations and the Design Decisions
-review are where such judgements would gain a check.
+review are where such judgements would gain a check. *(Amended 2026-11-24 for
+[Agent-First Design](../agent-first-design/spec.md#43-amendment-to-screens-from-jobs-docsfeaturesactivescreens-from-jobsscreens-from-jobsproposalmd),
+Epic [#2544](https://github.com/lushly-dev/afd/issues/2544): `panel-walk` walks the running
+application under enforced modalities, recording both the journal path against the scenario's
+steps and a blind pairwise report comparison against a baseline walk (proved in Phase 0 step
+0.4); `design-observe` reads post-release journals against the same scenario steps and
+`releasedAt` timestamp; and Screens from Jobs' capture sets supply the before-and-after artifact
+paths with `state`, `viewport`, `theme` and `modality` for `design-card-list` cards.)*
 
 ## 11. Risks and open points
 

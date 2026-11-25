@@ -3,8 +3,8 @@
 The application the Agent-First Design bench is built on: a neighbourhood group that lends
 packets of seed. A desk volunteer lends and takes back packets, another takes in donated boxes,
 and a steward decides who gets the rare varieties. Its design, jobs and drafted commands are in
-[`seed-library.md`](../../../docs/features/proposed/agent-first-design/bench/seed-library.md),
-and the [bench specification](../../../docs/features/proposed/agent-first-design/bench.md) says
+[`seed-library.md`](../../../docs/features/active/agent-first-design/bench/seed-library.md),
+and the [bench specification](../../../docs/features/active/agent-first-design/bench.md) says
 what the bench does with it. Each of the bench's four screens is built against these commands.
 
 It is an example, private to this repository and never published.
@@ -35,7 +35,7 @@ The tests run fifteen jobs in process as a person with the steward's role. Jobs 
 begin with a call that must be refused with `CONFIRMATION_REQUIRED`, which only a server that
 enforces confirmations returns, so those two run over MCP against one, as the same person. `src/results.test.ts` checks
 every file in the bench's
-[`results/`](../../../docs/features/proposed/agent-first-design/bench/results/) against its
+[`results/`](../../../docs/features/active/agent-first-design/bench/results/) against its
 command's `output` schema and refusals.
 
 `start` serves every call as an agent, which is refused the steward's commands. Set

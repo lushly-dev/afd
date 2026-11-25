@@ -62,6 +62,8 @@ Each step sits on its own blank-line-separated list item so concurrent pull requ
 
 - **Phase D — First consumers (D1–D3):** Not started (gated on Phases B & C). D1 `violet-elements` (`select`, `field`, `dialog.modal` + builder re-measurement per P0-7); D2 Loam (`pack.localElements`, saved copies, checklist gates); D3 second consumer library (Lushly).
 
+- **Amendment — Agent-First Design Phase A (approved 2026-11-24, Epic [#2544](https://github.com/lushly-dev/afd/issues/2544)):** Applied in [`spec.md` §8](spec.md#8-amendment-agent-first-design-phase-a-approved-2026-11-24): `afd-defaults@<semver>` (10 result-state patterns), `approvalStatus` + Pack Format 2 schema updates + `components-brief` `patterns[]` / `includeProposed`, copied patterns (`derivedFrom`, `waivedKeep`, `WAIVER_REASON_REQUIRED`, `specimen-pattern-fork`/`compare`/`merge`), and compiled `patternBindings` for WASI Umbel. Implementation follows under [#2544](https://github.com/lushly-dev/afd/issues/2544).
+
 ## Steps (pre-implementation history)
 
 | Step | State | Evidence |

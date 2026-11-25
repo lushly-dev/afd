@@ -13,7 +13,7 @@ import { z } from 'zod';
 import { createSeedLibrary } from './app.js';
 
 const RESULTS = fileURLToPath(
-	new URL('../../../../docs/features/proposed/agent-first-design/bench/results/', import.meta.url)
+	new URL('../../../../docs/features/active/agent-first-design/bench/results/', import.meta.url)
 );
 
 const files = readdirSync(RESULTS, { recursive: true, encoding: 'utf8' })

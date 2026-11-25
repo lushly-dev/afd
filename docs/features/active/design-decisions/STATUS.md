@@ -59,6 +59,8 @@ Each phase owns one blank-separated line so concurrent pull requests never edit 
 
 - **Phase 6 ([#2214](https://github.com/lushly-dev/afd/issues/2214)) — Slice 2 variant lifecycle (`decision-discard`, `decision-restore`, `confirmPrompt`, CLI + `specimen-server`):** Deferred (blocked on [#2211](https://github.com/lushly-dev/afd/issues/2211), [#2213](https://github.com/lushly-dev/afd/issues/2213)).
 
+- **Amendment — Agent-First Design Phase A (approved 2026-11-24, Epic [#2544](https://github.com/lushly-dev/afd/issues/2544)):** Applied in [`design-decisions.proposal.md`](design-decisions.proposal.md#amendment-agent-first-design-phase-a-approved-2026-11-24): `decidedBy.kind: 'panel'` (in-process `DirectRegistry` Mode 3), Q7 resolution with static `confirmationMode: 'host-verified'` + `HumanRelay` over MCP, `decision-record` card mode + `design-card-list` + `design-release` + `decision-list` filters, and mechanism-distinct variants in §6.3. Implementation follows under [#2544](https://github.com/lushly-dev/afd/issues/2544).
+
 ## Pre-approval steps (historical)
 
 | Step | State | Evidence |
