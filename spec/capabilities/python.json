@@ -235,9 +235,13 @@
 			"evidence": ["python/src/afd/server/journal.py"]
 		},
 		"single.journal-secret": {
-			"status": "planned",
-			"note": "the next step of the `secret` change: the recorder still skips `auth-*` by name only",
-			"evidence": ["python/src/afd/server/journal.py"]
+			"status": "yes",
+			"note": "`secret` on `CommandDefinition`/`define_command`/`@server.command`; the shared executor carries the declaration of the command each dispatch runs with its middleware chain and `create_journal_middleware` reads it there, passing `JournalRedactInfo(secret=...)` to a `redact` that asks for it",
+			"evidence": [
+				"python/src/afd/server/journal.py",
+				"python/src/afd/core/running_command.py",
+				"python/tests/test_journal_secret.py"
+			]
 		},
 		"middleware.chain": {
 			"status": "yes",

@@ -64,6 +64,7 @@ from afd.core.commands import (
     create_command_registry,
     validate_command_scopes,
     validate_confirmation_mode,
+    validate_secret,
     validate_task_declaration,
 )
 from afd.core.direct_allow import _is_allowed, _not_allowed
@@ -558,6 +559,7 @@ class MCPServer:
         output_budget: OutputBudget | dict[str, Any] | None = None,
         scopes: Sequence[str] | None = None,
         confirmation_mode: CommandConfirmationMode | None = None,
+        secret: bool = False,
     ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Decorator to register a command with this server (arguments as ``define_command``)."""
 
@@ -590,6 +592,7 @@ class MCPServer:
                 advertised_input_schema=advertised_input_schema,
                 output_budget=output_budget,
                 confirmation_mode=confirmation_mode,
+                secret=secret,
                 # Point a name warning at the user's @server.command line.
                 _stacklevel=3,
             )(func)
@@ -632,6 +635,7 @@ class MCPServer:
             if func.input_schema is not None:
                 check_schema(func.input_schema)
             normalized_scopes = validate_command_scopes(func.name, func.scopes)
+            validate_secret(func.name, getattr(func, "secret", False))
             normalized_confirmation_mode = validate_confirmation_mode(
                 func.name, getattr(func, "confirmation_mode", None)
             )

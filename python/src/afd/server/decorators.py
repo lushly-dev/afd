@@ -47,6 +47,7 @@ from afd.core.commands import (
     TaskSupport,
     validate_command_scopes,
     validate_confirmation_mode,
+    validate_secret,
     validate_task_declaration,
     warn_invalid_command_name,
 )
@@ -102,6 +103,7 @@ class CommandMetadata:
     output_budget: OutputBudget | None = None
     scopes: list[str] = field(default_factory=list)
     confirmation_mode: CommandConfirmationMode | None = None
+    secret: bool = False
 
 
 def define_command(
@@ -132,6 +134,7 @@ def define_command(
     output_budget: OutputBudget | dict[str, Any] | None = None,
     scopes: Sequence[str] | None = None,
     confirmation_mode: CommandConfirmationMode | None = None,
+    secret: bool = False,
     _stacklevel: int = 2,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorator to define a command with metadata.
@@ -165,6 +168,10 @@ def define_command(
         title: A short human-readable label, reported as the MCP tool ``title`` of the
             command's own tool, by ``afd-detail`` and by ``afd-help`` (full). Never derived
             from the name.
+        secret: Whether the command takes or returns a secret (a password argument, an
+            issued token). A journal never records a call to it unless the recorder was
+            given ``redact``, whatever its ``filter`` says (``spec/journal.md``). A value
+            that is not a boolean raises ``TypeError``.
 
     Returns:
         Decorator function that wraps the handler.
@@ -194,6 +201,7 @@ def define_command(
             f"Command '{name}' has an invalid approval policy: "
             "use 'required', 'not-required' or a function"
         )
+    validate_secret(name, secret)
     normalized_confirmation_mode = validate_confirmation_mode(name, confirmation_mode)
     validate_task_declaration(
         name,
@@ -249,6 +257,7 @@ def define_command(
             advertised_input_schema=checked_advertised,
             output_budget=normalized_output_budget,
             confirmation_mode=normalized_confirmation_mode,
+            secret=secret,
         )
         func.__afd_command__ = cmd_metadata  # type: ignore[attr-defined]
 
@@ -458,6 +467,7 @@ def command_to_definition(func: Callable[..., Any]) -> CommandDefinition | None:
         advertised_input_schema=metadata.advertised_input_schema,
         output_budget=metadata.output_budget,
         confirmation_mode=metadata.confirmation_mode,
+        secret=metadata.secret,
     )
 
 
