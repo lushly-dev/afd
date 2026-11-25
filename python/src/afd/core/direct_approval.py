@@ -1,5 +1,6 @@
 """Internal per-call approval exchange. This is a trusted host seam, not a sandbox."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -56,15 +57,21 @@ def _exchange(context: Any) -> _DirectApprovalExchange | None:
 def _public_context(context: Any) -> Any:
     from afd.core.commands import CommandContext
 
+    raw_extra = getattr(context, "extra", None)
     return CommandContext(
         trace_id=getattr(context, "trace_id", None),
         timeout=getattr(context, "timeout", None),
         actor=getattr(context, "actor", None),
         clock=getattr(context, "clock", None),
         random=getattr(context, "random", None),
-        extra=dict(getattr(context, "extra", {})),
+        cancel=getattr(context, "cancel", None),
+        signal=getattr(context, "signal", None),
+        extra=dict(raw_extra) if isinstance(raw_extra, Mapping) else {},
         _direct_allow=getattr(context, "_direct_allow", None),
         _output_budget_ask=getattr(context, "_output_budget_ask", None),
+        _skip_output_budget=bool(getattr(context, "_skip_output_budget", False)),
+        _server_signal=getattr(context, "_server_signal", None),
+        _server_signal_fields=tuple(getattr(context, "_server_signal_fields", ()) or ()),
     )
 
 

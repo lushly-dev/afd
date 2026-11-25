@@ -125,6 +125,7 @@ server = create_server(
 - **A handler that returns something other than a `CommandResult`** gives its item or step `INVALID_COMMAND_RESULT`.
 - **Pipelines are sequential.** `options.parallel` and `stream: true` steps fail with `UNSUPPORTED_OPTION` before any command runs.
 - **Pipeline variables** follow [spec/pipeline-variables.md](../../../spec/pipeline-variables.md): `$prev`, `$first`, `$steps[N]`, `$steps.<alias>` and `$input`, each with an optional path. Other `$` strings are literals, `$$` escapes, and an unresolved reference is omitted from objects (`None` in lists).
+- **Shared executors.** `execute_batch` and buffered `execute_stream` (`ExecutorOptions`, `StreamExecutorOptions`) are exported from `afd`, `afd.core` and `afd.server`, and exposed as `execute_batch()` / `execute_stream()` on `CommandRegistry`, `MCPServer`, `SimpleRegistry` and `MockServer`. Single commands share one executor (`afd.core.single_executor.execute_command`), and `DirectClient.pipe` delegates to core `execute_pipeline`.
 
 Two vector suites hold Python to these rules: `tests/test_pipeline_vectors.py` and `tests/test_batch_controls_vectors.py`. Both read `spec/vectors`.
 

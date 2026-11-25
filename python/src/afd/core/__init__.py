@@ -48,6 +48,14 @@ from afd.core.clock import (
     system_clock,
     system_random,
 )
+from afd.core.command_execution import (
+    CommandExecutor,
+    CommandRegistryOptions,
+    ExecutorOptions,
+    StreamExecutorOptions,
+    execute_batch,
+    execute_stream,
+)
 from afd.core.commands import (
     DEFAULT_EXPOSE,
     CallGrant,
@@ -67,7 +75,10 @@ from afd.core.commands import (
     command_result_output_schema,
     command_to_mcp_tool,
     command_tool_annotations,
+    commands_to_mcp_tools,
     create_command_registry,
+    is_exposed_to,
+    is_mcp_exposed,
     serialize_command_examples,
     validate_command_name,
 )
@@ -311,8 +322,12 @@ __all__ = [
     "CommandExample",
     "CommandHandler",
     "CommandContext",
+    "CommandExecutor",
     "CommandMiddleware",
     "CommandRegistry",
+    "CommandRegistryOptions",
+    "ExecutorOptions",
+    "StreamExecutorOptions",
     "NextFn",
     "ExposeOptions",
     "DEFAULT_EXPOSE",
@@ -322,8 +337,13 @@ __all__ = [
     "command_result_output_schema",
     "command_to_mcp_tool",
     "command_tool_annotations",
+    "commands_to_mcp_tools",
     "serialize_command_examples",
     "create_command_registry",
+    "execute_batch",
+    "execute_stream",
+    "is_exposed_to",
+    "is_mcp_exposed",
     "validate_command_name",
     # Contract version
     "CONTRACT_VERSION",

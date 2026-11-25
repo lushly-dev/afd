@@ -114,6 +114,14 @@ from afd.core.clock import (
 # DirectPipelineStepResult and DirectPipelineResult; the old colliding root
 # names stay reachable through __getattr__ with a DeprecationWarning for one
 # minor release.
+from afd.core.command_execution import (
+    CommandExecutor,
+    CommandRegistryOptions,
+    ExecutorOptions,
+    StreamExecutorOptions,
+    execute_batch,
+    execute_stream,
+)
 from afd.core.commands import (
     DEFAULT_EXPOSE,
     CallGrant,
@@ -130,7 +138,10 @@ from afd.core.commands import (
     command_result_output_schema,
     command_to_mcp_tool,
     command_tool_annotations,
+    commands_to_mcp_tools,
     create_command_registry,
+    is_exposed_to,
+    is_mcp_exposed,
     serialize_command_examples,
     validate_command_name,
 )
@@ -545,9 +556,15 @@ __all__ = [
     "is_batch_command",
     # Core command registry and middleware
     "CallGrant",
+    "CommandExecutor",
     "CommandHandler",
     "CommandRegistry",
+    "CommandRegistryOptions",
+    "ExecutorOptions",
+    "StreamExecutorOptions",
     "create_command_registry",
+    "execute_batch",
+    "execute_stream",
     "CommandMiddleware",
     "NextFn",
     "call_not_granted",
@@ -561,6 +578,9 @@ __all__ = [
     "command_result_output_schema",
     "command_to_mcp_tool",
     "command_tool_annotations",
+    "commands_to_mcp_tools",
+    "is_exposed_to",
+    "is_mcp_exposed",
     "serialize_command_examples",
     "validate_command_name",
     # MCP protocol types

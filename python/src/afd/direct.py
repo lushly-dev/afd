@@ -29,7 +29,7 @@ import math
 import time
 import uuid
 import warnings
-from collections.abc import Callable
+from collections.abc import AsyncGenerator, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import (
     Any,
@@ -38,9 +38,22 @@ from typing import (
     runtime_checkable,
 )
 
-from afd.core.actor import Actor, ContextDefaults, with_context_defaults
+from afd.core.actor import Actor, ContextDefaults
+from afd.core.batch import DEFAULT_MAX_BATCH_PARALLELISM, DEFAULT_MAX_BATCH_SIZE, BatchResult
 from afd.core.clock import Clock, RandomSource
-from afd.core.commands import call_not_granted
+from afd.core.command_execution import (
+    ExecutorOptions,
+    StreamExecutorOptions,
+    resolve_batch_limit,
+)
+from afd.core.command_execution import (
+    execute_batch as _execute_core_batch,
+)
+from afd.core.command_execution import (
+    execute_stream as _execute_core_stream,
+)
+from afd.core.commands import CommandDefinition as _CoreCommandDefinition
+from afd.core.commands import CommandMiddleware, call_not_granted
 from afd.core.direct_allow import _bind_allow, _direct_allows, _is_allowed, _not_allowed
 from afd.core.direct_approval import (
     DirectApprovalRequest,
@@ -71,6 +84,8 @@ from afd.core.result import (
     success,  # noqa: F401 (importable from afd.direct before the pipeline moved)
 )
 from afd.core.similarity import find_similar_tools, truncate_name
+from afd.core.single_executor import CommandExecutionConfig, execute_command
+from afd.core.streaming import StreamChunk, StreamOptions
 from afd.direct_pipeline import (
     DirectPipelineResult,
     DirectPipelineStep,
@@ -118,6 +133,7 @@ class DirectContext:
     _server_signal: asyncio.Event | None = field(default=None, repr=False, compare=False)
     _server_signal_fields: tuple[str, ...] = field(default=(), repr=False, compare=False)
     _output_budget_ask: Any = field(default=None, repr=False, compare=False)
+    _skip_output_budget: bool = field(default=False, repr=False, compare=False)
 
     def is_cancelled(self) -> bool:
         """Whether cooperative cancellation has been signalled on this context."""
@@ -361,16 +377,87 @@ class SimpleRegistry:
         dev_mode: bool = False,
         clock: Clock | None = None,
         random: RandomSource | None = None,
+        middleware: Sequence[CommandMiddleware] | None = None,
+        max_batch_size: int = DEFAULT_MAX_BATCH_SIZE,
+        max_batch_parallelism: int = DEFAULT_MAX_BATCH_PARALLELISM,
     ):
         """
         Args:
             dev_mode: Return a raising handler's exception text.
             clock: Clock for handlers when the call's context has none.
             random: Random source for handlers when the call's context has none.
+            middleware: Optional middleware wrapping each command execution.
+            max_batch_size: Maximum commands accepted in one batch (default: 500).
+            max_batch_parallelism: Maximum batch parallelism (default: 16).
         """
         self._commands: dict[str, RegisteredCommand] = {}
+        self._definitions: dict[str, _CoreCommandDefinition] = {}
         self._dev_mode = dev_mode
         self._context_defaults = ContextDefaults(clock=clock, random=random)
+        self._middleware: list[CommandMiddleware] = list(middleware or [])
+        self._max_batch_size = resolve_batch_limit(
+            max_batch_size, DEFAULT_MAX_BATCH_SIZE, "max_batch_size"
+        )
+        self._max_batch_parallelism = resolve_batch_limit(
+            max_batch_parallelism, DEFAULT_MAX_BATCH_PARALLELISM, "max_batch_parallelism"
+        )
+
+    def _build_definition(self, registered: RegisteredCommand) -> _CoreCommandDefinition:
+        handler = registered.handler
+
+        async def adapted(data: Any, context: Any) -> CommandResult:
+            kwargs = dict(data) if isinstance(data, dict) else {}
+            if _takes_context(handler):
+                kwargs["context"] = context
+            return await handler(**kwargs)
+
+        return _CoreCommandDefinition(
+            name=registered.name,
+            description=registered.description,
+            handler=adapted,
+        )
+
+    async def _validate_kwargs(
+        self,
+        command: _CoreCommandDefinition,
+        input: Any,
+        context: Any,
+    ) -> tuple[bool, Any]:
+        registered = self._commands[command.name]
+        if input is not None and not isinstance(input, Mapping):
+            return (
+                False,
+                failure(
+                    validation_error(
+                        f"Invalid arguments for '{command.name}': input must be an object"
+                    )
+                ),
+            )
+        kwargs = dict(input or {})
+        if _takes_context(registered.handler):
+            if "context" in kwargs:
+                return (
+                    False,
+                    failure(
+                        validation_error(
+                            f"Invalid arguments for '{command.name}': "
+                            "'context' is reserved for the command context"
+                        )
+                    ),
+                )
+            bind_kwargs = {**kwargs, "context": context}
+        else:
+            bind_kwargs = kwargs
+        try:
+            inspect.signature(registered.handler).bind(**bind_kwargs)
+        except TypeError as exc:
+            return (
+                False,
+                failure(validation_error(f"Invalid arguments for '{command.name}': {exc}")),
+            )
+        except ValueError:
+            pass  # no introspectable signature: let the call decide
+        return True, kwargs
 
     def command(
         self,
@@ -387,12 +474,7 @@ class SimpleRegistry:
         """
 
         def decorator(func: Callable) -> Callable:
-            self._commands[name] = RegisteredCommand(
-                name=name,
-                description=description or func.__doc__ or "",
-                handler=func,
-                parameters=parameters or [],
-            )
+            self.register(name, func, description=description, parameters=parameters)
             return func
 
         return decorator
@@ -405,52 +487,78 @@ class SimpleRegistry:
         parameters: list[DirectCommandParameter] | None = None,
     ) -> None:
         """Register a command imperatively."""
-        self._commands[name] = RegisteredCommand(
+        registered = RegisteredCommand(
             name=name,
             description=description or handler.__doc__ or "",
             handler=handler,
             parameters=parameters or [],
         )
+        self._commands[name] = registered
+        self._definitions[name] = self._build_definition(registered)
 
     async def execute(
         self,
         name: str,
         args: dict[str, Any] | None = None,
         context: DirectContext | None = None,
+        *,
+        output_budget: Any = None,
     ) -> CommandResult:
-        """Execute a command by name."""
-        if _is_apps_context(context):
-            return failure(call_not_granted())
-        if not _is_allowed(context, name):
-            return failure(_not_allowed(name))
-        cmd = self._commands.get(name)
-        if not cmd:
-            return failure(not_found_error("Command", name))
-        raw_ask = getattr(context, "_output_budget_ask", None) if context is not None else None
-        if raw_ask is not None and parse_ask(raw_ask) is None:
-            return ask_validation_failure()
+        """Execute a command by name through the shared core executor."""
+        config = CommandExecutionConfig(
+            lookup=self._definitions.get,
+            list_commands=lambda: list(self._definitions.values()),
+            middleware=self._middleware,
+            dev_mode=self._dev_mode,
+            call_grant=None,
+            context_defaults=self._context_defaults,
+            logger=logger,
+            suggest_tools=False,
+            stamp_metadata=False,
+            not_found_builder=lambda n, _: failure(not_found_error("Command", n)),
+            validate_input=self._validate_kwargs,
+        )
+        return await execute_command(
+            name,
+            args,
+            context,
+            config=config,
+            output_budget=output_budget,
+        )
 
-        kwargs = dict(args or {})
-        if _takes_context(cmd.handler):
-            if "context" in kwargs:
-                return failure(
-                    validation_error(
-                        f"Invalid arguments for '{name}': 'context' is reserved for the command context"
-                    )
-                )
-            kwargs["context"] = with_context_defaults(context, self._context_defaults)
-        try:
-            inspect.signature(cmd.handler).bind(**kwargs)
-        except TypeError as e:
-            return failure(validation_error(f"Invalid arguments for '{name}': {e}"))
-        except ValueError:
-            pass  # no introspectable signature: let the call decide
-        try:
-            return await cmd.handler(**kwargs)
-        except Exception as exc:
-            # The handler itself failed: not the caller's input.
-            logger.error("Command '%s' raised an unhandled exception", name, exc_info=exc)
-            return execution_failure(exc, self._dev_mode)
+    async def execute_batch(
+        self,
+        request: Any,
+        context: Any = None,
+    ) -> BatchResult[Any]:
+        """Execute a batch of commands through this registry's ``execute``."""
+        return await _execute_core_batch(
+            request,
+            self.execute,
+            context,
+            ExecutorOptions(
+                dev_mode=self._dev_mode,
+                max_batch_size=self._max_batch_size,
+                max_batch_parallelism=self._max_batch_parallelism,
+            ),
+        )
+
+    def execute_stream(
+        self,
+        name: str,
+        args: dict[str, Any] | None = None,
+        options: StreamOptions | None = None,
+        context: Any = None,
+    ) -> AsyncGenerator[StreamChunk, None]:
+        """Execute a command through this registry's ``execute`` and stream its result."""
+        timeout = options.timeout if options is not None else None
+        return _execute_core_stream(
+            name,
+            args,
+            self.execute,
+            context,
+            StreamExecutorOptions(dev_mode=self._dev_mode, timeout=timeout),
+        )
 
     def has_command(self, name: str) -> bool:
         """Check if command exists."""

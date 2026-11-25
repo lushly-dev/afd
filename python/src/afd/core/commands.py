@@ -25,7 +25,7 @@ import dataclasses
 import logging
 import re
 import warnings
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from dataclasses import dataclass, field, replace
 from typing import (
     Any,
@@ -34,21 +34,34 @@ from typing import (
     TypeVar,
 )
 
-from afd.core.actor import Actor, with_context_defaults
+from afd.core.actor import Actor, ContextDefaults
 from afd.core.approval import ApprovalPolicy, approval_mode
+from afd.core.batch import DEFAULT_MAX_BATCH_PARALLELISM, DEFAULT_MAX_BATCH_SIZE, BatchResult
 from afd.core.clock import Clock, RandomSource
+from afd.core.command_execution import (
+    CommandRegistryOptions,
+    ExecutorOptions,
+    StreamExecutorOptions,
+    resolve_batch_limit,
+)
+from afd.core.command_execution import (
+    execute_batch as _execute_core_batch,
+)
+from afd.core.command_execution import (
+    execute_stream as _execute_core_stream,
+)
 from afd.core.errors import CommandError, ErrorCodes
 from afd.core.output_budget import (
     AFD_OUTPUT_BUDGET_META_KEY,
     OutputBudget,
-    apply_output_budget,
-    check_output_budget,
-    coerce_budgeted_result,
     normalize_ask_option,
     validate_output_budget_declaration,
 )
-from afd.core.result import CommandResult, execution_failure
+from afd.core.result import CommandResult
 from afd.core.schema_registration import starts_resource
+from afd.core.single_executor import CommandExecutionConfig, execute_command
+from afd.core.single_executor import is_exposed_to as is_exposed_to
+from afd.core.streaming import StreamChunk, StreamOptions
 
 logger = logging.getLogger("afd.core")
 
@@ -247,6 +260,7 @@ class CommandContext:
     _server_signal_fields: tuple[str, ...] = field(default=(), repr=False, compare=False)
     _output_budget_ask: Any = field(default=None, repr=False, compare=False)
     _scope_view: Any = field(default=None, repr=False, compare=False)
+    _skip_output_budget: bool = field(default=False, repr=False, compare=False)
 
     def is_cancelled(self) -> bool:
         """Whether cooperative cancellation has been signalled on this context."""
@@ -490,16 +504,52 @@ class CommandRegistry(Protocol):
         """
         ...
 
+    async def execute_batch(
+        self,
+        request: Any,
+        context: CommandContext | None = None,
+    ) -> BatchResult[Any]:
+        """Execute a batch of commands through this registry's ``execute``."""
+        ...
+
+    def execute_stream(
+        self,
+        name: str,
+        input: Any,
+        options: StreamOptions | None = None,
+        context: CommandContext | None = None,
+    ) -> AsyncGenerator[StreamChunk, None]:
+        """Execute a command through this registry's ``execute`` and stream its result."""
+        ...
+
 
 class _CommandRegistryImpl:
-    """Default command registry implementation."""
+    """Default command registry implementation backed by the shared core executor."""
 
-    def __init__(self, *, dev_mode: bool = False, call_grant: CallGrant | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        dev_mode: bool = False,
+        call_grant: CallGrant | None = None,
+        max_batch_size: int = DEFAULT_MAX_BATCH_SIZE,
+        max_batch_parallelism: int = DEFAULT_MAX_BATCH_PARALLELISM,
+        middleware: Sequence[CommandMiddleware] | None = None,
+        clock: Clock | None = None,
+        random: RandomSource | None = None,
+    ) -> None:
         if call_grant is not None and not callable(call_grant):
             raise TypeError("call_grant must be callable")
         self._commands: dict[str, CommandDefinition] = {}
         self._dev_mode = dev_mode
         self._call_grant = call_grant
+        self._max_batch_size = resolve_batch_limit(
+            max_batch_size, DEFAULT_MAX_BATCH_SIZE, "max_batch_size"
+        )
+        self._max_batch_parallelism = resolve_batch_limit(
+            max_batch_parallelism, DEFAULT_MAX_BATCH_PARALLELISM, "max_batch_parallelism"
+        )
+        self._middleware: list[CommandMiddleware] = list(middleware or [])
+        self._context_defaults = ContextDefaults(clock=clock, random=random)
 
     def register(self, command: CommandDefinition) -> None:
         if command.name in self._commands:
@@ -558,12 +608,20 @@ class _CommandRegistryImpl:
     def list_by_exposure(self, interface: str) -> builtins.list[CommandDefinition]:
         if interface not in _VALID_INTERFACES:
             return []
-        return [
-            cmd
-            for cmd in self._commands.values()
-            if getattr(cmd.expose if cmd.expose is not None else DEFAULT_EXPOSE, interface, False)
-            is True
-        ]
+        return [cmd for cmd in self._commands.values() if is_exposed_to(cmd, interface)]
+
+    def _execution_config(self) -> CommandExecutionConfig:
+        return CommandExecutionConfig(
+            lookup=self._commands.get,
+            list_commands=self.list,
+            middleware=self._middleware,
+            dev_mode=self._dev_mode,
+            call_grant=self._call_grant,
+            context_defaults=self._context_defaults,
+            logger=logger,
+            suggest_tools=False,
+            stamp_metadata=False,
+        )
 
     async def execute(
         self,
@@ -573,124 +631,68 @@ class _CommandRegistryImpl:
         *,
         output_budget: Any = None,
     ) -> CommandResult[Any]:
-        from afd.core.direct_allow import _is_allowed, _not_allowed
-        from afd.core.result import failure
-
-        interface = (
-            context.extra.get("interface") if context is not None and context.extra else None
+        result: CommandResult[Any] = await execute_command(
+            name,
+            input,
+            context,
+            config=self._execution_config(),
+            output_budget=output_budget,
         )
-        if interface == "apps" and context is not None:
-            command = self._commands.get(name)
-            if not app_call_granted(command, name, context, self._call_grant):
-                return failure(call_not_granted())
+        return result
 
-        if not _is_allowed(context, name):
-            return failure(_not_allowed(name))
-        command = self._commands.get(name)
-        from afd.core.result import CommandError as CmdError
+    async def execute_batch(
+        self,
+        request: Any,
+        context: CommandContext | None = None,
+    ) -> BatchResult[Any]:
+        return await _execute_core_batch(
+            request,
+            self.execute,
+            context,
+            ExecutorOptions(
+                dev_mode=self._dev_mode,
+                max_batch_size=self._max_batch_size,
+                max_batch_parallelism=self._max_batch_parallelism,
+            ),
+        )
 
-        if not command:
-            return CommandResult(
-                success=False,
-                error=CmdError(
-                    code="COMMAND_NOT_FOUND",
-                    message=f"Command '{name}' not found",
-                    suggestion="List available commands to see valid options",
-                ),
-            )
-
-        # Check exposure if interface context is provided. An empty interface is
-        # no interface, and an unknown one exposes nothing, as in TypeScript's
-        # isExposedTo (spec/error-codes.md, D4).
-        if interface is not None and interface != "":
-            known = isinstance(interface, str) and interface in _VALID_INTERFACES
-            expose = command.expose if command.expose is not None else DEFAULT_EXPOSE
-            if not known or not getattr(expose, interface, False):
-                return CommandResult(
-                    success=False,
-                    error=CmdError(
-                        code="COMMAND_NOT_EXPOSED",
-                        message=f"Command '{name}' is not exposed to {interface}",
-                        suggestion=(
-                            "Call it from an interface it is exposed to, or set "
-                            f"expose.{interface} to true in its definition"
-                            if known
-                            else "Use one of the interfaces " + ", ".join(sorted(_VALID_INTERFACES))
-                        ),
-                        retryable=False,
-                    ),
-                )
-
-        if context and "active_context" in context.extra:
-            active_context = context.extra["active_context"]
-            if active_context and command.contexts and active_context not in command.contexts:
-                # The core registry has no afd-context-* tools, so name the
-                # command's own contexts (spec/error-codes.md, D4).
-                contexts = ", ".join(f"'{c}'" for c in command.contexts)
-                return CommandResult(
-                    success=False,
-                    error=CmdError(
-                        code="COMMAND_NOT_IN_CONTEXT",
-                        message=(
-                            f"Command '{name}' is not available in context '{active_context}'"
-                        ),
-                        suggestion=(
-                            f"Switch to a context this command belongs to ({contexts}), "
-                            "or call it with no active context."
-                        ),
-                    ),
-                )
-
-        # Decorated handlers already own advertised-schema validation and
-        # native model conversion. Raw definitions need the same boundary here.
-        if command.input_schema is not None and not hasattr(command.handler, "__afd_command__"):
-            from afd.core.schema_validation import (
-                SchemaValidationError,
-                schema_validation_failure,
-                validate_schema,
-            )
-
-            try:
-                input = validate_schema(command.input_schema, {} if input is None else input)
-            except SchemaValidationError as exc:
-                return schema_validation_failure(exc)
-            except Exception as exc:
-                logger.error("Input validation for '%s' raised", name, exc_info=exc)
-                return CommandResult(
-                    success=False,
-                    error=CmdError(
-                        code="VALIDATION_ERROR",
-                        message="Input validation failed",
-                        suggestion="Check the input against the command's registered schema and retry",
-                    ),
-                )
-
-        # Handlers always get a context with a clock and a random source.
-        exec_context = with_context_defaults(context)
-        if output_budget is not None:
-            exec_context._output_budget_ask = normalize_ask_option(output_budget)
-        effective_budget, invalid_budget = apply_output_budget(command, exec_context)
-        if invalid_budget is not None:
-            return invalid_budget
-
-        try:
-            result = await command.handler(input, exec_context)
-            if effective_budget is not None:
-                normalized = coerce_budgeted_result(result)
-                if normalized is not None:
-                    result = check_output_budget(command, effective_budget, normalized)
-            return result
-        except Exception as exc:
-            logger.error("Command '%s' raised an unhandled exception", name, exc_info=exc)
-            return execution_failure(exc, self._dev_mode)
+    def execute_stream(
+        self,
+        name: str,
+        input: Any,
+        options: StreamOptions | None = None,
+        context: CommandContext | None = None,
+    ) -> AsyncGenerator[StreamChunk, None]:
+        timeout = options.timeout if options is not None else None
+        return _execute_core_stream(
+            name,
+            input,
+            self.execute,
+            context,
+            StreamExecutorOptions(dev_mode=self._dev_mode, timeout=timeout),
+        )
 
 
 def create_command_registry(
-    *, dev_mode: bool = False, call_grant: CallGrant | None = None
+    options: CommandRegistryOptions | None = None,
+    *,
+    dev_mode: bool | None = None,
+    call_grant: CallGrant | None = None,
+    max_batch_size: int | None = None,
+    max_batch_parallelism: int | None = None,
+    middleware: Sequence[CommandMiddleware] | None = None,
+    clock: Clock | None = None,
+    random: RandomSource | None = None,
 ) -> CommandRegistry:
     """Create a new command registry.
 
+    ``execute``, ``execute_batch`` and ``execute_stream`` share one execution
+    path through the core executors, matching TypeScript's
+    ``createCommandRegistry``.
+
     Args:
+        options: Optional :class:`CommandRegistryOptions`. Keyword arguments
+            override fields on ``options``.
         dev_mode: Return a raising handler's exception text in its
             COMMAND_EXECUTION_ERROR result. When False (the default), the
             message is "An internal error occurred" and the exception is only
@@ -698,16 +700,37 @@ def create_command_registry(
         call_grant: Host predicate ``(command_name, context) -> bool`` for
             app-to-app calls (``context.extra["interface"] == "apps"``). When
             omitted, every ``apps`` call is refused with ``CALL_NOT_GRANTED``.
+        max_batch_size: Maximum commands accepted in one batch (default: 500).
+        max_batch_parallelism: Maximum batch parallelism (default: 16).
+        middleware: Optional middleware chain wrapping each executed handler.
+        clock: Default clock for handlers when the call context has none.
+        random: Default random source for handlers when the call context has none.
 
     Returns:
         A CommandRegistry instance for registering and executing commands.
-
-    Example:
-        >>> registry = create_command_registry()
-        >>> registry.register(my_command)
-        >>> result = await registry.execute("my-command", {"arg": "value"})
     """
-    return _CommandRegistryImpl(dev_mode=dev_mode, call_grant=call_grant)
+    opts = options or CommandRegistryOptions()
+    return _CommandRegistryImpl(
+        dev_mode=opts.dev_mode if dev_mode is None else dev_mode,
+        call_grant=opts.call_grant if call_grant is None else call_grant,
+        max_batch_size=opts.max_batch_size if max_batch_size is None else max_batch_size,
+        max_batch_parallelism=(
+            opts.max_batch_parallelism if max_batch_parallelism is None else max_batch_parallelism
+        ),
+        middleware=opts.middleware if middleware is None else middleware,
+        clock=opts.clock if clock is None else clock,
+        random=opts.random if random is None else random,
+    )
+
+
+def is_mcp_exposed(command: CommandDefinition) -> bool:
+    """Whether ``command`` is exposed on the ``mcp`` interface."""
+    return is_exposed_to(command, "mcp")
+
+
+def commands_to_mcp_tools(commands: Sequence[CommandDefinition]) -> list[dict[str, Any]]:
+    """Convert MCP-exposed commands to MCP tool definitions."""
+    return [command_to_mcp_tool(cmd) for cmd in commands if is_mcp_exposed(cmd)]
 
 
 def validate_command_name(name: str) -> dict[str, Any]:

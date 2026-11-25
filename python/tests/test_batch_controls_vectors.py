@@ -2,10 +2,11 @@
 
 spec/vectors/generate-batch-controls.mjs generated the expected values from the
 TypeScript executors on a virtual clock. Python has no fake clock for asyncio,
-so the cases run in real time, through the server's ``afd-batch`` and
-``afd-pipe`` tools (Python has no standalone batch executor). A failure means
-Python and TypeScript disagree on these inputs. TypeScript, Rust and C++ load
-the same file (see spec/vectors/README.md).
+so the cases run in real time, through both the server's ``afd-batch`` /
+``afd-pipe`` tools and the standalone core ``CommandRegistry.execute_batch`` /
+``execute_pipeline`` executors. A failure means Python and TypeScript disagree
+on these inputs. TypeScript, Rust and C++ load the same file (see
+spec/vectors/README.md).
 """
 
 import asyncio
@@ -16,8 +17,8 @@ from typing import Any
 
 import pytest
 
-from afd import ExposeOptions
-from afd.core.commands import CommandContext
+from afd import ExposeOptions, create_command_registry
+from afd.core.commands import CommandContext, CommandDefinition
 from afd.core.result import CommandResult, error, success
 from afd.core.wire import to_wire
 from afd.server import MCPServer, create_server
@@ -189,3 +190,56 @@ async def test_pipeline(vector: dict[str, Any]):
 
     assert _json(record.calls) == _json(calls)
     assert _json(_project_pipeline(to_wire(result), expected)) == _json(expected)
+
+
+def _core_registry(handlers: dict[str, dict[str, Any]]):
+    registry = create_command_registry()
+    record = _Record()
+    for name, spec in handlers.items():
+
+        def make_handler(cmd_name: str, cmd_spec: dict[str, Any]):
+            async def handler(input: Any, context: CommandContext) -> CommandResult[Any]:
+                record.calls.append({"command": cmd_name, "input": input})
+                suffix = (context.trace_id or "").rsplit("-", 1)[-1]
+                if suffix.isdigit():
+                    record.ran.append(int(suffix))
+                record.active += 1
+                record.peak = max(record.peak, record.active)
+                try:
+                    if cmd_spec.get("untilCancelled"):
+                        await asyncio.Event().wait()
+                    elif cmd_spec.get("delayMs"):
+                        await asyncio.sleep(cmd_spec["delayMs"] / 1000)
+                    fail = cmd_spec.get("fail")
+                    return error(fail["code"], fail["message"]) if fail else success(input)
+                finally:
+                    record.active -= 1
+
+            return handler
+
+        registry.register(
+            CommandDefinition(
+                name=name,
+                description=f"Vector handler {name}",
+                handler=make_handler(name, spec),
+                expose=ExposeOptions(mcp=True),
+            )
+        )
+    return registry, record
+
+
+@pytest.mark.parametrize("vector", VECTORS["batch"], ids=[v["name"] for v in VECTORS["batch"]])
+async def test_core_registry_batch(vector: dict[str, Any]):
+    registry, record = _core_registry(vector["handlers"])
+    expected = dict(vector["expected"])
+    calls = expected.pop("calls")
+    peak_concurrency = expected.pop("peakConcurrency", None)
+
+    result = await registry.execute_batch(
+        vector["request"], CommandContext(extra={"interface": "mcp"})
+    )
+
+    assert _json(record.calls) == _json(calls)
+    if peak_concurrency is not None:
+        assert record.peak == peak_concurrency
+    assert _json(_project_batch(to_wire(result), record.ran, expected)) == _json(expected)

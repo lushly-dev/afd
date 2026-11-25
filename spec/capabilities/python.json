@@ -322,12 +322,13 @@
 			"evidence": ["python/src/afd/server/approval_relay.py", "python/tests/test_approval_relay.py"]
 		},
 		"exec.batch": {
-			"status": "partial",
-			"note": "private `MCPServer._execute_batch`, with limits of 500 commands and parallelism 16 (`check_batch_limits`); observed failure stops new starts and drains running work normally; caller cancellation stops scheduling (#2129)",
+			"status": "yes",
+			"note": "([#1535](https://github.com/lushly-dev/afd/issues/1535)): public `execute_batch` (`afd`, `afd.core`, `afd.server`) and `execute_batch()` on `CommandRegistry`, `MCPServer`, `SimpleRegistry` and `MockServer`; limits 500/16 (`check_batch_limits`), `stop_on_error` drains in-flight, caller cancellation stops scheduling (#2129)",
 			"evidence": [
 				"python/src/afd/core/batch.py",
-				"python/src/afd/server/batch_execution.py",
-				"python/tests/test_batch_controls_vectors.py"
+				"python/src/afd/core/command_execution.py",
+				"python/tests/test_batch_controls_vectors.py",
+				"python/tests/test_executor_consolidation.py"
 			]
 		},
 		"exec.pipeline-variables": {
@@ -350,20 +351,27 @@
 			"evidence": ["python/tests/test_batch_pipeline_aggregation.py"]
 		},
 		"exec.single-pipeline-engine": {
-			"status": "no",
-			"note": "core `execute_pipeline` and `DirectClient.pipe` differ in options and result shape ([#1535](https://github.com/lushly-dev/afd/issues/1535))",
-			"issue": "#1535",
-			"evidence": ["python/src/afd/direct_pipeline.py"]
+			"status": "yes",
+			"note": "([#1535](https://github.com/lushly-dev/afd/issues/1535)): `DirectClient.pipe` delegates to core `execute_pipeline`, keeping only a public-shape adapter (`DirectPipelineResult` and legacy string `when`); single commands share `execute_command` across `CommandRegistry`, `SimpleRegistry`, `MockServer` and `MCPServer`",
+			"evidence": [
+				"python/src/afd/core/pipeline.py",
+				"python/src/afd/direct_pipeline.py",
+				"python/src/afd/core/single_executor.py",
+				"python/tests/test_executor_consolidation.py"
+			]
 		},
 		"exec.stream-types": {
 			"status": "yes",
 			"evidence": ["python/src/afd/core/streaming.py", "python/tests/test_streaming.py"]
 		},
 		"exec.stream-executor": {
-			"status": "no",
-			"note": "([#1535](https://github.com/lushly-dev/afd/issues/1535))",
-			"issue": "#1535",
-			"evidence": ["python/src/afd/core/streaming.py"]
+			"status": "yes",
+			"note": "([#1535](https://github.com/lushly-dev/afd/issues/1535)): public buffered `execute_stream` (`afd`, `afd.core`, `afd.server`) and `execute_stream()` on `CommandRegistry`, `MCPServer`, `SimpleRegistry` and `MockServer` (`StreamExecutorOptions`, `STREAM_ABORTED`, `STREAM_TIMEOUT`, B7 output-budget skip)",
+			"evidence": [
+				"python/src/afd/core/command_execution.py",
+				"python/src/afd/core/streaming.py",
+				"python/tests/test_executor_consolidation.py"
+			]
 		},
 		"exec.timeout-progress": {
 			"status": "yes",
