@@ -2,9 +2,13 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+	checkDecisions,
 	createSpecimenBench,
 	diffCaptures,
 	diffObservations,
+	getDecision,
+	listDecisions,
+	recordDecision,
 	runCaptureSet,
 	runCompare,
 } from '@lushly-dev/specimen';
@@ -463,6 +467,51 @@ function bench(): SpecimenCommandBench {
 				},
 			],
 		})),
+		recordDecision: vi.fn(async (request) => ({
+			decision: 'dec-q7k2m4xab3na',
+			kind: 'choice' as const,
+			path: 'specimens/decisions/dec-q7k2m4xab3na.json',
+			chosen: request.chosen,
+			kept: ['toolbar--airy'],
+			evidence: {
+				set: 'set-9c03e1d27a55',
+				dir: 'specimens/evidence/set-9c03e1d27a55/',
+			},
+			evidenceDir: 'specimens/evidence/set-9c03e1d27a55/',
+			subjects: { specimens: [request.chosen] },
+		})),
+		getDecision: vi.fn(async (request) => ({
+			decision: request.decision,
+			id: request.decision,
+			kind: 'choice' as const,
+			slug: 'toolbar-density',
+			status: 'current' as const,
+			question: 'How dense should the toolbar be?',
+			variants: ['toolbar--dense', 'toolbar--airy'],
+			chosen: 'toolbar--dense',
+			kept: ['toolbar--airy'],
+			discarded: [],
+			reason: 'Fits twelve commands.',
+			evidence: {
+				set: 'set-9c03e1d27a55',
+				dir: 'specimens/evidence/set-9c03e1d27a55/',
+				captures: [
+					{
+						key: 'toolbar--dense',
+						id: 'toolbar--dense',
+						status: 'captured' as const,
+						hash: 'abc123',
+						axe: 'passed' as const,
+						screenshot: 'specimens/evidence/set-9c03e1d27a55/toolbar--dense.png',
+					},
+				],
+			},
+			subjects: { specimens: ['toolbar--dense'] },
+			decidedAt: '2026-11-24T00:00:00.000Z',
+			decidedBy: { kind: 'script' as const },
+		})),
+		listDecisions: vi.fn(async () => ({ decisions: [], undecided: [] })),
+		checkDecisions: vi.fn(async () => ({ decisions: [] })),
 	};
 }
 
@@ -583,6 +632,10 @@ describe('specimen commands', () => {
 			'specimen-note-reopen',
 			'specimen-job-create',
 			'specimen-job-run',
+			'decision-record',
+			'decision-get',
+			'decision-list',
+			'decision-check',
 		]);
 		for (const command of commands) {
 			expect(command.expose).toEqual({ mcp: true, cli: true });
@@ -1968,6 +2021,268 @@ describe('specimen commands', () => {
 			expect(res.success, code).toBe(false);
 			expect(res.error?.code, code).toBe(code);
 			expect(res.error?.suggestion, code).toBe(suggestion);
+		}
+	});
+
+	it('exposes decision-record/get/list/check with metadata and satisfies Scenario 03 end-to-end', async () => {
+		const root = await mkdtemp(join(tmpdir(), 'specimen-afd-decisions-'));
+		try {
+			await mkdir(join(root, 'src', 'toolbar'), { recursive: true });
+			await writeFile(join(root, 'src', 'toolbar', 'toolbar.css'), '.toolbar {}');
+
+			const entries: SpecimenEntry[] = [
+				{ id: 'toolbar--dense', title: 'Toolbar/Dense', module: './t.ts', exportName: 'Dense' },
+				{ id: 'toolbar--airy', title: 'Toolbar/Airy', module: './t.ts', exportName: 'Airy' },
+				{
+					id: 'toolbar--grouped',
+					title: 'Toolbar/Grouped',
+					module: './t.ts',
+					exportName: 'Grouped',
+				},
+				{ id: 'list--empty', title: 'List/Empty', module: './l.ts', exportName: 'Empty' },
+				{
+					id: 'list--empty-plain',
+					title: 'List/EmptyPlain',
+					module: './l.ts',
+					exportName: 'EmptyPlain',
+				},
+			];
+			const instance = bench();
+			instance.compare = (request) =>
+				runCompare(
+					{
+						root,
+						entries,
+						workers: 2,
+						prepare: async () => {},
+						sourceState: async () => ({ revision: 'a1b2c3d', dirty: false }),
+						render: async ({ entry, context, screenshot }) => {
+							await writeFile(screenshot, `png:${entry.id}`);
+							const obs = observation();
+							obs.manifest.specimenId = entry.id;
+							obs.manifest.context.theme = context.theme;
+							obs.manifest.context.viewport = context.viewport;
+							obs.channels.visual.path = screenshot;
+							obs.channels.a11y.axe =
+								entry.id === 'toolbar--grouped'
+									? {
+											status: 'failed',
+											policy: 'error',
+											violations: [
+												{
+													id: 'color-contrast',
+													impact: 'serious',
+													help: 'contrast',
+													targets: ['span.group-label'],
+													details: [],
+												},
+											],
+											incomplete: 0,
+											incompleteChecks: [],
+											exceptions: [],
+										}
+									: {
+											status: 'passed',
+											policy: 'error',
+											violations: [],
+											incomplete: 0,
+											incompleteChecks: [],
+											exceptions: [],
+										};
+							return obs;
+						},
+					},
+					request
+				);
+			instance.recordDecision = (request, options) => recordDecision(root, request, options);
+			instance.getDecision = (request) => getDecision(root, request);
+			instance.listDecisions = () => listDecisions(root);
+			instance.checkDecisions = (request) => checkDecisions(root, request);
+
+			const commands = createSpecimenCommands(instance);
+			const byName = (name: string) => commands.find((command) => command.name === name);
+			expect(byName('decision-record')?.mutation).toBe(true);
+			expect(byName('decision-record')?.confirmPrompt).toBeTruthy();
+			expect(byName('decision-get')?.mutation).toBe(false);
+			expect(byName('decision-list')?.mutation).toBe(false);
+			expect(byName('decision-check')?.mutation).toBe(false);
+			expect(byName('decision-check')?.description).toContain('before editing');
+			expect(byName('decision-check')?.description).toContain('decision-list');
+
+			// Scenario 03 step 1: compare three variants.
+			const compared = await executeSpecimenCommand(instance, 'specimen-compare', {
+				ids: ['toolbar--dense', 'toolbar--airy', 'toolbar--grouped'],
+			});
+			expect(compared.success).toBe(true);
+			const setId = (compared.data as { set: string }).set;
+			expect(setId).toMatch(/^set-/);
+
+			// Scenario 03 step 2: empty reason returns REASON_REQUIRED (not VALIDATION_ERROR).
+			const noReason = await executeSpecimenCommand(instance, 'decision-record', {
+				slug: 'toolbar-density',
+				question: 'How dense should the toolbar be?',
+				set: setId,
+				chosen: 'toolbar--dense',
+				reason: '',
+			});
+			expect(noReason.success).toBe(false);
+			expect(noReason.error).toMatchObject({
+				code: 'REASON_REQUIRED',
+				suggestion: expect.stringContaining('reason'),
+			});
+
+			// Scenario 03 step 3: unknown variant returns VARIANT_NOT_FOUND.
+			const badVariant = await executeSpecimenCommand(instance, 'decision-record', {
+				slug: 'toolbar-density',
+				question: 'How dense should the toolbar be?',
+				set: setId,
+				chosen: 'toolbar--compact',
+				reason: 'Fits twelve commands.',
+			});
+			expect(badVariant.success).toBe(false);
+			expect(badVariant.error).toMatchObject({
+				code: 'VARIANT_NOT_FOUND',
+				message: expect.stringContaining('toolbar--compact'),
+				suggestion: expect.stringContaining('toolbar--dense'),
+			});
+
+			// Scenario 03 step 4: axe-failing variant returns CHOSEN_FAILS_GATE.
+			const failedGate = await executeSpecimenCommand(instance, 'decision-record', {
+				slug: 'toolbar-density',
+				question: 'How dense should the toolbar be?',
+				set: setId,
+				chosen: 'toolbar--grouped',
+				reason: 'Groups read better.',
+			});
+			expect(failedGate.success).toBe(false);
+			expect(failedGate.error).toMatchObject({
+				code: 'CHOSEN_FAILS_GATE',
+				message: expect.stringContaining('color-contrast'),
+				suggestion: expect.stringContaining('specimen-compare'),
+			});
+
+			// Scenario 03 step 5: record choice with reason, files, tokens; subjects.specimens defaults to [chosen].
+			const recorded = await executeSpecimenCommand(instance, 'decision-record', {
+				slug: 'toolbar-density',
+				question: 'How dense should the toolbar be?',
+				set: setId,
+				chosen: 'toolbar--dense',
+				reason: 'The editor shows twelve commands; at the airy gap the last three wrap at 1280 px.',
+				subjects: {
+					files: ['src/toolbar/**'],
+					tokens: ['space.toolbar.gap'],
+				},
+			});
+			expect(recorded.success).toBe(true);
+			expect(recorded.data).toMatchObject({
+				decision: expect.stringMatching(/^dec-[0-9a-hjkmnp-tv-z]{12}$/),
+				kind: 'choice',
+				chosen: 'toolbar--dense',
+				kept: ['toolbar--airy', 'toolbar--grouped'],
+				path: expect.stringMatching(/^specimens\/decisions\/dec-[0-9a-hjkmnp-tv-z]{12}\.json$/),
+				evidenceDir: expect.stringMatching(/^specimens\/evidence\/set-[0-9a-f]{12}\/$/),
+			});
+			const decisionId = (recorded.data as { decision: string }).decision;
+
+			// Scenario 03 step 6: read back via decision-get.
+			const fetched = await executeSpecimenCommand(instance, 'decision-get', {
+				decision: decisionId,
+			});
+			expect(fetched.success).toBe(true);
+			expect(fetched.data).toMatchObject({
+				reason: expect.stringContaining('twelve commands'),
+				evidence: {
+					set: expect.stringMatching(/^set-[0-9a-f]{12}$/),
+					captures: expect.arrayContaining([
+						expect.objectContaining({ id: 'toolbar--dense' }),
+						expect.objectContaining({ id: 'toolbar--airy' }),
+						expect.objectContaining({ id: 'toolbar--grouped' }),
+					]),
+				},
+				subjects: { specimens: ['toolbar--dense'] },
+			});
+			expect(
+				(fetched.data as { evidence: { captures: unknown[] } }).evidence.captures
+			).toHaveLength(3);
+
+			// decision-check matches files and tokens.
+			const fileCheck = await executeSpecimenCommand(instance, 'decision-check', {
+				files: ['src/toolbar/toolbar.css'],
+			});
+			expect(fileCheck.success).toBe(true);
+			expect(fileCheck.data).toMatchObject({
+				decisions: [
+					{
+						decision: decisionId,
+						matched: { files: ['src/toolbar/toolbar.css'] },
+					},
+				],
+			});
+
+			// Undecided comparison + decision-list.
+			const listCompared = await executeSpecimenCommand(instance, 'specimen-compare', {
+				ids: ['list--empty', 'list--empty-plain'],
+			});
+			expect(listCompared.success).toBe(true);
+			const undecidedSet = (listCompared.data as { set: string }).set;
+
+			const listed = await executeSpecimenCommand(instance, 'decision-list', {});
+			expect(listed.success).toBe(true);
+			expect(listed.data).toEqual({
+				decisions: [
+					{
+						decision: decisionId,
+						question: 'How dense should the toolbar be?',
+						chosen: 'toolbar--dense',
+						stale: [],
+					},
+				],
+				undecided: [{ set: undecidedSet, ids: ['list--empty', 'list--empty-plain'] }],
+			});
+
+			// DECISION_NOT_FOUND points to decision-list.
+			const notFound = await executeSpecimenCommand(instance, 'decision-get', {
+				decision: 'dec-q7k2m4xab3nb',
+			});
+			expect(notFound.success).toBe(false);
+			expect(notFound.error).toMatchObject({
+				code: 'DECISION_NOT_FOUND',
+				suggestion: expect.stringContaining('decision-list'),
+			});
+
+			// decidedBy reserves kind: 'person' for Phase 5 confirmation; even with actor.kind='human', Phase 3 records 'script'.
+			const decisionRecordCmd = createSpecimenCommands(instance)[32];
+			expect(decisionRecordCmd.name).toBe('decision-record');
+			const humanActorRecorded = await decisionRecordCmd.handler(
+				{
+					slug: 'list-empty-state',
+					question: 'Include hint in empty list?',
+					set: undecidedSet,
+					chosen: 'list--empty',
+					reason: 'Hint explains how to create the first item.',
+				},
+				{ actor: { kind: 'human', id: 'alice' } }
+			);
+			expect(humanActorRecorded.success).toBe(true);
+			const listDecisionId = (humanActorRecorded.data as { decision: string }).decision;
+			const fetchedListDecision = await executeSpecimenCommand(instance, 'decision-get', {
+				decision: listDecisionId,
+			});
+			expect(fetchedListDecision.success).toBe(true);
+			expect(fetchedListDecision.data).toMatchObject({
+				decidedBy: { kind: 'script' },
+			});
+
+			// Default review resolution through executeSpecimenCommand enforces REVIEW_ITEM_NOT_FOUND with zero injection.
+			const badReview = await executeSpecimenCommand(instance, 'decision-record', {
+				items: [`changed:deadbeef0000:deadbeef0000:${setId}..${undecidedSet}`],
+				chosen: 'accept',
+				reason: 'Fabricated item.',
+			});
+			expect(badReview.success).toBe(false);
+			expect(badReview.error?.code).toBe('REVIEW_ITEM_NOT_FOUND');
+		} finally {
+			await rm(root, { recursive: true, force: true });
 		}
 	});
 });

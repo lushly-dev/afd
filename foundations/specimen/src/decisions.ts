@@ -1,0 +1,904 @@
+import type { Dirent } from 'node:fs';
+import { readdir } from 'node:fs/promises';
+import { join } from 'node:path';
+import {
+	allocateDecisionId,
+	cleanSubjects,
+	compareCodeUnits,
+	currentChoicesFromRecords,
+	DECISION_ID_LENGTH,
+	DECISION_ID_PATTERN,
+	DECISIONS_DIR,
+	decisionFilePath,
+	decisionRelativePath,
+	decisionsDir,
+	dedupeStrings,
+	EVIDENCE_DIR,
+	evidenceRelativeDir,
+	evidenceRootDir,
+	evidenceSetDir,
+	formatSingleAnswerResult,
+	formatSingleChoiceResult,
+	generateDecisionId,
+	globMatchesAnyFile,
+	matchesSubjectGlob,
+	normalizeFileForMatching,
+	publishSupersession,
+	readAllDecisions,
+	readCompareVariantOrder,
+	readDecisionEvidenceManifest,
+	readDecisionRecord,
+	resolveEvidenceCapturesForGet,
+	SPECIMENS_DIR,
+	sha256,
+	supersededIdsFromRecords,
+	swapChosenSubject,
+	typedError,
+	writeDecisionEvidence,
+	writeDecisionFile,
+} from './decisions-store.js';
+import { canonicalJson, diffObservations } from './diff.js';
+import type { SpecimenHostError } from './host.js';
+import {
+	assertRealContained,
+	captureSetsDir,
+	readCaptureSetManifest,
+	readSetCaptureFromManifest,
+	SET_ID_PATTERN,
+	specimenDataDir,
+	withFileLock,
+} from './sets.js';
+import type {
+	AnswerDecisionRecord,
+	CaptureSetManifest,
+	ChoiceDecisionRecord,
+	DecisionActor,
+	DecisionAnswerCause,
+	DecisionCheckEntry,
+	DecisionCheckRequest,
+	DecisionCheckResult,
+	DecisionGetRequest,
+	DecisionGetResult,
+	DecisionListEntry,
+	DecisionListResult,
+	DecisionRecordRequest,
+	DecisionRecordResult,
+	DecisionRecordSingleResult,
+	DecisionSubjects,
+	RecordDecisionOptions,
+	ResolvedReviewItem,
+	UndecidedComparison,
+} from './types.js';
+import {
+	parseDecisionCheckRequest,
+	parseDecisionGetRequest,
+	parseDecisionRecordRequest,
+} from './validate.js';
+
+export {
+	DECISION_ID_LENGTH,
+	DECISION_ID_PATTERN,
+	DECISIONS_DIR,
+	decisionFilePath,
+	decisionRelativePath,
+	decisionsDir,
+	EVIDENCE_DIR,
+	evidenceRelativeDir,
+	evidenceRootDir,
+	evidenceSetDir,
+	generateDecisionId,
+	matchesSubjectGlob,
+	readAllDecisions,
+	readDecisionEvidenceManifest,
+	readDecisionRecord,
+	SPECIMENS_DIR,
+	writeDecisionEvidence,
+};
+
+const MAX_SUBSET_SEARCH_MEMBERS = 16;
+
+const CHANGED_ITEM_RE =
+	/^changed:([0-9a-zA-Z_-]+):([0-9a-zA-Z_-]+):(set-[0-9a-f]{12})\.\.(set-[0-9a-f]{12})$/;
+const CHECK_ITEM_RE = /^check:([^:]+):([^:]+):(set-[0-9a-f]{12})\.\.(set-[0-9a-f]{12})$/;
+const INSUFFICIENT_ITEM_RE = /^insufficient:([^:]+):(set-[0-9a-f]{12})\.\.(set-[0-9a-f]{12})$/;
+
+function checkChosenPassesGate(
+	manifest: CaptureSetManifest,
+	chosen: string,
+	variants: readonly string[]
+): void {
+	const entry = Object.hasOwn(manifest.captures, chosen) ? manifest.captures[chosen] : undefined;
+	if (!entry) {
+		throw typedError(
+			'VARIANT_NOT_FOUND',
+			`Variant not found in capture set ${manifest.set}: ${chosen}`,
+			`Choose one of the variants in the set: ${variants.join(', ')}.`,
+			{ chosen, variants: [...variants], set: manifest.set }
+		);
+	}
+	if (entry.status !== 'captured') {
+		throw typedError(
+			'CHOSEN_FAILS_GATE',
+			`Variant ${chosen} is unavailable in set ${manifest.set}: ${entry.reason ?? 'capture failed'}.`,
+			`Fix ${chosen} and compare again with specimen-compare.`,
+			{ chosen, set: manifest.set, reason: entry.reason ?? null }
+		);
+	}
+	if (entry.axe?.status === 'failed') {
+		const violations = entry.axe.violations;
+		const violationList = violations.length > 0 ? violations.join(', ') : 'accessibility failure';
+		throw typedError(
+			'CHOSEN_FAILS_GATE',
+			`Variant ${chosen} failed accessibility gate (${violationList}) in set ${manifest.set}.`,
+			`Fix the failing check(s) on ${chosen} and compare again with specimen-compare.`,
+			{ chosen, set: manifest.set, violations }
+		);
+	}
+}
+
+async function checkChosenPassesCommittedEvidence(
+	root: string,
+	oldChoice: ChoiceDecisionRecord,
+	chosen: string
+): Promise<void> {
+	const evidenceManifest = await readDecisionEvidenceManifest(root, oldChoice.evidence.set);
+	if (evidenceManifest) {
+		const capture = evidenceManifest.captures.find((c) => c.id === chosen || c.key === chosen);
+		if (capture) {
+			if (capture.status !== 'captured') {
+				throw typedError(
+					'CHOSEN_FAILS_GATE',
+					`Variant ${chosen} is unavailable in evidence set ${oldChoice.evidence.set}: ${capture.reason ?? 'capture failed'}.`,
+					`Fix ${chosen} and compare again with specimen-compare.`,
+					{ chosen, set: oldChoice.evidence.set, reason: capture.reason ?? null }
+				);
+			}
+			if (capture.axe === 'failed') {
+				const violations = capture.violations ?? [];
+				const violationList =
+					violations.length > 0 ? violations.join(', ') : 'accessibility failure';
+				throw typedError(
+					'CHOSEN_FAILS_GATE',
+					`Variant ${chosen} failed accessibility gate (${violationList}) in evidence set ${oldChoice.evidence.set}.`,
+					`Fix the failing check(s) on ${chosen} and compare again with specimen-compare.`,
+					{ chosen, set: oldChoice.evidence.set, violations }
+				);
+			}
+		}
+		return;
+	}
+	try {
+		const localManifest = await readCaptureSetManifest(root, oldChoice.evidence.set);
+		if (Object.hasOwn(localManifest.captures, chosen)) {
+			checkChosenPassesGate(localManifest, chosen, oldChoice.variants);
+		}
+	} catch (error) {
+		if ((error as SpecimenHostError).code === 'CAPTURE_SET_NOT_FOUND') return;
+		throw error;
+	}
+}
+
+function findMatchingSubsetByHash(
+	sortedKeys: readonly string[],
+	targetHash: string
+): string[] | null {
+	if (sha256(canonicalJson(sortedKeys)).slice(0, 12) === targetHash) {
+		return [...sortedKeys];
+	}
+	if (sortedKeys.length > MAX_SUBSET_SEARCH_MEMBERS) return null;
+	const total = 1 << sortedKeys.length;
+	for (let mask = 1; mask < total - 1; mask++) {
+		const subset: string[] = [];
+		for (let bit = 0; bit < sortedKeys.length; bit++) {
+			if ((mask & (1 << bit)) !== 0) subset.push(sortedKeys[bit] as string);
+		}
+		if (sha256(canonicalJson(subset)).slice(0, 12) === targetHash) {
+			return subset;
+		}
+	}
+	return null;
+}
+
+async function defaultResolveReviewItem(
+	root: string,
+	item: string,
+	currentChoices: readonly ChoiceDecisionRecord[]
+): Promise<ResolvedReviewItem> {
+	const keptUnchosen = new Set<string>();
+	for (const choice of currentChoices) {
+		for (const variant of choice.kept) keptUnchosen.add(variant);
+	}
+
+	const changedMatch = CHANGED_ITEM_RE.exec(item);
+	if (changedMatch) {
+		const [, causeHash, membersHash, beforeSet, afterSet] = changedMatch as unknown as [
+			string,
+			string,
+			string,
+			string,
+			string,
+		];
+		const beforeManifest = await readCaptureSetManifest(root, beforeSet);
+		const afterManifest = await readCaptureSetManifest(root, afterSet);
+
+		const groups = new Map<string, { cause: DecisionAnswerCause; keys: Set<string> }>();
+		const commonKeys = Object.keys(afterManifest.captures)
+			.filter((key) => Object.hasOwn(beforeManifest.captures, key) && !keptUnchosen.has(key))
+			.sort(compareCodeUnits);
+
+		for (const key of commonKeys) {
+			const beforeEntry = beforeManifest.captures[key];
+			const afterEntry = afterManifest.captures[key];
+			if (beforeEntry?.status !== 'captured' || afterEntry?.status !== 'captured') continue;
+			if (beforeEntry.hash !== null && beforeEntry.hash === afterEntry.hash) continue;
+			const [beforeObs, afterObs] = await Promise.all([
+				readSetCaptureFromManifest(root, beforeSet, beforeManifest, key),
+				readSetCaptureFromManifest(root, afterSet, afterManifest, key),
+			]);
+			const diff = diffObservations(beforeObs, afterObs);
+			if (diff.status !== 'changed') continue;
+			for (const difference of diff.differences) {
+				const cause: DecisionAnswerCause = {
+					channel: difference.channel,
+					...(difference.target !== undefined ? { target: difference.target } : {}),
+					...(difference.property !== undefined ? { property: difference.property } : {}),
+					...(difference.left !== undefined ? { left: difference.left } : {}),
+					...(difference.right !== undefined ? { right: difference.right } : {}),
+				};
+				const hash = sha256(canonicalJson(cause)).slice(0, 12);
+				let bucket = groups.get(hash);
+				if (!bucket) {
+					bucket = { cause, keys: new Set() };
+					groups.set(hash, bucket);
+				}
+				bucket.keys.add(key);
+			}
+		}
+
+		const group = groups.get(causeHash);
+		if (!group) {
+			throw typedError(
+				'REVIEW_ITEM_NOT_FOUND',
+				`Review item not raised by sets ${beforeSet}..${afterSet}: ${item}`,
+				'Run specimen-review to list the items raised by the two capture sets.',
+				{ item, beforeSet, afterSet }
+			);
+		}
+		const sortedGroupKeys = [...group.keys].sort(compareCodeUnits);
+		const matchedKeys = findMatchingSubsetByHash(sortedGroupKeys, membersHash);
+		if (!matchedKeys) {
+			throw typedError(
+				'REVIEW_ITEM_NOT_FOUND',
+				`Review item member scope not raised by sets ${beforeSet}..${afterSet}: ${item}`,
+				'Run specimen-review to list the items raised by the two capture sets.',
+				{ item, beforeSet, afterSet }
+			);
+		}
+
+		const touchedChoices = currentChoices
+			.filter((choice) => (choice.subjects.specimens ?? []).some((s) => matchedKeys.includes(s)))
+			.map((choice) => choice.id);
+
+		const fingerprint = sha256(
+			canonicalJson({
+				cause: group.cause,
+				ids: matchedKeys,
+				before: matchedKeys.map((k) => beforeManifest.captures[k]?.hash ?? null),
+				after: matchedKeys.map((k) => afterManifest.captures[k]?.hash ?? null),
+			})
+		).slice(0, 16);
+
+		return {
+			entry: {
+				item,
+				kind: 'changed',
+				ids: matchedKeys,
+				cause: group.cause,
+				fingerprint,
+			},
+			afterSet,
+			touchedChoices,
+			question: `Accept or reject ${group.cause.channel}${group.cause.property ? `.${group.cause.property}` : ''} change on ${matchedKeys.join(', ')}?`,
+		};
+	}
+
+	const checkMatch = CHECK_ITEM_RE.exec(item);
+	if (checkMatch) {
+		const [, specimenId, checkId, beforeSet, afterSet] = checkMatch as unknown as [
+			string,
+			string,
+			string,
+			string,
+			string,
+		];
+		await readCaptureSetManifest(root, beforeSet);
+		const afterManifest = await readCaptureSetManifest(root, afterSet);
+		if (keptUnchosen.has(specimenId)) {
+			throw typedError(
+				'REVIEW_ITEM_NOT_FOUND',
+				`Specimen "${specimenId}" is a kept unchosen variant and is excluded from review.`,
+				'Run specimen-review to list the items raised by the two capture sets.',
+				{ item, specimenId, beforeSet, afterSet }
+			);
+		}
+		const capture = Object.hasOwn(afterManifest.captures, specimenId)
+			? afterManifest.captures[specimenId]
+			: undefined;
+		if (capture?.status !== 'captured') {
+			throw typedError(
+				'REVIEW_ITEM_NOT_FOUND',
+				`Review item not raised by sets ${beforeSet}..${afterSet}: ${item}`,
+				'Run specimen-review to list the items raised by the two capture sets.',
+				{ item, beforeSet, afterSet }
+			);
+		}
+		const hasCheck = capture.axe?.incompleteChecks.some((check) => check.id === checkId) ?? false;
+		if (!hasCheck) {
+			throw typedError(
+				'REVIEW_ITEM_NOT_FOUND',
+				`Incomplete check "${checkId}" on "${specimenId}" was not raised in ${afterSet}.`,
+				'Run specimen-review to list the items raised by the two capture sets.',
+				{ item, specimenId, checkId, afterSet }
+			);
+		}
+		return {
+			entry: {
+				item,
+				kind: 'incomplete-check',
+				id: specimenId,
+				check: checkId,
+				fingerprint: capture.hash ?? '',
+			},
+			afterSet,
+			touchedChoices: [],
+			question: `Review incomplete accessibility check ${checkId} on ${specimenId}?`,
+		};
+	}
+
+	const insufficientMatch = INSUFFICIENT_ITEM_RE.exec(item);
+	if (insufficientMatch) {
+		const [, specimenId, beforeSet, afterSet] = insufficientMatch as unknown as [
+			string,
+			string,
+			string,
+			string,
+		];
+		const beforeManifest = await readCaptureSetManifest(root, beforeSet);
+		const afterManifest = await readCaptureSetManifest(root, afterSet);
+		if (keptUnchosen.has(specimenId)) {
+			throw typedError(
+				'REVIEW_ITEM_NOT_FOUND',
+				`Specimen "${specimenId}" is a kept unchosen variant and is excluded from review.`,
+				'Run specimen-review to list the items raised by the two capture sets.',
+				{ item, specimenId, beforeSet, afterSet }
+			);
+		}
+		const beforeEntry = Object.hasOwn(beforeManifest.captures, specimenId)
+			? beforeManifest.captures[specimenId]
+			: undefined;
+		const afterEntry = Object.hasOwn(afterManifest.captures, specimenId)
+			? afterManifest.captures[specimenId]
+			: undefined;
+		if (beforeEntry?.status !== 'captured' || afterEntry?.status !== 'captured') {
+			throw typedError(
+				'REVIEW_ITEM_NOT_FOUND',
+				`Review item not raised by sets ${beforeSet}..${afterSet}: ${item}`,
+				'Run specimen-review to list the items raised by the two capture sets.',
+				{ item, beforeSet, afterSet }
+			);
+		}
+		const [beforeObs, afterObs] = await Promise.all([
+			readSetCaptureFromManifest(root, beforeSet, beforeManifest, specimenId),
+			readSetCaptureFromManifest(root, afterSet, afterManifest, specimenId),
+		]);
+		const diff = diffObservations(beforeObs, afterObs);
+		if (diff.status !== 'insufficient-evidence') {
+			throw typedError(
+				'REVIEW_ITEM_NOT_FOUND',
+				`Specimen "${specimenId}" did not produce insufficient-evidence between ${beforeSet} and ${afterSet}.`,
+				'Run specimen-review to list the items raised by the two capture sets.',
+				{ item, specimenId, beforeSet, afterSet }
+			);
+		}
+		return {
+			entry: {
+				item,
+				kind: 'insufficient-evidence',
+				id: specimenId,
+				fingerprint: afterEntry.hash ?? '',
+			},
+			afterSet,
+			touchedChoices: [],
+			question: `Review insufficient evidence for ${specimenId} between ${beforeSet} and ${afterSet}?`,
+		};
+	}
+
+	throw typedError(
+		'REVIEW_ITEM_NOT_FOUND',
+		`Invalid or unknown review item: ${item}`,
+		'Run specimen-review to list the items raised by the two capture sets.',
+		{ item }
+	);
+}
+
+/**
+ * Record a choice decision, supersede one or more existing choices, or record a review answer.
+ * Writes files under `specimens/decisions/` and `specimens/evidence/` without running `git commit`.
+ */
+export async function recordDecision(
+	root: string,
+	rawRequest: DecisionRecordRequest,
+	options: RecordDecisionOptions = {}
+): Promise<DecisionRecordResult> {
+	const request = parseDecisionRecordRequest(rawRequest);
+	const trimmedReason = typeof request.reason === 'string' ? request.reason.trim() : '';
+	if (!trimmedReason) {
+		throw typedError(
+			'REASON_REQUIRED',
+			'A decision requires a non-empty reason.',
+			'Give the reason the choice rests on in the reason field.'
+		);
+	}
+	const decidedBy: DecisionActor = options.decidedBy ?? { kind: 'script' };
+	const decidedAt = (options.now ? options.now() : new Date()).toISOString();
+
+	const lockPath = join(specimenDataDir(root), '.decisions.lock');
+	await assertRealContained(root, lockPath, `Decision lock escapes root: ${lockPath}`);
+
+	return withFileLock(lockPath, async () => {
+		const allExisting = await readAllDecisions(root);
+		const supersededIds = supersededIdsFromRecords(allExisting);
+		const currentChoices = currentChoicesFromRecords(allExisting);
+		const resolveItem =
+			options.resolveReviewItem ??
+			((item: string) => defaultResolveReviewItem(root, item, currentChoices));
+
+		// Mode 1: New choice from a capture/compare set.
+		if (
+			request.set !== undefined &&
+			request.supersedes === undefined &&
+			request.items === undefined
+		) {
+			const manifest = await readCaptureSetManifest(root, request.set);
+			const compareOrder = await readCompareVariantOrder(root, manifest.set);
+			const manifestKeys = Object.keys(manifest.captures);
+			const variants = compareOrder
+				? [
+						...compareOrder.filter((id) => Object.hasOwn(manifest.captures, id)),
+						...manifestKeys.filter((id) => !compareOrder.includes(id)),
+					]
+				: manifestKeys;
+			checkChosenPassesGate(manifest, request.chosen, variants);
+			const kept = variants.filter((id) => id !== request.chosen);
+			const { ref: evidence } = await writeDecisionEvidence(root, manifest, variants);
+			const subjects: DecisionSubjects = {
+				...cleanSubjects(request.subjects),
+				specimens:
+					request.subjects?.specimens !== undefined
+						? dedupeStrings(request.subjects.specimens)
+						: [request.chosen],
+			};
+			const id = await allocateDecisionId(root, new Set());
+			const record: ChoiceDecisionRecord = {
+				id,
+				kind: 'choice',
+				slug: request.slug as string,
+				status: 'current',
+				question: request.question as string,
+				variants,
+				chosen: request.chosen,
+				kept,
+				discarded: [],
+				reason: trimmedReason,
+				evidence,
+				subjects,
+				decidedAt,
+				decidedBy,
+			};
+			const path = await writeDecisionFile(root, record);
+			return formatSingleChoiceResult(record, path);
+		}
+
+		// Mode 2: Supersede one or more existing choice decisions.
+		if (request.supersedes !== undefined) {
+			const supersedeIds = Array.isArray(request.supersedes)
+				? request.supersedes
+				: [request.supersedes];
+
+			const priorChoices: ChoiceDecisionRecord[] = [];
+			for (const oldId of supersedeIds) {
+				const prior = await readDecisionRecord(root, oldId);
+				if (prior.kind !== 'choice') {
+					throw typedError(
+						'DECISION_NOT_FOUND',
+						`Decision ${oldId} is an answer, not a choice, and cannot be superseded.`,
+						'Use decision-list to see current choice decision ids.',
+						{ decision: oldId }
+					);
+				}
+				if (prior.status !== 'current' || supersededIds.has(prior.id)) {
+					throw typedError(
+						'DECISION_NOT_FOUND',
+						`Decision ${oldId} is already superseded.`,
+						'Use decision-list to see current choice decision ids.',
+						{ decision: oldId }
+					);
+				}
+				priorChoices.push(prior);
+			}
+
+			// Submode 2b: Accepting review items that supersede 1 or more choices.
+			if (request.items !== undefined) {
+				const resolvedItems: ResolvedReviewItem[] = [];
+				for (const item of request.items) {
+					resolvedItems.push(await resolveItem(item));
+				}
+				const distinctAfterSets = dedupeStrings(resolvedItems.map((resolved) => resolved.afterSet));
+				if (distinctAfterSets.length !== 1) {
+					throw typedError(
+						'REVIEW_ITEM_NOT_FOUND',
+						`Review items span multiple after sets (${distinctAfterSets.join(', ')}); record items from one review pair per call.`,
+						'Pass review items from the same specimen-review before/after set pair.',
+						{ afterSets: distinctAfterSets }
+					);
+				}
+				const requiredChoices = dedupeStrings(
+					resolvedItems.flatMap((resolved) => resolved.touchedChoices)
+				);
+				const missingSupersedes = requiredChoices.filter((id) => !supersedeIds.includes(id));
+				if (missingSupersedes.length > 0) {
+					throw typedError(
+						'SUPERSEDE_REQUIRED',
+						`Accepting these review items supersedes choice(s) not listed in supersedes: ${missingSupersedes.join(', ')}.`,
+						`Pass supersedes with all touched choices (${requiredChoices.join(', ')}) and a new reason.`,
+						{ missing: missingSupersedes, required: requiredChoices }
+					);
+				}
+
+				const targetEvidenceSetId = distinctAfterSets[0] as string;
+				const afterManifest = await readCaptureSetManifest(root, targetEvidenceSetId);
+				const compareOrder = await readCompareVariantOrder(root, afterManifest.set);
+				const { ref: sharedEvidence } = await writeDecisionEvidence(
+					root,
+					afterManifest,
+					compareOrder ?? undefined
+				);
+
+				const answers = resolvedItems.map((resolved) => resolved.entry);
+				const reserved = new Set<string>();
+				const planned: { oldChoice: ChoiceDecisionRecord; nextChoice: ChoiceDecisionRecord }[] = [];
+				for (const oldChoice of priorChoices) {
+					const nextId = await allocateDecisionId(root, reserved);
+					reserved.add(nextId);
+					const isSingle = priorChoices.length === 1;
+					const nextChoice: ChoiceDecisionRecord = {
+						id: nextId,
+						kind: 'choice',
+						slug: isSingle && request.slug !== undefined ? request.slug : oldChoice.slug,
+						status: 'current',
+						question:
+							isSingle && request.question !== undefined ? request.question : oldChoice.question,
+						variants: [...oldChoice.variants],
+						chosen: oldChoice.chosen,
+						kept: [...oldChoice.kept],
+						discarded: [...oldChoice.discarded],
+						...(oldChoice.discardedAt ? { discardedAt: { ...oldChoice.discardedAt } } : {}),
+						reason: trimmedReason,
+						evidence: sharedEvidence,
+						subjects: cleanSubjects(oldChoice.subjects),
+						answers,
+						supersedes: oldChoice.id,
+						decidedAt,
+						decidedBy,
+					};
+					planned.push({ oldChoice, nextChoice });
+				}
+
+				const results = await publishSupersession(root, planned);
+				if (Array.isArray(request.supersedes) && request.supersedes.length >= 2) {
+					return { decisions: results };
+				}
+				return results[0] as DecisionRecordSingleResult;
+			}
+
+			// Submode 2a: Direct choice supersede / variant reversal (supports 1 or more choices).
+			let sharedNewSet: {
+				manifest: CaptureSetManifest;
+				variants: string[];
+			} | null = null;
+			if (request.set !== undefined) {
+				const manifest = await readCaptureSetManifest(root, request.set);
+				const compareOrder = await readCompareVariantOrder(root, manifest.set);
+				const manifestKeys = Object.keys(manifest.captures);
+				const variants = compareOrder
+					? [
+							...compareOrder.filter((id) => Object.hasOwn(manifest.captures, id)),
+							...manifestKeys.filter((id) => !compareOrder.includes(id)),
+						]
+					: manifestKeys;
+				checkChosenPassesGate(manifest, request.chosen, variants);
+				sharedNewSet = { manifest, variants };
+			} else {
+				for (const oldChoice of priorChoices) {
+					if (!oldChoice.variants.includes(request.chosen)) {
+						throw typedError(
+							'VARIANT_NOT_FOUND',
+							`Variant not found in decision ${oldChoice.id}: ${request.chosen}`,
+							`Choose one of the decision's variants: ${oldChoice.variants.join(', ')}.`,
+							{ decision: oldChoice.id, chosen: request.chosen, variants: oldChoice.variants }
+						);
+					}
+					await checkChosenPassesCommittedEvidence(root, oldChoice, request.chosen);
+				}
+			}
+
+			const sharedNewEvidence = sharedNewSet
+				? (await writeDecisionEvidence(root, sharedNewSet.manifest, sharedNewSet.variants)).ref
+				: null;
+
+			const reserved = new Set<string>();
+			const planned: { oldChoice: ChoiceDecisionRecord; nextChoice: ChoiceDecisionRecord }[] = [];
+			for (const oldChoice of priorChoices) {
+				const variants = sharedNewSet ? [...sharedNewSet.variants] : [...oldChoice.variants];
+				const evidence = sharedNewEvidence ? { ...sharedNewEvidence } : { ...oldChoice.evidence };
+				const discarded = oldChoice.discarded.filter(
+					(variant) => variants.includes(variant) && variant !== request.chosen
+				);
+				const discardedSet = new Set(discarded);
+				const kept = variants.filter(
+					(variant) => variant !== request.chosen && !discardedSet.has(variant)
+				);
+				let discardedAt: Record<string, string> | undefined;
+				if (oldChoice.discardedAt) {
+					const remaining = Object.entries(oldChoice.discardedAt).filter(([variant]) =>
+						discardedSet.has(variant)
+					);
+					if (remaining.length > 0) {
+						discardedAt = Object.fromEntries(remaining);
+					}
+				}
+				const isSingle = priorChoices.length === 1;
+				const subjects: DecisionSubjects =
+					isSingle && request.subjects !== undefined
+						? {
+								...cleanSubjects(request.subjects),
+								specimens:
+									request.subjects.specimens !== undefined
+										? dedupeStrings(request.subjects.specimens)
+										: [request.chosen],
+							}
+						: swapChosenSubject(oldChoice.subjects, oldChoice.chosen, request.chosen);
+
+				const nextId = await allocateDecisionId(root, reserved);
+				reserved.add(nextId);
+				const nextChoice: ChoiceDecisionRecord = {
+					id: nextId,
+					kind: 'choice',
+					slug: isSingle && request.slug !== undefined ? request.slug : oldChoice.slug,
+					status: 'current',
+					question:
+						isSingle && request.question !== undefined ? request.question : oldChoice.question,
+					variants,
+					chosen: request.chosen,
+					kept,
+					discarded,
+					...(discardedAt ? { discardedAt } : {}),
+					reason: trimmedReason,
+					evidence,
+					subjects,
+					supersedes: oldChoice.id,
+					decidedAt,
+					decidedBy,
+				};
+				planned.push({ oldChoice, nextChoice });
+			}
+
+			const results = await publishSupersession(root, planned);
+			if (Array.isArray(request.supersedes) && request.supersedes.length >= 2) {
+				return { decisions: results };
+			}
+			return results[0] as DecisionRecordSingleResult;
+		}
+
+		// Mode 3: Review answer (`items` without `supersedes`).
+		const resolvedItems: ResolvedReviewItem[] = [];
+		for (const item of request.items as string[]) {
+			resolvedItems.push(await resolveItem(item));
+		}
+		if (request.chosen === 'accept') {
+			const touched = dedupeStrings(resolvedItems.flatMap((resolved) => resolved.touchedChoices));
+			if (touched.length > 0) {
+				throw typedError(
+					'SUPERSEDE_REQUIRED',
+					`Accepting this review item undoes choice decision(s): ${touched.join(', ')}.`,
+					`Pass supersedes with ${touched.join(', ')} and a new reason.`,
+					{ decisions: touched }
+				);
+			}
+		}
+
+		const id = await allocateDecisionId(root, new Set());
+		const derivedQuestion =
+			request.question ??
+			(resolvedItems.length === 1
+				? resolvedItems[0]?.question
+				: `Review ${resolvedItems.length} unsettled items`);
+		const answerRecord: AnswerDecisionRecord = {
+			id,
+			kind: 'answer',
+			...(request.slug !== undefined ? { slug: request.slug } : {}),
+			...(derivedQuestion ? { question: derivedQuestion } : {}),
+			chosen: request.chosen as 'accept' | 'reject',
+			reason: trimmedReason,
+			answers: resolvedItems.map((resolved) => resolved.entry),
+			decidedAt,
+			decidedBy,
+		};
+		const path = await writeDecisionFile(root, answerRecord);
+		return formatSingleAnswerResult(answerRecord, path);
+	});
+}
+
+/** Read a decision record by id, enriching choice records with their committed `evidence.captures`. */
+export async function getDecision(
+	root: string,
+	rawRequest: DecisionGetRequest
+): Promise<DecisionGetResult> {
+	const request = parseDecisionGetRequest(rawRequest);
+	const record = await readDecisionRecord(root, request.decision);
+	if (record.kind === 'answer') {
+		return {
+			decision: record.id,
+			...record,
+		};
+	}
+	let effectiveStatus = record.status;
+	if (effectiveStatus === 'current') {
+		const all = await readAllDecisions(root);
+		if (supersededIdsFromRecords(all).has(record.id)) {
+			effectiveStatus = 'superseded';
+		}
+	}
+	const captures = await resolveEvidenceCapturesForGet(root, record);
+	return {
+		decision: record.id,
+		...record,
+		status: effectiveStatus,
+		evidence: {
+			...record.evidence,
+			captures,
+		},
+	};
+}
+
+/**
+ * List current choice decisions sorted by `decision` id ascending (with `stale` subject globs)
+ * and local comparison sets that no decision cites (`undecided`).
+ */
+export async function listDecisions(root: string): Promise<DecisionListResult> {
+	const allRecords = await readAllDecisions(root);
+	const choices = allRecords.filter(
+		(record): record is ChoiceDecisionRecord => record.kind === 'choice'
+	);
+	const citedSets = new Set(choices.map((choice) => choice.evidence.set));
+	const currentChoices = currentChoicesFromRecords(allRecords);
+
+	const decisions: DecisionListEntry[] = [];
+	for (const choice of currentChoices) {
+		const stale: string[] = [];
+		for (const pattern of choice.subjects.files ?? []) {
+			if (!(await globMatchesAnyFile(root, pattern))) {
+				stale.push(pattern);
+			}
+		}
+		decisions.push({
+			decision: choice.id,
+			question: choice.question,
+			chosen: choice.chosen,
+			stale,
+		});
+	}
+
+	const undecided: UndecidedComparison[] = [];
+	const setsRoot = captureSetsDir(root);
+	let setEntries: Dirent[] = [];
+	try {
+		await assertRealContained(root, setsRoot, `Capture sets dir escapes root`);
+		setEntries = await readdir(setsRoot, { withFileTypes: true });
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+			setEntries = [];
+		} else {
+			throw error;
+		}
+	}
+
+	const candidateSetIds = setEntries
+		.filter((entry) => entry.isDirectory() && SET_ID_PATTERN.test(entry.name))
+		.map((entry) => entry.name)
+		.sort(compareCodeUnits);
+
+	for (const setId of candidateSetIds) {
+		if (citedSets.has(setId)) continue;
+		try {
+			const manifest = await readCaptureSetManifest(root, setId);
+			if (manifest.kind !== 'compare') continue;
+			const compareOrder = await readCompareVariantOrder(root, setId);
+			const manifestKeys = Object.keys(manifest.captures);
+			const ids = compareOrder
+				? [
+						...compareOrder.filter((id) => Object.hasOwn(manifest.captures, id)),
+						...manifestKeys.filter((id) => !compareOrder.includes(id)),
+					]
+				: manifestKeys;
+			undecided.push({ set: setId, ids });
+		} catch {
+			// Skip unreadable or incomplete capture set directories.
+		}
+	}
+
+	return { decisions, undecided };
+}
+
+/**
+ * Find current choice decisions whose subjects cover any of the requested `files`, `specimens`,
+ * or `tokens`. Returns current choices only (never answers or superseded choices) and never blocks.
+ */
+export async function checkDecisions(
+	root: string,
+	rawRequest: DecisionCheckRequest = {}
+): Promise<DecisionCheckResult> {
+	const request = parseDecisionCheckRequest(rawRequest);
+	const queryFiles = request.files ?? [];
+	const querySpecimens = request.specimens ?? [];
+	const queryTokens = request.tokens ?? [];
+	if (queryFiles.length === 0 && querySpecimens.length === 0 && queryTokens.length === 0) {
+		return { decisions: [] };
+	}
+
+	const allRecords = await readAllDecisions(root);
+	const currentChoices = currentChoicesFromRecords(allRecords);
+
+	const decisions: DecisionCheckEntry[] = [];
+	for (const choice of currentChoices) {
+		const subjectFiles = choice.subjects.files ?? [];
+		const subjectSpecimens = choice.subjects.specimens ?? [];
+		const subjectTokens = choice.subjects.tokens ?? [];
+
+		const matchedFiles =
+			subjectFiles.length > 0 && queryFiles.length > 0
+				? dedupeStrings(
+						queryFiles.filter((file) => {
+							const normalized = normalizeFileForMatching(root, file);
+							return subjectFiles.some((pattern) => matchesSubjectGlob(normalized, pattern));
+						})
+					)
+				: [];
+		const matchedSpecimens =
+			subjectSpecimens.length > 0 && querySpecimens.length > 0
+				? dedupeStrings(querySpecimens.filter((specimen) => subjectSpecimens.includes(specimen)))
+				: [];
+		const matchedTokens =
+			subjectTokens.length > 0 && queryTokens.length > 0
+				? dedupeStrings(queryTokens.filter((token) => subjectTokens.includes(token)))
+				: [];
+
+		if (matchedFiles.length === 0 && matchedSpecimens.length === 0 && matchedTokens.length === 0) {
+			continue;
+		}
+		decisions.push({
+			decision: choice.id,
+			question: choice.question,
+			chosen: choice.chosen,
+			reason: choice.reason,
+			...(choice.supersedes !== undefined ? { supersedes: choice.supersedes } : {}),
+			matched: {
+				...(matchedFiles.length > 0 ? { files: matchedFiles } : {}),
+				...(matchedSpecimens.length > 0 ? { specimens: matchedSpecimens } : {}),
+				...(matchedTokens.length > 0 ? { tokens: matchedTokens } : {}),
+			},
+		});
+	}
+
+	return { decisions };
+}

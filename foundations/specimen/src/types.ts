@@ -981,6 +981,7 @@ export interface ComparePageData {
 	captures: ComparePageCapture[];
 	differences: ComparePageDifference[];
 }
+export * from './decision-types.js';
 /** One axe rule's finding: a violation, or a check it could not complete. */
 export interface AxeFinding {
 	id: string;
