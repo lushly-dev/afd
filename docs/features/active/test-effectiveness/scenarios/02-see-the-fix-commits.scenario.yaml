@@ -1,6 +1,7 @@
-# JTBD scenario for the Test effectiveness proposal. The data is invented. Nothing is built, so
-# this file is checked, not run. Once built it runs against a prepared repository, a recorded
-# set of API answers and a record.
+# JTBD scenario for the Test effectiveness proposal. The data is invented. It runs in Botcore's
+# core tests (endpoints/botcore/tests/test_gate_outcome_scenarios.py) through AFD's scenario
+# runner, against a prepared repository whose commits carry `Found-by:` lines, a recorded set of
+# GraphQL answers and a temporary record.
 name: See the fix commits and the escapes they close, without taking one for the other
 description: >-
   When I ask where bugs reach main, I want the fix commits by area and the escapes they close,

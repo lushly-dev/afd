@@ -583,8 +583,9 @@ def skill_usage_triggers_cmd(
     "--source",
     "sources",
     multiple=True,
-    help="What to read; repeat for several. ci (the Actions runs) is the only one this "
-    "botcore collects; main, reviews and runs are refused. Default: ci",
+    help="What to read; repeat for several. ci (the Actions runs) and main (the fix commits "
+    "and reverts on the default branch, and the issues they close); reviews and runs are "
+    "refused. Default: ci",
 )
 @click.option(
     "--requests",
@@ -610,8 +611,8 @@ def gate_outcome_collect_cmd(
     rebuild: bool,
     **_kwargs: Any,
 ) -> None:
-    """Read this checkout's repository's workflow runs from GitHub into the gate outcome
-    record."""
+    """Read this checkout's repository's workflow runs from GitHub, or the fix commits on its
+    default branch, into the gate outcome record."""
     from botcore.commands.gate_outcome import gate_outcome_collect
 
     result = _run_async(
@@ -646,7 +647,8 @@ def gate_outcome_collect_cmd(
     default="workflow",
     show_default=True,
     help="Rows by workflow, or by check (a step of a job, or a command of a hook group step), "
-    "and event; area, class and decision are refused until a botcore reports them",
+    "and event, or by area (the fix commits on the default branch by the unit that holds "
+    "their files); class and decision are refused until a botcore reports them",
 )
 @click.option(
     "--where",
@@ -663,7 +665,12 @@ def gate_outcome_collect_cmd(
     help="Only this check, by its id as written: '<workflow file> / <job> / <step>' with "
     "' / <command>' inside a hook group step (with --by check)",
 )
-@click.option("--area", default=None, help="The plan's filter for --by area, class, decision")
+@click.option(
+    "--area",
+    default=None,
+    help="Only this area, with --by area: a unit's folder (packages/core), repository or "
+    "several; its commits are listed with the issues each closes",
+)
 @click.option("--finding-class", default=None, help="The plan's filter for --by class")
 @click.option("--decision", default=None, help="The plan's filter for --by class and decision")
 @click.option("--pull-request", type=int, default=None, help="The plan's filter for --by class")
@@ -702,7 +709,8 @@ def gate_outcome_report_cmd(  # noqa: PLR0913 - the command's options
     **_kwargs: Any,
 ) -> None:
     """Report each workflow's or each check's runs by event: how they ended, what they cost,
-    queue groups, quiet and not-observed checks. Read-only."""
+    queue groups, quiet and not-observed checks; or the fix commits and escapes by area.
+    Read-only."""
     from botcore.commands.gate_outcome import gate_outcome_report
 
     result = _run_async(

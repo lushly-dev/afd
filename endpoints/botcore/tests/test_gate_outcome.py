@@ -566,8 +566,8 @@ def test_an_unfinished_last_line_does_not_spoil_the_next(bench: Bench) -> None:
         ({"requests": 5001}, "requests"),
         ({"sources": ["ci", "logs"]}, "ci, main, reviews, runs"),
         ({"sources": []}, "ci, main, reviews, runs"),
-        ({"sources": ["main"]}, "ci"),
-        ({"sources": ["reviews"]}, "ci"),
+        ({"sources": ["runs"]}, "ci, main"),
+        ({"sources": ["reviews"]}, "ci, main"),
     ],
 )
 def test_collect_refuses_a_value_outside_its_list_or_range(
@@ -895,8 +895,8 @@ def test_a_report_before_any_collection_is_refused(bench: Bench) -> None:
         ({"ending_days_ago": -1}, "ending_days_ago"),
         ({"ending_days_ago": 366}, "ending_days_ago"),
         ({"by": "team"}, "workflow"),
-        ({"by": "area"}, "workflow or check"),
-        ({"by": "class"}, "workflow or check"),
+        ({"by": "decision"}, "workflow, check or area"),
+        ({"by": "class"}, "workflow, check or area"),
         ({"where": "pull-request"}, "merge_group"),
         ({"where": "local"}, "pull_request"),
         ({"sort": "seconds"}, "minutes, failed, runs"),

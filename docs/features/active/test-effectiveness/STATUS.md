@@ -33,6 +33,32 @@ The proposal lists six under "For the owner to decide". Each has its own line he
 
 ## Findings
 
+### 2026-11-25: the fix-commit inventory on real data (#2483)
+
+- A collection of 17 to 25 Nov read 148 fix commits in 8 GitHub requests and about a minute.
+  For 17 to 23 Nov the inventory holds 124 fix commits of 449 commits merged, and no revert.
+- 67 of the 124 carry no closing word of their own, not 68: one writes its issue as
+  `lushly-dev/afd#2267`, which GitHub closes too. 8 have no number at the end of their subject,
+  so their pull request cannot be read through it; GitHub names the pull request each of the 8
+  merged, and through it 2 of them close issues that the subject would have missed. The
+  collection reads that pull request for a subject with no number.
+- 118 touch a test path, as the proposal counted. The Rust rule adds no commit: the 12 commits
+  that change lines inside a Rust test module all touch a named test path too.
+- Areas: with the manifests the boundary check discovers, 4 fix commits are `repository`; with
+  only the units `architecture.json` lists, 21 would be, most of them Loam's, whose packages
+  are units by discovery only. 74 of the 124 are `several`, and 18 of those only because they
+  also edit a parent unit's provenance records or changelog (a Botcore factory fix recording
+  its provenance in `endpoints/botcore`). The three areas with the most fix commits are
+  `several` (74), `endpoints/botcore` (13) and `foundations/fast-af/packages/violet-elements`
+  (11).
+- 196 escapes and 25 unconfirmed commits; the issues ten commits close, their states and labels
+  were checked by hand against GitHub and agree. Every commit's `Found-by:` is `absent`.
+- The age of the last edit has a median of 0.2 days over 111 of the 124 (12 replace lines in
+  more than 20 files, 1 only adds). The newest replaced line is mostly a status file,
+  changelog or provenance record that every change edits: over source lines only (no Markdown,
+  JSON, YAML, provenance records or test paths), the median is 1.0 day over 119 commits.
+  Whether to blame source lines only is a later piece's to decide.
+
 ### 2026-11-25: the report by check on real data (#2482)
 
 - With `ci-ok.yml` named as the verdict in a scratch configuration, the totals for 17 to 23 Nov
@@ -97,8 +123,9 @@ The proposal lists six under "For the owner to decide". Each has its own line he
   failing command (#2482): built and in review in #2535; scenarios 01 and 03 run in Botcore's
   core tests, 03's steps 3, 4 and 6 waiting on #2483. See the finding of 2026-11-25.
 
-- The fix commits and the escapes they close, and the report by area (#2483): not started; follows
-  #2481.
+- The fix commits and the escapes they close, and the report by area (#2483): built and in
+  review in #2547; scenario 02 and the three held steps of 03 pass. See the finding of 2026-11-25
+  on the inventory.
 
 - The hourly job's step, the record's folding and measured sizes (#2484): not started; follows
   #2481.

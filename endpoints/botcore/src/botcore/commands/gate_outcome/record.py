@@ -6,7 +6,7 @@ rewritten; each has an `id`, the version of the rules that made it (`v`) and whe
 (`at`). A fact learned later is a newer line for the same id, and a reader keeps the newest.
 `state.json` beside it says which spans of time were listed and how the last collection ended.
 
-Four kinds of line:
+Five kinds of line:
 
 - `run`: one attempt of a workflow run, as the run list or the attempt says: the workflow's
   file and name, the event, the attempt, the revision tested and its base, the pull request's
@@ -24,7 +24,15 @@ Four kinds of line:
   kept only when the group has it at the default branch's tip, so no text of the log is kept;
   a summary that could not be read says why, from a fixed list.
 
-Nothing else is kept: no log, no output, no title, no branch name, no file contents.
+- `commit`: one fix commit or revert on the default branch (the `main` source, main.py): its
+  revision, when it landed, its type, the pull request its subject ends with, how many files
+  it changes, the units that hold them, the test paths among them, the issues its message
+  closes, its `Found-by:` lines, the newest date of the lines it replaces and, once GitHub is
+  read, the issues its pull request closes and each issue's state and labels. Its id is
+  `commit:<revision>`. Its `v` is the main source's rules (`MAIN_RULES`).
+
+Nothing else is kept: no log, no output, no title, no branch name, no file contents, no
+commit subject, message or diff.
 
 A machine that names a shared folder (the one skill usage uses, `skill_usage_shared`) also
 writes its record to `<shared>/<machine>/gate-outcome/<owner>/<name>/`, and a reader reads
@@ -54,7 +62,16 @@ RECORD_FILE = "record.jsonl"
 STATE_FILE = "state.json"
 LOCK_FILE = "collect.lock"
 SHARED_FOLDER = "gate-outcome"  # inside a machine's folder in the shared one
-KINDS = ("run", "shape", "steps", "group")
+KINDS = ("run", "shape", "steps", "group", "commit")
+MAIN_RULES = 1  # the version of the rules a commit line is made by
+COMMIT_TYPES = ("fix", "revert")
+# How a `Found-by:` line says a bug was found, and its class: the plan's lists
+CHANNELS = ("review", "check", "daily", "use", "sweep", "unknown")
+CLASSES = ("logic", "contract", "parity", "claim", "security", "concurrency", "interface", "other")
+# How reading the age of the last edit of the lines a fix replaces ended: read, or why not
+LAST_EDIT = ("read", "no-lines", "too-many-files", "no-parent", "unreadable")
+ISSUE_STATES = ("open", "closed")
+MAX_TEST_PATHS = 100  # test paths a commit line names; `tests` counts them all
 # How reading a group step's summary ended: read, or why not
 SUMMARY = ("read", "no-summary", "mismatch", "log-gone", "unreadable")
 COMMAND_ENDS = ("passed", "failed")
@@ -159,7 +176,7 @@ def shape_digest(workflow: str, jobs: list) -> str:
 
 
 def checked(line: object) -> dict | None:  # noqa: C901, PLR0911, PLR0912 - one check per field
-    """A line as this botcore can use it: one of the four kinds with every field of the type
+    """A line as this botcore can use it: one of the five kinds with every field of the type
     it should have, and nothing else (`checked` drops unknown fields, so a hand or another
     program cannot put text into what is shared). None for anything else."""
     if not isinstance(line, dict) or line.get("kind") not in KINDS:
@@ -178,6 +195,8 @@ def checked(line: object) -> dict | None:  # noqa: C901, PLR0911, PLR0912 - one 
         if identifier != f"shape:{shape_digest(workflow, jobs)}":
             return None
         return {**base, "workflow": workflow, "jobs": jobs}
+    if kind == "commit":
+        return _commit(line, base)
     run, attempt = line.get("run"), line.get("attempt")
     if not _count(run) or not _count(attempt) or identifier != f"{kind}:{run}:{attempt}":
         return None
@@ -223,6 +242,79 @@ def checked(line: object) -> dict | None:  # noqa: C901, PLR0911, PLR0912 - one 
     if line.get("unreadable") is True:  # read once, and GitHub no longer has it
         out["unreadable"] = True
     return out
+
+
+_CONTROL = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def path_ok(value: object) -> bool:
+    """A path in the repository, or a label's name, the record can hold: text, no control
+    character."""
+    return isinstance(value, str) and 0 < len(value) <= 500 and not _CONTROL.search(value)  # noqa: PLR2004
+
+
+_path = path_ok
+
+
+def _numbers(value: object) -> bool:
+    return isinstance(value, list) and all(_count(n) for n in value)
+
+
+def _found_by(value: object) -> bool:
+    return (
+        isinstance(value, list)
+        and len(value) == 3  # noqa: PLR2004
+        and value[0] in CHANNELS
+        and value[1] in CLASSES
+        and _opt(value[2], _count)
+    )
+
+
+def _issue(value: object) -> bool:
+    """`[number, state, [label, ...]]`."""
+    return (
+        isinstance(value, list)
+        and len(value) == 3  # noqa: PLR2004
+        and _count(value[0])
+        and value[1] in ISSUE_STATES
+        and isinstance(value[2], list)
+        and all(_path(label) and len(label) <= 100 for label in value[2])  # noqa: PLR2004
+    )
+
+
+def _commit(line: dict, base: dict) -> dict | None:  # noqa: C901, PLR0911 - one check per field
+    sha = line.get("sha")
+    if not isinstance(sha, str) or not _SHA.fullmatch(sha) or base["id"] != f"commit:{sha}":
+        return None
+    if parse_time(line.get("landed")) is None or line.get("type") not in COMMIT_TYPES:
+        return None
+    if not _opt(line.get("pr"), _count) or not _count(line.get("files")):
+        return None
+    units, tests = line.get("units"), line.get("test_paths")
+    if not (isinstance(units, list) and all(_path(u) for u in units)):
+        return None
+    if not (isinstance(tests, list) and len(tests) <= MAX_TEST_PATHS and all(map(_path, tests))):
+        return None
+    if not _count(line.get("tests")) or not _numbers(line.get("closes")):
+        return None
+    found_by = line.get("found_by")
+    if not (isinstance(found_by, list) and all(_found_by(f) for f in found_by)):
+        return None
+    if not _count(line.get("found_by_unread")) or line.get("last_edit_status") not in LAST_EDIT:
+        return None
+    if not _opt(line.get("last_edit"), parse_time):
+        return None
+    pr_closes, issues = line.get("pr_closes"), line.get("issues")
+    if not _opt(pr_closes, _numbers):
+        return None
+    if not _opt(issues, lambda i: isinstance(i, list) and all(_issue(x) for x in i)):
+        return None
+    if (pr_closes is None) != (issues is None):  # GitHub was read for both, or for neither
+        return None
+    keys = ("sha", "landed", "type", "pr", "files", "units", "test_paths", "tests", "closes",
+            "found_by", "found_by_unread", "last_edit", "last_edit_status", "pr_closes",
+            "issues")  # fmt: skip
+    return {**base, **{key: line.get(key) for key in keys}}
 
 
 def _pair(value: object) -> bool:
@@ -321,7 +413,9 @@ def _rank(line: dict, machine: str) -> tuple:
     """Which of two lines for one id wins: the newer rules, then the one that knows the
     attempt's steps (a line that could not read them never displaces one that did), then
     for a run what GitHub last updated, then the later written, then the machine by name."""
-    if line["kind"] == "steps":
+    if line["kind"] == "commit":  # one that read GitHub outranks one that could not
+        known = line["issues"] is not None
+    elif line["kind"] == "steps":
         known = not line.get("unreadable") or bool(line["seconds"])
     elif line["kind"] == "group":  # one that read a summary outranks one that could not
         known = sum(entry[2] == "read" for entry in line["steps"])  # type: ignore[assignment]
@@ -338,6 +432,7 @@ class Record:
     runs: dict[str, dict] = field(default_factory=dict)  # id -> newest run line
     steps: dict[str, dict] = field(default_factory=dict)  # id -> newest steps line
     groups: dict[str, dict] = field(default_factory=dict)  # id -> newest group line
+    commits: dict[str, dict] = field(default_factory=dict)  # id -> newest commit line
     shapes: dict[str, dict] = field(default_factory=dict)  # digest -> shape line
     states: dict[str, dict] = field(default_factory=dict)  # machine -> its state
     unreadable: dict[str, int] = field(default_factory=dict)  # machine -> lines not read
@@ -354,15 +449,17 @@ class Record:
         held = self._ranks.get(line["id"])
         if held is None or rank > held:
             self._ranks[line["id"]] = rank
-            kept = {"run": self.runs, "steps": self.steps, "group": self.groups}[line["kind"]]
+            kept = {"run": self.runs, "steps": self.steps, "group": self.groups,
+                    "commit": self.commits}[line["kind"]]  # fmt: skip
             kept[line["id"]] = line
 
     @property
     def empty(self) -> bool:
         """Whether nothing was collected: no line, and no state that says a span was listed.
         A collection that stopped before it read anything leaves a state, and nothing else."""
-        return not (self.runs or self.steps) and not any(
-            isinstance(state.get("lists"), dict) and state["lists"]
+        return not (self.runs or self.steps or self.commits) and not any(
+            (isinstance(state.get("lists"), dict) and state["lists"])
+            or (isinstance(state.get("main"), dict) and state["main"].get("days"))
             for state in self.states.values()
         )
 
@@ -447,7 +544,9 @@ class SharedUnavailable(OSError):
     """The shared folder cannot take this machine's record."""
 
 
-SHARED_STATE = ("version", "machine", "record_id", "repo", "collected_at", "lists", "ci")
+SHARED_STATE = (
+    "version", "machine", "record_id", "repo", "collected_at", "lists", "ci", "main",
+)  # fmt: skip
 
 
 def publish(folder: Path, shared: Path, machine: str, repo: str) -> bool:
@@ -471,7 +570,7 @@ def publish(folder: Path, shared: Path, machine: str, repo: str) -> bool:
         newest.add(line, machine)
     kept = [
         *newest.shapes.values(), *newest.runs.values(), *newest.steps.values(),
-        *newest.groups.values(),
+        *newest.groups.values(), *newest.commits.values(),
     ]  # fmt: skip
     record = b"".join(_serialize(line) for line in sorted(kept, key=lambda line: line["id"]))
     theirs = load_state(target).get("record_id")

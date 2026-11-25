@@ -1,10 +1,11 @@
 """`gate-outcome-report`: how often each workflow, or each check, ran in each event, how its runs
-ended and what they cost, from every machine's gate outcome record. Read-only.
+ended and what they cost, or the fix commits and escapes by area, from every machine's gate
+outcome record. Read-only.
 
 A run is counted once, as its latest attempt, in the window of whole UTC days its creation
 falls in. How a run ended is never merged: passed, failed, cancelled, `action_required`,
 skipped (and any other conclusion, as `other`) are counted apart. A run still going is in no
-count and is named in `warnings`. By check, see report_checks.py.
+count and is named in `warnings`. By check, see report_checks.py; by area, report_areas.py.
 
 A repository can name its verdict workflows (botcore.toml `[gate_outcome] verdict_workflows`):
 one that judges the others fails whenever another did, so it keeps its own row, marked, and the
@@ -46,6 +47,12 @@ from botcore.commands.gate_outcome.record import (
     repo_folder,
     state_dir,
 )
+from botcore.commands.gate_outcome.report_areas import (
+    by_area,
+    known_areas,
+    main_coverage,
+    unknown_area,
+)
 from botcore.commands.gate_outcome.report_checks import (
     by_check,
     close_checks,
@@ -59,7 +66,7 @@ from botcore.config import GateOutcomeConfig, config_table
 EVENTS = ("pull_request", "merge_group", "schedule", "push", "workflow_dispatch")
 WHERE = (*EVENTS, "local")  # the plan's values; `local` is not collected yet
 BY = ("workflow", "check", "area", "class", "decision")  # the plan's groupings
-BY_BUILT = ("workflow", "check")
+BY_BUILT = ("workflow", "check", "area")
 # The plan's filters, and the groupings each goes with
 FILTERS = ("where", "workflow", "check", "area", "finding_class", "decision", "pull_request", "due")
 GOES_WITH = {
@@ -69,7 +76,7 @@ GOES_WITH = {
     "class": ("finding_class", "area", "check", "decision", "pull_request"),
     "decision": ("check", "area", "due"),
 }
-SOURCES = ("ci", "main", "reviews", "runs")  # the plan's; this botcore collects `ci`
+SOURCES = ("ci", "main", "reviews", "runs")  # the plan's; this botcore collects `ci`, `main`
 SORTS = ("minutes", "failed", "runs")
 DEFAULT_LIMIT, MAX_LIMIT = 25, 200
 WALL_CAP = timedelta(hours=6)  # a run's wall time counts at most this
@@ -112,14 +119,13 @@ def _check_inputs(  # noqa: PLR0911, PLR0913 - one refusal per input
             f"ending_days_ago must be a whole number from 0 to {MAX_DAYS}",
             "Pass ending_days_ago from 0 (the window ends today) to 365, for example 2",
         )
+    built = f"{', '.join(BY_BUILT[:-1])} or {BY_BUILT[-1]}"
     if by not in BY:
-        return _validation(
-            f"by must be one of {', '.join(BY)}", f"Pass by: {' or '.join(BY_BUILT)}"
-        )
+        return _validation(f"by must be one of {', '.join(BY)}", f"Pass by: {built}")
     if by not in BY_BUILT:
         return _validation(
             f"This botcore does not report by {by} yet",
-            f"Pass by: {' or '.join(BY_BUILT)}, the groupings this botcore reports",
+            f"Pass by: {built}, the groupings this botcore reports",
         )
     given = [name for name in FILTERS if filters.get(name) is not None]
     stray = [name for name in given if name not in GOES_WITH[by]]
@@ -142,9 +148,15 @@ def _check_inputs(  # noqa: PLR0911, PLR0913 - one refusal per input
             "Local runs are not collected by this botcore yet",
             f"Pass where as one of {', '.join(EVENTS)}, or leave it out for every event",
         )
-    for name in ("workflow", "check"):
+    for name in ("workflow", "check", "area"):
         if filters.get(name) is not None and not isinstance(filters[name], str):
             return _validation(f"{name} must be text", f"Pass {name} as it is written")
+    if by == "area" and sort != "minutes":
+        return error(
+            "INVALID_INPUT",
+            "sort does not go with by area: areas come by fix commits, most first",
+            suggestion="Leave sort out with by area; it orders rows by workflow or by check",
+        )
     if sort not in SORTS:
         return _validation(
             f"sort must be one of {', '.join(SORTS)}",
@@ -307,15 +319,19 @@ async def gate_outcome_report(  # noqa: PLR0913 - the command's inputs
     Args:
         days: Whole UTC days in the window: 1 to 365 (default 7).
         ending_days_ago: The window's last day is this many days before today: 0 to 365.
-        by: `workflow` or `check` (a step of a job, or a command of a hook group step). The
-            plan's `area`, `class` and `decision` are refused until a botcore reports them.
+        by: `workflow`, `check` (a step of a job, or a command of a hook group step) or
+            `area` (the fix commits on the default branch by the unit that holds their files,
+            and the escapes they close). The plan's `class` and `decision` are refused until a
+            botcore reports them.
         where: Only runs of this event: `pull_request`, `merge_group`, `schedule`, `push` or
             `workflow_dispatch`. Left out, every one of them. Goes with both groupings.
         workflow: Only this workflow, by its name (`CI`) or its file (`ci.yml`). Goes with
             both groupings.
         check: Only this check, written as its id (`ci.yml / TypeScript (Node 26.x) / Quality
             gate / lint`). Goes with `by: check`.
-        area: The plan's filter for `by: area`, `class` and `decision`; refused here.
+        area: Only this area, with `by: area`: a unit's folder (`packages/core`),
+            `repository` or `several`; its commits are then listed in `examples`, newest
+            first, with the issues each closes.
         finding_class: The plan's filter for `by: class`; refused here.
         decision: The plan's filter for `by: class` and `decision`; refused here.
         pull_request: The plan's filter for `by: class`; refused here.
@@ -332,7 +348,7 @@ async def gate_outcome_report(  # noqa: PLR0913 - the command's inputs
         return refused
     return await run_blocking(
         _report_sync, days, ending_days_ago, by, where, workflow, check, sort, limit,
-        record_module.now(),
+        record_module.now(), area,
     )  # fmt: skip
 
 
@@ -447,7 +463,7 @@ def _totals(scan: Scan, where: str | None) -> dict:
 
 def _report_sync(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one report
     days: int, ending_days_ago: int, by: str, where: str | None, workflow: str | None,
-    check: str | None, sort: str, limit: int, now: datetime,
+    check: str | None, sort: str, limit: int, now: datetime, area: str | None = None,
 ) -> CommandResult[dict]:  # fmt: skip
     found = workspace_repo()
     if found is None:
@@ -475,19 +491,27 @@ def _report_sync(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one report
                 "The legs of a job whose matrix an expression decides are known by the names a "
                 "collection has seen: run gate-outcome-collect first",
             )
+    units = None
+    if by == "area":
+        areas, units = known_areas(root, record)
+        if area is not None and area.rstrip("/") not in areas:
+            refusal = unknown_area(area, areas)
+            return error("INVALID_INPUT", refusal["message"], suggestion=refusal["suggestion"])
+        area = area.rstrip("/") if area is not None else None
     if record.empty:
         return error(
             "NOT_COLLECTED",
             f"No machine's gate outcome record holds {repo} yet",
-            suggestion="Run gate-outcome-collect from this checkout first (sources: [ci]); "
-            "it reads the Actions runs from GitHub",
+            suggestion="Run gate-outcome-collect from this checkout first: sources: [ci] "
+            "reads the Actions runs from GitHub, and sources: [main] the fix commits on the "
+            "default branch",
         )
     wanted: set[str] | None = None
     if workflow is not None:
         wanted = _known_workflows(record, known).get(workflow.lower())
         if wanted is None:
             return _unknown_workflow(workflow, record)
-    verdicts, warnings = verdict_workflows(root, record)
+    verdicts, warnings = verdict_workflows(root, record) if by != "area" else (set(), [])
 
     last = now.date() - timedelta(days=ending_days_ago)
     first = last - timedelta(days=days - 1)
@@ -537,37 +561,47 @@ def _report_sync(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one report
     for machine, state in sorted(record.states.items()):
         collected = state.get("collected_at")
         ci: dict = state["ci"] if isinstance(state.get("ci"), dict) else {}
-        machines[machine] = {"collected_at": collected, "ci": ci.get("status")}
+        main: dict = state["main"] if isinstance(state.get("main"), dict) else {}
+        machines[machine] = {"collected_at": collected, "ci": ci.get("status"),
+                             "main": main.get("status")}  # fmt: skip
         if ci.get("why"):
             machines[machine]["why"] = ci["why"]
-        moment = parse_time(collected)
-        if moment is not None and (newest is None or moment > newest):
+        if main.get("why"):
+            machines[machine]["main_why"] = main["why"]
+        # How old the source this report rests on is: each source says when it was read
+        source, held = ("main", main) if by == "area" else ("ci", ci)
+        when = held.get("at") or (collected if held and source == "ci" else None)
+        moment = parse_time(when)
+        if source == "ci" and moment is not None and (newest is None or moment > newest):
             newest = moment
         if moment is None or now - moment > STALE_AFTER:
             warnings.append(
-                f"{machine} last collected {collected or 'never'}: run gate-outcome-collect "
-                "for current numbers"
+                f"{machine} last collected {source} {when or 'never'}: run gate-outcome-collect "
+                f"with sources: [{source}] for current numbers"
             )
-    if status == "absent":
+    ci_warnings = by != "area"  # a report by area rests on the main source alone
+    hint = ""
+    if missing:
+        named = sorted({begun.date().isoformat() for begun, _ in missing})
+        reach = (now.date() - first).days + 1
+        hint = f"The record does not hold every run of {', '.join(named)}: run " + (
+            f"gate-outcome-collect with since_days {reach}" if reach <= MAX_DAYS else
+            f"gate-outcome-collect with since_days {MAX_DAYS}; days before that cannot be "
+            "collected"
+        )  # fmt: skip
+    if status == "absent" and ci_warnings:  # one warning, which says what to run
         warnings.append(
-            f"ci is absent: nothing of {first} to {last} was collected, so no figure is given; "
-            "run gate-outcome-collect"
+            f"ci is absent: nothing of {first} to {last} was collected, so no figure is given. "
+            + (hint or "Run gate-outcome-collect")
         )
-    if scan.going:
+    if scan.going and ci_warnings:
         listed = ", ".join(str(run) for run in sorted(scan.going)[:5])
         warnings.append(
             f"{len(scan.going)} runs were still going when last listed and are in no count "
             f"(runs {listed}{' and more' if len(scan.going) > 5 else ''})"  # noqa: PLR2004
         )
-    if missing:
-        named = sorted({begun.date().isoformat() for begun, _ in missing})
-        reach = (now.date() - first).days + 1
-        warnings.append(
-            f"The record does not hold every run of {', '.join(named)}: run "
-            + (f"gate-outcome-collect with since_days {reach}" if reach <= MAX_DAYS else
-               f"gate-outcome-collect with since_days {MAX_DAYS}; days before that cannot "
-               "be collected")
-        )  # fmt: skip
+    if hint and status != "absent" and ci_warnings:
+        warnings.append(hint)
     if record.missing:
         warnings.append(f"{record.missing}, so only this machine's record was read")
     for machine in record.partial:
@@ -577,7 +611,7 @@ def _report_sync(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one report
         )
     for machine, lines in sorted(record.unreadable.items()):
         warnings.append(f"{lines} lines of {machine}'s record could not be read and were skipped")
-    if scan.left_out:
+    if scan.left_out and ci_warnings:
         warnings.append(
             f"{sum(scan.left_out.values())} runs of other events are left out: "
             + ", ".join(f"{event} {count}" for event, count in sorted(scan.left_out.items()))
@@ -585,6 +619,7 @@ def _report_sync(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one report
 
     sources = dict.fromkeys(SOURCES, "absent")  # the others are not collected yet
     sources["ci"] = status
+    sources["main"] = main_coverage(record, since, window.until, now).status
     data: dict = {
         "repository": repo,
         "window": {
@@ -619,6 +654,9 @@ def _report_sync(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one report
         "warnings": warnings,
         "more": {"rows": len(ordered) - len(shown)},
     }
+    if by == "area":
+        reasoning = by_area(data, record, units, window, area, limit, now, warnings)
+        return success(data, reasoning=reasoning)
     if by == "check":
         assert known is not None
         by_check(data, record, known, scan.finished, verdicts, where, wanted, check, sort,
