@@ -14,6 +14,7 @@ import type {
 } from '@lushly-dev/afd-core';
 import { createTelemetryEvent, failure, isActorKind, systemClock } from '@lushly-dev/afd-core';
 import { carryApprovalProcessState } from './approval-process-state.js';
+import { carryAuthMiddlewareMark } from './auth-middleware-check.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // AUTO TRACE ID MIDDLEWARE
@@ -769,7 +770,9 @@ export function composeMiddleware(...middlewares: CommandMiddleware[]): CommandM
 
 		return dispatch(0);
 	};
-	// The server's `instances` check sees an approval middleware inside the composition.
+	// The server's `instances` check sees an approval middleware inside the composition, and its
+	// `auth` check an afd-auth middleware without `isVerifiedCredentials`.
 	carryApprovalProcessState(composed, middlewares);
+	carryAuthMiddlewareMark(composed, middlewares);
 	return composed;
 }

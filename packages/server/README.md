@@ -586,6 +586,10 @@ neither admitted credentials nor a valid bearer token still gets M5's 401.
 
 A server that also runs afd-auth's middleware passes `isVerifiedCredentials` to
 `createAuthMiddleware`, as [above](#verified-credentials-lushly-devafd-servercredentials).
+A server with `auth` throws when it is built with afd-auth's middleware lacking it, in
+`middleware` directly or inside `composeMiddleware`, rather than serve every token's call
+as the adapter's session user. A middleware wrapped in a function of the host's own is not
+seen, so it passes the option there too.
 
 ### Basic Command
 

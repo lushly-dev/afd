@@ -654,7 +654,7 @@ export const CEILINGS = Object.freeze({
 	// Raised under D115 by #2253/#2300 (`observeGate` + `gateRefusal` provenance in `journal-provenance.ts` and
 	// `observeThrows` + thrown `COMMAND_EXECUTION_ERROR` lossy marking in `kernel.ts`/`journal-redact.ts`): combined
 	// build measured 347,192 against `main` at `99359760a`; set to 347,600.
-	jsMinified: 349_900,
+	jsMinified: 350_300, // D115, #2524 (afd-auth's credentials mark in `composeMiddleware`): 349,989 at `main` `11ed11650`
 	// Raised from 96,500 to 97,000 under D115 by phase 4's step 4 with `main` at `8c3425d8` (phase 5's step 0b) merged,
 	// both measured from clean builds in one tree: 96,436 to 96,527 gzip (+91) and 309,074 to 309,275 minified (+201,
 	// within its row): the answer registry the `surfaces` and `editor` chunks share, in `events` (+180), and 21 in `layout`.

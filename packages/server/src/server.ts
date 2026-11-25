@@ -16,6 +16,7 @@ import {
 import { validateOutputBudget } from '@lushly-dev/afd-core/commands';
 import { callNotGranted } from '@lushly-dev/afd-core/internal/app-calls';
 import { upFrontApproval } from './approval-relay.js';
+import { assertAuthMiddlewareRecognisesTokens } from './auth-middleware-check.js';
 import { createContextCommands, getBootstrapCommands } from './bootstrap/registry.js';
 import { assertValidCommandNames, assertValidFirstClassTools } from './command-names.js';
 import { filterByContext } from './command-routing.js';
@@ -107,8 +108,10 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		contexts,
 		bootstrap = false,
 	} = options;
-	// Checked first: a server that would depend on one process when told it has several does not
-	// start (`instances`).
+	// Checked first: a server that would serve every token's call as the local session's user does
+	// not start (afd-auth's middleware without `isVerifiedCredentials` beside `auth`), nor one that
+	// would depend on one process when told it has several (`instances`).
+	assertAuthMiddlewareRecognisesTokens(options.auth !== undefined, options.middleware);
 	const instanceState = checkInstanceState({
 		name,
 		instances: options.instances,

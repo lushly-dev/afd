@@ -8,7 +8,12 @@
 
 import { createServer, request as httpRequest, type IncomingMessage } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { type CommandContext, MemoryJournalSink, success } from '@lushly-dev/afd-core';
+import {
+	type CommandContext,
+	type CommandMiddleware,
+	MemoryJournalSink,
+	success,
+} from '@lushly-dev/afd-core';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
@@ -20,6 +25,7 @@ import { createJournalMiddleware } from './journal.js';
 import type { AuthRefusal } from './mcp-auth.js';
 import { JwtVerifier, jwksKeySource, type TokenVerifier } from './mcp-auth-jwt.js';
 import type { Credentials } from './mcp-auth-rules.js';
+import { composeMiddleware } from './middleware.js';
 import { defineCommand } from './schema.js';
 import { createMcpHandler, createMcpServer } from './server.js';
 import type { McpHandlerOptions } from './server-types.js';
@@ -818,6 +824,46 @@ describe('P3-E9: HTTP sessions belong to the caller that created them', () => {
 			'maxSessionsPerOwner'
 		);
 		expect(() => createMcpHandler({ ...options, maxSessionsPerOwner: 5 })).not.toThrow();
+	});
+
+	it('refuses an afd-auth middleware that cannot recognise its tokens, alone or composed', () => {
+		const options = {
+			name: 'cfg',
+			version: '1',
+			commands: [whoami],
+			auth: { resource: RESOURCE, authorizationServers: [as.issuer], verifier: verifier() },
+		};
+		// What afd-auth's createAuthMiddleware marks on itself (its tests check the real one).
+		const marked = (recognisesVerifiedCredentials: boolean): CommandMiddleware => {
+			const step: CommandMiddleware = (_name, _input, _context, next) => next();
+			Object.defineProperty(step, Symbol.for('dev.afd/auth-middleware-credentials'), {
+				value: { recognisesVerifiedCredentials },
+			});
+			return step;
+		};
+		const passThrough: CommandMiddleware = (_name, _input, _context, next) => next();
+
+		expect(() => createMcpHandler({ ...options, middleware: [marked(false)] })).toThrow(
+			'needs isVerifiedCredentials'
+		);
+		expect(() => createMcpServer({ ...options, middleware: [marked(false)] })).toThrow(
+			'needs isVerifiedCredentials'
+		);
+		expect(() =>
+			createMcpHandler({
+				...options,
+				middleware: [composeMiddleware(passThrough, marked(true), marked(false))],
+			})
+		).toThrow('needs isVerifiedCredentials');
+		expect(() =>
+			createMcpHandler({
+				...options,
+				middleware: [marked(true), composeMiddleware(passThrough, marked(true))],
+			})
+		).not.toThrow();
+		// Without auth there is no token to mistake for the session.
+		const { auth: _auth, ...withoutAuth } = options;
+		expect(() => createMcpHandler({ ...withoutAuth, middleware: [marked(false)] })).not.toThrow();
 	});
 
 	it('refuses maxSessionsPerOwner without auth, where every caller is one owner', () => {

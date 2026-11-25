@@ -6,7 +6,12 @@
 
 import type { Actor, CommandContext, CommandResult } from '@lushly-dev/afd-core';
 import { fixedClock, success } from '@lushly-dev/afd-core';
-import { createDirectRegistry, defineCommand } from '@lushly-dev/afd-server';
+import {
+	composeMiddleware,
+	createDirectRegistry,
+	createMcpHandler,
+	defineCommand,
+} from '@lushly-dev/afd-server';
 import { isVerifiedCredentials } from '@lushly-dev/afd-server/credentials';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
@@ -377,5 +382,42 @@ describe('P3-E9: createAuthMiddleware clock', () => {
 		expect((await middleware('todo-list', {}, { credentials }, next)).error?.code).toBe(
 			'UNAUTHORIZED'
 		);
+	});
+});
+
+describe('createAuthMiddleware on a server with auth', () => {
+	const options = {
+		name: 'cfg',
+		version: '1',
+		commands: [],
+		auth: {
+			resource: 'https://api.example.com/mcp',
+			authorizationServers: ['https://issuer.example.com'],
+			// Never called: the server is only built.
+			verifier: { verify: () => Promise.reject(new Error('unused')) },
+		},
+	};
+
+	it('is refused without isVerifiedCredentials, alone or composed', () => {
+		const adapter = new MockAuthAdapter();
+		expect(() =>
+			createMcpHandler({ ...options, middleware: [createAuthMiddleware(adapter)] })
+		).toThrow('needs isVerifiedCredentials');
+		expect(() =>
+			createMcpHandler({
+				...options,
+				middleware: [composeMiddleware(createAuthMiddleware(adapter, { exclude: ['ping'] }))],
+			})
+		).toThrow('needs isVerifiedCredentials');
+	});
+
+	it('is accepted with it', () => {
+		const adapter = new MockAuthAdapter();
+		expect(() =>
+			createMcpHandler({
+				...options,
+				middleware: [createAuthMiddleware(adapter, { isVerifiedCredentials })],
+			})
+		).not.toThrow();
 	});
 });
