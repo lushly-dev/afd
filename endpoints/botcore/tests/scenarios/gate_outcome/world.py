@@ -15,7 +15,23 @@ Scenario 01's week (the seven UTC days ending on `NOW`), as the scenario reads i
 - Beds' `gate` job runs `pnpm check`, Lefthook's `check` group, whose one command
   `boundaries` never fails; each log ends with Lefthook's summary.
 
-Scenario 03's repository has one check in each of two workflows, and no GitHub at all.
+Scenario 02's default branch, in the seven days ending on `NOW`, has 40 commits: five fix
+commits, a feat commit and 34 others. Its units are `packages/beds` (listed in its
+`architecture.json`) and `endpoints/shed` (a manifest under a discovery root). The fix commits:
+
+- #25 (beds, 8 March) closes #40 and #41 by its message and #42 and #43 through its pull
+  request; #43 is a task, the rest bugs. It changes lines of a Rust file inside its test module,
+  last edited eight days before. Found by review, daily and use.
+- #36 (repository, 7 March) closes nothing and has no `Found-by:` line; it replaces lines forty
+  days old.
+- #33 (beds, 9 March) closes nothing, only adds lines, and was found by a check.
+- #37 (several: two files in beds, one in shed, one in no unit, 10 March) closes the security
+  issue #50 through its pull request, and only adds files.
+- #31 (beds, 11 March) closes #27 and #28 through its pull request only, and replaces lines a
+  feat commit wrote four days before.
+
+Scenario 03's repository has one check in each of two workflows, five fix commits in the week
+in `packages/beds` (a folder with a manifest, and no `architecture.json`), and no GitHub at all.
 """
 
 from __future__ import annotations
@@ -288,14 +304,114 @@ def scenario_01() -> dict:
     return {"files": files, "github": world.answers()}
 
 
+CANARY = "CANARY-5d2e: a subject, message or diff the record never holds"
+TOOL = "".join(f"export const step{n} = {n};\n" for n in range(8))
+RUST = """\
+pub fn plant(n: u32) -> u32 {
+    n + 1
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plants_one() {
+        let brace = '{';
+        assert_eq!(plant(1), 2, "{brace}");
+    }
+}
+"""
+ARCHITECTURE = (
+    '{"schemaVersion": 1, "discoveryRoots": ["packages", "endpoints"], "exclude": [], '
+    '"quarantine": [], "units": [{"manifest": "packages/beds/package.json"}]}\n'
+)
+
+
+def at(moment: datetime) -> str:
+    return moment.strftime("%Y-%m-%dT%H:%M:%S+0000")
+
+
+def scenario_02() -> dict:  # noqa: PLR0915 - one invented history
+    day0 = NOW.replace(hour=0, minute=0)
+    commits = [
+        {"at": at(datetime(2026, 1, 26, 10, tzinfo=UTC)), "message": "chore: plant the beds",
+         "files": {".github/workflows/beds.yml": BEDS_ONLY, "architecture.json": ARCHITECTURE,
+                   "packages/beds/package.json": '{"name": "beds"}\n',
+                   "endpoints/shed/package.json": '{"name": "shed"}\n',
+                   "scripts/tool.mjs": TOOL, "packages/beds/src/a.ts": "export const a = 1;\n",
+                   "docs/notes.md": "# Notes\n"}},
+        {"at": at(datetime(2026, 2, 28, 12, tzinfo=UTC)), "message": "chore: sow the rows",
+         "files": {"packages/beds/src/c.rs": RUST}},
+    ]  # fmt: skip
+    fixes = {
+        datetime(2026, 3, 7, 10, tzinfo=UTC): (
+            f"fix: the tool exits with its code (#36)\n\n{CANARY}\n",
+            {"scripts/tool.mjs": TOOL.replace("step3 = 3", f"step3 = 33; // {CANARY}")},
+        ),
+        datetime(2026, 3, 7, 12, tzinfo=UTC): (
+            f"feat(beds): edge the beds (#30)\n\nAlso mends the gate. {CANARY}\n",
+            {"packages/beds/src/a.ts": "export const a = 2;\nexport const edge = 1;\n"},
+        ),
+        datetime(2026, 3, 8, 12, tzinfo=UTC): (
+            f"fix(beds): count the plants right (#25)\n\nCloses #40, closes #41. {CANARY}\n\n"
+            "Found-by: review logic #40\nFound-by: daily logic #41\nFound-by: use parity #42\n",
+            {"packages/beds/src/c.rs": RUST.replace("plant(1), 2", "plant(1), 3")},
+        ),
+        datetime(2026, 3, 9, 12, tzinfo=UTC): (
+            f"fix(beds)!: water once (#33)\n\n{CANARY}\n\nFound-by: check logic\n",
+            {"packages/beds/src/b.ts": "export const b = 1;\n",
+             "packages/beds/test/b.test.ts": "test('b', () => {});\n"},
+        ),
+        datetime(2026, 3, 10, 12, tzinfo=UTC): (
+            f"fix: share the shed's path (#37)\n\n{CANARY}\n\nFound-by: use contract #50\n",
+            {"packages/beds/src/x.ts": "export const x = 1;\n",
+             "packages/beds/src/y.ts": "export const y = 1;\n",
+             "endpoints/shed/test/z.test.ts": "test('z', () => {});\n",
+             ".changeset/shed-path.md": "Share the shed's path.\n"},
+        ),
+        datetime(2026, 3, 11, 12, tzinfo=UTC): (
+            f"fix(beds): keep the bed's edge (#31)\n\n{CANARY}\n\n"
+            "Found-by: use contract #27\nFound-by: use contract #28\n",
+            {"packages/beds/src/a.ts": f"export const a = 3; // {CANARY}\nexport const edge = 2;\n",
+             "packages/beds/test/a.test.ts": "test('a', () => {});\n"},
+        ),
+    }  # fmt: skip
+    others = [day0 - timedelta(days=6) + timedelta(minutes=270 * n + 60) for n in range(34)]
+    for moment in sorted([*fixes, *others]):
+        if moment in fixes:
+            message, files = fixes[moment]
+        else:
+            message = f"docs: a note on the garden (#{100 + others.index(moment)})\n"
+            files = {"docs/notes.md": f"# Notes\n\nNote {others.index(moment)}.\n"}
+        commits.append({"at": at(moment), "message": message, "files": files})
+    issues = {"27": ["closed", ["type:bug"]], "28": ["closed", ["bug"]],
+              "40": ["closed", ["type:bug"]], "41": ["closed", ["type:bug", "area:beds"]],
+              "42": ["closed", ["type:bug"]], "43": ["closed", ["type:task"]],
+              "50": ["closed", ["type:security"]]}  # fmt: skip
+    pulls = {"25": [42, 43], "30": [], "31": [27, 28], "33": [], "36": [], "37": [50]}
+    github = {"runs": [], "attempts": {}, "jobs": {}, "logs": {}, "pulls": pulls, "issues": issues}
+    return {"commits": commits, "github": {"now": iso(NOW), "github": github}}
+
+
 def scenario_03() -> dict:
-    files = {".github/workflows/beds.yml": BEDS_ONLY, ".github/workflows/shed.yml": SHED_ONLY}
-    return {"files": files, "github": {"now": iso(NOW), "github": None}}
+    files = {".github/workflows/beds.yml": BEDS_ONLY, ".github/workflows/shed.yml": SHED_ONLY,
+             "packages/beds/package.json": '{"name": "beds"}\n'}  # fmt: skip
+    commits = [{"at": at(datetime(2026, 2, 1, tzinfo=UTC)), "message": "chore: plant the beds",
+                "files": files}]  # fmt: skip
+    for n in range(5):
+        moment = NOW.replace(hour=0, minute=0) - timedelta(days=5 - n, hours=-9)
+        files = {f"packages/beds/src/row{n}.ts": f"export const row = {n};\n"}
+        commits.append({"at": at(moment), "message": f"fix(beds): mend row {n} (#{60 + n})\n",
+                        "files": files})  # fmt: skip
+    return {"commits": commits, "github": {"now": iso(NOW), "github": None}}
 
 
 def build(scenario: str) -> dict:
     if scenario.startswith("01-"):
         return scenario_01()
+    if scenario.startswith("02-"):
+        return scenario_02()
     if scenario.startswith("03-"):
         return scenario_03()
     raise SystemExit(f"No world for {scenario}")

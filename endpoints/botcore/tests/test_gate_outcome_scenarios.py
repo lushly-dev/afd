@@ -21,16 +21,10 @@ import pytest
 ROOT = Path(__file__).resolve().parents[3]
 PLAN = ROOT / "docs/features/active/test-effectiveness/scenarios"
 RUNNER = Path(__file__).resolve().parent / "scenarios" / "gate_outcome" / "run.mjs"
-JOBS = ("01-see-what-ran-and-what-failed", "03-never-a-silent-zero")
+JOBS = ("01-see-what-ran-and-what-failed", "02-see-the-fix-commits", "03-never-a-silent-zero")
 #: Steps (by index) a later piece builds, with that piece. Each must fail until it is built,
 #: and this test fails once one passes, so the entry is removed with the piece that builds it.
-WAITING = {
-    "03-never-a-silent-zero": {
-        2: "#2483: gate-outcome-collect reads the main source",
-        3: "#2483: the report's coverage of the main source that step 3 collects",
-        5: "#2483: the report by area",
-    },
-}
+WAITING: dict[str, dict[int, str]] = {}
 
 
 @pytest.fixture(scope="module")

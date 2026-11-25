@@ -21,8 +21,9 @@ Words used here:
   step runs the 20 commands of `pnpm check`.
 - A **fix commit** is a commit of type `fix` on `main`. It is an entry in an inventory, not a
   count of bugs: one can hold five, and one can answer a check that did its job.
-- An **escape** is one defect with evidence that it was on `main`: an issue labelled `type:bug`
-  or `type:security` that a merged change closes.
+- An **escape** is one defect with evidence that it was on `main`: a closed issue with a bug
+  label (one named `bug` or `security`, or ending `:bug` or `:security`, as this repository's
+  `type:bug` and `type:security` do) that a merged change closes.
 - A **finding** is a defect a reviewer reported before merge and the author accepted.
 - A **catch** is a failure with evidence that the check stopped a defect ([What changed after a
   failure](#what-changed-after-a-failure)).
@@ -298,34 +299,50 @@ given no rows, and named with their counts in the coverage.
 ### Fix commits and escapes
 
 Every `fix` commit and every revert on the default branch is read once into an inventory,
-reverts counted apart: the packages that own its files, as `scripts/affected/scope.mjs`
-resolves them (with `repository` for files none owns, and `several` with each unit named when a
-commit's files belong to more than one), the test paths it touches as the test-discovery check
-tells them (so a Rust test inside a source file counts), and the issues it closes.
+reverts counted apart: the units that own its files, the test paths it touches, and the issues
+it closes. A commit's lines in the record hold no subject, message or diff text.
 
-- **An escape is counted per closed issue labelled `type:bug` or `type:security`,** not per
-  commit. The issues are those the commit's message closes and those its pull request closes
-  (GitHub's `closingIssuesReferences`, read through the number that ends the subject): of the
-  124 fix commits of 17 to 23 Nov, 68 carry no closing word of their own. A fix commit that
-  closes none is `unconfirmed`: it may be a bug, a planned change or the answer to a check that
-  worked. Labels and pull requests are read from GitHub, so without it the commits are read and
-  the escapes are not: the source is `partly` read and says so.
+- **Areas come from the repository's list of units,** read through git at the default branch's
+  tip: a file's area is the unit whose manifest's folder holds it, the deepest where several
+  do. The units are those `architecture.json` lists and the manifests the repository's boundary
+  check finds under its `discoveryRoots` (most of Loam's packages are units only that way). A
+  commit whose files no unit holds is `repository`; one whose files belong to more than one is
+  `several`, with each unit named. A repository without that file gets the nearest folder that
+  holds a package manifest. `scripts/affected/scope.mjs` answers a different question, what a
+  change affects with its dependents, so it is not used.
+- **A test path is told by Botcore's own rule:** a `tests`, `test` or `__tests__` folder, a
+  `.test.`, `.spec.` or `.scenario.` name, a Python or C-style test file name, and a Rust file
+  whose changed lines sit inside a test module, so a Rust test inside a source file counts.
+
+- **An escape is counted per closed issue with a bug label,** not per commit. The issues are
+  those the commit's message closes with GitHub's closing words and those its pull request
+  closes (GitHub's `closingIssuesReferences`, read through the number that ends the subject, or,
+  where the subject ends with none, the pull request GitHub says the commit merged): of the 124
+  fix commits of 17 to 23 Nov, 67 carry no closing word of their own (one writes its issue as
+  `lushly-dev/afd#2267`, which GitHub closes too), and 8 have no number at the end of their
+  subject. A fix commit that closes none is `unconfirmed`: it may be a bug, a planned change or
+  the answer to a check that worked. Labels and pull requests are read from GitHub, many to a
+  request, so without it the commits are read and the escapes are not: the source is `partly`
+  read and says so, and the report gives no escape count for what it lacks. An issue's state
+  and labels are read once, with its commit; a label added later is seen by a rebuild.
 - **Age is the age of the last edit.** The lines a fix replaces are blamed at its parent, and
-  the newest of them is reported as that, with the share of commits it could be read for. It is
-  not called the age of the bug, and nothing is inferred from it.
-- **How it was found, and its class** (phase 2) is a `Found-by:` trailer on the commit that
-  lands: the channel (`review`, `check`, `daily`, `use`, `sweep` or `unknown`), the class from
-  the findings' list below, and the issue where the line is about one, as in
-  `Found-by: use contract #123`. An escape then has a class, so findings and escapes can be
-  grouped together. The line is asked for where the landed commit is made and checked, not on
-  every commit of a branch: `pnpm branch:squash`, on every path including a branch that is
-  already one commit, and `ci-ok` refuse a `fix` subject without it, with the two lists, so a
-  missing line is never read as `unknown`. `ci-ok` runs the base's copy of a short list of
-  scripts, so a rule reaches it in two steps: the script first, its place in `ci-ok` after. A
-  branch's own `fix` commits that answer its review carry none. Commits from before the rule's
-  date are `absent`, counted apart. The fold keeps lines that differ, so a commit that closes
-  several issues carries one for each. A wrong line cannot be changed on `main`; a decision
-  file corrects it.
+  the newest of them is reported as that, by area as a median with how many commits it could be
+  read for. A fix that replaces lines in more than 20 files is not read, and is counted as not
+  read. It is not called the age of the bug, and nothing is inferred from it.
+- **How it was found, and its class** is a `Found-by:` trailer on the commit that lands. It is
+  read from phase 1 where a fix commit has one, and required from phase 2: the channel
+  (`review`, `check`, `daily`, `use`, `sweep` or `unknown`), the class from the findings' list
+  below, and the issue where the line is about one, as in `Found-by: use contract #123`. An
+  escape then has a class, so findings and escapes can be grouped together. The line is asked
+  for where the landed commit is made and checked, not on every commit of a branch: `pnpm
+  branch:squash`, on every path including a branch that is already one commit, and `ci-ok`
+  refuse a `fix` subject without it, with the two lists, so a missing line is never read as
+  `unknown`. `ci-ok` runs the base's copy of a short list of scripts, so a rule reaches it in
+  two steps: the script first, its place in `ci-ok` after. A branch's own `fix` commits that
+  answer its review carry none. A commit without a line, before the rule's date and until phase
+  2 requires it, is `absent`, counted apart, never `unknown`. The fold keeps lines that differ,
+  so a commit that closes several issues carries one for each. A wrong line cannot be changed on
+  `main`; a decision file corrects it.
 - **A revert** is a commit whose subject begins `Revert "`; the repository's commit types have
   none of their own. Reverts are counted apart and need no line.
 - Fixes that travel inside a `feat` commit are not seen, and the report says so.
@@ -828,7 +845,8 @@ attributed, and what is known not to be seen.
 
 1. **What ran and what merged.** Runs, jobs and steps from GitHub, collected by a step of the
    hourly job within the account's allowance; the failing command of a group step; the record's
-   size and its folding; the inventory of fix commits and the escapes they close; a docs topic
+   size and its folding; the inventory of fix commits and the escapes they close, reading a
+   `Found-by:` line where a commit has one; a docs topic
    the command line can print. No change to any check. One step is the owner's: the botcore
    release that carries the commands, installed on each machine.
 2. **Findings to checks.** The class in the reviewer's brief; `scripts/findings.mjs` with its

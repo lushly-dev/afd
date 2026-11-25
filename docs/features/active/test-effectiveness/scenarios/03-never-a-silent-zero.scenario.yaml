@@ -1,8 +1,6 @@
 # JTBD scenario for the Test effectiveness proposal. The data is invented. It runs in Botcore's
 # core tests (endpoints/botcore/tests/test_gate_outcome_scenarios.py) through AFD's scenario
 # runner, against a prepared repository, a recorded set of API answers and a temporary record.
-# Steps 3 and 4 read the `main` source and step 6 reports by area, which #2483 builds: until
-# then the test holds them as waiting, and fails once one passes.
 name: Be told when a number is missing and not zero
 description: >-
   When nothing has been collected, a source could not be read or a check was never observed, I

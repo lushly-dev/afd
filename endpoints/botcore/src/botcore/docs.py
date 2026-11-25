@@ -320,8 +320,9 @@ declared today judges the record as it stands.
 # Gate Outcome Commands
 
 What each workflow's runs, and each check, observed and what they cost, read from GitHub into
-a record every machine shares. Both commands work on the repository of the checkout they are
-called from (`owner/name` from its `origin`); two repositories' records are never mixed. Design:
+a record every machine shares, and the fix commits on the default branch with the escapes they
+close. Both commands work on the repository of the checkout they are called from (`owner/name`
+from its `origin`); two repositories' records are never mixed. Design:
 `docs/features/active/test-effectiveness/` in lushly-dev/afd.
 
 ## gate_outcome_collect(since_days=7, sources=["ci"], requests=1000, rebuild=False)
@@ -345,13 +346,54 @@ first, as the limit permits. Each log read is one counted request.
   account's core allowance (`gh api rate_limit`, checked before the first request and every
   100) is at half or less, whichever comes first. The source is then `partly`, and the next
   collection goes on from there.
-- `since_days`: 1 to 365. `sources`: `ci`; the plan's `main`, `reviews` and `runs` are refused
-  (`VALIDATION_ERROR`) until a botcore collects them. `requests`: 1 to 5000. `rebuild`: ask
+- `since_days`: 1 to 365. `sources`: `ci` and `main` (default `ci`); the plan's `reviews` and
+  `runs` are refused (`VALIDATION_ERROR`) until a botcore collects them. With both, `main` is
+  read first. `requests`: 1 to 5000. `rebuild`: ask
   GitHub again for everything in the window; what GitHub no longer has (a deleted run) keeps
   what was read before and is marked `unreadable`. A rebuild cut short goes on at the next
   collection, over the window it was asked for.
+- The `main` source. The default branch is fetched (`git fetch origin <branch>`) and its tip
+  read through git, never the working tree; a fetch that fails reads the ref as it was last
+  fetched and says so (`partly`). Every commit but merges that landed in the window (by its
+  committer time; a commit a merge brought in goes by its own) is counted for its UTC day; of
+  those, every fix commit (subject `fix:` or `fix(<scope>):`, either with `!`) and every revert
+  (subject beginning `Revert "`) is read once into a `commit` line. Its area: the unit whose
+  manifest's folder holds each file, the deepest one, where the units are the repository's list
+  read at the tip: every unit `architecture.json` lists and every manifest (`package.json`,
+  `pyproject.toml`, `Cargo.toml`, a `CMakeLists.txt` that declares a project `VERSION`) under
+  its `discoveryRoots`, outside `exclude`, `quarantine` and build folders (`node_modules`,
+  `dist`, `build`, `target` and the like); without that file, the nearest folder below the top
+  that holds a manifest. A commit whose files no unit holds is `repository`; one whose files
+  more than one unit holds is `several`, with each unit named, those holding most of its files
+  first; a file outside every unit does not make it `several`. A test path: a `tests`, `test` or
+  `__tests__` folder on it; `.test.`, `.spec.` or `.scenario.` in its name; a Python or C-style
+  test file (`test_<name>` or `<name>_test` with `.py`, `.c`, `.cc`, `.cpp` or `.cxx`, or
+  `<name>_test.h`/`.hpp`); or a Rust file whose changed lines, on either side of the change, sit
+  inside a test module: a `mod <name> { ... }` marked `#[cfg(test)]` (or `cfg(all(test, ...))`,
+  `cfg(any(test, ...))`), its end found by matching braces with comments, strings and character
+  literals skipped (`mod tests;` in another file is not seen). The issues its message closes:
+  GitHub's closing words (`close`, `closes`, `closed`, `fix`, `fixes`, `fixed`, `resolve`,
+  `resolves`, `resolved`, an optional colon) before `#N`, `<owner>/<name>#N` or the issue's
+  address, this repository's only. Its `Found-by:` lines (`Found-by: <channel> <class>
+  [#issue]`, channel one of `review`, `check`, `daily`, `use`, `sweep`, `unknown`, class one of
+  `logic`, `contract`, `parity`, `claim`, `security`, `concurrency`, `interface`, `other`):
+  read, not required; a commit without one is `absent`, and one off the lists is counted as
+  unread. The age of its last edit: the lines it removes are blamed at its parent and the newest
+  committer time kept (`no-lines` when it only adds, `too-many-files` when it replaces lines in
+  more than 20 files, `no-parent`, `unreadable`). Then GitHub, through its GraphQL API, up to 40
+  numbers to a request, each request counted against `requests` and held to the account's
+  GraphQL allowance as `ci` is to its core one: the issues the pull request its subject ends
+  with (`(#N)`) closes, or, for a subject with no number, the pull request GitHub says the
+  commit merged; and the state and labels of every issue it closes. Without GitHub the commits
+  are read and the source is `partly`, its `why` beginning `gh`; a later collection with GitHub
+  reads only GitHub for them. An answer without the repository, or without a commit's pull
+  request or commit, leaves those commits unread, never read as closing nothing. An issue's
+  state and labels are read once, with its commit; a label added later is seen by a rebuild. A
+  commit git cannot read leaves its day unlisted.
 - Result: `machine`, `repository`, `state_dir`, `window` (`since_days`, `first_day`,
-  `last_day`), `sources` (one entry: `source: ci`, `status` `read` or `partly`, `found` (runs in
+  `last_day`), `sources` (for `main`: `status` `read`, `partly` or `absent`, `found` (fix
+  commits and reverts in the window), `added` (lines written) and `why`; for `ci`:
+  `source: ci`, `status` `read` or `partly`, `found` (runs in
   the window), `added` (lines written), `still_going` (runs not finished when listed), and when
   `partly`, `why` (begins `requests`, `allowance` or `github`) and `reached`: `step` (`lists`,
   `attempts`, `jobs` or `logs`), `window_listed` (share of the window listed), `runs`,
@@ -364,7 +406,9 @@ first, as the limit permits. Each log read is one counted request.
   asked for, and the collection did not stop at a limit; a run still going does not keep it
   from `read`. A collection that stops at a limit while reading passed group steps' logs is
   `partly`, though the report's `coverage.sources.ci`, which rests on runs and steps only, is
-  `read`.
+  `read`. With `main` also asked for, a `ci` that GitHub could not be asked for at all is
+  `absent` with why (`added: 0`) instead of a refusal. `allowance_graphql` is the GraphQL
+  allowance as last seen.
 - The record (`record.jsonl` in `<state>/<owner>/<name>/`, where `<state>` is botcore's state
   folder's `gate-outcome`, or `BOTCORE_GATE_OUTCOME_STATE`) is appended to and never rewritten;
   each line has an `id`, `kind`, the rules' version `v` and when it was written `at`, and a newer
@@ -379,8 +423,14 @@ first, as the limit permits. Each log read is one counted request.
   step, how the read ended (read, no-summary, mismatch, log-gone, unreadable), commands not kept,
   [[command, passed or failed, seconds], ...]]`; a command is kept only when its group has it
   at the default branch's tip. Nothing else: no line of a log, no output, title, branch name,
-  actor or file contents. Lines carry the rules' version; a steps line made by older rules is
-  read again. `state.json` beside it holds the spans listed and how the last collection ended.
+  actor or file contents. `commit` lines (`commit:<revision>`, made by the main source's rules,
+  `v` 1): `sha`, `landed`, `type` (`fix` or `revert`), `pr`, `files` (how many), `units`,
+  `test_paths` (at most 100) and `tests` (how many), `closes` (by its message), `found_by`
+  (`[channel, class, issue or null]`), `found_by_unread`, `last_edit` and `last_edit_status`,
+  and, once GitHub is read, `pr_closes` and `issues` (`[number, open or closed, [label, ...]]`;
+  both null until then). No subject, message or diff text. Lines carry the rules' version; a
+  steps line made by older rules is read again. `state.json` beside it holds the spans listed,
+  the commits that landed each day (`main.days`) and how the last collection ended.
 - Several machines: a machine that names a shared folder (`skill_usage_shared`, as skill usage
   does; `BOTCORE_SKILL_USAGE_SHARED` overrides it) also writes its record to
   `<shared>/<machine>/gate-outcome/<owner>/<name>/`, and both commands read every machine's.
@@ -388,7 +438,8 @@ first, as the limit permits. Each log read is one counted request.
 - Errors: `VALIDATION_ERROR` (a value outside its list or range; the suggestion gives it),
   `NO_WORKSPACE` (not in a checkout whose origin names a GitHub repository),
   `SERVICE_UNAVAILABLE` (`gh` missing or not signed in, or GitHub not answering, before anything
-  was read; retryable), `SOURCE_UNREADABLE` (GitHub will not give the runs), `CONFLICT`
+  was read, with only `ci` asked for; retryable), `SOURCE_UNREADABLE` (GitHub will not give the
+  runs, or, with only `main` asked for, the checkout has no default branch), `CONFLICT`
   (another collection is running on this machine), `RECORD_UNAVAILABLE`,
   `MACHINE_SETTINGS_INVALID`. GitHub failing after some was read gives `partly` instead.
 
@@ -398,7 +449,7 @@ first, as the limit permits. Each log read is one counted request.
 Read-only. For the window of `days` whole UTC days whose last is `ending_days_ago` days before
 today (today 25 Nov, `days: 7, ending_days_ago: 2` is 17 to 23 Nov), one row for each workflow,
 or each check, and event, a run counted once as its latest attempt, by its creation time.
-- `by`: `workflow` or `check`; the plan's `area`, `class` and `decision` are refused
+- `by`: `workflow`, `check` or `area`; the plan's `class` and `decision` are refused
   (`VALIDATION_ERROR`) until a botcore reports them. `where`: one of `pull_request`,
   `merge_group`, `schedule`, `push`, `workflow_dispatch` (`local` is refused until it is
   collected); left out, all five. `workflow`: a workflow by its name or its file. `check`: a
@@ -406,7 +457,7 @@ or each check, and event, a run counted once as its latest attempt, by its creat
   `failed` or `runs`, largest first. `limit`: 1 to 200, for each list; `more` says how many each
   left out.
 - Filters go with groupings: `where` and `workflow` with `workflow`; `where`, `workflow` and
-  `check` with `check`; the plan's `area` with `area`; `finding_class`, `area`, `check`,
+  `check` with `check`; `area` with `area`; `finding_class`, `area`, `check`,
   `decision` and `pull_request` with `class`; `check`, `area` and `due` with `decision`. One that
   does not go with `by` is `INVALID_INPUT`, with those that do.
 - A row: `workflow` (its name), `file`, `where`, `runs` (finished runs), `passed`, `failed`
@@ -449,6 +500,35 @@ or each check, and event, a run counted once as its latest attempt, by its creat
   row of zeros. With `check`, `examples` are the attempts it failed in, newest first, an
   earlier attempt of a run included (`latest` says whether it was the run's last). A check
   that is not known or on record is `INVALID_INPUT` with the closest ids and how many are known.
+- By area (from the `main` source; a commit is in the window by when it landed). One row for
+  each area with fix commits, most first, then by name: `area` (a unit's folder, `repository`
+  or `several`), `fix_commits`, `reverts` (counted apart; they close no escape),
+  `escapes` (closed issues with a bug label, one named `bug` or `security` or ending `:bug` or
+  `:security`, that its fix commits close, each counted once), `unconfirmed` (fix commits that
+  close no issue, whatever its state now: a bug, a planned change or the answer to a check that
+  worked),
+  `with_test_path`, `last_edit` (`read`, `of` and `median_days`: the median time from the
+  newest replaced line landing to the fix landing, over the commits it could be read for; not
+  the age of the bug), `units` for `several`, `rates` (`too-few` under 20 fix commits, else
+  `given` with `with_test_path_per_100` and `unconfirmed_per_100`). A `sort` other than the
+  default does not go with it (`INVALID_INPUT`). Where GitHub was not read
+  for a commit, its row's `escapes` and `unconfirmed` are null and `github_unread` says how
+  many: no count is given for what was not read. `totals`: `merged` (every commit but merges
+  that landed in the window; null unless every day of it was listed), the same counts over every
+  row, `escapes_found_by` (by channel, and `absent` where the commit has no line naming the
+  issue or none naming no issue), `escapes_by_class`, `found_by_absent` and
+  `found_by_unreadable` (fix commits), `github_unread`. With `area`, `examples` are its commits,
+  newest first: `commit`, `landed`, `type`, `pull_request`, `closes` (every issue it closes, null
+  without GitHub), `escapes` (`issue`, `found_by`, `class`), `found_by` (the channel its lines
+  name, `several`, `unreadable` or `absent`), `found_by_lines`, `test_paths` (how many),
+  `last_edit` and `last_edit_days`, and `units` in `several`; a commit of `several` is listed
+  only under `several`. An area that is not known is `INVALID_INPUT` with the closest names and
+  how many are known. `coverage` gives `sources.main` (`read` when every day of the window was
+  listed and every commit has GitHub's answer, `absent` when nothing was, else `partly`),
+  `collected.main`, `days_listed`, `github_read`, `last_edit_read`, `found_by_share`, `units`
+  (`source`: `architecture.json`, `manifests` or `none`, and `count`) and `not_seen` (fixes
+  inside a commit of another type). Warnings: main absent, days not listed, commits without
+  GitHub's answer.
 - `window` (`days`, `ending_days_ago`, `first_day`, `last_day`, `since`, `until`); `coverage`:
   `sources.ci` (`read` when every moment of the window was listed and every run that ran has
   its steps, `absent` when nothing of it was, else `partly`), `collected.ci` (`newest`
@@ -459,15 +539,16 @@ or each check, and event, a run counted once as its latest attempt, by its creat
   of runs that ran whose steps are on record), `steps_unreadable` (runs whose jobs GitHub no
   longer gives) and `not_seen`; by check also `commands_share` (the share of group steps that
   ran whose summary was read), `summaries_unreadable` (by why) and `known` (`ref`, `commit`,
-  `checks`, `problems`, and `error` when they could not be read); `sources` gives `ci` and
-  the plan's `main`, `reviews` and `runs`, `absent` until collected; `machines` (each machine's
-  `collected_at`, `ci` status and `why`); `warnings` (ci absent; runs still going, in no count;
-  days not all listed; a machine whose collection is over a day old; a shared copy not read;
-  lines that could not be read; runs of other events left out; the verdict setting; checks
-  that could not be known); `more`.
+  `checks`, `problems`, and `error` when they could not be read); `sources` gives `ci`, `main`
+  (as by area) and the plan's `reviews` and `runs`, `absent` until collected; `machines` (each
+  machine's `collected_at`, `ci` and `main` status, `why` and `main_why`); `warnings` (ci
+  absent, with the days not all listed; runs still going, in no count; days not all listed; a
+  machine whose collection is over a day old; a shared copy not read; lines that could not be
+  read; runs of other events left out; the verdict setting; checks that could not be known);
+  `more`.
 - Errors: `VALIDATION_ERROR` (a value outside its list or range, with the list),
-  `INVALID_INPUT` (a workflow the record does not know, or a check, with the closest names and
-  how many are known; a filter that does not go with `by`), `NOT_COLLECTED` (no machine's
+  `INVALID_INPUT` (a workflow the record does not know, or a check or an area, with the closest
+  names and how many are known; a filter that does not go with `by`), `NOT_COLLECTED` (no machine's
   record holds this repository), `NO_WORKSPACE`,
   `RECORD_UNAVAILABLE`, `MACHINE_SETTINGS_INVALID`.
 """,

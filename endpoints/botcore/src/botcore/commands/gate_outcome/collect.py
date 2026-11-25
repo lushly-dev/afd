@@ -1,6 +1,8 @@
-"""`gate-outcome-collect`: read the repository's workflow runs from GitHub into the record.
+"""`gate-outcome-collect`: read the repository's workflow runs from GitHub, and the fix commits
+and reverts on its default branch (main.py), into the record.
 
-Four steps, in order, each going on where the record already holds what GitHub would say:
+The `main` source is read first: git, then a few GraphQL requests. Then the `ci` source, in
+four steps, in order, each going on where the record already holds what GitHub would say:
 
 1. The run lists for the window, every event. GitHub answers one query with at most 1,000
    runs, so a span whose count is over that is split in two until each part fits.
@@ -31,6 +33,7 @@ from botcore.commands.disk.lock import LockHeld, RunLock
 from botcore.commands.disk.settings import SettingsError
 from botcore.commands.disk.steps import run_blocking
 from botcore.commands.gate_outcome import github, record
+from botcore.commands.gate_outcome import main as main_source
 from botcore.commands.gate_outcome.checks import Job, Known, read_known
 from botcore.commands.gate_outcome.github import GitHub, NotFound, Stop
 from botcore.commands.gate_outcome.record import (
@@ -61,7 +64,7 @@ MAX_DAYS = 365
 DEFAULT_REQUESTS = 1000
 MAX_REQUESTS = 5000  # an account's hourly allowance
 SOURCES = ("ci", "main", "reviews", "runs")  # the plan's sources
-BUILT = ("ci",)  # the sources this botcore collects
+BUILT = ("ci", "main")  # the sources this botcore collects
 CAP = 1000  # the most runs GitHub gives for one query
 PAGE = 100
 # A span listed this long after it ended, with every run in it finished, is not listed
@@ -69,6 +72,7 @@ PAGE = 100
 SETTLE = timedelta(days=2)
 FRESH = timedelta(hours=1)  # a span listed this recently is not listed again either
 NOT_RUN = ("action_required", "skipped")
+REBUILD_KEYS = {"ci": "rebuild", "main": "main_rebuild"}  # where a source's rebuild is kept
 _QUEUE_BRANCH = re.compile(r"/pr-(\d+)-([0-9a-f]{40})$")
 _NAME_MAX = 300
 
@@ -662,13 +666,14 @@ def _check_inputs(since_days: int, sources: list[str], requests: int) -> Command
             "VALIDATION_ERROR",
             f"sources must name some of {', '.join(SOURCES)}"
             + (f"; not {', '.join(map(str, unknown))}" if unknown else ""),
-            f"Pass sources from: {', '.join(SOURCES)}. This botcore collects: {', '.join(BUILT)}",
+            f"Pass sources from: {', '.join(SOURCES)}. This botcore collects: "
+            f"{' and '.join(BUILT)}",
         )
     unbuilt = [source for source in sources if source not in BUILT]
     if unbuilt:
         return _fail(
             "VALIDATION_ERROR", f"This botcore does not collect {', '.join(unbuilt)} yet",
-            f"Pass sources: [{', '.join(BUILT)}], the sources this botcore collects",
+            f"Pass sources from: {', '.join(BUILT)}, the sources this botcore collects",
         )  # fmt: skip
     return None
 
@@ -684,20 +689,25 @@ async def gate_outcome_collect(
 
     Args:
         since_days: Whole UTC days to collect, today included: 1 to 365 (default 7).
-        sources: What to read: `ci` (the Actions runs). The plan's `main`, `reviews` and
-            `runs` are refused until a botcore collects them.
+        sources: What to read: `ci` (the Actions runs) and `main` (the fix commits and
+            reverts on the default branch, and the issues they close). The plan's `reviews`
+            and `runs` are refused until a botcore collects them. Default: `ci`.
         requests: The most GitHub requests this collection makes: 1 to 5000 (default 1000).
             It also stops when the account's hourly allowance is down to half.
         rebuild: Ask GitHub again for everything in the window, whatever the record holds.
     """
     chosen = list(sources) if sources is not None else ["ci"]
+    if all(isinstance(source, str) for source in chosen):
+        chosen = list(dict.fromkeys(chosen))  # each once: `ci` twice is `ci` alone
     refused = _check_inputs(since_days, chosen, requests)
     if refused is not None:
         return refused
-    return await run_blocking(_collect_sync, since_days, requests, rebuild)
+    return await run_blocking(_collect_sync, since_days, chosen, requests, rebuild)
 
 
-def _collect_sync(since_days: int, requests: int, rebuild: bool) -> CommandResult[dict]:  # noqa: PLR0911
+def _collect_sync(  # noqa: PLR0911
+    since_days: int, sources: list[str], requests: int, rebuild: bool
+) -> CommandResult[dict]:
     found = workspace_repo()
     if found is None:
         return no_workspace()
@@ -708,10 +718,13 @@ def _collect_sync(since_days: int, requests: int, rebuild: bool) -> CommandResul
         return settings_refused(exc)
     base = state_dir()
     folder = repo_folder(base, repo)
-    known = read_known(root)
+    known = read_known(root) if "ci" in sources else None
     try:
         with RunLock(base / LOCK_FILE, label="gate-outcome-collect"):
-            result = _collect(repo, folder, here, since_days, requests, rebuild, known)
+            result = _collect(
+                repo, folder, here, since_days, requests, rebuild, known, root=root,
+                sources=sources,
+            )  # fmt: skip
             _publish(result, folder, here, repo)
     except LockHeld:
         return _fail(
@@ -736,31 +749,133 @@ def _publish(result: CommandResult[dict], folder: Path, here: Local, repo: str) 
     result.data["shared"] = shared
 
 
-def _collect(  # noqa: PLR0913, C901 - one collection, start to end
+def _collect(  # noqa: PLR0913, C901, PLR0912, PLR0915 - one collection, start to end
     repo: str, folder: Path, here: Local, since_days: int, requests: int, rebuild: bool,
-    known: Known | None = None,
+    known: Known | None = None, root: Path | None = None, sources: list[str] | None = None,
 ) -> CommandResult[dict]:  # fmt: skip
+    sources = sources or ["ci"]
     record = load_record(state_dir(), repo, here)
     state = load_state(folder)
     now = record_now().replace(microsecond=0)
     start = _day(now) - timedelta(days=since_days - 1)
-    pending = state.get("rebuild") if isinstance(state.get("rebuild"), dict) else None
-    if rebuild:  # to the millisecond: what this collection writes is after it
-        pending = {"since": stamp(record_now()), "start": _iso(start)}
-    since, begun = (parse_time(pending.get(k)) for k in ("since", "start")) if pending else (
-        None, None
-    )  # fmt: skip
-    redo = Rebuild(since, begun) if since is not None and begun is not None else None
+    # A rebuild under way is each source's own: collecting one never ends the other's
+    redo: dict[str, Rebuild | None] = {}
+    for source, key in REBUILD_KEYS.items():
+        pending = state.get(key) if isinstance(state.get(key), dict) else None
+        if rebuild and source in sources:  # to the millisecond: what this writes is after it
+            pending = state[key] = {"since": stamp(record_now()), "start": _iso(start)}
+        since, begun = (parse_time(pending.get(k)) for k in ("since", "start")) if pending else (
+            None, None
+        )  # fmt: skip
+        redo[source] = Rebuild(since, begun) if since is not None and begun is not None else None
     state.update(
         version=STATE_VERSION, machine=here.machine, repo=repo,
         record_id=state.get("record_id") or uuid.uuid4().hex,
     )  # fmt: skip
-    if pending:
-        state["rebuild"] = pending
     record.states[here.machine] = state  # what this collection lists counts as it goes
     gh = GitHub(repo, requests)
-    collection = Collection(gh, record, folder, state, start, now, redo, known)
+    collection = Collection(gh, record, folder, state, start, now, redo["ci"], known)
+    found: dict[str, dict] = {}
+
+    def rebuilt(source: str) -> None:
+        held = redo[source]
+        if REBUILD_KEYS[source] in state and (held is None or start <= held.start):
+            state.pop(REBUILD_KEYS[source])
+
+    if "main" in sources:
+        main_source, whole = _collect_main(root or Path.cwd(), repo, collection, redo["main"])
+        found["main"] = main_source
+        if whole:
+            rebuilt("main")
+        if main_source["status"] == "absent" and sources == ["main"]:
+            return _fail(
+                "SOURCE_UNREADABLE", f"The default branch of {repo} could not be read: "
+                f"{main_source['why']}",
+                "Run it from a clone whose origin's default branch has been fetched "
+                "(git fetch origin), then run gate-outcome-collect again",
+            )  # fmt: skip
+
+    if "ci" in sources:
+        outcome = _collect_ci(collection, requests, alone=sources == ["ci"], repo=repo)
+        if isinstance(outcome, CommandResult):
+            return outcome
+        found["ci"], whole = outcome
+        if whole:
+            rebuilt("ci")
+
+    state["collected_at"] = stamp(record_now())
+    save_state(folder, state)
+    data = {
+        "machine": here.machine,
+        "repository": repo,
+        "state_dir": str(folder),
+        "window": {
+            "since_days": since_days,
+            "first_day": start.date().isoformat(),
+            "last_day": now.date().isoformat(),
+        },  # fmt: skip
+        "sources": [found[source] for source in SOURCES if source in found],
+        "requests_used": gh.used,
+    }
+    if gh.allowance is not None:
+        data["allowance"] = gh.allowance
+    if gh.graphql_allowance is not None:
+        data["allowance_graphql"] = gh.graphql_allowance
+    if known is not None and known.error:
+        data["warnings"] = [
+            f"No hook group step's summary was read: {known.error}, so the checks known "
+            "could not be read"
+        ]
+    told = [found[source] for source in SOURCES if source in found]
+    reasoning = "; ".join(
+        f"{source['source']} is {source['status']}"
+        + (f": {source['found']} found, {source['added']} lines added" if "found" in source else "")
+        + (f" ({source['why']})" if source.get("why") else "")
+        for source in told
+    )
+    return success(data, reasoning=reasoning)
+
+
+def _collect_main(
+    root: Path, repo: str, collection: Collection, redo: Rebuild | None
+) -> tuple[dict, bool]:
+    """The `main` source: the fix commits and reverts in the window, and what GitHub says of
+    the issues they close. Its entry, and whether it read all."""
+    at = stamp(record.now())
+
+    def stale(line: dict) -> bool:
+        return redo is not None and redo.stale(parse_time(line["at"]), parse_time(line["landed"]))
+
+    read = main_source.read_main(
+        root, repo, collection.gh, collection.record, collection.start, collection.now, stale, at
+    )
+    collection._write(read.lines)  # noqa: SLF001 - the collection's own writer
+    state = collection.state
+    held = state.get("main")
+    kept = held.get("days") if isinstance(held, dict) else None
+    days = dict(kept) if isinstance(kept, dict) else {}
+    days.update(read.days)
+    entry: dict = {"status": read.status, "at": at, "days": days}
+    if read.why:
+        entry["why"] = read.why
+    if read.tip:
+        entry["tip"] = read.tip
+    state["main"] = entry
+    source: dict = {"source": "main", "status": read.status}
+    if read.status != "absent":
+        source.update(found=read.found, added=len(read.lines))
+    if read.why:
+        source["why"] = read.why
+    return source, read.status == "read"
+
+
+def _collect_ci(
+    collection: Collection, requests: int, alone: bool, repo: str
+) -> CommandResult[dict] | tuple[dict, bool]:
+    """The `ci` source: its entry and whether it read all, or the refusal when it read
+    nothing and was the only source asked for."""
     why: str | None = None
+    added_before = collection.added
     try:
         collection.lists()
         collection.attempts()
@@ -772,7 +887,16 @@ def _collect(  # noqa: PLR0913, C901 - one collection, start to end
             "allowance": "allowance: the account's hourly GitHub allowance is down to half",
         }[stop.why]
     except (github.ServiceUnavailable, github.SourceUnreadable, NotFound) as exc:
-        if not collection.added and not collection.listed_now:
+        if collection.added == added_before and not collection.listed_now:
+            if not alone:  # another source was read: this one is absent, and says why
+                reason = (
+                    f"gh: GitHub could not be read ({exc})"
+                    if isinstance(exc, github.ServiceUnavailable)
+                    else f"github: GitHub's Actions runs could not be read ({exc})"
+                )
+                collection.state["ci"] = {"status": "absent", "why": reason,
+                                          "at": stamp(record_now())}  # fmt: skip
+                return {"source": "ci", "status": "absent", "why": reason, "added": 0}, False
             if isinstance(exc, github.ServiceUnavailable):
                 return _fail(
                     "SERVICE_UNAVAILABLE", f"GitHub could not be read: {exc}",
@@ -793,39 +917,12 @@ def _collect(  # noqa: PLR0913, C901 - one collection, start to end
         and not reached["failed_summaries_left"]
     )  # fmt: skip
     status = "read" if whole else "partly"
-    if whole and pending and (redo is None or start <= redo.start):
-        state.pop("rebuild", None)
     going = sum(line["status"] != "completed" for line in collection.latest().values())
     source: dict = {"source": "ci", "status": status, "found": reached["runs"],
-                    "added": collection.added, "still_going": going}  # fmt: skip
+                    "added": collection.added - added_before, "still_going": going}  # fmt: skip
     if not whole:
         source["why"] = why or "the window is not all read"
         source["reached"] = reached
-    state["collected_at"] = stamp(record_now())
-    state["ci"] = {k: v for k, v in source.items() if k in ("status", "why", "reached")}
-    state["ci"]["at"] = state["collected_at"]
-    save_state(folder, state)
-    data = {
-        "machine": here.machine,
-        "repository": repo,
-        "state_dir": str(folder),
-        "window": {
-            "since_days": since_days,
-            "first_day": start.date().isoformat(),
-            "last_day": now.date().isoformat(),
-        },  # fmt: skip
-        "sources": [source],
-        "requests_used": gh.used,
-    }
-    if gh.allowance is not None:
-        data["allowance"] = gh.allowance
-    if known is not None and known.error:
-        data["warnings"] = [
-            f"No hook group step's summary was read: {known.error}, so the checks known "
-            "could not be read"
-        ]
-    reasoning = (
-        f"{reached['runs']} runs in the window; {collection.added} lines added; ci is {status}"
-        + (f" ({source['why']})" if not whole else "")
-    )
-    return success(data, reasoning=reasoning)
+    collection.state["ci"] = {k: v for k, v in source.items() if k in ("status", "why", "reached")}
+    collection.state["ci"]["at"] = stamp(record_now())
+    return source, bool(whole)
