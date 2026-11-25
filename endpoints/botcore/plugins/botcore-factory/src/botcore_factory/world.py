@@ -273,8 +273,8 @@ class GitHub(Protocol):
 
     def enqueue_pr(self, pr: int, head: str) -> None:
         """Add the PR to its base's merge queue, only if its head is still ``head`` (GraphQL
-        ``enqueuePullRequest`` with ``expectedHeadOid``). It never sets auto-merge, which
-        ``gh pr merge`` does there when a required check has not finished. GitHub then locks
+        ``enqueuePullRequest`` with ``expectedHeadOid``). It never sets auto-merge, which the
+        CLI's merge does there when a required check has not finished. GitHub then locks
         the head branch: nothing can be pushed to it until it merged or left the queue. A
         failure may still have queued it: read ``merge_progress`` before deciding."""
         ...

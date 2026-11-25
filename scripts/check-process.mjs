@@ -3,22 +3,25 @@
  * Process check: each Factory Gateway milestone updates the files agents follow as it lands, and
  * no instruction file, skill, runbook, script, hook or MCP configuration goes around the gateway.
  *
- * The manifest, docs/features/active/factory-gateway/process.json, is shared by AFD and Lushly
- * (the proposal's "Keeping the process current"). This runs both of its checks for one of them:
+ * Each repository keeps its own half of the process manifest (the proposal's "Keeping the process
+ * current"): AFD's is docs/features/active/factory-gateway/process.json, Lushly's
+ * Docs/operations/factory-gateway/process.json, and this script is the same file in both (Lushly
+ * syncs it from AFD). It holds the door's patterns, so a sync carries them. Two checks:
  *
- * - The manifest. Once a milestone is `landed`, each file it lists for this repository must exist
- *   and name each of its `names`: ignoring case, as a word of its own, so that a path such as
+ * - The manifest. Each file a milestone lists must be tracked, landed or not, so that a rename
+ *   fails until the manifest follows it. Once a milestone is `landed`, each must also name each of
+ *   its `names`: ignoring case, as a word of its own, so that a path such as
  *   `scripts/issue-claim.mjs` does not name `issue-claim` and `though` does not name `gh`.
- * - The door. Every tracked file the repository's `door.scope` globs match, less `door.exclude`,
- *   is searched for the `door.patterns` (the GitHub writes the gateway serves, through the CLI,
- *   the REST API or GraphQL) and the `door.argvPatterns` (the CLI's writes as an argument list,
- *   across lines too). A file with a
- *   write fails unless `door.allow` names it, and an allowed file fails once the milestone in its
- *   `until` has landed.
+ * - The door. Every tracked file the `door.scope` globs match, less `door.exclude`, is searched
+ *   for DOOR_PATTERNS (the GitHub writes the gateway serves, through the CLI, the REST API or
+ *   GraphQL) and DOOR_ARGV_PATTERNS (the CLI's writes as an argument list, across lines too). A
+ *   file with a write fails unless `door.allow` names it, with the milestone that removes the
+ *   write (`until`), why it may write until then (`reason`) and the issue that removes it
+ *   (`issue`). An allowed file fails once that milestone has landed.
  *
  * Exemptions expire: an allowed file that no longer holds a write, or is no longer tracked, fails
- * until its entry is deleted, and a scope glob that matches no tracked file fails, so a scan that
- * finds nothing cannot pass by finding nothing.
+ * until its entry is deleted, and a scope glob that matches no tracked file fails, as does a scope
+ * that reads no file, so a scan that finds nothing cannot pass by finding nothing.
  *
  * In code a write is what the code runs or tells an agent to run, so comments are left out:
  * `//` and block comments in JavaScript and TypeScript (regular expression literals are read as
@@ -31,18 +34,41 @@
  * such as `return`, which reads as a division, and a tracked link whose target is missing, which
  * is skipped like a file deleted from the working tree.
  *
- * Usage: node scripts/check-process.mjs [--manifest <path>] [--repo afd|lushly]
- *   (paths resolve from the cwd, which is the repository's root)
+ * Usage: node scripts/check-process.mjs [--manifest <path>]
+ *   (paths resolve from the cwd, which is the repository's root; the manifest defaults to AFD's)
+ * Pure Node: no network, no dependency, nothing built.
  * Exit code 1 = problems found, each printed with its file and, for a write, its line.
  */
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const MILESTONES = ['G0', 'G1', 'G2', 'G3', 'G4', 'G5'];
-const REPOS = ['afd', 'lushly'];
 const DEFAULT_MANIFEST = 'docs/features/active/factory-gateway/process.json';
+/** An allow entry's issue: one GitHub issue, by its URL. */
+const ISSUE_URL = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/issues\/\d+$/u;
+
+/**
+ * The GitHub writes the gateway serves, as text: the CLI's (`gh issue edit`, with `--repo`, any
+ * spacing or backslash continuations), the REST API's writes (a write method, or fields without
+ * `GET`, to the issue, pull, label, comment, check, status and variable endpoints) and GraphQL
+ * mutations beside `mutation`, `gh api graphql` or `(input:`.
+ */
+export const DOOR_PATTERNS = [
+	'\\bgh(?:[\\s\\\\]+(?:-R|--repo)(?:[\\s\\\\]+|=)\\S+)?[\\s\\\\]+issue[\\s\\\\]+(?:edit|comment|create)\\b',
+	'\\bgh(?:[\\s\\\\]+(?:-R|--repo)(?:[\\s\\\\]+|=)\\S+)?[\\s\\\\]+pr[\\s\\\\]+(?:create|merge|edit|ready|comment)\\b',
+	'\\bgh(?:[\\s\\\\]+(?:-R|--repo)(?:[\\s\\\\]+|=)\\S+)?[\\s\\\\]+variable[\\s\\\\]+set\\b',
+	'\\bgh[\\s\\\\]+api\\b(?!(?:\\\\\\n|[^\\n;&|`])*\\s(?:-X\\s*|--method[\\s=])[Gg][Ee][Tt]\\b)(?=(?:\\\\\\n|[^\\n;&|`])*/(?:issues|pulls|labels|comments|assignees|check-runs|statuses|variables|merges)\\b)(?=(?:\\\\\\n|[^\\n;&|`])*\\s(?:-X\\s*|--method[\\s=])(?:[Pp][Oo][Ss][Tt]|[Pp][Aa][Tt][Cc][Hh]|[Pp][Uu][Tt]|[Dd][Ee][Ll][Ee][Tt][Ee])\\b|(?:\\\\\\n|[^\\n;&|`])*\\s(?:-[fF]|--field|--raw-field|--input)[\\s=])(?:\\\\\\n|[^\\n;&|`])*',
+	'(?:\\bmutation\\b|\\bgh[\\s\\\\]+api[\\s\\\\]+graphql\\b)(?:\\\\\\n|[^\\n])*\\b(?:enqueuePullRequest|mergePullRequest|createPullRequest|updatePullRequest|markPullRequestReadyForReview|revertPullRequest|addLabelsToLabelable|removeLabelsFromLabelable|addAssigneesToAssignable|removeAssigneesFromAssignable|addComment|createIssue|updateIssue)\\b|\\b(?:enqueuePullRequest|mergePullRequest|createPullRequest|updatePullRequest|markPullRequestReadyForReview|revertPullRequest|addLabelsToLabelable|removeLabelsFromLabelable|addAssigneesToAssignable|removeAssigneesFromAssignable|addComment|createIssue|updateIssue)\\s*\\(\\s*input\\s*:',
+];
+
+/** The CLI's writes as an argument list (`['gh', 'pr', 'merge']`), across lines too. */
+export const DOOR_ARGV_PATTERNS = [
+	'["\'`]issue["\'`]\\s*,\\s*["\'`](?:edit|comment|create)["\'`]',
+	'["\'`]pr["\'`]\\s*,\\s*["\'`](?:create|merge|edit|ready|comment)["\'`]',
+	'["\'`]variable["\'`]\\s*,\\s*["\'`]set["\'`]',
+];
 
 const JS = new Set(['.js', '.mjs', '.cjs', '.ts', '.mts', '.cts', '.tsx', '.jsx']);
 const HASH = new Set(['.sh', '.bash', '.zsh', '.yml', '.yaml', '.toml']);
@@ -202,52 +228,91 @@ export function writesIn(text, expressions) {
 	return hits.sort((a, b) => a.line - b.line);
 }
 
+/** Keys a manifest may hold at each level; any other is a mistake, a version 1 leftover among them. */
+const KEYS = {
+	manifest: ['$comment', 'version', 'repo', 'milestones', 'door'],
+	milestone: ['$comment', 'landed', 'files'],
+	file: ['path', 'names'],
+	door: ['$comment', 'scope', 'exclude', 'allow'],
+	exclude: ['glob', 'reason'],
+	allow: ['path', 'until', 'reason', 'issue'],
+};
+
+const isObject = (value) => typeof value === 'object' && value !== null && !Array.isArray(value);
+const text = (value) => typeof value === 'string' && value.trim() !== '';
+
 /** The manifest's own shape. Problems here stop the run: nothing below can be trusted. */
-export function validateManifest(manifest, repo) {
+export function validateManifest(manifest) {
 	const problems = [];
 	const bad = (message) => problems.push(`manifest: ${message}`);
-	if (manifest?.version !== 1) bad('version must be 1');
-	const milestones = manifest?.milestones ?? {};
+	const keys = (value, kind, where) => {
+		for (const key of Object.keys(isObject(value) ? value : {})) {
+			if (kind === 'door' && (key === 'patterns' || key === 'argvPatterns')) continue;
+			if (!KEYS[kind].includes(key)) bad(`${where} has an unknown key ${JSON.stringify(key)}`);
+		}
+	};
+	if (!isObject(manifest)) {
+		bad('must be a JSON object');
+		return problems;
+	}
+	keys(manifest, 'manifest', 'the manifest');
+	if (manifest.version !== 2)
+		bad("version must be 2: one repository's half, with the patterns in the checker");
+	if (typeof manifest.repo !== 'string' || !/^[a-z][\w-]*$/u.test(manifest.repo))
+		bad('repo must name the repository this half is for');
+	const milestones = isObject(manifest.milestones) ? manifest.milestones : {};
+	if (!isObject(manifest.milestones)) bad('milestones must be an object');
+	// Every milestone, so that none drops out of the check unseen.
+	for (const name of MILESTONES) {
+		if (!Object.hasOwn(milestones, name)) bad(`milestones must hold ${name}`);
+	}
 	for (const [name, milestone] of Object.entries(milestones)) {
 		if (!MILESTONES.includes(name)) bad(`unknown milestone ${name}`);
+		keys(milestone, 'milestone', name);
 		if (typeof milestone?.landed !== 'boolean') bad(`${name}.landed must be true or false`);
-		for (const r of REPOS) {
-			for (const [i, entry] of (milestone?.[r] ?? []).entries()) {
-				const ok =
-					typeof entry?.path === 'string' &&
-					Array.isArray(entry.names) &&
-					entry.names.length > 0 &&
-					entry.names.every((n) => typeof n === 'string' && n.trim() !== '');
-				if (!ok) bad(`${name}.${r}[${i}] needs a path and at least one name`);
-			}
+		if (!Array.isArray(milestone?.files)) bad(`${name}.files must be a list`);
+		for (const [i, entry] of (Array.isArray(milestone?.files) ? milestone.files : []).entries()) {
+			keys(entry, 'file', `${name}.files[${i}]`);
+			const ok =
+				text(entry?.path) &&
+				Array.isArray(entry.names) &&
+				entry.names.length > 0 &&
+				entry.names.every(text);
+			if (!ok) bad(`${name}.files[${i}] needs a path and at least one name`);
 		}
 	}
-	const door = manifest?.door ?? {};
-	for (const key of ['patterns', 'argvPatterns', 'exclude']) {
-		if (!Array.isArray(door[key]) || door[key].some((p) => typeof p !== 'string'))
-			bad(`door.${key} must be a list of strings`);
+	const door = isObject(manifest.door) ? manifest.door : {};
+	if (!isObject(manifest.door)) bad('door must be an object');
+	keys(door, 'door', 'door');
+	for (const key of ['patterns', 'argvPatterns']) {
+		if (Object.hasOwn(door, key))
+			bad(`door.${key} is not read: the patterns are DOOR_PATTERNS in scripts/check-process.mjs`);
 	}
-	for (const pattern of [...(door.patterns ?? []), ...(door.argvPatterns ?? [])]) {
-		try {
-			new RegExp(pattern, 'u');
-		} catch (error) {
-			bad(`door pattern ${JSON.stringify(pattern)} does not compile: ${error.message}`);
-		}
+	const scope = door.scope;
+	if (!Array.isArray(scope) || scope.length === 0 || !scope.every(text))
+		bad("door.scope must list the globs this repository's door check reads");
+	// An exclusion is an exemption that never names a milestone, so it says why, and fails once
+	// it removes nothing (checkProcess).
+	if (!Array.isArray(door.exclude)) bad('door.exclude must be a list');
+	for (const [i, entry] of (Array.isArray(door.exclude) ? door.exclude : []).entries()) {
+		keys(entry, 'exclude', `door.exclude[${i}]`);
+		if (!text(entry?.glob)) bad(`door.exclude[${i}] needs a glob`);
+		if (!text(entry?.reason)) bad(`door.exclude[${i}].reason must say why its files are not read`);
 	}
-	if (!(door.patterns?.length > 0)) bad('door.patterns is empty, so nothing would be refused');
-	const scope = door.scope?.[repo];
-	if (!Array.isArray(scope) || scope.length === 0 || scope.some((g) => typeof g !== 'string'))
-		bad(`door.scope.${repo} must list the globs this repository's door check reads`);
+	if (!Array.isArray(door.allow)) bad('door.allow must be a list');
 	const seen = new Set();
-	for (const [i, entry] of (door.allow ?? []).entries()) {
-		if (!REPOS.includes(entry?.repo)) bad(`door.allow[${i}].repo must be one of ${REPOS}`);
-		if (typeof entry?.path !== 'string') bad(`door.allow[${i}] needs a path`);
+	for (const [i, entry] of (Array.isArray(door.allow) ? door.allow : []).entries()) {
+		keys(entry, 'allow', `door.allow[${i}]`);
+		if (!text(entry?.path)) bad(`door.allow[${i}] needs a path`);
 		// A milestone the manifest holds, so that it has a `landed` to flip and the entry can expire.
 		if (!Object.hasOwn(milestones, entry?.until) || !MILESTONES.includes(entry?.until))
 			bad(`door.allow[${i}].until must name a milestone in the manifest`);
-		const key = `${entry?.repo}:${entry?.path}`;
-		if (seen.has(key)) bad(`door.allow names ${key} twice`);
-		seen.add(key);
+		if (!text(entry?.reason))
+			bad(`door.allow[${i}].reason must say why the file may write until then`);
+		if (typeof entry?.issue !== 'string' || !ISSUE_URL.test(entry.issue))
+			bad(`door.allow[${i}].issue must link the GitHub issue that removes the write`);
+		if (seen.has(entry?.path)) bad(`door.allow names ${entry?.path} twice`);
+		seen.add(entry?.path);
 	}
 	return problems;
 }
@@ -267,8 +332,8 @@ export function names(text, name) {
  * or null for a path that is a directory (a link to one) or missing from the working tree, and
  * throws when the file cannot be read. Returns the problems and what was read.
  */
-export function checkProcess({ manifest, repo, files, read }) {
-	const problems = validateManifest(manifest, repo);
+export function checkProcess({ manifest, files, read }) {
+	const problems = validateManifest(manifest);
 	if (problems.length > 0) return { problems, scanned: 0, allowed: 0 };
 	const tracked = new Set(files);
 	const landed = (name) => manifest.milestones[name]?.landed === true;
@@ -282,12 +347,14 @@ export function checkProcess({ manifest, repo, files, read }) {
 	};
 
 	for (const [name, milestone] of Object.entries(manifest.milestones)) {
-		if (!milestone.landed) continue;
-		for (const { path, names: required } of milestone[repo] ?? []) {
+		for (const { path, names: required } of milestone.files) {
 			if (!tracked.has(path)) {
-				problems.push(`${path}: ${name} has landed and lists this file, which is not tracked`);
+				problems.push(
+					`${path}: ${name} lists this file, which is not tracked: if it moved, list it by its new path`
+				);
 				continue;
 			}
+			if (!milestone.landed) continue;
 			const text = textOf(path);
 			if (text === null) {
 				problems.push(`${path}: ${name} has landed and lists this file, which is not a file`);
@@ -301,24 +368,23 @@ export function checkProcess({ manifest, repo, files, read }) {
 	}
 
 	const { door } = manifest;
-	const scope = door.scope[repo].map((glob) => ({ glob, test: globToRegExp(glob) }));
-	const exclude = door.exclude.map(globToRegExp);
-	for (const { glob, test } of scope) {
-		if (!files.some((f) => test.test(f)))
-			problems.push(`manifest: door.scope.${repo} glob ${glob} matches no tracked file`);
-	}
-	const expressions = [...door.patterns, ...door.argvPatterns].map((p) => new RegExp(p, 'gu'));
-	const allow = new Map(
-		(door.allow ?? []).filter((a) => a.repo === repo).map((a) => [a.path, a.until])
-	);
+	const scope = door.scope.map((glob) => ({ glob, test: globToRegExp(glob), read: 0 }));
+	const exclude = door.exclude.map(({ glob }) => ({ glob, test: globToRegExp(glob), removed: 0 }));
+	const inScope = (path) => scope.some(({ test }) => test.test(path));
+	const expressions = [...DOOR_PATTERNS, ...DOOR_ARGV_PATTERNS].map((p) => new RegExp(p, 'gu'));
+	const allow = new Map((door.allow ?? []).map((a) => [a.path, a.until]));
 	const writers = new Set();
 	let scanned = 0;
 	let allowed = 0;
 	for (const path of files) {
-		if (!scope.some(({ test }) => test.test(path)) || exclude.some((e) => e.test(path))) continue;
+		if (!inScope(path)) continue;
+		const excluding = exclude.filter((e) => e.test.test(path));
+		for (const e of excluding) e.removed++;
+		if (excluding.length > 0) continue;
 		const text = textOf(path);
 		if (text === null) continue;
 		scanned++;
+		for (const glob of scope) if (glob.test.test(path)) glob.read++;
 		const hits = writesIn(searchable(path, text), expressions);
 		if (hits.length === 0) continue;
 		writers.add(path);
@@ -343,7 +409,21 @@ export function checkProcess({ manifest, repo, files, read }) {
 				`${path}: door.allow lets it write until ${until}, but it holds no write the door refuses: delete its entry`
 			);
 	}
-	if (scanned === 0) problems.push(`door: no file in door.scope.${repo} was read`);
+	// Each glob reads something and each exclusion removes something, so neither the scope nor
+	// an exclusion can silence a directory unseen.
+	for (const { glob, test, read } of scope) {
+		if (!files.some((f) => test.test(f)))
+			problems.push(`manifest: door.scope glob ${glob} matches no tracked file`);
+		else if (read === 0)
+			problems.push(
+				`manifest: door.scope glob ${glob} reads no file: door.exclude removes each it matches, or none is a file`
+			);
+	}
+	for (const { glob, removed } of exclude) {
+		if (removed === 0)
+			problems.push(`manifest: door.exclude glob ${glob} removes no file in door.scope: delete it`);
+	}
+	if (scanned === 0) problems.push('door: no file in door.scope was read');
 	return { problems, scanned, allowed };
 }
 
@@ -364,12 +444,28 @@ function main() {
 		return at >= 0 ? args[at + 1] : fallback;
 	};
 	const manifestPath = option('--manifest', DEFAULT_MANIFEST);
-	const repo = option('--repo', 'afd');
-	if (!REPOS.includes(repo)) {
-		console.error(`process: --repo must be one of ${REPOS.join(', ')}`);
+	let manifest;
+	try {
+		manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+	} catch (error) {
+		console.error(
+			`process: cannot read the manifest ${manifestPath} (${error.code ?? error.message}); pass this repository's with --manifest`
+		);
 		process.exit(2);
 	}
-	const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+	// The half must be this repository's: its `repo` names the origin remote's repository.
+	const remote = spawnSync('git', ['config', '--get', 'remote.origin.url'], { encoding: 'utf8' });
+	const origin = remote.stdout
+		?.trim()
+		.replace(/\/+$/u, '')
+		.replace(/\.git$/u, '');
+	const repo = typeof manifest?.repo === 'string' ? manifest.repo.toLowerCase() : null;
+	if (origin && repo && !origin.toLowerCase().endsWith(`/${repo}`)) {
+		console.error(
+			`process: ${manifestPath} is ${manifest.repo}'s half, but this repository is ${origin}`
+		);
+		process.exit(1);
+	}
 	const files = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8', maxBuffer: 1 << 28 })
 		.split('\0')
 		.filter(Boolean);
@@ -383,14 +479,14 @@ function main() {
 		}
 		return decode(bytes);
 	};
-	const { problems, scanned, allowed } = checkProcess({ manifest, repo, files, read });
+	const { problems, scanned, allowed } = checkProcess({ manifest, files, read });
 	if (problems.length > 0) {
 		for (const problem of problems) console.error(problem);
 		console.error(`process: ${problems.length} problem(s); the rules are in ${manifestPath}`);
 		process.exit(1);
 	}
 	console.log(
-		`process: ${scanned} files read; ${allowed} hold GitHub writes allowed until their milestone`
+		`process: ${manifest.repo}'s half: ${scanned} files read; ${allowed} hold GitHub writes allowed until their milestone`
 	);
 }
 
