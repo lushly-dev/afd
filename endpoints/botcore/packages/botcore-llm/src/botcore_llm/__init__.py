@@ -44,8 +44,9 @@ covers the current workspace with the `inspection` profile and serves the admitt
 commands plus those of the connectors plugin when it is installed; `tool_profile` and
 `tool_plugins` change it, and a Python embedder can pass its own host to
 `botcore_llm.commands.set_tool_host`. A name the host does not serve is
-`UNKNOWN_COMMAND`. A local setup that should let the model lint, test, write or call
-connectors sets `tool_profile = "trusted-local"`; the setting applies to every agent.
+`UNKNOWN_COMMAND`. A setup whose agents call connectors sets `tool_profile =
+"remote-caller"` (connectors read `GH_TOKEN` from the environment); one that should let the
+model lint, test or write sets `"trusted-local"`. The setting applies to every agent.
 The session's `available_tools` lists only the bridged tools and the built-ins its
 permissions allow; MCP tools appear only for servers named in `permissions.mcp_servers`.
 

@@ -39,10 +39,10 @@ github_token_env = "GH_TOKEN"
 """
 
 
-# Every connector command calls an external service. Resolving a GitHub credential may run
-# ``gh auth token`` when the token variable is unset, so the commands also declare a
-# subprocess: only a trusted-local host admits them, and an inspection host refuses them.
-CONNECTOR_POLICY_EFFECTS = ("service", "subprocess")
+# Every connector command calls an external service, and nothing else: credentials come from
+# the environment only (``auth.DefaultCredentialResolver`` runs no CLI). A remote-caller or
+# trusted-local host admits them; an inspection host refuses them.
+CONNECTOR_POLICY_EFFECTS = ("service",)
 
 
 class ConnectorsPlugin:

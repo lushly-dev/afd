@@ -112,7 +112,11 @@ def github_auth_missing() -> CommandResult[dict[str, Any]]:
     return error(
         "GITHUB_AUTH_MISSING",
         "No GitHub token found",
-        suggestion="Set GH_TOKEN environment variable or run `gh auth login`",
+        suggestion=(
+            "Set the GH_TOKEN environment variable (or the one github_token_env names) where "
+            'the host starts, for example export GH_TOKEN="$(gh auth token)"; connectors read '
+            "no CLI credential themselves"
+        ),
         retryable=False,
     )
 

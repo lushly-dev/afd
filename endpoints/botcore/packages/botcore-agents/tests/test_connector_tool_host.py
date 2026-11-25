@@ -38,7 +38,7 @@ def workspace(tmp_path, monkeypatch):
     (tmp_path / "pyproject.toml").write_text(PYPROJECT)
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("GH_TOKEN", raising=False)
-    monkeypatch.setenv("PATH", str(tmp_path))  # No gh CLI credential fallback.
+    monkeypatch.setenv("PATH", str(tmp_path))  # No gh on PATH either; connectors never run it.
     return tmp_path
 
 
@@ -113,10 +113,12 @@ async def test_connector_tool_call_the_default_profile_refuses_is_refused(
     assert outcome["suggestion"]
 
 
-async def test_connector_tool_call_a_trusted_local_host_admits_reaches_the_connector(
-    workspace, installed_connectors, copilot_client, connector_orchestrator
+@pytest.mark.parametrize("profile", ["remote-caller", "trusted-local"])
+async def test_connector_tool_call_a_host_that_admits_services_reaches_the_connector(
+    workspace, installed_connectors, copilot_client, connector_orchestrator, profile
 ):
-    llm_commands.set_config(LlmConfig(default_model="test-model", tool_profile="trusted-local"))
+    """Connector commands declare only ``service``: a remote-caller host runs them too."""
+    llm_commands.set_config(LlmConfig(default_model="test-model", tool_profile=profile))
 
     outcome = await _start_and_call(connector_orchestrator, copilot_client, "github_issue_list")
 
