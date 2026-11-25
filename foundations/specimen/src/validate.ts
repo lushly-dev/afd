@@ -1486,3 +1486,4 @@ export {
 	parseNoteReopenRequest,
 	parseNoteResolveRequest,
 } from './note-validate.js';
+export { parseReviewRequest } from './review-validate.js';

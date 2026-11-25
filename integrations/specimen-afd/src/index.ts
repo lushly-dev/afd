@@ -34,6 +34,8 @@ export {
 	pointResultSchema,
 	pointSchema,
 	profileRunSchema,
+	reviewRequestSchema,
+	reviewResultSchema,
 	storyRunSchema,
 	suggestRunSchema,
 	suiteRunSchema,

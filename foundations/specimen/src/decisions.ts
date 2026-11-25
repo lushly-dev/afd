@@ -30,20 +30,18 @@ import {
 	readDecisionRecord,
 	resolveEvidenceCapturesForGet,
 	SPECIMENS_DIR,
-	sha256,
 	supersededIdsFromRecords,
 	swapChosenSubject,
 	typedError,
 	writeDecisionEvidence,
 	writeDecisionFile,
 } from './decisions-store.js';
-import { canonicalJson, diffObservations } from './diff.js';
 import type { SpecimenHostError } from './host.js';
+import { resolveReviewItemFromSets } from './review.js';
 import {
 	assertRealContained,
 	captureSetsDir,
 	readCaptureSetManifest,
-	readSetCaptureFromManifest,
 	SET_ID_PATTERN,
 	specimenDataDir,
 	withFileLock,
@@ -53,7 +51,6 @@ import type {
 	CaptureSetManifest,
 	ChoiceDecisionRecord,
 	DecisionActor,
-	DecisionAnswerCause,
 	DecisionCheckEntry,
 	DecisionCheckRequest,
 	DecisionCheckResult,
@@ -94,13 +91,6 @@ export {
 	SPECIMENS_DIR,
 	writeDecisionEvidence,
 };
-
-const MAX_SUBSET_SEARCH_MEMBERS = 16;
-
-const CHANGED_ITEM_RE =
-	/^changed:([0-9a-zA-Z_-]+):([0-9a-zA-Z_-]+):(set-[0-9a-f]{12})\.\.(set-[0-9a-f]{12})$/;
-const CHECK_ITEM_RE = /^check:([^:]+):([^:]+):(set-[0-9a-f]{12})\.\.(set-[0-9a-f]{12})$/;
-const INSUFFICIENT_ITEM_RE = /^insufficient:([^:]+):(set-[0-9a-f]{12})\.\.(set-[0-9a-f]{12})$/;
 
 function checkChosenPassesGate(
 	manifest: CaptureSetManifest,
@@ -178,249 +168,6 @@ async function checkChosenPassesCommittedEvidence(
 	}
 }
 
-function findMatchingSubsetByHash(
-	sortedKeys: readonly string[],
-	targetHash: string
-): string[] | null {
-	if (sha256(canonicalJson(sortedKeys)).slice(0, 12) === targetHash) {
-		return [...sortedKeys];
-	}
-	if (sortedKeys.length > MAX_SUBSET_SEARCH_MEMBERS) return null;
-	const total = 1 << sortedKeys.length;
-	for (let mask = 1; mask < total - 1; mask++) {
-		const subset: string[] = [];
-		for (let bit = 0; bit < sortedKeys.length; bit++) {
-			if ((mask & (1 << bit)) !== 0) subset.push(sortedKeys[bit] as string);
-		}
-		if (sha256(canonicalJson(subset)).slice(0, 12) === targetHash) {
-			return subset;
-		}
-	}
-	return null;
-}
-
-async function defaultResolveReviewItem(
-	root: string,
-	item: string,
-	currentChoices: readonly ChoiceDecisionRecord[]
-): Promise<ResolvedReviewItem> {
-	const keptUnchosen = new Set<string>();
-	for (const choice of currentChoices) {
-		for (const variant of choice.kept) keptUnchosen.add(variant);
-	}
-
-	const changedMatch = CHANGED_ITEM_RE.exec(item);
-	if (changedMatch) {
-		const [, causeHash, membersHash, beforeSet, afterSet] = changedMatch as unknown as [
-			string,
-			string,
-			string,
-			string,
-			string,
-		];
-		const beforeManifest = await readCaptureSetManifest(root, beforeSet);
-		const afterManifest = await readCaptureSetManifest(root, afterSet);
-
-		const groups = new Map<string, { cause: DecisionAnswerCause; keys: Set<string> }>();
-		const commonKeys = Object.keys(afterManifest.captures)
-			.filter((key) => Object.hasOwn(beforeManifest.captures, key) && !keptUnchosen.has(key))
-			.sort(compareCodeUnits);
-
-		for (const key of commonKeys) {
-			const beforeEntry = beforeManifest.captures[key];
-			const afterEntry = afterManifest.captures[key];
-			if (beforeEntry?.status !== 'captured' || afterEntry?.status !== 'captured') continue;
-			if (beforeEntry.hash !== null && beforeEntry.hash === afterEntry.hash) continue;
-			const [beforeObs, afterObs] = await Promise.all([
-				readSetCaptureFromManifest(root, beforeSet, beforeManifest, key),
-				readSetCaptureFromManifest(root, afterSet, afterManifest, key),
-			]);
-			const diff = diffObservations(beforeObs, afterObs);
-			if (diff.status !== 'changed') continue;
-			for (const difference of diff.differences) {
-				const cause: DecisionAnswerCause = {
-					channel: difference.channel,
-					...(difference.target !== undefined ? { target: difference.target } : {}),
-					...(difference.property !== undefined ? { property: difference.property } : {}),
-					...(difference.left !== undefined ? { left: difference.left } : {}),
-					...(difference.right !== undefined ? { right: difference.right } : {}),
-				};
-				const hash = sha256(canonicalJson(cause)).slice(0, 12);
-				let bucket = groups.get(hash);
-				if (!bucket) {
-					bucket = { cause, keys: new Set() };
-					groups.set(hash, bucket);
-				}
-				bucket.keys.add(key);
-			}
-		}
-
-		const group = groups.get(causeHash);
-		if (!group) {
-			throw typedError(
-				'REVIEW_ITEM_NOT_FOUND',
-				`Review item not raised by sets ${beforeSet}..${afterSet}: ${item}`,
-				'Run specimen-review to list the items raised by the two capture sets.',
-				{ item, beforeSet, afterSet }
-			);
-		}
-		const sortedGroupKeys = [...group.keys].sort(compareCodeUnits);
-		const matchedKeys = findMatchingSubsetByHash(sortedGroupKeys, membersHash);
-		if (!matchedKeys) {
-			throw typedError(
-				'REVIEW_ITEM_NOT_FOUND',
-				`Review item member scope not raised by sets ${beforeSet}..${afterSet}: ${item}`,
-				'Run specimen-review to list the items raised by the two capture sets.',
-				{ item, beforeSet, afterSet }
-			);
-		}
-
-		const touchedChoices = currentChoices
-			.filter((choice) => (choice.subjects.specimens ?? []).some((s) => matchedKeys.includes(s)))
-			.map((choice) => choice.id);
-
-		const fingerprint = sha256(
-			canonicalJson({
-				cause: group.cause,
-				ids: matchedKeys,
-				before: matchedKeys.map((k) => beforeManifest.captures[k]?.hash ?? null),
-				after: matchedKeys.map((k) => afterManifest.captures[k]?.hash ?? null),
-			})
-		).slice(0, 16);
-
-		return {
-			entry: {
-				item,
-				kind: 'changed',
-				ids: matchedKeys,
-				cause: group.cause,
-				fingerprint,
-			},
-			afterSet,
-			touchedChoices,
-			question: `Accept or reject ${group.cause.channel}${group.cause.property ? `.${group.cause.property}` : ''} change on ${matchedKeys.join(', ')}?`,
-		};
-	}
-
-	const checkMatch = CHECK_ITEM_RE.exec(item);
-	if (checkMatch) {
-		const [, specimenId, checkId, beforeSet, afterSet] = checkMatch as unknown as [
-			string,
-			string,
-			string,
-			string,
-			string,
-		];
-		await readCaptureSetManifest(root, beforeSet);
-		const afterManifest = await readCaptureSetManifest(root, afterSet);
-		if (keptUnchosen.has(specimenId)) {
-			throw typedError(
-				'REVIEW_ITEM_NOT_FOUND',
-				`Specimen "${specimenId}" is a kept unchosen variant and is excluded from review.`,
-				'Run specimen-review to list the items raised by the two capture sets.',
-				{ item, specimenId, beforeSet, afterSet }
-			);
-		}
-		const capture = Object.hasOwn(afterManifest.captures, specimenId)
-			? afterManifest.captures[specimenId]
-			: undefined;
-		if (capture?.status !== 'captured') {
-			throw typedError(
-				'REVIEW_ITEM_NOT_FOUND',
-				`Review item not raised by sets ${beforeSet}..${afterSet}: ${item}`,
-				'Run specimen-review to list the items raised by the two capture sets.',
-				{ item, beforeSet, afterSet }
-			);
-		}
-		const hasCheck = capture.axe?.incompleteChecks.some((check) => check.id === checkId) ?? false;
-		if (!hasCheck) {
-			throw typedError(
-				'REVIEW_ITEM_NOT_FOUND',
-				`Incomplete check "${checkId}" on "${specimenId}" was not raised in ${afterSet}.`,
-				'Run specimen-review to list the items raised by the two capture sets.',
-				{ item, specimenId, checkId, afterSet }
-			);
-		}
-		return {
-			entry: {
-				item,
-				kind: 'incomplete-check',
-				id: specimenId,
-				check: checkId,
-				fingerprint: capture.hash ?? '',
-			},
-			afterSet,
-			touchedChoices: [],
-			question: `Review incomplete accessibility check ${checkId} on ${specimenId}?`,
-		};
-	}
-
-	const insufficientMatch = INSUFFICIENT_ITEM_RE.exec(item);
-	if (insufficientMatch) {
-		const [, specimenId, beforeSet, afterSet] = insufficientMatch as unknown as [
-			string,
-			string,
-			string,
-			string,
-		];
-		const beforeManifest = await readCaptureSetManifest(root, beforeSet);
-		const afterManifest = await readCaptureSetManifest(root, afterSet);
-		if (keptUnchosen.has(specimenId)) {
-			throw typedError(
-				'REVIEW_ITEM_NOT_FOUND',
-				`Specimen "${specimenId}" is a kept unchosen variant and is excluded from review.`,
-				'Run specimen-review to list the items raised by the two capture sets.',
-				{ item, specimenId, beforeSet, afterSet }
-			);
-		}
-		const beforeEntry = Object.hasOwn(beforeManifest.captures, specimenId)
-			? beforeManifest.captures[specimenId]
-			: undefined;
-		const afterEntry = Object.hasOwn(afterManifest.captures, specimenId)
-			? afterManifest.captures[specimenId]
-			: undefined;
-		if (beforeEntry?.status !== 'captured' || afterEntry?.status !== 'captured') {
-			throw typedError(
-				'REVIEW_ITEM_NOT_FOUND',
-				`Review item not raised by sets ${beforeSet}..${afterSet}: ${item}`,
-				'Run specimen-review to list the items raised by the two capture sets.',
-				{ item, beforeSet, afterSet }
-			);
-		}
-		const [beforeObs, afterObs] = await Promise.all([
-			readSetCaptureFromManifest(root, beforeSet, beforeManifest, specimenId),
-			readSetCaptureFromManifest(root, afterSet, afterManifest, specimenId),
-		]);
-		const diff = diffObservations(beforeObs, afterObs);
-		if (diff.status !== 'insufficient-evidence') {
-			throw typedError(
-				'REVIEW_ITEM_NOT_FOUND',
-				`Specimen "${specimenId}" did not produce insufficient-evidence between ${beforeSet} and ${afterSet}.`,
-				'Run specimen-review to list the items raised by the two capture sets.',
-				{ item, specimenId, beforeSet, afterSet }
-			);
-		}
-		return {
-			entry: {
-				item,
-				kind: 'insufficient-evidence',
-				id: specimenId,
-				fingerprint: afterEntry.hash ?? '',
-			},
-			afterSet,
-			touchedChoices: [],
-			question: `Review insufficient evidence for ${specimenId} between ${beforeSet} and ${afterSet}?`,
-		};
-	}
-
-	throw typedError(
-		'REVIEW_ITEM_NOT_FOUND',
-		`Invalid or unknown review item: ${item}`,
-		'Run specimen-review to list the items raised by the two capture sets.',
-		{ item }
-	);
-}
-
 /**
  * Record a choice decision, supersede one or more existing choices, or record a review answer.
  * Writes files under `specimens/decisions/` and `specimens/evidence/` without running `git commit`.
@@ -451,7 +198,7 @@ export async function recordDecision(
 		const currentChoices = currentChoicesFromRecords(allExisting);
 		const resolveItem =
 			options.resolveReviewItem ??
-			((item: string) => defaultResolveReviewItem(root, item, currentChoices));
+			((item: string) => resolveReviewItemFromSets(root, item, currentChoices));
 
 		// Mode 1: New choice from a capture/compare set.
 		if (

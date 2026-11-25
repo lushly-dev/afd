@@ -49,6 +49,7 @@ import {
 	specimenNotFoundError,
 } from './point.js';
 import { parsePointer } from './pointer.js';
+import { runReview } from './review.js';
 import {
 	assertRealContained,
 	diffCaptures,
@@ -120,6 +121,8 @@ import type {
 	ProfileRequest,
 	ProfileRun,
 	RecordDecisionOptions,
+	ReviewRequest,
+	ReviewResult,
 	RunRequest,
 	SpecimenEntry,
 	SpecimenListFilter,
@@ -211,6 +214,11 @@ export interface SpecimenBench {
 	runJob(request: JobRunRequest): Promise<JobRun>;
 	/** Compare two observations or `{ set, id }` set references against `.specimen/sets/`. */
 	diff(request: DiffRequest): Promise<ObservationDiff>;
+	/**
+	 * Read-only review of unsettled items between two saved capture sets or local labels,
+	 * excluding kept unchosen variants first, grouping changes by cause, and matching fingerprints.
+	 */
+	review(request: ReviewRequest): Promise<ReviewResult>;
 	/**
 	 * Run a retained story (render, play, accessibility check) or a synthesized pattern gate case
 	 * (setup mount + portable gate steps). A story or gate that fails its assertions still returns
@@ -339,6 +347,7 @@ export type BenchRuntime = Omit<
 	| 'packCheck'
 	| 'packExport'
 	| 'diff'
+	| 'review'
 	| 'createJob'
 	| 'noteList'
 	| 'noteResolve'
@@ -1088,6 +1097,10 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		async recordDecision(rawRequest, decisionOptions) {
 			const snapshot = ensureOpen();
 			return recordDecision(snapshot.root, rawRequest, decisionOptions);
+		},
+		async review(rawRequest) {
+			const snapshot = ensureOpen();
+			return runReview(snapshot.root, rawRequest);
 		},
 		async getDecision(rawRequest) {
 			const snapshot = ensureOpen();

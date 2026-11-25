@@ -232,6 +232,14 @@ function harness() {
 			differences: [],
 			limitations: [],
 		})),
+		review: vi.fn(async () => ({
+			before: { set: 'set-4f1c0a9e2b7d', label: 'main', revision: 'a1b2c3d', dirty: false },
+			after: { set: 'set-7e2a90c4d311', label: 'branch', revision: 'e4f5a6b', dirty: false },
+			open: [],
+			blocking: [],
+			settled: { unchanged: 4, kept: 2, answered: 1 },
+			page: 'review.html?before=set-4f1c0a9e2b7d&after=set-7e2a90c4d311',
+		})),
 		build: vi.fn(async (outDir) => ({
 			directory: outDir,
 			shellBytes: 1000,
@@ -2122,6 +2130,47 @@ describe('specimen CLI', () => {
 			specimens: ['toolbar--dense'],
 			tokens: ['space.toolbar.gap'],
 		});
+	});
+
+	it('wires specimen review with positional or --before/--after flags and optional --ids', async () => {
+		const root = await directory();
+		const h = harness();
+		expect(await runCli(['--root', root, 'review', 'main', 'branch'], h.io)).toBe(0);
+		expect(h.bench.review).toHaveBeenLastCalledWith({ before: 'main', after: 'branch' });
+
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'review',
+					'--before',
+					'main',
+					'--after',
+					'branch',
+					'--ids',
+					'toolbar--dense,editor--shell',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.review).toHaveBeenLastCalledWith({
+			before: 'main',
+			after: 'branch',
+			ids: ['toolbar--dense', 'editor--shell'],
+		});
+
+		expect(await runCli(['--root', root, 'review', '--before', 'main'], h.io)).toBe(1);
+		expect(
+			await runCli(
+				['--root', root, 'review', 'main', 'branch', '--before', 'a', '--after', 'b'],
+				h.io
+			)
+		).toBe(1);
+		expect(await runCli(['--root', root, 'review', 'only-one'], h.io)).toBe(1);
+		expect(await runCli(['--root', root, 'review', 'main', 'branch', '--ids', ' , '], h.io)).toBe(
+			1
+		);
 	});
 });
 

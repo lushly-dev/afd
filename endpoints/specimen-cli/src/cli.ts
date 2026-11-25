@@ -48,6 +48,7 @@ const valueOptions = new Set([
 	'component',
 	'pattern',
 	'limit',
+	'before',
 	'after',
 	'left-set',
 	'left-id',
@@ -134,7 +135,7 @@ function parseArguments(args: string[]): ParsedArguments {
 	const action = positionals.shift();
 	if (!action)
 		throw new Error(
-			'Choose a command: list, validate, inspect, render, capture, compare, run, themes, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, job-run, decision-record, decision-get, decision-list, or decision-check'
+			'Choose a command: list, validate, inspect, render, capture, compare, review, run, themes, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, job-run, decision-record, decision-get, decision-list, or decision-check'
 		);
 	return { action, positionals, options, flags };
 }
@@ -342,6 +343,7 @@ function validateOptions(parsed: ParsedArguments): void {
 			'motion',
 			'workers',
 		]),
+		review: new Set(['root', 'config', 'output', 'before', 'after', 'ids']),
 		build: new Set(['root', 'config', 'output']),
 		pack: new Set(['root', 'config', 'output', 'workers', 'allow-failed']),
 		'pack-check': new Set(['root', 'config', 'output', 'workers', 'allow-failed']),
@@ -474,6 +476,20 @@ function validateOptions(parsed: ParsedArguments): void {
 			for (const option of ['file', 'tag', 'match', 'kind'])
 				if (parsed.options.has(option))
 					throw new Error(`Option --${option} cannot be combined with explicit specimen ids`);
+		}
+		return;
+	}
+	if (parsed.action === 'review') {
+		const hasBeforeOpt = parsed.options.has('before');
+		const hasAfterOpt = parsed.options.has('after');
+		if (hasBeforeOpt !== hasAfterOpt) {
+			throw new Error('Pass both --before and --after together, or pass both positionally.');
+		}
+		if (hasBeforeOpt && parsed.positionals.length > 0) {
+			throw new Error('Pass before and after positionally or with --before/--after, not both.');
+		}
+		if (!hasBeforeOpt && parsed.positionals.length !== 2) {
+			throw new Error('review expects <before> <after> or --before <set> --after <set>.');
 		}
 		return;
 	}
@@ -856,6 +872,21 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 							: {}),
 						...(suite.workers !== undefined ? { workers: suite.workers } : {}),
 					});
+				} else if (parsed.action === 'review') {
+					const before = parsed.options.get('before') ?? parsed.positionals[0] ?? '';
+					const after = parsed.options.get('after') ?? parsed.positionals[1] ?? '';
+					const hasIds = parsed.options.has('ids');
+					const ids = hasIds
+						? (parsed.options.get('ids') ?? '')
+								.split(',')
+								.map((id) => id.trim())
+								.filter(Boolean)
+						: undefined;
+					result = await executeSpecimenCommand(bench, 'specimen-review', {
+						before,
+						after,
+						...(hasIds ? { ids: ids ?? [] } : {}),
+					});
 				} else if (parsed.action === 'themes') {
 					// The command's schema refuses a share outside 0 to 1, and a word, which is NaN.
 					const threshold = parsed.options.get('threshold');
@@ -1232,7 +1263,7 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 			code: 'SPECIMEN_CLI_ERROR',
 			message,
 			suggestion:
-				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID [--set SET], capture [IDS...] [--label NAME], compare ID1 ID2..., run ID, a11y [ID] [--set SET], themes [ID] [--theme light,dark] [--threshold 0.02], migrate [--files A,B] [--helpers] [--apply], diff LEFT RIGHT, build OUTDIR, pack [TAG], pack-check [TAG], pack-export DIR, point POINTER | ID (--role ROLE [--name NAME] | --selector CSS), point-move POINT_ID DIRECTION [--index N], point-check POINT_ID, note-add (--point ID | --pointer URI) --text TEXT [--assignee NAME], note-list [--specimen ID] [--state open|resolved|all] [--assignee NAME] [--orphaned] [--limit N] [--after ID], note-check [SPECIMEN_ID], note-move NOTE_ID (--point ID | --pointer URI) --reason TEXT, note-resolve (NOTE_ID | --ids A,B) --outcome OUTCOME --reason TEXT [--revision SHA] [--capture REF], note-reopen NOTE_ID --reason TEXT, job-create ID --scenario PATH --module PATH --export-name NAME --target ID --captures STEPS, job-run ID [--label NAME], decision-record --chosen VAL --reason TEXT (--set SET --slug SLUG --question TEXT | --supersedes IDS | --items ITEMS), decision-get ID, decision-list, or decision-check [--files A,B] [--specimens A,B] [--tokens A,B]; check option values and file paths.',
+				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID [--set SET], capture [IDS...] [--label NAME], compare ID1 ID2..., review (BEFORE AFTER | --before SET --after SET) [--ids A,B], run ID, a11y [ID] [--set SET], themes [ID] [--theme light,dark] [--threshold 0.02], migrate [--files A,B] [--helpers] [--apply], diff LEFT RIGHT, build OUTDIR, pack [TAG], pack-check [TAG], pack-export DIR, point POINTER | ID (--role ROLE [--name NAME] | --selector CSS), point-move POINT_ID DIRECTION [--index N], point-check POINT_ID, note-add (--point ID | --pointer URI) --text TEXT [--assignee NAME], note-list [--specimen ID] [--state open|resolved|all] [--assignee NAME] [--orphaned] [--limit N] [--after ID], note-check [SPECIMEN_ID], note-move NOTE_ID (--point ID | --pointer URI) --reason TEXT, note-resolve (NOTE_ID | --ids A,B) --outcome OUTCOME --reason TEXT [--revision SHA] [--capture REF], note-reopen NOTE_ID --reason TEXT, job-create ID --scenario PATH --module PATH --export-name NAME --target ID --captures STEPS, job-run ID [--label NAME], decision-record --chosen VAL --reason TEXT (--set SET --slug SLUG --question TEXT | --supersedes IDS | --items ITEMS), decision-get ID, decision-list, or decision-check [--files A,B] [--specimens A,B] [--tokens A,B]; check option values and file paths.',
 		});
 	} finally {
 		if (bench) {

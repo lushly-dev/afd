@@ -11,6 +11,7 @@ import {
 	recordDecision,
 	runCaptureSet,
 	runCompare,
+	runReview,
 } from '@lushly-dev/specimen';
 import type { Observation, SpecimenEntry } from '@lushly-dev/specimen/types';
 import { describe, expect, it, vi } from 'vitest';
@@ -520,6 +521,14 @@ function bench(): SpecimenCommandBench {
 		})),
 		listDecisions: vi.fn(async () => ({ decisions: [], undecided: [] })),
 		checkDecisions: vi.fn(async () => ({ decisions: [] })),
+		review: vi.fn(async () => ({
+			before: { set: 'set-4f1c0a9e2b7d', revision: 'a1b2c3d', dirty: false },
+			after: { set: 'set-7e2a90c4d311', revision: 'e4f5a6b', dirty: false },
+			open: [],
+			blocking: [],
+			settled: { unchanged: 0, kept: 0, answered: 0 },
+			page: 'review.html?before=set-4f1c0a9e2b7d&after=set-7e2a90c4d311',
+		})),
 	};
 }
 
@@ -613,6 +622,7 @@ describe('specimen commands', () => {
 			'specimen-capture',
 			'specimen-compare',
 			'specimen-diff',
+			'specimen-review',
 			'specimen-build',
 			'specimen-validate',
 			'specimen-run',
@@ -2368,7 +2378,7 @@ describe('specimen commands', () => {
 			});
 
 			// decidedBy derives kind: 'person' exclusively from accepted humanConfirmed provenance, never actor.kind.
-			const decisionRecordCmd = createSpecimenCommands(instance)[32];
+			const decisionRecordCmd = createSpecimenCommands(instance)[33];
 			expect(decisionRecordCmd.name).toBe('decision-record');
 			const humanActorRecorded = await decisionRecordCmd.handler(
 				{
@@ -2485,6 +2495,168 @@ describe('specimen commands', () => {
 			});
 			expect(badReview.success).toBe(false);
 			expect(badReview.error?.code).toBe('REVIEW_ITEM_NOT_FOUND');
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it('exposes specimen-review as a read-only command with cause grouping, SUPERSEDE_REQUIRED, and reject blocking', async () => {
+		const root = await mkdtemp(join(tmpdir(), 'specimen-afd-review-'));
+		try {
+			const mkObs = (id: string, gap: string, theme: 'light' | 'dark' = 'light'): Observation => {
+				const base = observation();
+				return {
+					...base,
+					manifest: {
+						...base.manifest,
+						specimenId: id,
+						context: { ...base.manifest.context, theme },
+					},
+					channels: {
+						...base.channels,
+						dom: { raw: `<div>${id}</div>`, normalized: `<div>${id}</div>` },
+						a11y: {
+							snapshot: `- region "${id}"`,
+							axe: {
+								status: 'passed',
+								policy: 'error',
+								violations: [],
+								incomplete: 0,
+								incompleteChecks: [],
+								exceptions: [],
+							},
+						},
+						elements: [
+							{
+								ref: 'root/toolbar:1',
+								tag: 'div',
+								attributes: {},
+								box: { x: 0, y: 0, width: 200, height: 32 },
+								scroll: { width: 200, height: 32, clientWidth: 200, clientHeight: 32 },
+								styles: { gap },
+								state: {},
+							},
+						],
+					},
+				};
+			};
+			const realInstance: SpecimenCommandBench = {
+				...bench(),
+				review: (req) => runReview(root, req),
+				recordDecision: (req, opts) => recordDecision(root, req, opts),
+			};
+			const reviewCmd = createSpecimenCommands(realInstance)[5];
+			expect(reviewCmd.name).toBe('specimen-review');
+			expect(reviewCmd.mutation).toBe(false);
+			expect(reviewCmd.description).toContain('specimen-capture');
+			expect(reviewCmd.description).toContain('questions for the person');
+
+			const { writeCaptureSet } = await import('@lushly-dev/specimen');
+			const ctx = {
+				viewport: { width: 800, height: 600 },
+				theme: 'light' as const,
+				locale: 'en-US',
+				reducedMotion: 'no-preference' as const,
+				motion: 'natural' as const,
+			};
+			const checkpoint = {
+				name: 'mount',
+				actionMode: 'none' as const,
+				baseline: {
+					clock: 'real' as const,
+					random: { source: 'seeded' as const, seed: 1 },
+					storage: 'empty' as const,
+				},
+			};
+			await writeCaptureSet(root, {
+				kind: 'capture',
+				label: 'main',
+				context: ctx,
+				checkpoint,
+				browser: { name: 'chromium', version: '1' },
+				axe: true,
+				revision: 'a1b2c3d',
+				dirty: false,
+				skipped: { jobs: 0, gates: 0 },
+				entries: [
+					{
+						key: 'toolbar--dense',
+						id: 'toolbar--dense',
+						status: 'captured',
+						observation: mkObs('toolbar--dense', '4px'),
+					},
+					{
+						key: 'button--primary',
+						id: 'button--primary',
+						status: 'captured',
+						observation: mkObs('button--primary', '4px'),
+					},
+				],
+			});
+			await writeCaptureSet(root, {
+				kind: 'capture',
+				label: 'branch',
+				context: ctx,
+				checkpoint,
+				browser: { name: 'chromium', version: '1' },
+				axe: true,
+				revision: 'e4f5a6b',
+				dirty: false,
+				skipped: { jobs: 0, gates: 0 },
+				entries: [
+					{
+						key: 'toolbar--dense',
+						id: 'toolbar--dense',
+						status: 'captured',
+						observation: mkObs('toolbar--dense', '8px'),
+					},
+					{
+						key: 'button--primary',
+						id: 'button--primary',
+						status: 'captured',
+						observation: mkObs('button--primary', '4px'),
+					},
+				],
+			});
+
+			const rev = await executeSpecimenCommand(realInstance, 'specimen-review', {
+				before: 'main',
+				after: 'branch',
+			});
+			expect(rev.success).toBe(true);
+			const data = rev.data as {
+				open: { item: string; ids: string[] }[];
+				blocking: unknown[];
+				settled: { unchanged: number; kept: number; answered: number };
+			};
+			expect(data.open).toHaveLength(1);
+			expect(data.open[0]?.ids).toEqual(['toolbar--dense']);
+			expect(data.settled).toEqual({ unchanged: 1, kept: 0, answered: 0 });
+
+			// Rejecting moves it to blocking without writing subjects.
+			const openItemId = data.open[0]?.item ?? '';
+			const rej = await executeSpecimenCommand(realInstance, 'decision-record', {
+				items: [openItemId],
+				chosen: 'reject',
+				reason: 'Gap regresses compact density.',
+			});
+			expect(rej.success).toBe(true);
+			const revAfter = await executeSpecimenCommand(realInstance, 'specimen-review', {
+				before: 'main',
+				after: 'branch',
+			});
+			expect(revAfter.success).toBe(true);
+			expect(revAfter.data).toMatchObject({
+				open: [],
+				blocking: [
+					{
+						kind: 'rejected',
+						ids: ['toolbar--dense'],
+						reason: 'Gap regresses compact density.',
+					},
+				],
+				settled: { unchanged: 1, kept: 0, answered: 0 },
+			});
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

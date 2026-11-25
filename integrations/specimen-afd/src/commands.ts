@@ -65,6 +65,8 @@ import {
 	pointResultSchema,
 	profileRequestSchema,
 	profileRunSchema,
+	reviewRequestSchema,
+	reviewResultSchema,
 	runRequestSchema,
 	storyRunSchema,
 	suggestRequestSchema,
@@ -153,6 +155,8 @@ import type {
 	ProfileRequest,
 	ProfileRun,
 	RecordDecisionOptions,
+	ReviewRequest,
+	ReviewResult,
 	RunRequest,
 	SpecimenEntry,
 	SpecimenListFilter,
@@ -313,6 +317,7 @@ export interface SpecimenCommandBench {
 	captureSet(request?: CaptureSetRequest): Promise<CaptureSetRun>;
 	compare(request: CompareRequest): Promise<CompareRun>;
 	diff(request: DiffRequest): Promise<ObservationDiff>;
+	review(request: ReviewRequest): Promise<ReviewResult>;
 	run(request: RunRequest): Promise<StoryRun | GateRun>;
 	runSuite(request?: SuiteRequest): Promise<SuiteRun>;
 	a11y(request?: A11yRequest): Promise<A11yRun>;
@@ -1081,12 +1086,29 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				'Pass files, specimens, or tokens to check, or use decision-list to see every current decision id.'
 			),
 	});
+	const review = defineCommand({
+		...common,
+		name: 'specimen-review',
+		description:
+			'Read-only review of unsettled items between two saved capture sets or local labels (before and after). Both sets must exist; specimen-capture makes them. Excludes kept unchosen variants first (settled.kept), groups changes by structured cause (largest group first, specimen id ascending), surfaces incomplete checks and insufficient evidence, and matches committed answer fingerprints. Open items are questions for the person; show them, and do not answer them yourself.',
+		mutation: false,
+		input: reviewRequestSchema,
+		output: reviewResultSchema,
+		handler: async (input) =>
+			result(
+				() => bench.review(input),
+				reviewResultSchema,
+				'SPECIMEN_REVIEW_FAILED',
+				'Capture both sets under the same conditions with specimen-capture before running specimen-review.'
+			),
+	});
 	return [
 		list,
 		render,
 		capture,
 		compare,
 		diff,
+		review,
 		build,
 		validate,
 		runStory,
@@ -1185,6 +1207,7 @@ export async function executeSpecimenCommand(
 		capture,
 		compare,
 		diff,
+		review,
 		build,
 		validate,
 		runStory,
@@ -1228,6 +1251,8 @@ export async function executeSpecimenCommand(
 			return execute(compare, input, options);
 		case 'specimen-diff':
 			return execute(diff, input, options);
+		case 'specimen-review':
+			return execute(review, input, options);
 		case 'specimen-build':
 			return execute(build, input, options);
 		case 'specimen-validate':
@@ -1295,7 +1320,7 @@ export async function executeSpecimenCommand(
 				code: 'COMMAND_NOT_FOUND',
 				message: `Unknown command: ${name}`,
 				suggestion:
-					'Use specimen list, validate, inspect, render, capture, compare, run, themes, migrate, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, job-run, decision-record, decision-get, decision-list, or decision-check.',
+					'Use specimen list, validate, inspect, render, capture, compare, review, run, themes, migrate, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, job-run, decision-record, decision-get, decision-list, or decision-check.',
 			});
 	}
 }

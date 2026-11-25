@@ -23,6 +23,9 @@ import {
 } from 'vite';
 import { renderComparePageHtml } from './compare-page.js';
 import { bundled, defaultContext, type LoadedConfig } from './config.js';
+import type { SpecimenHostError } from './host.js';
+import { readReviewPageData } from './review.js';
+import { renderReviewPageHtml } from './review-page.js';
 import { assertRealFileContained, captureSetsDir, SET_ID_PATTERN } from './sets.js';
 import type { SpecimenEntry } from './types.js';
 import { isSafeStaticMount } from './validate.js';
@@ -356,6 +359,73 @@ export async function startBenchServer(
 					res.end(req.method === 'HEAD' ? undefined : body);
 					return;
 				}
+				if (pathname === '/review.html') {
+					const body = renderReviewPageHtml();
+					res.statusCode = 200;
+					res.setHeader('Content-Type', 'text/html; charset=utf-8');
+					res.end(req.method === 'HEAD' ? undefined : body);
+					return;
+				}
+				if (pathname === '/api/review.json') {
+					const reqUrl = new URL(req.url ?? '/', 'http://127.0.0.1');
+					const before = reqUrl.searchParams.get('before')?.trim() ?? '';
+					const after = reqUrl.searchParams.get('after')?.trim() ?? '';
+					const hasIdsParam = reqUrl.searchParams.has('ids');
+					const idsRaw = reqUrl.searchParams.get('ids')?.trim() ?? '';
+					const ids = hasIdsParam
+						? idsRaw
+								.split(',')
+								.map((id) => id.trim())
+								.filter(Boolean)
+						: undefined;
+					if (!before || !after || (hasIdsParam && (!ids || ids.length === 0))) {
+						res.statusCode = 400;
+						res.setHeader('Content-Type', 'application/json; charset=utf-8');
+						res.end(
+							req.method === 'HEAD'
+								? undefined
+								: JSON.stringify({
+										error: {
+											code: 'VALIDATION_ERROR',
+											message:
+												hasIdsParam && (!ids || ids.length === 0)
+													? 'ids query parameter must contain at least one specimen id.'
+													: 'Both before and after query parameters are required.',
+										},
+									})
+						);
+						return;
+					}
+					void (async () => {
+						try {
+							const data = await readReviewPageData(projectRoot, {
+								before,
+								after,
+								...(ids?.length ? { ids } : {}),
+							});
+							res.statusCode = 200;
+							res.setHeader('Content-Type', 'application/json; charset=utf-8');
+							res.end(req.method === 'HEAD' ? undefined : JSON.stringify(data));
+						} catch (error) {
+							const hostError = error as SpecimenHostError;
+							res.statusCode = hostError.code === 'CAPTURE_SET_NOT_FOUND' ? 404 : 400;
+							res.setHeader('Content-Type', 'application/json; charset=utf-8');
+							res.end(
+								req.method === 'HEAD'
+									? undefined
+									: JSON.stringify({
+											error: {
+												code: hostError.code ?? 'SPECIMEN_REVIEW_FAILED',
+												message:
+													error instanceof Error ? error.message : 'Could not compute review.',
+												...(hostError.suggestion ? { suggestion: hostError.suggestion } : {}),
+											},
+										})
+							);
+						}
+					})();
+					return;
+				}
 				const isCompareAssetRoute =
 					pathname.startsWith('/sets/') || pathname.startsWith('/.specimen/sets/');
 				const touchesPrivateStore = /(?:^|\/)\.specimen(?:\/|$)/i.test(pathname);
@@ -655,10 +725,14 @@ async function buildStatic(
 	const comparePath = join(outRoot, 'compare.html');
 	await assertNoSymlinkPath(outRoot, comparePath);
 	await writeFile(comparePath, renderComparePageHtml(), 'utf8');
+	const reviewPath = join(outRoot, 'review.html');
+	await assertNoSymlinkPath(outRoot, reviewPath);
+	await writeFile(reviewPath, renderReviewPageHtml(), 'utf8');
 	const copiedCompareAssets = await copyCompareAssets(projectRoot, outRoot);
 	const files = [
 		...result.output.map((output) => output.fileName),
 		'compare.html',
+		'review.html',
 		...copiedCompareAssets,
 	];
 	// Its emitted, minified file. A build without it would publish an unstyled index, so it fails.

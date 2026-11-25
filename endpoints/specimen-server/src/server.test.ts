@@ -89,7 +89,10 @@ describe('Specimen MCP endpoint', () => {
 		try {
 			const definitions = createSpecimenCommands(bench).filter((command) => command.expose?.mcp);
 			const { tools } = await client.listTools();
-			expect(tools).toHaveLength(36);
+			expect(tools).toHaveLength(37);
+			expect(tools.find((tool) => tool.name === 'specimen-review')?.annotations).toEqual({
+				readOnlyHint: true,
+			});
 			expect(tools).toEqual(
 				definitions.map((command) => ({
 					name: command.name,
@@ -1165,6 +1168,19 @@ describe('Specimen MCP endpoint', () => {
 		expect(envelope(cliFetched as CallToolResult).data).toMatchObject({
 			decision: cliDecisionId,
 			decidedBy: { kind: 'script' },
+		});
+
+		// 7. Read-only specimen-review runs without elicitation even on an unelicited client.
+		const reviewRes = await unelicited.callTool({
+			name: 'specimen-review',
+			arguments: { before: written.run.set, after: written.run.set },
+		});
+		expect(reviewRes.isError).toBe(false);
+		expect(envelope(reviewRes as CallToolResult).data).toMatchObject({
+			open: [],
+			blocking: [],
+			settled: { unchanged: 1, kept: 1, answered: 0 },
+			page: `review.html?before=${written.run.set}&after=${written.run.set}`,
 		});
 	});
 

@@ -10,6 +10,7 @@ export type * from './note-types.js';
 export type * from './pack-types.js';
 export type * from './pattern-types.js';
 export type * from './point-types.js';
+export type * from './review-types.js';
 
 import type { PackConfig } from './pack-types.js';
 import type {
