@@ -200,12 +200,14 @@ class _HttpBasedTransport:
                 raise TransportError(
                     "Invalid tools/list result: each tool entry must be an object with a string 'name'",
                 )
+            annotations = tool.get("annotations")
             tools.append(
                 ToolInfo(
                     name=tool["name"],
                     description=tool.get("description", ""),
                     input_schema=tool.get("inputSchema"),
                     meta=tool.get("_meta"),
+                    annotations=annotations if isinstance(annotations, dict) else None,
                 )
             )
         return tools

@@ -21,6 +21,7 @@ import contextlib
 import inspect
 import logging
 from collections.abc import AsyncGenerator, Callable, Sequence
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import (
@@ -28,10 +29,13 @@ from typing import (
     Literal,
 )
 
-from pydantic import ValidationError
-
+from afd._client_errors import (
+    _classify_call_exception,
+    _is_tool_info_read_only,
+    _outcome_unknown_result,
+    _parse_command_result,
+)
 from afd.core.result import CommandResult, success
-from afd.core.result import error as result_error
 from afd.transports._mcp_protocol import _HttpBasedTransport
 from afd.transports.base import (
     JsonRpcError,
@@ -43,6 +47,7 @@ from afd.transports.base import (
     _TaskSeed,
 )
 from afd.transports.streamable_http import (  # noqa: F401 - re-exported
+    _ON_TOOL_RELISTED,
     ElicitationHandler,
     ElicitationRequest,
     ElicitationResponse,
@@ -52,6 +57,17 @@ from afd.transports.streamable_http import (  # noqa: F401 - re-exported
 _Transport = Any  # Actual Transport protocol from base
 
 logger = logging.getLogger("afd.client")
+
+_TASK_POLL_FAILED: ContextVar[list[bool] | None] = ContextVar(
+    "afd_client_task_poll_failed", default=None
+)
+
+
+def _mark_task_poll_failed() -> None:
+    """Record that an active ``McpClient.call()`` lost a started MCP task while polling."""
+    slot = _TASK_POLL_FAILED.get()
+    if slot is not None:
+        slot[0] = True
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -226,6 +242,7 @@ class McpClient:
         self._reconnect_attempts = 0
         self._event_handlers: dict[str, list[Callable[..., None]]] = {}
         self._generation = 0
+        self._discovery_generation = 0
         self._active = False
         self._reconnect_task: asyncio.Task | None = None
         self._active_task_polls: set[asyncio.Event] = set()
@@ -247,6 +264,7 @@ class McpClient:
             raise RuntimeError("Already connected")
         await self._stop_reconnect()
         self._generation += 1
+        self._discovery_generation += 1
         generation = self._generation
         self._active = False
         if self._transport is not None:
@@ -256,6 +274,7 @@ class McpClient:
         if self._transport is None:
             self._transport = _create_transport(self._config)
         self._bind_transport_events()
+        self._tools = []
         self._set_state(TransportState.CONNECTING)
         try:
             await self._transport.connect()
@@ -280,6 +299,7 @@ class McpClient:
         """Disconnect and cancel any pending reconnect delay or handshake."""
         self._active = False
         self._generation += 1
+        self._discovery_generation += 1
         self._abort_task_polls()
         await self._stop_reconnect()
         if self._transport:
@@ -306,8 +326,16 @@ class McpClient:
     async def list_tools(self) -> list[ToolInfo]:
         """Refresh and return the list of available tools."""
         self._require_connected()
-        self._tools = await self._request("list_tools")
-        return self._tools
+        discovery_generation = self._discovery_generation
+        transport = self._transport
+        tools: list[ToolInfo] = await self._request("list_tools")
+        if (
+            discovery_generation == self._discovery_generation
+            and transport is self._transport
+            and self.is_connected()
+        ):
+            self._tools = tools
+        return tools
 
     def get_tools(self) -> list[ToolInfo]:
         """Return the cached tools list (no network call)."""
@@ -358,6 +386,15 @@ class McpClient:
         within ``timeout`` (defaulting to ``config.timeout``) and returns the
         final ``CommandResult``.
 
+        When a timeout, connection or transport loss, HTTP 5xx, JSON-RPC
+        ``-32603``, or a failed task poll leaves the outcome unknown, tools not
+        positively declared ``_meta.mutation is False`` (without contradicting
+        ``destructive``, ``destructiveHint``, or ``readOnlyHint: False``) before
+        dispatch return ``OUTCOME_UNKNOWN`` with ``retryable=False`` and the
+        underlying cause code in ``details["cause"]``. Tools positively marked
+        read-only return the underlying error (``TIMEOUT``, ``INTERNAL_ERROR``,
+        ``HTTP_5xx``, ``TRANSPORT_ERROR``, ...).
+
         Args:
             name: Tool/command name.
             args: Command arguments.
@@ -370,6 +407,22 @@ class McpClient:
             CommandResult (success or failure).
         """
         self._require_connected()
+        # Capture read-only metadata before dispatch so a concurrent tools/list
+        # refresh or reconnect cannot flip an in-flight call's classification.
+        # If Streamable HTTP recovers from HEADER_MISMATCH by re-listing and
+        # resending, _on_tool_relisted updates read_only_state before the resend
+        # while call_tool() updates the connection's cached tool metadata.
+        read_only_state = [self._is_read_only_tool(name)]
+        poll_failed = [False]
+
+        def _on_tool_relisted(tool_name: str, tool_info: ToolInfo | None) -> None:
+            if tool_name == name:
+                read_only_state[0] = (
+                    _is_tool_info_read_only(tool_info) if tool_info is not None else False
+                )
+
+        poll_token = _TASK_POLL_FAILED.set(poll_failed)
+        relist_token = _ON_TOOL_RELISTED.set(_on_tool_relisted)
 
         try:
             data = await self.call_tool(
@@ -386,52 +439,34 @@ class McpClient:
 
             return success(data)
 
-        except ToolExecutionError as exc:
-            return result_error(
-                code="TOOL_ERROR",
-                message=str(exc),
-                suggestion="Check the command input and try again",
-            )
-        except JsonRpcError as exc:
-            if exc.code == -32021:
-                return result_error(
-                    code="MISSING_CLIENT_CAPABILITY",
-                    message=exc.rpc_message,
-                    suggestion="Enable the required MCP client capability (for example tasks=True) and retry",
-                    retryable=False,
-                    details=exc.data if isinstance(exc.data, dict) else None,
-                )
-            if exc.code == -32603:
-                return result_error(
-                    code="INTERNAL_ERROR",
-                    message=exc.rpc_message,
-                    suggestion="Retry the call later or contact the server operator",
-                    retryable=True,
-                )
-            return result_error(
-                code="TRANSPORT_ERROR",
-                message=str(exc),
-                suggestion="Check the server connection and try again",
-            )
-        except TimeoutError as exc:
-            return result_error(
-                code="TIMEOUT",
-                message=str(exc) or "MCP request timed out",
-                suggestion="Retry with a larger timeout",
-                retryable=True,
-            )
-        except TransportError as exc:
-            return result_error(
-                code="TRANSPORT_ERROR",
-                message=str(exc),
-                suggestion="Check the server connection and try again",
-            )
         except Exception as exc:
-            return result_error(
-                code="CLIENT_ERROR",
-                message=str(exc),
-                suggestion="Check the command name and arguments",
-            )
+            cause, outcome_unknown = _classify_call_exception(exc)
+            if (poll_failed[0] or outcome_unknown) and not read_only_state[0]:
+                return _outcome_unknown_result(cause)
+            return cause
+        finally:
+            _ON_TOOL_RELISTED.reset(relist_token)
+            _TASK_POLL_FAILED.reset(poll_token)
+
+    def _update_cached_tool(
+        self,
+        tool_name: str,
+        tool_info: ToolInfo | None,
+        *,
+        discovery_generation: int,
+        transport: _Transport | None,
+    ) -> None:
+        """Atomically refresh one entry in ``_tools`` if the connection generation still matches."""
+        if (
+            discovery_generation != self._discovery_generation
+            or transport is not self._transport
+            or not self.is_connected()
+        ):
+            return
+        updated = [tool for tool in self._tools if tool.name != tool_name]
+        if tool_info is not None:
+            updated.append(tool_info)
+        self._tools = updated
 
     async def call_tool(
         self,
@@ -461,7 +496,25 @@ class McpClient:
         total_timeout = self._config.timeout if timeout is None else timeout
         loop = asyncio.get_running_loop()
         deadline = loop.time() + total_timeout
-        raw = await self._request_with_timeout("call_tool", name, args or {}, timeout=timeout)
+        outer_relisted = _ON_TOOL_RELISTED.get()
+        discovery_generation = self._discovery_generation
+        transport = self._transport
+
+        def _on_tool_relisted(tool_name: str, tool_info: ToolInfo | None) -> None:
+            self._update_cached_tool(
+                tool_name,
+                tool_info,
+                discovery_generation=discovery_generation,
+                transport=transport,
+            )
+            if outer_relisted is not None:
+                outer_relisted(tool_name, tool_info)
+
+        relist_token = _ON_TOOL_RELISTED.set(_on_tool_relisted)
+        try:
+            raw = await self._request_with_timeout("call_tool", name, args or {}, timeout=timeout)
+        finally:
+            _ON_TOOL_RELISTED.reset(relist_token)
         if isinstance(raw, _TaskSeed) and self._config.tasks:
             return await self._poll_task(
                 raw.payload,
@@ -532,6 +585,7 @@ class McpClient:
 
             while True:
                 if disconnect_abort.is_set():
+                    _mark_task_poll_failed()
                     raise TransportError("Client disconnected")
                 if cancel is not None and cancel.is_set():
                     cancel_best_effort()
@@ -540,6 +594,7 @@ class McpClient:
                 remaining_before_wait = deadline - loop.time()
                 if remaining_before_wait <= 0:
                     cancel_best_effort()
+                    _mark_task_poll_failed()
                     raise TimeoutError(f"MCP task '{task_id}' timed out after {total_timeout}s")
 
                 wait_s = min(poll_interval_s, remaining_before_wait)
@@ -552,6 +607,7 @@ class McpClient:
                     _cleanup_tasks(waiters)
 
                 if disconnect_abort.is_set():
+                    _mark_task_poll_failed()
                     raise TransportError("Client disconnected")
                 if cancel is not None and cancel.is_set():
                     cancel_best_effort()
@@ -560,6 +616,7 @@ class McpClient:
                 remaining = deadline - loop.time()
                 if remaining <= 0:
                     cancel_best_effort()
+                    _mark_task_poll_failed()
                     raise TimeoutError(f"MCP task '{task_id}' timed out after {total_timeout}s")
 
                 poll_task: asyncio.Task[DetailedTask] = asyncio.create_task(
@@ -588,20 +645,24 @@ class McpClient:
                         cancel_best_effort()
                         return cancelled_payload()
                     if disconnect_abort.is_set():
+                        _mark_task_poll_failed()
                         raise TransportError("Client disconnected")
                     cancel_best_effort()
+                    _mark_task_poll_failed()
                     raise TimeoutError(f"MCP task '{task_id}' timed out after {total_timeout}s")
 
                 try:
                     detailed = poll_task.result()
                 except TimeoutError:
                     cancel_best_effort()
+                    _mark_task_poll_failed()
                     raise TimeoutError(
                         f"MCP task '{task_id}' timed out after {total_timeout}s"
                     ) from None
                 except TransportError as exc:
                     if isinstance(exc.cause, asyncio.TimeoutError):
                         cancel_best_effort()
+                        _mark_task_poll_failed()
                         raise TimeoutError(
                             f"MCP task '{task_id}' timed out after {total_timeout}s"
                         ) from exc
@@ -609,7 +670,15 @@ class McpClient:
                         cancel_best_effort()
                         return cancelled_payload()
                     if disconnect_abort.is_set():
+                        _mark_task_poll_failed()
                         raise TransportError("Client disconnected") from exc
+                    _mark_task_poll_failed()
+                    raise
+                except Exception:
+                    if cancel is not None and cancel.is_set():
+                        cancel_best_effort()
+                        return cancelled_payload()
+                    _mark_task_poll_failed()
                     raise
 
                 if detailed.status != last_status or detailed.status_message != last_message:
@@ -630,12 +699,17 @@ class McpClient:
 
                 if detailed.status == "completed":
                     if not isinstance(detailed.result, dict):
+                        _mark_task_poll_failed()
                         raise TransportError(
                             f"MCP task '{task_id}' completed without a valid tool result"
                         )
                     validator = getattr(self._transport, "validate_tool_result", None)
                     if callable(validator):
-                        await validator(tool_name, detailed.result)
+                        try:
+                            await validator(tool_name, detailed.result)
+                        except Exception:
+                            _mark_task_poll_failed()
+                            raise
                     return _HttpBasedTransport._extract_content(detailed.result)
                 if detailed.status == "failed":
                     err = detailed.error or {}
@@ -862,6 +936,7 @@ class McpClient:
             or self._state != TransportState.CONNECTED
         ):
             return
+        self._discovery_generation += 1
         self._abort_task_polls()
         self._clear_connection()
         self._set_state(TransportState.DISCONNECTED)
@@ -942,6 +1017,8 @@ class McpClient:
                         return False
                     self._bind_transport_events()
                     await transport.connect()
+                    self._discovery_generation += 1
+                    self._tools = []
                     tools = await transport.list_tools()
                     if not self._active or generation != self._generation:
                         await transport.disconnect()
@@ -954,6 +1031,8 @@ class McpClient:
                     return True
                 except Exception as exc:
                     last_error = exc
+                    self._discovery_generation += 1
+                    self._tools = []
                     if self._transport is not None:
                         await self._transport.disconnect()
             self._clear_connection()
@@ -983,6 +1062,17 @@ class McpClient:
 
     # ── Internal ──────────────────────────────────────────────────────────
 
+    def _is_read_only_tool(self, name: str) -> bool:
+        """Whether cached tool metadata positively declares ``_meta.mutation is False``.
+
+        Unknown tools, tools without ``_meta.mutation: False``, and tools with
+        contradicting ``destructive``, ``destructiveHint``, or ``readOnlyHint: False``
+        markers return ``False`` so ambiguous transport failures fail closed as
+        ``OUTCOME_UNKNOWN``.
+        """
+        tool = next((entry for entry in self._tools if entry.name == name), None)
+        return tool is not None and _is_tool_info_read_only(tool)
+
     def _require_connected(self) -> None:
         """Raise if not connected."""
         if not self.is_connected():
@@ -992,32 +1082,6 @@ class McpClient:
         """Debug logging."""
         if self._config.debug:
             print(f"[McpClient] {message}")
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# RESULT PARSING
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
-def _parse_command_result(data: dict[str, Any]) -> CommandResult:
-    """Parse a CommandResult dict, keeping sources, plan, metadata and the rest."""
-    try:
-        return CommandResult.model_validate(data)
-    except ValidationError as exc:
-        return result_error(
-            code="INVALID_RESULT",
-            message="The server returned a malformed CommandResult",
-            suggestion="Check that the server returns AFD CommandResult JSON",
-            details={
-                "errors": [
-                    {
-                        "path": ".".join(str(part) for part in issue.get("loc", ())),
-                        "message": issue.get("msg", "Invalid value"),
-                    }
-                    for issue in exc.errors()
-                ]
-            },
-        )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

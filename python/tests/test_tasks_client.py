@@ -479,7 +479,9 @@ async def test_client_inline_result_type_task_output_schema_and_inflight_poll_ti
     slow_mock_res = await mc.call("slow-mock", {}, timeout=0.05)
     assert slow_mock_res.success is False
     assert slow_mock_res.error is not None
-    assert slow_mock_res.error.code == "TIMEOUT"
+    assert slow_mock_res.error.code == "OUTCOME_UNKNOWN"
+    assert slow_mock_res.error.retryable is False
+    assert slow_mock_res.error.details == {"cause": "TIMEOUT"}
     await mc.disconnect()
 
     class MinimalTransport:
@@ -508,5 +510,193 @@ async def test_client_inline_result_type_task_output_schema_and_inflight_poll_ti
     to_min = await min_client.call("slow", {}, timeout=0.05)
     assert to_min.success is False
     assert to_min.error is not None
-    assert to_min.error.code == "TIMEOUT"
+    assert to_min.error.code == "OUTCOME_UNKNOWN"
+    assert to_min.error.retryable is False
+    assert to_min.error.details == {"cause": "TIMEOUT"}
     await min_client.disconnect()
+
+
+async def test_read_only_vs_non_read_only_task_poll_outcomes():
+    class ExpiringAndFailingStore(InMemoryTaskStore):
+        async def create(self, record: Any, call: Any = None) -> None:
+            await super().create(record, call)
+            if record.command in ("job-mut-rpc-fail", "job-read-rpc-fail"):
+                await super().update(
+                    record.id,
+                    record.owner,
+                    TaskFailedChange(
+                        error=TaskRpcError(code=-32603, message="Worker crashed"),
+                        at=record.created_at + 1,
+                    ),
+                )
+
+        async def get(self, task_id: str, owner: str) -> Any:
+            record = await super().get(task_id, owner)
+            if record is not None and record.command in ("job-mut-expired", "job-read-expired"):
+                self._records.pop(task_id, None)
+                return None
+            return record
+
+    def hook(req: ContextHookRequest, ctx: CommandContext) -> CommandContext:
+        ctx.actor = Actor(kind="human", id="alice")
+        return ctx
+
+    server = create_server(
+        "ro-tasks",
+        tool_strategy="individual",
+        context_hook=hook,
+        task_store=ExpiringAndFailingStore(),
+        task_options=TaskOptions(
+            poll_interval_ms=15,
+            check_interval_ms=15,
+            callers_identified_by_hook=True,
+        ),
+    )
+
+    @server.command(
+        name="job-mut-rpc-fail",
+        description="Mutating task that fails with JSON-RPC -32603",
+        expose=MCP,
+        mutation=True,
+        task="required",
+    )
+    async def job_mut_rpc_fail(input: Any) -> CommandResult[Any]:
+        await asyncio.sleep(10)
+        return success({})
+
+    @server.command(
+        name="job-read-rpc-fail",
+        description="Read-only task that fails with JSON-RPC -32603",
+        expose=MCP,
+        mutation=False,
+        task="required",
+    )
+    async def job_read_rpc_fail(input: Any) -> CommandResult[Any]:
+        await asyncio.sleep(10)
+        return success({})
+
+    @server.command(
+        name="job-mut-timeout",
+        description="Mutating task that times out",
+        expose=MCP,
+        mutation=True,
+        task="required",
+    )
+    async def job_mut_timeout(input: Any) -> CommandResult[Any]:
+        await asyncio.sleep(10)
+        return success({})
+
+    @server.command(
+        name="job-read-timeout",
+        description="Read-only task that times out",
+        expose=MCP,
+        mutation=False,
+        task="required",
+    )
+    async def job_read_timeout(input: Any) -> CommandResult[Any]:
+        await asyncio.sleep(10)
+        return success({})
+
+    @server.command(
+        name="job-mut-expired",
+        description="Mutating task whose record disappears during poll",
+        expose=MCP,
+        mutation=True,
+        task="required",
+    )
+    async def job_mut_expired(input: Any) -> CommandResult[Any]:
+        await asyncio.sleep(10)
+        return success({})
+
+    @server.command(
+        name="job-read-expired",
+        description="Read-only task whose record disappears during poll",
+        expose=MCP,
+        mutation=False,
+        task="required",
+    )
+    async def job_read_expired(input: Any) -> CommandResult[Any]:
+        await asyncio.sleep(10)
+        return success({})
+
+    @server.command(
+        name="job-mut-disconnect",
+        description="Mutating task disconnected while polling",
+        expose=MCP,
+        mutation=True,
+        task="required",
+    )
+    async def job_mut_disconnect(input: Any) -> CommandResult[Any]:
+        await asyncio.sleep(10)
+        return success({})
+
+    async with _serve_http(server) as url:
+        client = McpClient(
+            McpClientConfig(
+                url=url,
+                protocol_mode="modern",
+                tasks=True,
+                auto_reconnect=False,
+            )
+        )
+        await client.connect()
+        try:
+            mut_rpc = await client.call("job-mut-rpc-fail", {})
+            assert mut_rpc.success is False
+            assert mut_rpc.error is not None
+            assert mut_rpc.error.code == "OUTCOME_UNKNOWN"
+            assert mut_rpc.error.retryable is False
+            assert mut_rpc.error.details == {"cause": "INTERNAL_ERROR", "jsonRpcCode": -32603}
+
+            read_rpc = await client.call("job-read-rpc-fail", {})
+            assert read_rpc.success is False
+            assert read_rpc.error is not None
+            assert read_rpc.error.code == "INTERNAL_ERROR"
+            assert read_rpc.error.retryable is True
+
+            expired = await client.call("job-mut-expired", {})
+            assert expired.success is False
+            assert expired.error is not None
+            assert expired.error.code == "OUTCOME_UNKNOWN"
+            assert expired.error.retryable is False
+            assert expired.error.details == {"cause": "TRANSPORT_ERROR", "jsonRpcCode": -32602}
+
+            read_expired = await client.call("job-read-expired", {})
+            assert read_expired.success is False
+            assert read_expired.error is not None
+            assert read_expired.error.code == "TRANSPORT_ERROR"
+            assert read_expired.error.retryable is False
+            assert read_expired.error.details == {"jsonRpcCode": -32602}
+
+            mut_to = await client.call("job-mut-timeout", {}, timeout=0.12)
+            assert mut_to.success is False
+            assert mut_to.error is not None
+            assert mut_to.error.code == "OUTCOME_UNKNOWN"
+            assert mut_to.error.retryable is False
+            assert mut_to.error.details == {"cause": "TIMEOUT"}
+
+            if not client.is_connected():
+                await client.connect()
+            read_to = await client.call("job-read-timeout", {}, timeout=0.12)
+            assert read_to.success is False
+            assert read_to.error is not None
+            assert read_to.error.code == "TIMEOUT"
+            assert read_to.error.retryable is True
+
+            if not client.is_connected():
+                await client.connect()
+            started = asyncio.Event()
+            poll_task = asyncio.create_task(
+                client.call("job-mut-disconnect", {}, on_task_progress=lambda _t: started.set())
+            )
+            await asyncio.wait_for(started.wait(), timeout=2.0)
+            await client.disconnect()
+            disc = await asyncio.wait_for(poll_task, timeout=2.0)
+            assert disc.success is False
+            assert disc.error is not None
+            assert disc.error.code == "OUTCOME_UNKNOWN"
+            assert disc.error.retryable is False
+            assert disc.error.details == {"cause": "TRANSPORT_ERROR"}
+        finally:
+            if client.is_connected():
+                await client.disconnect()

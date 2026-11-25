@@ -377,6 +377,8 @@ for entry in report.entries:
 
 Connect to remote MCP servers. A URL that does not end in `/sse` or `/message` uses MCP Streamable HTTP through the official MCP SDK client: MCP 2026-07-28 when the server offers it, else the 2025 `initialize` handshake (`McpClientConfig.protocol_mode`: `"auto"`, `"legacy"` or `"modern"`). The `sse` and `http` transports of an AFD server's 2024-11-05 lane are deprecated.
 
+When `McpClient.call()` hits a timeout, connection/transport loss, HTTP 5xx, JSON-RPC `-32603`, or a failed MCP task poll, tools not positively declared `_meta.mutation: false` before dispatch (without contradicting `destructive`, `destructiveHint`, or `readOnlyHint: false`) return `OUTCOME_UNKNOWN` with `retryable=False` and the underlying cause in `details["cause"]`. Tools positively declared `_meta.mutation: false` return the underlying retryable error (`TIMEOUT`, `INTERNAL_ERROR`, `HTTP_5xx`, `TRANSPORT_ERROR`).
+
 ```python
 from afd import McpClient, McpClientConfig, create_client
 
