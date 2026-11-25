@@ -143,7 +143,7 @@ from it.
 
 ## 3. Jobs
 
-Eighteen jobs. Fourteen are scenario files in [`scenarios/`](scenarios/), numbered as here;
+Eighteen jobs. Fourteen are scenario files in [`packages/view-state/scenarios/controls/`](../../../../packages/view-state/scenarios/controls/), numbered as here;
 four cannot be one ([section 7](#7-what-a-scenario-cannot-show)). All fourteen are tagged
 `slice`: the proposed first slice is every job a scenario can show.
 
