@@ -1,0 +1,64 @@
+# JTBD scenario for the seed library. Held back: never shown to a building session, and first
+# used in phase C's panel loop. The data is invented. Screen: T1, after the steward has retired
+# a variety on T3.
+# A search leaves retired varieties out unless asked for them, so a search by name alone reads
+# as though the library never kept the variety.
+# Runs in process: its first step retires the variety without a confirmation, which a server
+# that enforces confirmations would refuse with CONFIRMATION_REQUIRED (job 12 shows that).
+name: A member asks for a variety the library has retired
+description: >-
+  When a member asks for a variety the library has retired, I want to be told that it is retired
+  rather than unknown, and to find them another of its kind, so that they do not leave with
+  nothing or think they misremembered.
+job: asked-for-a-retired-variety
+tags: [t1, held-back]
+fixture:
+  file: fixtures/library.json
+steps:
+  - description: Earlier, the steward retired Love-in-a-mist
+    command: variety-retire
+    input: { id: var-nigella }
+    expect:
+      success: true
+      data:
+        retired: true
+  - description: A search by its name finds nothing
+    command: variety-list
+    input: { query: Love-in-a-mist }
+    expect:
+      success: true
+      data:
+        total: 0
+  - description: The same search, with retired varieties, says it is retired
+    command: variety-list
+    input: { query: Love-in-a-mist, includeRetired: true }
+    expect:
+      success: true
+      data:
+        total: 1
+        varieties:
+          - { id: var-nigella, retired: true }
+  - description: Lending it is refused, and the refusal says what to do
+    command: loan-create
+    input: { memberId: mem-ines, varietyId: var-nigella }
+    expect:
+      success: false
+      error:
+        code: CONFLICT
+        suggestion: { contains: variety-list }
+  - description: The other flowers the library still lends
+    command: variety-list
+    input: { kind: flower }
+    expect:
+      success: true
+      data:
+        total: 1
+        varieties:
+          - { id: var-calendula }
+  - description: The member takes one of those instead
+    command: loan-create
+    input: { memberId: mem-ines, varietyId: var-calendula }
+    expect:
+      success: true
+      data:
+        status: out

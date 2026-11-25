@@ -1,0 +1,720 @@
+{
+  "screen": "t1-lend-a-packet",
+  "frozen": "2026-11-15",
+  "note": "Every state also has a mount check and an accessibility check (README).",
+  "states": [
+    {
+      "id": "loading",
+      "busy": true,
+      "fields": [],
+      "controls": []
+    },
+    {
+      "id": "member-found",
+      "fields": [
+        {
+          "what": "the member and the number that tells two of one name apart",
+          "any": [
+            {
+              "all": [
+                {
+                  "text": "Ines Marlow"
+                },
+                {
+                  "text": "M-014"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "what": "every variety",
+          "any": [
+            {
+              "all": [
+                {
+                  "text": "Borlotti bean"
+                },
+                {
+                  "text": "Scarlet runner bean"
+                },
+                {
+                  "text": "Painted Lady runner bean"
+                },
+                {
+                  "text": "Czar runner bean"
+                },
+                {
+                  "text": "Glass Gem corn"
+                },
+                {
+                  "text": "Crimson-flowered broad bean"
+                },
+                {
+                  "text": "Pot marigold"
+                },
+                {
+                  "text": "Love-in-a-mist"
+                },
+                {
+                  "text": "Parsnip"
+                },
+                {
+                  "text": "Salsify"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "what": "packets on the shelf",
+          "any": [
+            {
+              "all": [
+                {
+                  "number": 6,
+                  "with": "Borlotti bean"
+                },
+                {
+                  "number": 4,
+                  "with": "Pot marigold"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "what": "a variety that has run out",
+          "any": [
+            {
+              "number": 0,
+              "with": "Scarlet runner bean"
+            },
+            {
+              "pattern": "none left|no packets|run out|out of stock|empty",
+              "with": "Scarlet runner bean"
+            }
+          ]
+        },
+        {
+          "what": "which varieties are rare",
+          "any": [
+            {
+              "all": [
+                {
+                  "text": "rare",
+                  "with": "Glass Gem corn"
+                },
+                {
+                  "text": "rare",
+                  "with": "Crimson-flowered broad bean"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "what": "how well the seed is expected to germinate",
+          "any": [
+            {
+              "all": [
+                {
+                  "percent": 0.9,
+                  "with": "Borlotti bean"
+                },
+                {
+                  "percent": 0.45,
+                  "with": "Pot marigold"
+                },
+                {
+                  "percent": 0.3,
+                  "with": "Parsnip"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Choose the member",
+          "any": [
+            {
+              "roles": [
+                "choice"
+              ],
+              "near": "Ines Marlow"
+            }
+          ]
+        },
+        {
+          "do": "Search for a variety",
+          "any": [
+            {
+              "roles": [
+                "entry"
+              ],
+              "name": "variet|seed|search|find"
+            }
+          ]
+        },
+        {
+          "do": "Lend one",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "lend|borrow|check ?out|loan"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lent",
+      "fields": [
+        {
+          "what": "the lot it came from",
+          "any": [
+            {
+              "text": "lot-borlotti-29"
+            },
+            {
+              "number": 2029
+            }
+          ]
+        },
+        {
+          "what": "the shelf has one fewer",
+          "any": [
+            {
+              "number": 5,
+              "with": "Borlotti bean"
+            }
+          ]
+        },
+        {
+          "what": "that it was lent",
+          "any": [
+            {
+              "pattern": "\\blent\\b|on loan|borrowed|loan (made|created)"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Take the loan back at once",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "undo|take (it |the loan )?back|cancel|reverse"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lent-old-seed",
+      "fields": [
+        {
+          "what": "how well the seed in the loan is expected to germinate",
+          "any": [
+            {
+              "percent": 0.45,
+              "with": "2024"
+            }
+          ]
+        },
+        {
+          "what": "on what basis",
+          "any": [
+            {
+              "pattern": "\\bage\\b|\\bold\\b",
+              "with": "2024"
+            }
+          ]
+        },
+        {
+          "what": "the year the seed is from",
+          "any": [
+            {
+              "number": 2024
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Take the loan back",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "undo|take (it |the loan )?back|cancel|reverse"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "loan-taken-back",
+      "fields": [
+        {
+          "what": "the packet is on the shelf again",
+          "any": [
+            {
+              "number": 6,
+              "with": "Borlotti bean"
+            }
+          ]
+        },
+        {
+          "what": "that the loan was taken back",
+          "any": [
+            {
+              "pattern": "taken back|cancell?ed|undone|reversed|back on the shelf"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Lend again",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "lend|borrow|check ?out|loan"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "out-of-stock",
+      "fields": [
+        {
+          "what": "the variety has run out",
+          "any": [
+            {
+              "pattern": "no packets|none left|run out|out of stock|0 packets",
+              "with": "Scarlet runner bean"
+            }
+          ]
+        },
+        {
+          "what": "that the loan was refused",
+          "any": [
+            {
+              "pattern": "has no packets left|could ?n.?o?t (be )?lent|can.?t lend|cannot lend|could ?n.?o?t lend|not lent|has run out|is out of stock"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Ask for a substitute",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "substitut|similar|alternative|instead|suggest|like it"
+            }
+          ]
+        },
+        {
+          "do": "Put the member on the waiting list",
+          "any": [
+            {
+              "roles": [
+                "action",
+                "checkbox",
+                "switch"
+              ],
+              "name": "wait"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "substitutes-offered",
+      "fields": [
+        {
+          "what": "the closest substitute",
+          "any": [
+            {
+              "text": "Painted Lady runner bean"
+            }
+          ]
+        },
+        {
+          "what": "why it was offered",
+          "any": [
+            {
+              "text": "climbing runner bean"
+            },
+            {
+              "text": "sown and grown the same way"
+            }
+          ]
+        },
+        {
+          "what": "how sure the library is",
+          "any": [
+            {
+              "percent": 0.82
+            },
+            {
+              "number": 82
+            }
+          ]
+        },
+        {
+          "what": "the other substitute and why",
+          "any": [
+            {
+              "text": "white flowers"
+            }
+          ]
+        },
+        {
+          "what": "how sure the library is of the other",
+          "any": [
+            {
+              "percent": 0.6,
+              "with": "Czar runner bean"
+            }
+          ]
+        },
+        {
+          "what": "packets of each",
+          "any": [
+            {
+              "all": [
+                {
+                  "number": 3,
+                  "with": "Painted Lady runner bean"
+                },
+                {
+                  "number": 1,
+                  "with": "Czar runner bean"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Lend the closest substitute",
+          "any": [
+            {
+              "roles": [
+                "choice"
+              ],
+              "name": "lend|borrow|choose|take|select|use",
+              "near": "Painted Lady runner bean"
+            }
+          ]
+        },
+        {
+          "do": "Lend the other substitute",
+          "any": [
+            {
+              "roles": [
+                "choice"
+              ],
+              "name": "lend|borrow|choose|take|select|use",
+              "near": "Czar runner bean"
+            }
+          ]
+        },
+        {
+          "do": "Take none and join the waiting list",
+          "any": [
+            {
+              "roles": [
+                "action",
+                "checkbox",
+                "switch"
+              ],
+              "name": "wait"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "no-substitute",
+      "fields": [
+        {
+          "what": "nothing the library keeps is like it",
+          "any": [
+            {
+              "pattern": "nothing (the library keeps )?(is )?(close|like it|similar)|no substitute|no (close |similar )?alternative"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Put the member on the waiting list",
+          "any": [
+            {
+              "roles": [
+                "action",
+                "checkbox",
+                "switch"
+              ],
+              "name": "wait"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "waitlist-joined",
+      "fields": [
+        {
+          "what": "the member's place on the list",
+          "any": [
+            {
+              "pattern": "position 1\\b|\\bfirst\\b|\\b1st\\b|#1\\b|number 1\\b|no\\.? 1\\b"
+            },
+            {
+              "number": 1,
+              "with": "Ines Marlow"
+            }
+          ]
+        },
+        {
+          "what": "that they are waiting",
+          "any": [
+            {
+              "pattern": "on the waiting list|is waiting|now waiting|waiting for|joined|added to the (waiting )?list"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Take them off the list again",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "leave|remove|take .*off|undo|cancel|withdraw"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "held-for-steward",
+      "fields": [
+        {
+          "what": "what was asked",
+          "any": [
+            {
+              "text": "Glass Gem corn",
+              "with": "Ines Marlow"
+            }
+          ]
+        },
+        {
+          "what": "where it waits",
+          "any": [
+            {
+              "pattern": "steward",
+              "with": "Ines Marlow"
+            }
+          ]
+        },
+        {
+          "what": "until when",
+          "any": [
+            {
+              "date": "2030-03-10T10:00:00Z"
+            }
+          ]
+        },
+        {
+          "what": "that the loan was not made",
+          "any": [
+            {
+              "pattern": "not (yet )?(been )?(lent|made)|waits for|pending|held|needs (the steward|approval)|for approval|awaiting|sent to the steward",
+              "with": "Ines Marlow"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Withdraw the request",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "withdraw|cancel|remove|take .*back|undo"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "request-withdrawn",
+      "fields": [
+        {
+          "what": "the request was withdrawn",
+          "any": [
+            {
+              "pattern": "withdrawn|cancell?ed|removed"
+            }
+          ]
+        },
+        {
+          "what": "nothing of theirs waits for the steward",
+          "any": [
+            {
+              "pattern": "no (pending )?requests|nothing (is )?waiting|none waiting|no longer waiting|not waiting"
+            },
+            {
+              "number": 0,
+              "with": "request"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Ask the steward again, by lending again",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "lend|borrow|ask|request|loan"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "no-variety-match",
+      "fields": [
+        {
+          "what": "the search",
+          "any": [
+            {
+              "text": "quince"
+            }
+          ]
+        },
+        {
+          "what": "that it found no variety",
+          "any": [
+            {
+              "pattern": "could ?n.?o?t find|can.?t find|didn.?t find|nothing match|found nothing|nothing (was )?found|no match|no (varieties|variety|matches|results|seed)|0 (varieties|results|matches)"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Search again with other words",
+          "any": [
+            {
+              "roles": [
+                "entry"
+              ],
+              "name": "variet|seed|search|find"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "no-member-match",
+      "fields": [
+        {
+          "what": "the search",
+          "any": [
+            {
+              "text": "Nobody"
+            }
+          ]
+        },
+        {
+          "what": "that it found no member",
+          "any": [
+            {
+              "pattern": "could ?n.?o?t find|can.?t find|didn.?t find|nothing match|found nothing|nothing (was )?found|no match|no (members?|matches|results|one)|0 (members|results|matches)"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Search again with another name or number",
+          "any": [
+            {
+              "roles": [
+                "entry"
+              ],
+              "name": "member|name|number|search|find"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "catalogue-unavailable",
+      "fields": [
+        {
+          "what": "the catalogue cannot be read just now, and it is not a search that found nothing",
+          "any": [
+            {
+              "all": [
+                {
+                  "any": [
+                    {
+                      "pattern": "cannot be read|can.?t be read|unavailable|could ?n.?o?t (load|read|reach)|can.?t (load|read|reach)|not available|failed to load"
+                    }
+                  ]
+                },
+                {
+                  "not": {
+                    "pattern": "no (varieties|variety|matches|results) (were )?found|found no (varieties|variety|matches|results)|0 (varieties|results|matches)"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Try again",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "try again|retry|reload|refresh"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

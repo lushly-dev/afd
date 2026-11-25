@@ -1,0 +1,154 @@
+{
+	"table": [
+		{
+			"arm": "a0",
+			"screens": [
+				{
+					"screen": "t1-lend-a-packet",
+					"runs": 2,
+					"mean": 0.9879518072289157,
+					"sd": 0.01703871761895293,
+					"min": 0.9759036144578314,
+					"max": 1
+				},
+				{
+					"screen": "t2-take-in-a-donation",
+					"runs": 2,
+					"mean": 0.9819277108433735,
+					"sd": 0.008519358809476425,
+					"min": 0.9759036144578314,
+					"max": 0.9879518072289156
+				},
+				{
+					"screen": "t3-a-variety",
+					"runs": 1,
+					"mean": 0.8064516129032258,
+					"sd": null,
+					"min": 0.8064516129032258,
+					"max": 0.8064516129032258
+				}
+			],
+			"mean": 0.9492421298095609,
+			"medianTokens": 1157288,
+			"costUsd": 7.6793407
+		},
+		{
+			"arm": "a1",
+			"screens": [
+				{
+					"screen": "t1-lend-a-packet",
+					"runs": 2,
+					"mean": 0.9457831325301205,
+					"sd": 0.05963551166633529,
+					"min": 0.9036144578313253,
+					"max": 0.9879518072289156
+				},
+				{
+					"screen": "t2-take-in-a-donation",
+					"runs": 2,
+					"mean": 0.9156626506024097,
+					"sd": 0.0851935880947648,
+					"min": 0.8554216867469879,
+					"max": 0.9759036144578314
+				},
+				{
+					"screen": "t3-a-variety",
+					"runs": 1,
+					"mean": 0.8387096774193549,
+					"sd": null,
+					"min": 0.8387096774193549,
+					"max": 0.8387096774193549
+				}
+			],
+			"mean": 0.9123202487368831,
+			"medianTokens": 1021431,
+			"costUsd": 8.1067714
+		},
+		{
+			"arm": "bare",
+			"screens": [
+				{
+					"screen": "t1-lend-a-packet",
+					"runs": 2,
+					"mean": 0.6204819277108433,
+					"sd": 0.04259679404738236,
+					"min": 0.5903614457831325,
+					"max": 0.6506024096385542
+				},
+				{
+					"screen": "t2-take-in-a-donation",
+					"runs": 2,
+					"mean": 0.34337349397590367,
+					"sd": 0.05963551166633533,
+					"min": 0.30120481927710846,
+					"max": 0.3855421686746988
+				},
+				{
+					"screen": "t3-a-variety",
+					"runs": 1,
+					"mean": 0.6129032258064516,
+					"sd": null,
+					"min": 0.6129032258064516,
+					"max": 0.6129032258064516
+				}
+			],
+			"mean": 0.5081228138359891,
+			"medianTokens": 1120459,
+			"costUsd": 7.7231299
+		}
+	],
+	"resolution": {
+		"a0": 1,
+		"a1": 1
+	},
+	"coverage": {
+		"runs": 5,
+		"read": 5,
+		"covered": [
+			{
+				"runId": "s0.1-t1-bare-1",
+				"screen": "t1-lend-a-packet",
+				"covered": 12,
+				"of": 14
+			},
+			{
+				"runId": "s0.1-t1-bare-2",
+				"screen": "t1-lend-a-packet",
+				"covered": 13,
+				"of": 14
+			},
+			{
+				"runId": "s0.1-t2-bare-1",
+				"screen": "t2-take-in-a-donation",
+				"covered": 9,
+				"of": 13
+			},
+			{
+				"runId": "s0.1-t2-bare-2",
+				"screen": "t2-take-in-a-donation",
+				"covered": 9,
+				"of": 13
+			},
+			{
+				"runId": "s0.1-t3-bare-1",
+				"screen": "t3-a-variety",
+				"covered": 10,
+				"of": 10
+			}
+		]
+	},
+	"nineInTen": [
+		{
+			"arm": "a0",
+			"mean": 0.9492421298095609,
+			"atLeast": true
+		},
+		{
+			"arm": "a1",
+			"mean": 0.9123202487368831,
+			"atLeast": true
+		}
+	],
+	"unscored": [],
+	"md": "# Step 0.1\n\nNo rule decides this step: it records what goes wrong. Shares are of each screen's checks passed.\n\n| Arm | Screen | Runs | Mean | SD | Least | Most |\n| --- | --- | --- | --- | --- | --- | --- |\n| a0 | t1-lend-a-packet | 2 | 98.8 % | 1.7 points | 97.6 % | 100.0 % |\n| a0 | t2-take-in-a-donation | 2 | 98.2 % | 0.9 points | 97.6 % | 98.8 % |\n| a0 | t3-a-variety | 1 | 80.6 % | n/a | 80.6 % | 80.6 % |\n| a1 | t1-lend-a-packet | 2 | 94.6 % | 6.0 points | 90.4 % | 98.8 % |\n| a1 | t2-take-in-a-donation | 2 | 91.6 % | 8.5 points | 85.5 % | 97.6 % |\n| a1 | t3-a-variety | 1 | 83.9 % | n/a | 83.9 % | 83.9 % |\n| bare | t1-lend-a-packet | 2 | 62.0 % | 4.3 points | 59.0 % | 65.1 % |\n| bare | t2-take-in-a-donation | 2 | 34.3 % | 6.0 points | 30.1 % | 38.6 % |\n| bare | t3-a-variety | 1 | 61.3 % | n/a | 61.3 % | 61.3 % |\n\n- **a0:** mean 94.9 %, median tokens 1157288, $7.68 at list prices.\n- **a1:** mean 91.2 %, median tokens 1021431, $8.11 at list prices.\n- **a0 at nine checks in ten?** Yes (94.9 %). If arms 0 and 1 both are, the owner decides whether to go on.\n- **a1 at nine checks in ten?** Yes (91.2 %). If arms 0 and 1 both are, the owner decides whether to go on.\n- **Can fifteen runs resolve 15 points, as a0's runs differ?** A true gain of that size reaches p < 0.05 in 100.0 % of simulated studies (five runs a screen an arm, both arms drawn from a0's own runs). If this is low, the owner chooses, before arm 2 runs, whether both arms get more runs.\n- **Can fifteen runs resolve 15 points, as a1's runs differ?** A true gain of that size reaches p < 0.05 in 100.0 % of simulated studies (five runs a screen an arm, both arms drawn from a1's own runs). If this is low, the owner chooses, before arm 2 runs, whether both arms get more runs.\n\n**The bare arm** (ruling 3, scored on which states have a story): 5 of 5 builds read.\n\n- s0.1-t1-bare-1: 12 of 14 states\n- s0.1-t1-bare-2: 13 of 14 states\n- s0.1-t2-bare-1: 9 of 13 states\n- s0.1-t2-bare-2: 9 of 13 states\n- s0.1-t3-bare-1: 10 of 10 states"
+}

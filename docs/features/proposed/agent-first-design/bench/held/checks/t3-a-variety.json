@@ -1,0 +1,514 @@
+{
+  "screen": "t3-a-variety",
+  "frozen": "2026-11-15",
+  "note": "Every state also has a mount check and an accessibility check (README).",
+  "states": [
+    {
+      "id": "loading",
+      "busy": true,
+      "fields": [],
+      "controls": []
+    },
+    {
+      "id": "variety",
+      "fields": [
+        {
+          "what": "the variety and its kind",
+          "any": [
+            {
+              "all": [
+                {
+                  "text": "Borlotti bean"
+                },
+                {
+                  "text": "vegetable"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "what": "packets on the shelf",
+          "any": [
+            {
+              "number": 6
+            }
+          ]
+        },
+        {
+          "what": "its lot",
+          "any": [
+            {
+              "text": "lot-borlotti-29"
+            },
+            {
+              "number": 2029,
+              "with": "test"
+            }
+          ]
+        },
+        {
+          "what": "the lot's estimate",
+          "any": [
+            {
+              "percent": 0.9
+            }
+          ]
+        },
+        {
+          "what": "that the estimate is from a test",
+          "any": [
+            {
+              "pattern": "\\btest"
+            }
+          ]
+        },
+        {
+          "what": "the test it rests on",
+          "any": [
+            {
+              "text": "February 2030"
+            },
+            {
+              "text": "germination test"
+            },
+            {
+              "text": "germination-test-2030-02"
+            }
+          ]
+        },
+        {
+          "what": "who has it out",
+          "any": [
+            {
+              "all": [
+                {
+                  "text": "Tobias Reed"
+                },
+                {
+                  "text": "M-027"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "what": "since when",
+          "any": [
+            {
+              "date": "2029-04-14T10:30:00Z"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Record the return of the loan",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "return|bring back|check ?in|back in"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "old-seed",
+      "fields": [
+        {
+          "what": "the variety",
+          "any": [
+            {
+              "text": "Parsnip"
+            }
+          ]
+        },
+        {
+          "what": "its only lot is from 2028",
+          "any": [
+            {
+              "number": 2028
+            }
+          ]
+        },
+        {
+          "what": "the estimate",
+          "any": [
+            {
+              "percent": 0.3
+            }
+          ]
+        },
+        {
+          "what": "that it is judged by age",
+          "any": [
+            {
+              "pattern": "\\bage\\b|not (been )?tested|untested"
+            }
+          ]
+        },
+        {
+          "what": "why the estimate is low",
+          "any": [
+            {
+              "text": "one year"
+            }
+          ]
+        },
+        {
+          "what": "what it rests on",
+          "any": [
+            {
+              "text": "How long seed keeps"
+            },
+            {
+              "text": "viability"
+            }
+          ]
+        },
+        {
+          "what": "nobody has it out, and nothing failed",
+          "any": [
+            {
+              "all": [
+                {
+                  "any": [
+                    {
+                      "pattern": "(nobody|no one) has it|no (current )?loans|none (are )?(out|on loan)|nothing (is )?(out|on loan)|not (out|on loan)"
+                    },
+                    {
+                      "number": 0,
+                      "with": "loan"
+                    }
+                  ]
+                },
+                {
+                  "not": {
+                    "pattern": "cannot be read|can.?t be read|unavailable|could ?n.?o?t (load|read)|can.?t (load|read)|failed to load|went wrong"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "controls": []
+    },
+    {
+      "id": "loans-unavailable",
+      "fields": [
+        {
+          "what": "the loans cannot be read just now, and it is not that nobody has it out",
+          "any": [
+            {
+              "all": [
+                {
+                  "any": [
+                    {
+                      "pattern": "cannot be read|can.?t be read|unavailable|could ?n.?o?t (load|read|reach)|can.?t (load|read|reach)|not available|failed to load"
+                    }
+                  ]
+                },
+                {
+                  "not": {
+                    "pattern": "(nobody|no one) has it|no (current )?loans|none (are )?(out|on loan)|not on loan"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "what": "the rest of the page still shows",
+          "any": [
+            {
+              "all": [
+                {
+                  "text": "Borlotti bean"
+                },
+                {
+                  "percent": 0.9
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Try again",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "try again|retry|reload|refresh"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "returned",
+      "fields": [
+        {
+          "what": "the loan was returned",
+          "any": [
+            {
+              "pattern": "returned"
+            }
+          ]
+        },
+        {
+          "what": "the new lot",
+          "any": [
+            {
+              "text": "lot-borlotti-29-r1"
+            },
+            {
+              "number": 3,
+              "with": "lot"
+            },
+            {
+              "pattern": "new lot"
+            }
+          ]
+        },
+        {
+          "what": "the shelf has three more packets",
+          "any": [
+            {
+              "number": 9,
+              "with": "packet"
+            },
+            {
+              "number": 9,
+              "with": "shelf"
+            },
+            {
+              "number": 9,
+              "with": "available"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Take the return back",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "undo|take .*back|reopen|cancel|reverse"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "return-refused",
+      "fields": [
+        {
+          "what": "the return was already recorded",
+          "any": [
+            {
+              "pattern": "already (been )?(returned|recorded)"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Take the earlier return back",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "undo|take .*back|reopen|cancel|reverse"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "return-taken-back",
+      "fields": [
+        {
+          "what": "the return was taken back",
+          "any": [
+            {
+              "pattern": "taken back|reopened|undone|reversed|cancell?ed"
+            }
+          ]
+        },
+        {
+          "what": "the loan is out again",
+          "any": [
+            {
+              "pattern": "\\bout\\b|on loan",
+              "with": "Tobias Reed"
+            }
+          ]
+        },
+        {
+          "what": "the shelf is as it was",
+          "any": [
+            {
+              "number": 6
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Record the return again",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "return|bring back|check ?in|back in"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "confirm-retire",
+      "confirm": "Retire this variety?",
+      "fields": [
+        {
+          "what": "the prompt",
+          "any": [
+            {
+              "all": [
+                {
+                  "text": "Retire this variety?"
+                },
+                {
+                  "text": "This cannot be undone"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "what": "the variety it is about",
+          "any": [
+            {
+              "text": "Love-in-a-mist"
+            }
+          ]
+        },
+        {
+          "what": "its packets on the shelf",
+          "any": [
+            {
+              "number": 2
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Confirm",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "retire|confirm|yes|continue|go ahead"
+            }
+          ]
+        },
+        {
+          "do": "Not go ahead",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "cancel|keep|\\bno\\b|back|don.?t|not now|close"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "retired",
+      "fields": [
+        {
+          "what": "the variety is retired",
+          "any": [
+            {
+              "pattern": "retired"
+            }
+          ]
+        },
+        {
+          "what": "when it was retired",
+          "any": [
+            {
+              "date": "2030-03-09T10:00:00Z"
+            }
+          ]
+        },
+        {
+          "what": "how many packets were withdrawn",
+          "any": [
+            {
+              "number": 2,
+              "with": "withdraw"
+            }
+          ]
+        }
+      ],
+      "controls": []
+    },
+    {
+      "id": "variety-not-found",
+      "fields": [
+        {
+          "what": "the library has no such variety",
+          "any": [
+            {
+              "pattern": "no (such )?variety|not found|has no variety|doesn.?t exist|does not exist|no variety called|could ?n.?o?t find|can.?t find"
+            }
+          ]
+        },
+        {
+          "what": "the one asked for",
+          "any": [
+            {
+              "text": "quince"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Find the variety meant among the library's varieties",
+          "any": [
+            {
+              "roles": [
+                "choice"
+              ],
+              "near": "Borlotti bean"
+            },
+            {
+              "roles": [
+                "entry"
+              ],
+              "name": "variet|seed|search|find"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

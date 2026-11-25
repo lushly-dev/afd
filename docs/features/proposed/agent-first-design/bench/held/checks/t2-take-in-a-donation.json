@@ -1,0 +1,700 @@
+{
+  "screen": "t2-take-in-a-donation",
+  "frozen": "2026-11-15",
+  "note": "Every state also has a mount check and an accessibility check (README).",
+  "states": [
+    {
+      "id": "new-box",
+      "fields": [],
+      "controls": [
+        {
+          "do": "Enter a row's label",
+          "any": [
+            {
+              "roles": [
+                "entry"
+              ],
+              "name": "label|variety|name|seed"
+            }
+          ]
+        },
+        {
+          "do": "Enter a row's packets",
+          "any": [
+            {
+              "roles": [
+                "entry"
+              ],
+              "name": "packet|count|how many|quantity|number"
+            }
+          ]
+        },
+        {
+          "do": "Enter a row's harvest year",
+          "any": [
+            {
+              "roles": [
+                "entry"
+              ],
+              "name": "year|harvest"
+            }
+          ]
+        },
+        {
+          "do": "Add another row",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "add|another|new row|more"
+            }
+          ]
+        },
+        {
+          "do": "Send the rows as one batch",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "send|import|take in|submit|enter|save|add (the )?(box|batch|donation)|record"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "importing",
+      "busy": true,
+      "fields": [
+        {
+          "what": "each row of the box",
+          "any": [
+            {
+              "all": [
+                {
+                  "text": "Borlotti bean"
+                },
+                {
+                  "text": "Pot marigold"
+                },
+                {
+                  "text": "Parsnip"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "what": "the row under way",
+          "any": [
+            {
+              "percent": 0.5,
+              "with": "Pot marigold"
+            },
+            {
+              "pattern": "in progress|under way|underway|importing|working|taking in|adding|processing",
+              "with": "Pot marigold"
+            }
+          ]
+        },
+        {
+          "what": "the row still to come",
+          "any": [
+            {
+              "pattern": "pending|waiting|to come|queued|not (yet )?started|next|up next",
+              "with": "Parsnip"
+            }
+          ]
+        },
+        {
+          "what": "the row that is in",
+          "any": [
+            {
+              "pattern": "done|complete|taken in|added|imported|lot-don-1-0",
+              "with": "Borlotti bean"
+            }
+          ]
+        }
+      ],
+      "controls": []
+    },
+    {
+      "id": "imported",
+      "fields": [
+        {
+          "what": "every row and its packets",
+          "any": [
+            {
+              "all": [
+                {
+                  "number": 4,
+                  "with": "Borlotti bean"
+                },
+                {
+                  "number": 2,
+                  "with": "Pot marigold"
+                },
+                {
+                  "number": 3,
+                  "with": "Parsnip"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "what": "each row became a new lot",
+          "any": [
+            {
+              "all": [
+                {
+                  "text": "lot-don-1-0"
+                },
+                {
+                  "text": "lot-don-1-1"
+                },
+                {
+                  "text": "lot-don-1-2"
+                }
+              ]
+            },
+            {
+              "pattern": "new lots?|(3|three) lots|lots? (made|created|added)"
+            }
+          ]
+        },
+        {
+          "what": "every row went in",
+          "any": [
+            {
+              "pattern": "complete|all (3|three) rows|3 of 3|three of three|every row|all rows"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Take the whole box back",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "undo|take .*back|cancel|remove|withdraw|delete"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "donation-cancelled",
+      "fields": [
+        {
+          "what": "how many lots were removed",
+          "any": [
+            {
+              "pattern": "\\b(3|three) lots?\\b|lots? removed:? ?3\\b|removed:? ?(3|three)\\b|\\b(3|three) removed"
+            }
+          ]
+        },
+        {
+          "what": "that the box was taken back",
+          "any": [
+            {
+              "pattern": "taken back|cancell?ed|removed|undone|withdrawn"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Enter the box again",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "enter|import|again|redo|restore|new|start|take in"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "label-unsettled",
+      "fields": [
+        {
+          "what": "the label that waits",
+          "any": [
+            {
+              "text": "runner bean"
+            }
+          ]
+        },
+        {
+          "what": "its packets",
+          "any": [
+            {
+              "number": 2,
+              "with": "runner bean"
+            }
+          ]
+        },
+        {
+          "what": "that it waits for a person to choose the variety",
+          "any": [
+            {
+              "pattern": "waits|waiting|unclear|unsettled|could be|several|not sure|uncertain|needs (a person|you|attention|a choice)|no (sure |clear )?match|ambiguous"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Ask for the likely matches of the row",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "match|suggest|choose|which|find|settle|resolve|pick|select|variet"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "match-offered",
+      "fields": [
+        {
+          "what": "the likeliest variety",
+          "any": [
+            {
+              "text": "Scarlet runner bean"
+            }
+          ]
+        },
+        {
+          "what": "how sure the library is",
+          "any": [
+            {
+              "percent": 0.62
+            },
+            {
+              "number": 62
+            }
+          ]
+        },
+        {
+          "what": "why",
+          "any": [
+            {
+              "text": "names no colour"
+            },
+            {
+              "text": "commonest runner bean"
+            }
+          ]
+        },
+        {
+          "what": "what that rests on",
+          "any": [
+            {
+              "text": "catalogue"
+            }
+          ]
+        },
+        {
+          "what": "the other varieties it could be, and how sure for each",
+          "any": [
+            {
+              "all": [
+                {
+                  "percent": 0.3,
+                  "with": "Painted Lady runner bean"
+                },
+                {
+                  "percent": 0.25,
+                  "with": "Czar runner bean"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Choose the likeliest variety",
+          "any": [
+            {
+              "roles": [
+                "choice"
+              ],
+              "near": "Scarlet runner bean"
+            }
+          ]
+        },
+        {
+          "do": "Choose the second",
+          "any": [
+            {
+              "roles": [
+                "choice"
+              ],
+              "near": "Painted Lady runner bean"
+            }
+          ]
+        },
+        {
+          "do": "Choose the third",
+          "any": [
+            {
+              "roles": [
+                "choice"
+              ],
+              "near": "Czar runner bean"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "row-settled",
+      "fields": [
+        {
+          "what": "the variety the label was filed under",
+          "any": [
+            {
+              "text": "Painted Lady runner bean"
+            }
+          ]
+        },
+        {
+          "what": "as a new lot, of its packets",
+          "any": [
+            {
+              "number": 2,
+              "with": "Painted Lady runner bean"
+            },
+            {
+              "text": "lot-don-2-0"
+            }
+          ]
+        },
+        {
+          "what": "the box is complete",
+          "any": [
+            {
+              "pattern": "complete|done|all rows|1 of 1|every row"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Move the row to another variety",
+          "any": [
+            {
+              "roles": [
+                "action",
+                "entry"
+              ],
+              "name": "change|move|another|wrong|re-?settle|choose|edit|variety|undo"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "some-rows-failed",
+      "fields": [
+        {
+          "what": "the row that went in",
+          "any": [
+            {
+              "number": 4,
+              "with": "Borlotti bean"
+            }
+          ]
+        },
+        {
+          "what": "why the second row failed",
+          "any": [
+            {
+              "pattern": "2031.*future|future.*2031"
+            }
+          ]
+        },
+        {
+          "what": "why the third row failed",
+          "any": [
+            {
+              "pattern": "(not keep|no variety|unknown|not found|doesn.?t keep|does not keep|not in the (library|catalogue)).*Mystery squash|Mystery squash.*(not keep|no variety|unknown|not found|doesn.?t keep|does not keep|not in the (library|catalogue))"
+            }
+          ]
+        },
+        {
+          "what": "how many could not be taken in",
+          "any": [
+            {
+              "pattern": "2 of 3|two of three|2 rows? (could ?n.?o?t|failed|need)|1 of 3|one of three|2 failed|two failed"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Put the second row right",
+          "any": [
+            {
+              "roles": [
+                "entry",
+                "action"
+              ],
+              "name": "year|harvest|correct|fix|edit",
+              "near": "Pot marigold"
+            }
+          ]
+        },
+        {
+          "do": "Put the third row right",
+          "any": [
+            {
+              "roles": [
+                "entry",
+                "action"
+              ],
+              "name": "label|variety|correct|fix|edit",
+              "near": "Mystery squash"
+            }
+          ]
+        },
+        {
+          "do": "Leave the third row out",
+          "any": [
+            {
+              "roles": [
+                "action",
+                "checkbox",
+                "switch"
+              ],
+              "name": "leave out|skip|remove|drop|exclude|discard|ignore",
+              "near": "Mystery squash"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "correction-refused",
+      "fields": [
+        {
+          "what": "what is still wrong",
+          "any": [
+            {
+              "pattern": "2032.*future|future.*2032"
+            }
+          ]
+        },
+        {
+          "what": "the year the library takes",
+          "any": [
+            {
+              "pattern": "2030 or earlier|no later than 2030|not after 2030|before 2031|up to 2030"
+            },
+            {
+              "number": 2030
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Correct the year again",
+          "any": [
+            {
+              "roles": [
+                "entry"
+              ],
+              "name": "year|harvest"
+            }
+          ]
+        },
+        {
+          "do": "Send the correction",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "save|correct|fix|submit|try|apply|retry|update|send"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "row-corrected",
+      "fields": [
+        {
+          "what": "the corrected row went in",
+          "any": [
+            {
+              "pattern": "corrected|fixed|taken in|went in|added|imported|lot-don-3-1|done|complete",
+              "with": "Pot marigold"
+            }
+          ]
+        },
+        {
+          "what": "the row that still needs attention, and why",
+          "any": [
+            {
+              "pattern": "(not keep|no variety|unknown|not found|doesn.?t keep|does not keep|not in the (library|catalogue))",
+              "with": "Mystery squash"
+            }
+          ]
+        },
+        {
+          "what": "that the box still needs attention",
+          "any": [
+            {
+              "pattern": "needs attention|1 row|one row|still|left to|remaining|1 of 3|one of three"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Go on to the row that still needs attention",
+          "any": [
+            {
+              "roles": [
+                "entry",
+                "action",
+                "checkbox",
+                "switch"
+              ],
+              "name": "label|variety|correct|fix|edit|leave out|skip|remove|exclude|discard",
+              "near": "Mystery squash"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "row-left-out",
+      "fields": [
+        {
+          "what": "what was left out",
+          "any": [
+            {
+              "pattern": "left out|skipped|excluded|dropped|discarded|not taken in",
+              "with": "Mystery squash"
+            }
+          ]
+        },
+        {
+          "what": "the batch is complete",
+          "any": [
+            {
+              "pattern": "complete|done|finished|nothing (left|more) to"
+            }
+          ]
+        }
+      ],
+      "controls": []
+    },
+    {
+      "id": "donation-complete",
+      "fields": [
+        {
+          "what": "the rows that went in",
+          "any": [
+            {
+              "all": [
+                {
+                  "number": 4,
+                  "with": "Borlotti bean"
+                },
+                {
+                  "number": 2,
+                  "with": "Pot marigold"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "what": "the row that was left out",
+          "any": [
+            {
+              "pattern": "left out|skipped|excluded|dropped|discarded|not taken in",
+              "with": "Mystery squash"
+            }
+          ]
+        },
+        {
+          "what": "the batch is complete",
+          "any": [
+            {
+              "pattern": "complete|done|finished"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Start the next box",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "next|new|another|start|enter (a|the) box|take in"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "validation-refused",
+      "fields": [
+        {
+          "what": "why the batch was refused",
+          "any": [
+            {
+              "pattern": "too small|at least (one|1) (row|item)|>= ?1|needs (a|one|at least)|nothing to (send|import)|without (any )?rows|no rows (to|were|was)"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Add a row",
+          "any": [
+            {
+              "roles": [
+                "action",
+                "entry"
+              ],
+              "name": "add|row|label|variety"
+            }
+          ]
+        },
+        {
+          "do": "Send the batch again",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "send|import|take in|submit|enter|save|try again|retry|record"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

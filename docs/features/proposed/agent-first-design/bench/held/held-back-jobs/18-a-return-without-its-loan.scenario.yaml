@@ -1,0 +1,46 @@
+# JTBD scenario for the seed library. Held back: never shown to a building session, and first
+# used in phase C's panel loop. The data is invented. Screens: T1 to find the member, T3 to
+# record the return.
+name: Record a return when the member does not know which loan it was
+description: >-
+  When a member brings back saved seed and does not remember what they borrowed, I want to find
+  their loans by their name and record the return against the right one, so that the seed is
+  counted against the loan it came from.
+job: a-return-without-its-loan
+tags: [t1, t3, held-back]
+fixture:
+  file: fixtures/library.json
+steps:
+  - description: The member is found by name
+    command: member-list
+    input: { query: Reed }
+    expect:
+      success: true
+      data:
+        total: 1
+        members:
+          - { id: mem-tobias, number: M-027 }
+  - description: Their loans that are still out
+    command: loan-list
+    input: { memberId: mem-tobias, status: out }
+    expect:
+      success: true
+      data:
+        total: 1
+        loans:
+          - { id: loan-1, variety: { id: var-borlotti } }
+  - description: The return is recorded against that loan, with the seed they saved
+    command: loan-return
+    input: { id: loan-1, savedSeed: { packets: 2, harvestYear: 2029 } }
+    expect:
+      success: true
+      data:
+        status: returned
+        lot: { packets: 2 }
+  - description: Nothing of theirs is out any more
+    command: loan-list
+    input: { memberId: mem-tobias, status: out }
+    expect:
+      success: true
+      data:
+        total: 0

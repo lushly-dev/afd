@@ -41,9 +41,11 @@ defaults. Agents review early and often, and a person decides at the points that
     repository. Nothing here depends on them, and none of their text or data is used.
   - [UI SDK](https://ui-sdk.dev/)'s documentation for agents, read on 2026-11-24. It was not
     installed or run. [Section 5.10](#a-published-design-to-compare) says what it bears on.
-- **Next:** the bench in the [bench specification](bench.md) is built. The owner approved
-  its domain and its budget on 2026-11-15 and confirmed its rules for "go" on 2026-11-21. The owner
-  also answers the questions still open in [For the owner](#9-for-the-owner): 4, 8, 9 and 10.
+- **Next:** phase 0 closed on 2026-11-24 with the owner's step 0.6 decision (**go with changes**;
+  [`bench/record/`](bench/record/README.md)), keeping steps 0.2 and 0.5 deferred. Phase A
+  (amendments to Patterns, Design Decisions and Screens from Jobs, plus drafted commands and
+  scenarios for the ranked jobs) is next. The owner also answers the questions still open in
+  [For the owner](#9-for-the-owner): 4, 8, 9 and 10.
 
 | Field | Value |
 | --- | --- |

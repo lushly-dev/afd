@@ -1,0 +1,575 @@
+{
+	"found": ["F1", "F4", "F7", "F2", "F5", "F8", "F3", "F6", "F9", "F10", "F11", "F12"],
+	"perWalk": [
+		{
+			"run": 1,
+			"found": 12
+		},
+		{
+			"run": 2,
+			"found": 11
+		}
+	],
+	"byModality": [
+		{
+			"modality": "pointer",
+			"aimed": ["F1", "F2", "F3"],
+			"personas": [
+				{
+					"persona": "p1",
+					"found": ["F1", "F2", "F3"]
+				},
+				{
+					"persona": "p2",
+					"found": ["F1", "F2", "F3"]
+				}
+			],
+			"together": ["F1", "F2", "F3"],
+			"bestOne": 3
+		},
+		{
+			"modality": "keyboard",
+			"aimed": ["F4", "F5", "F6"],
+			"personas": [
+				{
+					"persona": "p3",
+					"found": ["F4", "F5", "F6"]
+				}
+			],
+			"together": ["F4", "F5", "F6"],
+			"bestOne": 3
+		},
+		{
+			"modality": "screen-reader",
+			"aimed": ["F10", "F11", "F12"],
+			"personas": [
+				{
+					"persona": "p4",
+					"found": ["F10", "F11", "F12"]
+				}
+			],
+			"together": ["F10", "F11", "F12"],
+			"bestOne": 3
+		},
+		{
+			"modality": "low-vision",
+			"aimed": ["F7", "F8", "F9"],
+			"personas": [
+				{
+					"persona": "p5",
+					"found": ["F7", "F8", "F9"]
+				}
+			],
+			"together": ["F7", "F8", "F9"],
+			"bestOne": 3
+		}
+	],
+	"twoAlike": true,
+	"twoTogether": true,
+	"ownerMatches": [
+		{
+			"runId": "w0.3-t3-p5-seeded-1",
+			"persona": "p5",
+			"screen": "t3",
+			"finding": "Clicking \"Record a return\" did nothing I could see",
+			"observed": true,
+			"fault": "F3",
+			"confidence": "high",
+			"why": "A single click on the return control had no effect and only keyboard Enter opened the form, which is exactly the double-click-only change."
+		},
+		{
+			"runId": "w0.3-t1-p1-seeded-2",
+			"persona": "p1",
+			"screen": "t1",
+			"finding": "Scarlet runner bean's \"Lend\" button does nothing when clicked",
+			"observed": true,
+			"fault": "F1",
+			"confidence": "high",
+			"why": "Clicking the lend control on the Scarlet runner bean row in member-found does nothing, so the refusal and way forward are never reached, which is exactly the overlay fault."
+		},
+		{
+			"runId": "w0.3-t2-p5-seeded-1",
+			"persona": "p5",
+			"screen": "t2",
+			"finding": "Tabbing past Harvest year and the Correct button showed no focus outline; couldn't tell where the keyboard was",
+			"observed": true,
+			"fault": "F5",
+			"confidence": "medium",
+			"why": "The missing focus indicator on the harvest-year field and the correction control in a failed row matches F5, although the person placed it in row 3 rather than the Pot marigold row."
+		},
+		{
+			"runId": "w0.3-t1-p2-seeded-1",
+			"persona": "p2",
+			"screen": "t1",
+			"finding": "After searching 'Scarlet', clicking its Lend again only gave a light highlight and nothing opened",
+			"observed": true,
+			"fault": "F1",
+			"confidence": "medium",
+			"why": "This is the same F1 overlay on the same lend control, met again in the filtered list, so it may be a repeat of the first finding rather than a separate one."
+		},
+		{
+			"runId": "w0.3-t3-p5-seeded-1",
+			"persona": "p5",
+			"screen": "t3",
+			"finding": "There was no button to confirm the return; the panel is cut off at the bottom and won't scroll",
+			"observed": true,
+			"fault": "F9",
+			"confidence": "high",
+			"why": "The fixed-height, clipped form box hides the submit control at narrow width, leaving no visible way to send it."
+		},
+		{
+			"runId": "w0.3-t2-p5-seeded-2",
+			"persona": "p5",
+			"screen": "t2",
+			"finding": "Squash row: the 'Leave out' button was invisible, empty space, only appeared when tabbed onto",
+			"observed": true,
+			"fault": "F2",
+			"confidence": "high",
+			"why": "The leave-out control of the failed row isn't drawn and can't be found with the pointer, but focusing it brings it into view, which matches the clipping change."
+		},
+		{
+			"runId": "w0.3-t2-p5-seeded-2",
+			"persona": "p5",
+			"screen": "t2",
+			"finding": "Pot marigold row: no reason given for the failure, only a red border on Harvest year, at 400% zoom",
+			"observed": true,
+			"fault": "F8",
+			"confidence": "high",
+			"why": "At high zoom (narrow viewport) the failed row showed a red border but no 'what is wrong' or error text, which is exactly the hidden-reason change."
+		},
+		{
+			"runId": "w0.3-t1-p5-seeded-1",
+			"persona": "p5",
+			"screen": "t1",
+			"finding": "Some buttons were never visible; focus moved to controls past the panel's cut-off edge with no label",
+			"observed": true,
+			"fault": "F7",
+			"confidence": "medium",
+			"why": "The person places the waiting-list and substitute controls beyond the clipped edge of the panel, which matches the planted overflow clip rather than the controls turning transparent on focus."
+		},
+		{
+			"runId": "w0.3-t2-p2-seeded-1",
+			"persona": "p2",
+			"screen": "t2",
+			"finding": "I couldn't find a \"leave out\" button for the squash; the row only had the variety box, Packets, Harvest year and Correct.",
+			"observed": true,
+			"fault": "F2",
+			"confidence": "high",
+			"why": "The pointer user found no leave-out control on the failed Mystery squash row, which matches the leave-out control being clipped out of view and unclickable."
+		},
+		{
+			"runId": "w0.3-t3-p1-seeded-2",
+			"persona": "p1",
+			"screen": "t3",
+			"finding": "The form put the cursor in \"Packets of saved seed\" (second box drawn) instead of \"Harvest year\" on the left, risking typing 2029 into packets",
+			"observed": true,
+			"fault": "F6",
+			"confidence": "medium",
+			"why": "The year field is drawn first but focus goes to the packets field first in DOM order, so the cursor lands in the second box drawn and the year could go into packets."
+		},
+		{
+			"runId": "w0.3-t1-p5-seeded-2",
+			"persona": "p5",
+			"screen": "t1",
+			"finding": "The \"Not lent\" notice runs off the right edge and is cut off (\"has no pa…\", substitute lines truncated)",
+			"observed": true,
+			"fault": "F7",
+			"confidence": "medium",
+			"why": "The refusal and substitutes panel is clipped on the right at narrow width or high zoom, which is the fixed-width panel in a clipped cell that F7 planted, though this finding is about truncated text rather than controls."
+		},
+		{
+			"runId": "w0.3-t1-p2-seeded-2",
+			"persona": "p2",
+			"screen": "t1",
+			"finding": "Lend on the Scarlet runner bean row did nothing when clicked; no panel, message or choices appeared",
+			"observed": true,
+			"fault": "F1",
+			"confidence": "high",
+			"why": "A pointer click on the lend control of a catalogue row producing no response, so the refusal and way forward are never reached, is exactly the overlay planted in F1."
+		},
+		{
+			"runId": "w0.3-t3-p5-seeded-1",
+			"persona": "p5",
+			"screen": "t3",
+			"finding": "Tab moved backwards through the fields, from Packets to Harvest year",
+			"observed": true,
+			"fault": "F6",
+			"confidence": "high",
+			"why": "Tab going right-to-left between the packets and year fields is the CSS order versus tab order mismatch."
+		},
+		{
+			"runId": "w0.3-t3-p1-seeded-1",
+			"persona": "p1",
+			"screen": "t3",
+			"finding": "The \"Record a return\" button on Tobias Reed's row seemed dead; single clicks did nothing, only a double-click opened the form",
+			"observed": true,
+			"fault": "F3",
+			"confidence": "high",
+			"why": "Same control and same trouble: a single click does nothing, a double click opens the return form, and nothing tells the person a double click is needed."
+		},
+		{
+			"runId": "w0.3-t3-p5-seeded-2",
+			"persona": "p5",
+			"screen": "t3",
+			"finding": "Tab from Packets jumped back to Harvest year; keyboard order and screen order are reversed",
+			"observed": true,
+			"fault": "F6",
+			"confidence": "high",
+			"why": "Focus jumps back to the field drawn first, which is the planted reordering of the packets and year fields with CSS order."
+		},
+		{
+			"runId": "w0.3-t4-p4-seeded-1",
+			"persona": "p4",
+			"screen": "t4",
+			"finding": "Nothing was announced when I approved; the result \"2 of 3 requests approved\" was there only when reading down the page",
+			"observed": true,
+			"fault": "F11",
+			"confidence": "high",
+			"why": "The batch outcome no longer goes to the live status region, so the person had to search the page for it."
+		},
+		{
+			"runId": "w0.3-t2-p3-seeded-1",
+			"persona": "p3",
+			"screen": "t2",
+			"finding": "\"Leave out\" is hidden until it has focus; it only appeared after tabbing past stops",
+			"observed": true,
+			"fault": "F2",
+			"confidence": "medium",
+			"why": "The leave-out control of the failed row is not drawn until Tab focuses it and scrolls it into view, which is how F2 shows up to a keyboard user."
+		},
+		{
+			"runId": "w0.3-t3-p3-seeded-2",
+			"persona": "p3",
+			"screen": "t3",
+			"finding": "Tab order didn't match the layout: Record a return → Packets → Harvest year → Record the return → Cancel",
+			"observed": true,
+			"fault": "F6",
+			"confidence": "high",
+			"why": "It describes the same packets/year fields and the same trouble, with the Tab order running opposite to the visual order set by CSS `order`."
+		},
+		{
+			"runId": "w0.3-t2-p2-seeded-2",
+			"persona": "p2",
+			"screen": "t2",
+			"finding": "Mystery squash row: I couldn't find 'Leave out'; the only button was 'Correct'",
+			"observed": true,
+			"fault": "F2",
+			"confidence": "high",
+			"why": "The leave-out control on the failed squash row was not drawn and could not be clicked, which is exactly F2."
+		},
+		{
+			"runId": "w0.3-t3-p3-seeded-2",
+			"persona": "p3",
+			"screen": "t3",
+			"finding": "Focus went to 'Packets of saved seed', the second field, not 'Harvest year', which sits first on the left; '2029' could have gone in as the packet count",
+			"observed": true,
+			"fault": "F6",
+			"confidence": "high",
+			"why": "This is the planted mismatch in the return form: CSS draws the year field first, but the DOM order sends focus to packets first, which risks typing the year into packets."
+		}
+	],
+	"ownerOthers": [
+		{
+			"runId": "w0.3-t4-p5-seeded-1",
+			"persona": "p5",
+			"screen": "t4",
+			"finding": "'Put on the waiting list and decline' opened a reason box with a second button near the screen edge; unclear whether the first click did anything",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "This is a two-step decline flow under zoom, which none of the planted problems cover."
+		},
+		{
+			"runId": "w0.3-t2-p2-seeded-2",
+			"persona": "p2",
+			"screen": "t2",
+			"finding": "Mystery squash row: the variety list doesn't help when nothing fits",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "The person saw the red error text, so the reason was not hidden as in F8; the trouble is about content and guidance."
+		},
+		{
+			"runId": "w0.3-t1-p5-seeded-1",
+			"persona": "p5",
+			"screen": "t1",
+			"finding": "The lending date said 9 March 2030 instead of today",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "A wrong date in the confirmation does not match any planted problem."
+		},
+		{
+			"runId": "w0.3-t1-p3-seeded-1",
+			"persona": "p3",
+			"screen": "t1",
+			"finding": "Many Tab presses to reach the Scarlet runner bean row; no shortcut into the table",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "Tab order length is unrelated to the pointer overlay on lend (F1) or the other planted faults."
+		},
+		{
+			"runId": "w0.3-t1-p5-seeded-2",
+			"persona": "p5",
+			"screen": "t1",
+			"finding": "No visible focus after clicking the Scarlet runner bean Lend button",
+			"observed": true,
+			"fault": null,
+			"confidence": "medium",
+			"why": "F4 affects the waiting-list controls under keyboard focus, not the lend button after a click, and the missing focus after clicking comes from the overlay already reported in the first finding."
+		},
+		{
+			"runId": "w0.3-t3-p2-seeded-1",
+			"persona": "p2",
+			"screen": "t3",
+			"finding": "Couldn't tell whether my clicks had recorded anything; counts unchanged",
+			"observed": true,
+			"fault": null,
+			"confidence": "medium",
+			"why": "This is uncertainty following on from the unresponsive button rather than a separate encounter with a planted problem; the counts staying the same is correct behaviour since nothing was recorded."
+		},
+		{
+			"runId": "w0.3-t1-p3-seeded-1",
+			"persona": "p3",
+			"screen": "t1",
+			"finding": "Focus lands on the whole panel, not a button, costing an extra Tab",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "Focus placement on the panel container is a different issue from the control vanishing under focus."
+		},
+		{
+			"runId": "w0.3-t4-p5-seeded-2",
+			"persona": "p5",
+			"screen": "t4",
+			"finding": "After 'Add to the list and decline' the page jumped and the confirmation appeared mid-sentence at the top of my view",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "This is a scroll and viewport jump in the waiting-list flow, not any planted screen-reader issue."
+		},
+		{
+			"runId": "w0.3-t4-p1-seeded-1",
+			"persona": "p1",
+			"screen": "t4",
+			"finding": "The two oldest requests were filled first without me choosing who gets the last packets",
+			"observed": false,
+			"fault": null,
+			"confidence": "high",
+			"why": "This is about the allocation policy, not about checkbox names or how the refused request is conveyed to a screen reader."
+		},
+		{
+			"runId": "w0.3-t4-p2-seeded-1",
+			"persona": "p2",
+			"screen": "t4",
+			"finding": "'Put on the waiting list and decline' button made me worry I was saying no to Wren",
+			"observed": false,
+			"fault": null,
+			"confidence": "high",
+			"why": "Concerns confusing button wording, which matches none of the planted screen-reader problems."
+		},
+		{
+			"runId": "w0.3-t4-p2-seeded-2",
+			"persona": "p2",
+			"screen": "t4",
+			"finding": "Didn't understand \"Later, take it back under Closed requests; they stay on the waiting list\"",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "Unclear follow-up wording is unrelated to the planted problems."
+		},
+		{
+			"runId": "w0.3-t2-p3-seeded-2",
+			"persona": "p3",
+			"screen": "t2",
+			"finding": "The variety list opened just from tabbing into it",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "None of the planted problems concerns the variety dropdown opening on focus."
+		},
+		{
+			"runId": "w0.3-t4-p2-seeded-2",
+			"persona": "p2",
+			"screen": "t4",
+			"finding": "\"Approve chosen\" gave no warning or confirmation despite only 2 packets for 3 requests; it left Wren out and I only learned from the \"2 of 3 requests approved\" notice",
+			"observed": true,
+			"fault": null,
+			"confidence": "medium",
+			"why": "This is about missing pre-decision warning or allocation choice, not about the outcome failing to be announced (F11) or the refused request being hidden (F12); the person did learn the outcome and which request was left."
+		},
+		{
+			"runId": "w0.3-t4-p4-seeded-1",
+			"persona": "p4",
+			"screen": "t4",
+			"finding": "Shift+ArrowUp threw me out of the table onto \"Approve chosen requests\"",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "Screen reader navigation behaviour is not among the planted problems."
+		},
+		{
+			"runId": "w0.3-t3-p2-seeded-1",
+			"persona": "p2",
+			"screen": "t3",
+			"finding": "Words like \"Lot label,\" \"Came in as\" and \"very sure (90%)\" were confusing",
+			"observed": false,
+			"fault": null,
+			"confidence": "high",
+			"why": "Unclear wording in the Lots table and estimates section is not one of the planted problems."
+		},
+		{
+			"runId": "w0.3-t4-p2-seeded-2",
+			"persona": "p2",
+			"screen": "t4",
+			"finding": "\"Put on the waiting list and decline\" wording made me worry Wren would lose out",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "Button wording confusion is unrelated to the planted checkbox, live-region, or aria-hidden changes."
+		},
+		{
+			"runId": "w0.3-t2-p4-seeded-2",
+			"persona": "p4",
+			"screen": "t2",
+			"finding": "The variety list for the squash said nothing; no option was read on ArrowDown",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "This is a screen reader announcement problem with the combo box options, not a hidden leave-out control, missing focus indicator, or hidden reason at narrow width."
+		},
+		{
+			"runId": "w0.3-t2-p5-seeded-2",
+			"persona": "p5",
+			"screen": "t2",
+			"finding": "No way to add a variety that isn't listed",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "A fixed variety list is a design limitation, not one of the planted changes."
+		},
+		{
+			"runId": "w0.3-t4-p2-seeded-1",
+			"persona": "p2",
+			"screen": "t4",
+			"finding": "Closed requests row just says 'Declined', with no sign Wren is on the waiting list or still needs to be told",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "Concerns the Closed tab's lack of follow-up status, outside the planted problems' locations and kinds of trouble."
+		},
+		{
+			"runId": "w0.3-t4-p5-seeded-1",
+			"persona": "p5",
+			"screen": "t4",
+			"finding": "'✓ Sent' next to a warning that Wren 'has not been told' contradict each other",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "Contradictory wording in the decline box does not relate to any planted problem."
+		},
+		{
+			"runId": "w0.3-t4-p5-seeded-2",
+			"persona": "p5",
+			"screen": "t4",
+			"finding": "'Decided: 9 March 2030' versus 'Waits until: 09:40 on 10 March 2030', unclear if right",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "Date display is not a planted problem."
+		},
+		{
+			"runId": "w0.3-t2-p5-seeded-1",
+			"persona": "p5",
+			"screen": "t2",
+			"finding": "After pressing Correct the page scrolled by itself and new messages appeared elsewhere; disorienting at 400% zoom",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "Automatic scrolling and relocated status messages are not among the planted problems."
+		},
+		{
+			"runId": "w0.3-t2-p2-seeded-2",
+			"persona": "p2",
+			"screen": "t2",
+			"finding": "Mystery squash row: my search word 'squash' stayed in the variety box",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "Leftover input text is not one of the planted problems."
+		},
+		{
+			"runId": "w0.3-t4-p3-seeded-1",
+			"persona": "p3",
+			"screen": "t4",
+			"finding": "First Tabs: an extra stop on the whole tab panel area",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "A focusable tab panel is not among the planted problems, which concern checkbox names, the live outcome and hidden refusal text."
+		},
+		{
+			"runId": "w0.3-t2-p1-seeded-1",
+			"persona": "p1",
+			"screen": "t2",
+			"finding": "Year error cleared on typing 2029 but row still showed 2031/'Not taken in' until Correct was clicked",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "This is about the field's validation timing, not focus visibility (F5) or hidden reasons (F8)."
+		},
+		{
+			"runId": "w0.3-t4-p2-seeded-2",
+			"persona": "p2",
+			"screen": "t4",
+			"finding": "\"Keep it waiting\" didn't say an undecided request expires; that was only in small text at the top",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "This concerns missing expiry information on a choice, not any planted problem."
+		},
+		{
+			"runId": "w0.3-t3-p1-seeded-2",
+			"persona": "p1",
+			"screen": "t3",
+			"finding": "The return date (9 March 2030) isn't today's date and the record seems set in another year",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "No planted problem concerns dates or the scenario's year."
+		},
+		{
+			"runId": "w0.3-t2-p2-seeded-2",
+			"persona": "p2",
+			"screen": "t2",
+			"finding": "Pot marigold row: the accepted year cut-off (2030) didn't fit today's date; 2029 was accepted",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "This is about validation logic for the year, not a missing focus indicator (F5) or hidden reasons at narrow width (F8)."
+		},
+		{
+			"runId": "w0.3-t2-p4-seeded-2",
+			"persona": "p4",
+			"screen": "t2",
+			"finding": "The years the app allows don't match today's date (2031 called future, 2030 or earlier)",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "This is about the app's year rule, which no planted problem covers."
+		},
+		{
+			"runId": "w0.3-t1-p1-seeded-2",
+			"persona": "p1",
+			"screen": "t1",
+			"finding": "There's no other way to put someone on the waiting list",
+			"observed": true,
+			"fault": null,
+			"confidence": "medium",
+			"why": "This is about the absence of an alternative route, which is a consequence of the blocked lend click rather than meeting the vanishing focus control or the clipped panel."
+		}
+	],
+	"unread": [],
+	"md": "# Step 0.3\n\n- **The panel found** 12 of 12 planted faults in its seeded walks (the rule asks at least 8): F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12.\n- **In walk 1 alone:** 12 of 12.\n- **In walk 2 alone:** 11 of 12.\n\n| Modality | Aimed at it | Found by the modality's personas together | Found by each |\n| --- | --- | --- | --- |\n| pointer | F1, F2, F3 | 3 | p1 3, p2 3 |\n| keyboard | F4, F5, F6 | 3 | p3 3 |\n| screen-reader | F10, F11, F12 | 3 | p4 3 |\n| low-vision | F7, F8, F9 | 3 | p5 3 |\n\n- **Two of three for each modality,** as the owner confirmed the rule on 2026-11-21 (one persona alone): met. Beside it, the modality's personas together: met.\n- **For the owner:** 20 of 55 matches to check, and 30 of 166 other findings to judge real (the rule asks at least half)."
+}
