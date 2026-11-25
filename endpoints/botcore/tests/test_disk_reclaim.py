@@ -624,3 +624,255 @@ def test_build_info_is_stripped_before_output_and_failed_build_info_keeps_output
     }
     assert by_rel_2["packages/c/dist"]["outcome"] == "skipped"
     assert (old / "packages" / "c" / "dist" / "index.js").exists()
+
+
+def test_low_space_escalates_large_idle_in_tree_targets_largest_first_and_stops_on_recovery(
+    repo: dict[str, Path],  # noqa: F811
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """lushly-dev/afd#2241: on a volume still below threshold after the 6-hour step, oversized
+    in-tree outputs (e.g. endpoints/umbel/target) in worktrees idle >= 1 hour are stripped
+    largest-first, respecting .cargo-lock and stopping as soon as the volume recovers."""
+    main = repo["main"]
+    (main / "botcore.toml").write_text(
+        '[disk]\nregenerable = [{ path = "**/target", after_days = 1 }, "**/dist"]\n',
+        encoding="utf-8",
+    )
+    (main / ".gitignore").write_text("target/\ndist/\n", encoding="utf-8")
+    git(main, "commit", "-q", "-am", "add target rule")
+
+    now = time.time()
+
+    def make_wt(
+        name: str, hours_ago: float, size_bytes: int, rel: str = "endpoints/umbel/target"
+    ) -> Path:
+        wt = repo["tmp"] / name
+        git(main, "worktree", "add", "-q", "-b", name, str(wt))
+        out = wt / rel
+        out.mkdir(parents=True)
+        (out / "artifact.bin").write_bytes(b"x" * size_bytes)
+        when = now - hours_ago * 3600
+        admin = Path(git(wt, "rev-parse", "--absolute-git-dir").strip())
+        for git_file in ("HEAD", "index", "logs/HEAD", "ORIG_HEAD", "FETCH_HEAD"):
+            age(admin / git_file, when)
+        for p in (out / "artifact.bin", out, out.parent, wt):
+            age(p, when)
+        return wt
+
+    # Use a small threshold in tests so we don't allocate multi-GiB files on disk.
+    monkeypatch.setattr(reclaim, "LARGE_STRIP_PRESSURE_BYTES", 20_000)
+
+    huge = make_wt("huge-umbel", 2.0, 80_000)  # idle 2h (< 6h, >= 1h), largest
+    medium = make_wt("medium-umbel", 2.5, 40_000)  # idle 2.5h, second largest
+    small = make_wt("small-umbel", 2.5, 4_000)  # below LARGE_STRIP_PRESSURE_BYTES
+    active = make_wt("active-umbel", 0.25, 90_000)  # idle 15 min (< 1h safety floor)
+    locked_wt = make_wt("locked-umbel", 2.0, 95_000)  # holds .cargo-lock
+
+    mount = mount_point(huge)
+    text = repo["settings"].read_text(encoding="utf-8")
+    text += f"\n[[volume]]\nmount = {json.dumps(str(mount))}\nlow_space_gb = 1000000\n"
+    repo["settings"].write_text(text, encoding="utf-8")
+
+    # Dry run previews qualifying large outputs largest-first and leaves active/small out.
+    dry = run_reclaim(apply=False)
+    large_dry = [a for a in dry["actions"] if a["step"] == "pressure-large"]
+    assert [Path(a["worktree"]).name for a in large_dry] == [
+        "locked-umbel",
+        "huge-umbel",
+        "medium-umbel",
+    ]
+    assert (huge / "endpoints/umbel/target/artifact.bin").exists()
+
+    # Apply while locked_wt holds profile-level .cargo-lock (target/debug/.cargo-lock) and volume
+    # recovers after huge is stripped: locked_wt is skipped, huge is stripped, medium is spared.
+    debug_lock = locked_wt / "endpoints/umbel/target/debug/.cargo-lock"
+    debug_lock.parent.mkdir(parents=True)
+    debug_lock.write_bytes(b"")
+    for p in (debug_lock, debug_lock.parent, locked_wt / "endpoints/umbel/target"):
+        age(p, now - 2.0 * 3600)
+
+    real_volume_state = reclaim.volume_state
+
+    def recovering_volume(mnt: Path, expected_id, low_space_gb):
+        vs = real_volume_state(mnt, expected_id, low_space_gb)
+        if not (huge / "endpoints/umbel/target").exists() and low_space_gb is not None:
+            vs.free_bytes = int((low_space_gb + 10) * 1024**3)
+        return vs
+
+    monkeypatch.setattr(reclaim, "volume_state", recovering_volume)
+    with RunLock(debug_lock):
+        (debug_lock.parent / ".cargo-lock.json").unlink(missing_ok=True)
+        for p in (debug_lock.parent, locked_wt / "endpoints/umbel/target"):
+            age(p, now - 2.0 * 3600)
+        applied = run_reclaim(apply=True)
+
+    large_applied = {
+        Path(a["worktree"]).name: a for a in applied["actions"] if a["step"] == "pressure-large"
+    }
+    assert large_applied["locked-umbel"]["outcome"] == "skipped"
+    assert "lock" in large_applied["locked-umbel"]["detail"]
+    assert large_applied["huge-umbel"]["outcome"] == "done"
+    assert "medium-umbel" not in large_applied
+    assert not (huge / "endpoints/umbel/target").exists()
+    assert (locked_wt / "endpoints/umbel/target/artifact.bin").exists()
+    assert (medium / "endpoints/umbel/target/artifact.bin").exists()
+    assert (small / "endpoints/umbel/target/artifact.bin").exists()
+    assert (active / "endpoints/umbel/target/artifact.bin").exists()
+
+    # Cross-target profile lock (target/<triple>/release/.cargo-lock) and root lock are detected.
+    wasm_lock = medium / "endpoints/umbel/target/wasm32-wasip2/release/.cargo-lock"
+    wasm_lock.parent.mkdir(parents=True)
+    wasm_lock.write_bytes(b"")
+    with RunLock(wasm_lock):
+        assert reclaim._cargo_lock_held(medium / "endpoints/umbel/target") is True
+    assert reclaim._cargo_lock_held(medium / "endpoints/umbel/target") is False
+
+
+def test_pressure_large_survives_expired_report_deadline_and_nested_low_volume(
+    repo: dict[str, Path],  # noqa: F811
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An already-expired report deadline must not prevent sizing pressure-large candidates, and
+    the low-space check must evaluate target_path rather than only the worktree root."""
+    from botcore.commands.disk.scan import VolumeState
+
+    main = repo["main"]
+    (main / "botcore.toml").write_text(
+        '[disk]\nregenerable = [{ path = "**/target", after_days = 1 }]\n',
+        encoding="utf-8",
+    )
+    (main / ".gitignore").write_text("target/\n", encoding="utf-8")
+    git(main, "commit", "-q", "-am", "add target rule")
+
+    wt = repo["tmp"] / "nested-vol"
+    git(main, "worktree", "add", "-q", "-b", "nested-vol", str(wt))
+    target = wt / "endpoints/umbel/target"
+    target.mkdir(parents=True)
+    (target / "blob.bin").write_bytes(b"y" * 50_000)
+
+    monkeypatch.setattr(reclaim, "LARGE_STRIP_PRESSURE_BYTES", 20_000)
+    data = {
+        "repos": [
+            {
+                "main": str(main),
+                "blocked": None,
+                "worktrees": [
+                    {
+                        "path": str(wt),
+                        "can_strip": True,
+                        "exists": True,
+                        "idle_seconds": 7200,
+                        "idle_days": 0.08,
+                        "strip": [
+                            {
+                                "path": "endpoints/umbel/target",
+                                "kind": "dir",
+                                "pattern": "**/target",
+                                "when": "idle",
+                                "after_days": 1.0,
+                                "ready": False,
+                                "bytes": None,
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+    healthy = VolumeState(str(wt), True, None, None, 500 * 1024**3, 1000 * 1024**3, 50.0)
+    low_nested = VolumeState(str(target), True, None, None, 2 * 1024**3, 100 * 1024**3, 50.0)
+    ctx = report.Context(
+        settings=reclaim.MachineSettings(),
+        processes=Processes(method="test"),
+        volumes={str(wt): healthy, str(target): low_nested},
+        t3_roots=[],
+        deadline=time.monotonic() - 10.0,  # already expired
+    )
+    groups = reclaim.plan_large_strip_pressure(data, ctx)
+    assert len(groups) == 1
+    assert groups[0][0].target == str(target)
+    assert groups[0][0].bytes_estimate is not None and groups[0][0].bytes_estimate >= 20_000
+
+
+def test_pressure_large_pairs_build_info_and_stops_if_prereq_recovers_volume(
+    repo: dict[str, Path],  # noqa: F811
+    state: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """lushly-dev/afd#1939 + #2241: pressure-large strips ancestor build-info files before a
+    large directory, keeps the directory if build-info removal fails, and spares the directory if
+    removing a prerequisite file already recovers the volume."""
+    main = repo["main"]
+    (main / "botcore.toml").write_text(
+        '[disk]\nregenerable = ["**/dist", "**/*.tsbuildinfo"]\n',
+        encoding="utf-8",
+    )
+    (main / ".gitignore").write_text("dist/\n*.tsbuildinfo\n", encoding="utf-8")
+    git(main, "commit", "-q", "-am", "add dist and tsbuildinfo")
+
+    now = time.time()
+
+    def make_pkg_wt(name: str, size_bytes: int) -> Path:
+        wt = repo["tmp"] / name
+        git(main, "worktree", "add", "-q", "-b", name, str(wt))
+        pkg = wt / "packages" / "app"
+        (pkg / "dist").mkdir(parents=True)
+        (pkg / "dist" / "bundle.bin").write_bytes(b"z" * size_bytes)
+        (pkg / "tsconfig.tsbuildinfo").write_text("{}", encoding="utf-8")
+        when = now - 2.0 * 3600
+        admin = Path(git(wt, "rev-parse", "--absolute-git-dir").strip())
+        for git_file in ("HEAD", "index", "logs/HEAD", "ORIG_HEAD", "FETCH_HEAD"):
+            age(admin / git_file, when)
+        for p in (
+            pkg / "dist" / "bundle.bin",
+            pkg / "dist",
+            pkg / "tsconfig.tsbuildinfo",
+            pkg,
+            wt,
+        ):
+            age(p, when)
+        return wt
+
+    monkeypatch.setattr(reclaim, "LARGE_STRIP_PRESSURE_BYTES", 20_000)
+    wt_fail = make_pkg_wt("wt-fail-info", 60_000)
+    wt_recover = make_pkg_wt("wt-recover-info", 40_000)
+
+    mount = mount_point(wt_fail)
+    text = repo["settings"].read_text(encoding="utf-8")
+    text += f"\n[[volume]]\nmount = {json.dumps(str(mount))}\nlow_space_gb = 1000000\n"
+    repo["settings"].write_text(text, encoding="utf-8")
+
+    # 1) Locked build-info in wt_fail keeps wt_fail/packages/app/dist intact;
+    #    wt_recover's build-info succeeds and simulates volume recovery, sparing wt_recover/dist.
+    fail_info = wt_fail / "packages/app/tsconfig.tsbuildinfo"
+    recover_info = wt_recover / "packages/app/tsconfig.tsbuildinfo"
+    real_remove = reclaim.remove_inside
+    real_volume_state = reclaim.volume_state
+
+    def fake_remove(path: Path, root: Path):
+        if path == fail_info:
+            res = Removal(str(path))
+            res.fail(str(path), "locked")
+            return res
+        return real_remove(path, root)
+
+    def recover_after_prereq(mnt: Path, expected_id, low_space_gb):
+        vs = real_volume_state(mnt, expected_id, low_space_gb)
+        if not recover_info.exists() and low_space_gb is not None:
+            vs.free_bytes = int((low_space_gb + 10) * 1024**3)
+        return vs
+
+    monkeypatch.setattr(reclaim, "remove_inside", fake_remove)
+    monkeypatch.setattr(reclaim, "volume_state", recover_after_prereq)
+    data = run_reclaim(apply=True)
+
+    by_target = {a["target"]: a for a in data["actions"] if a["step"] == "pressure-large"}
+    assert by_target[str(fail_info)]["outcome"] == "partial"
+    assert by_target[str(wt_fail / "packages/app/dist")]["outcome"] == "skipped"
+    assert (wt_fail / "packages/app/dist/bundle.bin").exists()
+
+    assert by_target[str(recover_info)]["outcome"] == "done"
+    assert str(wt_recover / "packages/app/dist") not in by_target
+    assert (wt_recover / "packages/app/dist/bundle.bin").exists()

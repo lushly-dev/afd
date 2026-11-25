@@ -64,8 +64,10 @@ from botcore.commands.disk.report import (
 from botcore.commands.disk.scan import (
     DAY,
     Processes,
+    allocated,
     busy_reason,
     is_dir,
+    is_link,
     last_activity,
     newest_mtime,
     running_processes,
@@ -92,6 +94,12 @@ RUST_BUILDERS = ("cargo", "rustc", "clippy-driver")
 RUST_ACTIVE_WINDOW_SECONDS = 3600.0
 # Minimum age floor for final oldest-first [[aged]] eviction when a volume remains below threshold
 AGED_PRESSURE_MIN_SECONDS = 3600.0
+# Minimum idle floor for final largest-first tier-1 strip escalation on still-low volumes (#2241)
+STRIP_PRESSURE_MIN_SECONDS = 3600.0
+# Minimum directory size (bytes) to qualify for pressure-large tier-1 recovery under low space
+LARGE_STRIP_PRESSURE_BYTES = 5 * 1024**3
+# Fresh measurement budget for pressure-large sizing so an elapsed report deadline cannot hide it
+LARGE_STRIP_MEASURE_SECONDS = 60.0
 
 
 @dataclass
@@ -310,6 +318,115 @@ def plan_aged_pressure(
     return [action for _mtime, action in candidates]
 
 
+def _ancestor_file_prereqs(
+    row: dict[str, Any],
+    target_path: Path,
+    already_seen: set[str],
+    due_days: float,
+    step_label: str,
+) -> list[Action]:
+    """Unstripped file strip candidates (such as `*.tsbuildinfo`) in the same folder or an
+    ancestor inside the worktree, so stripping a large directory never leaves build info behind
+    (lushly-dev/afd#1939)."""
+    worktree = Path(row["path"])
+    worktree_key = path_key(worktree)
+    ancestors: set[str] = set()
+    cur = target_path.parent
+    while True:
+        cur_key = path_key(cur)
+        ancestors.add(cur_key)
+        if cur_key == worktree_key or cur.parent == cur:
+            break
+        cur = cur.parent
+    prereqs: list[Action] = []
+    for item in row.get("strip", []):
+        if item.get("kind") != "file":
+            continue
+        file_path = worktree / item["path"]
+        if f"strip:{file_path}" in already_seen:
+            continue
+        if path_key(file_path.parent) not in ancestors:
+            continue
+        prereqs.append(
+            Action(
+                kind="strip",
+                target=str(file_path),
+                root=row["path"],
+                worktree=row["path"],
+                pattern=item["pattern"],
+                target_kind="file",
+                bytes_estimate=item.get("bytes"),
+                due_days=due_days,
+                step=step_label,
+                detail=f"build info paired with {target_path.name}; idle {row['idle_days']}",
+            )
+        )
+    prereqs.sort(key=lambda a: a.target)
+    return prereqs
+
+
+def plan_large_strip_pressure(
+    data: dict[str, Any],
+    ctx: Context,
+    already_seen: set[str] | None = None,
+    excluded_worktrees: set[str] | None = None,
+) -> list[tuple[Action, list[Action]]]:
+    """Plan largest-first tier-1 strips of oversized `when = "idle"` build output dirs on
+    volumes still below threshold after the 6-hour pressure step (#2241).
+
+    Requires the worktree to be strippable and idle at least `STRIP_PRESSURE_MIN_SECONDS`
+    (1 hour), and the directory to allocate at least `LARGE_STRIP_PRESSURE_BYTES` (5 GiB).
+    Returns `(dir_action, prerequisite_file_actions)` pairs ordered largest-first.
+    """
+    seen = already_seen or set()
+    excluded = excluded_worktrees or set()
+    due_days = STRIP_PRESSURE_MIN_SECONDS / DAY
+    measure_deadline = max(ctx.deadline, time.monotonic() + LARGE_STRIP_MEASURE_SECONDS)
+    candidates: list[tuple[int, Action, list[Action]]] = []
+    for repo in data["repos"]:
+        for row in repo.get("worktrees", []):
+            idle = row.get("idle_seconds")
+            if (
+                row["path"] in excluded
+                or not _strippable(row, repo)
+                or idle is None
+                or idle < STRIP_PRESSURE_MIN_SECONDS
+            ):
+                continue
+            for item in row.get("strip", []):
+                if item.get("when") != "idle" or item.get("kind") != "dir":
+                    continue
+                target_path = Path(row["path"]) / item["path"]
+                if f"strip:{target_path}" in seen:
+                    continue
+                if not _volume_low(str(target_path), ctx):
+                    continue
+                size = item.get("bytes")
+                if size is None:
+                    size = allocated(target_path, measure_deadline)
+                if size is None or size < LARGE_STRIP_PRESSURE_BYTES:
+                    continue
+                dir_action = Action(
+                    kind="strip",
+                    target=str(target_path),
+                    root=row["path"],
+                    worktree=row["path"],
+                    pattern=item["pattern"],
+                    target_kind="dir",
+                    bytes_estimate=size,
+                    due_days=due_days,
+                    step="pressure-large",
+                    detail=(
+                        f"low space large output ({round(size / 1024**3, 2)} GiB); "
+                        f"idle {row['idle_days']}"
+                    ),
+                )
+                prereqs = _ancestor_file_prereqs(row, target_path, seen, due_days, "pressure-large")
+                candidates.append((size, dir_action, prereqs))
+    candidates.sort(key=lambda entry: (-entry[0], entry[1].target))
+    return [(dir_action, prereqs) for _size, dir_action, prereqs in candidates]
+
+
 # ── Checks made immediately before acting ───────────────────────────────────
 
 
@@ -363,6 +480,8 @@ def _recheck_strip(action: Action, run: Run) -> str | None:
         return "the worktree was locked (kept) since planning"
     if busy_reason(worktree, run.processes_for(str(worktree))):
         return "a process is using the worktree"
+    if action.target_kind == "dir" and _cargo_lock_held(target):
+        return "a Rust build holds its lock"
     st = status(worktree, admin, timeout=60)
     if st.operation:
         return f"a {st.operation} started"
@@ -390,8 +509,31 @@ def _recheck_strip(action: Action, run: Run) -> str | None:
 
 
 def _cargo_lock_held(target: Path) -> bool:
-    """Whether another process holds Cargo's lock file inside `target`."""
-    return is_locked(target / ".cargo-lock")
+    """Whether another process holds Cargo's lock file inside `target`, probing the root
+    (`target/.cargo-lock`), profile dirs (`target/debug/.cargo-lock`), and cross-target profile
+    dirs (`target/<triple>/release/.cargo-lock`) without following links."""
+    if is_locked(target / ".cargo-lock"):
+        return True
+    try:
+        level1 = list(os.scandir(target))
+    except OSError:
+        return False
+    for child in level1:
+        if is_link(child) or not child.is_dir(follow_symlinks=False):
+            continue
+        child_path = Path(child.path)
+        if is_locked(child_path / ".cargo-lock"):
+            return True
+        try:
+            level2 = list(os.scandir(child_path))
+        except OSError:
+            continue
+        for grandchild in level2:
+            if is_link(grandchild) or not grandchild.is_dir(follow_symlinks=False):
+                continue
+            if is_locked(Path(grandchild.path) / ".cargo-lock"):
+                return True
+    return False
 
 
 def _recheck_aged(action: Action, run: Run) -> str | None:
@@ -832,8 +974,9 @@ async def disk_reclaim(
 
     A dry run unless apply=True (a dry run still writes a receipt). When a watched volume is
     below its threshold, or pressure=True, aged folders and tier 1 lower their idle thresholds
-    in steps (1 day, then 6 hours, and oldest-first down to 1 hour for aged folders on still-low
-    volumes) and tier 1 also strips `when = "pressure"` patterns until the volume recovers; with
+    in steps (1 day, then 6 hours; on still-low volumes, oldest-first down to 1 hour for aged
+    folders and largest-first down to 1 hour for >= 5 GiB idle tier-1 build directories) and
+    tier 1 also strips `when = "pressure"` patterns until the volume recovers; with
     pressure=True every threshold step runs. Tier 2 removes worktrees T3 Code does not manage
     that hold nothing unique and whose work has landed; include_restorable also removes those
     that hold nothing unique but have not landed. Branches are kept; disk_restore brings one
@@ -910,11 +1053,37 @@ def _execute_aged_pressure(run: Run, actions: list[Action], stop_when_recovered:
                 _refresh_volume(action.target, run.ctx)
 
 
+def _execute_large_strip_pressure(
+    run: Run,
+    groups: list[tuple[Action, list[Action]]],
+    stop_when_recovered: bool,
+) -> None:
+    """Carry out large tier-1 pressure strips largest-first, stopping once each volume recovers."""
+    for dir_action, prereqs in groups:
+        if stop_when_recovered and not _volume_low(dir_action.target, run.ctx):
+            continue
+        for prereq in prereqs:
+            if stop_when_recovered and not _volume_low(dir_action.target, run.ctx):
+                break
+            if run.add(prereq) and run.apply and prereq.outcome == "planned":
+                carry_out(prereq, run)
+                if stop_when_recovered and prereq.outcome in ("done", "partial"):
+                    _refresh_volume(prereq.target, run.ctx)
+        if stop_when_recovered and not _volume_low(dir_action.target, run.ctx):
+            continue
+        if not run.add(dir_action):
+            continue
+        if run.apply and dir_action.outcome == "planned":
+            carry_out(dir_action, run)
+            if stop_when_recovered and dir_action.outcome in ("done", "partial"):
+                _refresh_volume(dir_action.target, run.ctx)
+
+
 def _plan_and_run(run: Run, data: dict[str, Any], pressure: bool, include_restorable: bool) -> None:
     _execute(run, plan_tier0(data))
     ctx = run.ctx
+    removed: set[str] = set()
     if run.tier >= 1:
-        removed: set[str] = set()
         if run.tier >= 2:
             removals = plan_tier2(data, run, include_restorable)
             if run.apply:
@@ -945,13 +1114,26 @@ def _plan_and_run(run: Run, data: dict[str, Any], pressure: bool, include_restor
         if run.apply and not pressure and not _low(ctx):
             return
         if run.tier >= 1:
-            _execute(run, plan_strips(data, step, True, ctx, only_low=not pressure))
+            _execute(
+                run,
+                [
+                    a
+                    for a in plan_strips(data, step, True, ctx, only_low=not pressure)
+                    if a.worktree not in removed
+                ],
+            )
             if run.apply and not pressure and not _low(ctx):
                 return
     if _low(ctx):
         _execute_aged_pressure(
             run,
             plan_aged_pressure(data, None, ctx, only_low=True),
+            stop_when_recovered=run.apply,
+        )
+    if run.tier >= 1 and _low(ctx):
+        _execute_large_strip_pressure(
+            run,
+            plan_large_strip_pressure(data, ctx, already_seen=run.seen, excluded_worktrees=removed),
             stop_when_recovered=run.apply,
         )
 

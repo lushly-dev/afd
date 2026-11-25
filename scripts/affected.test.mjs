@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, posix } from 'node:path';
+import { dirname, join, posix, resolve } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { changedImporters, parseLockfile } from './affected/lockfile.mjs';
 import { gitPath, OWN_TESTS, readLanes, resolveScope } from './affected/scope.mjs';
 import { matchesFilters, readSuiteTrigger, readTrigger, SUITES } from './affected/suites.mjs';
@@ -16,6 +17,7 @@ import {
 	plannedTools,
 	planSuites,
 	pnpmArgs,
+	preflightRustVerify,
 	stepExecution,
 	suiteRemoteOnly,
 	workflowTrigger,
@@ -1357,4 +1359,145 @@ test('stepExecution expands cargo fmt --all --check per crate on Windows (#1636)
 			}),
 		/no workspace crates/
 	);
+});
+
+test('preflightRustVerify sweeps first, then refuses Rust steps below AFD_VERIFY_MIN_DISK_GB (#2241)', (t) => {
+	const root = mkdtempSync(join(tmpdir(), 'afd-verify-disk-'));
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	const plan = [
+		{
+			suite: { workflow: 'umbel.yml', tools: ['cargo'] },
+			step: { cwd: 'endpoints/umbel', run: 'cargo test --no-fail-fast --locked' },
+		},
+	];
+	const order = [];
+	const streamed = [];
+	const stat = (gb) => ({ bavail: Math.round((gb * 1024 ** 3) / 4096), bsize: 4096 });
+
+	assert.throws(
+		() =>
+			preflightRustVerify(plan, {
+				root,
+				env: { AFD_VERIFY_MIN_DISK_GB: '15' },
+				homeDir: null,
+				onMessage: (line) => {
+					order.push('message');
+					streamed.push(line);
+				},
+				runSweep: () => {
+					order.push('sweep');
+					return ['freed 1.0 GB'];
+				},
+				statfs: () => {
+					order.push('statfs');
+					return stat(4.5);
+				},
+			}),
+		/refusing to start Rust verify steps[\s\S]*4\.5 GiB free \(floor 15 GiB\)/
+	);
+	assert.deepEqual(order, ['sweep', 'message', 'statfs']);
+	assert.deepEqual(streamed, ['[verify] rust-sweep: freed 1.0 GB']);
+
+	// When the sweep recovers enough free space, preflight passes and reports the sweep line.
+	let freeGb = 4.5;
+	const lines = preflightRustVerify(plan, {
+		root,
+		env: { AFD_VERIFY_MIN_DISK_GB: '15' },
+		homeDir: null,
+		runSweep: () => {
+			freeGb = 25;
+			return ['freed 20.5 GB'];
+		},
+		statfs: () => stat(freeGb),
+	});
+	assert.deepEqual(lines, ['[verify] rust-sweep: freed 20.5 GB']);
+
+	// Non-cargo plans and TS-only steps inside cargo-bearing workflows skip both sweep and disk floor.
+	const nonCargo = [
+		{ suite: { workflow: 'python.yml', tools: ['uv'] }, step: { run: 'uv run pytest' } },
+		{
+			suite: { workflow: 'loam.yml', tools: ['cargo'] },
+			step: { cwd: 'endpoints/loam', run: 'pnpm -F @lushly-dev/loam-web typecheck:hosted' },
+		},
+	];
+	assert.deepEqual(
+		preflightRustVerify(nonCargo, {
+			root,
+			env: {},
+			homeDir: null,
+			runSweep: () => {
+				throw new Error('should not sweep');
+			},
+			statfs: () => {
+				throw new Error('should not check disk');
+			},
+		}),
+		[]
+	);
+});
+
+test('scripts/affected.mjs and its local imports use only node: built-ins so queue.yml runs without node_modules', () => {
+	const stripJsComments = (source) => {
+		let out = '';
+		let i = 0;
+		while (i < source.length) {
+			const ch = source[i];
+			const next = source[i + 1];
+			if (ch === "'" || ch === '"' || ch === '`') {
+				const quote = ch;
+				out += ch;
+				i += 1;
+				while (i < source.length) {
+					if (source[i] === '\\') {
+						out += source.slice(i, i + 2);
+						i += 2;
+						continue;
+					}
+					out += source[i];
+					if (source[i] === quote) {
+						i += 1;
+						break;
+					}
+					i += 1;
+				}
+			} else if (ch === '/' && next === '/') {
+				while (i < source.length && source[i] !== '\n') i += 1;
+			} else if (ch === '/' && next === '*') {
+				i += 2;
+				while (i < source.length && !(source[i] === '*' && source[i + 1] === '/')) i += 1;
+				i += 2;
+			} else {
+				out += ch;
+				i += 1;
+			}
+		}
+		return out;
+	};
+
+	const seen = new Set();
+	const queue = [fileURLToPath(new URL('./affected.mjs', import.meta.url))];
+	const external = [];
+	const specifiers = [
+		/\b(?:import|export)\s+(?:[^;'"]*?\s+from\s+)?['"]([^'"]+)['"]/g,
+		/\b(?:import|require)\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+	];
+
+	while (queue.length > 0) {
+		const file = queue.pop();
+		if (seen.has(file)) continue;
+		seen.add(file);
+		const text = stripJsComments(readFileSync(file, 'utf8'));
+		for (const re of specifiers) {
+			for (const match of text.matchAll(re)) {
+				const spec = match[1];
+				if (spec.startsWith('node:')) continue;
+				if (spec.startsWith('./') || spec.startsWith('../')) {
+					queue.push(resolve(dirname(file), spec));
+				} else {
+					external.push(`${file}: ${spec}`);
+				}
+			}
+		}
+	}
+	assert.deepEqual(external, []);
 });

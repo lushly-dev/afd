@@ -14,7 +14,11 @@
  *
  * Environment:
  *   UMBEL_FIRST_PARTY            the binary; otherwise the newest of release then debug under
- *                                $CARGO_TARGET_DIR and endpoints/umbel/target
+ *                                $UMBEL_TARGET_DIR, Cargo's effective target-dir ($CARGO_TARGET_DIR,
+ *                                $CARGO_BUILD_TARGET_DIR or `[build] target-dir`), and
+ *                                endpoints/umbel/target
+ *   UMBEL_TARGET_DIR             an Umbel-specific Cargo target directory to search before
+ *                                Cargo's effective target-dir and endpoints/umbel/target
  *   UMBEL_COMPONENTS_WORKSPACE   the Umbel workspace; default `.umbel/components` in this checkout,
  *                                or, when either consumer variable below is set,
  *                                `.umbel/components-<hash of what they deploy>`, so a start with
@@ -48,6 +52,7 @@ import {
 } from 'node:fs';
 import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveCargoTargetDir } from './cargo-target.mjs';
 
 export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const LIBRARY = 'foundations/fast-af/packages/violet-elements';
@@ -312,9 +317,16 @@ export function binaryCandidates(
 	platform = process.platform
 ) {
 	if (environment.UMBEL_FIRST_PARTY) return [resolve(environment.UMBEL_FIRST_PARTY)];
-	const targets = [environment.CARGO_TARGET_DIR, join(root, 'endpoints/umbel/target')].filter(
-		Boolean
-	);
+	const umbelRoot = join(resolve(root), 'endpoints/umbel');
+	const targets = [
+		...new Set(
+			[
+				environment.UMBEL_TARGET_DIR?.trim() ? resolve(environment.UMBEL_TARGET_DIR.trim()) : null,
+				resolveCargoTargetDir(umbelRoot, { env: environment }),
+				join(umbelRoot, 'target'),
+			].filter(Boolean)
+		),
+	];
 	return ['release', 'debug'].flatMap((profile) =>
 		targets.map((target) => join(resolve(target), profile, binaryName(platform)))
 	);

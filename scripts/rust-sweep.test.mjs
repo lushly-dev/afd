@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import {
+	defaultTargets,
 	parseSweepArgs,
 	processListCommand,
 	rustBuildRunning,
@@ -168,4 +170,37 @@ test('process names and options are read as Cargo and the command line give them
 	assert.equal(options.dryRun, true);
 	assert.throws(() => parseSweepArgs(['--days', 'soon']), /takes a number/);
 	assert.throws(() => parseSweepArgs(['--wipe']), /unknown option/);
+
+	const targets = defaultTargets(tmpdir(), {
+		CARGO_TARGET_DIR: join(tmpdir(), 'a'),
+		CARGO_BUILD_TARGET_DIR: join(tmpdir(), 'b'),
+		UMBEL_TARGET_DIR: join(tmpdir(), 'c'),
+		LOAM_UMBEL_TARGET_DIR: join(tmpdir(), 'd'),
+	});
+	for (const name of ['a', 'b', 'c', 'd']) {
+		assert.ok(targets.includes(join(tmpdir(), name)), `defaultTargets includes ${name}`);
+	}
+});
+
+test('defaultTargets resolves workspace [build] target-dir configured only via .cargo/config.toml (#2241)', (t) => {
+	const root = mkdtempSync(join(tmpdir(), 'rust-sweep-config-'));
+	t.after(() => rmSync(root, { recursive: true, force: true }));
+	const repo = join(root, 'repo');
+	const ws = join(repo, 'endpoints', 'umbel');
+	const external = join(root, 'external-target');
+	mkdirSync(join(ws, '.cargo'), { recursive: true });
+	writeFileSync(join(ws, 'Cargo.toml'), '[package]\nname = "demo"\nversion = "0.1.0"\n');
+	writeFileSync(
+		join(ws, '.cargo', 'config.toml'),
+		`[build]\ntarget-dir = ${JSON.stringify(external)}\n`
+	);
+	const cleanEnv = Object.fromEntries(
+		Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))
+	);
+	execFileSync('git', ['init', '-q'], { cwd: repo, env: cleanEnv });
+	execFileSync('git', ['add', 'endpoints/umbel/Cargo.toml'], { cwd: repo, env: cleanEnv });
+
+	const targets = defaultTargets(repo, {}, { homeDir: null });
+	assert.ok(targets.includes(external), `expected ${external} in ${JSON.stringify(targets)}`);
+	assert.ok(targets.includes(join(ws, 'target')));
 });
