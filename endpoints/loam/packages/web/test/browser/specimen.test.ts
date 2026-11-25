@@ -207,9 +207,30 @@ const EDITOR_CAPTURES: [string, string[]][] = [
 		],
 	],
 	['editor-group', ['tablist "Documents"', 'tab "Plan, pinned"', 'tabpanel', 'Opening Roadmap']],
-	// Step 12: `loam-embed`, refused or missing alike, and a target with no embed of its own as a link.
+	// Step 12 and #868: `loam-embed`, refused or missing alike, a link-only target, a ready target with a body,
+	// and the depth and cycle stops.
 	['editor-embed-unavailable', ['group "Embedded: Document"', 'Not available']],
 	['editor-embed-link', ['group "Embedded: Roadmap"', 'link "Roadmap"']],
+	[
+		'editor-embed-ready',
+		['group "Embedded: Roadmap"', 'link "Roadmap"', 'Plans for the quarter, and what ships first.'],
+	],
+	[
+		'editor-embed-depth',
+		[
+			'Third embed.',
+			'group "Embedded: Deep jot"',
+			'Deep jot is embedded too deeply, or in itself, to show here',
+		],
+	],
+	[
+		'editor-embed-cycle',
+		[
+			'Embeds itself.',
+			'group "Embedded: Loop jot"',
+			'Loop jot is embedded too deeply, or in itself, to show here',
+		],
+	],
 	[
 		'editor-menu',
 		['menu "Actions for Roadmap"', 'menuitem "Pin"', 'menuitem "Move to a new group"'],
@@ -224,6 +245,29 @@ const EDITOR_CAPTURES: [string, string[]][] = [
 /** `notes-editor`, from the type's own fixtures, since no chrome file names a type (D2). */
 const NOTES_CAPTURES: [string, string[]][] = [
 	['notes-editor', ['textbox "Roadmap"']],
+	// #868: `notes-editor` with the link picker open and with its embed list populated.
+	[
+		'notes-editor-picker',
+		[
+			'textbox "Roadmap"',
+			'group "Insert a link"',
+			'textbox "Find a document"',
+			'button "Launch plan"',
+			'button "Quarterly review"',
+			'button "Cancel"',
+		],
+	],
+	[
+		'notes-editor-embeds',
+		[
+			'list "Embedded documents"',
+			'group "Embedded: Launch plan"',
+			'link "Launch plan"',
+			'Plans for the quarter, and what ships first.',
+			'group "Embedded: Document"',
+			'Not available',
+		],
+	],
 	// Step 12: its inspector's links and backlinks, and a note as another embeds it.
 	[
 		'notes-inspector',
@@ -278,6 +322,13 @@ describe("P2-D10: Specimen captures of notes' editor, inspector and embed", () =
 				const observation = await notes.render({ id, context: { ...CONTEXT, theme } });
 				expectClean(observation);
 				for (const each of expected) expect(observation.channels.a11y.snapshot, id).toContain(each);
+				if (id.startsWith('notes-editor-embeds')) {
+					// Both embed rows expose a Remove embed button (accepting the document-qualified name too).
+					expect(
+						observation.channels.a11y.snapshot.match(/button "Remove embed(?:: [^"]+)?"/g),
+						id
+					).toHaveLength(2);
+				}
 			}
 		}, 300_000);
 
@@ -472,6 +523,9 @@ describe('P2-D10: Specimen captures of the editor area', () => {
 				const observation = await bench.render({ id, context: { ...CONTEXT, theme } });
 				expectClean(observation);
 				for (const each of expected) expect(observation.channels.a11y.snapshot, id).toContain(each);
+				if (id.startsWith('editor-embed-depth')) {
+					expect(observation.channels.a11y.snapshot, id).not.toContain('Should not render.');
+				}
 			}
 		}, 300_000);
 });
@@ -497,6 +551,33 @@ const DOCUMENTS_CAPTURES: [string, string[]][] = [
 		'documents-tree-menu',
 		['menu "Actions for Roadmap"', 'menuitem "Open beside"', 'menuitem "Trash"'],
 	],
+	// #873: the sidebar's Rename and Links modal dialogs, each captured with a real ARIA snapshot.
+	[
+		'documents-tree-rename',
+		['dialog "Rename Roadmap"', 'textbox "Title"', 'button "Save"', 'button "Cancel"'],
+	],
+	[
+		'documents-tree-links',
+		[
+			'dialog "Links of Roadmap"',
+			'table "Links of Roadmap"',
+			'Ideas for the quarter',
+			'Old plan',
+			'In trash',
+			'button "Close"',
+		],
+	],
+	// #868: the documents inspector mounted in the shell's `loam-inspector` part via `syncInspector`.
+	[
+		'documents-inspector',
+		[
+			'complementary "Jot details"',
+			'region "Links"',
+			'Outgoing from Roadmap: Ideas for the quarter',
+			'region "Backlinks"',
+			'Old plan (In trash)',
+		],
+	],
 	[
 		'documents-section',
 		['heading "Documents" [level=1]', 'table "Documents"', 'link "<img src=x onerror=alert(1)>"'],
@@ -517,6 +598,13 @@ describe('P2-D10: Specimen captures of the documents section and New', () => {
 				const observation = await bench.render({ id, context: { ...CONTEXT, theme } });
 				expectClean(observation);
 				for (const each of expected) expect(observation.channels.a11y.snapshot, id).toContain(each);
+				if (id.startsWith('documents-tree-rename') || id.startsWith('documents-tree-links')) {
+					expect(observation.channels.a11y.snapshot, id).not.toContain('tree "Documents"');
+					const a11y = await bench.a11y({ id, context: { ...CONTEXT, theme } });
+					expect(a11y.counts.total, `${id} axe total`).toBe(1);
+					expect(a11y.counts.notRun, `${id} axe notRun`).toBe(0);
+					expect(a11y.reports[0]?.violations, `${id} axe violations`).toEqual([]);
+				}
 				// A hostile title is text, never markup (D8).
 				expect(observation.channels.dom.normalized, id).not.toContain('<img src="x"');
 			}

@@ -1,19 +1,22 @@
 /**
- * The editor area's fixtures (documents specification, 5.8 and D10): the area with two groups of tabs,
- * pinned, preview and unsaved among them, and a frame's failure (the area with none open is hidden, and the
- * documents section's list takes main: `documents.specimens.ts`), each comfortable
- * and compact. Specimen renders each in the light, dark and high-contrast contexts. No app is loaded, so the
- * frames show their own states: the area's look is the shell's, whatever an editor draws.
+ * The editor area's fixtures (documents specification, 5.8, 9.2 and D10): the area with two groups of tabs,
+ * pinned, preview and unsaved among them, a frame's failure (the area with none open is hidden, and the
+ * documents section's list takes main: `documents.specimens.ts`), and `loam-embed` in its unavailable, link,
+ * ready, depth-stop and cycle-stop states, each comfortable and compact. Specimen renders each in the light,
+ * dark and high-contrast contexts. No app is loaded: the frames show their own states, and the embed fixtures
+ * use a stub shell and a scoped fixture element.
  */
 
+import type { DocumentRefV1 } from '@lushly-dev/loam-sdk';
 import type { SpecimenDefinition } from '@lushly-dev/specimen';
-import { defineAppElements } from '../dist/apps/index.js';
+import { createKit, defineAppElements, type LoamMount } from '../dist/apps/index.js';
 import { defineEditorElements } from '../dist/editor/editor.js';
 import type { LoamEditorArea } from '../dist/editor/editor-area.js';
 import type { LoamEditorFrame } from '../dist/editor/editor-frame.js';
 import type { EditorTabView, LoamEditorGroup } from '../dist/editor/editor-group.js';
 import type { LoamEmbed } from '../dist/editor/embed.js';
-import { type Density, themePart } from './support.js';
+import type { LoamShell } from '../dist/index.js';
+import { type Density, themePart, until } from './support.js';
 
 type Box = { inline: string; block: string };
 
@@ -197,3 +200,209 @@ export const [EmbedLink, EmbedLinkCompact] = both((wrapper) => embed(wrapper, tr
 	inline: '480px',
 	block: '120px',
 });
+
+interface FixtureDocument {
+	id: string;
+	title: string;
+	body: string;
+	child?: string;
+}
+
+/** A stub document type element in its own scoped registry, rendering read-only body text and an optional nested embed. */
+class FixtureEmbedBody extends HTMLElement {
+	document?: DocumentRefV1;
+	bodies?: Readonly<Record<string, FixtureDocument>>;
+	scopedRegistry?: CustomElementRegistry;
+
+	connectedCallback(): void {
+		const spec = this.document ? this.bodies?.[this.document.id] : undefined;
+		this.replaceChildren();
+		const text = document.createElement('p');
+		text.textContent = spec?.body ?? '';
+		this.append(text);
+		if (spec?.child) {
+			const nested = (
+				this.scopedRegistry
+					? document.createElement('loam-embed', {
+							customElementRegistry: this.scopedRegistry,
+						} as ElementCreationOptions)
+					: document.createElement('loam-embed')
+			) as LoamEmbed;
+			nested.document = spec.child;
+			this.append(nested);
+		}
+	}
+}
+
+const EMBED_TYPE = {
+	id: 'jots',
+	title: 'Jot',
+	icon: 'system/document',
+	instance: 'jots',
+	app: 'jots',
+	editorKind: 'native',
+	scopeLevels: ['workspace', 'project'],
+	templates: [],
+};
+
+function embedRecord(spec: FixtureDocument) {
+	return {
+		id: spec.id,
+		workspace: 'personal',
+		type: 'jots',
+		instance: 'jots',
+		title: spec.title,
+		scope: { workspace: 'personal' },
+		scopeKey: 'w',
+		owner: 'local',
+		tags: [],
+		status: 'active',
+		trashedAt: null,
+		trashedFrom: null,
+		contentVersion: 1,
+		binding: {
+			model: 'command',
+			selection: 'text-range',
+			locator: 'text-range',
+			conflict: 'last-writer-wins',
+		},
+		epoch: 0,
+		createdAt: 1,
+		updatedAt: 1,
+		createdBy: 'local',
+		updatedBy: 'local',
+	};
+}
+
+/** Collect every `loam-embed` under `root`, piercing shadow roots. */
+function embedsIn(root: ParentNode | null | undefined): LoamEmbed[] {
+	const found: LoamEmbed[] = [];
+	const walk = (node: ParentNode | null | undefined) => {
+		for (const each of node?.querySelectorAll('*') ?? []) {
+			if (each.localName === 'loam-embed') found.push(each as LoamEmbed);
+			walk(each.shadowRoot);
+		}
+	};
+	walk(root);
+	return found;
+}
+
+/**
+ * `loam-embed` hosted inside an unbooted `loam-shell` (documents specification, 9.2; #868), so `#around()`
+ * finds a shell, `#render()` reads the target through the kernel and mounts the type's read-only embed in a
+ * scoped registry, and depth/cycle stops render through the real path.
+ */
+async function hostedEmbed(
+	wrapper: HTMLElement,
+	rootId: string,
+	documents: readonly FixtureDocument[],
+	expectedStates: readonly string[]
+): Promise<void> {
+	await (await import('../dist/editor/embed.js')).defined;
+	const byId = Object.fromEntries(documents.map((each) => [each.id, each]));
+	const registry = new CustomElementRegistry();
+	await createKit(registry).define(['loam-embed']);
+	registry.define(
+		'jots-embed',
+		class extends FixtureEmbedBody {
+			override bodies = byId;
+			override scopedRegistry = registry;
+		}
+	);
+	const shell = document.createElement('loam-shell') as LoamShell;
+	shell.style.setProperty('display', 'block');
+	shell.style.setProperty('block-size', 'auto');
+	shell.style.setProperty('inline-size', '100%');
+	wrapper.append(shell);
+	shell.base = 'https://loam.example/';
+	shell.kernel = {
+		subscribe: () => () => {},
+		appPort: () => ({
+			manifest: { ui: { documents: [{ id: 'jots', embed: { element: 'jots-embed' } }] } },
+		}),
+		call: async (name: string, input: Record<string, unknown> = {}) => {
+			if (name === 'document-get') {
+				const found = byId[String(input.document ?? '')];
+				return found
+					? { success: true, data: embedRecord(found) }
+					: { success: false, error: { code: 'DOCUMENT_NOT_FOUND', message: 'Not found' } };
+			}
+			if (name === 'document-type-list') return { success: true, data: { types: [EMBED_TYPE] } };
+			if (name === 'project-list') return { success: true, data: { projects: [] } };
+			return { success: true, data: {} };
+		},
+	} as never;
+	shell.apps = {
+		host: () => ({
+			ensureActivated: async () => {},
+			createMount: (_instance: string, element: string, options: { document?: DocumentRefV1 }) => {
+				const mount = document.createElement('loam-mount') as LoamMount;
+				mount.configure({
+					registry,
+					element,
+					context: {} as never,
+					...(options.document ? { document: options.document } : {}),
+				});
+				return mount;
+			},
+		}),
+	} as never;
+	const root = document.createElement('loam-embed') as LoamEmbed;
+	root.document = rootId;
+	shell.shadowRoot?.append(root);
+	const target = [...expectedStates].sort().join(',');
+	await until(
+		() =>
+			embedsIn(shell.shadowRoot)
+				.map((each) => each.state)
+				.sort()
+				.join(',') === target
+	);
+}
+
+/** A ready embed with a body mounted in a scoped registry. */
+export const [EmbedReady, EmbedReadyCompact] = both(
+	(wrapper) =>
+		hostedEmbed(
+			wrapper,
+			'doc_roadmap',
+			[
+				{
+					id: 'doc_roadmap',
+					title: 'Roadmap',
+					body: 'Plans for the quarter, and what ships first.',
+				},
+			],
+			['ready']
+		),
+	{ inline: '480px', block: '160px' }
+);
+
+/** Four nested embeds: the fourth exceeds `EMBED_DEPTH_MAX` (3) and stops with `EMBED_DEPTH_EXCEEDED`. */
+export const [EmbedDepth, EmbedDepthCompact] = both(
+	(wrapper) =>
+		hostedEmbed(
+			wrapper,
+			'doc_d1',
+			[
+				{ id: 'doc_d1', title: 'Level one', body: 'First embed.', child: 'doc_d2' },
+				{ id: 'doc_d2', title: 'Level two', body: 'Second embed.', child: 'doc_d3' },
+				{ id: 'doc_d3', title: 'Level three', body: 'Third embed.', child: 'doc_d4' },
+				{ id: 'doc_d4', title: 'Deep jot', body: 'Should not render.' },
+			],
+			['ready', 'ready', 'ready', 'deep']
+		),
+	{ inline: '560px', block: '360px' }
+);
+
+/** A self-embedding document: the first repeat stops with `EMBED_DEPTH_EXCEEDED`. */
+export const [EmbedCycle, EmbedCycleCompact] = both(
+	(wrapper) =>
+		hostedEmbed(
+			wrapper,
+			'doc_cycle',
+			[{ id: 'doc_cycle', title: 'Loop jot', body: 'Embeds itself.', child: 'doc_cycle' }],
+			['ready', 'deep']
+		),
+	{ inline: '520px', block: '240px' }
+);

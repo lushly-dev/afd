@@ -595,6 +595,42 @@
 			"exportName": "DocumentsTreeMenuCompact"
 		},
 		{
+			"id": "documents-tree-rename",
+			"title": "Loam/Documents/DocumentsTreeRename",
+			"module": "./documents.specimens.ts",
+			"exportName": "DocumentsTreeRename"
+		},
+		{
+			"id": "documents-tree-rename-compact",
+			"title": "Loam/Documents/DocumentsTreeRenameCompact",
+			"module": "./documents.specimens.ts",
+			"exportName": "DocumentsTreeRenameCompact"
+		},
+		{
+			"id": "documents-tree-links",
+			"title": "Loam/Documents/DocumentsTreeLinks",
+			"module": "./documents.specimens.ts",
+			"exportName": "DocumentsTreeLinks"
+		},
+		{
+			"id": "documents-tree-links-compact",
+			"title": "Loam/Documents/DocumentsTreeLinksCompact",
+			"module": "./documents.specimens.ts",
+			"exportName": "DocumentsTreeLinksCompact"
+		},
+		{
+			"id": "documents-inspector",
+			"title": "Loam/Documents/DocumentsInspector",
+			"module": "./documents.specimens.ts",
+			"exportName": "DocumentsInspector"
+		},
+		{
+			"id": "documents-inspector-compact",
+			"title": "Loam/Documents/DocumentsInspectorCompact",
+			"module": "./documents.specimens.ts",
+			"exportName": "DocumentsInspectorCompact"
+		},
+		{
 			"id": "app-tree",
 			"title": "Loam/Documents/AppTree",
 			"module": "./documents.specimens.ts",
@@ -689,6 +725,42 @@
 			"title": "Loam/Editor/EmbedLinkCompact",
 			"module": "./editor.specimens.ts",
 			"exportName": "EmbedLinkCompact"
+		},
+		{
+			"id": "editor-embed-ready",
+			"title": "Loam/Editor/EmbedReady",
+			"module": "./editor.specimens.ts",
+			"exportName": "EmbedReady"
+		},
+		{
+			"id": "editor-embed-ready-compact",
+			"title": "Loam/Editor/EmbedReadyCompact",
+			"module": "./editor.specimens.ts",
+			"exportName": "EmbedReadyCompact"
+		},
+		{
+			"id": "editor-embed-depth",
+			"title": "Loam/Editor/EmbedDepth",
+			"module": "./editor.specimens.ts",
+			"exportName": "EmbedDepth"
+		},
+		{
+			"id": "editor-embed-depth-compact",
+			"title": "Loam/Editor/EmbedDepthCompact",
+			"module": "./editor.specimens.ts",
+			"exportName": "EmbedDepthCompact"
+		},
+		{
+			"id": "editor-embed-cycle",
+			"title": "Loam/Editor/EmbedCycle",
+			"module": "./editor.specimens.ts",
+			"exportName": "EmbedCycle"
+		},
+		{
+			"id": "editor-embed-cycle-compact",
+			"title": "Loam/Editor/EmbedCycleCompact",
+			"module": "./editor.specimens.ts",
+			"exportName": "EmbedCycleCompact"
 		},
 		{
 			"id": "identity-sign-in",

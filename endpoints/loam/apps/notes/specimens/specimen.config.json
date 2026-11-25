@@ -15,6 +15,30 @@
 			"exportName": "EditorCompact"
 		},
 		{
+			"id": "notes-editor-picker",
+			"title": "Loam/Notes/EditorPicker",
+			"module": "./notes.specimens.ts",
+			"exportName": "EditorPicker"
+		},
+		{
+			"id": "notes-editor-picker-compact",
+			"title": "Loam/Notes/EditorPickerCompact",
+			"module": "./notes.specimens.ts",
+			"exportName": "EditorPickerCompact"
+		},
+		{
+			"id": "notes-editor-embeds",
+			"title": "Loam/Notes/EditorEmbeds",
+			"module": "./notes.specimens.ts",
+			"exportName": "EditorEmbeds"
+		},
+		{
+			"id": "notes-editor-embeds-compact",
+			"title": "Loam/Notes/EditorEmbedsCompact",
+			"module": "./notes.specimens.ts",
+			"exportName": "EditorEmbedsCompact"
+		},
+		{
 			"id": "notes-conflict",
 			"title": "Loam/Notes/Keep a draft",
 			"module": "./notes.specimens.ts",
