@@ -82,8 +82,11 @@ class Expectation:
     """Assertions on the data field (JSONPath-like keys)."""
 
     error: dict[str, Any] | None = None
-    """Expected error details (for failure tests). Keys: code and message (strings), and
-    suggestion: a string the suggestion must contain, or an assertion matcher."""
+    """Expected error details (for failure tests). Keys: ``code`` (equals), ``message``
+    (contains), ``suggestion``: a string the suggestion must contain or an assertion matcher, and
+    ``recovery``: the structured recovery (``spec/recovery.md``), checked like ``data``, so each
+    named field must match and others are ignored, e.g.
+    ``{"kind": "call", "command": "issue-check"}``."""
 
     reasoning: str | None = None
     """Pattern match on reasoning field."""
@@ -110,6 +113,51 @@ class Step:
 
     continue_on_failure: bool = False
     """Continue scenario even if this step fails."""
+
+    follow: FollowExpectation | None = None
+    """Follow the refusal's ``error.recovery`` (``spec/recovery.md``) and check that it gets
+    further. Only on a step that expects a failure; see :class:`FollowExpectation`."""
+
+
+@dataclass
+class FollowExpectation:
+    """Following a refused step's structured recovery, and what counts as getting further.
+
+    The runner reads the refusal's ``error.recovery`` and takes its step:
+
+    - ``call``: runs ``recovery.command`` with ``recovery.input`` and ``input``, and judges it by
+      ``expect`` (default: it succeeds). With ``thenRetry``, it then repeats the refused call
+      unchanged and judges that by ``retry`` (default: it succeeds).
+    - ``fix-input``: repeats the refused command with its input, ``recovery.input`` and ``input``
+      merged, and judges it by ``expect`` (default: it succeeds).
+    - ``retry``: repeats the refused call unchanged at once, judged by ``expect`` (default: it
+      succeeds). The runner does not wait ``afterMs``; a fixture that models time arranges it.
+
+    Whatever ``expect`` says, a followed call that fails with the same command and code as the
+    refusal fails the step: following the advice led straight back to it. A refusal with no
+    recovery, or one whose kind is ``external`` or ``stop``, has nothing to follow and fails the
+    step; assert those with ``expect.error.recovery`` instead.
+
+    Example (YAML)::
+
+        - command: cell-register
+          input: { branch: fix/b, issues: [302], route: sol/high }
+          expect:
+            success: false
+            error: { code: ALREADY_CLAIMED, recovery: { kind: call, command: issue-check } }
+          follow:
+            expect: { success: true, data: { dispatchable: [305] } }
+    """
+
+    input: dict[str, Any] | None = None
+    """Values for the recovery's ``needs``, and nothing else: a scenario cannot add to or replace
+    what the recovery says. Step references resolve here as in a step's ``input``."""
+
+    expect: Expectation | None = None
+    """What the recovery's own call returns. Default: ``Expectation(success=True)``."""
+
+    retry: Expectation | None = None
+    """``call`` with ``thenRetry`` only: what the repeated refused call returns. Default: success."""
 
 
 @dataclass
@@ -245,6 +293,10 @@ class StepResult:
 
     skipped_reason: str | None = None
     """Step was skipped due to previous failure."""
+
+    follow: list[StepResult] | None = None
+    """The calls a ``follow`` made after the refusal, in order: the recovery's call and, with
+    ``thenRetry``, the repeated refused call. A failure among them fails this step."""
 
 
 @dataclass
@@ -395,7 +447,13 @@ def _quote_list(keys: list[str]) -> str:
 
 
 def _is_finite_number(value: Any) -> bool:
-    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    try:
+        return math.isfinite(float(value))
+    except OverflowError:
+        # An integer too large for a float is Infinity to JavaScript, so not finite.
+        return False
 
 
 def is_assertion_matcher(value: Any, path: str = "value") -> bool:
@@ -440,7 +498,8 @@ def _matcher_value_problem(key: str, value: Any) -> str | None:
     if key in ("exists", "notExists", "not_exists"):
         return None if isinstance(value, bool) else "expects true or false"
     if key == "length":
-        ok = isinstance(value, int) and not isinstance(value, bool) and value >= 0
+        # As JavaScript's Number.isInteger: 2.0 is an integer.
+        ok = _is_finite_number(value) and float(value).is_integer() and value >= 0
         return None if ok else "expects a non-negative integer"
     if key in ("gte", "lte"):
         return None if _is_finite_number(value) else "expects a number"
@@ -480,6 +539,57 @@ def _collect_value_problems(value: Any, path: str, problems: list[str]) -> None:
         _collect_problems(value, path, problems)
 
 
+# The TypeScript runner's matcher keys, in its order: recovery problems are worded as it words
+# them, and Python's ``not_exists`` alias is not among them.
+_TS_MATCHER_KEYS = (
+    "equals",
+    "contains",
+    "matches",
+    "exists",
+    "notExists",
+    "length",
+    "includes",
+    "gte",
+    "lte",
+    "between",
+)
+
+
+def _collect_recovery_problems(value: Any, path: str, problems: list[str]) -> None:
+    """Problems in one recovery assertion, as the TypeScript runner's ``collectValueProblems``
+    finds and words them. Python's ``not_exists`` alias is refused: to the TypeScript runner it
+    is a field name, so a recovery assertion using it would mean different things in the two."""
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            _collect_recovery_problems(item, f"{path}[{index}]", problems)
+        return
+    if not isinstance(value, dict):
+        return
+    matcher_keys = [key for key in value if key in _TS_MATCHER_KEYS]
+    others = [key for key in value if key not in _TS_MATCHER_KEYS]
+    if matcher_keys and others:
+        problems.append(
+            f"Invalid assertion at {path}: {_quote_list(matcher_keys)} "
+            f"{'is a matcher key' if len(matcher_keys) == 1 else 'are matcher keys'} but "
+            f"{_quote_list(others)} {'is' if len(others) == 1 else 'are'} not. "
+            f"Use only matcher keys ({', '.join(_TS_MATCHER_KEYS)}), or nest field assertions "
+            "in their own object. To compare against a literal object, use { equals: ... }."
+        )
+    elif matcher_keys:
+        for key, matcher_value in value.items():
+            problem = _matcher_value_problem(key, matcher_value)
+            if problem:
+                problems.append(f"Invalid assertion at {path}: '{key}' {problem}")
+    elif "not_exists" in value:
+        problems.append(
+            f"Invalid assertion at {path}: 'not_exists' is a field name to the TypeScript runner; "
+            "use 'notExists'"
+        )
+    else:
+        for key, item in value.items():
+            _collect_recovery_problems(item, f"{path}.{key}", problems)
+
+
 def find_expectation_problems(expectation: Expectation) -> list[str]:
     """List every problem in an expectation that would otherwise be silently
     ignored (empty when valid): malformed data assertions, ``data`` assertions on
@@ -492,6 +602,14 @@ def find_expectation_problems(expectation: Expectation) -> list[str]:
             problems.append("'data' assertions are only checked when 'success' is true")
     if expectation.error is not None and expectation.success:
         problems.append("'error' assertions are only checked when 'success' is false")
+    recovery = expectation.error.get("recovery") if expectation.error else None
+    if recovery is not None:
+        if isinstance(recovery, dict):
+            # The top of a recovery holds its fields, never a matcher, as in TypeScript.
+            for key, item in recovery.items():
+                _collect_recovery_problems(item, f"error.recovery.{key}", problems)
+        else:
+            problems.append("'error.recovery' must be an object of the recovery fields to check")
     suggestion = expectation.error.get("suggestion") if expectation.error else None
     if suggestion is not None and not isinstance(suggestion, str):
         before = len(problems)

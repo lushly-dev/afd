@@ -16,6 +16,7 @@ import yaml
 from afd.testing.scenarios.types import (
     Expectation,
     FixtureConfig,
+    FollowExpectation,
     Scenario,
     Step,
     Verification,
@@ -48,6 +49,9 @@ ParseResult = ParseSuccess | ParseError
 # ============================================================================
 # YAML Schema Validation
 # ============================================================================
+
+_FOLLOW_KEYS = ("input", "expect", "retry")
+"""The keys a step's ``follow`` object may hold."""
 
 
 def _validate_scenario_yaml(raw: Any, file_path: str) -> ParseResult:
@@ -197,6 +201,18 @@ def _parse_steps(raw: list[Any], file_path: str) -> list[Step] | ParseError:
         # continueOnFailure / continue_on_failure
         continue_on_failure = bool(item.get("continueOnFailure") or item.get("continue_on_failure"))
 
+        # follow (optional): only on a step that expects a refusal
+        follow = _parse_follow(item.get("follow"), step_num, file_path)
+        if isinstance(follow, ParseError):
+            return follow
+        if follow is not None and expect_result.success:
+            return ParseError(
+                success=False,
+                error=f"Step {step_num} 'follow' needs a refusal to follow: "
+                "set 'expect.success' to false",
+                path=file_path,
+            )
+
         steps.append(
             Step(
                 command=command,
@@ -204,21 +220,69 @@ def _parse_steps(raw: list[Any], file_path: str) -> list[Step] | ParseError:
                 input=step_input,
                 description=description,
                 continue_on_failure=continue_on_failure,
+                follow=follow,
             )
         )
 
     return steps
 
 
-def _parse_expectation(raw: Any, step_num: int, file_path: str) -> Expectation | ParseError | None:
-    """Parse expectation from a step."""
+def _parse_follow(raw: Any, step_num: int, file_path: str) -> FollowExpectation | ParseError | None:
+    """Parse a step's ``follow``: ``true`` (follow with the defaults) or ``{input, expect, retry}``."""
+    if raw is None or raw is False:
+        return None
+    if raw is True:
+        return FollowExpectation()
+    if not isinstance(raw, dict):
+        return ParseError(
+            success=False,
+            error=f"Step {step_num} 'follow' must be true or an object with input, expect and retry",
+            path=file_path,
+        )
+    unknown = [key for key in raw if key not in _FOLLOW_KEYS]
+    if unknown:
+        listed = ", ".join(f"'{key}'" for key in unknown)
+        return ParseError(
+            success=False,
+            error=f"Unknown {'field' if len(unknown) == 1 else 'fields'} {listed} in step "
+            f"{step_num} 'follow' (allowed: {', '.join(_FOLLOW_KEYS)})",
+            path=file_path,
+        )
+
+    follow_input = raw.get("input")
+    if follow_input is not None and not isinstance(follow_input, dict):
+        return ParseError(
+            success=False,
+            error=f"Step {step_num} 'follow.input' must be an object",
+            path=file_path,
+        )
+
+    parsed: dict[str, Expectation | None] = {}
+    for key in ("expect", "retry"):
+        value = raw.get(key)
+        if value is None:
+            parsed[key] = None
+            continue
+        expectation = _parse_expectation(value, step_num, file_path, f"follow.{key}")
+        if isinstance(expectation, ParseError):
+            return expectation
+        parsed[key] = expectation
+
+    return FollowExpectation(input=follow_input, expect=parsed["expect"], retry=parsed["retry"])
+
+
+def _parse_expectation(
+    raw: Any, step_num: int, file_path: str, field: str = "expect"
+) -> Expectation | ParseError | None:
+    """Parse a step's expectation, or the ``follow.expect`` or ``follow.retry`` named by
+    ``field``."""
     if raw is None:
         return None
 
     if not isinstance(raw, dict):
         return ParseError(
             success=False,
-            error=f"Step {step_num} 'expect' must be an object",
+            error=f"Step {step_num} '{field}' must be an object",
             path=file_path,
         )
 
@@ -226,12 +290,13 @@ def _parse_expectation(raw: Any, step_num: int, file_path: str) -> Expectation |
     if "success" not in raw or not isinstance(raw["success"], bool):
         return ParseError(
             success=False,
-            error=f"Step {step_num} 'expect' must have a boolean 'success' field",
+            error=f"Step {step_num} '{field}' must have a boolean 'success' field",
             path=file_path,
         )
 
     # Parse error block
     error: dict[str, Any] | None = None
+    suggestion_problem: str | None = None
     raw_error = raw.get("error")
     if isinstance(raw_error, dict):
         error = {
@@ -242,26 +307,24 @@ def _parse_expectation(raw: Any, step_num: int, file_path: str) -> Expectation |
         }
         # A string the suggestion must contain, or a matcher, as the TypeScript runner reads it.
         suggestion = raw_error.get("suggestion")
-        problem = (
+        suggestion_problem = (
             None
             if suggestion is None or isinstance(suggestion, str)
-            else matcher_problem(suggestion, "expect.error.suggestion")
+            else matcher_problem(suggestion, f"{field}.error.suggestion")
         )
-        if problem:
-            return ParseError(
-                success=False,
-                error=f"Step {step_num} {problem}",
-                path=file_path,
-            )
-        if suggestion is not None:
+        if suggestion is not None and suggestion_problem is None:
             error["suggestion"] = suggestion
+        # The recovery fields to check; find_expectation_problems below judges them.
+        recovery = raw_error.get("recovery")
+        if recovery is not None:
+            error["recovery"] = recovery
 
     # Parse data assertions
     raw_data = raw.get("data")
     if raw_data is not None and not isinstance(raw_data, dict):
         return ParseError(
             success=False,
-            error=f"Step {step_num} 'expect.data' must be an object",
+            error=f"Step {step_num} '{field}.data' must be an object",
             path=file_path,
         )
     data = raw_data
@@ -282,11 +345,16 @@ def _parse_expectation(raw: Any, step_num: int, file_path: str) -> Expectation |
         reasoning=reasoning,
         confidence=confidence,
     )
+    # Every problem is reported, in the TypeScript runner's order: data, then the recovery, then
+    # the suggestion.
     problems = find_expectation_problems(expectation)
+    if suggestion_problem:
+        problems.append(suggestion_problem)
     if problems:
         return ParseError(
             success=False,
-            error=f"Step {step_num}: {'; '.join(problems)}",
+            error=f"Step {step_num}{'' if field == 'expect' else f' {field!r}'}: "
+            + "; ".join(problems),
             path=file_path,
         )
 

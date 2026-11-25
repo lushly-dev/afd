@@ -100,9 +100,27 @@ export async function validateScenario(
 			}
 		}
 
-		// Check for invalid step references
-		if (step.input) {
-			const refs = JSON.stringify(step.input).match(/\$\{\{\s*steps\[(\d+)\]/g);
+		if (step.follow) {
+			if (step.expect?.success !== false) {
+				errors.push(
+					`Step ${stepNum} 'follow' needs a refusal to follow: set 'expect.success' to false`
+				);
+			}
+			for (const [field, expectation] of [
+				['follow.expect', step.follow.expect],
+				['follow.retry', step.follow.retry],
+			] as const) {
+				for (const problem of expectation ? findExpectationProblems(expectation) : []) {
+					errors.push(`Step ${stepNum} '${field}': ${problem}`);
+				}
+			}
+		}
+
+		// Check for invalid step references, in the input and in what a follow supplies
+		if (step.input || step.follow?.input) {
+			const refs = JSON.stringify([step.input, step.follow?.input]).match(
+				/\$\{\{\s*steps\[(\d+)\]/g
+			);
 			if (refs) {
 				for (const ref of refs) {
 					const match = ref.match(/steps\[(\d+)\]/);

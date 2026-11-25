@@ -30,7 +30,7 @@ from botcore_factory.intake import Backlog, not_dispatchable_reasons, read_backl
 from botcore_factory.labels import IN_PROGRESS, PLANNED
 from botcore_factory.lane_base import MERGE_QUEUED, counted_ejections
 from botcore_factory.lock import HostLock
-from botcore_factory.runtime import Factory, Refusal
+from botcore_factory.runtime import EXTERNAL, STOP, Factory, Refusal, call, fix_input
 from botcore_factory.world import Plan, WorldError
 
 #: Cell states that hold a seat; a parked cell (waiting on the owner) frees its seat, and so
@@ -116,6 +116,7 @@ def read_plans(factory: Factory) -> list[Plan]:
             "PLANS_UNREADABLE",
             f"Cannot read the plans' weekly windows: {exc}",
             "Open T3 Code so it refreshes its usage caches, then retry",
+            recovery=EXTERNAL,
         ) from exc
 
 
@@ -251,6 +252,7 @@ def disk_short(factory: Factory, overrides: dict[str, Any]) -> DiskShort | None:
             "Fix what the message names (the lane's slots go beside the checkout, so a checkout "
             "at a filesystem root or inside a submodule has none; host.buildDir must be on a "
             "mounted volume), or set host.minFreeDiskGb to 0 with dial-set to skip the check",
+            recovery=EXTERNAL,
         ) from exc
     if free >= floor:
         return None
@@ -274,6 +276,7 @@ def _validate(issues: list[int], branch: str, route: str) -> None:
             "VALIDATION_ERROR",
             "; ".join(problems),
             "Pass issues (one issue number by default), the cell's branch and its route",
+            recovery=fix_input("issues", "branch", "route"),
         )
 
 
@@ -287,6 +290,7 @@ def _check_issue_count(
             f"{len(issues)} issues for one cell; cells.issuesMax is {most}",
             "Register one cell per issue, or raise cells.issuesMax with dial-set for a package "
             "of issues that share files and pass related_because",
+            recovery=fix_input("issues"),
         )
     if len(issues) > 1 and not (related_because or "").strip():
         raise Refusal(
@@ -294,6 +298,7 @@ def _check_issue_count(
             f"Issues {', '.join(f'#{n}' for n in issues)} share a cell without a reason",
             "Pass related_because, saying what the issues share (the files or the change), or "
             "register one cell per issue",
+            recovery=fix_input("related_because"),
         )
 
 
@@ -315,6 +320,7 @@ def _check_issues(factory: Factory, issues: list[int]) -> Backlog:
                 f"Issue #{number} is claimed by {holder}",
                 "Take another issue from issue-check's dispatchable list; an expired or "
                 "unrecorded claim shows in issue-check's staleClaims for the foreman to release",
+                recovery=call("issue-check"),
                 holder=claim.describe() if claim else None,
             )
         reasons = not_dispatchable_reasons(backlog, issue)
@@ -324,6 +330,7 @@ def _check_issues(factory: Factory, issues: list[int]) -> Backlog:
                 f"Issue #{number} cannot be taken: {'; '.join(reasons)}",
                 "Run triage-issues to plan it (one execution profile, no open owner question), "
                 "or take an issue from issue-check's dispatchable list",
+                recovery=call("issue-check"),
                 reasons=reasons,
             )
     return backlog
@@ -338,6 +345,7 @@ def _check_capacity(factory: Factory, state: dict[str, Any]) -> PlanChoice:
             f"{len(holding_seats(state))} cells hold seats; cells.max is {most}",
             "Start the cell when a seat frees: lane-wait reports merged and queue-room events, "
             "and lane-status says canStartCell",
+            recovery=call("lane-status"),
         )
     plans = cell_plans(read_plans(factory), overrides)
     choice = choose_plan(plans, dials.value(overrides, "plans.ceiling"), factory.world.clock.now())
@@ -347,6 +355,7 @@ def _check_capacity(factory: Factory, state: dict[str, Any]) -> PlanChoice:
             code,
             message,
             suggestion,
+            recovery=EXTERNAL,
             nextReset=choice.next_reset,
         )
     floor = dials.value(overrides, "host.minFreeGb")
@@ -358,10 +367,13 @@ def _check_capacity(factory: Factory, state: dict[str, Any]) -> PlanChoice:
             f"{floor:g}",
             "Wait for running work to finish (lane-wait), or lower host.minFreeGb with dial-set "
             "if the host can spare it",
+            recovery=EXTERNAL,
         )
     short = disk_short(factory, overrides)
     if short is not None:
-        raise Refusal("DISK_LOW", short.message, short.suggestion, freeDiskGb=short.free)
+        raise Refusal(
+            "DISK_LOW", short.message, short.suggestion, recovery=EXTERNAL, freeDiskGb=short.free
+        )
     return choice
 
 
@@ -390,6 +402,7 @@ def register(
                 "ALREADY_EXISTS",
                 f"A cell is already registered for {branch}",
                 f"Register under another branch name, or lane-drop {branch} first",
+                recovery=fix_input("branch"),
             )
         # The host's limits first: a loaded host refuses before anything is read from GitHub.
         choice = _check_capacity(factory, state)
@@ -446,6 +459,7 @@ def find(state: dict[str, Any], branch: str) -> dict[str, Any]:
             "NOT_FOUND",
             f"No cell is registered for {branch}",
             "lane-status lists the cells; register one with cell-register",
+            recovery=call("lane-status"),
         )
     return cast("dict[str, Any]", cell)
 
@@ -454,7 +468,10 @@ def attach(factory: Factory, branch: str, thread: str) -> dict[str, Any]:
     """Record the T3 Code thread delegate_task returned for a registered cell."""
     if not thread.strip():
         raise Refusal(
-            "VALIDATION_ERROR", "thread is empty", "Pass the thread delegate_task returned"
+            "VALIDATION_ERROR",
+            "thread is empty",
+            "Pass the thread delegate_task returned",
+            recovery=fix_input("thread"),
         )
     with factory.store.update(f"cell-attach {branch}") as state:
         cell = find(state, branch)
@@ -476,7 +493,12 @@ def gate_allow(
     there is no caller-supplied bypass on lane-enqueue itself.
     """
     if not reason.strip():
-        raise Refusal("VALIDATION_ERROR", "reason is empty", "Say what the diagnosis found")
+        raise Refusal(
+            "VALIDATION_ERROR",
+            "reason is empty",
+            "Say what the diagnosis found",
+            recovery=fix_input("reason"),
+        )
     with factory.store.update(f"gate-allow {branch}") as state:
         if guard is not None:
             guard(state)
@@ -494,7 +516,12 @@ def measure_approve(factory: Factory, branch: str, reason: str) -> dict[str, Any
     as soon as room opens.
     """
     if not reason.strip():
-        raise Refusal("VALIDATION_ERROR", "reason is empty", "Say why the change is approved")
+        raise Refusal(
+            "VALIDATION_ERROR",
+            "reason is empty",
+            "Say why the change is approved",
+            recovery=fix_input("reason"),
+        )
     with factory.store.update(f"measure-approve {branch}") as state:
         held = next(
             (
@@ -510,6 +537,7 @@ def measure_approve(factory: Factory, branch: str, reason: str) -> dict[str, Any
                 "NOT_FOUND",
                 f"{branch} is not held for gate-change or measure-change",
                 "lane-status lists held branches and their holdReason",
+                recovery=call("lane-status"),
             )
         now = format_time(factory.world.clock.now())
         head = held.get("head", "")
@@ -575,6 +603,7 @@ def ejection_excuse(
             "VALIDATION_ERROR",
             "reason is empty",
             "Say why the ejection was not the branch's fault, e.g. the flake's issue",
+            recovery=fix_input("reason"),
         )
     with factory.store.update(f"ejection-excuse {branch}") as state:
         if guard is not None:
@@ -592,6 +621,7 @@ def ejection_excuse(
                 "NOT_FOUND",
                 f"{branch} has no ejection to excuse",
                 "lane-status shows each cell's ejections; excuse one after it is ejected",
+                recovery=call("lane-status"),
             )
         if latest.get("excused"):
             raise Refusal(
@@ -599,6 +629,7 @@ def ejection_excuse(
                 f"{branch}'s latest ejection (attempt {latest['attempt']}, {latest.get('cause')}) "
                 f"is already excused: {latest['excused']}",
                 "Nothing to do: it does not count toward cells.maxEjections",
+                recovery=STOP,
             )
         now = format_time(factory.world.clock.now())
         latest = {**latest, "excused": reason, "excusedAt": now}
@@ -643,7 +674,12 @@ def drop(
     event; the ejections it answers are closed.
     """
     if not reason.strip():
-        raise Refusal("VALIDATION_ERROR", "reason is empty", "Say why the cell is dropped")
+        raise Refusal(
+            "VALIDATION_ERROR",
+            "reason is empty",
+            "Say why the cell is dropped",
+            recovery=fix_input("reason"),
+        )
     with factory.store.update(f"lane-drop {branch}") as state:
         if guard is not None:
             guard(state)
@@ -661,6 +697,7 @@ def drop(
                     "queue. To stop it, remove the pull request from the merge queue on "
                     "GitHub, lane-resume if the lane is paused, wait for its `ejected` event "
                     "(a minute or two), then lane-drop",
+                    recovery=EXTERNAL,
                 )
             if entry_state == "merging" and entry.get("pr"):
                 pr = entry["pr"]
@@ -676,6 +713,7 @@ def drop(
                         "issues",
                         "Wait for the lane to land it (lane-resume if paused); do not drop a "
                         "merged pull request",
+                        recovery=EXTERNAL,
                     )
                 if progress.pending:
                     if progress.queued:
@@ -698,7 +736,7 @@ def drop(
                             "Wait for the lane to track it, or disable auto-merge on GitHub "
                             "first, then lane-drop"
                         )
-                    raise Refusal("MERGE_QUEUED", why, hint)
+                    raise Refusal("MERGE_QUEUED", why, hint, recovery=EXTERNAL)
         was_full = len(holding_seats(state)) >= dials.value(state["dials"], "cells.max")
         held_seat = cell in holding_seats(state)
         dropped_slots = [
@@ -779,6 +817,7 @@ def _release(factory: Factory, cell: dict[str, Any], reason: str) -> list[int]:
                 f"Releasing #{number} from {cell['branch']} failed: {exc}. Released before it: "
                 f"{', '.join(f'#{n}' for n in released) or 'none'}",
                 "The cell was kept. Check `gh auth status`, then lane-drop again",
+                recovery=EXTERNAL,
                 released=released,
             ) from exc
         released.append(number)
@@ -818,6 +857,7 @@ def _claim(factory: Factory, issues: list[int], claim: Claim) -> None:
                     if left
                     else ""
                 ),
+                recovery=EXTERNAL,
                 left=left,
             ) from exc
 

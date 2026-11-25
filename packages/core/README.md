@@ -26,6 +26,7 @@ This package provides the foundational types used across all AFD packages:
 | `@lushly-dev/afd-core` | All types and helpers; not `connectors` or `platform` | Node.js and browsers |
 | `@lushly-dev/afd-core/commands` | Command types, `defaultExpose`, `validateCommandName`, `createCommandRegistry`, MCP tool conversion | Node.js and browsers |
 | `@lushly-dev/afd-core/result` | `CommandResult`, `success`, `failure`, `error`, `isSuccess`, `isFailure` | Node.js and browsers |
+| `@lushly-dev/afd-core/errors` | `CommandError`, `Recovery`, `isCommandRecovery`, `RECOVERY_KINDS`, `ErrorCodes` and the error helpers | Node.js and browsers |
 | `@lushly-dev/afd-core/connectors` | `GitHubConnector`, `PackageManagerConnector` and their types | Node.js only |
 | `@lushly-dev/afd-core/journal-file` | `FileJournalSink`, a JSON Lines command journal on disk | Node.js only |
 | `@lushly-dev/afd-core/journal-indexeddb` | `IndexedDbJournalSink`, a command journal in IndexedDB, and `IndexedDbJournalError` | Browsers, workers and webviews |

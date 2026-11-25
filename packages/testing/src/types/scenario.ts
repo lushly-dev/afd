@@ -124,6 +124,54 @@ export interface Step {
 
 	/** Continue scenario even if this step fails (default: false) */
 	continueOnFailure?: boolean;
+
+	/**
+	 * Follow the refusal's `error.recovery` (`spec/recovery.md`) and check that it gets further.
+	 * Only on a step that expects a failure; see {@link FollowExpectation}.
+	 */
+	follow?: FollowExpectation;
+}
+
+/**
+ * Following a refused step's structured recovery, and what counts as getting further.
+ *
+ * The runner reads the refusal's `error.recovery` and takes its step:
+ * - `call`: runs `recovery.command` with `recovery.input` and `input`, and judges it by `expect`
+ *   (default: it succeeds). With `thenRetry`, it then repeats the refused call unchanged and
+ *   judges that by `retry` (default: it succeeds).
+ * - `fix-input`: repeats the refused command with its input, `recovery.input` and `input` merged,
+ *   and judges it by `expect` (default: it succeeds).
+ * - `retry`: repeats the refused call unchanged at once, judged by `expect` (default: it
+ *   succeeds). The runner does not wait `afterMs`; a fixture that models time arranges it.
+ *
+ * Whatever `expect` says, a followed call that fails with the same command and code as the
+ * refusal fails the step: following the advice led straight back to it. A refusal with no
+ * recovery, or one whose kind is `external` or `stop`, has nothing to follow and fails the step;
+ * assert those with `expect.error.recovery` instead.
+ *
+ * @example
+ * ```yaml
+ * - command: cell-register
+ *   input: { branch: fix/b, issues: [302], route: sol/high }
+ *   expect:
+ *     success: false
+ *     error: { code: ALREADY_CLAIMED, recovery: { kind: call, command: issue-check } }
+ *   follow:
+ *     expect: { success: true, data: { dispatchable: [305] } }
+ * ```
+ */
+export interface FollowExpectation {
+	/**
+	 * Values for the recovery's `needs`, and nothing else: a scenario cannot add to or replace
+	 * what the recovery says. Step references resolve here as in a step's `input`.
+	 */
+	input?: Record<string, unknown>;
+
+	/** What the recovery's own call returns. Default: `{ success: true }`. */
+	expect?: Expectation;
+
+	/** `call` with `thenRetry` only: what the repeated refused call returns. Default: success. */
+	retry?: Expectation;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -160,6 +208,11 @@ export interface Expectation {
 		 * matcher object such as `{ contains: "view-state-list" }`
 		 */
 		suggestion?: string | AssertionMatcher;
+		/**
+		 * The structured recovery (`spec/recovery.md`), checked like `data`: each named field
+		 * must match, and others are ignored. `{ kind: call, command: issue-check }`.
+		 */
+		recovery?: Record<string, unknown>;
 	};
 
 	/** Pattern match on reasoning field */

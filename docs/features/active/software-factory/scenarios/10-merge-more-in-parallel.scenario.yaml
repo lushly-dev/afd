@@ -21,20 +21,22 @@ steps:
           - { id: workstation, measured: true, suggestedSlots: 4 }
           - { id: mini }
           - { id: laptop }
-  - description: More slots than the host can carry are refused, naming the limit
+  - description: >-
+      More slots than the host can carry are refused, naming the limit; a count within range is
+      then set, and the previous value is returned
     command: dial-set
     input: { key: lane.slots, value: 8 }
     expect:
       success: false
       error:
         code: DIAL_OUT_OF_RANGE
+        recovery: { kind: fix-input, needs: [value] }
         message: '4'
-  - description: A count within range is set, and the previous value is returned
-    command: dial-set
-    input: { key: lane.slots, value: 3 }
-    expect:
-      success: true
-      data: { key: lane.slots, value: 3, previous: 1, default: 1 }
+    follow:
+      input: { value: 3 }
+      expect:
+        success: true
+        data: { key: lane.slots, value: 3, previous: 1, default: 1 }
   - description: The dial reads back
     command: dial-get
     input: { key: lane.slots }
@@ -54,4 +56,5 @@ steps:
       success: false
       error:
         code: HOST_LOADED
+        recovery: { kind: external }
         suggestion: { contains: host.minFreeGb }

@@ -24,7 +24,7 @@ from botcore_factory.adapter import matches
 from botcore_factory.claims import format_time
 from botcore_factory.events import answer, emit
 from botcore_factory.lane_base import MERGE_QUEUED, open_index
-from botcore_factory.runtime import Factory, Refusal
+from botcore_factory.runtime import EXTERNAL, STOP, Factory, Refusal, fix_input
 from botcore_factory.world import LANE_HOST_VARIABLE, Issue, WorldError
 
 FIRST_LINES = 20
@@ -45,12 +45,14 @@ def _worktree(factory: Factory, worktree: str) -> tuple[str, str]:
             "NOT_FOUND",
             f"No worktree at {worktree}: {exc}",
             "Pass the path of the cell's own worktree",
+            recovery=fix_input("worktree"),
         ) from exc
     if not branch:
         raise Refusal(
             "NOT_FOUND",
             f"{worktree} is not on a branch (detached HEAD)",
             "Check out the cell's branch in its worktree, then lane-enqueue again",
+            recovery=EXTERNAL,
         )
     return branch, head
 
@@ -67,6 +69,7 @@ def _check_host(factory: Factory) -> None:
             "lane-enqueue there, since handing a branch over from another machine is not built yet"
             if lane_host
             else "Stop and tell the foreman, who chooses the lane host with lane-host-set",
+            recovery=EXTERNAL,
         )
 
 
@@ -78,6 +81,7 @@ def _check_clean(factory: Factory, worktree: str) -> None:
             "DIRTY_WORKTREE",
             f"{worktree} has uncommitted changes: {shown}",
             "Commit them with git commit (or remove them), then lane-enqueue again",
+            recovery=EXTERNAL,
             files=files,
         )
 
@@ -90,6 +94,7 @@ def _check_review(factory: Factory, worktree: str, head: str) -> None:
             "The repository adapter names no review_evidence, so no head can show its review",
             "Set review_evidence under [plugins.factory]: the command that confirms the review "
             "recorded for {head}",
+            recovery=EXTERNAL,
         )
     argv = [part.replace("{head}", head).replace("{worktree}", worktree) for part in command]
     try:
@@ -106,6 +111,7 @@ def _check_review(factory: Factory, worktree: str, head: str) -> None:
             f"No passing review is recorded for {head}" + (f": {why[0][:300]}" if why else ""),
             "Run prepare-pr in lane mode on this head (it records the review), then "
             "lane-enqueue again",
+            recovery=EXTERNAL,
         )
 
 
@@ -136,6 +142,7 @@ def _check_gate(
             f"{branch} was ejected ({cause}) and its gate edits could not be read: {exc}",
             "Try lane-enqueue again; if it fails again, check the network and origin, and that "
             "the worktree still holds the ejected head's history",
+            recovery=EXTERNAL,
         ) from exc
     if not edits:
         return
@@ -147,6 +154,7 @@ def _check_gate(
         f"{branch} was ejected ({cause}) and its repair edits gate paths: {', '.join(edits)}",
         "Repair it without editing the gate; if a diagnosis on the stronger route finds the gate "
         "edit is the right repair, the foreman records that with gate-allow",
+        recovery=EXTERNAL,
         paths=edits,
     )
 
@@ -177,6 +185,7 @@ def _prequeue(factory: Factory, worktree: str) -> list[dict[str, Any]]:
                 "PREQUEUE_FAILED",
                 f"The {stage.name} stage failed: {lines[0] if lines else 'no output'}",
                 fix[0].upper() + fix[1:],
+                recovery=EXTERNAL,
                 stage=stage.name,
                 lines=lines,
                 passed=[entry["name"] for entry in stages],
@@ -215,6 +224,7 @@ def _read_test_changes(
             f"Could not read test changes for {branch}: {exc}",
             "Check that origin is reachable and the adapter's test_changes command prints valid "
             "JSON, then lane-enqueue again",
+            recovery=EXTERNAL,
         ) from exc
 
 
@@ -224,6 +234,7 @@ def _check_inputs(factory: Factory, branch: str, body_file: str | None) -> None:
             "IGNORED_BRANCH",
             f"{branch} is a branch the lane never takes (ignore_branches)",
             "Merge it by hand: the release PR, for one, is operator work",
+            recovery=STOP,
         )
     if body_file is not None:
         path = PurePosixPath(body_file.replace("\\", "/"))
@@ -232,6 +243,7 @@ def _check_inputs(factory: Factory, branch: str, body_file: str | None) -> None:
                 "BODY_FILE_OUTSIDE",
                 f"body_file must be a path inside the worktree: {body_file!r}",
                 "Pass the PR body's path relative to the worktree, e.g. pr-body.md",
+                recovery=fix_input("body_file"),
             )
 
 
@@ -278,6 +290,7 @@ def _find_cell(state: dict[str, Any], branch: str) -> dict[str, Any]:
             f"No cell is registered for {branch}",
             "The foreman registers a cell with cell-register before starting it; a branch "
             "without one cannot be queued",
+            recovery=EXTERNAL,
         )
     cell_dict: dict[str, Any] = cell
     return cell_dict
@@ -310,6 +323,7 @@ def enqueue(
                     f"{branch}'s gate changes could not be read against "
                     f"{factory.config.base_branch}: {exc}",
                     "Check the network and origin, then lane-enqueue again",
+                    recovery=EXTERNAL,
                 ) from exc
         changed_gate = [
             path
@@ -329,12 +343,14 @@ def enqueue(
                 "the branch: nothing can be pushed to it",
                 "Wait: the lane lands it when it merges, and ejects it when it leaves the "
                 "queue, after which lane-enqueue takes the new head",
+                recovery=EXTERNAL,
             )
         if factory.world.git.head(worktree) != head or factory.world.git.uncommitted(worktree):
             raise Refusal(
                 "HEAD_MOVED",
                 f"{worktree} changed while its checks ran (they checked {head})",
                 "Commit everything, then lane-enqueue again: the checks run on the new head",
+                recovery=EXTERNAL,
             )
         try:
             factory.world.git.push_queue_ref(worktree, branch, head)
@@ -343,6 +359,7 @@ def enqueue(
                 "WRITE_FAILED",
                 f"Pushing {head} to refs/factory/queue/{branch} on origin failed: {exc}",
                 "Nothing was queued. Check the network and origin, then lane-enqueue again",
+                recovery=EXTERNAL,
             ) from exc
         now = format_time(factory.world.clock.now())
         attempt = factory.store.next_attempt(branch)

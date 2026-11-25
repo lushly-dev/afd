@@ -12,6 +12,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from afd.core.errors import is_command_recovery
 from afd.testing.scenarios.types import (
     AssertionResult,
     Expectation,
@@ -103,6 +104,22 @@ def evaluate_result(actual: dict[str, Any], expected: Expectation) -> Evaluation
             assertions.append(msg_assertion)
             if not msg_assertion.passed:
                 all_passed = False
+
+        expected_recovery = expected.error.get("recovery")
+        if expected_recovery is not None:
+            actual_recovery = error_dict.get("recovery")
+            if actual_recovery is None:
+                recovery_assertions = [_absent_assertion("error.recovery", expected_recovery)]
+            elif not is_command_recovery(actual_recovery):
+                recovery_assertions = [_unreadable_recovery(actual_recovery, expected_recovery)]
+            else:
+                recovery_assertions = _evaluate_data_assertions(
+                    actual_recovery, expected_recovery, "error.recovery"
+                )
+            for assertion in recovery_assertions:
+                assertions.append(assertion)
+                if not assertion.passed:
+                    all_passed = False
 
         expected_suggestion = expected.error.get("suggestion")
         if expected_suggestion is not None:
@@ -251,6 +268,34 @@ def _evaluate_assertion(path: str, actual: Any, expected: Any, matcher: str) -> 
         expected=expected,
         actual=actual,
         description=describe_assertion(path, actual, expected, matcher, passed),
+    )
+
+
+def _unreadable_recovery(actual: Any, expected: Any) -> AssertionResult:
+    """A recovery that breaks ``$defs/recovery`` is one every reader drops (``spec/recovery.md``,
+    rule 7), so asserting its fields would certify a step no caller sees."""
+    return AssertionResult(
+        path="error.recovery",
+        matcher="readable",
+        passed=False,
+        expected=expected,
+        actual=actual,
+        description=(
+            "error.recovery is unreadable: it breaks $defs/recovery, so a reader drops it "
+            "(spec/recovery.md, rule 7)"
+        ),
+    )
+
+
+def _absent_assertion(path: str, expected: Any) -> AssertionResult:
+    """A failed assertion for a value the expectation names but the result does not hold."""
+    return AssertionResult(
+        path=path,
+        matcher="exists",
+        passed=False,
+        expected=expected,
+        actual=None,
+        description=describe_assertion(path, None, True, "exists", False),
     )
 
 

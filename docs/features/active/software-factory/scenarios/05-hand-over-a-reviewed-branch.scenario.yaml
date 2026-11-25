@@ -16,6 +16,7 @@ steps:
       success: false
       error:
         code: DIRTY_WORKTREE
+        recovery: { kind: external }
         message: src/parse.ts
         suggestion: { contains: commit }
   - description: A head with no recorded review is refused, whatever the caller says
@@ -25,6 +26,7 @@ steps:
       success: false
       error:
         code: REVIEW_MISSING
+        recovery: { kind: external }
         suggestion: { contains: prepare-pr }
   - description: A branch with no registered cell is refused
     command: lane-enqueue
@@ -33,6 +35,7 @@ steps:
       success: false
       error:
         code: NOT_FOUND
+        recovery: { kind: external }
         suggestion: { contains: cell-register }
   - description: A reviewed, committed branch passes the cheap checks and joins the queue
     command: lane-enqueue

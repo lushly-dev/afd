@@ -32,7 +32,7 @@ from botcore_factory.lane import Step, step
 from botcore_factory.lane_base import AT_THE_FRONT
 from botcore_factory.lock import HostLock, LaneLocked
 from botcore_factory.records import make
-from botcore_factory.runtime import Factory, Refusal
+from botcore_factory.runtime import EXTERNAL, Factory, Refusal, call
 from botcore_factory.state import StateLocked
 from botcore_factory.world import LANE_HOST_VARIABLE, WorldError, nvmrc_version
 
@@ -55,12 +55,14 @@ def require_host(factory: Factory) -> str:
             "No lane host is chosen for this repository",
             "lane-host-list shows the connected machines and which are ready; choose one with "
             "lane-host-set",
+            recovery=call("lane-host-list"),
         )
     if host != me:
         raise Refusal(
             "NOT_LANE_HOST",
             f"The lane host is {host}, not this machine ({me})",
             f"Start the lane on {host}, or move it here with lane-host-set",
+            recovery=EXTERNAL,
         )
     return me
 
@@ -73,6 +75,7 @@ def require_check(factory: Factory) -> None:
             "The repository adapter names no required_check",
             "Set required_check under [plugins.factory] and make it a required check on the base "
             "branch: the lane merges on its own only while it is",
+            recovery=EXTERNAL,
         )
     base = factory.config.base_branch
     required = factory.world.github.required_checks(base)
@@ -82,6 +85,7 @@ def require_check(factory: Factory) -> None:
             f"{name} is not a required check on {base} (required: {', '.join(required) or 'none'})",
             f"Make {name} a required status check on {base} (branch protection or a ruleset): "
             "the lane merges on its own only while it is",
+            recovery=EXTERNAL,
         )
 
 
@@ -154,6 +158,7 @@ def require_toolchains(factory: Factory, then: str) -> None:
             "NODE_UNPINNED",
             f"The repository's .nvmrc names {spec!r}, an alias the lane does not resolve",
             f"Pin a version number in .nvmrc (such as 26), then {then}",
+            recovery=EXTERNAL,
             nvmrc=spec,
         )
     if spec and node is None:
@@ -161,6 +166,7 @@ def require_toolchains(factory: Factory, then: str) -> None:
             "NODE_MISSING",
             f"Node {spec}, which the repository's .nvmrc names, is not installed on this machine",
             f"Install it with `fnm install {spec}` (or `nvm install {spec}`), then {then}",
+            recovery=EXTERNAL,
             nvmrc=spec,
         )
     mismatches = toolchain_mismatches(factory)
@@ -169,6 +175,7 @@ def require_toolchains(factory: Factory, then: str) -> None:
             "TOOLCHAIN_MISMATCH",
             f"This machine's toolchains differ from the repository's pins: {'; '.join(mismatches)}",
             f"Install the pinned versions{f' for Node {spec}' if spec else ''}, then {then}",
+            recovery=EXTERNAL,
             mismatches=mismatches,
         )
 
@@ -197,7 +204,8 @@ def lane_start(factory: Factory) -> dict[str, Any]:
             "LANE_LOCKED",
             f"A lane already runs on this machine: pid {live.get('pid')} for "
             f"{live.get('repository', 'a repository')}",
-            "lane-status says what it is doing; stop it with lane-stop first",
+            "Stop it with lane-stop first; lane-status says what it is doing",
+            recovery=call("lane-stop", then_retry=True),
         )
     require_check(factory)
     require_toolchains(factory, "lane-start again")
@@ -208,7 +216,10 @@ def lane_start(factory: Factory) -> dict[str, Any]:
             lock.acquire(os.getpid(), repository=repository)
         except LaneLocked as locked:
             raise Refusal(
-                "LANE_LOCKED", f"A lane already runs here: {locked}", "Stop it with lane-stop first"
+                "LANE_LOCKED",
+                f"A lane already runs here: {locked}",
+                "Stop it with lane-stop first",
+                recovery=call("lane-stop", then_retry=True),
             ) from locked
         try:
             pid = factory.world.processes.start_detached(
@@ -222,6 +233,7 @@ def lane_start(factory: Factory) -> dict[str, Any]:
                 "START_FAILED",
                 f"The lane process did not start: {exc}",
                 "Check the Python environment botcore-factory is installed in",
+                recovery=EXTERNAL,
             ) from exc
         lock.hand_over(pid)
         at = _now(factory)
@@ -306,6 +318,7 @@ def lane_stop(factory: Factory, force: bool) -> dict[str, Any]:
                 f"The lane process (pid {holder['pid']}) could not be confirmed as the one "
                 "that took the lock, so it was not stopped",
                 "Stop it from its own machine, or check the pid by hand",
+                recovery=EXTERNAL,
             )
         if state["lane"].get("running") or holder is not None:
             pid = holder.get("pid") if holder else None if foreign else state["lane"].get("pid")
@@ -383,6 +396,7 @@ def run_loop(
             "LANE_LOCKED",
             f"A lane already runs here: pid {holder.get('pid')}",
             "Stop it with lane-stop first",
+            recovery=call("lane-stop", then_retry=True),
         )
     if holder is None:
         lock.acquire(os.getpid(), repository=factory.world.github.repository())

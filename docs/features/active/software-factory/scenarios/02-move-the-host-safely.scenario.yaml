@@ -8,20 +8,18 @@ fixture:
   file: fixtures/running.json
   base: fresh.json
 steps:
-  - description: Moving a busy lane at once is refused, with the way to drain it first
+  - description: >-
+      Moving a busy lane at once is refused, with the way to drain it first; following that, a
+      planned move drains the lane and moves at queue-empty
     command: lane-host-set
     input: { id: mini }
     expect:
       success: false
       error:
         code: LANE_BUSY
+        recovery: { kind: fix-input, input: { drain: true } }
         suggestion: { contains: drain }
-  - description: A planned move drains the lane and moves at queue-empty
-    command: lane-host-set
-    input: { id: mini, drain: true }
-    expect:
-      success: true
-      data: { draining: true }
+    follow: { expect: { success: true, data: { draining: true } } }
   - description: An unknown machine is refused
     command: lane-host-set
     input: { id: no-such-machine }
@@ -29,7 +27,9 @@ steps:
       success: false
       error:
         code: NOT_FOUND
+        recovery: { kind: call, command: lane-host-list }
         suggestion: { contains: lane-host-list }
+    follow: true
   - description: Until then the host is unchanged and no new cell may start
     command: lane-status
     expect:

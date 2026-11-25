@@ -17,6 +17,7 @@ steps:
       success: false
       error:
         code: GATE_EDIT_IN_REPAIR
+        recovery: { kind: external }
         message: scripts/check-file-size.mjs
         suggestion: { contains: gate-allow }
   - description: After a diagnosis, the foreman records that the gate edit is the right repair

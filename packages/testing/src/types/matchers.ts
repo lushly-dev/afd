@@ -177,6 +177,14 @@ export function findExpectationProblems(
 	if (expectation.error && expectation.success) {
 		problems.push("'error' assertions are only checked when 'success' is false");
 	}
+	const recovery = expectation.error?.recovery;
+	if (recovery !== undefined) {
+		if (!isPlainObject(recovery)) {
+			problems.push("'error.recovery' must be an object of the recovery fields to check");
+		} else {
+			collectProblems(recovery, 'error.recovery', problems);
+		}
+	}
 	const suggestion = expectation.error?.suggestion;
 	if (suggestion !== undefined && typeof suggestion !== 'string') {
 		const before = problems.length;

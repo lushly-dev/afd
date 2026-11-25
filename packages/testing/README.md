@@ -939,10 +939,52 @@ expect:
     message: "Todo not found"    # Optional: message contains this text
     suggestion:                  # Optional: a string to contain, or a matcher
       contains: todo-list
+    recovery:                    # Optional: the structured recovery, checked like data
+      kind: call
+      command: todo-list
 ```
 
 `data` is only checked when `success` is `true`, and `error` only when it is
 `false`; the parser rejects the other combinations.
+
+#### Following a refusal's recovery
+
+`follow` on a step that expects a failure takes the step the refusal's
+`error.recovery` describes ([`spec/recovery.md`](../../spec/recovery.md)) and fails
+the step unless it gets further:
+
+```yaml
+- command: todo-get
+  input: { id: todo-42 }
+  expect:
+    success: false
+    error: { code: NOT_FOUND, recovery: { kind: call, command: todo-list } }
+  follow:
+    expect: { success: true, data: { total: 1 } }   # Default: { success: true }
+```
+
+- **`call`** runs `recovery.command` with `recovery.input` and `follow.input`, judged
+  by `follow.expect`. With `thenRetry` it then repeats the refused call, judged by
+  `follow.retry` (default: it succeeds).
+- **`fix-input`** repeats the refused command with its input, `recovery.input` and
+  `follow.input` merged, judged by `follow.expect`.
+- **`retry`** repeats the refused call at once, judged by `follow.expect`. The runner
+  does not wait `afterMs`.
+- `follow.input` gives exactly the fields the recovery `needs`, and nothing else: a
+  scenario cannot add to or replace what the recovery says, so a wrong recovery stays
+  wrong. It may use step references, like a step's `input`.
+- A recovery that `$defs/recovery` refuses is unreadable and fails the step, as one
+  that names a field in both `input` and `needs` does
+  ([rules 3 and 7](../../spec/recovery.md#the-field)). `expect.error.recovery` fails on
+  an unreadable recovery too, since no reader keeps it.
+- A followed call that fails with the refused command's own code fails the step,
+  whatever `follow.expect` says: the advice led back to the refusal.
+- A refusal with no recovery, or an `external` or `stop` one, has nothing to follow
+  and fails the step; assert those with `expect.error.recovery`.
+
+`follow: true` follows with the defaults. The calls run through the executor like
+any step, so later steps see the state they leave. Each one's result is in the
+step result's `follow` list. The Python runner reads the same keys.
 
 ## Usage
 

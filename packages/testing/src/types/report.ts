@@ -75,6 +75,12 @@ export interface StepResult {
 
 	/** Step was skipped due to previous failure */
 	skippedReason?: string;
+
+	/**
+	 * The calls a `follow` made after the refusal, in order: the recovery's call and, with
+	 * `thenRetry`, the repeated refused call. A failure among them fails this step.
+	 */
+	follow?: StepResult[];
 }
 
 /**

@@ -31,21 +31,23 @@ steps:
         canStartCell: true
         plan: { id: plan-a, pace: 10.71 }
         nextIssue: 101
-  - description: A cell with two issues is refused while one issue per cell is the rule
+  - description: >-
+      A cell with two issues is refused while one issue per cell is the rule; registered with one,
+      before the cell starts, it claims its issue and is assigned the plan
     command: cell-register
-    input: { branch: fix/core-pair, issues: [101, 102], route: sol/high }
+    input: { branch: fix/parser-empty-input, issues: [101, 102], route: opus/medium }
     expect:
       success: false
       error:
         code: TOO_MANY_ISSUES
+        recovery: { kind: fix-input, needs: [issues] }
         suggestion: { contains: cells.issuesMax }
-  - description: Registering before the cell starts claims its issue and assigns the plan
-    command: cell-register
-    input: { branch: fix/parser-empty-input, issues: [101], route: opus/medium }
-    expect:
-      success: true
-      data:
-        cell: { branch: fix/parser-empty-input, plan: plan-a, issues: [101] }
+    follow:
+      input: { issues: [101] }
+      expect:
+        success: true
+        data:
+          cell: { branch: fix/parser-empty-input, plan: plan-a, issues: [101] }
   - description: Once delegate_task returns, its thread is attached to the cell
     command: cell-attach
     input: { branch: fix/parser-empty-input, thread: thread-1 }
@@ -60,7 +62,12 @@ steps:
       success: false
       error:
         code: ALREADY_EXISTS
+        recovery: { kind: fix-input, needs: [branch] }
         suggestion: { contains: lane-drop }
+    # A new branch gets past the duplicate, to the next limit: one cell at a time.
+    follow:
+      input: { branch: fix/parser-other }
+      expect: { success: false, error: { code: CELLS_FULL } }
   - description: Another cell beyond cells.max is refused before anything is spent on it
     command: cell-register
     input: { branch: fix/client-retry, issues: [103], route: sol/high }
@@ -68,4 +75,6 @@ steps:
       success: false
       error:
         code: CELLS_FULL
+        recovery: { kind: call, command: lane-status }
         suggestion: { contains: lane-wait }
+    follow: { expect: { success: true, data: { canStartCell: false } } }

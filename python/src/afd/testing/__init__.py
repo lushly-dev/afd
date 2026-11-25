@@ -101,6 +101,7 @@ from afd.testing.mcp import (
 from afd.testing.scenarios import (
     AssertionMatcher,
     Expectation,
+    FollowExpectation,
     InProcessExecutor,
     InProcessExecutorConfig,
     Scenario,
@@ -156,6 +157,7 @@ __all__ = [
     "Scenario",
     "Step",
     "Expectation",
+    "FollowExpectation",
     "AssertionMatcher",
     "StepResult",
     "ScenarioResult",

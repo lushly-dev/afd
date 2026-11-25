@@ -12,7 +12,7 @@ import dataclasses
 import inspect
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -21,10 +21,13 @@ from pydantic import BaseModel
 
 from afd.core.actor import Actor
 from afd.core.commands import CommandContext
+from afd.core.errors import is_command_recovery
 from afd.core.wire import to_wire
 from afd.testing.scenarios.evaluator import evaluate_result, get_value_at_path
 from afd.testing.scenarios.types import (
     AssertionResult,
+    Expectation,
+    FollowExpectation,
     Scenario,
     ScenarioOutcome,
     ScenarioResult,
@@ -104,14 +107,20 @@ def _format_assertion_failures(failures: list[AssertionResult]) -> str:
         return "Assertions failed"
 
     if len(failures) == 1:
-        f = failures[0]
-        return f"{f.path}: expected {_format_value(f.expected)}, got {_format_value(f.actual)}"
+        return _format_assertion_failure(failures[0])
 
-    lines = [
-        f"  - {f.path}: expected {_format_value(f.expected)}, got {_format_value(f.actual)}"
-        for f in failures
-    ]
+    lines = [f"  - {_format_assertion_failure(f)}" for f in failures]
     return f"{len(failures)} assertions failed:\n" + "\n".join(lines)
+
+
+def _format_assertion_failure(failure: AssertionResult) -> str:
+    # An unreadable recovery can look like the expected one, so say why it fails.
+    if failure.matcher == "readable" and failure.description:
+        return f"{failure.description}; got {_format_value_as_typescript(failure.actual)}"
+    return (
+        f"{failure.path}: expected {_format_value(failure.expected)}, "
+        f"got {_format_value(failure.actual)}"
+    )
 
 
 def _format_value(value: Any) -> str:
@@ -130,6 +139,22 @@ def _format_value(value: Any) -> str:
         except (TypeError, ValueError):
             return "[object]"
     return str(value)
+
+
+def _format_value_as_typescript(value: Any) -> str:
+    """``value`` as the TypeScript runner's ``formatValue`` prints it, for a message both
+    runners word alike: compact JSON, cut at 60 characters, and a string cut at 40."""
+    import json
+
+    if value is None:
+        return "null"
+    if isinstance(value, str):
+        return f'"{value[:40]}..."' if len(value) > 40 else f'"{value}"'
+    try:
+        text = json.dumps(value, separators=(",", ":"), ensure_ascii=False)
+    except (TypeError, ValueError):
+        return "[object]"
+    return text[:60] + "..." if isinstance(value, (dict, list)) and len(text) > 60 else text
 
 
 _TEST_ACTOR = Actor(kind="test")
@@ -235,6 +260,14 @@ class InProcessExecutor:
                     input=resolved_input,
                     description=step.description,
                     continue_on_failure=step.continue_on_failure,
+                    follow=(
+                        dataclasses.replace(
+                            step.follow,
+                            input=resolve_step_references(step.follow.input, step_outputs),
+                        )
+                        if step.follow is not None and step.follow.input is not None
+                        else step.follow
+                    ),
                 ),
                 step_num,
             )
@@ -292,8 +325,17 @@ class InProcessExecutor:
         )
 
     async def _execute_step(self, step: Step, step_num: int) -> StepResult:
-        """Execute a single step in-process."""
+        """Execute a single step in-process, and follow its refusal's recovery when asked."""
         step_id = f"step-{step_num}"
+        result = await self._run_call(step, step_id)
+        # Follow only a refusal the step itself expected: a step whose own expectation failed
+        # has already failed, and following it would only add noise.
+        if step.follow is not None and result.outcome == "pass":
+            result = await follow_recovery(step, step.follow, step_id, result, self._run_call)
+        return result
+
+    async def _run_call(self, step: Step, step_id: str) -> StepResult:
+        """Call ``step.command`` with ``step.input`` and judge the result by ``step.expect``."""
         start_time = time.monotonic()
 
         try:
@@ -340,6 +382,149 @@ class InProcessExecutor:
                 error=create_step_error("command_failed", str(exc), cause=exc),
                 assertions=[],
             )
+
+
+# ============================================================================
+# Following a recovery
+# ============================================================================
+
+RunCall = Callable[[Step, str], Awaitable[StepResult]]
+"""Runs one call as a step and judges it: ``(step, step_id) -> StepResult``."""
+
+_SUCCEEDS = Expectation(success=True)
+
+
+def _follow_failed(
+    result: StepResult, message: str, follow: list[StepResult] | None = None
+) -> StepResult:
+    """The refused step's result, failed with ``message`` and the follow calls made so far."""
+    return dataclasses.replace(
+        result,
+        outcome="fail",
+        error=create_step_error("expectation_mismatch", f"follow: {message}"),
+        follow=follow or None,
+    )
+
+
+def _same_refusal(refused: Step, refusal: dict[str, Any], call: StepResult) -> bool:
+    """Whether a followed call came straight back to the refusal it was meant to get past."""
+    result = call.command_result
+    if call.command != refused.command or not isinstance(result, dict):
+        return False
+    code = _error_of(result).get("code")
+    return (
+        result.get("success") is False
+        and code is not None
+        and code == _error_of(refusal).get("code")
+    )
+
+
+def _error_of(result: dict[str, Any]) -> dict[str, Any]:
+    error = result.get("error")
+    return error if isinstance(error, dict) else {}
+
+
+def _dict_or_empty(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+async def follow_recovery(
+    step: Step,
+    follow: FollowExpectation,
+    step_id: str,
+    result: StepResult,
+    run_call: RunCall,
+) -> StepResult:
+    """Take the step a refusal's structured recovery describes and judge whether it got further
+    (``spec/recovery.md``, "What a test can check").
+
+    The calls run through ``run_call`` like any step, so they change the state later steps see,
+    as following the advice would. Returns ``result`` with ``follow`` set to the calls made, or
+    failed with a ``follow: ...`` message when the recovery cannot be followed or did not get
+    further.
+    """
+    refusal = result.command_result if isinstance(result.command_result, dict) else {}
+    if refusal.get("success") is not False:
+        return _follow_failed(result, "the step did not return a refusal to follow")
+    code = _error_of(refusal).get("code")
+    recovery = _error_of(refusal).get("recovery")
+    if recovery is None:
+        return _follow_failed(result, f"the {code} refusal carries no recovery to follow")
+    if not is_command_recovery(recovery):
+        return _follow_failed(result, f"the {code} refusal's recovery is unreadable")
+    kind = recovery["kind"]
+    if kind in ("external", "stop"):
+        return _follow_failed(
+            result,
+            f"a {kind} recovery has nothing a program can follow; "
+            "assert it with expect.error.recovery",
+        )
+    then_retry = recovery.get("thenRetry") is True
+    if follow.retry is not None and not (kind == "call" and then_retry):
+        return _follow_failed(result, "'follow.retry' needs a call recovery with thenRetry")
+    recovery_input = _dict_or_empty(recovery.get("input"))
+    needs: list[str] = recovery.get("needs") or []
+    # Rule 3: what the recovery knows goes in input, what the caller chooses in needs, never both.
+    both = [field for field in needs if field in recovery_input]
+    if both:
+        return _follow_failed(
+            result, f"the recovery names {', '.join(both)} in both input and needs"
+        )
+    # The scenario chooses only what the recovery leaves to the caller, so it cannot correct a
+    # recovery that is wrong.
+    supplied = follow.input or {}
+    unneeded = [field for field in supplied if field not in needs]
+    if unneeded:
+        return _follow_failed(
+            result,
+            f"follow.input gives {', '.join(unneeded)}, "
+            "which the recovery does not leave to the caller",
+        )
+    missing = [field for field in needs if field not in supplied]
+    if missing:
+        pronoun = "them" if len(missing) > 1 else "it"
+        return _follow_failed(
+            result, f"the recovery needs {', '.join(missing)}; give {pronoun} in follow.input"
+        )
+
+    calls: list[Step] = []
+    if kind == "call":
+        calls.append(
+            Step(
+                command=recovery["command"],
+                input={**recovery_input, **supplied},
+                expect=follow.expect or _SUCCEEDS,
+            )
+        )
+        if then_retry:
+            calls.append(
+                Step(command=step.command, input=step.input, expect=follow.retry or _SUCCEEDS)
+            )
+    elif kind == "fix-input":
+        calls.append(
+            Step(
+                command=step.command,
+                input={**(step.input or {}), **recovery_input, **supplied},
+                expect=follow.expect or _SUCCEEDS,
+            )
+        )
+    else:
+        calls.append(
+            Step(command=step.command, input=step.input, expect=follow.expect or _SUCCEEDS)
+        )
+
+    made: list[StepResult] = []
+    for index, call in enumerate(calls):
+        outcome = await run_call(call, f"{step_id}.follow.{index + 1}")
+        made.append(outcome)
+        if _same_refusal(step, refusal, outcome):
+            return _follow_failed(
+                result, f"{call.command} came back with the same {code} refusal", made
+            )
+        if outcome.outcome != "pass":
+            why = outcome.error.message if outcome.error else "its expectation did not hold"
+            return _follow_failed(result, f"{call.command}: {why}", made)
+    return dataclasses.replace(result, follow=made)
 
 
 # ============================================================================
@@ -458,11 +643,17 @@ def validate_scenario(
         if not step.command:
             errors.append(f"Step {step_num}: Missing required field 'command'")
 
-        # Check for forward references
-        if step.input:
+        if step.follow is not None and (step.expect is None or step.expect.success is not False):
+            errors.append(
+                f"Step {step_num} 'follow' needs a refusal to follow: set 'expect.success' to false"
+            )
+
+        # Check for forward references, in the input and in what a follow supplies
+        follow_input = step.follow.input if step.follow is not None else None
+        if step.input or follow_input:
             import json
 
-            input_str = json.dumps(step.input)
+            input_str = json.dumps([step.input, follow_input])
             refs = re.findall(r"\$\{\{\s*steps\[(\d+)\]", input_str)
             for ref_idx_str in refs:
                 ref_index = int(ref_idx_str)

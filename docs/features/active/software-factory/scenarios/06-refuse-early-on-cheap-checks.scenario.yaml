@@ -16,6 +16,7 @@ steps:
       success: false
       error:
         code: PREQUEUE_FAILED
+        recovery: { kind: external }
         message: typecheck
         suggestion: { contains: lane-enqueue }
   - description: Nothing joined the queue

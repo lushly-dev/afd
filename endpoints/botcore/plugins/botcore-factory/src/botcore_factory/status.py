@@ -25,7 +25,7 @@ from botcore_factory.events import open_events, view
 from botcore_factory.intake import Backlog, dispatchable, read_backlog
 from botcore_factory.labels import NEEDS_OWNER
 from botcore_factory.lane_base import counted_ejections
-from botcore_factory.runtime import Factory, Refusal, paginate
+from botcore_factory.runtime import EXTERNAL, Factory, Refusal, call, fix_input, paginate
 from botcore_factory.world import LANE_HOST_VARIABLE, WorldError
 
 CELL_FIELDS = (
@@ -189,7 +189,10 @@ def find_dial(key: str) -> dials.Dial:
     raise Refusal(
         "NOT_FOUND",
         f"No dial named {key}",
-        f"Use one of: {', '.join(close)}" if close else "dial-get with no key lists every dial",
+        f"Use one of: {', '.join(close)}; dial-get with no key lists every dial"
+        if close
+        else "dial-get with no key lists every dial",
+        recovery=call("dial-get"),
     )
 
 
@@ -221,6 +224,7 @@ def dial_set(factory: Factory, key: str, value: Any, session: str | None = None)
             "CONFIRMATION_REQUIRED",
             f"{key} is the owner's dial: setting it needs a person's confirmation",
             "Ask the owner to set it; botcore's host does not carry confirmations yet",
+            recovery=EXTERNAL,
         )
     maximum, note = None, ""
     if key == "lane.slots":
@@ -232,6 +236,7 @@ def dial_set(factory: Factory, key: str, value: Any, session: str | None = None)
             "DIAL_OUT_OF_RANGE",
             problem + note,
             "Pass a value in range; dial-get shows the current value and default",
+            recovery=fix_input("value"),
         )
     value = dials.normalize(dial, value)
     with factory.store.update(f"dial-set {key}") as state:
