@@ -433,9 +433,9 @@
 		},
 		"mcp.auth.verification": {
 			"status": "yes",
-			"note": "(#798, `server-auth` feature, needs Rust 1.88): `McpServer::authorized_http_service` behind `BearerLayer`, `JwtVerifier` (`jsonwebtoken`/`aws-lc-rs`), `KeySource`, `TokenVerifier`, `check_introspection`, `ProtectedResource`, `CommandContext::credentials`, fail-closed M1; loads `spec/authorization.json`",
+			"note": "(#798, `server-auth` feature, needs Rust 1.88): `McpServer::authorized_http_service` behind `BearerLayer`, `JwtVerifier` (`jsonwebtoken`/`aws-lc-rs`), `KeySource`, `StaticKeys`, `JwksKeySource` (over a host `JwksLoader`), `TokenVerifier`, `check_introspection`, `ProtectedResource`, `CommandContext::credentials`, fail-closed M1; loads `spec/authorization.json`",
 			"views": {
-				"auth-m1-m4": "(Umbel phase 5 step 0b; `server-auth`: `BearerLayer`, `JwtVerifier`, `KeySource`, `TokenVerifier`, `CommandContext::credentials`)",
+				"auth-m1-m4": "(Umbel phase 5 step 0b; `server-auth`: `BearerLayer`, `JwtVerifier`, `KeySource`, `StaticKeys`, `JwksKeySource`, `TokenVerifier`, `CommandContext::credentials`)",
 				"auth-m5": "(step 0b)",
 				"auth-m7": "(step 0b; `ProtectedResource`)"
 			},

@@ -99,6 +99,7 @@ pub use crate::credentials::Credentials;
 mod bearer;
 mod claims;
 mod dispatch;
+mod jwks;
 mod jwt;
 mod layer;
 mod resource;
@@ -111,6 +112,7 @@ pub use claims::{
     MAX_CLAIM_CHARS, MAX_CLOCK_SKEW_S,
 };
 pub use dispatch::{PreDispatch, PreDispatchCheck, ScopeChallenge};
+pub use jwks::{JwksKeySource, JwksKeySourceOptions, JwksLoader};
 pub use jwt::{
     is_compact_jws, ClientCertificate, Jwk, JwtIssuer, JwtVerifier, KeyError, KeySource,
     SigningAlgorithm, StaticKeys,
