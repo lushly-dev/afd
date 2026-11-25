@@ -186,7 +186,9 @@ gets a trace ID, AFD's system clock and random source when it has none. The MCP
 `call` as the host's actor; DirectClient sends its own context, whose actor is
 `human` unless its caller sets one. Middleware receives it, so AFD's journal
 middleware (`afd.server.journal.create_journal_middleware`) runs behind the host
-and records the actor, and a handler reads it with
+and records the actor. The host's chain is outside AFD's engine, where the
+journal cannot read a command's `secret` declaration, so it records a call only
+when it is given `redact` (`spec/journal.md`). A handler reads the context with
 `botcore.context.current_call()` instead of taking the caller as an input.
 
 `create_host_mcp_server(host, command_tools=True)` maps to AFD's

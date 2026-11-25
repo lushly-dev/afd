@@ -396,6 +396,8 @@ def create_auth_mutation_commands(
         category="auth",
         tags=["auth", "session"],
         mutation=True,
+        # It takes a password: no journal records it without a `redact` that removes it.
+        secret=True,
         expose=ExposeOptions(palette=True, agent=True, cli=True, mcp=False),
         input_schema=copy.deepcopy(_SIGN_IN_JSON_SCHEMA),
     )

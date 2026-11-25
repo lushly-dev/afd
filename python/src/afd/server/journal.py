@@ -15,13 +15,14 @@ from __future__ import annotations
 import contextlib
 import contextvars
 import copy
+import inspect
 import json
 import logging
 import math
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, Protocol, TypeVar, cast
 
 from pydantic_core import to_jsonable_python
 
@@ -51,11 +52,13 @@ from afd.core.output_budget import (
     normalize_ask_option,
 )
 from afd.core.result import CommandResult, coerce_command_result, execution_failure
+from afd.core.running_command import running_command_secret
 from afd.core.wire import to_wire
 from afd.server.context_fields import JOURNALED_CONTEXT_FIELDS
 
 __all__ = [
     "MAX_JOURNAL_CONTEXT_BYTES",
+    "JournalRedactInfo",
     "JournalReplayTarget",
     "ReplayDifference",
     "ReplayEntryReport",
@@ -124,17 +127,24 @@ def _untaped(clock: Clock) -> Clock:
     return clock
 
 
+def _untaped_random(random: RandomSource) -> RandomSource:
+    """The random source under any recording wrappers."""
+    while isinstance(random, _RecordingRandom):
+        random = random.inner
+    return random
+
+
 class _RecordingClock:
     """Passes readings through and writes them to the tape."""
 
     def __init__(self, inner: Clock, keep: Callable[[list[float], float], None], tape: JournalTape):
         self.inner = inner
         self._keep = keep
-        self._tape = tape
+        self.tape = tape
 
     def now(self) -> float:
         value = self.inner.now()
-        self._keep(self._tape.clock, value)
+        self._keep(self.tape.clock, value)
         return value
 
 
@@ -144,15 +154,111 @@ class _RecordingRandom:
     def __init__(
         self, inner: RandomSource, keep: Callable[[list[float], float], None], tape: JournalTape
     ):
-        self._inner = inner
+        self.inner = inner
         self._keep = keep
-        self._tape = tape
+        self.tape = tape
         self.seed = getattr(inner, "seed", None)
 
     def next(self) -> float:
-        value = self._inner.next()
-        self._keep(self._tape.random, value)
+        value = self.inner.next()
+        self._keep(self.tape.random, value)
         return value
+
+
+@dataclass(frozen=True)
+class JournalRedactInfo:
+    """What ``redact`` is told about a call besides its record.
+
+    Attributes:
+        secret: ``True`` when the command declares ``secret``, ``False`` when it does
+            not, and ``None`` when the recorder runs outside the execution engine (a
+            ``DirectClient``'s own middleware, a direct call, another host's chain) and
+            cannot read the declaration. Remove the secret, or return ``None``, whenever
+            it is not ``False``.
+    """
+
+    secret: bool | None
+
+
+_T = TypeVar("_T")
+
+
+async def _off_tape(context: Any, next_fn: Callable[[], Awaitable[_T]]) -> _T:
+    """Run ``next_fn`` off every tape.
+
+    A call the journal leaves unrecorded because it may carry a secret reads the clock and
+    random source a recording parent wrapped, which would put the values that built the secret
+    on the parent's tape. The parent's tape is marked ``truncated`` instead, so its replay says
+    it cannot restore every value.
+    """
+    clock = getattr(context, "clock", None)
+    random = getattr(context, "random", None)
+    tapes = [
+        source.tape
+        for source in (clock, random)
+        if isinstance(source, (_RecordingClock, _RecordingRandom))
+    ]
+    if not tapes:
+        return await next_fn()
+    for tape in tapes:
+        tape.truncated = True
+    if clock is not None:
+        context.clock = _untaped(clock)
+    if random is not None:
+        context.random = _untaped_random(random)
+    try:
+        return await next_fn()
+    finally:
+        context.clock = clock
+        context.random = random
+
+
+_InfoMode = Literal["positional", "keyword"] | None
+
+
+def _apply_redact(
+    redactor: Callable[..., Any],
+    takes_info: _InfoMode,
+    record: JournalRecord,
+    secret: bool | None,
+) -> JournalRecord | None:
+    """Give ``record`` to ``redactor``, with a :class:`JournalRedactInfo` when it takes one."""
+    if takes_info == "positional":
+        redacted = redactor(record, JournalRedactInfo(secret=secret))
+    elif takes_info == "keyword":
+        redacted = redactor(record, info=JournalRedactInfo(secret=secret))
+    else:
+        redacted = redactor(record)
+    return cast("JournalRecord | None", redacted)
+
+
+def _takes_info(redact: Callable[..., Any]) -> _InfoMode:
+    """How ``redact`` takes the :class:`JournalRedactInfo`, or ``None`` when it does not.
+
+    ``"positional"`` when its second positional parameter has no default; ``"keyword"`` when it
+    has a parameter named ``info`` (with a default, or keyword-only). Anything else, a
+    ``*args`` or a defaulted second parameter included, is a one-argument redactor, as every
+    redactor was before ``secret``, and is called with the record alone.
+    """
+    try:
+        parameters = list(inspect.signature(redact).parameters.values())
+    except (TypeError, ValueError):
+        return None
+    positional = [
+        parameter
+        for parameter in parameters
+        if parameter.kind
+        in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+    ]
+    if len(positional) >= 2 and positional[1].default is inspect.Parameter.empty:
+        return "positional"
+    for parameter in parameters[1:]:
+        if parameter.name == "info" and parameter.kind in (
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.KEYWORD_ONLY,
+        ):
+            return "keyword"
+    return None
 
 
 def _iso_timestamp(ms: float) -> str:
@@ -214,7 +320,11 @@ def create_journal_middleware(
     *,
     record_failures: bool = False,
     filter: Callable[[str], bool] | None = None,
-    redact: Callable[[JournalRecord], JournalRecord | None] | None = None,
+    redact: (
+        Callable[[JournalRecord], JournalRecord | None]
+        | Callable[[JournalRecord, JournalRedactInfo], JournalRecord | None]
+        | None
+    ) = None,
     max_tape_reads: int = DEFAULT_MAX_TAPE_READS,
     on_error: Callable[[Exception], None] | None = None,
 ) -> CommandMiddleware:
@@ -234,8 +344,11 @@ def create_journal_middleware(
 
     Appends are awaited, so entries are in call order for sequential calls. A
     sink error goes to ``on_error`` (or the ``afd.server.journal`` logger) and
-    never changes the command result. During :func:`replay_journal` this
-    middleware records nothing; it restarts the replay tape at its position.
+    never changes the command result. Commands named ``auth-*`` are not
+    recorded unless ``filter`` allows them, and a command that declares
+    ``secret`` is not recorded without ``redact``. During
+    :func:`replay_journal` this middleware records nothing; it restarts the
+    replay tape at its position.
 
     Args:
         sink: Where entries go.
@@ -246,9 +359,18 @@ def create_journal_middleware(
         filter: Record only the commands this returns ``True`` for. Default:
             every command except those named ``auth-*``. A custom filter
             replaces the default, so exclude ``auth-*`` in it too unless you
-            redact them.
+            redact them. A command that declares ``secret`` is never recorded
+            without ``redact``, whatever this returns.
         redact: Last look at each record before it is stored: return it
-            (changed or not), or ``None`` to skip it. Use it to drop secrets
+            (changed or not), or ``None`` to skip it. Giving it also lets calls
+            to commands that declare ``secret`` be recorded (when ``filter``
+            allows them), so it must remove their secrets. A redactor whose
+            second positional parameter has no default gets a
+            :class:`JournalRedactInfo` as that argument, and one with a
+            parameter named ``info`` gets it as ``info=``; its ``secret`` says
+            which calls those are (``None`` outside the execution engine, where it cannot be
+            read, and where no call is recorded without ``redact``); any other
+            redactor gets the record alone. Use it to drop secrets
             from inputs or results. When a secret is derived from
             ``context.random``, drop ``record.tape`` too: the recorded random
             values would rebuild it.
@@ -261,6 +383,10 @@ def create_journal_middleware(
         >>> server = create_server("todo", middleware=[create_journal_middleware(journal)])
     """
     accept = filter or _default_filter
+    # Read once: whether there is a redactor decides which calls may be recorded, and the same
+    # one is the one applied.
+    redactor = redact
+    redact_takes_info = _takes_info(redactor) if redactor is not None else None
 
     def report(exc: Exception) -> None:
         if on_error is None:
@@ -282,6 +408,27 @@ def create_journal_middleware(
             finally:
                 _JOURNAL_REPLAY.reset(token)
                 replay.end()
+        # A command declaring `secret` is recorded only when a `redact` can remove the secret: a
+        # filter alone never admits it (`spec/journal.md`). Outside the engine the declaration
+        # cannot be read, so no call is recorded without `redact`.
+        secret = running_command_secret(context, next_fn)
+        if secret is not False and redactor is None:
+            return await _off_tape(context, next_fn)
+        if secret is True:
+            # A secret call recorded or skipped by `filter` reads off its parent's tape too: its
+            # own recording, if any, keeps its reads on its own entry, for `redact` to drop.
+            return await _off_tape(
+                context, lambda: record_call(command_name, input, context, next_fn, secret)
+            )
+        return await record_call(command_name, input, context, next_fn, secret)
+
+    async def record_call(
+        command_name: str,
+        input: Any,
+        context: CommandContext,
+        next_fn: NextFn,
+        secret: bool | None,
+    ) -> CommandResult[Any]:
         if not accept(command_name):
             return await next_fn()
 
@@ -333,7 +480,7 @@ def create_journal_middleware(
                 journaled = journal_context_fields(
                     context, getattr(context, JOURNALED_CONTEXT_FIELDS, None) or ()
                 )
-                record: JournalRecord | None = JournalRecord(
+                draft = JournalRecord(
                     timestamp=_iso_timestamp(start),
                     trace_id=_trace_id(context),
                     command=command_name,
@@ -349,8 +496,11 @@ def create_journal_middleware(
                     duration_ms=duration_ms,
                     tape=tape if has_tape else None,
                 )
-                if redact is not None:
-                    record = redact(record)  # type: ignore[arg-type]
+                record = (
+                    draft
+                    if redactor is None
+                    else _apply_redact(redactor, redact_takes_info, draft, secret)
+                )
                 if record is not None:
                     await sink.append(record)
             except Exception as exc:

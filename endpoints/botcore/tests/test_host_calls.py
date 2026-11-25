@@ -116,7 +116,9 @@ async def test_a_call_without_a_context_gets_one_with_a_trace_id_and_the_host_ac
 async def test_a_surface_s_context_and_its_verified_actor_reach_the_journal(tmp_path):
     sink = MemoryJournalSink()
     host = make_host(tmp_path)
-    host.middleware.append(create_journal_middleware(sink))
+    # Behind the host, outside AFD's engine, the journal cannot read a command's `secret`
+    # declaration, so it records only with a `redact`.
+    host.middleware.append(create_journal_middleware(sink, redact=lambda record: record))
     caller = Actor(kind="service", id="lane@workstation", on_behalf_of="cell-3")
     context = CommandContext(trace_id="trace-1", actor=caller)
     result = await host.execute("issue-claim", {"numbers": [1], "holder": HOLDER}, context)

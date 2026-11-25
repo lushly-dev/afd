@@ -606,12 +606,19 @@ def test_only_allowed_variables_are_set_and_the_old_value_returned(run):
     "secret",
     ["ghp_" + "a" * 36, "AKIA" + "B" * 16, "-----BEGIN RSA PRIVATE KEY-----"],
 )
-def test_built_in_secret_rules_refuse_before_any_write(run, secret):
+def test_built_in_secret_rules_refuse_before_any_write(run, secret, tmp_path):
     gateway = run()
     before = gateway.github()
     result = gateway("lane", "issue-create", repo=REPO, title="Flaky", body=f"log {secret}")
     assert result.error.code == "SECRET_IN_BODY" and secret not in result.error.message
     assert gateway.github() == before
+    # The refusal is journaled for the audit, without the body that held the secret.
+    [entry] = read_journal(tmp_path / "run" / "state" / "journal")
+    assert entry.command == "issue-create"
+    assert entry.input == {"repo": REPO}
+    assert entry.result == {"success": False, "error": {"code": "SECRET_IN_BODY"}}
+    assert entry.actor.id == "lane@workstation"
+    assert secret not in json.dumps(entry.input) + json.dumps(entry.result)
 
 
 # ── Claims between commands ─────────────────────────────────────────────

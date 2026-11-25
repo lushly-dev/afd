@@ -9,10 +9,12 @@ event once.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
+from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
-from afd import Actor, CommandResult, error, success
+from afd import Actor, CommandResult, JournalRecord, error, success
 from afd.core.journal import JournalEntry
 
 from botcore_factory.gateway.claims import Claim, iso, parse_time, read_claim
@@ -66,6 +68,52 @@ def _targets(entry: JournalEntry, heads: dict[str, int]) -> list[str]:
     if "number" in data:
         return [f"issue#{data['number']}"]
     return []
+
+
+def _number(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+#: The input fields the audit reads (`_targets`, `journal_rows`), each with the check its value
+#: must pass to be kept.
+def _text(value: Any) -> bool:
+    return isinstance(value, str)
+
+
+def _numbers(value: Any) -> bool:
+    return isinstance(value, list) and all(_number(n) for n in value)
+
+
+_AUDIT_INPUT: dict[str, Callable[[Any], bool]] = {
+    "repo": _text,
+    "number": _number,
+    "numbers": _numbers,
+    "head": _text,
+    "ref": _text,
+}
+
+
+def audit_record(record: JournalRecord) -> JournalRecord:
+    """The journal's redaction: keep only what the audit reads.
+
+    The gateway journals refused writes too, such as an `issue-create` refused with
+    `SECRET_IN_BODY`, so an input is never kept whole: only the audit's fields of the right type
+    (`repo`, `number`, `numbers`, `head`, `ref`), and of the result only `success`, an error's
+    `code` and a pull request `number`. The actor, timestamp and trace ID stay; the tape goes.
+    """
+    data = record.input if isinstance(record.input, dict) else {}
+    kept_input = {
+        key: data[key] for key, check in _AUDIT_INPUT.items() if key in data and check(data[key])
+    }
+    result = record.result if isinstance(record.result, dict) else {}
+    kept_result: dict[str, Any] = {"success": result.get("success") is True}
+    outcome = result.get("data")
+    if isinstance(outcome, dict) and _number(outcome.get("number")):
+        kept_result["data"] = {"number": outcome["number"]}
+    failure = result.get("error")
+    if isinstance(failure, dict) and isinstance(failure.get("code"), str):
+        kept_result["error"] = {"code": failure["code"]}
+    return dataclasses.replace(record, input=kept_input, result=kept_result, tape=None)
 
 
 def _result(entry: JournalEntry) -> dict[str, Any]:

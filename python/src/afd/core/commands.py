@@ -90,6 +90,29 @@ def validate_confirmation_mode(name: str, confirmation_mode: Any) -> CommandConf
     return confirmation_mode  # type: ignore[return-value]
 
 
+def validate_secret(name: str, secret: Any) -> bool:
+    """Validate ``secret`` metadata (``spec/command-metadata.md``): a boolean, ``False`` by default.
+
+    A value that is not a boolean would read as "not secret" and a journal would record the
+    call, so it is refused when the command is defined.
+    """
+    if not isinstance(secret, bool):
+        raise TypeError(f"Command '{name}': secret must be a boolean")
+    return secret
+
+
+def declared_secret(name: str, handler: Any, secret: Any = False) -> bool:
+    """``secret`` as given, or as a ``define_command`` decoration on ``handler`` declares it.
+
+    For registries that build their own definitions from a handler (``SimpleRegistry``,
+    ``MockServer``); a value that is not a boolean raises ``TypeError``.
+    """
+    validate_secret(name, secret)
+    decorated = getattr(getattr(handler, "__afd_command__", None), "secret", False)
+    validate_secret(name, decorated)
+    return bool(secret or decorated)
+
+
 def validate_command_scopes(name: str, scopes: Any) -> list[str]:
     """Validate and deduplicate ``scopes`` (OAuth scope tokens, RFC 6749 3.3)."""
     if scopes is None:
@@ -418,6 +441,10 @@ class CommandDefinition:
     output_budget: OutputBudget | None = None
     scopes: list[str] = field(default_factory=list)
     confirmation_mode: CommandConfirmationMode | None = None
+    secret: bool = False
+    """Whether the command takes or returns a secret (a password argument, an issued token). A
+    journal never records a call to it unless the host also gives the recorder ``redact``, which
+    removes the secret; a ``filter`` alone does not admit it (``spec/journal.md``)."""
 
 
 class CommandRegistry(Protocol):
@@ -564,6 +591,7 @@ class _CommandRegistryImpl:
             from afd.core.schema_validation import check_schema
 
             check_schema(command.input_schema)
+        validate_secret(command.name, command.secret)
         normalized_confirmation_mode = validate_confirmation_mode(
             command.name, command.confirmation_mode
         )

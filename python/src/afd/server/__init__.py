@@ -198,6 +198,7 @@ from afd.server.human_relay import (
 from afd.server.instance_state import ServerInstances
 from afd.server.journal import (
     MAX_JOURNAL_CONTEXT_BYTES,
+    JournalRedactInfo,
     JournalReplayTarget,
     ReplayDifference,
     ReplayEntryReport,
@@ -451,6 +452,7 @@ __all__ = [
     "journal_context_fields",
     "MAX_JOURNAL_CONTEXT_BYTES",
     "replay_journal",
+    "JournalRedactInfo",
     "JournalReplayTarget",
     "ReplayDifference",
     "ReplayEntryReport",

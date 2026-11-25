@@ -20,7 +20,7 @@ from botcore_factory.gateway.commands import ROUTES as ROUTES
 from botcore_factory.gateway.config import GatewayConfig
 from botcore_factory.gateway.docs import DOCS
 from botcore_factory.gateway.github import GitHub
-from botcore_factory.gateway.records import WRITE_COMMANDS
+from botcore_factory.gateway.records import WRITE_COMMANDS, audit_record
 from botcore_factory.gateway.service import Gateway
 from botcore_factory.gateway.state import DailyJournalSink, GatewayState
 
@@ -60,6 +60,11 @@ def build_gateway_host(
             # Journal write commands only (with their failures): pure reads, gateway-wait and
             # lane-heartbeat stay out so polling keeps the journal small (#2413).
             filter=lambda command: command in WRITE_COMMANDS,
+            # The host runs its own middleware chain, outside AFD's engine, so the recorder
+            # cannot read a command's `secret` declaration and records nothing without a
+            # `redact`. Failures are journaled too (a body refused with SECRET_IN_BODY), so keep
+            # only what the audit reads.
+            redact=audit_record,
         )
     ]
     host.docs = {"gateway": DOCS}

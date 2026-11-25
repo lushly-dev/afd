@@ -737,11 +737,11 @@
       "path": "docs/host-composition.md",
       "upstream_sha256": null,
       "staged_sha256": "770e808013d3d866493ed03690d48330a06ca076eec838f720449592103d53ce",
-      "current_import_sha256": "2fb86e10eea40d336734267e728c988895d66bedbccc2834e67d2c863406c1ab",
+      "current_import_sha256": "a61dfd803ce286ea60b98336c17ee6af52ab83e288912a8a8418a2ab6d8dd7c7",
       "stage_classification": "added-in-staging",
       "stage_reason": "Document bounded host capabilities and compatibility limits",
       "import_classification": "modified-after-staging",
-      "import_reason": "Describe versioning, SDK compatibility, optional integration and the AFD publisher; describe plugin-declared policies, catalog input schemas and argument refusals; say a host leaves unselected plugin sections alone; describe command name spellings, kebab_names, typed inputs, the per-call context and the remote-caller profile; describe serving hosts over HTTP: routes, tokens, the bind guard and the client; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Refuse intermediate reparse points and hold the directory chain open through each token-store operation on Windows; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; serve each host command as its own MCP tool with the host as the only validator (factory gateway change 3); Connectors read the GitHub token from the environment only and declare only the service effect; Serve managed host MCP server through afd.server.create_server with policy middleware and compatibility aliases (#2499); Serve managed host MCP through afd.create_server (#2499)"
+      "import_reason": "Describe versioning, SDK compatibility, optional integration and the AFD publisher; describe plugin-declared policies, catalog input schemas and argument refusals; say a host leaves unselected plugin sections alone; describe command name spellings, kebab_names, typed inputs, the per-call context and the remote-caller profile; describe serving hosts over HTTP: routes, tokens, the bind guard and the client; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Refuse intermediate reparse points and hold the directory chain open through each token-store operation on Windows; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock; Admit the connectors plugin to managed hosts so bridged LLM connector tools are policy-checked; document per-command shell approval and the trusted-local opt-in; Review fixes: literal shell program match, runtime parse agreement, Windows cmd metacharacters, session tool allowlist and named MCP servers, agent actor for model calls, tool host plugin closing; serve each host command as its own MCP tool with the host as the only validator (factory gateway change 3); Connectors read the GitHub token from the environment only and declare only the service effect; Serve managed host MCP server through afd.server.create_server with policy middleware and compatibility aliases (#2499); Serve managed host MCP through afd.create_server (#2499); Journal behind the host only with redact: secret commands (afd-python)"
     },
     {
       "path": "docs/operations/model-routing.md",
@@ -1632,10 +1632,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "be69e9bed0888e84cf9f58cfc12415aa0217adbe2c92d409246e3d383a788e78",
+      "current_import_sha256": "b86ef23f98f62ab95925deb73d3d31ec2b178efb7347fe8491fed6b2c810e82a",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16); factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes; Fix provenance CRLF guard (#2390), skill-usage dubious-ownership git config fallback (#2370), and factory gateway journal pruning and scoped reads (#2413)"
+      "import_reason": "factory gateway: lane-heartbeat and each repository's lane in gateway-status (job 16); factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; factory gateway: a heartbeat route that serves only gateway-status and lane-heartbeat; host HTTP upload_routes; Fix provenance CRLF guard (#2390), skill-usage dubious-ownership git config fallback (#2370), and factory gateway journal pruning and scoped reads (#2413); Journal behind the host only with redact: secret commands (afd-python); Gateway journal keeps only audit fields; journal behind the host needs redact (afd-python secret)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/records.py",
@@ -1643,10 +1643,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "98d029a6bdeca14929871af2b2391310781245aedb2388fd2067e7954078adb1",
+      "current_import_sha256": "bbb4ce7dd85228e92af21ea767d4f0ec9ac0b87ce2c16da6f050e4ee75998bca",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385); Fix provenance CRLF guard (#2390), skill-usage dubious-ownership git config fallback (#2370), and factory gateway journal pruning and scoped reads (#2413)"
+      "import_reason": "Share the gateway's repository scans in a read cache and cut issue-get and pr-status to the reads they need (#2385); Fix provenance CRLF guard (#2390), skill-usage dubious-ownership git config fallback (#2370), and factory gateway journal pruning and scoped reads (#2413); Gateway journal keeps only audit fields; journal behind the host needs redact (afd-python secret)"
     },
     {
       "path": "plugins/botcore-factory/src/botcore_factory/gateway/server.py",
@@ -2072,10 +2072,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "1a99ce16f74eb9b07c8d438784b5b0ec0282b330ff2cbf219f0e61efac91ca3b",
+      "current_import_sha256": "55057bb1da0b5f85b906e5ca3fb300165022bad166f456b4345b6cf8f7fd21d8",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims (#1810), keep usable [tools] entries on disk-setup rerun (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833); Fix provenance CRLF guard (#2390), skill-usage dubious-ownership git config fallback (#2370), and factory gateway journal pruning and scoped reads (#2413)"
+      "import_reason": "Factory lane and gateway work behind a GitHub merge queue (lushly-dev/afd#1598); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims (#1810), keep usable [tools] entries on disk-setup rerun (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Report App key age, installation token remaining time, and GraphQL rate limit in gateway-status (#1833); Fix provenance CRLF guard (#2390), skill-usage dubious-ownership git config fallback (#2370), and factory gateway journal pruning and scoped reads (#2413); Gateway journal keeps only audit fields; journal behind the host needs redact (afd-python secret)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_gateway_scenarios.py",
@@ -7337,10 +7337,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "a4d044738041f89491dc6315dfa75f7641753fcbf617d29ac03cf32a30609ed0",
+      "current_import_sha256": "1d3bc0706d79d837900b5ec9d30bfee43876aab4fa0ca536f42ac9fd91e419a2",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "serve each host command as its own MCP tool with the host as the only validator (factory gateway change 3); Serve managed host MCP server through afd.server.create_server with policy middleware and compatibility aliases (#2499); Serve managed host MCP through afd.create_server (#2499)"
+      "import_reason": "serve each host command as its own MCP tool with the host as the only validator (factory gateway change 3); Serve managed host MCP server through afd.server.create_server with policy middleware and compatibility aliases (#2499); Serve managed host MCP through afd.create_server (#2499); Journal behind the host only with redact: secret commands (afd-python)"
     },
     {
       "path": "tests/test_host_http.py",

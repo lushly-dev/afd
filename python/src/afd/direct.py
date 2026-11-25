@@ -53,7 +53,7 @@ from afd.core.command_execution import (
     execute_stream as _execute_core_stream,
 )
 from afd.core.commands import CommandDefinition as _CoreCommandDefinition
-from afd.core.commands import CommandMiddleware, call_not_granted
+from afd.core.commands import CommandMiddleware, call_not_granted, declared_secret
 from afd.core.direct_allow import _bind_allow, _direct_allows, _is_allowed, _not_allowed
 from afd.core.direct_approval import (
     DirectApprovalRequest,
@@ -350,6 +350,8 @@ class RegisteredCommand:
     description: str
     handler: Callable
     parameters: list[DirectCommandParameter] = field(default_factory=list)
+    secret: bool = False
+    """Whether the command takes or returns a secret: a journal records it only with ``redact``."""
 
 
 def _takes_context(handler: Callable) -> bool:
@@ -435,6 +437,7 @@ class SimpleRegistry:
             name=registered.name,
             description=registered.description,
             handler=adapted,
+            secret=registered.secret,
         )
 
     async def _validate_kwargs(
@@ -484,6 +487,8 @@ class SimpleRegistry:
         name: str,
         description: str = "",
         parameters: list[DirectCommandParameter] | None = None,
+        *,
+        secret: bool = False,
     ) -> Callable:
         """Decorator to register a command.
 
@@ -491,10 +496,12 @@ class SimpleRegistry:
             name: Command name (use dot.notation for namespacing)
             description: What the command does
             parameters: Parameter definitions for validation
+            secret: Whether the command takes or returns a secret (also read from a
+                ``define_command`` decoration): a journal records it only with ``redact``.
         """
 
         def decorator(func: Callable) -> Callable:
-            self.register(name, func, description=description, parameters=parameters)
+            self.register(name, func, description=description, parameters=parameters, secret=secret)
             return func
 
         return decorator
@@ -505,13 +512,16 @@ class SimpleRegistry:
         handler: Callable,
         description: str = "",
         parameters: list[DirectCommandParameter] | None = None,
+        *,
+        secret: bool = False,
     ) -> None:
-        """Register a command imperatively."""
+        """Register a command imperatively (``secret`` as for :meth:`command`)."""
         registered = RegisteredCommand(
             name=name,
             description=description or handler.__doc__ or "",
             handler=handler,
             parameters=parameters or [],
+            secret=declared_secret(name, handler, secret),
         )
         self._commands[name] = registered
         self._definitions[name] = self._build_definition(registered)

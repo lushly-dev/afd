@@ -373,6 +373,29 @@ for entry in report.entries:
         print(entry.seq, entry.command, entry.status, entry.differences or entry.error)
 ```
 
+Inputs and results are recorded as they are, so a command that takes or returns a secret (a
+password argument, an issued token) declares `secret=True`. The journal never records a call to
+it unless it was given `redact`, whatever `filter` says; it reads the declaration from the
+command the engine runs, not from its name. A `redact` whose second positional parameter has no
+default (or that has a parameter named `info`) gets a `JournalRedactInfo` whose `secret` says
+which calls those are (`None` where the journal cannot read it: a `DirectClient`'s own
+middleware, another host's chain or a chain a handler runs, where no call is recorded without
+`redact`). The default `filter` also skips commands named `auth-*`.
+
+```python
+from afd.server import JournalRedactInfo
+
+def redact(record, info: JournalRedactInfo):
+    if info.secret is not False:
+        record.input, record.result, record.tape = {}, {"success": record.result["success"]}, None
+    return record
+
+server = create_server("vault", middleware=[create_journal_middleware(sink, redact=redact)])
+
+@server.command(name="vault-unlock", description="Unlock the vault", input_schema=Unlock, secret=True)
+async def unlock(input: Unlock): ...
+```
+
 ## MCP Client (Network)
 
 Connect to remote MCP servers. A URL that does not end in `/sse` or `/message` uses MCP Streamable HTTP through the official MCP SDK client: MCP 2026-07-28 when the server offers it, else the 2025 `initialize` handshake (`McpClientConfig.protocol_mode`: `"auto"`, `"legacy"` or `"modern"`). The `sse` and `http` transports of an AFD server's 2024-11-05 lane are deprecated.
@@ -580,7 +603,7 @@ for cmd in create_auth_commands(adapter):
     server.register(cmd)
 ```
 
-On a server configured with MCP bearer-token `auth`, pass `is_verified_credentials=is_verified_credentials` from `afd.server`; `create_server(...)` refuses to start with an `afd.auth` middleware lacking it (directly or inside `compose_middleware`). `create_journal_middleware` skips `auth-*` commands by default.
+On a server configured with MCP bearer-token `auth`, pass `is_verified_credentials=is_verified_credentials` from `afd.server`; `create_server(...)` refuses to start with an `afd.auth` middleware lacking it (directly or inside `compose_middleware`). `create_journal_middleware` skips `auth-*` commands by default, and never records `auth-sign-in`, which declares `secret`, without `redact`.
 
 ## CLI
 

@@ -664,6 +664,28 @@ async def test_server_with_auth_backstop_and_e2e_admitted_credentials() -> None:
         assert res_sess.error.code == "UNAUTHORIZED"
 
 
+async def test_journal_middleware_never_records_sign_in_without_redact_whatever_filter() -> None:
+    adapter = MockAuthAdapter()
+    sink = MemoryJournalSink()
+    server = create_server(
+        "auth-journal-secret-test",
+        middleware=[
+            create_auth_middleware(adapter),
+            create_journal_middleware(sink, filter=lambda name: True),
+        ],
+    )
+    for cmd in create_auth_commands(adapter):
+        server.register(cmd)
+    res_in = await server.execute(
+        "auth-sign-in",
+        {"method": "credentials", "email": "alice@example.com", "password": "hunter2"},
+        context=CommandContext(extra={"interface": "agent"}),
+    )
+    assert res_in.success is True
+    await server.execute("auth-sign-out", {}, context=CommandContext(extra={"interface": "agent"}))
+    assert [entry.command for entry in await sink.read()] == ["auth-sign-out"]
+
+
 async def test_journal_middleware_skips_auth_commands_by_default() -> None:
     adapter = MockAuthAdapter()
     sink = MemoryJournalSink()
@@ -719,6 +741,9 @@ async def test_auth_commands_metadata_bootstrap_and_direct_client_flow() -> None
         "auth-session-get",
     ]
     assert by_name["auth-sign-in"].mutation is True
+    # It takes a password, so no journal records it without a redact.
+    assert by_name["auth-sign-in"].secret is True
+    assert by_name["auth-sign-out"].secret is False
     assert by_name["auth-sign-in"].expose is not None
     assert by_name["auth-sign-in"].expose.mcp is False
     assert by_name["auth-sign-out"].mutation is True

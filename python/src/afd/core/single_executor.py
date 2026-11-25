@@ -23,6 +23,7 @@ execute single commands through this module so dispatch semantics never drift.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import math
 from collections.abc import Awaitable, Callable, Mapping, Sequence
@@ -41,6 +42,7 @@ from afd.core.output_budget import (
     normalize_ask_option,
 )
 from afd.core.result import CommandResult, ResultMetadata, error, execution_failure, failure
+from afd.core.running_command import bind_continuation, open_running_command
 from afd.core.similarity import find_similar_tools, truncate_name
 
 if TYPE_CHECKING:
@@ -606,6 +608,10 @@ async def _execute_command_inner(
         if config.admission_scope is not None
         else nullcontext(None)
     )
+    # The declaration the journal reads: bound to each continuation built for this chain (so it
+    # travels with the continuation, across a thread hop too, and a recorder given a `next` of
+    # its own reads unknown), and closed when the dispatch ends.
+    running = open_running_command(exec_context, command)
     with scope as admission_record:
 
         async def run_handler() -> Any:
@@ -643,20 +649,32 @@ async def _execute_command_inner(
                 )
             return result
 
+        def link(
+            current_mw: Any, nxt: Callable[[], Awaitable[Any]]
+        ) -> Callable[[], Awaitable[Any]]:
+            async def call() -> Any:
+                outcome = current_mw(name, data, exec_context, nxt)
+                return await outcome if inspect.isawaitable(outcome) else outcome
+
+            bind_continuation(call, running)
+            return call
+
+        bind_continuation(run_handler, running)
         next_fn: Callable[[], Awaitable[Any]] = run_handler
         for mw in reversed(config.middleware):
-            next_fn = (lambda current_mw, nxt: lambda: current_mw(name, data, exec_context, nxt))(
-                mw, next_fn
-            )
+            next_fn = link(mw, next_fn)
 
-        result = await _run_chain_with_deadline(
-            name,
-            exec_context,
-            next_fn,
-            effective_timeout,
-            dev_mode=config.dev_mode,
-            logger=config.logger,
-        )
+        try:
+            result = await _run_chain_with_deadline(
+                name,
+                exec_context,
+                next_fn,
+                effective_timeout,
+                dev_mode=config.dev_mode,
+                logger=config.logger,
+            )
+        finally:
+            running.open = False
 
     if config.after_execute is not None:
         config.after_execute(name, result)

@@ -47,6 +47,7 @@ from afd.core.commands import (
 )
 from afd.core.errors import Recovery, _retry_after
 from afd.core.result import CommandError, CommandResult
+from afd.core.running_command import pass_on_binding
 from afd.server.auth_middleware_check import carry_auth_middleware_mark
 from afd.server.instance_state import carry_approval_process_state
 
@@ -703,11 +704,19 @@ def compose_middleware(*middlewares: CommandMiddleware) -> CommandMiddleware:
         context: CommandContext,
         next_fn: NextFn,
     ) -> CommandResult[Any]:
+        def step(i: int) -> NextFn:
+            async def proceed() -> CommandResult[Any]:
+                return await dispatch(i)
+
+            # A continuation of an engine-built `next` is one too (`afd.core.running_command`).
+            pass_on_binding(next_fn, proceed)
+            return proceed
+
         async def dispatch(i: int = 0) -> CommandResult[Any]:
             if i >= len(middlewares):
                 return await next_fn()
             mw = middlewares[i]
-            return await mw(command_name, input, context, lambda: dispatch(i + 1))
+            return await mw(command_name, input, context, step(i + 1))
 
         return await dispatch()
 

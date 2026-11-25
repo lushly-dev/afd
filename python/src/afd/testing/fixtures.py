@@ -48,6 +48,7 @@ from afd.core import (
     system_random,
 )
 from afd.core.command_execution import resolve_batch_limit
+from afd.core.commands import declared_secret
 from afd.core.single_executor import CommandExecutionConfig, execute_command
 from afd.transports import MockTransport
 
@@ -214,6 +215,7 @@ class MockServer:
         expose: ExposeOptions | None = None,
         input_schema: dict[str, Any] | None = None,
         contexts: list[str] | None = None,
+        secret: bool = False,
     ):
         """Decorator to register a command handler.
 
@@ -223,6 +225,8 @@ class MockServer:
             expose: Optional exposure options (defaults to MCP + agent + palette).
             input_schema: Optional JSON Schema validated before middleware/handler.
             contexts: Optional context names that scope this command.
+            secret: Whether the command takes or returns a secret (also read from a
+                ``define_command`` decoration): a journal records it only with ``redact``.
 
         Returns:
             Decorator function.
@@ -236,6 +240,7 @@ class MockServer:
         def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
             from afd.core.commands import is_mcp_exposed
 
+            declared = declared_secret(name, func, secret)
             self._commands[name] = func
             ctx_mode = _context_passing_mode(func)
 
@@ -260,6 +265,7 @@ class MockServer:
                 expose=expose if expose is not None else ExposeOptions(mcp=True),
                 input_schema=input_schema,
                 contexts=list(contexts or []),
+                secret=declared,
             )
             self._definitions[name] = definition
 
