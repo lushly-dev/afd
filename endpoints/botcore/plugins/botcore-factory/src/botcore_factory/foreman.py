@@ -11,6 +11,8 @@ the owner. A session that has ended frees the lane once its last wait has timed 
 has run out, or at once when the owner calls ``foreman-handoff``. A call that names no session
 takes no lease: the owner's ``dial-set`` works as before, and any other foreman command without
 one is refused while a session holds it.
+``gate-allow`` and ``ejection-excuse`` go further: they need the session that holds a live lease
+now, so a call naming none, or made while no foreman holds the lane, is refused.
 
 A session another one took the lane from is superseded (``lane.supersededForemen``): a scheduled
 foreman that woke after a usage-limit reset took an expired lease and acted on an outdated
@@ -162,7 +164,7 @@ def check(
             f"Session {session} no longer holds the lane (its lease was handed over or ran out "
             f"before {command} acted); nothing was changed",
             "Read lane-status first: if the owner handed the lane over, stop and report; "
-            "otherwise call again, which takes the lane while no other session holds it",
+            "otherwise take the lane again with lane-wait, then call again",
             recovery=call("lane-status"),
             session=session,
         )
@@ -182,6 +184,69 @@ def acting(
     """``hold`` before ``command`` acts; the ``guard`` to run inside its transaction."""
     hold(factory, session, command, owner_may)
     return guard(factory, session, command, owner_may)
+
+
+def _not_the_foreman(command: str, session: str | None, reason: str) -> Refusal:
+    """A foreman-only refusal that names neither the holder's session nor a way to take the lane."""
+    return Refusal(
+        "FOREMAN_REQUIRED",
+        f"{command} is the lane's foreman's call, and {reason}",
+        # Never how to take the lane or whose session holds it: following this leads to the
+        # foreman, not to its record.
+        "Only the lane's live foreman records this, after its own diagnosis: a cell that thinks "
+        "it needs it stops and reports to its foreman, and a foreman refused here stops and "
+        "tells the owner",
+        recovery=STOP,
+        **({"session": session} if session else {}),
+    )
+
+
+def require(factory: Factory, session: str | None, command: str) -> None:
+    """Before a command only the lane's live foreman may call (``gate-allow``,
+    ``ejection-excuse``): ``session`` must already hold a live lease. It never takes the lane,
+    and every refusal is ``FOREMAN_REQUIRED`` or ``FOREMAN_STALE``, naming neither the holder's
+    session nor a way to take the lane, so following one leads to the foreman, not to its
+    record. The session is not a secret from ``factory call``; this keeps the foreman's record
+    from a caller that follows the factory's own answers, not from one set on taking it."""
+    if session is None:
+        raise _not_the_foreman(command, None, "the call named no session")
+    if not session.strip():
+        raise Refusal(
+            "VALIDATION_ERROR",
+            "session is empty",
+            "Pass your T3 Code thread id",
+            recovery=fix_input("session"),
+        )
+    lane, now = factory.store.read()["lane"], factory.world.clock.now()
+    if stale := _stale(lane, session, command):
+        raise stale
+    lease = lane.get("foreman")
+    if not _live(lease, now):
+        raise _not_the_foreman(command, session, "no foreman holds the lane")
+    if lease["session"] != session:
+        raise _not_the_foreman(command, session, "another session holds the lane")
+
+
+def leased(factory: Factory, session: str | None, command: str) -> Callable[[dict[str, Any]], None]:
+    """``require`` before ``command`` acts; the ``guard`` to run inside its transaction, which
+    refuses again if the lease was handed over or ran out in between, without naming the
+    session that holds it now."""
+    require(factory, session, command)
+
+    def inside(state: dict[str, Any]) -> None:
+        try:
+            check(state, session, command, factory.world.clock.now())
+        except Refusal as refused:
+            if refused.code == "FOREMAN_BUSY":
+                raise _not_the_foreman(command, session, "another session holds the lane") from None
+            raise
+
+    return inside
+
+
+def live(lease: dict[str, Any] | None, now: datetime) -> bool:
+    """Whether ``lease`` (``lane.foreman``) still holds the lane at ``now``."""
+    return _live(lease, now)
 
 
 def wait_guard(

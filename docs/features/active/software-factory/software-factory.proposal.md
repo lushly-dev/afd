@@ -145,7 +145,7 @@ improvement loop's five commands are in [its section](#the-improvement-loop).
 | `lane-pause`, `lane-resume` | `reason?` | `paused`; `lane-resume` resolves an open `lane-error` | — |
 | `lane-drop` | `branch`, `reason`, `session?` | `dropped`, `released[]`: dequeues the branch, releases its claims (one comment, and the issue back to `status:planned` unless another branch's live claim still holds it) and forgets the cell; the worktree is left | `FOREMAN_STALE`, `FOREMAN_BUSY`, `FOREMAN_LOST`, `NOT_FOUND` |
 | `lane-revert` | `prs[]`, `reason` | `revertPrs[]`, each merged by the lane | `NOT_FOUND`, `NOT_MERGED` |
-| `gate-allow` | `branch`, `reason`, `session?` | `allowed`: the diagnosis found the gate edit to be the right repair | `FOREMAN_STALE`, `FOREMAN_BUSY`, `FOREMAN_LOST`, `NOT_FOUND` |
+| `gate-allow` | `branch`, `reason`, `head`, `session` | `allowed`, `head`: the diagnosis found the gate edit to be the right repair, for that head only; `session` must hold the lane's live lease | `FOREMAN_REQUIRED`, `FOREMAN_STALE`, `FOREMAN_LOST`, `NOT_FOUND` |
 | `plan-list` | — | `plans[] { id, provider, used, elapsed, room, aboveCeiling, resetsAt }` | `PLANS_UNREADABLE` (the foreman then uses the configured order) |
 | `dial-get` | `key?` | `key`, `value`, `default`, or every dial | `NOT_FOUND` |
 | `dial-set` | `key`, `value`, `session?` | `key`, `value`, `previous`, `default` | `FOREMAN_STALE`, `FOREMAN_BUSY`, `FOREMAN_LOST`, `DIAL_OUT_OF_RANGE`, `NOT_FOUND` |
@@ -350,9 +350,11 @@ Jason does not read code; what he judges is how a change looks and behaves.
 
 As in Lushly: a merge that touches `gate_paths` triggers `coverage` on `main` at once and
 is reverted if it fails. A branch ejected for a failing check may not come back with new
-gate-path edits (`GATE_EDIT_IN_REPAIR`) unless its issue is labelled `area:ci` or the
-foreman, after a diagnosis on the stronger route, records with `gate-allow` that the gate
-edit is the right repair. There is no caller-supplied bypass.
+gate-path edits (`GATE_EDIT_IN_REPAIR`) unless the lane's live foreman, after a diagnosis on
+the stronger route, records with `gate-allow` that the gate edit is the right repair, for the
+head it diagnosed. No label exempts it, and a later ejection for another cause does not end it. `lane-enqueue`'s refusal is the cell's early answer; the lane checks again with its
+own code and `gate_paths` before it validates, and holds such a repair as `gate-change` for the
+owner. The factory plugin's own source is in `gate_paths`. There is no caller-supplied bypass.
 
 ### Releases
 

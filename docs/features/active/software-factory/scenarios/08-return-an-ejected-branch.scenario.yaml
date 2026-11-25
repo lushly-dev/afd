@@ -13,7 +13,7 @@ fixture:
 steps:
   - description: The foreman's wait returns the ejection with everything the cell needs
     command: lane-wait
-    input: { consumer: foreman, timeout_ms: 1000 }
+    input: { consumer: foreman, timeout_ms: 1000, session: thread-foreman }
     expect:
       success: true
       data:
@@ -39,7 +39,7 @@ steps:
       A diagnosis finds the failure was a known flake, not the branch's: the foreman excuses it, so
       it stops counting toward cells.maxEjections, and the ejection itself stays open
     command: ejection-excuse
-    input: { branch: fix/parser-empty-input, reason: "#1408: the hosted harness flakes under load" }
+    input: { branch: fix/parser-empty-input, reason: "#1408: the hosted harness flakes under load", session: thread-foreman }
     expect:
       success: true
       data: { branch: fix/parser-empty-input, cause: final-failed, ejections: 1, counted: 0 }
@@ -70,7 +70,7 @@ steps:
         openEvents: { length: 0 }
   - description: A second wait has nothing new
     command: lane-wait
-    input: { consumer: foreman, timeout_ms: 1 }
+    input: { consumer: foreman, timeout_ms: 1, session: thread-foreman }
     expect:
       success: true
       data:

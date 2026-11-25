@@ -485,12 +485,15 @@ def gate_allow(
     factory: Factory,
     branch: str,
     reason: str,
-    guard: Callable[[dict[str, Any]], None] | None = None,
+    guard: Callable[[dict[str, Any]], None] | None,
+    head: str,
 ) -> dict[str, Any]:
-    """Record that a diagnosis found the repair's gate edit to be the right one.
+    """Record that a diagnosis found the repair's gate edit to be the right one, for one head.
 
-    Only the foreman calls it (the factory host), after a diagnosis on the stronger route;
-    there is no caller-supplied bypass on lane-enqueue itself.
+    Only the live foreman calls it (the factory host), after a diagnosis on the stronger route.
+    It covers ``head``, the commit it diagnosed (the cell's ``GATE_EDIT_IN_REPAIR`` names it),
+    and no other: never the worktree's head now, which the cell may have moved since, and a later
+    commit needs a new diagnosis.
     """
     if not reason.strip():
         raise Refusal(
@@ -499,12 +502,24 @@ def gate_allow(
             "Say what the diagnosis found",
             recovery=fix_input("reason"),
         )
+    if not head.strip():
+        raise Refusal(
+            "VALIDATION_ERROR",
+            "head is empty",
+            "Pass the commit you diagnosed, which the cell's GATE_EDIT_IN_REPAIR names",
+            recovery=fix_input("head"),
+        )
+    head = head.strip()
     with factory.store.update(f"gate-allow {branch}") as state:
         if guard is not None:
             guard(state)
         cell = find(state, branch)
-        cell["gateAllowed"] = {"reason": reason, "at": format_time(factory.world.clock.now())}
-    return {"allowed": True, "branch": branch}
+        cell["gateAllowed"] = {
+            "reason": reason,
+            "head": head,
+            "at": format_time(factory.world.clock.now()),
+        }
+    return {"allowed": True, "branch": branch, "head": head}
 
 
 def measure_approve(factory: Factory, branch: str, reason: str) -> dict[str, Any]:

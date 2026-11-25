@@ -104,12 +104,13 @@ def make_lane_commands(get: Callable[[], Factory]) -> list[Callable[..., Any]]:
         Args:
             branch: The ejected cell's branch.
             reason: Why it was not the branch's fault, e.g. the flake's issue.
-            session: The foreman's session (its T3 Code thread id); the owner names none.
+            session: The foreman's session (its T3 Code thread id), which must hold the
+                lane's lease now.
         """
 
         def body() -> CommandResult[Any]:
             factory = get()
-            guard = foreman.acting(factory, session, "ejection-excuse", owner_may=True)
+            guard = foreman.leased(factory, session, "ejection-excuse")
             return success(cells.ejection_excuse(factory, branch, reason, guard))
 
         return await execute(body)

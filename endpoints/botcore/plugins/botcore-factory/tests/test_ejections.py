@@ -5,6 +5,7 @@ ejection-excuse."""
 from __future__ import annotations
 
 import pytest
+from conftest import FOREMAN
 from test_lane import events, run_steps
 
 from botcore_factory.cells import holding_seats
@@ -78,7 +79,10 @@ async def test_the_foreman_excuses_a_flake_and_the_limit_is_answered(make_run):
     run.change_world(outcomes=CI_FAILED)
     run_steps(run, 3)
     result = await run.call(
-        "ejection_excuse", branch=BRANCH, reason="#1408: the hosted harness flakes under load"
+        "ejection_excuse",
+        branch=BRANCH,
+        reason="#1408: the hosted harness flakes under load",
+        session=await run.take_lane(),
     )
     assert result.success, result.error
     assert result.data == {
@@ -101,7 +105,7 @@ async def test_the_foreman_excuses_a_flake_and_the_limit_is_answered(make_run):
     assert (record["attempt"], record["cause"]) == (1, "ci-failed")
     report = lane_report(run.factory(), None, None)
     assert (report["ejections"], report["excusedEjections"]) == (1, 1)
-    again = await run.call("ejection_excuse", branch=BRANCH, reason="twice")
+    again = await run.call("ejection_excuse", branch=BRANCH, reason="twice", session=FOREMAN)
     assert again.error.code == "ALREADY_EXCUSED"
 
 
@@ -119,11 +123,14 @@ async def test_lane_status_shows_what_counts(make_run):
 
 async def test_an_excuse_needs_an_ejection_a_reason_and_a_cell(make_run):
     run = make_run("running")
-    none = await run.call("ejection_excuse", branch=BRANCH, reason="flake")
+    session = await run.take_lane()
+    none = await run.call("ejection_excuse", branch=BRANCH, reason="flake", session=session)
     assert none.error.code == "NOT_FOUND" and "no ejection" in none.error.message
-    empty = await run.call("ejection_excuse", branch=BRANCH, reason=" ")
+    empty = await run.call("ejection_excuse", branch=BRANCH, reason=" ", session=session)
     assert empty.error.code == "VALIDATION_ERROR"
-    missing = await run.call("ejection_excuse", branch="fix/nobody", reason="flake")
+    missing = await run.call(
+        "ejection_excuse", branch="fix/nobody", reason="flake", session=session
+    )
     assert missing.error.code == "NOT_FOUND"
 
 
@@ -134,7 +141,9 @@ async def test_an_ejection_from_before_the_cell_kept_it_is_read_from_the_records
     with run.store.update("an older lane") as state:
         cell = next(c for c in state["cells"] if c["branch"] == BRANCH)
         del cell["lastEjection"], cell["excused"]
-    result = await run.call("ejection_excuse", branch=BRANCH, reason="#1408")
+    result = await run.call(
+        "ejection_excuse", branch=BRANCH, reason="#1408", session=await run.take_lane()
+    )
     assert result.success, result.error
     assert (result.data["cause"], result.data["counted"]) == ("ci-failed", 0)
 
@@ -145,7 +154,7 @@ async def test_another_foreman_cannot_excuse(make_run):
     run_steps(run, 3)
     await run.call("lane_wait", consumer="foreman", session="thread-a", timeout_ms=0)
     busy = await run.call("ejection_excuse", branch=BRANCH, reason="flake", session="thread-b")
-    assert busy.error.code == "FOREMAN_BUSY"
+    assert busy.error.code == "FOREMAN_REQUIRED"
 
 
 async def test_an_ejected_cell_at_the_limit_waits_on_the_owner_and_frees_its_seat(make_run):
@@ -171,7 +180,12 @@ async def test_an_ejected_cell_at_the_limit_waits_on_the_owner_and_frees_its_sea
     assert status["canStartCell"] is True, status.get("reason")
     assert status["waitingOnOwner"] >= 1
 
-    excused = await run.call("ejection_excuse", branch=BRANCH, reason="#1565: the disk filled up")
+    excused = await run.call(
+        "ejection_excuse",
+        branch=BRANCH,
+        reason="#1565: the disk filled up",
+        session=await run.take_lane(),
+    )
     assert excused.success, excused.error
     assert BRANCH in [c["branch"] for c in holding_seats(run.state())]
 

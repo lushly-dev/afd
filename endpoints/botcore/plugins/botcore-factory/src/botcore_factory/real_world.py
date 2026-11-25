@@ -508,6 +508,10 @@ class CliGit:
         self, worktree: str, base: str, since: str | None, keep: Callable[[str], bool]
     ) -> list[str]:
         now = [path for path in self._names(worktree, f"{base}...HEAD") if keep(path)]
+        if since is not None and not self._has_commit(worktree, since):
+            # The ejected head is gone (pruned, or never fetched here): every gate edit the
+            # branch makes counts, rather than none.
+            since = None
         if since is None:
             return now
         # The branch's own diff at the ejected head: from where it then left the base.
@@ -519,6 +523,13 @@ class CliGit:
             ):
                 edits.append(path)
         return edits
+
+    def _has_commit(self, worktree: str, sha: str) -> bool:
+        try:
+            self.run(["git", "-C", worktree, "cat-file", "-e", f"{sha}^{{commit}}"])
+        except WorldError:
+            return False
+        return True
 
     def _names(self, worktree: str, spec: str) -> list[str]:
         """Both sides of a rename, and paths unquoted, so a gate file renamed out of the gate

@@ -2,8 +2,8 @@
 name: Never pass a failing check by loosening it
 description: >-
   When a branch ejected for a failing check comes back with edits to a gate, I want it refused until
-  a diagnosis has found the gate edit to be the right repair, so that no agent passes a check by
-  weakening it and a real gate fix is not stuck.
+  the lane's live foreman has found, by a diagnosis, the gate edit to be the right repair, so that no
+  agent passes a check by weakening it and a real gate fix is not stuck.
 job: no-loosened-gate-in-a-repair
 tags: [slice]
 fixture:
@@ -19,10 +19,22 @@ steps:
         code: GATE_EDIT_IN_REPAIR
         recovery: { kind: external }
         message: scripts/check-file-size.mjs
-        suggestion: { contains: gate-allow }
+        suggestion: { contains: report that to your foreman }
+  - description: The record needs the lane's live foreman, so a call that names no session is refused
+    command: gate-allow
+    input: { branch: fix/loosened-check, reason: The repair needs it, head: d4e5f6a }
+    expect:
+      success: false
+      error:
+        code: FOREMAN_REQUIRED
+  - description: The foreman holds the lane while it diagnoses the repair
+    command: lane-wait
+    input: { consumer: foreman, timeout_ms: 1000, session: thread-foreman }
+    expect:
+      success: true
   - description: After a diagnosis, the foreman records that the gate edit is the right repair
     command: gate-allow
-    input: { branch: fix/loosened-check, reason: The size limit counted generated files; the diagnosis confirmed the fix }
+    input: { branch: fix/loosened-check, reason: The size limit counted generated files; the diagnosis confirmed the fix, session: thread-foreman, head: d4e5f6a }
     expect:
       success: true
       data: { allowed: true }

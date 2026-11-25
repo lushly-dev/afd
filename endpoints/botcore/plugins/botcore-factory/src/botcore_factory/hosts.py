@@ -6,7 +6,10 @@ botcore's host gates by profile, not by caller, so callers are separated by host
 
 from __future__ import annotations
 
+import functools
+from collections.abc import Awaitable, Callable
 from pathlib import Path
+from typing import Any
 
 from botcore.context import ExecutionContext
 from botcore.host import CommandHost, build_host
@@ -39,6 +42,29 @@ def build_factory_host(
         return full
     cell = CommandHost(name, context)
     for command in CELL_COMMANDS:
-        cell.register(command, full._commands[command], full._policies[command])
+        handler = full._commands[command]
+        if command == "lane_status":
+            handler = _without_foreman_session(handler)
+        cell.register(command, handler, full._policies[command])
     cell.docs, cell.middleware = full.docs, full.middleware
     return cell
+
+
+def _without_foreman_session(
+    handler: Callable[..., Awaitable[Any]],
+) -> Callable[..., Awaitable[Any]]:
+    """A cell's ``lane-status``: whether a foreman holds the lane and until when, never its
+    session, which ``gate-allow`` and ``ejection-excuse`` take as the foreman's."""
+
+    @functools.wraps(handler)
+    async def lane_status(*args: Any, **kwargs: Any) -> Any:
+        result = await handler(*args, **kwargs)
+        data = getattr(result, "data", None)
+        if isinstance(data, dict) and isinstance(data.get("foreman"), dict):
+            data["foreman"] = {
+                "held": bool(data.get("foremanHeld")),
+                "until": data["foreman"].get("until"),
+            }
+        return result
+
+    return lane_status

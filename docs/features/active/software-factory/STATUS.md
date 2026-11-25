@@ -202,6 +202,31 @@ deleted the queue ref while the pull request was still open.
 
 What a cell may take, which plan it runs on, the foreman's commands and `run-fleet`.
 
+#### Who may let a repair edit its gate, 2026-11-24
+
+Merged 2026-11-24 as [#2485](https://github.com/lushly-dev/afd/pull/2485). Recording a gate
+exemption or an excused ejection is the live foreman's alone, and the lane now decides a repair's
+gate edits with its own code.
+
+- `gate-allow` and `ejection-excuse` need the session that holds the lane's lease now. Any other
+  call is refused `FOREMAN_REQUIRED`, which names neither the holder nor a way to take the lane,
+  and neither takes the lane. `lane-drop` and `dial-set` keep the owner's call without a session.
+- `gate-allow` takes the `head` it covers, which `GATE_EDIT_IN_REPAIR` names: a later commit needs
+  a new one.
+- The cell keeps its latest failing-check ejection (`checkFailed`), so a later conflict or
+  unverified review does not end the repair's gate check. A cell ejected before this landed has
+  no `checkFailed` and is still read from its last ejection.
+- A cell's `lane-status` (`factory-cell`) shows whether a foreman holds the lane and until when,
+  not its session.
+- `GATE_EDIT_IN_REPAIR` sends the cell to its foreman rather than naming `gate-allow`, and no
+  label exempts a repair: the `area:ci` exemption is gone.
+- Before validating, the lane checks a repair's gate edits again with its own code and
+  `gate_paths`, at the queued head before `main` is merged in, against its own fetch of `main`.
+  An ejected head the checkout no longer has counts every gate edit. It holds what it finds
+  as `gate-change` for the owner (`measure-approve`), or until the foreman's `gate-allow` and a
+  new `lane-enqueue`. Edits it cannot read hold the repair too.
+- `gate_paths` now includes the factory plugin's own source.
+
 #### Competing issue claims, 2026-11-24
 
 Merged 2026-11-24 as [#2422](https://github.com/lushly-dev/afd/pull/2422), for the

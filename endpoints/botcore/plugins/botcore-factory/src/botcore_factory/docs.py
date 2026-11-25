@@ -27,6 +27,15 @@ when), since its brief may be out of date. Stop and report; a foreman that shoul
 starts in a new session. A session whose lease was handed over or ran out between the check
 and the change (a wait without `timeout_ms` keeps no lease) is refused `FOREMAN_LOST` and changes
 nothing: read `lane_status`, then call again if no other session holds the lane.
+`gate_allow` and `ejection_excuse` are the live foreman's alone: they never take the lane, and a
+call that names no session, another session's, or comes while no session holds the lane, is
+refused `FOREMAN_REQUIRED`, which names neither the holder nor a way to take the lane. A cell's
+`lane_status` shows whether a foreman holds the lane (`foreman.held`) and until when, not its
+session. The session is not a secret from `factory call`: this keeps these records from a cell
+that follows the factory's answers, not from one set on taking them, and `measure_approve`
+checks no session at all. An owner who takes the lane (`lane_wait` with their own session) while
+no lease is live supersedes the last foreman, whose next call is `FOREMAN_STALE`; while that
+foreman still runs, pass its session (from the factory host's `lane_status`) instead.
 
 1. `lane_status()`: when `canStartCell`, it names the `plan` and `nextIssue`; otherwise `reason`
    (and `nextReset` when every plan is at its ceiling). Pass any `diskWarnings` (too many idle
@@ -75,8 +84,9 @@ since the last green run; or, with `reason` `unchecked-merge`, a check on main's
 failed after a merge that advanced past a moved base without a new validation, `suspects` the
 PRs merged so; the lane paused), `queue-empty` (a drained move happens here) and
 `lane-stopped` (the lane process is gone; `lane_start`) and `gate-change-held` (an
-`area:factory` or improvement branch stopped checking something, held for the owner with
-`holdReason` `gate-change`; answered by `measure_approve`, `lane_enqueue` once clean,
+`area:factory` or improvement branch stopped checking something, or a repair after a failing
+check edits `gate_paths` by the lane's own check, held for the owner with `holdReason`
+`gate-change`; answered by `measure_approve`, `lane_enqueue` once clean,
 `lane_drop`, or `event_resolve`). Any open event can be answered with `event_resolve(id, note)`.
 `openEvents` in `lane_status` lists what is open.
 
@@ -181,7 +191,9 @@ The lane never edits code, and nothing is killed unless its pid and start time b
 - `lane_status(limit?, cursor?)` -> `runId`, `host {id, isLaneHost, laneHost}`, `running`,
   `paused`, `pauseReason`, `waitingOnHostLock` (deterministic holder or head waiter summary when
   another lane owns or leads the shared host validation lock), `hostLock {version, owner,
-  waiters[]}`, `draining`, `slots {total, busy}`, `queue[]`, `held[]`,
+  waiters[]}`, `foreman {session, since, until}` (on `factory-cell`, `{held, until}` only),
+  `foremanHeld` (whether that lease is live), `draining`, `slots {total, busy}`, `queue[]`,
+  `held[]`,
   `cells[] {branch, issue, issues, relatedBecause?, state, plan, route, ejections, excused,
   countedEjections, lastEjection, testChanges?}`, `openEvents[]`,
   (a `queue[]` entry's `state` is `queued`, `validating`, `validated`, `merging`, its pull
@@ -208,7 +220,12 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   lane checks again with the base's before each validation and ejects as `review-unverified`),
   `GATE_EDIT_IN_REPAIR` (a repair after a failing check edits `gate_paths`; names them; only the
   branch's own changes count, against a base the lane fetches, so main's gate changes a rebase or
-  merge brings in do not),
+  merge brings in do not; no label exempts it, only the live foreman's `gate_allow` for that
+  head, which its details name; the check holds from the cell's latest failing-check ejection
+  (`checkFailed`), so a later ejection for another cause does not end it; advisory, since it
+  runs the cell's copy: the lane checks again with its own before each validation, before main
+  is merged in, and holds such a repair as `gate-change`; a repair enqueued again after that hold
+  goes to the back of the queue),
   `GATE_CHECK_FAILED` (those edits could not be read; the repair waits), `PREQUEUE_FAILED`
   (names the stage, with its first lines, and the adapter's `install` command for a new or
   rebased worktree not installed since), `TEST_CHANGES_FAILED` (the adapter's `test_changes`
@@ -227,9 +244,11 @@ The lane never edits code, and nothing is killed unless its pid and start time b
 - `event_resolve(id, note)` -> `resolved`. Refuses `NOT_FOUND`.
 - `lane_pause(reason?)`, `lane_resume(reason?)` -> `paused`; resuming answers `lane-error`.
 - `cell_attach(branch, thread)` -> `cell`. Refuses `NOT_FOUND`.
-- `gate_allow(branch, reason, session?)` -> `allowed`: a diagnosis found the gate edit to be the
-  right repair. A foreman names its `session`; the owner names none. Refuses
-  `VALIDATION_ERROR`, `FOREMAN_STALE`, `FOREMAN_BUSY`, `FOREMAN_LOST` and `NOT_FOUND`.
+- `gate_allow(branch, reason, head, session)` -> `allowed`, `branch`, `head`: a diagnosis found
+  the gate edit to be the right repair, for that head only (`GATE_EDIT_IN_REPAIR` names it). A
+  later commit needs a new `gate_allow`.
+  `session` must hold the lane's live lease. Refuses `VALIDATION_ERROR`, `FOREMAN_REQUIRED`,
+  `FOREMAN_STALE`, `FOREMAN_LOST` and `NOT_FOUND`.
 - `measure_approve(branch, reason)` -> `approved`, `branch`, `head`, `state` (`queued`, or `held`
   with `holdReason` `queue-full` when the queue is full), `answered[]`: releases a branch held for
   `gate-change` or `measure-change` to the queue and approves that exact head (a later commit
@@ -251,11 +270,11 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   `cells.claudeOnly` is on, since cells implement on Opus, the highest `pace`, `left`, the room
   below `plans.ceiling`, over the days to its reset, so each plan is spent by its own reset;
   null when no plan can take a cell). Refuses `PLANS_UNREADABLE`.
-- `ejection_excuse(branch, reason, session?)` -> `branch`, `attempt`, `cause`, `ejections`,
+- `ejection_excuse(branch, reason, session)` -> `branch`, `attempt`, `cause`, `ejections`,
   `excused`, `counted`, `limit`, `answered[]`: the cell's latest ejection was not its branch's
   fault (a known flake), so it stops counting toward `cells.maxEjections`; under the limit again,
-  it answers the open `ejection-limit`. Refuses `VALIDATION_ERROR`, `FOREMAN_STALE`,
-  `FOREMAN_BUSY`, `FOREMAN_LOST`, `NOT_FOUND`
+  it answers the open `ejection-limit`. `session` must hold the lane's live lease. Refuses
+  `VALIDATION_ERROR`, `FOREMAN_REQUIRED`, `FOREMAN_STALE`, `FOREMAN_LOST`, `NOT_FOUND`
   (no cell, or no ejection) and `ALREADY_EXCUSED`.
 - `lane_start()` -> `running`, `runId`, `pid`. Refuses `HOST_NOT_SET`, `NOT_LANE_HOST`,
   `LANE_LOCKED` (one lane per machine), `REQUIRED_CHECK_MISSING`, `NODE_MISSING` (the Node

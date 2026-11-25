@@ -135,6 +135,7 @@ def lane_status(factory: Factory, limit: int | None, cursor: str | None) -> dict
         "waitingOnHostLock": lane.get("waitingOnHostLock"),
         "hostLock": world.validation_lock.status() if world.validation_lock is not None else None,
         "foreman": lane.get("foreman"),
+        "foremanHeld": foreman.live(lane.get("foreman"), world.clock.now()),
         "draining": bool(lane.get("draining")),
         "slots": {
             "total": dials.value(state["dials"], "lane.slots"),

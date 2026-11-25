@@ -25,6 +25,8 @@ REPO_ROOT = Path(__file__).resolve().parents[5]
 SCENARIOS = REPO_ROOT / "docs/features/active/software-factory/scenarios"
 FIXTURES = SCENARIOS / "fixtures"
 EXAMPLE = Path(__file__).resolve().parents[1] / "scenarios" / "repository"
+#: The foreman session tests hold the lane with (``Run.take_lane``).
+FOREMAN = "thread-foreman"
 
 
 def example_repository(directory: Path) -> Path:
@@ -87,6 +89,12 @@ class Run:
 
     async def call(self, command: str, host=None, **arguments):
         return await (host or self.host()).execute(command, arguments)
+
+    async def take_lane(self, session: str = FOREMAN) -> str:
+        """Hold the lane as its foreman, as gate-allow and ejection-excuse need; the session."""
+        taken = await self.call("lane_wait", consumer="foreman", timeout_ms=1, session=session)
+        assert taken.success, taken.error
+        return session
 
     def world_data(self) -> dict:
         return json.loads(self.world_path.read_text(encoding="utf-8"))

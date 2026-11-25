@@ -335,6 +335,14 @@ class StepBase:
             full = len(holding_seats(self.state)) >= self.dial("cells.max")
             cell["state"] = "ejected"
             count_ejection(cell, entry["attempt"], cause, self.at)
+            if cause in records.FAILING_CHECK_CAUSES:
+                # Kept until the cell is forgotten: a later ejection for another cause (a
+                # conflict, an unverified review) must not start its repair's gate check over.
+                cell["checkFailed"] = {
+                    "head": entry.get("head"),
+                    "cause": cause,
+                    "attempt": entry["attempt"],
+                }
             limit = self.dial("cells.maxEjections")
             if excuse is None and counted_ejections(cell) >= limit:
                 self.event("ejection-limit", branch=branch, detail=ejection_detail(cell, limit))

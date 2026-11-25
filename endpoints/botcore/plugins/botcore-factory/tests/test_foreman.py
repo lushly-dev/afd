@@ -204,21 +204,29 @@ def queued_cell(run, branch: str = "fix/a") -> None:
         state["cells"].append({"branch": branch, "issues": [101], "state": "working"})
 
 
+def guarded_args(command: str) -> dict:
+    """gate-allow names the head it covers; lane-drop takes none."""
+    arguments = {"branch": "fix/a", "reason": "why"}
+    return {**arguments, "head": "abc"} if command == "gate_allow" else arguments
+
+
 async def test_gate_allow_and_lane_drop_are_guarded_as_ejection_excuse_is(make_run):
     run = make_run()
     queued_cell(run)
     await run.call("lane_wait", consumer="foreman", timeout_ms=1, session="thread-a")
-    for command in ("gate_allow", "lane_drop"):
-        busy = await run.call(command, branch="fix/a", reason="why", session="thread-b")
-        assert busy.error.code == "FOREMAN_BUSY", command
+    for command, code in (("gate_allow", "FOREMAN_REQUIRED"), ("lane_drop", "FOREMAN_BUSY")):
+        busy = await run.call(command, **guarded_args(command), session="thread-b")
+        assert busy.error.code == code, command
     assert (await run.call("foreman_handoff", session="thread-a")).success
     await run.call("lane_wait", consumer="foreman", timeout_ms=1, session="thread-b")
     for command in ("gate_allow", "lane_drop"):
-        stale = await run.call(command, branch="fix/a", reason="why", session="thread-a")
+        stale = await run.call(command, **guarded_args(command), session="thread-a")
         assert stale.error.code == "FOREMAN_STALE", command
     assert "gateAllowed" not in run.state()["cells"][0]
-    # The holder may, and so may the owner, who names no session.
-    allowed = await run.call("gate_allow", branch="fix/a", reason="why", session="thread-b")
+    # The holder may; lane-drop also takes the owner's call, which names no session.
+    allowed = await run.call(
+        "gate_allow", branch="fix/a", reason="why", session="thread-b", head="abc"
+    )
     assert allowed.success
     assert (await run.call("lane_drop", branch="fix/a", reason="owner's call")).success
 
@@ -232,7 +240,7 @@ async def test_a_mutation_whose_session_lost_the_lane_meanwhile_does_nothing(mak
     await run.call("foreman_handoff", session="thread-a")
     await run.call("lane_wait", consumer="foreman", timeout_ms=1, session="thread-b")
     with pytest.raises(Refusal) as refused:
-        cells.gate_allow(factory, "fix/a", "why", guard)
+        cells.gate_allow(factory, "fix/a", "why", guard, "abc")
     assert refused.value.code == "FOREMAN_STALE"
     assert "gateAllowed" not in run.state()["cells"][0]
     with pytest.raises(Refusal) as busy:
@@ -266,7 +274,7 @@ async def test_a_wait_whose_lease_was_handed_over_takes_nothing_before_a_success
         ("cell_register", {"issues": [101], "branch": "fix/b", "route": "sol/high"}),
         ("dial_set", {"key": "lane.queueMax", "value": 4}),
         ("ejection_excuse", {"branch": "fix/a", "reason": "a flake"}),
-        ("gate_allow", {"branch": "fix/a", "reason": "why"}),
+        ("gate_allow", {"branch": "fix/a", "reason": "why", "head": "abc"}),
         ("lane_drop", {"branch": "fix/a", "reason": "why"}),
         ("lane_wait", {"consumer": "foreman", "timeout_ms": 1}),
     ],
@@ -284,6 +292,7 @@ async def test_each_foreman_command_checks_the_session_inside_its_own_change(
     with run.store.update("an event") as state:
         events.emit(state, START, "queue-room", detail="A seat is free")
     monkeypatch.setattr(foreman, "hold", lambda *args, **kwargs: None)
+    monkeypatch.setattr(foreman, "require", lambda *args, **kwargs: None)
     before = run.state()
     refused = await run.call(command, **arguments, session="thread-a")
     assert refused.error.code == "FOREMAN_STALE", command

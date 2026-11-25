@@ -293,6 +293,8 @@ def test_a_repair_s_gate_edits_are_its_own_not_main_s_brought_in_by_a_rebase(tmp
     assert git.changed_files(str(repo), ejected) == ["gate.yml", "shared-gate.yml", "src.ts"]
     assert git.repair_edits(str(repo), moved, ejected, gate) == []
     assert git.repair_edits(str(repo), moved, None, gate) == ["shared-gate.yml"]
+    # An ejected head the checkout no longer has counts every gate edit, as None does.
+    assert git.repair_edits(str(repo), moved, "0" * 40, gate) == ["shared-gate.yml"]
 
     # The base is the lane's commit: repointing origin/HEAD in the worktree changes nothing.
     run(["git", "symbolic-ref", "refs/remotes/origin/HEAD", "refs/heads/fix/a"])

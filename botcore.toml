@@ -219,6 +219,8 @@ gate_paths = [
     "biome.json",
     "package.json",
     "botcore.toml",
+    # The lane's own code: its gate check, holds and review binding.
+    "endpoints/botcore/plugins/botcore-factory/**",
 ]
 
 # Two branches that each edit an imported unit both change its provenance records, so their merge
