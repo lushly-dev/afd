@@ -25,15 +25,18 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
   section 5.10.
 - **Done:** the problem, what exists today, the model, thirteen draft jobs as sentences with the
   rank the owner confirmed, a design direction, the amendments it implies for other documents,
-  phases, thirteen questions for the owner with nine answered, and an independent review in two
-  passes.
-- **In progress:** the [bench specification](bench.md), step 0.0 of phase 0, drafted
+  phases, thirteen questions for the owner with nine answered, an independent review in two
+  passes, and phase 0 (closed 2026-11-24 with the owner's step 0.6 decision **go with changes**;
+  the [held material](bench/held/README.md) and [phase 0 record](bench/record/README.md) are
+  committed).
+- **Done:** the [bench specification](bench.md), step 0.0 of phase 0, drafted
   2026-11-14 and merged in #1234. On 2026-11-15 the owner decided its domain, its model and
   budget, and its bare arm, and an independent reader reviewed it. The owner confirmed its rules
   for "go" on 2026-11-21. Its application, held material and reference build are built; its
-  runner is written but for arm 2's statements and arm 3's skill. Its pilots, step 0.1 (ended at
-  its first fifteen builds by the owner's decision) and steps 0.3 and 0.4 have run
-  ([Step 0.1](#step-01), [Steps 0.3 and 0.4](#steps-03-and-04)); steps 0.2 and 0.5 are deferred.
+  runner ran the pilots, step 0.1 (ended at its first fifteen builds by the owner's decision),
+  steps 0.3 and 0.4, and the walk-tuning rerun ([Step 0.1](#step-01),
+  [Steps 0.3 and 0.4](#steps-03-and-04)); steps 0.2 and 0.5 remain deferred. On 2026-11-24 the
+  owner confirmed step 0.6 (**go with changes**) and the phase 0 record was committed.
 - **In progress:** the seed library's
   [jobs and drafted commands](bench/seed-library.md), drafted 2026-11-15 and merged in
   #1236: seventeen jobs as scenario files and twenty-four commands. The scenario checks
@@ -48,7 +51,8 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
   the 74 results against the commands' output schemas. An independent reviewer read it in two
   passes.
 - **Done:** the bench's held material, written 2026-11-15 and kept outside the repository on
-  the second machine's external drive, as the owner decided. Its first stage, the checks and
+  the second machine's external drive during phase 0, then committed in
+  [`bench/held/`](bench/held/README.md) after step 0.6. Its first stage, the checks and
   the two held-back jobs, was frozen on 2026-11-15; the SHA-256 of its manifest is
   `6e2a2d7d7daeb8326ef32f7dbae8f405ec40f59bf6cd2604732b822c396cdb31`. Its second stage, the
   faults with their proofs, the persona cards and the walk scripts, was frozen on 2026-11-18,
@@ -70,15 +74,13 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
   looked again at the screenshot page made on 2026-11-16 and marked none. A copy of it holds
   the twelve faults, each proved present there and absent from the clean build. See
   [the reference build](#the-reference-build).
-- **Not done:** for the proposal's own thirteen jobs, drafted commands, scenario files, the
-  three scenario checks and reader walks; the owner's remaining answers; moving each part
-  into the proposal that owns it; steps 0.2, 0.5 and 0.6 of phase 0, and phases A to D. See
-  [What is not done](#what-is-not-done).
-- **Blocked on:** the owner's step 0.6 decision (go, go with changes, or stop) after the walk
-  tuning and confirmation rerun of 2026-11-24 ([Steps 0.3 and 0.4](#steps-03-and-04)), including
-  whether the blind pairwise report comparison counts for step 0.4's rule and whether steps 0.2
-  and 0.5 remain deferred. Every session needs the owner's word, since it spends the owner's
-  allowance. Questions 4, 8, 9 and 10 of the proposal are open and block nothing yet.
+- **Not done:** phase A (for the proposal's own ranked jobs: drafted commands, scenario files,
+  the three scenario checks, three-seat reader walks, and the amendments moved into Patterns,
+  Design Decisions and Screens from Jobs); the owner's remaining answers (questions 4, 8, 9 and
+  10); and phases B to D. See [What is not done](#what-is-not-done).
+- **Blocked on:** nothing for phase A; step 0.6 was confirmed (**go with changes**) on
+  2026-11-24. Questions 4, 8, 9 and 10 of the proposal remain open and block nothing in phase A
+  yet. Opening an epic and moving this folder to `active/` remain the owner's call.
 - **Order:** the owner answers the direction and ranks the draft jobs before commands are
   drafted, as the [Scales scaffold](../../active/scales/STATUS.md) does. The
   [jobs-first guide](../../../../.claude/skills/afd/references/jobs-first.md) puts the owner's
@@ -117,16 +119,17 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
 | The bench: its jobs and drafted commands | In progress. Drafted 2026-11-15: 17 jobs as scenario files in 113 steps, and 24 commands. The parse, dry-run and coverage checks pass. Three readers walked the paths, and an independent reviewer read the result and walked the two commands their findings added. Merged in #1236. The owner decided three of its design points on 2026-11-15 | [`bench/seed-library.md`](bench/seed-library.md) |
 | The bench: the task for each screen and its result fixtures | In progress. Drafted 2026-11-15: four tasks, 50 states and 74 results, checked against the drafted commands, the States table and the fixtures, and reviewed in two passes. Merged in #1238 | [`bench/tasks/`](bench/tasks/README.md) |
 | The bench: the application and its schemas | In progress. Built 2026-11-15 on `feat/seed-library-example`, merged in #1239: 24 commands with zod input and output schemas, an in-memory store, the approval hook and the steward's middleware. Its tests run the 17 jobs, 113 of 113 steps passing, two of them over MCP with confirmations enforced, and check the 74 results against the output schemas | [`packages/examples/seed-library`](../../../../packages/examples/seed-library/README.md) |
-| The bench: the held material | Done. Written 2026-11-15 outside the repository and reviewed in two passes. Stage 1, the checks (308 over 50 states) and the two held-back jobs, frozen 2026-11-15, its manifest's SHA-256 `6e2a2d7d7daeb8326ef32f7dbae8f405ec40f59bf6cd2604732b822c396cdb31`. Stage 2, the twelve faults with their proofs, five persona cards and four walk scripts, settled against the reference build after the owner's look, reviewed once more and frozen 2026-11-18, its manifest's SHA-256 `e293ce7f690b09ecb8af1cd76a957ef25b16ebccc4744cc035a4f9996c3853c4` | [`bench.md`](bench.md#status) |
+| The bench: the held material | Done. Written 2026-11-15 outside the repository and reviewed in two passes. Stage 1, the checks (308 over 50 states) and the two held-back jobs, frozen 2026-11-15, its manifest's SHA-256 `6e2a2d7d7daeb8326ef32f7dbae8f405ec40f59bf6cd2604732b822c396cdb31`. Stage 2, the twelve faults with their proofs, five persona cards and four walk scripts, settled against the reference build after the owner's look, reviewed once more and frozen 2026-11-18, its manifest's SHA-256 `e293ce7f690b09ecb8af1cd76a957ef25b16ebccc4744cc035a4f9996c3853c4`. Committed in [`bench/held/`](bench/held/README.md) after step 0.6 | [`bench/held/README.md`](bench/held/README.md), [`bench.md`](bench.md#status) |
 | The bench: the runner | In progress. Written 2026-11-15 outside the repository, on the second machine's external drive, as the owner decided for the held material, and approved in its design by the owner the same day. Session setup, the `claude -p` session, the leak check, the budget and scoring the checks are written and tested without a model session, and two smoke sessions ran, the second inside the sandbox with the narrowed tools. Recorded in #1253. Walks, the reading of a path and the readers written 2026-11-18 and tested without a model session. Each step's report from 0.1 to 0.4 and step 0.2's statistics written 2026-11-21 and tested on invented runs. Not written: arm 2's statements and arm 3's skill | [The runner](#the-runner) |
 | The bench: the reference build | Done. Built 2026-11-15 outside the repository, on the second machine's external drive, kept there like the held material because it answers every task, T4 included; the session sandbox refuses it. All four screens, one story per state and the running app with its journal. It passes all 308 checks and every walked job runs end to end. Three reviewers of different models reviewed it, then a five-lens panel in four rounds, with three more checking the fixes; the owner looked at every state on 2026-11-16 and approved the result on 2026-11-18. The twelve faults are planted in a copy, each with its proof run on both builds. On 2026-11-21, by the owner's decision after a pilot walk, a refusal's feedback was corrected in both builds, with every proof and check run again ([The pilots](#the-pilots)). On 2026-11-24 the owner looked again at the screenshot page made on 2026-11-16 and marked none | [The reference build](#the-reference-build) |
-| The bench: the pilots | Done 2026-11-21, except the conversion, which step 0.1's first fifteen builds did not give either ([Step 0.1](#step-01)). Run at the owner's word: two builds and two walks, $3.67 at list prices, and on 2026-11-21 the bare build's reader. No leak, and no session over twice its line. The weekly figure was not read first. Their records are the runner's ledger and run folders and the held folder's notes on stage 2, committed with the record after phase 0 | [The pilots](#the-pilots) |
+| The bench: the pilots | Done 2026-11-21, except the conversion, which step 0.1's first fifteen builds did not give either ([Step 0.1](#step-01)). Run at the owner's word: two builds and two walks, $3.67 at list prices, and on 2026-11-21 the bare build's reader. No leak, and no session over twice its line. The weekly figure was not read first. Their ledger and stage 2 notes are committed in [`bench/record/`](bench/record/README.md) and [`bench/held/`](bench/held/README.md); raw run folders stay outside the repository (superseded earlier wording that run folders would be committed) | [The pilots](#the-pilots) |
 | Phase 0, step 0.1 | Done 2026-11-24 at its first fifteen of 45 builds, by the owner's decision: the builds ran on 2026-11-21 at the owner's word and were scored on 2026-11-24 with the five bare builds' readers. Both arms pass nine checks in ten; the owner approved the builds and ended the step there, since the process is what phase 0 proves | [Step 0.1](#step-01) |
 | Phase 0, steps 0.2 and 0.5 | Deferred by the owner on 2026-11-24: at arm 0's 92 to 95 %, a perfect arm 2 gains 5 to 8 points, short of step 0.2's 15, and step 0.5 builds on step 0.2's arm 2 | [Step 0.1](#step-01) |
 | Phase 0, step 0.3 | Done 2026-11-24, met: the panel found 12 of 12 planted faults, each modality's own persona 3 of 3; an independent reviewer, by the owner's decision, judged 20 of 20 matches right and 23 of 30 other findings real | [Steps 0.3 and 0.4](#steps-03-and-04) |
-| Phase 0, step 0.4 | Done 2026-11-24, not met on the original journal-path rule (3 of 13 pairs worse in both seeded walks); tuned 2026-11-24 with a blind pairwise report comparison (4 of 4 fault-meeting and 1 of 1 no-fault on a 15-walk confirmation rerun; 12 of 13 fault-meeting and 6 of 7 no-fault on the 60 original walks, awaiting owner confirmation) | [Steps 0.3 and 0.4](#steps-03-and-04) |
-| Phase 0, step 0.6 | Not started: the owner's decision (go, go with changes, or stop), including whether the tuned report comparison counts for step 0.4 and whether steps 0.2 and 0.5 stay deferred | Proposal, section 7 |
-| Phases A to D | Not started; each needs phase 0's decision | Proposal, section 7 |
+| Phase 0, step 0.4 | Done 2026-11-24, not met on the original journal-path rule (3 of 13 pairs worse in both seeded walks); tuned 2026-11-24 with a blind pairwise report comparison (4 of 4 fault-meeting and 1 of 1 no-fault on the 15-walk confirmation rerun; 12 of 13 fault-meeting and 6 of 7 no-fault on the 60 original walks), accepted by the owner at step 0.6 | [Steps 0.3 and 0.4](#steps-03-and-04), [`bench/record/`](bench/record/README.md) |
+| Phase 0, step 0.6 | Done 2026-11-24: **go with changes** — owner accepted the blind pairwise report comparison for step 0.4, the $1.79 full-set comparison batch and the fault-reader direct-consequence rule, kept steps 0.2 and 0.5 deferred, and approved committing the phase 0 record and starting phase A | [`bench/record/README.md`](bench/record/README.md), [`bench/held/README.md`](bench/held/README.md) |
+| Phase A | Not started: specify the amendments and write the ranked jobs as scenarios, walked by three readers | Proposal, section 7 |
+| Phases B to D | Not started; gated on phase A | Proposal, section 7 |
 
 ## What is not done
 
@@ -134,12 +137,15 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
   jobs.** They are sentences, and nothing shows that commands can express them. The seed
   library's seventeen jobs are a different list: the bench's application, not this proposal's
   product.
-- **The bench is built but for arm 2's statements and arm 3's skill, and steps 0.2, 0.5 and 0.6
-  have not run.** Its pilots, step 0.1's first fifteen builds and steps 0.3 and 0.4 have. Its application is built and merged in #1239 (2026-11-15). Outside the repository, its
-  held material is written and frozen, its reference build is approved and a copy of it holds
-  the faults, and its runner is written, its reports and statistics included (2026-11-21). The pilots and
-  the first fifteen builds measured what a session costs at list prices, not what share of the
-  allowance that is. The owner confirmed its rules for "go" on 2026-11-21.
+- **The bench closed phase 0 on 2026-11-24 with step 0.6 (go with changes); steps 0.2 and
+  0.5 remain deferred, and arm 2's statements and arm 3's skill are not written.** Its pilots,
+  step 0.1's first fifteen builds, steps 0.3 and 0.4, and the 15-walk confirmation rerun have
+  run. Its application is built and merged in #1239 (2026-11-15), and its held material and
+  reports are committed in [`bench/held/`](bench/held/README.md) and
+  [`bench/record/`](bench/record/README.md); its throwaway runner, reference build and seeded
+  copy remain outside the repository. The pilots and the first fifteen builds measured what a
+  session costs at list prices, not what share of the allowance that is. The owner confirmed
+  its rules for "go" on 2026-11-21.
 - **No reader has walked the proposal's jobs.** There are no commands to walk. The design
   direction is one session's draft, written with the owner in conversation and reviewed
   once.
@@ -195,7 +201,11 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
     interface that applies them);
   - on 2026-11-24, after steps 0.3 and 0.4: agreed to tune the walks (tell each persona the
     application's date, require an ending line, and judge step 0.4 by whether a persona's report
-    names the trouble) and rerun 10 to 15 walks for a few dollars to confirm the changes.
+    names the trouble) and rerun 10 to 15 walks for a few dollars to confirm the changes;
+  - on 2026-11-24, step 0.6: confirmed **go with changes** — accepted the blind pairwise report
+    comparison as step 0.4's measure, the $1.79 full-set comparison batch and the fault-reader
+    direct-consequence rule, kept steps 0.2 and 0.5 deferred, and approved committing the phase 0
+    record and starting phase A.
 
 ## How it was checked
 
@@ -703,8 +713,9 @@ states have a story, by its reader (ruling 3), with its checks only as a diagnos
   sets; the reading that the no-cost stop does not meet a build cut off from outside is
   accepted, and that build counts at its $3.00 maximum, putting the week at $28.93 before the
   walks; and steps 0.2 and 0.5 wait until after the walks.
-- **Records:** the runner's ledger, run folders and report, committed with the record after
-  phase 0.
+- **Records:** the step 0.1 report and ledger are committed in
+  [`bench/record/`](bench/record/README.md); raw run folders remain outside the repository
+  (superseded earlier wording that run folders would be committed).
 
 ## Steps 0.3 and 0.4
 
@@ -760,15 +771,15 @@ the rest, not to replace human review.
     original walks had stated their verdict at the top of their final message).
   - *Fault reader (session addition):* from "What to tune" above, the session also updated step
     0.3's fault reader to match a finding that describes a direct consequence of meeting a
-    planted problem. That change was not part of the owner's "Agree" and is for the owner to
-    confirm; step 0.3's 12-of-12 result did not depend on it.
+    planted problem. That change was not part of the owner's "Agree" (accepted at step 0.6,
+    below); step 0.3's 12-of-12 result did not depend on it.
   - *Blind pairwise report comparison for step 0.4:* to implement the report-based measure the
     owner agreed to, the runner compares each seeded walk against its pair's clean walk in
     deterministic randomized order, with neither build named and no faults shown, weighing
     completion, observed obstacles (including trouble worked around) and extra steps, and
     judging which walk met worse trouble or whether both were the same. Step 0.4's report now
-    shows both the original journal-path rule and this comparison side by side; whether it counts
-    for step 0.4's rule is for the owner to confirm at step 0.6.
+    shows both the original journal-path rule and this comparison side by side (accepted at
+    step 0.6, below).
   - *Confirmation rerun:* 15 walks across 5 persona-and-screen pairs covering all five personas,
     all four modalities and all four screens (four fault-meeting pairs that had all failed the
     path-only rule in the 60 original walks, plus one no-fault pair; two seeded and one clean
@@ -780,25 +791,38 @@ the rest, not to replace human review.
     findings reported clock or date mismatches; every fault aimed at those pairs was found in
     both seeded walks; in the rerun, the blind report comparison judged seeded worse in both
     walks for 4 of 4 fault-meeting pairs (8 of 8 calls, while the path-only rule caught 1 of 4)
-    and not worse in both for 1 of 1 no-fault pair (1 same, 1 clean).
-- **Re-evaluating the 60 original walks (run by the session without separate sign-off):** under
+    and not worse in both for 1 of 1 no-fault pair (1 same, 1 clean; report rule **met**).
+- **Re-evaluating the 60 original walks (run by the session without separate sign-off; accepted
+  at step 0.6, below):** under
   the same $58 cap, the session also ran 40 blind pairwise comparisons across all 20 pairs of
   the 60 original walks, costing $1.79 (bringing the week to $54.35). That extra batch went
-  beyond the 10-to-15-walk rerun the owner agreed to, and is noted here for the owner to accept
-  or reject. Fault-meeting pairs: 12 of 13 (92.3 %) judged seeded worse in both walks (25 of 26
+  beyond the 10-to-15-walk rerun the owner agreed to, and was accepted by the owner at step 0.6.
+  Fault-meeting pairs: 12 of 13 (92.3 %) judged seeded worse in both walks (25 of 26
   individual calls seeded, 1 same, 0 clean; the one pair not worse in both includes the single
   walk that missed its fault in step 0.3). No-fault pairs: 6 of 7 not worse in both (2 seeded,
-  5 same, 7 clean); the one exception came from the single clean walk stopping earlier than both
-  seeded walks and missing a pre-existing issue present on both builds, showing baseline
-  variance when a pair has only one clean walk.
-- **Records:** the runner's ledger, walk folders, reports and the reviewer's check, committed
-  with the record after phase 0.
+  5 same, 7 clean; report rule **not met** because of that one no-fault pair); the one exception
+  came from the single clean walk stopping earlier than both seeded walks and missing a
+  pre-existing issue present on both builds, showing baseline variance when a pair has only one
+  clean walk.
+- **Step 0.6 decision (2026-11-24):** the owner confirmed **go with changes**, accepting the
+  blind pairwise report comparison as step 0.4's measure (met on the 15-walk rerun, not met on
+  the 60 original walks due to single-clean-walk variance on one no-fault pair), the $1.79
+  full-set comparison batch and the fault-reader direct-consequence rule, keeping steps 0.2 and
+  0.5 deferred, and approving committing the phase 0 record and starting phase A.
+- **Records:** the held material ([`bench/held/`](bench/held/README.md)) and the reports,
+  independent check summary and ledger ([`bench/record/`](bench/record/README.md)) are now
+  committed. The throwaway runner scripts, the reference build and its seeded copy, and the raw
+  session transcripts and screenshots remain outside the repository on the second machine's
+  external drive.
 
 ## The reference build
 
 Built 2026-11-15 against `4a77c273` on the second machine, in a local repository on its external
 drive with no remote, beside the runner and the held material. The owner approved its design the
-same day. It is committed with the record after the last run of phase 0. What can be said here,
+same day. It was planned to be committed with the record after phase 0 (superseded 2026-11-24:
+the held material, reports and ledger are committed in [`bench/held/`](bench/held/README.md) and
+[`bench/record/`](bench/record/README.md), while the reference build and its seeded copy stay
+outside the repository). What can be said here,
 without its screens:
 
 - **What it is:** the four screens of the seed library, built with `violet-elements`, and one
@@ -874,8 +898,9 @@ without its screens:
 - **Changed after approval** on 2026-11-21, by the owner's decision after a pilot walk: a
   refusal's feedback corrected in both builds, every proof and check run again
   ([The pilots](#the-pilots)).
-- **Not done:** the walks of phase 0. The build and its seeded copy are committed with the
-  record after the last run of phase 0.
+- **Not done:** superseded 2026-11-24 — the walks of phase 0 have run
+  ([Steps 0.3 and 0.4](#steps-03-and-04)), and the reference build and its seeded copy remain
+  outside the repository beside the throwaway runner ([`bench/record/README.md`](bench/record/README.md)).
 
 ## What was read to write it
 
@@ -945,7 +970,7 @@ Read on 2026-11-24, for the amendment of that day:
 | 2026-11-21 | The pilots | The scoring checkout's Rust builds (Specimen's host, Umbel's components server) were deleted on 2026-11-20 by something other than the runner; the cause is unknown. The runner now refuses to start build sessions or score without them | Closed 2026-11-24: Botcore's disk cleaner, run by other sessions on the second machine, strips build output from linked worktrees, which the scoring checkouts are. The checkout in use is now kept with `botcore disk-keep` |
 | 2026-11-24 | Step 0.1 | The leak check throws out a build whose shell command names the session's own folder, the one above its tree, though Claude Code refuses the change of directory and nothing is read: one build of the first fifteen, $1.56, went that way | Closed 2026-11-24, not changed: that folder also holds the session's server configuration and sandbox profile, so the check is right to count it. A throw-out for this cause counts toward the runner's limit like any other: a run thrown out a third time stops the runs |
 | 2026-11-24 | Steps 0.3 and 0.4 | A persona is not told the application's date, so it compares the fixed clock with its own and reports dates as wrong: five of the seven findings judged not real in the sample. The persona prompt could name the date. Changing it is a change to the walks, for the owner | Closed 2026-11-24: by the owner's decision, the runner's walk prompt now gives the fixture's date (`9 March 2030`) without editing frozen stage 2 files; 0 of 15 rerun walks and 0 of 29 other findings reported clock mismatches |
-| 2026-11-24 | Steps 0.3 and 0.4 | Step 0.4's path, read from the journal, counts only commands and may not show trouble a persona reports but works around, a likely reason its rule was not met (3 of 13). A measure that does, such as whether a persona's report names the trouble, is the owner's to choose | In progress: the owner agreed on 2026-11-24 to judge step 0.4 by whether a persona's report names the trouble; the runner implements a blind pairwise report comparison reported beside the journal-path rule (4 of 4 fault-meeting and 1 of 1 no-fault on the 15-walk rerun; 12 of 13 and 6 of 7 on the 60 original walks). Whether it counts for step 0.4's rule waits for step 0.6 |
+| 2026-11-24 | Steps 0.3 and 0.4 | Step 0.4's path, read from the journal, counts only commands and may not show trouble a persona reports but works around, a likely reason its rule was not met (3 of 13). A measure that does, such as whether a persona's report names the trouble, is the owner's to choose | Closed 2026-11-24: at step 0.6 (**go with changes**), the owner accepted the blind pairwise report comparison as step 0.4's measure (4 of 4 fault-meeting and 1 of 1 no-fault on the 15-walk rerun; 12 of 13 and 6 of 7 on the 60 original walks) |
 | 2026-11-24 | The comparison with UI SDK | UI SDK's benchmark task is public (`benchmarks/agent` in `vercel-labs/ui`): one settings screen, where its bridge took 2 tool calls and 21.8k tokens. No AFD application has been measured on it, so that commands need fewer calls than a bridge is reasoning, not a result. Running the task against an AFD application through its commands would measure it | Open; the owner's call |
 
 ## Session log
@@ -981,3 +1006,4 @@ Read on 2026-11-24, for the amendment of that day:
 | 2026-11-24 | The owner's clarification | Asked which layer the answer of that day had meant, the owner said it was a case for a designed path, a system built to let an agent edit controls and their content, over a workaround of a command that sets values and code in the interface that applies them. Question 13 gains the reply, and the 5.10 row and section 6 now point at the [Controls proposal](../../active/controls/controls.proposal.md), written the same day, which places the code and carries what is still the owner's to decide |
 | 2026-11-24 | Steps 0.3 and 0.4 | The owner ended step 0.1 at its fifteen approved builds, decided not to measure the weekly figure again for now, counted the cut-off build at its maximum, and deferred steps 0.2 and 0.5. At the owner's word the 60 walks and 40 readers ran for $18.20 after a clean dry run. Step 0.3 is met: 12 of 12 faults found; an independent reviewer on GPT-6.2 Astra, by the owner's decision, judged 20 of 20 matches right and 23 of 30 other findings real. Step 0.4 is not met, 3 of 13; its path counts only commands and likely misses trouble a persona works around. What to tune is recorded |
 | 2026-11-24 | Walk tuning and step 0.4 rerun | The owner agreed to tune the walks (fixture date, ending line, report-based measure for step 0.4) and rerun 10 to 15 walks; the session also updated the ending parser and the fault reader's consequence matching, without touching frozen stage 2 files. The 15-walk rerun ($5.43, under a $58 weekly cap) gave 15 of 15 last-line endings, 0 clock mismatches, every aimed fault found in both walks, and 4 of 4 fault-meeting plus 1 of 1 no-fault on the blind pairwise report comparison. Without separate sign-off, the session also ran 40 blind comparisons on the 60 original walks ($1.79; week $54.35), scoring 12 of 13 fault-meeting and 6 of 7 no-fault ([Steps 0.3 and 0.4](#steps-03-and-04)) |
+| 2026-11-24 | Step 0.6 decision and phase 0 record | The owner confirmed step 0.6 (**go with changes**): accepted the blind pairwise report comparison for step 0.4 (met on the 15-walk rerun; not met on the 60 original walks at 6 of 7 no-fault), the $1.79 full-set comparison batch and the fault-reader direct-consequence rule, kept steps 0.2 and 0.5 deferred, and approved committing the phase 0 record and starting phase A. Committed [`bench/held/`](bench/held/README.md) (all 9 stage 1 files and 8 of 9 stage 2 files byte-identical to their frozen manifests; `fault-proofs.mjs` has only line 22's machine-local config path replaced, noted in `stage-2-notes.md`) and [`bench/record/`](bench/record/README.md) (reports, independent check summary and cost ledger) |

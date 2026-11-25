@@ -1,0 +1,9 @@
+bfda4e5e91609dc24ed817aa95e828830fb3b3b9974efc52a020b5bad699a1a5 *README.md
+09afbde675e826df98f08c6cafc67b763147200dc30eb3cabaaf6fa0de7ab435 *checks/README.md
+51e8b0316c3cccc96d3c2055de78e5bc01f3ce2b128fb501c930db3cd000071d *checks/t1-lend-a-packet.json
+250fc883cf56e8a8aad9c15f9f3cfa5a0cceaab3c77b0a25891d1ad613284824 *checks/t2-take-in-a-donation.json
+94cc038caee661b9b38ff5fd6616597057a5d786cc207abda00392c9c2c9bd60 *checks/t3-a-variety.json
+8cf12b821c142dac0f58e6d09f4e8d984c3c8ad581e578634e33c4983f84c78d *checks/t4-the-stewards-requests.json
+4150c2b5edbaccd6f485ed9d90e6dd044f3bc152f3eb3760fd3347a6f9782c6e *held-back-jobs/18-a-return-without-its-loan.scenario.yaml
+1279e8b476438f233384eaae8f87bd83330ecc308916fd49e30df1bdfd87630a *held-back-jobs/19-asked-for-a-retired-variety.scenario.yaml
+d4f48a8e2dfe0b27af8d94b75135827fb83809a955377f01cf08e240b5974839 *held-back-jobs/README.md

@@ -1,0 +1,2710 @@
+{
+	"rows": [
+		{
+			"persona": "p1",
+			"screen": "t1",
+			"clean": {
+				"screen": "t1",
+				"done": true,
+				"total": 0,
+				"failed": [],
+				"repeats": [],
+				"outside": [],
+				"steps": [
+					{
+						"step": 1,
+						"command": "loan-create",
+						"ok": true
+					},
+					{
+						"step": 4,
+						"command": "waitlist-join",
+						"ok": true
+					},
+					{
+						"step": 3,
+						"command": "loan-create",
+						"ok": true
+					}
+				],
+				"reads": 8,
+				"stepsMet": 3,
+				"stepsTotal": 4
+			},
+			"seeded": [
+				{
+					"screen": "t1",
+					"done": false,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [],
+					"reads": 3,
+					"stepsMet": 0,
+					"stepsTotal": 4
+				},
+				{
+					"screen": "t1",
+					"done": false,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [],
+					"reads": 4,
+					"stepsMet": 0,
+					"stepsTotal": 4
+				}
+			],
+			"compares": [
+				{
+					"runId": "c-w0.3-t1-p1-seeded-1",
+					"answer": {
+						"worse": "A",
+						"confidence": "high",
+						"why": "In Walk A, every Lend button was unresponsive, so the persona was blocked and stopped without lending a packet or adding Ines to the waiting list. Walk B finished the job and only met workable friction: a disabled substitute button, a wrong loan date and a greyed confirmation."
+					},
+					"costUsd": 0.039591,
+					"tokens": {
+						"input": 5253,
+						"output": 114,
+						"total": 5367
+					},
+					"dryRun": false,
+					"order": {
+						"A": "seeded",
+						"B": "clean"
+					},
+					"cleanRunId": "w0.3-t1-p1-clean-1",
+					"seededRunId": "w0.3-t1-p1-seeded-1",
+					"worse": "seeded"
+				},
+				{
+					"runId": "c-w0.3-t1-p1-seeded-2",
+					"answer": {
+						"worse": "B",
+						"confidence": "high",
+						"why": "In Walk B the Lend button on the out-of-stock row did nothing, so the persona could not reach the waiting list or a substitute and stopped without finishing the job. Walk A finished despite real friction: the substitute button greyed out, the loan date was wrong, and the persona had to work around it."
+					},
+					"costUsd": 0.038978,
+					"tokens": {
+						"input": 5170,
+						"output": 117,
+						"total": 5287
+					},
+					"dryRun": false,
+					"order": {
+						"A": "clean",
+						"B": "seeded"
+					},
+					"cleanRunId": "w0.3-t1-p1-clean-1",
+					"seededRunId": "w0.3-t1-p1-seeded-2",
+					"worse": "seeded"
+				}
+			],
+			"meets": true,
+			"complete": true,
+			"bothWorse": true,
+			"within": true,
+			"compared": true,
+			"bothWorseReport": true,
+			"quietReport": false
+		},
+		{
+			"persona": "p2",
+			"screen": "t1",
+			"clean": {
+				"screen": "t1",
+				"done": true,
+				"total": 3,
+				"failed": [
+					{
+						"command": "loan-create",
+						"record": "mem-ines/var-runner",
+						"why": "OUT_OF_STOCK"
+					},
+					{
+						"command": "loan-create",
+						"record": "mem-ines/var-runner",
+						"why": "OUT_OF_STOCK"
+					},
+					{
+						"command": "waitlist-join",
+						"record": "mem-ines/var-runner",
+						"why": "ALREADY_EXISTS"
+					}
+				],
+				"repeats": [],
+				"outside": [],
+				"steps": [
+					{
+						"step": 1,
+						"command": "loan-create",
+						"ok": true
+					},
+					{
+						"step": 4,
+						"command": "waitlist-join",
+						"ok": true
+					},
+					{
+						"step": 2,
+						"command": "substitute-suggest",
+						"ok": true
+					},
+					{
+						"step": 3,
+						"command": "loan-create",
+						"ok": true
+					}
+				],
+				"reads": 13,
+				"stepsMet": 4,
+				"stepsTotal": 4
+			},
+			"seeded": [
+				{
+					"screen": "t1",
+					"done": false,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [],
+					"reads": 4,
+					"stepsMet": 0,
+					"stepsTotal": 4
+				},
+				{
+					"screen": "t1",
+					"done": false,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [],
+					"reads": 3,
+					"stepsMet": 0,
+					"stepsTotal": 4
+				}
+			],
+			"compares": [
+				{
+					"runId": "c-w0.3-t1-p2-seeded-1",
+					"answer": {
+						"worse": "B",
+						"confidence": "high",
+						"why": "In Walk B the Scarlet runner bean Lend button gave no response or feedback at all, so the persona was blocked and could not finish the job. Walk A had real friction (a greyed-out substitute button, disappearing confirmations, a red error used as the only check) but still completed both parts of the job."
+					},
+					"costUsd": 0.0435053,
+					"tokens": {
+						"input": 5726,
+						"output": 118,
+						"total": 5844
+					},
+					"dryRun": false,
+					"order": {
+						"A": "clean",
+						"B": "seeded"
+					},
+					"cleanRunId": "w0.3-t1-p2-clean-1",
+					"seededRunId": "w0.3-t1-p2-seeded-1",
+					"worse": "seeded"
+				},
+				{
+					"runId": "c-w0.3-t1-p2-seeded-2",
+					"answer": {
+						"worse": "A",
+						"confidence": "high",
+						"why": "In Walk A the Lend button on the Scarlet runner bean row did nothing, so the persona was blocked and could neither lend a substitute nor add Ines to the waiting list. Walk B finished both parts of the job despite friction: a greyed-out substitute button, vanishing confirmations, and a confusing error when checking the list."
+					},
+					"costUsd": 0.044651699999999996,
+					"tokens": {
+						"input": 5838,
+						"output": 130,
+						"total": 5968
+					},
+					"dryRun": false,
+					"order": {
+						"A": "seeded",
+						"B": "clean"
+					},
+					"cleanRunId": "w0.3-t1-p2-clean-1",
+					"seededRunId": "w0.3-t1-p2-seeded-2",
+					"worse": "seeded"
+				}
+			],
+			"meets": true,
+			"complete": true,
+			"bothWorse": true,
+			"within": false,
+			"compared": true,
+			"bothWorseReport": true,
+			"quietReport": false
+		},
+		{
+			"persona": "p3",
+			"screen": "t1",
+			"clean": {
+				"screen": "t1",
+				"done": true,
+				"total": 3,
+				"failed": [
+					{
+						"command": "loan-create",
+						"record": "mem-ines/var-runner",
+						"why": "OUT_OF_STOCK"
+					},
+					{
+						"command": "loan-create",
+						"record": "mem-ines/var-runner",
+						"why": "OUT_OF_STOCK"
+					},
+					{
+						"command": "waitlist-join",
+						"record": "mem-ines/var-runner",
+						"why": "ALREADY_EXISTS"
+					}
+				],
+				"repeats": [],
+				"outside": [],
+				"steps": [
+					{
+						"step": 1,
+						"command": "loan-create",
+						"ok": true
+					},
+					{
+						"step": 4,
+						"command": "waitlist-join",
+						"ok": true
+					},
+					{
+						"step": 2,
+						"command": "substitute-suggest",
+						"ok": true
+					},
+					{
+						"step": 3,
+						"command": "loan-create",
+						"ok": true
+					}
+				],
+				"reads": 13,
+				"stepsMet": 4,
+				"stepsTotal": 4
+			},
+			"seeded": [
+				{
+					"screen": "t1",
+					"done": true,
+					"total": 3,
+					"failed": [
+						{
+							"command": "loan-create",
+							"record": "mem-ines/var-runner",
+							"why": "OUT_OF_STOCK"
+						},
+						{
+							"command": "loan-create",
+							"record": "mem-ines/var-runner",
+							"why": "OUT_OF_STOCK"
+						},
+						{
+							"command": "waitlist-join",
+							"record": "mem-ines/var-runner",
+							"why": "ALREADY_EXISTS"
+						}
+					],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "loan-create",
+							"ok": true
+						},
+						{
+							"step": 4,
+							"command": "waitlist-join",
+							"ok": true
+						},
+						{
+							"step": 2,
+							"command": "substitute-suggest",
+							"ok": true
+						},
+						{
+							"step": 3,
+							"command": "loan-create",
+							"ok": true
+						}
+					],
+					"reads": 13,
+					"stepsMet": 4,
+					"stepsTotal": 4
+				},
+				{
+					"screen": "t1",
+					"done": true,
+					"total": 2,
+					"failed": [
+						{
+							"command": "loan-create",
+							"record": "mem-ines/var-runner",
+							"why": "OUT_OF_STOCK"
+						},
+						{
+							"command": "waitlist-join",
+							"record": "mem-ines/var-runner",
+							"why": "ALREADY_EXISTS"
+						}
+					],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "loan-create",
+							"ok": true
+						},
+						{
+							"step": 4,
+							"command": "waitlist-join",
+							"ok": true
+						},
+						{
+							"step": 3,
+							"command": "loan-create",
+							"ok": true
+						}
+					],
+					"reads": 10,
+					"stepsMet": 3,
+					"stepsTotal": 4
+				}
+			],
+			"compares": [
+				{
+					"runId": "c-w0.3-t1-p3-seeded-1",
+					"answer": {
+						"worse": "A",
+						"confidence": "low",
+						"why": "Both walks hit the same shared problems: one action per panel, reopening the panel wiped confirmations, and focus landed on the panel instead of a button, with identical action and failure counts. Walk A also had the 'Put on the waiting list' button vanish entirely when it had focus, forcing guesswork. That outweighs B's extra issues (grey-button mismatch, conflicting 80%/82% figures, wrong loan date), which caused confusion but did not hide a control the persona needed."
+					},
+					"costUsd": 0.0532438,
+					"tokens": {
+						"input": 6022,
+						"output": 485,
+						"total": 6507
+					},
+					"dryRun": false,
+					"order": {
+						"A": "seeded",
+						"B": "clean"
+					},
+					"cleanRunId": "w0.3-t1-p3-clean-1",
+					"seededRunId": "w0.3-t1-p3-seeded-1",
+					"worse": "seeded"
+				},
+				{
+					"runId": "c-w0.3-t1-p3-seeded-2",
+					"answer": {
+						"worse": "same",
+						"confidence": "medium",
+						"why": "Both walks finished and hit the same core obstacles: joining the waiting list greyed out the substitute option, the waiting-list confirmation vanished, checking the list was only possible through a red 'did not work' error, and the loan date was wrong. A's extra issues (focus landing, a misleading grey button, conflicting germination figures) roughly match B's (a Lend button that looked enabled, labels that reverted, Lend becoming pressable again), and the small gap in actions and failures is not decisive."
+					},
+					"costUsd": 0.0540079,
+					"tokens": {
+						"input": 6223,
+						"output": 442,
+						"total": 6665
+					},
+					"dryRun": false,
+					"order": {
+						"A": "clean",
+						"B": "seeded"
+					},
+					"cleanRunId": "w0.3-t1-p3-clean-1",
+					"seededRunId": "w0.3-t1-p3-seeded-2",
+					"worse": "same"
+				}
+			],
+			"meets": true,
+			"complete": true,
+			"bothWorse": false,
+			"within": true,
+			"compared": true,
+			"bothWorseReport": false,
+			"quietReport": true
+		},
+		{
+			"persona": "p4",
+			"screen": "t1",
+			"clean": {
+				"screen": "t1",
+				"done": true,
+				"total": 3,
+				"failed": [
+					{
+						"command": "loan-create",
+						"record": "mem-ines/var-runner",
+						"why": "OUT_OF_STOCK"
+					},
+					{
+						"command": "loan-create",
+						"record": "mem-ines/var-runner",
+						"why": "OUT_OF_STOCK"
+					},
+					{
+						"command": "waitlist-join",
+						"record": "mem-ines/var-runner",
+						"why": "ALREADY_EXISTS"
+					}
+				],
+				"repeats": [],
+				"outside": [],
+				"steps": [
+					{
+						"step": 1,
+						"command": "loan-create",
+						"ok": true
+					},
+					{
+						"step": 2,
+						"command": "substitute-suggest",
+						"ok": true
+					},
+					{
+						"step": 4,
+						"command": "waitlist-join",
+						"ok": true
+					},
+					{
+						"step": 3,
+						"command": "loan-create",
+						"ok": true
+					}
+				],
+				"reads": 17,
+				"stepsMet": 4,
+				"stepsTotal": 4
+			},
+			"seeded": [
+				{
+					"screen": "t1",
+					"done": true,
+					"total": 3,
+					"failed": [
+						{
+							"command": "loan-create",
+							"record": "mem-ines/var-runner",
+							"why": "OUT_OF_STOCK"
+						},
+						{
+							"command": "loan-create",
+							"record": "mem-ines/var-runner",
+							"why": "OUT_OF_STOCK"
+						},
+						{
+							"command": "waitlist-join",
+							"record": "mem-ines/var-runner",
+							"why": "ALREADY_EXISTS"
+						}
+					],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "loan-create",
+							"ok": true
+						},
+						{
+							"step": 4,
+							"command": "waitlist-join",
+							"ok": true
+						},
+						{
+							"step": 2,
+							"command": "substitute-suggest",
+							"ok": true
+						},
+						{
+							"step": 3,
+							"command": "loan-create",
+							"ok": true
+						}
+					],
+					"reads": 13,
+					"stepsMet": 4,
+					"stepsTotal": 4
+				},
+				{
+					"screen": "t1",
+					"done": true,
+					"total": 3,
+					"failed": [
+						{
+							"command": "loan-create",
+							"record": "mem-ines/var-runner",
+							"why": "OUT_OF_STOCK"
+						},
+						{
+							"command": "loan-create",
+							"record": "mem-ines/var-runner",
+							"why": "OUT_OF_STOCK"
+						},
+						{
+							"command": "waitlist-join",
+							"record": "mem-ines/var-runner",
+							"why": "ALREADY_EXISTS"
+						}
+					],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "loan-create",
+							"ok": true
+						},
+						{
+							"step": 4,
+							"command": "waitlist-join",
+							"ok": true
+						},
+						{
+							"step": 2,
+							"command": "substitute-suggest",
+							"ok": true
+						},
+						{
+							"step": 3,
+							"command": "loan-create",
+							"ok": true
+						}
+					],
+					"reads": 13,
+					"stepsMet": 4,
+					"stepsTotal": 4
+				}
+			],
+			"compares": [
+				{
+					"runId": "c-w0.3-t1-p4-seeded-1",
+					"answer": {
+						"worse": "A",
+						"confidence": "low",
+						"why": "Both walks hit the same core problems: the substitute option disappeared after joining the waiting list, her waiting-list place was never shown, the receipt appeared somewhere unexpected, and the loan date was wrong. A also met an ArrowUp navigation skip that twice made the persona trigger the wrong action, which weighs slightly more than B's extra Tab-order and disabled-reason friction."
+					},
+					"costUsd": 0.056339799999999995,
+					"tokens": {
+						"input": 6785,
+						"output": 331,
+						"total": 7116
+					},
+					"dryRun": false,
+					"order": {
+						"A": "clean",
+						"B": "seeded"
+					},
+					"cleanRunId": "w0.3-t1-p4-clean-1",
+					"seededRunId": "w0.3-t1-p4-seeded-1",
+					"worse": "clean"
+				},
+				{
+					"runId": "c-w0.3-t1-p4-seeded-2",
+					"answer": {
+						"worse": "A",
+						"confidence": "medium",
+						"why": "Both walks hit the same core problems: the substitute option vanished after joining the waiting list, and the waiting-list status was not shown. Walk A also met a reading-order fault where ArrowUp from 'Bottom' skipped the waiting-list button, which caused two wrong presses, and a loan receipt that appeared in an unexpected place, so it needed more actions (19 vs 13)."
+					},
+					"costUsd": 0.054199199999999996,
+					"tokens": {
+						"input": 6543,
+						"output": 322,
+						"total": 6865
+					},
+					"dryRun": false,
+					"order": {
+						"A": "clean",
+						"B": "seeded"
+					},
+					"cleanRunId": "w0.3-t1-p4-clean-1",
+					"seededRunId": "w0.3-t1-p4-seeded-2",
+					"worse": "clean"
+				}
+			],
+			"meets": false,
+			"complete": true,
+			"bothWorse": false,
+			"within": true,
+			"compared": true,
+			"bothWorseReport": false,
+			"quietReport": true
+		},
+		{
+			"persona": "p5",
+			"screen": "t1",
+			"clean": {
+				"screen": "t1",
+				"done": true,
+				"total": 3,
+				"failed": [
+					{
+						"command": "loan-create",
+						"record": "mem-ines/var-runner",
+						"why": "OUT_OF_STOCK"
+					},
+					{
+						"command": "loan-create",
+						"record": "mem-ines/var-runner",
+						"why": "OUT_OF_STOCK"
+					},
+					{
+						"command": "waitlist-join",
+						"record": "mem-ines/var-runner",
+						"why": "ALREADY_EXISTS"
+					}
+				],
+				"repeats": [],
+				"outside": [],
+				"steps": [
+					{
+						"step": 1,
+						"command": "loan-create",
+						"ok": true
+					},
+					{
+						"step": 4,
+						"command": "waitlist-join",
+						"ok": true
+					},
+					{
+						"step": 2,
+						"command": "substitute-suggest",
+						"ok": true
+					},
+					{
+						"step": 3,
+						"command": "loan-create",
+						"ok": true
+					}
+				],
+				"reads": 13,
+				"stepsMet": 4,
+				"stepsTotal": 4
+			},
+			"seeded": [
+				{
+					"screen": "t1",
+					"done": true,
+					"total": 1,
+					"failed": [
+						{
+							"command": "loan-create",
+							"record": "mem-ines/var-runner",
+							"why": "OUT_OF_STOCK"
+						}
+					],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "loan-create",
+							"ok": true
+						},
+						{
+							"step": 2,
+							"command": "substitute-suggest",
+							"ok": true
+						},
+						{
+							"step": 3,
+							"command": "loan-create",
+							"ok": true
+						},
+						{
+							"step": 4,
+							"command": "waitlist-join",
+							"ok": true
+						}
+					],
+					"reads": 11,
+					"stepsMet": 4,
+					"stepsTotal": 4
+				},
+				{
+					"screen": "t1",
+					"done": true,
+					"total": 1,
+					"failed": [
+						{
+							"command": "loan-create",
+							"record": "mem-ines/var-runner",
+							"why": "OUT_OF_STOCK"
+						}
+					],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "loan-create",
+							"ok": true
+						},
+						{
+							"step": 2,
+							"command": "substitute-suggest",
+							"ok": true
+						},
+						{
+							"step": 3,
+							"command": "loan-create",
+							"ok": true
+						},
+						{
+							"step": 4,
+							"command": "waitlist-join",
+							"ok": true
+						}
+					],
+					"reads": 11,
+					"stepsMet": 4,
+					"stepsTotal": 4
+				}
+			],
+			"compares": [
+				{
+					"runId": "c-w0.3-t1-p5-seeded-1",
+					"answer": {
+						"worse": "A",
+						"confidence": "high",
+						"why": "In Walk A, clicking Lend did nothing, the panel was clipped, and its controls were invisible with no focus ring, so the persona had to join the waiting list by pressing a button they could not read, over 33 actions. Walk B finished in 12 actions; its trouble was confusing state (greyed-out buttons, no sign she was still on the list, an error used as confirmation), not blocked or hidden controls."
+					},
+					"costUsd": 0.0487295,
+					"tokens": {
+						"input": 6280,
+						"output": 155,
+						"total": 6435
+					},
+					"dryRun": false,
+					"order": {
+						"A": "seeded",
+						"B": "clean"
+					},
+					"cleanRunId": "w0.3-t1-p5-clean-1",
+					"seededRunId": "w0.3-t1-p5-seeded-1",
+					"worse": "seeded"
+				},
+				{
+					"runId": "c-w0.3-t1-p5-seeded-2",
+					"answer": {
+						"worse": "A",
+						"confidence": "high",
+						"why": "Walk A met severe accessibility blockers: the Lend button did not respond to a click or to Enter, the notice text was clipped, and controls were hidden off-screen so the persona had to press the waiting-list button without seeing it. That took 34 actions of workarounds. Walk B's trouble was milder flow friction (a disabled option after the first choice, unclear waiting-list status, a page jump) and it finished in 12 actions."
+					},
+					"costUsd": 0.049176500000000005,
+					"tokens": {
+						"input": 6318,
+						"output": 162,
+						"total": 6480
+					},
+					"dryRun": false,
+					"order": {
+						"A": "seeded",
+						"B": "clean"
+					},
+					"cleanRunId": "w0.3-t1-p5-clean-1",
+					"seededRunId": "w0.3-t1-p5-seeded-2",
+					"worse": "seeded"
+				}
+			],
+			"meets": true,
+			"complete": true,
+			"bothWorse": false,
+			"within": false,
+			"compared": true,
+			"bothWorseReport": true,
+			"quietReport": false
+		},
+		{
+			"persona": "p1",
+			"screen": "t2",
+			"clean": {
+				"screen": "t2",
+				"done": false,
+				"total": 0,
+				"failed": [],
+				"repeats": [],
+				"outside": [],
+				"steps": [
+					{
+						"step": 1,
+						"command": "donation-correct",
+						"ok": true
+					}
+				],
+				"reads": 3,
+				"stepsMet": 1,
+				"stepsTotal": 2
+			},
+			"seeded": [
+				{
+					"screen": "t2",
+					"done": false,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "donation-correct",
+							"ok": true
+						}
+					],
+					"reads": 3,
+					"stepsMet": 1,
+					"stepsTotal": 2
+				},
+				{
+					"screen": "t2",
+					"done": false,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "donation-correct",
+							"ok": true
+						}
+					],
+					"reads": 3,
+					"stepsMet": 1,
+					"stepsTotal": 2
+				}
+			],
+			"compares": [
+				{
+					"runId": "c-w0.3-t2-p1-seeded-1",
+					"answer": {
+						"worse": "A",
+						"confidence": "medium",
+						"why": "In Walk A the squash row had no Leave out button, even though the banner told the persona to leave it out, so they could not finish the box and the failed picker search left a red error behind. Walk B had a Leave out control available and met only confusing friction: a stale banner, a page jump, and unclear Leave out wording."
+					},
+					"costUsd": 0.0404203,
+					"tokens": {
+						"input": 5138,
+						"output": 202,
+						"total": 5340
+					},
+					"dryRun": false,
+					"order": {
+						"A": "seeded",
+						"B": "clean"
+					},
+					"cleanRunId": "w0.3-t2-p1-clean-1",
+					"seededRunId": "w0.3-t2-p1-seeded-1",
+					"worse": "seeded"
+				},
+				{
+					"runId": "c-w0.3-t2-p1-seeded-2",
+					"answer": {
+						"worse": "B",
+						"confidence": "medium",
+						"why": "Both walks reached the same end state and both hit the page jump and the stale 'Earlier' banner. B also found no 'Leave out' control on the squash row, even though the banner told them to leave rows out, and was left with a stuck red error in the variety box, while A at least had Leave out available."
+					},
+					"costUsd": 0.040514699999999994,
+					"tokens": {
+						"input": 5093,
+						"output": 225,
+						"total": 5318
+					},
+					"dryRun": false,
+					"order": {
+						"A": "clean",
+						"B": "seeded"
+					},
+					"cleanRunId": "w0.3-t2-p1-clean-1",
+					"seededRunId": "w0.3-t2-p1-seeded-2",
+					"worse": "seeded"
+				}
+			],
+			"meets": true,
+			"complete": true,
+			"bothWorse": false,
+			"within": true,
+			"compared": true,
+			"bothWorseReport": true,
+			"quietReport": false
+		},
+		{
+			"persona": "p2",
+			"screen": "t2",
+			"clean": {
+				"screen": "t2",
+				"done": false,
+				"total": 0,
+				"failed": [],
+				"repeats": [],
+				"outside": [],
+				"steps": [
+					{
+						"step": 1,
+						"command": "donation-correct",
+						"ok": true
+					}
+				],
+				"reads": 3,
+				"stepsMet": 1,
+				"stepsTotal": 2
+			},
+			"seeded": [
+				{
+					"screen": "t2",
+					"done": false,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "donation-correct",
+							"ok": true
+						}
+					],
+					"reads": 3,
+					"stepsMet": 1,
+					"stepsTotal": 2
+				},
+				{
+					"screen": "t2",
+					"done": false,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "donation-correct",
+							"ok": true
+						}
+					],
+					"reads": 3,
+					"stepsMet": 1,
+					"stepsTotal": 2
+				}
+			],
+			"compares": [
+				{
+					"runId": "c-w0.3-t2-p2-seeded-1",
+					"answer": {
+						"worse": "B",
+						"confidence": "medium",
+						"why": "In Walk B the persona could not find a 'Leave out' control on the squash row (it appeared only, greyed, on the already-corrected marigold row), so the screen left them stuck and they never reached done; in Walk A the Leave out choice was available and the persona finished, only hesitating over unclear consequences."
+					},
+					"costUsd": 0.0444164,
+					"tokens": {
+						"input": 5829,
+						"output": 122,
+						"total": 5951
+					},
+					"dryRun": false,
+					"order": {
+						"A": "clean",
+						"B": "seeded"
+					},
+					"cleanRunId": "w0.3-t2-p2-clean-1",
+					"seededRunId": "w0.3-t2-p2-seeded-1",
+					"worse": "seeded"
+				},
+				{
+					"runId": "c-w0.3-t2-p2-seeded-2",
+					"answer": {
+						"worse": "B",
+						"confidence": "medium",
+						"why": "In Walk B the squash row had no 'Leave out' button (it appeared only, greyed out, on the already-fixed marigold row), so the persona could not mark the row as left out. In Walk A the button was there and the persona chose not to use it. Both walks hit the same other friction: the confusing year rule, search text that would not clear, and the stale summary banner."
+					},
+					"costUsd": 0.0447416,
+					"tokens": {
+						"input": 5647,
+						"output": 212,
+						"total": 5859
+					},
+					"dryRun": false,
+					"order": {
+						"A": "clean",
+						"B": "seeded"
+					},
+					"cleanRunId": "w0.3-t2-p2-clean-1",
+					"seededRunId": "w0.3-t2-p2-seeded-2",
+					"worse": "seeded"
+				}
+			],
+			"meets": true,
+			"complete": true,
+			"bothWorse": false,
+			"within": true,
+			"compared": true,
+			"bothWorseReport": true,
+			"quietReport": false
+		},
+		{
+			"persona": "p3",
+			"screen": "t2",
+			"clean": {
+				"screen": "t2",
+				"done": true,
+				"total": 0,
+				"failed": [],
+				"repeats": [],
+				"outside": [],
+				"steps": [
+					{
+						"step": 1,
+						"command": "donation-correct",
+						"ok": true
+					},
+					{
+						"step": 2,
+						"command": "donation-correct",
+						"ok": true
+					}
+				],
+				"reads": 4,
+				"stepsMet": 2,
+				"stepsTotal": 2
+			},
+			"seeded": [
+				{
+					"screen": "t2",
+					"done": true,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "donation-correct",
+							"ok": true
+						},
+						{
+							"step": 2,
+							"command": "donation-correct",
+							"ok": true
+						}
+					],
+					"reads": 4,
+					"stepsMet": 2,
+					"stepsTotal": 2
+				},
+				{
+					"screen": "t2",
+					"done": true,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "donation-correct",
+							"ok": true
+						},
+						{
+							"step": 2,
+							"command": "donation-correct",
+							"ok": true
+						}
+					],
+					"reads": 4,
+					"stepsMet": 2,
+					"stepsTotal": 2
+				}
+			],
+			"compares": [
+				{
+					"runId": "c-w0.3-t2-p3-seeded-1",
+					"answer": {
+						"worse": "B",
+						"confidence": "high",
+						"why": "Walk B met missing focus indicators on the error fields and Correct buttons, which forced the persona to probe with Backspace and press Correct on trust, plus a Leave out button hidden until focused. Walk A only met an auto-opening dropdown and some extra Tab presses, and it took fewer actions."
+					},
+					"costUsd": 0.0438938,
+					"tokens": {
+						"input": 5767,
+						"output": 121,
+						"total": 5888
+					},
+					"dryRun": false,
+					"order": {
+						"A": "clean",
+						"B": "seeded"
+					},
+					"cleanRunId": "w0.3-t2-p3-clean-1",
+					"seededRunId": "w0.3-t2-p3-seeded-1",
+					"worse": "seeded"
+				},
+				{
+					"runId": "c-w0.3-t2-p3-seeded-2",
+					"answer": {
+						"worse": "B",
+						"confidence": "high",
+						"why": "Walk B met missing focus indicators on the harvest-year field and Correct buttons, which forced blind tabbing and Shift+Tab backtracking, and a Leave out button that stayed hidden until it got focus. Walk A only met the auto-opening variety list and some extra Tab presses, which B also had."
+					},
+					"costUsd": 0.0449785,
+					"tokens": {
+						"input": 5896,
+						"output": 123,
+						"total": 6019
+					},
+					"dryRun": false,
+					"order": {
+						"A": "clean",
+						"B": "seeded"
+					},
+					"cleanRunId": "w0.3-t2-p3-clean-1",
+					"seededRunId": "w0.3-t2-p3-seeded-2",
+					"worse": "seeded"
+				}
+			],
+			"meets": true,
+			"complete": true,
+			"bothWorse": false,
+			"within": true,
+			"compared": true,
+			"bothWorseReport": true,
+			"quietReport": false
+		},
+		{
+			"persona": "p4",
+			"screen": "t2",
+			"clean": {
+				"screen": "t2",
+				"done": false,
+				"total": 0,
+				"failed": [],
+				"repeats": [],
+				"outside": [],
+				"steps": [
+					{
+						"step": 1,
+						"command": "donation-correct",
+						"ok": true
+					}
+				],
+				"reads": 3,
+				"stepsMet": 1,
+				"stepsTotal": 2
+			},
+			"seeded": [
+				{
+					"screen": "t2",
+					"done": false,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "donation-correct",
+							"ok": true
+						}
+					],
+					"reads": 3,
+					"stepsMet": 1,
+					"stepsTotal": 2
+				},
+				{
+					"screen": "t2",
+					"done": false,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "donation-correct",
+							"ok": true
+						}
+					],
+					"reads": 3,
+					"stepsMet": 1,
+					"stepsTotal": 2
+				}
+			],
+			"compares": [
+				{
+					"runId": "c-w0.3-t2-p4-seeded-1",
+					"answer": {
+						"worse": "B",
+						"confidence": "medium",
+						"why": "Walk B hit observed control defects: the row 3 variety combobox announced no options when arrowing or typing, and it still reported 'expanded' after Escape, so the persona could not check the library's varieties and needed extra navigation. Walk A's issues were mostly redundant announcements, confusing wording and unclear focus after the fix, which is lighter friction."
+					},
+					"costUsd": 0.044188599999999995,
+					"tokens": {
+						"input": 5759,
+						"output": 139,
+						"total": 5898
+					},
+					"dryRun": false,
+					"order": {
+						"A": "clean",
+						"B": "seeded"
+					},
+					"cleanRunId": "w0.3-t2-p4-clean-1",
+					"seededRunId": "w0.3-t2-p4-seeded-1",
+					"worse": "seeded"
+				},
+				{
+					"runId": "c-w0.3-t2-p4-seeded-2",
+					"answer": {
+						"worse": "B",
+						"confidence": "medium",
+						"why": "Both walks reached the same end state, but B met real screen obstacles: the variety combo box announced no options, it stayed 'expanded' after Escape, and the table navigation keys failed. A only met minor friction, such as a repeated error announcement and unclear focus after correcting row 2."
+					},
+					"costUsd": 0.0469366,
+					"tokens": {
+						"input": 5997,
+						"output": 180,
+						"total": 6177
+					},
+					"dryRun": false,
+					"order": {
+						"A": "clean",
+						"B": "seeded"
+					},
+					"cleanRunId": "w0.3-t2-p4-clean-1",
+					"seededRunId": "w0.3-t2-p4-seeded-2",
+					"worse": "seeded"
+				}
+			],
+			"meets": false,
+			"complete": true,
+			"bothWorse": false,
+			"within": true,
+			"compared": true,
+			"bothWorseReport": true,
+			"quietReport": false
+		},
+		{
+			"persona": "p5",
+			"screen": "t2",
+			"clean": {
+				"screen": "t2",
+				"done": true,
+				"total": 0,
+				"failed": [],
+				"repeats": [],
+				"outside": [],
+				"steps": [
+					{
+						"step": 1,
+						"command": "donation-correct",
+						"ok": true
+					},
+					{
+						"step": 2,
+						"command": "donation-correct",
+						"ok": true
+					}
+				],
+				"reads": 4,
+				"stepsMet": 2,
+				"stepsTotal": 2
+			},
+			"seeded": [
+				{
+					"screen": "t2",
+					"done": true,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "donation-correct",
+							"ok": true
+						},
+						{
+							"step": 2,
+							"command": "donation-correct",
+							"ok": true
+						}
+					],
+					"reads": 4,
+					"stepsMet": 2,
+					"stepsTotal": 2
+				},
+				{
+					"screen": "t2",
+					"done": true,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "donation-correct",
+							"ok": true
+						},
+						{
+							"step": 2,
+							"command": "donation-correct",
+							"ok": true
+						}
+					],
+					"reads": 4,
+					"stepsMet": 2,
+					"stepsTotal": 2
+				}
+			],
+			"compares": [
+				{
+					"runId": "c-w0.3-t2-p5-seeded-1",
+					"answer": {
+						"worse": "A",
+						"confidence": "high",
+						"why": "Walk A ran into observed obstacles: the year error had no message, the 'Leave out' button stayed invisible until it got keyboard focus, and fields had no focus outline. The persona needed 16 actions against B's 7 to work around them. Walk B's trouble was mostly the page moving and confirmations showing up out of view."
+					},
+					"costUsd": 0.0410297,
+					"tokens": {
+						"input": 5396,
+						"output": 128,
+						"total": 5524
+					},
+					"dryRun": false,
+					"order": {
+						"A": "seeded",
+						"B": "clean"
+					},
+					"cleanRunId": "w0.3-t2-p5-clean-1",
+					"seededRunId": "w0.3-t2-p5-seeded-1",
+					"worse": "seeded"
+				},
+				{
+					"runId": "c-w0.3-t2-p5-seeded-2",
+					"answer": {
+						"worse": "B",
+						"confidence": "high",
+						"why": "Walk B hit substantive observed obstacles: an error with no text explaining it, a 'Leave out' button that was invisible until it got keyboard focus, missing focus indication, and a dropdown that covered content. It also took more than twice as many actions. Walk A's trouble was mostly the page shifting and a confusing year rule, with no hidden controls."
+					},
+					"costUsd": 0.040034,
+					"tokens": {
+						"input": 5251,
+						"output": 137,
+						"total": 5388
+					},
+					"dryRun": false,
+					"order": {
+						"A": "clean",
+						"B": "seeded"
+					},
+					"cleanRunId": "w0.3-t2-p5-clean-1",
+					"seededRunId": "w0.3-t2-p5-seeded-2",
+					"worse": "seeded"
+				}
+			],
+			"meets": true,
+			"complete": true,
+			"bothWorse": false,
+			"within": true,
+			"compared": true,
+			"bothWorseReport": true,
+			"quietReport": false
+		},
+		{
+			"persona": "p1",
+			"screen": "t3",
+			"clean": {
+				"screen": "t3",
+				"done": true,
+				"total": 0,
+				"failed": [],
+				"repeats": [],
+				"outside": [],
+				"steps": [
+					{
+						"step": 1,
+						"command": "loan-return",
+						"ok": true
+					}
+				],
+				"reads": 6,
+				"stepsMet": 1,
+				"stepsTotal": 1
+			},
+			"seeded": [
+				{
+					"screen": "t3",
+					"done": true,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "loan-return",
+							"ok": true
+						}
+					],
+					"reads": 6,
+					"stepsMet": 1,
+					"stepsTotal": 1
+				},
+				{
+					"screen": "t3",
+					"done": true,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "loan-return",
+							"ok": true
+						}
+					],
+					"reads": 6,
+					"stepsMet": 1,
+					"stepsTotal": 1
+				}
+			],
+			"compares": [
+				{
+					"runId": "c-w0.3-t3-p1-seeded-1",
+					"answer": {
+						"worse": "A",
+						"confidence": "high",
+						"why": "In Walk A the 'Record a return' button didn't respond to a single click and only opened on a double-click. The form also put focus in the wrong field, and the fields swapped order after saving. Walk B met only minor friction (a layout shift, a leftover 'Returned' row, and the new lot sitting off screen)."
+					},
+					"costUsd": 0.0391885,
+					"tokens": {
+						"input": 5181,
+						"output": 123,
+						"total": 5304
+					},
+					"dryRun": false,
+					"order": {
+						"A": "seeded",
+						"B": "clean"
+					},
+					"cleanRunId": "w0.3-t3-p1-clean-1",
+					"seededRunId": "w0.3-t3-p1-seeded-1",
+					"worse": "seeded"
+				},
+				{
+					"runId": "c-w0.3-t3-p1-seeded-2",
+					"answer": {
+						"worse": "B",
+						"confidence": "high",
+						"why": "In Walk B the 'Record a return' button ignored single clicks and needed a double-click after repeated retries, the form focused the wrong field first, and the fields swapped places after saving. Walk A met only minor friction: a layout shift, a leftover row and a lot shown off screen."
+					},
+					"costUsd": 0.0379658,
+					"tokens": {
+						"input": 5055,
+						"output": 113,
+						"total": 5168
+					},
+					"dryRun": false,
+					"order": {
+						"A": "clean",
+						"B": "seeded"
+					},
+					"cleanRunId": "w0.3-t3-p1-clean-1",
+					"seededRunId": "w0.3-t3-p1-seeded-2",
+					"worse": "seeded"
+				}
+			],
+			"meets": true,
+			"complete": true,
+			"bothWorse": false,
+			"within": true,
+			"compared": true,
+			"bothWorseReport": true,
+			"quietReport": false
+		},
+		{
+			"persona": "p2",
+			"screen": "t3",
+			"clean": {
+				"screen": "t3",
+				"done": true,
+				"total": 0,
+				"failed": [],
+				"repeats": [],
+				"outside": [],
+				"steps": [
+					{
+						"step": 1,
+						"command": "loan-return",
+						"ok": true
+					}
+				],
+				"reads": 6,
+				"stepsMet": 1,
+				"stepsTotal": 1
+			},
+			"seeded": [
+				{
+					"screen": "t3",
+					"done": false,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [],
+					"reads": 3,
+					"stepsMet": 0,
+					"stepsTotal": 1
+				},
+				{
+					"screen": "t3",
+					"done": false,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [],
+					"reads": 3,
+					"stepsMet": 0,
+					"stepsTotal": 1
+				}
+			],
+			"compares": [
+				{
+					"runId": "c-w0.3-t3-p2-seeded-1",
+					"answer": {
+						"worse": "B",
+						"confidence": "high",
+						"why": "In Walk B the \"Record a return\" button did nothing visible, so the persona retried and then had to stop without recording the return or the saved packets. Walk A finished the job, meeting only minor friction: unclear wording, a similar lot name, and a confirmation partly out of view."
+					},
+					"costUsd": 0.0403369,
+					"tokens": {
+						"input": 5350,
+						"output": 112,
+						"total": 5462
+					},
+					"dryRun": false,
+					"order": {
+						"A": "clean",
+						"B": "seeded"
+					},
+					"cleanRunId": "w0.3-t3-p2-clean-1",
+					"seededRunId": "w0.3-t3-p2-seeded-1",
+					"worse": "seeded"
+				},
+				{
+					"runId": "c-w0.3-t3-p2-seeded-2",
+					"answer": {
+						"worse": "B",
+						"confidence": "high",
+						"why": "In Walk B the persona could not finish: the \"Record a return\" button gave no visible response even after a second click, and there was no way to add the saved packets. Walk A finished the job and met only minor friction, such as unclear wording and a confirmation that sat partly below the fold."
+					},
+					"costUsd": 0.0400303,
+					"tokens": {
+						"input": 5317,
+						"output": 110,
+						"total": 5427
+					},
+					"dryRun": false,
+					"order": {
+						"A": "clean",
+						"B": "seeded"
+					},
+					"cleanRunId": "w0.3-t3-p2-clean-1",
+					"seededRunId": "w0.3-t3-p2-seeded-2",
+					"worse": "seeded"
+				}
+			],
+			"meets": true,
+			"complete": true,
+			"bothWorse": true,
+			"within": true,
+			"compared": true,
+			"bothWorseReport": true,
+			"quietReport": false
+		},
+		{
+			"persona": "p3",
+			"screen": "t3",
+			"clean": {
+				"screen": "t3",
+				"done": true,
+				"total": 0,
+				"failed": [],
+				"repeats": [],
+				"outside": [],
+				"steps": [
+					{
+						"step": 1,
+						"command": "loan-return",
+						"ok": true
+					}
+				],
+				"reads": 6,
+				"stepsMet": 1,
+				"stepsTotal": 1
+			},
+			"seeded": [
+				{
+					"screen": "t3",
+					"done": true,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "loan-return",
+							"ok": true
+						}
+					],
+					"reads": 6,
+					"stepsMet": 1,
+					"stepsTotal": 1
+				},
+				{
+					"screen": "t3",
+					"done": true,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "loan-return",
+							"ok": true
+						}
+					],
+					"reads": 6,
+					"stepsMet": 1,
+					"stepsTotal": 1
+				}
+			],
+			"compares": [
+				{
+					"runId": "c-w0.3-t3-p3-seeded-1",
+					"answer": {
+						"worse": "A",
+						"confidence": "high",
+						"why": "Walk A met a reversed form tab order: Shift+Tab skipped Harvest year, so the persona had to hunt for it. It also met a layout swap after saving that forced re-checking the values. Walk B only shared the minor skipped-search-box issue and finished in fewer actions."
+					},
+					"costUsd": 0.03958949999999999,
+					"tokens": {
+						"input": 5250,
+						"output": 115,
+						"total": 5365
+					},
+					"dryRun": false,
+					"order": {
+						"A": "seeded",
+						"B": "clean"
+					},
+					"cleanRunId": "w0.3-t3-p3-clean-1",
+					"seededRunId": "w0.3-t3-p3-seeded-1",
+					"worse": "seeded"
+				},
+				{
+					"runId": "c-w0.3-t3-p3-seeded-2",
+					"answer": {
+						"worse": "A",
+						"confidence": "high",
+						"why": "Walk A hit a real tab-order problem: initial focus skipped the first field, and Shift+Tab bypassed Harvest year. This made the persona probe the order with extra keypresses (14 actions vs 8), and the fields also swapped layout after saving. Walk B's only issues were a minor search-box tab-order skip, which A also had, and a speculative concern."
+					},
+					"costUsd": 0.04142490000000001,
+					"tokens": {
+						"input": 5410,
+						"output": 142,
+						"total": 5552
+					},
+					"dryRun": false,
+					"order": {
+						"A": "seeded",
+						"B": "clean"
+					},
+					"cleanRunId": "w0.3-t3-p3-clean-1",
+					"seededRunId": "w0.3-t3-p3-seeded-2",
+					"worse": "seeded"
+				}
+			],
+			"meets": true,
+			"complete": true,
+			"bothWorse": false,
+			"within": true,
+			"compared": true,
+			"bothWorseReport": true,
+			"quietReport": false
+		},
+		{
+			"persona": "p4",
+			"screen": "t3",
+			"clean": {
+				"screen": "t3",
+				"done": true,
+				"total": 0,
+				"failed": [],
+				"repeats": [],
+				"outside": [],
+				"steps": [
+					{
+						"step": 1,
+						"command": "loan-return",
+						"ok": true
+					}
+				],
+				"reads": 6,
+				"stepsMet": 1,
+				"stepsTotal": 1
+			},
+			"seeded": [
+				{
+					"screen": "t3",
+					"done": true,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "loan-return",
+							"ok": true
+						}
+					],
+					"reads": 6,
+					"stepsMet": 1,
+					"stepsTotal": 1
+				},
+				{
+					"screen": "t3",
+					"done": true,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "loan-return",
+							"ok": true
+						}
+					],
+					"reads": 6,
+					"stepsMet": 1,
+					"stepsTotal": 1
+				}
+			],
+			"compares": [
+				{
+					"runId": "c-w0.3-t3-p4-seeded-1",
+					"answer": {
+						"worse": "A",
+						"confidence": "low",
+						"why": "Both walks finished cleanly with no failed actions. In A, after the return, table navigation landed on the confirmation group, which was announced as being inside the 'Who has it out' table, so the persona could not confirm that the loan was cleared. B met only minor friction: labels and values were read as separate lines."
+					},
+					"costUsd": 0.0421283,
+					"tokens": {
+						"input": 5228,
+						"output": 251,
+						"total": 5479
+					},
+					"dryRun": false,
+					"order": {
+						"A": "clean",
+						"B": "seeded"
+					},
+					"cleanRunId": "w0.3-t3-p4-clean-1",
+					"seededRunId": "w0.3-t3-p4-seeded-1",
+					"worse": "clean"
+				},
+				{
+					"runId": "c-w0.3-t3-p4-seeded-2",
+					"answer": {
+						"worse": "A",
+						"confidence": "medium",
+						"why": "Walk A met a real navigation problem. When it pressed Shift+T after the return, it landed on the confirmation group and was told it was inside the \"Who has it out\" table, so it couldn't confirm that the loan was cleared. Walk B had no obstacles and checked the updated summary without trouble."
+					},
+					"costUsd": 0.038848099999999997,
+					"tokens": {
+						"input": 5144,
+						"output": 121,
+						"total": 5265
+					},
+					"dryRun": false,
+					"order": {
+						"A": "clean",
+						"B": "seeded"
+					},
+					"cleanRunId": "w0.3-t3-p4-clean-1",
+					"seededRunId": "w0.3-t3-p4-seeded-2",
+					"worse": "clean"
+				}
+			],
+			"meets": false,
+			"complete": true,
+			"bothWorse": false,
+			"within": true,
+			"compared": true,
+			"bothWorseReport": false,
+			"quietReport": true
+		},
+		{
+			"persona": "p5",
+			"screen": "t3",
+			"clean": {
+				"screen": "t3",
+				"done": true,
+				"total": 0,
+				"failed": [],
+				"repeats": [],
+				"outside": [],
+				"steps": [
+					{
+						"step": 1,
+						"command": "loan-return",
+						"ok": true
+					}
+				],
+				"reads": 6,
+				"stepsMet": 1,
+				"stepsTotal": 1
+			},
+			"seeded": [
+				{
+					"screen": "t3",
+					"done": true,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "loan-return",
+							"ok": true
+						}
+					],
+					"reads": 6,
+					"stepsMet": 1,
+					"stepsTotal": 1
+				},
+				{
+					"screen": "t3",
+					"done": true,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "loan-return",
+							"ok": true
+						}
+					],
+					"reads": 6,
+					"stepsMet": 1,
+					"stepsTotal": 1
+				}
+			],
+			"compares": [
+				{
+					"runId": "c-w0.3-t3-p5-seeded-1",
+					"answer": {
+						"worse": "B",
+						"confidence": "high",
+						"why": "In Walk B the click on 'Record a return' did nothing, the confirm button was clipped and invisible, the tab order was wrong, and focus went to unseen controls, so the persona needed 23 actions and a blind guess to finish. Walk A finished in 6 actions with only minor friction."
+					},
+					"costUsd": 0.0449668,
+					"tokens": {
+						"input": 5909,
+						"output": 117,
+						"total": 6026
+					},
+					"dryRun": false,
+					"order": {
+						"A": "clean",
+						"B": "seeded"
+					},
+					"cleanRunId": "w0.3-t3-p5-clean-1",
+					"seededRunId": "w0.3-t3-p5-seeded-1",
+					"worse": "seeded"
+				},
+				{
+					"runId": "c-w0.3-t3-p5-seeded-2",
+					"answer": {
+						"worse": "A",
+						"confidence": "high",
+						"why": "Walk A hit several observed obstacles: a pointer click that did nothing, a clipped panel with no visible save button, reversed tab order, and focus vanishing into hidden controls, so the persona had to press an unseen control blind across 22 actions. Walk B finished in 6 actions with only minor friction (a small layout shift and faint text)."
+					},
+					"costUsd": 0.045598400000000004,
+					"tokens": {
+						"input": 5945,
+						"output": 134,
+						"total": 6079
+					},
+					"dryRun": false,
+					"order": {
+						"A": "seeded",
+						"B": "clean"
+					},
+					"cleanRunId": "w0.3-t3-p5-clean-1",
+					"seededRunId": "w0.3-t3-p5-seeded-2",
+					"worse": "seeded"
+				}
+			],
+			"meets": true,
+			"complete": true,
+			"bothWorse": false,
+			"within": true,
+			"compared": true,
+			"bothWorseReport": true,
+			"quietReport": false
+		},
+		{
+			"persona": "p1",
+			"screen": "t4",
+			"clean": {
+				"screen": "t4",
+				"done": true,
+				"total": 0,
+				"failed": [],
+				"repeats": [],
+				"outside": [],
+				"steps": [
+					{
+						"step": 1,
+						"command": "afd-batch",
+						"ok": true
+					},
+					{
+						"step": 2,
+						"command": "waitlist-join",
+						"ok": true
+					},
+					{
+						"step": 3,
+						"command": "request-decide",
+						"ok": true
+					}
+				],
+				"reads": 3,
+				"stepsMet": 3,
+				"stepsTotal": 3
+			},
+			"seeded": [
+				{
+					"screen": "t4",
+					"done": true,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "afd-batch",
+							"ok": true
+						},
+						{
+							"step": 2,
+							"command": "waitlist-join",
+							"ok": true
+						},
+						{
+							"step": 3,
+							"command": "request-decide",
+							"ok": true
+						}
+					],
+					"reads": 3,
+					"stepsMet": 3,
+					"stepsTotal": 3
+				},
+				{
+					"screen": "t4",
+					"done": true,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "afd-batch",
+							"ok": true
+						},
+						{
+							"step": 2,
+							"command": "waitlist-join",
+							"ok": true
+						},
+						{
+							"step": 3,
+							"command": "request-decide",
+							"ok": true
+						}
+					],
+					"reads": 3,
+					"stepsMet": 3,
+					"stepsTotal": 3
+				}
+			],
+			"compares": [
+				{
+					"runId": "c-w0.3-t4-p1-seeded-1",
+					"answer": {
+						"worse": "same",
+						"confidence": "medium",
+						"why": "Both walks finished and hit the same obstacles: bulk approve partly failed without warning, the waitlist button opened a form instead of acting, and a '✓ Sent' tick appeared even though Wren was not told. Each also had one item it had to scroll to find (A the confirm button, B the not-told banner), so their trouble was about equal."
+					},
+					"costUsd": 0.043444,
+					"tokens": {
+						"input": 5442,
+						"output": 230,
+						"total": 5672
+					},
+					"dryRun": false,
+					"order": {
+						"A": "clean",
+						"B": "seeded"
+					},
+					"cleanRunId": "w0.3-t4-p1-clean-1",
+					"seededRunId": "w0.3-t4-p1-seeded-1",
+					"worse": "same"
+				},
+				{
+					"runId": "c-w0.3-t4-p1-seeded-2",
+					"answer": {
+						"worse": "same",
+						"confidence": "high",
+						"why": "Both walks hit the same obstacles: a batch approve that ran without warning despite the shortage, a waiting-list button that opened a reason box whose confirm button sat below the fold, a misleading \"✓ Sent\" label next to a message saying the member wasn't told, and confusing \"Waits until\" and \"take it back\" wording. Both finished in 6 actions with no extra commands."
+					},
+					"costUsd": 0.042037399999999996,
+					"tokens": {
+						"input": 5466,
+						"output": 150,
+						"total": 5616
+					},
+					"dryRun": false,
+					"order": {
+						"A": "seeded",
+						"B": "clean"
+					},
+					"cleanRunId": "w0.3-t4-p1-clean-1",
+					"seededRunId": "w0.3-t4-p1-seeded-2",
+					"worse": "same"
+				}
+			],
+			"meets": false,
+			"complete": true,
+			"bothWorse": false,
+			"within": true,
+			"compared": true,
+			"bothWorseReport": false,
+			"quietReport": true
+		},
+		{
+			"persona": "p2",
+			"screen": "t4",
+			"clean": {
+				"screen": "t4",
+				"done": true,
+				"total": 0,
+				"failed": [],
+				"repeats": [],
+				"outside": [],
+				"steps": [
+					{
+						"step": 1,
+						"command": "afd-batch",
+						"ok": true
+					},
+					{
+						"step": 2,
+						"command": "waitlist-join",
+						"ok": true
+					},
+					{
+						"step": 3,
+						"command": "request-decide",
+						"ok": true
+					}
+				],
+				"reads": 3,
+				"stepsMet": 3,
+				"stepsTotal": 3
+			},
+			"seeded": [
+				{
+					"screen": "t4",
+					"done": true,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "afd-batch",
+							"ok": true
+						},
+						{
+							"step": 2,
+							"command": "waitlist-join",
+							"ok": true
+						},
+						{
+							"step": 3,
+							"command": "request-decide",
+							"ok": true
+						}
+					],
+					"reads": 4,
+					"stepsMet": 3,
+					"stepsTotal": 3
+				},
+				{
+					"screen": "t4",
+					"done": true,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "afd-batch",
+							"ok": true
+						},
+						{
+							"step": 2,
+							"command": "waitlist-join",
+							"ok": true
+						},
+						{
+							"step": 3,
+							"command": "request-decide",
+							"ok": true
+						}
+					],
+					"reads": 3,
+					"stepsMet": 3,
+					"stepsTotal": 3
+				}
+			],
+			"compares": [
+				{
+					"runId": "c-w0.3-t4-p2-seeded-1",
+					"answer": {
+						"worse": "B",
+						"confidence": "medium",
+						"why": "Both walks finished and met the same core problems: a silent partial bulk approve, the contradictory \"✓ Sent\" next to the not-reached warning, and an unclear \"take it back\". Walk B also hit an observed layout obstacle, with the reason panel's confirm buttons clipped below the screen so the persona had to scroll to find them."
+					},
+					"costUsd": 0.0469835,
+					"tokens": {
+						"input": 5837,
+						"output": 247,
+						"total": 6084
+					},
+					"dryRun": false,
+					"order": {
+						"A": "seeded",
+						"B": "clean"
+					},
+					"cleanRunId": "w0.3-t4-p2-clean-1",
+					"seededRunId": "w0.3-t4-p2-seeded-1",
+					"worse": "clean"
+				},
+				{
+					"runId": "c-w0.3-t4-p2-seeded-2",
+					"answer": {
+						"worse": "B",
+						"confidence": "medium",
+						"why": "Both walks finished and hit the same issues: no warning before the partial approval, unclear wording on the waiting-list and decline choices, \"✓ Sent\" contradicting the \"not told\" warning, no contact details for Wren, and confusing dates. Walk B also met an observed layout problem: the confirm buttons were below the bottom of the screen and had to be found by scrolling."
+					},
+					"costUsd": 0.046964599999999995,
+					"tokens": {
+						"input": 5867,
+						"output": 234,
+						"total": 6101
+					},
+					"dryRun": false,
+					"order": {
+						"A": "seeded",
+						"B": "clean"
+					},
+					"cleanRunId": "w0.3-t4-p2-clean-1",
+					"seededRunId": "w0.3-t4-p2-seeded-2",
+					"worse": "clean"
+				}
+			],
+			"meets": false,
+			"complete": true,
+			"bothWorse": false,
+			"within": true,
+			"compared": true,
+			"bothWorseReport": false,
+			"quietReport": true
+		},
+		{
+			"persona": "p3",
+			"screen": "t4",
+			"clean": {
+				"screen": "t4",
+				"done": true,
+				"total": 0,
+				"failed": [],
+				"repeats": [],
+				"outside": [],
+				"steps": [
+					{
+						"step": 1,
+						"command": "afd-batch",
+						"ok": true
+					},
+					{
+						"step": 2,
+						"command": "waitlist-join",
+						"ok": true
+					},
+					{
+						"step": 3,
+						"command": "request-decide",
+						"ok": true
+					}
+				],
+				"reads": 3,
+				"stepsMet": 3,
+				"stepsTotal": 3
+			},
+			"seeded": [
+				{
+					"screen": "t4",
+					"done": true,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "afd-batch",
+							"ok": true
+						},
+						{
+							"step": 2,
+							"command": "waitlist-join",
+							"ok": true
+						},
+						{
+							"step": 3,
+							"command": "request-decide",
+							"ok": true
+						}
+					],
+					"reads": 4,
+					"stepsMet": 3,
+					"stepsTotal": 3
+				},
+				{
+					"screen": "t4",
+					"done": true,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "afd-batch",
+							"ok": true
+						},
+						{
+							"step": 2,
+							"command": "waitlist-join",
+							"ok": true
+						},
+						{
+							"step": 3,
+							"command": "request-decide",
+							"ok": true
+						}
+					],
+					"reads": 3,
+					"stepsMet": 3,
+					"stepsTotal": 3
+				}
+			],
+			"compares": [
+				{
+					"runId": "c-w0.3-t4-p3-seeded-1",
+					"answer": {
+						"worse": "A",
+						"confidence": "low",
+						"why": "Both walks hit the same core obstacles: no warning before the partial approval, focus left on the button, an extra tab-panel stop, a confusing checkbox ring, the contradictory 'Sent' label and the clipped notice. Walk A also met a real loss of visible focus after the Undo button in the warning, which Walk B did not report."
+					},
+					"costUsd": 0.050414099999999996,
+					"tokens": {
+						"input": 6073,
+						"output": 323,
+						"total": 6396
+					},
+					"dryRun": false,
+					"order": {
+						"A": "clean",
+						"B": "seeded"
+					},
+					"cleanRunId": "w0.3-t4-p3-clean-1",
+					"seededRunId": "w0.3-t4-p3-seeded-1",
+					"worse": "clean"
+				},
+				{
+					"runId": "c-w0.3-t4-p3-seeded-2",
+					"answer": {
+						"worse": "same",
+						"confidence": "medium",
+						"why": "Both walks finished and hit the same core obstacles: no warning before the batch approve, focus left on 'Approve chosen', an empty tab-panel stop, a clipped warning that needed PageDown, and the contradictory 'Sent' label. Each also had one small extra (A lost visible focus after Undo; B had a dead first Tab on the heading and Tab leaving the page), which roughly balance out."
+					},
+					"costUsd": 0.0486695,
+					"tokens": {
+						"input": 5991,
+						"output": 269,
+						"total": 6260
+					},
+					"dryRun": false,
+					"order": {
+						"A": "clean",
+						"B": "seeded"
+					},
+					"cleanRunId": "w0.3-t4-p3-clean-1",
+					"seededRunId": "w0.3-t4-p3-seeded-2",
+					"worse": "same"
+				}
+			],
+			"meets": false,
+			"complete": true,
+			"bothWorse": false,
+			"within": true,
+			"compared": true,
+			"bothWorseReport": false,
+			"quietReport": true
+		},
+		{
+			"persona": "p4",
+			"screen": "t4",
+			"clean": {
+				"screen": "t4",
+				"done": true,
+				"total": 0,
+				"failed": [],
+				"repeats": [],
+				"outside": [],
+				"steps": [
+					{
+						"step": 1,
+						"command": "afd-batch",
+						"ok": true
+					},
+					{
+						"step": 2,
+						"command": "waitlist-join",
+						"ok": true
+					},
+					{
+						"step": 3,
+						"command": "request-decide",
+						"ok": true
+					}
+				],
+				"reads": 3,
+				"stepsMet": 3,
+				"stepsTotal": 3
+			},
+			"seeded": [
+				{
+					"screen": "t4",
+					"done": true,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "afd-batch",
+							"ok": true
+						},
+						{
+							"step": 2,
+							"command": "waitlist-join",
+							"ok": true
+						},
+						{
+							"step": 3,
+							"command": "request-decide",
+							"ok": true
+						}
+					],
+					"reads": 3,
+					"stepsMet": 3,
+					"stepsTotal": 3
+				},
+				{
+					"screen": "t4",
+					"done": true,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "afd-batch",
+							"ok": true
+						},
+						{
+							"step": 2,
+							"command": "waitlist-join",
+							"ok": true
+						},
+						{
+							"step": 3,
+							"command": "request-decide",
+							"ok": true
+						}
+					],
+					"reads": 3,
+					"stepsMet": 3,
+					"stepsTotal": 3
+				}
+			],
+			"compares": [
+				{
+					"runId": "c-w0.3-t4-p4-seeded-1",
+					"answer": {
+						"worse": "A",
+						"confidence": "medium",
+						"why": "In Walk A, the approval result was never announced, the results list left out Wren's failed request, and every checkbox was named only \"Select\". Walk B heard the full result, including Wren's failure, and had descriptive checkbox names, so its remaining trouble (a misplaced button, a skipped item when arrowing up, Ctrl+Home not working) was lighter and partly shared with A."
+					},
+					"costUsd": 0.05002840000000001,
+					"tokens": {
+						"input": 6181,
+						"output": 260,
+						"total": 6441
+					},
+					"dryRun": false,
+					"order": {
+						"A": "seeded",
+						"B": "clean"
+					},
+					"cleanRunId": "w0.3-t4-p4-clean-1",
+					"seededRunId": "w0.3-t4-p4-seeded-1",
+					"worse": "seeded"
+				},
+				{
+					"runId": "c-w0.3-t4-p4-seeded-2",
+					"answer": {
+						"worse": "A",
+						"confidence": "medium",
+						"why": "In Walk A, the batch approve result was never announced, the summary left out Wren, and the checkboxes were unlabeled, so the persona had to search for what happened. Walk B announced the result, including Wren's failure, and its remaining issues (arrow-key skip, Ctrl+Home) were minor navigation friction."
+					},
+					"costUsd": 0.0475582,
+					"tokens": {
+						"input": 5977,
+						"output": 219,
+						"total": 6196
+					},
+					"dryRun": false,
+					"order": {
+						"A": "seeded",
+						"B": "clean"
+					},
+					"cleanRunId": "w0.3-t4-p4-clean-1",
+					"seededRunId": "w0.3-t4-p4-seeded-2",
+					"worse": "seeded"
+				}
+			],
+			"meets": true,
+			"complete": true,
+			"bothWorse": false,
+			"within": true,
+			"compared": true,
+			"bothWorseReport": true,
+			"quietReport": false
+		},
+		{
+			"persona": "p5",
+			"screen": "t4",
+			"clean": {
+				"screen": "t4",
+				"done": true,
+				"total": 0,
+				"failed": [],
+				"repeats": [],
+				"outside": [],
+				"steps": [
+					{
+						"step": 1,
+						"command": "afd-batch",
+						"ok": true
+					},
+					{
+						"step": 2,
+						"command": "waitlist-join",
+						"ok": true
+					},
+					{
+						"step": 3,
+						"command": "request-decide",
+						"ok": true
+					}
+				],
+				"reads": 3,
+				"stepsMet": 3,
+				"stepsTotal": 3
+			},
+			"seeded": [
+				{
+					"screen": "t4",
+					"done": true,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "afd-batch",
+							"ok": true
+						},
+						{
+							"step": 2,
+							"command": "waitlist-join",
+							"ok": true
+						},
+						{
+							"step": 3,
+							"command": "request-decide",
+							"ok": true
+						}
+					],
+					"reads": 3,
+					"stepsMet": 3,
+					"stepsTotal": 3
+				},
+				{
+					"screen": "t4",
+					"done": true,
+					"total": 0,
+					"failed": [],
+					"repeats": [],
+					"outside": [],
+					"steps": [
+						{
+							"step": 1,
+							"command": "afd-batch",
+							"ok": true
+						},
+						{
+							"step": 2,
+							"command": "waitlist-join",
+							"ok": true
+						},
+						{
+							"step": 3,
+							"command": "request-decide",
+							"ok": true
+						}
+					],
+					"reads": 3,
+					"stepsMet": 3,
+					"stepsTotal": 3
+				}
+			],
+			"compares": [
+				{
+					"runId": "c-w0.3-t4-p5-seeded-1",
+					"answer": {
+						"worse": "same",
+						"confidence": "high",
+						"why": "Both walks finished with the same outcome and ran into the same obstacles: an easy-to-miss shortage note, no warning on approve, a hidden second step for the waiting-list decline, a contradictory '✓ Sent' versus 'not told' status, a button-like 'None left' chip, and confusing result lines. A adds a minor point about page disorientation and B a minor point about the missing contact path, which carry similar weight."
+					},
+					"costUsd": 0.045246600000000005,
+					"tokens": {
+						"input": 5840,
+						"output": 159,
+						"total": 5999
+					},
+					"dryRun": false,
+					"order": {
+						"A": "clean",
+						"B": "seeded"
+					},
+					"cleanRunId": "w0.3-t4-p5-clean-1",
+					"seededRunId": "w0.3-t4-p5-seeded-1",
+					"worse": "same"
+				},
+				{
+					"runId": "c-w0.3-t4-p5-seeded-2",
+					"answer": {
+						"worse": "same",
+						"confidence": "medium",
+						"why": "Both walks finished with the same outcome and ran into the same obstacles: an easy-to-miss shortage note, the page changing in place after approval, a hidden second decline step, a page jump, and the contradictory '✓ Sent' versus 'not told' status. The small differences, such as B ending 'unsaid' and noting a greyed-out 'Keep it waiting', are minor and similar in weight."
+					},
+					"costUsd": 0.0460172,
+					"tokens": {
+						"input": 5950,
+						"output": 153,
+						"total": 6103
+					},
+					"dryRun": false,
+					"order": {
+						"A": "clean",
+						"B": "seeded"
+					},
+					"cleanRunId": "w0.3-t4-p5-clean-1",
+					"seededRunId": "w0.3-t4-p5-seeded-2",
+					"worse": "same"
+				}
+			],
+			"meets": false,
+			"complete": true,
+			"bothWorse": false,
+			"within": true,
+			"compared": true,
+			"bothWorseReport": false,
+			"quietReport": true
+		}
+	],
+	"share": 0.23076923076923078,
+	"quiet": true,
+	"report": {
+		"share": 0.9230769230769231,
+		"quiet": false,
+		"noneCounts": {
+			"seeded": 2,
+			"clean": 7,
+			"same": 5
+		}
+	},
+	"md": "# Step 0.4\n\n## By journal path (original rule)\n\n| Pair | Meets a fault | Clean | Seeded 1 | Seeded 2 | Worse in both |\n| --- | --- | --- | --- | --- | --- |\n| p1 t1 | yes | done, 0 | not done, 0 | not done, 0 | yes |\n| p2 t1 | yes | done, 3 | not done, 0 | not done, 0 | yes |\n| p3 t1 | yes | done, 3 | done, 3 | done, 2 | no |\n| p4 t1 | no | done, 3 | done, 3 | done, 3 | no |\n| p5 t1 | yes | done, 3 | done, 1 | done, 1 | no |\n| p1 t2 | yes | not done, 0 | not done, 0 | not done, 0 | no |\n| p2 t2 | yes | not done, 0 | not done, 0 | not done, 0 | no |\n| p3 t2 | yes | done, 0 | done, 0 | done, 0 | no |\n| p4 t2 | no | not done, 0 | not done, 0 | not done, 0 | no |\n| p5 t2 | yes | done, 0 | done, 0 | done, 0 | no |\n| p1 t3 | yes | done, 0 | done, 0 | done, 0 | no |\n| p2 t3 | yes | done, 0 | not done, 0 | not done, 0 | yes |\n| p3 t3 | yes | done, 0 | done, 0 | done, 0 | no |\n| p4 t3 | no | done, 0 | done, 0 | done, 0 | no |\n| p5 t3 | yes | done, 0 | done, 0 | done, 0 | no |\n| p1 t4 | no | done, 0 | done, 0 | done, 0 | no |\n| p2 t4 | no | done, 0 | done, 0 | done, 0 | no |\n| p3 t4 | no | done, 0 | done, 0 | done, 0 | no |\n| p4 t4 | yes | done, 0 | done, 0 | done, 0 | no |\n| p5 t4 | no | done, 0 | done, 0 | done, 0 | no |\n\n- **Pairs that meet a fault, worse in both seeded walks:** 3 of 13 (23.1 %; the rule asks three quarters).\n- **Pairs that meet none:** 7 of 7 within the seeded walks' own spread.\n- **The rule (path):** not met.\n\n## By blind report comparison (tuned measure)\n\n| Pair | Meets a fault | Seeded 1 vs clean | Seeded 2 vs clean | Seeded worse in both |\n| --- | --- | --- | --- | --- |\n| p1 t1 | yes | seeded | seeded | yes |\n| p2 t1 | yes | seeded | seeded | yes |\n| p3 t1 | yes | seeded | same | no |\n| p4 t1 | no | clean | clean | no |\n| p5 t1 | yes | seeded | seeded | yes |\n| p1 t2 | yes | seeded | seeded | yes |\n| p2 t2 | yes | seeded | seeded | yes |\n| p3 t2 | yes | seeded | seeded | yes |\n| p4 t2 | no | seeded | seeded | yes |\n| p5 t2 | yes | seeded | seeded | yes |\n| p1 t3 | yes | seeded | seeded | yes |\n| p2 t3 | yes | seeded | seeded | yes |\n| p3 t3 | yes | seeded | seeded | yes |\n| p4 t3 | no | clean | clean | no |\n| p5 t3 | yes | seeded | seeded | yes |\n| p1 t4 | no | same | same | no |\n| p2 t4 | no | clean | clean | no |\n| p3 t4 | no | clean | same | no |\n| p4 t4 | yes | seeded | seeded | yes |\n| p5 t4 | no | same | same | no |\n\n- **Pairs that meet a fault, seeded worse in both walks:** 12 of 13 (92.3 %; three quarters target).\n- **Pairs that meet none:** 6 of 7 not worse in both (individual calls: 5 same, 2 seeded, 7 clean).\n- **The rule (report):** not met."
+}

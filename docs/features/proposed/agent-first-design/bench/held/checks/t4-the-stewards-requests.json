@@ -1,0 +1,701 @@
+{
+  "screen": "t4-the-stewards-requests",
+  "frozen": "2026-11-15",
+  "note": "Every state also has a mount check and an accessibility check (README).",
+  "states": [
+    {
+      "id": "loading",
+      "busy": true,
+      "fields": [],
+      "controls": []
+    },
+    {
+      "id": "waiting",
+      "fields": [
+        {
+          "what": "who asked",
+          "any": [
+            {
+              "all": [
+                {
+                  "text": "Ines Marlow"
+                },
+                {
+                  "text": "Tobias Reed"
+                },
+                {
+                  "text": "Wren Achterberg"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "what": "for what",
+          "any": [
+            {
+              "text": "Glass Gem corn"
+            }
+          ]
+        },
+        {
+          "what": "when each request expires",
+          "any": [
+            {
+              "date": "2030-03-10T09:05:00Z"
+            }
+          ]
+        },
+        {
+          "what": "how many packets there are to give",
+          "any": [
+            {
+              "number": 2,
+              "with": "Glass Gem corn"
+            }
+          ]
+        },
+        {
+          "what": "oldest first",
+          "any": [
+            {
+              "pattern": "Ines Marlow.*Tobias Reed.*Wren Achterberg"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Approve one",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "approve|accept|grant|allow|lend",
+              "near": "Ines Marlow"
+            }
+          ]
+        },
+        {
+          "do": "Decline one",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "decline|refuse|reject|deny",
+              "near": "Ines Marlow"
+            }
+          ]
+        },
+        {
+          "do": "Choose several",
+          "any": [
+            {
+              "roles": [
+                "checkbox",
+                "option",
+                "switch",
+                "menuitemcheckbox"
+              ],
+              "count": 3
+            }
+          ]
+        },
+        {
+          "do": "Decide the chosen ones in one go",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "selected|chosen|all|bulk|batch|several|together|in one go",
+              "mayBeDisabled": true
+            }
+          ]
+        },
+        {
+          "do": "See the closed requests",
+          "any": [
+            {
+              "roles": [
+                "action",
+                "tab",
+                "radio",
+                "option",
+                "combobox"
+              ],
+              "name": "closed|past|history|decided|archive|done|show all|all requests|status|filter"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "approved",
+      "fields": [
+        {
+          "what": "the request was approved",
+          "any": [
+            {
+              "pattern": "approved"
+            }
+          ]
+        },
+        {
+          "what": "each step of the approval",
+          "any": [
+            {
+              "all": [
+                {
+                  "pattern": "shelf"
+                },
+                {
+                  "pattern": "loan"
+                },
+                {
+                  "pattern": "told|tell|notif"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "what": "the loan it made",
+          "any": [
+            {
+              "text": "loan-2"
+            },
+            {
+              "pattern": "loan (was )?(made|created)|lent"
+            }
+          ]
+        },
+        {
+          "what": "two still wait",
+          "any": [
+            {
+              "all": [
+                {
+                  "text": "Tobias Reed"
+                },
+                {
+                  "text": "Wren Achterberg"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Take the decision back",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "undo|take .*back|reopen|revert|reverse|cancel"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "declined",
+      "fields": [
+        {
+          "what": "the request was declined",
+          "any": [
+            {
+              "pattern": "declined"
+            }
+          ]
+        },
+        {
+          "what": "the member was told",
+          "any": [
+            {
+              "pattern": "told|notified|tell the member|let .* know|informed"
+            }
+          ]
+        },
+        {
+          "what": "one still waits",
+          "any": [
+            {
+              "text": "Wren Achterberg"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Take the decision back",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "undo|take .*back|reopen|revert|reverse|cancel"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "approved-member-not-told",
+      "fields": [
+        {
+          "what": "the loan was made",
+          "any": [
+            {
+              "text": "loan-3"
+            },
+            {
+              "pattern": "approved|loan (was )?(made|created)|lent"
+            }
+          ]
+        },
+        {
+          "what": "the step that did not happen",
+          "any": [
+            {
+              "pattern": "could ?n.?o?t be told|not (been )?told|no way to reach|cannot reach|could ?n.?o?t reach|can.?t reach|not notified|could ?n.?o?t (be )?notif"
+            }
+          ]
+        },
+        {
+          "what": "who still has to be told",
+          "any": [
+            {
+              "text": "Wren Achterberg"
+            }
+          ]
+        },
+        {
+          "what": "nothing still waits",
+          "any": [
+            {
+              "pattern": "nothing (is )?(else )?waiting|no (more |other )?(pending )?requests|none (left|waiting)|all (done|decided|caught up)"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Take the decision back",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "undo|take .*back|reopen|revert|reverse|cancel"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "already-decided",
+      "fields": [
+        {
+          "what": "it was decided already",
+          "any": [
+            {
+              "pattern": "already (been )?(approved|decided)"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Reopen it",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "reopen|undo|take .*back|revert"
+            }
+          ]
+        },
+        {
+          "do": "Load the list again",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "reload|refresh|load again|try again|update|load"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "expired",
+      "fields": [
+        {
+          "what": "it expired",
+          "any": [
+            {
+              "pattern": "expired"
+            }
+          ]
+        },
+        {
+          "what": "when",
+          "any": [
+            {
+              "date": "2030-03-03T10:00:00Z"
+            }
+          ]
+        },
+        {
+          "what": "the member has to ask again at the desk",
+          "any": [
+            {
+              "pattern": "ask again|at the desk|new request|request again|ask (for it )?anew"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Load the list again",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "reload|refresh|load again|try again|update|load"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "batch-some-failed",
+      "fields": [
+        {
+          "what": "which went through",
+          "any": [
+            {
+              "pattern": "\\b(2|two) (requests? )?(were |was )?(approved|succeeded|went through|done)"
+            },
+            {
+              "pattern": "2 of 3|two of three|2 (approved|succeeded|went through|done)|two (approved|succeeded|went through)"
+            },
+            {
+              "all": [
+                {
+                  "text": "req-1"
+                },
+                {
+                  "text": "req-2"
+                },
+                {
+                  "pattern": "approved"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "what": "which did not, and why",
+          "any": [
+            {
+              "pattern": "no packets|none left|out of stock|nothing left|run out|no seed left"
+            }
+          ]
+        },
+        {
+          "what": "the member it was for still waits",
+          "any": [
+            {
+              "text": "Wren Achterberg"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Put that member on the waiting list",
+          "any": [
+            {
+              "roles": [
+                "action",
+                "checkbox",
+                "switch"
+              ],
+              "name": "wait"
+            }
+          ]
+        },
+        {
+          "do": "Decline that request",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "decline|refuse|reject|deny"
+            }
+          ]
+        },
+        {
+          "do": "Take back either approval",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "undo|take .*back|reopen|revert|reverse",
+              "count": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "reopened",
+      "fields": [
+        {
+          "what": "the approval was taken back",
+          "any": [
+            {
+              "pattern": "reopened|taken back|undone|reverted|waits again|pending again"
+            }
+          ]
+        },
+        {
+          "what": "the loan it made is cancelled",
+          "any": [
+            {
+              "text": "loan-2"
+            },
+            {
+              "pattern": "loan (was )?(cancell?ed|taken back|undone)"
+            }
+          ]
+        },
+        {
+          "what": "it waits for a fresh day",
+          "any": [
+            {
+              "pattern": "\\b10:00\\b|\\b10 ?(am|a.m.)",
+              "with": "Ines Marlow"
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Approve it again",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "approve|accept|grant|allow|lend",
+              "near": "Ines Marlow"
+            }
+          ]
+        },
+        {
+          "do": "Decline it",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "decline|refuse|reject|deny",
+              "near": "Ines Marlow"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "confirm-clear",
+      "confirm": "Remove every closed request from before this date?",
+      "fields": [
+        {
+          "what": "the prompt",
+          "any": [
+            {
+              "all": [
+                {
+                  "text": "Remove every closed request from before this date?"
+                },
+                {
+                  "text": "cannot be brought back"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "what": "the closed requests",
+          "any": [
+            {
+              "all": [
+                {
+                  "text": "Tobias Reed"
+                },
+                {
+                  "text": "Wren Achterberg"
+                },
+                {
+                  "text": "Crimson-flowered broad bean"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "what": "how each closed",
+          "any": [
+            {
+              "all": [
+                {
+                  "pattern": "expired"
+                },
+                {
+                  "pattern": "declined"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Choose the date",
+          "any": [
+            {
+              "roles": [
+                "entry",
+                "action"
+              ],
+              "name": "date|before|until|season|day"
+            }
+          ]
+        },
+        {
+          "do": "Confirm",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "remove|clear|delete|confirm|yes|continue|go ahead"
+            }
+          ]
+        },
+        {
+          "do": "Not go ahead",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "cancel|keep|\\bno\\b|back|don.?t|not now|close"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cleared",
+      "fields": [
+        {
+          "what": "how many were removed",
+          "any": [
+            {
+              "number": 2,
+              "with": "remov"
+            },
+            {
+              "number": 2,
+              "with": "clear"
+            },
+            {
+              "number": 2,
+              "with": "delet"
+            }
+          ]
+        }
+      ],
+      "controls": []
+    },
+    {
+      "id": "nothing-waiting",
+      "fields": [
+        {
+          "what": "nothing is waiting, and nothing failed",
+          "any": [
+            {
+              "all": [
+                {
+                  "any": [
+                    {
+                      "pattern": "nothing (is )?waiting|no (pending )?requests|none waiting|no requests (are )?waiting|all (caught up|done|decided)|nothing to decide"
+                    }
+                  ]
+                },
+                {
+                  "not": {
+                    "pattern": "cannot be read|can.?t be read|unavailable|could ?n.?o?t (load|read)|can.?t (load|read)|failed to load|went wrong"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "controls": []
+    },
+    {
+      "id": "list-unavailable",
+      "fields": [
+        {
+          "what": "the requests cannot be read just now, and it is not that nothing is waiting",
+          "any": [
+            {
+              "all": [
+                {
+                  "any": [
+                    {
+                      "pattern": "cannot be read|can.?t be read|unavailable|could ?n.?o?t (load|read|reach)|can.?t (load|read|reach)|not available|failed to load"
+                    }
+                  ]
+                },
+                {
+                  "not": {
+                    "pattern": "nothing (is )?waiting|no (pending )?requests|none waiting|all (caught up|done|decided)|nothing to decide"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "controls": [
+        {
+          "do": "Try again",
+          "any": [
+            {
+              "roles": [
+                "action"
+              ],
+              "name": "try again|retry|reload|refresh"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

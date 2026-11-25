@@ -1,0 +1,565 @@
+{
+	"found": ["F1", "F7", "F2", "F6", "F10", "F11", "F12"],
+	"perWalk": [
+		{
+			"run": 1,
+			"found": 7
+		},
+		{
+			"run": 2,
+			"found": 7
+		}
+	],
+	"byModality": [
+		{
+			"modality": "pointer",
+			"aimed": ["F1", "F2", "F3"],
+			"personas": [
+				{
+					"persona": "p1",
+					"found": []
+				},
+				{
+					"persona": "p2",
+					"found": ["F2"]
+				}
+			],
+			"together": ["F2"],
+			"bestOne": 1
+		},
+		{
+			"modality": "keyboard",
+			"aimed": ["F4", "F5", "F6"],
+			"personas": [
+				{
+					"persona": "p3",
+					"found": ["F6"]
+				}
+			],
+			"together": ["F6"],
+			"bestOne": 1
+		},
+		{
+			"modality": "screen-reader",
+			"aimed": ["F10", "F11", "F12"],
+			"personas": [
+				{
+					"persona": "p4",
+					"found": ["F10", "F11", "F12"]
+				}
+			],
+			"together": ["F10", "F11", "F12"],
+			"bestOne": 3
+		},
+		{
+			"modality": "low-vision",
+			"aimed": ["F7", "F8", "F9"],
+			"personas": [
+				{
+					"persona": "p5",
+					"found": ["F7"]
+				}
+			],
+			"together": ["F7"],
+			"bestOne": 1
+		}
+	],
+	"twoAlike": false,
+	"twoTogether": false,
+	"ownerMatches": [
+		{
+			"runId": "w0.4-tune-t3-p3-seeded-2",
+			"persona": "p3",
+			"screen": "t3",
+			"finding": "Tab order ran backwards through the form: Record a return → Packets → Harvest year; might type packets into year",
+			"observed": true,
+			"fault": "F6",
+			"confidence": "high",
+			"why": "This is the same visual-versus-tab order mismatch between the packets and year fields that F6 planted, and the person mentions it again here."
+		},
+		{
+			"runId": "w0.4-tune-t1-p5-seeded-1",
+			"persona": "p5",
+			"screen": "t1",
+			"finding": "Clicking Lend did nothing I could see (Scarlet runner bean, and again on Painted Lady); only Enter worked",
+			"observed": true,
+			"fault": "F1",
+			"confidence": "high",
+			"why": "A pointer click on the catalogue row's lend control had no effect while the keyboard worked, which is exactly the transparent overlay that swallows clicks."
+		},
+		{
+			"runId": "w0.4-tune-t1-p5-seeded-2",
+			"persona": "p5",
+			"screen": "t1",
+			"finding": "Substitute Lend buttons may have been out of reach, and lending from the main list might be recorded differently",
+			"observed": false,
+			"fault": "F7",
+			"confidence": "medium",
+			"why": "The substitutes' Lend controls are the ones clipped beyond the cell by the fixed-width panel, so this is a direct consequence of F7."
+		},
+		{
+			"runId": "w0.4-tune-t1-p5-seeded-1",
+			"persona": "p5",
+			"screen": "t1",
+			"finding": "The waiting-list button could not be seen at all; it sat beyond the right edge and arrow keys/End wouldn't scroll the panel",
+			"observed": true,
+			"fault": "F7",
+			"confidence": "medium",
+			"why": "The person describes the waiting-list control lying past the clipped right edge and being unreachable by scrolling, which is the F7 clipping rather than a control that vanishes on focus (F4)."
+		},
+		{
+			"runId": "w0.4-tune-t4-p4-seeded-1",
+			"persona": "p4",
+			"screen": "t4",
+			"finding": "Nothing was announced when I approved all three; didn't hear \"2 of 3 requests approved\" until I arrowed down",
+			"observed": true,
+			"fault": "F11",
+			"confidence": "high",
+			"why": "The batch outcome was not announced by the live region and had to be found by reading the page, which matches the missing status-region announcement."
+		},
+		{
+			"runId": "w0.4-tune-t2-p2-seeded-1",
+			"persona": "p2",
+			"screen": "t2",
+			"finding": "Looked for a 'Leave out' button on the squash row but it only has 'Correct'",
+			"observed": true,
+			"fault": "F2",
+			"confidence": "high",
+			"why": "The leave-out control of the failed squash row is not drawn, so the pointer user finds no way to leave the row out, which is exactly F2."
+		},
+		{
+			"runId": "w0.4-tune-t2-p2-seeded-2",
+			"persona": "p2",
+			"screen": "t2",
+			"finding": "Row 3: I couldn't find a way to leave the row out; row 2 had a Leave out button but row 3 never had one",
+			"observed": true,
+			"fault": "F2",
+			"confidence": "high",
+			"why": "This is the missing leave-out control on the failed Mystery squash row, which the persona could not see or click, exactly as F2 describes."
+		},
+		{
+			"runId": "w0.4-tune-t1-p5-seeded-1",
+			"persona": "p5",
+			"screen": "t1",
+			"finding": "Focus jumped to Borlotti's Lend after clicking Painted Lady's Lend button",
+			"observed": true,
+			"fault": "F1",
+			"confidence": "low",
+			"why": "The click on Painted Lady's lend control was absorbed by the overlay, so focus never moved there and Tab continued from an earlier point, which is plausibly a direct consequence of F1."
+		},
+		{
+			"runId": "w0.4-tune-t1-p5-seeded-2",
+			"persona": "p5",
+			"screen": "t1",
+			"finding": "Clicking Lend on Scarlet runner bean did nothing; pressing Enter on the same button opened the panel",
+			"observed": true,
+			"fault": "F1",
+			"confidence": "high",
+			"why": "This is exactly the pointer-only failure on the catalogue row's lend control, where keys still work."
+		},
+		{
+			"runId": "w0.4-tune-t3-p3-seeded-1",
+			"persona": "p3",
+			"screen": "t3",
+			"finding": "Harvest year could not be reached the usual way: Shift+Tab skipped it, and Tab ran Packets, then Harvest year, then submit, against the layout",
+			"observed": true,
+			"fault": "F6",
+			"confidence": "high",
+			"why": "The Tab sequence jumping right, then back left, is the mismatch between visual order and DOM order planted in F6."
+		},
+		{
+			"runId": "w0.4-tune-t1-p5-seeded-1",
+			"persona": "p5",
+			"screen": "t1",
+			"finding": "Had to count Tab presses because moving through the hidden controls left no visible focus",
+			"observed": true,
+			"fault": "F7",
+			"confidence": "medium",
+			"why": "The controls with focus were invisible because they lay beyond the clipped panel edge, so the lack of a visible focus position follows from F7; it could also partly reflect F4 on the waiting-list control."
+		},
+		{
+			"runId": "w0.4-tune-t1-p5-seeded-1",
+			"persona": "p5",
+			"screen": "t1",
+			"finding": "The substitute suggestions were cut off, and so were their buttons; three unseen controls in the panel",
+			"observed": true,
+			"fault": "F7",
+			"confidence": "high",
+			"why": "The substitutes' text and Lend controls were clipped beyond the cell at narrow width, which is the F7 effect on the substitutes-offered panel."
+		},
+		{
+			"runId": "w0.4-tune-t4-p4-seeded-1",
+			"persona": "p4",
+			"screen": "t4",
+			"finding": "The results list leaves out the request that failed; didn't say Wren's request had failed or why",
+			"observed": true,
+			"fault": "F12",
+			"confidence": "high",
+			"why": "The failed request's line in the batch list and its refusal note were aria-hidden, so the person heard nothing about which request failed or why."
+		},
+		{
+			"runId": "w0.4-tune-t3-p3-seeded-1",
+			"persona": "p3",
+			"screen": "t3",
+			"finding": "Focus opened on the second field of the return form: the cursor landed in 'Packets of saved seed', the right-hand field, not Harvest year",
+			"observed": true,
+			"fault": "F6",
+			"confidence": "high",
+			"why": "Packets comes first in the DOM but Harvest year is drawn first via CSS order, so focus lands on the second field drawn, exactly as F6 describes."
+		},
+		{
+			"runId": "w0.4-tune-t4-p4-seeded-2",
+			"persona": "p4",
+			"screen": "t4",
+			"finding": "Results said '2 of 3 approved' and the list named only Ines and Tobias; nothing mentioned Wren or why it didn't go through",
+			"observed": true,
+			"fault": "F12",
+			"confidence": "high",
+			"why": "Wren's line in the batch list and the refusal note were aria-hidden, leaving only the 2-of-3 count with no mention of which request failed or why."
+		},
+		{
+			"runId": "w0.4-tune-t4-p4-seeded-2",
+			"persona": "p4",
+			"screen": "t4",
+			"finding": "The select-all and row checkboxes were read only as 'Select, checkbox' without the member's name",
+			"observed": true,
+			"fault": "F10",
+			"confidence": "high",
+			"why": "This matches the aria-label='Select' override on the select-all and row checkboxes."
+		},
+		{
+			"runId": "w0.4-tune-t1-p5-seeded-2",
+			"persona": "p5",
+			"screen": "t1",
+			"finding": "Three Tab presses after 'Substitutes found' landed on controls I couldn't see, with no focus ring; the page jumped sideways but the panel stayed cut off",
+			"observed": true,
+			"fault": "F7",
+			"confidence": "medium",
+			"why": "The unseen controls are the substitutes' Lend controls and the waiting-list control, which lie beyond the clipped cell, so focus went out of view; F4's vanishing-on-focus could also contribute."
+		},
+		{
+			"runId": "w0.4-tune-t4-p4-seeded-1",
+			"persona": "p4",
+			"screen": "t4",
+			"finding": "The row checkboxes don't say whose they are; each read only as \"Select, checkbox\", including the choose-all one",
+			"observed": true,
+			"fault": "F10",
+			"confidence": "high",
+			"why": "This is the same set of checkboxes with the same trouble: each is named only \"Select\", so the name can't be told apart by Tab or form-field keys."
+		},
+		{
+			"runId": "w0.4-tune-t1-p5-seeded-2",
+			"persona": "p5",
+			"screen": "t1",
+			"finding": "The 'Not lent' panel is cut off at the right edge and text is clipped mid-word, even when the page shifted sideways",
+			"observed": true,
+			"fault": "F7",
+			"confidence": "high",
+			"why": "At a narrow width the fixed 640 px panel inside a clipped cell cuts off its right part and cannot be scrolled to, which matches the clipped text described."
+		},
+		{
+			"runId": "w0.4-tune-t3-p3-seeded-2",
+			"persona": "p3",
+			"screen": "t3",
+			"finding": "The form opened with focus on its second field (Packets), not Harvest year on the left",
+			"observed": true,
+			"fault": "F6",
+			"confidence": "high",
+			"why": "Focus landing on the field drawn second, because DOM order puts packets first while CSS order draws year first, is the visual/tab order mismatch of F6."
+		}
+	],
+	"ownerOthers": [
+		{
+			"runId": "w0.4-tune-t4-p4-seeded-2",
+			"persona": "p4",
+			"screen": "t4",
+			"finding": "Wren's row read out of order, with the new waitlist button before the Asked date and a second Decline button causing confusion",
+			"observed": true,
+			"fault": null,
+			"confidence": "medium",
+			"why": "Reading order and duplicate decline buttons in the row are not among the planted changes."
+		},
+		{
+			"runId": "w0.4-tune-t3-p3-seeded-1",
+			"persona": "p3",
+			"screen": "t3",
+			"finding": "The fields swapped places after saving: Packets was now on the left and Harvest year on the right",
+			"observed": true,
+			"fault": null,
+			"confidence": "low",
+			"why": "This is a post-save layout change that risks misreading values, not the tab-versus-visual order trouble F6 describes, though it may come from the same CSS order rule."
+		},
+		{
+			"runId": "w0.4-tune-t2-p2-seeded-2",
+			"persona": "p2",
+			"screen": "t2",
+			"finding": "Row 3: couldn't tell whether the squash can go in at all; nothing said what to do with seed the library doesn't keep",
+			"observed": true,
+			"fault": null,
+			"confidence": "medium",
+			"why": "The complaint is about missing guidance on unkept varieties, not about a hidden reason line at narrow width or a hidden control."
+		},
+		{
+			"runId": "w0.4-tune-t2-p2-seeded-1",
+			"persona": "p2",
+			"screen": "t2",
+			"finding": "Nothing tells me I can walk away with the squash left as it is; unsure whether the box is finished",
+			"observed": false,
+			"fault": null,
+			"confidence": "medium",
+			"why": "This concerns unclear completion status, not any of the planted control, focus or narrow-screen problems."
+		},
+		{
+			"runId": "w0.4-tune-t2-p2-seeded-2",
+			"persona": "p2",
+			"screen": "t2",
+			"finding": "Older messages fade to grey with an Earlier tag; top banner still says 2 of 3 rows could not be taken in",
+			"observed": false,
+			"fault": null,
+			"confidence": "high",
+			"why": "This is about stale status messaging, unrelated to the focus, overflow or narrow-width faults."
+		},
+		{
+			"runId": "w0.4-tune-t4-p1-seeded-1",
+			"persona": "p1",
+			"screen": "t4",
+			"finding": "Unclear what 'take it back under Closed requests' means",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "It is a wording complaint about the follow-up instruction, unrelated to any planted problem."
+		},
+		{
+			"runId": "w0.4-tune-t2-p2-seeded-1",
+			"persona": "p2",
+			"screen": "t2",
+			"finding": "Variety for row 3 list has no squash; typing 'squash' gave 'No matching options'; only way forward is picking a wrong variety",
+			"observed": true,
+			"fault": null,
+			"confidence": "medium",
+			"why": "This is about the variety list's content lacking a squash option, not the hidden leave-out control, though it is partly a consequence of finding no other route."
+		},
+		{
+			"runId": "w0.4-tune-t4-p4-seeded-2",
+			"persona": "p4",
+			"screen": "t4",
+			"finding": "Closed record shows only 'Declined on 9 March 2030', with no mention of the waiting list or that Wren hasn't been told; 'take it back' unclear",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "The Closed requests tab content is outside the planted problems."
+		},
+		{
+			"runId": "w0.4-tune-t4-p1-seeded-2",
+			"persona": "p1",
+			"screen": "t4",
+			"finding": "After declining Wren the button said 'Sent' but Wren was never told; the warning was further down the page",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "This is a misleading confirmation for the decline message, not the batch outcome's live region or the hidden refusal note."
+		},
+		{
+			"runId": "w0.4-tune-t4-p1-seeded-2",
+			"persona": "p1",
+			"screen": "t4",
+			"finding": "The warning's last instruction 'take it back under Closed requests' was unclear and there was no way to mark Wren as told",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "This is about unclear wording on the Closed requests tab, which is unrelated to any planted problem."
+		},
+		{
+			"runId": "w0.4-tune-t4-p4-seeded-1",
+			"persona": "p4",
+			"screen": "t4",
+			"finding": "Couldn't tell if the reason field was already filled in or just a hint",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "This concerns how the decline reason field's prefilled value is presented, which no planted problem covers."
+		},
+		{
+			"runId": "w0.4-tune-t3-p3-seeded-2",
+			"persona": "p3",
+			"screen": "t3",
+			"finding": "Tab skipped the search field and went straight to Record a return",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "No planted problem concerns the search field or the page-level tab order before the return form."
+		},
+		{
+			"runId": "w0.4-tune-t4-p4-seeded-1",
+			"persona": "p4",
+			"screen": "t4",
+			"finding": "Wren's row changed without warning; the waiting-list button sat in the middle of the Request cell; Shift+F seemed to skip Decline",
+			"observed": true,
+			"fault": null,
+			"confidence": "medium",
+			"why": "This is about button placement and reading order in the row, not about the hidden refusal note or the checkbox names."
+		},
+		{
+			"runId": "w0.4-tune-t4-p4-seeded-2",
+			"persona": "p4",
+			"screen": "t4",
+			"finding": "The shortage only showed in one place: the 'Packets to give' line; rows each said '2 packets' with nothing hinting one would fail",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "This is about the pre-decision shortage warning's placement, which no planted problem touches."
+		},
+		{
+			"runId": "w0.4-tune-t4-p1-seeded-1",
+			"persona": "p1",
+			"screen": "t4",
+			"finding": "Ticked 'Choose every waiting request' and approved with no warning that there were only 2 packets for 3 requests",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "This is about the lack of an over-allocation warning before approving, not about checkbox names announced as 'Select' (F10), the missing live announcement of the outcome (F11), or hidden refusal details (F12); the person did learn the outcome and that Wren was left waiting."
+		},
+		{
+			"runId": "w0.4-tune-t4-p1-seeded-2",
+			"persona": "p1",
+			"screen": "t4",
+			"finding": "Wren's row after the batch: unclear what each button did; waiting list and decline took two clicks",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "This concerns the labels and flow of the decline buttons, which none of the planted problems touch."
+		},
+		{
+			"runId": "w0.4-tune-t3-p3-seeded-1",
+			"persona": "p3",
+			"screen": "t3",
+			"finding": "After saving, focus moved to the confirmation and the page jumped up",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "Focus moving to the confirmation and the scroll are not among the planted problems, and the person was not blocked."
+		},
+		{
+			"runId": "w0.4-tune-t3-p3-seeded-2",
+			"persona": "p3",
+			"screen": "t3",
+			"finding": "The fields swapped places after saving in the read-only view",
+			"observed": true,
+			"fault": null,
+			"confidence": "medium",
+			"why": "The swap shows in the saved read-only view, not in the tab order while filling in the form, so it is a different kind of trouble from F6."
+		},
+		{
+			"runId": "w0.4-tune-t4-p4-seeded-1",
+			"persona": "p4",
+			"screen": "t4",
+			"finding": "Only learned Wren can't be reached after deciding",
+			"observed": true,
+			"fault": null,
+			"confidence": "medium",
+			"why": "The missing contact-reachability information is not part of any planted change."
+		},
+		{
+			"runId": "w0.4-tune-t4-p4-seeded-2",
+			"persona": "p4",
+			"screen": "t4",
+			"finding": "Only found out after confirming that Wren couldn't be told; no warning beforehand and no contact details",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "This concerns the waitlist/decline flow's reachability messaging, which no planted problem alters."
+		},
+		{
+			"runId": "w0.4-tune-t4-p4-seeded-1",
+			"persona": "p4",
+			"screen": "t4",
+			"finding": "Can't finish the last step here; no phone number or other contact given",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "This is a limit in the application's scope, not a planted accessibility fault."
+		},
+		{
+			"runId": "w0.4-tune-t2-p2-seeded-2",
+			"persona": "p2",
+			"screen": "t2",
+			"finding": "Pressing Correct didn't send the row again and emptied the picker; wanted to be told to choose from the list",
+			"observed": true,
+			"fault": null,
+			"confidence": "medium",
+			"why": "This concerns the picker's handling of typed-but-unchosen text and the no-change message, which no planted problem covers."
+		},
+		{
+			"runId": "w0.4-tune-t2-p2-seeded-1",
+			"persona": "p2",
+			"screen": "t2",
+			"finding": "Typed 'squash' stays in the variety box with a red error and can't be cleared",
+			"observed": true,
+			"fault": null,
+			"confidence": "medium",
+			"why": "The error text is visible here, so this is not F8's hidden reason, and it concerns clearing input rather than any planted change."
+		},
+		{
+			"runId": "w0.4-tune-t4-p1-seeded-1",
+			"persona": "p1",
+			"screen": "t4",
+			"finding": "The warning that Wren hadn't been told appeared only after confirming the decline, at the bottom of the page",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "It is about the timing and placement of the unreachable-member notice in the decline flow, not the batch outcome's live region or the hidden refusal note."
+		},
+		{
+			"runId": "w0.4-tune-t2-p2-seeded-1",
+			"persona": "p2",
+			"screen": "t2",
+			"finding": "'Take the box back' button looks like any other button and could be pressed by mistake",
+			"observed": false,
+			"fault": null,
+			"confidence": "high",
+			"why": "A destructive-action design concern unrelated to the planted problems."
+		},
+		{
+			"runId": "w0.4-tune-t4-p1-seeded-2",
+			"persona": "p1",
+			"screen": "t4",
+			"finding": "Waiting tab: the screen let me approve three when only two could go through; shortfall line was easy to miss and nothing warned at the button",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "This is about the absence of a warning about the shortfall before a batch action, not about checkbox names, a missing live announcement of the outcome, or a hidden reason for the refusal."
+		},
+		{
+			"runId": "w0.4-tune-t3-p3-seeded-1",
+			"persona": "p3",
+			"screen": "t3",
+			"finding": "Search was skipped by Tab: the first Tab went straight to 'Record a return', past the 'Find another variety' box and Search button",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "No planted problem involves the search controls or the page's tab order outside the return form."
+		},
+		{
+			"runId": "w0.4-tune-t1-p5-seeded-2",
+			"persona": "p5",
+			"screen": "t1",
+			"finding": "Painted Lady's '✓ Lent' mark went away as soon as focus moved",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "No planted problem concerns how long the lend confirmation persists."
+		},
+		{
+			"runId": "w0.4-tune-t4-p1-seeded-1",
+			"persona": "p1",
+			"screen": "t4",
+			"finding": "Button changed to '✓ Sent' while a notice said Wren had not been told, which seems contradictory",
+			"observed": true,
+			"fault": null,
+			"confidence": "high",
+			"why": "It concerns the decline button's confirmation label in the decline flow, which none of the planted problems touch."
+		}
+	],
+	"unread": [],
+	"md": "# Step 0.3\n\n- **The panel found** 7 of 12 planted faults in its seeded walks (the rule asks at least 8): F1, F2, F6, F7, F10, F11, F12.\n- **In walk 1 alone:** 7 of 12.\n- **In walk 2 alone:** 7 of 12.\n\n| Modality | Aimed at it | Found by the modality's personas together | Found by each |\n| --- | --- | --- | --- |\n| pointer | F1, F2, F3 | 1 | p1 0, p2 1 |\n| keyboard | F4, F5, F6 | 1 | p3 1 |\n| screen-reader | F10, F11, F12 | 3 | p4 3 |\n| low-vision | F7, F8, F9 | 1 | p5 1 |\n\n- **Two of three for each modality,** as the owner confirmed the rule on 2026-11-21 (one persona alone): not met. Beside it, the modality's personas together: not met.\n- **For the owner:** 20 of 23 matches to check, and 29 of 29 other findings to judge real (the rule asks at least half)."
+}
