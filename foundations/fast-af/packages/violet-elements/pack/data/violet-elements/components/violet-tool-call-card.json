@@ -80,7 +80,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-tool-name-size, var(--violet-type-label-sm-size, 13px))",
+				"default": "var(--violet-tool-name-size, var(--violet-type-label-size, 13px))",
 				"name": "--_tool-name-size"
 			},
 			{

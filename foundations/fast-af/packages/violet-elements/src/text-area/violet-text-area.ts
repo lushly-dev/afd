@@ -33,7 +33,7 @@ const styles = css`
         display: grid;
         grid-template-columns: minmax(0, 1fr);
         min-inline-size: 0;
-        --_space-layout-sm: var(--violet-space-layout-sm, 12px);
+        --_space-layout-sm: var(--violet-space-layout-panel, 12px);
     }
 
     .field {

@@ -238,6 +238,12 @@ export async function checkTheme(
 		(broken) => `${broken.tokenId} in ${broken.nodeId}: ${broken.message}`
 	);
 	const notes: string[] = [];
+	for (const issue of built.resolved.constraintIssues) {
+		const tag = issue.code ? `${issue.constraintId}/${issue.code}` : issue.constraintId;
+		const line = `${issue.tokenId} in ${issue.nodeId} [${tag}]: ${issue.message}`;
+		if (issue.severity === 'error') errors.push(line);
+		else notes.push(`${issue.severity}: ${line}`);
+	}
 
 	let committed: unknown;
 	try {

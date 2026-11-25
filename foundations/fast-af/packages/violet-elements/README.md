@@ -119,7 +119,7 @@ reads, by token id, with its type:
 
 ```json
 {
-  "contractVersion": 4,
+  "contractVersion": 5,
   "package": "@lushly-dev/violet-elements",
   "cssPrefix": "violet",
   "tokens": {
@@ -133,15 +133,17 @@ reads, by token id, with its type:
 
 - A theme set supplies every id in its default preset. `"reserved": true` on an entry marks an
   id of the interface that no component reads yet; supply it anyway. No id is reserved in
-  version 4.
+  version 5 (96 ids).
 - `contractVersion` changes whenever an id is added, removed, renamed or retyped, or `cssPrefix`
   changes. Version 2
   (the Refined design) added `font.family.heading`, `shadow.well`, `color.field.background`,
   `color.field.background.readonly`, `color.field.text`, `color.field.placeholder` and
   `color.field.border.focus`; `font.family.mono`, reserved in version 1, is now read. Version 3
-  added `color.accent.background` and `color.accent.text` for accent badges. Version 4 keeps the
-  ids and moves every property under `cssPrefix` `violet` (#1786): see
-  [Migrating to version 4](#migrating-to-interface-version-4).
+  added `color.accent.background` and `color.accent.text` for accent badges. Version 4 kept the
+  ids and moved every property under `cssPrefix` `violet` (#1786). Version 5 (Scales, #1111 /
+  #2197) retires `size.font.{sm,md}` and renames the 24 positional semantic ids (`radius.*`,
+  `space.*`, `type.*`) to purpose names: see
+  [Migrating to interface version 5](#migrating-to-interface-version-5).
 - Types: `color`, `dimension`, `duration`, `cubicBezier`, `fontWeight`, `fontFamily`, `number`
   and `shadow`.
 - `src/theme/violet-token-interface.spec.ts` fails when a component reads a property the file
@@ -177,7 +179,7 @@ AFD's Loam documents; `endpoints/loam/docs/phases/0-kernel-chrome/spec.md`, sect
 
 - [tokens/violet-theme.export.json](./tokens/violet-theme.export.json) holds the component ids
   of Loam's resolved `light`, `dark` and `high-contrast` themes:
-  `{ "contractVersion": 1, "source": "loam", "presets": { "<preset>": [{ "id", "value" }] } }`.
+  `{ "contractVersion": 2, "source": "loam", "presets": { "<preset>": [{ "id", "value" }] } }`.
   Loam's theme package writes it (`pnpm -F @lushly-dev/loam-theme theme:export-components`);
   do not edit it by hand. `theme:check` there fails when Loam's tree does not supply an
   interface id with its property and type.
@@ -227,17 +229,26 @@ path:
   `cssPrefix: 'violet'`, with the alias block below for one preview release and a migration note
   in Loam's `design.md`.
 
-## Migrating to interface version 4
+## Migrating to interface version 5
 
-Every token property gains the `violet-` prefix; the ids, types and values are unchanged:
+Version 4 moved every property under the `violet-` prefix (#1786), and version 5 (#1111, #2197)
+retired `size.font.{sm,md}` and renamed the 24 positional semantic ids to purpose names before that
+preview release shipped:
 
-| Before (version 3) | From version 4 |
+| Before (version 3) | From version 5 |
 |---|---|
 | `--color-surface-page` <!-- violet-prefix: keep --> | `--violet-color-surface-page` |
 | `--font-family-body` <!-- violet-prefix: keep --> | `--violet-font-family-body` |
 | `--size-target-natural` <!-- violet-prefix: keep --> | `--violet-size-target-natural` |
 | `--z-index-modal` <!-- violet-prefix: keep --> | `--violet-z-index-modal` |
-| `--<id with . as ->` | `--violet-<id with . as ->`, `violetTokenProperty(id)` |
+| `--size-font-sm`, `--size-font-md` <!-- violet-prefix: keep --> | `--violet-type-caption-size`, `--violet-type-body-size` (retired) |
+| `--radius-sm`, `--radius-md`, `--radius-lg` <!-- violet-prefix: keep --> | `--violet-radius-inset`, `--violet-radius-control`, `--violet-radius-floating` |
+| `--space-inline-sm`, `--space-inline-md` <!-- violet-prefix: keep --> | `--violet-space-inline-tight`, `--violet-space-inline-group` |
+| `--space-stack-xs`, `--space-stack-sm` <!-- violet-prefix: keep --> | `--violet-space-stack-tight`, `--violet-space-stack-group` |
+| `--space-layout-sm`, `--space-layout-md` <!-- violet-prefix: keep --> | `--violet-space-layout-panel`, `--violet-space-layout-page` |
+| `--type-caption-xs-*`, `--type-label-sm-*`, `--type-body-md-*` <!-- violet-prefix: keep --> | `--violet-type-caption-*`, `--violet-type-label-*`, `--violet-type-body-*` |
+| `--type-title-sm-*`, `--type-title-md-*` <!-- violet-prefix: keep --> | `--violet-type-heading-section-*`, `--violet-type-heading-page-*` |
+| `--<id with . as ->` (any surviving id) | `--violet-<id with . as ->`, `violetTokenProperty(id)` |
 
 The components' own knobs (`--violet-target-size`, `--violet-icon-size`, `--violet-font-family` and
 the rest) keep their names. `tokens/interface.json` lists each property; a product that wrote
@@ -246,10 +257,12 @@ properties itself regenerates them from Violet with `prefix: 'violet'`, or names
 codemod that moved its own consumers; its plan shows the replacement rule.
 
 **Deprecated, removed in the next preview release:** the generated stylesheet ends with an alias
-block that declares each old name as a `var()` of the new one on the default preset's selectors
-(`:root` and every `[data-violet-theme-root]`), so a hand-written read of an old name keeps
-following the active preset, scoped roots included. Setting an old name no longer reaches the
-components: set the `--violet-` property instead.
+block that declares each surviving v5 token's unprefixed name as a `var()` of its `--violet-*`
+name on the default preset's selectors (`:root` and every `[data-violet-theme-root]`), so a
+hand-written read of a surviving unprefixed name keeps following the active preset, scoped roots
+included. Retired and renamed v3/v4 names (`--radius-md`, `--type-body-md-size`, `--space-layout-sm`,
+etc.) are not aliased — move directly to their v5 `--violet-*` names above. Setting an unprefixed
+name no longer reaches the components: set the `--violet-` property instead.
 
 ## Runtime Theme
 

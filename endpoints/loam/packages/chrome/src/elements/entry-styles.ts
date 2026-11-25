@@ -31,21 +31,21 @@ export const entryBase = css`
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		gap: var(--violet-size-space-xs);
+		gap: var(--violet-space-inline-hairline);
 		min-inline-size: var(--violet-size-target-comfortable);
 		min-block-size: var(--violet-size-target-comfortable);
-		padding: var(--violet-size-space-xs);
+		padding: var(--violet-space-inline-hairline);
 		border: 1px solid transparent;
-		border-radius: var(--violet-radius-md);
+		border-radius: var(--violet-radius-control);
 		background: transparent;
 		color: var(--violet-color-text-secondary);
 		font: inherit;
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
-		font-weight: var(--violet-type-label-sm-weight);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
+		font-weight: var(--violet-type-label-weight);
 	}
 	.entry violet-icon {
-		--violet-icon-size: var(--violet-size-line-md);
+		--violet-icon-size: var(--violet-type-body-line);
 	}
 	.entry:focus-visible {
 		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);

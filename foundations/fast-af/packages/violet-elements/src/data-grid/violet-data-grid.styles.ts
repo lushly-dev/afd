@@ -26,11 +26,11 @@ export const styles = css`
         --_error-text: var(--violet-color-state-danger-text, #c42a1a);
         --_active-cell-ring: var(--violet-data-grid-active-cell-ring, color-mix(in srgb, var(--_focus-ring) 82%, transparent));
         --_active-cell-ring-width: var(--violet-data-grid-active-cell-ring-width, var(--violet-size-focus-ring-width, 2px));
-        --_space-inline-sm: var(--violet-space-inline-sm, 4px);
-        --_space-inline-md: var(--violet-space-inline-md, 8px);
-        --_space-stack-xs: var(--violet-space-stack-xs, 4px);
-        --_space-stack-sm: var(--violet-space-stack-sm, 8px);
-        --_radius-md: var(--violet-radius-md, 8px);
+        --_space-inline-sm: var(--violet-space-inline-tight, 4px);
+        --_space-inline-md: var(--violet-space-inline-group, 8px);
+        --_space-stack-xs: var(--violet-space-stack-tight, 4px);
+        --_space-stack-sm: var(--violet-space-stack-group, 8px);
+        --_radius-md: var(--violet-radius-control, 8px);
         --_shadow-card: var(--violet-shadow-card, 0 0 0 1px rgba(24, 27, 26, 0.06), 0 1px 2px rgba(24, 27, 26, 0.06), 0 4px 10px -2px rgba(24, 27, 26, 0.06));
         /* Stacking layers. Declared here rather than inherited: an undefined
            custom property makes the z-index declaration invalid at

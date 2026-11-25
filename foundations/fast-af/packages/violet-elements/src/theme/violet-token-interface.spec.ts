@@ -32,6 +32,8 @@ const CONTRACT_DIGESTS: Readonly<Record<number, string>> = {
     3: "46a6fc2d8be329e3be627635fa848d92396f56d17475bbf389e6d628de5cabf2",
     // Every property under cssPrefix `violet` (#1786): `--violet-<kebab id>`.
     4: "e986d5697ea6263de35b42396ddd22599fe7d290f7288402bd3ede8e907eb362",
+    // Scales (#1111, #2197): retired size.font.{sm,md} and renamed positional semantic tokens to purpose names.
+    5: "b2fad866714a411b11ea28ec64597baf8caf06fa65b0bd06bc269f1d810c4eb3",
 };
 
 /**

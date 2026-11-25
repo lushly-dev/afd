@@ -178,7 +178,7 @@
 }
 .panel {
 	border-color: transparent;
-	border-radius: var(--violet-radius-lg, calc(var(--_radius-md) * 1.5));
+	border-radius: var(--violet-radius-floating, calc(var(--_radius-md) * 1.5));
 	background: var(--violet-color-surface-floating, var(--_surface-card));
 }
 .listbox ::slotted(violet-option) {
@@ -197,11 +197,11 @@
 /* @component violet-option */
 /* Its token block is the action one, which has none of these: outside a select they fell to 16px. */
 :host {
-	--_space-inline-md: var(--violet-space-inline-md, 8px);
-	--_control-body-size: var(--violet-control-body-size, var(--violet-type-body-md-size, 14px));
-	--_control-caption-size: var(--violet-control-caption-size, var(--violet-type-caption-xs-size, 12px));
-	--_type-body-line: var(--violet-type-body-md-line, 20px);
-	--_type-caption-line: var(--violet-type-caption-xs-line, 16px);
+	--_space-inline-md: var(--violet-space-inline-group, 8px);
+	--_control-body-size: var(--violet-control-body-size, var(--violet-type-body-size, 14px));
+	--_control-caption-size: var(--violet-control-caption-size, var(--violet-type-caption-size, 12px));
+	--_type-body-line: var(--violet-type-body-line, 20px);
+	--_type-caption-line: var(--violet-type-caption-line, 16px);
 	--_text-muted: var(--violet-color-text-muted, #616775);
 	--_surface-active: var(--violet-color-surface-subtle, #f0efe6);
 	--_surface-selected: var(--violet-color-surface-selected, #ddeadf);
@@ -351,7 +351,7 @@
 	--_track-border-width: 0px;
 	--_track-padding: 2px;
 	--_thumb-size: calc(var(--_track-block-size) - (var(--_track-padding) * 2));
-	--_radius-sm: var(--violet-radius-sm, 2px);
+	--_radius-sm: var(--violet-radius-inset, 2px);
 }
 .track {
 	border: 0;
@@ -422,7 +422,7 @@
 /* @component violet-segmented-control */
 :host {
 	/* Read by .group and never defined in the field token block, so the track was square. */
-	--_radius-lg: var(--violet-radius-lg, 6px);
+	--_radius-lg: var(--violet-radius-floating, 6px);
 	--_well: color-mix(in srgb, var(--violet-color-text-primary, #18181b) 7%, transparent);
 }
 .label {
@@ -452,8 +452,8 @@
 	/* Its two token blocks define none of these. */
 	--_surface-page: var(--violet-color-surface-page, #fffefa);
 	--_control-body-size: var(--violet-control-body-size, var(--_control-type-size));
-	--_type-label-weight: var(--violet-type-label-sm-weight, 500);
-	--_type-body-line: var(--violet-type-body-md-line, 20px);
+	--_type-label-weight: var(--violet-type-label-weight, 500);
+	--_type-body-line: var(--violet-type-body-line, 20px);
 	--_segment-selected-background: var(--violet-segment-selected-background, var(--violet-color-surface-highlight, var(--_surface-card)));
 	--_segment-selected-border: var(--violet-segment-selected-border, transparent);
 }
@@ -477,13 +477,13 @@
 /* @component violet-pagination */
 :host {
 	/* Read here and never defined in the action token block: the control drew as bare text. */
-	--_space-xs: var(--violet-space-stack-xs, 4px);
-	--_space-sm: var(--violet-space-inline-md, 8px);
-	--_space-md: var(--violet-space-layout-sm, 12px);
-	--_space-lg: var(--violet-space-layout-sm, 12px);
+	--_space-xs: var(--violet-space-stack-tight, 4px);
+	--_space-sm: var(--violet-space-inline-group, 8px);
+	--_space-md: var(--violet-space-layout-panel, 12px);
+	--_space-lg: var(--violet-space-layout-panel, 12px);
 	--_control-body-size: var(--violet-control-body-size, var(--_control-type-size));
-	--_type-label-weight: var(--violet-type-body-md-weight, 400);
-	--_type-body-line: var(--violet-type-body-md-line, 20px);
+	--_type-label-weight: var(--violet-type-body-weight, 400);
+	--_type-body-line: var(--violet-type-body-line, 20px);
 	--_text-primary: var(--violet-color-text-primary, #18181b);
 	--_text-muted: var(--violet-color-text-muted, #616775);
 	--_surface-page: var(--violet-color-surface-page, #fffefa);
@@ -618,7 +618,7 @@
 /* @component violet-badge */
 :host {
 	/* Neither is defined in the surface token block. */
-	--_type-label-weight: var(--violet-type-label-sm-weight, 500);
+	--_type-label-weight: var(--violet-type-label-weight, 500);
 	--_surface-page: var(--violet-color-surface-page, transparent);
 	--_badge-bg: color-mix(in srgb, var(--violet-color-text-primary, #18181b) 8%, transparent);
 	--_badge-border: transparent;
@@ -652,7 +652,7 @@
 	/* Read here and never defined in the surface token block: headers drew at 16px. */
 	--_target-size: var(--violet-target-size, var(--violet-size-target-natural, 32px));
 	--_control-body-size: var(--violet-control-body-size, var(--_body-size));
-	--_type-label-weight: var(--violet-type-label-sm-weight, 500);
+	--_type-label-weight: var(--violet-type-label-weight, 500);
 	--_type-body-line: var(--_body-line);
 	--_accordion-item-background: var(--violet-accordion-item-background, transparent);
 	--_accordion-item-background-expanded: var(--violet-accordion-item-background-expanded, transparent);
@@ -735,7 +735,7 @@
 
 /* @component violet-tree */
 :host {
-	--_tree-surface-radius: var(--violet-tree-surface-radius, var(--violet-radius-lg, calc(var(--_radius-md) * 1.5)));
+	--_tree-surface-radius: var(--violet-tree-surface-radius, var(--violet-radius-floating, calc(var(--_radius-md) * 1.5)));
 	--_tree-surface-border: var(--violet-tree-surface-border, transparent);
 }
 .label {
@@ -757,8 +757,8 @@
 /* @component violet-menu */
 :host {
 	/* Read for the panel's padding and gap, and never defined in the action token block. */
-	--_space-sm: var(--violet-space-inline-sm, 4px);
-	--_panel-radius: var(--violet-menu-radius, var(--violet-radius-lg, calc(var(--_radius-md) * 1.5)));
+	--_space-sm: var(--violet-space-inline-tight, 4px);
+	--_panel-radius: var(--violet-menu-radius, var(--violet-radius-floating, calc(var(--_radius-md) * 1.5)));
 	--_panel-background: var(--violet-menu-background, var(--violet-color-surface-floating, var(--_surface-card)));
 	--_panel-border-color: var(--violet-menu-border-color, transparent);
 }
@@ -815,9 +815,9 @@ dialog {
 }
 .title {
 	font-family: var(--violet-font-family-heading, "Space Grotesk", "Segoe UI", system-ui, sans-serif);
-	font-size: var(--violet-type-title-sm-size, 18px);
-	line-height: var(--violet-type-title-sm-line, 24px);
-	font-weight: var(--violet-type-title-sm-weight, 600);
+	font-size: var(--violet-type-heading-section-size, 18px);
+	line-height: var(--violet-type-heading-section-line, 24px);
+	font-weight: var(--violet-type-heading-section-weight, 600);
 	letter-spacing: -0.01em;
 }
 .body {
@@ -1019,7 +1019,7 @@ dialog {
 .name,
 .approval-tool-name {
 	font-family: var(--violet-font-family-mono, ui-monospace, monospace);
-	font-size: var(--violet-type-label-sm-size, 13px);
+	font-size: var(--violet-type-label-size, 13px);
 	font-weight: 500;
 }
 .badge {
@@ -1085,7 +1085,7 @@ dialog {
 }
 .header {
 	padding: var(--_space-sm) var(--_space-md);
-	font-size: var(--violet-type-label-sm-size, 13px);
+	font-size: var(--violet-type-label-size, 13px);
 	line-height: var(--_approval-line-height);
 	font-weight: 500;
 }

@@ -1,7 +1,8 @@
 /**
  * The theme's outputs (2.1, 2.3): the contract, `loam-theme.css` and `loam-theme.json`, rendered
- * here rather than by Violet's exporters, which have no exclusion filter and no override diff.
+ * here rather than by Violet's exporters, which have no per-theme override diff.
  */
+import { type ConstraintSeverity, validateConstraints } from '@lushly-dev/violet-core';
 import { tokenCustomProperty, VIOLET_CSS_PREFIX } from '@lushly-dev/violet-runtime/property';
 import { type ComponentExport, renderComponentExport } from './components.js';
 import {
@@ -14,14 +15,15 @@ import {
 	NODE_IDS,
 	ROOT_NODE,
 	THEMES,
+	type TreeFile,
 	themeNode,
 } from './tree/index.js';
 
 /**
- * The contract's version: 2 since every property moved under the `violet-` prefix (#1786), with
- * the ids, types and kinds of version 1.
+ * The contract's version: 3 after Scales (#1111, #2197) retired 16 positional ladder tokens,
+ * added `space.inline.hairline`, and renamed 25 semantic tokens to purpose-named ids.
  */
-export const CONTRACT_VERSION = 2;
+export const CONTRACT_VERSION = 3;
 
 export interface ContractEntry {
 	property: string;
@@ -50,10 +52,21 @@ export interface BrokenReference {
 	message: string;
 }
 
+/** A Violet constraint violation reported on a resolved Loam node. */
+export interface ConstraintIssue {
+	nodeId: string;
+	tokenId: string;
+	constraintId: string;
+	severity: ConstraintSeverity;
+	code?: string;
+	message: string;
+}
+
 export interface ResolvedTree {
 	/** Per node, every exported token (no `ref.*`) by id, in id order. */
 	nodes: Map<string, Map<string, string>>;
 	brokenReferences: BrokenReference[];
+	constraintIssues: ConstraintIssue[];
 }
 
 /**
@@ -66,21 +79,33 @@ export const cssProperty = (id: string): string => tokenCustomProperty(id, VIOLE
 
 const byId = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
-export async function resolveTree(): Promise<ResolvedTree> {
-	const tree = await buildLoamTree();
+export async function resolveTree(files?: readonly TreeFile[]): Promise<ResolvedTree> {
+	const tree = await buildLoamTree(files);
 	const nodes = new Map<string, Map<string, string>>();
 	const brokenReferences: BrokenReference[] = [];
+	const constraintIssues: ConstraintIssue[] = [];
 	for (const nodeId of NODE_IDS) {
 		const tokens = await tree.resolve(nodeId);
 		for (const token of tokens)
 			if (token.referenceError)
 				brokenReferences.push({ nodeId, tokenId: token.id, message: token.referenceError.message });
+		const report = await validateConstraints(tree.db, nodeId, { onlyViolating: true });
+		for (const result of report.results)
+			for (const violation of result.violations)
+				constraintIssues.push({
+					nodeId,
+					tokenId: result.tokenId,
+					constraintId: violation.constraintId,
+					severity: violation.severity,
+					...(violation.code ? { code: violation.code } : {}),
+					message: violation.message,
+				});
 		const exported = tokens
 			.filter((token) => !isPrimitive(token.id))
 			.sort((a, b) => byId(a.id, b.id));
 		nodes.set(nodeId, new Map(exported.map((token) => [token.id, String(token.resolvedValue)])));
 	}
-	return { nodes, brokenReferences };
+	return { nodes, brokenReferences, constraintIssues };
 }
 
 const node = (resolved: ResolvedTree, nodeId: string): Map<string, string> => {
@@ -155,8 +180,8 @@ export interface ThemeOutputs {
 	componentExportJson: string;
 }
 
-export async function buildOutputs(): Promise<ThemeOutputs> {
-	const resolved = await resolveTree();
+export async function buildOutputs(files?: readonly TreeFile[]): Promise<ThemeOutputs> {
+	const resolved = await resolveTree(files);
 	const contract = renderContract(resolved);
 	const componentExport = renderComponentExport(resolved, contract);
 	return {

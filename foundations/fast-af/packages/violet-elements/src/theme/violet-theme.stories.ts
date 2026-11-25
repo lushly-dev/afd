@@ -30,7 +30,7 @@ function renderScopedTheme(args: ScopedThemeArgs): HTMLElement {
     card.style.gap = "0.75rem";
     card.style.padding = "1rem";
     card.style.border = "1px solid var(--violet-color-border-subtle)";
-    card.style.borderRadius = "var(--violet-radius-md)";
+    card.style.borderRadius = "var(--violet-radius-control)";
     card.style.background = "var(--violet-color-surface-card)";
     card.style.color = "var(--violet-color-text-primary)";
 

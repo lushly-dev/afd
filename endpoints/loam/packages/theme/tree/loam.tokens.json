@@ -280,18 +280,27 @@
     }
   },
   "radius": {
-    "lg": {
+    "control": {
       "$type": "dimension",
-      "$value": "12px",
+      "$value": "{ref.radius.8}",
       "$extensions": {
         "dev.lushly.violet": {
           "category": "radius"
         }
       }
     },
-    "md": {
+    "floating": {
       "$type": "dimension",
-      "$value": "8px",
+      "$value": "{ref.radius.12}",
+      "$extensions": {
+        "dev.lushly.violet": {
+          "category": "radius"
+        }
+      }
+    },
+    "inset": {
+      "$type": "dimension",
+      "$value": "{ref.radius.4}",
       "$extensions": {
         "dev.lushly.violet": {
           "category": "radius"
@@ -300,16 +309,7 @@
     },
     "round": {
       "$type": "dimension",
-      "$value": "9999px",
-      "$extensions": {
-        "dev.lushly.violet": {
-          "category": "radius"
-        }
-      }
-    },
-    "sm": {
-      "$type": "dimension",
-      "$value": "4px",
+      "$value": "{ref.radius.9999}",
       "$extensions": {
         "dev.lushly.violet": {
           "category": "radius"
@@ -585,6 +585,44 @@
           "$value": "#ffffff"
         }
       },
+      "radius": {
+        "4": {
+          "$type": "dimension",
+          "$value": "4px",
+          "$extensions": {
+            "dev.lushly.violet": {
+              "category": "radius"
+            }
+          }
+        },
+        "8": {
+          "$type": "dimension",
+          "$value": "8px",
+          "$extensions": {
+            "dev.lushly.violet": {
+              "category": "radius"
+            }
+          }
+        },
+        "12": {
+          "$type": "dimension",
+          "$value": "12px",
+          "$extensions": {
+            "dev.lushly.violet": {
+              "category": "radius"
+            }
+          }
+        },
+        "9999": {
+          "$type": "dimension",
+          "$value": "9999px",
+          "$extensions": {
+            "dev.lushly.violet": {
+              "category": "radius"
+            }
+          }
+        }
+      },
       "space": {
         "2": {
           "$type": "dimension",
@@ -646,6 +684,193 @@
           "$extensions": {
             "dev.lushly.violet": {
               "category": "spacing"
+            }
+          }
+        }
+      },
+      "target": {
+        "24": {
+          "$type": "dimension",
+          "$value": "24px",
+          "$extensions": {
+            "dev.lushly.violet": {
+              "category": "spacing"
+            }
+          }
+        },
+        "28": {
+          "$type": "dimension",
+          "$value": "28px",
+          "$extensions": {
+            "dev.lushly.violet": {
+              "category": "spacing"
+            }
+          }
+        },
+        "32": {
+          "$type": "dimension",
+          "$value": "32px",
+          "$extensions": {
+            "dev.lushly.violet": {
+              "category": "spacing"
+            }
+          }
+        },
+        "40": {
+          "$type": "dimension",
+          "$value": "40px",
+          "$extensions": {
+            "dev.lushly.violet": {
+              "category": "spacing"
+            }
+          }
+        },
+        "44": {
+          "$type": "dimension",
+          "$value": "44px",
+          "$extensions": {
+            "dev.lushly.violet": {
+              "category": "spacing"
+            }
+          }
+        },
+        "48": {
+          "$type": "dimension",
+          "$value": "48px",
+          "$extensions": {
+            "dev.lushly.violet": {
+              "category": "spacing"
+            }
+          }
+        },
+        "56": {
+          "$type": "dimension",
+          "$value": "56px",
+          "$extensions": {
+            "dev.lushly.violet": {
+              "category": "spacing"
+            }
+          }
+        }
+      },
+      "type": {
+        "100": {
+          "line": {
+            "$type": "dimension",
+            "$value": "14px",
+            "$extensions": {
+              "dev.lushly.violet": {
+                "category": "typography"
+              }
+            }
+          },
+          "size": {
+            "$type": "dimension",
+            "$value": "11px",
+            "$extensions": {
+              "dev.lushly.violet": {
+                "category": "typography"
+              }
+            }
+          }
+        },
+        "200": {
+          "line": {
+            "$type": "dimension",
+            "$value": "16px",
+            "$extensions": {
+              "dev.lushly.violet": {
+                "category": "typography"
+              }
+            }
+          },
+          "size": {
+            "$type": "dimension",
+            "$value": "12px",
+            "$extensions": {
+              "dev.lushly.violet": {
+                "category": "typography"
+              }
+            }
+          }
+        },
+        "250": {
+          "line": {
+            "$type": "dimension",
+            "$value": "16px",
+            "$extensions": {
+              "dev.lushly.violet": {
+                "category": "typography"
+              }
+            }
+          },
+          "size": {
+            "$type": "dimension",
+            "$value": "13px",
+            "$extensions": {
+              "dev.lushly.violet": {
+                "category": "typography"
+              }
+            }
+          }
+        },
+        "300": {
+          "line": {
+            "$type": "dimension",
+            "$value": "20px",
+            "$extensions": {
+              "dev.lushly.violet": {
+                "category": "typography"
+              }
+            }
+          },
+          "size": {
+            "$type": "dimension",
+            "$value": "14px",
+            "$extensions": {
+              "dev.lushly.violet": {
+                "category": "typography"
+              }
+            }
+          }
+        },
+        "400": {
+          "line": {
+            "$type": "dimension",
+            "$value": "24px",
+            "$extensions": {
+              "dev.lushly.violet": {
+                "category": "typography"
+              }
+            }
+          },
+          "size": {
+            "$type": "dimension",
+            "$value": "18px",
+            "$extensions": {
+              "dev.lushly.violet": {
+                "category": "typography"
+              }
+            }
+          }
+        },
+        "500": {
+          "line": {
+            "$type": "dimension",
+            "$value": "32px",
+            "$extensions": {
+              "dev.lushly.violet": {
+                "category": "typography"
+              }
+            }
+          },
+          "size": {
+            "$type": "dimension",
+            "$value": "24px",
+            "$extensions": {
+              "dev.lushly.violet": {
+                "category": "typography"
+              }
             }
           }
         }
@@ -779,7 +1004,7 @@
       },
       "rail": {
         "$type": "dimension",
-        "$value": "48px",
+        "$value": "{ref.target.48}",
         "$extensions": {
           "dev.lushly.violet": {
             "category": "spacing"
@@ -817,7 +1042,7 @@
       },
       "statusbar": {
         "$type": "dimension",
-        "$value": "24px",
+        "$value": "{ref.target.24}",
         "$extensions": {
           "dev.lushly.violet": {
             "category": "spacing"
@@ -826,7 +1051,7 @@
       },
       "tabbar": {
         "$type": "dimension",
-        "$value": "56px",
+        "$value": "{ref.target.56}",
         "$extensions": {
           "dev.lushly.violet": {
             "category": "spacing"
@@ -835,7 +1060,7 @@
       },
       "titlebar": {
         "$type": "dimension",
-        "$value": "40px",
+        "$value": "{ref.target.40}",
         "$extensions": {
           "dev.lushly.violet": {
             "category": "spacing"
@@ -856,151 +1081,10 @@
         }
       }
     },
-    "font": {
-      "lg": {
-        "$type": "dimension",
-        "$value": "18px",
-        "$extensions": {
-          "dev.lushly.violet": {
-            "category": "typography"
-          }
-        }
-      },
-      "md": {
-        "$type": "dimension",
-        "$value": "14px",
-        "$extensions": {
-          "dev.lushly.violet": {
-            "category": "typography"
-          }
-        }
-      },
-      "sm": {
-        "$type": "dimension",
-        "$value": "12px",
-        "$extensions": {
-          "dev.lushly.violet": {
-            "category": "typography"
-          }
-        }
-      },
-      "xl": {
-        "$type": "dimension",
-        "$value": "24px",
-        "$extensions": {
-          "dev.lushly.violet": {
-            "category": "typography"
-          }
-        }
-      },
-      "xs": {
-        "$type": "dimension",
-        "$value": "11px",
-        "$extensions": {
-          "dev.lushly.violet": {
-            "category": "typography"
-          }
-        }
-      }
-    },
-    "line": {
-      "lg": {
-        "$type": "dimension",
-        "$value": "24px",
-        "$extensions": {
-          "dev.lushly.violet": {
-            "category": "typography"
-          }
-        }
-      },
-      "md": {
-        "$type": "dimension",
-        "$value": "20px",
-        "$extensions": {
-          "dev.lushly.violet": {
-            "category": "typography"
-          }
-        }
-      },
-      "sm": {
-        "$type": "dimension",
-        "$value": "16px",
-        "$extensions": {
-          "dev.lushly.violet": {
-            "category": "typography"
-          }
-        }
-      },
-      "xl": {
-        "$type": "dimension",
-        "$value": "32px",
-        "$extensions": {
-          "dev.lushly.violet": {
-            "category": "typography"
-          }
-        }
-      },
-      "xs": {
-        "$type": "dimension",
-        "$value": "14px",
-        "$extensions": {
-          "dev.lushly.violet": {
-            "category": "typography"
-          }
-        }
-      }
-    },
-    "space": {
-      "lg": {
-        "$type": "dimension",
-        "$value": "{ref.space.12}",
-        "$extensions": {
-          "dev.lushly.violet": {
-            "category": "spacing"
-          }
-        }
-      },
-      "md": {
-        "$type": "dimension",
-        "$value": "{ref.space.8}",
-        "$extensions": {
-          "dev.lushly.violet": {
-            "category": "spacing"
-          }
-        }
-      },
-      "sm": {
-        "$type": "dimension",
-        "$value": "{ref.space.4}",
-        "$extensions": {
-          "dev.lushly.violet": {
-            "category": "spacing"
-          }
-        }
-      },
-      "xl": {
-        "$type": "dimension",
-        "$value": "{ref.space.24}",
-        "$extensions": {
-          "dev.lushly.violet": {
-            "category": "spacing"
-          }
-        }
-      },
-      "xs": {
-        "$type": "dimension",
-        "$value": "{ref.space.2}",
-        "$extensions": {
-          "dev.lushly.violet": {
-            "category": "spacing"
-          }
-        }
-      }
-    },
     "target": {
       "comfortable": {
         "$type": "dimension",
-        "$value": "44px",
+        "$value": "{ref.target.44}",
         "$extensions": {
           "dev.lushly.violet": {
             "category": "spacing"
@@ -1009,7 +1093,7 @@
       },
       "compact": {
         "$type": "dimension",
-        "$value": "24px",
+        "$value": "{ref.target.24}",
         "$extensions": {
           "dev.lushly.violet": {
             "category": "spacing"
@@ -1018,7 +1102,7 @@
       },
       "natural": {
         "$type": "dimension",
-        "$value": "32px",
+        "$value": "{ref.target.32}",
         "$extensions": {
           "dev.lushly.violet": {
             "category": "spacing"
@@ -1029,16 +1113,7 @@
   },
   "space": {
     "inline": {
-      "lg": {
-        "$type": "dimension",
-        "$value": "{ref.space.12}",
-        "$extensions": {
-          "dev.lushly.violet": {
-            "category": "spacing"
-          }
-        }
-      },
-      "md": {
+      "group": {
         "$type": "dimension",
         "$value": "{ref.space.8}",
         "$extensions": {
@@ -1047,7 +1122,16 @@
           }
         }
       },
-      "sm": {
+      "hairline": {
+        "$type": "dimension",
+        "$value": "{ref.space.2}",
+        "$extensions": {
+          "dev.lushly.violet": {
+            "category": "spacing"
+          }
+        }
+      },
+      "tight": {
         "$type": "dimension",
         "$value": "{ref.space.4}",
         "$extensions": {
@@ -1058,7 +1142,7 @@
       }
     },
     "layout": {
-      "md": {
+      "page": {
         "$type": "dimension",
         "$value": "{ref.space.24}",
         "$extensions": {
@@ -1067,7 +1151,7 @@
           }
         }
       },
-      "sm": {
+      "panel": {
         "$type": "dimension",
         "$value": "{ref.space.12}",
         "$extensions": {
@@ -1078,16 +1162,7 @@
       }
     },
     "stack": {
-      "md": {
-        "$type": "dimension",
-        "$value": "{ref.space.12}",
-        "$extensions": {
-          "dev.lushly.violet": {
-            "category": "spacing"
-          }
-        }
-      },
-      "sm": {
+      "group": {
         "$type": "dimension",
         "$value": "{ref.space.8}",
         "$extensions": {
@@ -1096,7 +1171,16 @@
           }
         }
       },
-      "xs": {
+      "section": {
+        "$type": "dimension",
+        "$value": "{ref.space.12}",
+        "$extensions": {
+          "dev.lushly.violet": {
+            "category": "spacing"
+          }
+        }
+      },
+      "tight": {
         "$type": "dimension",
         "$value": "{ref.space.4}",
         "$extensions": {
@@ -1109,62 +1193,58 @@
   },
   "type": {
     "body": {
-      "md": {
-        "line": {
-          "$type": "dimension",
-          "$value": "{size.line.md}",
-          "$extensions": {
-            "dev.lushly.violet": {
-              "category": "typography"
-            }
+      "line": {
+        "$type": "dimension",
+        "$value": "{ref.type.300.line}",
+        "$extensions": {
+          "dev.lushly.violet": {
+            "category": "typography"
           }
-        },
-        "size": {
-          "$type": "dimension",
-          "$value": "{size.font.md}",
-          "$extensions": {
-            "dev.lushly.violet": {
-              "category": "typography"
-            }
-          }
-        },
-        "weight": {
-          "$type": "fontWeight",
-          "$value": "{weight.regular}"
         }
+      },
+      "size": {
+        "$type": "dimension",
+        "$value": "{ref.type.300.size}",
+        "$extensions": {
+          "dev.lushly.violet": {
+            "category": "typography"
+          }
+        }
+      },
+      "weight": {
+        "$type": "fontWeight",
+        "$value": "{weight.regular}"
       }
     },
     "caption": {
-      "xs": {
-        "line": {
-          "$type": "dimension",
-          "$value": "{size.line.sm}",
-          "$extensions": {
-            "dev.lushly.violet": {
-              "category": "typography"
-            }
+      "line": {
+        "$type": "dimension",
+        "$value": "{ref.type.200.line}",
+        "$extensions": {
+          "dev.lushly.violet": {
+            "category": "typography"
           }
-        },
-        "size": {
-          "$type": "dimension",
-          "$value": "{size.font.sm}",
-          "$extensions": {
-            "dev.lushly.violet": {
-              "category": "typography"
-            }
-          }
-        },
-        "weight": {
-          "$type": "fontWeight",
-          "$value": "{weight.regular}"
         }
+      },
+      "size": {
+        "$type": "dimension",
+        "$value": "{ref.type.200.size}",
+        "$extensions": {
+          "dev.lushly.violet": {
+            "category": "typography"
+          }
+        }
+      },
+      "weight": {
+        "$type": "fontWeight",
+        "$value": "{weight.regular}"
       }
     },
-    "label": {
-      "sm": {
+    "heading": {
+      "page": {
         "line": {
           "$type": "dimension",
-          "$value": "{size.line.sm}",
+          "$value": "{ref.type.500.line}",
           "$extensions": {
             "dev.lushly.violet": {
               "category": "typography"
@@ -1173,33 +1253,7 @@
         },
         "size": {
           "$type": "dimension",
-          "$value": "13px",
-          "$extensions": {
-            "dev.lushly.violet": {
-              "category": "typography"
-            }
-          }
-        },
-        "weight": {
-          "$type": "fontWeight",
-          "$value": "{weight.medium}"
-        }
-      }
-    },
-    "title": {
-      "md": {
-        "line": {
-          "$type": "dimension",
-          "$value": "{size.line.xl}",
-          "$extensions": {
-            "dev.lushly.violet": {
-              "category": "typography"
-            }
-          }
-        },
-        "size": {
-          "$type": "dimension",
-          "$value": "{size.font.xl}",
+          "$value": "{ref.type.500.size}",
           "$extensions": {
             "dev.lushly.violet": {
               "category": "typography"
@@ -1211,10 +1265,10 @@
           "$value": "{weight.semibold}"
         }
       },
-      "sm": {
+      "section": {
         "line": {
           "$type": "dimension",
-          "$value": "{size.line.lg}",
+          "$value": "{ref.type.400.line}",
           "$extensions": {
             "dev.lushly.violet": {
               "category": "typography"
@@ -1223,7 +1277,7 @@
         },
         "size": {
           "$type": "dimension",
-          "$value": "{size.font.lg}",
+          "$value": "{ref.type.400.size}",
           "$extensions": {
             "dev.lushly.violet": {
               "category": "typography"
@@ -1234,6 +1288,30 @@
           "$type": "fontWeight",
           "$value": "{weight.semibold}"
         }
+      }
+    },
+    "label": {
+      "line": {
+        "$type": "dimension",
+        "$value": "{ref.type.250.line}",
+        "$extensions": {
+          "dev.lushly.violet": {
+            "category": "typography"
+          }
+        }
+      },
+      "size": {
+        "$type": "dimension",
+        "$value": "{ref.type.250.size}",
+        "$extensions": {
+          "dev.lushly.violet": {
+            "category": "typography"
+          }
+        }
+      },
+      "weight": {
+        "$type": "fontWeight",
+        "$value": "{weight.medium}"
       }
     }
   },

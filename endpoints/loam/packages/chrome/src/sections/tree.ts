@@ -71,40 +71,40 @@ const template = html<LoamTree>`
 const styles = css`
 	:host {
 		display: block;
-		--violet-tree-indent-step: var(--violet-space-inline-md);
-		--violet-tree-row-padding-inline: var(--violet-space-inline-md);
+		--violet-tree-indent-step: var(--violet-space-inline-group);
+		--violet-tree-row-padding-inline: var(--violet-space-inline-group);
 	}
 	:host([hidden]),
 	[hidden] {
 		display: none !important;
 	}
 	h3 {
-		margin: 0 0 var(--violet-space-stack-xs);
+		margin: 0 0 var(--violet-space-stack-tight);
 		color: var(--violet-color-text-secondary);
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
 		font-weight: var(--violet-weight-semibold);
 	}
 	:host([heading]:not([heading=''])) {
-		margin-block-end: var(--violet-space-stack-md);
+		margin-block-end: var(--violet-space-stack-section);
 	}
 	p {
 		margin: 0;
 		color: var(--violet-color-text-secondary);
-		font-size: var(--violet-type-body-md-size);
-		line-height: var(--violet-type-body-md-line);
+		font-size: var(--violet-type-body-size);
+		line-height: var(--violet-type-body-line);
 	}
 	.failure p {
 		color: var(--violet-color-state-danger-text);
 	}
 	.failure .suggestion {
-		margin-block-start: var(--violet-space-stack-xs);
+		margin-block-start: var(--violet-space-stack-tight);
 		color: var(--violet-color-text-secondary);
 	}
 	violet-tree-item::part(row) {
 		color: var(--violet-color-text-primary);
-		border-inline-start: var(--violet-size-space-xs) solid transparent;
-		border-radius: var(--violet-radius-md);
+		border-inline-start: var(--violet-space-inline-hairline) solid transparent;
+		border-radius: var(--violet-radius-control);
 		box-shadow: none;
 		transition: background-color var(--violet-duration-fast) var(--violet-easing-standard);
 	}
@@ -138,7 +138,7 @@ const styles = css`
 		min-block-size: var(--violet-size-target-compact);
 		padding: 0;
 		border: 0;
-		border-radius: var(--violet-radius-sm);
+		border-radius: var(--violet-radius-inset);
 		background: transparent;
 		color: var(--violet-color-text-secondary);
 		font: inherit;
@@ -151,9 +151,9 @@ const styles = css`
 	.menu {
 		position-area: block-end span-inline-end;
 		margin: 0;
-		padding: var(--violet-size-space-xs);
+		padding: var(--violet-space-inline-hairline);
 		border: 1px solid transparent;
-		border-radius: var(--violet-radius-lg);
+		border-radius: var(--violet-radius-floating);
 		background: var(--violet-color-surface-floating);
 		box-shadow: var(--violet-shadow-floating);
 		color: var(--violet-color-text-primary);
@@ -163,9 +163,9 @@ const styles = css`
 	}
 	.menu button {
 		min-block-size: var(--violet-size-target-natural);
-		padding-inline: var(--violet-space-inline-md);
+		padding-inline: var(--violet-space-inline-group);
 		border: 0;
-		border-radius: var(--violet-radius-md);
+		border-radius: var(--violet-radius-control);
 		background: transparent;
 		color: var(--violet-color-text-primary);
 		font: inherit;

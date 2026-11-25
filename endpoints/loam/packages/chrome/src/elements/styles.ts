@@ -8,7 +8,7 @@ import { css } from '@lushly-dev/fast-element';
 /** The focus indicator, on `:focus-visible` only. */
 export const focusRing = css.partial`
 	outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
-	outline-offset: var(--violet-size-space-xs);
+	outline-offset: var(--violet-space-inline-hairline);
 `;
 
 /** A part host: hidden when not present, focusable for F6 with the ring drawn inside it. */
@@ -43,20 +43,20 @@ export const quietButton = css`
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		gap: var(--violet-size-space-sm);
+		gap: var(--violet-space-inline-tight);
 		min-block-size: var(--violet-size-target-natural);
 		min-inline-size: var(--violet-size-target-natural);
 		padding-block: 0;
-		padding-inline: var(--violet-size-space-md);
+		padding-inline: var(--violet-space-inline-group);
 		border: 1px solid transparent;
-		border-inline-start-width: var(--violet-size-space-xs);
-		border-radius: var(--violet-radius-md);
+		border-inline-start-width: var(--violet-space-inline-hairline);
+		border-radius: var(--violet-radius-control);
 		background: transparent;
 		color: var(--violet-color-text-secondary);
 		font: inherit;
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
-		font-weight: var(--violet-type-label-sm-weight);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
+		font-weight: var(--violet-type-label-weight);
 		cursor: pointer;
 		transition:
 			background-color var(--violet-duration-fast) var(--violet-easing-standard),
@@ -88,7 +88,7 @@ export const quietButton = css`
 		color: var(--violet-color-text-secondary);
 	}
 	.quiet violet-icon {
-		--violet-icon-size: var(--violet-size-line-sm);
+		--violet-icon-size: var(--violet-type-caption-line);
 	}
 	@media (prefers-reduced-motion: reduce) {
 		.quiet {
@@ -145,25 +145,25 @@ export const partHeader = css`
 	.header {
 		display: flex;
 		align-items: center;
-		gap: var(--violet-space-inline-sm);
-		padding-block: var(--violet-space-stack-sm);
-		padding-inline: var(--violet-space-layout-sm);
+		gap: var(--violet-space-inline-tight);
+		padding-block: var(--violet-space-stack-group);
+		padding-inline: var(--violet-space-layout-panel);
 		border-block-end: 1px solid var(--violet-color-border-subtle);
 	}
 	.title {
 		flex: 1;
 		margin: 0;
 		min-inline-size: 0;
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
-		font-weight: var(--violet-type-label-sm-weight);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
+		font-weight: var(--violet-type-label-weight);
 		color: var(--violet-color-text-secondary);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
 	.body {
-		padding: var(--violet-space-layout-sm);
+		padding: var(--violet-space-layout-panel);
 		overflow: auto;
 		min-block-size: 0;
 	}

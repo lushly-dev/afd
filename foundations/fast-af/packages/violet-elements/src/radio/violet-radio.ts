@@ -15,11 +15,11 @@ const styles = css`
         --_surface-card: var(--violet-color-surface-card, #f8f9f3);
         --_border-strong: var(--violet-color-border-strong, #6b7d6e);
         --_radius-full: 999px;
-        --_size-font-md: var(--violet-size-font-md, 14px);
+        --_size-font-md: var(--violet-type-body-size, 14px);
         --_control-size: max(var(--_size-font-md), calc(var(--_target-size) * 0.5));
         --_dot-size: max(8px, calc(var(--_control-size) * 0.5));
-        --_type-body-line: var(--violet-type-body-md-line, 20px);
-        --_type-caption-line: var(--violet-type-caption-xs-line, 16px);
+        --_type-body-line: var(--violet-type-body-line, 20px);
+        --_type-caption-line: var(--violet-type-caption-line, 16px);
     }
 
     /* The host takes focus; the ring is drawn on the mark, not round the whole row. */

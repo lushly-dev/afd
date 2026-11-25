@@ -108,7 +108,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-space-inline-sm, 4px)",
+				"default": "var(--violet-space-inline-tight, 4px)",
 				"name": "--_space-inline-sm"
 			},
 			{

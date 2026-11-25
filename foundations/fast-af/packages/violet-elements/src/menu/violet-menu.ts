@@ -24,7 +24,7 @@ const styles = css`
         --_panel-max-inline: var(--violet-menu-max-inline-size, 320px);
         --_panel-max-block: var(--violet-menu-max-height, 360px);
         --_panel-padding: var(--violet-menu-padding, var(--_space-inline-sm));
-        --_panel-radius: var(--violet-menu-radius, var(--violet-radius-lg, 12px));
+        --_panel-radius: var(--violet-menu-radius, var(--violet-radius-floating, 12px));
         --_panel-gap: var(--violet-menu-gap, var(--_space-inline-sm));
         --_panel-background: var(--violet-menu-background, var(--violet-color-surface-floating, #ffffff));
         /* The action block has no floating shadow: a menu is the one action component with a panel. */

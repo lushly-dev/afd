@@ -34,8 +34,8 @@ const styles = css`
 	}
 	.icon {
 		display: inline-flex;
-		padding: var(--violet-size-space-xs);
-		border-radius: var(--violet-radius-sm);
+		padding: var(--violet-space-inline-hairline);
+		border-radius: var(--violet-radius-inset);
 	}
 	:host([project]:not([project=''])) .icon {
 		background: var(--violet-color-control-selected-background);

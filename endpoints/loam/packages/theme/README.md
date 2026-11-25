@@ -15,7 +15,7 @@ Private and quarantined. The design is in the
 | `src/outputs.ts` | Renders the contract, `loam-theme.css` and `loam-theme.json` |
 | `src/components.ts` | The shared components' token export and the fallback scan (2.4) |
 | `src/check.ts`, `scripts/theme.mjs` | `theme:check`, and the script behind `theme:build`, `theme:check` and `theme:export-components`, which reads the kernel's `LAYOUT_DEFAULTS_V0` (a development dependency) |
-| `contract/tokens.json` | The committed token contract, version 2: per id, its custom property, type and kind (`component` or `shell`). Every property, `shell.*` included, is violet-runtime's `tokenCustomProperty(id, 'violet')`: `--violet-` and the id with `.` replaced by `-` (`--violet-color-surface-page`, `--violet-shell-size-rail`), the names `violet-elements`' interface (version 4) and Violet's CSS exporter with `prefix: 'violet'` use. Version 1 had the same ids unprefixed |
+| `contract/tokens.json` | The committed token contract, version 3 (123 ids: 104 component, 19 shell): per id, its custom property, type and kind (`component` or `shell`). Every property, `shell.*` included, is violet-runtime's `tokenCustomProperty(id, 'violet')`: `--violet-` and the id with `.` replaced by `-` (`--violet-color-surface-page`, `--violet-shell-size-rail`), the names `violet-elements`' interface (version 5) and Violet's CSS exporter with `prefix: 'violet'` use. Version 1 had the pre-prefix ids unprefixed; version 2 added `--violet-`; version 3 (Scales #1111, #2197) retired 16 positional ladder ids, added `space.inline.hairline` and renamed 25 semantic ids to purpose names |
 | `scripts/lint-tokens.mjs` | The token-only lint, the `loam-lint-tokens` bin |
 | `fixtures/lint-tokens/` | The lint's corpus, one passing and one failing case per rule |
 
@@ -38,7 +38,7 @@ pnpm -F @lushly-dev/loam-theme lint:tokens    # the lint over this package's sou
   `[data-loam-theme="dark"]` and `[data-loam-theme="high-contrast"]` with only
   what differs from light, then `[data-loam-theme="<theme>"][data-loam-density="compact"]`
   with what compact changes. Exported as `@lushly-dev/loam-theme/loam-theme.css`.
-- `loam-theme.json`: `{ "contractVersion": 2, "nodes": { "<nodeId>": Token[] } }`
+- `loam-theme.json`: `{ "contractVersion": 3, "nodes": { "<nodeId>": Token[] } }`
   with resolved `{ id, value }` tokens for every node. Exported as
   `@lushly-dev/loam-theme/loam-theme.json`.
   A `VioletRuntime` that applies these nodes passes `cssPrefix: VIOLET_CSS_PREFIX`
@@ -62,7 +62,7 @@ shared ids (the type ramp, for example) are exported too.
 
 `theme:export-components` writes
 `foundations/fast-af/packages/violet-elements/tokens/violet-theme.export.json`,
-`{ "contractVersion": 1, "source": "loam", "presets": { "light", "dark", "high-contrast" } }`
+`{ "contractVersion": 2, "source": "loam", "presets": { "light", "dark", "high-contrast" } }`
 (its own format version, `COMPONENT_EXPORT_VERSION`, which lists ids, not properties),
 each preset the theme's component ids (no `shell.*`) as resolved `{ id, value }`
 tokens at comfortable density. That package's `theme:build` generates its runtime

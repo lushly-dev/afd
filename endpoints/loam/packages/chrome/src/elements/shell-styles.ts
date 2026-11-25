@@ -22,9 +22,9 @@ export const styles = css`
 		background: var(--violet-color-surface-page);
 		color: var(--violet-color-text-primary);
 		font-family: var(--violet-font-family-body);
-		font-size: var(--violet-type-body-md-size);
-		line-height: var(--violet-type-body-md-line);
-		font-weight: var(--violet-type-body-md-weight);
+		font-size: var(--violet-type-body-size);
+		line-height: var(--violet-type-body-line);
+		font-weight: var(--violet-type-body-weight);
 		grid-template-columns: auto auto minmax(0, 1fr) auto;
 		grid-template-rows: auto minmax(0, 1fr) auto auto auto;
 	}
@@ -110,9 +110,9 @@ export const styles = css`
 		white-space: nowrap;
 		min-inline-size: var(--violet-size-target-compact);
 		min-block-size: var(--violet-size-target-compact);
-		padding-inline: var(--violet-size-space-xs);
+		padding-inline: var(--violet-space-inline-hairline);
 		border: 1px solid transparent;
-		border-radius: var(--violet-radius-sm);
+		border-radius: var(--violet-radius-inset);
 		background: transparent;
 		color: inherit;
 		font: inherit;

@@ -79,7 +79,7 @@ describe('specimen.get and specimen.set (#118)', () => {
 			map: {},
 			stored: false,
 			updatedAt: null,
-			interface: { package: '@lushly-dev/violet-elements', contractVersion: 4 },
+			interface: { package: '@lushly-dev/violet-elements', contractVersion: 5 },
 		});
 		expect(data.components.map((entry) => [entry.component, entry.drawn])).toEqual([
 			['button', false],
@@ -124,7 +124,7 @@ describe('specimen.get and specimen.set (#118)', () => {
 			context,
 		);
 		expect(role(await get('product'), 'card', 'radius')).toMatchObject({
-			tokenId: 'radius.lg',
+			tokenId: 'radius.floating',
 			resolves: false,
 		});
 	});
@@ -153,9 +153,9 @@ describe('specimen.get and specimen.set (#118)', () => {
 		});
 		// Roles the map leaves out keep the interface id
 		expect(role(product, 'button', 'radius')).toMatchObject({
-			tokenId: 'radius.md',
+			tokenId: 'radius.control',
 			source: 'interface',
-			interfaceTokenId: 'radius.md',
+			interfaceTokenId: 'radius.control',
 			resolves: false,
 			valid: false,
 		});
@@ -232,7 +232,7 @@ describe('specimen.get and specimen.set (#118)', () => {
 		for (const [tokenId, value] of [
 			['color.text.primary', '#242424'],
 			['font.family.body', 'Segoe UI, sans-serif'],
-			['type.body.md.line', '1.5'],
+			['type.body.line', '1.5'],
 			['color.accent.text', '#0F6CBD'],
 			['link.underline', 'underline dotted 1px'],
 			['link.offset', '0.2em'],

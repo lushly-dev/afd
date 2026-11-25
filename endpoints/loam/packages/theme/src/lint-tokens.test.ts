@@ -102,16 +102,16 @@ describe('the token-only lint corpus', () => {
 		expect(
 			rulesOf(':host { --violet-shell-size-titlebar: var(--violet-size-target-natural); }', chrome)
 		).toEqual([]);
-		expect(rulesOf(':host { --ref-space-4: var(--violet-size-space-sm); }', chrome)).toEqual([
+		expect(rulesOf(':host { --ref-space-4: var(--violet-space-inline-tight); }', chrome)).toEqual([
 			'primitive',
 		]);
-		expect(rulesOf(':host { --violet-ref-space-4: var(--violet-size-space-sm); }', chrome)).toEqual(
-			['primitive']
-		);
+		expect(
+			rulesOf(':host { --violet-ref-space-4: var(--violet-space-inline-tight); }', chrome)
+		).toEqual(['primitive']);
 		expect(rulesOf(':host { gap: var(--violet-ref-space-4); }')).toEqual(['primitive']);
 		// Lengths in at-rule conditions are not checked.
 		expect(
-			rulesOf('@container (min-width: 480px) { :host { gap: var(--violet-size-space-md); } }')
+			rulesOf('@container (min-width: 480px) { :host { gap: var(--violet-space-inline-group); } }')
 		).toEqual([]);
 	});
 

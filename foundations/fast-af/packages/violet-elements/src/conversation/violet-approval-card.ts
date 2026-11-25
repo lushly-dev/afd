@@ -54,7 +54,7 @@ const styles = css`
         gap: var(--_space-sm);
         padding: var(--_space-sm) var(--_space-md);
         background: var(--_warning-bg-subtle);
-        font-size: var(--violet-type-label-sm-size, 13px);
+        font-size: var(--violet-type-label-size, 13px);
         line-height: var(--_approval-line-height);
         font-weight: 500;
         color: var(--_warning-text);

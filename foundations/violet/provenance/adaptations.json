@@ -3088,9 +3088,9 @@
       "path": "integrations/violet-afd/src/commands/specimen/model.ts",
       "upstream_path": null,
       "upstream_sha256": null,
-      "current_import_sha256": "a38a132f1e7b0d3ac26098c032c8210a7444073dc25d26520e3c413182a03d2a",
+      "current_import_sha256": "48ed43c527ef2d31e90c9465d58a67edf9e40ed7c23a15eacc929002be342d1a",
       "classification": "afd-authored",
-      "reason": "Specimens take their component model from the components’ token interface (#1786): SPECIMEN_INTERFACE_MAP, each specimen role mapped to the violet-elements interface id its component reads, with SPECIMEN_INTERFACE and the role lookups; The violet- prefix (lushly-dev/afd#1786 phase 4): one custom property naming rule, tokenCustomProperty and VIOLET_CSS_PREFIX in violet-runtime's import-free ./property subpath, shared by the runtime, violet-core's CSS exporter (which now depends on the runtime), Loam's theme and violet-elements (copied at theme:build under Loam D50); violet-afd's interface.check accepts the interface's cssPrefix, its specimen map is checked against interface version 4 and a test holds violet-core's export under the cssPrefix to the interface's properties",
+      "reason": "Specimens take their component model from the components’ token interface (#1786): SPECIMEN_INTERFACE_MAP, each specimen role mapped to the violet-elements interface id its component reads, with SPECIMEN_INTERFACE and the role lookups; The violet- prefix (lushly-dev/afd#1786 phase 4): one custom property naming rule, tokenCustomProperty and VIOLET_CSS_PREFIX in violet-runtime's import-free ./property subpath, shared by the runtime, violet-core's CSS exporter (which now depends on the runtime), Loam's theme and violet-elements (copied at theme:build under Loam D50); violet-afd's interface.check accepts the interface's cssPrefix, its specimen map is checked against interface version 4 and a test holds violet-core's export under the cssPrefix to the interface's properties; Scales Phase 2 (#2197): bumps SPECIMEN_INTERFACE.contractVersion to 5 and maps specimen roles to the purpose-named token ids (radius.control/floating, space.inline.tight/group, space.stack.tight/group, type.caption/label/body/heading.section)",
       "candidate": {
         "path": null,
         "sha256": null,
@@ -3127,9 +3127,9 @@
       "path": "integrations/violet-afd/src/commands/specimen/specimen.test.ts",
       "upstream_path": "packages/core/src/commands/specimen/specimen.test.ts",
       "upstream_sha256": "36fbdc68d4f83e7abb0b20b8e0f928cfbea7fc4f5a178387931dbe5ed57bde23",
-      "current_import_sha256": "166cf318ca2d13d24b74883888c2f165dbaef603b6d1cfdc5c51e8dd51e41b9b",
+      "current_import_sha256": "d97b2d9c5e3aaa7978e9bf475a496605b7b4d38c3cbf5feac73ed2b919017058",
       "classification": "adapted",
-      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9; Covers the text block, link, checkbox and focus ring specimens (#498); Stores the unsafe specimen values past the write checks (lushly-dev/afd#1325); Specimens take their component model from the components’ token interface (#1786): the fixtures use interface ids, roles no interface id carries are mapped, and the convention's removal is covered; The violet- prefix (lushly-dev/afd#1786 phase 4): specimen.get reports the components interface at contractVersion 4",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9; Covers the text block, link, checkbox and focus ring specimens (#498); Stores the unsafe specimen values past the write checks (lushly-dev/afd#1325); Specimens take their component model from the components’ token interface (#1786): the fixtures use interface ids, roles no interface id carries are mapped, and the convention's removal is covered; The violet- prefix (lushly-dev/afd#1786 phase 4): specimen.get reports the components interface at contractVersion 4; Scales Phase 2 (#2197): updates specimen fixtures and assertions for contractVersion 5 and purpose-named token ids",
       "candidate": {
         "path": null,
         "sha256": null,

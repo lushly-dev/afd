@@ -121,31 +121,31 @@ const styles = css`
 		--violet-dialog-max-height: 70dvh;
 		--violet-dialog-background: var(--violet-color-surface-floating);
 		--violet-dialog-shadow: var(--violet-shadow-floating);
-		--violet-dialog-radius: var(--violet-radius-lg);
+		--violet-dialog-radius: var(--violet-radius-floating);
 		--violet-dialog-backdrop: color-mix(in srgb, var(--violet-color-surface-page) 60%, transparent);
 	}
 	violet-dialog::part(header) {
-		padding-block: var(--violet-space-stack-sm);
-		padding-inline: var(--violet-space-layout-sm);
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
+		padding-block: var(--violet-space-stack-group);
+		padding-inline: var(--violet-space-layout-panel);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
 	}
 	.search {
-		padding: var(--violet-space-layout-sm);
+		padding: var(--violet-space-layout-panel);
 		border-block-end: 1px solid var(--violet-color-border-subtle);
 	}
 	.field {
 		box-sizing: border-box;
 		inline-size: 100%;
 		min-block-size: var(--violet-size-target-comfortable);
-		padding-inline: var(--violet-size-space-md);
+		padding-inline: var(--violet-space-inline-group);
 		border: 1px solid var(--violet-color-field-border);
-		border-radius: var(--violet-radius-md);
+		border-radius: var(--violet-radius-control);
 		background: var(--violet-color-field-background);
 		color: var(--violet-color-field-text);
 		font: inherit;
-		font-size: var(--violet-type-title-sm-size);
-		line-height: var(--violet-type-title-sm-line);
+		font-size: var(--violet-type-heading-section-size);
+		line-height: var(--violet-type-heading-section-line);
 	}
 	.field:hover {
 		border-color: var(--violet-color-field-border-hover);
@@ -156,13 +156,13 @@ const styles = css`
 	.field:focus-visible {
 		border-color: var(--violet-color-field-border-focus);
 		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
-		outline-offset: var(--violet-size-space-xs);
+		outline-offset: var(--violet-space-inline-hairline);
 	}
 	.results {
 		display: block;
 		max-block-size: 50dvh;
 		overflow: auto;
-		padding: var(--violet-size-space-sm);
+		padding: var(--violet-space-inline-tight);
 	}
 	/* The active result is where Enter goes while focus stays in the field: show the focus indicator. */
 	violet-option[data-active]::part(control) {
@@ -179,29 +179,29 @@ const styles = css`
 		white-space: nowrap;
 	}
 	.result-name {
-		font-size: var(--violet-type-body-md-size);
-		line-height: var(--violet-type-body-md-line);
+		font-size: var(--violet-type-body-size);
+		line-height: var(--violet-type-body-line);
 	}
 	.result-description {
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
 	}
 	.result-shortcut {
 		font-family: var(--violet-font-family-body);
-		font-size: var(--violet-type-caption-xs-size);
-		line-height: var(--violet-type-caption-xs-line);
-		font-weight: var(--violet-type-caption-xs-weight);
+		font-size: var(--violet-type-caption-size);
+		line-height: var(--violet-type-caption-line);
+		font-weight: var(--violet-type-caption-weight);
 		color: var(--violet-color-text-secondary);
 		white-space: nowrap;
 	}
 	.footer {
 		min-block-size: var(--violet-size-target-compact);
-		padding-block: var(--violet-space-stack-xs);
-		padding-inline: var(--violet-space-layout-sm);
+		padding-block: var(--violet-space-stack-tight);
+		padding-inline: var(--violet-space-layout-panel);
 		border-block-start: 1px solid var(--violet-color-border-subtle);
 		color: var(--violet-color-text-secondary);
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
 	}
 	.footer p {
 		margin: 0;

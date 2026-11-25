@@ -50,9 +50,9 @@ const mainTemplate = html<TasksMain>`
 const mainStyles = css`
 	:host {
 		display: grid;
-		gap: var(--violet-space-stack-md);
+		gap: var(--violet-space-stack-section);
 		align-content: start;
-		padding: var(--violet-space-layout-md);
+		padding: var(--violet-space-layout-page);
 	}
 	h1,
 	h2,
@@ -60,13 +60,13 @@ const mainStyles = css`
 		margin: 0;
 	}
 	h1 {
-		font-size: var(--violet-type-title-md-size);
-		line-height: var(--violet-type-title-md-line);
-		font-weight: var(--violet-type-title-md-weight);
+		font-size: var(--violet-type-heading-page-size);
+		line-height: var(--violet-type-heading-page-line);
+		font-weight: var(--violet-type-heading-page-weight);
 	}
 	h2 {
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
 		font-weight: var(--violet-weight-semibold);
 	}
 	p {
@@ -74,13 +74,13 @@ const mainStyles = css`
 	}
 	.task {
 		display: grid;
-		gap: var(--violet-space-stack-sm);
+		gap: var(--violet-space-stack-group);
 	}
 	.form {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: end;
-		gap: var(--violet-space-inline-sm);
+		gap: var(--violet-space-inline-tight);
 	}
 	@media (forced-colors: active) {
 		p {

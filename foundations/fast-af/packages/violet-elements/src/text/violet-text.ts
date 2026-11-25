@@ -13,32 +13,32 @@ const styles = css`
         display: inline;
         --_text-font-size: var(--_body-size);
         --_text-line-height: var(--_body-line);
-        --_text-font-weight: var(--violet-type-body-md-weight, 400);
+        --_text-font-weight: var(--violet-type-body-weight, 400);
         --_text-color: var(--_text-primary);
     }
 
     :host([variant="label"]) {
-        --_text-font-size: var(--violet-type-label-sm-size, 13px);
-        --_text-line-height: var(--violet-type-label-sm-line, 16px);
-        --_text-font-weight: var(--violet-type-label-sm-weight, 500);
+        --_text-font-size: var(--violet-type-label-size, 13px);
+        --_text-line-height: var(--violet-type-label-line, 16px);
+        --_text-font-weight: var(--violet-type-label-weight, 500);
     }
 
     :host([variant="caption"]) {
         --_text-font-size: var(--_caption-size);
         --_text-line-height: var(--_caption-line);
-        --_text-font-weight: var(--violet-type-caption-xs-weight, 400);
+        --_text-font-weight: var(--violet-type-caption-weight, 400);
     }
 
     :host([variant="title-sm"]) {
-        --_text-font-size: var(--violet-type-title-sm-size, 18px);
-        --_text-line-height: var(--violet-type-title-sm-line, 24px);
-        --_text-font-weight: var(--violet-type-title-sm-weight, 600);
+        --_text-font-size: var(--violet-type-heading-section-size, 18px);
+        --_text-line-height: var(--violet-type-heading-section-line, 24px);
+        --_text-font-weight: var(--violet-type-heading-section-weight, 600);
     }
 
     :host([variant="title-md"]) {
-        --_text-font-size: var(--violet-type-title-md-size, 24px);
-        --_text-line-height: var(--violet-type-title-md-line, 32px);
-        --_text-font-weight: var(--violet-type-title-md-weight, 600);
+        --_text-font-size: var(--violet-type-heading-page-size, 24px);
+        --_text-line-height: var(--violet-type-heading-page-line, 32px);
+        --_text-font-weight: var(--violet-type-heading-page-weight, 600);
     }
 
     :host([tone="secondary"]) {

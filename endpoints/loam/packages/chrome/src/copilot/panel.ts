@@ -87,13 +87,13 @@ const styles = css`
 	.copilot {
 		display: flex;
 		flex-direction: column;
-		gap: var(--violet-space-stack-sm);
+		gap: var(--violet-space-stack-group);
 		box-sizing: border-box;
 		block-size: 100%;
-		padding: var(--violet-space-layout-sm);
-		font-size: var(--violet-type-body-md-size);
-		line-height: var(--violet-type-body-md-line);
-		font-weight: var(--violet-type-body-md-weight);
+		padding: var(--violet-space-layout-panel);
+		font-size: var(--violet-type-body-size);
+		line-height: var(--violet-type-body-line);
+		font-weight: var(--violet-type-body-weight);
 		color: var(--violet-color-text-primary);
 	}
 	/* The thread scrolls itself, in a focusable log; a scroller here would be a second, unfocusable one. */
@@ -112,7 +112,7 @@ const styles = css`
 	.cards {
 		display: flex;
 		flex-direction: column;
-		gap: var(--violet-space-stack-sm);
+		gap: var(--violet-space-stack-group);
 		max-block-size: 50%;
 		overflow-y: auto;
 	}
@@ -121,7 +121,7 @@ const styles = css`
 		overflow-wrap: anywhere;
 	}
 	.card-title {
-		font-weight: var(--violet-type-label-sm-weight);
+		font-weight: var(--violet-type-label-weight);
 	}
 	.card-input {
 		white-space: pre-wrap;
@@ -135,10 +135,10 @@ const styles = css`
 		display: flex;
 		flex-direction: column;
 		align-items: flex-start;
-		gap: var(--violet-space-stack-xs);
-		padding: var(--violet-space-stack-sm) var(--violet-space-inline-md);
+		gap: var(--violet-space-stack-tight);
+		padding: var(--violet-space-stack-group) var(--violet-space-inline-group);
 		border: 1px solid var(--violet-color-border-subtle);
-		border-radius: var(--violet-radius-md);
+		border-radius: var(--violet-radius-control);
 		background: var(--violet-color-surface-card);
 	}
 	[hidden] {

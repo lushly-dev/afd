@@ -59,12 +59,12 @@ const styles = css`
         --_text-secondary: var(--violet-color-text-secondary, #48534b);
         --_text-muted: var(--violet-color-text-muted, #5e6460);
         --_focus-ring: var(--violet-color-focus-ring, #28769e);
-        --_radius-sm: var(--violet-radius-sm, 4px);
-        --_radius-md: var(--violet-radius-md, 8px);
+        --_radius-sm: var(--violet-radius-inset, 4px);
+        --_radius-md: var(--violet-radius-control, 8px);
         --_shadow-floating: var(--violet-shadow-floating, 0 0 0 1px rgba(24, 27, 26, 0.08), 0 4px 12px -2px rgba(24, 27, 26, 0.12), 0 18px 40px -8px rgba(24, 27, 26, 0.20));
         --_pill-font-size: var(--violet-data-grid-pill-font-size, 0.8125rem);
-        --_size-font-md: var(--violet-size-font-md, 14px);
-        --_size-font-sm: var(--violet-size-font-sm, 12px);
+        --_size-font-md: var(--violet-type-body-size, 14px);
+        --_size-font-sm: var(--violet-type-caption-size, 12px);
     }
 
     :host([disabled]) {

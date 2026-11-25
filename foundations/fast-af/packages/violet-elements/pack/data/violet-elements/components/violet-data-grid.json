@@ -251,7 +251,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-radius-md, 8px)",
+				"default": "var(--violet-radius-control, 8px)",
 				"name": "--_radius-md"
 			},
 			{
@@ -281,22 +281,22 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-space-inline-md, 8px)",
+				"default": "var(--violet-space-inline-group, 8px)",
 				"name": "--_space-inline-md"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-space-inline-sm, 4px)",
+				"default": "var(--violet-space-inline-tight, 4px)",
 				"name": "--_space-inline-sm"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-space-stack-sm, 8px)",
+				"default": "var(--violet-space-stack-group, 8px)",
 				"name": "--_space-stack-sm"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-space-stack-xs, 4px)",
+				"default": "var(--violet-space-stack-tight, 4px)",
 				"name": "--_space-stack-xs"
 			},
 			{

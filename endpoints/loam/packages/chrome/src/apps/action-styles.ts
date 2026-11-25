@@ -14,15 +14,15 @@ export const actionButton = css`
 		min-block-size: var(--violet-size-target-natural);
 		min-inline-size: var(--violet-size-target-natural);
 		padding-block: 0;
-		padding-inline: var(--violet-size-space-lg);
+		padding-inline: var(--violet-space-inline-group);
 		border: 1px solid var(--violet-color-action-secondary-border);
-		border-radius: var(--violet-radius-md);
+		border-radius: var(--violet-radius-control);
 		background: var(--violet-color-action-secondary-background);
 		color: var(--violet-color-action-secondary-text);
 		font: inherit;
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
-		font-weight: var(--violet-type-label-sm-weight);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
+		font-weight: var(--violet-type-label-weight);
 		cursor: pointer;
 		transition:
 			background-color var(--violet-duration-fast) var(--violet-easing-standard),
@@ -38,7 +38,7 @@ export const actionButton = css`
 	}
 	.action:focus-visible {
 		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
-		outline-offset: var(--violet-size-space-xs);
+		outline-offset: var(--violet-space-inline-hairline);
 	}
 	.action.primary {
 		border-color: transparent;

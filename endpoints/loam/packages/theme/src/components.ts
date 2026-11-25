@@ -17,10 +17,11 @@ import { THEMES, type ThemeName, themeNode } from './tree/index.js';
 
 export const COMPONENT_EXPORT_SOURCE = 'loam';
 /**
- * The export's own format version, which `violet-elements`' `theme:build` checks. It lists ids and
- * values, no properties, so the contract's version 2 (the `violet-` prefix) left it at 1.
+ * The export's own format version, which `violet-elements`' `theme:build` checks. Version 2
+ * retired the 16 makeshift ladder tokens, added `space.inline.hairline` and renamed the 25
+ * positional semantic tokens to purpose-named ids (#2197).
  */
-export const COMPONENT_EXPORT_VERSION = 1;
+export const COMPONENT_EXPORT_VERSION = 2;
 
 /** `foundations/fast-af/packages/violet-elements/tokens/violet-theme.export.json`. */
 export interface ComponentExport {
@@ -120,7 +121,7 @@ const VALUE_IMPORT = /import\s+(?!type\b)[^"';]+?\s+from\s+"\.\/([\w.-]+)"/g;
  */
 const HOOK_TOKEN_TARGETS: Readonly<Record<string, string>> = {
 	'--_radius-round': '--violet-radius-round',
-	'--_space-xs': '--violet-space-stack-xs',
+	'--_space-xs': '--violet-space-stack-tight',
 	'--_text-link': '--violet-color-accent-text',
 };
 

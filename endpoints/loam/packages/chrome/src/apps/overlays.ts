@@ -46,24 +46,24 @@ const styles = css`
 		box-sizing: border-box;
 		min-inline-size: min(92vw, var(--violet-shell-size-sidebar-min));
 		max-inline-size: min(92vw, var(--violet-shell-size-main-min));
-		margin: var(--violet-space-stack-xs);
-		padding-block: var(--violet-space-stack-sm);
-		padding-inline: var(--violet-space-inline-md);
+		margin: var(--violet-space-stack-tight);
+		padding-block: var(--violet-space-stack-group);
+		padding-inline: var(--violet-space-inline-group);
 		border: 1px solid var(--violet-color-border-strong);
-		border-radius: var(--violet-radius-md);
+		border-radius: var(--violet-radius-control);
 		background: var(--violet-color-surface-floating);
 		color: var(--violet-color-text-primary);
 		box-shadow: var(--violet-shadow-floating);
 		font-family: var(--violet-font-family-body);
-		font-size: var(--violet-type-body-md-size);
-		line-height: var(--violet-type-body-md-line);
+		font-size: var(--violet-type-body-size);
+		line-height: var(--violet-type-body-line);
 	}
 	:host(:focus-visible) {
 		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
 		outline-offset: calc(-1 * var(--violet-shell-size-focus));
 	}
 	:host([role='menu']) {
-		padding-inline: var(--violet-space-inline-sm);
+		padding-inline: var(--violet-space-inline-tight);
 	}
 	[hidden] {
 		display: none;
@@ -73,18 +73,18 @@ const styles = css`
 		margin: 0;
 	}
 	.from {
-		padding-inline: var(--violet-space-inline-sm);
+		padding-inline: var(--violet-space-inline-tight);
 		color: var(--violet-color-text-secondary);
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
 	}
 	:host([role='dialog']) .from {
 		padding-inline: 0;
 	}
 	.title {
-		font-size: var(--violet-type-title-sm-size);
-		line-height: var(--violet-type-title-sm-line);
-		font-weight: var(--violet-type-title-sm-weight);
+		font-size: var(--violet-type-heading-section-size);
+		line-height: var(--violet-type-heading-section-line);
+		font-weight: var(--violet-type-heading-section-weight);
 	}
 	.body {
 		overflow-wrap: anywhere;
@@ -96,9 +96,9 @@ const styles = css`
 	.item {
 		box-sizing: border-box;
 		min-block-size: var(--violet-size-target-natural);
-		padding-inline: var(--violet-space-inline-sm);
+		padding-inline: var(--violet-space-inline-tight);
 		border: 1px solid transparent;
-		border-radius: var(--violet-radius-sm);
+		border-radius: var(--violet-radius-inset);
 		background: transparent;
 		color: inherit;
 		font: inherit;

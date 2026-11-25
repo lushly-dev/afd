@@ -51,7 +51,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-radius-md, 8px)",
+				"default": "var(--violet-radius-control, 8px)",
 				"name": "--_radius-md"
 			},
 			{
@@ -71,7 +71,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-size-font-sm, 12px)",
+				"default": "var(--violet-type-caption-size, 12px)",
 				"name": "--_size-font-sm"
 			},
 			{

@@ -46,25 +46,25 @@ const styles = css`
 	:host {
 		display: grid;
 		align-content: start;
-		gap: var(--violet-space-stack-md);
-		padding: var(--violet-space-layout-sm);
+		gap: var(--violet-space-stack-section);
+		padding: var(--violet-space-layout-panel);
 		background: var(--violet-color-surface-card);
 		block-size: 100%;
 		box-sizing: border-box;
 		overflow-y: auto;
 	}
 	h2 {
-		font-size: var(--violet-type-title-sm-size);
-		line-height: var(--violet-type-title-sm-line);
-		font-weight: var(--violet-type-title-sm-weight);
+		font-size: var(--violet-type-heading-section-size);
+		line-height: var(--violet-type-heading-section-line);
+		font-weight: var(--violet-type-heading-section-weight);
 	}
 	.section {
 		display: grid;
-		gap: var(--violet-space-stack-xs);
+		gap: var(--violet-space-stack-tight);
 	}
 	.lineage {
 		display: grid;
-		gap: var(--violet-space-stack-xs);
+		gap: var(--violet-space-stack-tight);
 		margin: 0;
 		padding: 0;
 		list-style: none;
@@ -74,16 +74,16 @@ const styles = css`
 		flex-wrap: wrap;
 		align-items: center;
 		justify-content: space-between;
-		gap: var(--violet-space-inline-sm);
-		padding: var(--violet-space-stack-xs) var(--violet-space-inline-sm);
+		gap: var(--violet-space-inline-tight);
+		padding: var(--violet-space-stack-tight) var(--violet-space-inline-tight);
 		border: 1px solid var(--violet-color-border-subtle);
-		border-radius: var(--violet-radius-md);
+		border-radius: var(--violet-radius-control);
 		background: var(--violet-color-surface-page);
 	}
 	.value-editor {
 		display: flex;
 		align-items: end;
-		gap: var(--violet-space-inline-sm);
+		gap: var(--violet-space-inline-tight);
 	}
 	.value-editor violet-text-field {
 		flex: 1 1 auto;
@@ -91,15 +91,15 @@ const styles = css`
 	}
 	.pending-box {
 		display: grid;
-		gap: var(--violet-space-stack-sm);
-		padding: var(--violet-space-stack-sm) var(--violet-space-inline-md);
+		gap: var(--violet-space-stack-group);
+		padding: var(--violet-space-stack-group) var(--violet-space-inline-group);
 		border: 1px solid var(--violet-color-border-strong);
-		border-radius: var(--violet-radius-md);
+		border-radius: var(--violet-radius-control);
 		background: var(--violet-color-surface-subtle);
 	}
 	.pending-list {
 		display: grid;
-		gap: var(--violet-space-stack-xs);
+		gap: var(--violet-space-stack-tight);
 		margin: 0;
 		padding: 0;
 		list-style: none;
@@ -107,7 +107,7 @@ const styles = css`
 	.actions {
 		display: flex;
 		flex-wrap: wrap;
-		gap: var(--violet-space-inline-sm);
+		gap: var(--violet-space-inline-tight);
 	}
 	@media (forced-colors: active) {
 		.lineage-item,

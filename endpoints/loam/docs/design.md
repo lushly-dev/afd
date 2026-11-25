@@ -42,14 +42,17 @@ Three layers, read in one direction:
 
 | Layer | Ids | Who reads it |
 | --- | --- | --- |
-| Primitives | `ref.color.<family>.<step>`, `ref.space.<px>` | Only the tree's semantic tokens. No export contains them, and the lint fails any component that reads or sets a `--violet-ref-*` or `--ref-*` property |
-| Component ids | 119 ids under `color.*`, `size.*`, `space.*`, `radius.*`, `shadow.*`, `duration.*`, `easing.*`, `type.*`, `weight.*`, `z-index.*` | The shared `violet-elements` components and every Loam component |
+| Primitives | `ref.color.<family>.<step>`, `ref.space.<px>`, `ref.type.<step>.{size,line}`, `ref.radius.<px>`, `ref.target.<px>` | Only the tree's semantic tokens. No export contains them, and the lint fails any component that reads or sets a `--violet-ref-*` or `--ref-*` property |
+| Component ids | 104 ids under `color.*`, `size.*`, `space.*`, `radius.*`, `shadow.*`, `duration.*`, `easing.*`, `type.*`, `weight.*`, `z-index.*` | The shared `violet-elements` components and every Loam component |
 | Shell ids | 19 ids under `shell.size.*` and `shell.color.*` | `@lushly-dev/loam-chrome` only; the lint fails a shell id read or set anywhere else |
 
-- **The contract** is version 2: 138 ids, each with its custom property, type
+- **The contract** is version 3: 123 ids, each with its custom property, type
   and kind (`component` or `shell`), in `contract/tokens.json`. Version 1 was
-  `violet-elements`' registry with no rename; version 2 keeps its ids and moves
-  every property under the `violet-` prefix.
+  `violet-elements`' registry with no rename; version 2 kept its ids and moved
+  every property under the `violet-` prefix; version 3 (Scales, #1111) added
+  four Stage 1 `ref.*` ramps, retired the 16 makeshift ladder tokens, added
+  `space.inline.hairline`, and renamed the 25 positional semantic tokens to
+  purpose-named ids.
 - **Themes and density** are attributes on `document.documentElement`, set by
   the chrome from `appearance-get`'s `resolved` and `density`:
   `data-loam-theme` is `light`, `dark` or `high-contrast`, and
@@ -103,20 +106,20 @@ chrome with no remapping.
 
 ## The type ramp
 
-Five steps. Each is a size, a line height and a weight read together, with
-the ids `<step>.size`, `<step>.line` and `<step>.weight` (for example
-`type.body.md.size`); never mix the parts of two steps.
+Five roles backed by the `ref.type.{100,200,250,300,400,500}.{size,line}` Stage 1 ramp. Each role is a size, a line height and a weight read together, with
+the ids `<role>.size`, `<role>.line` and `<role>.weight` (for example
+`type.body.size`); never mix the parts of two roles.
 
-| Step | Size | Line | Weight | Use |
+| Role | Size | Line | Weight | Use |
 | --- | --- | --- | --- | --- |
-| `type.caption.xs` | 12px (`size.font.sm`) | 16px (`size.line.sm`) | 400 (`weight.regular`) | Status bar items, counts, keyboard hints in the palette |
-| `type.label.sm` | 13px | 16px (`size.line.sm`) | 500 (`weight.medium`) | Bar labels, tab bar labels, part headers' secondary text, field labels |
-| `type.body.md` | 14px (`size.font.md`) | 20px (`size.line.md`) | 400 (`weight.regular`) | Running text, list rows, palette results, empty-state sentences |
-| `type.title.sm` | 18px (`size.font.lg`) | 24px (`size.line.lg`) | 600 (`weight.semibold`) | A part's header, the palette's search text |
-| `type.title.md` | 24px (`size.font.xl`) | 32px (`size.line.xl`) | 600 (`weight.semibold`) | The one heading of main's empty landing ("No apps yet") |
+| `type.caption` | 12px (`ref.type.200.size`) | 16px (`ref.type.200.line`) | 400 (`weight.regular`) | Status bar items, counts, keyboard hints in the palette |
+| `type.label` | 13px (`ref.type.250.size`) | 16px (`ref.type.250.line`) | 500 (`weight.medium`) | Bar labels, tab bar labels, part headers' secondary text, field labels |
+| `type.body` | 14px (`ref.type.300.size`) | 20px (`ref.type.300.line`) | 400 (`weight.regular`) | Running text, list rows, palette results, empty-state sentences |
+| `type.heading.section` | 18px (`ref.type.400.size`) | 24px (`ref.type.400.line`) | 600 (`weight.semibold`) | A part's header, the palette's search text |
+| `type.heading.page` | 24px (`ref.type.500.size`) | 32px (`ref.type.500.line`) | 600 (`weight.semibold`) | The one heading of main's empty landing ("No apps yet") |
 
-- Use the `type.*` ids, not the `size.font.*`, `size.line.*` and `weight.*`
-  ids they alias, so a ramp change reaches every use.
+- Use the `type.*` ids; Stage 1 `ref.type.*` steps are private to the tree and
+  never exported, so a ramp change reaches every use.
 - `weight.light` (100) is in the contract because it was in the
   components' registry; no component reads it, and the chrome does not use
   it.
@@ -263,13 +266,9 @@ equal are at their floors, and are shown so the scale reads whole:
 
 | Id | Comfortable | Compact |
 | --- | --- | --- |
-| `size.space.xs` | 2px | 2px |
-| `size.space.sm` | 4px | 2px |
-| `size.space.md` | 8px | 6px |
-| `size.space.lg` | 12px | 8px |
-| `size.space.xl` | 24px | 16px |
-| `space.inline.sm`, `.md`, `.lg` | 4, 8, 12px | 2, 6, 8px |
-| `space.stack.xs`, `.sm`, `.md` | 4, 8, 12px | 2, 4, 8px |
+| `space.inline.hairline` | 2px | 2px |
+| `space.inline.tight`, `.group` | 4, 8px | 2, 6px |
+| `space.stack.tight`, `.group`, `.section` | 4, 8, 12px | 2, 4, 8px |
 | `size.target.compact` | 24px | 24px |
 | `size.target.natural` | 32px | 28px |
 | `size.target.comfortable` | 44px | 32px |
@@ -281,13 +280,12 @@ equal are at their floors, and are shown so the scale reads whole:
 - **No target below 24px** in either density (WCAG 2.2, 2.5.8 target size,
   minimum). `size.target.compact` is the floor; `theme`'s `test` checks every
   target id and bar.
-- **Layout spacing does not change.** `space.layout.sm` (12px) and
-  `space.layout.md` (24px) read the primitives directly, so a part's inset is
+- **Layout spacing does not change.** `space.layout.panel` (12px) and
+  `space.layout.page` (24px) read the primitives directly, so a part's inset is
   the same in both densities.
 - **Type, radii, colors, motion and the part widths** do not change with
   density.
-- **Inside a control** use `size.space.*` for padding and gaps; **between
-  controls in a row** use `space.inline.*`; **between stacked rows** use
+- **Between controls in a row or tight hairlines** use `space.inline.*`; **between stacked rows** use
   `space.stack.*`; **around and between regions** use `space.layout.*`.
 
 ## The rhythm of the parts
@@ -322,7 +320,7 @@ equal are at their floors, and are shown so the scale reads whole:
 | sidebar, inspector, panel | `color.surface.card` | `color.text.primary` |
 | main | `color.surface.page` | `color.text.primary` |
 | drawer, sheet, overlay drawer | `color.surface.floating`, with `shadow.floating` | `color.text.primary` |
-| palette | `color.surface.floating`, `shadow.floating`, `radius.lg` | `color.text.primary` |
+| palette | `color.surface.floating`, `shadow.floating`, `radius.floating` | `color.text.primary` |
 
 - **Parts abut.** There is no gap between parts; each boundary between two
   inline parts is a `1px` line of `color.border.subtle`. The line is
@@ -332,21 +330,21 @@ equal are at their floors, and are shown so the scale reads whole:
 - **Parts are flat.** Inline parts take no shadow and no radius. Only what
   floats over them (drawers, the sheet, the palette, popovers) takes
   `shadow.floating`.
-- **Shape.** `radius.md` (8px) for controls and items (buttons, rail and
-  list items, field frames); `radius.lg` (12px) for floating layers (the
-  palette, popovers); `radius.sm` (4px) for small marks; `radius.round` for
+- **Shape.** `radius.control` (8px) for controls and items (buttons, rail and
+  list items, field frames); `radius.floating` (12px) for floating layers (the
+  palette, popovers); `radius.inset` (4px) for small marks; `radius.round` for
   pills and avatars. Parts are square.
 
 ### Gutters
 
 | Where | Token |
 | --- | --- |
-| A part's content inset (sidebar, inspector, panel, drawer, sheet) | `space.layout.sm` (12px) |
-| Main's content inset, and the gap between groups in main | `space.layout.md` (24px) |
-| A bar's inline padding | `space.inline.md` (8px, 6px compact) |
-| The gap between items in a bar | `space.inline.sm` (4px, 2px compact) |
-| A part header's block padding | `space.stack.sm` (8px, 4px compact) |
-| Rows in a list | `space.stack.xs` (4px, 2px compact) between rows |
+| A part's content inset (sidebar, inspector, panel, drawer, sheet) | `space.layout.panel` (12px) |
+| Main's content inset, and the gap between groups in main | `space.layout.page` (24px) |
+| A bar's inline padding | `space.inline.group` (8px, 6px compact) |
+| The gap between items in a bar | `space.inline.tight` (4px, 2px compact) |
+| A part header's block padding | `space.stack.group` (8px, 4px compact) |
+| Rows in a list | `space.stack.tight` (4px, 2px compact) between rows |
 
 ### Handles
 
@@ -360,7 +358,7 @@ boundary on main's side, so it is inside the part's landmark.
   and `shell.color.handle.active` while dragged or focused.
 - **The hit area** is `size.target.compact` (24px) across, centered on the
   bar, drawn by a transparent pseudo-element over the edges of both parts.
-  A part's content inset (`space.layout.sm`, 12px) keeps its own targets out
+  A part's content inset (`space.layout.panel`, 12px) keeps its own targets out
   of that area, so the handle meets 2.5.8.
 - **Focus** shows the focus indicator below around the bar, and the bar
   takes `shell.color.handle.active`.
@@ -414,7 +412,7 @@ boundary on main's side, so it is inside the part's landmark.
 ### Focus
 
 - **Indicator:** `outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring)`
-  with `outline-offset: var(--violet-size-space-xs)`. `shell.size.focus` is 2px, and
+  with `outline-offset: var(--violet-space-inline-hairline)`. `shell.size.focus` is 2px, and
   3px in high contrast. `color.focus.ring` meets 3:1 on every surface in
   every theme.
 - **Only on `:focus-visible`.** A pointer press does not show the ring.
@@ -422,7 +420,7 @@ boundary on main's side, so it is inside the part's landmark.
   width; a field may draw its ring as a `box-shadow` only if its
   forced-colors block adds an `outline` of `Highlight`.
 - **Not clipped.** A part with `overflow` hidden or auto keeps the ring
-  inside by insetting its focusable children by at least `size.space.xs`
+  inside by insetting its focusable children by at least `space.inline.hairline`
   plus the focus width.
 - **The shared components** draw their own ring with `color.focus.ring` at
   2px (`violet-button`'s outline, `violet-checkbox`'s ring); they cannot read
@@ -442,9 +440,9 @@ item 2):
 | --- | --- | --- |
 | Rest | Its role's background and text | the role's ids |
 | Hover | Background or border one step stronger; no layout change. Text on a hovered or pressed neutral item is `color.text.secondary` or stronger, never `color.text.muted` | `color.action.*.hover`; for neutral items the background becomes `color.surface.subtle` on a part, or `color.action.secondary.hover` on a bar (bars are already `color.surface.subtle`); `color.field.border.hover`; `shell.color.handle.hover` |
-| Focus-visible | The indicator above | `shell.size.focus`, `color.focus.ring`, `size.space.xs` |
+| Focus-visible | The indicator above | `shell.size.focus`, `color.focus.ring`, `space.inline.hairline` |
 | Active (pressed) | The pressed color while the pointer or key is down | `color.action.*.pressed`; `color.action.secondary.pressed` for neutral items |
-| Selected | Background and foreground, plus a mark that is not color: a start-edge bar `size.space.xs` (2px) wide in `color.control.selected.foreground`, and `aria-selected`, `aria-current` or `aria-pressed` | `color.control.selected.background`, `.foreground`, `.border` |
+| Selected | Background and foreground, plus a mark that is not color: a start-edge bar `space.inline.hairline` (2px) wide in `color.control.selected.foreground`, and `aria-selected`, `aria-current` or `aria-pressed` | `color.control.selected.background`, `.foreground`, `.border` |
 | Disabled | `opacity: 0.55`, `cursor: not-allowed`, no hover or press change; the native `disabled`, or `aria-disabled="true"` when it must stay focusable to show a tooltip (the phase 0 settings entry); exempt from the contrast floors (1.4.3, 1.4.11); `GrayText` under forced colors | the rest tokens |
 | Invalid | The invalid border, `aria-invalid="true"`, and `error-text` (rendered in `part="error-message"` in `color.state.danger.text`, replacing supporting text while invalid) that names the problem and how to fix it | `color.field.border.invalid`, `color.state.danger.text` |
 | Loading | `aria-busy="true"` on the region, a progress indicator, the control disabled while it waits; see reduced motion above | as Disabled, plus `violet-progress` |
@@ -500,8 +498,8 @@ section 7; the `dist/` deep imports it replaced are no longer exported, #1785).
 - **New icons** are added to `violet-elements`' registry with their source
   and license, under the FAST-AF provenance rules. Loam never inlines SVG.
 - **Size.** An icon is 1em by default, so beside text it follows the type
-  step. Standing alone, set `--violet-icon-size` from a line height:
-  `size.line.sm` (16px) in the title bar and status bar, `size.line.md`
+  role. Standing alone, set `--violet-icon-size` from a line height:
+  `type.caption.line` (16px) in the title bar and status bar, `type.body.line`
   (20px) in the rail, the tab bar and part headers. `--violet-icon-size` is
   the component's own property; setting it from a token passes the lint.
 - **Color** is `currentColor`, so an icon takes its text token. An icon never
@@ -620,15 +618,15 @@ a fixture in `packages/chrome/specimens/chrome.specimens.ts`, or for what apps a
 | `loam-toast` | One toast: its tone as an icon and a word (visible for warning and danger) as well as `color.state.*` over `color.surface.floating`, `shadow.floating`, a dismiss button; `role="alert"` when `danger`; its timer stops while hovered, focused or behind a modal; opacity only for motion | Phase 1 step 4 |
 | `loam-console` | Every new app's first UI and the mounted kind's renderer, in main's mount: its `h1` with the trust line, "Loading…" with a decorative `violet-spinner` on its first read, notices, a mounted instance's state and Refresh, a filter over a `violet-listbox` of commands marked "Changes data" or "Destructive", a form of `violet-*` fields from the input schema with an inline `Error:` message per field, Run with `violet-spinner`, and the `Result` region with `status` text. A result through the adapters with classes, mapped to `color.state.*` and `weight.semibold`. Its chunk loads when one renders | Phase 1 step 6 |
 | `loam-editor-area` | Main's `region` "Documents" while the documents section shows with no app, in the `editor` chunk, loaded on the first document opened, restored or routed to: the groups as columns of equal width (`grid-auto-columns: minmax(0, 1fr)`), split by a `1px` `color.border.subtle` line, inside main's one F6 stop; the page's `h1` is the active document's title, visually hidden, so an editor holds none; with no tab it is hidden, region and heading too, and `loam-documents-section` takes main (step 11). In the compact class only the active group shows. While it shows, main's landing is hidden. It does not animate | Phase 2 step 10 |
-| `loam-editor-group` | One group: a hand-written `role="tablist"` on `color.surface.subtle`, named `Documents` or `Documents, group <n>`, and one `role="tabpanel"` holding the active tab's frame. Each tab is a `button` with `role="tab"`, `aria-selected`, a roving `tabindex`, its title, `●` when unsaved, and a name that says `(preview)`, `, pinned` and `, unsaved` (a preview's title is italic too); the selected tab is on `color.surface.page` with a `size.space.xs` bar of `color.control.selected.foreground` on its block-end edge, `Highlight` under forced colors. Its close and menu buttons are siblings, `tabindex="-1"` and `aria-hidden`, for the pointer: inside the `tablist` a named button fails axe's `aria-required-children`, inside the tab its `nested-interactive`. The keyboard has both on the tab: Delete closes, Shift+F10 or the context-menu key opens the menu, as `aria-keyshortcuts` says; arrows, Home and End move and activate, focus staying in the strip; Enter or Space activates and moves focus to the editor. The menu, `role="menu"` in `popover="auto"`, placed by CSS anchor positioning set through CSSOM, holds Pin or Unpin, Close, Close others, Open beside (not in the compact class) and Move to a new group, by arrows, Home and End, with focus back on the tab when it closes. Hover `color.action.secondary.hover`, pressed `.pressed`; targets `size.target.natural` high and at least `size.target.compact` wide; color fades on `duration.fast`, none under reduced motion | Phase 2 step 10 |
+| `loam-editor-group` | One group: a hand-written `role="tablist"` on `color.surface.subtle`, named `Documents` or `Documents, group <n>`, and one `role="tabpanel"` holding the active tab's frame. Each tab is a `button` with `role="tab"`, `aria-selected`, a roving `tabindex`, its title, `●` when unsaved, and a name that says `(preview)`, `, pinned` and `, unsaved` (a preview's title is italic too); the selected tab is on `color.surface.page` with a `space.inline.hairline` bar of `color.control.selected.foreground` on its block-end edge, `Highlight` under forced colors. Its close and menu buttons are siblings, `tabindex="-1"` and `aria-hidden`, for the pointer: inside the `tablist` a named button fails axe's `aria-required-children`, inside the tab its `nested-interactive`. The keyboard has both on the tab: Delete closes, Shift+F10 or the context-menu key opens the menu, as `aria-keyshortcuts` says; arrows, Home and End move and activate, focus staying in the strip; Enter or Space activates and moves focus to the editor. The menu, `role="menu"` in `popover="auto"`, placed by CSS anchor positioning set through CSSOM, holds Pin or Unpin, Close, Close others, Open beside (not in the compact class) and Move to a new group, by arrows, Home and End, with focus back on the tab when it closes. Hover `color.action.secondary.hover`, pressed `.pressed`; targets `size.target.natural` high and at least `size.target.compact` wide; color fades on `duration.fast`, none under reduced motion | Phase 2 step 10 |
 | `loam-editor-frame` | One tab's editor: a type's element in a `loam-mount` with its plugin's registry and a surface port fixed to the document's scope, through the app surfaces' `host()`; "Opening <title>…" in a `role="status"` line while it loads, or a failure as an embedded `loam-notice` with its code (`DOCUMENT_NOT_FOUND`, `DOCUMENT_TYPE_UNAVAILABLE`, `DOCUMENT_CONTENT_VERSION_NEWER`, `APP_ACTIVATION_FAILED`) and a Close button in the secondary action's colors. A parked frame is hidden with its element kept, and its scroll put back when shown. A view type's editor is a `loam-view-frame` of its resource in the same place, filling the frame, torn down when its tab hides and rebuilt when shown; Mod+S inside its frame saves it, as Mod+S does natively (step 12). The close button's color fades on `duration.fast`, none under reduced motion | Phase 2 step 10 |
-| `loam-embed` | A kit element a native editor puts in its own surface: another document, read-only, in a `role="group"` named `Embedded: <title>` with a 1 px `color.border.subtle` border, `radius.md` and `color.surface.subtle`; a head line of the type's icon and its title as a link (`label.sm`), the embed's own mount or view frame below, or for a type with no embed the head line alone. `Not available` for a refused and a missing target alike, and `Embedded too deeply to show (EMBED_DEPTH_EXCEEDED)` past a depth of three or at a cycle, in the secondary text. `CanvasText` border and `LinkText` link under forced colors; the link has the focus ring. It does not animate | Phase 2 step 12 |
-| `loam-tree` | A tree over `violet-tree`, in the `documents` chunk: an app's `tree` sidebar, nested, in place of `loam-list`'s indented rows, and the documents section's sidebar. APG's tree view pattern is `violet-tree`'s (one Tab stop; Up, Down, Home, End and type-ahead move; Right opens or enters, Left closes or leaves; Enter or Space chooses a row, and on a branch where branches are not chosen, as in the documents sidebar, opens or closes it); `aria-level`, `aria-setsize` and `aria-posinset` on each `treeitem`, named by its title and description. The same loading, empty and failed states as `loam-list`, and a `region` with an `h3` per level in a dual-scope app's sidebar. Rows are built by id and updated in place, so a re-read keeps focus, and a focused row that leaves hands focus to the next row, else the previous, else its branch; a press makes the pressed row active at `mousedown` (`violet-tree` has no #712 fault, tested). Hover `color.surface.subtle`; selected the control colors and a `size.space.xs` start-edge bar, `Highlight` under forced colors; focus the ring, inset; the chevron turns at once. Each row with actions, never a branch, has a pointer's More button (`aria-hidden`, `tabindex="-1"`, as a tab's) and Shift+F10 or the context-menu key, which `aria-keyshortcuts` names, opening a hand-written `role="menu"` in `popover="auto"` placed by anchor positioning set through CSSOM, by arrows, Home and End, focus back on the row when it closes, and Tab closing it and moving on. Color fades on `duration.fast`, none under reduced motion | Phase 2 step 11 |
+| `loam-embed` | A kit element a native editor puts in its own surface: another document, read-only, in a `role="group"` named `Embedded: <title>` with a 1 px `color.border.subtle` border, `radius.control` and `color.surface.subtle`; a head line of the type's icon and its title as a link (`type.label`), the embed's own mount or view frame below, or for a type with no embed the head line alone. `Not available` for a refused and a missing target alike, and `Embedded too deeply to show (EMBED_DEPTH_EXCEEDED)` past a depth of three or at a cycle, in the secondary text. `CanvasText` border and `LinkText` link under forced colors; the link has the focus ring. It does not animate | Phase 2 step 12 |
+| `loam-tree` | A tree over `violet-tree`, in the `documents` chunk: an app's `tree` sidebar, nested, in place of `loam-list`'s indented rows, and the documents section's sidebar. APG's tree view pattern is `violet-tree`'s (one Tab stop; Up, Down, Home, End and type-ahead move; Right opens or enters, Left closes or leaves; Enter or Space chooses a row, and on a branch where branches are not chosen, as in the documents sidebar, opens or closes it); `aria-level`, `aria-setsize` and `aria-posinset` on each `treeitem`, named by its title and description. The same loading, empty and failed states as `loam-list`, and a `region` with an `h3` per level in a dual-scope app's sidebar. Rows are built by id and updated in place, so a re-read keeps focus, and a focused row that leaves hands focus to the next row, else the previous, else its branch; a press makes the pressed row active at `mousedown` (`violet-tree` has no #712 fault, tested). Hover `color.surface.subtle`; selected the control colors and a `space.inline.hairline` start-edge bar, `Highlight` under forced colors; focus the ring, inset; the chevron turns at once. Each row with actions, never a branch, has a pointer's More button (`aria-hidden`, `tabindex="-1"`, as a tab's) and Shift+F10 or the context-menu key, which `aria-keyshortcuts` names, opening a hand-written `role="menu"` in `popover="auto"` placed by anchor positioning set through CSSOM, by arrows, Home and End, focus back on the row when it closes, and Tab closing it and moving on. Color fades on `duration.fast`, none under reduced motion | Phase 2 step 11 |
 | `loam-documents-sidebar` | The documents section's sidebar, in the shell's sidebar part, with tabs open or not: a `loam-tree` "Documents" of Recent (the last ten), a branch per type the scope allows (`Notes`, its documents read when it opens, 200 at a time with Show more) and Trash (each trashed document with when it was trashed and when it goes). A press opens a preview, a second press or Enter keeps it. Each document row's menu: Open beside (not in the compact class), Rename, Links and Trash, or Restore and Links in the trash; what Trash or Restore did is said in a polite line, since the row leaves. Rename and Links open its own modal `<dialog>`, `color.surface.floating` and `shadow.floating` with a 1 px border (`CanvasText` under forced colors), focus trapped and back on the row when it closes; Rename is a form whose Save submits, so Enter submits from the field and presses the button it is on; a refusal is said in a `role="alert"` line in the danger text, with `aria-invalid` and focus back on the field. It does not animate | Phase 2 step 11 |
 | The documents inspector | The active tab's type's `inspector` element, native only, in a `loam-mount` of its plugin in the shell's inspector part, headed `<type> details`, while the editor area shows; the title bar's inspector toggle is offered then, and `aria-disabled` with "Documents has no inspector" otherwise, when `layout-get` answers the part closed, its drawer too, writing nothing, so the shell hides it as any closed part and the person's layout is theirs. It goes when its tab stops being the active one | Phase 2 step 12 |
 | A held view editor's placeholder | `loam-editor-held`, in a browser with no `moveBefore`, after a view editor's move back is refused: in the group its tab is in, while that tab is active, a live region saying its unsaved changes are held in its other group, and two buttons at the natural target size, **Move back**, which moves the tab to its editor, and **Save**, which saves the draft and moves the editor to its tab; only a move of its own tab frees it (the documents specification's Status, step 12's deviation 7) | Phase 2 step 12 |
 | `loam-documents-section` | Main's documents list while the section shows with no tab, in the `documents` chunk: its `h1` "Documents" or "Trash"; a native search field, Type, Tag and Show pickers on the field tokens and an `All projects` checkbox (24 px in both densities); a table of title (a 24 px link by the scheme, which a press opens as a preview and a second keeps), type, project with `All projects`, updated and owner, and in the trash when it was trashed and is kept until, with a Restore button; 200 rows at a time, then Show more and `Showing N of M`; "Loading…" while it first reads; a Restore that empties its row hands focus to the next row's, else the heading; what it found said in its `role="status"` line; "No documents yet" with what New creates as buttons, and why nothing shows otherwise. Native buttons on the secondary action tokens; every title is text with `dir="auto"`. While it shows, main's landing is hidden and the title bar's inspector and panel toggles are `aria-disabled`. It does not animate but the buttons' color, none under reduced motion | Phase 2 step 11 |
-| `loam-new-menu` | The New button's menu, in the `new` chunk, loaded on its first press: a `violet-menu` laid over the button, APG's menu button pattern (Enter, Space, ArrowDown or a press opens it on its first item, ArrowUp on its last; arrows, Home, End and type-ahead move; Enter chooses; Escape closes it with focus on the button; Tab moves on), its panel `color.surface.floating` with `shadow.floating` and `radius.lg`. Items are `violet-menu-item`s with their icon, recents first, under a heading per plugin when more than one (a `role="group"` labelled by it); with nothing to offer, `Nothing to create here` and, at workspace level, which types need a project, as disabled items. The items' hover and pressed surfaces are mapped to contract colors, since the item's own fall back to white | Phase 2 step 11 |
+| `loam-new-menu` | The New button's menu, in the `new` chunk, loaded on its first press: a `violet-menu` laid over the button, APG's menu button pattern (Enter, Space, ArrowDown or a press opens it on its first item, ArrowUp on its last; arrows, Home, End and type-ahead move; Enter chooses; Escape closes it with focus on the button; Tab moves on), its panel `color.surface.floating` with `shadow.floating` and `radius.floating`. Items are `violet-menu-item`s with their icon, recents first, under a heading per plugin when more than one (a `role="group"` labelled by it); with nothing to offer, `Nothing to create here` and, at workspace level, which types need a project, as disabled items. The items' hover and pressed surfaces are mapped to contract colors, since the item's own fall back to white | Phase 2 step 11 |
 | `loam-modal` | An overlay's modal: a native `<dialog>` from `showModal()`, title in `h2`, a body and two buttons as text; focus on cancel when `danger`, otherwise confirm; Escape cancels, Tab wraps, focus returns to the invoker | Phase 1 step 4 |
 
 ## Open questions
@@ -886,3 +884,12 @@ a fixture in `packages/chrome/specimens/chrome.specimens.ts`, or for what apps a
 - **2026-11-24. The `violet-` prefix (#1786).** Contract version 2: every
   property moves to `--violet-<id>` with the same ids, the rule shared with
   Violet's runtime and exporter ([the `violet-` prefix](#the-violet-prefix)).
+- **2026-11-24. Scales two-stage ramps and purpose-named tokens (#1111, #2197).**
+  Contract version 3 (123 ids: 104 component, 19 shell), component export version 2,
+  and `violet-elements` interface version 5 (96 ids). Added Stage 1 `ref.space.*`,
+  `ref.radius.*`, `ref.target.*` and `ref.type.*` ramps plus ten inherited Violet
+  constraints (nine `ramp` rules including `pairWith` and the four shell bars, plus
+  `no-positional-names`) enforced by `theme:check`; retired 16 positional ladder ids,
+  added `space.inline.hairline` (`2px`), and renamed 25 semantic ids (`type.*`,
+  `radius.*`, `space.*`) to purpose names across Loam, `violet-elements` and repo
+  consumers.

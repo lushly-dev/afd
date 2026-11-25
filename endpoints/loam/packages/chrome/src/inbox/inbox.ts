@@ -96,8 +96,8 @@ const STYLES = `
 	:host {
 		display: block;
 		color: var(--violet-color-text-primary);
-		font-size: var(--violet-type-body-md-size);
-		line-height: var(--violet-type-body-md-line);
+		font-size: var(--violet-type-body-size);
+		line-height: var(--violet-type-body-line);
 	}
 	h1,
 	h2,
@@ -105,41 +105,41 @@ const STYLES = `
 		margin: 0;
 	}
 	h1 {
-		font-size: var(--violet-type-title-md-size);
-		line-height: var(--violet-type-title-md-line);
-		font-weight: var(--violet-type-title-md-weight);
+		font-size: var(--violet-type-heading-page-size);
+		line-height: var(--violet-type-heading-page-line);
+		font-weight: var(--violet-type-heading-page-weight);
 	}
 	h2 {
-		font-size: var(--violet-type-title-sm-size);
-		line-height: var(--violet-type-title-sm-line);
-		font-weight: var(--violet-type-label-sm-weight);
+		font-size: var(--violet-type-heading-section-size);
+		line-height: var(--violet-type-heading-section-line);
+		font-weight: var(--violet-type-label-weight);
 	}
 	.section,
 	.notice {
 		display: grid;
-		gap: var(--violet-space-stack-sm);
+		gap: var(--violet-space-stack-group);
 	}
 	.section {
-		gap: var(--violet-space-stack-md);
+		gap: var(--violet-space-stack-section);
 	}
 	.row {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: var(--violet-space-inline-sm);
+		gap: var(--violet-space-inline-tight);
 	}
 	ul {
 		display: grid;
-		gap: var(--violet-space-stack-sm);
+		gap: var(--violet-space-stack-group);
 		margin: 0;
 		padding: 0;
 		list-style: none;
 	}
 	.notice {
-		padding: var(--violet-size-space-md);
+		padding: var(--violet-space-inline-group);
 		border: 1px solid var(--violet-color-border-subtle);
-		border-inline-start: var(--violet-size-space-xs) solid transparent;
-		border-radius: var(--violet-radius-md);
+		border-inline-start: var(--violet-space-inline-hairline) solid transparent;
+		border-radius: var(--violet-radius-control);
 		background: var(--violet-color-surface-card);
 	}
 	.notice[data-unread] {
@@ -159,8 +159,8 @@ const STYLES = `
 	.meta,
 	.empty {
 		color: var(--violet-color-text-secondary);
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
 	}
 	.body {
 		overflow-wrap: anywhere;
@@ -171,9 +171,9 @@ const STYLES = `
 	}
 	.action {
 		min-block-size: var(--violet-size-target-natural);
-		padding-inline: var(--violet-size-space-md);
+		padding-inline: var(--violet-space-inline-group);
 		border: 1px solid var(--violet-color-action-secondary-border);
-		border-radius: var(--violet-radius-md);
+		border-radius: var(--violet-radius-control);
 		background: var(--violet-color-action-secondary-background);
 		color: var(--violet-color-action-secondary-text);
 		font: inherit;

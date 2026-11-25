@@ -1,4 +1,4 @@
 :host {
 	background: var(--violet-color-surface-page);
-	gap: var(--violet-size-space-sm);
+	gap: var(--violet-space-inline-tight);
 }

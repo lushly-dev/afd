@@ -3,7 +3,7 @@
 	"title": "Touch",
 	"note": "Soft keys on paper: rounded, a little taller, filled with a quiet tint instead of outlined, with soft depth instead of hard edges.",
 	"status": "draft",
-	"built": "2026-11-24",
+	"built": "2026-11-25",
 	"from": "site/css/tokens-m2.css",
 	"palette": {
 		"site": {
@@ -957,20 +957,20 @@
 					"value": "\"IBM Plex Mono\", ui-monospace, Consolas, monospace"
 				},
 				{
-					"id": "radius.lg",
+					"id": "radius.control",
+					"value": "8px"
+				},
+				{
+					"id": "radius.floating",
 					"value": "12px"
 				},
 				{
-					"id": "radius.md",
-					"value": "8px"
+					"id": "radius.inset",
+					"value": "4px"
 				},
 				{
 					"id": "radius.round",
 					"value": "9999px"
-				},
-				{
-					"id": "radius.sm",
-					"value": "4px"
 				},
 				{
 					"id": "shadow.card",
@@ -993,66 +993,6 @@
 					"value": "3px"
 				},
 				{
-					"id": "size.font.lg",
-					"value": "18px"
-				},
-				{
-					"id": "size.font.md",
-					"value": "14px"
-				},
-				{
-					"id": "size.font.sm",
-					"value": "12px"
-				},
-				{
-					"id": "size.font.xl",
-					"value": "24px"
-				},
-				{
-					"id": "size.font.xs",
-					"value": "11px"
-				},
-				{
-					"id": "size.line.lg",
-					"value": "24px"
-				},
-				{
-					"id": "size.line.md",
-					"value": "20px"
-				},
-				{
-					"id": "size.line.sm",
-					"value": "16px"
-				},
-				{
-					"id": "size.line.xl",
-					"value": "32px"
-				},
-				{
-					"id": "size.line.xs",
-					"value": "14px"
-				},
-				{
-					"id": "size.space.lg",
-					"value": "12px"
-				},
-				{
-					"id": "size.space.md",
-					"value": "8px"
-				},
-				{
-					"id": "size.space.sm",
-					"value": "4px"
-				},
-				{
-					"id": "size.space.xl",
-					"value": "24px"
-				},
-				{
-					"id": "size.space.xs",
-					"value": "2px"
-				},
-				{
 					"id": "size.target.comfortable",
 					"value": "44px"
 				},
@@ -1065,96 +1005,96 @@
 					"value": "32px"
 				},
 				{
-					"id": "space.inline.lg",
-					"value": "12px"
-				},
-				{
-					"id": "space.inline.md",
+					"id": "space.inline.group",
 					"value": "8px"
 				},
 				{
-					"id": "space.inline.sm",
+					"id": "space.inline.hairline",
+					"value": "2px"
+				},
+				{
+					"id": "space.inline.tight",
 					"value": "4px"
 				},
 				{
-					"id": "space.layout.md",
+					"id": "space.layout.page",
 					"value": "24px"
 				},
 				{
-					"id": "space.layout.sm",
+					"id": "space.layout.panel",
 					"value": "12px"
 				},
 				{
-					"id": "space.stack.md",
-					"value": "12px"
-				},
-				{
-					"id": "space.stack.sm",
+					"id": "space.stack.group",
 					"value": "8px"
 				},
 				{
-					"id": "space.stack.xs",
+					"id": "space.stack.section",
+					"value": "12px"
+				},
+				{
+					"id": "space.stack.tight",
 					"value": "4px"
 				},
 				{
-					"id": "type.body.md.line",
+					"id": "type.body.line",
 					"value": "20px"
 				},
 				{
-					"id": "type.body.md.size",
+					"id": "type.body.size",
 					"value": "15px"
 				},
 				{
-					"id": "type.body.md.weight",
+					"id": "type.body.weight",
 					"value": "400"
 				},
 				{
-					"id": "type.caption.xs.line",
+					"id": "type.caption.line",
 					"value": "16px"
 				},
 				{
-					"id": "type.caption.xs.size",
+					"id": "type.caption.size",
 					"value": "12px"
 				},
 				{
-					"id": "type.caption.xs.weight",
+					"id": "type.caption.weight",
 					"value": "400"
 				},
 				{
-					"id": "type.label.sm.line",
-					"value": "16px"
-				},
-				{
-					"id": "type.label.sm.size",
-					"value": "13px"
-				},
-				{
-					"id": "type.label.sm.weight",
-					"value": "500"
-				},
-				{
-					"id": "type.title.md.line",
+					"id": "type.heading.page.line",
 					"value": "32px"
 				},
 				{
-					"id": "type.title.md.size",
+					"id": "type.heading.page.size",
 					"value": "24px"
 				},
 				{
-					"id": "type.title.md.weight",
+					"id": "type.heading.page.weight",
 					"value": "600"
 				},
 				{
-					"id": "type.title.sm.line",
+					"id": "type.heading.section.line",
 					"value": "24px"
 				},
 				{
-					"id": "type.title.sm.size",
+					"id": "type.heading.section.size",
 					"value": "18px"
 				},
 				{
-					"id": "type.title.sm.weight",
+					"id": "type.heading.section.weight",
 					"value": "600"
+				},
+				{
+					"id": "type.label.line",
+					"value": "16px"
+				},
+				{
+					"id": "type.label.size",
+					"value": "13px"
+				},
+				{
+					"id": "type.label.weight",
+					"value": "500"
 				},
 				{
 					"id": "weight.light",

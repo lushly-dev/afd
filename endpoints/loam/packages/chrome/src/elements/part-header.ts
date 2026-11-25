@@ -62,10 +62,10 @@ const styles = [
 			flex: none;
 			flex-wrap: wrap;
 			align-items: center;
-			gap: var(--violet-space-inline-sm);
+			gap: var(--violet-space-inline-tight);
 			min-block-size: var(--violet-shell-size-titlebar);
-			padding-block: var(--violet-space-stack-xs);
-			padding-inline: var(--violet-space-layout-sm);
+			padding-block: var(--violet-space-stack-tight);
+			padding-inline: var(--violet-space-layout-panel);
 			border-block-end: 1px solid var(--violet-color-border-subtle);
 			background: var(--violet-color-surface-card);
 			color: var(--violet-color-text-primary);
@@ -79,14 +79,14 @@ const styles = [
 			overflow: hidden;
 			text-overflow: ellipsis;
 			white-space: nowrap;
-			font-size: var(--violet-type-label-sm-size);
-			line-height: var(--violet-type-label-sm-line);
+			font-size: var(--violet-type-label-size);
+			line-height: var(--violet-type-label-line);
 			font-weight: var(--violet-weight-semibold);
 		}
 		.crumbs {
 			flex-basis: 100%;
-			font-size: var(--violet-type-label-sm-size);
-			line-height: var(--violet-type-label-sm-line);
+			font-size: var(--violet-type-label-size);
+			line-height: var(--violet-type-label-line);
 		}
 		.crumbs[hidden] {
 			display: none;
@@ -100,7 +100,7 @@ const styles = [
 		.actions {
 			display: inline-flex;
 			flex-wrap: wrap;
-			gap: var(--violet-space-inline-sm);
+			gap: var(--violet-space-inline-tight);
 		}
 		@media (forced-colors: active) {
 			:host {

@@ -431,8 +431,8 @@ describe("violet-button", () => {
 
         it("grows every button with its label when the body type tokens double", async () => {
             // Emulates 200% text-only zoom: the type tokens are px, so root font-size has no effect.
-            document.body.style.setProperty("--violet-type-body-md-size", "28px");
-            document.body.style.setProperty("--violet-type-body-md-line", "40px");
+            document.body.style.setProperty("--violet-type-body-size", "28px");
+            document.body.style.setProperty("--violet-type-body-line", "40px");
             const buttons = await renderInto(
                 appearances
                     .map(appearance => `<violet-button appearance="${appearance}">Save changes</violet-button>`)

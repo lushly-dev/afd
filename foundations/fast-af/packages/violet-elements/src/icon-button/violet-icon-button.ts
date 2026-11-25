@@ -10,7 +10,7 @@ const styles = css`
     :host {
         display: inline-flex;
         vertical-align: middle;
-        --_space-inline-sm: var(--violet-space-inline-sm, 4px);
+        --_space-inline-sm: var(--violet-space-inline-tight, 4px);
         --_icon-size: clamp(16px, calc(var(--_target-size) * 0.5), 20px);
     }
 

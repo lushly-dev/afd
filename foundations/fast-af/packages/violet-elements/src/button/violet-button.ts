@@ -10,8 +10,8 @@ const styles = css`
     :host {
         display: inline-flex;
         vertical-align: middle;
-        --_space-inline-sm: var(--violet-space-inline-sm, 4px);
-        --_space-stack-sm: var(--violet-space-stack-sm, 8px);
+        --_space-inline-sm: var(--violet-space-inline-tight, 4px);
+        --_space-stack-sm: var(--violet-space-stack-group, 8px);
     }
 
     .control {

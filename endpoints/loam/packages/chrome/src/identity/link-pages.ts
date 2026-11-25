@@ -17,7 +17,7 @@ import {
 /** The join or recovery page's element: its styles, and a shadow root the page is built in. */
 export class LoamLinkPage extends AccountElement {
 	static override extra =
-		`:host{padding:var(--violet-space-layout-md);background:var(--violet-color-surface-page);min-block-size:100dvh;}.section{margin-inline:auto;}`;
+		`:host{padding:var(--violet-space-layout-page);background:var(--violet-color-surface-page);min-block-size:100dvh;}.section{margin-inline:auto;}`;
 }
 const LINK_PAGE = 'loam-link-page';
 

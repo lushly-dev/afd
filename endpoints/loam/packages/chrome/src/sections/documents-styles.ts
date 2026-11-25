@@ -10,8 +10,8 @@ import { css } from '@lushly-dev/fast-element';
 export const documentsStyles = css`
 	:host {
 		color: var(--violet-color-text-primary);
-		font-size: var(--violet-type-body-md-size);
-		line-height: var(--violet-type-body-md-line);
+		font-size: var(--violet-type-body-size);
+		line-height: var(--violet-type-body-line);
 	}
 	[hidden] {
 		display: none !important;
@@ -19,16 +19,16 @@ export const documentsStyles = css`
 	h1 {
 		margin: 0;
 		font-family: var(--violet-font-family-heading);
-		font-size: var(--violet-type-title-md-size);
-		line-height: var(--violet-type-title-md-line);
-		font-weight: var(--violet-type-title-md-weight);
+		font-size: var(--violet-type-heading-page-size);
+		line-height: var(--violet-type-heading-page-line);
+		font-weight: var(--violet-type-heading-page-weight);
 	}
 	h2 {
 		margin: 0;
 		font-family: var(--violet-font-family-heading);
-		font-size: var(--violet-type-title-sm-size);
-		line-height: var(--violet-type-title-sm-line);
-		font-weight: var(--violet-type-title-sm-weight);
+		font-size: var(--violet-type-heading-section-size);
+		line-height: var(--violet-type-heading-section-line);
+		font-weight: var(--violet-type-heading-section-weight);
 		overflow-wrap: anywhere;
 	}
 	p {
@@ -45,14 +45,14 @@ export const documentsStyles = css`
 	}
 	label {
 		display: grid;
-		gap: var(--violet-space-stack-xs);
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
+		gap: var(--violet-space-stack-tight);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
 	}
 	.check {
 		display: inline-flex;
 		align-items: center;
-		gap: var(--violet-space-inline-sm);
+		gap: var(--violet-space-inline-tight);
 		min-block-size: var(--violet-size-target-natural);
 	}
 	/* A 24 px target in both densities, beside the pickers (design.md). */
@@ -65,17 +65,17 @@ export const documentsStyles = css`
 	.field {
 		box-sizing: border-box;
 		min-block-size: var(--violet-size-target-natural);
-		padding-inline: var(--violet-size-space-sm);
+		padding-inline: var(--violet-space-inline-tight);
 		border: 1px solid var(--violet-color-border-subtle);
-		border-radius: var(--violet-radius-md);
+		border-radius: var(--violet-radius-control);
 		background: var(--violet-color-field-background);
 		color: var(--violet-color-field-text);
 		box-shadow:
 			inset 0 1px 0 var(--violet-color-field-border),
 			var(--violet-shadow-well);
 		font: inherit;
-		font-size: var(--violet-type-body-md-size);
-		line-height: var(--violet-type-body-md-line);
+		font-size: var(--violet-type-body-size);
+		line-height: var(--violet-type-body-line);
 		transition:
 			border-color var(--violet-duration-fast) var(--violet-easing-standard),
 			box-shadow var(--violet-duration-base) var(--violet-easing-standard);
@@ -90,9 +90,9 @@ export const documentsStyles = css`
 	}
 	.button {
 		min-block-size: var(--violet-size-target-natural);
-		padding-inline: var(--violet-space-inline-md);
+		padding-inline: var(--violet-space-inline-group);
 		border: 1px solid var(--violet-color-action-secondary-border);
-		border-radius: var(--violet-radius-md);
+		border-radius: var(--violet-radius-control);
 		background: var(--violet-color-action-secondary-background);
 		color: var(--violet-color-action-secondary-text);
 		font: inherit;
@@ -125,14 +125,14 @@ export const documentsStyles = css`
 	.field:focus-visible {
 		border-color: var(--violet-color-field-border-focus);
 		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
-		outline-offset: var(--violet-size-space-xs);
+		outline-offset: var(--violet-space-inline-hairline);
 	}
 	.button:focus-visible,
 	.check input:focus-visible,
 	h1:focus-visible,
 	a:focus-visible {
 		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
-		outline-offset: var(--violet-size-space-xs);
+		outline-offset: var(--violet-space-inline-hairline);
 	}
 	h1:focus:not(:focus-visible) {
 		outline: none;
@@ -142,7 +142,7 @@ export const documentsStyles = css`
 		min-block-size: var(--violet-size-target-compact);
 		color: var(--violet-color-text-primary);
 		text-decoration: underline;
-		text-underline-offset: var(--violet-size-space-xs);
+		text-underline-offset: var(--violet-space-inline-hairline);
 		overflow-wrap: anywhere;
 	}
 	table {
@@ -151,24 +151,24 @@ export const documentsStyles = css`
 	}
 	th,
 	td {
-		padding-block: var(--violet-space-stack-xs);
-		padding-inline: var(--violet-space-inline-sm);
+		padding-block: var(--violet-space-stack-tight);
+		padding-inline: var(--violet-space-inline-tight);
 		border-block-end: 1px solid var(--violet-color-border-subtle);
 		text-align: start;
 		vertical-align: top;
 		overflow-wrap: anywhere;
 	}
 	th {
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
-		font-weight: var(--violet-type-label-sm-weight);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
+		font-weight: var(--violet-type-label-weight);
 	}
 	.actions,
 	.tools {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: end;
-		gap: var(--violet-space-inline-sm);
+		gap: var(--violet-space-inline-tight);
 	}
 	.said {
 		position: absolute;

@@ -18,9 +18,9 @@ const styles = [
 			display: flex;
 			align-items: center;
 			justify-content: space-between;
-			gap: var(--violet-space-inline-sm);
+			gap: var(--violet-space-inline-tight);
 			block-size: var(--violet-shell-size-statusbar);
-			padding-inline: var(--violet-space-inline-md);
+			padding-inline: var(--violet-space-inline-group);
 			background: var(--violet-color-surface-subtle);
 			color: var(--violet-color-text-secondary);
 			border-block-start: 1px solid var(--violet-color-border-subtle);
@@ -29,7 +29,7 @@ const styles = [
 		.start,
 		.end {
 			display: inline-flex;
-			gap: var(--violet-space-inline-sm);
+			gap: var(--violet-space-inline-tight);
 			min-inline-size: 0;
 		}
 		.end {

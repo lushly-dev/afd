@@ -27,7 +27,7 @@ not in the contract and fails the lint.
 |------|------------|
 | `endpoints/loam/docs/design.md` | **The design record.** Edit it with any rule change |
 | `endpoints/loam/packages/theme/tree/` | **The values.** DTCG token files (one per node): `loam.tokens.json` (primitives and light defaults), `loam_{light,dark,high-contrast}.tokens.json`, and `loam_<theme>_compact.tokens.json` |
-| `endpoints/loam/packages/theme/contract/tokens.json` | The contract, version 1: 138 ids (119 component, 19 shell). The component ids cover `violet-elements`' token interface (`tokens/interface.json`, which that package owns). Regenerate with `theme:check --write` |
+| `endpoints/loam/packages/theme/contract/tokens.json` | The contract, version 3: 123 ids (104 component, 19 shell). The component ids cover `violet-elements`' token interface (`tokens/interface.json`, which that package owns). Regenerate with `theme:check --write` |
 | `endpoints/loam/packages/theme/src/pairs.ts` | The color pairs and their floors, checked by `theme`'s `test` |
 | `endpoints/loam/packages/theme/scripts/lint-tokens.mjs` | The token-only lint, `loam-lint-tokens` |
 | [references/tokens.md](references/tokens.md) | Every token family with its values per theme and density |
@@ -56,7 +56,7 @@ not in the contract and fails the lint.
 
 | Layer | Ids | Rule |
 |-------|-----|------|
-| Primitives | `ref.color.*`, `ref.space.*` | Never read or set outside the tree; no export has them |
+| Primitives | `ref.color.*`, `ref.space.*`, `ref.type.*`, `ref.radius.*`, `ref.target.*` | Never read or set outside the tree; no export has them |
 | Component ids | `color.*`, `size.*`, `space.*`, `radius.*`, `shadow.*`, `duration.*`, `easing.*`, `type.*`, `weight.*`, `z-index.*` | Every Loam and shared component reads these |
 | Shell ids | `shell.size.*`, `shell.color.*` | `@lushly-dev/loam-chrome` only |
 
@@ -70,16 +70,16 @@ not in the contract and fails the lint.
 
 ## Type
 
-| Step | Size / line / weight | Use |
+| Role | Size / line / weight | Use |
 |------|----------------------|-----|
-| `type.caption.xs` | 12 / 16 / 400 | Status items, counts, palette key hints |
-| `type.label.sm` | 13 / 16 / 500 | Bar and tab labels, field labels |
-| `type.body.md` | 14 / 20 / 400 | Running text, rows, palette results, empty states |
-| `type.title.sm` | 18 / 24 / 600 | Part headers, the palette's search text |
-| `type.title.md` | 24 / 32 / 600 | Main's empty landing heading only |
+| `type.caption` | 12 / 16 / 400 | Status items, counts, palette key hints |
+| `type.label` | 13 / 16 / 500 | Bar and tab labels, field labels |
+| `type.body` | 14 / 20 / 400 | Running text, rows, palette results, empty states |
+| `type.heading.section` | 18 / 24 / 600 | Part headers, the palette's search text |
+| `type.heading.page` | 24 / 32 / 600 | Main's empty landing heading only |
 
-Read a step's three ids together (`type.body.md.size`, `.line`, `.weight`),
-never mix two steps, never `weight.light` in the chrome. Density does not change type. Family:
+Read a role's three ids together (`type.body.size`, `.line`, `.weight`),
+never mix two roles, never `weight.light` in the chrome. Density does not change type. Family:
 `font.family.body` (Inter) for the interface, `font.family.heading` (Space
 Grotesk) for title steps, `font.family.mono` (IBM Plex Mono) for code; read
 the ids, never a literal stack. Loam ships the faces (`loam-fonts.css`).
@@ -115,15 +115,13 @@ drawn in is Lushly's and lives in Lushly.
 
 ## Density
 
-`compact` changes only `size.space.{sm,md,lg,xl}`, `space.inline.*`,
+`compact` changes only `space.inline.{tight,group}`,
 `space.stack.*`, `size.target.{natural,comfortable}` and
 `shell.size.{titlebar,rail,tabbar}`. No target goes below 24px
-(`size.target.compact`). `space.layout.*`, type, radii, colors, motion and
+(`size.target.compact`). `space.inline.hairline` (2px), `space.layout.*`, type, radii, colors, motion and
 part widths never change. Density is not the compact layout class.
 
-Inside a control: `size.space.*`. Between controls in a row:
-`space.inline.*`. Between stacked rows: `space.stack.*`. Around and between
-regions: `space.layout.*`.
+Between controls in a row or tight hairlines: `space.inline.*`. Between stacked rows: `space.stack.*`. Around and between regions: `space.layout.*`.
 
 ## The parts
 
@@ -137,16 +135,16 @@ regions: `space.layout.*`.
 | panel | `--_panel-height`; `shell.size.panel.{default,min}` 240, 120 | `color.surface.card` |
 | status bar | `shell.size.statusbar` (24 in both); targets `size.target.compact` | `color.surface.subtle` |
 | tab bar | `shell.size.tabbar` (56, 48); targets `size.target.comfortable` | `color.surface.subtle` |
-| drawer, sheet, palette | drawer `min(85vw, var(--violet-shell-size-drawer-max))`; sheet `40dvh` to `80dvh` | `color.surface.floating`, `shadow.floating` (palette also `radius.lg`) |
+| drawer, sheet, palette | drawer `min(85vw, var(--violet-shell-size-drawer-max))`; sheet `40dvh` to `80dvh` | `color.surface.floating`, `shadow.floating` (palette also `radius.floating`) |
 
 - Parts abut, flat and square, with a `1px` `color.border.subtle` line
   between inline parts. Only floating layers take a shadow.
-- Shape: `radius.md` for controls and items, `radius.lg` for floating
-  layers, `radius.sm` for small marks, `radius.round` for pills.
-- Gutters: part inset `space.layout.sm`; main inset and group gap
-  `space.layout.md`; bar padding `space.inline.md`; gap between bar items
-  `space.inline.sm`; part header block padding `space.stack.sm`; between list
-  rows `space.stack.xs`.
+- Shape: `radius.control` for controls and items, `radius.floating` for floating
+  layers, `radius.inset` for small marks, `radius.round` for pills.
+- Gutters: part inset `space.layout.panel`; main inset and group gap
+  `space.layout.page`; bar padding `space.inline.group`; gap between bar items
+  `space.inline.tight`; part header block padding `space.stack.group`; between list
+  rows `space.stack.tight`.
 - Handle: a `shell.size.handle` (4px) bar centered on the boundary in
   `shell.color.handle.rest`, `.hover` under the pointer, `.active` while
   dragged or focused; a 24px (`size.target.compact`) transparent hit area;
@@ -174,7 +172,7 @@ determinate `violet-progress`, never `violet-spinner` or an indeterminate
 ## Focus and state
 
 - Focus: `outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring)`,
-  `outline-offset: var(--violet-size-space-xs)`, on `:focus-visible` only. 2px, 3px
+  `outline-offset: var(--violet-space-inline-hairline)`, on `:focus-visible` only. 2px, 3px
   in high contrast. Never clipped; never removed without an equal
   replacement. F6 and Shift+F6 move between parts; modals trap focus and
   return it.
@@ -184,7 +182,7 @@ determinate `violet-progress`, never `violet-spinner` or an indeterminate
   hovered or pressed item `color.text.secondary` or stronger, never
   `color.text.muted` (it drops under 4.5:1); selected
   `color.control.selected.{background,foreground}` plus a 2px
-  (`size.space.xs`) start-edge bar and `aria-selected`/`aria-current`/
+  (`space.inline.hairline`) start-edge bar and `aria-selected`/`aria-current`/
   `aria-pressed`; disabled `opacity: 0.55`, `cursor: not-allowed`, no hover,
   native `disabled` or `aria-disabled="true"` when it must keep focus for a
   tooltip; invalid `color.field.border.invalid`, `aria-invalid="true"` and
@@ -214,7 +212,7 @@ fit a closable tab) and one tab panel.
 
 - A tab is a `button` with `role="tab"`, a roving `tabindex`, and a name that
   says `(preview)`, `, pinned` and `, unsaved`. Selected: the page background,
-  a `size.space.xs` block-end bar of `color.control.selected.foreground`, and
+  a `space.inline.hairline` block-end bar of `color.control.selected.foreground`, and
   `aria-selected`; preview: italics and its name; unsaved: `●` and its name.
 - Its close and menu buttons are siblings, `aria-hidden` and `tabindex="-1"`,
   for the pointer only: a named button inside a `tablist` fails axe's
@@ -276,7 +274,7 @@ stories, and say so in the pull request.
 icons in version 1), and register each icon used: import
 `@lushly-dev/violet-elements/icons/system-<name>` and call its register function
 (`registerSystemSearchIcon()`); importing `violet-icon` registers none. Beside text it is 1em; alone, set `--violet-icon-size`
-from `size.line.sm` (title bar, status bar) or `size.line.md` (rail, tab bar,
+from `type.caption.line` (title bar, status bar) or `type.body.line` (rail, tab bar,
 part headers). Color is `currentColor`. Inside a named control it is
 `decorative`; standing alone it takes a `label`. New icons go into
 `violet-elements`' registry; never inline SVG.

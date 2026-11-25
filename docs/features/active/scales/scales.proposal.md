@@ -8,8 +8,7 @@
   - All 41 position-named tokens in Loam and repo-wide CSS consumers were audited on 2026-11-22.
   - All eight scenario files pass the three `jobs-first` checks plus a `REF IN EXPECT` scan ([STATUS.md](STATUS.md#how-the-jobs-were-checked)).
   - Fresh three-seat reader walk and two-model independent review completed ([section 4](#4-what-the-walk-and-review-changed)); every blocker and improvement was applied and the checks re-run clean.
-- **Not verified:**
-  - Phase 2 ([#2197](https://github.com/lushly-dev/afd/issues/2197), Loam / `violet-elements` `contractVersion: 3` cutover) is tracked separately.
+- **Not verified:** None — Phase 1 ([#2295](https://github.com/lushly-dev/afd/pull/2295)), Phase 3 / Slice 2 ([#2536](https://github.com/lushly-dev/afd/pull/2536)), and Phase 2 ([#2532](https://github.com/lushly-dev/afd/pull/2532)) cover all eight scenarios (`01`–`08`) and the repo-wide `contractVersion: 3` cutover.
 
 | Field | Value |
 | --- | --- |

@@ -3,9 +3,9 @@
 	"note": "The site in print: a 3px corner on controls, square panels, one resting rule under a field, ink on mint for what is chosen, hard shadows only under what floats.",
 	"added": {},
 	"light": {
-		"radius.sm": "2px",
-		"radius.md": "3px",
-		"radius.lg": "0px",
+		"radius.inset": "2px",
+		"radius.control": "3px",
+		"radius.floating": "0px",
 		"size.target.compact": "32px",
 		"size.target.natural": "32px",
 		"size.focus-ring.width": "2px",
@@ -17,13 +17,13 @@
 		"color.state.success.border": "@mint-ink",
 		"color.state.danger.border": "@red-ink",
 		"color.state.warning.border": "@amber-800",
-		"type.body.md.size": "15px",
-		"type.label.sm.size": "13px",
-		"type.label.sm.weight": "600",
-		"type.caption.xs.size": "12px",
-		"type.caption.xs.line": "16px",
-		"type.title.sm.weight": "700",
-		"type.title.md.weight": "700"
+		"type.body.size": "15px",
+		"type.label.size": "13px",
+		"type.label.weight": "600",
+		"type.caption.size": "12px",
+		"type.caption.line": "16px",
+		"type.heading.section.weight": "700",
+		"type.heading.page.weight": "700"
 	},
 	"dark": {
 		"shadow.control": "0 1px 0 @black/0.5",
@@ -36,7 +36,7 @@
 	"css": [
 		"radius: split radius.md into a control radius (button, icon-button, text-field, text-area, select, combobox, the pickers, segment, pagination, checkbox) and a surface radius (card, alert, menu, popover, listbox, option, tooltip, accordion-item, tree, tab, progress, skeleton). Ruled wants 3px or the site's 4px on controls and 0 on surfaces; today one token rounds both, so cards, menus and popovers carry 3px they should not. Alert also multiplies it (calc(var(--_radius-md) * 1.5), 4.5px) and tab adds 2px: both should read the surface radius as it is.",
 		"button, icon-button: give hover its own shadow token instead of shadow.control, which is also the resting shadow of every field, checkbox, radio and switch. Then .control:hover { transform: translate(-1px, -1px); box-shadow: 2px 2px 0 var(--violet-color-text-primary) } and .control:active { transform: none; box-shadow: none }: the site's hard offset as the lift, and a press that sets it back down.",
-		"text-field, text-area, select, combobox, date-picker, time-picker, slider, segmented-control, progress .label; data-grid header cells; option-group heading; tree label: font-family: var(--violet-font-family-mono); font-size: var(--violet-type-caption-xs-size); text-transform: uppercase; letter-spacing: 0.06em. No component reads font.family.mono today, so the site's label voice is missing from every form.",
+		"text-field, text-area, select, combobox, date-picker, time-picker, slider, segmented-control, progress .label; data-grid header cells; option-group heading; tree label: font-family: var(--violet-font-family-mono); font-size: var(--violet-type-caption-size); text-transform: uppercase; letter-spacing: 0.06em. No component reads font.family.mono today, so the site's label voice is missing from every form.",
 		"text-field, text-area, select, combobox, the pickers .control-frame: background: var(--violet-color-field-background) in place of var(--_surface-page), and read color.field.background.readonly, color.field.placeholder, color.field.text and color.field.border.focus. The theme sets all five and nothing reads them, so a field is the page's own colour and cannot be a lighter well.",
 		"badge .badge: border-radius from the control radius, not radius.round; font-family mono, uppercase, letter-spacing 0.06em; font-weight 500 (it reads --_type-label-weight, which its token block never defines, so it falls to 400). The site's chips are square mono labels; a pill is the one shape here the site never draws.",
 		"button .control[data-appearance=\"quiet\"]: border-color: transparent; text-decoration: underline; text-underline-offset: 3px (the site's text link), with background: var(--_action-secondary-hover) on hover. With a 1px border.subtle edge it reads as a disabled secondary button beside a real one.",

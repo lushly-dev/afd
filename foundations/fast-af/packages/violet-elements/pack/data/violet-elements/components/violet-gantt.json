@@ -73,17 +73,17 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-type-label-sm-line, 16px)",
+				"default": "var(--violet-type-label-line, 16px)",
 				"name": "--_gantt-axis-line"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-type-label-sm-size, 13px)",
+				"default": "var(--violet-type-label-size, 13px)",
 				"name": "--_gantt-axis-size"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-type-label-sm-line, 16px)",
+				"default": "var(--violet-type-label-line, 16px)",
 				"name": "--_gantt-content-line"
 			},
 			{
@@ -123,7 +123,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-type-label-sm-weight, 500)",
+				"default": "var(--violet-type-label-weight, 500)",
 				"name": "--_gantt-type-weight"
 			},
 			{

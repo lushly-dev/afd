@@ -1063,7 +1063,7 @@ describe('P2-E13: E2: the host context', () => {
 		expect(context.displayMode).toBe('inline');
 		expect(context.containerDimensions.width).toBeGreaterThan(0);
 		expect(context.containerDimensions.height).toBeGreaterThan(0);
-		expect(Object.keys(context['dev.loam/tokens']).length).toBe(119);
+		expect(Object.keys(context['dev.loam/tokens']).length).toBe(104);
 		expect(context['dev.loam/tokens']['--violet-color-surface-page']).not.toBe('');
 		expect(
 			Object.keys(context['dev.loam/tokens']).some(

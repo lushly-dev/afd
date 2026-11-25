@@ -6,9 +6,9 @@
 	--text: var(--violet-color-text-primary);
 	--text-secondary: var(--violet-color-text-secondary);
 	--border: var(--violet-color-border-subtle);
-	--card-radius: var(--violet-radius-lg);
+	--card-radius: var(--violet-radius-floating);
 	--card-shadow: var(--violet-shadow-card);
-	--gap: var(--violet-space-layout-sm);
+	--gap: var(--violet-space-layout-panel);
 }
 
 * {
@@ -20,7 +20,7 @@ body {
 	background: var(--page-bg);
 	color: var(--text);
 	font-family: var(--violet-font-family-body);
-	font-size: var(--violet-type-body-md-size);
+	font-size: var(--violet-type-body-size);
 	line-height: 1.5;
 }
 

@@ -52,7 +52,7 @@ const navStyles = css`
 		margin: 0;
 		padding: 0;
 		list-style: none;
-		gap: var(--violet-space-inline-sm);
+		gap: var(--violet-space-inline-tight);
 	}
 	.bands {
 		min-block-size: 0;
@@ -144,9 +144,9 @@ export const railDefinition = {
 				display: flex;
 				flex-direction: column;
 				align-items: center;
-				gap: var(--violet-space-inline-sm);
+				gap: var(--violet-space-inline-tight);
 				inline-size: var(--violet-shell-size-rail);
-				padding-block: var(--violet-space-stack-sm);
+				padding-block: var(--violet-space-stack-group);
 				background: var(--violet-color-surface-subtle);
 				border-inline-end: 1px solid var(--violet-color-border-subtle);
 			}
@@ -183,9 +183,9 @@ export const tabbarDefinition = {
 				display: flex;
 				align-items: center;
 				justify-content: safe center;
-				gap: var(--violet-space-inline-sm);
+				gap: var(--violet-space-inline-tight);
 				block-size: var(--violet-shell-size-tabbar);
-				padding-inline: var(--violet-space-inline-md);
+				padding-inline: var(--violet-space-inline-group);
 				background: var(--violet-color-surface-subtle);
 				border-block-start: 1px solid var(--violet-color-border-subtle);
 			}

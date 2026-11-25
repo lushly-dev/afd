@@ -7,7 +7,7 @@ export const consoleStyles = css`
 		display: block;
 		box-sizing: border-box;
 		container-type: inline-size;
-		padding: var(--violet-space-layout-md);
+		padding: var(--violet-space-layout-page);
 		color: var(--violet-color-text-primary);
 		--violet-listbox-min-inline-size: 0;
 	}
@@ -26,27 +26,27 @@ export const consoleStyles = css`
 		padding: 0;
 	}
 	h1 {
-		font-size: var(--violet-type-title-md-size);
-		line-height: var(--violet-type-title-md-line);
-		font-weight: var(--violet-type-title-md-weight);
+		font-size: var(--violet-type-heading-page-size);
+		line-height: var(--violet-type-heading-page-line);
+		font-weight: var(--violet-type-heading-page-weight);
 		overflow-wrap: anywhere;
 	}
 	h2 {
-		font-size: var(--violet-type-title-sm-size);
-		line-height: var(--violet-type-title-sm-line);
-		font-weight: var(--violet-type-title-sm-weight);
+		font-size: var(--violet-type-heading-section-size);
+		line-height: var(--violet-type-heading-section-line);
+		font-weight: var(--violet-type-heading-section-weight);
 		overflow-wrap: anywhere;
 	}
 	/* minmax(0, 1fr), so an unbroken name wraps at 320 CSS pixels and does not widen the rest (WCAG 1.4.10). */
 	.stack {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
-		gap: var(--violet-space-layout-md);
+		gap: var(--violet-space-layout-page);
 	}
 	.group {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
-		gap: var(--violet-space-stack-sm);
+		gap: var(--violet-space-stack-group);
 		align-content: start;
 		min-inline-size: 0;
 	}
@@ -56,8 +56,8 @@ export const consoleStyles = css`
 	}
 	.name {
 		color: var(--violet-color-text-secondary);
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
 		overflow-wrap: anywhere;
 	}
 	.notice,
@@ -74,9 +74,9 @@ export const consoleStyles = css`
 	 * forced colors, below.
 	 */
 	.notice {
-		padding: var(--violet-space-layout-sm);
+		padding: var(--violet-space-layout-panel);
 		border: 1px solid transparent;
-		border-radius: var(--violet-radius-lg);
+		border-radius: var(--violet-radius-floating);
 		background: var(--violet-color-surface-card);
 		box-shadow: var(--violet-shadow-card);
 	}
@@ -92,12 +92,12 @@ export const consoleStyles = css`
 	.instance {
 		display: flex;
 		flex-wrap: wrap;
-		gap: var(--violet-space-stack-xs) var(--violet-space-layout-md);
+		gap: var(--violet-space-stack-tight) var(--violet-space-layout-page);
 	}
 	.instance dt {
 		color: var(--violet-color-text-secondary);
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
 	}
 	.instance dd {
 		overflow-wrap: anywhere;
@@ -105,7 +105,7 @@ export const consoleStyles = css`
 	.columns {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
-		gap: var(--violet-space-layout-md);
+		gap: var(--violet-space-layout-page);
 		align-items: start;
 	}
 	@container (min-inline-size: 720px) {
@@ -116,27 +116,27 @@ export const consoleStyles = css`
 	.fields {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
-		gap: var(--violet-space-layout-sm);
+		gap: var(--violet-space-layout-panel);
 	}
 	.actions {
 		display: flex;
 		align-items: center;
-		gap: var(--violet-space-inline-md);
+		gap: var(--violet-space-inline-group);
 		min-block-size: var(--violet-size-target-natural);
 	}
 	.result {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
-		gap: var(--violet-space-stack-sm);
+		gap: var(--violet-space-stack-group);
 	}
 	.labels {
 		display: flex;
 		flex-wrap: wrap;
-		gap: var(--violet-space-stack-xs) var(--violet-space-inline-md);
+		gap: var(--violet-space-stack-tight) var(--violet-space-inline-group);
 		list-style: none;
 		color: var(--violet-color-text-secondary);
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
 	}
 	.labels li {
 		overflow-wrap: anywhere;
@@ -147,10 +147,10 @@ export const consoleStyles = css`
 	.output {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
-		gap: var(--violet-space-stack-sm);
-		padding: var(--violet-space-layout-sm);
+		gap: var(--violet-space-stack-group);
+		padding: var(--violet-space-layout-panel);
 		border: 1px solid transparent;
-		border-radius: var(--violet-radius-lg);
+		border-radius: var(--violet-radius-floating);
 		background: var(--violet-color-surface-card);
 		box-shadow: var(--violet-shadow-card);
 		overflow: auto;
@@ -158,8 +158,8 @@ export const consoleStyles = css`
 	.output pre {
 		margin: 0;
 		font-family: var(--violet-font-family-mono);
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
 		white-space: pre-wrap;
 		overflow-wrap: anywhere;
 	}
@@ -209,27 +209,27 @@ export const consoleStyles = css`
 		overflow-wrap: anywhere;
 	}
 	violet-listbox::part(control):focus-visible {
-		outline: var(--violet-size-space-xs) solid var(--violet-color-focus-ring);
-		outline-offset: var(--violet-size-space-xs);
+		outline: var(--violet-space-inline-hairline) solid var(--violet-color-focus-ring);
+		outline-offset: var(--violet-space-inline-hairline);
 	}
 	violet-listbox:focus-within violet-option[data-active]::part(control),
 	violet-select violet-option[data-active]::part(control) {
-		outline: var(--violet-size-space-xs) solid var(--violet-color-focus-ring);
-		outline-offset: calc(-1 * var(--violet-size-space-xs));
+		outline: var(--violet-space-inline-hairline) solid var(--violet-color-focus-ring);
+		outline-offset: calc(-1 * var(--violet-space-inline-hairline));
 	}
 	violet-listbox violet-option[selected]::part(control) {
-		border-inline-start: var(--violet-size-space-xs) solid var(--violet-color-control-selected-foreground);
+		border-inline-start: var(--violet-space-inline-hairline) solid var(--violet-color-control-selected-foreground);
 		background: var(--violet-color-control-selected-background);
 		color: var(--violet-color-control-selected-foreground);
 	}
 	.row-title {
-		font-size: var(--violet-type-body-md-size);
-		line-height: var(--violet-type-body-md-line);
+		font-size: var(--violet-type-body-size);
+		line-height: var(--violet-type-body-line);
 		overflow-wrap: anywhere;
 	}
 	.row-flag {
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
 	}
 	@media (forced-colors: active) {
 		:host,

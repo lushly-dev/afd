@@ -79,7 +79,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-menu-radius, var(--violet-radius-lg, 12px))",
+				"default": "var(--violet-menu-radius, var(--violet-radius-floating, 12px))",
 				"name": "--_panel-radius"
 			},
 			{

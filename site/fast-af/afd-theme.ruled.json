@@ -3,7 +3,7 @@
 	"title": "Ruled",
 	"note": "The site in print: a 3px corner on controls, square panels, one resting rule under a field, ink on mint for what is chosen, hard shadows only under what floats.",
 	"status": "draft",
-	"built": "2026-11-24",
+	"built": "2026-11-25",
 	"from": "site/css/tokens-m2.css",
 	"palette": {
 		"site": {
@@ -71,7 +71,7 @@
 	"css": [
 		"radius: split radius.md into a control radius (button, icon-button, text-field, text-area, select, combobox, the pickers, segment, pagination, checkbox) and a surface radius (card, alert, menu, popover, listbox, option, tooltip, accordion-item, tree, tab, progress, skeleton). Ruled wants 3px or the site's 4px on controls and 0 on surfaces; today one token rounds both, so cards, menus and popovers carry 3px they should not. Alert also multiplies it (calc(var(--_radius-md) * 1.5), 4.5px) and tab adds 2px: both should read the surface radius as it is.",
 		"button, icon-button: give hover its own shadow token instead of shadow.control, which is also the resting shadow of every field, checkbox, radio and switch. Then .control:hover { transform: translate(-1px, -1px); box-shadow: 2px 2px 0 var(--violet-color-text-primary) } and .control:active { transform: none; box-shadow: none }: the site's hard offset as the lift, and a press that sets it back down.",
-		"text-field, text-area, select, combobox, date-picker, time-picker, slider, segmented-control, progress .label; data-grid header cells; option-group heading; tree label: font-family: var(--violet-font-family-mono); font-size: var(--violet-type-caption-xs-size); text-transform: uppercase; letter-spacing: 0.06em. No component reads font.family.mono today, so the site's label voice is missing from every form.",
+		"text-field, text-area, select, combobox, date-picker, time-picker, slider, segmented-control, progress .label; data-grid header cells; option-group heading; tree label: font-family: var(--violet-font-family-mono); font-size: var(--violet-type-caption-size); text-transform: uppercase; letter-spacing: 0.06em. No component reads font.family.mono today, so the site's label voice is missing from every form.",
 		"text-field, text-area, select, combobox, the pickers .control-frame: background: var(--violet-color-field-background) in place of var(--_surface-page), and read color.field.background.readonly, color.field.placeholder, color.field.text and color.field.border.focus. The theme sets all five and nothing reads them, so a field is the page's own colour and cannot be a lighter well.",
 		"badge .badge: border-radius from the control radius, not radius.round; font-family mono, uppercase, letter-spacing 0.06em; font-weight 500 (it reads --_type-label-weight, which its token block never defines, so it falls to 400). The site's chips are square mono labels; a pill is the one shape here the site never draws.",
 		"button .control[data-appearance=\"quiet\"]: border-color: transparent; text-decoration: underline; text-underline-offset: 3px (the site's text link), with background: var(--_action-secondary-hover) on hover. With a 1px border.subtle edge it reads as a disabled secondary button beside a real one.",
@@ -953,20 +953,20 @@
 					"value": "\"IBM Plex Mono\", ui-monospace, Consolas, monospace"
 				},
 				{
-					"id": "radius.lg",
+					"id": "radius.control",
+					"value": "3px"
+				},
+				{
+					"id": "radius.floating",
 					"value": "0px"
 				},
 				{
-					"id": "radius.md",
-					"value": "3px"
+					"id": "radius.inset",
+					"value": "2px"
 				},
 				{
 					"id": "radius.round",
 					"value": "9999px"
-				},
-				{
-					"id": "radius.sm",
-					"value": "2px"
 				},
 				{
 					"id": "shadow.card",
@@ -989,66 +989,6 @@
 					"value": "2px"
 				},
 				{
-					"id": "size.font.lg",
-					"value": "18px"
-				},
-				{
-					"id": "size.font.md",
-					"value": "14px"
-				},
-				{
-					"id": "size.font.sm",
-					"value": "12px"
-				},
-				{
-					"id": "size.font.xl",
-					"value": "24px"
-				},
-				{
-					"id": "size.font.xs",
-					"value": "11px"
-				},
-				{
-					"id": "size.line.lg",
-					"value": "24px"
-				},
-				{
-					"id": "size.line.md",
-					"value": "20px"
-				},
-				{
-					"id": "size.line.sm",
-					"value": "16px"
-				},
-				{
-					"id": "size.line.xl",
-					"value": "32px"
-				},
-				{
-					"id": "size.line.xs",
-					"value": "14px"
-				},
-				{
-					"id": "size.space.lg",
-					"value": "12px"
-				},
-				{
-					"id": "size.space.md",
-					"value": "8px"
-				},
-				{
-					"id": "size.space.sm",
-					"value": "4px"
-				},
-				{
-					"id": "size.space.xl",
-					"value": "24px"
-				},
-				{
-					"id": "size.space.xs",
-					"value": "2px"
-				},
-				{
 					"id": "size.target.comfortable",
 					"value": "44px"
 				},
@@ -1061,96 +1001,96 @@
 					"value": "32px"
 				},
 				{
-					"id": "space.inline.lg",
-					"value": "12px"
-				},
-				{
-					"id": "space.inline.md",
+					"id": "space.inline.group",
 					"value": "8px"
 				},
 				{
-					"id": "space.inline.sm",
+					"id": "space.inline.hairline",
+					"value": "2px"
+				},
+				{
+					"id": "space.inline.tight",
 					"value": "4px"
 				},
 				{
-					"id": "space.layout.md",
+					"id": "space.layout.page",
 					"value": "24px"
 				},
 				{
-					"id": "space.layout.sm",
+					"id": "space.layout.panel",
 					"value": "12px"
 				},
 				{
-					"id": "space.stack.md",
-					"value": "12px"
-				},
-				{
-					"id": "space.stack.sm",
+					"id": "space.stack.group",
 					"value": "8px"
 				},
 				{
-					"id": "space.stack.xs",
+					"id": "space.stack.section",
+					"value": "12px"
+				},
+				{
+					"id": "space.stack.tight",
 					"value": "4px"
 				},
 				{
-					"id": "type.body.md.line",
+					"id": "type.body.line",
 					"value": "20px"
 				},
 				{
-					"id": "type.body.md.size",
+					"id": "type.body.size",
 					"value": "15px"
 				},
 				{
-					"id": "type.body.md.weight",
+					"id": "type.body.weight",
 					"value": "400"
 				},
 				{
-					"id": "type.caption.xs.line",
+					"id": "type.caption.line",
 					"value": "16px"
 				},
 				{
-					"id": "type.caption.xs.size",
+					"id": "type.caption.size",
 					"value": "12px"
 				},
 				{
-					"id": "type.caption.xs.weight",
+					"id": "type.caption.weight",
 					"value": "400"
 				},
 				{
-					"id": "type.label.sm.line",
-					"value": "16px"
-				},
-				{
-					"id": "type.label.sm.size",
-					"value": "13px"
-				},
-				{
-					"id": "type.label.sm.weight",
-					"value": "600"
-				},
-				{
-					"id": "type.title.md.line",
+					"id": "type.heading.page.line",
 					"value": "32px"
 				},
 				{
-					"id": "type.title.md.size",
+					"id": "type.heading.page.size",
 					"value": "24px"
 				},
 				{
-					"id": "type.title.md.weight",
+					"id": "type.heading.page.weight",
 					"value": "700"
 				},
 				{
-					"id": "type.title.sm.line",
+					"id": "type.heading.section.line",
 					"value": "24px"
 				},
 				{
-					"id": "type.title.sm.size",
+					"id": "type.heading.section.size",
 					"value": "18px"
 				},
 				{
-					"id": "type.title.sm.weight",
+					"id": "type.heading.section.weight",
 					"value": "700"
+				},
+				{
+					"id": "type.label.line",
+					"value": "16px"
+				},
+				{
+					"id": "type.label.size",
+					"value": "13px"
+				},
+				{
+					"id": "type.label.weight",
+					"value": "600"
 				},
 				{
 					"id": "weight.light",

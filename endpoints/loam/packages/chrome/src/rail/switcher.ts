@@ -101,9 +101,9 @@ const styles = css`
 	}
 	dialog {
 		inline-size: min(92vw, var(--violet-shell-size-main-min));
-		padding: var(--violet-space-layout-sm);
+		padding: var(--violet-space-layout-panel);
 		border: 0;
-		border-radius: var(--violet-radius-lg);
+		border-radius: var(--violet-radius-floating);
 		background: var(--violet-color-surface-floating);
 		box-shadow: var(--violet-shadow-floating);
 	}
@@ -111,10 +111,10 @@ const styles = css`
 		background: color-mix(in srgb, var(--violet-color-surface-page) 60%, transparent);
 	}
 	.failure {
-		margin: var(--violet-space-stack-xs) 0 0;
+		margin: var(--violet-space-stack-tight) 0 0;
 		color: var(--violet-color-state-danger-text);
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
 	}
 	violet-listbox::part(control):focus-visible {
 		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);

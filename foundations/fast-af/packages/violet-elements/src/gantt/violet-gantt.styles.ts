@@ -21,11 +21,11 @@ export const violetGanttStyles = css`
     --_gantt-actual: var(--violet-gantt-actual-border, #186f83);
     --_gantt-advisory: var(--violet-gantt-advisory-border, #9a6700);
     --_gantt-selection: var(--violet-gantt-selection-ring, #4b67b0);
-    --_gantt-axis-size: var(--violet-type-label-sm-size, 13px);
-    --_gantt-axis-line: var(--violet-type-label-sm-line, 16px);
+    --_gantt-axis-size: var(--violet-type-label-size, 13px);
+    --_gantt-axis-line: var(--violet-type-label-line, 16px);
     --_gantt-content-size: var(--violet-control-type-size, 13px);
-    --_gantt-content-line: var(--violet-type-label-sm-line, 16px);
-    --_gantt-type-weight: var(--violet-type-label-sm-weight, 500);
+    --_gantt-content-line: var(--violet-type-label-line, 16px);
+    --_gantt-type-weight: var(--violet-type-label-weight, 500);
     --_gantt-expander-width: 24px;
     --_gantt-tree-gap: calc(var(--_space-sm) / 2);
   }

@@ -1,5 +1,5 @@
 {
-	"contractVersion": 4,
+	"contractVersion": 5,
 	"package": "@lushly-dev/violet-elements",
 	"description": "Every custom property the violet-elements components read, by token id, with its type. Each property is `--`, cssPrefix, `-` and the id with `.` replaced by `-` (@lushly-dev/violet-runtime/property), which is what @lushly-dev/violet-core’s CSS exporter writes with that prefix. A product theme set supplies a value for each, in its default preset; reserved ids are part of the interface that no component reads yet. contractVersion changes whenever an id is added, removed, renamed or retyped, or cssPrefix changes.",
 	"cssPrefix": "violet",
@@ -228,20 +228,20 @@
 			"property": "--violet-font-family-mono",
 			"type": "fontFamily"
 		},
-		"radius.lg": {
-			"property": "--violet-radius-lg",
+		"radius.control": {
+			"property": "--violet-radius-control",
 			"type": "dimension"
 		},
-		"radius.md": {
-			"property": "--violet-radius-md",
+		"radius.floating": {
+			"property": "--violet-radius-floating",
+			"type": "dimension"
+		},
+		"radius.inset": {
+			"property": "--violet-radius-inset",
 			"type": "dimension"
 		},
 		"radius.round": {
 			"property": "--violet-radius-round",
-			"type": "dimension"
-		},
-		"radius.sm": {
-			"property": "--violet-radius-sm",
 			"type": "dimension"
 		},
 		"shadow.card": {
@@ -264,14 +264,6 @@
 			"property": "--violet-size-focus-ring-width",
 			"type": "dimension"
 		},
-		"size.font.md": {
-			"property": "--violet-size-font-md",
-			"type": "dimension"
-		},
-		"size.font.sm": {
-			"property": "--violet-size-font-sm",
-			"type": "dimension"
-		},
 		"size.target.comfortable": {
 			"property": "--violet-size-target-comfortable",
 			"type": "dimension"
@@ -284,88 +276,88 @@
 			"property": "--violet-size-target-natural",
 			"type": "dimension"
 		},
-		"space.inline.md": {
-			"property": "--violet-space-inline-md",
+		"space.inline.group": {
+			"property": "--violet-space-inline-group",
 			"type": "dimension"
 		},
-		"space.inline.sm": {
-			"property": "--violet-space-inline-sm",
+		"space.inline.tight": {
+			"property": "--violet-space-inline-tight",
 			"type": "dimension"
 		},
-		"space.layout.md": {
-			"property": "--violet-space-layout-md",
+		"space.layout.page": {
+			"property": "--violet-space-layout-page",
 			"type": "dimension"
 		},
-		"space.layout.sm": {
-			"property": "--violet-space-layout-sm",
+		"space.layout.panel": {
+			"property": "--violet-space-layout-panel",
 			"type": "dimension"
 		},
-		"space.stack.sm": {
-			"property": "--violet-space-stack-sm",
+		"space.stack.group": {
+			"property": "--violet-space-stack-group",
 			"type": "dimension"
 		},
-		"space.stack.xs": {
-			"property": "--violet-space-stack-xs",
+		"space.stack.tight": {
+			"property": "--violet-space-stack-tight",
 			"type": "dimension"
 		},
-		"type.body.md.line": {
-			"property": "--violet-type-body-md-line",
+		"type.body.line": {
+			"property": "--violet-type-body-line",
 			"type": "dimension"
 		},
-		"type.body.md.size": {
-			"property": "--violet-type-body-md-size",
+		"type.body.size": {
+			"property": "--violet-type-body-size",
 			"type": "dimension"
 		},
-		"type.body.md.weight": {
-			"property": "--violet-type-body-md-weight",
+		"type.body.weight": {
+			"property": "--violet-type-body-weight",
 			"type": "fontWeight"
 		},
-		"type.caption.xs.line": {
-			"property": "--violet-type-caption-xs-line",
+		"type.caption.line": {
+			"property": "--violet-type-caption-line",
 			"type": "dimension"
 		},
-		"type.caption.xs.size": {
-			"property": "--violet-type-caption-xs-size",
+		"type.caption.size": {
+			"property": "--violet-type-caption-size",
 			"type": "dimension"
 		},
-		"type.caption.xs.weight": {
-			"property": "--violet-type-caption-xs-weight",
+		"type.caption.weight": {
+			"property": "--violet-type-caption-weight",
 			"type": "fontWeight"
 		},
-		"type.label.sm.line": {
-			"property": "--violet-type-label-sm-line",
+		"type.heading.page.line": {
+			"property": "--violet-type-heading-page-line",
 			"type": "dimension"
 		},
-		"type.label.sm.size": {
-			"property": "--violet-type-label-sm-size",
+		"type.heading.page.size": {
+			"property": "--violet-type-heading-page-size",
 			"type": "dimension"
 		},
-		"type.label.sm.weight": {
-			"property": "--violet-type-label-sm-weight",
+		"type.heading.page.weight": {
+			"property": "--violet-type-heading-page-weight",
 			"type": "fontWeight"
 		},
-		"type.title.md.line": {
-			"property": "--violet-type-title-md-line",
+		"type.heading.section.line": {
+			"property": "--violet-type-heading-section-line",
 			"type": "dimension"
 		},
-		"type.title.md.size": {
-			"property": "--violet-type-title-md-size",
+		"type.heading.section.size": {
+			"property": "--violet-type-heading-section-size",
 			"type": "dimension"
 		},
-		"type.title.md.weight": {
-			"property": "--violet-type-title-md-weight",
+		"type.heading.section.weight": {
+			"property": "--violet-type-heading-section-weight",
 			"type": "fontWeight"
 		},
-		"type.title.sm.line": {
-			"property": "--violet-type-title-sm-line",
+		"type.label.line": {
+			"property": "--violet-type-label-line",
 			"type": "dimension"
 		},
-		"type.title.sm.size": {
-			"property": "--violet-type-title-sm-size",
+		"type.label.size": {
+			"property": "--violet-type-label-size",
 			"type": "dimension"
 		},
-		"type.title.sm.weight": {
-			"property": "--violet-type-title-sm-weight",
+		"type.label.weight": {
+			"property": "--violet-type-label-weight",
 			"type": "fontWeight"
 		},
 		"z-index.base": {
