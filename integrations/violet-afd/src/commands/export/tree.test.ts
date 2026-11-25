@@ -410,6 +410,10 @@ describe('export.tree command', () => {
 					ramp: 'ref.space.*',
 					requireOffRampReason: true,
 					repeatThreshold: 3,
+					warnUneven: {
+						maxRatioSpread: 1.5,
+						ignoreAbove: 1000,
+					},
 					pairWith: {
 						fromSuffix: '.size',
 						toSuffix: '.line',

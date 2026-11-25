@@ -6,7 +6,7 @@
  * message and suggestion those commands report.
  */
 
-import { buildRampRepeatGroups } from './constraints/ramp.js';
+import { buildRampRepeatGroups, buildRampUnevenViolations } from './constraints/ramp.js';
 import { validateConstraintForToken } from './constraints/validators.js';
 import {
 	InheritanceResolutionError,
@@ -271,15 +271,29 @@ export async function validateConstraints(
 		}
 	}
 
-	const checkedTokens = options.filter
-		? allTokens.filter((token) => matchesGlob(token.id, options.filter as string))
-		: allTokens;
+	const checkedTokens = (
+		options.filter
+			? allTokens.filter((token) => matchesGlob(token.id, options.filter as string))
+			: [...allTokens]
+	).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 
-	// Precompute ramp repeat clusters once per ramp constraint across the full node (O(n))
+	// Precompute ramp repeat clusters and uneven-jump checks once per ramp constraint across the full node
 	const repeatGroupsByConstraint = new Map<ConstraintWithSource, Map<string, string[]>>();
+	const unevenByConstraint = new Map<ConstraintWithSource, Map<string, ConstraintViolation>>();
 	for (const constraint of enabled) {
 		if (constraint.config.type === 'ramp') {
 			repeatGroupsByConstraint.set(constraint, buildRampRepeatGroups(constraint.applyTo, tokenMap));
+			if (constraint.config.warnUneven) {
+				unevenByConstraint.set(
+					constraint,
+					buildRampUnevenViolations(
+						constraint as ConstraintWithSource & {
+							config: Extract<ConstraintWithSource['config'], { type: 'ramp' }>;
+						},
+						tokenMap,
+					),
+				);
+			}
 		}
 	}
 
@@ -295,6 +309,7 @@ export async function validateConstraints(
 					constraint,
 					tokenMap,
 					repeatGroupsByConstraint.get(constraint),
+					unevenByConstraint.get(constraint),
 				),
 			);
 		}

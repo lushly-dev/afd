@@ -12,7 +12,7 @@ import { ErrorCodes } from '../types/error-codes.js';
 import { NodeSchema } from '../types/node.js';
 import type { OperationRecord } from '../types/operation.js';
 import { LEGACY_IMPORT_REASON } from './ramp.js';
-import { validateValues } from './validators.js';
+import { validateValue, validateValues } from './validators.js';
 
 const NOW = '2026-11-23T00:00:00.000Z';
 
@@ -405,6 +405,216 @@ describe('validateConstraints with type: "ramp" and pattern.target: "id"', () =>
 		await expect(validateConstraints(db, 'a')).rejects.toMatchObject({
 			code: ErrorCodes.CIRCULAR_REFERENCE,
 		});
+	});
+
+	it('evaluates warnUneven deterministically on config.ramp tokens with ignoreAbove, unit matching, and advisory warning severity', async () => {
+		const { db, node, op, setConstraints } = createStore();
+		await node('studio', null);
+		await node('studio/light', 'studio');
+
+		// Add steps intentionally out of id/value order, mixing px and rem units, a pill sentinel (9999px),
+		// zero/non-numeric tokens, and two uneven jumps in px (min ratio 8/6 = 1.33x; limit 1.33 * 1.5 = 2.0x).
+		for (const [id, value] of [
+			['ref.radius.pill', '9999px'], // > ignoreAbove (1000): excluded
+			['ref.radius.500', '100px'], // 24px -> 100px = 4.17x (uneven)
+			['ref.radius.200', '6px'], // 4px -> 6px = 1.50x (within 2.0x)
+			['ref.radius.100', '4px'],
+			['ref.radius.300', '8px'], // 6px -> 8px = 1.33x (minRatio)
+			['ref.radius.400', '24px'], // 8px -> 24px = 3.00x (uneven)
+			['ref.radius.zero', '0px'], // non-positive: skipped
+			['ref.radius.auto', 'auto'], // non-numeric: skipped
+			['ref.radius.rem.1', '0.25rem'], // separate rem unit group: 0.25 -> 0.5 (2x) -> 1 (2x), even!
+			['ref.radius.rem.2', '0.5rem'],
+			['ref.radius.rem.3', '1rem'],
+		]) {
+			await op('studio', 'add', id, { value: JSON.stringify(value) });
+		}
+
+		await setConstraints('studio', [
+			{
+				id: 'radius-ramp',
+				name: 'Radius ramp with progression check',
+				applyTo: 'radius.*',
+				severity: 'error',
+				config: {
+					type: 'ramp',
+					ramp: 'ref.radius.*',
+					requireOffRampReason: true,
+					repeatThreshold: 2,
+					warnUneven: {
+						maxRatioSpread: 1.5,
+						ignoreAbove: 1000,
+					},
+				},
+			},
+		]);
+
+		const report = await validateConstraints(db, 'studio/light', {
+			filter: 'ref.radius.*',
+			onlyViolating: true,
+		});
+		// Advisory warnings keep the node valid even though constraint.severity is 'error'
+		expect(report.valid).toBe(true);
+		expect(report.summary.errors).toBe(0);
+		expect(report.summary.warnings).toBe(2);
+		// Deterministically ordered by token id (not insertion order)
+		expect(report.results.map((r) => r.tokenId)).toEqual(['ref.radius.400', 'ref.radius.500']);
+		for (const entry of report.results) {
+			expect(entry.valid).toBe(true);
+			expect(entry.violations).toHaveLength(1);
+			expect(entry.violations[0]).toMatchObject({
+				constraintId: 'radius-ramp',
+				severity: 'warning',
+				code: 'ramp:uneven',
+			});
+		}
+
+		// Direct validator registry path also preserves advisory 'warning' severity
+		const resolved = await resolveTokens(db, 'studio/light');
+		const tokenMap = new Map(resolved.tokens.map((t) => [t.id, t]));
+		const step400 = tokenMap.get('ref.radius.400');
+		expect(step400).toBeDefined();
+		const viaRegistry = validateValues(
+			step400?.resolvedValue,
+			{
+				type: 'ramp',
+				ramp: 'ref.radius.*',
+				requireOffRampReason: true,
+				repeatThreshold: 2,
+				warnUneven: { maxRatioSpread: 1.5, ignoreAbove: 1000 },
+			},
+			'radius-ramp',
+			'Radius ramp with progression check',
+			{ allTokens: tokenMap, token: step400, applyTo: 'radius.*', severity: 'error' },
+		);
+		expect(viaRegistry).toHaveLength(1);
+		expect(viaRegistry[0]).toMatchObject({ code: 'ramp:uneven', severity: 'warning' });
+	});
+
+	it('handles warnUneven exact threshold, just-above-threshold jumps, ignoreAbove inclusion boundary, and overlapping globs', async () => {
+		const { db, node, op, setConstraints } = createStore();
+		await node('exact', null);
+		// Exact ratios: 2 -> 4 (2.0x), 4 -> 12 (3.0x); 3.0 == 2.0 * 1.5 exactly (should stay quiet)
+		await op('exact', 'add', 'ref.space.2', { value: JSON.stringify('2px') });
+		await op('exact', 'add', 'ref.space.4', { value: JSON.stringify('4px') });
+		await op('exact', 'add', 'ref.space.12', { value: JSON.stringify('12px') });
+		// Only 2 steps in rem: never warns
+		await op('exact', 'add', 'ref.space.rem.1', { value: JSON.stringify('1rem') });
+		await op('exact', 'add', 'ref.space.rem.2', { value: JSON.stringify('10rem') });
+		await setConstraints('exact', [
+			{
+				id: 'space-ramp',
+				name: 'Space ramp',
+				applyTo: 'space.*',
+				severity: 'error',
+				config: {
+					type: 'ramp',
+					ramp: 'ref.space.*',
+					requireOffRampReason: true,
+					repeatThreshold: 2,
+					warnUneven: { maxRatioSpread: 1.5 },
+				},
+			},
+		]);
+
+		const exactReport = await validateConstraints(db, 'exact', { onlyViolating: true });
+		expect(exactReport.valid).toBe(true);
+		expect(exactReport.summary.warnings).toBe(0);
+		expect(exactReport.results).toEqual([]);
+
+		// Just above threshold (1 -> 2 -> 6.000000001 with spread 1.5 -> 3.0000000005 > 3): must warn
+		await node('just-above', null);
+		await op('just-above', 'add', 'ref.step.1', { value: JSON.stringify(1) });
+		await op('just-above', 'add', 'ref.step.2', { value: JSON.stringify(2) });
+		await op('just-above', 'add', 'ref.step.3', { value: JSON.stringify(6.000000001) });
+		await setConstraints('just-above', [
+			{
+				id: 'step-ramp',
+				name: 'Step ramp',
+				applyTo: 'step.*',
+				severity: 'error',
+				config: {
+					type: 'ramp',
+					ramp: 'ref.step.*',
+					requireOffRampReason: true,
+					repeatThreshold: 2,
+					warnUneven: { maxRatioSpread: 1.5 },
+				},
+			},
+		]);
+		const aboveReport = await validateConstraints(db, 'just-above', { onlyViolating: true });
+		expect(aboveReport.valid).toBe(true);
+		expect(aboveReport.results.map((r) => r.tokenId)).toEqual(['ref.step.3']);
+		expect(aboveReport.results[0]?.violations[0]?.code).toBe('ramp:uneven');
+
+		// ignoreAbove boundary inclusion: 2 -> 4 (2x) -> 16 (4x > 3x) with ignoreAbove: 16 must INCLUDE 16px and warn
+		// while 17px (> 16) is excluded.
+		await node('boundary', null);
+		await op('boundary', 'add', 'ref.rad.2', { value: JSON.stringify('2px') });
+		await op('boundary', 'add', 'ref.rad.4', { value: JSON.stringify('4px') });
+		await op('boundary', 'add', 'ref.rad.16', { value: JSON.stringify('16px') });
+		await op('boundary', 'add', 'ref.rad.17', { value: JSON.stringify('17px') });
+		await setConstraints('boundary', [
+			{
+				id: 'rad-ramp',
+				name: 'Rad ramp',
+				applyTo: 'radius.*',
+				severity: 'error',
+				config: {
+					type: 'ramp',
+					ramp: 'ref.rad.*',
+					requireOffRampReason: true,
+					repeatThreshold: 2,
+					warnUneven: { maxRatioSpread: 1.5, ignoreAbove: 16 },
+				},
+			},
+		]);
+		const boundaryReport = await validateConstraints(db, 'boundary', { onlyViolating: true });
+		expect(boundaryReport.valid).toBe(true);
+		expect(boundaryReport.results.map((r) => r.tokenId)).toEqual(['ref.rad.16']);
+
+		// Overlapping ramp & applyTo globs: primary error must precede advisory warning so validateValue never hides errors
+		await node('overlap', null);
+		await op('overlap', 'add', 'size.a', { value: JSON.stringify(1) });
+		await op('overlap', 'add', 'size.b', { value: JSON.stringify(2) });
+		await op('overlap', 'add', 'size.c', { value: JSON.stringify(10) });
+		const overlapTokens = new Map(
+			(await resolveTokens(db, 'overlap')).tokens.map((t) => [t.id, t]),
+		);
+		const sizeC = overlapTokens.get('size.c');
+		expect(sizeC).toBeDefined();
+		const overlapConfig = {
+			type: 'ramp' as const,
+			ramp: '*',
+			requireOffRampReason: true,
+			repeatThreshold: 2,
+			warnUneven: { maxRatioSpread: 1.5 },
+		};
+		const overlapContext = {
+			allTokens: overlapTokens,
+			token: sizeC,
+			applyTo: 'size.*',
+			severity: 'error' as const,
+		};
+		const allViolations = validateValues(
+			sizeC?.resolvedValue,
+			overlapConfig,
+			'overlap-ramp',
+			'Overlap ramp',
+			overlapContext,
+		);
+		expect(allViolations.map((v) => [v.code, v.severity])).toEqual([
+			['ramp:unreasoned', 'error'],
+			['ramp:uneven', 'warning'],
+		]);
+		const firstViolation = validateValue(
+			sizeC?.resolvedValue,
+			overlapConfig,
+			'overlap-ramp',
+			'Overlap ramp',
+			overlapContext,
+		);
+		expect(firstViolation).toMatchObject({ code: 'ramp:unreasoned', severity: 'error' });
 	});
 });
 
