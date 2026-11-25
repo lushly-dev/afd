@@ -133,6 +133,8 @@ export const panelOpen = defineCommandWithSchema({
 
 `contexts: [{ name, description }]` scopes which commands are visible and registers the `afd-context-*` tools. Context state belongs to the client: stdio keeps one stack, HTTP `/message` one per `Mcp-Session-Id`, and the stateless 2026-07-28 lane reads `_meta["dev.afd/context"]` per request (its `afd-context-enter` stores nothing and returns `persisted: false`). `server.execute()` ignores contexts. Contexts are not a security boundary; restrict callers with `createContext` and middleware.
 
+Sessions exist only on `/message` with `contexts` (`/mcp` never issues one). There, without `auth`, every caller is one session owner, so all clients share one quota of `maxSessions`. One client's `initialize` at the cap evicts the least recently used session, which can be another client's, and is never refused. Anyone holding a session ID can use that session. Give a server that several independent clients reach `auth`, so each issuer and subject has its own `maxSessionsPerOwner`; passing that option without `auth` throws when the server is built ([Sessions](../../../packages/server/README.md#sessions-mcp-session-id)).
+
 In process, `createDirectRegistry(commands, { contexts })` takes the same definitions, and each call names its context in the `activeContext` call option, never registry state. See the afd-directclient skill.
 
 ### Confirmations and approvals
