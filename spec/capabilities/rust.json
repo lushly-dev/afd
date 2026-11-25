@@ -226,9 +226,14 @@
 			"evidence": ["packages/rust/src/journal.rs"]
 		},
 		"single.journal-secret": {
-			"status": "planned",
-			"note": "the next step of the `secret` change: the recorder still skips `auth-*` by name only",
-			"evidence": ["packages/rust/src/journal/recorder.rs"]
+			"status": "yes",
+			"note": "`CommandDefinition::as_secret`; `CommandRegistry::execute` passes the declaration of the command it runs to the recorder, which records the call only with `with_redact` or `with_redact_info` (told `JournalRedactInfo { secret }`, always known); the call reads off every recording ancestor's tape, each marked `truncated`, also through a host's wrapper around a recording source and through `CommandDefinition::execute`",
+			"evidence": [
+				"packages/rust/src/journal/recorder.rs",
+				"packages/rust/src/commands/execute.rs",
+				"packages/rust/src/journal/secret_scope.rs",
+				"packages/rust/src/journal/secret_tests.rs"
+			]
 		},
 		"middleware.chain": {
 			"status": "yes",

@@ -264,7 +264,10 @@ assert_eq!(request.steps[1].alias, None);
   and interface, the values of the declared context fields marked `journal: true`, a context hash
   (never other context values), the result and the tape of clock and random values read. It runs after validation and around the middleware chain, records successes
   only unless `with_record_failures(true)`, and skips `auth-*` commands unless `with_filter` allows
-  them. Sinks: `MemoryJournalSink`, `FileJournalSink` (JSON Lines; `with_sync_data` waits for the device after each append) and, on an async server, `AsyncFileJournalSink`, which runs the file calls on Tokio's blocking pool. `parse_journal` and
+  them. A command declared `as_secret()` (it takes or returns a secret) is never recorded without a
+  redactor, whatever the filter says: `with_redact_info(|record, info| ...)` is told
+  `info.secret` with each record, read from the command the registry runs, and must remove the
+  secret; such a call puts nothing on a recording parent's tape: given a parent's recording sources themselves it runs on the sources under them and the parent's tape is marked `truncated`; given them inside a host's own wrapper, the tape is marked only once the call reads through it. Sinks: `MemoryJournalSink`, `FileJournalSink` (JSON Lines; `with_sync_data` waits for the device after each append) and, on an async server, `AsyncFileJournalSink`, which runs the file calls on Tokio's blocking pool. `parse_journal` and
   `serialize_journal` read and write the format TypeScript writes, and
   `replay_journal(&registry, &entries, options)` re-runs entries with their tapes restored and
   reports each as `same`, `different` (with paths) or `error`.

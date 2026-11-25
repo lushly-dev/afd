@@ -7,6 +7,7 @@ use super::{
     CommandMiddleware, MiddlewareNext,
 };
 use crate::errors::{error_codes, CommandError};
+use crate::journal::secret_scope::{scoped_step, Scope};
 use crate::result::{failure, CommandResult};
 use crate::ResultMetadata;
 
@@ -16,26 +17,33 @@ use crate::ResultMetadata;
 /// Every layer shares `input`; the handler step makes the one copy the handler owns. The context
 /// moves down the chain, so no layer copies it unless it calls `next` more than once. Each step
 /// (every layer and the handler) puts `state`, the call's own state from before the chain, back
-/// on the context it is given, so a middleware refines only the other public fields.
+/// on the context it is given, so a middleware refines only the other public fields. Each step
+/// also runs in the call's secret `scope`, whatever task polls it
+/// ([`crate::journal::secret_scope`]).
 pub(super) fn middleware_chain(
     command: &Arc<CommandDefinition>,
     middleware: &[CommandMiddleware],
     input: Arc<serde_json::Value>,
     state: CallState,
     check_output_budget: bool,
+    scope: Option<Scope>,
 ) -> MiddlewareNext {
     let state = Arc::new(state);
     let handler: MiddlewareNext = {
         let command = Arc::clone(command);
         let input = Arc::clone(&input);
         let state = Arc::clone(&state);
+        let scope = scope.clone();
         Arc::new(move |mut context| {
             state.restore(&mut context);
-            run_handler(
-                Arc::clone(&command),
-                (*input).clone(),
-                context,
-                check_output_budget,
+            scoped_step(
+                scope.as_ref(),
+                run_handler(
+                    Arc::clone(&command),
+                    (*input).clone(),
+                    context,
+                    check_output_budget,
+                ),
             )
         })
     };
@@ -45,9 +53,13 @@ pub(super) fn middleware_chain(
         let name = command.name.clone();
         let input = Arc::clone(&input);
         let state = Arc::clone(&state);
+        let scope = scope.clone();
         Arc::new(move |mut context| {
             state.restore(&mut context);
-            layer(name.clone(), Arc::clone(&input), context, Arc::clone(&next))
+            scoped_step(
+                scope.as_ref(),
+                layer(name.clone(), Arc::clone(&input), context, Arc::clone(&next)),
+            )
         })
     })
 }
@@ -108,7 +120,9 @@ pub(super) fn run_handler(
         // Only the kind is reported, never the actor's id or label.
         let actor_kind = context.actor.as_ref().map(|actor| actor.kind);
         let output_budget = context.output_budget;
-        let mut result = command.execute(input, context).await;
+        // The registry has already put a secret command in its scope and off every parent's
+        // tape, so its own recording keeps its reads.
+        let mut result = command.call_handler(input, context).await;
         // The output budget check (`spec/output-budgets.md`, B5): right after the
         // handler, before `metadata` is stamped and before any middleware sees it.
         if let Some(limit) = output_budget.filter(|_| check_output_budget) {

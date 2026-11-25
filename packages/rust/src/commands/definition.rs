@@ -608,6 +608,12 @@ pub struct CommandDefinition {
     /// [`TaskSupport::Optional`] or [`TaskSupport::Required`] beside `confirm_prompt`, an approval
     /// policy other than `not-required`, or a `confirmation_mode`.
     pub task: Option<TaskSupport>,
+
+    /// Whether the command takes or returns a secret (a password argument, an issued token):
+    /// a journal never records a call to it unless the recorder also has a redactor, which
+    /// removes the secret; a filter alone never admits it (`spec/journal.md`). Not reported.
+    /// Set it with [`Self::as_secret`].
+    pub secret: bool,
 }
 
 impl CommandDefinition {
@@ -646,7 +652,16 @@ impl CommandDefinition {
             scopes: None,
             confirmation_mode: None,
             task: None,
+            secret: false,
         }
+    }
+
+    /// Declare that the command takes or returns a secret (see [`CommandDefinition::secret`]):
+    /// a [`JournalRecorder`](crate::JournalRecorder) records calls to it only when it has a
+    /// redactor, and the call reads off any recording parent's tape.
+    pub fn as_secret(mut self) -> Self {
+        self.secret = true;
+        self
     }
 
     /// Declare whether an MCP call may run as a task (see [`CommandDefinition::task`]).
@@ -856,8 +871,27 @@ impl CommandDefinition {
     /// This skips everything [`CommandRegistry::execute`] enforces: input
     /// validation, parameter defaults, exposure, the timeout, middleware and
     /// the approval admission check (a declared approval policy does not hold
-    /// here).
+    /// here). It still keeps a [secret](Self::secret) command's readings off any
+    /// recording parent's tape, as the registry does: the tape is marked `truncated` when the
+    /// call was given the recording sources themselves, or once it reads through a host's
+    /// wrapper around them.
     pub async fn execute(
+        &self,
+        input: serde_json::Value,
+        mut context: CommandContext,
+    ) -> CommandResult<serde_json::Value> {
+        if !self.secret {
+            return self.handler.execute(input, context).await;
+        }
+        crate::journal::off_tape(&mut context);
+        let scope = crate::journal::secret_scope::enter();
+        crate::journal::secret_scope::scoped(Some(scope), self.handler.execute(input, context))
+            .await
+    }
+
+    /// The handler alone, for the registry, which has already taken a secret command off its
+    /// parents' tapes.
+    pub(crate) async fn call_handler(
         &self,
         input: serde_json::Value,
         context: CommandContext,

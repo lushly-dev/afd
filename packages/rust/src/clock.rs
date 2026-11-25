@@ -25,6 +25,15 @@ use crate::time::SystemTime;
 pub trait Clock: Send + Sync {
     /// Milliseconds since the Unix epoch, like TypeScript's `Date.now()`.
     fn now(&self) -> i64;
+
+    /// Set only by a journal's recording clock (and forwarded by `Arc`): the clock under it and
+    /// the tapes its readings reach. Code outside the crate cannot name or build one, and need
+    /// not: a recording tape itself refuses a secret call's readings, through any wrapper.
+    #[doc(hidden)]
+    #[allow(private_interfaces)]
+    fn journal_taping(&self) -> Option<&crate::journal::Taping<dyn Clock>> {
+        None
+    }
 }
 
 /// A source of random numbers.
@@ -36,11 +45,25 @@ pub trait RandomSource: Send + Sync {
     fn seed(&self) -> Option<&str> {
         None
     }
+
+    /// Set only by a journal's recording random source (and forwarded by `Arc`): the source
+    /// under it and the tapes its values reach. Code outside the crate cannot name or build one,
+    /// and need not: a recording tape itself refuses a secret call's values, through any wrapper.
+    #[doc(hidden)]
+    #[allow(private_interfaces)]
+    fn journal_taping(&self) -> Option<&crate::journal::Taping<dyn RandomSource>> {
+        None
+    }
 }
 
 impl<C: Clock + ?Sized> Clock for Arc<C> {
     fn now(&self) -> i64 {
         (**self).now()
+    }
+
+    #[allow(private_interfaces)]
+    fn journal_taping(&self) -> Option<&crate::journal::Taping<dyn Clock>> {
+        (**self).journal_taping()
     }
 }
 
@@ -51,6 +74,11 @@ impl<R: RandomSource + ?Sized> RandomSource for Arc<R> {
 
     fn seed(&self) -> Option<&str> {
         (**self).seed()
+    }
+
+    #[allow(private_interfaces)]
+    fn journal_taping(&self) -> Option<&crate::journal::Taping<dyn RandomSource>> {
+        (**self).journal_taping()
     }
 }
 

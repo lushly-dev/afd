@@ -7,6 +7,7 @@ use std::fmt;
 use std::panic::AssertUnwindSafe;
 use std::sync::{Arc, Mutex, PoisonError};
 
+use super::secret_scope::{self, Scope};
 use super::{
     create_context_digest_with_fields, journal_context_fields, JournalContextDigest,
     JournalContextFields, JournalRecord, JournalSink, JournalTape,
@@ -20,7 +21,7 @@ use crate::result::CommandResult;
 const DEFAULT_MAX_TAPE_READS: usize = 1000;
 
 type Filter = Arc<dyn Fn(&str) -> bool + Send + Sync>;
-type Redact = Arc<dyn Fn(JournalRecord) -> Option<JournalRecord> + Send + Sync>;
+type Redact = Arc<dyn Fn(JournalRecord, &JournalRedactInfo) -> Option<JournalRecord> + Send + Sync>;
 type OnError = Arc<dyn Fn(&str) + Send + Sync>;
 
 /// Journal state a context carries between a recorder, replay and nested calls. Crate-private.
@@ -32,6 +33,72 @@ pub(crate) struct JournalContextState {
     /// The clock under any recording wrappers, so a nested recorder's own timing lands on no
     /// tape.
     pub(crate) untaped_clock: Option<Arc<dyn Clock>>,
+}
+
+/// What a recording source carries: the source under every recording wrapper, and every tape a
+/// read of it reaches (its own and each recording parent's), outermost first. It travels with
+/// the source, so a call given a fresh context that holds a recording source still finds it.
+pub(crate) struct Taping<T: ?Sized> {
+    untaped: Arc<T>,
+    tapes: Vec<Arc<TapeWriter>>,
+}
+
+impl<T: ?Sized> Taping<T> {
+    /// The taping of a recording source over `inner` that writes to `tape`.
+    fn over(inner: &Arc<T>, inner_taping: Option<&Taping<T>>, tape: &Arc<TapeWriter>) -> Self {
+        let (untaped, mut tapes) = match inner_taping {
+            Some(taping) => (Arc::clone(&taping.untaped), taping.tapes.clone()),
+            None => (Arc::clone(inner), Vec::new()),
+        };
+        tapes.push(Arc::clone(tape));
+        Self { untaped, tapes }
+    }
+
+    /// Mark every tape a read would reach `truncated` and return the source under them.
+    fn leave(&self) -> Arc<T> {
+        for tape in &self.tapes {
+            tape.truncate();
+        }
+        Arc::clone(&self.untaped)
+    }
+}
+
+/// Move a call to a command declaring `secret` off every recording parent's tape
+/// (`spec/journal.md`): the call would read the clock and random source a recording parent
+/// wrapped, which would put the values that built the secret on the parent's tape. It reads
+/// the sources under the wrappers instead, and each tape they reached is marked `truncated`, so
+/// its replay says it cannot restore every value. The recording sources carry their tapes, so
+/// this holds whatever context the call was given. The call's own recording, if any, starts
+/// after this, so its reads stay on its own entry.
+pub(crate) fn off_tape(context: &mut CommandContext) {
+    let clock = context
+        .clock
+        .as_ref()
+        .and_then(|clock| clock.journal_taping())
+        .map(Taping::leave);
+    if let Some(clock) = clock {
+        context.clock = Some(clock);
+    }
+    let random = context
+        .random
+        .as_ref()
+        .and_then(|random| random.journal_taping())
+        .map(Taping::leave);
+    if let Some(random) = random {
+        context.random = Some(random);
+    }
+}
+
+/// What a redactor set with [`JournalRecorder::with_redact_info`] is told about the call
+/// besides its record.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct JournalRedactInfo {
+    /// Whether the command declares `secret` ([`CommandDefinition::secret`](crate::CommandDefinition::secret)),
+    /// read from the command the registry runs, never from its name. When `true`, remove the
+    /// secret from the record, or return `None`. The recorder always runs inside the registry,
+    /// so the answer is always known.
+    pub secret: bool,
 }
 
 /// Records each accepted command call of a registry to a [`JournalSink`].
@@ -52,7 +119,15 @@ pub(crate) struct JournalContextState {
 /// Appends are awaited, so entries are in call order for sequential calls. A sink error goes
 /// to [`with_on_error`](Self::with_on_error) and never changes the command result.
 /// Commands named `auth-*` are not recorded unless [`with_filter`](Self::with_filter) allows
-/// them. During [`replay_journal`](super::replay_journal) nothing is recorded.
+/// them, and a command that declares `secret`
+/// ([`CommandDefinition::as_secret`](crate::CommandDefinition::as_secret)) is never recorded
+/// without a redactor ([`with_redact`](Self::with_redact) or
+/// [`with_redact_info`](Self::with_redact_info)), whatever the filter says. Such a call puts
+/// nothing on a recording parent's tape: given the parent's recording sources themselves, it
+/// runs on the sources under them and the tape is marked `truncated`; given them inside a host's
+/// own wrapper, the tape refuses its readings and is marked only once the call reads through
+/// it. During
+/// [`replay_journal`](super::replay_journal) nothing is recorded.
 ///
 /// ```rust
 /// use afd::{CommandRegistry, JournalRecorder, MemoryJournalSink};
@@ -104,19 +179,35 @@ impl JournalRecorder {
     }
 
     /// Record only the commands `filter` returns `true` for. It replaces the default, which
-    /// skips commands named `auth-*` (they take passwords and return sessions), so exclude
-    /// them in it too unless you redact them.
+    /// skips commands named `auth-*`, so exclude them in it too unless you redact them. A
+    /// command that declares `secret` is never recorded without a redactor, whatever this
+    /// returns.
     pub fn with_filter(mut self, filter: impl Fn(&str) -> bool + Send + Sync + 'static) -> Self {
         self.filter = Some(Arc::new(filter));
         self
     }
 
     /// Last look at each record before it is stored: return it (changed or not), or `None` to
-    /// skip it. Use it to drop secrets from inputs or results. When a secret is derived from
-    /// `context.random`, drop `record.tape` too: the recorded values would rebuild it.
+    /// skip it. Use it to drop secrets from inputs or results. Giving it also lets calls to
+    /// commands that declare `secret` be recorded (when the filter allows them), so it must
+    /// remove their secrets: [`with_redact_info`](Self::with_redact_info) says which calls those
+    /// are. When a secret is derived from `context.random`, drop `record.tape` too: the
+    /// recorded values would rebuild it. It replaces a redactor set before.
     pub fn with_redact(
-        mut self,
+        self,
         redact: impl Fn(JournalRecord) -> Option<JournalRecord> + Send + Sync + 'static,
+    ) -> Self {
+        self.with_redact_info(move |record, _| redact(record))
+    }
+
+    /// [`with_redact`](Self::with_redact), told with each record whether the command declares
+    /// `secret` ([`JournalRedactInfo::secret`]). It replaces a redactor set before.
+    pub fn with_redact_info(
+        mut self,
+        redact: impl Fn(JournalRecord, &JournalRedactInfo) -> Option<JournalRecord>
+            + Send
+            + Sync
+            + 'static,
     ) -> Self {
         self.redact = Some(Arc::new(redact));
         self
@@ -135,7 +226,9 @@ impl JournalRecorder {
         self
     }
 
-    /// Whether calls to `command` are recorded. A filter that panics records nothing.
+    /// Whether the filter admits calls to `command`. A filter that panics records nothing. A
+    /// command that declares `secret` is recorded only when the recorder also has a redactor,
+    /// whatever this returns.
     pub fn records(&self, command: &str) -> bool {
         match &self.filter {
             Some(filter) => std::panic::catch_unwind(AssertUnwindSafe(|| filter(command)))
@@ -147,11 +240,20 @@ impl JournalRecorder {
         }
     }
 
+    /// Whether a call to `command`, which declares `secret` or not, is recorded: a secret one
+    /// only with a redactor, then like any other by the filter.
+    pub(crate) fn records_call(&self, command: &str, secret: bool) -> bool {
+        (!secret || self.redact.is_some()) && self.records(command)
+    }
+
     /// Start recording a call: put recording sources on `context` and note what the entry
-    /// needs from it, including the values of the `fields` declared `journal: true`.
+    /// needs from it, including the values of the `fields` declared `journal: true`. `scope` is
+    /// the secret scope the call runs in ([`super::secret_scope`]).
     pub(crate) fn start(
         &self,
         command: &str,
+        secret: bool,
+        scope: Option<Scope>,
         input: &Value,
         context: &mut CommandContext,
         fields: &[ContextField],
@@ -164,11 +266,17 @@ impl JournalRecorder {
             .random
             .clone()
             .unwrap_or_else(|| Arc::new(SYSTEM_RANDOM));
-        // This recorder's own timing reads the clock under any outer recorder's wrapper.
+        // This recorder's own timing reads the clock under any outer recorder's wrapper (a
+        // replay's own clock first).
         let timing = context
             .journal_state
             .untaped_clock
             .clone()
+            .or_else(|| {
+                clock
+                    .journal_taping()
+                    .map(|taping| Arc::clone(&taping.untaped))
+            })
             .unwrap_or_else(|| Arc::clone(&clock));
         let journaled = journal_context_fields(
             context,
@@ -180,12 +288,14 @@ impl JournalRecorder {
         let digest = create_context_digest_with_fields(context, &journaled);
         let start = timing.now();
 
-        let tape = Arc::new(TapeWriter::new(self.max_tape_reads));
+        let tape = Arc::new(TapeWriter::new(self.max_tape_reads, scope));
         context.clock = Some(Arc::new(RecordingClock {
+            taping: Taping::over(&clock, clock.journal_taping(), &tape),
             inner: clock,
             tape: Arc::clone(&tape),
         }));
         context.random = Some(Arc::new(RecordingRandom {
+            taping: Taping::over(&random, random.journal_taping(), &tape),
             inner: random,
             tape: Arc::clone(&tape),
         }));
@@ -193,6 +303,7 @@ impl JournalRecorder {
 
         Recording {
             command: command.to_string(),
+            secret,
             input: input.clone(),
             trace_id: context.trace_id.clone(),
             actor: context.actor.clone(),
@@ -249,8 +360,11 @@ impl JournalRecorder {
             duration_ms,
             tape: (!tape.is_empty()).then_some(tape),
         };
+        let info = JournalRedactInfo {
+            secret: recording.secret,
+        };
         let record = match &self.redact {
-            Some(redact) => redact(record),
+            Some(redact) => redact(record, &info),
             None => Some(record),
         };
         if let Some(record) = record {
@@ -277,6 +391,7 @@ pub(crate) fn iso_timestamp(ms: i64) -> Option<String> {
 /// A call being recorded, from [`JournalRecorder::start`].
 pub(crate) struct Recording {
     command: String,
+    secret: bool,
     input: Value,
     trace_id: Option<String>,
     actor: Option<Actor>,
@@ -292,13 +407,17 @@ pub(crate) struct Recording {
 struct TapeWriter {
     tape: Mutex<JournalTape>,
     max_reads: usize,
+    /// The secret scope the call started in: a reading taken in a secret call nested below it
+    /// is dropped and the tape marked `truncated` ([`super::secret_scope`]).
+    scope: Option<Scope>,
 }
 
 impl TapeWriter {
-    fn new(max_reads: usize) -> Self {
+    fn new(max_reads: usize, scope: Option<Scope>) -> Self {
         Self {
             tape: Mutex::new(JournalTape::default()),
             max_reads,
+            scope,
         }
     }
 
@@ -308,7 +427,9 @@ impl TapeWriter {
 
     fn clock(&self, reading: f64) {
         let mut tape = self.lock();
-        if tape.clock.len() < self.max_reads {
+        if !secret_scope::reaches(self.scope.as_ref()) {
+            tape.truncated = true;
+        } else if tape.clock.len() < self.max_reads {
             tape.clock.push(reading);
         } else {
             tape.truncated = true;
@@ -317,11 +438,17 @@ impl TapeWriter {
 
     fn random(&self, value: f64) {
         let mut tape = self.lock();
-        if tape.random.len() < self.max_reads {
+        if !secret_scope::reaches(self.scope.as_ref()) {
+            tape.truncated = true;
+        } else if tape.random.len() < self.max_reads {
             tape.random.push(value);
         } else {
             tape.truncated = true;
         }
+    }
+
+    fn truncate(&self) {
+        self.lock().truncated = true;
     }
 
     fn take(&self) -> JournalTape {
@@ -333,6 +460,7 @@ impl TapeWriter {
 struct RecordingClock {
     inner: Arc<dyn Clock>,
     tape: Arc<TapeWriter>,
+    taping: Taping<dyn Clock>,
 }
 
 impl Clock for RecordingClock {
@@ -341,12 +469,18 @@ impl Clock for RecordingClock {
         self.tape.clock(reading as f64);
         reading
     }
+
+    #[allow(private_interfaces)]
+    fn journal_taping(&self) -> Option<&Taping<dyn Clock>> {
+        Some(&self.taping)
+    }
 }
 
 /// A random source that passes values through and writes them to the tape.
 struct RecordingRandom {
     inner: Arc<dyn RandomSource>,
     tape: Arc<TapeWriter>,
+    taping: Taping<dyn RandomSource>,
 }
 
 impl RandomSource for RecordingRandom {
@@ -358,5 +492,10 @@ impl RandomSource for RecordingRandom {
 
     fn seed(&self) -> Option<&str> {
         self.inner.seed()
+    }
+
+    #[allow(private_interfaces)]
+    fn journal_taping(&self) -> Option<&Taping<dyn RandomSource>> {
+        Some(&self.taping)
     }
 }

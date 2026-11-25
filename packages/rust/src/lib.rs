@@ -318,8 +318,9 @@ pub use journal::FileJournalSink;
 pub use journal::{
     create_context_digest, is_journal_entry, journal_actor, parse_journal, replay_journal,
     serialize_journal, serialize_journal_entry, JournalContextDigest, JournalEntry, JournalRange,
-    JournalRecord, JournalRecorder, JournalSink, JournalTape, MemoryJournalSink, ReplayDifference,
-    ReplayDifferenceKind, ReplayEntryReport, ReplayJournalOptions, ReplayReport, ReplayStatus,
+    JournalRecord, JournalRecorder, JournalRedactInfo, JournalSink, JournalTape, MemoryJournalSink,
+    ReplayDifference, ReplayDifferenceKind, ReplayEntryReport, ReplayJournalOptions, ReplayReport,
+    ReplayStatus,
 };
 #[cfg(feature = "journal-file-shared")]
 #[cfg_attr(docsrs, doc(cfg(feature = "journal-file-shared")))]
