@@ -900,8 +900,8 @@ def test_a_report_before_any_collection_is_refused(bench: Bench) -> None:
         ({"where": "pull-request"}, "merge_group"),
         ({"where": "local"}, "pull_request"),
         ({"sort": "seconds"}, "minutes, failed, runs"),
-        ({"limit": 0}, "200"),
-        ({"limit": 201}, "200"),
+        ({"limit": 0}, "75"),
+        ({"limit": 76}, "75"),
     ],
 )
 def test_report_refuses_a_value_outside_its_list_or_range(

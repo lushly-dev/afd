@@ -1,12 +1,13 @@
 """The gate outcome record: where it lives, its lines, and every machine's read as one.
 
 A repository's record is `record.jsonl` in a folder of its own under botcore's state folder
-(`<state>/<owner>/<name>/`), so two repositories are never mixed. Lines are appended and never
-rewritten; each has an `id`, the version of the rules that made it (`v`) and when it was written
-(`at`). A fact learned later is a newer line for the same id, and a reader keeps the newest.
+(`<state>/<owner>/<name>/`), so two repositories are never mixed. Lines are appended; each has
+an `id`, the version of the rules that made it (`v`) and when it was written (`at`). A fact
+learned later is a newer line for the same id, and a reader keeps the newest. Only the fold
+(fold.py) rewrites the record, to put the runs of days older than 180 days in a few lines.
 `state.json` beside it says which spans of time were listed and how the last collection ended.
 
-Five kinds of line:
+Five kinds of line, and the fold's two:
 
 - `run`: one attempt of a workflow run, as the run list or the attempt says: the workflow's
   file and name, the event, the attempt, the revision tested and its base, the pull request's
@@ -23,6 +24,9 @@ Five kinds of line:
   whose log was read: each command's name, how it ended and its seconds. A command's name is
   kept only when the group has it at the default branch's tip, so no text of the log is kept;
   a summary that could not be read says why, from a fixed list.
+- `folded-workflow` and `folded-check`: a folded day's runs, one line for each workflow and
+  event and one for each check and event, with the counts and seconds the reports give
+  (fold.py). Their ids name the day, so a reader keeps one for each whichever machine folded.
 
 - `commit`: one fix commit or revert on the default branch (the `main` source, main.py): its
   revision, when it landed, its type, the pull request its subject ends with, how many files
@@ -48,7 +52,7 @@ import os
 import re
 import sys
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from botcore.commands.disk.steps import doing
@@ -63,6 +67,7 @@ STATE_FILE = "state.json"
 LOCK_FILE = "collect.lock"
 SHARED_FOLDER = "gate-outcome"  # inside a machine's folder in the shared one
 KINDS = ("run", "shape", "steps", "group", "commit")
+FOLDED = ("folded-workflow", "folded-check")  # the fold's lines (fold.py)
 MAIN_RULES = 1  # the version of the rules a commit line is made by
 COMMIT_TYPES = ("fix", "revert")
 # How a `Found-by:` line says a bug was found, and its class: the plan's lists
@@ -138,6 +143,12 @@ def parse_time(value: object) -> datetime | None:
     return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
 
 
+def day_of(value: object) -> str | None:
+    """The UTC day (`YYYY-MM-DD`) a time falls in."""
+    moment = parse_time(value)
+    return moment.astimezone(UTC).date().isoformat() if moment is not None else None
+
+
 def _name(value: object) -> bool:
     return isinstance(value, str) and 0 < len(value) <= _NAME_MAX
 
@@ -179,6 +190,10 @@ def checked(line: object) -> dict | None:  # noqa: C901, PLR0911, PLR0912 - one 
     """A line as this botcore can use it: one of the five kinds with every field of the type
     it should have, and nothing else (`checked` drops unknown fields, so a hand or another
     program cannot put text into what is shared). None for anything else."""
+    if isinstance(line, dict) and line.get("kind") in FOLDED:
+        from botcore.commands.gate_outcome.fold import checked_folded
+
+        return checked_folded(line)
     if not isinstance(line, dict) or line.get("kind") not in KINDS:
         return None
     kind, identifier = line["kind"], line.get("id")
@@ -434,11 +449,13 @@ class Record:
     groups: dict[str, dict] = field(default_factory=dict)  # id -> newest group line
     commits: dict[str, dict] = field(default_factory=dict)  # id -> newest commit line
     shapes: dict[str, dict] = field(default_factory=dict)  # digest -> shape line
+    folds: dict[str, dict] = field(default_factory=dict)  # id -> newest folded line
     states: dict[str, dict] = field(default_factory=dict)  # machine -> its state
     unreadable: dict[str, int] = field(default_factory=dict)  # machine -> lines not read
     partial: list[str] = field(default_factory=list)  # machines whose copy is not whole
     missing: str | None = None  # why the shared folder was not read
     own_lines: int = 0
+    own_days: set[str] = field(default_factory=set)  # the days of this machine's run lines
     _ranks: dict[str, tuple] = field(default_factory=dict)
 
     def add(self, line: dict, machine: str) -> None:
@@ -449,15 +466,46 @@ class Record:
         held = self._ranks.get(line["id"])
         if held is None or rank > held:
             self._ranks[line["id"]] = rank
-            kept = {"run": self.runs, "steps": self.steps, "group": self.groups,
-                    "commit": self.commits}[line["kind"]]  # fmt: skip
+            kept = self.folds if line["kind"] in FOLDED else {
+                "run": self.runs, "steps": self.steps, "group": self.groups,
+                "commit": self.commits,
+            }[line["kind"]]  # fmt: skip
             kept[line["id"]] = line
+
+    def folded_days(self) -> set[str]:
+        """The days (`YYYY-MM-DD`) any machine has folded."""
+        return {line["day"] for line in self.folds.values()}
+
+    def folded_spans(self) -> list[tuple[datetime, datetime]]:
+        """Each folded day as a span of time, to count as listed."""
+        spans = []
+        for day in sorted(self.folded_days()):
+            begun = parse_time(f"{day}T00:00:00Z")
+            if begun is not None:
+                spans.append((begun, begun + timedelta(days=1)))
+        return spans
+
+    def settle(self) -> None:
+        """Leave out the runs of a folded day, with their steps and summaries: a fold holds
+        them, and a machine's copy that is not folded yet would count them twice."""
+        days = self.folded_days()
+        if not days:
+            return
+        latest: dict[int, dict] = {}
+        for line in self.runs.values():
+            held = latest.get(line["run"])
+            if held is None or line["attempt"] > held["attempt"]:
+                latest[line["run"]] = line
+        gone = {run for run, line in latest.items() if day_of(line["created"]) in days}
+        for kept in (self.runs, self.steps, self.groups):
+            for identifier in [i for i, line in kept.items() if line["run"] in gone]:
+                del kept[identifier]
 
     @property
     def empty(self) -> bool:
         """Whether nothing was collected: no line, and no state that says a span was listed.
         A collection that stopped before it read anything leaves a state, and nothing else."""
-        return not (self.runs or self.steps or self.commits) and not any(
+        return not (self.runs or self.steps or self.commits or self.folds) and not any(
             (isinstance(state.get("lists"), dict) and state["lists"])
             or (isinstance(state.get("main"), dict) and state["main"].get("days"))
             for state in self.states.values()
@@ -503,17 +551,21 @@ def load_record(base: Path, repo: str, here: Local) -> Record:
     if lines or state:
         record.states[here.machine] = state
     record.own_lines = len(lines)
+    record.own_days = {day for line in lines if line["kind"] == "run"
+                       and (day := day_of(line["created"])) is not None}  # fmt: skip
     if unreadable:
         record.unreadable[here.machine] = unreadable
     for line in lines:
         record.add(line, here.machine)
     if here.shared is None:
+        record.settle()
         return record
     doing("reading the shared folder", here.shared)
     try:
         machines = sorted(here.shared.iterdir())
     except OSError:
         record.missing = f"{here.shared} is not a folder this machine can see"
+        record.settle()
         return record
     for machine_folder in machines:
         machine = machine_folder.name.lower()
@@ -537,6 +589,7 @@ def load_record(base: Path, repo: str, here: Local) -> Record:
             record.unreadable[machine] = their_unreadable
         for line in their_lines:
             record.add(line, machine)
+    record.settle()
     return record
 
 
@@ -570,7 +623,7 @@ def publish(folder: Path, shared: Path, machine: str, repo: str) -> bool:
         newest.add(line, machine)
     kept = [
         *newest.shapes.values(), *newest.runs.values(), *newest.steps.values(),
-        *newest.groups.values(), *newest.commits.values(),
+        *newest.groups.values(), *newest.commits.values(), *newest.folds.values(),
     ]  # fmt: skip
     record = b"".join(_serialize(line) for line in sorted(kept, key=lambda line: line["id"]))
     theirs = load_state(target).get("record_id")

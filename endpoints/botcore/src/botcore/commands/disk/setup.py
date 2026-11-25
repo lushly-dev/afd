@@ -4,9 +4,11 @@
 watched volume is below its threshold or the last full run is a day old; then it runs
 `disk-reclaim` with apply. When space stays low after that, it notifies once a day.
 
-Every run of the scheduler's ends by itself. The disk work and the collection of skill usage
-are steps (`steps.py`): a step that only waits, because a drive is away or the operating
-system wants the owner's consent, is left behind, and the status says what it was doing.
+Every run of the scheduler's ends by itself. The disk work, the collection of skill usage and
+the collection of gate outcomes are steps (`steps.py`), one after the other: a step that only
+waits, because a drive is away or the operating system wants the owner's consent, is left
+behind, and the status says what it was doing. Each has its own limit and its own line in
+check.json and in the run's answer, so one's trouble never stops another.
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ import sys
 import threading
 import time
 from collections.abc import Callable, Iterable, Iterator
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -60,13 +63,20 @@ from botcore.commands.disk.steps import (
 FULL_RUN_SECONDS = 23 * 3600
 STALE_SECONDS = 48 * 3600
 NOTIFY_SECONDS = 24 * 3600
-# How long skill usage may fail to collect before the status calls it a problem. What a
-# harness drops in the meantime cannot be collected later.
+# How long skill usage, or gate outcomes, may fail to collect before the status calls it a
+# problem. What a harness drops in the meantime cannot be collected later.
 USAGE_STALE_SECONDS = 24 * 3600
 # How long a skill usage collection may say nothing before the job stops counting on it. A
 # collection that keeps reporting progress (reading a large store on a busy machine) runs
 # until it finishes, as the disk work does (lushly-dev/afd#2160).
 USAGE_SECONDS = 300
+# How long a gate outcome collection may say nothing before the job stops counting on it. It
+# says something before every request to GitHub and every git command, each with its timeout
+GATE_SECONDS = 300
+# How long the scheduler's run gives the gate outcome step in all. A collection holds itself
+# to its requests and to half the account's allowance; this bounds one whose requests are
+# slow, and the next hour's goes on from where it got
+GATE_TOTAL_SECONDS = 40 * 60
 # How long a step may say nothing, beyond what its last word allowed, before the job stops
 # counting on it. A step that is working says so for every folder, file and command.
 QUIET_SECONDS = 300
@@ -107,6 +117,7 @@ OMIT_AT_DEFAULT = (
     "skill_usage_collect",
     "skill_usage_away",
     "skill_usage_dirs",
+    "gate_outcome_checkouts",
 )
 
 
@@ -692,6 +703,8 @@ async def disk_status() -> CommandResult[dict[str, Any]]:
     ]
     usage = check.get("skill_usage") if settings.skill_usage_collect else None
     usage = usage if isinstance(usage, dict) else None
+    gate = check.get("gate_outcome") if settings.gate_outcome_checkouts else None
+    gate = gate if isinstance(gate, dict) else None
     # what a reclaim counted is on file: all of it, when the machine does not say which
     # of those repositories are still registered. What Cargo's settings say is read now.
     warnings = (
@@ -718,15 +731,8 @@ async def disk_status() -> CommandResult[dict[str, Any]]:
             warnings.append("the schedule is installed and no scheduled check is recorded yet")
         elif beat * 3600 > HEARTBEAT_SECONDS:
             warnings.append(f"the scheduled job last checked in {beat:.0f} hours ago")
-    if usage and not usage.get("ok"):
-        failing = f"skill usage is not being collected: {usage.get('error') or 'it failed'}"
-        # how long it has been failing, not how long since it worked: a machine that slept
-        # for two days and fails once on waking has failed for an hour
-        since = _age_hours(usage.get("failing_since") or usage.get("ok_at"))
-        if since is not None and since * 3600 > USAGE_STALE_SECONDS:
-            problems.append(f"{failing} (for {since:.0f} hours)")
-        else:
-            warnings.append(failing)
+    for what, kept in (("skill usage is", usage), ("gate outcomes are", gate)):
+        _failing(what, kept, problems, warnings)
     data = {
         "settings": {"path": str(path), "found": found},
         "state": str(state_path()),
@@ -736,6 +742,7 @@ async def disk_status() -> CommandResult[dict[str, Any]]:
         "last_check": check.get("last_check"),
         "disk_work": work,
         "skill_usage": usage,
+        "gate_outcome": gate,
         "volumes": volumes,
         "healthy": not problems,
         "problems": problems,
@@ -859,6 +866,23 @@ def _outcome(previous: object, failure: str | None, found: dict[str, Any]) -> di
     }
 
 
+def _failing(
+    what: str, kept: dict[str, Any] | None, problems: list[str], warnings: list[str]
+) -> None:
+    """A collection the job keeps a line for that is failing: a warning, and a problem once
+    it has failed for a day."""
+    if not kept or kept.get("ok"):
+        return
+    failing = f"{what} not being collected: {kept.get('error') or 'it failed'}"
+    # how long it has been failing, not how long since it worked: a machine that slept for
+    # two days and fails once on waking has failed for an hour
+    since = _age_hours(kept.get("failing_since") or kept.get("ok_at"))
+    if since is not None and since * 3600 > USAGE_STALE_SECONDS:
+        problems.append(f"{failing} (for {since:.0f} hours)")
+    else:
+        warnings.append(failing)
+
+
 def _with_hint(text: str, path: str) -> str:
     hint = consent_hint(path)
     return f"{text}. {hint}" if hint else text
@@ -876,7 +900,9 @@ def _look(step: Step) -> tuple[str, Said | None, int | None]:
     if seen is None:  # it came back this instant
         return "working", None, None
     what, path, lasted, quiet, word = seen
-    limit = USAGE_SECONDS if step.name == "skill-usage-collect" else QUIET_SECONDS
+    limit = {"skill-usage-collect": USAGE_SECONDS, "gate-outcome-collect": GATE_SECONDS}.get(
+        step.name, QUIET_SECONDS
+    )
     return ("waiting" if quiet >= limit else "working"), (what, path, lasted), word
 
 
@@ -936,6 +962,44 @@ def _usage_outcome(step: Step, look: str, said: Said | None) -> tuple[str | None
     return None, {"added": data.get("added", 0)}
 
 
+def _gate_outcome(step: Step, look: str, said: Said | None) -> tuple[str | None, dict[str, Any]]:
+    """Why gate outcomes were not all collected, or None, and each checkout's collection.
+    `look` is `over` for a step left at GATE_TOTAL_SECONDS."""
+    if look == "over":
+        doing_now = f": it was {said[0]} {said[1]}".rstrip() if said else ""
+        return (
+            f"it was still collecting after {GATE_TOTAL_SECONDS / 60:g} minutes, the step's "
+            f"limit{doing_now}; the next hour's collection goes on from where it got"
+        ), {}
+    if look != "done":
+        what, path = (said[0], said[1]) if said else ("starting", "")
+        text = f"it made no progress for {GATE_SECONDS:g} seconds"
+        if what != "starting":
+            text += f": it was {what} {path}".rstrip()
+        return _with_hint(text, path), {}
+    if "raised" in step.outcome:
+        return f"{type(step.outcome['raised']).__name__}: {step.outcome['raised']}", {}
+    data = step.outcome["result"]
+    found = {"checkouts": data["checkouts"]}
+    refused = [
+        f"{entry['checkout']}: {entry['error']['code']}: {entry['error']['message']}"
+        for entry in data["checkouts"]
+        if "error" in entry
+    ]
+    if refused:
+        return "the collection was refused for " + "; ".join(refused), found
+    # collected, and its record could not be shared or folded: what the next hour must mend
+    unmended = [
+        f"{entry['checkout']}: {entry[key]['error']}"
+        for entry in data["checkouts"]
+        for key in ("shared", "folded")
+        if isinstance(entry.get(key), dict) and entry[key].get("error")
+    ]
+    if unmended:
+        return "collected, but " + "; ".join(unmended), found
+    return None, found
+
+
 def _kept(previous: object, failure: str | None, found: dict[str, Any]) -> dict[str, Any] | None:
     """What to keep of the disk work, or None to keep what is there. An hour with nothing
     due does not clear what a reclaim could not do: only another reclaim knows better."""
@@ -980,7 +1044,8 @@ async def _answered(what: str, path: object, work: Callable[[], Any], bounded: b
 
 async def disk_run(force: bool = False, own_process: bool = False) -> CommandResult[dict[str, Any]]:
     """What the schedule runs: a free-space check, a reclaim when it is due or space is low,
-    and then the hourly collection of skill usage.
+    and then the hourly collections of skill usage and, for the checkouts the machine names, of
+    gate outcomes.
 
     `own_process` says this process exists for the run and ends with it, as the scheduler's
     does. Such a run always ends. Both the disk work and the skill usage collection are
@@ -1026,43 +1091,76 @@ async def disk_run(force: bool = False, own_process: bool = False) -> CommandRes
             await _wait(started, lambda: time.monotonic() - began >= LEAVE_SECONDS)
 
 
-async def _run(  # noqa: C901, PLR0912 - one run, start to end
+@dataclass
+class _Collected:
+    """A collection step of the job: skill usage's or gate outcomes'."""
+
+    key: str  # its line in check.json and in the run's answer
+    step: Step
+    judge: Callable[[Step, str, Said | None], tuple[str | None, dict[str, Any]]]
+    left: tuple[str, Said | None] | None = None  # what was seen of it when the run left it
+    kept: dict[str, Any] | None = None  # what check.json keeps of it
+
+
+async def _follow(collected: _Collected, own_process: bool, total: float | None = None) -> None:
+    """Wait for a collection step while it reports progress. In the scheduler's run, leave it
+    once it has been quiet for its limit, or once it has run `total` seconds in all."""
+    step, began = collected.step, time.monotonic()
+
+    def over() -> bool:
+        return own_process and total is not None and time.monotonic() - began >= total
+
+    while True:
+        look, said, word = _look(step)
+        if look == "working" and over():
+            step.leave()  # it stops at its next word, having begun nothing more
+            collected.left = ("over", said)
+            return
+        if look == "working":
+            await _wait([step], lambda: _look(step)[0] == "waiting" or over())
+        elif look == "done" or not own_process:
+            return
+        elif step.leave(word):
+            collected.left = ("waiting", said)
+            return
+
+
+async def _run(  # noqa: C901 - one run, start to end
     settings: MachineSettings,
     disk: Step,
     started: list[Step],
     own_process: bool,
 ) -> CommandResult[dict[str, Any]]:
-    usage: Step | None = None
-    collected: dict[str, Any] | None = None
     unwritten: str | None = None
-    # What was seen of each step when the run left it, and where it was. That stands for the
-    # rest of the run: the step ends later only because it was told to stop.
+    # What was seen of the disk work when the run left it, and where it was. That stands for
+    # the rest of the run: the step ends later only because it was told to stop.
     left: tuple[str, Said | None] | None = None
     where = ""
-    usage_left: tuple[str, Said | None] | None = None
+    collections: list[_Collected] = []
 
-    async def record() -> tuple[str, Said | None, str]:
-        """Write what stands of each step. Returns what was seen of the disk work, and of
-        the collection (`done` when there is none). Each step is looked at once, and what
-        is written is fixed then: a write that is slow finds nothing newer to pick up."""
-        nonlocal collected, unwritten
+    async def record() -> tuple[str, Said | None, bool]:
+        """Write what stands of each step. Returns what was seen of the disk work, and
+        whether every collection is done. Each step is looked at once, and what is written is
+        fixed then: a write that is slow finds nothing newer to pick up."""
+        nonlocal unwritten
         seen = left or _look(disk)[:2]
         work = None if seen[0] == "working" else _disk_outcome(disk, *seen)
-        usage_seen = usage_left or (_look(usage)[:2] if usage is not None else ("done", None))
-        collection = (
-            None
-            if usage is None or usage_seen[0] == "working"
-            else _usage_outcome(usage, *usage_seen)
-        )
+        pending: dict[str, tuple[str | None, dict[str, Any]]] = {}
+        done = True
+        for collected in collections:
+            looked = collected.left or _look(collected.step)[:2]
+            done = done and looked[0] == "done"
+            if looked[0] != "working":  # a step that works has no outcome yet
+                pending[collected.key] = collected.judge(collected.step, *looked)
         kept: dict[str, Any] = {}
 
         def change(data: dict[str, Any]) -> None:
-            if work is not None:  # a step that works has no outcome yet
+            if work is not None:
                 keep = _kept(data.get("disk_work"), *work)
                 if keep is not None:
                     data["disk_work"] = keep
-            if collection is not None:
-                kept["usage"] = data["skill_usage"] = _outcome(data.get("skill_usage"), *collection)
+            for key, outcome in pending.items():
+                kept[key] = data[key] = _outcome(data.get(key), *outcome)
 
         try:
             await _answered(
@@ -1071,9 +1169,10 @@ async def _run(  # noqa: C901, PLR0912 - one run, start to end
             unwritten = None
         except (Unanswered, OSError) as exc:  # a drive that is away, or one that is full
             unwritten = str(exc)
-        if collection is not None:
-            collected = kept.get("usage") or _outcome(None, *collection)
-        return (*seen, usage_seen[0])
+        for collected in collections:
+            if collected.key in pending:
+                collected.kept = kept.get(collected.key) or _outcome(None, *pending[collected.key])
+        return (*seen, done)
 
     while True:
         look, said, word = _look(disk)
@@ -1090,30 +1189,32 @@ async def _run(  # noqa: C901, PLR0912 - one run, start to end
                 left, where = ("waiting", said), stack
                 break
     if look != "done":
-        await record()  # before the collection, which can take its five minutes
+        await record()  # before the collections, which can take their minutes
     if settings.skill_usage_collect:
         from botcore.commands.skill_usage import skill_usage_collect
 
         usage = Step("skill-usage-collect", lambda: asyncio.run(skill_usage_collect()))
         started.append(usage)
+        collections.append(_Collected("skill_usage", usage, _usage_outcome))
         # Waited for while it reports progress (reading a large store on a busy machine), and
         # left only once it has been quiet for USAGE_SECONDS (lushly-dev/afd#2160).
-        while True:
-            u_look, u_said, u_word = _look(usage)
-            if u_look == "working":
-                await _wait([usage], lambda: _look(usage)[0] == "waiting")
-            elif u_look == "done" or not own_process:
-                break
-            else:
-                if usage.leave(u_word):
-                    usage_left = ("waiting", u_said)
-                    break
-    look, said, usage_look = await record()
-    if not own_process and (look != "done" or usage_look != "done"):
+        await _follow(collections[-1], own_process)
+    if settings.gate_outcome_checkouts:
+        from botcore.commands.gate_outcome import hourly
+
+        if collections:
+            await record()  # skill usage's line, before a collection that can take its minutes
+        checkouts = list(settings.gate_outcome_checkouts)
+        gate = Step("gate-outcome-collect", lambda: hourly.collect_checkouts(checkouts))
+        started.append(gate)
+        collections.append(_Collected("gate_outcome", gate, _gate_outcome))
+        await _follow(collections[-1], own_process, GATE_TOTAL_SECONDS)
+    look, said, all_done = await record()
+    if not own_process and (look != "done" or not all_done):
         # what was just written says a step was not done: wait for them all, and write how
         # they ended, even when they have ended meanwhile
         await _wait(started, lambda: False)
-        look, said, usage_look = await record()
+        look, said, all_done = await record()
     if look != "done":
         failure, _found = _disk_outcome(disk, "waiting", said)
         print(f"the disk work was left waiting here:\n{where or disk.where()}", file=sys.stderr)
@@ -1137,8 +1238,10 @@ async def _run(  # noqa: C901, PLR0912 - one run, start to end
             suggestion="The state folder must be on a drive that answers and has room",
         )
     result: CommandResult[dict[str, Any]] = disk.outcome["result"]
-    if collected is not None and result.success and isinstance(result.data, dict):
-        result.data["skill_usage"] = collected
+    if result.success and isinstance(result.data, dict):
+        for collected in collections:
+            if collected.kept is not None:
+                result.data[collected.key] = collected.kept
     return result
 
 

@@ -32,7 +32,7 @@ from afd import CommandResult, error, success
 from botcore.commands.disk.lock import LockHeld, RunLock
 from botcore.commands.disk.settings import SettingsError
 from botcore.commands.disk.steps import run_blocking
-from botcore.commands.gate_outcome import github, record
+from botcore.commands.gate_outcome import fold, github, record
 from botcore.commands.gate_outcome import main as main_source
 from botcore.commands.gate_outcome.checks import Job, Known, read_known
 from botcore.commands.gate_outcome.github import GitHub, NotFound, Stop
@@ -109,6 +109,12 @@ def workspace_repo() -> tuple[Path, str] | None:
     if root is None:
         return None
     repo = project_remote(root)
+    return (root, repo) if repo and repo_parts(repo) else None
+
+
+def checkout_repo(root: Path) -> tuple[Path, str] | None:
+    """A checkout named by path (the hourly job's) and its repository, from its origin."""
+    repo = project_remote(root) if root.is_dir() else None
     return (root, repo) if repo and repo_parts(repo) else None
 
 
@@ -194,8 +200,9 @@ class Rebuild:
 
 
 def listed_spans(record: Record, now: datetime, rebuild: Rebuild | None) -> list:
-    """The spans no collection needs to list again, from every machine's state."""
-    have = []
+    """The spans no collection needs to list again, from every machine's state, and every
+    folded day: what a fold holds is never asked for again, by a rebuild either."""
+    have = list(record.folded_spans())
     for state in record.states.values():
         for begun, ended, entry in spans(state):
             at = parse_time(entry.get("at"))
@@ -705,10 +712,39 @@ async def gate_outcome_collect(
     return await run_blocking(_collect_sync, since_days, chosen, requests, rebuild)
 
 
-def _collect_sync(  # noqa: PLR0911
-    since_days: int, sources: list[str], requests: int, rebuild: bool
+def collect_at(
+    root: Path,
+    sources: list[str] | None = None,
+    requests: int = DEFAULT_REQUESTS,
+    *,
+    do_fetch: bool = False,
+    fetch_error: str | None = None,
 ) -> CommandResult[dict]:
-    found = workspace_repo()
+    """A collection for the checkout at `root`, as `gate_outcome_collect` makes one for the
+    checkout it is called from: what the hourly job runs for each checkout the machine's
+    settings name. Synchronous, for the job's own step."""
+    chosen = list(sources) if sources is not None else ["ci"]
+    if all(isinstance(source, str) for source in chosen):
+        chosen = list(dict.fromkeys(chosen))
+    refused = _check_inputs(7, chosen, requests)
+    if refused is not None:
+        return refused
+    return _collect_sync(
+        7, chosen, requests, False, root=root, do_fetch=do_fetch, fetch_error=fetch_error
+    )
+
+
+def _collect_sync(  # noqa: PLR0911, PLR0913 - the collection's entry
+    since_days: int,
+    sources: list[str],
+    requests: int,
+    rebuild: bool,
+    *,
+    root: Path | None = None,
+    do_fetch: bool = True,
+    fetch_error: str | None = None,
+) -> CommandResult[dict]:
+    found = workspace_repo() if root is None else checkout_repo(root)
     if found is None:
         return no_workspace()
     root, repo = found
@@ -723,7 +759,7 @@ def _collect_sync(  # noqa: PLR0911
         with RunLock(base / LOCK_FILE, label="gate-outcome-collect"):
             result = _collect(
                 repo, folder, here, since_days, requests, rebuild, known, root=root,
-                sources=sources,
+                sources=sources, do_fetch=do_fetch, fetch_error=fetch_error,
             )  # fmt: skip
             _publish(result, folder, here, repo)
     except LockHeld:
@@ -752,6 +788,7 @@ def _publish(result: CommandResult[dict], folder: Path, here: Local, repo: str) 
 def _collect(  # noqa: PLR0913, C901, PLR0912, PLR0915 - one collection, start to end
     repo: str, folder: Path, here: Local, since_days: int, requests: int, rebuild: bool,
     known: Known | None = None, root: Path | None = None, sources: list[str] | None = None,
+    *, do_fetch: bool = True, fetch_error: str | None = None,
 ) -> CommandResult[dict]:  # fmt: skip
     sources = sources or ["ci"]
     record = load_record(state_dir(), repo, here)
@@ -783,7 +820,10 @@ def _collect(  # noqa: PLR0913, C901, PLR0912, PLR0915 - one collection, start t
             state.pop(REBUILD_KEYS[source])
 
     if "main" in sources:
-        main_source, whole = _collect_main(root or Path.cwd(), repo, collection, redo["main"])
+        main_source, whole = _collect_main(
+            root or Path.cwd(), repo, collection, redo["main"],
+            do_fetch=do_fetch, fetch_error=fetch_error,
+        )  # fmt: skip
         found["main"] = main_source
         if whole:
             rebuilt("main")
@@ -803,6 +843,7 @@ def _collect(  # noqa: PLR0913, C901, PLR0912, PLR0915 - one collection, start t
         if whole:
             rebuilt("ci")
 
+    folded = fold.fold_record(folder, record, known, now, here.machine) if "ci" in sources else None
     state["collected_at"] = stamp(record_now())
     save_state(folder, state)
     data = {
@@ -821,6 +862,8 @@ def _collect(  # noqa: PLR0913, C901, PLR0912, PLR0915 - one collection, start t
         data["allowance"] = gh.allowance
     if gh.graphql_allowance is not None:
         data["allowance_graphql"] = gh.graphql_allowance
+    if folded is not None:
+        data["folded"] = folded
     if known is not None and known.error:
         data["warnings"] = [
             f"No hook group step's summary was read: {known.error}, so the checks known "
@@ -836,8 +879,14 @@ def _collect(  # noqa: PLR0913, C901, PLR0912, PLR0915 - one collection, start t
     return success(data, reasoning=reasoning)
 
 
-def _collect_main(
-    root: Path, repo: str, collection: Collection, redo: Rebuild | None
+def _collect_main(  # noqa: PLR0913 - the main source's inputs
+    root: Path,
+    repo: str,
+    collection: Collection,
+    redo: Rebuild | None,
+    *,
+    do_fetch: bool = True,
+    fetch_error: str | None = None,
 ) -> tuple[dict, bool]:
     """The `main` source: the fix commits and reverts in the window, and what GitHub says of
     the issues they close. Its entry, and whether it read all."""
@@ -847,8 +896,9 @@ def _collect_main(
         return redo is not None and redo.stale(parse_time(line["at"]), parse_time(line["landed"]))
 
     read = main_source.read_main(
-        root, repo, collection.gh, collection.record, collection.start, collection.now, stale, at
-    )
+        root, repo, collection.gh, collection.record, collection.start, collection.now, stale, at,
+        do_fetch=do_fetch, fetch_error=fetch_error,
+    )  # fmt: skip
     collection._write(read.lines)  # noqa: SLF001 - the collection's own writer
     state = collection.state
     held = state.get("main")

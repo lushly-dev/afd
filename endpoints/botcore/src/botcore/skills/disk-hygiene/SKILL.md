@@ -5,7 +5,7 @@ description: >
   full, a build fails for space, or a worktree, cache or build folder needs removing.
 metadata:
   source: botcore
-  version: 1.2.0
+  version: 1.3.0
   portable: true
 ---
 
@@ -77,7 +77,10 @@ without `--apply` deletes nothing but writes a receipt. `disk-reclaim --apply`, 
   by `disk-setup`: the repositories, watched volumes with their identifier and low-space
   threshold, and aged cache folders outside worktrees (`[[aged]] path = ".../*"`). The same
   file names the machine for skill usage (`skill_usage_machine`, `skill_usage_shared`), which
-  the hourly job also collects: `botcore docs skill`.
+  the hourly job also collects: `botcore docs skill`. It can name checkouts the job collects
+  gate outcomes for (`gate_outcome_checkouts`; none by default, since GitHub's allowance is the
+  account's): `botcore docs gate-outcome`. That step fetches each checkout's default branch
+  into `refs/botcore/gate-outcome/default` only, and never fails or holds the job.
 - **Rust**: Cargo's default keeps `target/` inside each worktree, where tier 1 and worktree
   removal reach it. A machine that moves it (`CARGO_TARGET_DIR`, or Cargo's `build-dir` on a
   bigger drive) needs an `[[aged]]` folder covering it; `disk-setup` names the entry to add.

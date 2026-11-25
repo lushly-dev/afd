@@ -19,7 +19,7 @@ import tomllib
 from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 from afd import CommandResult, error, success
@@ -78,7 +78,10 @@ GOES_WITH = {
 }
 SOURCES = ("ci", "main", "reviews", "runs")  # the plan's; this botcore collects `ci`, `main`
 SORTS = ("minutes", "failed", "runs")
-DEFAULT_LIMIT, MAX_LIMIT = 25, 200
+# The largest limit keeps the widest answer (by check, every event) under the local server's
+# cut of 100,000 characters: 79,201 characters at 75 on a whole day of this repository's runs
+# (lushly-dev/afd#2484), 103,058 at 100 and about 201,000 at 200
+DEFAULT_LIMIT, MAX_LIMIT = 25, 75
 WALL_CAP = timedelta(hours=6)  # a run's wall time counts at most this
 MIN_RATE = 20  # passed and failed runs a rate needs
 STALE_AFTER = timedelta(hours=26)
@@ -230,7 +233,7 @@ def _file(path: str) -> str:
 def _known_workflows(record: Record, known: Known | None = None) -> dict[str, set[str]]:
     """Each workflow's file path, by every way a person may name it: its name, its file."""
     found: dict[str, set[str]] = {}
-    for line in record.runs.values():
+    for line in _workflow_lines(record):
         for name in (line["name"], _file(line["workflow"]), line["workflow"]):
             found.setdefault(name.lower(), set()).add(line["workflow"])
     for file in known.files if known else ():
@@ -238,11 +241,20 @@ def _known_workflows(record: Record, known: Known | None = None) -> dict[str, se
     return found
 
 
+def _workflow_lines(record: Record) -> list[dict]:
+    """Every line that names a workflow: the runs, and a folded day's workflow lines."""
+    return [
+        *record.runs.values(),
+        *(line for line in record.folds.values() if line["kind"] == "folded-workflow"),
+    ]
+
+
 def _unknown_workflow(workflow: str, record: Record) -> CommandResult[dict]:
-    names = sorted({line["name"] for line in record.runs.values()})
-    files = sorted({_file(line["workflow"]) for line in record.runs.values()})
+    lines = _workflow_lines(record)
+    names = sorted({line["name"] for line in lines})
+    files = sorted({_file(line["workflow"]) for line in lines})
     close = difflib.get_close_matches(workflow, [*names, *files], n=5, cutoff=0.4)
-    count = len({line["workflow"] for line in record.runs.values()})
+    count = len({line["workflow"] for line in lines})
     return error(
         "INVALID_INPUT",
         f"The record knows no workflow '{workflow}'",
@@ -337,7 +349,7 @@ async def gate_outcome_report(  # noqa: PLR0913 - the command's inputs
         pull_request: The plan's filter for `by: class`; refused here.
         due: The plan's filter for `by: decision`; refused here.
         sort: `minutes` (the default), `failed` or `runs`; largest first.
-        limit: Rows to give, and entries of each other list: 1 to 200 (default 25); `more`
+        limit: Rows to give, and entries of each other list: 1 to 75 (default 25); `more`
             says how many each list left out.
     """
     filters = {"where": where, "workflow": workflow, "check": check, "area": area,
@@ -362,7 +374,7 @@ class Window:
 
 @dataclass
 class Scan:
-    """One pass over the window's runs."""
+    """One pass over the window's runs, and the folded lines of its folded days."""
 
     rows: dict[tuple[str, str], Row] = field(default_factory=dict)
     finished: list[tuple[dict, dict[int, dict]]] = field(default_factory=list)
@@ -373,41 +385,37 @@ class Scan:
     unreadable_steps: int = 0
     queue_heads: set[str] = field(default_factory=set)
     queue_failed: set[str] = field(default_factory=set)
+    folded: list[dict] = field(default_factory=list)  # folded-workflow lines in scope
+    folded_days: set[str] = field(default_factory=set)  # the window's folded days
 
-
-def _scan(  # noqa: C901, PLR0912 - one pass over the record
-    record: Record, window: Window, where: str | None, wanted: set[str] | None,
-    verdicts: set[str],
-) -> Scan:  # fmt: skip
-    scan = Scan()
-    attempts: dict[int, dict[int, dict]] = {}
-    for line in record.runs.values():
-        attempts.setdefault(line["run"], {})[line["attempt"]] = line
-    for run_id, held in attempts.items():
+    def add(  # noqa: C901, PLR0912, PLR0913 - one run
+        self, record: Record, run_id: int, held: dict[int, dict], where: str | None,
+        wanted: set[str] | None, verdicts: set[str],
+    ) -> None:  # fmt: skip
+        """One run, as its latest attempt, with its earlier attempts in `held`."""
         latest = held[max(held)]
-        created = parse_time(latest["created"])
-        if created is None or not window.since <= created < window.until:
-            continue
         if latest["event"] not in EVENTS:
-            scan.left_out[latest["event"]] += 1
-            continue
+            self.left_out[latest["event"]] += 1
+            return
         if (where is not None and latest["event"] != where) or (
             wanted is not None and latest["workflow"] not in wanted
         ):
-            continue
+            return
         if latest["status"] != "completed":
-            scan.going.append(run_id)
-            continue
-        scan.finished.append((latest, held))
+            self.going.append(run_id)
+            return
+        self.finished.append((latest, held))
         end = ENDS.get(latest["conclusion"] or "", "other")
         key = (latest["workflow"], latest["event"])
         verdict = latest["workflow"] in verdicts
-        row = scan.rows.setdefault(
+        row = self.rows.setdefault(
             key, Row(file=_file(latest["workflow"]), where=latest["event"], verdict=verdict)
         )
         if latest["created"] >= row.named_at:
             row.name, row.named_at = latest["name"], latest["created"]
         row.counts[end] += 1
+        created = parse_time(latest["created"])
+        assert created is not None
         updated = parse_time(latest["updated"]) or created
         row.wall += min(max(updated - created, timedelta(0)), WALL_CAP).total_seconds()
         if end == "passed" and latest["attempt"] > 1:
@@ -420,21 +428,93 @@ def _scan(  # noqa: C901, PLR0912 - one pass over the record
             if kind is not None:
                 row.later[kind] += 1
         if end in RAN:
-            scan.ran += 1
+            self.ran += 1
             steps = record.steps.get(f"steps:{run_id}:{latest['attempt']}")
             if steps is not None and steps.get("unreadable") and not steps["seconds"]:
-                scan.unreadable_steps += 1  # GitHub no longer has them: on record as unreadable
+                self.unreadable_steps += 1  # GitHub no longer has them: on record as unreadable
             else:
-                scan.with_steps += steps is not None
+                self.with_steps += steps is not None
         if latest["event"] == "merge_group" and latest["head"]:
             row.heads.add(latest["head"])
             if end == "failed":
                 row.failed_heads.add(latest["head"])
             if not verdict:
-                scan.queue_heads.add(latest["head"])
+                self.queue_heads.add(latest["head"])
                 if end == "failed":
-                    scan.queue_failed.add(latest["head"])
+                    self.queue_failed.add(latest["head"])
+
+    def add_folded(
+        self, line: dict, where: str | None, wanted: set[str] | None, verdicts: set[str]
+    ) -> None:
+        """A folded day's line for one workflow and event, as `add` counts its runs."""
+        if line["event"] not in EVENTS:
+            self.left_out[line["event"]] += line["left_out"]
+            return
+        if (where is not None and line["event"] != where) or (
+            wanted is not None and line["workflow"] not in wanted
+        ):
+            return
+        self.folded.append(line)
+        self.going.extend(line["going"])
+        self.ran += line["ran"]
+        self.with_steps += line["with_steps"]
+        self.unreadable_steps += line["unreadable_steps"]
+        if not any(line["counts"].values()):
+            return  # only runs still going: no row, as for runs not folded
+        verdict = line["workflow"] in verdicts
+        row = self.rows.setdefault(
+            (line["workflow"], line["event"]),
+            Row(file=_file(line["workflow"]), where=line["event"], verdict=verdict),
+        )
+        if line["named_at"] >= row.named_at:
+            row.name, row.named_at = line["name"], line["named_at"]
+        row.counts.update({end: count for end, count in line["counts"].items() if count})
+        row.later.update({kind: count for kind, count in line["later"].items() if count})
+        row.wall += line["wall"]
+        row.heads.update(line["heads"])
+        row.failed_heads.update(line["failed_heads"])
+        if not verdict:
+            self.queue_heads.update(line["heads"])
+            self.queue_failed.update(line["failed_heads"])
+
+
+def by_run(record: Record) -> dict[int, dict[int, dict]]:
+    """Each run's attempts on record, by number."""
+    attempts: dict[int, dict[int, dict]] = {}
+    for line in record.runs.values():
+        attempts.setdefault(line["run"], {})[line["attempt"]] = line
+    return attempts
+
+
+def _scan(  # noqa: PLR0913 - the window and its filters
+    record: Record, window: Window, where: str | None, wanted: set[str] | None,
+    verdicts: set[str],
+) -> Scan:  # fmt: skip
+    scan = Scan()
+    for run_id, held in by_run(record).items():
+        created = parse_time(held[max(held)]["created"])
+        if created is None or not window.since <= created < window.until:
+            continue
+        scan.add(record, run_id, held, where, wanted, verdicts)
+    first, last = str(window.first), str(window.last)
+    for line in sorted(record.folds.values(), key=lambda line: line["id"]):
+        if line["kind"] == "folded-workflow" and first <= line["day"] <= last:
+            scan.folded_days.add(line["day"])
+            scan.add_folded(line, where, wanted, verdicts)
     return scan
+
+
+def day_ranges(days: set[str]) -> list[dict]:
+    """Days as runs of consecutive days: [{first, last}]."""
+    ranges: list[dict] = []
+    for day in sorted(days):
+        if ranges and date.fromisoformat(ranges[-1]["last"]) + timedelta(days=1) == (
+            date.fromisoformat(day)
+        ):
+            ranges[-1]["last"] = day
+        else:
+            ranges.append({"first": day, "last": day})
+    return ranges
 
 
 def _totals(scan: Scan, where: str | None) -> dict:
@@ -526,7 +606,7 @@ def _report_sync(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one report
         for state in record.states.values()
         for begun, ended, entry in spans(state)
     ]
-    have = [(begun, ended) for begun, ended, _ in told]
+    have = [(begun, ended) for begun, ended, _ in told] + record.folded_spans()
     listed_until = max((ended for _, ended, _ in told), default=None)
     # The seconds since a collection, within the hour, that listed up to the moment it began
     # are not missing: a run created since is the next collection's, as `collected` says
@@ -648,6 +728,7 @@ def _report_sync(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one report
             "listed_until": listed_until.isoformat() if listed_until else None,
             "steps_share": steps_share,
             "steps_unreadable": scan.unreadable_steps,
+            "folded": day_ranges(scan.folded_days),
             "not_seen": list(NOT_SEEN),
         },
         "machines": machines,
@@ -659,8 +740,8 @@ def _report_sync(  # noqa: C901, PLR0912, PLR0913, PLR0915 - one report
         return success(data, reasoning=reasoning)
     if by == "check":
         assert known is not None
-        by_check(data, record, known, scan.finished, verdicts, where, wanted, check, sort,
-                 limit, status)  # fmt: skip
+        by_check(data, record, known, scan, verdicts, where, wanted, check, sort, limit,
+                 status)  # fmt: skip
         return success(
             data,
             reasoning=f"{len(data['rows'])} of {len(data['rows']) + data['more']['rows']} check "

@@ -37,11 +37,11 @@
       "path": "README.md",
       "upstream_sha256": "892db189b22b41214ab5637d9601beb0add2f9f2535c358c59cf5757e4d87979",
       "staged_sha256": "8ab2a275fdd389aca8353b3b2608698b30bc662d8a6612ce104319c1ee5fa781",
-      "current_import_sha256": "13f02234ff885ac48f3432fafe29216d43026bcf338f447adc966b2ae6c9229a",
+      "current_import_sha256": "686b5acda672315f543edae7d65542ac12754b46749181a6b68016962a054a57",
       "stage_classification": "modified-upstream",
       "stage_reason": "Link the new managed-host compatibility documentation",
       "import_classification": "modified-after-staging",
-      "import_reason": "List the bundled skills that remain; record ownership under metadata; point the release badge and the repository note at AFD; Add the gate-discipline skill and its scripts; list all eleven skills; Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); botcore serve refuses a network transport, since its run tool executes any Python its client sends; tests and README say so; botcore serve refuses a network transport, since its run tool executes any Python its client sends; points to botcore.host_http for HTTP; tests, README and the server docstring say so; Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820); The hourly job always ends and says what it waited for (#1902, #1903); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); Removed references to projects outside this repository: a completed planning record, part of the author note and one example; Add gate-outcome-collect and gate-outcome-report (lushly-dev/afd#2481); Report gate outcomes by check: the checks known at the default branch's tip, a hook group step's commands from Lefthook's summary, verdict workflows left out of the totals, and scenarios 01 and 03 through the scenario runner (#2482)"
+      "import_reason": "List the bundled skills that remain; record ownership under metadata; point the release badge and the repository note at AFD; Add the gate-discipline skill and its scripts; list all eleven skills; Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); botcore serve refuses a network transport, since its run tool executes any Python its client sends; tests and README say so; botcore serve refuses a network transport, since its run tool executes any Python its client sends; points to botcore.host_http for HTTP; tests, README and the server docstring say so; Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820); The hourly job always ends and says what it waited for (#1902, #1903); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); Removed references to projects outside this repository: a completed planning record, part of the author note and one example; Add gate-outcome-collect and gate-outcome-report (lushly-dev/afd#2481); Report gate outcomes by check: the checks known at the default branch's tip, a hook group step's commands from Lefthook's summary, verdict workflows left out of the totals, and scenarios 01 and 03 through the scenario runner (#2482); Gate outcome collection in the hourly job, the record's fold at 180 days and the lower report limit (lushly-dev/afd#2484)"
     },
     {
       "path": "SETUP.md",
@@ -2659,11 +2659,11 @@
       "path": "src/botcore/cli.py",
       "upstream_sha256": "3f9c4f20694615b01b8edabc920c26662d065e09365161a493b41131a3d4a77f",
       "staged_sha256": "3f9c4f20694615b01b8edabc920c26662d065e09365161a493b41131a3d4a77f",
-      "current_import_sha256": "f613af51129cff7b5c86f165f782db267d74099ed190d0988e305730c2cced61",
+      "current_import_sha256": "0e8b75f429bf9d27f932b09879d9b83f4cf29e053997ca39a55ab4fe1d50383c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Describe skill-lint as the shared skill rule set; Add the host-token group for HTTP surface tokens; disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); botcore serve refuses a network transport, since its run tool executes any Python its client sends; tests and README say so; botcore serve refuses a network transport, since its run tool executes any Python its client sends; points to botcore.host_http for HTTP; tests, README and the server docstring say so; Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); The hourly job always ends and says what it waited for (#1902, #1903); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings; Add read-only pr_status, pr_wait, pr_drift, dev_snapshot commands, [pr] config, and SK020 openai.yaml skill lint rule; Add read-only pr_status, pr_wait, pr_drift, dev_snapshot commands, [pr] config, SK020 openai.yaml lint, and RunLock label; Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778); Format Botcore, add mypy type checking and py.typed marker (#1757); Add gate-outcome-collect and gate-outcome-report (lushly-dev/afd#2481); Add the botcore docs command, printing the server's docs topics from a shared function (lushly-dev/afd#2479); Report gate outcomes by check: the checks known at the default branch's tip, a hook group step's commands from Lefthook's summary, verdict workflows left out of the totals, and scenarios 01 and 03 through the scenario runner (#2482); Add the main source of gate-outcome-collect and gate-outcome-report by area: fix commits and reverts on the default branch with their units, test paths, closed issues, Found-by lines and last-edit age; scenarios 02 and 03 through the scenario runner (#2483)"
+      "import_reason": "Describe skill-lint as the shared skill rule set; Add the host-token group for HTTP surface tokens; disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); botcore serve refuses a network transport, since its run tool executes any Python its client sends; tests and README say so; botcore serve refuses a network transport, since its run tool executes any Python its client sends; points to botcore.host_http for HTTP; tests, README and the server docstring say so; Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); The hourly job always ends and says what it waited for (#1902, #1903); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings; Add read-only pr_status, pr_wait, pr_drift, dev_snapshot commands, [pr] config, and SK020 openai.yaml skill lint rule; Add read-only pr_status, pr_wait, pr_drift, dev_snapshot commands, [pr] config, SK020 openai.yaml lint, and RunLock label; Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778); Format Botcore, add mypy type checking and py.typed marker (#1757); Add gate-outcome-collect and gate-outcome-report (lushly-dev/afd#2481); Add the botcore docs command, printing the server's docs topics from a shared function (lushly-dev/afd#2479); Report gate outcomes by check: the checks known at the default branch's tip, a hook group step's commands from Lefthook's summary, verdict workflows left out of the totals, and scenarios 01 and 03 through the scenario runner (#2482); Add the main source of gate-outcome-collect and gate-outcome-report by area: fix commits and reverts on the default branch with their units, test paths, closed issues, Found-by lines and last-edit age; scenarios 02 and 03 through the scenario runner (#2483); Gate outcome collection in the hourly job, the record's fold at 180 days and the lower report limit (lushly-dev/afd#2484)"
     },
     {
       "path": "src/botcore/cli_cdp.py",
@@ -3062,10 +3062,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "d70cd950a132acc5c5d937819c6a3f1e29173a8e6dafe903766be170b0aaa6e3",
+      "current_import_sha256": "a934008d67994594b6b81bcd138cb9f0b990fde6bfc59fbbe2cc30e82cde8319",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); The hourly job always ends and says what it waited for (#1902, #1903); Format Botcore, add mypy type checking and py.typed marker (#1757); Normalize LF bytes in Botcore provenance digests so Linux CI matches git blobs (#1757); Track skill sizes, aliases and quiet list for skills outside default project folders (lushly-dev/afd#1830); Track external skill directories, sizes, aliases, and quiet list for skill usage (#1830)"
+      "import_reason": "disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); The hourly job always ends and says what it waited for (#1902, #1903); Format Botcore, add mypy type checking and py.typed marker (#1757); Normalize LF bytes in Botcore provenance digests so Linux CI matches git blobs (#1757); Track skill sizes, aliases and quiet list for skills outside default project folders (lushly-dev/afd#1830); Track external skill directories, sizes, aliases, and quiet list for skill usage (#1830); Gate outcome collection in the hourly job, the record's fold at 180 days and the lower report limit (lushly-dev/afd#2484)"
     },
     {
       "path": "src/botcore/commands/disk/setup.py",
@@ -3073,10 +3073,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "86787382d9041d8040eea3f72f5f6a65f2dedd01eefa69f768a0bfe9bf6d1bbf",
+      "current_import_sha256": "2ffcf849cdc1f221359b819442fb93e33179367858b86921003369208a48ca4a",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: anchored session folders, case-folded copies (lushly-dev/afd#1690); disk hygiene: permission errors on Python 3.11 (lushly-dev/afd#1688); disk hygiene: case probe past numbered folders, broad temp folders (lushly-dev/afd#1688); disk hygiene: last review nits (lushly-dev/afd#1688, #1689); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); The hourly job always ends and says what it waited for (#1902, #1903); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims (#1810), keep usable [tools] entries on disk-setup rerun (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings; Count step words monotonically for Windows clock ticks; handle read-only git objects and JSON-escaped Windows paths in tests (#2258, #2176); Use APFSVolumeGroupID for macOS APFS boot snapshots and migrate / on disk-setup (lushly-dev/afd#2267); Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778); Fix Cargo build-dir aged cleanup defaults, bucket leaf handling, scoped busy check, and low-space aged pressure escalation (lushly-dev/afd#2373); Format Botcore, add mypy type checking and py.typed marker (#1757); Format and type-check botcore after base sync (#1757); Track skill sizes, aliases and quiet list for skills outside default project folders (lushly-dev/afd#1830); Track external skill directories, sizes, aliases, and quiet list for skill usage (#1830)"
+      "import_reason": "disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk hygiene verification fixes: lasting tool paths, git timeouts (lushly-dev/afd#1690); disk hygiene: anchored session folders, case-folded copies (lushly-dev/afd#1690); disk hygiene: permission errors on Python 3.11 (lushly-dev/afd#1688); disk hygiene: case probe past numbered folders, broad temp folders (lushly-dev/afd#1688); disk hygiene: last review nits (lushly-dev/afd#1688, #1689); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); The hourly job always ends and says what it waited for (#1902, #1903); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims (#1810), keep usable [tools] entries on disk-setup rerun (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings; Count step words monotonically for Windows clock ticks; handle read-only git objects and JSON-escaped Windows paths in tests (#2258, #2176); Use APFSVolumeGroupID for macOS APFS boot snapshots and migrate / on disk-setup (lushly-dev/afd#2267); Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778); Fix Cargo build-dir aged cleanup defaults, bucket leaf handling, scoped busy check, and low-space aged pressure escalation (lushly-dev/afd#2373); Format Botcore, add mypy type checking and py.typed marker (#1757); Format and type-check botcore after base sync (#1757); Track skill sizes, aliases and quiet list for skills outside default project folders (lushly-dev/afd#1830); Track external skill directories, sizes, aliases, and quiet list for skill usage (#1830); Gate outcome collection in the hourly job, the record's fold at 180 days and the lower report limit (lushly-dev/afd#2484)"
     },
     {
       "path": "src/botcore/commands/disk/steps.py",
@@ -3127,10 +3127,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "50b6288120f99c315f9e8d950c2f35a30c8977605b0cf4f2d6ee08772cc0253c",
+      "current_import_sha256": "515a913a8a011379400237904001a124f204eec20305db1ee3fa38d5b4acf87b",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Report gate outcomes by check: the checks known at the default branch's tip, a hook group step's commands from Lefthook's summary, verdict workflows left out of the totals, and scenarios 01 and 03 through the scenario runner (#2482)"
+      "import_reason": "Report gate outcomes by check: the checks known at the default branch's tip, a hook group step's commands from Lefthook's summary, verdict workflows left out of the totals, and scenarios 01 and 03 through the scenario runner (#2482); Gate outcome collection in the hourly job, the record's fold at 180 days and the lower report limit (lushly-dev/afd#2484)"
     },
     {
       "path": "src/botcore/commands/gate_outcome/collect.py",
@@ -3138,10 +3138,21 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "ed02aa573345f99d5943baf66ef2c9cdd7f218acc20bf6d5dd885bbe85980dc0",
+      "current_import_sha256": "971c8c907f662735338abe807ad69d7e86b6c9599b1332a6508e58cd77e492f7",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Add gate-outcome-collect and gate-outcome-report (lushly-dev/afd#2481); Report gate outcomes by check: the checks known at the default branch's tip, a hook group step's commands from Lefthook's summary, verdict workflows left out of the totals, and scenarios 01 and 03 through the scenario runner (#2482); Add the main source of gate-outcome-collect and gate-outcome-report by area: fix commits and reverts on the default branch with their units, test paths, closed issues, Found-by lines and last-edit age; scenarios 02 and 03 through the scenario runner (#2483)"
+      "import_reason": "Add gate-outcome-collect and gate-outcome-report (lushly-dev/afd#2481); Report gate outcomes by check: the checks known at the default branch's tip, a hook group step's commands from Lefthook's summary, verdict workflows left out of the totals, and scenarios 01 and 03 through the scenario runner (#2482); Add the main source of gate-outcome-collect and gate-outcome-report by area: fix commits and reverts on the default branch with their units, test paths, closed issues, Found-by lines and last-edit age; scenarios 02 and 03 through the scenario runner (#2483); Gate outcome collection in the hourly job, the record's fold at 180 days and the lower report limit (lushly-dev/afd#2484); Integrate #2547 main source with #2484 hourly collection and folding"
+    },
+    {
+      "path": "src/botcore/commands/gate_outcome/fold.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "4c0ae0277f1577afc64a0c19375e472a24207df9032e897407fca55a348d4d4f",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Gate outcome collection in the hourly job, the record's fold at 180 days and the lower report limit (lushly-dev/afd#2484)"
     },
     {
       "path": "src/botcore/commands/gate_outcome/github.py",
@@ -3155,15 +3166,26 @@
       "import_reason": "Add gate-outcome-collect and gate-outcome-report (lushly-dev/afd#2481); Report gate outcomes by check: the checks known at the default branch's tip, a hook group step's commands from Lefthook's summary, verdict workflows left out of the totals, and scenarios 01 and 03 through the scenario runner (#2482); Add the main source of gate-outcome-collect and gate-outcome-report by area: fix commits and reverts on the default branch with their units, test paths, closed issues, Found-by lines and last-edit age; scenarios 02 and 03 through the scenario runner (#2483)"
     },
     {
+      "path": "src/botcore/commands/gate_outcome/hourly.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "11641ca4caa55d02fb09fb996f8b0ae6c66c980e865a5b0b65ee185db4c166f3",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Gate outcome collection in the hourly job, the record's fold at 180 days and the lower report limit (lushly-dev/afd#2484); Integrate #2547 main source with #2484 hourly collection and folding"
+    },
+    {
       "path": "src/botcore/commands/gate_outcome/main.py",
       "origin": "local-after-import",
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "3fe9ee010d6394d5e8865dcffa1a4037fdea803209c9f02cbaa868ba1e0ef9d0",
+      "current_import_sha256": "2c616afdf9b6a0623e2e06f4a9cb4629300e33478a05ad4d7f4ef16722202d01",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Add the main source of gate-outcome-collect and gate-outcome-report by area: fix commits and reverts on the default branch with their units, test paths, closed issues, Found-by lines and last-edit age; scenarios 02 and 03 through the scenario runner (#2483)"
+      "import_reason": "Add the main source of gate-outcome-collect and gate-outcome-report by area: fix commits and reverts on the default branch with their units, test paths, closed issues, Found-by lines and last-edit age; scenarios 02 and 03 through the scenario runner (#2483); Integrate #2547 main source with #2484 hourly collection and folding; Fetch origin remote-tracking branch when OWN_REF is ahead on manual main collection"
     },
     {
       "path": "src/botcore/commands/gate_outcome/record.py",
@@ -3171,10 +3193,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "d05021630883dfa92a91742d5afbc0f4496381178fbcd9ef916dd87f8346daf1",
+      "current_import_sha256": "82939b012652d7e3fd9ee7a239e0fbcada0f862c18da8ed06c0447ef43ba426e",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Add gate-outcome-collect and gate-outcome-report (lushly-dev/afd#2481); Report gate outcomes by check: the checks known at the default branch's tip, a hook group step's commands from Lefthook's summary, verdict workflows left out of the totals, and scenarios 01 and 03 through the scenario runner (#2482); Add the main source of gate-outcome-collect and gate-outcome-report by area: fix commits and reverts on the default branch with their units, test paths, closed issues, Found-by lines and last-edit age; scenarios 02 and 03 through the scenario runner (#2483)"
+      "import_reason": "Add gate-outcome-collect and gate-outcome-report (lushly-dev/afd#2481); Report gate outcomes by check: the checks known at the default branch's tip, a hook group step's commands from Lefthook's summary, verdict workflows left out of the totals, and scenarios 01 and 03 through the scenario runner (#2482); Add the main source of gate-outcome-collect and gate-outcome-report by area: fix commits and reverts on the default branch with their units, test paths, closed issues, Found-by lines and last-edit age; scenarios 02 and 03 through the scenario runner (#2483); Gate outcome collection in the hourly job, the record's fold at 180 days and the lower report limit (lushly-dev/afd#2484); Integrate #2547 main source with #2484 hourly collection and folding"
     },
     {
       "path": "src/botcore/commands/gate_outcome/report.py",
@@ -3182,10 +3204,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "1ec209657fad605f427b48f8563c18d1f158ad33862b9a201e91c5189812e778",
+      "current_import_sha256": "793fdedf9fcc514afbc6141eea4d7b5ae00c03af69b84143fa87ebbb3a7564d0",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Add gate-outcome-collect and gate-outcome-report (lushly-dev/afd#2481); Report gate outcomes by check: the checks known at the default branch's tip, a hook group step's commands from Lefthook's summary, verdict workflows left out of the totals, and scenarios 01 and 03 through the scenario runner (#2482); Add the main source of gate-outcome-collect and gate-outcome-report by area: fix commits and reverts on the default branch with their units, test paths, closed issues, Found-by lines and last-edit age; scenarios 02 and 03 through the scenario runner (#2483)"
+      "import_reason": "Add gate-outcome-collect and gate-outcome-report (lushly-dev/afd#2481); Report gate outcomes by check: the checks known at the default branch's tip, a hook group step's commands from Lefthook's summary, verdict workflows left out of the totals, and scenarios 01 and 03 through the scenario runner (#2482); Add the main source of gate-outcome-collect and gate-outcome-report by area: fix commits and reverts on the default branch with their units, test paths, closed issues, Found-by lines and last-edit age; scenarios 02 and 03 through the scenario runner (#2483); Gate outcome collection in the hourly job, the record's fold at 180 days and the lower report limit (lushly-dev/afd#2484)"
     },
     {
       "path": "src/botcore/commands/gate_outcome/report_areas.py",
@@ -3204,10 +3226,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "c505155642619f3cf95fde358c9020f6dd7fd02599e9c6066384ccd5e99b258e",
+      "current_import_sha256": "e33166f42ec7ed9edcd751985449fb023d3319ad1479fc9d3b8cd63d5f194340",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Report gate outcomes by check: the checks known at the default branch's tip, a hook group step's commands from Lefthook's summary, verdict workflows left out of the totals, and scenarios 01 and 03 through the scenario runner (#2482)"
+      "import_reason": "Report gate outcomes by check: the checks known at the default branch's tip, a hook group step's commands from Lefthook's summary, verdict workflows left out of the totals, and scenarios 01 and 03 through the scenario runner (#2482); Gate outcome collection in the hourly job, the record's fold at 180 days and the lower report limit (lushly-dev/afd#2484)"
     },
     {
       "path": "src/botcore/commands/gate_outcome/summary.py",
@@ -3559,11 +3581,11 @@
       "path": "src/botcore/docs.py",
       "upstream_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
       "staged_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
-      "current_import_sha256": "e0d8c9ef6980c1daedc8076728bf8c8e09e9838ab945ed3067c098b2d1b77c52",
+      "current_import_sha256": "8ff135dd204e372494cd0cc299e5c9c2654fad2d83cbc389589f36cd40b6a5ab",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Document retired skills and the docs commands' real behaviour; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694); disk tier 2 docs; Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820); The hourly job always ends and says what it waited for (#1902, #1903); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); a folder git refuses is read as it lies (lushly-dev/afd#2051); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings; Add read-only pr_status, pr_wait, pr_drift, dev_snapshot commands, [pr] config, and SK020 openai.yaml skill lint rule; Add read-only pr_status, pr_wait, pr_drift, dev_snapshot commands, [pr] config, SK020 openai.yaml lint, and RunLock label; Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778); Add gate-outcome-collect and gate-outcome-report (lushly-dev/afd#2481); Track skill sizes, aliases and quiet list for skills outside default project folders (lushly-dev/afd#1830); Track external skill directories, sizes, aliases, and quiet list for skill usage (#1830); Report gate outcomes by check: the checks known at the default branch's tip, a hook group step's commands from Lefthook's summary, verdict workflows left out of the totals, and scenarios 01 and 03 through the scenario runner (#2482); Add the main source of gate-outcome-collect and gate-outcome-report by area: fix commits and reverts on the default branch with their units, test paths, closed issues, Found-by lines and last-edit age; scenarios 02 and 03 through the scenario runner (#2483)"
+      "import_reason": "Document retired skills and the docs commands' real behaviour; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); disk-report: report worktree build output, caches and volumes (lushly-dev/afd#1688); disk-reclaim: carry out tiers 0 and 1 (lushly-dev/afd#1689); disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694); disk tier 2 docs; Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); Add skill-usage-collect and skill-usage-report: skill loads read from T3 Code's store (lushly-dev/afd#1815, #1816); Add skill-usage-triggers and [[skills.required]]: merged changes that needed a skill the session that opened them had not loaded (lushly-dev/afd#1817); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); skill-usage-collect also reads Claude Code's transcripts, for sessions T3 Code did not run (lushly-dev/afd#1820); The hourly job always ends and says what it waited for (#1902, #1903); skill usage reads what a project holds from its default branch (lushly-dev/afd#1904); a folder git refuses is read as it lies (lushly-dev/afd#2051); Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Fix botcore bug batch: refuse lane-drop when GitHub holds merging PR (#1628), strip build info before output and align file activity (#1939), collapse/mark truncated unclassified folders with plain-text summary (#1955), and report SQLite/transcript progress so busy hourly collections finish (#2160); Fix Botcore bugs #1628, #1939, #1955, #2160 and review findings; Add read-only pr_status, pr_wait, pr_drift, dev_snapshot commands, [pr] config, and SK020 openai.yaml skill lint rule; Add read-only pr_status, pr_wait, pr_drift, dev_snapshot commands, [pr] config, SK020 openai.yaml lint, and RunLock label; Upgrade skill-usage remote projects (#2052), offload sync command bodies and kill subprocess groups (#1794), expose and fix CDP commands (#778); Add gate-outcome-collect and gate-outcome-report (lushly-dev/afd#2481); Track skill sizes, aliases and quiet list for skills outside default project folders (lushly-dev/afd#1830); Track external skill directories, sizes, aliases, and quiet list for skill usage (#1830); Report gate outcomes by check: the checks known at the default branch's tip, a hook group step's commands from Lefthook's summary, verdict workflows left out of the totals, and scenarios 01 and 03 through the scenario runner (#2482); Add the main source of gate-outcome-collect and gate-outcome-report by area: fix commits and reverts on the default branch with their units, test paths, closed issues, Found-by lines and last-edit age; scenarios 02 and 03 through the scenario runner (#2483); Gate outcome collection in the hourly job, the record's fold at 180 days and the lower report limit (lushly-dev/afd#2484); Integrate #2547 main source with #2484 hourly collection and folding"
     },
     {
       "path": "src/botcore/host.py",
@@ -5197,10 +5219,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "8f892902ff4213aba2e38b8706e4135fb2b35663f8c2dddf527f42abf61d92fb",
+      "current_import_sha256": "6b81a5df406447ec920f70fc695b908d3c769ebfe8d560397142e471b55e3059",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); The hourly job always ends and says what it waited for (#1902, #1903); disk-hygiene: say that an unnamed ignored path keeps tier 2 from removing a worktree, and that build info (*.tsbuildinfo) goes with its output, outside node_modules (#1693)"
+      "import_reason": "disk-setup, disk-status, disk-run and the disk-hygiene skill (lushly-dev/afd#1690, #1691); disk-report review fixes: verify folders, protect before ready, nested checkouts (lushly-dev/afd#1688); disk-reclaim and setup review fixes: kernel lock, rechecks, handle-based deletion (lushly-dev/afd#1689, #1690); disk-reclaim tier 2, disk-keep, disk-unkeep, disk-restore (lushly-dev/afd#1694); disk tier 2 first-review fixes: hidden edits, private state, pins, T3 and volume checks (lushly-dev/afd#1694); Disk hygiene prevention: idle-worktree warning, Cargo arrangement check, Factory slots managed (#1695); Skill usage on every machine: the hourly job collects, a machine names itself and a shared folder, and the reports read every machine's record (lushly-dev/afd#1818); The hourly job always ends and says what it waited for (#1902, #1903); disk-hygiene: say that an unnamed ignored path keeps tier 2 from removing a worktree, and that build info (*.tsbuildinfo) goes with its output, outside node_modules (#1693); Gate outcome collection in the hourly job, the record's fold at 180 days and the lower report limit (lushly-dev/afd#2484)"
     },
     {
       "path": "src/botcore/skills/docs-manager/SKILL.md",
@@ -7239,10 +7261,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "390dd4d396ddd09267d91bfb9bfd88e34812a517139d94919e7ded4c58495a9e",
+      "current_import_sha256": "ee2e7b36368c9e7c06dfcc811c9a5bc8597f2958ab038b3880e897483eb40359",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Add gate-outcome-collect and gate-outcome-report (lushly-dev/afd#2481); Report gate outcomes by check: the checks known at the default branch's tip, a hook group step's commands from Lefthook's summary, verdict workflows left out of the totals, and scenarios 01 and 03 through the scenario runner (#2482); Add the main source of gate-outcome-collect and gate-outcome-report by area: fix commits and reverts on the default branch with their units, test paths, closed issues, Found-by lines and last-edit age; scenarios 02 and 03 through the scenario runner (#2483)"
+      "import_reason": "Add gate-outcome-collect and gate-outcome-report (lushly-dev/afd#2481); Report gate outcomes by check: the checks known at the default branch's tip, a hook group step's commands from Lefthook's summary, verdict workflows left out of the totals, and scenarios 01 and 03 through the scenario runner (#2482); Add the main source of gate-outcome-collect and gate-outcome-report by area: fix commits and reverts on the default branch with their units, test paths, closed issues, Found-by lines and last-edit age; scenarios 02 and 03 through the scenario runner (#2483); Gate outcome collection in the hourly job, the record's fold at 180 days and the lower report limit (lushly-dev/afd#2484)"
     },
     {
       "path": "tests/test_gate_outcome_checks.py",
@@ -7254,6 +7276,28 @@
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Report gate outcomes by check: the checks known at the default branch's tip, a hook group step's commands from Lefthook's summary, verdict workflows left out of the totals, and scenarios 01 and 03 through the scenario runner (#2482)"
+    },
+    {
+      "path": "tests/test_gate_outcome_fold.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "56e56d148f791ee189eec8055fb54e97e669acf16192ec0cf0b9bc76bbdacd12",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Gate outcome collection in the hourly job, the record's fold at 180 days and the lower report limit (lushly-dev/afd#2484)"
+    },
+    {
+      "path": "tests/test_gate_outcome_hourly.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "8b49f1cbe952a32c973b9ae74b02da3372d8a8b2c3d601890391d6702e87aaf5",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Gate outcome collection in the hourly job, the record's fold at 180 days and the lower report limit (lushly-dev/afd#2484); Integrate #2547 main source with #2484 hourly collection and folding; Test hourly main source does not fetch into remote-tracking refs or FETCH_HEAD; Fetch origin remote-tracking branch when OWN_REF is ahead on manual main collection; Assert origin/HEAD or origin/main in manual tip fetch regression test"
     },
     {
       "path": "tests/test_gate_outcome_main.py",

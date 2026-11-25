@@ -1,0 +1,13 @@
+---
+"lushly-botcore": minor
+---
+
+### Added
+
+- **The hourly job collects gate outcomes for the checkouts a machine names.** `gate_outcome_checkouts` in the machine settings (`disk.toml`) lists checkouts by path; with none named, nothing is collected, since GitHub's hourly allowance belongs to the account. For each, a step after skill usage's fetches origin's default branch into `refs/botcore/gate-outcome/default` (no branch, remote-tracking branch, tag, index, working tree or `FETCH_HEAD` changes), then runs `gate-outcome-collect` for seven days with every source this botcore collects, at its default limit and its stop at half the allowance. The step has its own time limits and its own `gate_outcome` line in the job's answer, `check.json` and `disk-status`; a refusal, a failed fetch or a step that stops answering is reported and never stops the disk work or skill usage. The setting is written to the file only when it names something, because an older botcore refuses a settings file with a key it does not know.
+- **The record folds days older than 180 days.** At the end of each collection, under its lock, a whole UTC day more than 180 days old that was wholly collected has its runs, attempts' steps and group summaries put in one `folded-workflow` line for each workflow and event and one `folded-check` line for each check and event, holding what the reports count. The new file is written beside the old and put in place in one move, so a fold cut short leaves the old record whole; lines it cannot read, lines of other kinds and every shape are kept as they were, and the shared copy is folded the same way. A report over a window that reaches a folded day gives the figures its runs gave and names the folded days in `coverage.folded`; a folded day is never asked of GitHub again, so a rebuild keeps it. Nothing is folded while another machine's record could not all be read, and a day not wholly collected is held back; the collection's answer says what it folded and what it held back, and why (`folded`). An older botcore that reads a shared copy holding folded lines counts them as lines it could not read.
+
+### Changed
+
+- **`gate-outcome-report` takes a `limit` of at most 75**, down from 200: by check at 200, one quiet day's answer was about 201,000 characters, twice the local server's cut of 100,000, and at 75 it is 79,201.
+- **The checks known come from the hourly job's fetch when it is newer.** Both commands read the default branch's tip from `refs/botcore/gate-outcome/default` when it holds the checkout's own landing branch and is ahead of it, and otherwise as before.

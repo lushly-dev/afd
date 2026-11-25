@@ -397,44 +397,77 @@ first, as the limit permits. Each log read is one counted request.
   the window), `added` (lines written), `still_going` (runs not finished when listed), and when
   `partly`, `why` (begins `requests`, `allowance` or `github`) and `reached`: `step` (`lists`,
   `attempts`, `jobs` or `logs`), `window_listed` (share of the window listed), `runs`,
-  `attempts_left`, `steps_left`, `failed_summaries_left`, `passed_summaries_left`; a share
-  reads 1.0 only when whole), `requests_used`,
-  `allowance` (`remaining`, `limit`, as last seen) and, with a shared folder, `shared`
-  (`path`, `written`, `error`) and `warnings` (the checks known could not be read, so no
-  summary was). `read` means the window is all listed, every finished attempt that ran has its
-  steps, or is on record as one GitHub no longer gives, every failed group step's summary was
-  asked for, and the collection did not stop at a limit; a run still going does not keep it
-  from `read`. A collection that stops at a limit while reading passed group steps' logs is
-  `partly`, though the report's `coverage.sources.ci`, which rests on runs and steps only, is
-  `read`. With `main` also asked for, a `ci` that GitHub could not be asked for at all is
-  `absent` with why (`added: 0`) instead of a refusal. `allowance_graphql` is the GraphQL
-  allowance as last seen.
+  `attempts_left`, `steps_left`, `failed_summaries_left`, `passed_summaries_left`; a share reads
+  1.0 only when whole), `requests_used`, `allowance` (`remaining`, `limit`, as last seen),
+  `allowance_graphql` (the GraphQL allowance as last seen), `folded` when the fold did or held
+  back anything (below: `folded` (the days folded, as `{first, last}` runs of days),
+  `lines_before`, `lines_after`, `bytes_before`, `bytes_after`, `error` when the folded record
+  could not be written, and `not_folded`, each `why` with its `days` and a `suggestion`) and,
+  with a shared folder, `shared` (`path`, `written`, `error`) and `warnings` (the checks known
+  could not be read, so no summary was). `read` means the window is all listed, every finished
+  attempt that ran has its steps, or is on record as one GitHub no longer gives, every failed
+  group step's summary was asked for, and the collection did not stop at a limit; a run still
+  going does not keep it from `read`. A collection that stops at a limit while reading passed
+  group steps' logs is `partly`, though the report's `coverage.sources.ci`, which rests on runs
+  and steps only, is `read`. With `main` also asked for, a `ci` that GitHub could not be asked
+  for at all is `absent` with why (`added: 0`) instead of a refusal.
 - The record (`record.jsonl` in `<state>/<owner>/<name>/`, where `<state>` is botcore's state
-  folder's `gate-outcome`, or `BOTCORE_GATE_OUTCOME_STATE`) is appended to and never rewritten;
-  each line has an `id`, `kind`, the rules' version `v` and when it was written `at`, and a newer
-  line for an id wins. `run` lines (`run:<run id>:<attempt>`): `workflow` (its file), `name`,
-  `event`, `status`, `conclusion`, `head` (the revision tested), `base` (its base, from the pull
-  request or the queue group), `pr`, `created`, `started`, `updated`. `shape` lines
-  (`shape:<digest>`): a workflow's job and step names, once for each version of them. `steps`
-  lines (`steps:<run id>:<attempt>`): the `shape`, the `seconds` of each job and step, their
-  `conclusions` for an attempt that did not pass or where any job or step did not succeed (one
-  skipped included), and `groups` (each job with a group step: its place and GitHub's job id).
-  `group` lines (`group:<run id>:<attempt>`): for each group step whose log was read, `[job,
-  step, how the read ended (read, no-summary, mismatch, log-gone, unreadable), commands not kept,
-  [[command, passed or failed, seconds], ...]]`; a command is kept only when its group has it
-  at the default branch's tip. Nothing else: no line of a log, no output, title, branch name,
-  actor or file contents. `commit` lines (`commit:<revision>`, made by the main source's rules,
-  `v` 1): `sha`, `landed`, `type` (`fix` or `revert`), `pr`, `files` (how many), `units`,
-  `test_paths` (at most 100) and `tests` (how many), `closes` (by its message), `found_by`
-  (`[channel, class, issue or null]`), `found_by_unread`, `last_edit` and `last_edit_status`,
-  and, once GitHub is read, `pr_closes` and `issues` (`[number, open or closed, [label, ...]]`;
-  both null until then). No subject, message or diff text. Lines carry the rules' version; a
-  steps line made by older rules is read again. `state.json` beside it holds the spans listed,
-  the commits that landed each day (`main.days`) and how the last collection ended.
+  folder's `gate-outcome`, or `BOTCORE_GATE_OUTCOME_STATE`) is appended to, and only the fold
+  rewrites it; each line has an `id`, `kind`, the rules' version `v` and when it was written
+  `at`, and a newer line for an id wins. `run` lines (`run:<run id>:<attempt>`): `workflow` (its
+  file), `name`, `event`, `status`, `conclusion`, `head` (the revision tested), `base` (its
+  base, from the pull request or the queue group), `pr`, `created`, `started`, `updated`.
+  `shape` lines (`shape:<digest>`): a workflow's job and step names, once for each version of
+  them. `steps` lines (`steps:<run id>:<attempt>`): the `shape`, the `seconds` of each job and
+  step, their `conclusions` for an attempt that did not pass or where any job or step did not
+  succeed (one skipped included), and `groups` (each job with a group step: its place and
+  GitHub's job id). `group` lines (`group:<run id>:<attempt>`): for each group step whose log
+  was read, `[job, step, how the read ended (read, no-summary, mismatch, log-gone, unreadable),
+  commands not kept, [[command, passed or failed, seconds], ...]]`; a command is kept only when
+  its group has it at the default branch's tip. `commit` lines (`commit:<revision>`, made by the
+  main source's rules, `v` 1): `sha`, `landed`, `type` (`fix` or `revert`), `pr`, `files` (how
+  many), `units`, `test_paths` (at most 100) and `tests` (how many), `closes` (by its message),
+  `found_by` (`[channel, class, issue or null]`), `found_by_unread`, `last_edit` and
+  `last_edit_status`, and, once GitHub is read, `pr_closes` and `issues` (`[number, open or
+  closed, [label, ...]]`; both null until then). Nothing else: no line of a log, no output,
+  title, branch name, actor, file contents, commit subject, message or diff text. Lines carry
+  the rules' version; a steps line made by older rules is read again. `state.json` beside it
+  holds the spans listed, the commits that landed each day (`main.days`) and how the last
+  collection ended.
+- The fold. At the end of each collection, under its lock, every whole UTC day more than 180
+  days before today that is wholly collected (every moment of it listed, every earlier attempt
+  on record, every attempt that ran with its steps or on record as one GitHub no longer gives)
+  has its runs, with their attempts' steps and summaries, put in `folded-workflow` lines (one
+  for each workflow and event: `name`, `counts` of each end, `later` (passes after a failed,
+  cancelled or unknown attempt), `wall` seconds, the queue's `heads` and `failed_heads`, runs
+  still `going`, `left_out` (an event the report gives no rows), `ran`, `with_steps`,
+  `unreadable_steps`, and `checks`: `ran`, `read`, `jobs_seen`, `jobs_skipped`, `summaries`) and
+  `folded-check` lines (one for each check and event: `check`, `job`, `step`, `command`,
+  `counts`, `unknown`, `seconds`, `timed`, `later`, and `examples`, the attempts it failed in as
+  `[run, attempt, latest, created]`). Ids name the day (`folded-workflow:<day>:<digest>`). The
+  new file is written beside the old one and put in its place in one move, so a fold cut short
+  leaves the old record whole; lines it cannot read, lines of other kinds, every shape and every
+  line of a day it does not fold stay byte for byte. Checks keep the names the checks known gave
+  them when the day was folded. A folded day is never asked of GitHub again, by a rebuild
+  either, so what GitHub no longer has stays as folded. Nothing is folded while every machine's
+  record was not read (the shared folder away, a copy part way through a sync, a line of another
+  machine's that could not be read), while the checks known cannot be read, or for a day a line
+  of which could not be made; `not_folded` says which days and why. A machine's runs of a day
+  another machine folded are left out of every read and, at its next collection, replaced in its
+  record by that machine's folded lines.
 - Several machines: a machine that names a shared folder (`skill_usage_shared`, as skill usage
   does; `BOTCORE_SKILL_USAGE_SHARED` overrides it) also writes its record to
   `<shared>/<machine>/gate-outcome/<owner>/<name>/`, and both commands read every machine's.
   A copy whose state does not name its record's digest is not read (a sync part way through).
+- The hourly job (`disk_run`, see `botcore docs disk`) collects for each checkout the machine
+  settings name in `gate_outcome_checkouts`, and for none by default: GitHub's allowance is the
+  account's, so the owner chooses which machine reads it. For each, it fetches origin's default
+  branch into `refs/botcore/gate-outcome/default` (no branch, remote-tracking branch, tag,
+  index, working tree or `FETCH_HEAD` changes) and collects the last seven days with every
+  source this botcore collects, at the default `requests`. The checks known are read from that
+  ref when it holds the checkout's own landing branch and is newer. A fetch that fails is
+  reported, and what the checkout has is read: its landing branch, or an earlier fetch of the
+  job's ref where that is newer.
 - Errors: `VALIDATION_ERROR` (a value outside its list or range; the suggestion gives it),
   `NO_WORKSPACE` (not in a checkout whose origin names a GitHub repository),
   `SERVICE_UNAVAILABLE` (`gh` missing or not signed in, or GitHub not answering, before anything
@@ -454,7 +487,7 @@ or each check, and event, a run counted once as its latest attempt, by its creat
   `merge_group`, `schedule`, `push`, `workflow_dispatch` (`local` is refused until it is
   collected); left out, all five. `workflow`: a workflow by its name or its file. `check`: a
   check by its id. `sort`: `minutes` (wall time by workflow, step time by check; the default),
-  `failed` or `runs`, largest first. `limit`: 1 to 200, for each list; `more` says how many each
+  `failed` or `runs`, largest first. `limit`: 1 to 75, for each list; `more` says how many each
   left out.
 - Filters go with groupings: `where` and `workflow` with `workflow`; `where`, `workflow` and
   `check` with `check`; `area` with `area`; `finding_class`, `area`, `check`,
@@ -482,7 +515,8 @@ or each check, and event, a run counted once as its latest attempt, by its creat
 - By check. A check is `<workflow file> / <job as GitHub names it> / <step>`, and ` / <command>`
   inside a step that runs a hook group (the step itself is then not a check: its commands are).
   The checks known are read through git from the default branch's tip (origin's HEAD, else
-  origin/main or main), never from the working tree: every workflow's jobs and steps, a job
+  origin/main or main, or the hourly job's own fetch of it when that is newer), never from
+  the working tree: every workflow's jobs and steps, a job
   that calls a workflow named `<caller> / <called job>`, a matrix leg as GitHub names it (where
   an expression decides the matrix, the legs the record has seen, else the name as written),
   and a group's commands from `lefthook.yml`. A row: `check`, `workflow` (the file), `job`,
@@ -537,7 +571,9 @@ or each check, and event, a run counted once as its latest attempt, by its creat
   collection within the hour that listed up to the moment it began counts as listed),
   `listed_until` (where the newest listing ends), `steps_share` (the share
   of runs that ran whose steps are on record), `steps_unreadable` (runs whose jobs GitHub no
-  longer gives) and `not_seen`; by check also `commands_share` (the share of group steps that
+  longer gives), `folded` (the window's folded days, as `{first, last}` runs of days, whose
+  figures come from the fold's lines and are the figures their runs gave) and `not_seen`;
+  by check also `commands_share` (the share of group steps that
   ran whose summary was read), `summaries_unreadable` (by why) and `known` (`ref`, `commit`,
   `checks`, `problems`, and `error` when they could not be read); `sources` gives `ci`, `main`
   (as by area) and the plan's `reviews` and `runs`, `absent` until collected; `machines` (each
@@ -684,9 +720,9 @@ needs a `max_gb` cap.
 
 ## disk_status()
 The job's state, the last applied run and its age, free space on watched volumes, and
-`problems` (stale for over 48 hours, failures, low or unverified volumes, skill usage whose
-collection has failed for over a day). `healthy` is true when there are none. Session
-preflights read this. `warnings` do not affect `healthy`: each registered repository's
+`problems` (stale for over 48 hours, failures, low or unverified volumes, skill usage or gate
+outcomes whose collection has failed for over a day). `healthy` is true when there are none.
+Session preflights read this. `warnings` do not affect `healthy`: each registered repository's
 idle-worktree warning from the last reclaim that counted it fully (older than 48 hours, it
 says when) and Cargo output no `[[aged]]` folder clears, both of which Botcore Factory's
 `lane_status` shows to the foreman as `diskWarnings`; and a skill usage collection that has
@@ -695,6 +731,10 @@ when it failed `error` and `failing_since`. `disk_work` is the same for the disk
 `waiting_on` (`what`, `path`) when it never came back: that is a problem at once, since only
 the owner's answer or the drive will change it; a disk step that came back failed is a
 warning. So is an installed job with no check on record, or none for three hours.
+`gate_outcome` is the job's last gate outcome collection, as `skill_usage` is, with
+`checkouts` (each checkout's `fetch`, `repository`, `sources`, `requests_used`, `folded`, or
+the `error` it was refused with); null when the machine names no checkout. A refusal for any
+checkout makes it not `ok`: a warning, and a problem after a day.
 
 Everything the status reads has 20 seconds in all: the settings and what the job wrote
 first, then the scheduler, the volumes and Cargo's settings as they are now. When the
@@ -715,11 +755,14 @@ branch still points there, on a recreated branch if it was deleted, else detache
 ## disk_run(force=False, own_process=False)
 What the job runs: checks free space and exits, unless a watched volume is low or the last
 applied run is a day old; then disk_reclaim(apply=True). Notifies once a day while space stays
-low. After the disk work it collects skill usage (`skill_usage_collect`). In the scheduler's
-run both the disk work and the collection are waited for while they report progress, and left
-only once they have said nothing for five minutes: a failure, a wrong machine name or a
-collection that stops answering never fails or holds the job. `skill_usage_collect = false` in
-the machine settings turns it off.
+low. After the disk work it collects skill usage (`skill_usage_collect`), then gate outcomes
+for the checkouts `gate_outcome_checkouts` names (none by default; `botcore docs
+gate-outcome`). In the scheduler's run the disk work and each collection are waited for while
+they report progress, and left only once they have said nothing for five minutes; the gate
+outcome step is also left after 40 minutes in all, and the next hour's collection goes on from
+where it got. A failure, a refusal, a wrong machine name or a collection that stops answering
+never fails or holds the job or the other steps: each has its own line in the answer and in
+check.json. `skill_usage_collect = false` in the machine settings turns skill usage off.
 
 The scheduler's run (`botcore disk-run`, which passes `own_process=True`) always ends. The
 disk work and the collection are steps that say what they are doing. Each is waited

@@ -27,7 +27,7 @@ from pathlib import Path
 
 from botcore.commands.disk.git import GitError, git_out
 from botcore.commands.gate_outcome import github
-from botcore.commands.gate_outcome.checks import default_ref, toplevel
+from botcore.commands.gate_outcome.checks import DEFAULT_REFS, OWN_REF, default_ref, toplevel
 from botcore.commands.gate_outcome.github import GitHub, Stop
 from botcore.commands.gate_outcome.record import (
     CHANNELS,
@@ -85,24 +85,43 @@ def _git(root: Path, *args: str) -> str:
     return git_out(root, "-c", "core.quotePath=false", *args, timeout=GIT_SECONDS)
 
 
-def tip(root: Path) -> tuple[str, str, str | None] | tuple[None, None, str]:
-    """The default branch's ref and tip after fetching it, and why the fetch failed if it did;
-    or (None, None, why) when there is no default branch."""
+def _remote_branch(root: Path, ref: str) -> str | None:
+    """The branch name on `origin` to fetch for `ref` (including when `default_ref` returned
+    the hourly job's `OWN_REF` ahead of `refs/remotes/origin/*`)."""
+    candidates = DEFAULT_REFS if ref == OWN_REF else (ref,)
+    for candidate in candidates:
+        if candidate == "refs/remotes/origin/HEAD":
+            try:
+                target = git_out(root, "symbolic-ref", "--quiet", candidate, timeout=GIT_SECONDS)
+            except GitError:
+                continue
+            branch = target.strip().removeprefix("refs/remotes/origin/")
+            if branch:
+                return branch
+        elif candidate.startswith("refs/remotes/origin/"):
+            try:
+                if git_out(
+                    root, "rev-parse", "--verify", "--quiet", f"{candidate}^{{commit}}",
+                    ok_codes=(0, 1), timeout=GIT_SECONDS,
+                ).strip():  # fmt: skip
+                    return candidate.removeprefix("refs/remotes/origin/")
+            except GitError:
+                continue
+    return None
+
+
+def tip(
+    root: Path, *, do_fetch: bool = True
+) -> tuple[str, str, str | None] | tuple[None, None, str]:
+    """The default branch's ref and tip after fetching it (when `do_fetch` is true), and why the
+    fetch failed if it did; or (None, None, why) when there is no default branch."""
     found = default_ref(root)
     if found is None:
         return None, None, "the checkout has no default branch (origin's HEAD, origin/main or main)"
-    ref = found[0]
-    branch: str | None = None
-    if ref == "refs/remotes/origin/HEAD":
-        try:
-            target = git_out(root, "symbolic-ref", "--quiet", ref, timeout=GIT_SECONDS).strip()
-        except GitError:
-            target = ""
-        branch = target.removeprefix("refs/remotes/origin/") or None
-    elif ref.startswith("refs/remotes/origin/"):
-        branch = ref.removeprefix("refs/remotes/origin/")
+    branch = _remote_branch(root, found[0]) if do_fetch else None
     why = fetch(root, branch) if branch else None
-    found = default_ref(root) or found
+    if branch:
+        found = default_ref(root) or found
     return found[0], found[1], why
 
 
@@ -433,13 +452,16 @@ class MainRead:
 def read_main(  # noqa: C901, PLR0912, PLR0913 - the source, start to end
     root: Path, repo: str, gh: GitHub, record: Record, start: datetime, now: datetime,
     stale, at: str,  # noqa: ANN001 - stale(line) -> whether a rebuild reads it again
+    *, do_fetch: bool = True, fetch_error: str | None = None,
 ) -> MainRead:  # fmt: skip
     # A workspace can be a unit's own folder inside the checkout, and git blame takes a path
     # from the folder it runs in: every read below runs at the checkout's top.
     root = toplevel(root)
-    ref, commit, why = tip(root)
+    ref, commit, why = tip(root, do_fetch=do_fetch)
     if ref is None or commit is None:
         return MainRead("absent", why, 0, [], {})
+    if why is None and fetch_error is not None:
+        why = fetch_error
     if why is not None:
         why = (f"git: the default branch could not be fetched ({why}); read {ref} as it was "
                "last fetched")  # fmt: skip

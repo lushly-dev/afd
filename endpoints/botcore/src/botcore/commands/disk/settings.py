@@ -82,6 +82,12 @@ class MachineSettings(BaseModel):
     # Additional skill folders outside any project (e.g. plugin skill folders) to include in
     # skill-usage sizes and the quiet list alongside personal skill folders
     skill_usage_dirs: list[str] = []
+    # Gate outcome (the gate-outcome commands): the checkouts the scheduled job collects for,
+    # by path, each after it fetches that checkout's default branch into a ref of its own.
+    # None named, nothing is collected: GitHub's hourly allowance belongs to the account, so
+    # the owner chooses which machine reads GitHub. The machine's name and shared folder are
+    # skill usage's
+    gate_outcome_checkouts: list[str] = []
     volume: list[VolumeSettings] = []
     aged: list[AgedFolder] = []
 
