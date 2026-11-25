@@ -11,6 +11,14 @@
 		"./commands": {
 			"types": "./dist/commands.d.ts",
 			"import": "./dist/commands.js"
+		},
+		"./controls": {
+			"types": "./dist/controls/index.d.ts",
+			"import": "./dist/controls/index.js"
+		},
+		"./controls/commands": {
+			"types": "./dist/controls/commands.d.ts",
+			"import": "./dist/controls/commands.js"
 		}
 	},
 	"main": "./dist/index.js",

@@ -8,12 +8,12 @@ a view state is today. The binder that makes a handler from an element is phase 
 ## Status
 
 - **State:** specified 2026-11-24, for [#2487](https://github.com/lushly-dev/afd/issues/2487).
-  Not built.
+  Built 2026-11-24 in `packages/view-state/src/controls/`, merged in #2529.
 - **Approved approach:** the proposal's sections 4.2 to 4.4. The owner approved the proposal
   on 2026-11-24, not this document. Where this document is more exact than the proposal, this
   document holds; where it changes or adds to a rule of the proposal, it says so under
   [What this settles](#9-what-this-settles).
-- **Acceptance:** the fourteen files in [`scenarios/`](scenarios/), and the tests in
+- **Acceptance:** the fourteen files in [`packages/view-state/scenarios/controls/`](../../../../packages/view-state/scenarios/controls/), and the tests in
   [section 10](#10-tests-and-exit).
 
 ## 1. Where the code goes
@@ -78,6 +78,8 @@ export interface Control extends Omit<ControlState, 'value' | 'choices' | 'error
 - **A flag that is false is left out** of a `Control`, as the proposal's table says.
 - **A handler is synchronous.** `read` and `write` return when they are done. What a write
   waits for beyond that is not this phase's.
+- **What a handler throws is shown to the caller,** in the message of an `INTERNAL_ERROR`. A
+  handler puts no value in an error's message.
 
 ## 3. The registry
 
@@ -87,9 +89,11 @@ export interface ControlRegistryOptions {
   token?: () => string;
 }
 
+export interface ControlScreen { name?: string; command?: string }
+
 export class ControlRegistry {
   constructor(options?: ControlRegistryOptions);
-  setScreen(screen: { name?: string; command?: string }): void;
+  setScreen(screen: ControlScreen): void;
   register(id: string, handler: ControlHandler): () => void; // returns its unregister
   unregister(id: string): void;
   has(id: string): boolean;
@@ -109,20 +113,36 @@ they are not part of the package's surface.
 - **A `rev`** is an opaque string. It is never issued twice by one registry, and one cannot be
   worked out from another: the default joins a counter to random bytes from
   `crypto.getRandomValues`.
+- **A secret has no `rev`.** None is issued while a control is a secret, so the revs a caller
+  is given for other controls say nothing of how often a secret changed. A control that stops
+  being a secret gets one.
+- **Nothing is shared.** A value or a choice a command returns, or gives a handler to write,
+  is a copy of what the registry keeps. A caller or a handler that changes one changes nothing
+  the registry holds.
 - **Observing.** For each control the registry keeps its `rev` and a copy of the last state
   it read. To observe a control is to read its handler again and compare the state with the
   copy, field by field, with a false flag the same as an absent one and a list compared item
-  by item. If anything differs, the control gets a new `rev`. If its `value` differs, what was
-  remembered for a restore is dropped.
+  by item. If anything differs, the control gets a new `rev`.
+- **What is remembered for a restore** stays until another write or a restore replaces it, or
+  the control is registered again, or a command's first look at the control finds it holding
+  something other than what the last writing call left there. That last is a change made
+  outside any call, by a person or the application, and the fill is then forgotten.
 - **Every command observes first.** `control-list` and `control-choices` observe the controls
   they answer about. `control-set` and `control-restore` observe every registered control
   before they check anything, and again after they have written.
 - **Registering again.** A control registered under an id that was unregistered has a new
   `rev` and nothing remembered.
-- **A `read` that throws** fails the command with `INTERNAL_ERROR`: message `<id> could not be
-  read: <the error's message>`, suggestion `Tell the person this screen could not be read`,
+- **A `read` that throws,** or returns what is not a state, fails the command with
+  `INTERNAL_ERROR`: message `<id> could not be read: <the error's message>`, suggestion `Tell the person this screen could not be read`,
   `retryable: false`, recovery `{ kind: 'stop' }`. If the command had already written, what it
   wrote is written back first, as [5.3](#53-writing) does for a `write` that throws.
+- **What is not a state.** A state is an object whose `kind` is one of the five, whose `label`
+  is text, whose `value` is text, a number, true or false, or a list of text, and whose other
+  fields, where it has them, are of the types in [section 2](#2-types).
+  A list with a gap in it is not a list of text or of choices. A flag it has, other than
+  `undefined`, that is neither true nor false is not read as false, which could show a secret.
+  A `read` that returns no object fails with `<id> could not be read: its handler read no state`.
+  For anything else the message is `<id> could not be read: its <field> is not <what it should be>`: it names the field and never what the field holds.
 
 ## 4. `control-list`
 
@@ -195,7 +215,7 @@ Each is checked in the order given, and stops at the first that fails.
 | `text` | A string, no longer than `maxLength`, in the `format` when one is declared | `takes text`; `is longer than <maxLength> characters`; `is not <an email address \| a date \| a time \| a colour>` | `Send text`; `Send at most <maxLength> characters`; `Send an email address`, `Send a date as YYYY-MM-DD`, `Send a time as HH:MM`, `Send a colour as #rrggbb` |
 | `number` | A finite number, at least `min` and at most `max` where each is declared | `takes a number`; `is not between <min> and <max>`, `is less than <min>`, `is more than <max>` | `Send a number`; `Send a number between <min> and <max>`, `Send a number of at least <min>`, `Send a number of at most <max>` |
 | `boolean` | `true` or `false` | `takes true or false` | `Send true or false` |
-| `choice` | A string that names one choice | `takes one of its choices`; `is not one of its choices`; `matches more than one choice` | `Its choices: <value> (<label>), …` for ten or fewer; otherwise `Use control-choices to search its <n> choices` |
+| `choice` | A string that names one choice | `takes one of its choices`; `is not one of its choices`; `matches more than one choice` | `Its choices: <value> (<label>), …` for ten or fewer; `It has no choices to take` for none; otherwise `Use control-choices to search its <n> choices` |
 | `choices` | A list of strings, each naming one choice, none named twice | `takes a list of its choices`; then as `choice`; `names <value> more than once` | As `choice` |
 
 - **Naming a choice.** A string equal to a choice's `value` names it. Otherwise it names the
@@ -215,30 +235,51 @@ Each is checked in the order given, and stops at the first that fails.
 ### 5.3 Writing
 
 1. Entries whose resolved value equals the control's are `unchanged`.
-2. The others are written in the order sent: `write` is given the resolved value.
+2. The others are written in the order sent: `write` is given the resolved value. After each
+   write its control is observed, to learn what it then holds.
 3. **An entry an earlier one moved is checked again.** At each entry's turn in the order sent,
-   after the first write, its control is observed, whether step 1 found it unchanged or not. If it changed since the
-   checks of [5.1](#51-checks), checks 1, 2, 4, 5, 6 and 8 run again on it, and whether it is
-   unchanged is decided again. A refusal is then the call's error, in the same words with
-   `1 of <sent>`, and every control the call wrote is written back.
+   after the first write, the control now registered under its id is observed, whether step 1
+   found it unchanged or not. If it changed since the checks of [5.1](#51-checks), or an
+   earlier write registered another control under the id:
+   - checks 1, 2, 4, 5 and 6 run again;
+   - then, in check 7's place: if the control holds another value than the checks found, or
+     is another control, and does not already hold what was sent, the entry is refused in
+     check 7's words. The caller has not read what it would replace, which may be what a
+     person typed;
+   - then check 8 runs again on what the caller sent, as it was sent, and whether the entry
+     is unchanged is decided again.
+
+   A move that changes only what a control takes, its limits or its choices, is therefore
+   checked and written; one that changes what it holds is refused. A refusal is the call's
+   error, in the same words with `1 of <sent>`, and every control the call wrote is written
+   back.
 4. **If a `write` throws,** every control the call wrote is written back to what it held, in
-   reverse order, and the command fails with `INTERNAL_ERROR`: message `<id> could not be
-   written: <the error's message>`, suggestion `Nothing was changed. Use control-list to read
-   the screen`, `retryable: false`, recovery `{ kind: 'call', command: 'control-list' }`. If
-   writing one back throws too, the others are still written back, and the message ends
+   reverse order, the one whose write threw included when it no longer holds what it did. The
+   command fails with `INTERNAL_ERROR`: message `<id> could not be written: <the error's
+   message>`, suggestion `Nothing was changed. Use control-list to read the screen`,
+   `retryable: false`, recovery `{ kind: 'call', command: 'control-list' }`. If writing one
+   back throws too, the others are still written back, and the message ends
    `; <ids> could not be put back` and the suggestion drops its first sentence.
+   - **A call that is written back leaves the registry as it was.** Each control has the
+     `rev` it had before the call and what was remembered for it, so the same call can be sent
+     again with the same revs, and an earlier fill can still be restored. A control that
+     could not be put back gets a new `rev` when it is next observed.
 5. Every registered control is observed again. For each control written, anything remembered
-   before is dropped, and the registry remembers the value it replaced and its new `rev`.
+   before is dropped, and the registry remembers the value it replaced, the value the control
+   held once it was written, and its new `rev`.
 6. `changed` lists the controls written, in the order sent. `previous` is what the control
    held before the call, `value` what it holds after, `rev` its new `rev`, and `error` what
-   it now shows, when it shows one.
+   it now shows, when it shows one. A control the call wrote that has by then left the screen
+   or become a secret is listed nowhere in the result, and nothing is remembered for it.
 7. `affected` lists every control the call did not write whose `rev` differs between the
    observation before the checks and the one after the writes, as `control-list` gives it. A
-   secret is never listed.
+   control registered under a written id during the call is one of them. A secret is never
+   listed.
 8. `missing` lists the ids of controls that are `required`, not secrets, and hold an empty
    string or an empty list.
 9. With anything in `changed`, the result carries `undoCommand: 'control-restore'` and
-   `undoArgs: { controls: [{ id, rev }] }` for each control written.
+   `undoArgs: { controls: [{ id, rev }] }` for each control in `changed`, in the reverse of
+   the order written, so that an undo takes the writes back last first.
 
 ## 6. `control-restore`
 
@@ -249,25 +290,36 @@ Each is checked in the order given, and stops at the first that fails.
 | Mutation | Yes; `approval: 'not-required'` |
 | Errors | `INTERNAL_ERROR` |
 
-A person may call it. Every registered control is observed, then every entry is checked
-before any is written. An entry is skipped for the first of these that holds, in this order:
+A person may call it. Every registered control is observed. Then each entry is taken in the
+order sent: its control is observed again, and the entry is skipped for the first of these
+that holds, in this order, or else written:
 
 | Reason in `skipped` | When |
 | --- | --- |
 | `not-on-screen` | The id is not registered |
 | `secret` | The control is a secret, whatever it holds |
-| `changed` | Nothing is remembered for the control, the `rev` sent is not the one remembered, or an earlier entry of the call has its id |
+| `changed` | Nothing is remembered for the control, the `rev` sent is not the one remembered, an earlier entry of the call has its id, or the control no longer holds what that write gave it |
 | `not-editable` | The control is disabled or read-only |
 | `not-shown` | The control is hidden |
 
-- **What is restored** is written back through `write`, in the order sent, with no check of
-  [5.2](#52-values), since the control held it before. An entry that an earlier write of the
-  call moved is still written.
+- **Only what the fill put there is taken back.** A control is put back when, at its turn, it
+  still holds the value it held once the fill had written it. One a later write of the fill
+  or an earlier write of this restore moved to another value is skipped. A move that changed
+  only its limits or its choices does not stop it.
+- **A person's change is not undone.** A control a person or the application changed since
+  the fill has nothing remembered, once any command has looked at it, and is skipped: so is
+  one a person changed and then changed back. A change nothing looked at before it was changed
+  back cannot be told from none.
+- **Putting one control back can move another,** as any write can. `restored` gives what each
+  control holds afterwards, which may not be what was written back.
+- **What is restored** is written back through `write` with no check of
+  [5.2](#52-values), since the control held it before.
 - **A `write` that throws** is handled as in [5.3](#53-writing), and nothing remembered is
   dropped.
 - **After the writes** every registered control is observed again. `restored` lists the
   controls written, in the order sent, each with the value it now holds and its new `rev`.
-  `affected` and `missing` are as in [5.3](#53-writing).
+  One that has by then left the screen or become a secret is listed nowhere. `affected` and
+  `missing` are as in [5.3](#53-writing).
 - **What a restore forgets.** Once the writes have succeeded, nothing is remembered for the
   controls restored, and the result carries no `undoCommand`.
 - **A call that restores nothing** is still a success.
@@ -341,6 +393,13 @@ Where this document changes or adds to the proposal, and what it leaves.
 - **A group on an empty screen.** The proposal refuses a group the screen does not have. Here
   a screen with nothing registered answers empty whatever group is asked, so that an empty
   answer always means one thing: nothing is bound.
+- **A restore checks what a control holds, at its turn.** The proposal drops what is
+  remembered on any later change to a control's value, and checks a restore whole before it
+  writes. Here what is remembered is dropped by a change made outside a call, and kept
+  through one a writing call makes itself; each entry is put back only if its control then
+  holds what the fill gave it; and `undoArgs` run backwards. Together they take back a fill
+  whose later writes moved its earlier ones, and do not write over a value the fill did not
+  put there, short of a change nothing looked at ([section 6](#6-control-restore)).
 - **A handler cannot see a client's `allow`.** The proposal has a refusal name `control-set`
   "when the caller may call it". A handler knows the caller's actor and the control, and not
   what the client allows. So `control-choices` names `control-set` unless the caller is a
@@ -359,8 +418,15 @@ Where this document changes or adds to the proposal, and what it leaves.
 - **What can be emptied,** and the four formats, are in [5.2](#52-values).
 - **The order inside one call.** Every entry is checked before any write, and an entry an
   earlier one moved is checked again before its own, so a value is never written past a limit
-  that an earlier entry of the same call set.
+  that an earlier entry of the same call set, or over a value an earlier entry put in its
+  place. A caller that sets a control and another the first one resets sends the second again
+  once it has read it.
 - **How a page meets the budget** is in [section 4](#4-control-list).
+- **What the first build's review found,** each now a rule above: a secret has no `rev`;
+  nothing a command returns or gives a handler is shared with the registry; a call that is
+  written back leaves the registry as it was; an entry checked again is checked as it was
+  sent; a control that leaves the screen or becomes a secret during a call is listed nowhere;
+  a write that threw is put back when it left its control changed.
 - **Journals.** A `rev` is issued by the registry and not by a handler, so a journal that
   replays these commands reports their results as different. Whether a journal skips them is
   still open (the proposal's section 9); this phase adds nothing to a journal.
@@ -424,6 +490,27 @@ phase leaves as it is.
 - `offset` and `limit` on `control-list` and `control-choices`, an `offset` past the end, and
   a page that ends early at a small output budget with `more` counting the rest;
 - a function `register` returned does nothing after its id was registered again;
+- a caller that changes a list or a choice in a result changes nothing the registry holds,
+  and neither does a handler that keeps the list it was given;
+- the revs a caller is given are the same however often a secret changed;
+- after a refusal or a failure that came after a write, the same revs work, an earlier fill
+  can still be restored, and a restore can be sent again;
+- a label is resolved against the choices its control has when it is written;
+- an entry whose value an earlier entry of the call changed, or under whose id it registered
+  another control, is refused as changed and the earlier entry put back, unless the control
+  already holds what was sent;
+- `undoArgs` sent as they are take back a fill whose second write moved the first control;
+  sent in the order written, they skip the control that then holds another value, which a
+  second call can still take back; a control whose limits an earlier write of the restore
+  moved is still put back; a person who changes a value and changes it back is not undone;
+- a control that a write of the call unregistered, registered again or made a secret is
+  listed nowhere as written, and one registered again is `affected`;
+- a write that changed its control and then threw is put back, and a `read` that returns
+  what is not a state is `INTERNAL_ERROR`;
+- a state with a field of the wrong type is not a state, its message names the field and not
+  the value, and a `secret` other than `undefined` that is neither true nor false does not
+  show the value;
+- a page that ends at the budget holds every control that fits;
 - a `rev` is never issued twice across ten thousand changes.
 
 Not in this phase: the binder, any DOM, the registry's notice, a component's contract.

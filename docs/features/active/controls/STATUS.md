@@ -22,10 +22,11 @@ is not, so an agent never has to scan the code to learn what is current.
 - **State:** active. Approved by the owner on 2026-11-24 ("Agree with all six recommendations,
   proceed with phase A") and promoted from `proposed/` to `active/`.
 - **Approved scope:** 18 jobs, 14 scenario files, 4 commands and 4 error codes, in the
-  [proposal](controls.proposal.md) and [`scenarios/`](scenarios/), with the six decisions of
+  [proposal](controls.proposal.md) and [`packages/view-state/scenarios/controls/`](../../../../packages/view-state/scenarios/controls/), with the six decisions of
   the proposal's section 10.
 - **Phase A's contract** is [spec.md](spec.md).
-- **Nothing is built.**
+- **Phase A is built:** the registry and the four commands, in `@lushly-dev/afd-view-state`.
+  The binder and everything after it are not.
 
 ## Steps
 
@@ -41,7 +42,10 @@ is not, so an agent never has to scan the code to learn what is current.
   2026-11-24, merged in #2493: [spec.md](spec.md).
 
 - **Phase A, the registry and the four commands**
-  ([#2487](https://github.com/lushly-dev/afd/issues/2487)). Not started.
+  ([#2487](https://github.com/lushly-dev/afd/issues/2487)). Done 2026-11-24, merged in #2529:
+  `ControlRegistry` and `createControlCommands` in `@lushly-dev/afd-view-state/controls` and
+  `/controls/commands`, with the fourteen scenarios moved beside the code and passing in the
+  package's tests through a `controls` fixture adapter.
 
 - **Phase B, the binder** ([#2488](https://github.com/lushly-dev/afd/issues/2488)). Not
   started; waits on phase A.
@@ -54,15 +58,17 @@ is not, so an agent never has to scan the code to learn what is current.
 
 ## What is not done
 
-- **No command exists.** `control-list`, `control-set`, `control-restore` and
-  `control-choices` are specified and not built.
+- **The commands exist with no binder.** `control-list`, `control-set`, `control-restore` and
+  `control-choices` are built in `@lushly-dev/afd-view-state/controls/commands`, over handlers
+  an application writes itself. Nothing makes a handler from an element yet; that is phase B.
 - **Nothing in the design direction is verified.** In particular, that dispatching a control's
   change event after a write is enough for a framework that controls its inputs.
 - **The survey of `violet-elements`' components was sampled, not repeated.** The proposal's
   section 2 marks which lines were read first-hand.
 - **No model has used the commands,** so nothing shows they serve a real form.
-- **The fixtures cannot be applied.** They are files the dry run loads; the adapter that turns
-  one into a screen is phase A's.
+- **The fixtures can be applied only in the package's tests.** The `controls` fixture adapter
+  is in `packages/view-state/src/controls/scenarios.test.ts`, so the CLI's `scenario run` has
+  no adapter for them.
 - **What the walks left for the specification** is listed in the proposal's sections 6 and 9,
   and what phase A's specification settled of it in its section 9.
 
@@ -124,8 +130,8 @@ is not, so an agent never has to scan the code to learn what is current.
   Agent-First Design files that link here, found none broken.
 - **Independent review:** two fresh read-only reviewers on one brief, Claude Opus 5.5 at
   `high` and Gemini 4 Neon at `high`, given the six recommendations the owner was shown and
-  his reply. Both said revise: eight blockers from the first and seven from the second, two
-  of them shared, all fixed.
+  his reply. Both said revise: eight blockers from the first and seven from the second, three
+  of the second's overlapping the first's, all fixed.
   - **In the specification:** `fix-input` recoveries with nothing to fix, which every reader
     drops; a secret, and a control changed before the call, appearing in `affected`; the
     `stop` the proposal gives `control-choices` when its caller cannot set; the registry's
@@ -140,8 +146,84 @@ is not, so an agent never has to scan the code to learn what is current.
   Both traced all 65 steps of the fourteen scenarios against the specification's words and
   found each to hold, before and after the rewrite. A focused pass by the first reviewer
   found the fifteen fixed and one new blocker, a rule for a group on an empty screen that
-  section 9 did not name; a second focused pass approved that fix and two write-back cases
-  it had asked for.
+  section 9 did not name; a second focused pass approved that fix, a write-back when a
+  `read` throws, and deciding again which entries are unchanged.
+
+### Phase A's build, 2026-11-24, on a branch from `main` at `4e29e82b`
+
+- **The package's tests:** `pnpm -F @lushly-dev/afd-view-state test` passes 10 files and 282
+  tests. The fourteen scenarios are among them, run through the commands on a direct registry
+  with a fixture adapter written in the test.
+- **The exit list:** each line of the specification's section 10 has a test.
+  `integrity.test.ts` holds the ones the review added.
+- **Red before green:** sixteen of the first nineteen tests the review added were run against
+  the build as first written and failed there, as the reviewer found too; the other three
+  assert what it already did. Of the four tests added for the focused pass's blocker, the two
+  that show the refusal failed against the code before that fix; the other two hold behaviour
+  it kept.
+- **The gates:** `pnpm verify` on the `.nvmrc` Node passes all 62 steps it plans for this
+  change, at `f645e5d3`: the TypeScript check over 22 packages; Loam's unit, browser (Chromium,
+  Firefox and WebKit), walk, mounted and hosted suites; the hosted fixtures; alfred; the two
+  Loam plugins; the desktop's cargo checks; and the todo example's conformance and interop
+  suites. What it leaves to CI is what it lists as remote only.
+- **Independent review:** two fresh read-only reviewers on one brief, Claude Opus 5.5 at
+  `high` and Gemini 4 Neon at `high`. Each ran the built package to prove what it found. Both
+  said revise: three blockers from the first and five from the second, two of them shared, all
+  fixed.
+  - A list in a result, a choice from `control-choices`, or a list given to a handler, was
+    the registry's own. A caller that changed `previous` chose what a restore wrote, and one
+    that changed `value` hid a person's next change.
+  - One counter issued a `rev` to every control, a secret among them, so the gap between two
+    revs told how often a secret changed. A secret now has none.
+  - A call that wrote and was written back left the registry holding what it read in the
+    middle. The same revs were then refused, an earlier fill could not be restored, and a
+    restore that failed could not be sent again.
+  - An entry checked again was checked as already resolved, not as sent, so a label could
+    pick the wrong one of the choices an earlier write brought.
+  - A control a write of the same call made a secret came back with its value and `rev`.
+  - A control a write of the same call unregistered, or registered again, was reported with
+    what it held before.
+
+  *Improvements taken:* a `read` that returns what is not a state is `INTERNAL_ERROR`; a write
+  that changed its control and then threw is put back; a choice control with no choices says
+  so; a handler is told to put no value in an error; `ControlScreen` is named in the
+  specification; the budget test now shows a page holds all that fits; the budget's encoder
+  is made once; a test's comment is back on its constant; and the `control-choices` refusal
+  for an unknown id checks its recovery as the other refusals do. No improvement was left
+  out. The specification gained a rule for each of the first five.
+- **The focused pass** by the first reviewer found the eight fixed and one more, older than
+  the fixes and allowed by the specification as it stood: an entry whose value an earlier
+  entry of the same call had changed was written with no check of its `rev`, so it could
+  replace what a person typed without the caller having read it. It is now refused as
+  changed, with a rule in the specification's 5.3 and four tests.
+- **A second focused pass** found that fixed and one more of the same kind, in the undo: a
+  restore replayed a fill in the order it was written, and where the fill's second write had
+  moved its first control, it wrote over what the person had typed there. A restore now takes
+  each entry at its turn and puts a control back only if it still holds what the fill gave
+  it, and `undoArgs` run backwards. Four expectations in the restore's tests changed with the
+  order, and of its three new tests the two that show the fix failed against the code before
+  it.
+- **A third focused pass** found that fixed and a fault the fix itself brought: with nothing
+  forgotten when a value changed, a person who changed a value and changed it back was undone.
+  A fill is now forgotten when a command's first look at a control finds something other than
+  what the last writing call left, and kept through what a writing call does itself. Of the
+  two tests added, the one that shows the fix failed against the code before it, and the
+  other holds an undo finished in a second call, which forgetting too readily would break.
+- **A fourth focused pass approved,** having tried each fix against a fresh build and found
+  no further fault. It asked for one more test, of two fills undone in turn, which was added
+  and seen to fail with the line it guards removed.
+- **A pass on the last improvements,** once the pull request was open, approved them and found
+  the first one half done: a `read` that returned an object of the wrong shape was still taken
+  as a state, and a `secret` flag set to something other than true was read as false, so the
+  value was listed. The registry now checks each field's type, with a rule in the
+  specification's section 3. Eleven of the twelve tests added for it failed against the code
+  before it; the twelfth holds that a well-formed state is still read. It also asked for a
+  test of a choice control with no choices, which was added and seen to fail with its line
+  removed.
+- **A pass on that check** found the code right and the specification's new words ahead of
+  it: a read of no object has its own message, and a flag left `undefined` is absent, as a
+  false one is. It also found a list with a gap taken as a list of text. The words now say
+  what the code does, a gap is refused, and the two tests for it failed with `every` alone.
 
 ## Follow-ups not yet issues
 
@@ -150,6 +232,7 @@ is not, so an agent never has to scan the code to learn what is current.
 | 2026-11-24 | The survey for this proposal | `violet-elements`' `attribute-taxonomy.jsonc` lists `violet-date-range-picker` under `name.usedBy`, and the component has no `name` attribute. Checked first-hand | Open |
 | 2026-11-24 | This proposal | Whether a journal should skip `control-*` commands, whose input is a person's draft, as two recorders skip `auth-*` | Open; the proposal's section 9 |
 | 2026-11-24 | This proposal | The measure in the proposal's section 7: one form filled by a model through these commands, through a workaround and through UI SDK's public benchmark task | Filed as part of [#2490](https://github.com/lushly-dev/afd/issues/2490) |
+| 2026-11-24 | Phase A's review | A read of `NaN` or an infinity, as a value or a limit, is taken as a number and listed as `null`, which the output schema does not allow. Decide it with phase B's binder, which reads an empty number input | Open; for [#2488](https://github.com/lushly-dev/afd/issues/2488) |
 
 ## Session log
 
@@ -157,3 +240,4 @@ is not, so an agent never has to scan the code to learn what is current.
 | --- | --- | --- |
 | 2026-11-24 | The proposal | After the comparison with UI SDK, the owner said AFD should have a designed path for an agent to change the controls on a screen, in place of a command that sets values and code in the interface that applies them. Three surveys read how view state is used, how `violet-elements`' components hold state and how Specimen checks a component. The jobs were written as scenarios, and a reader walked them three times. The walks replaced an optional guard with a `rev` on each control, made the undo a command of its own that carries no values, and added three jobs. Nothing was built |
 | 2026-11-24 | The approval and phase A's specification | The owner agreed with all six recommendations and said to proceed with phase A. The proposal moved to `active/`. Its phases were filed as #2487 to #2490 under the epic, the later three deferred on the one before, and #2275 was closed as replaced. Phase A's specification pins each command's input, result, checks in order and the words of every refusal, and settles what the proposal left to it: one screen for a registry, a fifth code for a handler that throws, and the five reasons a restore skips. Nothing was built |
+| 2026-11-24 | Phase A | Built `ControlRegistry` and the four `control-*` commands to the specification, in two new entries of `@lushly-dev/afd-view-state`, with no DOM. The scenarios moved to `packages/view-state/scenarios/controls/`, and all fourteen pass in the package's tests through a fixture adapter written there; unit tests cover each line of the specification's exit list. The binder is still phase B's |

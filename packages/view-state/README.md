@@ -105,6 +105,74 @@ removing keys added by the mutation. Legacy handlers with only `set(partial)`
 continue to support partial updates, but their results omit undo metadata and
 include a warning because an exact restoration cannot be guaranteed.
 
+## Controls
+
+Controls give an in-app agent a way to fill the form a person is looking at: it
+reads the controls on the screen and sets their values through commands, and
+never through clicks. An application registers a handler for each control it
+lets the agent see, as it registers a view state. The registry gives each
+control a `rev`, a token that changes whenever anything about the control
+changes, and a write must send it back. So an agent never replaces what the
+person typed without having read it. See the
+[specification](../../docs/features/active/controls/spec.md).
+
+| Entry | Exports |
+| --- | --- |
+| `@lushly-dev/afd-view-state/controls` | `ControlRegistry` and the types (`ControlHandler`, `ControlState`, `Control`, …). It loads no command definition |
+| `@lushly-dev/afd-view-state/controls/commands` | `createControlCommands`, its options and result types |
+
+Both are browser-safe, like `/commands`, and neither loads the view-state
+registry.
+
+```ts
+import { createDirectClient } from '@lushly-dev/afd-client';
+import { createDirectRegistry } from '@lushly-dev/afd-server';
+import { ControlRegistry } from '@lushly-dev/afd-view-state/controls';
+import { createControlCommands } from '@lushly-dev/afd-view-state/controls/commands';
+
+const controls = new ControlRegistry();
+controls.setScreen({ name: 'Book a workshop seat', command: 'workshop-book' });
+
+// A handler is synchronous: read says what the control is, write sets its value.
+const unregister = controls.register('attendee-name', {
+  read: () => ({ kind: 'text', label: 'Full name', value: nameInput.value, required: true }),
+  write: (value) => {
+    nameInput.value = String(value);
+  },
+});
+
+const registry = createDirectRegistry(createControlCommands(controls));
+const agent = createDirectClient(registry, { actor: { kind: 'agent' } });
+```
+
+| Command | What it does |
+| --- | --- |
+| `control-list` | Lists the controls on the screen, in the order they were registered: each one's id, `rev`, kind, label, value, limits and choices, with `screen`, `command`, `total` and `more`. Pages with `group`, `limit` and `offset`, and declares an output budget |
+| `control-set` | Sets 1 to 50 controls at once, all or none. Each entry sends `{ id, value, rev }`; the result has `changed`, `unchanged`, `affected` (the controls the write moved) and `missing` (required controls still empty), and `undoCommand: 'control-restore'` |
+| `control-restore` | Puts back what a `control-set` replaced, skipping each control the person has changed since, with its reason |
+| `control-choices` | Searches or pages through the choices of a control that has more than ten |
+
+- **Kinds:** `text` (with `maxLength` and a `format` of `email`, `date`, `time`
+  or `color`), `number` (with `min` and `max`), `boolean`, `choice` and
+  `choices`. A choice may be sent by its value or its label.
+- **What is refused:** a control that is not registered (`NOT_FOUND`), a
+  secret (`FORBIDDEN`: it is listed without its value, error or `rev`), a
+  control that is disabled, read-only or not shown, or a `rev` that is not the
+  control's own (`CONFLICT`), and a value the control does not take
+  (`VALIDATION_ERROR`). Each refusal carries a `suggestion` and a `recovery`,
+  and `details.refused` lists every refused entry.
+- **A person cannot call `control-set`:** a caller whose actor is `human` is
+  refused, so create the agent's client with `actor: { kind: 'agent' }`.
+  `control-restore` may be called by a person, for an undo button.
+- **Default exposure:** `control-list`, `control-set` and `control-choices` go
+  to the in-app agent only; `control-restore` goes to the agent and the command
+  palette. None goes to MCP or the CLI unless you pass `expose`, which is merged
+  over each default: `createControlCommands(controls, { expose: { mcp: true } })`.
+- **Not stored:** the registry persists nothing.
+
+A binder that makes a handler from a form's elements is a later phase; for now
+an application writes its handlers itself.
+
 ## Persistence
 
 Optional — provide a `DataAdapter` from `@lushly-dev/local-db` to persist state across reloads:

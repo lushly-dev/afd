@@ -1,10 +1,11 @@
 /**
  * @fileoverview The package entry points load no MCP transport.
  *
- * Bundles `@lushly-dev/afd-view-state` and `@lushly-dev/afd-view-state/commands`
- * with esbuild for the browser. The commands take `defineCommand` from
- * `@lushly-dev/afd-server/define`, so neither entry reaches the MCP SDK,
- * `node:http` or any other Node.js builtin.
+ * Bundles `@lushly-dev/afd-view-state`, `/commands`, `/controls` and
+ * `/controls/commands` with esbuild for the browser. The commands take their
+ * definitions from `@lushly-dev/afd-server/define`, so no entry reaches the MCP
+ * SDK, `node:http` or any other Node.js builtin. The view-state entries and the
+ * Controls entries load none of each other's modules.
  */
 
 import { readFileSync } from 'node:fs';
@@ -13,6 +14,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import * as commandsEntry from './commands.js';
+import * as controlCommandsEntry from './controls/commands.js';
+import * as controlsEntry from './controls/index.js';
 import * as root from './index.js';
 
 // ─── Minimal esbuild API surface used here ───────────────────────────────────
@@ -96,6 +99,11 @@ async function browserBundleInputs(specifier: string): Promise<string[]> {
 	return Object.keys(result.metafile?.inputs ?? {});
 }
 
+/** The modules of this package an entry's bundle holds. */
+function ownModules(inputs: string[]): string[] {
+	return inputs.filter((input) => input.startsWith('src/')).sort();
+}
+
 /**
  * Modules that belong to the MCP transport or to Node.js. Workspace inputs
  * appear as `../server/dist/...`; installed ones as `.../afd-server/dist/...`.
@@ -128,5 +136,61 @@ describe('package entry points', () => {
 
 		expect(inputs.some((input) => input.endsWith('server/dist/define.js'))).toBe(true);
 		expect(inputs.filter((input) => TRANSPORT.test(input))).toEqual([]);
+	});
+
+	it('declares ./controls and ./controls/commands with the same conditions', () => {
+		expect(manifest.exports['./controls']).toEqual({
+			types: './dist/controls/index.d.ts',
+			import: './dist/controls/index.js',
+		});
+		expect(manifest.exports['./controls/commands']).toEqual({
+			types: './dist/controls/commands.d.ts',
+			import: './dist/controls/commands.js',
+		});
+	});
+
+	it('exports the control registry from ./controls and its factory only from ./controls/commands', () => {
+		expect(controlsEntry.ControlRegistry).toBeTypeOf('function');
+		expect(controlsEntry).not.toHaveProperty('createControlCommands');
+		expect(controlCommandsEntry.createControlCommands).toBeTypeOf('function');
+		expect(root).not.toHaveProperty('ControlRegistry');
+		expect(commandsEntry).not.toHaveProperty('createControlCommands');
+	});
+
+	it('bundles ./controls for the browser with no command definition and no MCP transport', async () => {
+		const inputs = await browserBundleInputs(`${PACKAGE_NAME}/controls`);
+
+		expect(ownModules(inputs)).toEqual([
+			'src/controls/index.ts',
+			'src/controls/registry.ts',
+			'src/controls/values.ts',
+		]);
+		expect(inputs.filter((input) => /server\/dist\//.test(input))).toEqual([]);
+		expect(inputs.filter((input) => TRANSPORT.test(input))).toEqual([]);
+	});
+
+	it('bundles ./controls/commands for the browser without the MCP transport', async () => {
+		const inputs = await browserBundleInputs(`${PACKAGE_NAME}/controls/commands`);
+
+		expect(inputs.some((input) => input.endsWith('server/dist/define.js'))).toBe(true);
+		expect(ownModules(inputs)).toEqual([
+			'src/controls/commands.ts',
+			'src/controls/registry.ts',
+			'src/controls/schemas.ts',
+			'src/controls/values.ts',
+		]);
+		expect(inputs.filter((input) => TRANSPORT.test(input))).toEqual([]);
+	});
+
+	it('leaves the root entry and ./commands loading what they loaded before', async () => {
+		const rootInputs = await browserBundleInputs(PACKAGE_NAME);
+		const commandsInputs = await browserBundleInputs(`${PACKAGE_NAME}/commands`);
+
+		expect(ownModules(rootInputs)).toEqual([
+			'src/index.ts',
+			'src/persistence.ts',
+			'src/registry.ts',
+		]);
+		expect(ownModules(commandsInputs)).toEqual(['src/commands.ts']);
 	});
 });
