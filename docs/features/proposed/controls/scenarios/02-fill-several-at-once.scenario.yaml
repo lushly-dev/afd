@@ -1,0 +1,77 @@
+name: Fill several controls in one call
+description: >-
+  When I know the values a person wants, I want to set several controls in one call and be
+  told what each held before, so that the form is filled in one step and I can say what
+  changed.
+job: fill-several-at-once
+tags: [slice]
+fixture:
+  file: fixtures/workshop-form.json
+steps:
+  - description: The screen is read, which gives each control's rev
+    command: control-list
+    input: {}
+    expect:
+      success: true
+      data:
+        controls.0.rev: { exists: true }
+
+  - description: Six controls of five kinds are set together, and each reports what it held and its new rev
+    command: control-set
+    input:
+      values:
+        - { id: attendee-name, value: Ada Okafor, rev: "${{ steps[0].data.controls[0].rev }}" }
+        - { id: email, value: ada@example.org, rev: "${{ steps[0].data.controls[1].rev }}" }
+        - { id: session, value: afternoon, rev: "${{ steps[0].data.controls[4].rev }}" }
+        - { id: seats, value: 2, rev: "${{ steps[0].data.controls[5].rev }}" }
+        - { id: dietary, value: [vegan], rev: "${{ steps[0].data.controls[6].rev }}" }
+        - { id: newsletter, value: true, rev: "${{ steps[0].data.controls[7].rev }}" }
+    expect:
+      success: true
+      data:
+        changed: { length: 6 }
+        changed.0.id: attendee-name
+        changed.0.value: Ada Okafor
+        changed.0.previous: ""
+        changed.0.rev: { exists: true }
+        changed.2.id: session
+        changed.2.previous: morning
+        changed.3.previous: 1
+        changed.5.previous: false
+        unchanged: { length: 0 }
+        missing: { length: 0 }
+
+  - description: The screen now shows them
+    command: control-list
+    input: { group: Booking }
+    expect:
+      success: true
+      data:
+        controls.0.id: session
+        controls.0.value: afternoon
+        controls.1.value: 2
+        controls.2.value: { includes: vegan }
+        controls.3.value: true
+
+  - description: A value the control already holds changes nothing, and says so
+    command: control-set
+    input:
+      values:
+        - { id: session, value: afternoon, rev: "${{ steps[1].data.changed[2].rev }}" }
+    expect:
+      success: true
+      data:
+        changed: { length: 0 }
+        unchanged: { includes: session }
+
+  - description: A choice may be named by its label, and the result gives its value
+    command: control-set
+    input:
+      values:
+        - { id: session, value: Evening, rev: "${{ steps[1].data.changed[2].rev }}" }
+    expect:
+      success: true
+      data:
+        changed.0.id: session
+        changed.0.value: evening
+        changed.0.previous: afternoon

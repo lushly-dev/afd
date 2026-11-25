@@ -1,0 +1,97 @@
+# A scenario cannot type into a control as a person does. The second step stands in for the
+# person: it changes the control after the read, and the registry gives a control a new rev
+# whoever changed it. The unit's tests make that change through the binder, as a person's.
+name: Do not overwrite what the person typed
+description: >-
+  When I have changed a control since the agent read it, I want its write to that control
+  refused, so that it never replaces what I just typed without having seen it.
+job: do-not-overwrite-what-was-typed
+tags: [slice]
+fixture:
+  file: fixtures/workshop-form.json
+steps:
+  - description: The agent reads the screen
+    command: control-list
+    input: { group: Booking }
+    expect:
+      success: true
+      data:
+        controls.4.id: notes
+        controls.4.value: Arriving ten minutes late.
+        controls.4.rev: { exists: true }
+
+  - description: The control changes after that read
+    command: control-set
+    input:
+      values:
+        - { id: notes, value: Arriving twenty minutes late., rev: "${{ steps[0].data.controls[4].rev }}" }
+    expect:
+      success: true
+      data:
+        changed.0.rev: { exists: true }
+
+  - description: A write that carries the rev of the first read is refused, and sent to read again
+    command: control-set
+    input:
+      values:
+        - { id: notes, value: Vegan meal please., rev: "${{ steps[0].data.controls[4].rev }}" }
+    expect:
+      success: false
+      error:
+        code: CONFLICT
+        message: notes
+        suggestion: { contains: control-list }
+
+  - description: A write to another control in between does not make the old rev good again
+    command: control-set
+    input:
+      values:
+        - { id: seats, value: 2, rev: "${{ steps[0].data.controls[1].rev }}" }
+    expect:
+      success: true
+
+  - description: The old rev is still refused, and it stops a control sent with it
+    command: control-set
+    input:
+      values:
+        - { id: newsletter, value: true, rev: "${{ steps[0].data.controls[3].rev }}" }
+        - { id: notes, value: Vegan meal please., rev: "${{ steps[0].data.controls[4].rev }}" }
+    expect:
+      success: false
+      error:
+        code: CONFLICT
+
+  - description: A rev the registry never issued is refused the same way
+    command: control-set
+    input:
+      values:
+        - { id: notes, value: Vegan meal please., rev: r-9999 }
+    expect:
+      success: false
+      error:
+        code: CONFLICT
+        suggestion: { contains: control-list }
+
+  - description: What was typed is still there, with its new rev
+    command: control-list
+    input: { group: Booking }
+    expect:
+      success: true
+      data:
+        controls.3.id: newsletter
+        controls.3.value: false
+        controls.4.value: Arriving twenty minutes late.
+        controls.4.rev: { exists: true }
+
+  - description: A write that carries the rev of the new read is accepted
+    command: control-set
+    input:
+      values:
+        - id: notes
+          value: Arriving twenty minutes late. Vegan meal please.
+          rev: "${{ steps[6].data.controls[4].rev }}"
+    expect:
+      success: true
+      data:
+        changed.0.id: notes
+        changed.0.previous: Arriving twenty minutes late.

@@ -1,0 +1,29 @@
+name: A screen with nothing bound
+description: >-
+  When the application has bound no controls on the screen, I want an empty answer that says
+  so, not an error, so that I know there is nothing here for me to fill.
+job: nothing-bound
+tags: [slice]
+fixture:
+  file: fixtures/empty-screen.json
+steps:
+  - description: The listing succeeds, empty, and says no controls are bound
+    command: control-list
+    input: {}
+    expect:
+      success: true
+      data:
+        total: 0
+        controls: { length: 0 }
+      reasoning: no controls
+
+  - description: Setting anything is refused, with the command that reads the screen
+    command: control-set
+    input:
+      values:
+        - { id: attendee-name, value: Ada Okafor, rev: none }
+    expect:
+      success: false
+      error:
+        code: NOT_FOUND
+        suggestion: { contains: control-list }

@@ -1,0 +1,62 @@
+name: Find a choice in a long list
+description: >-
+  When a control offers more choices than its listing carries, I want to search them by their
+  text, so that I can find the value to set without reading every choice.
+job: find-a-choice-in-a-long-list
+tags: [slice]
+fixture:
+  file: fixtures/workshop-form.json
+steps:
+  - description: A long list is counted, not carried, in the listing of the screen
+    command: control-list
+    input: { group: Attendee }
+    expect:
+      success: true
+      data:
+        controls.3.id: country
+        controls.3.choiceCount: 14
+        controls.3.choices: { notExists: true }
+
+  - description: A search by text returns the matching choices, in the control's order
+    command: control-choices
+    input: { id: country, search: nor }
+    expect:
+      success: true
+      data:
+        id: country
+        total: 2
+        more: 0
+        choices: { length: 2 }
+        choices.0.label: North Macedonia
+        choices.1.value: nor
+        choices.1.label: Norway
+
+  - description: The value it found is accepted
+    command: control-set
+    input:
+      values:
+        - { id: country, value: nor, rev: "${{ steps[0].data.controls[3].rev }}" }
+    expect:
+      success: true
+      data:
+        changed.0.value: nor
+
+  - description: Without a search the choices come a page at a time, with how many are left
+    command: control-choices
+    input: { id: country, limit: 5 }
+    expect:
+      success: true
+      data:
+        total: 14
+        more: 9
+        choices: { length: 5 }
+        choices.0.label: Brazil
+
+  - description: A control that takes text has no choices to search, and the refusal says what it takes
+    command: control-choices
+    input: { id: notes }
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR
+        suggestion: { contains: control-set }

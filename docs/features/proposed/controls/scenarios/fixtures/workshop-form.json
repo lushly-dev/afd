@@ -1,0 +1,200 @@
+{
+	"app": "controls",
+	"screen": "Book a workshop seat",
+	"command": "workshop-book",
+	"controls": [
+		{
+			"id": "attendee-name",
+			"group": "Attendee",
+			"kind": "text",
+			"label": "Full name",
+			"value": "",
+			"required": true
+		},
+		{
+			"id": "email",
+			"group": "Attendee",
+			"kind": "text",
+			"format": "email",
+			"label": "Email",
+			"value": "",
+			"required": true,
+			"rejects": {
+				"taken@example.org": "That email already has a booking."
+			}
+		},
+		{
+			"id": "member-id",
+			"group": "Attendee",
+			"kind": "text",
+			"label": "Member number",
+			"value": "M-20418",
+			"readOnly": true
+		},
+		{
+			"id": "country",
+			"group": "Attendee",
+			"kind": "choice",
+			"label": "Country",
+			"value": "",
+			"choices": [
+				{
+					"value": "bra",
+					"label": "Brazil"
+				},
+				{
+					"value": "can",
+					"label": "Canada"
+				},
+				{
+					"value": "egy",
+					"label": "Egypt"
+				},
+				{
+					"value": "fin",
+					"label": "Finland"
+				},
+				{
+					"value": "gha",
+					"label": "Ghana"
+				},
+				{
+					"value": "ind",
+					"label": "India"
+				},
+				{
+					"value": "jpn",
+					"label": "Japan"
+				},
+				{
+					"value": "ken",
+					"label": "Kenya"
+				},
+				{
+					"value": "mex",
+					"label": "Mexico"
+				},
+				{
+					"value": "nzl",
+					"label": "New Zealand"
+				},
+				{
+					"value": "mkd",
+					"label": "North Macedonia"
+				},
+				{
+					"value": "nor",
+					"label": "Norway"
+				},
+				{
+					"value": "per",
+					"label": "Peru"
+				},
+				{
+					"value": "vnm",
+					"label": "Vietnam"
+				}
+			]
+		},
+		{
+			"id": "session",
+			"group": "Booking",
+			"kind": "choice",
+			"label": "Session",
+			"value": "morning",
+			"choices": [
+				{
+					"value": "morning",
+					"label": "Morning"
+				},
+				{
+					"value": "afternoon",
+					"label": "Afternoon"
+				},
+				{
+					"value": "evening",
+					"label": "Evening"
+				}
+			],
+			"moves": {
+				"evening": [
+					{
+						"id": "seats",
+						"max": 2
+					}
+				]
+			}
+		},
+		{
+			"id": "seats",
+			"group": "Booking",
+			"kind": "number",
+			"label": "Seats",
+			"value": 1,
+			"min": 1,
+			"max": 4,
+			"description": "Up to four seats for one booking."
+		},
+		{
+			"id": "dietary",
+			"group": "Booking",
+			"kind": "choices",
+			"label": "Dietary needs",
+			"value": [],
+			"choices": [
+				{
+					"value": "vegetarian",
+					"label": "Vegetarian"
+				},
+				{
+					"value": "vegan",
+					"label": "Vegan"
+				},
+				{
+					"value": "gluten-free",
+					"label": "Gluten-free"
+				}
+			]
+		},
+		{
+			"id": "newsletter",
+			"group": "Booking",
+			"kind": "boolean",
+			"label": "Send me the newsletter",
+			"value": false
+		},
+		{
+			"id": "notes",
+			"group": "Booking",
+			"kind": "text",
+			"label": "Notes for the host",
+			"value": "Arriving ten minutes late.",
+			"maxLength": 200
+		},
+		{
+			"id": "voucher",
+			"group": "Payment",
+			"kind": "text",
+			"label": "Voucher code",
+			"value": "",
+			"disabled": true
+		},
+		{
+			"id": "card-pin",
+			"group": "Payment",
+			"kind": "text",
+			"label": "Card PIN",
+			"value": "4417",
+			"secret": true,
+			"error": "Enter the four digits."
+		},
+		{
+			"id": "gift-message",
+			"group": "Extras",
+			"kind": "text",
+			"label": "Gift message",
+			"value": "",
+			"hidden": true
+		}
+	]
+}

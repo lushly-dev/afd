@@ -1,0 +1,70 @@
+name: A refusal says what the control takes
+description: >-
+  When I set a control to a value it does not take, I want the refusal to say what it does
+  take, so that I can correct the value without reading the screen again.
+job: corrected-by-the-refusal
+tags: [slice]
+fixture:
+  file: fixtures/workshop-form.json
+steps:
+  - description: The screen is read
+    command: control-list
+    input: {}
+    expect:
+      success: true
+      data:
+        controls: { length: 12 }
+
+  - description: A value that is not one of the choices is refused, with the choices
+    command: control-set
+    input:
+      values:
+        - { id: session, value: weekend, rev: "${{ steps[0].data.controls[4].rev }}" }
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR
+        suggestion: { contains: afternoon }
+
+  - description: One of the choices it named is accepted, with the same rev, since nothing changed
+    command: control-set
+    input:
+      values:
+        - { id: session, value: afternoon, rev: "${{ steps[0].data.controls[4].rev }}" }
+    expect:
+      success: true
+      data:
+        changed.0.value: afternoon
+
+  - description: Text sent to a yes-or-no control is refused, with the two values it takes
+    command: control-set
+    input:
+      values:
+        - { id: newsletter, value: "yes", rev: "${{ steps[0].data.controls[7].rev }}" }
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR
+        suggestion: { contains: true or false }
+
+  - description: Text that is not in the format the control declares is refused, with the format
+    command: control-set
+    input:
+      values:
+        - { id: email, value: ada, rev: "${{ steps[0].data.controls[1].rev }}" }
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR
+        suggestion: { contains: email }
+
+  - description: Where the choices are too many to list, the refusal names the command that searches them
+    command: control-set
+    input:
+      values:
+        - { id: country, value: Atlantis, rev: "${{ steps[0].data.controls[3].rev }}" }
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR
+        suggestion: { contains: control-choices }

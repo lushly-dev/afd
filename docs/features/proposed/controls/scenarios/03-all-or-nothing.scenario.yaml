@@ -1,0 +1,40 @@
+# A scenario cannot assert an error's `details`, which list every refusal. The second step
+# asserts the count the message gives.
+name: One refused value changes nothing
+description: >-
+  When one of the values I send is refused, I want none of them applied, so that the person
+  never sees a form that is half one fill and half what it was.
+job: all-or-nothing
+tags: [slice]
+fixture:
+  file: fixtures/workshop-form.json
+steps:
+  - description: The screen is read
+    command: control-list
+    input: {}
+    expect:
+      success: true
+      data:
+        controls: { length: 12 }
+
+  - description: A good value sent with a number out of range is refused whole, and the message counts the refusals
+    command: control-set
+    input:
+      values:
+        - { id: attendee-name, value: Ada Okafor, rev: "${{ steps[0].data.controls[0].rev }}" }
+        - { id: seats, value: 9, rev: "${{ steps[0].data.controls[5].rev }}" }
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR
+        message: "1 of 2 values refused: seats"
+        suggestion: { contains: between 1 and 4 }
+
+  - description: The good value was not applied either
+    command: control-list
+    input: { group: Attendee }
+    expect:
+      success: true
+      data:
+        controls.0.id: attendee-name
+        controls.0.value: ""

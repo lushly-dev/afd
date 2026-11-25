@@ -1,0 +1,43 @@
+# A scenario cannot show that an agent stops here. What it can show is what the agent is told:
+# the screen, the command its form is for, and which required controls are still empty.
+name: Hand the filled form back
+description: >-
+  When the form is filled, I want to know what the screen is, which command its form is for
+  and what is still missing, so that I can tell the person it is ready for them to read and
+  submit.
+job: hand-it-back
+tags: [slice]
+fixture:
+  file: fixtures/workshop-form.json
+steps:
+  - description: The listing names the screen and the command its form is for
+    command: control-list
+    input: {}
+    expect:
+      success: true
+      data:
+        screen: Book a workshop seat
+        command: workshop-book
+
+  - description: A fill's answer names the required controls that are still empty
+    command: control-set
+    input:
+      values:
+        - { id: attendee-name, value: Ada Okafor, rev: "${{ steps[0].data.controls[0].rev }}" }
+        - { id: seats, value: 2, rev: "${{ steps[0].data.controls[5].rev }}" }
+    expect:
+      success: true
+      data:
+        changed: { length: 2 }
+        missing: { length: 1 }
+        missing.0: email
+
+  - description: With the last one filled, nothing is missing
+    command: control-set
+    input:
+      values:
+        - { id: email, value: ada@example.org, rev: "${{ steps[0].data.controls[1].rev }}" }
+    expect:
+      success: true
+      data:
+        missing: { length: 0 }

@@ -1,0 +1,81 @@
+name: Read what is on the screen
+description: >-
+  When a person asks me to help with the form in front of them, I want the controls on the
+  screen with their labels, kinds, values and choices, so that I know what can be filled and
+  with what.
+job: read-the-screen
+tags: [slice]
+fixture:
+  file: fixtures/workshop-form.json
+steps:
+  - description: Every bound control is listed, in the order of the screen, each with the rev a write sends back
+    command: control-list
+    input: {}
+    expect:
+      success: true
+      data:
+        screen: Book a workshop seat
+        total: 12
+        more: 0
+        controls: { length: 12 }
+        controls.0.id: attendee-name
+        controls.0.rev: { exists: true }
+        controls.0.group: Attendee
+        controls.0.kind: text
+        controls.0.label: Full name
+        controls.0.value: ""
+        controls.0.required: true
+        controls.5.id: seats
+        controls.5.kind: number
+        controls.5.value: 1
+        controls.5.min: 1
+        controls.5.max: 4
+        controls.5.description: { contains: four seats }
+        controls.7.id: newsletter
+        controls.7.kind: boolean
+        controls.7.value: false
+        controls.11.id: gift-message
+        controls.11.hidden: true
+
+  - description: A short list of choices comes with its control, each with a value and a label
+    command: control-list
+    input: {}
+    expect:
+      success: true
+      data:
+        controls.4.id: session
+        controls.4.kind: choice
+        controls.4.value: morning
+        controls.4.choices: { length: 3 }
+        controls.4.choices.1.value: afternoon
+        controls.4.choices.1.label: Afternoon
+
+  - description: One part of a long screen can be read alone
+    command: control-list
+    input: { group: Payment }
+    expect:
+      success: true
+      data:
+        total: 2
+        controls: { length: 2 }
+        controls.0.id: voucher
+        controls.0.disabled: true
+
+  - description: A long screen comes a page at a time, with how many controls are left
+    command: control-list
+    input: { limit: 5 }
+    expect:
+      success: true
+      data:
+        total: 12
+        more: 7
+        controls: { length: 5 }
+
+  - description: A group the screen does not have is refused, with the way to see the groups
+    command: control-list
+    input: { group: Billing }
+    expect:
+      success: false
+      error:
+        code: NOT_FOUND
+        suggestion: { contains: control-list }
