@@ -41,6 +41,7 @@ export {
 } from '@lushly-dev/specimen/schema';
 export {
 	createSpecimenCommands,
+	type ExecuteSpecimenCommandOptions,
 	executeSpecimenCommand,
 	executeSpecimenDiff,
 	type SpecimenCommandBench,

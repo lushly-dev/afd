@@ -1,5 +1,5 @@
 import { execFile, spawn } from 'node:child_process';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,7 +12,7 @@ import { runCli } from '@lushly-dev/specimen-cli';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { type CallToolResult, ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createSpecimenMcpServer } from './server.js';
 
@@ -44,10 +44,38 @@ describe('Specimen MCP endpoint', () => {
 		await Promise.all(servers.splice(0).map((server) => server.close()));
 		await rm(root, { recursive: true, force: true });
 	});
-	async function connect() {
+	type ElicitAnswer = 'accept' | 'decline' | 'cancel' | 'unchecked' | 'error';
+
+	async function connect(options?: {
+		elicitation?: ElicitAnswer;
+		elicitationMode?: 'form' | 'url-only' | 'legacy-empty';
+		prompts?: string[];
+	}) {
 		const server = await createSpecimenMcpServer({ root });
 		servers.push(server);
-		const client = new Client({ name: 'specimen-test', version: '1.0.0' });
+		const elicitationCapability =
+			options?.elicitationMode === 'url-only'
+				? { url: {} }
+				: options?.elicitationMode === 'legacy-empty'
+					? {}
+					: options?.elicitation
+						? { form: {} }
+						: undefined;
+		const client = new Client(
+			{ name: 'specimen-test', version: '1.0.0' },
+			elicitationCapability ? { capabilities: { elicitation: elicitationCapability } } : undefined
+		);
+		if (options?.elicitation) {
+			const answer = options.elicitation;
+			client.setRequestHandler(ElicitRequestSchema, async (request) => {
+				options.prompts?.push(request.params.message);
+				if (answer === 'error') throw new Error('Client elicitation transport failure');
+				if (answer === 'accept') return { action: 'accept' as const, content: { confirm: true } };
+				if (answer === 'unchecked')
+					return { action: 'accept' as const, content: { confirm: false } };
+				return { action: answer };
+			});
+		}
 		clients.push(client);
 		const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 		await server.connect(serverTransport);
@@ -723,7 +751,8 @@ describe('Specimen MCP endpoint', () => {
 			],
 		});
 
-		const client = await connect();
+		const prompts: string[] = [];
+		const client = await connect({ elicitation: 'accept', prompts });
 
 		// Initially listed as undecided.
 		const beforeList = await client.callTool({ name: 'decision-list', arguments: {} });
@@ -736,7 +765,7 @@ describe('Specimen MCP endpoint', () => {
 			},
 		});
 
-		// Record choice over MCP.
+		// Record choice over MCP with accepted human elicitation.
 		const recorded = await client.callTool({
 			name: 'decision-record',
 			arguments: {
@@ -749,6 +778,9 @@ describe('Specimen MCP endpoint', () => {
 			},
 		});
 		expect(recorded.isError).toBe(false);
+		expect(prompts).toHaveLength(1);
+		expect(prompts[0]).toContain('toolbar-density');
+		expect(prompts[0]).toContain('toolbar--dense');
 		const recordedEnv = envelope(recorded as CallToolResult);
 		expect(recordedEnv).toMatchObject({
 			success: true,
@@ -761,7 +793,7 @@ describe('Specimen MCP endpoint', () => {
 		});
 		const decisionId = recordedEnv.data.decision as string;
 
-		// Read back with decision-get.
+		// Read back with decision-get: accepted MCP elicitation records decidedBy.kind === 'person'.
 		const fetched = await client.callTool({
 			name: 'decision-get',
 			arguments: { decision: decisionId },
@@ -773,6 +805,7 @@ describe('Specimen MCP endpoint', () => {
 				decision: decisionId,
 				chosen: 'toolbar--dense',
 				evidence: { set: written.run.set },
+				decidedBy: { kind: 'person' },
 			},
 		});
 
@@ -817,6 +850,321 @@ describe('Specimen MCP endpoint', () => {
 				code: 'DECISION_NOT_FOUND',
 				suggestion: expect.stringContaining('decision-list'),
 			},
+		});
+	});
+
+	it('enforces confirmations: require-human on confirmPrompt commands over MCP while CLI records script (#2213)', async () => {
+		const channel = { status: 'complete' as const, scope: 'declared targets', reasons: [] };
+		const context = {
+			viewport: { width: 1280, height: 800 },
+			theme: 'light' as const,
+			locale: 'en-US',
+			reducedMotion: 'no-preference' as const,
+			motion: 'natural' as const,
+		};
+		const mkObs = (id: string) => ({
+			manifest: {
+				captureVersion: CAPTURE_VERSION,
+				normalizationVersion: NORMALIZATION_VERSION,
+				specimenId: id,
+				capturedUtc: '2026-11-24T00:00:00.000Z',
+				bench: { name: '@lushly-dev/specimen', version: '2.2.0', plugins: [] },
+				driver: { name: 'host' as const, emulates: [] },
+				checkpoint: {
+					name: 'mount',
+					actionMode: 'none' as const,
+					ready: {
+						steps: ['upgrade', 'fonts', 'frame'],
+						outcome: 'ready' as const,
+						deadlineMs: 10_000,
+					},
+					baseline: {
+						clock: 'real' as const,
+						random: { source: 'seeded' as const, seed: 1 },
+						storage: 'empty' as const,
+					},
+				},
+				source: { revision: 'a1b2c3d', digest: 'source', dirty: false },
+				dependencies: 'lock',
+				browser: { name: 'chromium', version: '130', platform: 'linux-x64', build: null },
+				context: {
+					...context,
+					pixelRatio: 1,
+					observed: {
+						width: 1280,
+						height: 800,
+						media: false,
+						colorScheme: 'light' as const,
+						contrast: 'no-preference' as const,
+						reducedMotion: 'no-preference' as const,
+						language: 'en-US',
+						devicePixelRatio: 1,
+					},
+					resources: { fonts: [], remote: [] },
+				},
+			},
+			channels: {
+				dom: { raw: `<div>${id}</div>`, normalized: `<div>${id}</div>` },
+				a11y: {
+					snapshot: `- region "${id}"`,
+					axe: {
+						status: 'passed' as const,
+						policy: 'error' as const,
+						violations: [],
+						incomplete: 0,
+						incompleteChecks: [],
+						exceptions: [],
+					},
+				},
+				events: { declared: [], history: [] },
+				evidence: {
+					expectations: [],
+					claims: [],
+					commands: [],
+					formData: [],
+					validity: [],
+					attributesSet: [],
+				},
+				elements: [],
+				console: { errors: [], warnings: [] },
+				visual: { path: null },
+			},
+			completeness: {
+				dom: channel,
+				a11y: channel,
+				layout: channel,
+				styles: channel,
+				tokens: { ...channel, status: 'unsupported' as const },
+				events: { ...channel, status: 'unsupported' as const },
+				visual: { ...channel, status: 'not-requested' as const },
+			},
+		});
+
+		const written = await writeCaptureSet(root, {
+			kind: 'compare',
+			context,
+			checkpoint: {
+				name: 'mount',
+				actionMode: 'none',
+				baseline: { clock: 'real', random: { source: 'seeded', seed: 1 }, storage: 'empty' },
+			},
+			browser: { name: 'chromium', version: '130' },
+			axe: true,
+			revision: 'a1b2c3d',
+			dirty: false,
+			skipped: { jobs: 0, gates: 0 },
+			entries: [
+				{
+					key: 'toolbar--dense',
+					id: 'toolbar--dense',
+					status: 'captured',
+					observation: mkObs('toolbar--dense'),
+				},
+				{
+					key: 'toolbar--airy',
+					id: 'toolbar--airy',
+					status: 'captured',
+					observation: mkObs('toolbar--airy'),
+				},
+			],
+		});
+
+		const recordArgs = {
+			slug: 'toolbar-density',
+			question: 'How dense should the toolbar be?',
+			set: written.run.set,
+			chosen: 'toolbar--dense',
+			reason: 'Fits twelve commands without wrapping.',
+		};
+
+		// Reject invalid confirmations option at server creation.
+		await expect(
+			createSpecimenMcpServer({ root, confirmations: 'off' as 'require-human' })
+		).rejects.toThrow(/require-human/);
+
+		// 1. Agent client WITHOUT elicitation capability is refused with CONFIRMATION_REQUIRED,
+		// even when sending confirm: true or _meta["dev.afd/confirm"].
+		const unelicited = await connect();
+		for (const call of [
+			{ name: 'decision-record', arguments: recordArgs },
+			{ name: 'decision-record', arguments: { ...recordArgs, confirm: true } },
+			{
+				name: 'decision-record',
+				arguments: recordArgs,
+				_meta: { 'dev.afd/confirm': true },
+			},
+		]) {
+			const refused = await unelicited.callTool(call);
+			expect(refused.isError).toBe(true);
+			expect(envelope(refused as CallToolResult)).toMatchObject({
+				success: false,
+				error: {
+					code: 'CONFIRMATION_REQUIRED',
+					retryable: false,
+					suggestion: expect.stringContaining('elicitation'),
+					details: { commands: ['decision-record'] },
+				},
+			});
+		}
+
+		// 2. Eliciting client where user declines, cancels, or leaves confirm unchecked -> CONFIRMATION_DECLINED.
+		for (const answer of ['decline', 'cancel', 'unchecked'] as const) {
+			const prompts: string[] = [];
+			const decliningClient = await connect({ elicitation: answer, prompts });
+			const declined = await decliningClient.callTool({
+				name: 'decision-record',
+				arguments: recordArgs,
+			});
+			expect(declined.isError).toBe(true);
+			expect(prompts).toHaveLength(1);
+			expect(envelope(declined as CallToolResult)).toMatchObject({
+				success: false,
+				error: {
+					code: 'CONFIRMATION_DECLINED',
+					retryable: false,
+					details: { commands: ['decision-record'] },
+				},
+			});
+		}
+
+		// 3. Elicitation transport failure fails closed with CONFIRMATION_REQUIRED.
+		const failingElicitClient = await connect({ elicitation: 'error' });
+		const failedElicit = await failingElicitClient.callTool({
+			name: 'decision-record',
+			arguments: recordArgs,
+		});
+		expect(failedElicit.isError).toBe(true);
+		expect(envelope(failedElicit as CallToolResult)).toMatchObject({
+			success: false,
+			error: {
+				code: 'CONFIRMATION_REQUIRED',
+				retryable: false,
+			},
+		});
+
+		// 4. Malformed input fails VALIDATION_ERROR without prompting the human.
+		const validationPrompts: string[] = [];
+		const validatingClient = await connect({ elicitation: 'accept', prompts: validationPrompts });
+		const invalid = await validatingClient.callTool({
+			name: 'decision-record',
+			arguments: { chosen: 'toolbar--dense', reason: 'missing set/supersedes/items' },
+		});
+		expect(invalid.isError).toBe(true);
+		expect(validationPrompts).toEqual([]);
+		expect(envelope(invalid as CallToolResult)).toMatchObject({
+			success: false,
+			error: { code: 'VALIDATION_ERROR' },
+		});
+
+		// 4b. URL-only elicitation capability cannot satisfy form confirmation.
+		const urlOnlyClient = await connect({ elicitationMode: 'url-only' });
+		const urlOnlyResult = await urlOnlyClient.callTool({
+			name: 'decision-record',
+			arguments: recordArgs,
+		});
+		expect(urlOnlyResult.isError).toBe(true);
+		expect(envelope(urlOnlyResult as CallToolResult)).toMatchObject({
+			success: false,
+			error: { code: 'CONFIRMATION_REQUIRED', retryable: false },
+		});
+
+		// None of the refused / declined / invalid calls wrote any decision file.
+		await expect(readdir(join(root, 'specimens', 'decisions'))).rejects.toMatchObject({
+			code: 'ENOENT',
+		});
+
+		// 5. Accepted human elicitation succeeds and records decidedBy: { kind: 'person' }.
+		// Also verify sanitization (control chars, BiDi overrides, code-point truncation) and Reason display.
+		const acceptedPrompts: string[] = [];
+		const acceptingClient = await connect({
+			elicitation: 'accept',
+			elicitationMode: 'legacy-empty',
+			prompts: acceptedPrompts,
+		});
+		const longReason = `Fits twelve commands\n\u202Ewithout wrapping ${'✨'.repeat(120)}`;
+		const accepted = await acceptingClient.callTool({
+			name: 'decision-record',
+			arguments: { ...recordArgs, reason: longReason },
+		});
+		expect(accepted.isError).toBe(false);
+		expect(acceptedPrompts).toHaveLength(1);
+		expect(acceptedPrompts[0]).toContain('Decision: toolbar-density');
+		expect(acceptedPrompts[0]).toContain('Chosen: toolbar--dense');
+		expect(acceptedPrompts[0]).toContain('Reason: Fits twelve commands without wrapping');
+		expect(acceptedPrompts[0]).not.toContain('\u202E');
+		expect(acceptedPrompts[0]).toContain('…');
+		const mcpDecisionId = envelope(accepted as CallToolResult).data.decision as string;
+		const mcpFetched = await acceptingClient.callTool({
+			name: 'decision-get',
+			arguments: { decision: mcpDecisionId },
+		});
+		expect(envelope(mcpFetched as CallToolResult).data).toMatchObject({
+			decision: mcpDecisionId,
+			decidedBy: { kind: 'person' },
+		});
+
+		// 5b. Supersedes (array) and review-items prompt formatting both surface in elicitation.
+		const followUpPrompts: string[] = [];
+		const followUpClient = await connect({ elicitation: 'accept', prompts: followUpPrompts });
+		const superseded = await followUpClient.callTool({
+			name: 'decision-record',
+			arguments: {
+				supersedes: [mcpDecisionId],
+				chosen: 'toolbar--airy',
+				reason: 'Switch to airy toolbar.',
+			},
+		});
+		expect(superseded.isError).toBe(false);
+		expect(followUpPrompts[0]).toContain(`Supersedes: ${mcpDecisionId}`);
+		expect(followUpPrompts[0]).toContain('Chosen: toolbar--airy');
+		expect(followUpPrompts[0]).toContain('Reason: Switch to airy toolbar.');
+
+		const reviewItemCall = await followUpClient.callTool({
+			name: 'decision-record',
+			arguments: {
+				items: [`changed:deadbeef0000:deadbeef0000:${written.run.set}..${written.run.set}`],
+				chosen: 'accept',
+				reason: 'Review answer prompt check.',
+			},
+		});
+		expect(reviewItemCall.isError).toBe(true);
+		expect(followUpPrompts[1]).toContain('Items: 1');
+		expect(envelope(reviewItemCall as CallToolResult).error?.code).toBe('REVIEW_ITEM_NOT_FOUND');
+
+		// 6. CLI boundary: specimen decision-record via CLI records decidedBy: { kind: 'script' }.
+		let cliOut = '';
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'decision-record',
+					'--slug',
+					'toolbar-density-cli',
+					'--question',
+					'How dense via CLI?',
+					'--set',
+					written.run.set,
+					'--chosen',
+					'toolbar--airy',
+					'--reason',
+					'Recorded from terminal script.',
+				],
+				{
+					stdout: (text) => {
+						cliOut += text;
+					},
+				}
+			)
+		).toBe(0);
+		const cliDecisionId = JSON.parse(cliOut).data.decision as string;
+		const cliFetched = await acceptingClient.callTool({
+			name: 'decision-get',
+			arguments: { decision: cliDecisionId },
+		});
+		expect(envelope(cliFetched as CallToolResult).data).toMatchObject({
+			decision: cliDecisionId,
+			decidedBy: { kind: 'script' },
 		});
 	});
 
