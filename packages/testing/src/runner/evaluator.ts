@@ -6,6 +6,7 @@
  */
 
 import type { CommandResult } from '@lushly-dev/afd-core';
+import { isCommandRecovery } from '@lushly-dev/afd-core/errors';
 import {
 	findExpectationProblems,
 	InvalidExpectationError,
@@ -97,6 +98,23 @@ export function evaluateResult(
 			assertions.push(messageAssertion);
 			if (!messageAssertion.passed) {
 				allPassed = false;
+			}
+		}
+
+		const expectedRecovery = expected.error.recovery;
+		if (expectedRecovery !== undefined) {
+			const actualRecovery = (actual.error as Record<string, unknown> | undefined)?.recovery;
+			const recoveryAssertions =
+				actualRecovery == null
+					? [evaluateAssertion('error.recovery', actualRecovery, true, 'exists')]
+					: isCommandRecovery(actualRecovery)
+						? evaluateDataAssertions(actualRecovery, expectedRecovery, 'error.recovery')
+						: [unreadableRecovery(actualRecovery, expectedRecovery)];
+			for (const assertion of recoveryAssertions) {
+				assertions.push(assertion);
+				if (!assertion.passed) {
+					allPassed = false;
+				}
 			}
 		}
 
@@ -489,4 +507,20 @@ function formatValue(value: unknown): string {
 		}
 	}
 	return String(value);
+}
+
+/**
+ * A recovery that breaks `$defs/recovery` is one every reader drops (`spec/recovery.md`, rule 7),
+ * so asserting its fields would certify a step no caller sees.
+ */
+function unreadableRecovery(actual: unknown, expected: unknown): AssertionResult {
+	return {
+		path: 'error.recovery',
+		matcher: 'readable',
+		passed: false,
+		expected,
+		actual,
+		description:
+			'error.recovery is unreadable: it breaks $defs/recovery, so a reader drops it (spec/recovery.md, rule 7)',
+	};
 }

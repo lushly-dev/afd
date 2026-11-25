@@ -159,8 +159,10 @@ all three seats is enough.
 The allowed keys are the `*_KEYS` lists in `packages/testing/src/parsers/yaml.ts`. Three limits
 shape what a job can show:
 
-- `expect` reaches `success`, `data`, `error` (`code`, `message`, `suggestion`), `reasoning` and
-  `confidence`. It cannot assert `warnings`, `alternatives`, `sources` or an error's `details`.
+- `expect` reaches `success`, `data`, `error` (`code`, `message`, `suggestion`, `recovery`),
+  `reasoning` and `confidence`. It cannot assert `warnings`, `alternatives`, `sources` or an
+  error's `details`. A refusal step can `follow` its structured recovery: the runner takes the
+  step and fails unless it gets further (`packages/testing/README.md`).
 - Every step runs as `actor: { kind: 'test' }`, so one scenario cannot show an agent refused
   and a person allowed.
 - The clock cannot move between steps. A job about time passing needs the design to offer a

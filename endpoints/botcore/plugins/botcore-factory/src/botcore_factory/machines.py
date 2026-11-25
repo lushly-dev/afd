@@ -16,11 +16,13 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import Any
 
+from afd import Recovery
+
 from botcore_factory.cells import seated
 from botcore_factory.claims import format_time, parse_time
 from botcore_factory.intake import read_backlog
 from botcore_factory.lane_process import host_lock, toolchain_mismatches
-from botcore_factory.runtime import Factory, Refusal
+from botcore_factory.runtime import EXTERNAL, Factory, Refusal, call, fix_input
 from botcore_factory.world import LANE_HOST_VARIABLE, HostRecord
 
 #: A record older than this is from a machine that has stopped probing: not reachable.
@@ -102,6 +104,7 @@ def host_set(factory: Factory, host_id: str, drain: bool, recover: bool) -> dict
             "VALIDATION_ERROR",
             "drain and recover are two ways to move; pass one",
             "drain for a planned move, recover for a host that went offline",
+            recovery=fix_input("drain", "recover"),
         )
     world = factory.world
     records_by_id = {record.id: record for record in world.git.host_records()}
@@ -111,6 +114,7 @@ def host_set(factory: Factory, host_id: str, drain: bool, recover: bool) -> dict
             f"No readiness record for {host_id}",
             "lane-host-list shows the machines that have published one; run lane-host-probe "
             "on a new machine first",
+            recovery=call("lane-host-list"),
         )
     shown = view(factory, records_by_id[host_id])
     if not shown["ready"]:
@@ -119,6 +123,7 @@ def host_set(factory: Factory, host_id: str, drain: bool, recover: bool) -> dict
             "HOST_NOT_READY",
             f"{host_id} is not ready: it lacks {lacks}",
             f"Fix what it lacks, run lane-host-probe on {host_id}, then retry",
+            recovery=EXTERNAL,
         )
     current = world.github.get_variable(LANE_HOST_VARIABLE)
     if current == host_id:
@@ -143,6 +148,8 @@ def host_set(factory: Factory, host_id: str, drain: bool, recover: bool) -> dict
                 f"lane-host-set {host_id} recover (a person confirms)"
                 if gone
                 else f"Drain it first: lane-host-set {host_id} with drain moves at queue-empty",
+                # Recovering an unreachable host needs a person; draining is a changed input.
+                recovery=EXTERNAL if gone else Recovery(kind="fix-input", input={"drain": True}),
             )
         world.github.set_variable(LANE_HOST_VARIABLE, host_id)
     return {"host": {"id": host_id}, "previous": current}

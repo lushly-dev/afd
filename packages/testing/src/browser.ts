@@ -17,8 +17,9 @@
  *
  * Module-graph rule: nothing reachable from this file may import a Node.js
  * built-in, the root `@lushly-dev/afd-core` entry (only `@lushly-dev/afd-core/result`
- * at runtime), `@lushly-dev/afd-server`, `yaml` or `zod`. `browser.test.ts`
- * bundles this entry with esbuild for the browser to enforce this.
+ * and `@lushly-dev/afd-core/errors` at runtime), `@lushly-dev/afd-server`, `yaml`
+ * or `zod`. `browser.test.ts` bundles this entry with esbuild for the browser to
+ * enforce this.
  *
  * @packageDocumentation
  */
@@ -137,6 +138,7 @@ export type {
 	AssertionValue,
 	Expectation,
 	FixtureConfig,
+	FollowExpectation,
 	Scenario,
 	Step,
 	Verification,

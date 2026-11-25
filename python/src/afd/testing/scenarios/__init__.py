@@ -45,6 +45,7 @@ from afd.testing.scenarios.types import (
     AssertionResult,
     Expectation,
     FixtureConfig,
+    FollowExpectation,
     InvalidExpectationError,
     Scenario,
     ScenarioOutcome,
@@ -71,6 +72,7 @@ __all__ = [
     "Expectation",
     "AssertionMatcher",
     "FixtureConfig",
+    "FollowExpectation",
     "Verification",
     # Report types
     "StepOutcome",

@@ -24,6 +24,7 @@ steps:
       success: false
       error:
         code: LANE_BUSY
+        recovery: { kind: external }
         suggestion: { contains: recover }
   - description: Recovery rebuilds the queue and claims on the new host from origin and GitHub
     command: lane-host-set

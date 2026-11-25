@@ -162,6 +162,7 @@ export type {
 	AssertionValue,
 	Expectation,
 	FixtureConfig,
+	FollowExpectation,
 	Scenario,
 	Step,
 	Verification,

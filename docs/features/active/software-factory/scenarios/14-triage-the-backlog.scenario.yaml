@@ -36,8 +36,10 @@ steps:
       success: false
       error:
         code: ALREADY_CLAIMED
+        recovery: { kind: call, command: issue-check }
         message: fix/client-timeout
         suggestion: { contains: issue-check }
+    follow: { expect: { success: true, data: { dispatchable: [201] } } }
   - description: An issue triage deferred cannot be taken
     command: cell-register
     input: { branch: feat/naming, issues: [204], route: sol/high }
@@ -45,7 +47,9 @@ steps:
       success: false
       error:
         code: NOT_DISPATCHABLE
+        recovery: { kind: call, command: issue-check }
         suggestion: { contains: triage-issues }
+    follow: true
   - description: The claimed issue leaves the dispatch list, and the expert lane never enters it
     command: issue-check
     expect:

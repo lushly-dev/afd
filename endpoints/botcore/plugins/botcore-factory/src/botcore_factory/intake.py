@@ -22,7 +22,7 @@ from botcore_factory.labels import (
     is_untriaged,
     issue_violations,
 )
-from botcore_factory.runtime import Factory, Refusal
+from botcore_factory.runtime import Factory, Refusal, fix_input
 from botcore_factory.world import Issue
 
 
@@ -57,6 +57,7 @@ def read_backlog(factory: Factory, numbers: Sequence[int] | None = None) -> Back
             "VALIDATION_ERROR",
             f"Not issue numbers: {list(numbers)}",
             "Pass numbers as a list of issue numbers, or leave it out to check every open issue",
+            recovery=fix_input("numbers"),
         )
     definitions = factory.definitions()
     github = factory.world.github

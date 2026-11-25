@@ -17,7 +17,7 @@ from collections.abc import Callable
 from typing import Any
 
 from botcore_factory.records import make
-from botcore_factory.runtime import Factory, Refusal
+from botcore_factory.runtime import Factory, Refusal, call, fix_input
 from botcore_factory.world import WorldError
 
 EVENT_FIELDS = (
@@ -101,12 +101,18 @@ def lane_wait(
     events to its successor (lushly-dev/afd#1633).
     """
     if not consumer.strip():
-        raise Refusal("VALIDATION_ERROR", "consumer is empty", "Name the consumer, e.g. foreman")
+        raise Refusal(
+            "VALIDATION_ERROR",
+            "consumer is empty",
+            "Name the consumer, e.g. foreman",
+            recovery=fix_input("consumer"),
+        )
     if timeout_ms is not None and timeout_ms < 0:
         raise Refusal(
             "VALIDATION_ERROR",
             f"timeout_ms must not be negative; got {timeout_ms}",
             "Pass a timeout in milliseconds, or leave it out to wait until an event arrives",
+            recovery=fix_input("timeout_ms"),
         )
     deadline = None if timeout_ms is None else time.monotonic() + timeout_ms / 1000
 
@@ -144,6 +150,7 @@ def event_resolve(factory: Factory, event_id: str, note: str) -> dict[str, Any]:
             "VALIDATION_ERROR",
             "note is empty",
             "Say what was decided, e.g. ci-ok passed on the merged head",
+            recovery=fix_input("note"),
         )
     at = _now(factory)
     with factory.store.update(f"event-resolve {event_id}") as state:
@@ -153,6 +160,7 @@ def event_resolve(factory: Factory, event_id: str, note: str) -> dict[str, Any]:
                 "NOT_FOUND",
                 f"No event {event_id}",
                 "lane-status lists the open events with their ids",
+                recovery=call("lane-status"),
             )
         was_open = is_open(event)
         if was_open:

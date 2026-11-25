@@ -21,6 +21,7 @@ steps:
         code: ALREADY_CLAIMED
         message: fix/alpha
         suggestion: { contains: issue-check }
+        recovery: { kind: call, command: issue-check }
   - description: Two live claims
     command: cell-register
     input: { branch: fix/observer, issues: [302], route: sol/high }
@@ -30,6 +31,7 @@ steps:
         code: ALREADY_CLAIMED
         message: fix/alpha
         suggestion: { contains: issue-check }
+        recovery: { kind: call, command: issue-check }
   - description: Later branch released
     command: cell-register
     input: { branch: fix/observer, issues: [303], route: sol/high }
@@ -39,6 +41,7 @@ steps:
         code: ALREADY_CLAIMED
         message: fix/alpha
         suggestion: { contains: issue-check }
+        recovery: { kind: call, command: issue-check }
   - description: Earlier branch released
     command: cell-register
     input: { branch: fix/observer, issues: [304], route: sol/high }
@@ -48,6 +51,7 @@ steps:
         code: ALREADY_CLAIMED
         message: fix/bravo
         suggestion: { contains: issue-check }
+        recovery: { kind: call, command: issue-check }
   - description: A later claim whose lease ran out does not displace the live one
     command: cell-register
     input: { branch: fix/observer, issues: [306], route: sol/high }
@@ -57,6 +61,7 @@ steps:
         code: ALREADY_CLAIMED
         message: fix/alpha
         suggestion: { contains: issue-check }
+        recovery: { kind: call, command: issue-check }
   - description: A renewal shows the holder's current lease
     command: cell-register
     input: { branch: fix/observer, issues: [310], route: sol/high }
@@ -66,17 +71,18 @@ steps:
         code: ALREADY_CLAIMED
         message: "fix/alpha (laptop, lease until 2030-01-06T00:00:00Z)"
         suggestion: { contains: issue-check }
-  - description: Follow the refusal's suggestion to find available work and the claims that ran out
-    command: issue-check
-    expect:
-      success: true
-      data:
-        dispatchable: [305]
-        staleClaims:
-          - { number: 308, branch: fix/alpha }
-          - { number: 309, branch: fix/bravo }
-          - { number: 313, branch: fix/charlie }
-          - { number: 315 }
+        recovery: { kind: call, command: issue-check }
+    # Following the refusal finds available work and the claims that ran out.
+    follow:
+      expect:
+        success: true
+        data:
+          dispatchable: [305]
+          staleClaims:
+            - { number: 308, branch: fix/alpha }
+            - { number: 309, branch: fix/bravo }
+            - { number: 313, branch: fix/charlie }
+            - { number: 315 }
   - description: Register the observer on the free issue
     command: cell-register
     input: { branch: fix/observer, issues: [305], route: sol/high }

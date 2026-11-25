@@ -31,4 +31,5 @@ steps:
       success: false
       error:
         code: PLAN_ABOVE_CEILING
+        recovery: { kind: external }
         suggestion: { contains: '2030-01-08' }

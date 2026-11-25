@@ -44,6 +44,10 @@
 			"types": "./dist/commands.d.ts",
 			"import": "./dist/commands.js"
 		},
+		"./errors": {
+			"types": "./dist/errors.d.ts",
+			"import": "./dist/errors.js"
+		},
 		"./result": {
 			"types": "./dist/result.d.ts",
 			"import": "./dist/result.js"

@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from afd import CommandResult, error
+from afd import CommandError, CommandResult, Recovery, error, failure
 
 from botcore_factory.adapter import FactoryConfig
 from botcore_factory.labels import DefinitionsError, load_definitions
@@ -50,16 +50,56 @@ def current_bindings() -> Bindings:
 
 
 class Refusal(Exception):
-    """A command's named refusal, raised from deep in its logic and returned as an error."""
+    """A command's named refusal, raised from deep in its logic and returned as an error.
 
-    def __init__(self, code: str, message: str, suggestion: str, **details: Any) -> None:
+    ``recovery`` is the step the suggestion describes, structured so a program can follow it and
+    a scenario can check it (``spec/recovery.md``); a ``call`` names a command the factory serves
+    and the suggestion names it too.
+    """
+
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        suggestion: str,
+        *,
+        recovery: Recovery | None = None,
+        **details: Any,
+    ) -> None:
         super().__init__(message)
         self.code, self.message, self.suggestion, self.details = code, message, suggestion, details
+        self.recovery = recovery
 
     def result(self) -> CommandResult[Any]:
-        return error(
-            self.code, self.message, suggestion=self.suggestion, details=self.details or None
+        return failure(
+            CommandError(
+                code=self.code,
+                message=self.message,
+                suggestion=self.suggestion,
+                recovery=self.recovery,
+                details=self.details or None,
+            )
         )
+
+
+def call(command: str, **fields: Any) -> Recovery:
+    """A recovery that calls ``command`` next (``spec/recovery.md``)."""
+    return Recovery(kind="call", command=command, **fields)
+
+
+def fix_input(*needs: str) -> Recovery:
+    """A recovery that calls the same command again with new values for ``needs``."""
+    return Recovery(kind="fix-input", needs=list(needs) or None)
+
+
+EXTERNAL = Recovery(kind="external")
+"""A recovery outside the command surface: a person, a skill, git or GitHub."""
+
+STOP = Recovery(kind="stop")
+"""Nothing makes the call succeed; do something else."""
+
+RETRY = Recovery(kind="retry")
+"""The same call may succeed once a transient condition passes; the error is retryable."""
 
 
 @dataclass
@@ -83,6 +123,7 @@ class Factory:
                     "READ_FAILED",
                     f"Could not read the repository's name from GitHub: {exc}",
                     "Check `gh auth status` and the checkout's origin, then retry",
+                    recovery=EXTERNAL,
                 ) from exc
             self._store = StateStore.for_repository(
                 repository, self.world.processes, self.world.clock, base=self.state_base
@@ -96,6 +137,7 @@ class Factory:
                 "The repository adapter does not say where the label definitions live",
                 "Set labels under [plugins.factory] in botcore.toml (or "
                 "[tool.botcore.plugins.factory] in pyproject.toml), e.g. .github/labels.json",
+                recovery=EXTERNAL,
             )
         try:
             return load_definitions(self.target / self.config.labels)
@@ -104,6 +146,7 @@ class Factory:
                 "ADAPTER_INVALID",
                 f"{self.config.labels}: {exc}",
                 "Fix the label definitions file the adapter names, then retry",
+                recovery=EXTERNAL,
             ) from exc
 
 
@@ -119,18 +162,22 @@ def guarded(run: Callable[[], CommandResult[Any]]) -> CommandResult[Any]:
             str(exc),
             suggestion="Check `gh auth status`, the network and the checkout, then retry; "
             "a failed read is never reported as nothing to do",
+            recovery=EXTERNAL,
         )
     except StateLocked as exc:
         return error(
             "STATE_LOCKED",
             str(exc),
             suggestion="Another factory command is writing the lane's state; retry in a moment",
+            retryable=True,
+            recovery=RETRY,
         )
     except (StateError, OSError) as exc:
         return error(
             "STATE_UNAVAILABLE",
             str(exc),
             suggestion="Check the lane's data directory (BOTCORE_FACTORY_DATA_DIR overrides it)",
+            recovery=EXTERNAL,
         )
 
 
@@ -143,6 +190,7 @@ def page(items: list[Any], limit: int | None, cursor: str | None) -> tuple[list[
             "VALIDATION_ERROR",
             f"limit must be between 1 and {MAX_LIMIT}; got {size}",
             f"Pass a limit from 1 to {MAX_LIMIT}, or leave it out for {DEFAULT_LIMIT}",
+            recovery=fix_input("limit"),
         )
     return items[start : start + size], start + size
 
@@ -169,5 +217,6 @@ def parse_cursor(cursor: str | None) -> int:
             "VALIDATION_ERROR",
             f"Not a cursor this command returned: {cursor!r}",
             "Pass the nextCursor of the previous page, or leave cursor out for the first page",
+            recovery=fix_input("cursor"),
         )
     return int(cursor)

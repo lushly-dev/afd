@@ -23,8 +23,9 @@ sets every optional field, and [`spec/wire/result-failure.json`](../../../../spe
 | `undoCommand`, `undoArgs` | A serializable undo (see [command-trust-config.md](command-trust-config.md)) |
 | `metadata` | Set by the engine: `executionTimeMs`, `commandVersion`, `traceId`, `actorKind` |
 
-`CommandError` is `{ code, message, suggestion?, retryable?, details?, cause? }`. Make every error
-actionable:
+`CommandError` is `{ code, message, suggestion?, retryable?, recovery?, details?, cause? }`. Make
+every error actionable, and where a program can take the step, say so in `recovery`
+([`spec/recovery.md`](../../../../spec/recovery.md)):
 
 ```json
 {

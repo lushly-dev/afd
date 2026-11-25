@@ -10,7 +10,7 @@ from typing import Any
 
 from botcore_factory.claims import parse_time
 from botcore_factory.records import attempts
-from botcore_factory.runtime import Factory, Refusal
+from botcore_factory.runtime import Factory, Refusal, call
 
 NUMBERS = (
     "mergedPerHour",
@@ -123,6 +123,7 @@ def run_summary(factory: Factory, state: dict[str, Any], run_id: str) -> dict[st
             "NOT_FOUND",
             f"No run {run_id}",
             "lane-status shows the current runId; a report without run gives the latest",
+            recovery=call("lane-status"),
         )
     if "merged" in run:  # Summarized when it stopped.
         run_dict: dict[str, Any] = run
@@ -138,7 +139,12 @@ def lane_report(factory: Factory, run: str | None, compare: str | None) -> dict[
         run or state["lane"].get("runId") or (state["runs"][-1]["id"] if state["runs"] else None)
     )
     if run_id is None:
-        raise Refusal("NOT_FOUND", "The lane has not run yet", "Start it with lane-start")
+        raise Refusal(
+            "NOT_FOUND",
+            "The lane has not run yet",
+            "Start it with lane-start",
+            recovery=call("lane-start"),
+        )
     report = {"run": run_id, **numbers(run_summary(factory, state, run_id))}
     if compare:
         before = numbers(run_summary(factory, state, compare))

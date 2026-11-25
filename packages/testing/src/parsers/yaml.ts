@@ -16,6 +16,7 @@ import type {
 	AssertionMatcher,
 	Expectation,
 	FixtureConfig,
+	FollowExpectation,
 	Scenario,
 	Step,
 } from '../types/scenario.js';
@@ -53,9 +54,17 @@ const SCENARIO_KEYS = [
 	'timeout',
 	'steps',
 ] as const;
-const STEP_KEYS = ['command', 'input', 'description', 'expect', 'continueOnFailure'] as const;
+const STEP_KEYS = [
+	'command',
+	'input',
+	'description',
+	'expect',
+	'continueOnFailure',
+	'follow',
+] as const;
+const FOLLOW_KEYS = ['input', 'expect', 'retry'] as const;
 const EXPECT_KEYS = ['success', 'data', 'error', 'reasoning', 'confidence'] as const;
-const EXPECT_ERROR_KEYS = ['code', 'message', 'suggestion'] as const;
+const EXPECT_ERROR_KEYS = ['code', 'message', 'suggestion', 'recovery'] as const;
 const FIXTURE_KEYS = ['file', 'base', 'overrides'] as const;
 
 /** A shape problem found while validating the parsed YAML. */
@@ -180,39 +189,75 @@ function parseStep(raw: unknown, stepNum: number): Step {
 		fail(`Step ${stepNum} 'continueOnFailure' must be true or false`);
 	}
 
+	const expect = parseExpectation(raw.expect, stepNum);
+	const follow = parseFollow(raw.follow, stepNum);
+	if (follow && expect.success) {
+		fail(`Step ${stepNum} 'follow' needs a refusal to follow: set 'expect.success' to false`);
+	}
+
 	return {
 		command,
 		input: optionalRecord(raw.input, `Step ${stepNum} 'input'`),
 		description: optionalString(raw.description, `Step ${stepNum} 'description'`),
-		expect: parseExpectation(raw.expect, stepNum),
+		expect,
 		continueOnFailure: continueOnFailure === true,
+		...(follow ? { follow } : {}),
+	};
+}
+
+/**
+ * Parse a step's `follow`: `true` (follow with the defaults) or `{ input, expect, retry }`.
+ */
+function parseFollow(raw: unknown, stepNum: number): FollowExpectation | undefined {
+	if (raw === undefined || raw === null || raw === false) {
+		return undefined;
+	}
+	if (raw === true) {
+		return {};
+	}
+	if (!isRecord(raw)) {
+		fail(`Step ${stepNum} 'follow' must be true or an object with input, expect and retry`);
+	}
+	checkKeys(raw, FOLLOW_KEYS, `step ${stepNum} 'follow'`);
+	return {
+		...(raw.input != null
+			? { input: optionalRecord(raw.input, `Step ${stepNum} 'follow.input'`) }
+			: {}),
+		...(raw.expect != null
+			? { expect: parseExpectation(raw.expect, stepNum, 'follow.expect') }
+			: {}),
+		...(raw.retry != null ? { retry: parseExpectation(raw.retry, stepNum, 'follow.retry') } : {}),
 	};
 }
 
 /**
  * Parse the expectation of a step.
  */
-function parseExpectation(raw: unknown, stepNum: number): Expectation {
+function parseExpectation(raw: unknown, stepNum: number, field = 'expect'): Expectation {
 	if (!isRecord(raw)) {
-		fail(`Step ${stepNum} 'expect' must be an object`);
+		fail(`Step ${stepNum} '${field}' must be an object`);
 	}
-	checkKeys(raw, EXPECT_KEYS, `step ${stepNum} 'expect'`);
+	checkKeys(raw, EXPECT_KEYS, `step ${stepNum} '${field}'`);
 
 	if (typeof raw.success !== 'boolean') {
-		fail(`Step ${stepNum} 'expect' must have a boolean 'success' field`);
+		fail(`Step ${stepNum} '${field}' must have a boolean 'success' field`);
 	}
 
 	let error: Expectation['error'];
-	const rawError = optionalRecord(raw.error, `Step ${stepNum} 'expect.error'`);
+	const rawError = optionalRecord(raw.error, `Step ${stepNum} '${field}.error'`);
 	if (rawError) {
-		checkKeys(rawError, EXPECT_ERROR_KEYS, `step ${stepNum} 'expect.error'`);
+		checkKeys(rawError, EXPECT_ERROR_KEYS, `step ${stepNum} '${field}.error'`);
 		const suggestion = rawError.suggestion;
+		const recovery = rawError.recovery;
 		error = {
-			code: optionalString(rawError.code, `Step ${stepNum} 'expect.error.code'`),
-			message: optionalString(rawError.message, `Step ${stepNum} 'expect.error.message'`),
+			code: optionalString(rawError.code, `Step ${stepNum} '${field}.error.code'`),
+			message: optionalString(rawError.message, `Step ${stepNum} '${field}.error.message'`),
 			// Checked with the other assertions by findExpectationProblems below
 			...(suggestion !== undefined && suggestion !== null
 				? { suggestion: suggestion as string | AssertionMatcher }
+				: {}),
+			...(recovery !== undefined && recovery !== null
+				? { recovery: recovery as Record<string, unknown> }
 				: {}),
 		};
 	}
@@ -220,22 +265,22 @@ function parseExpectation(raw: unknown, stepNum: number): Expectation {
 	let confidence: number | undefined;
 	if (raw.confidence !== undefined && raw.confidence !== null) {
 		if (typeof raw.confidence !== 'number' || raw.confidence < 0 || raw.confidence > 1) {
-			fail(`Step ${stepNum} 'expect.confidence' must be a number between 0 and 1`);
+			fail(`Step ${stepNum} '${field}.confidence' must be a number between 0 and 1`);
 		}
 		confidence = raw.confidence;
 	}
 
 	const expectation: Expectation = {
 		success: raw.success,
-		data: optionalRecord(raw.data, `Step ${stepNum} 'expect.data'`),
+		data: optionalRecord(raw.data, `Step ${stepNum} '${field}.data'`),
 		error,
-		reasoning: optionalString(raw.reasoning, `Step ${stepNum} 'expect.reasoning'`),
+		reasoning: optionalString(raw.reasoning, `Step ${stepNum} '${field}.reasoning'`),
 		confidence,
 	};
 
 	const problems = findExpectationProblems(expectation);
 	if (problems.length > 0) {
-		fail(`Step ${stepNum}: ${problems.join('; ')}`);
+		fail(`Step ${stepNum}${field === 'expect' ? '' : ` '${field}'`}: ${problems.join('; ')}`);
 	}
 
 	return expectation;

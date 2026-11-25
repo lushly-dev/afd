@@ -33,7 +33,7 @@ from typing import Any
 
 from botcore_factory import dials
 from botcore_factory.claims import format_time, parse_time
-from botcore_factory.runtime import Factory, Refusal
+from botcore_factory.runtime import STOP, Factory, Refusal, call, fix_input
 
 LEASE_DIAL = "foreman.leaseMinutes"
 #: Superseded sessions kept; the longest superseded are forgotten first.
@@ -51,6 +51,7 @@ def _busy(lease: dict[str, Any], command: str) -> Refusal:
         f"{command} is its call",
         "One foreman per lane: stop here and tell the owner. If that session has ended, its "
         "lease runs out by itself, or the owner frees the lane with foreman-handoff",
+        recovery=STOP,
         holder=lease["session"],
         until=lease["until"],
     )
@@ -67,6 +68,7 @@ def _stale(lane: dict[str, Any], session: str, command: str) -> Refusal | None:
         "Stop here and report to the owner without acting: read lane-status and lane-report "
         "for what the newer foreman did. A foreman that should run again starts in a new "
         "session",
+        recovery=STOP,
         supersededBy=superseded["by"],
         at=superseded["at"],
     )
@@ -90,7 +92,12 @@ def hold(
     ``FOREMAN_BUSY`` for another session, and for a call that names none unless ``owner_may``
     (the owner's own ``dial-set``)."""
     if session is not None and not session.strip():
-        raise Refusal("VALIDATION_ERROR", "session is empty", "Pass your T3 Code thread id")
+        raise Refusal(
+            "VALIDATION_ERROR",
+            "session is empty",
+            "Pass your T3 Code thread id",
+            recovery=fix_input("session"),
+        )
     now = factory.world.clock.now()
     lane = factory.store.read()["lane"]
     current = lane.get("foreman")
@@ -156,6 +163,7 @@ def check(
             f"before {command} acted); nothing was changed",
             "Read lane-status first: if the owner handed the lane over, stop and report; "
             "otherwise call again, which takes the lane while no other session holds it",
+            recovery=call("lane-status"),
             session=session,
         )
     take(state, session, command, now)
@@ -213,7 +221,12 @@ def renew(factory: Factory, session: str) -> None:
 def handoff(factory: Factory, session: str) -> dict[str, Any]:
     """Release the lease: the holder's own session, or anyone once it has run out."""
     if not session.strip():
-        raise Refusal("VALIDATION_ERROR", "session is empty", "Pass the holder's session")
+        raise Refusal(
+            "VALIDATION_ERROR",
+            "session is empty",
+            "Pass the holder's session",
+            recovery=fix_input("session"),
+        )
     now = factory.world.clock.now()
     with factory.store.update(f"foreman-handoff {session}") as state:
         lease = state["lane"].get("foreman")
@@ -224,6 +237,7 @@ def handoff(factory: Factory, session: str) -> dict[str, Any]:
                 "NOT_FOREMAN",
                 f"Session {lease['session']} holds the lane until {lease['until']}, not {session}",
                 "Only the holder hands over; otherwise wait for its lease to run out",
+                recovery=STOP,
                 holder=lease["session"],
                 until=lease["until"],
             )
