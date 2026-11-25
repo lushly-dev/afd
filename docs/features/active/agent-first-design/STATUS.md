@@ -93,8 +93,11 @@ shape of the [Patterns status](../patterns/STATUS.md).
   `agent-first-design.proposal.md` §10; folder promoted to
   `docs/features/active/agent-first-design/` under Epic
   [#2544](https://github.com/lushly-dev/afd/issues/2544).
-- **Not done:** Q4 confidence-band cleanup ([#2545](https://github.com/lushly-dev/afd/issues/2545))
-  and phases B to D ([#2558](https://github.com/lushly-dev/afd/issues/2558)–[#2564](https://github.com/lushly-dev/afd/issues/2564))
+- **Done:** Q4 confidence-band contract cleanup (merged 2026-11-25 in [#2591](https://github.com/lushly-dev/afd/pull/2591), closes
+  [#2545](https://github.com/lushly-dev/afd/issues/2545)): moved confidence auto-apply opinions
+  out of the wire contract docs across TypeScript, Python, Rust and C++, plus
+  `.claude/skills/afd/references/command-schema.md` and `docs/whitepaper/AFD-Whitepaper.md`.
+- **Not done:** phases B to D ([#2558](https://github.com/lushly-dev/afd/issues/2558)–[#2564](https://github.com/lushly-dev/afd/issues/2564))
   under Epic [#2544](https://github.com/lushly-dev/afd/issues/2544). See
   [Delivery phases](#delivery-phases) and [What is not done](#what-is-not-done).
 - **Blocked on:** nothing; all Phase A exit criteria and proposal §9 decisions are settled.
@@ -125,7 +128,7 @@ shape of the [Patterns status](../patterns/STATUS.md).
 Each sub-issue under Epic [#2544](https://github.com/lushly-dev/afd/issues/2544) owns its own
 blank-line-separated bullet so parallel pull requests never edit adjacent lines.
 
-- **Q4 ([#2545](https://github.com/lushly-dev/afd/issues/2545)) — Four-language confidence-band contract cleanup:** Planned (unblocked; `execution:bounded`, `risk:high`). Move confidence auto-apply opinions out of the wire contract across TypeScript, Python, Rust and C++.
+- **Q4 ([#2545](https://github.com/lushly-dev/afd/issues/2545)) — Four-language confidence-band contract cleanup:** Done 2026-11-25 (merged in [#2591](https://github.com/lushly-dev/afd/pull/2591)). Moved confidence auto-apply opinions out of the wire contract docs across TypeScript, Python, Rust and C++, plus `.claude/skills/afd/references/command-schema.md` and the whitepaper.
 
 - **Phase B1 ([#2558](https://github.com/lushly-dev/afd/issues/2558)) — `afd-defaults@1.0.0` result-state patterns and `design-states` command:** Planned (unblocked; `execution:integrative`, `risk:medium`). Author the 10 canonical result-state patterns with portable Specimen gates (verified on Loam + seeded faults) and implement `design-states` (Scenarios `01`, `09` step 1, `10` step 1).
 
@@ -171,13 +174,13 @@ blank-line-separated bullet so parallel pull requests never edit adjacent lines.
 | Phase 0, step 0.4 | Done 2026-11-24, not met on the original journal-path rule (3 of 13 pairs worse in both seeded walks); tuned 2026-11-24 with a blind pairwise report comparison (4 of 4 fault-meeting and 1 of 1 no-fault on the 15-walk confirmation rerun; 12 of 13 fault-meeting and 6 of 7 no-fault on the 60 original walks), accepted by the owner at step 0.6 | [Steps 0.3 and 0.4](#steps-03-and-04), [`bench/record/`](bench/record/README.md) |
 | Phase 0, step 0.6 | Done 2026-11-24: **go with changes** — owner accepted the blind pairwise report comparison for step 0.4, the $1.79 full-set comparison batch and the fault-reader direct-consequence rule, kept steps 0.2 and 0.5 deferred, and approved committing the phase 0 record and starting phase A | [`bench/record/README.md`](bench/record/README.md), [`bench/held/README.md`](bench/held/README.md) |
 | Phase A | Done 2026-11-24, merged in [#2537](https://github.com/lushly-dev/afd/pull/2537) and [#2550](https://github.com/lushly-dev/afd/pull/2550): specification, 12 scenarios, amendments applied and folder promoted to `active/` | [`spec.md`](spec.md), [`scenarios/`](scenarios/), Epic [#2544](https://github.com/lushly-dev/afd/issues/2544) |
-| Phases B to D | Not started; sub-issues filed under Epic [#2544](https://github.com/lushly-dev/afd/issues/2544) ([#2545](https://github.com/lushly-dev/afd/issues/2545), [#2558](https://github.com/lushly-dev/afd/issues/2558)–[#2564](https://github.com/lushly-dev/afd/issues/2564)) | [Delivery phases](#delivery-phases) |
+| Q4 confidence-band cleanup | Done 2026-11-25, merged in [#2591](https://github.com/lushly-dev/afd/pull/2591): removed hardcoded confidence auto-apply band opinions across TS, Python, Rust, C++, `command-schema.md` and the whitepaper | [#2545](https://github.com/lushly-dev/afd/issues/2545), [Delivery phases](#delivery-phases) |
+| Phases B to D | Not started; sub-issues filed under Epic [#2544](https://github.com/lushly-dev/afd/issues/2544) ([#2558](https://github.com/lushly-dev/afd/issues/2558)–[#2564](https://github.com/lushly-dev/afd/issues/2564)) | [Delivery phases](#delivery-phases) |
 
 ## What is not done
 
 - **Q4 confidence-band contract cleanup ([#2545](https://github.com/lushly-dev/afd/issues/2545)):**
-  Move confidence auto-apply opinions out of the wire contract across TypeScript, Python, Rust
-  and C++.
+  Superseded 2026-11-25 — completed in [#2591](https://github.com/lushly-dev/afd/pull/2591); see [Delivery phases](#delivery-phases).
 - **The bench closed phase 0 on 2026-11-24 with step 0.6 (go with changes); steps 0.2 and
   0.5 remain deferred, and arm 2's statements and arm 3's skill are not written.** Its pilots,
   step 0.1's first fifteen builds, steps 0.3 and 0.4, and the 15-walk confirmation rerun have
@@ -1020,7 +1023,7 @@ Read on 2026-11-24, for the amendment of that day:
 | Date | Raised by | Follow-up | Status |
 | --- | --- | --- | --- |
 | 2026-11-14 | First draft | A structured recovery on `CommandError` (a command, its input and a label) beside the prose `suggestion`, so an interface can render a button and an agent can call it. A contract change in four languages. The sources also disagree on whether a suggestion is written for a person or names a command | Open; its own proposal if the owner wants it |
-| 2026-11-14 | First draft | The confidence bands in `packages/core/src/result.ts:63` say 0.9 or more is "auto-apply safe". Whether a result applies by itself should depend on whether it can be undone. The Python, Rust and C++ copies were not checked | Filed 2026-11-24 as [#2545](https://github.com/lushly-dev/afd/issues/2545) under Epic [#2544](https://github.com/lushly-dev/afd/issues/2544) (proposal Q4) |
+| 2026-11-14 | First draft | The confidence bands in `packages/core/src/result.ts:63` say 0.9 or more is "auto-apply safe". Whether a result applies by itself should depend on whether it can be undone. The Python, Rust and C++ copies were not checked | Closed 2026-11-25 in [#2591](https://github.com/lushly-dev/afd/pull/2591) (fixes [#2545](https://github.com/lushly-dev/afd/issues/2545) under Epic [#2544](https://github.com/lushly-dev/afd/issues/2544)) |
 | 2026-11-14 | First draft | The whitepaper uses dotted command names such as `document.create`, against the `domain-action` naming rule | Open; worth an issue |
 | 2026-11-14 | The owner | The todo example is out of date and should be updated; it is a reference only until then | Open |
 | 2026-11-14 | First draft | A newcomer copies skills with `npx degit` (`README.md:457`), which records no version and gives no notice of changes. Botcore's seeded skills carry both | Open; proposal sections 2 and 5.6 |
@@ -1085,3 +1088,4 @@ Read on 2026-11-24, for the amendment of that day:
 | 2026-11-24 | Phase A specification and scenarios | Drafted [`spec.md`](spec.md) and 12 ranked-job scenarios in [`scenarios/`](scenarios/) with an invented bookshop fixture (`scenarios/fixtures/bookshop.json`), walked all paths with three fresh read-only readers (Person, Job List, Calling Agent), and revised the specification and scenarios from their findings and a two-model independent review (15 commands, 27 command-level error codes plus `WAIVER_REASON_REQUIRED`, 58 steps, 100% command coverage and 100% error-code coverage per defined code, 0 warnings). Merged in [#2537](https://github.com/lushly-dev/afd/pull/2537) |
 | 2026-11-24 | Phase A exit, amendments and promotion | Owner accepted all four companion amendments in `spec.md` §4, decided Q4 (filed as [#2545](https://github.com/lushly-dev/afd/issues/2545)), Q8/Q10 (deferred past Phases B–C) and Q9 (remains deferred per step 0.6), and approved opening Epic [#2544](https://github.com/lushly-dev/afd/issues/2544) and promoting this folder to `docs/features/active/agent-first-design/`. Applied the four amendments to Patterns, Design Decisions, Screens from Jobs and proposal §10; updated `docs/features/README.md`, `biome.json`, `scripts/affected/`, `packages/examples/seed-library` and sibling relative links. Merged in [#2550](https://github.com/lushly-dev/afd/pull/2550) |
 | 2026-11-25 | Phase B–D sub-issues | Filed seven triaged sub-issues under Epic [#2544](https://github.com/lushly-dev/afd/issues/2544): unblocked `status:planned` Phase B1 ([#2558](https://github.com/lushly-dev/afd/issues/2558)) and Phase C1 ([#2561](https://github.com/lushly-dev/afd/issues/2561)) alongside Q4 ([#2545](https://github.com/lushly-dev/afd/issues/2545)), plus `status:deferred` / `blocked` Phases B2 ([#2559](https://github.com/lushly-dev/afd/issues/2559)), B3 ([#2560](https://github.com/lushly-dev/afd/issues/2560)), C2 ([#2562](https://github.com/lushly-dev/afd/issues/2562)), C3 ([#2563](https://github.com/lushly-dev/afd/issues/2563)), and D1 ([#2564](https://github.com/lushly-dev/afd/issues/2564)); verified 0 label violations and added blank-separated [Delivery phases](#delivery-phases) rows |
+| 2026-11-25 | Q4 confidence-band contract cleanup | Removed hardcoded confidence auto-apply opinions (`>= 0.9` auto-apply safe) from the four-language wire contract docs (`packages/core/src/result.ts`, `packages/rust/src/result.rs`, `python/src/afd/core/result.py`, `packages/cpp/include/afd/result.hpp`), `.claude/skills/afd/references/command-schema.md` and `docs/whitepaper/AFD-Whitepaper.md` while keeping the wire `confidence` field unchanged (closes [#2545](https://github.com/lushly-dev/afd/issues/2545), merged in [#2591](https://github.com/lushly-dev/afd/pull/2591)) |

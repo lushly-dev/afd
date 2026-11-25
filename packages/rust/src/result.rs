@@ -149,13 +149,13 @@ pub struct CommandResult<T> {
     // ═══════════════════════════════════════════════════════════════════════════
     // UX-ENABLING FIELDS (Recommended for good agent experiences)
     // ═══════════════════════════════════════════════════════════════════════════
-    /// Agent's confidence in this result (0-1).
+    /// Confidence in this result, bounded in `[0, 1]`.
     ///
-    /// Guidelines:
-    /// - 0.9 - 1.0: Very high confidence, auto-apply safe
-    /// - 0.7 - 0.9: High confidence, show as recommendation
-    /// - 0.5 - 0.7: Moderate confidence, require confirmation
-    /// - < 0.5: Low confidence, show alternatives prominently
+    /// Expresses certainty only; it does not decide whether a result is safe to
+    /// apply automatically. Whether an action applies without confirmation depends
+    /// on reversibility (`undoable`, `destructive`, `approval`), while presentation
+    /// of confidence and alternatives belongs to product guidance or default
+    /// patterns (e.g. `afd-defaults/alternatives-and-confidence`).
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",

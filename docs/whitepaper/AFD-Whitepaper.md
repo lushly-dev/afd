@@ -386,14 +386,14 @@ AFD errors are designed to be **actionable**: they tell users what went wrong AN
 
 ### Confidence Calibration
 
-Well-calibrated confidence scores enable appropriate UI treatment:
+Confidence is bounded in `[0, 1]` and expresses certainty only; it does not decide whether a result is safe to apply automatically. Whether an action can apply without confirmation depends on reversibility (`undoable`, `destructive`, `approval`), while presentation strength and when to surface alternatives belong to product guidance or default patterns (such as `afd-defaults/alternatives-and-confidence`):
 
-| Confidence | Meaning | Recommended UI Treatment |
-|------------|---------|--------------------------|
-| 0.9 - 1.0 | Very high confidence | Auto-apply safe |
-| 0.7 - 0.9 | High confidence | Show as recommendation |
-| 0.5 - 0.7 | Moderate confidence | Require confirmation |
-| < 0.5 | Low confidence | Show alternatives prominently |
+| Confidence | Meaning | Presentation Guidance (default pattern, product-overridable) |
+|------------|---------|--------------------------------------------------------------|
+| 0.9 - 1.0 | Very high confidence | Present as the primary result |
+| 0.7 - 0.9 | High confidence | Present as a recommendation |
+| 0.5 - 0.7 | Moderate confidence | Highlight uncertainty and invite review |
+| < 0.5 | Low confidence | Present alternatives alongside the primary result |
 
 ### Real-World Example
 

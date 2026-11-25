@@ -75,7 +75,11 @@ class CommandResult(WireModel, Generic[T]):
         success: Whether the command completed successfully.
         data: The command output (generic type T) when success=True.
         error: Structured error when success=False.
-        confidence: Agent's confidence in this result (0-1).
+        confidence: Confidence in this result (0-1). Expresses certainty only;
+            whether an action applies automatically depends on reversibility
+            (``undoable``, ``destructive``, ``approval``), not a confidence
+            threshold. Presentation belongs to product guidance or default
+            patterns (e.g. ``afd-defaults/alternatives-and-confidence``).
         reasoning: Human-readable explanation of what happened.
         sources: Information sources used to produce this result.
         plan: Steps in a multi-step operation.

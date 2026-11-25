@@ -37,7 +37,10 @@ struct CommandResult {
     /// The payload. `null` is a value; absence is `std::nullopt`.
     std::optional<Json> data;
     std::optional<CommandError> error;
-    /// 0 to 1.
+    /// Confidence in this result, bounded in `[0, 1]`. Expresses certainty only; whether an
+    /// action applies automatically depends on reversibility (`undoable`, `destructive`,
+    /// `approval`), not a confidence threshold. Presentation belongs to product guidance or
+    /// default patterns (e.g. `afd-defaults/alternatives-and-confidence`).
     std::optional<double> confidence;
     std::optional<std::string> reasoning;
     std::optional<std::vector<Source>> sources;

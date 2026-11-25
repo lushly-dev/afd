@@ -54,9 +54,11 @@ set the recommended `retryable` value.
 | Long-running | `plan` with live status |
 | Batch | Per-item results (below) |
 
-**Calibrate confidence.** 0.9 or more: safe to apply automatically. 0.7 to 0.9: show as a
-recommendation. 0.5 to 0.7: ask for confirmation. Below 0.5: show the alternatives first. A command
-that always returns 1.0 or 0.5 tells the caller nothing.
+**Calibrate confidence.** Use the 0–1 range honestly; a command that always returns 1.0 or 0.5
+tells the caller nothing. Confidence expresses certainty only and never decides whether a result
+is safe to apply automatically—auto-apply depends on reversibility (`undoable`, `destructive`,
+`approval`), while how strongly to present confidence and alternatives belongs to product
+guidance or default patterns (for example `afd-defaults/alternatives-and-confidence`).
 
 **Batch commands** (the todo example's `todo-create-batch`) run best-effort and return
 `success: true` even when some items fail. `data` is `{ succeeded, failed, summary: { total,
