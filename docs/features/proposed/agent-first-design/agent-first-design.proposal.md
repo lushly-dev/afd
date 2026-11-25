@@ -19,7 +19,7 @@ defaults. Agents review early and often, and a person decides at the points that
   of the screen ([question 13](#9-for-the-owner)) and a published design to compare it with,
   both in [5.10](#510-where-the-parts-live).
 - **Amended 2026-11-24, later:** with the owner's clarification of that answer, under
-  question 13, and the [Controls proposal](../controls/controls.proposal.md), which now
+  question 13, and the [Controls proposal](../../active/controls/controls.proposal.md), which now
   carries the work.
 - **Verified:** every claim in [What exists today](#2-what-exists-today) was read first-hand on
   2026-11-14 at `545316f2`, except where a line says otherwise.
@@ -652,7 +652,7 @@ Four questions place a part:
 | Turning a result into what a piece shows: loading, ready, empty or error, with the message, suggestion, `retryable`, code, warnings and the rest of the result kept | AFD's browser client, beside the browser-safe DirectClient ([#655](https://github.com/lushly-dev/afd/issues/655)). The direct registry's command summary should also carry `confirmPrompt`, `examples`, `requires` and `tags`, which it drops today (`packages/server/src/direct-registry.ts:214`) |
 | Wording, which command a control calls, and what happens after | The application |
 | An agent seeing and setting interface state (an open panel, a selection, a tab) | `@lushly-dev/afd-view-state`, which Loam already uses with handlers it writes by hand; Lushly describes where the person is in a string it sets by hand. Proposed: a helper in that package that binds an element's properties and change events to a view-state id, and a rule Specimen can check, that a stateful component exposes its state as a settable property with a change event |
-| An agent seeing and filling what is on the screen (a field's label, its value, its choices) | Decided 2026-11-24 ([question 13](#9-for-the-owner)): an agent inside an application can, where today it can only call commands and set the state in the row above. Components still declare no actions. The recommendation the owner agreed to named `afd-view-state`. The [Controls proposal](../controls/controls.proposal.md), which the owner has not approved, proposes commands of its own there, with its jobs as scenarios and what it puts to the owner, how much of the screen an agent sees among them. It is the approach for [#2275](https://github.com/lushly-dev/afd/issues/2275). Nothing is built |
+| An agent seeing and filling what is on the screen (a field's label, its value, its choices) | Decided 2026-11-24 ([question 13](#9-for-the-owner)): an agent inside an application can, where today it can only call commands and set the state in the row above. Components still declare no actions. The recommendation the owner agreed to named `afd-view-state`. The [Controls proposal](../../active/controls/controls.proposal.md), which the owner approved the same day, places commands of its own there, with its jobs as scenarios. Its phases are sub-issues of the epic, [#2487](https://github.com/lushly-dev/afd/issues/2487) first; they replace #2275. Nothing is built |
 | What an agent knows about a component | Specimen's pack and Umbel's `components-brief`, as now |
 | Scoped registries in the render path, the loader for their polyfill, and the opt-in definition schema Specimen reads | The component runtime (`fast-element`). Its scoped mixin and registry builders went with the command layer on 2026-11-17 ([#1398](https://github.com/lushly-dev/afd/pull/1398)): Loam, the application that needs scoped registries, uses the browser's own API |
 
@@ -762,7 +762,7 @@ Each is an amendment for the owner to accept, not an edit made here.
 | Pointing | No change. Its question about pointing in the running application stands |
 | `afd` skill, `command-schema.md`, `result.ts` comments, the whitepaper | The edits in [5.3](#53-default-opinions-move-out-of-the-contract) |
 | Design to Code | Retire or rewrite it; the owner's call, already raised in the Patterns status file |
-| `fast-element`, `violet-elements`, AFD's browser client, `afd-view-state` | Where the result-state work and interface state live ([5.10](#510-where-the-parts-live)). Decided 2026-11-16 (question 13), with an addition on 2026-11-24: an agent inside an application sees and fills what is on the screen, which the [Controls proposal](../controls/controls.proposal.md) carries. The code changes are [epic #1385](https://github.com/lushly-dev/afd/issues/1385)'s, not this document's |
+| `fast-element`, `violet-elements`, AFD's browser client, `afd-view-state` | Where the result-state work and interface state live ([5.10](#510-where-the-parts-live)). Decided 2026-11-16 (question 13), with an addition on 2026-11-24: an agent inside an application sees and fills what is on the screen, which the [Controls proposal](../../active/controls/controls.proposal.md) carries. The code changes are [epic #1385](https://github.com/lushly-dev/afd/issues/1385)'s, not this document's |
 
 ## 7. Phases
 
@@ -910,9 +910,10 @@ Each recommendation is for the owner to decide.
     we should have a proper path to allow the UI on AFD to be manipulated by an agent (fields
     updated, etc).." The session reads that as a case for a designed path in place of a
     workaround, which names no layer. On that reading the
-    [Controls proposal](../controls/controls.proposal.md) places the code itself, as commands
-    of its own inside `afd-view-state`, and puts how much of the screen an agent sees to the
-    owner as its question 4.
+    [Controls proposal](../../active/controls/controls.proposal.md) places the code itself, as
+    commands of its own inside `afd-view-state`, and put how much of the screen an agent sees
+    to the owner as its question 4. The owner approved that proposal on 2026-11-24, agreeing
+    with all six of its recommendations.
 
 ## 10. Out of scope
 

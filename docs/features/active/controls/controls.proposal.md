@@ -6,11 +6,12 @@ happens before one is called: the draft a person and an agent fill in together.
 
 ## Status
 
-- **State:** scaffold with jobs and a design direction. Written 2026-11-24 against `8347a597`.
-  It has eighteen jobs, fourteen of them as scenario files, four drafted commands and four
-  error codes. The scenario checks pass, and one reader who did not write them walked the
-  paths three times ([section 6](#6-what-the-walks-changed)). The owner has not ranked the jobs or
-  approved it. [STATUS.md](STATUS.md) tracks progress.
+- **State:** active. Written 2026-11-24 against `8347a597`, and approved by the owner the same
+  day, who agreed with the six recommendations he was shown
+  ([section 10](#10-for-the-owner)) and said to proceed with phase A. It has eighteen jobs, fourteen of them as scenario files, four drafted
+  commands and four error codes. The scenario checks pass, and one reader who did not write
+  them walked the paths three times ([section 6](#6-what-the-walks-changed)).
+  [STATUS.md](STATUS.md) tracks progress, and [spec.md](spec.md) is phase A's specification.
 - **Verified:** the claims in [What exists today](#2-what-exists-today) that carry no mark were
   read first-hand on 2026-11-24 at `8347a597`.
 - **Not verified:**
@@ -19,19 +20,20 @@ happens before one is called: the draft a person and an agent fill in together.
     cited each line; a sample was then checked first-hand, and the sample is what carries no
     mark.
   - That an agent with these commands fills a real form well. No model has used them.
-- **Next:** the owner cuts, adds and ranks the jobs ([section 10](#10-for-the-owner)).
+- **Next:** phase A ([#2487](https://github.com/lushly-dev/afd/issues/2487)), built to
+  [spec.md](spec.md).
 
 | Field | Value |
 | --- | --- |
-| Epic | [#1385](https://github.com/lushly-dev/afd/issues/1385), step 8. Issue [#2275](https://github.com/lushly-dev/afd/issues/2275), whose approach this proposal is |
+| Epic | [#1385](https://github.com/lushly-dev/afd/issues/1385), step 8. One issue for each phase: [#2487](https://github.com/lushly-dev/afd/issues/2487) (A), [#2488](https://github.com/lushly-dev/afd/issues/2488) (B), [#2489](https://github.com/lushly-dev/afd/issues/2489) (C), [#2490](https://github.com/lushly-dev/afd/issues/2490) (D). They replace #2275, whose approach this proposal was |
 | Units likely touched | `packages/view-state`; `packages/testing` (a fixture adapter); `foundations/specimen` and `integrations/specimen-fast-af` (the state contract); `foundations/fast-af/packages/violet-elements` (components held to it); one example application |
-| Related | [Agent-First Design](../agent-first-design/agent-first-design.proposal.md#510-where-the-parts-live), section 5.10 and question 13; [`afd-view-state`](../../../../packages/view-state/README.md) |
+| Related | [Agent-First Design](../../proposed/agent-first-design/agent-first-design.proposal.md#510-where-the-parts-live), section 5.10 and question 13; [`afd-view-state`](../../../../packages/view-state/README.md) |
 
 ## 1. Problem
 
 On 2026-11-24 the owner agreed that an agent inside an AFD application should see and fill
 what is on the screen, through `afd-view-state` and with no actions declared by components
-([Agent-First Design](../agent-first-design/agent-first-design.proposal.md#9-for-the-owner),
+([Agent-First Design](../../proposed/agent-first-design/agent-first-design.proposal.md#9-for-the-owner),
 question 13). Asked the same day what "shoehorning it in with some other command/ui layer" had
 meant, the owner said that "a system designed to allow an agent to edit controls and their
 content is better than what AFD might have done without the feature which would have been a
@@ -135,7 +137,7 @@ checked first-hand.
 ### A published design
 
 UI SDK's agent bridge, read on 2026-11-24 and summarised in
-[Agent-First Design](../agent-first-design/agent-first-design.proposal.md#a-published-design-to-compare),
+[Agent-First Design](../../proposed/agent-first-design/agent-first-design.proposal.md#a-published-design-to-compare),
 section 5.10. [Section 4.7](#47-kept-different-on-purpose) says where this direction differs
 from it.
 
@@ -168,7 +170,8 @@ four cannot be one ([section 7](#7-what-a-scenario-cannot-show)). All fourteen a
 
 ## 4. Design direction
 
-Not verified. It is a direction to write the specification against once the jobs are ranked.
+Not verified. It is the direction each phase's specification is written against;
+[spec.md](spec.md) is phase A's.
 
 ### 4.1 Where it lives
 
@@ -397,7 +400,7 @@ Against UI SDK's bridge, as its
 | --- | --- | --- |
 | A component may declare its agent actions | A component declares none | The owner's decision; a capability is a command |
 | `press` runs a button | No presses | Saving is a command, with its schema, approval and undo |
-| Every component on the page is listed, and the application hides regions | The application binds what is listed | Private until bound, as a command is private to MCP until exposed. [Question 4](#10-for-the-owner) puts this to the owner |
+| Every component on the page is listed, and the application hides regions | The application binds what is listed | Private until bound, as a command is private to MCP until exposed. The owner decided this as [question 4](#10-for-the-owner) |
 | A failed step leaves earlier steps applied | All or nothing | Job 3 |
 | A component is named by its label or a ref | By the id it is bound under | One name, the same on every read |
 | An agent can type into a secret field | A secret is refused | Job 6 |
@@ -569,11 +572,11 @@ scenario can show first.
 
 | Phase | What | Exit |
 | --- | --- | --- |
-| 0. Jobs | This document, the scenarios, walks by a reader who did not write them, the owner's ranking | The owner has cut, added and ranked the jobs |
-| A. Commands | The specification, then `ControlRegistry` and the four commands with no DOM: a control is a handler, as a view state is today. A fixture adapter for the scenarios | Every scenario passes in the package's tests; tests show `allow` granting panels and not controls, a person refused by `control-set`, a failed write put back, a restore skipping for each of its reasons, a `rev` read after an edit restoring nothing, and a second restore putting back nothing |
-| B. Binding | `bindControls` and `bindControl` for native controls, the registry's notice with its actor, and the view-state binder #2275 asked for | Browser tests: a person's change and an agent's reach the same listener; a controlled input in React follows a write; a person's typing and a script's write each give the control a new `rev`; the registry's notice carries the caller's actor; a property and its event bound to a view-state id read and write both ways; an unbound control is never listed |
-| C. The contract | The three rules as Specimen contract codes with passing and failing fixtures, the declaration in a guide file, and `violet-elements`' components brought to it | `pnpm test:stories` holds every stateful component to the rules; the library ships its contracts as one file |
-| D. In an application | Library controls bound by tag from that file, and one application where a person watches an agent fill a form and takes it back | The measure in [section 7](#7-what-a-scenario-cannot-show) is run and reported |
+| 0. Jobs | This document, the scenarios, walks by a reader who did not write them, the owner's ranking | Done 2026-11-24: the owner agreed with the ranking proposed |
+| A. Commands ([#2487](https://github.com/lushly-dev/afd/issues/2487)) | The [specification](spec.md), then `ControlRegistry` and the four commands with no DOM: a control is a handler, as a view state is today. A fixture adapter for the scenarios | Every scenario passes in the package's tests; tests show `allow` granting panels and not controls, a person refused by `control-set`, a failed write put back, a restore skipping for each of its reasons, a `rev` read after an edit restoring nothing, and a second restore putting back nothing |
+| B. Binding ([#2488](https://github.com/lushly-dev/afd/issues/2488)) | `bindControls` and `bindControl` for native controls, the registry's notice with its actor, and the view-state binder #2275 asked for | Browser tests: a person's change and an agent's reach the same listener; a controlled input in React follows a write; a person's typing and a script's write each give the control a new `rev`; the registry's notice carries the caller's actor; a property and its event bound to a view-state id read and write both ways; an unbound control is never listed |
+| C. The contract ([#2489](https://github.com/lushly-dev/afd/issues/2489)) | The three rules as Specimen contract codes with passing and failing fixtures, the declaration in a guide file, and `violet-elements`' components brought to it | `pnpm test:stories` holds every stateful component to the rules; the library ships its contracts as one file |
+| D. In an application ([#2490](https://github.com/lushly-dev/afd/issues/2490)) | Library controls bound by tag from that file, and one application where a person watches an agent fill a form and takes it back | The measure in [section 7](#7-what-a-scenario-cannot-show) is run and reported |
 
 Phases A and B change no component and need no release of the library.
 
@@ -633,28 +636,34 @@ Phases A and B change no component and need no release of the library.
 
 ## 10. For the owner
 
-Each recommendation is for the owner to decide.
+**Decided 2026-11-24.** The owner was shown the six questions, each with the recommendation
+quoted below, and replied: "Agree with all six recommendations, proceed with phase A". What
+follows each quotation is this document's own detail, which he was not shown.
 
-1. **The jobs.** Cut, add and rank the eighteen. *Recommendation: the fourteen a scenario can
-   show first (1 to 14), then 15 to 17 with the binder, then 18.*
+1. **The jobs.** Cut, add and rank the eighteen. Shown: "I recommend the fourteen a scenario
+   can show first, then the three that need the binder, then the library contract."
+   **Decided: agreed.** None was cut or added. In this document's numbers that is 1 to 14,
+   then 15 to 17, then 18.
 2. **Secrets.** Whether an agent may ever fill a password, a one-time code or a card number.
-   *Recommendation: never, so a person types their own secrets. An application can mark more
-   controls as secrets and cannot unmark one.*
+   Shown: "I recommend never, so a person types their own secrets." **Decided: agreed.** That
+   an application can mark more controls as secrets and cannot unmark one is
+   [4.4](#44-rules)'s.
 3. **Agents outside the application.** Whether an agent that reaches the application through
-   MCP may read what is on a person's screen. *Recommendation: no, unless the application
-   turns it on, as with view state.*
+   MCP may read what is on a person's screen. Shown: "I recommend no, unless the app turns it
+   on." **Decided: agreed.** View state has the same default.
 4. **What an agent sees.** Whether an application lists the controls an agent may see, or the
-   agent sees every control unless the application hides it, as in UI SDK's snapshot, the
-   reference the recommendation named. *Recommendation: the application lists them. Nothing a
-   person typed reaches an agent by default.*
+   agent sees every control unless the application hides it, as UI SDK's does. Shown: "I
+   recommend the app lists them, so nothing a person typed reaches an agent by default."
+   **Decided: agreed.**
 5. **Submitting.** Whether an agent that has filled a form may also run the command that
-   saves it. *Recommendation: only when the person asks. Otherwise it says the form is ready,
-   and the person reads it and submits.*
+   saves it. Shown: "I recommend only when the person asks." **Decided: agreed.** That it
+   otherwise says the form is ready, and the person reads it and submits, is
+   [4.3](#43-commands)'s.
 6. **The library's components.** Whether to bring `violet-elements`' components to one
    contract, which changes how at least eleven of them hold or announce their state in the
-   preview package.
-   *Recommendation: yes, as phase C, after the commands and the binder have shown the path
-   works on native controls.*
+   preview package. Shown: "I recommend yes, as a later phase." **Decided: agreed.** That the
+   later phase is C, after the commands and the binder have shown the path works on native
+   controls, is [section 8](#8-phases)'s.
 
 ## 11. Out of scope
 

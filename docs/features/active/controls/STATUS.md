@@ -1,8 +1,7 @@
 # Controls: status
 
-Epic: [#1385](https://github.com/lushly-dev/afd/issues/1385). Its issue is
-[#2275](https://github.com/lushly-dev/afd/issues/2275), whose approach this proposal is; file
-new work for this area as a sub-issue of the epic.
+Epic: [#1385](https://github.com/lushly-dev/afd/issues/1385). File new work for this area as a
+sub-issue of the epic.
 
 Read this before the [proposal](controls.proposal.md). It records exactly what is done and what
 is not, so an agent never has to scan the code to learn what is current.
@@ -20,10 +19,12 @@ is not, so an agent never has to scan the code to learn what is current.
 
 ## Status block
 
-- **State:** proposed. A scaffold with jobs and a design direction, written 2026-11-24 against
-  `8347a597`. The owner has not ranked the jobs or approved it.
-- **Scope drafted:** 18 jobs, 14 scenario files, 4 commands and 4 error codes, all in the
-  [proposal](controls.proposal.md) and [`scenarios/`](scenarios/).
+- **State:** active. Approved by the owner on 2026-11-24 ("Agree with all six recommendations,
+  proceed with phase A") and promoted from `proposed/` to `active/`.
+- **Approved scope:** 18 jobs, 14 scenario files, 4 commands and 4 error codes, in the
+  [proposal](controls.proposal.md) and [`scenarios/`](scenarios/), with the six decisions of
+  the proposal's section 10.
+- **Phase A's contract** is [spec.md](spec.md).
 - **Nothing is built.**
 
 ## Steps
@@ -33,21 +34,28 @@ is not, so an agent never has to scan the code to learn what is current.
 - **Walks by a reader who did not write them.** Done 2026-11-24, merged in #2480: three walks
   by one reader, recorded in the proposal's section 6.
 
-- **The owner cuts, adds and ranks the jobs.** Open. The six questions are in the proposal's
-  section 10.
+- **The owner cuts, adds and ranks the jobs.** Done 2026-11-24: agreed with all six
+  recommendations of the proposal's section 10; none cut or added. Recorded in #2493.
 
-- **Phase A, the specification and the commands on a registry.** Not started.
+- **Phase A's specification** ([#2487](https://github.com/lushly-dev/afd/issues/2487)). Done
+  2026-11-24, merged in #2493: [spec.md](spec.md).
 
-- **Phase B, the binder.** Not started.
+- **Phase A, the registry and the four commands**
+  ([#2487](https://github.com/lushly-dev/afd/issues/2487)). Not started.
 
-- **Phase C, the state contract in Specimen and the library.** Not started.
+- **Phase B, the binder** ([#2488](https://github.com/lushly-dev/afd/issues/2488)). Not
+  started; waits on phase A.
 
-- **Phase D, in an application, with the measure.** Not started.
+- **Phase C, the state contract in Specimen and the library**
+  ([#2489](https://github.com/lushly-dev/afd/issues/2489)). Not started; waits on phase B.
+
+- **Phase D, in an application, with the measure**
+  ([#2490](https://github.com/lushly-dev/afd/issues/2490)). Not started; waits on B and C.
 
 ## What is not done
 
 - **No command exists.** `control-list`, `control-set`, `control-restore` and
-  `control-choices` are drafts.
+  `control-choices` are specified and not built.
 - **Nothing in the design direction is verified.** In particular, that dispatching a control's
   change event after a write is enough for a framework that controls its inputs.
 - **The survey of `violet-elements`' components was sampled, not repeated.** The proposal's
@@ -55,19 +63,20 @@ is not, so an agent never has to scan the code to learn what is current.
 - **No model has used the commands,** so nothing shows they serve a real form.
 - **The fixtures cannot be applied.** They are files the dry run loads; the adapter that turns
   one into a screen is phase A's.
-- **What the walks left for the specification** is listed in the proposal's sections 6 and 9.
+- **What the walks left for the specification** is listed in the proposal's sections 6 and 9,
+  and what phase A's specification settled of it in its section 9.
 
 ## How it was checked
 
-Run 2026-11-24 on a branch from `main` at `8347a597`.
+### The proposal, 2026-11-24, on a branch from `main` at `8347a597`
 
 - **Claims about the repository** in the proposal's section 2 that carry no mark were read
   first-hand from the files they cite. The lines marked *surveyed* were read by three reader
   agents the same day, each citing its lines; a sample was checked first-hand.
 - **The scenario checks,** as [jobs first](../../../../.claude/skills/afd/references/jobs-first.md)
   describes, after `pnpm -F "@lushly-dev/afd-cli..." build`, on the scenarios as merged:
-  - `node packages/cli/dist/bin.js scenario validate docs/features/proposed/controls/scenarios`:
-    "All 14 scenario(s) are valid!"
+  - `node packages/cli/dist/bin.js scenario validate` on the scenarios folder: "All 14
+    scenario(s) are valid!"
   - the dry run with `checkFixtures`: no error in 14 files and 65 steps;
   - coverage: commands 4 of 4 tested, errors 4 of 4 tested, `not drafted: []`.
 - **The walks:** one fresh reader on Claude Opus 5.5 at `high`, given the owner's words before
@@ -85,7 +94,7 @@ Run 2026-11-24 on a branch from `main` at `8347a597`.
     and "no presses" as following from his decision;
   - the rule for secrets was stated three ways;
   - #2275 was named as this proposal's issue while its scope excluded the work, so the
-    proposal is now posted there as its approach;
+    proposal was posted there as its approach;
   - job 5 was outside the first slice though a first-slice scenario names its command, and no
     phase's exit ran its scenario;
   - the error table had no row for `control-choices` on a control with no choices;
@@ -102,16 +111,49 @@ Run 2026-11-24 on a branch from `main` at `8347a597`.
   which section 9 leaves to the specification. A focused pass by the first reviewer approved
   the fixes, and a second focused pass approved three corrections of wording it noted.
 
+### The approval and phase A's specification, 2026-11-24, on a branch from `main` at `bd374912`
+
+- **The owner's approval** is quoted whole in the proposal's section 10.
+- **The specification against the scenarios:** each message, suggestion and reason a scenario
+  asserts was read against the words the specification gives for it, and the order of checks
+  against each step that depends on it (a secret before a `rev`, a state before a `rev`, a
+  `rev` before a value).
+- **The scenario checks** were run again after the move to `active/`: 14 of 14 valid, 65
+  steps, commands 4 of 4, errors 4 of 4.
+- **Links:** the same script, over the proposal, the specification, this file and the two
+  Agent-First Design files that link here, found none broken.
+- **Independent review:** two fresh read-only reviewers on one brief, Claude Opus 5.5 at
+  `high` and Gemini 4 Neon at `high`, given the six recommendations the owner was shown and
+  his reply. Both said revise: eight blockers from the first and seven from the second, two
+  of them shared, all fixed.
+  - **In the specification:** `fix-input` recoveries with nothing to fix, which every reader
+    drops; a secret, and a control changed before the call, appearing in `affected`; the
+    `stop` the proposal gives `control-choices` when its caller cannot set; the registry's
+    notice built a phase early; an id sent twice checked before a secret; "no new dependency"
+    against a type and a test the package cannot reach; a restore's order of checks; values
+    left undefined (an empty string against a format, the four formats, a number with one
+    bound, a list of choices); a handler that throws on `read`, and on writing back; and an
+    exit list that left `maxLength`, `offset`, the budget and duplicate ids untested.
+  - **In the proposal:** section 10 marked as decided some wording longer than the owner was
+    shown. It now quotes what he was shown and calls the rest this document's.
+
+  Both traced all 65 steps of the fourteen scenarios against the specification's words and
+  found each to hold, before and after the rewrite. A focused pass by the first reviewer
+  found the fifteen fixed and one new blocker, a rule for a group on an empty screen that
+  section 9 did not name; a second focused pass approved that fix and two write-back cases
+  it had asked for.
+
 ## Follow-ups not yet issues
 
 | Date | Raised by | Follow-up | Status |
 | --- | --- | --- | --- |
 | 2026-11-24 | The survey for this proposal | `violet-elements`' `attribute-taxonomy.jsonc` lists `violet-date-range-picker` under `name.usedBy`, and the component has no `name` attribute. Checked first-hand | Open |
 | 2026-11-24 | This proposal | Whether a journal should skip `control-*` commands, whose input is a person's draft, as two recorders skip `auth-*` | Open; the proposal's section 9 |
-| 2026-11-24 | This proposal | The measure in the proposal's section 7: one form filled by a model through these commands, through a workaround and through UI SDK's public benchmark task | Open; phase D |
+| 2026-11-24 | This proposal | The measure in the proposal's section 7: one form filled by a model through these commands, through a workaround and through UI SDK's public benchmark task | Filed as part of [#2490](https://github.com/lushly-dev/afd/issues/2490) |
 
 ## Session log
 
 | Date | Session | What changed |
 | --- | --- | --- |
 | 2026-11-24 | The proposal | After the comparison with UI SDK, the owner said AFD should have a designed path for an agent to change the controls on a screen, in place of a command that sets values and code in the interface that applies them. Three surveys read how view state is used, how `violet-elements`' components hold state and how Specimen checks a component. The jobs were written as scenarios, and a reader walked them three times. The walks replaced an optional guard with a `rev` on each control, made the undo a command of its own that carries no values, and added three jobs. Nothing was built |
+| 2026-11-24 | The approval and phase A's specification | The owner agreed with all six recommendations and said to proceed with phase A. The proposal moved to `active/`. Its phases were filed as #2487 to #2490 under the epic, the later three deferred on the one before, and #2275 was closed as replaced. Phase A's specification pins each command's input, result, checks in order and the words of every refusal, and settles what the proposal left to it: one screen for a registry, a fifth code for a handler that throws, and the five reasons a restore skips. Nothing was built |
