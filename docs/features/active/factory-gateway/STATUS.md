@@ -29,7 +29,8 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   no GitHub App. The owner's ranking of the jobs, the six questions in
   [For the owner](factory-gateway.proposal.md#for-the-owner) and the App (G0) are still his.
 - **Last verified:** 2026-11-24 (dates in this file are Pacific time): the gateway updated to
-  `6819de18` with the `/heartbeat` route, below. 2026-11-23: the rate-limit replay
+  `c22624e1` by the new `install.sh`, built beside the running code, below; earlier the same
+  day to `6819de18` with the `/heartbeat` route. 2026-11-23: the rate-limit replay
   through the deployed gateway, the gateway updated to `3fe08c00`, then to `36aed322` with
   the read cache, to `317accc6` with the validation-lag fix and to `dde05aa3` with the lanes'
   health, all below. 2026-11-21:
@@ -80,8 +81,8 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   prompt straight to the service user, never through chat.
 - **The service on `random` (G0):** installed 2026-11-19 as the launch daemon
   `dev.lushly.factory-gateway`, running as the hidden account `_factorygw` (no login). The app
-  and its Python live root-owned in `/Library/FactoryGateway/app` (a link to a release in
-  `releases` once the install of 2026-11-24, below, runs there); state in `data` (service
+  and its Python live root-owned in `/Library/FactoryGateway/app`, since 2026-11-24 a link to
+  a release in `releases` (below); state in `data` (service
   only), the configuration and key in `etc` (the key mode 0600, the service's), the log in `log`.
   It listens on `random`'s tailnet address, port 8787. The owner's token is in
   `~/.config/factory-gateway/owner.token` on `random`. Its configuration squashes in both
@@ -475,7 +476,16 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   - after the second review: a by-hand switch back through links with a trailing slash and a
     relative path, a plist under another `Label` (refused before the stop), and a daemon that
     lives 25 seconds and is restarted (failed in 30 seconds, not 15 minutes).
-  Not yet run as root on `random`: it runs at the next update there, from `main`.
+  Merged in [#2465](https://github.com/lushly-dev/afd/pull/2465). First run as root on
+  `random` the same day, updating the gateway from `6819de18` to `c22624e1`, after Lushly's
+  foreman said go (its lane was in a coverage run, with no landing in flight). The old `app`
+  directory is gone and `releases` holds only `c22624e14-20261125T000711Z`, which `app` and
+  `app.last-good` link. The installed configuration, key and owner's token were kept, and the
+  repository's plist, unchanged, was installed again. `gateway-status` then answered `success`
+  as `lushly-factory-gateway[bot]`, with a rate limit of 5000 and `ages`. Not read: the
+  gateway's log (root only) for the mirrors' fetch at start. Lushly's lane does not call the
+  gateway yet: its foreman found no call in `scripts/merge-lane*.mjs`, and Lushly's `main`
+  names the gateway only in `SETUP.md`.
 - 2026-11-14: filed [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392), Lushly's side
   of G1 (claim script, lane steps, flake filer, process files and checks), as G1 started.
 
@@ -504,4 +514,4 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | 2026-11-14 | Proposal session | ~~A Lushly issue tracking Lushly's side of G1 (claim script, lane steps, flake filer, process files and checks), filed when G1 starts~~. Superseded: filed as [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392) on 2026-11-14 |
 | 2026-11-14 | Proposal session | botcore's host changes ([What botcore needs](factory-gateway.proposal.md#what-botcore-needs)) overlap the factory's Phase 1 host changes; whichever starts first does them once for both. Superseded: taken 2026-11-14 by the gateway's G1 session on `random`: the gateway's host changes are done once, for both |
 | 2026-11-18 | Commit-credit session | `lushly-dev/afd` now allows squash merges only, at the owner's direction: a merge commit or rebase merge carried branch commits, co-author lines included, onto `main` unchanged ([#1523](https://github.com/lushly-dev/afd/pull/1523)). A gateway that serves AFD needs `"mergeMethods": {"lushly-dev/afd": "squash"}`. Its default merge commit is now refused with `MERGE_METHOD_NOT_ALLOWED`. Its squashes already give their own commit message ([#1520](https://github.com/lushly-dev/afd/pull/1520)). Superseded: the merge queue rebases since 2026-11-22 ([#1809](https://github.com/lushly-dev/afd/issues/1809)), and the gateway's `mergeMethods` for AFD is `rebase` since 2026-11-23 |
-| 2026-11-21 | Gateway session, from the runbook's review | ~~The install script removes the running code before it builds the new, so a failed build leaves the gateway down: build beside it and switch~~ (done 2026-11-24, session log). Its first-install form and a real key passed in have not run as root in its present shape; the first install ran only against a scratch root. ~~`reconfigure.sh`'s state line can still end its run after the restart~~ (fixed 2026-11-24). ~~Separately, `gateway-status` does not report the key's age the proposal promises: [#1833](https://github.com/lushly-dev/afd/issues/1833)~~ (merged in [#2303](https://github.com/lushly-dev/afd/pull/2303) on 2026-11-23: `ages { appKey, token }` on every route, plus `rateLimit.graphql` when GitHub supplies the GraphQL budget; `random` serves them after its next `install.sh` update) |
+| 2026-11-21 | Gateway session, from the runbook's review | ~~The install script removes the running code before it builds the new, so a failed build leaves the gateway down: build beside it and switch~~ (done 2026-11-24, session log). Its update form ran as root on `random` on 2026-11-24; its first-install form and a real key passed in have not run as root in its present shape (the first install ran only against a scratch root). ~~`reconfigure.sh`'s state line can still end its run after the restart~~ (fixed 2026-11-24). ~~Separately, `gateway-status` does not report the key's age the proposal promises: [#1833](https://github.com/lushly-dev/afd/issues/1833)~~ (merged in [#2303](https://github.com/lushly-dev/afd/pull/2303) on 2026-11-23: `ages { appKey, token }` on every route, plus `rateLimit.graphql` when GitHub supplies the GraphQL budget; `random` serves them since its update to `3fe08c00` on 2026-11-23) |
