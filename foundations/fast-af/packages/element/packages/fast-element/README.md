@@ -1,7 +1,9 @@
 # FAST Element
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![npm version](https://badge.fury.io/js/%40microsoft%2Ffast-element.svg)](https://badge.fury.io/js/%40microsoft%2Ffast-element)
+[![npm preview](https://img.shields.io/npm/v/%40lushly-dev%2Ffast-element/preview?label=npm%20preview)](https://www.npmjs.com/package/@lushly-dev/fast-element)
+
+> `@lushly-dev/fast-element` is an independent fork of Microsoft's open-source [`@microsoft/fast-element`](https://github.com/microsoft/fast/tree/main/packages/fast-element), maintained in [AFD](https://github.com/lushly-dev/afd/tree/main/foundations/fast-af#microsoft-fast). It is not affiliated with or endorsed by Microsoft.
 
 The `fast-element` library is a lightweight means to easily build performant, memory-efficient, standards-compliant Web Components. FAST Elements work in every major browser and can be used in combination with any front-end framework or even without a framework.
 
@@ -30,7 +32,7 @@ A pre-bundled script that contains all APIs needed to build web components with 
 <html lang="en">
     <head>
         <script type="module">
-          import { FASTElement } from "https://cdn.jsdelivr.net/npm/@lushly-dev/fast-element/dist/fast-element.min.js";
+          import { FASTElement } from "https://cdn.jsdelivr.net/npm/@lushly-dev/fast-element@preview/dist/fast-element.min.js";
 
           // your code here
         </script>
@@ -39,18 +41,14 @@ A pre-bundled script that contains all APIs needed to build web components with 
 </html>
 ```
 
-The markup above always references the latest release. When deploying to production, you will want to ship with a specific version. Here's an example of the markup for that:
+The markup above follows the `preview` tag. When deploying to production, you will want to ship with a specific version. Here's an example of the markup for that:
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/npm/@lushly-dev/fast-element@1.6.2/dist/fast-element.min.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@lushly-dev/fast-element@3.1.4-preview.0/dist/fast-element.min.js"></script>
 ```
 
 :::note
 For simplicity, examples throughout the documentation will assume the library has been installed from NPM, but you can always replace the import location with the CDN URL.
-:::
-
-:::tip
-Looking for a quick guide on building components?  Check out [our Cheat Sheet](../resources/cheat-sheet.md#building-components).
 :::
 
 ## Slot fallback
