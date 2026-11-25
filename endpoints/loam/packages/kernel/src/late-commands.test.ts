@@ -54,9 +54,12 @@ describe('stage A and stage B', () => {
 		await Promise.all([kernel.startApps(), kernel.startApps()]);
 		await kernel.appsReady;
 		expect(kernel.listCommands().map((row) => row.name)).toEqual([...SHELL_COMMAND_NAMES]);
-		// The copilot's queries are the palette's alone (phase 5 specification, 3.5).
+		// The copilot's queries are the palette's alone (phase 5 specification, 3.5), and a person signs in:
+		// afd-auth keeps `auth-sign-in` off the agent surface.
 		expect(kernel.agent.listCommands().map((row) => row.name)).toEqual(
-			SHELL_COMMAND_NAMES.filter((name) => !(COPILOT_QUERIES as readonly string[]).includes(name))
+			SHELL_COMMAND_NAMES.filter(
+				(name) => !(COPILOT_QUERIES as readonly string[]).includes(name) && name !== 'auth-sign-in'
+			)
 		);
 		expect(kernel.lateFailure).toBeUndefined();
 		await kernel.dispose();

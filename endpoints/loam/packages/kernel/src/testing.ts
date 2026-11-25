@@ -197,11 +197,21 @@ export const REPLAY_RECORDED_QUERIES: readonly string[] = Object.freeze([
 	'project-summary-get',
 ]);
 
+/**
+ * An agent's `auth-sign-in`, journaled while the agent interface still listed it (refused `HUMAN_REQUIRED` by the
+ * identity gate). afd-auth no longer exposes the command to agents, so a new call is refused before the journal and
+ * re-running an old entry would answer `COMMAND_NOT_EXPOSED`: a journal from before keeps replaying from its record.
+ */
+function historicalAgentSignIn(entry: JournalEntry): boolean {
+	return entry.command === 'auth-sign-in' && entry.contextDigest?.interface === 'agent';
+}
+
 /** Whether a replay answers `entry` from its record, because re-running it would prove nothing. */
 function answeredFromRecord(entry: JournalEntry): boolean {
 	const details = entry.result.error?.details as Record<string, unknown> | undefined;
 	return (
 		REPLAY_RECORDED_QUERIES.includes(entry.command) ||
+		historicalAgentSignIn(entry) ||
 		entry.command.startsWith('copilot-') ||
 		entry.context?.replay === 'recorded' ||
 		entry.context?.parent !== undefined ||

@@ -52,20 +52,22 @@ describe('P2-E13: E6: sign-in through the Mock adapter', () => {
 		const next = added[signIn + 1];
 		expect(next?.actor).toMatchObject({ kind: 'human', id: expect.any(String) });
 
-		// An agent may not sign in (phase 5's 6.1), and its refused call's password is redacted from the journal too.
+		// An agent may not sign in (phase 5's 6.1): afd-auth keeps `auth-sign-in` off the agent surface, and the refused
+		// call's password is kept out of the journal too.
 		const sentinel = 'agent-not-kept';
 		const refused = (await agentCall(page, 'auth-sign-in', {
 			method: 'credentials',
 			email: 'person@example.com',
 			password: sentinel,
 		})) as { error?: { code: string } };
-		expect(refused.error?.code).toBe('HUMAN_REQUIRED');
+		expect(refused.error?.code).toBe('COMMAND_NOT_EXPOSED');
 		await settle(page);
 		const entries = await journal(page);
 		const agentEntry = entries.filter(
 			(entry) => entry.command === 'auth-sign-in' && entry.interface === 'agent'
 		);
-		expect(agentEntry.at(-1)?.error?.code).toBe('HUMAN_REQUIRED');
+		// Refused before the journal, as any command the agent's interface does not list.
+		expect(agentEntry).toEqual([]);
 		// The raw journal, every field of every entry (re-check 6), not the harness's summary of it.
 		const raw = await page.evaluate(async () => {
 			const shell = document.querySelector('loam-shell') as unknown as {

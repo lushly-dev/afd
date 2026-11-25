@@ -75,7 +75,7 @@ type SignInOutcome =
 
 | Command | `mutation` | `destructive` | `expose` |
 |---|---|---|---|
-| `auth-sign-in` | true | false | palette, agent, cli; not mcp |
+| `auth-sign-in` | true | false | palette, cli; not agent (a person signs in; an agent asks them) or mcp |
 | `auth-sign-out` | true | true, with `confirmPrompt` | palette, agent, cli; not mcp |
 | `auth-session-get` | false | false | palette, agent, cli, mcp |
 
