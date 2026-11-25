@@ -74,18 +74,32 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
   looked again at the screenshot page made on 2026-11-16 and marked none. A copy of it holds
   the twelve faults, each proved present there and absent from the clean build. See
   [the reference build](#the-reference-build).
-- **Not done:** phase A (for the proposal's own ranked jobs: drafted commands, scenario files,
-  the three scenario checks, three-seat reader walks, and the amendments moved into Patterns,
-  Design Decisions and Screens from Jobs); the owner's remaining answers (questions 4, 8, 9 and
-  10); and phases B to D. See [What is not done](#what-is-not-done).
-- **Blocked on:** nothing for phase A; step 0.6 was confirmed (**go with changes**) on
-  2026-11-24. Questions 4, 8, 9 and 10 of the proposal remain open and block nothing in phase A
-  yet. Opening an epic and moving this folder to `active/` remain the owner's call.
+- **In progress:** phase A ([`spec.md`](spec.md) and [`scenarios/`](scenarios/), drafted
+  2026-11-24): 15 commands (10 new, 5 existing/amended), 27 command-level error codes plus
+  `WAIVER_REASON_REQUIRED` validation issue, 12 ranked-job scenarios (5 in `slice-1`, 7 in
+  `slice-2`; 58 steps) passing all three jobs-first checks (100% command coverage and 100%
+  error-code coverage per defined code, 0 warnings), walked by three fresh independent readers
+  (Person, Job List, Calling Agent), reviewed by two models (Claude Opus 5.5 and Gemini 4 Neon),
+  and drafted companion amendments for Patterns, Design Decisions, Screens from Jobs and
+  proposal §10 in `spec.md` §4. Waiting on the owner to accept or refuse those amendments before
+  editing the owning active proposals.
+- **Not done:** moving the accepted phase A amendments into Patterns, Design Decisions and
+  Screens from Jobs; the owner's remaining proposal answers (questions 4, 8, 9 and 10); and
+  phases B to D. See [What is not done](#what-is-not-done).
+- **Blocked on:** owner acceptance or refusal of the proposed companion amendments in
+  [`spec.md` §4](spec.md#4-proposed-amendments-for-the-owner) (Patterns, Design Decisions
+  including Q7 release-card resolution, Screens from Jobs, and proposal §10 reconciliation) to
+  exit phase A, plus open proposal questions 4, 8, 9 and 10. Opening an epic and moving this
+  folder to `active/` remain the owner's call.
 - **Order:** the owner answers the direction and ranks the draft jobs before commands are
   drafted, as the [Scales scaffold](../../active/scales/STATUS.md) does. The
   [jobs-first guide](../../../../.claude/skills/afd/references/jobs-first.md) puts the owner's
   ranking after the scenarios and the reader walks, and they still follow.
-- **Last verified:** 2026-11-24 for the reference build at `f4eeba0c` (308 of 308 checks on the
+- **Last verified:** 2026-11-24 for phase A's specification and 12 scenario files (`scenario
+  validate`, `validateScenario`, `scenarioCoverage`: 12/12 valid, 58 steps, 15/15 commands,
+  27/27 command-level error codes per code, 0 warnings, 0 undrafted commands; three-seat reader
+  walks; two-model independent review);
+  the reference build at `f4eeba0c` (308 of 308 checks on the
   rebuilt scoring checkout), step 0.1's first fifteen builds and their report, steps 0.3 and 0.4
   (both builds proved, the walks' reports and the independent sample check), and the tuned runner
   (54 unit tests, a full dry run of the confirmation batch, both builds proved, and both frozen
@@ -110,10 +124,10 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
 | Amend with the screen an agent sees (5.10) | Done 2026-11-24, merged in #2466: a row in the layer map for an agent seeing and filling what is on the screen, the owner's answer under question 13, and UI SDK as a published design to compare. Open: where its code goes, in `afd-view-state` or in a layer of its own, and how much of the screen an agent sees. [#2275](https://github.com/lushly-dev/afd/issues/2275)'s scope covers neither until its approach or a new sub-issue under [epic #1385](https://github.com/lushly-dev/afd/issues/1385) says so. Superseded on what is open by the row below | Proposal, sections 5.10 and 9 |
 | Record the owner's clarification, and point 5.10 at the Controls proposal | Done 2026-11-24, merged in #2480: the owner's reply is quoted under question 13. The session reads it as a case for a designed path in place of a workaround, naming no layer, so the [Controls proposal](../../active/controls/controls.proposal.md) places the code and puts how much of the screen an agent sees to the owner as its question 4 | Proposal, sections 5.10 and 9 |
 | Point 5.10 at the approved Controls proposal | Done 2026-11-24, merged in #2493: the owner approved [Controls](../../active/controls/STATUS.md), which moved to `active/`; the 5.10 row names its phase issues, which replace #2275, and question 13 records the approval | Proposal, sections 5.10 and 9 |
-| Move each part into the proposal that owns it | Not started. Ready to move: customizing a default (5.1) and who owns the result-state patterns (5.2) into Patterns; the panel's provisional answer and the triggers (5.5) into Design Decisions | Question 1 |
-| Draft the commands against the ranked jobs | Not started. The rank is confirmed; this is phase A's, after phase 0's decision | |
-| Write each job as a scenario and run the checks | Not started | [Jobs first](../../../../.claude/skills/afd/references/jobs-first.md) |
-| Walk the paths with readers who did not write them | Not started | Three seats, as jobs first describes |
+| Move each part into the proposal that owns it | In progress. Proposed amendments for Patterns, Design Decisions (including Q7) and Screens from Jobs are drafted in [`spec.md` §4](spec.md#4-proposed-amendments-for-the-owner); waiting on owner acceptance before editing the active proposals | [`spec.md`](spec.md#4-proposed-amendments-for-the-owner) |
+| Draft the commands against the ranked jobs | In progress (drafted 2026-11-24, pending merge): 15 commands (10 new, 5 existing/amended) and 27 command-level error codes in [`spec.md`](spec.md) | [`spec.md`](spec.md) |
+| Write each job as a scenario and run the checks | In progress (drafted & checked 2026-11-24, pending merge): 12 scenario files (58 steps) passing `scenario validate`, `validateScenario` and `scenarioCoverage` (100% command coverage and 100% error-code coverage per defined code, 0 warnings) | [`scenarios/`](scenarios/) |
+| Walk the paths with readers who did not write them | In progress (walked 2026-11-24, pending merge): three fresh independent readers (Person, Job List, Calling Agent) plus two-model review of the two added commands; findings applied or declined with reasons in [`spec.md` §6.2](spec.md#62-what-the-three-seat-walks-and-independent-reviews-found-taken-and-declined) | [`spec.md`](spec.md#62-what-the-three-seat-walks-and-independent-reviews-found-taken-and-declined) |
 | Independent review of the proposal | Done 2026-11-14: one broad pass and one pass on its blockers | [How it was checked](#how-it-was-checked) |
 | Phase 0, step 0.0: the bench's specification | In progress. The specification is written, and merged in #1234. Drafted 2026-11-14 with a recommended domain, 209 sessions and an estimate of about $260 at list prices, used as a measure of size. The owner decided three of its points on 2026-11-15: a seed library; Opus 5.5 at `medium` on a second machine's subscription allowance, no more than a fifth of a week's allowance in any one week; and a bare arm in step 0.1. An independent reader reviewed it the same day. The owner confirmed the rules for "go" and the reading of a path for step 0.4 on 2026-11-21, as proposed, with step 0.3's "a persona of that modality" read as one persona alone | [`bench.md`](bench.md) |
 | The bench: its jobs and drafted commands | In progress. Drafted 2026-11-15: 17 jobs as scenario files in 113 steps, and 24 commands. The parse, dry-run and coverage checks pass. Three readers walked the paths, and an independent reviewer read the result and walked the two commands their findings added. Merged in #1236. The owner decided three of its design points on 2026-11-15 | [`bench/seed-library.md`](bench/seed-library.md) |
@@ -128,15 +142,19 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
 | Phase 0, step 0.3 | Done 2026-11-24, met: the panel found 12 of 12 planted faults, each modality's own persona 3 of 3; an independent reviewer, by the owner's decision, judged 20 of 20 matches right and 23 of 30 other findings real | [Steps 0.3 and 0.4](#steps-03-and-04) |
 | Phase 0, step 0.4 | Done 2026-11-24, not met on the original journal-path rule (3 of 13 pairs worse in both seeded walks); tuned 2026-11-24 with a blind pairwise report comparison (4 of 4 fault-meeting and 1 of 1 no-fault on the 15-walk confirmation rerun; 12 of 13 fault-meeting and 6 of 7 no-fault on the 60 original walks), accepted by the owner at step 0.6 | [Steps 0.3 and 0.4](#steps-03-and-04), [`bench/record/`](bench/record/README.md) |
 | Phase 0, step 0.6 | Done 2026-11-24: **go with changes** — owner accepted the blind pairwise report comparison for step 0.4, the $1.79 full-set comparison batch and the fault-reader direct-consequence rule, kept steps 0.2 and 0.5 deferred, and approved committing the phase 0 record and starting phase A | [`bench/record/README.md`](bench/record/README.md), [`bench/held/README.md`](bench/held/README.md) |
-| Phase A | Not started: specify the amendments and write the ranked jobs as scenarios, walked by three readers | Proposal, section 7 |
+| Phase A | In progress (2026-11-24): commands, 12 scenarios, three-seat walks and drafted amendments written in [`spec.md`](spec.md); awaiting owner acceptance of §4 amendments to move them into Patterns, Design Decisions and Screens from Jobs | [`spec.md`](spec.md), [`scenarios/`](scenarios/) |
 | Phases B to D | Not started; gated on phase A | Proposal, section 7 |
 
 ## What is not done
 
-- **No commands are drafted and no job is a scenario file for the proposal's own thirteen
-  jobs.** They are sentences, and nothing shows that commands can express them. The seed
-  library's seventeen jobs are a different list: the bench's application, not this proposal's
-  product.
+- **Moving accepted phase A amendments into the owning active proposals.** Phase A's 15 commands,
+  12 ranked-job scenarios (58 steps) and three-seat walks are drafted in [`spec.md`](spec.md)
+  and [`scenarios/`](scenarios/), including the copied-pattern contract (`derivedFrom`,
+  `waivedKeep`, `patternBindings`, `specimen-pattern-fork`, `specimen-pattern-compare`,
+  `specimen-pattern-merge`), but `docs/features/active/patterns/spec.md`,
+  `docs/features/active/design-decisions/design-decisions.proposal.md` and
+  `docs/features/active/screens-from-jobs/screens-from-jobs.proposal.md` are not edited until the
+  owner accepts or refuses [`spec.md` §4](spec.md#4-proposed-amendments-for-the-owner).
 - **The bench closed phase 0 on 2026-11-24 with step 0.6 (go with changes); steps 0.2 and
   0.5 remain deferred, and arm 2's statements and arm 3's skill are not written.** Its pilots,
   step 0.1's first fifteen builds, steps 0.3 and 0.4, and the 15-walk confirmation rerun have
@@ -146,17 +164,14 @@ shape of the [Patterns status](../../active/patterns/STATUS.md).
   copy remain outside the repository. The pilots and the first fifteen builds measured what a
   session costs at list prices, not what share of the allowance that is. The owner confirmed
   its rules for "go" on 2026-11-21.
-- **No reader has walked the proposal's jobs.** There are no commands to walk. The design
-  direction is one session's draft, written with the owner in conversation and reviewed
-  once.
+- **Implementation (phases B to D) is not started.** The phase A scenarios pass validation and
+  dry-run coverage checks against the drafted specification, not yet against built servers in
+  Specimen, Umbel or the Phase C panel runner.
 - **Little in it is measured.** Phase 0 exists to measure it. Step 0.3 showed a persona panel
   finds planted faults (12 of 12) and step 0.1 that agents build screens passing nine checks in
   ten without a default pattern set; its claim that a default pattern set or a skill improves an
   agent's screens is untested, and Component Briefs' prototype is
   evidence that added context alone does not.
-- **Copying a default is not designed.** A record of source on a pattern file, the comparison
-  by statement id, the source as it was, and how a product's screens are held to a copied
-  pattern are named in the proposal's section 5.1 and nothing more.
 - **The owner's decisions here,** on 2026-11-14 unless dated:
   - the todo example is not the bench's base;
   - question 1: this document is the frame, and each part moves to the proposal that owns it;
@@ -476,6 +491,34 @@ Run 2026-11-14 in this worktree at `545316f2`, and the links again after merging
     into it is marked as the session's.
   - *Links:* the throwaway script, over the proposal and this file, found none broken.
   - *Review:* with the Controls proposal, in its pull request.
+- **Phase A specification and scenarios, 2026-11-24:**
+  - *Scenario checks:* `node packages/cli/dist/bin.js scenario validate docs/features/proposed/agent-first-design/scenarios`
+    passed 12 of 12 files; `parseScenarioFile` + `validateScenario(..., { checkFixtures: true })`
+    passed 12 of 12 files (58 steps, 0 warnings); `scenarioCoverage` reported 15 of 15 commands
+    (100%), 27 of 27 command-level error codes per defined code (100%), 12 of 12 jobs and 0
+    undrafted commands. `biome check` passed on `scenarios/fixtures/bookshop.json`.
+  - *Three-seat reader walks:* three fresh read-only readers (Person, Job List, Calling Agent)
+    walked the proposal, `spec.md`, all 12 scenario files and the real host/sibling contracts
+    (`endpoints/specimen-server`, `integrations/specimen-afd`, Umbel `components` A31, Patterns,
+    Design Decisions, Screens from Jobs, `spec/command-metadata.md`, `spec/tool-strategies.md`).
+    Their findings added `design-release` and `specimen-pattern-merge`, fixed `panel-calibrate`'s
+    blind protocol and human gate, aligned `decision-record`, `components-pattern-list`,
+    `components-brief` and `specimen-validate` with existing contracts, moved `patternBindings`
+    consumption into compiled pack/consumer files for WASI Umbel, added `outputBudget`, `task`,
+    `page`, pagination, `evidenceForBothSides`, `run` withdrawal and section 5 ("Host placement,
+    tool strategy, and what a model is told").
+  - *Two-model independent review:* Claude Opus 5.5 (requested `high`, reported `low`) and Gemini
+    4 Neon (`high`) reviewed the full Phase A diff and walked `design-release` and
+    `specimen-pattern-merge`. All blockers and improvements were applied: static
+    `confirmationMode: 'host-verified'` with `HumanRelay` over MCP (with Mode 3 provisional
+    writes in-process via `DirectRegistry`), server-derived `author`, `design-release` edge cases
+    (`DECISION_NOT_FOUND`, `DECISION_NOT_APPROVED`, `changes-requested` blocking, append-only
+    `specimens/releases/<release>.json`), `specimen-pattern-merge` version/digest pinning
+    (`UPSTREAM_CHANGED`), `stagedStatus`, paired `gate`/`setup` merges and declined statement
+    persistence, `decision-record` Mode 3 `items` + card-mode result shape + `CARD_NOT_FOUND`,
+    `panel-review` `withdraw` output + `RUN_NOT_FOUND`, `design-observe` `JOURNAL_NOT_FOUND`,
+    and scenario alignment (`02`, `03`, `05`, `07`, `08`, `12`). Taken and declined findings are
+    recorded in [`spec.md` §6.2](spec.md#62-what-the-three-seat-walks-and-independent-reviews-found-taken-and-declined).
 
 ## The runner
 
@@ -1007,3 +1050,4 @@ Read on 2026-11-24, for the amendment of that day:
 | 2026-11-24 | Steps 0.3 and 0.4 | The owner ended step 0.1 at its fifteen approved builds, decided not to measure the weekly figure again for now, counted the cut-off build at its maximum, and deferred steps 0.2 and 0.5. At the owner's word the 60 walks and 40 readers ran for $18.20 after a clean dry run. Step 0.3 is met: 12 of 12 faults found; an independent reviewer on GPT-6.2 Astra, by the owner's decision, judged 20 of 20 matches right and 23 of 30 other findings real. Step 0.4 is not met, 3 of 13; its path counts only commands and likely misses trouble a persona works around. What to tune is recorded |
 | 2026-11-24 | Walk tuning and step 0.4 rerun | The owner agreed to tune the walks (fixture date, ending line, report-based measure for step 0.4) and rerun 10 to 15 walks; the session also updated the ending parser and the fault reader's consequence matching, without touching frozen stage 2 files. The 15-walk rerun ($5.43, under a $58 weekly cap) gave 15 of 15 last-line endings, 0 clock mismatches, every aimed fault found in both walks, and 4 of 4 fault-meeting plus 1 of 1 no-fault on the blind pairwise report comparison. Without separate sign-off, the session also ran 40 blind comparisons on the 60 original walks ($1.79; week $54.35), scoring 12 of 13 fault-meeting and 6 of 7 no-fault ([Steps 0.3 and 0.4](#steps-03-and-04)) |
 | 2026-11-24 | Step 0.6 decision and phase 0 record | The owner confirmed step 0.6 (**go with changes**): accepted the blind pairwise report comparison for step 0.4 (met on the 15-walk rerun; not met on the 60 original walks at 6 of 7 no-fault), the $1.79 full-set comparison batch and the fault-reader direct-consequence rule, kept steps 0.2 and 0.5 deferred, and approved committing the phase 0 record and starting phase A. Committed [`bench/held/`](bench/held/README.md) (all 9 stage 1 files and 8 of 9 stage 2 files byte-identical to their frozen manifests; `fault-proofs.mjs` has only line 22's machine-local config path replaced, noted in `stage-2-notes.md`) and [`bench/record/`](bench/record/README.md) (reports, independent check summary and cost ledger) |
+| 2026-11-24 | Phase A specification and scenarios | Drafted [`spec.md`](spec.md) and 12 ranked-job scenarios in [`scenarios/`](scenarios/) with an invented bookshop fixture (`scenarios/fixtures/bookshop.json`), walked all paths with three fresh read-only readers (Person, Job List, Calling Agent), and revised the specification and scenarios from their findings and a two-model independent review (15 commands, 27 command-level error codes plus `WAIVER_REASON_REQUIRED`, 58 steps, 100% command coverage and 100% error-code coverage per defined code, 0 warnings). Proposed companion amendments for Patterns, Design Decisions (including Q7), Screens from Jobs and proposal §10 stay in [`spec.md` §4](spec.md#4-proposed-amendments-for-the-owner) for the owner to accept or refuse before editing the active proposals |

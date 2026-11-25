@@ -1,0 +1,47 @@
+# Rank 2 — Job 1 (Slice 1). A product with zero local pattern files gets approved AFD defaults.
+# Note: voice/copy guidance is deferred to a future copy plugin and remains unmeasured in Phase A.
+name: Good defaults with no setup
+description: >-
+  When I start a product on AFD, I want patterns, voice and guidance that are good without
+  setup, so that my first screens are sound before I have written any rules of my own.
+job: good-defaults-no-setup
+tags: [slice-1]
+fixture:
+  file: fixtures/bookshop.json
+
+steps:
+  - description: Default result-state patterns are listed alphabetically at a pinned version (Umbel A31.3 top-level libraries) with only approved content served
+    command: components-pattern-list
+    input:
+      library: afd-defaults
+    expect:
+      success: true
+      data:
+        libraries.0.library: afd-defaults
+        libraries.0.version: 1.0.0
+        content.patterns.0.pattern: alternatives-and-confidence
+        content.patterns.0.approvalStatus: approved
+
+  - description: Proposed patterns stay hidden by default and appear only when explicitly requested for review
+    command: components-pattern-list
+    input:
+      library: afd-defaults
+      includeProposed: true
+    expect:
+      success: true
+      data:
+        libraries.0.library: afd-defaults
+        content.patterns.0.approvalStatus: approved
+        content.patterns.1.approvalStatus: proposed
+
+  - description: A brief for a product with no local rules serves approved defaults directly
+    command: components-brief
+    input:
+      tags: [violet-alert, violet-dialog]
+      patterns: [afd-defaults/error-recovery, afd-defaults/destructive-confirm]
+    expect:
+      success: true
+      data:
+        content.trust: content
+        content.patterns.0.pattern: error-recovery
+        content.patterns.0.approvalStatus: approved

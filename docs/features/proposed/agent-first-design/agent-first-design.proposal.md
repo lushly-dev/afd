@@ -6,12 +6,13 @@ defaults. Agents review early and often, and a person decides at the points that
 
 ## Status
 
-- **State:** scaffold with a design direction. Written 2026-11-14 against `545316f2`. It states
-  the problem, what exists, a model, draft jobs, a design direction and the owner's decisions.
-  It has no drafted commands and no scenario files. The owner answered the direction and ranked
-  the jobs first, the order the [Scales scaffold](../../active/scales/STATUS.md) set; commands and
-  scenarios are phase A's, after phase 0's decision. Unlike Scales, it carries a design
-  direction, marked unverified. [STATUS.md](STATUS.md) tracks progress.
+- **State:** scaffold with a design direction and Phase A draft specification. Written 2026-11-14
+  against `545316f2`. It states the problem, what exists, a model, draft jobs, a design direction
+  and the owner's decisions. The owner answered the direction and ranked the jobs first, the order
+  the [Scales scaffold](../../active/scales/STATUS.md) set; on 2026-11-24 Phase A drafted the
+  commands, 12 ranked-job scenario files and proposed companion amendments in
+  [`spec.md`](spec.md) and [`scenarios/`](scenarios/), walked by three fresh readers.
+  [STATUS.md](STATUS.md) tracks progress.
 - **Amended:** 2026-11-16, with [5.10](#510-where-the-parts-live), where the result-state work
   and interface state live, and two facts in [section 2](#specimen-violet-and-umbel) about the
   component runtime and how applications render results.
@@ -42,9 +43,11 @@ defaults. Agents review early and often, and a person decides at the points that
   - [UI SDK](https://ui-sdk.dev/)'s documentation for agents, read on 2026-11-24. It was not
     installed or run. [Section 5.10](#a-published-design-to-compare) says what it bears on.
 - **Next:** phase 0 closed on 2026-11-24 with the owner's step 0.6 decision (**go with changes**;
-  [`bench/record/`](bench/record/README.md)), keeping steps 0.2 and 0.5 deferred. Phase A
-  (amendments to Patterns, Design Decisions and Screens from Jobs, plus drafted commands and
-  scenarios for the ranked jobs) is next. The owner also answers the questions still open in
+  [`bench/record/`](bench/record/README.md)), keeping steps 0.2 and 0.5 deferred. Phase A's
+  drafted commands, 12 scenarios, three-seat walks and proposed companion amendments are in
+  [`spec.md`](spec.md) and [`scenarios/`](scenarios/), waiting on the owner to accept or refuse
+  [`spec.md` §4](spec.md#4-proposed-amendments-for-the-owner) before moving them into Patterns,
+  Design Decisions and Screens from Jobs. The owner also answers the questions still open in
   [For the owner](#9-for-the-owner): 4, 8, 9 and 10.
 
 | Field | Value |

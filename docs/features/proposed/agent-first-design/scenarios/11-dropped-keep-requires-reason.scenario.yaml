@@ -1,0 +1,55 @@
+# Rank 11 — Job 4 (Slice 2). Dropping a default keep statement fails specimen-validate (returning
+# valid: false with issue code WAIVER_REASON_REQUIRED), passes once waived, and stays visible in
+# comparison and pre-ship decision cards.
+name: A dropped default requirement needs a reason and stays visible
+description: >-
+  When I remove something a default requires, I want to give a reason and see it reported, so
+  that a dropped requirement is never invisible.
+job: dropped-keep-requires-reason
+tags: [slice-2]
+fixture:
+  file: fixtures/bookshop.json
+
+steps:
+  - description: Validating a copied pattern that dropped an upstream keep without a waiver reports valid false and WAIVER_REASON_REQUIRED
+    command: specimen-validate
+    input:
+      file: specimens/patterns/error-recovery-unwaived/pattern.json
+    expect:
+      success: true
+      data:
+        valid: false
+        issues.0.severity: error
+        issues.0.code: WAIVER_REASON_REQUIRED
+        issues.0.suggestion: { contains: waivedKeep }
+
+  - description: Once a waiver reason is recorded in waivedKeep, specimen-validate passes
+    command: specimen-validate
+    input:
+      file: specimens/patterns/error-recovery/pattern.json
+    expect:
+      success: true
+      data:
+        valid: true
+
+  - description: Comparing the waived pattern reports the dropped keep and its reason visibly
+    command: specimen-pattern-compare
+    input:
+      pattern: error-recovery
+    expect:
+      success: true
+      data:
+        statements.0.status: dropped-here
+        statements.0.waiverReason: { contains: kiosk }
+        waivers.0.id: error-recovery.keep.focus-returns
+        waivers.0.reason: { contains: kiosk }
+
+  - description: The dropped-keep waiver also appears as a guidance decision card before release
+    command: design-card-list
+    input:
+      scope: guidance
+    expect:
+      success: true
+      data:
+        cards.0.why.trigger: keep-waiver
+        cards.0.status: open

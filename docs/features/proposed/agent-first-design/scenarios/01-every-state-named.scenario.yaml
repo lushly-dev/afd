@@ -1,0 +1,53 @@
+# Rank 1 — Job 6 (Slice 1). Lists use dotted index paths where only selected fields matter.
+name: Name every state the commands can produce
+description: >-
+  When I build a screen for a job, I want every state the commands can produce named, with the
+  pattern for each, so that no error, empty or pending state is left undesigned.
+job: every-state-named
+tags: [slice-1]
+fixture:
+  file: fixtures/bookshop.json
+
+steps:
+  - description: Every error, undo, empty, pending and destructive state implied by the screen's commands is listed with its default pattern and setup
+    command: design-states
+    input:
+      commands: [order-create, stock-list, catalog-import, member-delete]
+    expect:
+      success: true
+      data:
+        defaultsVersion: afd-defaults@1.0.0
+        states.0.command: order-create
+        states.0.pattern: afd-defaults/error-recovery
+        states.0.source: default
+        states.0.approvalStatus: approved
+        states.0.setup: { exists: true }
+        states.1.command: order-create
+        states.1.pattern: afd-defaults/undo-offer
+        states.2.command: stock-list
+        states.2.pattern: afd-defaults/collection-states
+        states.3.command: catalog-import
+        states.3.pattern: afd-defaults/progress-and-plan
+        states.4.command: member-delete
+        states.4.pattern: afd-defaults/destructive-confirm
+        nextSteps.0: { contains: components-brief }
+
+  - description: Passing no commands or scenario is refused with the way forward
+    command: design-states
+    input: {}
+    expect:
+      success: false
+      error:
+        code: NO_COMMANDS
+        suggestion: { contains: commands }
+
+  - description: Naming a command absent from the product's manifest is refused without colliding with MCP router COMMAND_NOT_FOUND
+    command: design-states
+    input:
+      commands: [book-teleport]
+    expect:
+      success: false
+      error:
+        code: TARGET_COMMAND_NOT_FOUND
+        message: book-teleport
+        suggestion: { contains: manifest }

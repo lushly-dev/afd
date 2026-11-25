@@ -1,0 +1,108 @@
+# Rank 5 — Job 9 (Slice 1). Panel settles uncontroversial items provisionally, escalates only
+# trigger hits with evidence for both sides, hides provisional items from the person's default
+# card queue, supports withdrawing a misconfigured run, and refuses author self-review/self-decision.
+# Scenario limit: author is derived server-side from the change record and checked against ctx.actor.id.
+name: Escalate only points that need a person's decision
+description: >-
+  When agents have reviewed a change, I want to see only the points that need my decision, each
+  with the evidence for both sides, so that my time goes on choosing.
+job: escalate-only-decision-points
+tags: [slice-1]
+fixture:
+  file: fixtures/bookshop.json
+
+steps:
+  - description: The author of a change (derived server-side from the change record) cannot run the independent panel review
+    command: panel-review
+    input:
+      change: checkout-authored-by-caller
+      jobs: [checkout-out-of-stock]
+      target: http://127.0.0.1:4181/?screen=checkout
+      appDate: 2030-05-12
+    expect:
+      success: false
+      error:
+        code: AUTHOR_CANNOT_REVIEW
+        suggestion: { contains: independent }
+
+  - description: Exceeding the person's configured round or cost budget stops the panel pre-flight
+    command: panel-review
+    input:
+      change: checkout-substitutes-layout
+      jobs: [checkout-out-of-stock]
+      target: http://127.0.0.1:4181/?screen=checkout
+      appDate: 2030-05-12
+      budget: { maxRounds: 0, maxCostUsd: 0 }
+    expect:
+      success: false
+      error:
+        code: BUDGET_EXCEEDED
+        suggestion: { contains: design-card-list }
+
+  - description: An independent panel of five settles agreed non-trigger items provisionally and escalates a 3-to-2 split with evidence for both sides
+    command: panel-review
+    input:
+      change: checkout-substitutes-layout
+      jobs: [checkout-out-of-stock]
+      target: http://127.0.0.1:4181/?screen=checkout
+      appDate: 2030-05-12
+      panelSize: 5
+      budget: { maxRounds: 2, maxCostUsd: 10 }
+    expect:
+      success: true
+      data:
+        run: { matches: '^run-' }
+        round: 1
+        panelSize: 5
+        overlap.families.0: { exists: true }
+        provisional.0.item: { exists: true }
+        provisional.0.provisional: true
+        provisional.0.decidedBy.kind: panel
+        escalated.0.card: { matches: '^card-' }
+        escalated.0.trigger: split-3-to-2
+        escalated.0.split: 3-2
+        escalated.0.evidenceForBothSides.for.0: { exists: true }
+        escalated.0.evidenceForBothSides.against.0: { exists: true }
+        nextSteps.0: { contains: design-card-list }
+
+  - description: The person's decision queue hides provisional items by default and shows only the escalated card with evidence for both sides
+    command: design-card-list
+    input:
+      scope: all
+    expect:
+      success: true
+      data:
+        cards.0.card: { matches: '^card-' }
+        cards.0.status: open
+        cards.0.why.trigger: split-3-to-2
+        cards.0.why.evidenceForBothSides.for.0: { exists: true }
+        cards.0.why.evidenceForBothSides.against.0: { exists: true }
+
+  - description: The author of a change is refused from recording a provisional decision on a non-escalated Mode 3 review item
+    command: decision-record
+    input:
+      items:
+        - "${{ steps[2].data.provisional.0.item }}"
+      chosen: accept
+      reason: Looks fine to me
+      provisional: true
+      panel:
+        reviewers: [rev-1, rev-2, rev-3, rev-4, rev-5]
+        split: 5-0
+    expect:
+      success: false
+      error:
+        code: AUTHOR_CANNOT_DECIDE
+        suggestion: { contains: independent }
+
+  - description: Withdrawing an unknown panel run id is refused cleanly
+    command: panel-review
+    input:
+      action: withdraw
+      run: run-000000000000
+      reason: Wrong target port
+    expect:
+      success: false
+      error:
+        code: RUN_NOT_FOUND
+        suggestion: { contains: panel-review }

@@ -1,0 +1,174 @@
+# Rank 3 — Job 10 (Slice 1, includes folded Job 11). Pre-ship review view, refusal scope,
+# separate regression acknowledgement, person-only release gate, and cross-card unsafe blocking.
+# Scenario limit: actor is always kind:test; host tests verify HumanRelay host-verified confirmation.
+name: One view before release with scoped refusals
+description: >-
+  When a change to guidance or interface is ready to ship, I want one view of what changed,
+  why, and what it affects, and to say why when I turn one down, so that nothing reaches users
+  that I did not approve and nothing is proposed again for the wrong reason.
+job: one-view-before-release
+tags: [slice-1]
+fixture:
+  file: fixtures/bookshop.json
+
+steps:
+  - description: Specimen review identifies unsettled interface items that feed the pre-ship view
+    command: specimen-review
+    input:
+      before: main
+      after: branch
+    expect:
+      success: true
+      data:
+        open.0.kind: changed
+        blocking: { length: 0 }
+
+  - description: The pre-ship card queue returns the two open release cards with a visual review page, why, effect and risk
+    command: design-card-list
+    input:
+      scope: release
+      limit: 5
+    expect:
+      success: true
+      data:
+        page: { contains: cards.html }
+        cards.0.card: { matches: '^card-' }
+        cards.0.owner: product
+        cards.0.what: { exists: true }
+        cards.0.visual.kind: captures
+        cards.0.why.findings.0.evidence: observed
+        cards.0.effect.regression: true
+        cards.0.risk.undoable: true
+        cards.0.status: open
+        cards.1.card: { matches: '^card-' }
+        total: 2
+
+  - description: Requesting an unknown card id is refused with discovery advice
+    command: design-card-list
+    input:
+      card: card-000000000000
+    expect:
+      success: false
+      error:
+        code: CARD_NOT_FOUND
+        suggestion: { contains: design-card-list }
+
+  - description: A release card cannot be approved provisionally by a panel or agent; human confirmation is required
+    command: decision-record
+    input:
+      card: "${{ steps[1].data.cards.0.card }}"
+      chosen: approve
+      reason: Panel agreed on spacing
+      provisional: true
+    expect:
+      success: false
+      error:
+        code: PERSON_REQUIRED
+        suggestion: { contains: person }
+
+  - description: Approving a card that introduces a gate regression without separate regression acceptance is refused
+    command: decision-record
+    input:
+      card: "${{ steps[1].data.cards.0.card }}"
+      chosen: approve
+      reason: Ship the new checkout layout
+    expect:
+      success: false
+      error:
+        code: REGRESSION_ACK_REQUIRED
+        suggestion: { contains: regressionAccepted }
+
+  - description: Approving the card with explicit regression acceptance and meantToFix records the decision
+    command: decision-record
+    input:
+      card: "${{ steps[1].data.cards.0.card }}"
+      chosen: approve
+      reason: Ship the new checkout layout while fixing contrast in follow-up
+      regressionAccepted: true
+      meantToFix:
+        job: checkout-out-of-stock
+        target: Reduce repeated out-of-stock submits
+    expect:
+      success: true
+      data:
+        decision: { matches: '^dec-' }
+        chosen: approve
+        regressionAccepted: true
+
+  - description: Releasing while another open release card remains undecided is refused by the release gate
+    command: design-release
+    input:
+      release: v1.4.0
+      decisions:
+        - "${{ steps[5].data.decision }}"
+    expect:
+      success: false
+      error:
+        code: UNAPPROVED_CARDS_OPEN
+        suggestion: { contains: design-card-list }
+
+  - description: Rejecting a card without a refusal scope is refused so lasting safety refusals stay distinct
+    command: decision-record
+    input:
+      card: "${{ steps[1].data.cards.1.card }}"
+      chosen: reject
+      reason: Drops confirmation before deleting a member
+    expect:
+      success: false
+      error:
+        code: REFUSAL_SCOPE_REQUIRED
+        suggestion: { contains: unsafe }
+
+  - description: Turning down a card as unsafe records the reason and lasting safety scope
+    command: decision-record
+    input:
+      card: "${{ steps[1].data.cards.1.card }}"
+      chosen: reject
+      reason: Drops confirmation before deleting a member
+      refusalScope: unsafe
+    expect:
+      success: true
+      data:
+        decision: { matches: '^dec-' }
+        chosen: reject
+        refusalScope: unsafe
+
+  - description: Re-proposing the same unsafe change on a later card without remediation is refused citing the safety decision and closes the card
+    command: decision-record
+    input:
+      card: card-000000000099
+      chosen: approve
+      reason: Try shipping member deletion without confirmation in a new card
+    expect:
+      success: false
+      error:
+        code: REFUSED_AS_UNSAFE
+        suggestion: { contains: remediation }
+
+  - description: Passing a rejected decision to design-release is refused
+    command: design-release
+    input:
+      release: v1.4.0
+      decisions:
+        - "${{ steps[8].data.decision }}"
+    expect:
+      success: false
+      error:
+        code: DECISION_NOT_APPROVED
+        suggestion: { contains: approved }
+
+  - description: Once no open or changes-requested cards remain, design-release writes the release manifest with a timestamp
+    command: design-release
+    input:
+      release: v1.4.0
+      decisions:
+        - "${{ steps[5].data.decision }}"
+      releasedAt: 2030-05-12T12:00:00Z
+    expect:
+      success: true
+      data:
+        release: v1.4.0
+        manifestPath: specimens/releases/v1.4.0.json
+        releasedAt: 2030-05-12T12:00:00Z
+        decisions.0: { matches: '^dec-' }
+        nextSteps.0: { contains: design-observe }

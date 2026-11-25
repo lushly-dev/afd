@@ -1,0 +1,15 @@
+{
+	"app": "bookshop",
+	"defaultsVersion": "afd-defaults@1.0.0",
+	"commands": ["order-create", "order-cancel", "stock-list", "catalog-import", "member-delete"],
+	"localLibrary": "bookshop-ui",
+	"consumer": "bookshop-ui",
+	"personas": [
+		{ "id": "p-pointer", "modality": "pointer" },
+		{ "id": "p-keyboard", "modality": "keyboard" },
+		{ "id": "p-sr", "modality": "screen-reader" },
+		{ "id": "p-lowvision", "modality": "low-vision" }
+	],
+	"jobs": ["checkout-out-of-stock", "import-book-shipment"],
+	"appDate": "2030-05-12"
+}

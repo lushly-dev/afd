@@ -1,0 +1,68 @@
+# Rank 8 — Job 12 (Slice 2). Sample panel-agreed provisional items blind (with evidence, without
+# showing panelVerdict), record the person's independent verdicts, compute disagreement server-side,
+# and reopen disagreed items as open decision cards.
+# Scenario limit: actor is kind:test; host tests verify HumanRelay host-verified confirmation on record.
+name: Measure how often a person disagrees with panel agreement
+description: >-
+  When agents agree with each other, I want to know how often I would have disagreed, so that I
+  know whether their agreement means anything.
+job: sample-panel-agreement
+tags: [slice-2]
+fixture:
+  file: fixtures/bookshop.json
+
+steps:
+  - description: Requesting a sample before any provisional panel agreements exist is refused
+    command: panel-calibrate
+    input:
+      action: sample
+      count: 5
+    expect:
+      success: false
+      error:
+        code: NOTHING_TO_SAMPLE
+        suggestion: { contains: panel-review }
+
+  - description: Sampling provisional agreements returns items with visual/walk evidence and omits panelVerdict so review stays blind
+    command: panel-calibrate
+    input:
+      action: sample
+      count: 2
+      seed: 7
+    expect:
+      success: true
+      data:
+        sample: { matches: '^cal-' }
+        items: { length: 2 }
+        items.0.item: { exists: true }
+        items.0.summary: { exists: true }
+        items.0.evidence.walk: { matches: '^walk-' }
+        items.0.panelVerdict: { notExists: true }
+
+  - description: Recording independent human verdicts computes disagreement against the hidden panel verdict and reopens disagreed items as cards
+    command: panel-calibrate
+    input:
+      action: record
+      sample: "${{ steps[1].data.sample }}"
+      judgements:
+        - { item: item-1, verdict: accept }
+        - { item: item-2, verdict: reject, reason: Focus order still skips the cancel button }
+    expect:
+      success: true
+      data:
+        recorded: 2
+        disagreed: 1
+        disagreementRate: 0.5
+        reopenedCards.0: { matches: '^card-' }
+
+  - description: Recording judgements against an unknown sample id is refused
+    command: panel-calibrate
+    input:
+      action: record
+      sample: cal-000000000000
+      judgements: []
+    expect:
+      success: false
+      error:
+        code: SAMPLE_NOT_FOUND
+        suggestion: { contains: panel-calibrate }

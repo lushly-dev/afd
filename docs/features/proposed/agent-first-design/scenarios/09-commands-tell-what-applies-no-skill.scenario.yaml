@@ -1,0 +1,35 @@
+# Rank 9 — Job 7 (Slice 2). Commands tell a building agent what applies with zero skill installed.
+# Scenario limit: absence of installed skill files is verified by runtime host/harness tests.
+name: Commands tell an agent what applies with no skill
+description: >-
+  When I have no skill installed, I want the commands to tell me what applies, so that the
+  guidance reaches me in any harness.
+job: commands-tell-what-applies-no-skill
+tags: [slice-2]
+fixture:
+  file: fixtures/bookshop.json
+
+steps:
+  - description: Listing states from the commands names both the applicable patterns and the next step to call
+    command: design-states
+    input:
+      commands: [catalog-import]
+    expect:
+      success: true
+      data:
+        states.0.pattern: afd-defaults/batch-partial-failure
+        states.0.approvalStatus: approved
+        nextSteps.0: { contains: components-brief }
+
+  - description: Calling components-brief returns the approved pattern statements directly without any skill file
+    command: components-brief
+    input:
+      tags: [violet-alert, violet-progress]
+      patterns: [afd-defaults/batch-partial-failure]
+    expect:
+      success: true
+      data:
+        content.trust: content
+        content.patterns.0.pattern: batch-partial-failure
+        content.patterns.0.approvalStatus: approved
+        content.patterns.0.keep.0.id: { exists: true }

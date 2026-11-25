@@ -1,0 +1,65 @@
+# Rank 12 — Job 15 (Slice 2). Read post-release command journals against what an approved,
+# released change was meant to fix, stating clearly that movement is observation rather than
+# proof of causation.
+# Scenario limit: wall-clock time cannot advance between steps; releasedAt is passed explicitly.
+name: Read the post-release journal against what a change was meant to fix
+description: >-
+  When a change I approved has been in use, I want the journal read against what it was meant to
+  fix, so that I know whether it worked.
+job: observe-journal-after-release
+tags: [slice-2]
+fixture:
+  file: fixtures/bookshop.json
+
+steps:
+  - description: Observing an unknown decision id is refused with discovery advice
+    command: design-observe
+    input:
+      decision: dec-000000000000
+      journal: journals/post-release.jsonl
+    expect:
+      success: false
+      error:
+        code: DECISION_NOT_FOUND
+        suggestion: { contains: decision-list }
+
+  - description: Observing an approved decision not yet marked released is refused pointing to design-release
+    command: design-observe
+    input:
+      decision: dec-000000000001
+      journal: journals/post-release.jsonl
+    expect:
+      success: false
+      error:
+        code: NOT_RELEASED
+        suggestion: { contains: design-release }
+
+  - description: Passing a missing or unreadable journal path is refused
+    command: design-observe
+    input:
+      decision: dec-000000000002
+      journal: journals/missing.jsonl
+    expect:
+      success: false
+      error:
+        code: JOURNAL_NOT_FOUND
+        suggestion: { contains: journal }
+
+  - description: Observing a released decision compares journal metrics before and after and notes what commands cannot measure
+    command: design-observe
+    input:
+      decision: dec-000000000002
+      journal: journals/post-release.jsonl
+      beforeJournal: journals/pre-release.jsonl
+    expect:
+      success: true
+      data:
+        decision: dec-000000000002
+        releasedAt: { exists: true }
+        meantToFix.job: checkout-out-of-stock
+        status: improved
+        metrics.runs: { gte: 1 }
+        metrics.completionRate: { gte: 0.9 }
+        metrics.before.runs: { gte: 1 }
+        note: { contains: not proof }
+        unmeasured.0.area: perception-only-trouble
