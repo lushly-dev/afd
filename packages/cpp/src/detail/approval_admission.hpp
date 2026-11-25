@@ -17,6 +17,7 @@
 #include "afd/command.hpp"
 #include "afd/json.hpp"
 
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -44,6 +45,10 @@ struct AdmittedCall {
 struct ApprovalAdmission {
     /// The command the call runs, as registered.
     std::shared_ptr<const CommandDefinition> command;
+    /// Set by `CommandRegistry::execute` while the call runs and cleared when it returns, so a
+    /// copy of the context kept after the call (whose record this still is) reads as no call:
+    /// the journal reads `command->secret` only while it is set.
+    std::atomic<bool> running{false};
     std::mutex mutex;
     /// What each approval step admitted since the last dispatch. Two approval middlewares on one
     /// registry each admit, and the dispatch must match them all, so a later one never replaces or

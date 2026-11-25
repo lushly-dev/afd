@@ -287,6 +287,27 @@ private:
 ///         .handler = [](const afd::Json& input, afd::CommandContext&) { ... },
 ///         .mutation = true,
 ///     };
+/// A flag that takes only a `bool`: `0`, `1`, a pointer or a string is a compile error, in an
+/// initializer and in an assignment, so a value that is not a boolean cannot read as one. Reads
+/// as a `bool`.
+class StrictBool {
+public:
+    constexpr StrictBool() noexcept = default;
+    constexpr StrictBool(bool value) noexcept
+        : value_(value) {} // NOLINT(google-explicit-constructor)
+    template <class T>
+        requires(!std::same_as<std::remove_cvref_t<T>, bool> &&
+                 !std::same_as<std::remove_cvref_t<T>, StrictBool>)
+    StrictBool(T&&) = delete;
+
+    constexpr operator bool() const noexcept {
+        return value_;
+    } // NOLINT(google-explicit-constructor)
+
+private:
+    bool value_ = false;
+};
+
 struct CommandDefinition {
     /// `domain-action` kebab-case with at least two segments.
     std::string name;
@@ -317,6 +338,11 @@ struct CommandDefinition {
     ExposeOptions expose;
     bool handoff = false;
     std::optional<std::string> handoff_protocol;
+    /// Whether the command takes or returns a secret (a password argument, an issued token). A
+    /// journal never records a call to it unless the recorder was also given `redact`, which
+    /// removes the secret; a `filter` alone never admits it (spec/journal.md). Never reported.
+    /// Only a `bool` is accepted (`StrictBool`).
+    StrictBool secret;
     std::vector<CommandExample> examples;
     std::optional<ExecutionTime> execution_time;
     /// Whether a call needs a human's approval before the handler runs. Unset means

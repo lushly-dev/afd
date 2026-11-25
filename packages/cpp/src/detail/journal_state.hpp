@@ -13,6 +13,27 @@
 
 namespace afd::detail {
 
+/// The tape a recording clock or random source writes to, which a call that must stay off it
+/// marks truncated (spec/journal.md).
+class TapeMark {
+public:
+    virtual ~TapeMark() = default;
+    virtual void truncate() = 0;
+};
+
+/// What a journal's recording clock wraps, and its tape: `Clock::journal_tape`. The counterpart
+/// of TypeScript's `UNTAPED` and `TAPE` symbols on its recording clock.
+struct TapedClock {
+    std::shared_ptr<const Clock> inner;
+    std::shared_ptr<TapeMark> tape;
+};
+
+/// What a journal's recording random source wraps, and its tape: `RandomSource::journal_tape`.
+struct TapedRandom {
+    std::shared_ptr<RandomSource> inner;
+    std::shared_ptr<TapeMark> tape;
+};
+
 struct JournalCallState {
     /// The clock under every recording wrapper, so a journal's own timing lands on no tape.
     std::shared_ptr<const Clock> untaped;

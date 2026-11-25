@@ -9,6 +9,7 @@
 #include <set>
 #include <utility>
 
+#include "detail/approval_admission.hpp"
 #include "detail/context_fields.hpp"
 #include "detail/exceptions.hpp"
 #include "detail/iso8601.hpp"
@@ -42,12 +43,16 @@ std::int64_t to_wall_ms(double value) {
 // --- recording ----------------------------------------------------------------------------
 
 /// The tape of one recorded call. Handlers may read from several threads, so it locks.
-class TapeRecorder {
+class TapeRecorder final : public detail::TapeMark {
 public:
     explicit TapeRecorder(std::size_t max_reads) : max_reads_(max_reads) {}
 
     void clock(double value) { keep(tape_.clock, value); }
     void random(double value) { keep(tape_.random, value); }
+    void truncate() override {
+        const std::lock_guard lock(mutex_);
+        tape_.truncated = true;
+    }
 
     [[nodiscard]] JournalTape tape() {
         const std::lock_guard lock(mutex_);
@@ -73,7 +78,7 @@ private:
 class RecordingClock final : public Clock {
 public:
     RecordingClock(std::shared_ptr<const Clock> inner, std::shared_ptr<TapeRecorder> tape)
-        : inner_(std::move(inner)), tape_(std::move(tape)) {}
+        : inner_(std::move(inner)), tape_(std::move(tape)), taped_{inner_, tape_} {}
 
     [[nodiscard]] double steady_ms() const override {
         const double value = inner_->steady_ms();
@@ -85,16 +90,20 @@ public:
         tape_->clock(static_cast<double>(value));
         return value;
     }
+    [[nodiscard]] const detail::TapedClock* journal_tape() const noexcept override {
+        return &taped_;
+    }
 
 private:
     std::shared_ptr<const Clock> inner_;
     std::shared_ptr<TapeRecorder> tape_;
+    detail::TapedClock taped_;
 };
 
 class RecordingRandom final : public RandomSource {
 public:
     RecordingRandom(std::shared_ptr<RandomSource> inner, std::shared_ptr<TapeRecorder> tape)
-        : inner_(std::move(inner)), tape_(std::move(tape)) {}
+        : inner_(std::move(inner)), tape_(std::move(tape)), taped_{inner_, tape_} {}
 
     [[nodiscard]] double next() override {
         const double value = detail::clamp_unit_random(inner_->next());
@@ -102,10 +111,14 @@ public:
         return value;
     }
     [[nodiscard]] std::optional<std::string> seed() const override { return inner_->seed(); }
+    [[nodiscard]] const detail::TapedRandom* journal_tape() const noexcept override {
+        return &taped_;
+    }
 
 private:
     std::shared_ptr<RandomSource> inner_;
     std::shared_ptr<TapeRecorder> tape_;
+    detail::TapedRandom taped_;
 };
 
 bool default_filter(std::string_view name) {
@@ -113,10 +126,63 @@ bool default_filter(std::string_view name) {
     return name.substr(0, 5) != "auth-";
 }
 
+// The `secret` declaration of the command the registry runs for this call, read from the record
+// it put on the context before any middleware ran, never from the name. Unset outside the
+// registry's execution (a DirectClient's own middleware, or a direct call), for a record of a
+// call that has returned (a kept copy of its context), and for one naming another command.
+std::optional<bool> live_secret(const CommandContext& context, std::string_view name) {
+    const detail::ApprovalAdmission* record = context.approval_admission.get();
+    if (record == nullptr || !record->running.load() || !record->command ||
+        record->command->name != name) {
+        return std::nullopt;
+    }
+    return static_cast<bool>(record->command->secret);
+}
+
+// The source under every recording wrapper on `source`, marking each wrapper's tape truncated.
+template <class Source>
+Source untape(Source source, bool& moved) {
+    while (source) {
+        const auto* taped = source->journal_tape();
+        if (taped == nullptr || !taped->inner) {
+            break;
+        }
+        if (taped->tape) {
+            taped->tape->truncate();
+        }
+        source = taped->inner;
+        moved = true;
+    }
+    return source;
+}
+
+// Runs `run` off every tape: a call the journal leaves unrecorded because it may carry a secret
+// would otherwise read the clock and random source a recording parent wrapped, putting the values
+// that built the secret on the parent's tape. Each recording source names its tape, wherever the
+// context that carries it came from, and that tape is marked truncated instead, so its replay
+// says it cannot restore every value.
+template <class Run>
+CommandResult off_tape(CommandContext& context, const Run& run) {
+    bool moved = false;
+    std::shared_ptr<const Clock> clock = untape(context.clock, moved);
+    std::shared_ptr<RandomSource> random = untape(context.random, moved);
+    if (!moved) {
+        return run();
+    }
+    std::swap(clock, context.clock);
+    std::swap(random, context.random);
+    const ScopeExit restore([&]() {
+        context.clock = clock;
+        context.random = random;
+    });
+    return run();
+}
+
 // Builds and stores the entry for one call. Errors, including a throw while building it, go to
 // `on_error`, never to the caller.
 template <class Build>
-void store(JournalSink& sink, const JournalMiddlewareOptions& options, const Build& build) {
+void store(JournalSink& sink, const JournalMiddlewareOptions& options,
+           const JournalRedactInfo& info, const Build& build) {
     const auto report = [&](std::string_view message) {
         if (!options.on_error) {
             return;
@@ -134,8 +200,8 @@ void store(JournalSink& sink, const JournalMiddlewareOptions& options, const Bui
     try {
 #endif
         JournalRecord record = build();
-        std::optional<JournalRecord> kept =
-            options.redact ? options.redact(std::move(record)) : std::optional(std::move(record));
+        std::optional<JournalRecord> kept = options.redact ? options.redact(std::move(record), info)
+                                                           : std::optional(std::move(record));
         if (kept) {
             auto appended = sink.append(std::move(*kept));
             if (!appended) {
@@ -524,6 +590,93 @@ ReplayReport replay_journal_impl(const CommandExecutor& execute,
     return report;
 }
 
+// Records one call that reached the journal and may be recorded: `info` is what `redact` is told.
+CommandResult record_call(JournalSink& sink, const JournalMiddlewareOptions& options,
+                          const JournalRedactInfo& info, std::string_view name, const Json& input,
+                          CommandContext& context, const Next& next) {
+    if (!options.filter(name)) {
+        return next();
+    }
+
+    // Contexts from a registry always have both; a bare executor's may not.
+    const std::shared_ptr<const Clock> clock =
+        context.clock ? context.clock : std::make_shared<SystemClock>();
+    const std::shared_ptr<RandomSource> random =
+        context.random ? context.random : std::make_shared<SystemRandom>();
+    const std::shared_ptr<detail::JournalCallState> outer = context.journal;
+    // This journal's own timing reads the clock under any outer journal's recorder.
+    const std::shared_ptr<const Clock> timing =
+        outer && outer->untaped && outer->recording == clock ? outer->untaped : clock;
+
+    // The same context reaches the handler, so swapping its sources records what it reads.
+    const auto tape = std::make_shared<TapeRecorder>(options.max_tape_reads);
+    auto state = std::make_shared<detail::JournalCallState>();
+    state->untaped = timing;
+    state->recording = std::make_shared<RecordingClock>(clock, tape);
+    auto recording_random = std::make_shared<RecordingRandom>(random, tape);
+
+    const std::optional<std::uint64_t> output_budget = context.output_budget;
+    const std::int64_t started_at = timing->wall_ms();
+    const double start = timing->steady_ms();
+    CommandResult result;
+#if AFD_HAS_EXCEPTIONS
+    std::exception_ptr thrown;
+#endif
+    {
+        const ScopeExit restore([&]() {
+            context.clock = clock;
+            context.random = random;
+            context.journal = outer;
+            context.output_budget = output_budget;
+        });
+        context.clock = state->recording;
+        context.random = std::move(recording_random);
+        context.journal = std::move(state);
+#if AFD_HAS_EXCEPTIONS
+        try {
+            result = next();
+        } catch (...) {
+            thrown = std::current_exception();
+            // What the registry returns for a throw outside dev mode, never the message.
+            result = execution_failure("", false);
+        }
+#else
+        result = next();
+#endif
+    }
+    const double duration_ms = (std::max)(0.0, timing->steady_ms() - start);
+
+    if (result.success || options.record_failures) {
+        store(sink, options, info, [&]() {
+            JournalTape recorded = tape->tape();
+            const bool has_tape =
+                !recorded.clock.empty() || !recorded.random.empty() || recorded.truncated;
+            detail::JournaledContextValues fields = detail::journaled_context_values(context);
+            JournalContextDigest digest =
+                create_context_digest(context, fields.context, fields.omitted);
+            return JournalRecord{.timestamp = wire::iso8601_utc(started_at),
+                                 .trace_id = context.trace_id,
+                                 .command = std::string(name),
+                                 .input = input,
+                                 .actor = context.actor,
+                                 .context_digest = std::move(digest),
+                                 .context = std::move(fields.context),
+                                 .context_omitted = std::move(fields.omitted),
+                                 .result = result,
+                                 .duration_ms = duration_ms,
+                                 .tape =
+                                     has_tape ? std::optional(std::move(recorded)) : std::nullopt,
+                                 .output_budget = output_budget};
+        });
+    }
+#if AFD_HAS_EXCEPTIONS
+    if (thrown) {
+        std::rethrow_exception(thrown);
+    }
+#endif
+    return result;
+}
+
 } // namespace
 
 CommandMiddleware create_journal_middleware(std::shared_ptr<JournalSink> sink,
@@ -550,87 +703,22 @@ CommandMiddleware create_journal_middleware(std::shared_ptr<JournalSink> sink,
             });
             return next();
         }
-        if (!options.filter(name)) {
-            return next();
+        // A command declaring `secret` is recorded only when a `redact` can remove the secret: a
+        // filter alone never admits it (spec/journal.md). Where the declaration cannot be read,
+        // no call is recorded without `redact`.
+        const std::optional<bool> secret = live_secret(context, name);
+        const JournalRedactInfo info{.secret = secret};
+        if (secret.value_or(true) && !options.redact) {
+            return off_tape(context, next);
         }
-
-        // Contexts from a registry always have both; a bare executor's may not.
-        const std::shared_ptr<const Clock> clock =
-            context.clock ? context.clock : std::make_shared<SystemClock>();
-        const std::shared_ptr<RandomSource> random =
-            context.random ? context.random : std::make_shared<SystemRandom>();
-        const std::shared_ptr<detail::JournalCallState> outer = context.journal;
-        // This journal's own timing reads the clock under any outer journal's recorder.
-        const std::shared_ptr<const Clock> timing =
-            outer && outer->untaped && outer->recording == clock ? outer->untaped : clock;
-
-        // The same context reaches the handler, so swapping its sources records what it reads.
-        const auto tape = std::make_shared<TapeRecorder>(options.max_tape_reads);
-        auto state = std::make_shared<detail::JournalCallState>();
-        state->untaped = timing;
-        state->recording = std::make_shared<RecordingClock>(clock, tape);
-        auto recording_random = std::make_shared<RecordingRandom>(random, tape);
-
-        const std::optional<std::uint64_t> output_budget = context.output_budget;
-        const std::int64_t started_at = timing->wall_ms();
-        const double start = timing->steady_ms();
-        CommandResult result;
-#if AFD_HAS_EXCEPTIONS
-        std::exception_ptr thrown;
-#endif
-        {
-            const ScopeExit restore([&]() {
-                context.clock = clock;
-                context.random = random;
-                context.journal = outer;
-                context.output_budget = output_budget;
-            });
-            context.clock = state->recording;
-            context.random = std::move(recording_random);
-            context.journal = std::move(state);
-#if AFD_HAS_EXCEPTIONS
-            try {
-                result = next();
-            } catch (...) {
-                thrown = std::current_exception();
-                // What the registry returns for a throw outside dev mode, never the message.
-                result = execution_failure("", false);
-            }
-#else
-            result = next();
-#endif
-        }
-        const double duration_ms = (std::max)(0.0, timing->steady_ms() - start);
-
-        if (result.success || options.record_failures) {
-            store(*sink, options, [&]() {
-                JournalTape recorded = tape->tape();
-                const bool has_tape =
-                    !recorded.clock.empty() || !recorded.random.empty() || recorded.truncated;
-                detail::JournaledContextValues fields = detail::journaled_context_values(context);
-                JournalContextDigest digest =
-                    create_context_digest(context, fields.context, fields.omitted);
-                return JournalRecord{.timestamp = wire::iso8601_utc(started_at),
-                                     .trace_id = context.trace_id,
-                                     .command = std::string(name),
-                                     .input = input,
-                                     .actor = context.actor,
-                                     .context_digest = std::move(digest),
-                                     .context = std::move(fields.context),
-                                     .context_omitted = std::move(fields.omitted),
-                                     .result = result,
-                                     .duration_ms = duration_ms,
-                                     .tape = has_tape ? std::optional(std::move(recorded))
-                                                      : std::nullopt,
-                                     .output_budget = output_budget};
+        // A secret call recorded or skipped by `filter` reads off its parent's tape too: its own
+        // recording, if any, keeps its reads on its own entry, for `redact` to drop.
+        if (secret.value_or(false)) {
+            return off_tape(context, [&]() {
+                return record_call(*sink, options, info, name, input, context, next);
             });
         }
-#if AFD_HAS_EXCEPTIONS
-        if (thrown) {
-            std::rethrow_exception(thrown);
-        }
-#endif
-        return result;
+        return record_call(*sink, options, info, name, input, context, next);
     };
 }
 

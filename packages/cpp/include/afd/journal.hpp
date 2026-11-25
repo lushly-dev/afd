@@ -17,6 +17,7 @@
 #include "afd/json.hpp"
 #include "afd/result.hpp"
 
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -25,6 +26,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 namespace afd {
@@ -162,6 +164,65 @@ Expected<std::vector<JournalEntry>> parse_journal(std::string_view text, ParseLi
 
 // --- recording ----------------------------------------------------------------------------
 
+/// What `redact` is told about the call besides its record.
+struct JournalRedactInfo {
+    /// `true` when the command declares `secret`, `false` when it does not, and unset when the
+    /// recorder runs outside the registry's execution (a `DirectClient`'s own middleware, or a
+    /// direct call) and cannot read the declaration. Remove the secret, or return
+    /// `std::nullopt`, whenever it is not `false`.
+    std::optional<bool> secret;
+};
+
+/// `JournalMiddlewareOptions::redact`: a function of `(JournalRecord, const JournalRedactInfo&)`,
+/// or of `(JournalRecord)` alone, as before. Either returns the record to store, changed or not,
+/// or `std::nullopt` to skip it. An empty `std::function` or a null function pointer is no
+/// function. Test it with `bool(redact)` or `redact != nullptr`.
+class JournalRedact {
+public:
+    using Function =
+        std::function<std::optional<JournalRecord>(JournalRecord, const JournalRedactInfo&)>;
+
+    JournalRedact() = default;
+    JournalRedact(std::nullptr_t) noexcept {} // NOLINT(google-explicit-constructor)
+
+    template <class F>
+        requires(!std::same_as<std::remove_cvref_t<F>, JournalRedact>) &&
+                (!std::same_as<std::remove_cvref_t<F>, std::nullptr_t>) &&
+                (std::is_invocable_r_v<std::optional<JournalRecord>, std::decay_t<F>&,
+                                       JournalRecord, const JournalRedactInfo&> ||
+                 std::is_invocable_r_v<std::optional<JournalRecord>, std::decay_t<F>&,
+                                       JournalRecord>)
+    JournalRedact(F&& function) { // NOLINT(google-explicit-constructor)
+        using Decayed = std::decay_t<F>;
+        if constexpr (requires(const Decayed& f) { static_cast<bool>(f == nullptr); }) {
+            if (function == nullptr) {
+                return;
+            }
+        }
+        if constexpr (std::is_invocable_r_v<std::optional<JournalRecord>, Decayed&, JournalRecord,
+                                            const JournalRedactInfo&>) {
+            function_ = std::forward<F>(function);
+        } else {
+            function_ = [inner = Decayed(std::forward<F>(function))](
+                            JournalRecord record, const JournalRedactInfo&) mutable {
+                return std::optional<JournalRecord>(inner(std::move(record)));
+            };
+        }
+    }
+
+    /// Whether a function was given.
+    explicit operator bool() const noexcept { return static_cast<bool>(function_); }
+    friend bool operator==(const JournalRedact& redact, std::nullptr_t) noexcept { return !redact; }
+
+    std::optional<JournalRecord> operator()(JournalRecord record,
+                                            const JournalRedactInfo& info = {}) const {
+        return function_(std::move(record), info);
+    }
+
+private:
+    Function function_;
+};
+
 struct JournalMiddlewareOptions {
     /// Also record calls that fail after validation: a failure from the handler or from
     /// middleware inside this one, and a handler that throws (recorded as the
@@ -169,12 +230,17 @@ struct JournalMiddlewareOptions {
     /// only successes.
     bool record_failures = false;
     /// Record only the commands this returns true for. Default: every command not named
-    /// `auth-*`. A custom filter replaces the default.
+    /// `auth-*`. A custom filter replaces the default, so exclude `auth-*` in it too unless you
+    /// redact them. A command that declares `secret` is never recorded without `redact`,
+    /// whatever this returns.
     std::function<bool(std::string_view name)> filter;
     /// Last look at each record before it is stored: return it, changed or not, or
-    /// `std::nullopt` to skip it. Drop secrets here, and drop the tape too when a secret is
-    /// derived from `context.random`.
-    std::function<std::optional<JournalRecord>(JournalRecord record)> redact;
+    /// `std::nullopt` to skip it. Giving it also lets calls to commands that declare `secret` be
+    /// recorded (when `filter` allows them), so it must remove their secrets: `info.secret` says
+    /// which calls those are (unset outside the registry's execution, where it cannot be read).
+    /// Drop the tape too when a secret is derived from `context.random`. The middleware copies
+    /// it when it is built, so the one that decides is the one applied.
+    JournalRedact redact;
     /// Most clock readings and most random values kept per call, each. Past it the tape is
     /// marked truncated.
     std::size_t max_tape_reads = 1000;
