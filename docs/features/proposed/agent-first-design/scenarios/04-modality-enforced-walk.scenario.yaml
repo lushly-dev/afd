@@ -1,0 +1,102 @@
+# Rank 4 — Job 8 (Slice 1). Enforced modality walk with appDate, explicit ending, journal path
+# and blind pairwise report comparison (from phase 0 step 0.4).
+# Scenario limit: runtime sandbox enforcement of tool stripping is verified in host integration tests.
+name: Walk a job held strictly to one modality
+description: >-
+  When I walk a job as a kind of user, I want only that user's way of perceiving and acting, so
+  that what I find is what they would meet.
+job: modality-enforced-walk
+tags: [slice-1]
+fixture:
+  file: fixtures/bookshop.json
+
+steps:
+  - description: Requesting a pointer click or DOM read inside a screen-reader walk is refused before launch
+    command: panel-walk
+    input:
+      job: checkout-out-of-stock
+      persona: p-sr
+      modality: screen-reader
+      target: http://127.0.0.1:4180/?screen=checkout
+      requestedTools: [click, dom_query]
+    expect:
+      success: false
+      error:
+        code: MODALITY_FORBIDDEN
+        suggestion: { contains: modality }
+
+  - description: Naming an unknown job scenario is refused
+    command: panel-walk
+    input:
+      job: nonexistent-job
+      persona: p-sr
+      modality: screen-reader
+      target: http://127.0.0.1:4180/?screen=checkout
+    expect:
+      success: false
+      error:
+        code: JOB_NOT_FOUND
+        suggestion: { contains: scenarios/ }
+
+  - description: Naming an unknown persona is refused
+    command: panel-walk
+    input:
+      job: checkout-out-of-stock
+      persona: p-unknown
+      modality: screen-reader
+      target: http://127.0.0.1:4180/?screen=checkout
+    expect:
+      success: false
+      error:
+        code: PERSONA_NOT_FOUND
+        suggestion: { contains: persona }
+
+  - description: A baseline walk runs with appDate pinned, records an explicit ending, journal path and evidence-classed findings
+    command: panel-walk
+    input:
+      job: checkout-out-of-stock
+      persona: p-sr
+      modality: screen-reader
+      target: http://127.0.0.1:4180/?screen=checkout
+      appDate: 2030-05-12
+    expect:
+      success: true
+      data:
+        walk: { matches: '^walk-' }
+        modality: screen-reader
+        ending: done
+        path.done: true
+        path.deviations: 0
+        unmeasured.0.area: forced-colors
+
+  - description: Comparing against a baseline walk runs blind pairwise report comparison so worked-around trouble is caught
+    command: panel-walk
+    input:
+      job: checkout-out-of-stock
+      persona: p-sr
+      modality: screen-reader
+      target: http://127.0.0.1:4181/?screen=checkout
+      appDate: 2030-05-12
+      baselineWalk: "${{ steps[3].data.walk }}"
+    expect:
+      success: true
+      data:
+        walk: { matches: '^walk-' }
+        ending: done
+        findings.0.evidence: observed
+        comparison.method: blind-pairwise-report
+        comparison.worse: current
+
+  - description: Supplying an unknown baseline walk id is refused
+    command: panel-walk
+    input:
+      job: checkout-out-of-stock
+      persona: p-sr
+      modality: screen-reader
+      target: http://127.0.0.1:4181/?screen=checkout
+      baselineWalk: walk-000000000000
+    expect:
+      success: false
+      error:
+        code: WALK_NOT_FOUND
+        suggestion: { contains: panel-walk }

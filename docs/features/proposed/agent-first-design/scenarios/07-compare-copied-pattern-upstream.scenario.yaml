@@ -1,0 +1,96 @@
+# Rank 7 — Job 5 (Slice 2). Compare a copied pattern statement-by-statement against upstream,
+# stage chosen updates (and conflict resolutions) pinned to upstreamVersion with
+# specimen-pattern-merge, refuse stale approvals, and apply updates only after person approval.
+# Scenario limit: actor is kind:test; host tests verify host-verified approval of guidance cards.
+name: Compare a copied pattern with upstream changes
+description: >-
+  When a default I copied is changed upstream, I want to see what changed, statement by
+  statement, and take it after review, so that an improvement reaches me by my choice.
+job: compare-copied-pattern-upstream
+tags: [slice-2]
+fixture:
+  file: fixtures/bookshop.json
+
+steps:
+  - description: Comparing a native pattern that was never forked from an upstream default is refused
+    command: specimen-pattern-compare
+    input:
+      pattern: bookshop-shelf-card
+    expect:
+      success: false
+      error:
+        code: NOT_A_COPIED_PATTERN
+        suggestion: { contains: specimen-pattern-fork }
+
+  - description: Comparing a copied pattern classifies changed statements against its fork-time digests
+    command: specimen-pattern-compare
+    input:
+      pattern: error-recovery
+      onlyChanged: true
+    expect:
+      success: true
+      data:
+        pattern: error-recovery
+        source.library: afd-defaults
+        source.baseVersion: 1.0.0
+        source.currentVersion: 1.1.0
+        statements.0.status: changed-here
+        statements.1.status: changed-upstream
+        statements.2.status: changed-both
+        statements.3.status: added-upstream
+        nextSteps.0: { contains: specimen-pattern-merge }
+
+  - description: Accepting a changed-both statement without a conflict resolution is refused
+    command: specimen-pattern-merge
+    input:
+      pattern: error-recovery
+      upstreamVersion: 1.1.0
+      accept: [error-recovery.keep.conflict-item]
+    expect:
+      success: false
+      error:
+        code: STATEMENT_CONFLICT
+        suggestion: { contains: resolutions }
+
+  - description: Staging chosen upstream changes and declines creates a guidance decision card pinned to upstreamVersion
+    command: specimen-pattern-merge
+    input:
+      pattern: error-recovery
+      upstreamVersion: 1.1.0
+      accept: [error-recovery.keep.clear-next-step, error-recovery.keep.conflict-item]
+      decline: [error-recovery.customize.extra-hint]
+      resolutions:
+        - id: error-recovery.keep.conflict-item
+          text: Announce recovery clearly in the kiosk banner with the next action
+    expect:
+      success: true
+      data:
+        pattern: error-recovery
+        card: { matches: '^card-' }
+        upstreamVersion: 1.1.0
+        stagedStatus: proposed
+        nextSteps.0: { contains: decision-record }
+
+  - description: Approving a stale merge card whose pinned upstream digest moved is refused
+    command: decision-record
+    input:
+      card: card-000000000088
+      chosen: approve
+      reason: Approve stale upstream merge card
+    expect:
+      success: false
+      error:
+        code: UPSTREAM_CHANGED
+        suggestion: { contains: specimen-pattern-compare }
+
+  - description: Approving the pinned merge card applies the update and refreshes derivedFrom digests
+    command: decision-record
+    input:
+      card: "${{ steps[3].data.card }}"
+      chosen: approve
+      reason: Adopt upstream clear-next-step improvement in bookshop-ui/error-recovery
+    expect:
+      success: true
+      data:
+        decision: { matches: '^dec-' }
+        chosen: approve

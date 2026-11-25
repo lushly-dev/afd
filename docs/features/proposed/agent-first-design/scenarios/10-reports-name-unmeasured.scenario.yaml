@@ -1,0 +1,34 @@
+# Rank 10 — Job 14 (Slice 2, the quiet job). Reports succeed when less is set up and name what
+# went unmeasured and what would measure it.
+name: Reports name what went unmeasured without failing
+description: >-
+  When I have not set something up, I want reports to say what went unmeasured and what would
+  measure it, so that I add things because they help.
+job: reports-name-unmeasured
+tags: [slice-2]
+fixture:
+  file: fixtures/bookshop.json
+
+steps:
+  - description: A product with commands only still gets a succeeding state report that names missing specimens and scenarios
+    command: design-states
+    input:
+      commands: [order-create]
+    expect:
+      success: true
+      data:
+        states.0.command: order-create
+        unmeasured.0.area: screen-gates
+        unmeasured.0.reason: { contains: specimen }
+        unmeasured.0.addToMeasure: { contains: specimen-capture }
+
+  - description: The pre-ship card queue also succeeds when no panel or journal is configured and names what is unmeasured
+    command: design-card-list
+    input:
+      scope: all
+    expect:
+      success: true
+      data:
+        page: { contains: cards.html }
+        unmeasured.0.area: panel-walks
+        unmeasured.0.addToMeasure: { contains: panel-walk }

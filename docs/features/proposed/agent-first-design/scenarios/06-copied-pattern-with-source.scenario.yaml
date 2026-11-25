@@ -1,0 +1,92 @@
+# Rank 6 — Job 2 (Slice 2, includes merged Job 3). Fork a default pattern with recorded source
+# and per-statement digests, keep it proposed with pending binding until person approval, and
+# resolve briefs through patternBindings once approved.
+# Scenario limit: actor is kind:test; host tests verify person-only approval of the fork card.
+name: Copy a default pattern with its source recorded
+description: >-
+  When a default does not suit my company or my product, I want my own copy of that pattern
+  with its source recorded, or my own pattern named where the default was, so that agents build
+  to my rule and nothing changes it for me.
+job: copied-pattern-with-source
+tags: [slice-2]
+fixture:
+  file: fixtures/bookshop.json
+
+steps:
+  - description: Forking an unknown default pattern is refused with discovery advice
+    command: specimen-pattern-fork
+    input:
+      source: afd-defaults/nonexistent-pattern
+    expect:
+      success: false
+      error:
+        code: PATTERN_UNKNOWN
+        suggestion: { contains: pattern }
+
+  - description: Forking a default pattern copies the file with derivedFrom digests, marks it proposed and keeps binding pending approval
+    command: specimen-pattern-fork
+    input:
+      source: afd-defaults/error-recovery
+      target: error-recovery
+      bind: true
+    expect:
+      success: true
+      data:
+        pattern: error-recovery
+        approvalStatus: proposed
+        derivedFrom.library: afd-defaults
+        derivedFrom.pattern: error-recovery
+        derivedFrom.version: 1.0.0
+        derivedFrom.statements: { exists: true }
+        bindingStatus: pending-approval
+        card: { matches: '^card-' }
+        nextSteps.0: { contains: decision-record }
+
+  - description: Forking onto an existing target is refused without suggesting blind overwrite
+    command: specimen-pattern-fork
+    input:
+      source: afd-defaults/error-recovery
+      target: error-recovery
+    expect:
+      success: false
+      error:
+        code: ALREADY_EXISTS
+        suggestion: { contains: specimen-pattern-compare }
+
+  - description: While still proposed, briefs continue serving the approved upstream default
+    command: components-brief
+    input:
+      tags: [violet-alert]
+      patterns: [afd-defaults/error-recovery]
+      consumer: bookshop-ui
+    expect:
+      success: true
+      data:
+        content.patterns.0.library: afd-defaults
+        content.patterns.0.pattern: error-recovery
+        content.patterns.0.approvalStatus: approved
+
+  - description: Approving the fork's guidance card flips approvalStatus to approved and activates patternBindings
+    command: decision-record
+    input:
+      card: "${{ steps[1].data.card }}"
+      chosen: approve
+      reason: Use bookshop-ui kiosk error-recovery copy
+    expect:
+      success: true
+      data:
+        decision: { matches: '^dec-' }
+        chosen: approve
+
+  - description: Once approved, briefs resolve afd-defaults/error-recovery through patternBindings to the product's copy
+    command: components-brief
+    input:
+      tags: [violet-alert]
+      patterns: [afd-defaults/error-recovery]
+      consumer: bookshop-ui
+    expect:
+      success: true
+      data:
+        content.patterns.0.library: bookshop-ui
+        content.patterns.0.pattern: error-recovery
+        content.patterns.0.approvalStatus: approved
