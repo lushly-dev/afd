@@ -13,6 +13,7 @@ import type {
 	TelemetrySink,
 } from '@lushly-dev/afd-core';
 import { createTelemetryEvent, failure, isActorKind, systemClock } from '@lushly-dev/afd-core';
+import { inheritEngineNext } from './approval-admission.js';
 import { carryApprovalProcessState } from './approval-process-state.js';
 import { carryAuthMiddlewareMark } from './auth-middleware-check.js';
 
@@ -770,7 +771,10 @@ export function composeMiddleware(...middlewares: CommandMiddleware[]): CommandM
 			if (!middleware) {
 				return next();
 			}
-			return middleware(commandName, input, context, () => dispatch(index + 1));
+			const inner = () => dispatch(index + 1);
+			// A part the engine reaches through this composition is still the engine's middleware.
+			inheritEngineNext(context, next, inner);
+			return middleware(commandName, input, context, inner);
 		};
 
 		return dispatch(0);

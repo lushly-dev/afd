@@ -56,6 +56,12 @@ interface Admitted {
 interface Admission {
 	command: AdmissionCommand;
 	/**
+	 * The continuations the engine itself built for this call's middleware chain. Only a
+	 * middleware the engine invoked holds one, so a recorder handed one of these is the engine's;
+	 * a recorder a handler runs itself, on the same context and with a `next` of its own, is not.
+	 */
+	chain?: WeakSet<object>;
+	/**
 	 * What each approval step admitted since the last dispatch. Two approval middlewares on one
 	 * engine each admit, and the dispatch must match them all, so a later one never replaces or
 	 * weakens an earlier one's binding.
@@ -82,6 +88,8 @@ const weakGet = WeakMap.prototype.get;
 const weakSet = WeakMap.prototype.set;
 const setAdd = Set.prototype.add;
 const setHas = Set.prototype.has;
+const weakSetAdd = WeakSet.prototype.add;
+const weakSetHas = WeakSet.prototype.has;
 
 /**
  * The shared map on `holder` (`globalThis`) when another copy installed it as this module does,
@@ -243,4 +251,33 @@ export function livePolicy(context: CommandContext): {
 /** The command the call of `context` runs, as recorded by the engine; undefined outside it. */
 export function liveCommand(context: CommandContext): AdmissionCommand | undefined {
 	return record(context)?.command;
+}
+
+/**
+ * Mark `inner` as the engine's when `outer` is: `composeMiddleware` builds continuations of its own
+ * for the parts it composes, and a part the engine reached through it is still the engine's.
+ */
+export function inheritEngineNext(context: CommandContext, outer: object, inner: object): void {
+	const found = record(context);
+	if (found?.chain && weakSetHas.call(found.chain, outer)) weakSetAdd.call(found.chain, inner);
+}
+
+/** Mark `next` as a continuation the engine built for the call of `context`. */
+export function markEngineNext(context: CommandContext, next: object): void {
+	const found = record(context);
+	if (!found) return;
+	if (!found.chain) found.chain = new WeakSet();
+	weakSetAdd.call(found.chain, next);
+}
+
+/**
+ * Whether the command the engine runs for `context` declares `secret`, for the journal: `true` or
+ * `false` for a middleware the engine invoked (its `next` is one the engine built), and
+ * `undefined` for any other recorder: outside the engine, or one a handler runs itself on the
+ * same context, at any time.
+ */
+export function liveSecret(context: CommandContext, next: object): boolean | undefined {
+	const found = record(context);
+	if (!found?.chain || !weakSetHas.call(found.chain, next)) return undefined;
+	return found.command.secret === true;
 }

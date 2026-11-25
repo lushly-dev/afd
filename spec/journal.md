@@ -74,9 +74,13 @@ and a recorder never records a call to it unless the host also gave the recorder
 must remove the secret: a `filter` alone never admits it, so a host's own filter cannot drop the
 protection by accident. The recorder reads the declaration from the command the engine runs, not
 from its name, and gives `redact` that answer with each record. A recorder that cannot read it (one
-outside the execution engine, such as a client's own middleware) records no call without `redact`.
+outside the execution engine, such as a client's own middleware, or one a handler runs itself on
+its own context) records no call without `redact`. A middleware that wraps the recorder passes it
+the engine's `next` unchanged, or composes it with the binding's own middleware composer, so the
+declaration stays readable.
 A secret call left unrecorded inside a recorded call reads neither of the parent's taped sources,
-and the parent's tape is marked `truncated`, so its replay cannot restore every value. The flag
+and the tape of every recording layer around it is marked `truncated`, so their replays cannot
+restore every value. The flag
 covers the call itself: a value it returns that a later pipeline step or a calling handler passes
 on is that command's input, recorded unless it too is `secret` or redacted. The default `filter`
 also skips commands named `auth-*`, as before, and `filter` and `redact` handle the rest. When a secret is derived from `context.random`, the redaction must drop the tape too: its
