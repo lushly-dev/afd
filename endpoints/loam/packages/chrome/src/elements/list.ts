@@ -92,7 +92,7 @@ const styles = css`
 	}
 	violet-listbox::part(control):focus-visible {
 		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
-		outline-offset: var(--violet-size-space-xs);
+		outline-offset: var(--violet-space-inline-hairline);
 	}
 	/* Focus stays on the list, so the active row is where the keyboard is (design.md, focus). */
 	violet-listbox:focus-within violet-option[data-active]::part(control) {
@@ -101,39 +101,39 @@ const styles = css`
 	}
 	/* Selected: the control colors and a start-edge bar, since color alone is not enough. */
 	violet-option[selected]::part(control) {
-		border-inline-start: var(--violet-size-space-xs) solid var(--violet-color-control-selected-foreground);
+		border-inline-start: var(--violet-space-inline-hairline) solid var(--violet-color-control-selected-foreground);
 		background: var(--violet-color-control-selected-background);
 		color: var(--violet-color-control-selected-foreground);
 	}
 	h3 {
-		margin: 0 0 var(--violet-space-stack-xs);
+		margin: 0 0 var(--violet-space-stack-tight);
 		color: var(--violet-color-text-secondary);
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
 		font-weight: var(--violet-weight-semibold);
 	}
 	:host([heading]:not([heading=''])) {
-		margin-block-end: var(--violet-space-stack-md);
+		margin-block-end: var(--violet-space-stack-section);
 	}
 	.item-title {
-		font-size: var(--violet-type-body-md-size);
-		line-height: var(--violet-type-body-md-line);
+		font-size: var(--violet-type-body-size);
+		line-height: var(--violet-type-body-line);
 	}
 	.item-description {
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
 	}
 	p {
 		margin: 0;
 		color: var(--violet-color-text-secondary);
-		font-size: var(--violet-type-body-md-size);
-		line-height: var(--violet-type-body-md-line);
+		font-size: var(--violet-type-body-size);
+		line-height: var(--violet-type-body-line);
 	}
 	.failure p {
 		color: var(--violet-color-state-danger-text);
 	}
 	.failure .suggestion {
-		margin-block-start: var(--violet-space-stack-xs);
+		margin-block-start: var(--violet-space-stack-tight);
 		color: var(--violet-color-text-secondary);
 	}
 	@media (forced-colors: active) {

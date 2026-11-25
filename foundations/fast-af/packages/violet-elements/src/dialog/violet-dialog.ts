@@ -129,9 +129,9 @@ const styles = css`
     .title {
         flex: 1;
         font-family: var(--violet-font-family-heading, var(--violet-font-family, var(--violet-font-family-body)));
-        font-size: var(--violet-type-title-sm-size, 18px);
-        line-height: var(--violet-type-title-sm-line, 24px);
-        font-weight: var(--violet-type-title-sm-weight, 600);
+        font-size: var(--violet-type-heading-section-size, 18px);
+        line-height: var(--violet-type-heading-section-line, 24px);
+        font-weight: var(--violet-type-heading-section-weight, 600);
         letter-spacing: -0.01em;
         min-inline-size: 0;
     }

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Breaking: token interface version 5 — Scales two-stage cutover (#1111, #2197).** `tokens/interface.json` moves to `contractVersion` 5 (96 ids, down from 98) and `tokens/violet-theme.export.json` moves to `contractVersion` 2 (`build-runtime-theme.mjs` expects `contractVersion === 2`): retired `size.font.{sm,md}` (components now read `type.caption.size` and `type.body.size`) and renamed all 24 positional semantic tokens in the interface (`type.{caption,label,body,heading.section,heading.page}.*`, `radius.{inset,control,floating}`, `space.inline.{tight,group}`, `space.stack.{tight,group}`, `space.layout.{panel,page}`). Unprefixed compatibility aliases from the v4 prefix cutover apply only to surviving v5 ids; migrate retired and renamed v3/v4 properties directly to their v5 `--violet-*` names. Regenerated theme presets, component fallbacks, `custom-elements.json` and Specimen pack records.
+
 - Fix five `violet-elements` bugs (#2435, #2429, #2383, #2382, #2368):
   - `violet-data-grid` now preserves cell focus across a queued `renderedRows.splice` in Firefox when focus leaves and returns to a cell within the same frame, removing the `await nextFrame()` workaround in `violet-data-grid-header-keyboard.spec.ts` (#2383).
   - `violet-color-picker` now syncs its hex `<input>` imperatively via `syncHexInputValue()` instead of a deferred `:value` template binding so same-frame edits after a 6-digit preview are not overwritten on the next animation frame (programmatic `value` updates now display the normalized hex value, or empty for invalid values), removing the double-rAF workaround in `violet-color-picker.spec.ts` (#2382).

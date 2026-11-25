@@ -74,9 +74,9 @@ const styles = [
 			box-sizing: border-box;
 			inline-size: min(92vw, var(--violet-shell-size-main-min));
 			max-block-size: 80dvh;
-			padding: var(--violet-space-layout-md);
+			padding: var(--violet-space-layout-page);
 			border: 0;
-			border-radius: var(--violet-radius-lg);
+			border-radius: var(--violet-radius-floating);
 			background: var(--violet-color-surface-floating);
 			box-shadow: var(--violet-shadow-floating);
 			color: var(--violet-color-text-primary);
@@ -90,20 +90,20 @@ const styles = [
 		/* A dialog sits at the inline end, above the parts; the next ones above it (data-stack, its place). */
 		dialog:not(:modal) {
 			position: fixed;
-			inset: auto var(--violet-space-layout-md) var(--violet-space-layout-md) auto;
+			inset: auto var(--violet-space-layout-page) var(--violet-space-layout-page) auto;
 			z-index: var(--violet-z-index-popover);
 			margin: 0;
 			inline-size: min(92vw, var(--violet-shell-size-sidebar-max));
 			border: 1px solid var(--violet-color-border-strong);
 		}
 		:host([data-stack='1']) dialog:not(:modal) {
-			inset-block-end: calc(var(--violet-space-layout-md) + var(--violet-shell-size-titlebar) * 2);
+			inset-block-end: calc(var(--violet-space-layout-page) + var(--violet-shell-size-titlebar) * 2);
 		}
 		:host([data-stack='2']) dialog:not(:modal) {
-			inset-block-end: calc(var(--violet-space-layout-md) + var(--violet-shell-size-titlebar) * 4);
+			inset-block-end: calc(var(--violet-space-layout-page) + var(--violet-shell-size-titlebar) * 4);
 		}
 		:host([data-stack='3']) dialog:not(:modal) {
-			inset-block-end: calc(var(--violet-space-layout-md) + var(--violet-shell-size-titlebar) * 6);
+			inset-block-end: calc(var(--violet-space-layout-page) + var(--violet-shell-size-titlebar) * 6);
 		}
 		dialog[open] {
 			opacity: 1;
@@ -121,22 +121,22 @@ const styles = [
 			background: color-mix(in srgb, var(--violet-color-surface-page) 60%, transparent);
 		}
 		h2 {
-			margin-block: 0 var(--violet-space-stack-sm);
-			font-size: var(--violet-type-title-sm-size);
-			line-height: var(--violet-type-title-sm-line);
-			font-weight: var(--violet-type-title-sm-weight);
+			margin-block: 0 var(--violet-space-stack-group);
+			font-size: var(--violet-type-heading-section-size);
+			line-height: var(--violet-type-heading-section-line);
+			font-weight: var(--violet-type-heading-section-weight);
 		}
 		p {
-			margin-block: 0 var(--violet-space-stack-md);
+			margin-block: 0 var(--violet-space-stack-section);
 			color: var(--violet-color-text-secondary);
-			font-size: var(--violet-type-body-md-size);
-			line-height: var(--violet-type-body-md-line);
+			font-size: var(--violet-type-body-size);
+			line-height: var(--violet-type-body-line);
 			overflow-wrap: anywhere;
 		}
 		.from {
-			margin-block-end: var(--violet-space-stack-xs);
-			font-size: var(--violet-type-label-sm-size);
-			line-height: var(--violet-type-label-sm-line);
+			margin-block-end: var(--violet-space-stack-tight);
+			font-size: var(--violet-type-label-size);
+			line-height: var(--violet-type-label-line);
 		}
 		.error {
 			color: var(--violet-color-state-danger-text);
@@ -145,12 +145,12 @@ const styles = [
 			display: none;
 		}
 		.content {
-			margin-block-end: var(--violet-space-stack-md);
+			margin-block-end: var(--violet-space-stack-section);
 		}
 		.details {
 			margin: 0;
-			padding: var(--violet-size-space-sm);
-			border-radius: var(--violet-radius-md);
+			padding: var(--violet-space-inline-tight);
+			border-radius: var(--violet-radius-control);
 			background: var(--violet-color-surface-subtle);
 			color: var(--violet-color-text-primary);
 			font-family: var(--violet-font-family-mono);
@@ -159,11 +159,11 @@ const styles = [
 		.field {
 			display: flex;
 			flex-direction: column;
-			gap: var(--violet-space-stack-xs);
-			margin-block-end: var(--violet-space-stack-sm);
-			font-size: var(--violet-type-label-sm-size);
-			line-height: var(--violet-type-label-sm-line);
-			font-weight: var(--violet-type-label-sm-weight);
+			gap: var(--violet-space-stack-tight);
+			margin-block-end: var(--violet-space-stack-group);
+			font-size: var(--violet-type-label-size);
+			line-height: var(--violet-type-label-line);
+			font-weight: var(--violet-type-label-weight);
 		}
 		.field.check {
 			flex-direction: row-reverse;
@@ -172,19 +172,19 @@ const styles = [
 		}
 		.field .hint {
 			margin: 0;
-			font-weight: var(--violet-type-body-md-weight);
+			font-weight: var(--violet-type-body-weight);
 		}
 		input:not([type='checkbox']),
 		select {
 			box-sizing: border-box;
 			min-block-size: var(--violet-size-target-natural);
-			padding-inline: var(--violet-size-space-sm);
+			padding-inline: var(--violet-space-inline-tight);
 			border: 1px solid var(--violet-color-field-border);
-			border-radius: var(--violet-radius-md);
+			border-radius: var(--violet-radius-control);
 			background: var(--violet-color-field-background);
 			color: var(--violet-color-field-text);
 			font: inherit;
-			font-weight: var(--violet-type-body-md-weight);
+			font-weight: var(--violet-type-body-weight);
 		}
 		input[type='checkbox'] {
 			inline-size: var(--violet-size-target-compact);
@@ -194,7 +194,7 @@ const styles = [
 		input:focus-visible,
 		select:focus-visible {
 			outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
-			outline-offset: var(--violet-size-space-xs);
+			outline-offset: var(--violet-space-inline-hairline);
 			border-color: var(--violet-color-field-border-focus);
 		}
 		input[aria-invalid='true'] {
@@ -204,7 +204,7 @@ const styles = [
 			display: flex;
 			flex-wrap: wrap;
 			justify-content: flex-end;
-			gap: var(--violet-space-inline-sm);
+			gap: var(--violet-space-inline-tight);
 		}
 		@media (prefers-reduced-motion: reduce) {
 			dialog,

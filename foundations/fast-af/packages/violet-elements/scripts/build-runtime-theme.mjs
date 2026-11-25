@@ -40,8 +40,8 @@ async function readPropertyRule() {
 const defaultPreset = "light";
 
 function readPresets(themeExport, tokenInterface) {
-  if (themeExport?.contractVersion !== 1) {
-    throw new Error(`${exportPath}: expected contractVersion 1, got ${themeExport?.contractVersion}`);
+  if (themeExport?.contractVersion !== 2) {
+    throw new Error(`${exportPath}: expected contractVersion 2, got ${themeExport?.contractVersion}`);
   }
 
   const presets = themeExport.presets ?? {};

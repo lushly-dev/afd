@@ -22,14 +22,14 @@ const styles = css`
 	}
 	::slotted(p) {
 		margin: 0;
-		padding-block: var(--violet-space-stack-xs);
-		padding-inline: var(--violet-space-inline-md);
+		padding-block: var(--violet-space-stack-tight);
+		padding-inline: var(--violet-space-inline-group);
 		border-block-end: 1px solid var(--violet-color-border-strong);
 		background: var(--violet-color-surface-floating);
 		color: var(--violet-color-text-primary);
 		font-family: var(--violet-font-family-body);
-		font-size: var(--violet-type-body-md-size);
-		line-height: var(--violet-type-body-md-line);
+		font-size: var(--violet-type-body-size);
+		line-height: var(--violet-type-body-line);
 	}
 	::slotted(p[data-tone='warning']) {
 		color: var(--violet-color-state-warning-text);

@@ -6,29 +6,29 @@
 		<style>
 			body {
 				margin: 0;
-				padding: var(--violet-space-layout-md);
+				padding: var(--violet-space-layout-page);
 				background: var(--violet-color-surface-page);
 				color: var(--violet-color-text-primary);
 				font-family: var(--violet-font-family-body);
-				font-size: var(--violet-type-body-md-size);
-				line-height: var(--violet-type-body-md-line);
+				font-size: var(--violet-type-body-size);
+				line-height: var(--violet-type-body-line);
 			}
 			h1 {
-				margin-block: 0 var(--violet-space-stack-md);
-				font-size: var(--violet-type-title-md-size);
-				line-height: var(--violet-type-title-md-line);
-				font-weight: var(--violet-type-title-md-weight);
+				margin-block: 0 var(--violet-space-stack-section);
+				font-size: var(--violet-type-heading-page-size);
+				line-height: var(--violet-type-heading-page-line);
+				font-weight: var(--violet-type-heading-page-weight);
 			}
 			form {
 				display: flex;
 				flex-wrap: wrap;
 				align-items: end;
-				gap: var(--violet-space-inline-sm);
-				margin-block-end: var(--violet-space-stack-md);
+				gap: var(--violet-space-inline-tight);
+				margin-block-end: var(--violet-space-stack-section);
 			}
 			label {
 				display: grid;
-				gap: var(--violet-space-stack-xs);
+				gap: var(--violet-space-stack-tight);
 			}
 			/*
 			 * As violet-text-field and violet-button draw them (Refined, D159): the field is a well, its 3:1 rule
@@ -39,8 +39,8 @@
 			button {
 				box-sizing: border-box;
 				min-block-size: var(--violet-size-target-comfortable);
-				padding-inline: max(var(--violet-space-inline-md), calc(var(--violet-size-target-comfortable) * 0.375));
-				border-radius: var(--violet-radius-md);
+				padding-inline: max(var(--violet-space-inline-group), calc(var(--violet-size-target-comfortable) * 0.375));
+				border-radius: var(--violet-radius-control);
 				font: inherit;
 			}
 			input {
@@ -79,7 +79,7 @@
 				outline-offset: 1px;
 			}
 			p {
-				margin-block: 0 var(--violet-space-stack-sm);
+				margin-block: 0 var(--violet-space-stack-group);
 			}
 			@media (forced-colors: active) {
 				body {

@@ -147,12 +147,12 @@ const mainTemplate = html<MailReply>`
 const mainStyles = css`
 	:host {
 		display: grid;
-		gap: var(--violet-space-stack-md);
+		gap: var(--violet-space-stack-section);
 		align-content: start;
-		padding: var(--violet-space-layout-md);
+		padding: var(--violet-space-layout-page);
 		color: var(--violet-color-text-primary);
-		font-size: var(--violet-type-body-md-size);
-		line-height: var(--violet-type-body-md-line);
+		font-size: var(--violet-type-body-size);
+		line-height: var(--violet-type-body-line);
 	}
 	h1,
 	h2,
@@ -162,45 +162,45 @@ const mainStyles = css`
 	}
 	h1 {
 		font-family: var(--violet-font-family-heading);
-		font-size: var(--violet-type-title-sm-size);
-		line-height: var(--violet-type-title-sm-line);
-		font-weight: var(--violet-type-title-sm-weight);
+		font-size: var(--violet-type-heading-section-size);
+		line-height: var(--violet-type-heading-section-line);
+		font-weight: var(--violet-type-heading-section-weight);
 	}
 	h2 {
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
-		font-weight: var(--violet-type-label-sm-weight);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
+		font-weight: var(--violet-type-label-weight);
 	}
 	.row {
 		display: flex;
 		flex-wrap: wrap;
-		gap: var(--violet-space-inline-sm);
+		gap: var(--violet-space-inline-tight);
 		align-items: end;
 	}
 	.thread,
 	.reply {
 		display: grid;
-		gap: var(--violet-space-stack-sm);
+		gap: var(--violet-space-stack-group);
 	}
 	.messages {
 		display: grid;
-		gap: var(--violet-space-stack-xs);
+		gap: var(--violet-space-stack-tight);
 		padding: 0;
 		list-style: none;
 	}
 	.messages li {
 		display: grid;
-		padding: var(--violet-space-layout-sm);
+		padding: var(--violet-space-layout-panel);
 		/* A card is a surface step with the card shadow, no drawn edge (Refined, D159); forced colors draws the border. */
 		border: 1px solid transparent;
-		border-radius: var(--violet-radius-md);
+		border-radius: var(--violet-radius-control);
 		background: var(--violet-color-surface-card);
 		box-shadow: var(--violet-shadow-card);
 	}
 	.sender {
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
-		font-weight: var(--violet-type-label-sm-weight);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
+		font-weight: var(--violet-type-label-weight);
 		overflow-wrap: anywhere;
 	}
 	.subject,
@@ -210,8 +210,8 @@ const mainStyles = css`
 	.meta,
 	.label {
 		color: var(--violet-color-text-secondary);
-		font-size: var(--violet-type-caption-xs-size);
-		line-height: var(--violet-type-caption-xs-line);
+		font-size: var(--violet-type-caption-size);
+		line-height: var(--violet-type-caption-line);
 	}
 	.notice[data-tone='danger'] {
 		color: var(--violet-color-state-danger-text);

@@ -13,10 +13,10 @@ const template = html<LoamEmptyState>`
 const styles = css`
 	:host {
 		display: block;
-		padding-block: var(--violet-space-layout-sm);
+		padding-block: var(--violet-space-layout-panel);
 		color: var(--violet-color-text-secondary);
-		font-size: var(--violet-type-body-md-size);
-		line-height: var(--violet-type-body-md-line);
+		font-size: var(--violet-type-body-size);
+		line-height: var(--violet-type-body-line);
 	}
 	:host([hidden]) {
 		display: none;

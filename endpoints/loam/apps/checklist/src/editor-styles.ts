@@ -17,25 +17,25 @@ const css = String.raw;
 export const EDITOR_STYLES = css`
 	body {
 		margin: 0;
-		padding: var(--violet-space-layout-md);
+		padding: var(--violet-space-layout-page);
 		background: var(--violet-color-surface-page);
 		color: var(--violet-color-text-primary);
 		font-family: var(--violet-font-family-body);
-		font-size: var(--violet-type-body-md-size);
-		line-height: var(--violet-type-body-md-line);
-		font-weight: var(--violet-type-body-md-weight);
+		font-size: var(--violet-type-body-size);
+		line-height: var(--violet-type-body-line);
+		font-weight: var(--violet-type-body-weight);
 	}
 
 	main {
 		display: grid;
-		gap: var(--violet-space-stack-md);
+		gap: var(--violet-space-stack-section);
 	}
 
 	h1 {
 		margin: 0;
-		font-size: var(--violet-type-title-sm-size);
-		line-height: var(--violet-type-title-sm-line);
-		font-weight: var(--violet-type-title-sm-weight);
+		font-size: var(--violet-type-heading-section-size);
+		line-height: var(--violet-type-heading-section-line);
+		font-weight: var(--violet-type-heading-section-weight);
 	}
 
 	.summary,
@@ -57,16 +57,16 @@ export const EDITOR_STYLES = css`
 		display: flex;
 		flex-wrap: wrap;
 		align-items: end;
-		gap: var(--violet-space-inline-sm);
+		gap: var(--violet-space-inline-tight);
 	}
 
 	label {
 		display: grid;
 		flex: 1 1 auto;
-		gap: var(--violet-space-stack-xs);
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
-		font-weight: var(--violet-type-label-sm-weight);
+		gap: var(--violet-space-stack-tight);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
+		font-weight: var(--violet-type-label-weight);
 	}
 
 	input {
@@ -74,18 +74,18 @@ export const EDITOR_STYLES = css`
 		min-inline-size: 0;
 		inline-size: 100%;
 		min-block-size: var(--violet-size-target-natural);
-		padding-inline: max(var(--violet-space-inline-md), calc(var(--violet-size-target-natural) * 0.375));
+		padding-inline: max(var(--violet-space-inline-group), calc(var(--violet-size-target-natural) * 0.375));
 		border: 1px solid var(--violet-color-border-subtle);
-		border-radius: var(--violet-radius-md);
+		border-radius: var(--violet-radius-control);
 		background: var(--violet-color-field-background);
 		box-shadow:
 			inset 0 1px 0 var(--violet-color-field-border),
 			var(--violet-shadow-well);
 		color: var(--violet-color-field-text);
 		font: inherit;
-		font-size: var(--violet-type-body-md-size);
-		line-height: var(--violet-type-body-md-line);
-		font-weight: var(--violet-type-body-md-weight);
+		font-size: var(--violet-type-body-size);
+		line-height: var(--violet-type-body-line);
+		font-weight: var(--violet-type-body-weight);
 	}
 
 	input::placeholder {
@@ -109,9 +109,9 @@ export const EDITOR_STYLES = css`
 	button {
 		box-sizing: border-box;
 		min-block-size: var(--violet-size-target-natural);
-		padding-inline: max(var(--violet-space-inline-md), calc(var(--violet-size-target-natural) * 0.375));
+		padding-inline: max(var(--violet-space-inline-group), calc(var(--violet-size-target-natural) * 0.375));
 		border: 1px solid var(--violet-color-action-secondary-border);
-		border-radius: var(--violet-radius-md);
+		border-radius: var(--violet-radius-control);
 		background: var(--violet-color-action-secondary-background);
 		color: var(--violet-color-action-secondary-text);
 		font: inherit;
@@ -156,7 +156,7 @@ export const EDITOR_STYLES = css`
 
 	ul {
 		display: grid;
-		gap: var(--violet-space-stack-xs);
+		gap: var(--violet-space-stack-tight);
 		margin: 0;
 		padding: 0;
 		list-style: none;
@@ -165,19 +165,19 @@ export const EDITOR_STYLES = css`
 	li {
 		display: flex;
 		align-items: center;
-		gap: var(--violet-space-inline-sm);
+		gap: var(--violet-space-inline-tight);
 	}
 
 	button.item {
 		display: flex;
 		flex: 1 1 auto;
 		align-items: center;
-		gap: var(--violet-space-inline-sm);
-		padding-inline: var(--violet-size-space-md);
+		gap: var(--violet-space-inline-tight);
+		padding-inline: var(--violet-space-inline-group);
 		border-color: transparent;
 		background: transparent;
 		color: var(--violet-color-text-primary);
-		font-weight: var(--violet-type-body-md-weight);
+		font-weight: var(--violet-type-body-weight);
 		text-align: start;
 	}
 
@@ -190,10 +190,10 @@ export const EDITOR_STYLES = css`
 		flex: none;
 		place-items: center;
 		box-sizing: border-box;
-		inline-size: var(--violet-size-line-md);
-		block-size: var(--violet-size-line-md);
+		inline-size: var(--violet-type-body-line);
+		block-size: var(--violet-type-body-line);
 		border: 1px solid var(--violet-color-field-border);
-		border-radius: var(--violet-radius-sm);
+		border-radius: var(--violet-radius-inset);
 		background: var(--violet-color-field-background);
 		color: var(--violet-color-action-primary-text);
 		font-weight: var(--violet-weight-semibold);

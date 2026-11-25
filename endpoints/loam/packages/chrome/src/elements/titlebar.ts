@@ -120,9 +120,9 @@ const styles = [
 		:host {
 			display: flex;
 			align-items: center;
-			gap: var(--violet-space-inline-sm);
+			gap: var(--violet-space-inline-tight);
 			block-size: var(--violet-shell-size-titlebar);
-			padding-inline: var(--violet-space-inline-md);
+			padding-inline: var(--violet-space-inline-group);
 			background: var(--violet-color-surface-subtle);
 			color: var(--violet-color-text-secondary);
 			border-block-end: 1px solid var(--violet-color-border-subtle);
@@ -130,10 +130,10 @@ const styles = [
 			container-type: inline-size;
 		}
 		.name {
-			padding-inline-end: var(--violet-space-inline-md);
+			padding-inline-end: var(--violet-space-inline-group);
 			color: var(--violet-color-text-primary);
-			font-size: var(--violet-type-label-sm-size);
-			line-height: var(--violet-type-label-sm-line);
+			font-size: var(--violet-type-label-size);
+			line-height: var(--violet-type-label-line);
 			font-weight: var(--violet-weight-semibold);
 		}
 		.spacer {
@@ -148,11 +148,11 @@ const styles = [
 		}
 		.toggles {
 			display: inline-flex;
-			gap: var(--violet-space-inline-sm);
+			gap: var(--violet-space-inline-tight);
 		}
 		.actor {
-			font-size: var(--violet-type-label-sm-size);
-			line-height: var(--violet-type-label-sm-line);
+			font-size: var(--violet-type-label-size);
+			line-height: var(--violet-type-label-line);
 			color: var(--violet-color-text-secondary);
 			overflow: hidden;
 			text-overflow: ellipsis;
@@ -160,8 +160,8 @@ const styles = [
 		}
 		kbd {
 			font: inherit;
-			font-size: var(--violet-type-caption-xs-size);
-			line-height: var(--violet-type-caption-xs-line);
+			font-size: var(--violet-type-caption-size);
+			line-height: var(--violet-type-caption-line);
 			color: var(--violet-color-text-secondary);
 		}
 		@container (max-width: 560px) {

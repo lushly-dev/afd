@@ -122,8 +122,8 @@ const styles = css`
 		min-block-size: 0;
 		background: var(--violet-color-surface-page);
 		color: var(--violet-color-text-primary);
-		font-size: var(--violet-type-body-md-size);
-		line-height: var(--violet-type-body-md-line);
+		font-size: var(--violet-type-body-size);
+		line-height: var(--violet-type-body-line);
 	}
 	:host([hidden]),
 	[hidden] {
@@ -133,7 +133,7 @@ const styles = css`
 		position: absolute;
 		inset-block-start: 0;
 		inset-inline-start: 0;
-		margin: var(--violet-space-layout-md);
+		margin: var(--violet-space-layout-page);
 		color: var(--violet-color-text-secondary);
 	}
 	.frame {

@@ -15,15 +15,15 @@ interface Held {
 const cardStyles = css`
 	:host {
 		display: block;
-		padding: var(--violet-space-layout-sm);
+		padding: var(--violet-space-layout-panel);
 		/* A card is a surface step with the card shadow, no drawn edge (Refined, D159); forced colors draws the border. */
 		border: 1px solid transparent;
-		border-radius: var(--violet-radius-lg);
+		border-radius: var(--violet-radius-floating);
 		background: var(--violet-color-surface-card);
 		box-shadow: var(--violet-shadow-card);
 		color: var(--violet-color-text-primary);
-		font-size: var(--violet-type-title-md-size);
-		line-height: var(--violet-type-title-md-line);
+		font-size: var(--violet-type-heading-page-size);
+		line-height: var(--violet-type-heading-page-line);
 	}
 	@media (forced-colors: active) {
 		:host {
@@ -47,19 +47,19 @@ const mainTemplate = html<TallyMain>`
 const mainStyles = css`
 	:host {
 		display: grid;
-		gap: var(--violet-space-stack-md);
+		gap: var(--violet-space-stack-section);
 		justify-items: start;
 		align-content: start;
-		padding: var(--violet-space-layout-md);
+		padding: var(--violet-space-layout-page);
 	}
 	h1,
 	p {
 		margin: 0;
 	}
 	h1 {
-		font-size: var(--violet-type-title-md-size);
-		line-height: var(--violet-type-title-md-line);
-		font-weight: var(--violet-type-title-md-weight);
+		font-size: var(--violet-type-heading-page-size);
+		line-height: var(--violet-type-heading-page-line);
+		font-weight: var(--violet-type-heading-page-weight);
 	}
 `;
 
@@ -115,7 +115,7 @@ const historyStyles = css`
 	}
 	ol {
 		margin: 0;
-		padding-inline-start: var(--violet-space-layout-sm);
+		padding-inline-start: var(--violet-space-layout-panel);
 	}
 	p {
 		margin: 0;

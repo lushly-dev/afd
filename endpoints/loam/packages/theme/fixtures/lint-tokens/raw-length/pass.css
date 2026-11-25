@@ -1,10 +1,10 @@
 :host {
 	margin: 0;
-	padding: 0px var(--violet-space-inline-md);
+	padding: 0px var(--violet-space-inline-group);
 	border-bottom: 1px solid var(--violet-color-border-subtle);
 	inline-size: min(85vw, var(--violet-size-target-comfortable));
 	block-size: 40dvh;
-	max-block-size: calc(100% - var(--violet-size-space-md) * 2);
+	max-block-size: calc(100% - var(--violet-space-inline-group) * 2);
 	grid-template-columns: 1fr auto;
 	inline-size: fit-content;
 	container-type: inline-size;

@@ -19,17 +19,17 @@ const styles = css`
 		contain: content;
 		color: var(--violet-color-text-primary);
 		font-family: var(--violet-font-family-body);
-		font-size: var(--violet-type-body-md-size);
-		line-height: var(--violet-type-body-md-line);
-		font-weight: var(--violet-type-body-md-weight);
+		font-size: var(--violet-type-body-size);
+		line-height: var(--violet-type-body-line);
+		font-weight: var(--violet-type-body-weight);
 	}
 	:host([hidden]) {
 		display: none;
 	}
 	h3 {
-		margin-block: 0 var(--violet-space-stack-sm);
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
+		margin-block: 0 var(--violet-space-stack-group);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
 		font-weight: var(--violet-weight-semibold);
 		color: var(--violet-color-text-secondary);
 	}

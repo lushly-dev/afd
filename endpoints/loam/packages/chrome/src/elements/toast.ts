@@ -28,10 +28,10 @@ const TONE_WORD: Record<ToastTone, string> = {
 const regionStyles = css`
 	:host {
 		position: fixed;
-		inset: auto var(--violet-space-inline-md) calc(var(--violet-shell-size-tabbar) + var(--violet-space-inline-sm)) auto;
+		inset: auto var(--violet-space-inline-group) calc(var(--violet-shell-size-tabbar) + var(--violet-space-inline-tight)) auto;
 		display: flex;
 		flex-direction: column;
-		gap: var(--violet-space-stack-sm);
+		gap: var(--violet-space-stack-group);
 		box-sizing: border-box;
 		inline-size: auto;
 		max-inline-size: min(92vw, var(--violet-shell-size-main-min));
@@ -118,17 +118,17 @@ const toastStyles = [
 		:host {
 			display: flex;
 			align-items: center;
-			gap: var(--violet-space-inline-sm);
-			padding-block: var(--violet-space-stack-sm);
-			padding-inline: var(--violet-space-inline-md);
+			gap: var(--violet-space-inline-tight);
+			padding-block: var(--violet-space-stack-group);
+			padding-inline: var(--violet-space-inline-group);
 			border: 1px solid var(--violet-color-border-strong);
-			border-radius: var(--violet-radius-md);
+			border-radius: var(--violet-radius-control);
 			background: var(--violet-color-surface-floating);
 			color: var(--violet-color-text-primary);
 			box-shadow: var(--violet-shadow-floating);
 			font-family: var(--violet-font-family-body);
-			font-size: var(--violet-type-body-md-size);
-			line-height: var(--violet-type-body-md-line);
+			font-size: var(--violet-type-body-size);
+			line-height: var(--violet-type-body-line);
 			pointer-events: auto;
 			opacity: 1;
 			transition: opacity var(--violet-duration-base) var(--violet-easing-emphasized);
@@ -182,7 +182,7 @@ const toastStyles = [
 		}
 		.tone {
 			flex: none;
-			--violet-icon-size: var(--violet-size-line-md);
+			--violet-icon-size: var(--violet-type-body-line);
 		}
 		.body {
 			display: flex;
@@ -191,8 +191,8 @@ const toastStyles = [
 			min-inline-size: 0;
 		}
 		.from {
-			font-size: var(--violet-type-label-sm-size);
-			line-height: var(--violet-type-label-sm-line);
+			font-size: var(--violet-type-label-size);
+			line-height: var(--violet-type-label-line);
 		}
 		.message {
 			overflow-wrap: anywhere;
@@ -205,9 +205,9 @@ const toastStyles = [
 		.inbox {
 			flex: none;
 			min-block-size: var(--violet-size-target-natural);
-			padding-inline: var(--violet-size-space-sm);
+			padding-inline: var(--violet-space-inline-tight);
 			border: 1px solid currentColor;
-			border-radius: var(--violet-radius-md);
+			border-radius: var(--violet-radius-control);
 			background: transparent;
 			color: inherit;
 			font: inherit;
@@ -232,13 +232,13 @@ const toastStyles = [
 			min-block-size: var(--violet-size-target-natural);
 			padding: 0;
 			border: 1px solid transparent;
-			border-radius: var(--violet-radius-md);
+			border-radius: var(--violet-radius-control);
 			background: transparent;
 			color: inherit;
 			cursor: pointer;
 		}
 		.dismiss violet-icon {
-			--violet-icon-size: var(--violet-size-line-sm);
+			--violet-icon-size: var(--violet-type-caption-line);
 		}
 		.dismiss:hover {
 			background: var(--violet-color-action-secondary-hover);

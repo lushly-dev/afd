@@ -17,13 +17,13 @@ const styles = css`
 	:host {
 		display: inline-flex;
 		align-items: center;
-		gap: var(--violet-size-space-sm);
+		gap: var(--violet-space-inline-tight);
 		min-block-size: var(--violet-size-target-compact);
-		padding-inline: var(--violet-space-inline-sm);
+		padding-inline: var(--violet-space-inline-tight);
 		color: var(--violet-color-text-secondary);
-		font-size: var(--violet-type-caption-xs-size);
-		line-height: var(--violet-type-caption-xs-line);
-		font-weight: var(--violet-type-caption-xs-weight);
+		font-size: var(--violet-type-caption-size);
+		line-height: var(--violet-type-caption-line);
+		font-weight: var(--violet-type-caption-weight);
 		white-space: nowrap;
 	}
 	:host([hidden]) {

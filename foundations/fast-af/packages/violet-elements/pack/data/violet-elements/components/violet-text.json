@@ -151,7 +151,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-type-body-md-weight, 400)",
+				"default": "var(--violet-type-body-weight, 400)",
 				"name": "--_text-font-weight"
 			},
 			{

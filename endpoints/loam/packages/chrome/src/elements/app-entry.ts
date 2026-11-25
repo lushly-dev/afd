@@ -53,7 +53,7 @@ const styles = css`
 		display: none;
 	}
 	.entry {
-		border-inline-start-width: var(--violet-size-space-xs);
+		border-inline-start-width: var(--violet-space-inline-hairline);
 		cursor: pointer;
 		transition:
 			background-color var(--violet-duration-fast) var(--violet-easing-standard),
@@ -63,8 +63,8 @@ const styles = css`
 		position: relative;
 		display: inline-flex;
 		flex: none;
-		inline-size: var(--violet-size-line-md);
-		block-size: var(--violet-size-line-md);
+		inline-size: var(--violet-type-body-line);
+		block-size: var(--violet-type-body-line);
 	}
 	.entry:not([aria-disabled]):active {
 		background: var(--violet-color-action-secondary-pressed);
@@ -87,8 +87,8 @@ const styles = css`
 		position: absolute;
 		inset-block-start: 0;
 		inset-inline-end: 0;
-		inline-size: var(--violet-size-space-sm);
-		block-size: var(--violet-size-space-sm);
+		inline-size: var(--violet-space-inline-tight);
+		block-size: var(--violet-space-inline-tight);
 		border-radius: var(--violet-radius-round);
 		background: currentColor;
 	}

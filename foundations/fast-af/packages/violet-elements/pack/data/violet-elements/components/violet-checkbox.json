@@ -136,7 +136,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-radius-sm, 4px)",
+				"default": "var(--violet-radius-inset, 4px)",
 				"name": "--_radius-sm"
 			},
 			{
@@ -156,7 +156,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-size-font-md, 14px)",
+				"default": "var(--violet-type-body-size, 14px)",
 				"name": "--_size-font-md"
 			},
 			{
@@ -176,12 +176,12 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-type-body-md-line, 20px)",
+				"default": "var(--violet-type-body-line, 20px)",
 				"name": "--_type-body-line"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-type-caption-xs-line, 16px)",
+				"default": "var(--violet-type-caption-line, 16px)",
 				"name": "--_type-caption-line"
 			}
 		],

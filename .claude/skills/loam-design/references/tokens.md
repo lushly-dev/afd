@@ -8,11 +8,13 @@ or `dist/loam-theme.json`.
 
 ## Layers
 
-1. **Primitives (`ref.*`)**: `ref.color.<family>.<step>` and
-   `ref.space.<px>` (2, 4, 6, 8, 12, 16, 24). Only the tree's semantic tokens
-   reference them; no export contains them; the lint fails any read or set of
+1. **Primitives (`ref.*`)**: `ref.color.<family>.<step>`, `ref.space.<px>`
+   (2, 4, 6, 8, 12, 16, 24), `ref.type.<step>.{size,line}` (100, 200, 250, 300,
+   400, 500), `ref.radius.<px>` (4, 8, 12, 9999) and `ref.target.<px>` (24, 28,
+   32, 40, 44, 48, 56). Only the tree's semantic tokens reference them; no
+   export contains them; the lint fails any read or set of `--violet-ref-*` or
    `--ref-*`.
-2. **Component ids**: 119, read by `violet-elements` and every Loam
+2. **Component ids**: 104, read by `violet-elements` and every Loam
    component.
 3. **Shell ids**: 19, read only by `@lushly-dev/loam-chrome`.
 
@@ -93,14 +95,12 @@ each of page, card, subtle and floating. A read-only field's line is
 
 | Id | Value |
 |----|-------|
-| `size.font.xs`, `.sm`, `.md`, `.lg`, `.xl` | 11, 12, 14, 18, 24px |
-| `size.line.xs`, `.sm`, `.md`, `.lg`, `.xl` | 14, 16, 20, 24, 32px |
 | `weight.light`, `.regular`, `.medium`, `.semibold` | 100, 400, 500, 600 |
-| `type.caption.xs.{size,line,weight}` | `size.font.sm`, `size.line.sm`, `weight.regular` (12 / 16 / 400) |
-| `type.label.sm.{size,line,weight}` | 13px, `size.line.sm`, `weight.medium` (13 / 16 / 500) |
-| `type.body.md.{size,line,weight}` | `size.font.md`, `size.line.md`, `weight.regular` |
-| `type.title.sm.{size,line,weight}` | `size.font.lg`, `size.line.lg`, `weight.semibold` |
-| `type.title.md.{size,line,weight}` | `size.font.xl`, `size.line.xl`, `weight.semibold` |
+| `type.caption.{size,line,weight}` | `ref.type.200.{size,line}`, `weight.regular` (12 / 16 / 400) |
+| `type.label.{size,line,weight}` | `ref.type.250.{size,line}`, `weight.medium` (13 / 16 / 500) |
+| `type.body.{size,line,weight}` | `ref.type.300.{size,line}`, `weight.regular` (14 / 20 / 400) |
+| `type.heading.section.{size,line,weight}` | `ref.type.400.{size,line}`, `weight.semibold` (18 / 24 / 600) |
+| `type.heading.page.{size,line,weight}` | `ref.type.500.{size,line}`, `weight.semibold` (24 / 32 / 600) |
 | `font.family.body` | `"Inter", system-ui, sans-serif`, the interface's typeface |
 | `font.family.heading` | `"Space Grotesk", "Segoe UI", system-ui, sans-serif`: the dialog's title and the text component's title variants |
 | `font.family.mono` | `"IBM Plex Mono", ui-monospace, Consolas, monospace`: the tool-call card's command name and the console's output |
@@ -121,17 +121,16 @@ The components also read four colors and a width the interface added late
 
 | Id | Comfortable | Compact |
 |----|-------------|---------|
-| `size.space.xs`, `.sm`, `.md`, `.lg`, `.xl` | 2, 4, 8, 12, 24px | 2, 2, 6, 8, 16px |
-| `space.inline.sm`, `.md`, `.lg` | 4, 8, 12px | 2, 6, 8px |
-| `space.stack.xs`, `.sm`, `.md` | 4, 8, 12px | 2, 4, 8px |
-| `space.layout.sm`, `.md` | 12, 24px | 12, 24px |
+| `space.inline.hairline`, `.tight`, `.group` | 2, 4, 8px | 2, 2, 6px |
+| `space.stack.tight`, `.group`, `.section` | 4, 8, 12px | 2, 4, 8px |
+| `space.layout.panel`, `.page` | 12, 24px | 12, 24px |
 | `size.target.compact`, `.natural`, `.comfortable` | 24, 32, 44px | 24, 28, 32px |
 
 ## Shape, elevation, layers, motion
 
 | Id | Value |
 |----|-------|
-| `radius.sm`, `.md`, `.lg`, `.round` | 4, 8, 12, 9999px |
+| `radius.inset`, `.control`, `.floating`, `.round` | 4, 8, 12, 9999px |
 | `shadow.control` | light `0 0 0 1px rgba(24, 27, 26, 0.05), 0 1px 2px rgba(24, 27, 26, 0.10)`; high contrast `0 0 0 1px #000000` |
 | `shadow.card` | light `0 0 0 1px rgba(24, 27, 26, 0.06), 0 1px 2px rgba(24, 27, 26, 0.06), 0 4px 10px -2px rgba(24, 27, 26, 0.06)`; high contrast `0 0 0 1px #000000` |
 | `shadow.floating` | light `0 0 0 1px rgba(24, 27, 26, 0.08), 0 4px 12px -2px rgba(24, 27, 26, 0.12), 0 18px 40px -8px rgba(24, 27, 26, 0.20)`; high contrast `0 0 0 2px #000000` |

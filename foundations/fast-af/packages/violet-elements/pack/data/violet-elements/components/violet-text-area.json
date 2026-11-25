@@ -164,7 +164,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-space-layout-sm, 12px)",
+				"default": "var(--violet-space-layout-panel, 12px)",
 				"name": "--_space-layout-sm"
 			}
 		],

@@ -67,7 +67,7 @@ describe("Loam's Violet tree", () => {
 		const entries = Object.values<{ kind: string }>(committed.tokens);
 		const componentCount = entries.filter((entry) => entry.kind === 'component').length;
 		const shellCount = entries.filter((entry) => entry.kind === 'shell').length;
-		expect(componentCount).toBe(119);
+		expect(componentCount).toBe(104);
 		expect(shellCount).toBe(19);
 		expect(contractIds).toHaveLength(componentCount + shellCount);
 		for (const id of contractIds) expect(id.startsWith('ref.')).toBe(false);
@@ -95,10 +95,11 @@ describe("Loam's Violet tree", () => {
 		expect(value(light, 'color.action.primary.background')).toBe('#181b1a');
 		expect(value(light, 'color.field.border.focus')).toBe('#28769e');
 		expect(value(light, 'color.control.selected.background')).toBe('#c0daeb');
-		expect(value(light, 'type.title.md.weight')).toBe('600');
-		expect(value(light, 'type.label.sm.size')).toBe('13px');
-		expect(value(light, 'radius.md')).toBe('8px');
-		expect(value(light, 'space.layout.md')).toBe('24px');
+		expect(value(light, 'type.heading.page.weight')).toBe('600');
+		expect(value(light, 'type.label.size')).toBe('13px');
+		expect(value(light, 'radius.control')).toBe('8px');
+		expect(value(light, 'space.layout.page')).toBe('24px');
+		expect(value(light, 'space.inline.hairline')).toBe('2px');
 		expect(value(light, 'color.text.muted')).toBe('#5e6460');
 		expect(value(light, 'color.border.strong')).toBe('#6b7d6e');
 		expect(value(light, 'font.family.body')).toBe('"Inter", system-ui, sans-serif');
@@ -167,7 +168,7 @@ describe("Loam's Violet tree", () => {
 
 	it('changes only density in compact, and never takes a target below 24px', () => {
 		const densityIds =
-			/^(size\.space|space\.(inline|stack)|size\.target|shell\.size\.(titlebar|statusbar|rail|tabbar))(\.|$)/;
+			/^(space\.(inline|stack)|size\.target|shell\.size\.(titlebar|statusbar|rail|tabbar))(\.|$)/;
 		for (const theme of THEMES) {
 			const base = tokens(themeNode(theme));
 			const compact = tokens(compactNode(theme));
@@ -243,7 +244,7 @@ describe('exports', () => {
 		expect(light).not.toContain('--ref-');
 		const dark = rule('[data-loam-theme="dark"]');
 		expect(dark).toContain('\t--violet-color-surface-page: #141515;');
-		expect(dark).not.toContain('--violet-size-space-md');
+		expect(dark).not.toContain('--violet-space-inline-group');
 		expect(dark).not.toContain('--violet-color-action-danger-background');
 		const contrast = rule('[data-loam-theme="high-contrast"]');
 		expect(contrast).toContain('\t--violet-shell-size-focus: 3px;');
@@ -260,7 +261,7 @@ describe('exports', () => {
 
 	it('writes every node as Token[] with resolved values', () => {
 		const json = JSON.parse(outputs.files['loam-theme.json']);
-		expect(json.contractVersion).toBe(2);
+		expect(json.contractVersion).toBe(3);
 		expect(Object.keys(json.nodes)).toEqual(NODE_IDS);
 		const dark = json.nodes['loam/dark'] as { id: string; value: string }[];
 		expect(dark).toContainEqual({ id: 'color.action.secondary.text', value: '#f4f0ea' });
@@ -283,7 +284,9 @@ describe('theme:check', () => {
 		};
 		const report = await checkTheme(contractUrl, { outputs, layoutDefaults });
 		expect(report.errors).toEqual([]);
-		expect(report.notes).toEqual([expect.stringMatching(/^Skipped the component export/)]);
+		expect(report.notes.filter((note) => !/^(?:warning|info): /.test(note))).toEqual([
+			expect.stringMatching(/^Skipped the component export/),
+		]);
 	});
 
 	it('fails without the kernel constant', async () => {
@@ -299,7 +302,9 @@ describe('theme:check', () => {
 			mainMin: 400,
 		};
 		const report = await checkTheme(contractUrl, { outputs, layoutDefaults });
-		expect(report.notes).toEqual([expect.stringMatching(/^Skipped the component export/)]);
+		expect(report.notes.filter((note) => !/^(?:warning|info): /.test(note))).toEqual([
+			expect.stringMatching(/^Skipped the component export/),
+		]);
 		expect(report.errors).toHaveLength(NODE_IDS.length);
 	});
 
@@ -320,8 +325,8 @@ describe('theme:check', () => {
 			expect.stringMatching(/^'color\.surface\.gone' is in the contract but not in the tree/),
 		]);
 		const retyped = structuredClone(built);
-		retyped.tokens['radius.sm'] = {
-			property: '--violet-radius-sm',
+		retyped.tokens['radius.inset'] = {
+			property: '--violet-radius-inset',
 			type: 'number',
 			kind: 'component',
 		};
@@ -368,6 +373,112 @@ describe('theme:check', () => {
 		const report = await checkTheme(contractUrl, { outputs: { ...outputs, resolved: broken } });
 		expect(report.errors[0]).toBe('color.x in loam: not found');
 	});
+
+	it('passes ramp and positional-name constraints across all 7 nodes, catches violations end-to-end, and keeps warnings advisory', async () => {
+		const layoutDefaults = {
+			sidebar: { default: 260, min: 200, max: 480 },
+			inspector: { default: 300, min: 240, max: 520 },
+			panel: { default: 240, min: 120 },
+			mainMin: 360,
+		};
+		expect(resolved.constraintIssues.filter((issue) => issue.severity === 'error')).toEqual([]);
+
+		// 1. Plant an unreasoned off-ramp literal ONLY in a child node (`loam/dark`) and a positional
+		// token name on the root, then run buildOutputs -> checkTheme end-to-end.
+		const sourceFiles = await readLoamTreeFiles();
+		const mutated = sourceFiles.map((file) => {
+			if (file.name === 'loam.tokens.json') {
+				const parsed = JSON.parse(file.content);
+				parsed.space.stack.xs = {
+					$type: 'dimension',
+					$value: '{ref.space.4}',
+					$extensions: { 'dev.lushly.violet': { category: 'spacing' } },
+				};
+				return { ...file, content: `${JSON.stringify(parsed, null, 2)}\n` };
+			}
+			if (file.name === 'loam_dark.tokens.json') {
+				const parsed = JSON.parse(file.content);
+				parsed.space = {
+					...(parsed.space ?? {}),
+					inline: {
+						...(parsed.space?.inline ?? {}),
+						tight: {
+							$type: 'dimension',
+							$value: '5px',
+							$extensions: { 'dev.lushly.violet': { category: 'spacing' } },
+						},
+					},
+				};
+				return { ...file, content: `${JSON.stringify(parsed, null, 2)}\n` };
+			}
+			return file;
+		});
+		const mutatedOutputs = await buildOutputs(mutated);
+		const failedCheck = await checkTheme(contractUrl, {
+			outputs: mutatedOutputs,
+			layoutDefaults,
+		});
+		expect(
+			failedCheck.errors.some((line) =>
+				line.startsWith('space.inline.tight in loam/dark [spacing-ramp/ramp:unreasoned]:')
+			)
+		).toBe(true);
+		expect(
+			failedCheck.errors.some((line) =>
+				line.startsWith('space.stack.xs in loam [no-positional-names]:')
+			)
+		).toBe(true);
+
+		// 2. Plant two reasoned off-ramp overrides in `loam/dark`: produces advisory `ramp:repeat`
+		// warnings routed to `notes`, with zero constraint errors.
+		const warned = sourceFiles.map((file) => {
+			if (file.name !== 'loam_dark.tokens.json') return file;
+			const parsed = JSON.parse(file.content);
+			parsed.space = {
+				...(parsed.space ?? {}),
+				inline: {
+					...(parsed.space?.inline ?? {}),
+					tight: {
+						$type: 'dimension',
+						$value: '5px',
+						$extensions: {
+							'dev.lushly.violet': {
+								category: 'spacing',
+								reason: 'Optical alignment in dark theme toolbar',
+							},
+						},
+					},
+					group: {
+						$type: 'dimension',
+						$value: '5px',
+						$extensions: {
+							'dev.lushly.violet': {
+								category: 'spacing',
+								reason: 'Optical alignment in dark theme group',
+							},
+						},
+					},
+				},
+			};
+			return { ...file, content: `${JSON.stringify(parsed, null, 2)}\n` };
+		});
+		const warnedOutputs = await buildOutputs(warned);
+		const warnedCheck = await checkTheme(contractUrl, {
+			outputs: warnedOutputs,
+			layoutDefaults,
+		});
+		expect(warnedCheck.errors).toEqual([]);
+		expect(
+			warnedCheck.notes.some((line) =>
+				line.startsWith('warning: space.inline.tight in loam/dark [spacing-ramp/ramp:repeat]:')
+			)
+		).toBe(true);
+		expect(
+			warnedCheck.notes.some((line) =>
+				line.startsWith('warning: space.inline.group in loam/dark [spacing-ramp/ramp:repeat]:')
+			)
+		).toBe(true);
+	});
 });
 
 describe('DTCG tree files (#1974)', () => {
@@ -390,9 +501,9 @@ describe('DTCG tree files (#1974)', () => {
 		expect(catalog.data?.summary.categories).toEqual({
 			color: 114,
 			motion: 5,
-			typography: 32,
-			radius: 4,
-			spacing: 40,
+			typography: 34,
+			radius: 8,
+			spacing: 42,
 			shadow: 4,
 			'z-index': 7,
 		});
@@ -400,12 +511,12 @@ describe('DTCG tree files (#1974)', () => {
 			{ category: 'spacing' },
 			{ db: tree.db, actor: 'test' }
 		);
-		expect(spacing.data?.tokens.map((token) => token.id)).toContain('space.inline.md');
+		expect(spacing.data?.tokens.map((token) => token.id)).toContain('space.inline.group');
 		const radius = await tokensCatalogCommand.handler(
 			{ category: 'radius' },
 			{ db: tree.db, actor: 'test' }
 		);
-		expect(radius.data?.tokens.map((token) => token.id)).toContain('radius.md');
+		expect(radius.data?.tokens.map((token) => token.id)).toContain('radius.control');
 		const zIndex = await tokensCatalogCommand.handler(
 			{ category: 'z-index' },
 			{ db: tree.db, actor: 'test' }

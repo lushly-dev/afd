@@ -193,9 +193,9 @@ function buildBasePresets(site) {
 		'font.family.body': '"Space Grotesk", "Segoe UI", system-ui, sans-serif',
 		'font.family.mono': '"IBM Plex Mono", ui-monospace, Consolas, monospace',
 		// Structure: square, ruled, and a hard shadow under what floats.
-		'radius.sm': '0px',
-		'radius.md': '0px',
-		'radius.lg': '0px',
+		'radius.inset': '0px',
+		'radius.control': '0px',
+		'radius.floating': '0px',
 		'size.focus-ring.width': '3px',
 		'shadow.control': '0 0 0 0 transparent',
 		'shadow.well': '0 0 0 0 transparent',

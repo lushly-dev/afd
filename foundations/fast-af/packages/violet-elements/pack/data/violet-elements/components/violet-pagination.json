@@ -75,12 +75,12 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--violet-space-layout-sm, 12px)",
+				"default": "var(--violet-space-layout-panel, 12px)",
 				"name": "--_space-layout-sm"
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-space-stack-xs, 4px)",
+				"default": "var(--violet-space-stack-tight, 4px)",
 				"name": "--_space-xs"
 			},
 			{

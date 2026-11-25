@@ -10,12 +10,12 @@
 | `--color-action-primary-background` | `--violet-color-action-primary-background` |
 | `--font-family-body` | `--violet-font-family-body` |
 | `--size-target-natural` | `--violet-size-target-natural` |
-| `--space-layout-sm` | `--violet-space-layout-sm` |
+| `--space-layout-sm` | `--violet-space-layout-panel` (renamed in v5; see Scales cutover) |
 | `--z-index-modal` | `--violet-z-index-modal` |
-| `--<id with . as ->`, any token | `--violet-<id with . as ->`, `violetTokenProperty(id)` |
+| `--<id with . as ->`, any surviving token | `--violet-<id with . as ->`, `violetTokenProperty(id)` |
 
 The components' own knobs (`--violet-target-size`, `--violet-icon-size`, `--violet-font-family`, `--violet-card-background` and the rest) keep their names.
 
-- **Deprecated, removed in the next preview release:** for this release the generated stylesheet ends with an alias block that declares each old name as a `var()` of the new one (`--color-surface-page: var(--violet-color-surface-page)`) on `:root` and every `[data-violet-theme-root]`, so a hand-written `var(--color-x)` keeps following the active preset, scoped roots included. Move those reads to `--violet-*` now.
+- **Deprecated, removed in the next preview release:** for this release the generated stylesheet ends with an alias block that declares each surviving v5 token's unprefixed name as a `var()` of its `--violet-*` name (`--color-surface-page: var(--violet-color-surface-page)`) on `:root` and every `[data-violet-theme-root]`, so a hand-written `var(--color-x)` keeps following the active preset, scoped roots included. Move those reads to `--violet-*` now. Because the v5 Scales cutover ships in the same preview release, the 2 retired (`size.font.{sm,md}`) and 24 renamed positional ids (`radius.{sm,md,lg}`, `space.{inline,stack,layout}.*`, `type.{caption.xs,label.sm,body.md,title.sm,title.md}.*`) have no unprefixed aliases — migrate directly to their v5 `--violet-*` names.
 - **Not aliased:** setting an old name (`--color-surface-page: …` on a host or root) no longer reaches the components; set the `--violet-` property instead. A product that writes its own theme properties regenerates them with the prefix (violet-core `prefix: 'violet'`, violet-runtime `cssPrefix: VIOLET_CSS_PREFIX`) or names them with `violetTokenProperty`.
 - A product's build that checks a set with `findVioletThemeSetGaps` gets the new names in each gap's `property`.

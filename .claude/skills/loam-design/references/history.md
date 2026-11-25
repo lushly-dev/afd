@@ -203,3 +203,10 @@ The values above landed, for the theme and the components together:
   unified OKLCH 235° cerulean ramp (`ref.color.cerulean.*`), anchored to `#28769e` (light focus) and `#3d92bf`
   (dark focus, saturation-balanced to light). Primary buttons keep ink/paper, `color.state.success.*` keeps
   mint/green, and high contrast is unchanged.
+- **2026-11-24. The `violet-` prefix (#1786).** Contract version 2: every property moves to `--violet-<id>`
+  with the same ids, shared with Violet's runtime and exporter.
+- **2026-11-24. Scales two-stage ramps and purpose-named tokens (#1111, #2197).** Contract version 3 (123
+  ids: 104 component, 19 shell), component export version 2, and `violet-elements` interface version 5 (96
+  ids). Added Stage 1 `ref.*` ramps and ten Violet constraints (`ramp` + `no-positional-names`) enforced by
+  `theme:check`; retired 16 positional ladder ids, added `space.inline.hairline`, and renamed 25 semantic ids
+  to purpose names across Loam and `violet-elements`.

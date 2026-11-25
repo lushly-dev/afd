@@ -10,7 +10,7 @@ const styles = css`
         display: block;
         --_tool-font-size: var(--violet-tool-font-size, var(--_caption-size));
         --_tool-line-height: var(--violet-tool-line-height, var(--_caption-line));
-        --_tool-name-size: var(--violet-tool-name-size, var(--violet-type-label-sm-size, 13px));
+        --_tool-name-size: var(--violet-tool-name-size, var(--violet-type-label-size, 13px));
         --_tool-icon-size: var(--violet-tool-name-size, var(--_body-size));
         --_warning-bg: var(--violet-color-state-warning-background, #f3e8d2);
         --_warning-text: var(--violet-color-state-warning-text, #92400e);

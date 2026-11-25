@@ -31,7 +31,7 @@ const template = html<NotesEmbed>`
 const styles = css`
 	:host {
 		display: grid;
-		gap: var(--violet-space-stack-sm);
+		gap: var(--violet-space-stack-group);
 		color: var(--violet-color-text-primary);
 	}
 	[hidden] {
@@ -39,8 +39,8 @@ const styles = css`
 	}
 	p {
 		margin: 0;
-		font-size: var(--violet-type-body-md-size);
-		line-height: var(--violet-type-body-md-line);
+		font-size: var(--violet-type-body-size);
+		line-height: var(--violet-type-body-line);
 	}
 	.text {
 		white-space: pre-wrap;
@@ -51,7 +51,7 @@ const styles = css`
 	}
 	ul {
 		display: grid;
-		gap: var(--violet-space-stack-sm);
+		gap: var(--violet-space-stack-group);
 		margin: 0;
 		padding: 0;
 		list-style: none;

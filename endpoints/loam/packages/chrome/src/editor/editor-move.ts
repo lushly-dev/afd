@@ -138,7 +138,7 @@ const styles = css`
 	:host {
 		display: block;
 		flex: 1 1 auto;
-		padding: var(--violet-space-layout-md);
+		padding: var(--violet-space-layout-page);
 		color: var(--violet-color-text-primary);
 	}
 	:host([hidden]) {
@@ -147,17 +147,17 @@ const styles = css`
 	.held {
 		display: grid;
 		justify-items: start;
-		gap: var(--violet-space-stack-md);
+		gap: var(--violet-space-stack-section);
 	}
 	p {
 		margin: 0;
-		font-size: var(--violet-type-body-md-size);
-		line-height: var(--violet-type-body-md-line);
+		font-size: var(--violet-type-body-size);
+		line-height: var(--violet-type-body-line);
 	}
 	.actions {
 		display: flex;
 		flex-wrap: wrap;
-		gap: var(--violet-space-inline-sm);
+		gap: var(--violet-space-inline-tight);
 	}
 	.action {
 		box-sizing: border-box;
@@ -167,15 +167,15 @@ const styles = css`
 		min-block-size: var(--violet-size-target-natural);
 		min-inline-size: var(--violet-size-target-natural);
 		padding-block: 0;
-		padding-inline: var(--violet-size-space-lg);
+		padding-inline: var(--violet-space-inline-group);
 		border: 1px solid var(--violet-color-action-secondary-border);
-		border-radius: var(--violet-radius-md);
+		border-radius: var(--violet-radius-control);
 		background: var(--violet-color-action-secondary-background);
 		color: var(--violet-color-action-secondary-text);
 		font: inherit;
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
-		font-weight: var(--violet-type-label-sm-weight);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
+		font-weight: var(--violet-type-label-weight);
 		cursor: pointer;
 		transition:
 			background-color var(--violet-duration-fast) var(--violet-easing-standard),
@@ -212,7 +212,7 @@ const styles = css`
 	}
 	.action:focus-visible {
 		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
-		outline-offset: var(--violet-size-space-xs);
+		outline-offset: var(--violet-space-inline-hairline);
 	}
 	@media (prefers-reduced-motion: reduce) {
 		.action {

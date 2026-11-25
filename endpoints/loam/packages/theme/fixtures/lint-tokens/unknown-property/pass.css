@@ -1,6 +1,6 @@
 :host {
 	color: var(--violet-color-text-primary);
-	padding: var(--violet-space-inline-md, var(--violet-size-space-md));
-	--_gap: var(--violet-space-stack-sm);
+	padding: var(--violet-space-inline-group, var(--violet-space-inline-tight));
+	--_gap: var(--violet-space-stack-group);
 	gap: var(--_gap);
 }

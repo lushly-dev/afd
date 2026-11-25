@@ -12,8 +12,8 @@
 	--text: var(--violet-color-text-primary);
 	--text-secondary: var(--violet-color-text-secondary);
 	--border: var(--violet-color-border-subtle);
-	--radius: var(--violet-radius-md);
-	--gap: var(--violet-space-layout-sm);
+	--radius: var(--violet-radius-control);
+	--gap: var(--violet-space-layout-panel);
 }
 
 * {
@@ -25,7 +25,7 @@ body {
 	background: var(--page-bg);
 	color: var(--text);
 	font-family: var(--violet-font-family-body);
-	font-size: var(--violet-type-body-md-size);
+	font-size: var(--violet-type-body-size);
 	line-height: 1.5;
 }
 
@@ -110,7 +110,7 @@ pre {
 	gap: 0.75rem;
 	padding: 1.25rem;
 	border: 1px solid transparent;
-	border-radius: var(--violet-radius-lg);
+	border-radius: var(--violet-radius-floating);
 	background: var(--card-bg);
 	box-shadow: var(--violet-shadow-card);
 }
@@ -262,7 +262,7 @@ tbody th {
 }
 
 .path-root {
-	margin-block-start: var(--violet-space-stack-xs);
+	margin-block-start: var(--violet-space-stack-tight);
 }
 
 .severity[data-severity="advisory"] {

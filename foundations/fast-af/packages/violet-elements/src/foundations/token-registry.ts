@@ -59,12 +59,10 @@ const families: ReadonlyArray<[prefix: string, category: string, tier: string]> 
   ["color.action.", "color", "semantic"],
   ["color.state.", "color", "semantic"],
   ["color.field.", "color", "semantic"],
-  ["size.font.", "typography", "global"],
-  ["size.line.", "typography", "global"],
+  ["font.family.", "typography", "semantic"],
   ["weight.", "typography", "global"],
   ["type.", "typography", "semantic"],
   ["size.target.", "sizing", "global"],
-  ["size.space.", "spacing", "global"],
   ["space.", "spacing", "semantic"],
   ["radius.", "radius", "semantic"],
   ["shadow.", "shadow", "semantic"],
@@ -74,9 +72,8 @@ const families: ReadonlyArray<[prefix: string, category: string, tier: string]> 
 ];
 
 /**
- * The aliases the retired registry declared. The export holds resolved values, so the story's labs
- * get these chains back (`--violet-space-inline-sm: var(--violet-size-space-sm)`) and editing a ramp step still
- * moves the semantic tokens on it. An alias is kept only while both light values agree.
+ * Semantic aliases whose target is also exported. The export holds resolved values, so the story's
+ * labs reconstruct these chains when both light values agree.
  */
 const registryAliases: Readonly<Record<string, string>> = {
   "color.control.selected.background": "color.surface.selected",
@@ -88,29 +85,11 @@ const registryAliases: Readonly<Record<string, string>> = {
   "color.field.border.hover": "color.border.strong",
   "color.field.border.focus": "color.focus.ring",
   "color.field.border.invalid": "color.state.danger.border",
-  "type.caption.xs.size": "size.font.xs",
-  "type.caption.xs.line": "size.line.xs",
-  "type.caption.xs.weight": "weight.medium",
-  "type.label.sm.size": "size.font.sm",
-  "type.label.sm.line": "size.line.sm",
-  "type.label.sm.weight": "weight.medium",
-  "type.body.md.size": "size.font.md",
-  "type.body.md.line": "size.line.md",
-  "type.body.md.weight": "weight.regular",
-  "type.title.sm.size": "size.font.lg",
-  "type.title.sm.line": "size.line.lg",
-  "type.title.sm.weight": "weight.semibold",
-  "type.title.md.size": "size.font.xl",
-  "type.title.md.line": "size.line.xl",
-  "type.title.md.weight": "weight.semibold",
-  "space.inline.sm": "size.space.sm",
-  "space.inline.md": "size.space.md",
-  "space.inline.lg": "size.space.lg",
-  "space.stack.xs": "size.space.sm",
-  "space.stack.sm": "size.space.md",
-  "space.stack.md": "size.space.lg",
-  "space.layout.sm": "size.space.lg",
-  "space.layout.md": "size.space.xl",
+  "type.caption.weight": "weight.regular",
+  "type.label.weight": "weight.medium",
+  "type.body.weight": "weight.regular",
+  "type.heading.section.weight": "weight.semibold",
+  "type.heading.page.weight": "weight.semibold",
 };
 
 function familyIndex(tokenId: string): number {
@@ -168,20 +147,8 @@ function titleCase(segment: string): string {
 function groupIdForToken(token: VioletRegistryToken): string {
   const [, family = token.metadata.category] = token.id.split(".");
 
-  if (token.id.startsWith("size.space.")) {
-    return "spacing-scale";
-  }
-
   if (token.id.startsWith("size.target.")) {
     return "target-scale";
-  }
-
-  if (token.id.startsWith("size.font.")) {
-    return "type-scale";
-  }
-
-  if (token.id.startsWith("size.line.")) {
-    return "line-scale";
   }
 
   if (token.id.startsWith("weight.")) {
@@ -224,10 +191,7 @@ function groupIdForToken(token: VioletRegistryToken): string {
 }
 
 const groupDescriptions = new Map<string, string>([
-  ["spacing-scale", "Base spacing ramp values that semantic spacing tokens reference."],
   ["target-scale", "Base control target sizes used for adaptive density across fine and coarse input modes."],
-  ["type-scale", "Base font-size ramp values that semantic text styles reference."],
-  ["line-scale", "Base line-height ramp values that semantic text styles reference."],
   ["font-weight", "Base weight values that semantic text styles reference."],
   ["surface", "Canvas and container surfaces that define depth and hierarchy."],
   ["text", "Readable foreground values for content, metadata, and lower-emphasis copy."],

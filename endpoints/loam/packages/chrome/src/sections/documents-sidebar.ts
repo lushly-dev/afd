@@ -92,29 +92,29 @@ const template = html<LoamDocumentsSidebar>`
 const styles = css`
 	:host {
 		display: block;
-		padding-inline: var(--violet-space-layout-sm);
+		padding-inline: var(--violet-space-layout-panel);
 	}
 	dialog {
 		box-sizing: border-box;
 		inline-size: min(92vw, calc(var(--violet-shell-size-main-min) * 1.4));
 		max-block-size: 80dvh;
-		padding: var(--violet-space-layout-sm);
+		padding: var(--violet-space-layout-panel);
 		border: 1px solid transparent;
-		border-radius: var(--violet-radius-lg);
+		border-radius: var(--violet-radius-floating);
 		background: var(--violet-color-surface-floating);
 		box-shadow: var(--violet-shadow-floating);
 		color: var(--violet-color-text-primary);
 	}
 	dialog[open] {
 		display: grid;
-		gap: var(--violet-space-stack-sm);
+		gap: var(--violet-space-stack-group);
 	}
 	dialog::backdrop {
 		background: color-mix(in srgb, var(--violet-color-surface-page) 60%, transparent);
 	}
 	form {
 		display: grid;
-		gap: var(--violet-space-stack-xs);
+		gap: var(--violet-space-stack-tight);
 	}
 	.actions {
 		justify-content: end;

@@ -115,10 +115,10 @@ const styles = css`
 	:host {
 		display: flex;
 		flex-direction: column;
-		gap: var(--violet-space-stack-sm);
+		gap: var(--violet-space-stack-group);
 		box-sizing: border-box;
 		block-size: 100%;
-		padding: var(--violet-space-layout-md);
+		padding: var(--violet-space-layout-page);
 		/* The text keeps a floor (below); when the picker and the embeds need more than the height, the editor scrolls. */
 		overflow-y: auto;
 	}
@@ -138,14 +138,14 @@ const styles = css`
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: var(--violet-space-inline-sm);
-		padding: var(--violet-space-stack-sm) var(--violet-space-inline-md);
+		gap: var(--violet-space-inline-tight);
+		padding: var(--violet-space-stack-group) var(--violet-space-inline-group);
 		/*
 		 * A message is its tint and state border, as violet-alert is (Refined, D159): the border is transparent in
 		 * light and dark and the message's only edge in high contrast; forced colors draws it as CanvasText.
 		 */
 		border: 1px solid var(--violet-color-state-warning-border);
-		border-radius: var(--violet-radius-lg);
+		border-radius: var(--violet-radius-floating);
 		background: var(--violet-color-state-warning-background);
 		color: var(--violet-color-state-warning-text);
 	}
@@ -154,22 +154,22 @@ const styles = css`
 	}
 	.actions {
 		display: flex;
-		gap: var(--violet-space-inline-sm);
+		gap: var(--violet-space-inline-tight);
 	}
 	.tools,
 	.picker {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: end;
-		gap: var(--violet-space-inline-sm);
+		gap: var(--violet-space-inline-tight);
 	}
 	.picker {
 		flex-direction: column;
 		align-items: stretch;
-		padding: var(--violet-space-stack-sm) var(--violet-space-inline-md);
+		padding: var(--violet-space-stack-group) var(--violet-space-inline-group);
 		/* A card one surface step up with the card shadow, no drawn edge, as violet-card is (Refined, D159). */
 		border: 1px solid transparent;
-		border-radius: var(--violet-radius-lg);
+		border-radius: var(--violet-radius-floating);
 		background: var(--violet-color-surface-card);
 		box-shadow: var(--violet-shadow-card);
 	}
@@ -190,7 +190,7 @@ const styles = css`
 	}
 	ul {
 		display: grid;
-		gap: var(--violet-space-stack-xs);
+		gap: var(--violet-space-stack-tight);
 		margin: 0;
 		padding: 0;
 		list-style: none;
@@ -200,7 +200,7 @@ const styles = css`
 	}
 	.embeds li {
 		display: grid;
-		gap: var(--violet-space-stack-xs);
+		gap: var(--violet-space-stack-tight);
 		justify-items: start;
 	}
 	.embeds loam-embed {

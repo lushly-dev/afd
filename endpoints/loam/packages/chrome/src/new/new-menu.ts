@@ -147,9 +147,9 @@ const styles = css`
 		--violet-menu-background: var(--violet-color-surface-floating);
 		--violet-menu-shadow: var(--violet-shadow-floating);
 		--violet-menu-border-color: var(--violet-color-border-subtle);
-		--violet-menu-radius: var(--violet-radius-lg);
-		--violet-menu-padding: var(--violet-size-space-xs);
-		--violet-menu-gap: var(--violet-size-space-xs);
+		--violet-menu-radius: var(--violet-radius-floating);
+		--violet-menu-padding: var(--violet-space-inline-hairline);
+		--violet-menu-gap: var(--violet-space-inline-hairline);
 		--violet-menu-min-inline-size: calc(var(--violet-shell-size-sidebar-min) * 1.1);
 	}
 	violet-menu::part(panel) {
@@ -163,8 +163,8 @@ const styles = css`
 	violet-menu-item {
 		--violet-color-surface-highlight: var(--violet-color-surface-subtle);
 		--violet-color-surface-pressed: var(--violet-color-action-secondary-pressed);
-		font-size: var(--violet-type-body-md-size);
-		line-height: var(--violet-type-body-md-line);
+		font-size: var(--violet-type-body-size);
+		line-height: var(--violet-type-body-line);
 	}
 	violet-menu-item::part(control) {
 		min-block-size: var(--violet-size-target-natural);
@@ -179,11 +179,11 @@ const styles = css`
 		color: var(--violet-color-text-secondary);
 	}
 	.heading {
-		padding-block: var(--violet-space-stack-xs) 0;
-		padding-inline: var(--violet-space-inline-md);
+		padding-block: var(--violet-space-stack-tight) 0;
+		padding-inline: var(--violet-space-inline-group);
 		color: var(--violet-color-text-secondary);
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
 		font-weight: var(--violet-weight-semibold);
 	}
 	@media (forced-colors: active) {

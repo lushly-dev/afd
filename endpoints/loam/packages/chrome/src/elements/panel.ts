@@ -70,8 +70,8 @@ const styles = [
 			block-size: clamp(40dvh, var(--_panel-height), 80dvh);
 			background: var(--violet-color-surface-floating);
 			box-shadow: var(--violet-shadow-floating);
-			border-start-start-radius: var(--violet-radius-lg);
-			border-start-end-radius: var(--violet-radius-lg);
+			border-start-start-radius: var(--violet-radius-floating);
+			border-start-end-radius: var(--violet-radius-floating);
 		}
 		.body {
 			flex: 1;

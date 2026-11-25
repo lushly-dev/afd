@@ -83,7 +83,7 @@
 		"cssProperties": [
 			{
 				"basis": "declared",
-				"default": "var(--violet-control-caption-size, var(--violet-type-caption-xs-size, 12px))",
+				"default": "var(--violet-control-caption-size, var(--violet-type-caption-size, 12px))",
 				"name": "--_control-caption-size"
 			},
 			{
@@ -128,7 +128,7 @@
 			},
 			{
 				"basis": "declared",
-				"default": "var(--violet-type-caption-xs-line, 16px)",
+				"default": "var(--violet-type-caption-line, 16px)",
 				"name": "--_type-caption-line"
 			},
 			{

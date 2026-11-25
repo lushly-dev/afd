@@ -76,7 +76,7 @@ const styles = css`
 	}
 	:host(:focus-visible) .bar {
 		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
-		outline-offset: var(--violet-size-space-xs);
+		outline-offset: var(--violet-space-inline-hairline);
 	}
 	@media (forced-colors: active) {
 		:host,

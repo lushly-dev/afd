@@ -26,7 +26,7 @@ const styles = css`
 		place-items: center;
 		min-block-size: 100dvh;
 		box-sizing: border-box;
-		padding: var(--violet-space-layout-md);
+		padding: var(--violet-space-layout-page);
 		background: var(--violet-color-surface-page);
 		color: var(--violet-color-text-primary);
 		font-family: var(--violet-font-family-body);
@@ -39,22 +39,22 @@ const styles = css`
 		display: none;
 	}
 	.suggestion {
-		margin-block-start: var(--violet-space-stack-sm);
+		margin-block-start: var(--violet-space-stack-group);
 	}
 	.notice {
 		max-inline-size: calc(var(--violet-shell-size-main-min) * 1.6);
 	}
 	h1 {
-		margin-block: 0 var(--violet-space-stack-md);
-		font-size: var(--violet-type-title-md-size);
-		line-height: var(--violet-type-title-md-line);
-		font-weight: var(--violet-type-title-md-weight);
+		margin-block: 0 var(--violet-space-stack-section);
+		font-size: var(--violet-type-heading-page-size);
+		line-height: var(--violet-type-heading-page-line);
+		font-weight: var(--violet-type-heading-page-weight);
 	}
 	p {
 		margin: 0;
 		color: var(--violet-color-text-secondary);
-		font-size: var(--violet-type-body-md-size);
-		line-height: var(--violet-type-body-md-line);
+		font-size: var(--violet-type-body-size);
+		line-height: var(--violet-type-body-line);
 	}
 	@media (forced-colors: active) {
 		:host,

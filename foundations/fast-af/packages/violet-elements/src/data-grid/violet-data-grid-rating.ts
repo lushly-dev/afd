@@ -34,8 +34,8 @@ const styles = css`
         --_rating-filled: var(--violet-color-state-warning-text, #92400E);
         --_rating-empty: color-mix(in srgb, var(--_text-muted) 36%, transparent);
         --_rating-hover: color-mix(in srgb, var(--_rating-filled) 82%, var(--_surface-page));
-        --_radius-md: var(--violet-radius-md, 8px);
-        --_size-font-sm: var(--violet-size-font-sm, 12px);
+        --_radius-md: var(--violet-radius-control, 8px);
+        --_size-font-sm: var(--violet-type-caption-size, 12px);
     }
 
     :host([disabled]) {

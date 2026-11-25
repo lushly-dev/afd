@@ -13,6 +13,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { type CommandContext, importTreeCommand } from '@lushly-dev/violet-afd/commands';
 import {
+	type Constraint,
 	createMemoryDatabase,
 	type Database,
 	type ResolvedToken,
@@ -107,9 +108,165 @@ export interface LoamTree {
 	resolve(nodeId: string): Promise<ResolvedToken[]>;
 }
 
+/** Positional size segments (`xs`, `sm`, `md`, `lg`, `xl`) banned from Loam token ids (#1111). */
+export const NO_POSITIONAL_NAMES_PATTERN =
+	'^(?!(?:xs|sm|md|lg|xl)(?:\\.|$))(?!.*\\.(?:xs|sm|md|lg|xl)(?:\\.|$)).+$';
+
 /**
- * Load Loam's DTCG token files into a fresh Violet memory database via `import.tree`.
- * Pass `files` to load an alternate set of files (for tests or previews).
+ * Loam's Stage 1/Stage 2 Scales constraints (#1111, #2197), attached to the `loam` root node so
+ * every theme and density node inherits them and `theme:check` validates them via `validateConstraints`.
+ */
+export const LOAM_CONSTRAINTS: readonly Constraint[] = [
+	{
+		id: 'spacing-ramp',
+		name: 'Spacing tokens reference ref.space.*',
+		applyTo: 'space.*',
+		severity: 'error',
+		enabled: true,
+		config: {
+			type: 'ramp',
+			ramp: 'ref.space.*',
+			requireOffRampReason: true,
+			repeatThreshold: 2,
+		},
+	},
+	{
+		id: 'type-size-ramp',
+		name: 'Type sizes reference ref.type.*.size and pair with matching .line',
+		applyTo: 'type.*.size',
+		severity: 'error',
+		enabled: true,
+		config: {
+			type: 'ramp',
+			ramp: 'ref.type.*.size',
+			requireOffRampReason: true,
+			repeatThreshold: 2,
+			pairWith: {
+				fromSuffix: '.size',
+				toSuffix: '.line',
+				rampTarget: 'ref.type.*.line',
+			},
+		},
+	},
+	{
+		id: 'type-line-ramp',
+		name: 'Type line heights reference ref.type.*.line',
+		applyTo: 'type.*.line',
+		severity: 'error',
+		enabled: true,
+		config: {
+			type: 'ramp',
+			ramp: 'ref.type.*.line',
+			requireOffRampReason: true,
+			repeatThreshold: 2,
+		},
+	},
+	{
+		id: 'radius-ramp',
+		name: 'Radius tokens reference ref.radius.*',
+		applyTo: 'radius.*',
+		severity: 'error',
+		enabled: true,
+		config: {
+			type: 'ramp',
+			ramp: 'ref.radius.*',
+			requireOffRampReason: true,
+			repeatThreshold: 2,
+		},
+	},
+	{
+		id: 'target-ramp',
+		name: 'Target sizes reference ref.target.*',
+		applyTo: 'size.target.*',
+		severity: 'error',
+		enabled: true,
+		config: {
+			type: 'ramp',
+			ramp: 'ref.target.*',
+			requireOffRampReason: true,
+			repeatThreshold: 2,
+		},
+	},
+	{
+		id: 'shell-titlebar-ramp',
+		name: 'Shell titlebar height references ref.target.*',
+		applyTo: 'shell.size.titlebar',
+		severity: 'error',
+		enabled: true,
+		config: {
+			type: 'ramp',
+			ramp: 'ref.target.*',
+			requireOffRampReason: true,
+			repeatThreshold: 2,
+		},
+	},
+	{
+		id: 'shell-statusbar-ramp',
+		name: 'Shell statusbar height references ref.target.*',
+		applyTo: 'shell.size.statusbar',
+		severity: 'error',
+		enabled: true,
+		config: {
+			type: 'ramp',
+			ramp: 'ref.target.*',
+			requireOffRampReason: true,
+			repeatThreshold: 2,
+		},
+	},
+	{
+		id: 'shell-rail-ramp',
+		name: 'Shell rail width references ref.target.*',
+		applyTo: 'shell.size.rail',
+		severity: 'error',
+		enabled: true,
+		config: {
+			type: 'ramp',
+			ramp: 'ref.target.*',
+			requireOffRampReason: true,
+			repeatThreshold: 2,
+		},
+	},
+	{
+		id: 'shell-tabbar-ramp',
+		name: 'Shell tabbar height references ref.target.*',
+		applyTo: 'shell.size.tabbar',
+		severity: 'error',
+		enabled: true,
+		config: {
+			type: 'ramp',
+			ramp: 'ref.target.*',
+			requireOffRampReason: true,
+			repeatThreshold: 2,
+		},
+	},
+	{
+		id: 'no-positional-names',
+		name: 'Token ids must use purpose names, never xs/sm/md/lg/xl segments',
+		applyTo: '*',
+		severity: 'error',
+		enabled: true,
+		config: {
+			type: 'pattern',
+			target: 'id',
+			pattern: NO_POSITIONAL_NAMES_PATTERN,
+		},
+	},
+];
+
+/** Attach Loam's ramp and positional-name constraints to the `loam` root node. */
+export async function attachLoamConstraints(db: Database): Promise<void> {
+	if (await db.getNode(ROOT_NODE)) {
+		await db.setConstraints(
+			ROOT_NODE,
+			LOAM_CONSTRAINTS.map((constraint) => structuredClone(constraint))
+		);
+	}
+}
+
+/**
+ * Load Loam's DTCG token files into a fresh Violet memory database via `import.tree`, and attach
+ * Loam's Scales constraints to the root node. Pass `files` to load an alternate set of files
+ * (for tests or previews).
  */
 export async function buildLoamTree(files?: readonly TreeFile[]): Promise<LoamTree> {
 	const treeFiles = files ? [...files] : await readLoamTreeFiles();
@@ -130,6 +287,7 @@ export async function buildLoamTree(files?: readonly TreeFile[]): Promise<LoamTr
 			: 'unknown error';
 		throw new Error(`Failed to import Loam's token tree: ${detail}`);
 	}
+	await attachLoamConstraints(db);
 	return {
 		db,
 		resolve: async (nodeId) => (await resolveTokens(db, nodeId)).tokens,

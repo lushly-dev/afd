@@ -129,25 +129,25 @@ const styles = css`
 		position: absolute;
 		inset-inline: 0;
 		inset-block-end: 0;
-		block-size: var(--violet-size-space-xs);
+		block-size: var(--violet-space-inline-hairline);
 		background: var(--violet-color-control-selected-foreground);
 	}
 	button {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		gap: var(--violet-size-space-xs);
+		gap: var(--violet-space-inline-hairline);
 		min-block-size: var(--violet-size-target-natural);
 		min-inline-size: var(--violet-size-target-compact);
 		margin: 0;
 		border: 0;
-		border-radius: var(--violet-radius-md);
+		border-radius: var(--violet-radius-control);
 		background: transparent;
 		color: var(--violet-color-text-secondary);
 		font: inherit;
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
-		font-weight: var(--violet-type-label-sm-weight);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
+		font-weight: var(--violet-type-label-weight);
 		cursor: pointer;
 		transition:
 			background-color var(--violet-duration-fast) var(--violet-easing-standard),
@@ -155,7 +155,7 @@ const styles = css`
 	}
 	.tab {
 		max-inline-size: calc(var(--violet-shell-size-sidebar-default) * 0.8);
-		padding-inline: var(--violet-space-inline-md) var(--violet-size-space-xs);
+		padding-inline: var(--violet-space-inline-group) var(--violet-space-inline-hairline);
 		color: var(--violet-color-text-primary);
 	}
 	.icon {
@@ -182,7 +182,7 @@ const styles = css`
 	}
 	button:focus-visible {
 		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
-		outline-offset: calc(var(--violet-size-space-xs) * -1);
+		outline-offset: calc(var(--violet-space-inline-hairline) * -1);
 	}
 	.panel {
 		position: relative;
@@ -194,9 +194,9 @@ const styles = css`
 	.menu {
 		position-area: block-end span-inline-end;
 		margin: 0;
-		padding: var(--violet-size-space-xs);
+		padding: var(--violet-space-inline-hairline);
 		border: 1px solid transparent;
-		border-radius: var(--violet-radius-lg);
+		border-radius: var(--violet-radius-floating);
 		background: var(--violet-color-surface-floating);
 		box-shadow: var(--violet-shadow-floating);
 		color: var(--violet-color-text-primary);
@@ -208,7 +208,7 @@ const styles = css`
 	}
 	.menu button {
 		justify-content: start;
-		padding-inline: var(--violet-space-inline-md);
+		padding-inline: var(--violet-space-inline-group);
 		color: var(--violet-color-text-primary);
 	}
 	@media (prefers-reduced-motion: reduce) {

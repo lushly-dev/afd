@@ -45,7 +45,7 @@ const layoutDefaults = {
 describe('the component token export (2.4)', () => {
 	it('holds every component id, and no shell id, per theme at comfortable density', () => {
 		const { componentExport } = outputs;
-		expect(componentExport.contractVersion).toBe(1);
+		expect(componentExport.contractVersion).toBe(2);
 		expect(componentExport.source).toBe('loam');
 		expect(Object.keys(componentExport.presets)).toEqual([...THEMES]);
 		for (const theme of THEMES) {
@@ -107,8 +107,8 @@ describe('the fallback scan (2.4)', () => {
 			'  box-shadow: var(--violet-shadow-card, 0 1px 2px rgba(1, 2, 3, 0.1),',
 			'    0 5px 10px rgba(1, 2, 3, 0.2));',
 			'  border: var(--violet-color-border-subtle, var(--violet-color-border-strong, #fff));',
-			'  padding: var(--violet-space-inline-sm, ${gap});',
-			'  margin: var(--violet-space-inline-md); }',
+			'  padding: var(--violet-space-inline-tight, ${gap});',
+			'  margin: var(--violet-space-inline-group); }',
 		].join('\n');
 		expect(
 			findFallbacks(text).map(({ property, literal, line }) => [property, literal, line])
@@ -128,7 +128,7 @@ describe('the fallback scan (2.4)', () => {
 		const text = [
 			'color: var(--violet-color-text-primary, #18181B);',
 			'color: var(--violet-color-text-muted, #6b7280);',
-			'radius: var(--violet-radius-md,  8px );',
+			'radius: var(--violet-radius-control,  8px );',
 			'local: var(--_private, 9px);',
 			'shell: var(--violet-shell-size-titlebar, 99px);',
 		].join('\n');
@@ -247,7 +247,7 @@ describe("violet-elements' token interface", () => {
 						property: '--violet-shell-size-sidebar-default',
 						type: 'dimension',
 					},
-					'radius.sm': { property: '--violet-radius-sm', type: 'number' },
+					'radius.inset': { property: '--violet-radius-inset', type: 'number' },
 				},
 			},
 			outputs.contract
@@ -256,7 +256,7 @@ describe("violet-elements' token interface", () => {
 		expect(errors[0]).toMatch(/contractVersion 2\) lists 'color\.brand\.glow'/);
 		expect(errors[1]).toMatch(/'shell\.size\.sidebar\.default', which Loam's tree does not supply/);
 		expect(errors[2]).toBe(
-			"interface.json lists 'radius.sm' as --violet-radius-sm (number), Loam's contract as --violet-radius-sm (dimension)"
+			"interface.json lists 'radius.inset' as --violet-radius-inset (number), Loam's contract as --violet-radius-inset (dimension)"
 		);
 		expect(compareInterface({ tokens: {} }, outputs.contract)).toHaveLength(1);
 	});
@@ -297,7 +297,7 @@ describe('theme:check with the component paths', () => {
 		]);
 		const report = await checkTheme(contractUrl, { outputs, components, layoutDefaults });
 		expect(report.errors).toEqual([]);
-		expect(report.notes).toEqual([]);
+		expect(report.notes.filter((note) => !/^(?:warning|info): /.test(note))).toEqual([]);
 	});
 
 	it('fails on a drifted fallback and on a stale export', async () => {

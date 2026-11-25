@@ -487,25 +487,25 @@ const own = css`
 		flex: 1 1 auto;
 		min-block-size: 0;
 		overflow: auto;
-		padding: var(--violet-space-layout-md);
+		padding: var(--violet-space-layout-page);
 	}
 	.section {
 		display: grid;
-		gap: var(--violet-space-stack-md);
+		gap: var(--violet-space-stack-section);
 	}
 	.read-failure:not([hidden]) {
-		margin-block-start: var(--violet-space-stack-md);
+		margin-block-start: var(--violet-space-stack-section);
 	}
 	.more:not([hidden]) {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: var(--violet-space-inline-md);
+		gap: var(--violet-space-inline-group);
 	}
 	.new:not([hidden]) {
 		display: flex;
 		flex-wrap: wrap;
-		gap: var(--violet-space-inline-sm);
+		gap: var(--violet-space-inline-tight);
 	}
 `;
 

@@ -12,10 +12,10 @@ const cardTemplate = html<HelloCard>`<slot></slot>`;
 const cardStyles = css`
 	:host {
 		display: block;
-		padding: var(--violet-space-layout-sm);
+		padding: var(--violet-space-layout-panel);
 		/* A card is a surface step with the card shadow, no drawn edge (Refined, D159); forced colors draws the border. */
 		border: 1px solid transparent;
-		border-radius: var(--violet-radius-lg);
+		border-radius: var(--violet-radius-floating);
 		background: var(--violet-color-surface-card);
 		box-shadow: var(--violet-shadow-card);
 		color: var(--violet-color-text-primary);
@@ -59,15 +59,15 @@ const mainTemplate = html<HelloMain>`
 const mainStyles = css`
 	:host {
 		display: grid;
-		gap: var(--violet-space-stack-md);
+		gap: var(--violet-space-stack-section);
 		align-content: start;
-		padding: var(--violet-space-layout-md);
+		padding: var(--violet-space-layout-page);
 	}
 	h1 {
 		margin: 0;
-		font-size: var(--violet-type-title-md-size);
-		line-height: var(--violet-type-title-md-line);
-		font-weight: var(--violet-type-title-md-weight);
+		font-size: var(--violet-type-heading-page-size);
+		line-height: var(--violet-type-heading-page-line);
+		font-weight: var(--violet-type-heading-page-weight);
 	}
 	p {
 		margin: 0;
@@ -78,7 +78,7 @@ const mainStyles = css`
 		display: flex;
 		flex-wrap: wrap;
 		align-items: end;
-		gap: var(--violet-space-inline-sm);
+		gap: var(--violet-space-inline-tight);
 	}
 	@media (forced-colors: active) {
 		p {

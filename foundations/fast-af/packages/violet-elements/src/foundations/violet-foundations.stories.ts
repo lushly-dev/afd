@@ -113,9 +113,9 @@ const rawPaletteProposal = parseJsoncText<RawPaletteProposal>(rawPaletteProposal
 const rawPaletteEntries = rawPaletteProposal.rawPalette;
 
 const radiusOrder = new Map([
-  ["radius.sm", 0],
-  ["radius.md", 1],
-  ["radius.lg", 2],
+  ["radius.inset", 0],
+  ["radius.control", 1],
+  ["radius.floating", 2],
   ["radius.round", 3],
 ]);
 
@@ -151,36 +151,15 @@ const targetRampTokens = violetTokenRegistry.tokens
     return left.id.localeCompare(right.id);
   });
 
-const spacingScaleOrder = new Map([
-  ["size.space.xs", 0],
-  ["size.space.sm", 1],
-  ["size.space.md", 2],
-  ["size.space.lg", 3],
-  ["size.space.xl", 4],
-]);
-
-const spacingRampTokens = violetTokenRegistry.tokens
-  .filter((token) => token.id.startsWith("size.space."))
-  .sort((left, right) => {
-    const leftRank = spacingScaleOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER;
-    const rightRank = spacingScaleOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER;
-
-    if (leftRank !== rightRank) {
-      return leftRank - rightRank;
-    }
-
-    return left.id.localeCompare(right.id);
-  });
-
 const spacingSemanticOrder = new Map([
-  ["space.inline.sm", 0],
-  ["space.inline.md", 1],
-  ["space.inline.lg", 2],
-  ["space.stack.xs", 3],
-  ["space.stack.sm", 4],
-  ["space.stack.md", 5],
-  ["space.layout.sm", 6],
-  ["space.layout.md", 7],
+  ["space.inline.hairline", 0],
+  ["space.inline.tight", 1],
+  ["space.inline.group", 2],
+  ["space.stack.tight", 3],
+  ["space.stack.group", 4],
+  ["space.stack.section", 5],
+  ["space.layout.panel", 6],
+  ["space.layout.page", 7],
 ]);
 
 const spacingSemanticTokens = violetTokenRegistry.tokens
@@ -195,6 +174,8 @@ const spacingSemanticTokens = violetTokenRegistry.tokens
 
     return left.id.localeCompare(right.id);
   });
+
+const spacingRampTokens = spacingSemanticTokens;
 
 const surfaceOrder = new Map([
   ["color.surface.page", 0],
@@ -364,15 +345,15 @@ const fontFamilyTokens = violetTokenRegistry.tokens
   });
 
 const fontScaleOrder = new Map([
-  ["size.font.xs", 0],
-  ["size.font.sm", 1],
-  ["size.font.md", 2],
-  ["size.font.lg", 3],
-  ["size.font.xl", 4],
+  ["type.caption.size", 0],
+  ["type.label.size", 1],
+  ["type.body.size", 2],
+  ["type.heading.section.size", 3],
+  ["type.heading.page.size", 4],
 ]);
 
 const fontScaleTokens = violetTokenRegistry.tokens
-  .filter((token) => token.id.startsWith("size.font."))
+  .filter((token) => token.id.startsWith("type.") && token.id.endsWith(".size"))
   .sort((left, right) => {
     const leftRank = fontScaleOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER;
     const rightRank = fontScaleOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER;
@@ -385,15 +366,15 @@ const fontScaleTokens = violetTokenRegistry.tokens
   });
 
 const lineScaleOrder = new Map([
-  ["size.line.xs", 0],
-  ["size.line.sm", 1],
-  ["size.line.md", 2],
-  ["size.line.lg", 3],
-  ["size.line.xl", 4],
+  ["type.caption.line", 0],
+  ["type.label.line", 1],
+  ["type.body.line", 2],
+  ["type.heading.section.line", 3],
+  ["type.heading.page.line", 4],
 ]);
 
 const lineScaleTokens = violetTokenRegistry.tokens
-  .filter((token) => token.id.startsWith("size.line."))
+  .filter((token) => token.id.startsWith("type.") && token.id.endsWith(".line"))
   .sort((left, right) => {
     const leftRank = lineScaleOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER;
     const rightRank = lineScaleOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER;
@@ -843,17 +824,17 @@ function renderAppliedSystem(): HTMLElement {
       .tab-row {
         display: flex;
         flex-wrap: wrap;
-        gap: var(--violet-space-inline-sm, 4px);
+        gap: var(--violet-space-inline-tight, 4px);
         align-items: center;
       }
 
       .button {
         display: inline-flex;
         align-items: center;
-        gap: var(--violet-space-inline-sm, 4px);
+        gap: var(--violet-space-inline-tight, 4px);
         min-block-size: 2.5rem;
         padding: 0 1rem;
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         border: 1px solid var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
         background: var(--violet-color-surface-card, #f8f9f3);
         color: var(--violet-color-text-primary, #181b1a);
@@ -867,14 +848,14 @@ function renderAppliedSystem(): HTMLElement {
 
       .field {
         display: grid;
-        gap: var(--violet-space-stack-xs, 4px);
+        gap: var(--violet-space-stack-tight, 4px);
       }
 
       .text-field {
         inline-size: min(100%, 22rem);
         min-block-size: 2.75rem;
         padding: 0 0.95rem;
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         border: 1px solid var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
         background: var(--violet-color-surface-page, #f4f0ea);
         color: var(--violet-color-text-primary, #181b1a);
@@ -884,7 +865,7 @@ function renderAppliedSystem(): HTMLElement {
       .choice {
         display: inline-flex;
         align-items: center;
-        gap: var(--violet-space-inline-sm, 4px);
+        gap: var(--violet-space-inline-tight, 4px);
       }
 
       .choice input {
@@ -919,7 +900,7 @@ function renderAppliedSystem(): HTMLElement {
 
       .tab {
         padding: 0.6rem 0.85rem;
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         color: var(--violet-color-text-secondary, #48534b);
       }
 
@@ -952,7 +933,7 @@ function renderAppliedSystem(): HTMLElement {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: var(--violet-space-inline-md, 8px);
+        gap: var(--violet-space-inline-group, 8px);
         padding: 0.7rem 0.8rem;
         border-radius: 12px;
       }
@@ -1318,7 +1299,7 @@ function renderRadiusLab(): HTMLElement {
         gap: 0.75rem;
         padding: 0.8rem;
         border: 1px solid #e2e6ed;
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         background: var(--violet-color-surface-card, #f8f9f3);
       }
 
@@ -1331,10 +1312,10 @@ function renderRadiusLab(): HTMLElement {
       .button {
         display: inline-flex;
         align-items: center;
-        gap: var(--violet-space-inline-sm, 4px);
+        gap: var(--violet-space-inline-tight, 4px);
         min-block-size: 2.15rem;
         padding: 0 0.8rem;
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         border: 1px solid var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
         background: var(--violet-color-surface-card, #f8f9f3);
         color: var(--violet-color-text-primary, #181b1a);
@@ -1350,7 +1331,7 @@ function renderRadiusLab(): HTMLElement {
         inline-size: 8rem;
         min-block-size: 2rem;
         padding: 0 0.65rem;
-        border-radius: var(--violet-radius-sm, 4px);
+        border-radius: var(--violet-radius-inset, 4px);
         border: 1px solid var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
         background: var(--violet-color-surface-card, #f8f9f3);
         color: var(--violet-color-text-primary, #181b1a);
@@ -1360,7 +1341,7 @@ function renderRadiusLab(): HTMLElement {
       .chip-row {
         display: flex;
         flex-wrap: wrap;
-        gap: var(--violet-space-inline-sm, 4px);
+        gap: var(--violet-space-inline-tight, 4px);
       }
 
       .chip {
@@ -1369,7 +1350,7 @@ function renderRadiusLab(): HTMLElement {
         justify-content: center;
         min-block-size: 1.8rem;
         padding: 0 0.65rem;
-        border-radius: var(--violet-radius-sm, 4px);
+        border-radius: var(--violet-radius-inset, 4px);
         border: 1px solid var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
         background: var(--violet-color-surface-page, #f4f0ea);
         font-size: 0.82rem;
@@ -1419,15 +1400,15 @@ function renderRadiusLab(): HTMLElement {
       }
 
       .shape-card {
-        border-radius: var(--violet-radius-lg, 12px);
+        border-radius: var(--violet-radius-floating, 12px);
       }
 
       .shape-panel {
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
       }
 
       .shape-menu {
-        border-radius: var(--violet-radius-lg, 12px);
+        border-radius: var(--violet-radius-floating, 12px);
         box-shadow: var(--violet-shadow-floating, 0 0 0 1px rgba(24, 27, 26, 0.08), 0 4px 12px -2px rgba(24, 27, 26, 0.12), 0 18px 40px -8px rgba(24, 27, 26, 0.20));
       }
 
@@ -1864,7 +1845,7 @@ function renderSpacingLab(): HTMLElement {
         gap: 0.75rem;
         padding: 0.8rem;
         border: 1px solid #e2e6ed;
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         background: var(--violet-color-surface-page, #f4f0ea);
       }
 
@@ -1874,7 +1855,7 @@ function renderSpacingLab(): HTMLElement {
         justify-content: center;
         min-block-size: 2rem;
         padding: 0 0.75rem;
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         border: 1px solid var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
         background: var(--violet-color-surface-card, #f8f9f3);
         color: var(--violet-color-text-primary, #181b1a);
@@ -1892,11 +1873,11 @@ function renderSpacingLab(): HTMLElement {
       }
 
       .inline-row-sm {
-        gap: var(--violet-space-inline-sm, 4px);
+        gap: var(--violet-space-inline-tight, 4px);
       }
 
       .inline-row-md {
-        gap: var(--violet-space-inline-md, 8px);
+        gap: var(--violet-space-inline-group, 8px);
       }
 
       .stack-xs,
@@ -1905,18 +1886,18 @@ function renderSpacingLab(): HTMLElement {
       }
 
       .stack-xs {
-        gap: var(--violet-space-stack-xs, 4px);
+        gap: var(--violet-space-stack-tight, 4px);
       }
 
       .stack-sm {
-        gap: var(--violet-space-stack-sm, 8px);
+        gap: var(--violet-space-stack-group, 8px);
       }
 
       .spacing-card {
         display: grid;
         padding: 0.85rem;
         border: 1px solid #e2e6ed;
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         background: var(--violet-color-surface-card, #f8f9f3);
       }
 
@@ -2011,9 +1992,9 @@ function renderSpacingLab(): HTMLElement {
 
               <div class="shape-row stack-sm">
                 <h3>Layout spacing</h3>
-                <div class="spacing-card" style="display:grid; gap: var(--violet-space-layout-sm, 12px);">
+                <div class="spacing-card" style="display:grid; gap: var(--violet-space-layout-panel, 12px);">
                   <div class="spacing-card" style="padding: 0.7rem;">Compact region</div>
-                  <div class="spacing-card" style="padding: 0.7rem; gap: var(--violet-space-layout-md, 24px); display:grid;">
+                  <div class="spacing-card" style="padding: 0.7rem; gap: var(--violet-space-layout-page, 24px); display:grid;">
                     <div class="mini-label">Major region</div>
                     <div class="mini-copy">Layout spacing should read larger than component stack spacing.</div>
                   </div>
@@ -2339,7 +2320,7 @@ function renderDensityLab(): HTMLElement {
         gap: 0.75rem;
         padding: 0.8rem;
         border: 1px solid #e2e6ed;
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         background: var(--violet-color-surface-page, #f4f0ea);
       }
 
@@ -2348,32 +2329,32 @@ function renderDensityLab(): HTMLElement {
         gap: 0.6rem;
         padding: 0.8rem;
         border: 1px solid rgba(24, 27, 26, 0.08);
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         background: var(--violet-color-surface-card, #f8f9f3);
       }
 
       .density-row[data-density="compact"] {
         --violet-target-size: var(--violet-size-target-compact);
-        --violet-control-type-size: calc(var(--violet-type-body-md-size, 14px) - 1px);
-        --violet-control-label-size: calc(var(--violet-type-label-sm-size, 13px) - 1px);
-        --violet-control-body-size: calc(var(--violet-type-body-md-size, 14px) - 1px);
-        --violet-control-caption-size: calc(var(--violet-type-caption-xs-size, 12px) - 1px);
+        --violet-control-type-size: calc(var(--violet-type-body-size, 14px) - 1px);
+        --violet-control-label-size: calc(var(--violet-type-label-size, 13px) - 1px);
+        --violet-control-body-size: calc(var(--violet-type-body-size, 14px) - 1px);
+        --violet-control-caption-size: calc(var(--violet-type-caption-size, 12px) - 1px);
       }
 
       .density-row[data-density="natural"] {
         --violet-target-size: var(--violet-size-target-natural);
-        --violet-control-type-size: var(--violet-type-body-md-size, 14px);
-        --violet-control-label-size: var(--violet-type-label-sm-size, 13px);
-        --violet-control-body-size: var(--violet-type-body-md-size, 14px);
-        --violet-control-caption-size: var(--violet-type-caption-xs-size, 12px);
+        --violet-control-type-size: var(--violet-type-body-size, 14px);
+        --violet-control-label-size: var(--violet-type-label-size, 13px);
+        --violet-control-body-size: var(--violet-type-body-size, 14px);
+        --violet-control-caption-size: var(--violet-type-caption-size, 12px);
       }
 
       .density-row[data-density="comfortable"] {
         --violet-target-size: var(--violet-size-target-comfortable);
-        --violet-control-type-size: var(--violet-type-body-md-size, 14px);
-        --violet-control-label-size: var(--violet-type-label-sm-size, 13px);
-        --violet-control-body-size: var(--violet-type-body-md-size, 14px);
-        --violet-control-caption-size: var(--violet-type-caption-xs-size, 12px);
+        --violet-control-type-size: var(--violet-type-body-size, 14px);
+        --violet-control-label-size: var(--violet-type-label-size, 13px);
+        --violet-control-body-size: var(--violet-type-body-size, 14px);
+        --violet-control-caption-size: var(--violet-type-caption-size, 12px);
       }
 
       .density-head {
@@ -2400,13 +2381,13 @@ function renderDensityLab(): HTMLElement {
         gap: 0.5rem;
         padding: 0.8rem;
         border: 1px dashed rgba(24, 27, 26, 0.16);
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         background: rgba(255, 255, 255, 0.55);
       }
 
       .pointer-chip-row {
         display: flex;
-        gap: var(--violet-space-inline-sm);
+        gap: var(--violet-space-inline-tight);
         flex-wrap: wrap;
       }
 
@@ -2845,19 +2826,19 @@ function renderTypographyLab(): HTMLElement {
 
       .preview-stage {
         display: grid;
-        gap: var(--violet-space-layout-sm, 12px);
+        gap: var(--violet-space-layout-panel, 12px);
         padding: 0.9rem;
         border: 1px solid #e2e6ed;
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         background: var(--violet-color-surface-page, #f4f0ea);
       }
 
       .preview-block {
         display: grid;
-        gap: var(--violet-space-stack-xs, 4px);
+        gap: var(--violet-space-stack-tight, 4px);
         padding: 0.85rem;
         border: 1px solid #e6e9ef;
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         background: var(--violet-color-surface-card, #f8f9f3);
       }
 
@@ -2868,9 +2849,9 @@ function renderTypographyLab(): HTMLElement {
 
       .type-caption {
         font-family: var(--font-family-eyebrow);
-        font-size: var(--violet-type-caption-xs-size);
-        line-height: var(--violet-type-caption-xs-line);
-        font-weight: var(--violet-type-caption-xs-weight);
+        font-size: var(--violet-type-caption-size);
+        line-height: var(--violet-type-caption-line);
+        font-weight: var(--violet-type-caption-weight);
         color: var(--violet-color-text-secondary, #48534b);
         text-transform: uppercase;
         letter-spacing: 0.14em;
@@ -2878,16 +2859,16 @@ function renderTypographyLab(): HTMLElement {
 
       .type-label {
         font-family: var(--violet-font-family-body);
-        font-size: var(--violet-type-label-sm-size);
-        line-height: var(--violet-type-label-sm-line);
-        font-weight: var(--violet-type-label-sm-weight);
+        font-size: var(--violet-type-label-size);
+        line-height: var(--violet-type-label-line);
+        font-weight: var(--violet-type-label-weight);
       }
 
       .type-body {
         font-family: var(--violet-font-family-body);
-        font-size: var(--violet-type-body-md-size);
-        line-height: var(--violet-type-body-md-line);
-        font-weight: var(--violet-type-body-md-weight);
+        font-size: var(--violet-type-body-size);
+        line-height: var(--violet-type-body-line);
+        font-weight: var(--violet-type-body-weight);
       }
 
       .type-title-sm,
@@ -2897,28 +2878,28 @@ function renderTypographyLab(): HTMLElement {
       }
 
       .type-title-sm {
-        font-size: var(--violet-type-title-sm-size);
-        line-height: var(--violet-type-title-sm-line);
-        font-weight: var(--violet-type-title-sm-weight);
+        font-size: var(--violet-type-heading-section-size);
+        line-height: var(--violet-type-heading-section-line);
+        font-weight: var(--violet-type-heading-section-weight);
       }
 
       .type-title-md {
-        font-size: var(--violet-type-title-md-size);
-        line-height: var(--violet-type-title-md-line);
-        font-weight: var(--violet-type-title-md-weight);
+        font-size: var(--violet-type-heading-page-size);
+        line-height: var(--violet-type-heading-page-line);
+        font-weight: var(--violet-type-heading-page-weight);
       }
 
       .type-mono {
         font-family: var(--violet-font-family-mono);
-        font-size: var(--violet-type-label-sm-size);
-        line-height: var(--violet-type-label-sm-line);
+        font-size: var(--violet-type-label-size);
+        line-height: var(--violet-type-label-line);
         font-weight: var(--violet-weight-medium, 500);
         color: var(--violet-color-text-secondary, #48534b);
       }
 
       .meta-row {
         display: flex;
-        gap: var(--violet-space-inline-sm, 4px);
+        gap: var(--violet-space-inline-tight, 4px);
         flex-wrap: wrap;
       }
 
@@ -2931,23 +2912,23 @@ function renderTypographyLab(): HTMLElement {
         background: var(--violet-color-surface-subtle, #e9e5de);
         color: var(--violet-color-text-secondary, #48534b);
         font-family: var(--violet-font-family-mono);
-        font-size: var(--violet-type-caption-xs-size);
-        line-height: var(--violet-type-caption-xs-line);
-        font-weight: var(--violet-type-caption-xs-weight);
+        font-size: var(--violet-type-caption-size);
+        line-height: var(--violet-type-caption-line);
+        font-weight: var(--violet-type-caption-weight);
       }
 
       .mono-panel {
         display: grid;
-        gap: var(--violet-space-stack-xs, 4px);
+        gap: var(--violet-space-stack-tight, 4px);
         padding: 0.75rem;
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         background: var(--violet-color-surface-subtle, #e9e5de);
       }
 
       .mono-code {
         font-family: var(--violet-font-family-mono);
-        font-size: var(--violet-type-caption-xs-size);
-        line-height: var(--violet-type-caption-xs-line);
+        font-size: var(--violet-type-caption-size);
+        line-height: var(--violet-type-caption-line);
         font-weight: var(--violet-weight-medium, 500);
         white-space: pre-wrap;
         color: var(--violet-color-text-primary, #181b1a);
@@ -3382,43 +3363,43 @@ function renderSurfaceLab(): HTMLElement {
 
       .surface-stage {
         display: grid;
-        gap: var(--violet-space-stack-sm, 8px);
+        gap: var(--violet-space-stack-group, 8px);
         padding: 0.9rem;
         border: 1px solid #e2e6ed;
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         background: var(--violet-color-surface-page, #f4f0ea);
       }
 
       .surface-card {
         display: grid;
-        gap: var(--violet-space-stack-xs, 4px);
+        gap: var(--violet-space-stack-tight, 4px);
         padding: 0.9rem;
         border: 1px solid #e2e6ed;
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         background: var(--violet-color-surface-card, #f8f9f3);
       }
 
       .surface-subtle {
         display: grid;
-        gap: var(--violet-space-stack-xs, 4px);
+        gap: var(--violet-space-stack-tight, 4px);
         padding: 0.75rem;
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         background: var(--violet-color-surface-subtle, #e9e5de);
       }
 
       .surface-selected {
         display: grid;
-        gap: var(--violet-space-stack-xs, 4px);
+        gap: var(--violet-space-stack-tight, 4px);
         padding: 0.75rem;
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         background: var(--violet-color-surface-selected, #dfecf4);
       }
 
       .surface-floating {
         display: grid;
-        gap: var(--violet-space-stack-xs, 4px);
+        gap: var(--violet-space-stack-tight, 4px);
         padding: 0.85rem;
-        border-radius: var(--violet-radius-lg, 12px);
+        border-radius: var(--violet-radius-floating, 12px);
         border: 1px solid #e2e6ed;
         background: var(--violet-color-surface-floating, #ffffff);
         box-shadow: var(--violet-shadow-floating, 0 0 0 1px rgba(24, 27, 26, 0.08), 0 4px 12px -2px rgba(24, 27, 26, 0.12), 0 18px 40px -8px rgba(24, 27, 26, 0.20));
@@ -3438,7 +3419,7 @@ function renderSurfaceLab(): HTMLElement {
 
       .surface-layout {
         display: grid;
-        gap: var(--violet-space-layout-sm, 12px);
+        gap: var(--violet-space-layout-panel, 12px);
       }
 
       @container (min-width: 56rem) {
@@ -3848,18 +3829,18 @@ function renderTextAndStructureLab(): HTMLElement {
 
       .preview-stage {
         display: grid;
-        gap: var(--violet-space-layout-sm, 12px);
+        gap: var(--violet-space-layout-panel, 12px);
         padding: 0.9rem;
         border: 1px solid #e2e6ed;
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         background: var(--violet-color-surface-page, #f4f0ea);
       }
 
       .preview-block {
         display: grid;
-        gap: var(--violet-space-stack-xs, 4px);
+        gap: var(--violet-space-stack-tight, 4px);
         padding: 0.85rem;
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         background: var(--violet-color-surface-card, #f8f9f3);
       }
 
@@ -3869,39 +3850,39 @@ function renderTextAndStructureLab(): HTMLElement {
 
       .text-heading {
         font-family: var(--font-family-title);
-        font-size: var(--violet-type-title-sm-size, 18px);
-        line-height: var(--violet-type-title-sm-line, 24px);
-        font-weight: var(--violet-type-title-sm-weight, 600);
+        font-size: var(--violet-type-heading-section-size, 18px);
+        line-height: var(--violet-type-heading-section-line, 24px);
+        font-weight: var(--violet-type-heading-section-weight, 600);
         color: var(--violet-color-text-primary, #181b1a);
       }
 
       .text-body {
         font-family: var(--violet-font-family-body);
-        font-size: var(--violet-type-body-md-size, 14px);
-        line-height: var(--violet-type-body-md-line, 20px);
-        font-weight: var(--violet-type-body-md-weight, 400);
+        font-size: var(--violet-type-body-size, 14px);
+        line-height: var(--violet-type-body-line, 20px);
+        font-weight: var(--violet-type-body-weight, 400);
         color: var(--violet-color-text-primary, #181b1a);
       }
 
       .text-secondary {
         font-family: var(--violet-font-family-body);
-        font-size: var(--violet-type-body-md-size, 14px);
-        line-height: var(--violet-type-body-md-line, 20px);
+        font-size: var(--violet-type-body-size, 14px);
+        line-height: var(--violet-type-body-line, 20px);
         color: var(--violet-color-text-secondary, #48534b);
       }
 
       .text-muted {
         font-family: var(--violet-font-family-body);
-        font-size: var(--violet-type-caption-xs-size, 12px);
-        line-height: var(--violet-type-caption-xs-line, 16px);
+        font-size: var(--violet-type-caption-size, 12px);
+        line-height: var(--violet-type-caption-line, 16px);
         color: var(--violet-color-text-muted, #5e6460);
       }
 
       .eyebrow {
         font-family: var(--font-family-eyebrow);
-        font-size: var(--violet-type-caption-xs-size, 12px);
-        line-height: var(--violet-type-caption-xs-line, 16px);
-        font-weight: var(--violet-type-caption-xs-weight, 400);
+        font-size: var(--violet-type-caption-size, 12px);
+        line-height: var(--violet-type-caption-line, 16px);
+        font-weight: var(--violet-type-caption-weight, 400);
         letter-spacing: 0.14em;
         text-transform: uppercase;
         color: var(--violet-color-text-secondary, #48534b);
@@ -3909,7 +3890,7 @@ function renderTextAndStructureLab(): HTMLElement {
 
       .structure-stack {
         display: grid;
-        gap: var(--violet-space-stack-sm, 8px);
+        gap: var(--violet-space-stack-group, 8px);
       }
 
       .rule-subtle,
@@ -3928,19 +3909,19 @@ function renderTextAndStructureLab(): HTMLElement {
 
       .selected-row {
         display: grid;
-        gap: var(--violet-space-stack-xs, 4px);
+        gap: var(--violet-space-stack-tight, 4px);
         padding: 0.75rem;
         border: 1px solid var(--violet-color-border-strong, #6b7d6e);
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         background: var(--violet-color-surface-selected, #dfecf4);
       }
 
       .focused-field {
         display: grid;
-        gap: var(--violet-space-stack-xs, 4px);
+        gap: var(--violet-space-stack-tight, 4px);
         padding: 0.7rem 0.75rem;
         border: 1px solid var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         background: var(--violet-color-surface-card, #f8f9f3);
         box-shadow: 0 0 0 2px var(--violet-color-focus-ring, #28769e);
       }
@@ -3955,8 +3936,8 @@ function renderTextAndStructureLab(): HTMLElement {
         background: var(--violet-color-surface-subtle, #e9e5de);
         color: var(--violet-color-text-secondary, #48534b);
         font-family: var(--violet-font-family-mono);
-        font-size: var(--violet-type-caption-xs-size, 12px);
-        line-height: var(--violet-type-caption-xs-line, 16px);
+        font-size: var(--violet-type-caption-size, 12px);
+        line-height: var(--violet-type-caption-line, 16px);
         font-weight: 500;
       }
 
@@ -4382,9 +4363,9 @@ function renderElevationLab(): HTMLElement {
 
       .preview-stage {
         display: grid;
-        gap: var(--violet-space-layout-sm, 12px);
+        gap: var(--violet-space-layout-panel, 12px);
         padding: 1rem;
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         background: var(--violet-color-surface-page, #f4f0ea);
         background: linear-gradient(180deg, var(--violet-color-surface-card, #f8f9f3) 0%, var(--violet-color-surface-page, #f4f0ea) 100%);
       }
@@ -4393,10 +4374,10 @@ function renderElevationLab(): HTMLElement {
       .elevation-floating,
       .elevation-control {
         display: grid;
-        gap: var(--violet-space-stack-xs, 4px);
+        gap: var(--violet-space-stack-tight, 4px);
         padding: 0.95rem;
         border: 1px solid var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         background: var(--violet-color-surface-card, #f8f9f3);
       }
 
@@ -4417,35 +4398,35 @@ function renderElevationLab(): HTMLElement {
 
       .elevation-stack {
         display: grid;
-        gap: var(--violet-space-layout-sm, 12px);
+        gap: var(--violet-space-layout-panel, 12px);
       }
 
       .text-heading {
         font-family: var(--font-family-title);
-        font-size: var(--violet-type-title-sm-size, 18px);
-        line-height: var(--violet-type-title-sm-line, 24px);
-        font-weight: var(--violet-type-title-sm-weight, 600);
+        font-size: var(--violet-type-heading-section-size, 18px);
+        line-height: var(--violet-type-heading-section-line, 24px);
+        font-weight: var(--violet-type-heading-section-weight, 600);
         color: var(--violet-color-text-primary, #181b1a);
       }
 
       .text-body {
         font-family: var(--violet-font-family-body);
-        font-size: var(--violet-type-body-md-size, 14px);
-        line-height: var(--violet-type-body-md-line, 20px);
+        font-size: var(--violet-type-body-size, 14px);
+        line-height: var(--violet-type-body-line, 20px);
         color: var(--violet-color-text-secondary, #48534b);
       }
 
       .surface-note {
         font-family: var(--violet-font-family-body);
-        font-size: var(--violet-type-caption-xs-size, 12px);
-        line-height: var(--violet-type-caption-xs-line, 16px);
+        font-size: var(--violet-type-caption-size, 12px);
+        line-height: var(--violet-type-caption-line, 16px);
         color: var(--violet-color-text-muted, #5e6460);
       }
 
       .control-strip {
         display: flex;
         flex-wrap: wrap;
-        gap: var(--violet-space-inline-sm, 4px);
+        gap: var(--violet-space-inline-tight, 4px);
       }
 
       .control-button,
@@ -4457,13 +4438,13 @@ function renderElevationLab(): HTMLElement {
         min-block-size: 2.3rem;
         padding: 0.55rem 0.82rem;
         border: 1px solid var(--violet-color-border-subtle, rgba(24, 27, 26, 0.10));
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         background: var(--violet-color-surface-card, #f8f9f3);
         color: var(--violet-color-text-primary, #181b1a);
         box-shadow: var(--violet-shadow-control);
         font-family: var(--violet-font-family-body);
-        font-size: var(--violet-type-body-md-size, 14px);
-        line-height: var(--violet-type-body-md-line, 20px);
+        font-size: var(--violet-type-body-size, 14px);
+        line-height: var(--violet-type-body-line, 20px);
       }
 
       .control-chip {
@@ -4893,9 +4874,9 @@ function renderMotionLab(): HTMLElement {
 
       .preview-stage {
         display: grid;
-        gap: var(--violet-space-layout-sm, 12px);
+        gap: var(--violet-space-layout-panel, 12px);
         padding: 1rem;
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         background: var(--violet-color-surface-page, #f4f0ea);
         min-inline-size: 0;
       }
@@ -4904,7 +4885,7 @@ function renderMotionLab(): HTMLElement {
       .motion-tab-row {
         display: flex;
         flex-wrap: wrap;
-        gap: var(--violet-space-inline-sm, 4px);
+        gap: var(--violet-space-inline-tight, 4px);
       }
 
       .motion-button,
@@ -4914,11 +4895,11 @@ function renderMotionLab(): HTMLElement {
         justify-content: center;
         min-block-size: 2.35rem;
         padding: 0.55rem 0.88rem;
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         border: 1px solid transparent;
         font-family: var(--violet-font-family-body);
-        font-size: var(--violet-type-body-md-size, 14px);
-        line-height: var(--violet-type-body-md-line, 20px);
+        font-size: var(--violet-type-body-size, 14px);
+        line-height: var(--violet-type-body-line, 20px);
         transition:
           transform var(--violet-duration-fast, 120ms) var(--violet-easing-standard, cubic-bezier(0.2, 0, 0, 1)),
           box-shadow var(--violet-duration-base, 180ms) var(--violet-easing-standard, cubic-bezier(0.2, 0, 0, 1)),
@@ -4947,7 +4928,7 @@ function renderMotionLab(): HTMLElement {
 
       .focus-shell {
         display: grid;
-        gap: var(--violet-space-stack-xs, 4px);
+        gap: var(--violet-space-stack-tight, 4px);
       }
 
       .focus-field {
@@ -4955,7 +4936,7 @@ function renderMotionLab(): HTMLElement {
         align-items: center;
         min-block-size: 2.7rem;
         padding: 0.72rem 0.85rem;
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         border: 1px solid var(--violet-color-field-border);
         background: var(--violet-color-field-background);
         transition:
@@ -4990,7 +4971,7 @@ function renderMotionLab(): HTMLElement {
         gap: 0.4rem;
         max-inline-size: 16rem;
         padding: 0.85rem;
-        border-radius: var(--violet-radius-lg, 12px);
+        border-radius: var(--violet-radius-floating, 12px);
         background: var(--violet-color-surface-floating);
         box-shadow: var(--violet-shadow-floating);
         opacity: 0;
@@ -5003,7 +4984,7 @@ function renderMotionLab(): HTMLElement {
 
       .menu-item {
         padding: 0.58rem 0.72rem;
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         background: #fff;
         border: 1px solid var(--violet-color-border-subtle);
       }
@@ -5018,7 +4999,7 @@ function renderMotionLab(): HTMLElement {
         block-size: 12rem;
         overflow: auto;
         border: 1px solid var(--violet-color-border-subtle);
-        border-radius: var(--violet-radius-lg, 12px);
+        border-radius: var(--violet-radius-floating, 12px);
         background: var(--violet-color-surface-card);
       }
 
@@ -5046,21 +5027,21 @@ function renderMotionLab(): HTMLElement {
 
       .scroll-content {
         display: grid;
-        gap: var(--violet-space-stack-sm, 8px);
+        gap: var(--violet-space-stack-group, 8px);
         padding: 0.8rem;
       }
 
       .scroll-item {
         padding: 0.72rem 0.78rem;
         border: 1px solid var(--violet-color-border-subtle);
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         background: #fff;
       }
 
       .surface-note {
         font-family: var(--violet-font-family-body);
-        font-size: var(--violet-type-caption-xs-size, 12px);
-        line-height: var(--violet-type-caption-xs-line, 16px);
+        font-size: var(--violet-type-caption-size, 12px);
+        line-height: var(--violet-type-caption-line, 16px);
         color: var(--violet-color-text-muted, #5e6460);
       }
 
@@ -5559,20 +5540,20 @@ function renderActionAndStateLab(): HTMLElement {
       .preview-panel { gap: 0.75rem; }
 
       .preview-stage {
-        gap: var(--violet-space-layout-sm, 12px);
+        gap: var(--violet-space-layout-panel, 12px);
         padding: 1rem;
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         background: linear-gradient(180deg, var(--violet-color-surface-card, #f8f9f3) 0%, var(--violet-color-surface-page, #f4f0ea) 100%);
       }
 
       .action-stack,
       .state-stack {
-        gap: var(--violet-space-layout-sm, 12px);
+        gap: var(--violet-space-layout-panel, 12px);
       }
 
       .button-row {
         display: flex;
-        gap: var(--violet-space-inline-sm, 4px);
+        gap: var(--violet-space-inline-tight, 4px);
         flex-wrap: wrap;
       }
 
@@ -5582,8 +5563,8 @@ function renderActionAndStateLab(): HTMLElement {
         justify-content: center;
         min-block-size: 2.1rem;
         padding: 0 0.8rem;
-        border-radius: var(--violet-radius-md, 8px);
-        font: 500 var(--violet-type-label-sm-size, 13px)/var(--violet-type-label-sm-line, 16px) var(--violet-font-family-body);
+        border-radius: var(--violet-radius-control, 8px);
+        font: 500 var(--violet-type-label-size, 13px)/var(--violet-type-label-line, 16px) var(--violet-font-family-body);
         border: 1px solid transparent;
       }
 
@@ -5606,9 +5587,9 @@ function renderActionAndStateLab(): HTMLElement {
 
       .state-card {
         display: grid;
-        gap: var(--violet-space-stack-xs, 4px);
+        gap: var(--violet-space-stack-tight, 4px);
         padding: 0.85rem;
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
       }
 
       .state-card.success {
@@ -5631,15 +5612,15 @@ function renderActionAndStateLab(): HTMLElement {
 
       .text-heading {
         font-family: var(--violet-font-family-heading);
-        font-size: var(--violet-type-title-sm-size, 18px);
-        line-height: var(--violet-type-title-sm-line, 24px);
-        font-weight: var(--violet-type-title-sm-weight, 600);
+        font-size: var(--violet-type-heading-section-size, 18px);
+        line-height: var(--violet-type-heading-section-line, 24px);
+        font-weight: var(--violet-type-heading-section-weight, 600);
       }
 
       .text-body {
         font-family: var(--violet-font-family-body);
-        font-size: var(--violet-type-body-md-size, 14px);
-        line-height: var(--violet-type-body-md-line, 20px);
+        font-size: var(--violet-type-body-size, 14px);
+        line-height: var(--violet-type-body-line, 20px);
       }
 
       @container (min-width: 56rem) {
@@ -6029,31 +6010,31 @@ function renderFormInputLab(): HTMLElement {
       .preview-panel { gap: 0.75rem; }
 
       .preview-stage {
-        gap: var(--violet-space-layout-sm, 12px);
+        gap: var(--violet-space-layout-panel, 12px);
         padding: 1rem;
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         background: linear-gradient(180deg, var(--violet-color-surface-card, #f8f9f3) 0%, var(--violet-color-surface-page, #f4f0ea) 100%);
       }
 
-      .field-stack { gap: var(--violet-space-layout-sm, 12px); }
+      .field-stack { gap: var(--violet-space-layout-panel, 12px); }
 
       .field-shell {
         display: grid;
-        gap: var(--violet-space-stack-xs, 4px);
+        gap: var(--violet-space-stack-tight, 4px);
       }
 
       .field-label {
-        font: 500 var(--violet-type-label-sm-size, 13px)/var(--violet-type-label-sm-line, 16px) var(--violet-font-family-body);
+        font: 500 var(--violet-type-label-size, 13px)/var(--violet-type-label-line, 16px) var(--violet-font-family-body);
         color: var(--violet-color-text-secondary, #48534b);
       }
 
       .field-control,
       .field-area {
-        border-radius: var(--violet-radius-md, 8px);
+        border-radius: var(--violet-radius-control, 8px);
         background: var(--violet-color-field-background);
         color: var(--violet-color-field-text);
         border: 1px solid var(--violet-color-field-border);
-        font: 400 var(--violet-type-body-md-size, 14px)/var(--violet-type-body-md-line, 20px) var(--violet-font-family-body);
+        font: 400 var(--violet-type-body-size, 14px)/var(--violet-type-body-line, 20px) var(--violet-font-family-body);
       }
 
       .field-control {
@@ -6093,7 +6074,7 @@ function renderFormInputLab(): HTMLElement {
       }
 
       .field-note {
-        font: 400 var(--violet-type-caption-xs-size, 12px)/var(--violet-type-caption-xs-line, 16px) var(--violet-font-family-body);
+        font: 400 var(--violet-type-caption-size, 12px)/var(--violet-type-caption-line, 16px) var(--violet-font-family-body);
         color: var(--violet-color-text-muted);
       }
 
@@ -6490,7 +6471,7 @@ function renderPaletteLab(): HTMLElement {
 
       .preview-panel {
         border: 1px solid rgba(24, 27, 26, 0.1);
-        border-radius: var(--violet-radius-md);
+        border-radius: var(--violet-radius-control);
         background: #fff;
         overflow: hidden;
       }
@@ -6507,7 +6488,7 @@ function renderPaletteLab(): HTMLElement {
 
       .swatch-card {
         border: 1px solid rgba(24, 27, 26, 0.1);
-        border-radius: var(--violet-radius-md);
+        border-radius: var(--violet-radius-control);
         background: #fff;
         overflow: hidden;
       }
@@ -6546,7 +6527,7 @@ function renderPaletteLab(): HTMLElement {
         gap: 0.45rem;
         min-block-size: 8rem;
         padding: 0.9rem;
-        border-radius: var(--violet-radius-md);
+        border-radius: var(--violet-radius-control);
         border: 1px solid rgba(24, 27, 26, 0.08);
       }
 
@@ -6899,7 +6880,7 @@ function renderReferenceKitLab(): HTMLElement {
 
       .kit-panel {
         border: 1px solid rgba(24, 27, 26, 0.1);
-        border-radius: var(--violet-radius-md);
+        border-radius: var(--violet-radius-control);
         background: var(--violet-color-surface-page);
         overflow: hidden;
       }
@@ -6920,7 +6901,7 @@ function renderReferenceKitLab(): HTMLElement {
       .toggle-row {
         display: flex;
         flex-wrap: wrap;
-        gap: var(--violet-space-inline-sm);
+        gap: var(--violet-space-inline-tight);
       }
 
       .demo-button,
@@ -6929,12 +6910,12 @@ function renderReferenceKitLab(): HTMLElement {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        gap: var(--violet-space-inline-sm);
+        gap: var(--violet-space-inline-tight);
         min-block-size: 2.4rem;
         padding: 0.58rem 0.92rem;
-        border-radius: var(--violet-radius-md);
+        border-radius: var(--violet-radius-control);
         border: 1px solid transparent;
-        font: 500 var(--violet-type-body-md-size)/var(--violet-type-body-md-line) var(--violet-font-family-body);
+        font: 500 var(--violet-type-body-size)/var(--violet-type-body-line) var(--violet-font-family-body);
       }
 
       .demo-button.primary {
@@ -6973,7 +6954,7 @@ function renderReferenceKitLab(): HTMLElement {
         min-block-size: 2.7rem;
         padding: 0.7rem 0.82rem;
         border: 1px solid var(--violet-color-field-border);
-        border-radius: var(--violet-radius-md);
+        border-radius: var(--violet-radius-control);
         background: var(--violet-color-field-background);
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
       }
@@ -7005,7 +6986,7 @@ function renderReferenceKitLab(): HTMLElement {
         display: grid;
         gap: 0.55rem;
         padding: 0.8rem;
-        border-radius: var(--violet-radius-md);
+        border-radius: var(--violet-radius-control);
         background: var(--violet-color-surface-card);
       }
 
@@ -7107,7 +7088,7 @@ function renderReferenceKitLab(): HTMLElement {
         display: grid;
         gap: 0.55rem;
         padding: 1rem;
-        border-radius: var(--violet-radius-lg);
+        border-radius: var(--violet-radius-floating);
         background: var(--violet-color-surface-card);
         box-shadow: var(--violet-shadow-card);
       }
@@ -7115,7 +7096,7 @@ function renderReferenceKitLab(): HTMLElement {
       .demo-card h4,
       .demo-menu h4 {
         margin: 0;
-        font: var(--violet-type-title-sm-weight) var(--violet-type-title-sm-size)/var(--violet-type-title-sm-line) var(--violet-font-family-heading);
+        font: var(--violet-type-heading-section-weight) var(--violet-type-heading-section-size)/var(--violet-type-heading-section-line) var(--violet-font-family-heading);
         color: var(--violet-color-text-primary);
       }
 
@@ -7131,7 +7112,7 @@ function renderReferenceKitLab(): HTMLElement {
         display: grid;
         gap: 0.35rem;
         padding: 0.85rem;
-        border-radius: var(--violet-radius-lg);
+        border-radius: var(--violet-radius-floating);
         background: var(--violet-color-surface-floating);
         box-shadow: var(--violet-shadow-floating);
       }
@@ -7141,7 +7122,7 @@ function renderReferenceKitLab(): HTMLElement {
         align-items: center;
         min-block-size: 2.4rem;
         padding: 0.58rem 0.78rem;
-        border-radius: var(--violet-radius-md);
+        border-radius: var(--violet-radius-control);
         background: #fff;
       }
 
@@ -7151,7 +7132,7 @@ function renderReferenceKitLab(): HTMLElement {
 
       .data-grid-shell {
         padding: 0.9rem;
-        border-radius: var(--violet-radius-lg);
+        border-radius: var(--violet-radius-floating);
         background: var(--violet-color-surface-card);
         box-shadow: var(--violet-shadow-card);
       }
@@ -7356,7 +7337,7 @@ export const RadiusLab: Story = {
     const output = canvasElement.querySelector(
       "[data-output]",
     ) as HTMLTextAreaElement | null;
-    await expect(output?.value).toContain("radius.md");
+    await expect(output?.value).toContain("radius.control");
 
     const copyButton = canvasElement.querySelector('[data-action="copy"]');
     await expect(copyButton?.textContent).toContain("Copy value set");
@@ -7392,7 +7373,7 @@ export const SpacingLab: Story = {
     const output = canvasElement.querySelector(
       "[data-output]",
     ) as HTMLTextAreaElement | null;
-    await expect(output?.value).toContain("size.space.xs");
+    await expect(output?.value).toContain("space.inline.hairline");
 
     const previewTitle = canvasElement.querySelector(".section-title h3");
     await expect(previewTitle?.textContent).toContain("Representative spacing");
@@ -7409,7 +7390,7 @@ export const TypographyLab: Story = {
       "[data-output]",
     ) as HTMLTextAreaElement | null;
     await expect(output?.value).toContain("font.family.body");
-    await expect(output?.value).toContain("size.font.xs");
+    await expect(output?.value).toContain("type.body.size");
     await expect(output?.value).toContain("weight.semibold");
 
     const previewTitle = canvasElement.querySelector(".section-title h3");

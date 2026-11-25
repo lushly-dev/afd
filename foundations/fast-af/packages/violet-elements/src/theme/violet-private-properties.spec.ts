@@ -415,7 +415,7 @@ describe("undefinedPrivateReads", () => {
     const defaults = [
         'import { css, type ElementStyles } from "@lushly-dev/fast-element";',
         "export const violetFieldTokenDefaults: ElementStyles = css`",
-        "    :host { --_radius-md: var(--violet-radius-md, 8px); }",
+        "    :host { --_radius-md: var(--violet-radius-control, 8px); }",
         "`;",
     ].join("\n");
     const scan = (files: Record<string, string>) => undefinedPrivateReads({ "./violet-token-defaults.ts": defaults, ...files });
@@ -502,7 +502,7 @@ describe("driftedLiteralFallbacks", () => {
         "    :host {",
         "        --_text-primary: var(--violet-color-text-primary, #181b1a);",
         "        --_surface-subtle: var(--violet-color-surface-subtle, #e9e5de);",
-        "        --_radius-lg: var(--violet-radius-lg, 12px);",
+        "        --_radius-lg: var(--violet-radius-floating, 12px);",
         "        --_radius-round: var(--violet-radius-round, 9999px);",
         "    }",
         "`;",
@@ -513,9 +513,9 @@ describe("driftedLiteralFallbacks", () => {
         ["--violet-color-accent-text", "#1b5f80"],
         ["--violet-color-focus-ring", "#28769e"],
         ["--violet-color-action-danger-background", "#c42a1a"],
-        ["--violet-radius-lg", "12px"],
+        ["--violet-radius-floating", "12px"],
         ["--violet-radius-round", "9999px"],
-        ["--violet-space-stack-xs", "4px"],
+        ["--violet-space-stack-tight", "4px"],
         ["--violet-size-target-compact", "24px"],
         ["--violet-size-target-natural", "32px"],
         ["--violet-size-target-comfortable", "44px"],

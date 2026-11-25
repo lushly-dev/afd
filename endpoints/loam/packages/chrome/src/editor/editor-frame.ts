@@ -91,31 +91,31 @@ const styles = css`
 	}
 	.loading {
 		margin: 0;
-		padding: var(--violet-space-layout-md);
+		padding: var(--violet-space-layout-page);
 		color: var(--violet-color-text-secondary);
-		font-size: var(--violet-type-body-md-size);
-		line-height: var(--violet-type-body-md-line);
+		font-size: var(--violet-type-body-size);
+		line-height: var(--violet-type-body-line);
 	}
 	/* Not on [hidden], which the same specificity would otherwise lose to: a working frame shows no Close. */
 	.failed:not([hidden]) {
 		display: grid;
 		justify-items: start;
-		gap: var(--violet-space-stack-md);
-		padding-block-end: var(--violet-space-layout-md);
+		gap: var(--violet-space-stack-section);
+		padding-block-end: var(--violet-space-layout-page);
 		overflow: auto;
 	}
 	.close {
 		min-block-size: var(--violet-size-target-natural);
-		margin-inline: var(--violet-space-layout-md);
-		padding-inline: var(--violet-space-inline-md);
+		margin-inline: var(--violet-space-layout-page);
+		padding-inline: var(--violet-space-inline-group);
 		border: 1px solid var(--violet-color-action-secondary-border);
-		border-radius: var(--violet-radius-md);
+		border-radius: var(--violet-radius-control);
 		background: var(--violet-color-action-secondary-background);
 		color: var(--violet-color-action-secondary-text);
 		font: inherit;
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
-		font-weight: var(--violet-type-label-sm-weight);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
+		font-weight: var(--violet-type-label-weight);
 		cursor: pointer;
 		transition: background-color var(--violet-duration-fast) var(--violet-easing-standard);
 	}
@@ -127,7 +127,7 @@ const styles = css`
 	}
 	.close:focus-visible {
 		outline: var(--violet-shell-size-focus) solid var(--violet-color-focus-ring);
-		outline-offset: var(--violet-size-space-xs);
+		outline-offset: var(--violet-space-inline-hairline);
 	}
 	@media (prefers-reduced-motion: reduce) {
 		.close {

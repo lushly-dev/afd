@@ -9,60 +9,43 @@
   "shell": {
     "size": {
       "rail": {
-        "$value": "40px"
+        "$value": "{ref.target.40}"
       },
       "tabbar": {
-        "$value": "48px"
+        "$value": "{ref.target.48}"
       },
       "titlebar": {
-        "$value": "32px"
+        "$value": "{ref.target.32}"
       }
     }
   },
   "size": {
-    "space": {
-      "lg": {
-        "$value": "{ref.space.8}"
-      },
-      "md": {
-        "$value": "{ref.space.6}"
-      },
-      "sm": {
-        "$value": "{ref.space.2}"
-      },
-      "xl": {
-        "$value": "{ref.space.16}"
-      }
-    },
     "target": {
       "comfortable": {
-        "$value": "32px"
+        "$value": "{ref.target.32}"
       },
       "natural": {
-        "$value": "28px"
+        "$value": "{ref.target.28}"
       }
     }
   },
   "space": {
     "inline": {
-      "lg": {
-        "$value": "{ref.space.8}"
-      },
-      "md": {
+      "group": {
         "$value": "{ref.space.6}"
       },
-      "sm": {
+      "tight": {
         "$value": "{ref.space.2}"
       }
     },
     "stack": {
-      "md": {
-        "$value": "{ref.space.8}"
-      },
-      "sm": {
+      "group": {
         "$value": "{ref.space.4}"
       },
-      "xs": {
+      "section": {
+        "$value": "{ref.space.8}"
+      },
+      "tight": {
         "$value": "{ref.space.2}"
       }
     }

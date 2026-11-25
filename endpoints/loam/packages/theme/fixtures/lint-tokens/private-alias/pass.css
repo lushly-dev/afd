@@ -1,5 +1,5 @@
 :host {
-	--_inset: var(--violet-size-space-md);
+	--_inset: var(--violet-space-inline-group);
 	--_double-inset: calc(var(--_inset) * 2);
 	--_track: var(--violet-size-target-natural);
 	padding: var(--_double-inset);

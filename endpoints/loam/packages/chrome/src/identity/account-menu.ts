@@ -32,15 +32,15 @@ const styles = css`
 	:host {
 		position: fixed;
 		inset-block-start: var(--violet-shell-size-titlebar);
-		inset-inline-end: var(--violet-space-inline-md);
+		inset-inline-end: var(--violet-space-inline-group);
 		z-index: 10;
 	}
 	.menu {
 		display: grid;
 		min-inline-size: var(--violet-shell-size-sidebar-min);
-		padding: var(--violet-size-space-xs);
+		padding: var(--violet-space-inline-hairline);
 		border: 1px solid transparent;
-		border-radius: var(--violet-radius-lg);
+		border-radius: var(--violet-radius-floating);
 		background: var(--violet-color-surface-floating);
 		box-shadow: var(--violet-shadow-floating);
 		color: var(--violet-color-text-primary);
@@ -48,28 +48,28 @@ const styles = css`
 	.who {
 		display: grid;
 		margin: 0;
-		padding: var(--violet-size-space-sm) var(--violet-size-space-md);
+		padding: var(--violet-space-inline-tight) var(--violet-space-inline-group);
 		border-block-end: 1px solid var(--violet-color-border-subtle);
 	}
 	.name {
-		font-size: var(--violet-type-label-sm-size);
-		line-height: var(--violet-type-label-sm-line);
+		font-size: var(--violet-type-label-size);
+		line-height: var(--violet-type-label-line);
 		font-weight: var(--violet-weight-semibold);
 	}
 	.email {
 		color: var(--violet-color-text-secondary);
-		font-size: var(--violet-type-caption-xs-size);
-		line-height: var(--violet-type-caption-xs-line);
+		font-size: var(--violet-type-caption-size);
+		line-height: var(--violet-type-caption-line);
 	}
 	.item {
 		min-block-size: var(--violet-size-target-natural);
-		padding-inline: var(--violet-size-space-md);
+		padding-inline: var(--violet-space-inline-group);
 		border: 0;
-		border-radius: var(--violet-radius-md);
+		border-radius: var(--violet-radius-control);
 		background: transparent;
 		color: var(--violet-color-text-primary);
 		font: inherit;
-		font-size: var(--violet-type-label-sm-size);
+		font-size: var(--violet-type-label-size);
 		text-align: start;
 		cursor: pointer;
 		transition:
@@ -84,7 +84,7 @@ const styles = css`
 		display: none;
 	}
 	.item[role='menuitemradio'] {
-		border-inline-start: var(--violet-size-space-xs) solid transparent;
+		border-inline-start: var(--violet-space-inline-hairline) solid transparent;
 	}
 	.item[aria-checked='true'] {
 		background: var(--violet-color-control-selected-background);
