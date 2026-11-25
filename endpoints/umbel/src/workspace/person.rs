@@ -331,6 +331,8 @@ pub(super) fn is_v7_key(key: &str) -> bool {
         ["plugins", _, "journal", ..] => true,
         // Per-caller approvals and MCP approval relay (D202).
         ["mcp", "approvals"] => true,
+        // The compiled-plugin call limits and the SQLite cap (D204).
+        _ if super::call_limits::is_key(key) => true,
         _ => false,
     }
 }

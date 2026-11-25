@@ -13,14 +13,13 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use afd::{
-    ApprovalPolicy, CommandContext, CommandDefinition, CommandExample, CommandHandler,
-    CommandRegistry, CommandResult, ContextConfig, ExecutionTime, ExposeOptions, JsonSchema,
-    JsonSchemaType, is_afd_builtin_name,
+    ApprovalPolicy, CommandContext, CommandDefinition, CommandExample, CommandRegistry,
+    ContextConfig, ExecutionTime, ExposeOptions, JsonSchema, JsonSchemaType, is_afd_builtin_name,
 };
-use async_trait::async_trait;
 use serde_json::Value;
 
 use super::compiled::{CompiledPlugin, PluginCommand, has_space_property};
+use super::compiled_gate::gated;
 #[cfg(feature = "component")]
 use super::component::ComponentRuntime;
 use super::config;
@@ -1071,6 +1070,8 @@ fn prepare(
             hosted,
             local_marks: local_page_served(workspace.config())
                 .then(|| Arc::clone(inputs.local_marks)),
+            gate: (manifest.plugin.kind == PluginKind::Compiled)
+                .then(|| Arc::clone(workspace.compiled_gate())),
         },
     )?;
     let space_names: Vec<String> = spaces
@@ -1343,26 +1344,6 @@ pub(super) fn check_name(
     }
 }
 
-/// A shared handler, so a definition can wrap a plugin's `Arc`. Where the local page is served,
-/// it also takes the mark the plugin gate's local arm holds for this command's call, and runs the
-/// handler with it (the Ideas host-review specification, section 6.2).
-struct Shared2 {
-    handler: Arc<dyn CommandHandler>,
-    name: String,
-    local_marks: Option<Arc<crate::person::LocalMarks>>,
-}
-
-#[async_trait]
-impl CommandHandler for Shared2 {
-    async fn execute(&self, input: Value, context: CommandContext) -> CommandResult<Value> {
-        let marked = self
-            .local_marks
-            .as_ref()
-            .and_then(|marks| marks.take(&self.name, &context));
-        self.handler.execute(input, marked.unwrap_or(context)).await
-    }
-}
-
 /// How the definitions of one instance are registered: where a person-decided command is
 /// registered for MCP (`served`), where it is host-verified (`hosted`, the hosted page's
 /// workspaces), and the local arm's marks where the local page is served.
@@ -1370,6 +1351,7 @@ struct Registration {
     served: bool,
     hosted: bool,
     local_marks: Option<Arc<crate::person::LocalMarks>>,
+    gate: Option<Arc<super::CompiledGate>>,
 }
 
 /// The key of a plugin tool's origin in the tool's `_meta` (section 8.1).
@@ -1463,6 +1445,7 @@ fn definitions(
         served,
         hosted,
         local_marks,
+        gate,
     } = registration;
     let bad =
         |key: String, problem: String| PluginError::manifest_invalid(&manifest.file, &key, problem);
@@ -1507,8 +1490,8 @@ fn definitions(
                     &command.name,
                     &command.description,
                     vec![],
-                    Shared2 {
-                        handler,
+                    super::compiled::Marked {
+                        handler: gated(gate.as_ref(), instance, &command.name, handler),
                         name: command.name.clone(),
                         local_marks: local_marks.clone().filter(|_| person_mcp(command)),
                     },
@@ -1564,7 +1547,8 @@ fn definitions(
                 if let Some(problem) = mismatch(command, &definition, &given, schema) {
                     return Err(bad(key, problem));
                 }
-                let mut definition = *definition;
+                let mut definition = definition
+                    .map_handler(|handler| gated(gate.as_ref(), instance, &command.name, handler));
                 // Enforce the host's canonical policy for `non-human` (D202), so no plugin
                 // closure can bypass approval based on input values or hidden state.
                 if let Some(policy) = command.approval.policy() {

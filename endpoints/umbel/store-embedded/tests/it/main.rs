@@ -10,6 +10,7 @@ fn writer_child() {
 }
 
 mod conformance;
+mod connection_limit;
 mod index;
 mod index_suite_detects;
 mod lane_conformance;

@@ -2,6 +2,7 @@
 //! workspace lock (phase 0 specification, section 2).
 
 mod access;
+mod call_limits;
 mod config;
 mod discovery;
 mod error;
@@ -21,6 +22,10 @@ use std::time::Duration;
 use afd::{FileJournalSink, JournalFileLock, JournalLockError};
 
 pub use access::{AccessToken, PRINCIPAL_KINDS, ReaderEntry, check_member, parse_principal};
+pub use call_limits::{
+    CallLimits, DEFAULT_COMPILED_CALLS, DEFAULT_COMPILED_TIMEOUT_MS, DEFAULT_STORE_MAX_CONNECTIONS,
+    MAX_COMPILED_CALLS, MAX_COMPILED_TIMEOUT_MS, MAX_STORE_MAX_CONNECTIONS,
+};
 pub use config::{
     AccessConfig, AccessGroup, CONFIG_VERSION, CONFIG_VERSIONS, CollectionConfig, CollectionKind,
     Config, ConfigFile, Confirmations, DEFAULT_LOCAL_ID, DEFAULT_MAX_FILE_BYTES,
@@ -61,6 +66,13 @@ pub struct Workspace {
     layout: Layout,
     config: Config,
     found_by: FoundBy,
+    /// `limits.compiled_calls`, `limits.compiled_timeout_ms` and `store.max_connections` (D204).
+    calls: CallLimits,
+    /// The bound and the deadline of the compiled-plugin calls of the host over this workspace.
+    compiled: std::sync::Arc<crate::plugins::CompiledGate>,
+    /// `store.max_connections`: the cap the SQLite stores of the host over this workspace share.
+    #[cfg(feature = "store-embedded")]
+    connections: umbel_store_embedded::ConnectionLimit,
 }
 
 impl Workspace {
@@ -97,13 +109,19 @@ impl Workspace {
                 )),
                 _ => WorkspaceError::unwritable(&layout.config_file(), error),
             })?;
-        let config = ConfigFile::parse(&text)?
-            .into_config(&located.root)?
-            .with_overrides(overrides)?;
+        let file = ConfigFile::parse(&text)?;
+        let calls = file.call_limits()?;
+        let config = file.into_config(&located.root)?.with_overrides(overrides)?;
         let workspace = Self {
             layout,
             config,
             found_by: located.found_by,
+            calls,
+            compiled: std::sync::Arc::new(crate::plugins::CompiledGate::of(calls)),
+            #[cfg(feature = "store-embedded")]
+            connections: umbel_store_embedded::ConnectionLimit::new(
+                usize::try_from(calls.max_connections).unwrap_or(usize::MAX),
+            ),
         };
         workspace.ensure_state()?;
         Ok(workspace)
@@ -193,6 +211,30 @@ impl Workspace {
     /// The validated configuration.
     pub fn config(&self) -> &Config {
         &self.config
+    }
+
+    /// The compiled-plugin call limits and the SQLite cap (D204), each set or its default.
+    pub fn call_limits(&self) -> CallLimits {
+        self.calls
+    }
+
+    /// The bound and the deadline every compiled-plugin call over this workspace shares.
+    pub(crate) fn compiled_gate(&self) -> &std::sync::Arc<crate::plugins::CompiledGate> {
+        &self.compiled
+    }
+
+    /// The cap the SQLite stores over this workspace share (`store.max_connections`).
+    #[cfg(feature = "store-embedded")]
+    pub(crate) fn connection_limit(&self) -> &umbel_store_embedded::ConnectionLimit {
+        &self.connections
+    }
+
+    /// Hold one of the host's turns at its SQLite stores until the hold is dropped, so a test can
+    /// fill `store.max_connections`. Compiled in only with the `testkit` feature.
+    #[cfg(all(feature = "testkit", feature = "store-embedded"))]
+    #[must_use]
+    pub fn hold_store_turn(&self) -> umbel_store_embedded::Hold {
+        self.connections.hold()
     }
 
     /// Which rule found the workspace.

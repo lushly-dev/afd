@@ -43,6 +43,13 @@ pub mod codes {
     pub const PLUGIN_TOOL_SCHEMA_UNSUPPORTED: &str = "PLUGIN_TOOL_SCHEMA_UNSUPPORTED";
     /// A mounted server is not reachable now.
     pub const PLUGIN_UNAVAILABLE: &str = "PLUGIN_UNAVAILABLE";
+    /// No compiled-plugin turn (`limits.compiled_calls`, D204) came before the call's deadline:
+    /// the call did not run. Retryable. A host code, so `HOST_UMBEL_` (`spec/error-codes.md`).
+    pub const HOST_UMBEL_PLUGIN_BUSY: &str = "HOST_UMBEL_PLUGIN_BUSY";
+    /// AFD's `OUTCOME_UNKNOWN` (`spec/error-codes.md`): a compiled-plugin call started and ran
+    /// past its deadline (`limits.compiled_timeout_ms`, D204), so it may have made its change.
+    /// Not retryable.
+    pub const OUTCOME_UNKNOWN: &str = "OUTCOME_UNKNOWN";
     /// A pack or override breaks a rule.
     pub const PACK_INVALID: &str = "PACK_INVALID";
     /// A skill breaks a rule.

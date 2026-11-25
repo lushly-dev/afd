@@ -423,7 +423,7 @@ Common types:
 | `ReaderFilter` | The caller's tokens in this space, or `Derivation` (section 3.3); built only by the host |
 | `Envelope` | Provenance envelope version 1 |
 | `Expect` | `Any`, `Absent`, or `Hash(ContentHash)`: a write's compare-and-set condition |
-| `StoreError` | `Conflict { current }`, `NotFound`, `Busy` (a lock wait past `store.lock_timeout_ms`), `Invalid(reason)`, `Corrupt(reason)`, `Io(reason)` |
+| `StoreError` | `Conflict { current }`, `NotFound`, `Busy` (a lock wait past `store.lock_timeout_ms`, or from D204 a wait that long for a turn at the host's stores, `store.max_connections`), `Invalid(reason)`, `Corrupt(reason)`, `Io(reason)` |
 
 **`DocumentStore`**
 

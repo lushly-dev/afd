@@ -468,11 +468,15 @@ async fn timed_out_inline_plugin_call_is_refused_subsequent_host_services_and_wr
 
     let result = handle.await.unwrap();
     assert!(!result.success, "timed-out call must fail: {result:?}");
+    // The host answers before AFD's own timer for the caller's `timeout_ms` (D204): the plugin
+    // started and may still make its change, so the answer is `OUTCOME_UNKNOWN`, not a
+    // retryable `TIMEOUT`.
     assert_eq!(
         result.error.as_ref().map(|e| e.code.as_str()),
-        Some("TIMEOUT"),
+        Some("OUTCOME_UNKNOWN"),
         "{result:?}"
     );
+    assert_eq!(result.error.as_ref().and_then(|e| e.retryable), Some(false));
 
     // Release the still-running blocking thread and verify every subsequent host service and
     // writer step is refused with COMMAND_CANCELLED.

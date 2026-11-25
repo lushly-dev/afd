@@ -883,6 +883,16 @@ impl HostBuilder {
   `plugin-state` effect.
 - **Failure at run time:** a panic is AFD's `COMMAND_EXECUTION_ERROR`; the
   instance stays loaded.
+- **Bound and deadline (D204, 2026-11-25):** at most `limits.compiled_calls`
+  compiled-plugin calls run at once, whichever form registered the command (an
+  SDK plugin, a `Handler` or a `Definition`). A call that is neither a task
+  nor the host's own command line answers `HOST_UMBEL_PLUGIN_BUSY`
+  (retryable, never ran) if no turn comes before `limits.compiled_timeout_ms`,
+  `COMMAND_CANCELLED` if cancelled while it waits, and `OUTCOME_UNKNOWN` (not
+  retryable) if it started and has not finished by then. An async handler is
+  then cancelled and frees its turn; an SDK plugin, on a blocking thread that
+  cannot be stopped, keeps its turn until it returns, gets no host service
+  after the deadline, and its late result is dropped.
 - **The stock `umbel` binary compiles in no plugin** (D48). A deployer who
   wants compiled plugins builds a binary whose `main` calls the existing
   `umbel::cli::run(args, environment, out, configure)` with a `configure`
@@ -1498,6 +1508,8 @@ Every one carries a suggestion.
 | `PLUGIN_TOOL_ERROR` | A mounted tool answered `isError: true` | No | "See the message from the mounted server." |
 | `PLUGIN_TOOL_UNNAMEABLE`, `PLUGIN_TOOL_SCHEMA_UNSUPPORTED` | Diagnostics, not results: a mounted tool skipped at load because no command name or no checkable schema could be made (section 6.3) | No | "Add a [[mount.tools]] entry naming it, or leave it out with only." |
 | `PLUGIN_UNAVAILABLE` | A mounted server is not reachable now | Yes | "Retry; if it persists, run umbel plugin show plugin=<id>." |
+| `HOST_UMBEL_PLUGIN_BUSY` | No compiled-plugin turn (`limits.compiled_calls`) came before the call's deadline; the call did not run (D204, 2026-11-25; a host code, so named by `spec/error-codes.md`'s `HOST_` rule) | Yes | "Retry in a moment; the command did not run. If it persists, raise limits.compiled_calls." |
+| `OUTCOME_UNKNOWN` | AFD's code, sent by the host: a compiled-plugin call started and ran past its deadline (`limits.compiled_timeout_ms`), so it may have made its change (D204) | No | "Check the command's effect (read what it changes) before calling it again; do not retry blindly." |
 | `PACK_INVALID` | A pack or override breaks a rule | No | Names the rule |
 | `SKILL_INVALID` | A skill breaks a rule | No | Names the rule |
 

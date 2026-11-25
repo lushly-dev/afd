@@ -36,6 +36,8 @@ pub(crate) struct MemoryPool {
     exclude: bool,
     /// A writer's open has set or removed the exclusion.
     marked: AtomicBool,
+    /// The host's cap on threads at work on its stores at once, when it sets one.
+    limit: Option<crate::ConnectionLimit>,
 }
 
 impl MemoryPool {
@@ -52,11 +54,18 @@ impl MemoryPool {
             keys: KeyFile::new(keys, timeout),
             exclude: true,
             marked: AtomicBool::new(false),
+            limit: None,
         }
     }
 
     pub(crate) fn set_exclude(&mut self, exclude: bool) {
         self.exclude = exclude;
+    }
+
+    /// Put the pool's work, and its key file's, under `limit`.
+    pub(crate) fn set_limit(&mut self, limit: crate::ConnectionLimit) {
+        self.keys.set_limit(limit.clone());
+        self.limit = Some(limit);
     }
 
     pub(crate) fn path(&self) -> &Path {
@@ -77,6 +86,7 @@ impl MemoryPool {
         &self,
         work: impl FnOnce(&mut Connection) -> Result<T, Fail>,
     ) -> Result<T, StoreError> {
+        let _turn = crate::limit::enter(self.limit.as_ref(), self.timeout)?;
         let conn = self.existing()?;
         self.run(conn, work)
     }
@@ -87,6 +97,7 @@ impl MemoryPool {
         &self,
         work: impl FnOnce(&mut Connection) -> Result<T, Fail>,
     ) -> Result<T, StoreError> {
+        let _turn = crate::limit::enter(self.limit.as_ref(), self.timeout)?;
         self.provision()?;
         let conn = self.existing()?;
         self.mark_once();
@@ -240,6 +251,12 @@ impl MemoryPool {
             with("-shm"),
             self.keys.path().to_owned(),
         ]
+    }
+
+    /// A turn at the host's stores for work outside [`Self::read`] and [`Self::write`], such as
+    /// a [`Self::fresh_connection`]'s; none when no limit is set.
+    pub(crate) fn turn(&self) -> Result<Option<crate::limit::Turn>, StoreError> {
+        crate::limit::enter(self.limit.as_ref(), self.timeout)
     }
 
     /// A connection made as every pooled one is, for reading its settings back.

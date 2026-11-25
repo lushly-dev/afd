@@ -21,6 +21,7 @@ mod cli;
 mod cli_authority_prompt;
 mod cli_confirm_preview;
 mod cli_stdin_input;
+mod compiled_limits;
 #[cfg(feature = "component")]
 mod component_components;
 #[cfg(feature = "component")]

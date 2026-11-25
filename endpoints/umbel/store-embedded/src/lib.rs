@@ -13,6 +13,7 @@ mod graph;
 mod index;
 mod inspect;
 mod lane;
+mod limit;
 mod memory;
 mod readable_graph;
 mod schema;
@@ -27,6 +28,9 @@ pub use index::{INDEX_SCHEMA_DIR, IndexCheck, IndexInfo, TantivyIndex};
 pub use inspect::StoreCounts;
 #[cfg(feature = "testkit")]
 pub use lane::{MatchTimings, RebuildTimings};
+pub use limit::ConnectionLimit;
+#[cfg(feature = "testkit")]
+pub use limit::Hold;
 pub use memory::{
     KEYS_FILE, MEMORY_FILE, MEMORY_SCHEMA_VERSION, MemoryCheck, MemoryInfo, MemoryKeysInfo,
     MemoryMaintenance, SqliteMemoryStore, is_excluded_from_machine_backup,
@@ -108,6 +112,30 @@ impl SqliteStore {
     /// `VersionUnsupported` when the file is a newer schema, `Invalid` when it belongs to another
     /// space, `Busy` when a lock wait ran past the timeout, `Corrupt` or `Io` otherwise.
     pub fn open(space_dir: &Path, space: &str, options: StoreOptions) -> Result<Self, StoreError> {
+        Self::open_with(space_dir, space, options, None)
+    }
+
+    /// [`Self::open`] with its connections under `limit`, the cap shared by the stores of one host
+    /// (`store.max_connections`), the first open's included: past it a call waits up to the lock
+    /// timeout, then answers `Busy`.
+    ///
+    /// # Errors
+    /// As [`Self::open`], and `Busy` when no turn comes within the lock timeout.
+    pub fn open_with_limit(
+        space_dir: &Path,
+        space: &str,
+        options: StoreOptions,
+        limit: ConnectionLimit,
+    ) -> Result<Self, StoreError> {
+        Self::open_with(space_dir, space, options, Some(limit))
+    }
+
+    fn open_with(
+        space_dir: &Path,
+        space: &str,
+        options: StoreOptions,
+        limit: Option<ConnectionLimit>,
+    ) -> Result<Self, StoreError> {
         if !umbel_store::is_slug(space) {
             return Err(StoreError::invalid(
                 "a space id must match ^[a-z][a-z0-9-]{0,62}$",
@@ -116,7 +144,7 @@ impl SqliteStore {
         let dir = space_dir.join(STORE_DIR);
         std::fs::create_dir_all(&dir)
             .map_err(|e| StoreError::Io(format!("{}: {e}", dir.display())))?;
-        let pool = connection::Pool::open(dir.join(DATABASE_FILE), space, options)?;
+        let pool = connection::Pool::open(dir.join(DATABASE_FILE), space, options, limit)?;
         Ok(Self {
             space: space.to_owned(),
             pool,

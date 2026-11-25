@@ -112,6 +112,26 @@ impl PluginCommand {
     }
 }
 
+/// A shared handler, so a definition can wrap a plugin's `Arc`. Where the local page is served,
+/// it also takes the mark the plugin gate's local arm holds for this command's call, and runs the
+/// handler with it (the Ideas host-review specification, section 6.2).
+pub(super) struct Marked {
+    pub(super) handler: Arc<dyn CommandHandler>,
+    pub(super) name: String,
+    pub(super) local_marks: Option<Arc<crate::person::LocalMarks>>,
+}
+
+#[async_trait]
+impl CommandHandler for Marked {
+    async fn execute(&self, input: Value, context: CommandContext) -> CommandResult<Value> {
+        let marked = self
+            .local_marks
+            .as_ref()
+            .and_then(|marks| marks.take(&self.name, &context));
+        self.handler.execute(input, marked.unwrap_or(context)).await
+    }
+}
+
 /// Turn an SDK plugin into a [`CompiledPlugin`], passing its manifest and `assets()` through.
 /// Each manifest command is routed to [`umbel_sdk::Plugin::handle`], called on a blocking thread
 /// with a [`Cx`] over the call's granted services.
@@ -261,9 +281,25 @@ impl<P: umbel_sdk::Plugin> CommandHandler for SdkHandler<P> {
         let plugin = Arc::clone(&self.plugin);
         let name = self.name.clone();
         let revoked = services.revoked();
+        // Under the compiled gate (D204) the blocking thread holds a clone of the call's turn: the
+        // gate aborts this future at the deadline, but the thread cannot be stopped, so the turn
+        // stays taken until the plugin returns.
+        let turn = super::compiled_gate::current_turn();
+        let signal = context.cancellation().cloned();
+        let instance = self.services.instance().to_owned();
         let joined = tokio::task::spawn_blocking(move || {
+            let _turn = turn;
             let mut cx = Cx::new(call, services);
-            plugin.handle(&name, input, &mut cx)
+            let outcome = plugin.handle(&name, input, &mut cx);
+            if signal.as_ref().is_some_and(afd::CancellationSignal::is_cancelled) {
+                tracing::warn!(
+                    plugin = %instance,
+                    command = %name,
+                    trace_id = %cx.call().trace_id,
+                    "a compiled-plugin call returned after it was cancelled or passed its deadline; its result was dropped"
+                );
+            }
+            outcome
         })
         .await;
         // A task whose space its caller can no longer read answers that, whatever the plugin made

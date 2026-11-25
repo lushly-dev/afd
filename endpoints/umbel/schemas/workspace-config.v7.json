@@ -185,6 +185,12 @@
 				"exclude_memory_from_machine_backup": {
 					"description": "Whether memory.sqlite3, memory.keys and their WAL and shared-memory files are excluded from the machine's backup (Time Machine on macOS; D87). Default true. A file-level copy is not covered.",
 					"type": "boolean"
+				},
+				"max_connections": {
+					"description": "The most threads of one host at work on its SQLite stores at once, a new store's first open included (D204); past it a store call waits up to lock_timeout_ms, then answers STORE_BUSY. Default 32.",
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 1024
 				}
 			}
 		},
@@ -384,7 +390,7 @@
 			"$ref": "#/$defs/auth"
 		},
 		"limits": {
-			"description": "The hosted rate limits (section 11).",
+			"description": "The hosted rate limits (section 11), and the bound and deadline of compiled-plugin calls in every mode (D204).",
 			"type": "object",
 			"additionalProperties": false,
 			"properties": {
@@ -407,6 +413,18 @@
 					"description": "Person decisions begun per principal. Default 30.",
 					"type": "integer",
 					"minimum": 1
+				},
+				"compiled_calls": {
+					"description": "The most compiled-plugin calls one host runs at once, whatever form the plugin registered each command in (D204); a call past it waits for its turn up to its deadline, then answers HOST_UMBEL_PLUGIN_BUSY without running. Tasks take turns too and have no deadline, so one owner's tasks can hold every turn (a known limit). Default 16.",
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 1024
+				},
+				"compiled_timeout_ms": {
+					"description": "The deadline of a compiled-plugin call that is not a task nor the host's own command line, its wait for a turn included (D204); a caller's own shorter timeout_ms brings it forward. Past it a call that started answers OUTCOME_UNKNOWN, not retryable, and its late result is dropped. At most 29000, a second under AFD's 30000 ms MCP deadline. Default 25000.",
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 29000
 				}
 			}
 		},

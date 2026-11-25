@@ -135,6 +135,15 @@ impl SqliteMemoryStore {
         self
     }
 
+    /// This store, its key file included, with its connections under `limit`, the cap shared by
+    /// the stores of one host (`store.max_connections`): past it a call waits up to the lock
+    /// timeout, then answers `Busy`.
+    #[must_use]
+    pub fn with_connection_limit(mut self, limit: crate::ConnectionLimit) -> Self {
+        self.pool.set_limit(limit);
+        self
+    }
+
     /// The key file, which exists once the store is provisioned.
     #[must_use]
     pub fn keys_path(&self) -> PathBuf {
@@ -174,6 +183,8 @@ impl SqliteMemoryStore {
     /// # Errors
     /// `NotProvisioned` before the first write; `Busy` or `Io` if it cannot be queried.
     pub fn info(&self) -> Result<MemoryInfo, StoreError> {
+        // The fresh connection below counts against the host's cap too.
+        let _turn = self.pool.turn()?;
         // A read first, so an unprovisioned store answers as every read does.
         self.pool.read(|_| Ok(()))?;
         let conn = self.pool.fresh_connection()?;

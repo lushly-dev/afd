@@ -9,6 +9,7 @@
 mod attestation;
 mod check;
 mod compiled;
+mod compiled_gate;
 #[cfg(feature = "component")]
 mod component;
 mod config;
@@ -37,6 +38,7 @@ pub(crate) use check::run as check_plugin;
 #[cfg(feature = "testkit")]
 pub(crate) use check::single_plugin_config;
 pub use compiled::{Asset, CompiledPlugin, PluginCommand, sdk};
+pub(crate) use compiled_gate::CompiledGate;
 #[cfg(feature = "store-embedded")]
 pub(crate) use content::file_hash as own_file_hash;
 pub(crate) use doctor::{

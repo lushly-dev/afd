@@ -38,6 +38,8 @@ pub(crate) struct Pool {
     path: PathBuf,
     timeout: Duration,
     idle: Mutex<Vec<Connection>>,
+    /// The host's cap on threads at work on its stores at once, when it sets one.
+    limit: Option<crate::ConnectionLimit>,
 }
 
 impl Pool {
@@ -47,14 +49,18 @@ impl Pool {
         path: PathBuf,
         space: &str,
         options: StoreOptions,
+        limit: Option<crate::ConnectionLimit>,
     ) -> Result<Self, StoreError> {
         let timeout = Duration::from_millis(options.lock_timeout_ms);
+        let turn = crate::limit::enter(limit.as_ref(), timeout)?;
         let mut conn = connect(&path, timeout).map_err(StoreError::from)?;
         initialise(&mut conn, space, timeout).map_err(StoreError::from)?;
+        drop(turn);
         Ok(Self {
             path,
             timeout,
             idle: Mutex::new(vec![conn]),
+            limit,
         })
     }
 
@@ -63,6 +69,7 @@ impl Pool {
         &self,
         work: impl FnOnce(&mut Connection) -> Result<T, Fail>,
     ) -> Result<T, StoreError> {
+        let _turn = crate::limit::enter(self.limit.as_ref(), self.timeout)?;
         let pooled = self.idle.lock().ok().and_then(|mut idle| idle.pop());
         let mut conn = match pooled {
             Some(conn) => conn,

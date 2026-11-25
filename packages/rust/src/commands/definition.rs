@@ -840,6 +840,17 @@ impl CommandDefinition {
         self
     }
 
+    /// Replace the handler with `wrap` of it, keeping every other field: a host that registers
+    /// a definition someone else built can run its own code around the handler (a turn, a
+    /// deadline), as TypeScript and Python reach `handler` directly.
+    pub fn map_handler(
+        mut self,
+        wrap: impl FnOnce(Arc<dyn CommandHandler>) -> Arc<dyn CommandHandler>,
+    ) -> Self {
+        self.handler = wrap(self.handler);
+        self
+    }
+
     /// Call the command's handler directly.
     ///
     /// This skips everything [`CommandRegistry::execute`] enforces: input

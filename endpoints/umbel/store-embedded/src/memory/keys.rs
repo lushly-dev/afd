@@ -168,6 +168,8 @@ pub(crate) struct KeyFile {
     path: PathBuf,
     timeout: Duration,
     idle: Mutex<Option<(Connection, (u64, u64))>>,
+    /// The host's cap on threads at work on its stores at once, when it sets one.
+    limit: Option<crate::ConnectionLimit>,
 }
 
 impl KeyFile {
@@ -176,11 +178,16 @@ impl KeyFile {
             path,
             timeout,
             idle: Mutex::new(None),
+            limit: None,
         }
     }
 
     pub(crate) fn path(&self) -> &Path {
         &self.path
+    }
+
+    pub(crate) fn set_limit(&mut self, limit: crate::ConnectionLimit) {
+        self.limit = Some(limit);
     }
 
     pub(crate) fn exists(&self) -> bool {
@@ -197,6 +204,7 @@ impl KeyFile {
         store_id: &str,
         work: impl FnOnce(&mut Connection) -> Result<T, Fail>,
     ) -> Result<T, Fail> {
+        let _turn = crate::limit::enter(self.limit.as_ref(), self.timeout)?;
         let meta = match std::fs::metadata(&self.path) {
             Ok(meta) => meta,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
@@ -227,6 +235,7 @@ impl KeyFile {
 
     /// The key file's settings on a new connection.
     pub(crate) fn info(&self) -> Result<MemoryKeysInfo, Fail> {
+        let _turn = crate::limit::enter(self.limit.as_ref(), self.timeout)?;
         let conn = connect(&self.path, self.timeout)?;
         let int = |pragma: &str| -> Result<i64, Fail> {
             Ok(conn.query_row(&format!("PRAGMA {pragma}"), [], |r| r.get(0))?)
