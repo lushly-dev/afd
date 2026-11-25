@@ -50,6 +50,14 @@ struct ApprovalAdmission {
     /// the journal reads `command->secret` only while it is set.
     std::atomic<bool> running{false};
     std::mutex mutex;
+    /// The continuations `CommandRegistry` built for this call's middleware chain, by address:
+    /// `[chain_begin, chain_end)` while the chain runs, and those `compose_middleware` built under
+    /// one of them. Only a middleware the registry invoked is handed one, so the journal reads
+    /// `secret` only for a recorder whose `next` is among them; a recorder a handler runs itself,
+    /// on the same context and with a `next` of its own, reads unknown, whenever it runs.
+    const Next* chain_begin = nullptr;
+    const Next* chain_end = nullptr;
+    std::vector<const Next*> inherited;
     /// What each approval step admitted since the last dispatch. Two approval middlewares on one
     /// registry each admit, and the dispatch must match them all, so a later one never replaces or
     /// weakens an earlier one's binding.
@@ -64,6 +72,25 @@ struct ApprovalAdmission {
     /// registry takes and checks the admission as it does for the command's own policy. Never
     /// cleared: a later dispatch on the same record is checked too.
     bool listed_gate = false;
+};
+
+/// Whether `next` is a continuation the registry built for the call of `context`'s record (see
+/// `ApprovalAdmission::chain_begin`). False for a context the registry did not record.
+bool is_registry_next(const CommandContext& context, const Next& next);
+
+/// Marks `inner` as the registry's for as long as it lives, when `outer` is: `compose_middleware`
+/// builds continuations of its own for the parts it composes, and a part the registry reached
+/// through it is still the registry's. Unmarks it on destruction.
+class InheritRegistryNext {
+public:
+    InheritRegistryNext(CommandContext& context, const Next& outer, const Next& inner);
+    InheritRegistryNext(const InheritRegistryNext&) = delete;
+    InheritRegistryNext& operator=(const InheritRegistryNext&) = delete;
+    ~InheritRegistryNext();
+
+private:
+    std::shared_ptr<ApprovalAdmission> record_;
+    const Next* inner_;
 };
 
 /// Whether a declared policy needs an approval step: anything but unset or `not_required`. A

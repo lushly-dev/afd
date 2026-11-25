@@ -129,11 +129,14 @@ bool default_filter(std::string_view name) {
 // The `secret` declaration of the command the registry runs for this call, read from the record
 // it put on the context before any middleware ran, never from the name. Unset outside the
 // registry's execution (a DirectClient's own middleware, or a direct call), for a record of a
-// call that has returned (a kept copy of its context), and for one naming another command.
-std::optional<bool> live_secret(const CommandContext& context, std::string_view name) {
+// call that has returned (a kept copy of its context), for one naming another command, and for a
+// recorder whose `next` the registry did not build: one a handler runs itself on its own context,
+// or keeps and runs later, is not the registry's, so the command's declaration is not its to read.
+std::optional<bool> live_secret(const CommandContext& context, std::string_view name,
+                                const Next& next) {
     const detail::ApprovalAdmission* record = context.approval_admission.get();
     if (record == nullptr || !record->running.load() || !record->command ||
-        record->command->name != name) {
+        record->command->name != name || !detail::is_registry_next(context, next)) {
         return std::nullopt;
     }
     return static_cast<bool>(record->command->secret);
@@ -706,14 +709,15 @@ CommandMiddleware create_journal_middleware(std::shared_ptr<JournalSink> sink,
         // A command declaring `secret` is recorded only when a `redact` can remove the secret: a
         // filter alone never admits it (spec/journal.md). Where the declaration cannot be read,
         // no call is recorded without `redact`.
-        const std::optional<bool> secret = live_secret(context, name);
+        const std::optional<bool> secret = live_secret(context, name, next);
         const JournalRedactInfo info{.secret = secret};
         if (secret.value_or(true) && !options.redact) {
             return off_tape(context, next);
         }
-        // A secret call recorded or skipped by `filter` reads off its parent's tape too: its own
-        // recording, if any, keeps its reads on its own entry, for `redact` to drop.
-        if (secret.value_or(false)) {
+        // A secret call, or one whose declaration cannot be read, recorded or skipped by `filter`,
+        // reads off its parent's tape too: its own recording, if any, keeps its reads on its own
+        // entry, for `redact` to drop.
+        if (secret.value_or(true)) {
             return off_tape(context, [&]() {
                 return record_call(*sink, options, info, name, input, context, next);
             });

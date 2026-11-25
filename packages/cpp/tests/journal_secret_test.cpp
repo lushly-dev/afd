@@ -283,6 +283,188 @@ TEST_CASE("records nothing without redact where the declaration cannot be read (
     CHECK(told == std::vector<std::optional<bool>>{std::nullopt, std::nullopt, std::nullopt});
 }
 
+TEST_CASE("a recorder a handler runs itself on its own context reads no declaration") {
+    // The registry's journal records `dice-roll` as before. The handler's own recorder, run on
+    // the handler's context under the same name, is not the registry's: the command's
+    // declaration (not secret) is not its to read, so without redact it records nothing.
+    auto engine = std::make_shared<afd::MemoryJournalSink>();
+    auto own = std::make_shared<afd::MemoryJournalSink>();
+    const auto own_chain =
+        afd::create_journal_middleware(own, {.filter = [](std::string_view) { return true; }});
+    std::vector<std::optional<bool>> told;
+    const auto telling = afd::create_journal_middleware(
+        std::make_shared<afd::MemoryJournalSink>(),
+        {.redact = [&told](afd::JournalRecord record, const afd::JournalRedactInfo& info)
+             -> std::optional<afd::JournalRecord> {
+            told.push_back(info.secret);
+            return record;
+        }});
+    afd::CommandRegistry registry({.middleware = {afd::create_journal_middleware(engine), telling},
+                                   .clock = afd::fixed_clock(1767225600000)});
+    add(registry,
+        {.name = "dice-roll",
+         .description = "Roll a die through a chain of its own",
+         .handler = [&](const afd::Json&, afd::CommandContext& context) {
+             const afd::Next next = [] { return afd::success({{"key", "SECRET-VAULT-KEY"}}); };
+             CHECK(own_chain("dice-roll", {{"passphrase", "hunter2"}}, context, next).success);
+             CHECK(telling("dice-roll", afd::Json::object(), context, next).success);
+             return afd::success({{"roll", 4}});
+         }});
+    CHECK(registry.execute("dice-roll").success);
+    // After the first call: the handler's own recorder recorded nothing and read unknown. The
+    // registry's reads the declaration on entry, before `next`, and is told it (`false`) by
+    // redact after the handler returns, so it is second in `told`.
+    CHECK(read_all(*own).empty());
+    CHECK(told == std::vector<std::optional<bool>>{std::nullopt, false});
+    CHECK(commands_of(read_all(*engine)) == std::vector<std::string>{"dice-roll"});
+    // A second call reads the same way.
+    told.clear();
+    CHECK(registry.execute("dice-roll").success);
+    CHECK(read_all(*own).empty());
+    CHECK(told == std::vector<std::optional<bool>>{std::nullopt, false});
+    CHECK(commands_of(read_all(*engine)) == std::vector<std::string>{"dice-roll", "dice-roll"});
+}
+
+namespace {
+
+/// A journal middleware that records nothing itself and tells `told` what `redact` was told.
+afd::CommandMiddleware telling_journal(std::vector<std::optional<bool>>& told) {
+    return afd::create_journal_middleware(
+        std::make_shared<afd::MemoryJournalSink>(),
+        {.redact = [&told](afd::JournalRecord record, const afd::JournalRedactInfo& info)
+             -> std::optional<afd::JournalRecord> {
+            told.push_back(info.secret);
+            return record;
+        }});
+}
+
+} // namespace
+
+TEST_CASE("a recorder a handler keeps and runs later, inside the call, reads no declaration") {
+    // The handler keeps a recorder with a `next` of its own; an outer middleware runs it after
+    // its `next` returned, while the call is still under way.
+    auto own = std::make_shared<afd::MemoryJournalSink>();
+    const auto own_chain =
+        afd::create_journal_middleware(own, {.filter = [](std::string_view) { return true; }});
+    std::vector<std::optional<bool>> told;
+    const auto telling = telling_journal(told);
+    std::function<void(afd::CommandContext&)> kept;
+    const afd::CommandMiddleware runs_kept = [&kept](std::string_view, const afd::Json&,
+                                                     afd::CommandContext& context,
+                                                     const afd::Next& next) {
+        afd::CommandResult result = next();
+        REQUIRE(kept);
+        kept(context);
+        return result;
+    };
+    afd::CommandRegistry registry({.middleware = {runs_kept}});
+    add(registry,
+        {.name = "dice-roll",
+         .description = "Roll a die, keeping a recorder for later",
+         .handler = [&](const afd::Json&, afd::CommandContext&) {
+             kept = [&](afd::CommandContext& context) {
+                 const afd::Next next = [] { return afd::success({{"key", "SECRET-VAULT-KEY"}}); };
+                 CHECK(own_chain("dice-roll", {{"passphrase", "hunter2"}}, context, next).success);
+                 CHECK(telling("dice-roll", afd::Json::object(), context, next).success);
+             };
+             return afd::success({{"roll", 4}});
+         }});
+    CHECK(registry.execute("dice-roll").success);
+    CHECK(read_all(*own).empty());
+    CHECK(told == std::vector<std::optional<bool>>{std::nullopt});
+}
+
+TEST_CASE("a recorder with redact that reads no declaration stays off its parent's tape") {
+    // The registry records `session-open`; its handler runs a recorder of its own, with redact,
+    // which reads unknown. Its call's draw goes on its own entry, never the parent's.
+    auto engine = std::make_shared<afd::MemoryJournalSink>();
+    auto own = std::make_shared<afd::MemoryJournalSink>();
+    const auto own_chain = afd::create_journal_middleware(
+        own, {.redact = [](afd::JournalRecord record) -> std::optional<afd::JournalRecord> {
+            return record;
+        }});
+    auto random = std::make_shared<CountingRandom>();
+    afd::CommandRegistry registry({.middleware = {afd::create_journal_middleware(engine)},
+                                   .clock = afd::fixed_clock(1767225600000),
+                                   .random = random});
+    add(registry, {.name = "session-open",
+                   .description = "Open a session through a recorder of its own",
+                   .handler = [&](const afd::Json&, afd::CommandContext& context) {
+                       const afd::Next next = [&context] {
+                           return afd::success({{"draw", context.random->next()}});
+                       };
+                       CHECK(own_chain("session-open", afd::Json::object(), context, next).success);
+                       return afd::success({{"opened", true}});
+                   }});
+    CHECK(registry.execute("session-open").success);
+    const auto parent = read_all(*engine);
+    REQUIRE(commands_of(parent) == std::vector<std::string>{"session-open"});
+    REQUIRE(parent[0].tape.has_value());
+    CHECK(parent[0].tape->random.empty());
+    CHECK(parent[0].tape->truncated);
+    const auto nested = read_all(*own);
+    REQUIRE(commands_of(nested) == std::vector<std::string>{"session-open"});
+    REQUIRE(nested[0].tape.has_value());
+    CHECK(nested[0].tape->random == std::vector<double>{0.25 + 0.01 * 1});
+    CHECK(random->draws == 1);
+}
+
+TEST_CASE("the registry's journal reads the declaration when a middleware re-enters next "
+          "during the handler") {
+    // An outer middleware keeps its `next`; the handler's first run calls it again, so the
+    // registry's journal runs a second time while a handler run is under way.
+    std::vector<std::optional<bool>> told;
+    const afd::Next* outer_next = nullptr;
+    const afd::CommandMiddleware keeps_next = [&outer_next](std::string_view, const afd::Json&,
+                                                            afd::CommandContext&,
+                                                            const afd::Next& next) {
+        outer_next = &next;
+        return next();
+    };
+    afd::CommandRegistry registry({.middleware = {keeps_next, telling_journal(told)}});
+    int runs = 0;
+    afd::CommandDefinition unlock = vault_unlock();
+    unlock.handler = [&](const afd::Json&, afd::CommandContext&) {
+        if (++runs == 1) {
+            REQUIRE(outer_next != nullptr);
+            CHECK((*outer_next)().success);
+        }
+        return afd::success({{"key", "SECRET-VAULT-KEY"}});
+    };
+    add(registry, std::move(unlock));
+    CHECK(registry.execute("vault-unlock").success);
+    CHECK(runs == 2);
+    CHECK(told == std::vector<std::optional<bool>>{true, true});
+}
+
+TEST_CASE("a middleware that calls next twice has both attempts recorded") {
+    auto sink = std::make_shared<afd::MemoryJournalSink>();
+    const afd::CommandMiddleware twice = [](std::string_view, const afd::Json&,
+                                            afd::CommandContext&, const afd::Next& next) {
+        CHECK(next().success);
+        return next();
+    };
+    afd::CommandRegistry registry({.middleware = {twice, afd::create_journal_middleware(sink)},
+                                   .clock = afd::fixed_clock(1767225600000),
+                                   .random = std::make_shared<CountingRandom>()});
+    add(registry, dice_roll());
+    CHECK(registry.execute("dice-roll", {{"sides", 6}}).success);
+    CHECK(commands_of(read_all(*sink)) == std::vector<std::string>{"dice-roll", "dice-roll"});
+}
+
+TEST_CASE("a journal the registry reaches through compose_middleware reads the declaration") {
+    std::vector<std::optional<bool>> told;
+    const afd::CommandMiddleware pass = [](std::string_view, const afd::Json&, afd::CommandContext&,
+                                           const afd::Next& next) { return next(); };
+    afd::CommandRegistry registry(
+        {.middleware = {afd::compose_middleware({pass, telling_journal(told)})}});
+    add(registry, vault_unlock());
+    add(registry, dice_roll());
+    CHECK(registry.execute("vault-unlock", {{"passphrase", "hunter2"}}).success);
+    CHECK(registry.execute("dice-roll", {{"sides", 6}}).success);
+    CHECK(told == std::vector<std::optional<bool>>{true, false});
+}
+
 TEST_CASE("a secret nested call stays off its recorded parent's tape, and marks that tape") {
     NestedMint mint({}, 2);
     CHECK(mint.registry->execute("session-open").success);
