@@ -15,17 +15,14 @@ Example:
 
 from typing import Any, Literal
 
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
-from afd.core.wire import WireModel
+from afd.core.wire import WIRE_MODEL_CONFIG, WireModel
 
 # Type alias for standard protocols
 HandoffProtocol = (
     Literal["websocket", "webrtc", "sse", "http-stream"] | str  # Allow custom protocols
 )
-
-
-_DEFAULT_RECONNECT_POLICY = {"allowed": True, "maxAttempts": 3, "backoffMs": 1000}
 
 
 class ReconnectPolicy(WireModel):
@@ -44,9 +41,24 @@ class ReconnectPolicy(WireModel):
         >>> policy = ReconnectPolicy(allowed=True, max_attempts=5, backoff_ms=1000)
     """
 
+    model_config = ConfigDict(**WIRE_MODEL_CONFIG, frozen=True)
+
     allowed: bool
     max_attempts: int | None = Field(default=None, ge=0)
     backoff_ms: int | None = Field(default=None, ge=0)
+
+
+DEFAULT_RECONNECT_POLICY: ReconnectPolicy = ReconnectPolicy(
+    allowed=True,
+    max_attempts=3,
+    backoff_ms=1000,
+)
+"""Default reconnect policy applied by :func:`create_handoff` when omitted."""
+
+default_reconnect_policy: ReconnectPolicy = DEFAULT_RECONNECT_POLICY
+"""Alias for :data:`DEFAULT_RECONNECT_POLICY`."""
+
+_DEFAULT_RECONNECT_POLICY: dict[str, Any] = DEFAULT_RECONNECT_POLICY.model_dump(by_alias=True)
 
 
 class HandoffCredentials(WireModel):
@@ -132,6 +144,15 @@ class HandoffResult(WireModel):
     metadata: HandoffMetadata | None = None
 
 
+class CreateHandoffOptions(WireModel):
+    """Options model matching TypeScript's ``CreateHandoffOptions``."""
+
+    protocol: str = Field(..., min_length=1)
+    endpoint: str = Field(..., min_length=1)
+    credentials: HandoffCredentials | None = None
+    metadata: HandoffMetadata | None = None
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # TYPE GUARDS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -142,6 +163,25 @@ def _field(mapping: dict[str, Any], camel: str, snake: str) -> Any:
     if camel in mapping:
         return mapping[camel]
     return mapping.get(snake)
+
+
+def is_reconnect_policy(value: Any) -> bool:
+    """Type guard to check if a value is a valid :class:`ReconnectPolicy`."""
+    if isinstance(value, ReconnectPolicy):
+        return True
+    if not isinstance(value, dict):
+        return False
+    if not isinstance(value.get("allowed"), bool):
+        return False
+    max_attempts = _field(value, "maxAttempts", "max_attempts")
+    if max_attempts is not None and (
+        isinstance(max_attempts, bool) or not isinstance(max_attempts, (int, float))
+    ):
+        return False
+    backoff_ms = _field(value, "backoffMs", "backoff_ms")
+    return backoff_ms is None or (
+        not isinstance(backoff_ms, bool) and isinstance(backoff_ms, (int, float))
+    )
 
 
 def is_handoff(value: Any) -> bool:
