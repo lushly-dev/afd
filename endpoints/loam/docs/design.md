@@ -893,3 +893,11 @@ a fixture in `packages/chrome/specimens/chrome.specimens.ts`, or for what apps a
   added `space.inline.hairline` (`2px`), and renamed 25 semantic ids (`type.*`,
   `radius.*`, `space.*`) to purpose names across Loam, `violet-elements` and repo
   consumers.
+- **2026-11-24. Checklist's ticked box and app headings ([#2378](https://github.com/lushly-dev/afd/issues/2378),
+  [#2379](https://github.com/lushly-dev/afd/issues/2379)).** Checklist's ticked
+  `.box` reads `color.control.selected.{background,border,foreground}` (matching
+  `violet-checkbox`, under D172's cerulean selection tokens in light and dark and
+  neutral grey/black in high contrast, keeping `SelectedItem`/`SelectedItemText`
+  under forced colors), and Hello's (`elements.ts`, `pages/main.html`) and
+  Checklist's (`editor-styles.ts`) `h1` headings read `font.family.heading`
+  (Space Grotesk).

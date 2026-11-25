@@ -2,13 +2,14 @@
  * @fileoverview The editor page's stylesheet: semantic tokens only, which `connectView` sets on the page's
  * root from `dev.loam/tokens` and again on each change of theme or density, so `lint:tokens` reads it here.
  * Each pair it relies on is in the theme's `pairs.ts`: text on the page, the field's border on the field,
- * each action's text on its fill and the focus ring on the page. A done item is ticked and struck through,
- * never shown by color alone. Nothing animates.
+ * each action's text on its fill, the selected control's tick on its fill and the focus ring on the page.
+ * A done item is ticked and struck through, never shown by color alone. Nothing animates.
  *
- * The field and the buttons draw what `violet-text-field` and `violet-button` draw (Refined, D159): the field
- * is a well, its 3:1 rule an inner line along the top over the well's shadow; the add button is a key, its
- * fill raised by the control shadow; edges come from surfaces and shadows, and forced colors draws them as
- * borders, since it drops box-shadow. The faces come from the shell, in `styles.css.fonts`.
+ * The field, buttons and ticked box draw what `violet-text-field`, `violet-button` and `violet-checkbox`
+ * draw (Refined, D159/D172): the field is a well, its 3:1 rule an inner line along the top over the well's
+ * shadow; the add button is a key, its fill raised by the control shadow; the ticked box takes the selected
+ * control tokens; edges come from surfaces and shadows, and forced colors draws them as borders, since it
+ * drops box-shadow. The faces come from the shell, in `styles.css.fonts`.
  */
 
 /** A plain template tag, so the token lint finds the stylesheet. */
@@ -33,6 +34,7 @@ export const EDITOR_STYLES = css`
 
 	h1 {
 		margin: 0;
+		font-family: var(--violet-font-family-heading);
 		font-size: var(--violet-type-heading-section-size);
 		line-height: var(--violet-type-heading-section-line);
 		font-weight: var(--violet-type-heading-section-weight);
@@ -195,13 +197,13 @@ export const EDITOR_STYLES = css`
 		border: 1px solid var(--violet-color-field-border);
 		border-radius: var(--violet-radius-inset);
 		background: var(--violet-color-field-background);
-		color: var(--violet-color-action-primary-text);
 		font-weight: var(--violet-weight-semibold);
 	}
 
 	button.item[aria-checked='true'] .box {
-		border-color: var(--violet-color-action-primary-background);
-		background: var(--violet-color-action-primary-background);
+		border-color: var(--violet-color-control-selected-border);
+		background: var(--violet-color-control-selected-background);
+		color: var(--violet-color-control-selected-foreground);
 	}
 
 	button.item[aria-checked='true'] .text {

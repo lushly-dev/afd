@@ -499,6 +499,25 @@ describe('P2-D10: checklist’s view editor', () => {
 		expect(await frame.getByLabel('New item').getAttribute('aria-invalid')).toBe('true');
 		expect(await frame.getByLabel('New item').getAttribute('aria-describedby')).toBe('status');
 		expect(await frame.locator('#status').textContent()).toBe('Write the item first.');
+		// #2379: checklist's heading uses font.family.heading (Space Grotesk), delivered by the shell.
+		await expect
+			.poll(() =>
+				frame.evaluate(() => document.head.querySelectorAll('style[data-loam-fonts]').length)
+			)
+			.toBe(1);
+		const headingFont = await frame.evaluate(async () => {
+			const loadedFaces = await document.fonts.load('600 18px "Space Grotesk"');
+			await document.fonts.ready;
+			const h1 = document.querySelector('h1');
+			return {
+				family: h1 ? getComputedStyle(h1).fontFamily : '',
+				loaded: document.fonts.check('600 18px "Space Grotesk"'),
+				loadedFaces: loadedFaces.map((face) => face.family.replaceAll('"', '')),
+			};
+		});
+		expect(headingFont.family).toMatch(/^"?Space Grotesk"?,/);
+		expect(headingFont.loaded).toBe(true);
+		expect(headingFont.loadedFaces).toContain('Space Grotesk');
 		const seen = new Set<string>();
 		for (const theme of ['light', 'dark', 'high-contrast'] as const) {
 			for (const density of ['comfortable', 'compact'] as const) {
@@ -506,7 +525,57 @@ describe('P2-D10: checklist’s view editor', () => {
 				await editorIdle(page);
 				// The view follows the shell's theme through `dev.loam/tokens`.
 				const colors = JSON.stringify(await colorsIn(frame));
-				if (density === 'comfortable') seen.add(colors);
+				if (density === 'comfortable') {
+					seen.add(colors);
+					// #2378: ticked box uses the selected control tokens (as violet-checkbox does), not primary ink fill.
+					const ticked = await frame.evaluate(() => {
+						const probe = document.createElement('span');
+						probe.style.setProperty(
+							'background-color',
+							'var(--violet-color-control-selected-background)'
+						);
+						probe.style.setProperty(
+							'border',
+							'1px solid var(--violet-color-control-selected-border)'
+						);
+						probe.style.setProperty('color', 'var(--violet-color-control-selected-foreground)');
+						const primary = document.createElement('span');
+						primary.style.setProperty(
+							'background-color',
+							'var(--violet-color-action-primary-background)'
+						);
+						document.body.append(probe, primary);
+						const expected = {
+							background: getComputedStyle(probe).backgroundColor,
+							border: getComputedStyle(probe).borderTopColor,
+							color: getComputedStyle(probe).color,
+							primaryBackground: getComputedStyle(primary).backgroundColor,
+						};
+						probe.remove();
+						primary.remove();
+						const box = document.querySelector<HTMLElement>(
+							'button.item[aria-checked="true"] .box'
+						);
+						const style = box ? getComputedStyle(box) : null;
+						return {
+							background: style?.backgroundColor,
+							border: style?.borderTopColor,
+							color: style?.color,
+							expected,
+						};
+					});
+					expect(ticked.background, `ticked box background resolved, ${theme}`).not.toBe(
+						'rgba(0, 0, 0, 0)'
+					);
+					expect(ticked.background, `ticked box background, ${theme}`).toBe(
+						ticked.expected.background
+					);
+					expect(ticked.border, `ticked box border, ${theme}`).toBe(ticked.expected.border);
+					expect(ticked.color, `ticked box color, ${theme}`).toBe(ticked.expected.color);
+					expect(ticked.background, `ticked box is not primary fill, ${theme}`).not.toBe(
+						ticked.expected.primaryBackground
+					);
+				}
 				expect(await axe(frame), `inside the frame, ${theme} ${density}`).toEqual([]);
 				expect(await settledAxe(page), `${theme} ${density}`).toEqual([]);
 			}
