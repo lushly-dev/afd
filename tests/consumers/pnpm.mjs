@@ -177,10 +177,12 @@ export function assertOverridesApplied(root, overrides) {
 		const expected = `${name}@file+`;
 		if (dir.startsWith(expected)) return true;
 		// On Windows pnpm truncates `.pnpm/` entries over 60 characters and appends `_<md5>`.
-		// A truncated stem shorter than `${name}@file+` is ambiguous with a registry copy, so it
-		// only passes when `pnpm-lock.yaml` confirms the resolved entry is a `file:` tarball.
+		// A stem cut right after `@file` still names a `file:` entry, since a registry copy's
+		// version starts with a digit (#2333). A shorter stem is ambiguous with a registry copy,
+		// so it only passes when `pnpm-lock.yaml` confirms the resolved entry is a `file:` tarball.
 		if (!/_[0-9a-f]{32}$/.test(dir)) return false;
 		const stem = dir.slice(0, -33);
+		if (stem === `${name}@file`) return true;
 		if (stem.length === 0 || !expected.startsWith(stem)) return false;
 		if (lockText === null) return false;
 		const specs = lockedPackageSpecs(lockText, bare);

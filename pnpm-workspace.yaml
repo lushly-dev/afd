@@ -40,12 +40,14 @@ overrides:
   "source-map-js@>=1.0.0 <1.2.2": "^1.2.2"
   "zod@>=4.0.0 <4.6.6": "^4.6.6"
 
-# No dependency's install script runs, as under pnpm 10's default (these eight were skipped there);
-# pnpm 12 fails an install that leaves one undecided. esbuild and lefthook take their binaries from
-# optional dependencies, and the root `prepare` script installs the hooks.
+# No dependency's install script runs, as under pnpm 10's default; pnpm 12 fails an install that
+# leaves one undecided. esbuild and lefthook take their binaries from optional dependencies, the
+# root `prepare` script installs the hooks, and better-sqlite3 ships prebuilt bindings for x64 and
+# arm64 Linux (glibc and musl), macOS and Windows, which its `binding.gyp` builds nothing over.
 allowBuilds:
   "@ast-grep/cli": false
   "@google/genai": false
+  better-sqlite3: false
   edgedriver: false
   esbuild: false
   geckodriver: false

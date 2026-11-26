@@ -69,6 +69,32 @@ test('rejects Windows hash-truncated registry copy clipped before @', (t) => {
 	);
 });
 
+test('accepts a Windows hash-truncated file tarball cut right after @file, without a lockfile', (t) => {
+	const root = makeConsumer(t, {
+		entries: [
+			{
+				dir: '@lushly-dev+afd-server@file_3974bcf2c8672c228d10543bfb81b424',
+				pkg: '@lushly-dev/afd-server',
+			},
+		],
+		lockfile: null,
+	});
+
+	assertOverridesApplied(root, { '@lushly-dev/afd-server': 'file:../tarballs/server.tgz' });
+});
+
+test('rejects a file-like store entry with an invalid hash', (t) => {
+	const root = makeConsumer(t, {
+		entries: [{ dir: '@lushly-dev+afd-server@file_not-a-hash', pkg: '@lushly-dev/afd-server' }],
+		lockfile: null,
+	});
+
+	assert.throws(
+		() => assertOverridesApplied(root, { '@lushly-dev/afd-server': 'file:../tarballs/server.tgz' }),
+		/should resolve to the packed tarball/
+	);
+});
+
 test('accepts Windows hash-truncated file tarball when lockfile confirms file: resolution', (t) => {
 	const root = makeConsumer(t, {
 		entries: [
