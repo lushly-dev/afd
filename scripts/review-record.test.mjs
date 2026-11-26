@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
@@ -139,7 +139,7 @@ describe('run, against a real repository', () => {
 		Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_'))
 	);
 	const repo = () => {
-		const root = mkdtempSync(join(tmpdir(), 'afd-review-record-'));
+		const root = realpathSync(mkdtempSync(join(tmpdir(), 'afd-review-record-')));
 		const gitIn = (cwd) => (args) =>
 			execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.invalid', ...args], {
 				cwd,
@@ -160,6 +160,19 @@ describe('run, against a real repository', () => {
 		return { root, git, gitIn };
 	};
 	const lanes = JSON.stringify([self, general]);
+
+	it('finds the record of the checkout git runs in, not of the root it is given (#2659)', (t) => {
+		const here = repo();
+		const there = repo();
+		t.after(() => {
+			rmSync(here.root, { recursive: true, force: true });
+			rmSync(there.root, { recursive: true, force: true });
+		});
+		assert.equal(
+			recordPath(there.git, here.root),
+			join(there.root, '.git', 'afd-review-record.json')
+		);
+	});
 
 	it('writes a record verify accepts for that head only, until the next commit', (t) => {
 		const { root, git } = repo();

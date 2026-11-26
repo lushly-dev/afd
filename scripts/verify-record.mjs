@@ -21,9 +21,18 @@ export const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 export const CHECK = 'check (ci.yml)';
 const ZERO = /^0+$/;
 
-/** Where this worktree keeps its record: inside its git directory, never in the tree. */
+/**
+ * Where this worktree keeps its record: inside its git directory, never in the tree.
+ *
+ * Git answers `--git-path` relative to the checkout `git` runs in (`.git/...` in a primary clone),
+ * so ask for an absolute path: resolving a relative answer against `root` would read this
+ * checkout's record for a `git` that runs in another one (#2659).
+ */
 export function recordPath(git, root) {
-	return resolve(root, git(['rev-parse', '--git-path', 'afd-verify-record.json']).trim());
+	return resolve(
+		root,
+		git(['rev-parse', '--path-format=absolute', '--git-path', 'afd-verify-record.json']).trim()
+	);
 }
 
 /** The commit, tree, merge base with the default base, and whether the checkout is clean. */
