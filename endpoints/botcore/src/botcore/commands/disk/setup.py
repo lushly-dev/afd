@@ -89,6 +89,8 @@ STATE_SECONDS = 30
 STATUS_SECONDS = 20
 # How long a writer of check.json waits for another process that is writing it
 CHECK_LOCK_SECONDS = 5
+# How long a replace of a state file, or a read of one, waits for a Windows handle on it
+REPLACE_SECONDS = 2.0
 # How long a call that was cancelled waits for the steps it told to stop
 LEAVE_SECONDS = 10
 # How long without a check before the status says so. The scheduler starts the job every
@@ -517,12 +519,22 @@ def _disk_setup_sync(
 
 
 def _read_json(name: str) -> dict[str, Any]:
+    """A state file as it stands, or `{}`. A read that meets the file while a writer replaces
+    it on Windows (`PermissionError`) is tried again for `REPLACE_SECONDS`, so `disk-status`
+    and the run's own notification time never read a record as missing (#2538)."""
     path = state_path() / name
-    try:
-        data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-    except (OSError, ValueError):
-        return {}
-    return data if isinstance(data, dict) else {}
+    until = time.monotonic() + REPLACE_SECONDS
+    while True:
+        try:
+            data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+        except PermissionError:
+            if time.monotonic() < until:
+                time.sleep(0.01)
+                continue
+            return {}
+        except (OSError, ValueError):
+            return {}
+        return data if isinstance(data, dict) else {}
 
 
 def _read_status() -> dict[str, Any]:
@@ -814,8 +826,27 @@ def _update_check(change: Callable[[dict[str, Any]], None]) -> None:
         change(data)
         data["last_check"] = datetime.now(UTC).isoformat(timespec="seconds")
         tmp = folder / f".check.json.{os.getpid()}.tmp"
-        tmp.write_text(json.dumps(data, indent=1), encoding="utf-8")
-        os.replace(tmp, folder / "check.json")
+        try:
+            tmp.write_text(json.dumps(data, indent=1), encoding="utf-8")
+            _replace(tmp, folder / "check.json")
+        except BaseException:
+            tmp.unlink(missing_ok=True)  # a write that failed leaves nothing behind
+            raise
+
+
+def _replace(tmp: Path, path: Path) -> None:
+    """`os.replace`, retried while a reader holds `path` open: Windows refuses to replace an
+    open file (`PermissionError`) where POSIX does not, and `disk-status` or another run may be
+    reading it at that moment (lushly-dev/afd#2538). Past `REPLACE_SECONDS` the error stands."""
+    until = time.monotonic() + REPLACE_SECONDS
+    while True:
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            if time.monotonic() >= until:
+                raise
+            time.sleep(0.01)
 
 
 def _write_check(update: dict[str, Any]) -> None:

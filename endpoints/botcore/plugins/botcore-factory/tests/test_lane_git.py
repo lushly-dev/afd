@@ -641,9 +641,12 @@ def test_a_merged_slot_is_folded_into_one_commit_of_its_own_on_the_base(tmp_path
     assert folded.head == git.head(slot) and folded.head != merged.head and not folded.refused
     assert git.tree(slot) == tree
     assert log(folded.head, "%P") == main
-    assert log(folded.head, "%an <%ae>|%cn <%ce>|%aI") == (
-        "The Owner <owner@example.org>|The Owner <owner@example.org>|2030-01-02T10:00:00Z"
+    assert log(folded.head, "%an <%ae>|%cn <%ce>") == (
+        "The Owner <owner@example.org>|The Owner <owner@example.org>"
     )
+    # Compared as a date: Git 2.43 prints a UTC ``%aI`` as ``+00:00``, Git 2.53 as
+    # ``Z`` (lushly-dev/afd#2636).
+    assert datetime.fromisoformat(log(folded.head, "%aI")) == datetime(2030, 1, 2, 10, tzinfo=UTC)
     assert log(folded.head, "%B") == (
         "feat: b\n\n#1809 explains it.\n\n- fix: c\n\nAssisted-by: Codex"
     )

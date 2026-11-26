@@ -520,7 +520,16 @@ def alive(monkeypatch: pytest.MonkeyPatch):
 
 
 def check_file(state: Path) -> dict:
-    return json.loads((state / "check.json").read_text())
+    """check.json as it stands. On Windows a read can meet the file while a run replaces it
+    (`PermissionError`, or not there for a moment): read again, as `disk-status` would."""
+    until = time.monotonic() + 5
+    while True:
+        try:
+            return json.loads((state / "check.json").read_text())
+        except (PermissionError, FileNotFoundError, json.JSONDecodeError):
+            if time.monotonic() >= until:
+                raise
+            time.sleep(0.01)
 
 
 @pytest.fixture
@@ -785,79 +794,91 @@ def test_in_a_process_that_lives_on_nothing_is_left_running(
     import botcore.commands.disk.reclaim as reclaim
     import botcore.commands.skill_usage as usage
 
-    release = threading.Event()
+    release, finish = threading.Event(), threading.Event()
     looks = Looks(monkeypatch)
+    calls: list[threading.Thread] = []
+    try:
 
-    async def waits(**_kwargs):
-        steps.doing("reading", "/Volumes/Shed")
-        looks.held = {"disk-work"}
-        release.wait(30)
-        steps.doing("removing", "/Volumes/Shed/build")  # it was not left: it goes on
-        return SimpleNamespace(success=True, data={"still_low": []})
+        async def waits(**_kwargs):
+            steps.doing("reading", "/Volumes/Shed")
+            looks.held = {"disk-work"}
+            release.wait(30)
+            steps.doing("removing", "/Volumes/Shed/build")  # it was not left: it goes on
+            return SimpleNamespace(success=True, data={"still_low": []})
 
-    async def waits_too():
-        steps.doing("reading T3 Code's store", "/stores/t3.sqlite")
-        looks.held.add("skill-usage-collect")
-        release.wait(30)
-        return SimpleNamespace(success=True, data={"added": 1})
+        async def waits_too():
+            steps.doing("reading T3 Code's store", "/stores/t3.sqlite")
+            looks.held.add("skill-usage-collect")
+            release.wait(30)
+            return SimpleNamespace(success=True, data={"added": 1})
 
-    monkeypatch.setattr(reclaim, "disk_reclaim", waits)
-    monkeypatch.setattr(usage, "skill_usage_collect", waits_too)
-    monkeypatch.setattr(setup, "USAGE_SECONDS", 300)
-    returned: list = []
-    call = threading.Thread(target=lambda: returned.append(asyncio.run(setup.disk_run(force=True))))
-    call.start()
-    until = time.monotonic() + 20
-    while time.monotonic() < until and not (
-        (state / "check.json").exists() and "skill_usage" in check_file(state)
-    ):
-        time.sleep(0.01)
-    check = check_file(state)  # what they wait for is on record, as in the scheduler's run
-    assert check["disk_work"]["waiting_on"]["path"] == "/Volumes/Shed"
-    assert check["skill_usage"]["ok"] is False
-    assert call.is_alive() and not returned  # and the call has not come back without them
-    release.set()
-    call.join(20)
-    assert returned and returned[0].success and returned[0].data["skill_usage"]["added"] == 1
-    assert not alive("disk-work") and not alive("skill-usage-collect")
-    check = check_file(state)
-    assert check["disk_work"]["ok"] is True and check["skill_usage"]["ok"] is True
-
-    # disk work that is working again when the record is written has no outcome yet: what
-    # is on record of it stays, and nothing fails
-    release.clear()
-    looks.held = set()
-    finish = threading.Event()
-
-    async def waits_then_works(**_kwargs):
-        steps.doing("reading", "/Volumes/Shed")
-        looks.held = {"disk-work"}
-        release.wait(30)
-        steps.doing("removing", "/Volumes/Shed/build")
-        finish.wait(30)
-        return SimpleNamespace(success=True, data={"still_low": []})
-
-    async def collect_as_the_owner_answers():
-        looks.held = set()
+        monkeypatch.setattr(reclaim, "disk_reclaim", waits)
+        monkeypatch.setattr(usage, "skill_usage_collect", waits_too)
+        monkeypatch.setattr(setup, "USAGE_SECONDS", 300)
+        returned: list = []
+        call = threading.Thread(
+            target=lambda: returned.append(asyncio.run(setup.disk_run(force=True)))
+        )
+        calls.append(call)
+        call.start()
+        until = time.monotonic() + 20
+        while time.monotonic() < until and not (
+            (state / "check.json").exists() and "skill_usage" in check_file(state)
+        ):
+            time.sleep(0.01)
+        check = check_file(state)  # what they wait for is on record, as in the scheduler's run
+        assert check["disk_work"]["waiting_on"]["path"] == "/Volumes/Shed"
+        assert check["skill_usage"]["ok"] is False
+        assert call.is_alive() and not returned  # and the call has not come back without them
         release.set()
-        return SimpleNamespace(success=True, data={"added": 4})
+        call.join(20)
+        assert returned and returned[0].success and returned[0].data["skill_usage"]["added"] == 1
+        assert not alive("disk-work") and not alive("skill-usage-collect")
+        check = check_file(state)
+        assert check["disk_work"]["ok"] is True and check["skill_usage"]["ok"] is True
 
-    monkeypatch.setattr(reclaim, "disk_reclaim", waits_then_works)
-    monkeypatch.setattr(usage, "skill_usage_collect", collect_as_the_owner_answers)
-    monkeypatch.setattr(setup, "USAGE_SECONDS", 300)
-    returned.clear()
-    call = threading.Thread(target=lambda: returned.append(asyncio.run(setup.disk_run(force=True))))
-    call.start()
-    until = time.monotonic() + 20
-    while time.monotonic() < until and check_file(state)["skill_usage"].get("added") != 4:
-        time.sleep(0.01)
-    check = check_file(state)
-    assert check["skill_usage"]["added"] == 4
-    assert check["disk_work"]["waiting_on"]["path"] == "/Volumes/Shed"  # as it last was
-    assert call.is_alive() and not returned
-    finish.set()
-    call.join(20)
-    assert returned and returned[0].success and check_file(state)["disk_work"]["ok"] is True
+        # disk work that is working again when the record is written has no outcome yet: what
+        # is on record of it stays, and nothing fails
+        release.clear()
+        looks.held = set()
+
+        async def waits_then_works(**_kwargs):
+            steps.doing("reading", "/Volumes/Shed")
+            looks.held = {"disk-work"}
+            release.wait(30)
+            steps.doing("removing", "/Volumes/Shed/build")
+            finish.wait(30)
+            return SimpleNamespace(success=True, data={"still_low": []})
+
+        async def collect_as_the_owner_answers():
+            looks.held = set()
+            release.set()
+            return SimpleNamespace(success=True, data={"added": 4})
+
+        monkeypatch.setattr(reclaim, "disk_reclaim", waits_then_works)
+        monkeypatch.setattr(usage, "skill_usage_collect", collect_as_the_owner_answers)
+        monkeypatch.setattr(setup, "USAGE_SECONDS", 300)
+        returned.clear()
+        call = threading.Thread(
+            target=lambda: returned.append(asyncio.run(setup.disk_run(force=True)))
+        )
+        calls.append(call)
+        call.start()
+        until = time.monotonic() + 20
+        while time.monotonic() < until and check_file(state)["skill_usage"].get("added") != 4:
+            time.sleep(0.01)
+        check = check_file(state)
+        assert check["skill_usage"]["added"] == 4
+        assert check["disk_work"]["waiting_on"]["path"] == "/Volumes/Shed"  # as it last was
+        assert call.is_alive() and not returned
+        finish.set()
+        call.join(20)
+        assert returned and returned[0].success and check_file(state)["disk_work"]["ok"] is True
+    finally:  # a failed assertion leaves no call running past the test
+        release.set()
+        finish.set()
+        for running in calls:
+            running.join(20)
 
 
 def test_a_call_that_is_cancelled_tells_its_steps_to_stop(
@@ -1426,6 +1447,52 @@ def test_check_json_keeps_every_writers_update(
     (state / "check.json").write_text("not json")  # which holds nothing to keep
     setup._update_check(lambda data: data.update({"fresh": 1}))
     assert check_file(state)["fresh"] == 1
+
+
+def test_a_replace_a_reader_holds_up_is_tried_again(
+    state: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """lushly-dev/afd#2538: Windows refuses to replace check.json while a reader, such as
+    disk-status, has it open. The update waits for the reader instead of being lost."""
+    setup._update_check(lambda data: data.update({"kept": 1}))
+    replace, refused = os.replace, []
+
+    def held_open(src, dst):
+        if len(refused) < 3:
+            refused.append(dst)
+            raise PermissionError(13, "Permission denied", str(dst))
+        replace(src, dst)
+
+    monkeypatch.setattr(setup.os, "replace", held_open)
+    setup._update_check(lambda data: data.update({"after": 2}))
+    assert len(refused) == 3
+    assert check_file(state)["kept"] == 1 and check_file(state)["after"] == 2
+
+    # a reader that never lets go: the error stands once the wait is up, and no temporary
+    # file is left behind
+    monkeypatch.setattr(setup, "REPLACE_SECONDS", 0.05)
+
+    def never(src, dst):
+        raise PermissionError(13, "Permission denied", str(dst))
+
+    monkeypatch.setattr(setup.os, "replace", never)
+    with pytest.raises(PermissionError):
+        setup._update_check(lambda data: data.update({"lost": 3}))
+    assert "lost" not in check_file(state)
+    assert not list(state.glob(".check.json.*.tmp"))
+
+    # and a reader that meets the file as it is replaced reads it again, not as missing
+    monkeypatch.setattr(setup, "REPLACE_SECONDS", 2.0)
+    read, busy = Path.read_text, []
+
+    def mid_replace(self, *args, **kwargs):
+        if self.name == "check.json" and len(busy) < 3:
+            busy.append(self)
+            raise PermissionError(13, "Permission denied", str(self))
+        return read(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", mid_replace)
+    assert setup._read_json("check.json")["after"] == 2 and len(busy) == 3
 
 
 @pytest.mark.skipif(os.name == "nt", reason="these are macOS paths")
