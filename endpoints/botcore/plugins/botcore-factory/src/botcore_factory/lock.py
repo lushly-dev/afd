@@ -382,9 +382,13 @@ class HostLock:
                 continue
         raise LaneLocked(self.holder() or {})
 
-    def hand_over(self, pid: int) -> None:
-        """Name another process (the detached lane) as the holder, atomically and durably."""
-        record = {**(self.holder() or {}), "pid": pid, "startedAt": self.processes.start_time(pid)}
+    def hand_over(self, pid: int, *, from_pid: int | None = None) -> None:
+        """Name another process (the detached lane) as the holder, atomically and durably. With
+        ``from_pid``, refuse (``LaneLocked``) unless that process still holds the lock."""
+        holder = self.holder()
+        if from_pid is not None and (holder is None or holder.get("pid") != from_pid):
+            raise LaneLocked(holder or {})
+        record = {**(holder or {}), "pid": pid, "startedAt": self.processes.start_time(pid)}
         atomic_write_text(self.path, json.dumps(record))
 
     def release(self, pid: int) -> None:

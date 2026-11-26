@@ -2587,6 +2587,35 @@ def test_remote_upgrade_preserves_unreadable_event_lines(
     assert [event.project for event in events] == ["acme/garden"]
 
 
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://github.com/acme/garden.git",
+        "git@github.com:acme/garden.git",
+        "/srv/remote/acme/garden.git",
+        r"C:\Users\bench\remote\acme\garden.git",
+        "C:/Users/bench/remote/acme/garden",
+        "C:\\Users\\bench\\remote\\acme\\garden\\",
+        r"\\server\share\acme\garden.git",
+    ],
+)
+def test_an_origin_names_its_repository_on_every_system(url: str) -> None:
+    """lushly-dev/afd#2710: a Windows path's origin named no repository, while the same origin
+    on POSIX did."""
+    assert collect.remote_repo(url) == "acme/garden"
+    assert collect.remote_repo(r"C:\garden.git") is None  # A drive is never an owner.
+
+
+def test_a_windows_origin_is_read_from_git_config_unescaped(tmp_path: Path) -> None:
+    """When git refuses the folder, the fallback reads `.git/config`, where git writes each
+    backslash of a Windows path twice."""
+    git(tmp_path, "init", "-q", "-b", "main")
+    git(tmp_path, "remote", "add", "origin", r"C:\Users\bench\remote\acme\garden.git")
+    url = collect._origin_from_git_config(tmp_path)
+    assert url == r"C:\Users\bench\remote\acme\garden.git"
+    assert collect.remote_repo(url or "") == "acme/garden"
+
+
 def test_project_remote_reads_git_config_on_dubious_ownership(
     state: Path, t3_store: T3Store, checkout: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
