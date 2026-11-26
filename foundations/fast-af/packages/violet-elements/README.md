@@ -88,6 +88,14 @@ await defineVioletButton(new CustomElementRegistry());
   `node scripts/codemods/split-define.mjs` from the repository root: it writes `src/all.ts` and
   the `exports` entries, and its `--check` (part of `pnpm lint`) fails when a class module imports
   an element its define module does not define.
+- **Adding or renaming an attribute.** `attribute-taxonomy.jsonc` defines every public attribute
+  once and lists each component that has it in `usedBy`; the component pack's shared rules come
+  from it. After `pnpm cem:analyze`, `pnpm taxonomy:check` fails, naming the cause, when the
+  taxonomy and `custom-elements.json` disagree: a listed component without the attribute, a
+  component with an attribute the taxonomy does not list it for or does not define, a different
+  reflected property, a boolean on one side only, or enum values unlike the attribute's literal
+  type. A name with a different meaning on some components gets a second entry listing them; a
+  name defined more than once applies to the components each entry lists, not by attribute.
 - Only the define modules and the root register elements, so `sideEffects` lists
   `./dist/**/*.define.js`, `./dist/all.js` and `./dist/index.js`, and a bundler drops the rest of
   what a product does not use. The build layout (`dist/*`) is not exported.

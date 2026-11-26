@@ -845,6 +845,7 @@
     "icons:build": "node ./scripts/build-icons.mjs",
     "cem:analyze": "cem analyze --config custom-elements-manifest.config.js && node ./scripts/normalize-custom-elements.mjs",
     "verify:exports": "node ./scripts/verify-package-exports.mjs",
+    "taxonomy:check": "node --test scripts/check-attribute-taxonomy.test.mjs && node scripts/check-attribute-taxonomy.mjs",
     "pack:build": "node scripts/build-pack.mjs"
   },
   "dependencies": {

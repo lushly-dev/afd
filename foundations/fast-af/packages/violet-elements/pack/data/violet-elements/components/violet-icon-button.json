@@ -79,9 +79,6 @@
 				"description": "Native button type forwarded to the internal control.",
 				"name": "type",
 				"property": "type",
-				"rules": [
-					"taxonomy.type"
-				],
 				"type": "\"button\" | \"submit\" | \"reset\"",
 				"values": [
 					{
@@ -160,7 +157,7 @@
 		"taxonomy.appearance",
 		"taxonomy.disabled",
 		"taxonomy.label",
-		"taxonomy.type",
+		"taxonomy.type.violet-button",
 		"theme.install"
 	],
 	"status": "stable",

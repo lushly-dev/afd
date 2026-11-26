@@ -68,6 +68,9 @@ const SUITE_CONFIG = [
 				s.run.includes('violet-elements verify:exports')
 			);
 			requireStepRun(wf, 'components', 'theme:build');
+			const compTaxonomy = findStep(wf, 'components', (s) =>
+				s.run.includes('violet-elements taxonomy:check')
+			);
 			const compLint = findStep(wf, 'components', (s) => s.run.includes('violet-elements lint'));
 			const compBrowser = findStep(
 				wf,
@@ -84,6 +87,7 @@ const SUITE_CONFIG = [
 				{ gate: 'components', run: compTypecheck.run },
 				{ gate: 'components', run: compExports.run },
 				{ gate: 'components', run: 'node scripts/fast-af-generated.mjs' },
+				{ gate: 'components', run: compTaxonomy.run },
 				{ gate: 'components', run: compLint.run },
 				{ gate: 'components', run: compBrowser.run },
 				{

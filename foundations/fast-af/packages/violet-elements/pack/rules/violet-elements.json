@@ -575,6 +575,56 @@
 		{
 			"appliesTo": {
 				"attributes": [
+					"aria-describedby"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.aria-describedby",
+			"text": "Ids of the elements that describe the control, in the host's tree; the component forwards them across its shadow root as element references."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"aria-describedby"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.aria-describedby.not-for",
+			"text": "Do not use aria-describedby for: the control's name; error messages (use aria-errormessage); ids inside another shadow root."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"aria-description"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.aria-description",
+			"text": "A plain-text description of the control, forwarded to its native control, for when no element on the page holds it. Not for: the control's name; text already on the page (use aria-describedby)."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"aria-errormessage"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.aria-errormessage",
+			"text": "Id of the element holding the control's error message, in the host's tree; the component forwards it across its shadow root as an element reference."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"aria-errormessage"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.aria-errormessage.not-for",
+			"text": "Do not use aria-errormessage for: form fields that show their own error text; descriptions that are not errors (use aria-describedby)."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
 					"aria-expanded"
 				]
 			},
@@ -595,6 +645,16 @@
 		{
 			"appliesTo": {
 				"attributes": [
+					"aria-keyshortcuts"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.aria-keyshortcuts",
+			"text": "Names the keyboard shortcuts that activate the control, such as \"Control+S\", forwarded to its native control; the component does not handle the keys. Not for: shortcuts the application does not implement; access keys."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
 					"aria-label"
 				]
 			},
@@ -611,6 +671,26 @@
 			"basis": "authored",
 			"id": "taxonomy.aria-label.not-for",
 			"text": "Do not use aria-label for: components that already render a visible label and can reference it internally; duplicating adjacent visible text without need."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"aria-labelledby"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.aria-labelledby",
+			"text": "Ids of the elements that name the control, in the host's tree; the component forwards them across its shadow root as element references."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
+					"aria-labelledby"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.aria-labelledby.not-for",
+			"text": "Do not use aria-labelledby for: a name the component's own label attribute or slotted text already gives; ids inside another shadow root."
 		},
 		{
 			"appliesTo": {
@@ -1245,6 +1325,16 @@
 		{
 			"appliesTo": {
 				"attributes": [
+					"open-on-focus"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.open-on-focus",
+			"text": "Opens the component's popup list when its input receives focus, before anything is typed. Not for: opening a popup on hover; the popup's current open state (use open)."
+		},
+		{
+			"appliesTo": {
+				"attributes": [
 					"orientation"
 				]
 			},
@@ -1665,13 +1755,45 @@
 		},
 		{
 			"appliesTo": {
-				"attributes": [
-					"type"
+				"tags": [
+					"violet-button",
+					"violet-icon-button",
+					"violet-text-field"
 				]
 			},
 			"basis": "authored",
-			"id": "taxonomy.type",
+			"id": "taxonomy.type.violet-button",
 			"text": "Passes through the native HTML control type when the component wraps a native form control with standard type semantics. Not for: visual variants; business modes; custom component family names."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-dialog"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.type.violet-dialog",
+			"text": "Chooses how a dialog opens: modal blocks the page behind it, non-modal leaves the page usable and closes on any dismissal, and alert is a modal alertdialog, described by its body, for a message the person must answer."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-dialog"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.type.violet-dialog.not-for",
+			"text": "Do not use type for: the native control type of a form wrapper; visual variants."
+		},
+		{
+			"appliesTo": {
+				"tags": [
+					"violet-source-citation"
+				]
+			},
+			"basis": "authored",
+			"id": "taxonomy.type.violet-source-citation",
+			"text": "Names the kind of source a citation points at: a web page linked by href, or a document named by source-title. Not for: the native control type of a form wrapper; a file's media type (use media-type)."
 		},
 		{
 			"appliesTo": {

@@ -84,15 +84,36 @@
       "allowedValuesByComponent": {
         "violet-button": ["button", "submit", "reset"],
         "violet-icon-button": ["button", "submit", "reset"],
-        "violet-text-field": ["text", "search", "email", "url", "password", "tel", "number", "date"],
-        "violet-dialog": ["modal", "non-modal", "alert"]
+        "violet-text-field": ["text", "search", "email", "url", "password", "tel", "number", "date"]
       },
       "category": "native-form",
       "definition": "Passes through the native HTML control type when the component wraps a native form control with standard type semantics.",
-      "useFor": ["button-like primitives", "single-line field primitives", "dialog components"],
+      "useFor": ["button-like primitives", "single-line field primitives"],
       "doNotUseFor": ["visual variants", "business modes", "custom component family names"],
-      "usedBy": ["violet-button", "violet-icon-button", "violet-text-field", "violet-dialog"],
+      "usedBy": ["violet-button", "violet-icon-button", "violet-text-field"],
       "notes": ["Allowed values should stay aligned with the native control being wrapped."]
+    },
+    {
+      "name": "type",
+      "property": "type",
+      "valueType": "enum",
+      "allowedValues": ["modal", "non-modal", "alert"],
+      "category": "behavior",
+      "definition": "Chooses how a dialog opens: modal blocks the page behind it, non-modal leaves the page usable and closes on any dismissal, and alert is a modal alertdialog, described by its body, for a message the person must answer.",
+      "useFor": ["dialog components"],
+      "doNotUseFor": ["the native control type of a form wrapper", "visual variants"],
+      "usedBy": ["violet-dialog"]
+    },
+    {
+      "name": "type",
+      "property": "type",
+      "valueType": "enum",
+      "allowedValues": ["url", "document"],
+      "category": "variant",
+      "definition": "Names the kind of source a citation points at: a web page linked by href, or a document named by source-title.",
+      "useFor": ["source citations in conversation surfaces"],
+      "doNotUseFor": ["the native control type of a form wrapper", "a file's media type (use media-type)"],
+      "usedBy": ["violet-source-citation"]
     },
     {
       "name": "disabled",
@@ -102,7 +123,7 @@
       "definition": "Marks a control as unavailable for interaction and participation in normal form workflows.",
       "useFor": ["interactive controls", "form fields", "toggle-like inputs"],
       "doNotUseFor": ["temporary loading visuals unless the control is truly unavailable", "read-only content"],
-      "usedBy": ["violet-button", "violet-icon-button", "violet-checkbox", "violet-radio", "violet-radio-group", "violet-switch", "violet-text-field", "violet-text-area", "violet-data-grid", "violet-range-slider", "violet-chat-composer", "violet-listbox", "violet-option", "violet-option-group", "violet-select", "violet-combobox", "violet-accordion-item", "violet-segment", "violet-segmented-control", "violet-pagination", "violet-calendar", "violet-date-picker", "violet-time-picker", "violet-date-range-picker", "violet-file-upload", "violet-color-picker", "violet-tab", "violet-tabs", "violet-tree-item", "violet-data-grid-multi-picker", "violet-data-grid-reference-picker", "violet-data-grid-persona-picker", "violet-data-grid-attachment-cell", "violet-data-grid-rating"]
+      "usedBy": ["violet-button", "violet-icon-button", "violet-checkbox", "violet-radio", "violet-radio-group", "violet-switch", "violet-text-field", "violet-text-area", "violet-range-slider", "violet-chat-composer", "violet-listbox", "violet-option", "violet-option-group", "violet-select", "violet-combobox", "violet-accordion-item", "violet-segment", "violet-segmented-control", "violet-pagination", "violet-calendar", "violet-date-picker", "violet-time-picker", "violet-date-range-picker", "violet-file-upload", "violet-color-picker", "violet-tab", "violet-tabs", "violet-tree-item", "violet-data-grid-multi-picker", "violet-data-grid-reference-picker", "violet-data-grid-persona-picker", "violet-data-grid-attachment-cell", "violet-data-grid-rating", "violet-menu-item", "violet-slider"]
     },
     {
       "name": "name",
@@ -112,7 +133,7 @@
       "definition": "Supplies the native form field name used when a component participates in form submission.",
       "useFor": ["form-associated controls", "custom elements that intentionally mirror native form semantics"],
       "doNotUseFor": ["visual labels", "analytics identifiers", "component registry names"],
-      "usedBy": ["violet-checkbox", "violet-radio", "violet-radio-group", "violet-slider", "violet-switch", "violet-text-field", "violet-text-area", "violet-range-slider", "violet-select", "violet-combobox", "violet-segmented-control", "violet-date-picker", "violet-time-picker", "violet-date-range-picker", "violet-file-upload", "violet-color-picker"]
+      "usedBy": ["violet-checkbox", "violet-radio", "violet-radio-group", "violet-slider", "violet-switch", "violet-text-field", "violet-text-area", "violet-range-slider", "violet-select", "violet-combobox", "violet-segmented-control", "violet-date-picker", "violet-time-picker", "violet-file-upload", "violet-color-picker"]
     },
     {
       "name": "required",
@@ -122,7 +143,7 @@
       "definition": "Marks a form-associated control as requiring a user-provided value or selection before validation succeeds.",
       "useFor": ["text-entry controls", "checkboxes and other native-like selection inputs with required semantics"],
       "doNotUseFor": ["visual emphasis", "business rules that should not map to native form validity"],
-      "usedBy": ["violet-checkbox", "violet-radio-group", "violet-slider", "violet-switch", "violet-text-field", "violet-text-area", "violet-range-slider", "violet-select", "violet-combobox", "violet-segmented-control", "violet-file-upload", "violet-color-picker"]
+      "usedBy": ["violet-checkbox", "violet-radio-group", "violet-slider", "violet-switch", "violet-text-field", "violet-text-area", "violet-range-slider", "violet-select", "violet-combobox", "violet-segmented-control", "violet-file-upload", "violet-color-picker", "violet-date-picker", "violet-time-picker", "violet-date-range-picker"]
     },
     {
       "name": "readonly",
@@ -242,7 +263,7 @@
       "definition": "Indicates that the control or field should present invalid styling and invalid accessibility semantics.",
       "useFor": ["form-associated controls", "selection controls with explicit validation requirements"],
       "doNotUseFor": ["warning-only states", "application errors unrelated to the control's value"],
-      "usedBy": ["violet-checkbox", "violet-radio", "violet-radio-group", "violet-slider", "violet-switch", "violet-text-field", "violet-text-area", "violet-range-slider", "violet-select", "violet-combobox", "violet-segmented-control", "violet-date-picker", "violet-time-picker", "violet-date-range-picker", "violet-file-upload", "violet-color-picker", "violet-data-grid-pill-select"]
+      "usedBy": ["violet-checkbox", "violet-radio", "violet-radio-group", "violet-slider", "violet-switch", "violet-text-field", "violet-text-area", "violet-range-slider", "violet-select", "violet-combobox", "violet-segmented-control", "violet-date-picker", "violet-time-picker", "violet-date-range-picker", "violet-file-upload", "violet-color-picker", "violet-data-grid-pill-select", "violet-tree"]
     },
     {
       "name": "value",
@@ -252,7 +273,7 @@
       "definition": "Carries the current scalar value of a form control wrapper.",
       "useFor": ["text fields", "text areas", "single-value native-like controls"],
       "doNotUseFor": ["row collections", "complex objects", "display-only labels"],
-      "usedBy": ["violet-checkbox", "violet-radio", "violet-radio-group", "violet-slider", "violet-switch", "violet-text-field", "violet-text-area", "violet-chat-composer", "violet-listbox", "violet-option", "violet-select", "violet-combobox", "violet-progress", "violet-segment", "violet-segmented-control", "violet-calendar", "violet-date-picker", "violet-time-picker", "violet-color-picker", "violet-color-swatch", "violet-tree", "violet-tree-item", "violet-data-grid-pill-select", "violet-data-grid-rating"]
+      "usedBy": ["violet-checkbox", "violet-radio", "violet-radio-group", "violet-slider", "violet-switch", "violet-text-field", "violet-text-area", "violet-chat-composer", "violet-listbox", "violet-option", "violet-select", "violet-combobox", "violet-progress", "violet-segment", "violet-segmented-control", "violet-calendar", "violet-date-picker", "violet-time-picker", "violet-color-picker", "violet-color-swatch", "violet-tree", "violet-tree-item", "violet-data-grid-pill-select"]
     },
     {
       "name": "value-start",
@@ -332,7 +353,7 @@
       "definition": "Provides the primary text label or internal accessible name for a control when the component owns its label rendering or accessible naming internally.",
       "useFor": ["field wrappers", "control shells with internal label placement", "icon-only controls that need an explicit accessible name"],
       "doNotUseFor": ["button body content that should come from a slot", "decorative headings"],
-      "usedBy": ["violet-icon", "violet-icon-button", "violet-persona", "violet-progress", "violet-radio-group", "violet-slider", "violet-spinner", "violet-badge", "violet-text-field", "violet-text-area", "violet-range-slider", "violet-reasoning-block", "violet-chat-composer", "violet-listbox", "violet-option", "violet-option-group", "violet-select", "violet-combobox", "violet-segmented-control", "violet-breadcrumb", "violet-pagination", "violet-carousel", "violet-date-picker", "violet-time-picker", "violet-date-range-picker", "violet-file-upload", "violet-color-picker", "violet-color-swatch", "violet-tree", "violet-file-explorer", "violet-tabs"]
+      "usedBy": ["violet-icon", "violet-icon-button", "violet-persona", "violet-progress", "violet-radio-group", "violet-slider", "violet-spinner", "violet-badge", "violet-text-field", "violet-text-area", "violet-range-slider", "violet-reasoning-block", "violet-chat-composer", "violet-listbox", "violet-option", "violet-option-group", "violet-select", "violet-combobox", "violet-segmented-control", "violet-breadcrumb", "violet-pagination", "violet-carousel", "violet-date-picker", "violet-time-picker", "violet-date-range-picker", "violet-file-upload", "violet-color-picker", "violet-color-swatch", "violet-tree", "violet-file-explorer", "violet-tabs", "violet-menu"]
     },
     {
       "name": "control-label",
@@ -393,6 +414,56 @@
       "definition": "Indicates the availability and type of interactive popup triggered by a control.",
       "useFor": ["button wrappers that open menus, listboxes, trees, grids, or dialogs"],
       "doNotUseFor": ["noninteractive overlays", "content that does not use popup semantics"],
+      "usedBy": ["violet-button"]
+    },
+    {
+      "name": "aria-labelledby",
+      "property": "ariaLabelledby",
+      "valueType": "string",
+      "category": "accessibility",
+      "definition": "Ids of the elements that name the control, in the host's tree; the component forwards them across its shadow root as element references.",
+      "useFor": ["button wrappers named by visible text elsewhere on the page"],
+      "doNotUseFor": ["a name the component's own label attribute or slotted text already gives", "ids inside another shadow root"],
+      "usedBy": ["violet-button"]
+    },
+    {
+      "name": "aria-describedby",
+      "property": "ariaDescribedby",
+      "valueType": "string",
+      "category": "accessibility",
+      "definition": "Ids of the elements that describe the control, in the host's tree; the component forwards them across its shadow root as element references.",
+      "useFor": ["button wrappers with a longer description or hint shown elsewhere on the page"],
+      "doNotUseFor": ["the control's name", "error messages (use aria-errormessage)", "ids inside another shadow root"],
+      "usedBy": ["violet-button"]
+    },
+    {
+      "name": "aria-errormessage",
+      "property": "ariaErrormessage",
+      "valueType": "string",
+      "category": "accessibility",
+      "definition": "Id of the element holding the control's error message, in the host's tree; the component forwards it across its shadow root as an element reference.",
+      "useFor": ["button wrappers whose action failed validation and whose message is shown elsewhere on the page"],
+      "doNotUseFor": ["form fields that show their own error text", "descriptions that are not errors (use aria-describedby)"],
+      "usedBy": ["violet-button"]
+    },
+    {
+      "name": "aria-description",
+      "property": "ariaDescription",
+      "valueType": "string",
+      "category": "accessibility",
+      "definition": "A plain-text description of the control, forwarded to its native control, for when no element on the page holds it.",
+      "useFor": ["button wrappers whose purpose needs a short explanation that is not shown"],
+      "doNotUseFor": ["the control's name", "text already on the page (use aria-describedby)"],
+      "usedBy": ["violet-button"]
+    },
+    {
+      "name": "aria-keyshortcuts",
+      "property": "ariaKeyShortcuts",
+      "valueType": "string",
+      "category": "accessibility",
+      "definition": "Names the keyboard shortcuts that activate the control, such as \"Control+S\", forwarded to its native control; the component does not handle the keys.",
+      "useFor": ["button wrappers that an application binds to a keyboard shortcut"],
+      "doNotUseFor": ["shortcuts the application does not implement", "access keys"],
       "usedBy": ["violet-button"]
     },
     {
@@ -606,7 +677,7 @@
       "definition": "Passes through the minimum allowed scalar value for a native-like range or numeric control.",
       "useFor": ["sliders", "numeric inputs", "other controls that intentionally mirror native range limits"],
       "doNotUseFor": ["layout minimums", "string length validation", "collection sizes"],
-      "usedBy": ["violet-slider", "violet-range-slider", "violet-progress", "violet-calendar", "violet-date-picker", "violet-time-picker", "violet-text-field"]
+      "usedBy": ["violet-slider", "violet-range-slider", "violet-calendar", "violet-date-picker", "violet-time-picker", "violet-text-field", "violet-date-range-picker"]
     },
     {
       "name": "page",
@@ -666,7 +737,7 @@
       "definition": "Passes through the maximum allowed scalar value for a native-like range or numeric control.",
       "useFor": ["sliders", "numeric inputs", "other controls that intentionally mirror native range limits"],
       "doNotUseFor": ["layout maximums", "string length validation", "collection sizes"],
-      "usedBy": ["violet-slider", "violet-range-slider", "violet-calendar", "violet-date-picker", "violet-time-picker", "violet-date-range-picker", "violet-text-field"]
+      "usedBy": ["violet-slider", "violet-range-slider", "violet-calendar", "violet-date-picker", "violet-time-picker", "violet-date-range-picker", "violet-text-field", "violet-progress"]
     },
     {
       "name": "minlength",
@@ -939,7 +1010,17 @@
       "definition": "Controls whether an overlay or expandable surface is currently visible.",
       "useFor": ["dialogs", "tooltips", "teaching tips", "drawers", "expandable panels", "overlay surfaces with declarative open state"],
       "doNotUseFor": ["checked state", "selection state", "visibility toggling via CSS classes"],
-      "usedBy": ["violet-dialog", "violet-tooltip", "violet-teaching-tip", "violet-select", "violet-combobox", "violet-toast", "violet-snackbar", "violet-date-picker", "violet-date-range-picker"]
+      "usedBy": ["violet-dialog", "violet-tooltip", "violet-teaching-tip", "violet-select", "violet-combobox", "violet-toast", "violet-snackbar", "violet-date-picker", "violet-date-range-picker", "violet-popover"]
+    },
+    {
+      "name": "open-on-focus",
+      "property": "openOnFocus",
+      "valueType": "boolean",
+      "category": "behavior",
+      "definition": "Opens the component's popup list when its input receives focus, before anything is typed.",
+      "useFor": ["comboboxes whose choices a person should see before typing"],
+      "doNotUseFor": ["opening a popup on hover", "the popup's current open state (use open)"],
+      "usedBy": ["violet-combobox"]
     },
     {
       "name": "locale",

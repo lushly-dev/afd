@@ -69,6 +69,10 @@
 				"description": "Ids of the elements that describe the button, in the host's tree, forwarded as element references.",
 				"name": "aria-describedby",
 				"property": "ariaDescribedby",
+				"rules": [
+					"taxonomy.aria-describedby",
+					"taxonomy.aria-describedby.not-for"
+				],
 				"type": "string | null"
 			},
 			{
@@ -76,6 +80,9 @@
 				"description": "Plain-text description forwarded to the inner button.",
 				"name": "aria-description",
 				"property": "ariaDescription",
+				"rules": [
+					"taxonomy.aria-description"
+				],
 				"type": "string | null"
 			},
 			{
@@ -83,6 +90,10 @@
 				"description": "Id of the element holding the button's error message, in the host's tree, forwarded as an element reference.",
 				"name": "aria-errormessage",
 				"property": "ariaErrormessage",
+				"rules": [
+					"taxonomy.aria-errormessage",
+					"taxonomy.aria-errormessage.not-for"
+				],
 				"type": "string | null"
 			},
 			{
@@ -110,6 +121,9 @@
 				"description": "Optional keyboard shortcut description forwarded to the inner button.",
 				"name": "aria-keyshortcuts",
 				"property": "ariaKeyShortcuts",
+				"rules": [
+					"taxonomy.aria-keyshortcuts"
+				],
 				"type": "string | null"
 			},
 			{
@@ -117,6 +131,10 @@
 				"description": "Ids of the elements that label the button, in the host's tree. The inner button gets them as element references, because ids do not resolve across a shadow root.",
 				"name": "aria-labelledby",
 				"property": "ariaLabelledby",
+				"rules": [
+					"taxonomy.aria-labelledby",
+					"taxonomy.aria-labelledby.not-for"
+				],
 				"type": "string | null"
 			},
 			{
@@ -146,9 +164,6 @@
 				"description": "Native button type forwarded to the internal control.",
 				"name": "type",
 				"property": "type",
-				"rules": [
-					"taxonomy.type"
-				],
 				"type": "\"button\" | \"submit\" | \"reset\"",
 				"values": [
 					{
@@ -252,11 +267,19 @@
 		"import.root",
 		"taxonomy.appearance",
 		"taxonomy.aria-controls",
+		"taxonomy.aria-describedby",
+		"taxonomy.aria-describedby.not-for",
+		"taxonomy.aria-description",
+		"taxonomy.aria-errormessage",
+		"taxonomy.aria-errormessage.not-for",
 		"taxonomy.aria-expanded",
 		"taxonomy.aria-haspopup",
+		"taxonomy.aria-keyshortcuts",
+		"taxonomy.aria-labelledby",
+		"taxonomy.aria-labelledby.not-for",
 		"taxonomy.aria-pressed",
 		"taxonomy.disabled",
-		"taxonomy.type",
+		"taxonomy.type.violet-button",
 		"theme.install"
 	],
 	"status": "stable",
