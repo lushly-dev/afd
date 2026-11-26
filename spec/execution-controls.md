@@ -5,7 +5,7 @@ TypeScript, Python, Rust and C++.
 
 - [`vectors/execution-controls.json`](./vectors/execution-controls.json) is **specification-authored**
   and pins the server-level default deadline, cooperative cancellation propagation, batch size and
-  parallelism ceilings, and the validation issue cap.
+  parallelism ceilings, the validation issue cap, and which failures the retry middleware repeats.
 - [`vectors/batch-controls.json`](./vectors/batch-controls.json) covers serial batch and pipeline
   controls, fractional deadlines and envelope validation.
 - Concurrent cancellation and failure ordering also require deterministic barrier tests in each
@@ -36,6 +36,28 @@ TypeScript, Python, Rust and C++.
   whether a mutation already took effect.
 - **Cooperative interruption.** A handler may continue running after the engine stops waiting; a
   `TIMEOUT` does not prove that the command had no side effects or roll them back.
+
+## The retry middleware and mutations
+
+Each language's retry middleware (`createRetryMiddleware`, `create_retry_middleware`) repeats a
+failure whose error code its predicate accepts (by default `TRANSIENT_ERROR` and `TIMEOUT`). It
+sits inside the engine's deadline, so the failures it sees are ones a handler or an inner
+middleware returned, and a handler that returns `TIMEOUT` after a downstream write may already
+have applied it ([#2673](https://github.com/lushly-dev/afd/issues/2673)).
+
+- **Mutations are not repeated by default.** A command that declares `mutation: true` runs once,
+  and its failure is returned as it is. A host that knows its mutations are safe to repeat sets
+  the explicit option (`retryMutations: true`, `retry_mutations=True`,
+  `RetryOptions::retry_mutations`).
+- **The declaration comes from the engine.** The middleware reads `mutation` from the command the
+  engine runs for the call, the same record the journal reads `secret` from, never from the
+  command's name. Where it cannot read it (called outside the engine, or with a continuation the
+  engine did not build), the call counts as a mutation. Rust's middleware has no continuation
+  identity to check: it reads the record the registry put on the call's context, which no caller
+  can set, while that call runs, so a context kept past its call counts as a mutation, but a host
+  middleware that runs the retry with the live context and a `next` of its own is still answered.
+- [`vectors/execution-controls.json`](./vectors/execution-controls.json) pins the decision for a
+  read, a mutation, and a mutation with the option (control `retryMutation`).
 
 ## How cancellation reaches a handler
 
@@ -148,8 +170,8 @@ prove that queued work cannot start. Started commands that ignore cancellation c
 ## Conformance
 
 - [`vectors/execution-controls.json`](./vectors/execution-controls.json) pins the defaults,
-  deadlines, cancellation propagation, batch size/parallelism limits and validation issue cap.
-  TypeScript ([#2128](https://github.com/lushly-dev/afd/issues/2128)), Python
+  deadlines, cancellation propagation, batch size/parallelism limits, validation issue cap and
+  the retry middleware's mutation rule. TypeScript ([#2128](https://github.com/lushly-dev/afd/issues/2128)), Python
   ([#2129](https://github.com/lushly-dev/afd/issues/2129)), Rust
   ([#2130](https://github.com/lushly-dev/afd/issues/2130)) and C++
   ([#2131](https://github.com/lushly-dev/afd/issues/2131),

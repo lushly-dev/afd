@@ -1,5 +1,5 @@
 {
-	"description": "Specification-authored vectors for deadlines, cancellation propagation, batch size/parallelism limits, and the validation issue cap (spec/execution-controls.md; #1737). Written directly from the specification; never generated from one implementation's output.",
+	"description": "Specification-authored vectors for deadlines, cancellation propagation, batch size/parallelism limits, the validation issue cap, and the retry middleware's mutation rule (spec/execution-controls.md; #1737). Written directly from the specification; never generated from one implementation's output.",
 	"defaults": {
 		"defaultTimeoutMs": 30000,
 		"maxBatchSize": 500,
@@ -157,6 +157,77 @@
 				"reportedErrors": 100,
 				"truncated": true,
 				"detailsLimit": 100
+			}
+		},
+		{
+			"id": "retry-read-after-timeout",
+			"control": "retryMutation",
+			"description": "The retry middleware repeats a read (no mutation declared) whose handler returned TIMEOUT, and the retry's success is the result",
+			"command": {
+				"name": "order-get",
+				"mutation": false
+			},
+			"handler": {
+				"failFirst": {
+					"code": "TIMEOUT"
+				}
+			},
+			"retry": {
+				"maxRetries": 1,
+				"retryDelayMs": 0,
+				"jitter": false
+			},
+			"expect": {
+				"handlerRuns": 2,
+				"success": true
+			}
+		},
+		{
+			"id": "retry-mutation-not-repeated",
+			"control": "retryMutation",
+			"description": "The retry middleware does not repeat a command declaring mutation: true whose handler returned TIMEOUT: the handler runs once and the TIMEOUT is returned",
+			"command": {
+				"name": "order-place",
+				"mutation": true
+			},
+			"handler": {
+				"failFirst": {
+					"code": "TIMEOUT"
+				}
+			},
+			"retry": {
+				"maxRetries": 1,
+				"retryDelayMs": 0,
+				"jitter": false
+			},
+			"expect": {
+				"handlerRuns": 1,
+				"success": false,
+				"code": "TIMEOUT"
+			}
+		},
+		{
+			"id": "retry-mutation-with-option",
+			"control": "retryMutation",
+			"description": "With the explicit retryMutations option, the retry middleware repeats a mutation whose handler returned TIMEOUT",
+			"command": {
+				"name": "order-place",
+				"mutation": true
+			},
+			"handler": {
+				"failFirst": {
+					"code": "TIMEOUT"
+				}
+			},
+			"retry": {
+				"maxRetries": 1,
+				"retryDelayMs": 0,
+				"jitter": false,
+				"retryMutations": true
+			},
+			"expect": {
+				"handlerRuns": 2,
+				"success": true
 			}
 		}
 	]

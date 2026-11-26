@@ -190,6 +190,11 @@ export interface UpFrontStep {
 	 * finds the step it is about to run. Absent when {@link valid} is false.
 	 */
 	sent?: string;
+	/**
+	 * Whether {@link input} is the one an earlier round of the same request kept with its question
+	 * (#1414), rather than one validated afresh by this request.
+	 */
+	kept?: boolean;
 }
 
 /**

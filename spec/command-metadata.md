@@ -472,9 +472,13 @@ evaluates each step's policy on it:
    the retry runs nothing and is asked again. A step whose input is known up front and whose
    command has an approval policy then runs on the input validated up front, not on the result
    of the validation made when it runs, so the input a gated step runs on is the one the human
-   was shown (#1414). The step is still validated as sent when it runs, and a step that no longer
-   validates (its schema checks state an earlier step changed) fails with `VALIDATION_ERROR`, as
-   it does on its own; a step of a command without an approval policy runs on its own validation
+   was shown (#1414). The step is still validated when it runs, both as sent and on the input it
+   is about to run (#1511), which the schema must read back to the same canonical JSON, and a
+   step that no longer validates (its schema checks state an earlier step changed, even where only
+   the approved value fails, such as a default id that has since been taken) fails with
+   `VALIDATION_ERROR`, as it does on its own. So does a gated step whose schema changes a value it
+   reads back (a transform that is not idempotent, or one that changes the type): called on its
+   own it still runs; a step of a command without an approval policy runs on its own validation
    (TypeScript and Python count `not-required` as no policy here; Rust counts any declared
    policy, which changes nothing since its validation gives one result). Steps sent alike (the
    same command and input) take their approved inputs in the order they run, so where one is
@@ -494,14 +498,21 @@ evaluates each step's policy on it:
    of that same request gives the step the kept input, read back through the command's schema,
    when the schema reads it back to the same canonical JSON; a step whose kept input is missing,
    too long or not read back unchanged is validated as sent, and asked about again when the
-   result differs from what was approved. The kept input is only where a step's input comes
+   result differs from what was approved. A retry that carries accepted approvals but whose gated
+   step had no kept input, now has the binding of none of them (it validated to another input: a
+   random default), and is too long to be kept with a new question either would be asked about
+   again without end, so it is refused instead (#1511): `APPROVAL_REQUIRED`, `retryable: false`,
+   `details: { reason: "input-not-kept", step, command }`, a suggestion to call that command on
+   its own, and nothing runs. An approval of the step's own binding that only expired is asked
+   about again. The kept input is only where a step's input comes
    from: the step still needs an accepted question of its own binding, so a kept input that is
    not the one approved is asked about, never run. A replay of an approved retry is asked about
    the same kept input again. TypeScript's `requestState` is signed, not encrypted, so the client
    can read the kept input in full, where the question shows its first 1,000 characters; Python's
    is sealed. Rust's and C++'s validation computes nothing (a default is a constant of the
-   schema), so the retry validates to the same input and nothing is kept; C++ runs each step on
-   the validation made when it runs, which is that same input.
+   schema), so the retry validates to the same input and nothing is kept: validating the input as
+   sent validates the one that runs, and no retry fails to match for that reason; C++ runs each
+   step on the validation made when it runs, which is that same input.
 5. **Anything else is asked again**, saying why when the request carried approvals that did not
    hold: an expired, spent or mismatched approval, or one for a changed batch.
 

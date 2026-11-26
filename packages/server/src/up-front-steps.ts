@@ -8,7 +8,7 @@ import { resolveVariables } from '@lushly-dev/afd-core';
 import { canonicalJson } from './approval-crypto.js';
 import type { UpFrontStep } from './approval-relay.js';
 import type { ZodCommandDefinition } from './schema.js';
-import { validateInputEnhanced } from './validation.js';
+import { type EnhancedValidationResult, validateInputEnhanced } from './validation.js';
 
 /** Deeper inputs are rejected by the pipeline before any step runs. */
 const MAX_DEPTH = 64;
@@ -73,6 +73,48 @@ function restored(
 	}
 }
 
+/**
+ * Validate, as a gated step starts, the approved input it is about to run (#1511): a refinement
+ * that reads live state (`id: default(nextId).refine(notExists)`) then checks the value that runs,
+ * not only a fresh default of the input as sent, and the schema must read the approved input back
+ * to the same canonical JSON. A failure is a `VALIDATION_ERROR`; nothing then runs.
+ */
+export function checkApprovedAtRun(
+	definition: ZodCommandDefinition,
+	approved: unknown,
+	maxIssues?: number
+): EnhancedValidationResult<unknown> {
+	let canonical: string | undefined;
+	try {
+		canonical = canonicalJson(approved);
+	} catch {
+		canonical = undefined;
+	}
+	// An input with no canonical form was never approved (the gate refuses it), only let through.
+	if (canonical === undefined) return { success: true, data: approved, errors: [] };
+	const result = validateInputEnhanced(definition.inputSchema, JSON.parse(canonical), maxIssues);
+	if (!result.success) return result;
+	let again: string | undefined;
+	try {
+		again = canonicalJson(result.data);
+	} catch {
+		again = undefined;
+	}
+	if (again === canonical) return { success: true, data: approved, errors: [] };
+	return {
+		success: false,
+		data: undefined,
+		errors: [
+			{
+				path: '',
+				code: 'custom',
+				message:
+					'The approved input no longer validates to itself: the schema changed it when the step ran',
+			},
+		],
+	};
+}
+
 function validated(
 	commands: readonly ZodCommandDefinition[],
 	index: number,
@@ -84,7 +126,15 @@ function validated(
 	if (!definition) return { index, command, dynamic: false, valid: false };
 	const kept = approved === undefined ? undefined : restored(definition, approved);
 	if (kept) {
-		return { index, command, dynamic: false, valid: true, input: kept.input, sent: sentKey(input) };
+		return {
+			index,
+			command,
+			dynamic: false,
+			valid: true,
+			input: kept.input,
+			sent: sentKey(input),
+			kept: true,
+		};
 	}
 	try {
 		const result = validateInputEnhanced(definition.inputSchema, input);

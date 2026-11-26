@@ -608,7 +608,13 @@ describe('a policy given only in the commands list', () => {
 
 	it('refuses a retry between it and a second approval middleware that also lists it', async () => {
 		let attempts = 0;
-		const retry = createRetryMiddleware({ maxRetries: 2, retryDelay: 0, jitter: false });
+		// Its `next` is not the engine's, so only retryMutations lets it retry at all.
+		const retry = createRetryMiddleware({
+			maxRetries: 2,
+			retryDelay: 0,
+			jitter: false,
+			retryMutations: true,
+		});
 		// Lists the command with a policy that lets it through, so it admits the call too.
 		const other = createApprovalMiddleware({
 			secret: SECRET,
@@ -629,7 +635,13 @@ describe('a policy given only in the commands list', () => {
 
 	it('refuses a retry between it and a second approval middleware that does not gate it', async () => {
 		let attempts = 0;
-		const retry = createRetryMiddleware({ maxRetries: 2, retryDelay: 0, jitter: false });
+		// Its `next` is not the engine's, so only retryMutations lets it retry at all.
+		const retry = createRetryMiddleware({
+			maxRetries: 2,
+			retryDelay: 0,
+			jitter: false,
+			retryMutations: true,
+		});
 		const other = createApprovalMiddleware({ secret: SECRET });
 		const { handled, client } = listedApproval(
 			(name, input, context, next) =>

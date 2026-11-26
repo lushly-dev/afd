@@ -248,6 +248,9 @@ class UpFrontStep:
     sent: str | None = None
     """The input as sent (after ``$input`` references are resolved), as canonical JSON: how the
     server finds the step it is about to run. ``None`` unless :attr:`valid`."""
+    kept: bool = False
+    """Whether :attr:`input` is the one an earlier round of the same request kept with its
+    question (#1414), rather than one validated afresh by this attempt."""
 
 
 StepValidator = Callable[[str, Any], tuple[bool, Any]]
@@ -314,6 +317,8 @@ class _GatedStep:
     """The canonical JSON of its validated input."""
     summary: str
     bindings: list[str]
+    kept: bool = False
+    """Whether its input is the one an earlier round kept with its question."""
 
 
 class UpFrontApproval:
@@ -498,6 +503,7 @@ class UpFrontApproval:
                     input=input,
                     summary=deps.summarize(step.command, step.input, context),
                     bindings=deps.bindings(scope, step.command, input, actor),
+                    kept=step.kept,
                 )
             )
             if len(gated) > MAX_UP_FRONT_APPROVALS:
@@ -513,7 +519,8 @@ class UpFrontApproval:
         # identical steps need two. The latest answer wins: later answers are read last.
         pool = list(answers.accepted)
         matched: list[AcceptedApproval] = []
-        for gated_step in gated:
+        unmatched: int | None = None
+        for at_step, gated_step in enumerate(gated):
             found = next(
                 (
                     at
@@ -524,6 +531,7 @@ class UpFrontApproval:
                 None,
             )
             if found is None:
+                unmatched = at_step
                 break
             matched.append(pool.pop(found))
         if len(matched) == len(gated):
@@ -540,14 +548,29 @@ class UpFrontApproval:
         call = _call_digest(self.call)
         room = MAX_KEPT_INPUT
         kept: list[ApprovalQuestion] = []
+        keeps: list[bool] = []
         for gated_step in gated:
             question = deps.question(gated_step.bindings, now)
             room -= len(gated_step.input)
+            keeps.append(room >= 0)
             if room >= 0:
                 question = replace(
                     question, step=ApprovedStep(gated_step.index, gated_step.input, call)
                 )
             kept.append(question)
+        # A step that brought approvals but no kept input, whose input no longer has any of their
+        # bindings (it validated to another input: a random default), and that cannot be kept
+        # this time either, would be asked about again on every retry. Refuse it instead. An
+        # approval of its own binding that merely expired is asked again, as before.
+        if (
+            unmatched is not None
+            and answers.accepted
+            and not any(answer.binding in gated[unmatched].bindings for answer in answers.accepted)
+            and not gated[unmatched].kept
+            and not keeps[unmatched]
+        ):
+            stuck = gated[unmatched]
+            return _Plan("refuse", error=_not_kept_error(self.tool, stuck.index, stuck.command))
         questions = tuple(kept)
         self.relay.hold(
             StepsHold(
@@ -640,7 +663,13 @@ def _validated(
     kept = None if approved is None else _restored(validate, command, approved)
     if kept is not None:
         return UpFrontStep(
-            index, command, dynamic=False, valid=True, input=kept[0], sent=_sent_key(input)
+            index,
+            command,
+            dynamic=False,
+            valid=True,
+            input=kept[0],
+            sent=_sent_key(input),
+            kept=True,
         )
     try:
         valid, data = validate(command, input)
@@ -770,6 +799,26 @@ def _split_error(tool: str, index: int, command: str) -> CommandError:
         ),
         retryable=False,
         details={"reason": "input-not-known", "step": index, "command": command},
+    )
+
+
+def _not_kept_error(tool: str, index: int, command: str) -> CommandError:
+    """A gated step whose input was too large to keep with its question, and whose input validated
+    to something the earlier approval does not match on the retry: asking again would not end."""
+    return CommandError(
+        code=ErrorCodes.APPROVAL_REQUIRED,
+        message=(
+            f"{command} (the step at index {index}) was approved, but its input is too large to "
+            f"keep between requests (over {MAX_KEPT_INPUT} characters with the steps before it), "
+            "and it validated to a different input on the retry, so the approval does not match "
+            "it. Nothing ran."
+        ),
+        suggestion=(
+            f"Call {command} on its own so the client can ask the user to approve the input it "
+            "runs on, or give the step every input the schema would default."
+        ),
+        retryable=False,
+        details={"reason": "input-not-kept", "step": index, "command": command},
     )
 
 

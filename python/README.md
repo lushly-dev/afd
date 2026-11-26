@@ -336,7 +336,8 @@ server = create_server(name="todo-app", middleware=[stack])
 
 # Retries back off exponentially like TypeScript's createRetryMiddleware: retry n waits
 # min(max_delay, retry_delay * 2 ** (n - 1)) ms (defaults 100 and 5000), randomized to
-# between half and all of that unless jitter=False.
+# between half and all of that unless jitter=False. A command declaring mutation=True is
+# never retried unless retry_mutations=True: its failure may follow a write already applied.
 retry = create_retry_middleware(max_retries=5, retry_delay=200, max_delay=2000, jitter=False)
 
 # Fixed-window rate limit: 100 calls per minute per client. Expired windows are

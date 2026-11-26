@@ -201,7 +201,9 @@ function createUpFrontGate(deps: UpFrontDeps): Gate {
 			(step) => step.dynamic && deps.mayRequireApproval(step.command, context)
 		);
 		if (late) return { kind: 'refuse', error: splitError(upFront.tool, late.index, late.command) };
-		const scope = await callTags(upFront);
+		// Only once a step needs approval: an ungated call computes no key, so it runs where
+		// WebCrypto is missing (#1699).
+		let scope: string[] | undefined;
 
 		const now = deps.clock.now();
 		const actor = actorJson(context.actor);
@@ -217,9 +219,11 @@ function createUpFrontGate(deps: UpFrontDeps): Gate {
 			const input = canonicalOrUndefined(step.input);
 			if (input === undefined) return { kind: 'refuse', error: inputNotCanonical(step.command) };
 			if (input !== before) return { kind: 'refuse', error: inputChanged(step.command) };
+			scope ??= await callTags(upFront);
 			gated.push({
 				index: step.index,
 				command: step.command,
+				kept: step.kept === true,
 				input,
 				summary: deps.summarize(step.command, step.input, context),
 				bindings: await deps.bindings(scope, step.command, input, actor),
@@ -240,7 +244,8 @@ function createUpFrontGate(deps: UpFrontDeps): Gate {
 		// steps need two. The latest answer wins: later answers are read last.
 		const pool = [...answers.accepted];
 		const matched: AcceptedApproval[] = [];
-		for (const step of gated) {
+		let unmatched: number | undefined;
+		for (const [at, step] of gated.entries()) {
 			let found = -1;
 			for (let at = pool.length - 1; at >= 0; at--) {
 				const answer = pool[at] as AcceptedApproval;
@@ -252,7 +257,10 @@ function createUpFrontGate(deps: UpFrontDeps): Gate {
 					break;
 				}
 			}
-			if (found < 0) break;
+			if (found < 0) {
+				unmatched = at;
+				break;
+			}
 			matched.push(...pool.splice(found, 1));
 		}
 		if (matched.length === gated.length) {
@@ -278,6 +286,21 @@ function createUpFrontGate(deps: UpFrontDeps): Gate {
 			room -= step.input.length;
 			return room < 0 ? undefined : { index: step.index, input: step.input, call };
 		});
+		// A step that brought approvals but no kept input, whose input no longer has any of their
+		// bindings (it validated to another input: a random default), and that cannot be kept
+		// this time either, would be asked about again on every retry. Refuse it instead. An
+		// approval of its own binding that merely expired is asked again, as before.
+		const stuck = unmatched === undefined ? undefined : gated[unmatched];
+		if (
+			stuck &&
+			unmatched !== undefined &&
+			answers.accepted.length > 0 &&
+			!answers.accepted.some((answer) => stuck.bindings.includes(answer.binding)) &&
+			!stuck.kept &&
+			kept[unmatched] === undefined
+		) {
+			return { kind: 'refuse', error: notKeptError(stuck) };
+		}
 		const questions = await Promise.all(
 			gated.map(async (step, at) => {
 				const question = await deps.question(step.bindings, now);
@@ -421,10 +444,26 @@ function unplannedError(tool: UpFrontApproval['tool'], command: string): Command
 	};
 }
 
+/**
+ * A gated step whose input was too large to keep with its question, and whose input validated to
+ * something the earlier approval does not match on the retry: asking again would not end.
+ */
+function notKeptError(step: GatedStep): CommandError {
+	return {
+		code: ErrorCodes.APPROVAL_REQUIRED,
+		message: `${step.command} (the step at index ${step.index}) was approved, but its input is too large to keep between requests (over ${MAX_KEPT_INPUT} characters with the steps before it), and it validated to a different input on the retry, so the approval does not match it. Nothing ran.`,
+		suggestion: `Call ${step.command} on its own so the client can ask the user to approve the input it runs on, or give the step every input the schema would default.`,
+		retryable: false,
+		details: { reason: 'input-not-kept', step: step.index, command: step.command },
+	};
+}
+
 /** One gated step as the up-front question shows it. */
 interface GatedStep {
 	index: number;
 	command: string;
+	/** Whether its input is the one an earlier round kept with its question. */
+	kept: boolean;
 	/** The canonical JSON of its validated input. */
 	input: string;
 	summary: string;

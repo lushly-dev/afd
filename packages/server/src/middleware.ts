@@ -13,7 +13,7 @@ import type {
 	TelemetrySink,
 } from '@lushly-dev/afd-core';
 import { createTelemetryEvent, failure, isActorKind, systemClock } from '@lushly-dev/afd-core';
-import { inheritEngineNext } from './approval-admission.js';
+import { inheritEngineNext, liveMutation } from './approval-admission.js';
 import { carryApprovalProcessState } from './approval-process-state.js';
 import { carryAuthMiddlewareMark } from './auth-middleware-check.js';
 
@@ -274,6 +274,15 @@ export interface RetryOptions {
 
 	/** Whether to retry based on error code */
 	shouldRetry?: (errorCode: string) => boolean;
+
+	/**
+	 * Retry a command that declares `mutation: true` too (default: false). A failed mutation,
+	 * such as one whose handler returned `TIMEOUT` after a downstream write, may already have
+	 * applied its change, so retrying it can apply it twice. Set this only when every mutation
+	 * the middleware wraps is safe to repeat. Where the middleware cannot read the declaration
+	 * (it runs outside the execution engine), the call counts as a mutation.
+	 */
+	retryMutations?: boolean;
 }
 
 /**
@@ -290,7 +299,10 @@ function retryWait(retry: number, baseMs: number, maxMs: number, jitter: boolean
  *
  * A failure whose error code passes `shouldRetry` is retried up to
  * `maxRetries` times with capped exponential backoff and jitter (see
- * {@link RetryOptions}). The wait ends early when `context.signal` aborts:
+ * {@link RetryOptions}). A command that declares `mutation: true` is never
+ * retried unless `retryMutations` is set: the middleware reads the declaration
+ * from the command the engine runs, never from its name, and a call whose
+ * declaration it cannot read (outside the engine) counts as a mutation. The wait ends early when `context.signal` aborts:
  * the middleware then stops retrying and returns the last failure.
  *
  * @example
@@ -314,6 +326,7 @@ export function createRetryMiddleware(options: RetryOptions = {}): CommandMiddle
 		maxDelay = 5_000,
 		jitter = true,
 		shouldRetry = (code) => code === 'TRANSIENT_ERROR' || code === 'TIMEOUT',
+		retryMutations = false,
 	} = options;
 	if (!Number.isInteger(maxRetries) || maxRetries < 0) {
 		throw new Error('Retry maxRetries must be a nonnegative integer');
@@ -323,7 +336,10 @@ export function createRetryMiddleware(options: RetryOptions = {}): CommandMiddle
 	}
 
 	return async (_commandName, _input, context, next) => {
+		// Read before the first attempt: the engine's record of the call is its own.
+		const repeatable = retryMutations || liveMutation(context, next) === false;
 		let result = await next();
+		if (!repeatable) return result;
 		for (let retry = 1; retry <= maxRetries; retry++) {
 			if (result.success || !result.error || !shouldRetry(result.error.code)) return result;
 			const waited = await sleep(retryWait(retry, retryDelay, maxDelay, jitter), context.signal);

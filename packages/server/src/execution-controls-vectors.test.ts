@@ -10,12 +10,14 @@ import {
 	DEFAULT_MAX_BATCH_PARALLELISM,
 	DEFAULT_MAX_BATCH_SIZE,
 	executeBatch,
+	failure,
 	success,
 } from '@lushly-dev/afd-core';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { DEFAULT_COMMAND_TIMEOUT_MS, withCommandDeadlines } from './command-timeout.js';
 import { createDirectRegistry } from './direct-registry.js';
+import { createRetryMiddleware } from './middleware.js';
 import { defineCommand } from './schema.js';
 import { createMcpServer } from './server.js';
 import { DEFAULT_MAX_VALIDATION_ISSUES } from './validation.js';
@@ -42,6 +44,7 @@ const EXECUTED_CONTROLS = new Set([
 	'batchCancellation',
 	'batchLimits',
 	'validationIssueCap',
+	'retryMutation',
 ]);
 
 describe('spec/vectors/execution-controls.json', () => {
@@ -310,4 +313,63 @@ describe('spec/vectors/execution-controls.json', () => {
 			}
 		}
 	);
+
+	describe('retryMutation: the retry middleware repeats a mutation only with the option (#2673)', () => {
+		interface RetryCase {
+			id: string;
+			command: { name: string; mutation: boolean };
+			handler: { failFirst: { code: string } };
+			retry: {
+				maxRetries: number;
+				retryDelayMs: number;
+				jitter: boolean;
+				retryMutations?: boolean;
+			};
+			expect: { handlerRuns: number; success: boolean; code?: string };
+		}
+		const cases = vectors.cases.filter(
+			(c) => c.control === 'retryMutation'
+		) as unknown as RetryCase[];
+
+		it('has the read, mutation and option cases', () => {
+			expect(cases.map((c) => c.id)).toEqual([
+				'retry-read-after-timeout',
+				'retry-mutation-not-repeated',
+				'retry-mutation-with-option',
+			]);
+		});
+
+		for (const vector of cases) {
+			it(vector.id, async () => {
+				let runs = 0;
+				const command = defineCommand({
+					name: vector.command.name,
+					description: 'Fails once, then succeeds',
+					input: z.object({}),
+					mutation: vector.command.mutation,
+					handler: async () =>
+						++runs === 1
+							? failure({
+									code: vector.handler.failFirst.code,
+									message: 'Downstream timed out',
+									suggestion: 'Check whether the change applied, then retry',
+								})
+							: success({ runs }),
+				});
+				const retry = createRetryMiddleware({
+					maxRetries: vector.retry.maxRetries,
+					retryDelay: vector.retry.retryDelayMs,
+					jitter: vector.retry.jitter,
+					...(vector.retry.retryMutations !== undefined && {
+						retryMutations: vector.retry.retryMutations,
+					}),
+				});
+				const registry = createDirectRegistry([command], { middleware: [retry] });
+				const result = await registry.execute(vector.command.name, {});
+				expect(runs).toBe(vector.expect.handlerRuns);
+				expect(result.success).toBe(vector.expect.success);
+				if (vector.expect.code) expect(result.error?.code).toBe(vector.expect.code);
+			});
+		}
+	});
 });

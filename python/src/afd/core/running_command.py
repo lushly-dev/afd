@@ -10,9 +10,10 @@ outer middleware runs itself with the dispatch's context, or another host's chai
 Because the binding travels with the continuation, it holds where a middleware moves the rest of
 the chain to a worker thread with a fresh event loop. The dispatch closes the entry when it ends,
 so a continuation kept or a task spawned inside it reads unknown afterwards. ``compose_middleware``
-binds the continuations it builds to the entry of the ``next`` it was handed. Mirrors
-``markEngineNext`` and ``liveSecret`` in ``packages/server/src/approval-admission.ts``. No field
-of a context, and nothing a caller passes, binds a continuation.
+binds the continuations it builds to the entry of the ``next`` it was handed. The retry middleware
+reads ``mutation`` the same way. Mirrors ``markEngineNext``, ``liveSecret`` and ``liveMutation``
+in ``packages/server/src/approval-admission.ts``. No field of a context, and nothing a caller
+passes, binds a continuation.
 """
 
 from __future__ import annotations
@@ -23,13 +24,15 @@ from typing import Any
 
 
 class RunningCommand:
-    """One dispatch's entry: its context, its command's ``secret``, and whether it is still open."""
+    """One dispatch's entry: its context, its command's ``secret`` and ``mutation``, and whether it
+    is still open."""
 
-    __slots__ = ("context", "open", "secret")
+    __slots__ = ("context", "mutation", "open", "secret")
 
-    def __init__(self, context: Any, secret: bool) -> None:
+    def __init__(self, context: Any, secret: bool, mutation: bool = False) -> None:
         self.context = context
         self.secret = secret
+        self.mutation = mutation
         self.open = True
 
 
@@ -41,7 +44,11 @@ _LOCK = threading.Lock()
 
 def open_running_command(context: Any, command: Any) -> RunningCommand:
     """The entry of a dispatch of ``command`` on ``context``; close it when the dispatch ends."""
-    return RunningCommand(context, getattr(command, "secret", False) is True)
+    return RunningCommand(
+        context,
+        getattr(command, "secret", False) is True,
+        getattr(command, "mutation", False) is True,
+    )
 
 
 def bind_continuation(next_fn: Any, entry: RunningCommand) -> None:
@@ -75,3 +82,13 @@ def running_command_secret(context: Any, next_fn: Any) -> bool | None:
     if entry is None or not entry.open or entry.context is not context:
         return None
     return entry.secret
+
+
+def running_command_mutation(context: Any, next_fn: Any) -> bool | None:
+    """Whether the command the engine's chain runs on ``context`` declares ``mutation``, for the
+    retry middleware, read through ``next_fn`` as :func:`running_command_secret` reads ``secret``;
+    ``None`` outside an open dispatch of the engine on that very context object."""
+    entry = bound_entry(next_fn)
+    if entry is None or not entry.open or entry.context is not context:
+        return None
+    return entry.mutation

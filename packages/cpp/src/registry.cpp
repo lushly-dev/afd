@@ -683,6 +683,16 @@ bool is_registry_next(const CommandContext& context, const Next& next) {
            record->inherited.end();
 }
 
+std::optional<bool> live_mutation(const CommandContext& context, std::string_view name,
+                                  const Next& next) {
+    const ApprovalAdmission* record = context.approval_admission.get();
+    if (record == nullptr || !record->running.load() || !record->command ||
+        record->command->name != name || !is_registry_next(context, next)) {
+        return std::nullopt;
+    }
+    return static_cast<bool>(record->command->mutation);
+}
+
 InheritRegistryNext::InheritRegistryNext(CommandContext& context, const Next& outer,
                                          const Next& inner)
     : inner_(&inner) {

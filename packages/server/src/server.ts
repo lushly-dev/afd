@@ -67,6 +67,7 @@ import { assertValidTaskCommands } from './tasks.js';
 import { TaskRuntime } from './tasks-runtime.js';
 import { createToolRouter } from './tool-router.js';
 import { createToolsList } from './tools.js';
+import { checkApprovedAtRun } from './up-front-steps.js';
 import { resolveMaxValidationIssues, validateInputEnhanced } from './validation.js';
 
 export type {
@@ -275,8 +276,9 @@ function createServerCore(options: McpHandlerOptions) {
 		}),
 		// A step of an afd-batch or afd-pipe approved up front runs on the input validated then
 		// (#1414): what the human was shown, not what a second validation gives (a default that
-		// is random or reads the clock differs). The step is still validated as sent when it
-		// runs, since a schema may check state an earlier step changed; only the value is kept.
+		// is random or reads the clock differs). The step is still validated when it runs, as sent
+		// and on the approved value itself (#1511), since a schema may check state an earlier
+		// step changed; only the value is kept.
 		validated: async (commandName, input, context) => {
 			// A host-verified call already validated its input before calling `HumanRelay`, so
 			// it runs on that exact validated object even when a schema default is non-deterministic.
@@ -286,7 +288,9 @@ function createServerCore(options: McpHandlerOptions) {
 			const approved = command && (await upFrontApproval(context)?.validated(commandName, input));
 			if (!approved) return undefined;
 			const checked = validateInputEnhanced(command.inputSchema, input, maxValidationIssues);
-			return checked.success ? { ...checked, data: approved.input } : checked;
+			if (!checked.success) return checked;
+			const ran = checkApprovedAtRun(command, approved.input, maxValidationIssues);
+			return ran.success ? { ...checked, data: approved.input } : ran;
 		},
 		devMode,
 		onCommand,

@@ -2,8 +2,8 @@
 // spec/execution-controls.md, #1737, #2131, #1766).
 //
 // Runs every vector case (per-call deadline, server default deadline, pre-cancelled single
-// command, pre-cancelled batch, batch size/parallelism limits, and validation issue cap) and
-// verifies that no C++ gaps remain in `gaps`.
+// command, pre-cancelled batch, batch size/parallelism limits, validation issue cap, and the retry
+// middleware's mutation rule) and verifies that no C++ gaps remain in `gaps`.
 #include "afd/afd.hpp"
 #if defined(AFD_HAS_MCP_STDIO)
 #include "afd/mcp_stdio.hpp"
@@ -60,7 +60,8 @@ TEST_CASE("execution-controls vectors pin normative defaults and have no C++ gap
         const std::string control = entry.at("control").get<std::string>();
         const bool executed = (control == "deadline" || control == "defaultDeadline" ||
                                control == "singleCancellation" || control == "batchCancellation" ||
-                               control == "batchLimits" || control == "validationIssueCap");
+                               control == "batchLimits" || control == "validationIssueCap" ||
+                               control == "retryMutation");
         CHECK_MESSAGE(executed, "control '" << control << "' must be executed by C++ tests");
     }
 }
@@ -478,4 +479,54 @@ TEST_CASE("CommandRegistry::create rejects zero execution-control limits") {
     CHECK_FALSE(afd::CommandRegistry::create({.max_batch_size = 0}).has_value());
     CHECK_FALSE(afd::CommandRegistry::create({.max_batch_parallelism = 0}).has_value());
     CHECK_FALSE(afd::CommandRegistry::create({.max_validation_issues = 0}).has_value());
+}
+
+TEST_CASE("execution-controls retry middleware repeats a mutation only with the option (#2673)") {
+    const afd::Json vectors = execution_controls_vectors::load("execution-controls.json");
+    std::vector<std::string> ids;
+    for (const auto& entry : vectors.at("cases")) {
+        if (entry.at("control").get<std::string>() != "retryMutation") {
+            continue;
+        }
+        const std::string id = entry.at("id").get<std::string>();
+        ids.push_back(id);
+        CAPTURE(id);
+        const afd::Json& retry = entry.at("retry");
+        const afd::Json& expected = entry.at("expect");
+        const std::string code = entry.at("handler").at("failFirst").at("code").get<std::string>();
+        const std::string name = entry.at("command").at("name").get<std::string>();
+        auto middleware = afd::create_retry_middleware(afd::RetryOptions{
+            .max_retries = retry.at("maxRetries").get<int>(),
+            .retry_delay_ms = retry.at("retryDelayMs").get<double>(),
+            .jitter = retry.at("jitter").get<bool>(),
+            .sleep = [](double, const afd::CancellationToken&) { return true; },
+            .retry_mutations = retry.value("retryMutations", false),
+        });
+        REQUIRE(middleware.has_value());
+        int runs = 0;
+        afd::CommandRegistry registry({.middleware = {*middleware}});
+        REQUIRE_FALSE(registry
+                          .register_command(afd::CommandDefinition{
+                              .name = name,
+                              .description = "Fails once, then succeeds",
+                              .handler =
+                                  [&](const afd::Json&, afd::CommandContext&) {
+                                      if (++runs == 1) {
+                                          return afd::error(code, "Downstream timed out");
+                                      }
+                                      return afd::success(afd::Json{{"runs", runs}});
+                                  },
+                              .mutation = entry.at("command").at("mutation").get<bool>(),
+                          })
+                          .has_value());
+        const afd::CommandResult result = registry.execute(name);
+        CHECK(runs == expected.at("handlerRuns").get<int>());
+        CHECK(result.success == expected.at("success").get<bool>());
+        if (expected.contains("code")) {
+            REQUIRE(result.error.has_value());
+            CHECK(result.error->code == expected.at("code").get<std::string>());
+        }
+    }
+    CHECK(ids == std::vector<std::string>{"retry-read-after-timeout", "retry-mutation-not-repeated",
+                                          "retry-mutation-with-option"});
 }

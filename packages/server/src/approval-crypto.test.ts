@@ -3,7 +3,7 @@
  * which the previous implementation used, so tokens stay byte for byte the same.
  */
 import { createHmac, randomBytes as nodeRandomBytes } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
 	type ApprovalKey,
 	base64url,
@@ -59,6 +59,27 @@ describe('approval crypto on WebCrypto', () => {
 		bytes.fill(0);
 		const expected = createHmac('sha256', SECRET).update('data').digest();
 		expect(Buffer.from(await hmac(key, 'data')).equals(expected)).toBe(true);
+		// A Node.js Buffer too, whose `slice` shares memory: the key is imported on first use.
+		const buffer = Buffer.from(SECRET);
+		const bufferKey = toKeys(buffer)[0] as ApprovalKey;
+		buffer.fill(0);
+		expect(Buffer.from(await hmac(bufferKey, 'data')).equals(expected)).toBe(true);
+	});
+
+	it('imports the key again after a failed import', async () => {
+		const subtle = globalThis.crypto.subtle;
+		const importKey = vi
+			.spyOn(subtle, 'importKey')
+			.mockRejectedValueOnce(new Error('import failed'));
+		try {
+			const key = toKeys(SECRET)[0] as ApprovalKey;
+			await expect(hmac(key, 'data')).rejects.toThrow('import failed');
+			const expected = createHmac('sha256', SECRET).update('data').digest();
+			expect(Buffer.from(await hmac(key, 'data')).equals(expected)).toBe(true);
+			expect(importKey).toHaveBeenCalledTimes(2);
+		} finally {
+			importKey.mockRestore();
+		}
 	});
 
 	it('refuses missing and short secrets', () => {

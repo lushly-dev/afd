@@ -685,3 +685,24 @@ TEST_CASE("telemetry types, console sink, and telemetry middleware") {
     CHECK(flaky_sink->events[1].error->code == "UNHANDLED_ERROR");
 #endif
 }
+
+TEST_CASE("create_retry_middleware counts a call outside the registry as a mutation (#2673)") {
+    for (const bool retry_mutations : {false, true}) {
+        auto retry = afd::create_retry_middleware(afd::RetryOptions{
+            .max_retries = 1,
+            .retry_delay_ms = 0,
+            .sleep = [](double, const afd::CancellationToken&) { return true; },
+            .retry_mutations = retry_mutations,
+        });
+        REQUIRE(retry.has_value());
+        int attempts = 0;
+        afd::CommandContext context;
+        const afd::Next next = [&] {
+            ++attempts;
+            return afd::error("TIMEOUT", "Timed out");
+        };
+        const afd::CommandResult result = (*retry)("todo-get", afd::Json::object(), context, next);
+        CHECK(result.error->code == "TIMEOUT");
+        CHECK(attempts == (retry_mutations ? 2 : 1));
+    }
+}

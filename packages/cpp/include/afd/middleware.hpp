@@ -59,6 +59,11 @@ struct RetryOptions {
     /// the wait completed and `false` if cancelled. Defaults to cooperative sleeping (when threads
     /// are enabled) or an immediate cancellation poll (when threads are disabled).
     std::function<bool(double delay_ms, const CancellationToken& cancellation)> sleep;
+    /// Retry a command declaring `mutation` too (default: false). A failed mutation, such as one
+    /// whose handler returned `TIMEOUT` after a downstream write, may already have applied its
+    /// change, so retrying it can apply it twice. Set this only when every mutation the middleware
+    /// wraps is safe to repeat.
+    bool retry_mutations = false;
 };
 
 /// Options for in-memory rate-limiting middleware.
@@ -104,7 +109,10 @@ CommandMiddleware create_timing_middleware(TimingOptions options = {});
 
 /// Retries transient failures with capped exponential backoff and optional jitter. Stops early
 /// when `context.cancellation` is cancelled, returning the last failure. Fails (no exceptions)
-/// when `max_retries < 0` or `retry_delay_ms`/`max_delay_ms` are negative or non-finite.
+/// when `max_retries < 0` or `retry_delay_ms`/`max_delay_ms` are negative or non-finite. A
+/// command declaring `mutation` is never retried unless `retry_mutations` is set: the declaration
+/// is read from the command the registry runs, never from its name, and a call whose declaration
+/// cannot be read (outside the registry) counts as a mutation.
 Expected<CommandMiddleware> create_retry_middleware(RetryOptions options = {});
 
 /// Limits requests per key over fixed windows, thread-safely, with bounded key retention.

@@ -137,7 +137,7 @@ afd::CommandMiddleware audit = [](std::string_view name, const afd::Json& input,
 registry->use(audit);   // the first middleware added is outermost
 ```
 
-`default_middleware()` gives trace ID, logging and timing. Each can be disabled through `DefaultMiddlewareOptions`. `afd/middleware.hpp` also provides `compose_middleware`, `create_retry_middleware` (returns `Expected`, capped exponential backoff, jitter, cooperative cancellation), `create_rate_limit_middleware` (returns `Expected`, thread-safe fixed windows with bounded `max_keys`) and `create_telemetry_middleware` with `afd/telemetry.hpp` (`TelemetryEvent`, `TelemetrySink`, `ConsoleTelemetrySink`). `CommandRegistry::list_by_tags(tags, TagMatchMode::all | any)` filters registered commands by tags.
+`default_middleware()` gives trace ID, logging and timing. Each can be disabled through `DefaultMiddlewareOptions`. `afd/middleware.hpp` also provides `compose_middleware`, `create_retry_middleware` (returns `Expected`, capped exponential backoff, jitter, cooperative cancellation; never repeats a `mutation` command unless `retry_mutations` is set), `create_rate_limit_middleware` (returns `Expected`, thread-safe fixed windows with bounded `max_keys`) and `create_telemetry_middleware` with `afd/telemetry.hpp` (`TelemetryEvent`, `TelemetrySink`, `ConsoleTelemetrySink`). `CommandRegistry::list_by_tags(tags, TagMatchMode::all | any)` filters registered commands by tags.
 
 ## In-Process Agents: DirectClient
 
