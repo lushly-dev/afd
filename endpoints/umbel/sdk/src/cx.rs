@@ -542,7 +542,9 @@ pub trait HostServices: Send + Sync {
     /// # Errors
     /// As [`HostServices::doc_put`]; for a declared kind also [`HostError::Invalid`] with a
     /// message starting `RECORD_PRINCIPAL_REQUIRED`, `RECORD_FIELD_INVALID`,
-    /// `RECORD_WORDING_FIXED` or `RECORD_LANE_STALE`, and [`HostError::Conflict`] with no
+    /// `RECORD_WORDING_FIXED`, `RECORD_LANE_STALE` or `RECORD_QUOTA_EXCEEDED` (the caller's
+    /// principal is past `limits.kind_records` or `limits.kind_postings` for the kind and the
+    /// put would add to it; nothing was written, D212), and [`HostError::Conflict`] with no
     /// current hash for an id that a record the caller may not read holds.
     fn record_put(
         &self,
@@ -563,8 +565,8 @@ pub trait HostServices: Send + Sync {
     /// # Errors
     /// As [`HostServices::record_put`]; [`HostError::Invalid`] with a message starting
     /// `RECORD_KIND_NOT_DECLARED`, `RECORD_KIND_NOT_STANDING`, `RECORD_PRINCIPAL_REQUIRED`,
-    /// `RECORD_FIELD_INVALID`, `RECORD_WORDING_FIXED`, `RECORD_EVIDENCE_INVALID` or
-    /// `RECORD_LANE_STALE` (section 13).
+    /// `RECORD_FIELD_INVALID`, `RECORD_WORDING_FIXED`, `RECORD_EVIDENCE_INVALID`,
+    /// `RECORD_LANE_STALE` or `RECORD_QUOTA_EXCEEDED` (section 13).
     #[allow(clippy::too_many_arguments)]
     fn record_put_cited(
         &self,

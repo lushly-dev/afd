@@ -1,11 +1,41 @@
-//! The SQLite schema, version 4: version 1's tables (specification section 3.2) and the record
+//! The SQLite schema, version 5: version 1's tables (specification section 3.2) and the record
 //! lane's (records host specification, section 5.1).
 
 /// `PRAGMA user_version` of the schema this build writes and serves. Version 2 adds the record
 /// lane's tables ([`LANE_SCHEMA`]), version 3 the table of documents held to their files
-/// ([`HELD_SCHEMA`]) and version 4 each declared kind's count of postings
-/// ([`POSTINGS_SCHEMA`]); a store at an earlier version gains them when it is opened.
-pub const SCHEMA_VERSION: u32 = 4;
+/// ([`HELD_SCHEMA`]), version 4 each declared kind's count of postings
+/// ([`POSTINGS_SCHEMA`]) and version 5 the principal each declared record is charged to
+/// ([`CHARGES_SCHEMA`]); a store at an earlier version gains them when it is opened.
+pub const SCHEMA_VERSION: u32 = 5;
+
+/// Schema version 5 (D212, records host specification section 4.2): the principal each declared
+/// record is charged to, and the postings it holds, so a put can hold its principal to the
+/// records write quota. One row a lane row, hanging from it: a record deleted, or left without
+/// lane rows by a rebuild, takes its charge with it, by cascade. `postings` is set whenever the
+/// record's terms are written, never added to, so a principal's use is a sum over its own rows
+/// that no crash or rebuild can leave behind the terms. The index covers that sum, so a put
+/// reads only the rows of its own principal. A table and not a column of `record_lane`, as
+/// versions 3 and 4 are: a store that migrates then has the schema of a new one.
+pub(crate) const CHARGES_SCHEMA: &str = "
+CREATE TABLE record_charges (
+    lane      INTEGER PRIMARY KEY REFERENCES record_lane (lane) ON DELETE CASCADE,
+    ns        TEXT NOT NULL,
+    kind      TEXT NOT NULL,
+    principal TEXT NOT NULL,              -- the stored envelope's principal
+    postings  INTEGER NOT NULL CHECK (postings >= 0) -- rows of record_terms of the lane
+) STRICT;
+CREATE INDEX record_charges_by_principal ON record_charges (ns, kind, principal, postings);
+";
+
+/// What a store at version 2 to 4 holds, charged once as it migrates to version 5: each lane
+/// row whose record's envelope names a principal, with its rows of `record_terms`.
+pub(crate) const CHARGES_BACKFILL: &str = "
+INSERT INTO record_charges (lane, ns, kind, principal, postings)
+SELECT l.lane, l.ns, l.kind, json_extract(r.envelope, '$.principal'),
+       (SELECT COUNT(*) FROM record_terms t WHERE t.lane = l.lane)
+FROM record_lane l JOIN records r ON r.ns = l.ns AND r.kind = l.kind AND r.id = l.id
+WHERE json_type(r.envelope, '$.principal') = 'text';
+";
 
 /// Schema version 4 (records host specification, section 5.1, after step B4's review): how many
 /// postings, rows of `record_terms`, each declared kind holds over all its text fields. A match

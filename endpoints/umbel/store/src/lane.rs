@@ -365,8 +365,9 @@ impl Evidence {
     }
 }
 
-/// What the host adds to a declared put.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// What the host adds to a declared put. The default is none of it: no evidence, no flag, no
+/// model and no quota.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct LaneWrite {
     /// The record's evidence; `None` leaves the stored evidence.
     pub evidence: Option<Evidence>,
@@ -374,6 +375,86 @@ pub struct LaneWrite {
     pub flags: Vec<MemoryFlag>,
     /// The space's loaded model, if any.
     pub model: Option<ModelId>,
+    /// The writer's records quota (D212), which the host always passes; `None` checks no limit,
+    /// for tools and tests. The record is charged to its envelope's `principal` either way.
+    pub quota: Option<RecordQuota>,
+}
+
+/// The records write quota of one principal in one declared kind (records host specification,
+/// section 4.2, D212): workspace configuration version 8's `limits.kind_records` and
+/// `limits.kind_postings`.
+///
+/// A record is **charged** to the `principal` of its stored envelope, the effective principal of
+/// its latest put, with its postings: its rows of the lane's terms, the count the match bound
+/// sums (section 8.2). A rewrite by another principal moves the whole charge to it. A record
+/// whose envelope names no principal is charged to no one.
+///
+/// A put is refused, with [`StoreError::RecordQuotaExceeded`] and nothing written, when it
+/// would leave its principal past a limit **and** would add to that principal's use of it. So a
+/// put that keeps or shrinks what its principal holds is always admitted, even past a limit a
+/// deployer lowered. A rebuild ([`crate::DocumentStore::reindex_records`]) is no principal's
+/// write: it sets every charge from the record's envelope and its terms, and refuses nothing.
+/// The check is made inside the put's own transaction, serialised against every other put by
+/// the same principal to the same kind, so two puts at once never both pass on one reading.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RecordQuota {
+    /// The most records of the kind charged to one principal.
+    pub records: u64,
+    /// The most postings of the kind charged to one principal.
+    pub postings: u64,
+}
+
+/// Which limit of a [`RecordQuota`] a put met.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum RecordQuotaLimit {
+    /// [`RecordQuota::records`].
+    Records,
+    /// [`RecordQuota::postings`].
+    Postings,
+}
+
+impl RecordQuotaLimit {
+    /// The configuration key's spelling, under `[limits]`.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Records => "kind_records",
+            Self::Postings => "kind_postings",
+        }
+    }
+}
+
+/// What one principal is charged in a kind, and what a put would make it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct QuotaUse {
+    /// Records charged.
+    pub records: u64,
+    /// Postings charged.
+    pub postings: u64,
+}
+
+impl RecordQuota {
+    /// No limit at all: mode `none`'s quota for a key not set, and for tools.
+    #[must_use]
+    pub fn unlimited() -> Self {
+        Self {
+            records: u64::MAX,
+            postings: u64::MAX,
+        }
+    }
+
+    /// The limit a put that takes a principal from `before` to `after` meets, if any: one it
+    /// leaves passed and adds to. Records are checked first.
+    #[must_use]
+    pub fn refuses(&self, before: QuotaUse, after: QuotaUse) -> Option<RecordQuotaLimit> {
+        if after.records > self.records && after.records > before.records {
+            return Some(RecordQuotaLimit::Records);
+        }
+        if after.postings > self.postings && after.postings > before.postings {
+            return Some(RecordQuotaLimit::Postings);
+        }
+        None
+    }
 }
 
 /// What a declared put answers.
@@ -923,6 +1004,11 @@ pub struct LaneStatus {
     pub with_match: u64,
     /// Postings held by the kind across all its text fields.
     pub postings: u64,
+    /// The most records charged to any one principal in the kind (D212), naming none.
+    pub most_records: u64,
+    /// The most postings charged to any one principal in the kind (D212), naming none. Taken
+    /// apart from `most_records`: the two may be two principals'.
+    pub most_postings: u64,
     /// Vectors, by model id.
     pub vectors: BTreeMap<String, u64>,
 }

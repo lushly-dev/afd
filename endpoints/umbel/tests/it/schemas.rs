@@ -26,7 +26,7 @@ use umbel::plugins::{Manifest, PackManifest};
 use umbel::provenance::Envelope;
 use umbel::workspace::ConfigFile;
 
-const STEMS: [&str; 51] = [
+const STEMS: [&str; 52] = [
     "workspace-config.v1",
     "workspace-config.v2",
     "workspace-config.v3",
@@ -75,6 +75,7 @@ const STEMS: [&str; 51] = [
     "protected-resource.v1",
     "event-view.v1",
     "workspace-config.v7",
+    "workspace-config.v8",
     "person-decision.v2",
     "provenance-envelope.v4",
     "plugin-manifest.v7",
@@ -1590,7 +1591,7 @@ fn the_version_4_config_schema_refuses_what_the_host_refuses() {
     }
     let bad = [
         json!({ "config_version": 3, "principal": { "agent_env": ["MY_AGENT"] } }),
-        json!({ "config_version": 8 }),
+        json!({ "config_version": 9 }),
         json!({ "config_version": 4, "principal": { "agent_env": ["not a name"] } }),
         json!({ "config_version": 4, "principal": { "agent_env": "MY_AGENT" } }),
         json!({ "config_version": 4, "store": { "exclude_memory_from_machine_backup": "yes" } }),

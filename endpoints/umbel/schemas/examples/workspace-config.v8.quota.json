@@ -1,0 +1,10 @@
+{
+	"config_version": 8,
+	"principal": {
+		"on_behalf_of": "local"
+	},
+	"limits": {
+		"kind_records": 20000,
+		"kind_postings": 250000
+	}
+}

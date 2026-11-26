@@ -414,6 +414,8 @@ fn run_scale_suite(count: usize) {
                     flags: Vec::new(),
                     evidence: None,
                     model: None,
+                    // The production path: the check reads the writer's use (D212).
+                    quota: Some(umbel_store::lane::RecordQuota::unlimited()),
                 },
                 &reader_all,
             )
@@ -558,6 +560,8 @@ fn run_scale_suite(count: usize) {
                     flags: Vec::new(),
                     evidence: None,
                     model: Some(model.clone()),
+                    // The production path: the check reads the writer's use (D212).
+                    quota: Some(umbel_store::lane::RecordQuota::unlimited()),
                 },
                 &reader_all,
             )

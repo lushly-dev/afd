@@ -462,6 +462,7 @@ impl CallServices {
             evidence,
             flags,
             model: embedder.as_ref().map(|e| e.model().clone()),
+            quota: Some(self.shared.workspace.record_quota()),
         };
         let done = stores
             .documents

@@ -11,6 +11,7 @@ mod keys;
 mod layout;
 mod person;
 mod plugins_config;
+mod record_limits;
 mod records;
 mod space;
 
@@ -48,6 +49,9 @@ pub use person::{
 };
 pub use plugins_config::{
     DefaultAccess, InstanceJournal, Limits, MemoryWritePolicy, PluginInstance, PluginsConfig, caps,
+};
+pub use record_limits::{
+    DEFAULT_KIND_POSTINGS, DEFAULT_KIND_RECORDS, MAX_KIND_LIMIT, default_record_quota,
 };
 pub(crate) use records::effective_root;
 pub use records::{
@@ -128,7 +132,7 @@ impl Workspace {
     }
 
     /// Create a workspace in `dir` (made when missing): `umbel.toml` holding only
-    /// `config_version = 7`, when given, `name`, and `[principal] on_behalf_of` equal to the
+    /// `config_version = 8`, when given, `name`, and `[principal] on_behalf_of` equal to the
     /// default `local_id`, so a local agent's records belong to the same person as the CLI's
     /// (phase 3 section 3.2); `spaces/main/`; `state/` with the keys and a `.gitignore` of `*`.
     ///
@@ -216,6 +220,12 @@ impl Workspace {
     /// The compiled-plugin call limits and the SQLite cap (D204), each set or its default.
     pub fn call_limits(&self) -> CallLimits {
         self.calls
+    }
+
+    /// The records write quota of each principal in each declared kind (D212).
+    #[must_use]
+    pub fn record_quota(&self) -> umbel_store::lane::RecordQuota {
+        self.config.record_quota
     }
 
     /// The bound and the deadline every compiled-plugin call over this workspace shares.

@@ -125,7 +125,7 @@ fn find_all(order: FindOrder) -> RecordFind {
 
 #[test]
 fn the_schema_version_is_a_build_constant() {
-    assert_eq!(SCHEMA_VERSION, 4);
+    assert_eq!(SCHEMA_VERSION, 5);
     let dir = tempfile::tempdir().expect("a temporary directory");
     let store = open_with(dir.path(), "main", StoreOptions::default()).expect("opening");
     assert_eq!(store.info().expect("info").schema_version, SCHEMA_VERSION);
@@ -159,6 +159,7 @@ fn a_new_store_has_every_table_and_index_of_section_5_1() {
         "doc_own",
         "doc_held",
         "record_postings",
+        "record_charges",
     ] {
         assert!(tables.contains(table), "{table} is missing: {tables:?}");
     }
@@ -170,6 +171,7 @@ fn a_new_store_has_every_table_and_index_of_section_5_1() {
         "record_keys_by_lane",
         "record_evidence_by_doc",
         "record_decisions_by_record",
+        "record_charges_by_principal",
     ] {
         assert!(indexes.contains(index), "{index} is missing: {indexes:?}");
     }
@@ -192,6 +194,7 @@ fn a_new_store_has_every_table_and_index_of_section_5_1() {
         ("doc_own", "documents"),
         ("doc_held", "documents"),
         ("record_postings", "record_kinds"),
+        ("record_charges", "record_lane"),
     ] {
         let found: Vec<(String, String)> = raw
             .prepare(&format!("PRAGMA foreign_key_list({table})"))
@@ -511,11 +514,45 @@ fn a_version_3_store_opens_as_the_current_version_with_its_postings_counted() {
         .query_row("SELECT COUNT(*) FROM record_postings", [], |r| r.get(0))
         .expect("count");
     assert_eq!(count, 1);
+    // Schema version 5 (D212): each lane row whose envelope names a principal is charged to it,
+    // with its own rows of `record_terms`.
+    assert_eq!(charges(&raw), charged_lanes(&raw));
+    assert!(
+        !charges(&raw).is_empty(),
+        "the fixture's records are charged"
+    );
     // Opening again counts nothing twice.
     drop(store);
     let again = open_with(dir.path(), "main", StoreOptions::default()).expect("opening again");
     assert_eq!(again.info().expect("info").schema_version, SCHEMA_VERSION);
     assert_eq!(postings(&raw, "note"), Some(9));
+    assert_eq!(charges(&raw), charged_lanes(&raw));
+}
+
+/// Every row of `record_charges`: its lane, principal and postings.
+fn charges(raw: &Connection) -> Vec<(i64, String, i64)> {
+    raw.prepare("SELECT lane, principal, postings FROM record_charges ORDER BY lane")
+        .expect("prepare")
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+        .expect("query")
+        .collect::<Result<_, _>>()
+        .expect("rows")
+}
+
+/// What `record_charges` should hold, found from the lane by a scan: each lane row whose
+/// record's envelope names a principal, with its rows of `record_terms`.
+fn charged_lanes(raw: &Connection) -> Vec<(i64, String, i64)> {
+    raw.prepare(
+        "SELECT l.lane, json_extract(r.envelope, '$.principal'),
+                (SELECT COUNT(*) FROM record_terms t WHERE t.lane = l.lane)
+         FROM record_lane l JOIN records r ON r.ns = l.ns AND r.kind = l.kind AND r.id = l.id
+         WHERE json_type(r.envelope, '$.principal') = 'text' ORDER BY l.lane",
+    )
+    .expect("prepare")
+    .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+    .expect("query")
+    .collect::<Result<_, _>>()
+    .expect("rows")
 }
 
 /// The count a match's bound reads is the kind's rows of `record_terms` after every write that
@@ -542,6 +579,7 @@ fn the_put_and_the_rebuild_keep_each_kinds_count_of_postings() {
                     evidence: None,
                     flags: Vec::new(),
                     model: None,
+                    quota: None,
                 },
                 &all_seeing(),
             )
@@ -550,6 +588,8 @@ fn the_put_and_the_rebuild_keep_each_kinds_count_of_postings() {
     let holds = |what: &str| {
         let counted = postings(&raw, "note").unwrap_or(0);
         assert_eq!(counted, terms(&raw, "note"), "{what}");
+        // Each record's charge (D212) is its own rows, by every write that moved them.
+        assert_eq!(charges(&raw), charged_lanes(&raw), "{what}");
         counted
     };
     put(
@@ -616,6 +656,17 @@ fn the_put_and_the_rebuild_keep_each_kinds_count_of_postings() {
     .expect("an erasure");
     assert_eq!(terms(&raw, "note"), 1, "the cascade took n1's postings");
     assert_eq!(postings(&raw, "note"), Some(3), "and the count drifted");
+    // Its charge (D212) went with it at once, with no rebuild: a principal's use is its rows.
+    assert_eq!(
+        charges(&raw),
+        charged_lanes(&raw),
+        "the charge left with the record"
+    );
+    assert!(
+        charges(&raw).iter().all(|(_, _, postings)| *postings <= 1),
+        "the charges left hold the one posting left: {:?}",
+        charges(&raw)
+    );
     rebuild(&decl);
     assert_eq!(holds("after a rebuild following the drift"), 1);
     assert_eq!(
@@ -713,6 +764,7 @@ fn a_kind_declared_after_its_records_exist_is_stale_until_a_rebuild() {
                     evidence: None,
                     flags: Vec::new(),
                     model: None,
+                    quota: None,
                 },
                 &all_seeing(),
             )

@@ -1,4 +1,4 @@
-//! `umbel.toml`, versions 1 to 7: defaults, key scan and validation (phase 0 specification
+//! `umbel.toml`, versions 1 to 8: defaults, key scan and validation (phase 0 specification
 //! section 2; phase 1 section 9.1 adds the plugin instances of version 2; phase 2 section 4.1
 //! adds the collections, readers, access groups and store of version 3; phase 3 section 2.4 adds
 //! the `memory_write` grant table, `principal.agent_env` and
@@ -9,7 +9,8 @@
 //! `[models]` and the `records_write` grant table's `default_access` of version 6, in
 //! [`super::records`]; the Ideas host-review specification sections 4, 6.1 and 6.5 add
 //! `[person]`, `[person.local]` and a space's `verified_levels` of version 7, in
-//! [`super::person`]).
+//! [`super::person`]; D212 adds `limits.kind_records` and `limits.kind_postings` of version 8, in
+//! [`super::record_limits`]).
 
 use std::collections::BTreeMap;
 use std::net::SocketAddr;
@@ -23,11 +24,9 @@ use super::error::WorkspaceError;
 use super::hosted::{
     AuthConfig, GROUP_KEYS_V5, GroupClaim, HTTP_KEYS_V5, PRINCIPAL_KEYS_V5, PersonListener,
     RateLimits, TOP_KEYS_V5, TlsConfig, UsageConfig, check_bind, check_channel, check_hosted,
-    check_public_url, group_claim, is_v5_key,
+    check_public_url, group_claim,
 };
-use super::person::{
-    AssuranceLevel, PersonConfig, SPACE_KEYS_V7, TOP_KEYS_V7, is_v7_key, verified_levels,
-};
+use super::person::{AssuranceLevel, PersonConfig, SPACE_KEYS_V7, TOP_KEYS_V7, verified_levels};
 use super::plugins_config::{
     GRANT_KEYS, INSTANCE_JOURNAL_ENTRY_KEYS, INSTANCE_JOURNAL_KEYS, INSTANCE_KEYS,
     INSTANCE_KEYS_V3, INSTANCE_KEYS_V7, INSTANCE_RESERVED, LIMITS_KEYS, MEMORY_WRITE_GRANT_KEYS,
@@ -36,7 +35,7 @@ use super::plugins_config::{
 use super::records::{
     COLLECTION_KEYS_V6, MeaningConfig, ModelConfig, SPACE_KEYS_V6, SpaceStanding, TOP_KEYS_V6,
     VerifiedAdmits, check_meaning_models, check_own_collections, collection_own, command_writable,
-    is_v6_key, space_standing,
+    space_standing,
 };
 use super::space::SpaceId;
 
@@ -45,10 +44,11 @@ use super::space::SpaceId;
 /// which is version 4 with no memory policy, version 4, which is version 5 with
 /// `auth.mode = "none"`, version 5, which is version 6 with no person, no own collection and no
 /// model, and version 6, which is version 7 with the default decision lifetime, no local page and
-/// the default `verified_levels`: each reads as version 7 with no change of meaning.
-pub const CONFIG_VERSION: u32 = 7;
+/// the default `verified_levels`: each reads as version 7 with no change of meaning; and version
+/// 7, which is version 8 with the default records write quota (D212).
+pub const CONFIG_VERSION: u32 = 8;
 /// Every configuration version this build reads.
-pub const CONFIG_VERSIONS: &[u32] = &[1, 2, 3, 4, 5, 6, 7];
+pub const CONFIG_VERSIONS: &[u32] = &[1, 2, 3, 4, 5, 6, 7, 8];
 
 const TOP_KEYS: &[&str] = &[
     "config_version",
@@ -412,6 +412,8 @@ pub struct Config {
     pub models: Vec<ModelConfig>,
     /// `[person]`, version 7: the lifetime of a person decision and the local person page.
     pub person: PersonConfig,
+    /// `limits.kind_records` and `limits.kind_postings`, version 8 (D212).
+    pub record_quota: umbel_store::lane::RecordQuota,
     /// The command-writable collections, as `(space, collection)` (the records host
     /// specification, section 3), judged when the configuration was read:
     /// [`Config::command_writable`] answers from it.
@@ -475,7 +477,7 @@ impl ConfigFile {
     ///
     /// # Errors
     /// `WORKSPACE_CONFIG_INVALID` for a syntax error or a missing or mistyped `config_version`;
-    /// `WORKSPACE_CONFIG_UNSUPPORTED` for a version other than 1 to 7.
+    /// `WORKSPACE_CONFIG_UNSUPPORTED` for a version other than 1 to 8.
     pub fn parse(text: &str) -> Result<Self, WorkspaceError> {
         let table: Table = text.parse().map_err(|error: toml::de::Error| {
             let place = error.span().map(|span| {
@@ -491,28 +493,29 @@ impl ConfigFile {
         match table.get("config_version") {
             None => Err(WorkspaceError::config_invalid(
                 "config_version",
-                "is required; set config_version = 7",
+                "is required; set config_version = 8",
             )),
-            Some(Value::Integer(version @ (1..=7))) => {
+            Some(Value::Integer(version @ (1..=8))) => {
                 let version = u32::try_from(*version).unwrap_or(CONFIG_VERSION);
                 Ok(Self { table, version })
             }
             Some(Value::Integer(other)) => Err(WorkspaceError::config_unsupported(other)),
             Some(_) => Err(WorkspaceError::config_invalid(
                 "config_version",
-                "must be the integer 1, 2, 3, 4, 5, 6 or 7",
+                "must be the integer 1, 2, 3, 4, 5, 6, 7 or 8",
             )),
         }
     }
 
-    /// The `config_version` of the file: 1 to 7.
+    /// The `config_version` of the file: 1 to 8.
     pub fn version(&self) -> u32 {
         self.version
     }
 
     /// The unknown and reserved keys.
     pub fn scan_keys(&self) -> KeyScan {
-        super::call_limits::known(self.version, self.scan_keys_as(self.version))
+        let scan = super::call_limits::known(self.version, self.scan_keys_as(self.version));
+        super::record_limits::known(&self.table, self.version, scan)
     }
 
     /// The unknown and reserved keys, were the file of configuration version `version`.
@@ -695,23 +698,8 @@ impl ConfigFile {
     /// `WORKSPACE_CONFIG_INVALID` naming the first key that breaks a rule.
     pub fn into_config(self, root: &Path) -> Result<Config, WorkspaceError> {
         if let Some(key) = self.scan_keys().unknown.into_iter().next() {
-            let v5_only = self.version < 5 && is_v5_key(&key);
-            let v6_only = self.version < 6 && is_v6_key(&key);
-            let v7_only = self.version < 7 && is_v7_key(&key);
-            return Err(WorkspaceError::config_invalid(
-                &key,
-                if self.version >= 3 && key.ends_with(".content_roots") {
-                    "was replaced by collections in configuration version 3; declare [spaces.<id>.collections.<cid>] with a root"
-                } else if v5_only {
-                    "needs config_version = 5"
-                } else if v6_only {
-                    "needs config_version = 6"
-                } else if v7_only {
-                    "needs config_version = 7"
-                } else {
-                    "is not a known key"
-                },
-            ));
+            let why = super::record_limits::unknown_key(self.version, &key);
+            return Err(WorkspaceError::config_invalid(&key, why));
         }
         let general = self.general(root)?;
         let (spaces, default_space) = self.spaces()?;
@@ -725,6 +713,7 @@ impl ConfigFile {
         let writable = command_writable(&spaces, &plugins, root);
         check_own_collections(&spaces, &writable)?;
         rest.check_hosted(&http)?;
+        let record_quota = self.record_quota(rest.auth.mode.is_hosted())?;
         Ok(Config {
             version: self.version,
             name: general.0,
@@ -745,6 +734,7 @@ impl ConfigFile {
             policy_version: self.policy_version(),
             models: rest.models,
             person: rest.person,
+            record_quota,
             command_writable: writable
                 .into_iter()
                 .map(|entry| (entry.space, entry.collection))
@@ -768,6 +758,7 @@ impl ConfigFile {
     pub(crate) fn validate_rest(&self, root: &Path) -> Result<(), WorkspaceError> {
         self.general(root)?;
         let rest = self.rest()?;
+        self.record_quota(rest.auth.mode.is_hosted())?;
         if let Ok((spaces, _)) = self.spaces() {
             check_declared_groups(&spaces, &rest.access)?;
             check_meaning_models(&spaces, &rest.models)?;

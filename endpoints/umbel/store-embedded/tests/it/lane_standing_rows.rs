@@ -62,6 +62,7 @@ fn put(store: &dyn DocumentStore, id: &str, statement: &str) {
                 evidence: None,
                 flags: Vec::new(),
                 model: None,
+                quota: None,
             },
             &everyone(),
         )

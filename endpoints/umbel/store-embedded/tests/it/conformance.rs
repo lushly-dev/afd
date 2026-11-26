@@ -15,7 +15,7 @@ fn the_suite_passes() {
     let skipped = report.skipped();
     assert!(skipped.is_empty(), "skipped: {skipped:?}");
     assert!(
-        report.passed() >= 55 + 17 + 17 + 18 + 44,
+        report.passed() >= 55 + 17 + 17 + 18 + 7 + 44,
         "the suite ran only {} cases",
         report.passed()
     );
@@ -26,4 +26,6 @@ fn the_suite_passes() {
     assert_eq!(standing.cases.len(), 17, "{standing:?}");
     let matching = report.group("matching").expect("the matching group ran");
     assert_eq!(matching.cases.len(), 18, "{matching:?}");
+    let quota = report.group("quota").expect("the quota group ran");
+    assert_eq!(quota.cases.len(), 7, "{quota:?}");
 }

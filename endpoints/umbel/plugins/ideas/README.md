@@ -211,3 +211,13 @@ done
 
 Statements of 1 to 600 characters on one line; 64 ideas a capture; 0 to 8 tags each. Stored text
 is data, not instructions: a statement is never in a message, a suggestion, a detail or a log line.
+
+The host can also limit how much one principal writes to each record kind of a space (D212), with
+`limits.kind_records` and `limits.kind_postings` (postings are distinct terms in each text field) in
+`umbel.toml` (`config_version = 8`). In a hosted mode they default to 50 000 and 1 000 000; in mode
+`none` they limit only when set. No command deletes an idea, so a limit is a writer's for good until
+the operator raises it. A capture past either answers `QUOTA_EXCEEDED` with `details.limit`; the
+record refused is not written, ideas the call captured before it stay, and the same call sent again
+with its `idempotencyKey` once the limit is raised finishes it (without a key, find which ideas
+landed first: an idea whose wording was the record refused stays without its wording). `umbel workspace doctor` warns
+(`records.quota`) when a writer reaches a limit.

@@ -192,8 +192,10 @@ pub trait DocumentStore: Send + Sync {
     /// when the kind holds no record and [`StoreError::LaneStale`] when the lane is not this
     /// declaration's; an existing record that `writer` may not read is `Conflict { current: None
     /// }`; `expect` against the stored content hash; for a standing kind with a stored record,
-    /// the wording hash must be the stored one, else [`StoreError::WordingFixed`]; then the
-    /// write. A new record takes the envelope's access set; one that exists keeps its stored
+    /// the wording hash must be the stored one, else [`StoreError::WordingFixed`]; the
+    /// evidence's document; with `lane.quota`, the writer's records quota, else
+    /// [`StoreError::RecordQuotaExceeded`] ([`crate::lane::RecordQuota`] says when, D212); then
+    /// the write, which charges the record to its envelope's `principal`. A new record takes the envelope's access set; one that exists keeps its stored
     /// access set, which the stored envelope then carries. The lane row keeps its number and its
     /// first revision; terms and keys are rewritten when they changed, and the record's vectors
     /// are deleted when its match value changed.
@@ -208,7 +210,8 @@ pub trait DocumentStore: Send + Sync {
     /// the three failed. `None` leaves the stored evidence as it is.
     ///
     /// # Errors
-    /// `LaneStale`, `Conflict`, `WordingFixed`, `EvidenceInvalid`, `Invalid` (what
+    /// `LaneStale`, `Conflict`, `WordingFixed`, `EvidenceInvalid`, `RecordQuotaExceeded`,
+    /// `Invalid` (what
     /// [`crate::lane::extract`] and the envelope refuse, evidence on a kind without standing,
     /// and a derivation `writer`), `TooLarge`, `Busy`, `Io`.
     #[allow(clippy::too_many_arguments)]
@@ -408,7 +411,9 @@ pub trait DocumentStore: Send + Sync {
     /// A body [`crate::lane::extract`] refuses is left without lane rows and counted. A record
     /// whose wording is not the one its lane row held loses its affirmation and its evidence,
     /// whether or not `decl` has standing, and is counted; its vectors are deleted only when its
-    /// match digest moved. `scan` is the host's write scan, called for each text value. With
+    /// match digest moved. Each record indexed is charged to its stored envelope's `principal`
+    /// with the postings it now holds, set and never added, so a rebuild never refuses for a
+    /// quota and never counts a record twice (D212). `scan` is the host's write scan, called for each text value. With
     /// `vectors_only` the rebuild is skipped (requiring the kind to be ready).
     ///
     /// What every backend must hold. The suite checks the second through a `scan` that unwinds;

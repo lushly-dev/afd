@@ -233,9 +233,10 @@ fn every_key_has_a_default_and_earlier_versions_read_with_them() {
         v5.config().plugins.instances[0].records_default_access,
         DefaultAccess::Private
     );
-    // Version 7 (the Ideas host-review specification) is read beside it, in `config_v7.rs`.
-    assert_eq!(umbel::CONFIG_VERSION, 7);
-    assert_eq!(umbel::CONFIG_VERSIONS, [1, 2, 3, 4, 5, 6, 7]);
+    // Versions 7 (the Ideas host-review specification) and 8 (D212) are read beside it, in
+    // `config_v7.rs` and `config_v8.rs`.
+    assert_eq!(umbel::CONFIG_VERSION, 8);
+    assert_eq!(umbel::CONFIG_VERSIONS, [1, 2, 3, 4, 5, 6, 7, 8]);
 }
 
 #[test]
@@ -284,14 +285,14 @@ fn versions_1_to_5_refuse_the_keys() {
             "plugins.notes.grants.records_write.default_access",
         );
     }
-    for version in [0, 8] {
+    for version in [0, 9] {
         let error = open(&format!("config_version = {version}\n")).unwrap_err();
         assert_eq!(error.code(), "WORKSPACE_CONFIG_UNSUPPORTED");
-        assert!(error.message().contains("1 to 7"), "{error}");
+        assert!(error.message().contains("1 to 8"), "{error}");
     }
     let error = invalid("name = \"garden\"\n", "config_version");
     assert!(
-        error.message().contains("set config_version = 7"),
+        error.message().contains("set config_version = 8"),
         "{error}"
     );
 }
@@ -1177,7 +1178,7 @@ fn the_doctor_reads_version_6_and_names_an_unknown_key() {
         keys.suggestion
             .as_deref()
             .unwrap()
-            .contains("versions 1 to 7")
+            .contains("versions 1 to 8")
     );
     // A space's own rules are the spaces check's.
     let (_dir, root) = workspace_with(&garden("").replace("person = \"human:local\"\n", ""));
@@ -1367,7 +1368,7 @@ fn the_schema_refuses_what_the_host_refuses() {
     let refused = [
         // Versions.
         with(&|c| c["config_version"] = json!(5)),
-        json!({ "config_version": 8 }),
+        json!({ "config_version": 9 }),
         // person, verified_admits, meaning.
         garden(&|s| s["person"] = json!("agent:helper")),
         garden(&|s| s["person"] = json!("local")),

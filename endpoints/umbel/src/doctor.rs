@@ -193,12 +193,13 @@ pub const MEMORY_CHECKS: [&str; 8] = [
 
 /// The doctor's record lane checks (the records host specification, section 12.3), which only a
 /// sealed host runs: it reads the lane of each declared kind of each loaded plugin instance.
-pub const RECORD_CHECKS: [&str; 5] = [
+pub const RECORD_CHECKS: [&str; 6] = [
     "records.declared",
     "records.standing",
     "records.meaning",
     "records.own",
     "records.size",
+    "records.quota",
 ];
 
 /// The hosted profile's checks (phase 5 specification, section 6.1, with `auth.ca_files` from
@@ -416,7 +417,7 @@ fn config_keys(scan: Option<&crate::workspace::KeyScan>) -> Check {
         return Check::fail(
             "config.keys",
             format!("Unknown keys: {}", scan.unknown.join(", ")),
-            "Remove or correct the unknown keys in umbel.toml; this version reads configuration versions 1 to 7.",
+            "Remove or correct the unknown keys in umbel.toml; this version reads configuration versions 1 to 8.",
         );
     }
     if !scan.reserved.is_empty() {

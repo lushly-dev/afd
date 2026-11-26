@@ -9,6 +9,7 @@ use umbel_store::{
     check_record, record_target,
 };
 
+use super::charge::{check_quota, set_charge};
 use super::standing::{check_evidence, write_evidence};
 use super::{
     any_record, encode_vector, flags_text, kind_row, position, refuse_derivation, require_ready,
@@ -315,6 +316,21 @@ impl SqliteStore {
             if let Some(evidence) = &lane.evidence {
                 check_evidence(&tx, evidence, writer)?;
             }
+            // Step 7.5a (D212): the writer's records quota, before anything is written. The
+            // record is charged to the principal the host sealed into its envelope, with one
+            // posting a term of each text field, which is what `extract` found.
+            if let (Some(quota), Some(principal)) = (&lane.quota, envelope.principal.as_deref()) {
+                let postings = u64::try_from(found.terms.len()).unwrap_or(u64::MAX);
+                check_quota(
+                    &tx,
+                    quota,
+                    ns,
+                    kind,
+                    row.as_ref().map(|row| row.lane),
+                    principal,
+                    postings,
+                )?;
+            }
             // The match value is one of the text values, so it moved only if the wording did.
             let match_changed = match (&row, decl.match_pointer()) {
                 (Some(_), Some(pointer)) if wording_changed => {
@@ -390,6 +406,7 @@ impl SqliteStore {
                     lane_id
                 }
             };
+            set_charge(&tx, lane_id, ns, kind, envelope.principal.as_deref())?;
             if let Some(evidence) = &lane.evidence {
                 write_evidence(&tx, lane_id, evidence)?;
             }

@@ -168,8 +168,7 @@ fn put(
         Expect::Any,
         LaneWrite {
             evidence,
-            flags: Vec::new(),
-            model: None,
+            ..LaneWrite::default()
         },
         &writer(),
     )
