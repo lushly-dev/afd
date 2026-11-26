@@ -110,7 +110,7 @@ export function createTanStackRuntime(adapterFor: AdapterFactory): CopilotRuntim
 			ports.signal.addEventListener('abort', () => abortController.abort(), { once: true });
 			const stream = chat({
 				adapter,
-				messages: messagesFor(input.history, input.text),
+				messages: messagesFor(input.history, input.text, input.attachments, blockValue),
 				systemPrompts: [SYSTEM_PROMPT],
 				tools,
 				abortController,

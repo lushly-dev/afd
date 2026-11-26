@@ -797,7 +797,7 @@ export const CEILINGS = Object.freeze({
 	// measured 139,141 against `main` at `804e17cc`; set to 139,700 under D115.
 	// #2107 (moved `journal-provenance.ts` and `redactWrapped` from first paint into `late/journal-wrappers.ts`):
 	// measured 144,170 against `main` at `bd30d790b` (+4,850 moved from first paint); set to 144,700 under D115.
-	lateMinified: 144_700,
+	lateMinified: 146_900, // D115 (measured 146,399 against cdaf8e1ff): #1508 copilot attachment reader in copilot-wiring.ts
 	// #2117 (`recordOrder` calls in `documents.ts`): measured 13,584 against `main` at `804e17cc`; set to 13,800 under D115.
 	lateDocumentsMinified: 13_800,
 	// Bug batch #2113: 17,514 (`closeApp` across persisted scopes with R14 dirty re-check, `document-open` gated refusal, `isTypeGated`, `Editors.projects()`); set to 18,000 under D115.
@@ -816,7 +816,7 @@ export const CEILINGS = Object.freeze({
 	// #2307 (track changed-preview confirmation replacements across pending registration, waiting turns,
 	// `turnsOf`, `check` rescans, and resumed `confirmation-get` reads so a reshow never resumes early and
 	// withdraws its replacement): measured 43,684 against `main` at `bc316e8e`; set to 44,000 under D115.
-	lateCopilotMinified: 44_000,
+	lateCopilotMinified: 49_100, // D115 (measured 48,645 against cdaf8e1ff): #1508 copilot-message-send attachment validation, read, atomic taint and resume
 	// Steps 5 and 8 together: 60,469; set to 61,500 (the header records it). Step 6: 78,180; set to 78,500; after its trust review 80,506, set to 81,000; after its second round 81,152, set to 81,500; after its third, 83,764, set to 84,500; merged with step 10, 90,579, set to 91,200; after its fourth round, 91,964, set to 92,500; after its fifth, 93,273, set to 94,000; merged with step 7, 100,819, set to 101,500.
 	// Phase 4's step 9, measured in one tree against `main` at `0ab76415`: 101,093 to 116,636 (+15,543: the four `experiment-*` commands and boot's settle, their
 	// rules, refusals and notices in words); set to 117,000 under D115. After its two reviews, 118,500 (removals kept,

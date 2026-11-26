@@ -20,6 +20,15 @@ export interface CopilotSessionRefV1 {
 export interface ContextMessageV1 {
 	role: 'user' | 'assistant';
 	text: string;
+	/** Resolved attachments for this message when continuing a waiting turn (3.5, 5.1, 5.2). */
+	attachments?: ReadonlyArray<AttachedContentV1>;
+}
+
+/** One attachment read by the kernel as the person, given to the model as content from its source (3.5, 5.1). */
+export interface AttachedContentV1 {
+	source: string;
+	link: Record<string, unknown>;
+	content: unknown;
 }
 
 /** A tool the model is offered (4.5). */
@@ -66,6 +75,7 @@ export interface CopilotRuntimeV1 {
 			provider: CopilotProviderV1;
 			history: ReadonlyArray<ContextMessageV1>;
 			text: string;
+			attachments?: ReadonlyArray<AttachedContentV1>;
 			tools: ReadonlyArray<ToolDescriptorV1>;
 		},
 		ports: { agent: AgentPortV1; model: ModelPortV1; signal: AbortSignal }

@@ -100,6 +100,15 @@ export interface ToolDescriptorV1 {
 export interface ContextMessageV1 {
 	role: 'user' | 'assistant';
 	text: string;
+	/** Resolved attachments for this message when continuing a waiting turn (3.5, 5.1, 5.2). */
+	attachments?: ReadonlyArray<AttachedContentV1>;
+}
+
+/** One attachment read by the kernel as the person, given to the model as content from its source (3.5, 5.1). */
+export interface AttachedContentV1 {
+	source: string;
+	link: ResourceLinkV1;
+	content: unknown;
 }
 
 /**
@@ -180,6 +189,8 @@ export interface CopilotRunV1 {
 	provider: CopilotProviderV1;
 	history: ReadonlyArray<ContextMessageV1>;
 	text: string;
+	/** Resolved attachments read as the person, given to the model as content blocks (3.5, 5.1, 5.2). */
+	attachments?: ReadonlyArray<AttachedContentV1>;
 	agent: CopilotAgentCapabilityV1;
 	/** The trusted host reports the end here; the first report wins and later ones are ignored. */
 	settle(outcome: CopilotTurnOutcomeV1): void;

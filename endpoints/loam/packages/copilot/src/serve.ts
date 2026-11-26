@@ -7,6 +7,7 @@
 import { AgentPort, ModelPort } from './ports.js';
 import type {
 	AgUiEventV1,
+	AttachedContentV1,
 	ContextMessageV1,
 	CopilotProviderV1,
 	CopilotRuntimeV1,
@@ -19,6 +20,7 @@ interface RunMessage {
 	threadId: string;
 	text: string;
 	history: ContextMessageV1[];
+	attachments?: AttachedContentV1[];
 	provider: CopilotProviderV1;
 }
 
@@ -50,6 +52,9 @@ export function serveRuntime(ports: RuntimePortsV1, runtime: CopilotRuntimeV1): 
 					provider: message.provider,
 					history: message.history,
 					text: message.text,
+					...(message.attachments && message.attachments.length > 0
+						? { attachments: message.attachments }
+						: {}),
 					tools,
 				},
 				{ agent, model, signal: controller.signal }

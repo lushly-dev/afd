@@ -9,11 +9,18 @@
 
 import type { CommandContext, CommandMiddleware, CommandResult } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
-import type { ConfirmationAskedV1 } from '@lushly-dev/loam-sdk';
+import type { ConfirmationAskedV1, ResourceLinkV1 } from '@lushly-dev/loam-sdk';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import type { DocumentKit } from '../scope/command-kit.js';
 import type { ScopeV1 } from '../scope/records.js';
 import type { ContextField } from '../types.js';
+import {
+	ATTACH_JSON,
+	attachSchema,
+	readAttachments,
+	rebuildAttachments,
+	validateAttachments,
+} from './attachments.js';
 import {
 	type AutonomyModeV1,
 	createEnforcement,
@@ -37,6 +44,7 @@ import {
 } from './pending.js';
 import { createTaint } from './taint.js';
 import type {
+	AttachedContentV1,
 	CopilotAgentCapabilityV1,
 	CopilotCallV1,
 	CopilotConfirmationCardV1,
@@ -57,25 +65,17 @@ export type { CopilotConfirmationCardV1, CopilotSuggestionCardV1 } from './types
 export const COPILOT_SESSION_TABLE = 'copilot-session';
 export const COPILOT_TURN_TABLE = 'copilot-turn';
 
-/** The copilot's human commands (3.5): in `HUMAN_COMMANDS`, so the agent interface answers `HUMAN_REQUIRED`. */
 export const COPILOT_HUMAN_COMMANDS = Object.freeze([
 	'copilot-session-start',
 	'copilot-message-send',
 	'copilot-turn-stop',
 ] as const);
-
-/** Its queries: palette only, `agent: false`, so no agent lists or reads a person's conversations (3.5). */
 export const COPILOT_QUERIES = Object.freeze([
 	'copilot-session-list',
 	'copilot-session-get',
 	'copilot-provider-list',
 	'approval-health-get',
 ] as const);
-
-/**
- * The queries' exposure (3.5): the palette's alone. The three human commands keep the shell's, so the agent interface
- * reaches them only to be refused `HUMAN_REQUIRED`, journaled, as phase 3's human commands are.
- */
 export const COPILOT_EXPOSE = Object.freeze({
 	palette: true,
 	agent: false,
@@ -92,8 +92,7 @@ export const COPILOT_TURN_SETTLE = 'copilot-turn-settle';
 /** 3.5: `copilot-message-send` with `wait` returns after this long with the turn still `running`. */
 export const MESSAGE_WAIT_MS = 50_000;
 
-/** 4.4's defaults. Phase 4's settings are not built, so step 1 uses the defaults as the limits. */
-export const TURN_LIMITS = Object.freeze({
+const TURN_LIMITS = Object.freeze({
 	calls: 40,
 	iterations: 16,
 	seconds: 600,
@@ -101,7 +100,7 @@ export const TURN_LIMITS = Object.freeze({
 	outputTokens: 16_384,
 });
 
-/** 4.5: at most this many tool definitions. */
+export { TURN_LIMITS };
 export const TOOLS_MAX = 128;
 
 const TEXT_MAX = 32_768;
@@ -124,10 +123,7 @@ export interface CopilotDeps {
 	isMutation(name: string): boolean;
 	/** A mounted instance's command: its result is the server's, `content` whole unless its entry says `per-part` (5.1). */
 	isMounted(name: string): boolean;
-	/**
-	 * A mounted command's instance, its entry's `labels`, whether the entry names it, and the deployer's words for the
-	 * instance (4.5, 5.1). Absent, or undefined for any other command.
-	 */
+	/** Mounted command metadata: instance, `labels`, whether named, and deployer text (4.5, 5.1). */
 	mountOf?(
 		name: string
 	):
@@ -161,11 +157,7 @@ export interface CopilotDeps {
 	runBoot(name: string, input: unknown): Promise<CommandResult>;
 	/** Commands no agent may run: `HUMAN_COMMANDS` and `OWNER_COMMANDS`, never listed for the copilot. */
 	humanOnly(name: string): boolean;
-	/**
-	 * Whether `name` with `input` is a write whose own handler refuses every agent with its hand-off (phase 4's 3.2):
-	 * `autonomy-set`, and a shared or human key's `setting-set` or `setting-reset`. Let through, so the copilot reads
-	 * `HUMAN_REQUIRED` with the place to send its person, never `AUTONOMY_UNAVAILABLE`. Absent: none.
-	 */
+	/** Writes whose own handler refuses agents with `HUMAN_REQUIRED` hand-off (phase 4's 3.2). */
 	handlerRefuses?(name: string, input: unknown): boolean;
 	/** Commands `listCommands` never reports. */
 	internal(name: string): boolean;
@@ -204,15 +196,17 @@ export interface CopilotDeps {
 		person: string,
 		traceId?: string
 	): Promise<Array<{ command: string; scope: ScopeV1; reason: HealthReasonV1; createdAt: number }>>;
-	/**
-	 * Withdraw the person's pending confirmations a turn raised, by the session and turn the kernel stored on them, or
-	 * one by id (3.5): on a stop's path, or with no call when a limit or a change of person ended the turn.
-	 */
+	/** Withdraw the person's pending confirmations a turn raised, by session+turn or id (3.5). */
 	withdraw?(
 		context: CommandContext | undefined,
 		match: { session: string; turn: number } | { id: string },
 		person: string
 	): Promise<number>;
+	/** Read one attached resource link as the calling person under `decideAccess` (3.5, 5.1). */
+	readAttachment?(
+		link: ResourceLinkV1,
+		context?: CommandContext
+	): Promise<AttachedContentV1 | CommandResult<never>>;
 }
 
 /** One turn while it runs: what 3.4 records, kept in memory until it settles. */
@@ -555,9 +549,8 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 				}
 				if (!replaced) break;
 			}
-			if (waiting.get(session) !== held || replaced) return;
+			if (waiting.get(session) !== held || replaced || starting.has(session)) return;
 			if (latest > 0) {
-				// Its expiry ends it with no call to say so: looked at again just after (7.2's 10 minutes).
 				if (held.timer) clearTimeout(held.timer);
 				held.timer = setTimeout(() => void check(session), Math.max(0, latest - deps.now()) + 50);
 				return;
@@ -594,10 +587,17 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 		live.replyBefore = held.turn.reply;
 		running.set(session.id, live);
 		armTimer(live);
-		const previous = (await turnsOf(session.id)).filter((turn) => turn.seq < seq);
+		const [previous, rebuilt] = await Promise.all([
+			turnsOf(session.id).then((all) => all.filter((turn) => turn.seq < seq)),
+			rebuildAttachments(held.turn.attach, deps.readAttachment, fail),
+		]);
 		const history = [
 			...historyOf(previous),
-			{ role: 'user' as const, text: held.turn.text },
+			{
+				role: 'user' as const,
+				text: held.turn.text,
+				...(rebuilt.length > 0 ? { attachments: rebuilt } : {}),
+			},
 			...(held.turn.reply ? [{ role: 'assistant' as const, text: held.turn.reply }] : []),
 		];
 		// Stopped, or the person changed, while the history was read: it never starts (the review's gap).
@@ -964,7 +964,7 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 	const sendInput = z.strictObject({
 		session: sessionRef,
 		text: z.string().check(z.minLength(1), z.maxLength(TEXT_MAX)),
-		attach: z.optional(z.array(z.unknown()).check(z.maxLength(10))),
+		attach: attachSchema(z),
 		wait: z.optional(z.boolean()),
 	});
 	const messageSend = kit.define<typeof sendInput, { turn: CopilotTurnV1 }>({
@@ -981,16 +981,18 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 			properties: {
 				session: SESSION_JSON,
 				text: { type: 'string', minLength: 1, maxLength: TEXT_MAX },
-				attach: { type: 'array', items: {} as never, maxItems: 10 },
+				attach: ATTACH_JSON,
 				wait: { type: 'boolean' },
 			},
 			required: ['session', 'text'],
 			additionalProperties: false,
 		},
 		async handler(input, context) {
+			const enteredAt = deps.now();
 			const person = kit.personOf(context);
-			const session = await own(person, input.session);
-			if (!session) return sessionNotFound(input.session);
+			const found = await own(person, input.session);
+			if (!found) return sessionNotFound(input.session);
+			let session = found;
 			const configured = providers();
 			if (configured.length === 0 || !deps.options?.runner) {
 				return fail(
@@ -1015,43 +1017,51 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 					true
 				);
 			}
-			// Attachments are given to the model as content, which taints the session (3.5, 5.1). Taint is step 4's,
-			// so until then an attachment is refused rather than given untainted.
-			if ((input.attach?.length ?? 0) > 0) {
-				return fail(
-					'VALIDATION_ERROR',
-					'Attachments are not given to the copilot yet',
-					'Send the text alone; attachments come with labels and taint'
+			const validated = validateAttachments(input.attach, deps.workspace, fail);
+			if (!Array.isArray(validated)) return validated;
+			const changed = () =>
+				fail(
+					'SESSION_CHANGED',
+					'Who is signed in changed before the message could be sent',
+					'Start a new session and try again'
 				);
-			}
-			// Held from here until the turn is running, so a second message cannot start one beside it.
 			starting.add(session.id);
 			const startedAt = epoch;
+			let attachments: AttachedContentV1[];
 			let previous: CopilotTurnV1[];
+			let turn: CopilotTurnV1;
 			try {
-				// A new message while a turn waits starts a new turn: the waiting one ends as done, and its pending
-				// confirmations stay in the inbox (3.5).
+				const read = await readAttachments(validated, context, deps.readAttachment, fail);
+				if (!Array.isArray(read)) return read;
+				if (epoch !== startedAt || deps.person() !== session.person) return changed();
+				attachments = read;
 				await endWaiting(session.id, undefined, 'done');
 				previous = await turnsOf(session.id);
-			} catch (cause) {
-				starting.delete(session.id);
-				throw cause;
-			}
-			const seq = (previous.at(-1)?.seq ?? 0) + 1;
-			const turn: CopilotTurnV1 = {
-				session: session.id,
-				seq,
-				text: input.text,
-				attach: [],
-				state: 'running',
-				calls: [],
-				reply: '',
-				usage: { inputTokens: 0, outputTokens: 0 },
-			};
-			try {
-				await store.create(COPILOT_TURN_TABLE, { id: turnId(session.id, seq), ...turn });
+				if (epoch !== startedAt || deps.person() !== session.person) return changed();
+				const seq = (previous.at(-1)?.seq ?? 0) + 1;
+				turn = {
+					session: session.id,
+					seq,
+					text: input.text,
+					attach: validated,
+					state: 'running',
+					calls: [],
+					reply: '',
+					usage: { inputTokens: 0, outputTokens: 0 },
+				};
+				const committed = await taint.commitTurn(
+					session.id,
+					attachments.map((each) => each.source),
+					kit.callNow(context),
+					COPILOT_TURN_TABLE,
+					turnId(session.id, seq),
+					{ id: turnId(session.id, seq), ...turn }
+				);
+				if (!committed) return sessionNotFound(input.session);
+				session = committed;
 			} finally {
 				starting.delete(session.id);
+				if (waiting.has(session.id)) void check(session.id);
 			}
 			const live = runningFor(session, copy(turn), {
 				calls: 0,
@@ -1061,38 +1071,37 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 			});
 			const { settled } = live;
 			running.set(session.id, live);
-			// The person changed while the turn's record was written: it ends as the change of person, unlaunched.
 			if (epoch !== startedAt || deps.person() !== session.person) {
-				await finish(session.id, seq, { state: 'stopped', stoppedBy: 'session-changed' });
+				await finish(session.id, turn.seq, { state: 'stopped', stoppedBy: 'session-changed' });
 				return kit.success({ turn: copy(live.turn) });
 			}
-			// 4.4's seconds: a turn that runs past them stops with `stoppedBy: 'limit'`.
 			armTimer(live);
-			const history = historyOf(previous);
 			try {
 				deps.options.runner.start({
 					session,
-					turn: seq,
-					runId: deps.options.takeRunId?.(session.id) ?? `run_${session.id}_${seq}`,
+					turn: turn.seq,
+					runId: deps.options.takeRunId?.(session.id) ?? `run_${session.id}_${turn.seq}`,
 					provider: { id: provider.id, kind: provider.kind, model: provider.model },
-					history,
+					history: historyOf(previous),
 					text: input.text,
+					...(attachments.length > 0 ? { attachments } : {}),
 					agent: capabilityFor(live),
-					settle: (outcome) => void finish(session.id, seq, outcome),
+					settle: (outcome) => void finish(session.id, turn.seq, outcome),
 					signal: live.controller.signal,
 				});
 			} catch {
-				await finish(session.id, seq, {
+				await finish(session.id, turn.seq, {
 					state: 'failed',
 					failure: { code: 'COPILOT_RUNTIME_FAILED' },
 				});
 			}
 			if (input.wait === false) return kit.success({ turn: copy(live.turn) });
 			let timer: ReturnType<typeof setTimeout> | undefined;
+			const waitMs = Math.max(0, MESSAGE_WAIT_MS - Math.max(0, deps.now() - enteredAt));
 			const waited = await Promise.race([
 				settled,
 				new Promise<undefined>((done) => {
-					timer = setTimeout(() => done(undefined), MESSAGE_WAIT_MS);
+					timer = setTimeout(() => done(undefined), waitMs);
 				}),
 			]);
 			clearTimeout(timer);

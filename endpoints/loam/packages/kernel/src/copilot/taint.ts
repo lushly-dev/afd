@@ -65,6 +65,18 @@ export interface Taint {
 	record: CommandMiddleware;
 	/** The sources a session is tainted from, in the order they entered. */
 	sourcesOf(session: string): Promise<string[]>;
+	/**
+	 * Atomically commit a new turn row and any attachment taint sources on the session row,
+	 * serialized on the session's taint queue (3.5, 5.1, 5.3).
+	 */
+	commitTurn(
+		session: string,
+		sources: readonly string[],
+		at: number,
+		turnTable: string,
+		turnId: string,
+		turnRow: Record<string, unknown>
+	): Promise<CopilotSessionV1 | undefined>;
 	/** The labels of a top-level traced call, once, for the agent port's half (3.4). */
 	take(trace: CopilotTraceV1): ResultLabelsV1 | undefined;
 }
@@ -298,9 +310,55 @@ export function createTaint(deps: TaintDeps): Taint {
 		return result;
 	};
 
+	function commitTurn(
+		session: string,
+		sources: readonly string[],
+		at: number,
+		turnTable: string,
+		turnId: string,
+		turnRow: Record<string, unknown>
+	): Promise<CopilotSessionV1 | undefined> {
+		const before = writing.get(session) ?? Promise.resolve();
+		const mine = before.then(async () => {
+			const row = await store.get<CopilotSessionV1>(deps.sessionTable, session);
+			if (!row) return undefined;
+			const known = new Set(row.taint.map((each) => each.source));
+			const added = [...new Set(sources.filter((source) => !known.has(source)))];
+			if (added.length === 0) {
+				await store.create(turnTable, turnRow);
+				return row;
+			}
+			const updated: CopilotSessionV1 = {
+				...row,
+				taint: [...row.taint, ...added.map((source) => ({ source, at }))],
+			};
+			const { summary } = await store.batch([
+				{
+					method: 'PUT' as const,
+					path: `/${deps.sessionTable}/${encodeURIComponent(session)}`,
+					body: updated,
+				},
+				{
+					method: 'PUT' as const,
+					path: `/${turnTable}/${encodeURIComponent(turnId)}`,
+					body: turnRow,
+				},
+			]);
+			if (summary.failed > 0) throw new Error(`The store could not write turn '${turnId}'`);
+			return updated;
+		});
+		const settled = mine.catch(() => {});
+		writing.set(session, settled);
+		void settled.then(() => {
+			if (writing.get(session) === settled) writing.delete(session);
+		});
+		return mine;
+	}
+
 	return {
 		record,
 		sourcesOf,
+		commitTurn,
 		take(trace) {
 			const key = keyOf(trace);
 			const labels = taken.get(key);
