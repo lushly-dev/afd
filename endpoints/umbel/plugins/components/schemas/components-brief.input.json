@@ -87,7 +87,22 @@
 			"type": "string",
 			"minLength": 1,
 			"maxLength": 64,
-			"description": "Deployment consumer name, such as loam. Applies that consumer's profile: removes its excluded rules and references, and carries its own guidance once as content.guidance. Omit for the deployment's default_consumer when one is configured, otherwise for general library guidance."
+			"description": "Deployment consumer name, such as loam. Applies that consumer's profile: removes its excluded rules and references, resolves its patternBindings, and carries its own guidance once as content.guidance. Omit for the deployment's default_consumer when one is configured, otherwise for general library guidance."
+		},
+		"patterns": {
+			"type": "array",
+			"minItems": 1,
+			"maxItems": 32,
+			"items": {
+				"type": "string",
+				"maxLength": 129
+			},
+			"description": "Pattern ids (<library>/<pattern> or bare <pattern>) to include directly in content.patterns, resolved through active patternBindings"
+		},
+		"includeProposed": {
+			"type": "boolean",
+			"default": false,
+			"description": "Include proposed patterns, statements, copies and pending patternBindings for review"
 		}
 	}
 }

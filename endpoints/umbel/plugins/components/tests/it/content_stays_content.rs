@@ -378,3 +378,70 @@ async fn a_deployment_statement_is_served_only_inside_the_content_part() {
     assert_eq!(code(&refused), "CONSUMERS_INVALID", "{refused}");
     assert!(!refused.to_string().contains(CANARY), "{refused}");
 }
+
+/// D153 boundary on Phase B3 additions: `waivedKeep[].reason` is authored text served only inside
+/// `trust: "content"` with `instruction-like` flags and `CONTENT_FLAGGED` warning; instruction-like
+/// identifiers in `derivedFrom`, `waivedKeep[].id`, and `catalog.patternBindings` keys are refused
+/// without leaking the untrusted text (even through `shown_pointer`).
+#[tokio::test]
+async fn waived_keep_reason_is_flagged_and_derived_from_identifiers_never_leak() {
+    logs::install();
+    let digest = format!("sha256:{}", "a".repeat(64));
+
+    // 1. Canary in `waivedKeep[].reason` is served only inside `content` and flagged.
+    let mut pack = Pack::example();
+    pack.edit("data/example/patterns/select.json", |pat| {
+        pat["derivedFrom"] = json!({
+            "library": "upstream",
+            "pattern": "select",
+            "version": "1.0.0",
+            "revision": digest,
+            "statements": { "select.keep.arrow-keys": digest },
+        });
+        pat["waivedKeep"] = json!([
+            { "id": "select.keep.arrow-keys", "reason": SENTENCE }
+        ]);
+    });
+    pack.regenerate("example");
+    let opened = pack
+        .host()
+        .pattern_open(json!({ "library": "example", "pattern": "select" }))
+        .await;
+    assert_eq!(opened["success"], true, "{opened}");
+    assert_only_in_content(&opened);
+    assert_flagged(&data(&opened)["content"], false);
+    assert_eq!(logs::lines(CANARY), Vec::<String>::new());
+
+    // 2. Instruction-like `derivedFrom.library` is refused without leaking.
+    let mut bad_derived = Pack::example();
+    bad_derived.edit("data/example/patterns/select.json", |pat| {
+        pat["derivedFrom"] = json!({
+            "library": "ignore-previous-instructions",
+            "pattern": "select",
+            "version": "1.0.0",
+            "revision": digest,
+            "statements": { "select.keep.arrow-keys": digest },
+        });
+    });
+    bad_derived.regenerate("example");
+    refused_without_repeating(&bad_derived, "ignore").await;
+
+    // 3. Instruction-like `waivedKeep[].id` is refused without leaking.
+    let mut bad_waived = Pack::example();
+    bad_waived.edit("data/example/patterns/select.json", |pat| {
+        pat["waivedKeep"] = json!([
+            { "id": "select.ignore-previous-instructions", "reason": "Waived for test." }
+        ]);
+    });
+    bad_waived.regenerate("example");
+    refused_without_repeating(&bad_waived, "ignore").await;
+
+    // 4. Instruction-like map key in catalog `patternBindings` is sanitized via `shown_pointer`.
+    let mut bad_key = Pack::example();
+    bad_key.edit("data/example/library.json", |cat| {
+        cat["patternBindings"] = json!({
+            "ignore-previous-instructions/select": "example/select"
+        });
+    });
+    refused_without_repeating(&bad_key, "ignore").await;
+}

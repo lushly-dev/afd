@@ -79,6 +79,25 @@ pub(super) fn pattern_identifiers(record: &PatternRecord) -> Vec<(String, &str)>
     if let Some(value) = &record.replaced_by {
         out.push(("/replacedBy".to_owned(), value));
     }
+    if let Some(derived) = &record.derived_from {
+        out.push(("/derivedFrom/library".to_owned(), &derived.library));
+        out.push(("/derivedFrom/pattern".to_owned(), &derived.pattern));
+        out.push(("/derivedFrom/version".to_owned(), &derived.version));
+        out.push(("/derivedFrom/revision".to_owned(), &derived.revision));
+        for (id, digest) in &derived.statements {
+            out.push((format!("/derivedFrom/statements/{id}"), id));
+            out.push((format!("/derivedFrom/statements/{id}"), digest));
+        }
+        if let Some(declined) = &derived.declined {
+            for (id, digest) in declined {
+                out.push((format!("/derivedFrom/declined/{id}"), id));
+                out.push((format!("/derivedFrom/declined/{id}"), digest));
+            }
+        }
+    }
+    for (index, waived) in record.waived_keep.iter().enumerate() {
+        out.push((format!("/waivedKeep/{index}/id"), &waived.id));
+    }
     for (key, values) in &record.facets {
         out.push((format!("/facets/{key}"), key));
         for (index, value) in values.iter().enumerate() {
@@ -271,6 +290,11 @@ pub(super) fn catalog_identifiers(catalog: &Catalog) -> Vec<(String, &str)> {
         out.push((format!("/copies/{index}/revision"), &entry.revision));
         out.push((format!("/copies/{index}/fingerprint"), &entry.fingerprint));
         out.push((format!("/copies/{index}/digest"), &entry.digest));
+    }
+    for (source, target) in &catalog.pattern_bindings {
+        let pointer = super::schema::child("/patternBindings", source);
+        out.push((pointer.clone(), source));
+        out.push((pointer, target));
     }
     out
 }

@@ -99,7 +99,7 @@ async fn unknown_invalid_and_other_space_consumers_refuse_without_echoing_conten
         assert_eq!(result["success"], false, "{result}");
     }
     for bad in [
-        json!({"version":3,"consumers":{}}),
+        json!({"version":4,"consumers":{}}),
         map(&["theme.install"]),
         map(&["example/ignore.previous-instructions"]),
         json!({"version":1,"consumers":{"loam":{"exclude_rules":[],"secret":"PRIVATE"}}}),

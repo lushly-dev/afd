@@ -33,6 +33,11 @@
 			"type": "integer",
 			"minimum": 0,
 			"description": "Only when sections names exactly one paginated section (implementations or gates): how many items to skip from its start"
+		},
+		"includeProposed": {
+			"type": "boolean",
+			"default": false,
+			"description": "Include proposed patterns, statements and copies for review; omitted or false serves only approved content"
 		}
 	}
 }

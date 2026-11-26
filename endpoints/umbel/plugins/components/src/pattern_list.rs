@@ -9,7 +9,7 @@ use umbel_sdk::{Cx, Level, Outcome, success};
 use crate::fit::{fit_count, fits};
 use crate::list::{content_library, identity};
 use crate::pack::aggregate::{AggregatedImplementation, aggregate_implementations};
-use crate::pack::schema_pattern::CatalogPatternEntry;
+use crate::pack::schema_pattern::{CatalogPatternEntry, effective_approval, is_visible_approval};
 use crate::pack::{self, Library};
 use crate::{fail, input, scan};
 
@@ -21,16 +21,15 @@ struct Row<'a> {
 }
 
 /// The cursor a bare or `<library>/<pattern>` `after` names.
-fn cursor<'a>(after: &'a str, listed: &'a [Library]) -> (&'a str, &'a str) {
+fn cursor<'a>(after: &'a str, listed: &'a [Library], include_proposed: bool) -> (&'a str, &'a str) {
     if let Some((library, pattern)) = after.split_once('/') {
         return (library, pattern);
     }
     let holder = listed.iter().find(|library| {
-        library
-            .catalog
-            .patterns
-            .iter()
-            .any(|entry| entry.pattern == after)
+        library.catalog.patterns.iter().any(|entry| {
+            entry.pattern == after
+                && is_visible_approval(entry.approval_status.as_deref(), include_proposed)
+        })
     });
     let library = holder.or(listed.first()).map_or("", |lib| lib.id.as_str());
     (library, after)
@@ -49,17 +48,29 @@ fn list_implementation(item: &AggregatedImplementation) -> Value {
     }
     map.insert("linkage".to_owned(), Value::String(item.linkage.to_owned()));
     map.insert("status".to_owned(), Value::String(item.status.clone()));
+    if effective_approval(item.approval_status.as_deref()) == "proposed" {
+        map.insert(
+            "approvalStatus".to_owned(),
+            Value::String("proposed".to_owned()),
+        );
+    }
     if let Some(replaced_by) = &item.replaced_by {
         map.insert("replacedBy".to_owned(), Value::String(replaced_by.clone()));
     }
     Value::Object(map)
 }
 
-/// Union of every facet key and sorted unique value across `libraries`.
-fn available_facets(libraries: &[Library]) -> BTreeMap<String, Vec<String>> {
+/// Union of every facet key and sorted unique value across visible patterns in `libraries`.
+fn available_facets(
+    libraries: &[Library],
+    include_proposed: bool,
+) -> BTreeMap<String, Vec<String>> {
     let mut union: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     for library in libraries {
         for entry in &library.catalog.patterns {
+            if !is_visible_approval(entry.approval_status.as_deref(), include_proposed) {
+                continue;
+            }
             for (key, values) in &entry.facets {
                 let set = union.entry(key.clone()).or_default();
                 for value in values {
@@ -86,6 +97,10 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
         Err(outcome) => return outcome,
     };
 
+    let include_proposed = input
+        .get("includeProposed")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
     let scope = input.get("scope").and_then(Value::as_str);
     let facets_filter: Vec<(&str, Vec<&str>)> = input
         .get("facets")
@@ -113,13 +128,16 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
     let start = input
         .get("after")
         .and_then(Value::as_str)
-        .map(|after| cursor(after, &libraries));
+        .map(|after| cursor(after, &libraries, include_proposed));
 
     let aggregated = aggregate_implementations(&libraries);
 
     let mut rows: Vec<Row<'_>> = Vec::new();
     for library in &libraries {
         for entry in &library.catalog.patterns {
+            if !is_visible_approval(entry.approval_status.as_deref(), include_proposed) {
+                continue;
+            }
             let scope_ok = scope.is_none_or(|want| entry.scope == want);
             let facets_ok = facets_filter.iter().all(|(key, wanted)| {
                 entry
@@ -143,7 +161,15 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
 
             let impls: Vec<Value> = aggregated
                 .get(&(library.id.clone(), entry.pattern.clone()))
-                .map(|items| items.iter().map(list_implementation).collect())
+                .map(|items| {
+                    items
+                        .iter()
+                        .filter(|item| {
+                            is_visible_approval(item.approval_status.as_deref(), include_proposed)
+                        })
+                        .map(list_implementation)
+                        .collect()
+                })
                 .unwrap_or_default();
 
             let mut map = Map::new();
@@ -153,6 +179,10 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
                 map.insert("summary".to_owned(), Value::String(summary.clone()));
             }
             map.insert("status".to_owned(), Value::String(entry.status.clone()));
+            map.insert(
+                "approvalStatus".to_owned(),
+                Value::String(effective_approval(entry.approval_status.as_deref()).to_owned()),
+            );
             if let Some(replaced_by) = &entry.replaced_by {
                 map.insert("replacedBy".to_owned(), Value::String(replaced_by.clone()));
             }
@@ -171,14 +201,23 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
     }
 
     let include_available_facets = !has_filter || rows.is_empty();
-    let facets_value = include_available_facets.then(|| json!(available_facets(&libraries)));
+    let facets_value =
+        include_available_facets.then(|| json!(available_facets(&libraries, include_proposed)));
 
     let qualified = libraries.len() > 1;
     let identities: Vec<Value> = libraries
         .iter()
         .map(|library| {
             let mut value = identity(library);
-            value["patternCount"] = Value::from(library.catalog.patterns.len());
+            let visible_count = library
+                .catalog
+                .patterns
+                .iter()
+                .filter(|entry| {
+                    is_visible_approval(entry.approval_status.as_deref(), include_proposed)
+                })
+                .count();
+            value["patternCount"] = Value::from(visible_count);
             value
         })
         .collect();

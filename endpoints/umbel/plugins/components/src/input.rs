@@ -58,13 +58,22 @@ fn known_id(value: &str) -> bool {
     }
 }
 
-/// `components-brief`'s fields, and its rule that at least one of `tags` and `source` is given
-/// (the schema subset has no `anyOf`; amendment A1).
+/// A pattern reference as `components-brief`'s `patterns` input takes it: `<library>/<pattern>`
+/// or bare `<pattern>`.
+fn pattern_ref(value: &str) -> bool {
+    patterns::accepts_qualified_pattern(value) || patterns::PATTERN.accepts(value)
+}
+
+/// `components-brief`'s fields, and its rule that at least one of `tags`, `source` or `patterns`
+/// is given (the schema subset has no `anyOf`; amendment A1 and Patterns spec §8).
 pub(crate) fn check_brief(input: &Value) -> Result<(), Outcome> {
     let tags = input.get("tags").and_then(Value::as_array);
     let source = input.get("source").and_then(Value::as_str);
-    if tags.is_none() && source.is_none() {
-        return Err(fail::invalid("pass `tags`, `source` or both"));
+    let patterns = input.get("patterns").and_then(Value::as_array);
+    if tags.is_none() && source.is_none() && patterns.is_none() {
+        return Err(fail::invalid(
+            "pass `tags`, `source`, `patterns` or a combination",
+        ));
     }
     if tags
         .into_iter()
@@ -74,6 +83,19 @@ pub(crate) fn check_brief(input: &Value) -> Result<(), Outcome> {
         return Err(fail::invalid(
             "each of `tags` must be a custom element name the format accepts",
         ));
+    }
+    if let Some(patterns) = patterns {
+        if patterns.is_empty() || patterns.len() > 32 {
+            return Err(fail::invalid("`patterns` must hold 1 to 32 pattern ids"));
+        }
+        if patterns
+            .iter()
+            .any(|id| !id.as_str().is_some_and(pattern_ref))
+        {
+            return Err(fail::invalid(
+                "each of `patterns` must be a pattern id, bare or as <library>/<pattern>",
+            ));
+        }
     }
     if source.is_some_and(|source| source.len() > MAX_SOURCE_BYTES) {
         return Err(fail::invalid("`source` is longer than 262 144 UTF-8 bytes"));

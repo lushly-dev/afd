@@ -22,8 +22,9 @@ struct Consumers {
     consumers: BTreeMap<String, Profile>,
 }
 
-/// Version 1 requires `exclude_rules` and has no `statements`; version 2 makes both optional. A
-/// key that is present is `Some`, and `Some(None)` when it is `null`, which no version accepts.
+/// Version 1 requires `exclude_rules` and has no `statements`; version 2 makes both optional;
+/// version 3 adds optional `patternBindings` (`<sourceLib>/<pattern>` -> `<localLib>/<pattern>`).
+/// A key that is present is `Some`, and `Some(None)` when it is `null`, which no version accepts.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Profile {
@@ -31,6 +32,8 @@ struct Profile {
     exclude_rules: Option<Option<Vec<String>>>,
     #[serde(default, deserialize_with = "present")]
     statements: Option<Option<Vec<Statement>>>,
+    #[serde(rename = "patternBindings", default, deserialize_with = "present")]
+    pattern_bindings: Option<Option<BTreeMap<String, String>>>,
 }
 
 /// A key's value with `null` kept apart from a missing key, which `#[serde(default)]` gives.
@@ -54,6 +57,10 @@ impl Profile {
             .and_then(Option::as_deref)
             .unwrap_or_default()
     }
+
+    fn bindings(&self) -> Option<&BTreeMap<String, String>> {
+        self.pattern_bindings.as_ref().and_then(Option::as_ref)
+    }
 }
 
 /// One of the deployment's statements, in the pack's statement form without a basis: a
@@ -71,13 +78,14 @@ pub(crate) struct Selected {
     pub(crate) name: String,
     pub(crate) excluded: BTreeSet<String>,
     pub(crate) statements: Vec<Statement>,
+    pub(crate) pattern_bindings: BTreeMap<String, String>,
 }
 
 fn invalid() -> Outcome {
     failure(
         "CONSUMERS_INVALID",
         "the deployment's consumer map is unreadable or invalid",
-        "Repair data/consumers.json in the space's components/consumers pack: version 1 or 2, library-qualified rule ids, and at most 24 statements a consumer, each with a unique statement id and one line of 1 to 240 characters, 4096 bytes of ids and text in all; at most 32 consumers and 256 exclusions each, in a file of at most 64 KiB.",
+        "Repair data/consumers.json in the space's components/consumers pack: version 1, 2 or 3, library-qualified rule ids, optional v3 patternBindings (<library>/<pattern> -> <library>/<pattern>, at most 256), and at most 24 statements a consumer, each with a unique statement id and one line of 1 to 240 characters, 4096 bytes of ids and text in all; at most 32 consumers and 256 exclusions each, in a file of at most 64 KiB.",
     )
 }
 
@@ -88,6 +96,24 @@ fn qualified(value: &str) -> bool {
             && !scan::identifier_hit(library)
             && !scan::identifier_hit(id)
     })
+}
+
+fn qualified_pattern(value: &str) -> bool {
+    patterns::accepts_qualified_pattern(value)
+        && value.split_once('/').is_some_and(|(library, pattern)| {
+            !scan::identifier_hit(library) && !scan::identifier_hit(pattern)
+        })
+        && !scan::identifier_hit(value)
+}
+
+fn bindings_ok(bindings: Option<&BTreeMap<String, String>>) -> bool {
+    let Some(bindings) = bindings else {
+        return true;
+    };
+    bindings.len() <= 256
+        && bindings
+            .iter()
+            .all(|(source, target)| qualified_pattern(source) && qualified_pattern(target))
 }
 
 /// The pack's rules for a statement: a checked, scanned id, and one line of 1 to 240 code points
@@ -114,17 +140,22 @@ fn statements_ok(statements: &[Statement]) -> bool {
 }
 
 fn profile_ok(version: u8, name: &str, profile: &Profile) -> bool {
-    let null =
-        matches!(profile.exclude_rules, Some(None)) || matches!(profile.statements, Some(None));
-    let shape = version != 1 || (profile.exclude_rules.is_some() && profile.statements.is_none());
+    let null = matches!(profile.exclude_rules, Some(None))
+        || matches!(profile.statements, Some(None))
+        || matches!(profile.pattern_bindings, Some(None));
+    let v1_shape =
+        version != 1 || (profile.exclude_rules.is_some() && profile.statements.is_none());
+    let bindings_shape = version >= 3 || profile.pattern_bindings.is_none();
     let exclusions = profile.exclusions();
     !null
-        && shape
+        && v1_shape
+        && bindings_shape
         && patterns::LIBRARY.accepts(name)
         && !scan::identifier_hit(name)
         && exclusions.len() <= 256
         && exclusions.iter().all(|id| qualified(id))
         && statements_ok(profile.statements())
+        && bindings_ok(profile.bindings())
 }
 
 fn read(cx: &Cx) -> Result<Consumers, Outcome> {
@@ -135,7 +166,7 @@ fn read(cx: &Cx) -> Result<Consumers, Outcome> {
         return Err(invalid());
     }
     let map: Consumers = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
-    if !matches!(map.version, 1 | 2)
+    if !matches!(map.version, 1..=3)
         || map.consumers.len() > 32
         || !map
             .consumers
@@ -227,5 +258,6 @@ pub(crate) fn load(
         name: name.to_owned(),
         excluded: profile.exclusions().iter().cloned().collect(),
         statements: profile.statements().to_vec(),
+        pattern_bindings: profile.bindings().cloned().unwrap_or_default(),
     }))
 }

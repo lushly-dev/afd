@@ -10,7 +10,9 @@ use umbel_sdk::{Cx, Level, Outcome, success};
 use crate::fit::{fit_count, fits};
 use crate::list::{content_library, identity};
 use crate::pack::aggregate::{AggregatedImplementation, aggregate_implementations};
-use crate::pack::schema_pattern::{PatternRecord, PatternStatement};
+use crate::pack::schema_pattern::{
+    PatternRecord, PatternStatement, effective_approval, is_visible_approval,
+};
 use crate::pack::{self, Library};
 use crate::{Settings, fail, input, scan, select};
 
@@ -88,13 +90,17 @@ enum Take {
     Items(usize),
 }
 
-/// Locates the owning library and `PatternRecord` for `pattern`.
+/// Locates the owning library and `PatternRecord` for `pattern`, filtering by `approvalStatus`.
 fn locate<'a>(
     libraries: &'a [Library],
     pattern: &str,
     requested_library: Option<&str>,
     settings: &Settings,
+    include_proposed: bool,
 ) -> Result<(&'a Library, &'a PatternRecord), Outcome> {
+    let visible = |record: &&PatternRecord| {
+        is_visible_approval(record.approval_status.as_deref(), include_proposed)
+    };
     if let Some(lib_id) = requested_library {
         let Some(library) = libraries.iter().find(|l| l.id == lib_id) else {
             let names: Vec<String> = libraries.iter().map(|l| l.id.clone()).collect();
@@ -103,12 +109,20 @@ fn locate<'a>(
         return library
             .patterns
             .iter()
+            .filter(visible)
             .find(|record| record.pattern == pattern)
             .map(|record| (library, record))
             .ok_or_else(|| {
                 fail::pattern_not_found(
                     pattern,
-                    &select::nearest(pattern, library.patterns.iter().map(|r| r.pattern.as_str())),
+                    &select::nearest(
+                        pattern,
+                        library
+                            .patterns
+                            .iter()
+                            .filter(visible)
+                            .map(|r| r.pattern.as_str()),
+                    ),
                 )
             });
     }
@@ -119,6 +133,7 @@ fn locate<'a>(
             library
                 .patterns
                 .iter()
+                .filter(visible)
                 .find(|record| record.pattern == pattern)
                 .map(|record| (library, record))
         })
@@ -128,9 +143,13 @@ fn locate<'a>(
             pattern,
             &select::nearest(
                 pattern,
-                libraries
-                    .iter()
-                    .flat_map(|library| library.patterns.iter().map(|r| r.pattern.as_str())),
+                libraries.iter().flat_map(|library| {
+                    library
+                        .patterns
+                        .iter()
+                        .filter(visible)
+                        .map(|r| r.pattern.as_str())
+                }),
             ),
         )),
         [one] => Ok(*one),
@@ -170,6 +189,12 @@ fn statement_value(st: &PatternStatement) -> (Value, bool) {
     let mut map = Map::new();
     map.insert("id".to_owned(), Value::String(st.id.clone()));
     map.insert("text".to_owned(), Value::String(st.text.clone()));
+    if effective_approval(st.approval_status.as_deref()) == "proposed" {
+        map.insert(
+            "approvalStatus".to_owned(),
+            Value::String("proposed".to_owned()),
+        );
+    }
     let flagged = scan::flag_item(&mut map);
     (Value::Object(map), flagged)
 }
@@ -181,11 +206,12 @@ fn matches_implementation(item: &AggregatedImplementation, filter: &str) -> bool
     }
 }
 
-/// Builds one `implementations[]` entry, enforcing A31.6 `minimum_basis` and D153 flagging.
-/// Returns `(library_id, json_value, flagged_count, left_out_count)`.
+/// Builds one `implementations[]` entry, enforcing A31.6 `minimum_basis`, `approvalStatus`
+/// visibility, and D153 flagging. Returns `(library_id, json_value, flagged_count, left_out_count)`.
 fn build_implementation(
     item: &AggregatedImplementation,
     serves_authored: bool,
+    hidden_keep_ids: &HashSet<&str>,
 ) -> (String, Value, usize, usize) {
     let mut flagged = 0usize;
     let mut left_out = 0usize;
@@ -200,6 +226,12 @@ fn build_implementation(
     }
     map.insert("linkage".to_owned(), Value::String(item.linkage.to_owned()));
     map.insert("status".to_owned(), Value::String(item.status.clone()));
+    if effective_approval(item.approval_status.as_deref()) == "proposed" {
+        map.insert(
+            "approvalStatus".to_owned(),
+            Value::String("proposed".to_owned()),
+        );
+    }
     if let Some(replaced_by) = &item.replaced_by {
         map.insert("replacedBy".to_owned(), Value::String(replaced_by.clone()));
     }
@@ -212,6 +244,9 @@ fn build_implementation(
     }
     let mut keep_items = Vec::new();
     for entry in &item.keep {
+        if hidden_keep_ids.contains(entry.id.as_str()) {
+            continue;
+        }
         // A31.6: `verified` and `out-of-context` always stay visible at every `minimum_basis`;
         // `ungated` carries `authored` strength and is omitted when `minimum_basis > authored`.
         if entry.basis == "ungated" && !serves_authored {
@@ -238,6 +273,7 @@ struct Answer<'a> {
     owning_library: &'a Library,
     pattern_name: &'a str,
     implementation_filter: Option<&'a str>,
+    include_proposed: bool,
     floor: Map<String, Value>,
     floor_flagged: usize,
     left_out: usize,
@@ -266,6 +302,9 @@ impl Answer<'_> {
         }
         if let Some(skip) = skip {
             call.insert("skip".to_owned(), Value::from(skip));
+        }
+        if self.include_proposed {
+            call.insert("includeProposed".to_owned(), Value::Bool(true));
         }
         Value::Object(call)
     }
@@ -373,6 +412,10 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
         .unwrap_or_default();
     let requested_library = input.get("library").and_then(Value::as_str);
     let implementation_filter = input.get("implementation").and_then(Value::as_str);
+    let include_proposed = input
+        .get("includeProposed")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
     let names = requested_sections(input);
     let skip = input
         .get("skip")
@@ -393,11 +436,16 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
         Ok(libraries) => libraries,
         Err(outcome) => return outcome,
     };
-    let (owning_library, record) =
-        match locate(&libraries, pattern_name, requested_library, &settings) {
-            Ok(found) => found,
-            Err(outcome) => return outcome,
-        };
+    let (owning_library, record) = match locate(
+        &libraries,
+        pattern_name,
+        requested_library,
+        &settings,
+        include_proposed,
+    ) {
+        Ok(found) => found,
+        Err(outcome) => return outcome,
+    };
 
     // Build the pattern floor (with A31.6 `minimum_basis` applied to `useWhen` and `avoidWhen`).
     let mut left_out = 0usize;
@@ -420,16 +468,45 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
         }
     }
     floor.insert("status".to_owned(), Value::String(record.status.clone()));
+    floor.insert(
+        "approvalStatus".to_owned(),
+        Value::String(effective_approval(record.approval_status.as_deref()).to_owned()),
+    );
+    if let Some(derived) = &record.derived_from {
+        floor.insert("derivedFrom".to_owned(), json!(derived));
+    }
+    if !record.waived_keep.is_empty() {
+        let mut waived_items = Vec::with_capacity(record.waived_keep.len());
+        for w in &record.waived_keep {
+            let mut m = Map::new();
+            m.insert("id".to_owned(), Value::String(w.id.clone()));
+            m.insert("reason".to_owned(), Value::String(w.reason.clone()));
+            if scan::flag_item(&mut m) {
+                floor_flagged += 1;
+            }
+            waived_items.push(Value::Object(m));
+        }
+        floor.insert("waivedKeep".to_owned(), Value::Array(waived_items));
+    }
     if let Some(replaced_by) = &record.replaced_by {
         floor.insert("replacedBy".to_owned(), Value::String(replaced_by.clone()));
     }
     floor.insert("scope".to_owned(), Value::String(record.scope.clone()));
     floor.insert("facets".to_owned(), json!(record.facets));
 
+    let visible_use_when: Vec<&PatternStatement> = record
+        .use_when
+        .iter()
+        .filter(|st| is_visible_approval(st.approval_status.as_deref(), include_proposed))
+        .collect();
+    let visible_avoid_when: Vec<&PatternStatement> = record
+        .avoid_when
+        .iter()
+        .filter(|st| is_visible_approval(st.approval_status.as_deref(), include_proposed))
+        .collect();
     if serves_authored {
-        if !record.use_when.is_empty() {
-            let items: Vec<Value> = record
-                .use_when
+        if !visible_use_when.is_empty() {
+            let items: Vec<Value> = visible_use_when
                 .iter()
                 .map(|st| {
                     let (v, f) = statement_value(st);
@@ -439,9 +516,8 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
                 .collect();
             floor.insert("useWhen".to_owned(), Value::Array(items));
         }
-        if !record.avoid_when.is_empty() {
-            let items: Vec<Value> = record
-                .avoid_when
+        if !visible_avoid_when.is_empty() {
+            let items: Vec<Value> = visible_avoid_when
                 .iter()
                 .map(|st| {
                     let (v, f) = statement_value(st);
@@ -452,7 +528,7 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
             floor.insert("avoidWhen".to_owned(), Value::Array(items));
         }
     } else {
-        left_out += record.use_when.len() + record.avoid_when.len();
+        left_out += visible_use_when.len() + visible_avoid_when.len();
     }
 
     // Build requested sections in canonical order.
@@ -462,6 +538,9 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
             "keep" => {
                 let mut items = Vec::new();
                 for st in &record.keep {
+                    if !is_visible_approval(st.approval_status.as_deref(), include_proposed) {
+                        continue;
+                    }
                     // A31.6: gated `keep` statements stay at every `minimum_basis`; ungated ones
                     // carry `authored` strength.
                     if st.gate.is_none() && !serves_authored {
@@ -474,6 +553,12 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
                     if let Some(gate) = &st.gate {
                         map.insert("gate".to_owned(), Value::String(gate.clone()));
                     }
+                    if effective_approval(st.approval_status.as_deref()) == "proposed" {
+                        map.insert(
+                            "approvalStatus".to_owned(),
+                            Value::String("proposed".to_owned()),
+                        );
+                    }
                     let f = scan::flag_item(&mut map);
                     items.push((Value::Object(map), f));
                 }
@@ -482,11 +567,18 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
                 }
             }
             "customize" => {
+                let visible_customize: Vec<&PatternStatement> = record
+                    .customize
+                    .iter()
+                    .filter(|st| {
+                        is_visible_approval(st.approval_status.as_deref(), include_proposed)
+                    })
+                    .collect();
                 if !serves_authored {
-                    left_out += record.customize.len();
-                } else if !record.customize.is_empty() {
+                    left_out += visible_customize.len();
+                } else if !visible_customize.is_empty() {
                     let items: Vec<(Value, bool)> =
-                        record.customize.iter().map(statement_value).collect();
+                        visible_customize.into_iter().map(statement_value).collect();
                     sections.push(("customize", Section::Statements(items)));
                 }
             }
@@ -519,6 +611,14 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
                 }
             }
             "implementations" => {
+                let hidden_keep_ids: HashSet<&str> = record
+                    .keep
+                    .iter()
+                    .filter(|st| {
+                        !is_visible_approval(st.approval_status.as_deref(), include_proposed)
+                    })
+                    .map(|st| st.id.as_str())
+                    .collect();
                 let aggregated = aggregate_implementations(&libraries);
                 let raw = aggregated
                     .get(&(owning_library.id.clone(), record.pattern.clone()))
@@ -526,12 +626,16 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
                     .unwrap_or_default();
                 let mut entries = Vec::new();
                 for item in raw {
+                    if !is_visible_approval(item.approval_status.as_deref(), include_proposed) {
+                        continue;
+                    }
                     if let Some(filter) = implementation_filter
                         && !matches_implementation(item, filter)
                     {
                         continue;
                     }
-                    let (lib_id, val, f, dropped) = build_implementation(item, serves_authored);
+                    let (lib_id, val, f, dropped) =
+                        build_implementation(item, serves_authored, &hidden_keep_ids);
                     left_out += dropped;
                     entries.push((lib_id, val, f));
                 }
@@ -561,6 +665,7 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
         owning_library,
         pattern_name,
         implementation_filter,
+        include_proposed,
         floor,
         floor_flagged,
         left_out,

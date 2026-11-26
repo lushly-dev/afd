@@ -404,22 +404,35 @@ pub(crate) fn text(data: &Value) -> String {
     for pat in patterns {
         let qualified = format!("{}/{}", str_of(pat, "library"), str_of(pat, "pattern"));
         let mut words = vec!["pattern", &qualified, str_of(pat, "status")];
+        if pat.get("approvalStatus").and_then(Value::as_str) == Some("proposed") {
+            words.push("proposed");
+        }
         if let Some(replacement) = pat.get("replacedBy").and_then(Value::as_str) {
             words.extend(["replaced-by", replacement]);
         }
         header(&words, &mut out);
         for item in pat["keep"].as_array().into_iter().flatten() {
+            let tag = if item.get("approvalStatus").and_then(Value::as_str) == Some("proposed") {
+                "keep (proposed)"
+            } else {
+                "keep"
+            };
             let mut text = match item.get("text").and_then(Value::as_str) {
-                Some(body) => format!("keep {}: {body}", str_of(item, "id")),
-                None => format!("keep {}: (known)", str_of(item, "id")),
+                Some(body) => format!("{tag} {}: {body}", str_of(item, "id")),
+                None => format!("{tag} {}: (known)", str_of(item, "id")),
             };
             flagged(&mut text, item.get("flags"));
             quote(&text, &mut out);
         }
         for item in pat["customize"].as_array().into_iter().flatten() {
+            let tag = if item.get("approvalStatus").and_then(Value::as_str) == Some("proposed") {
+                "customize (proposed)"
+            } else {
+                "customize"
+            };
             let mut text = match item.get("text").and_then(Value::as_str) {
-                Some(body) => format!("customize {}: {body}", str_of(item, "id")),
-                None => format!("customize {}: (known)", str_of(item, "id")),
+                Some(body) => format!("{tag} {}: {body}", str_of(item, "id")),
+                None => format!("{tag} {}: (known)", str_of(item, "id")),
             };
             flagged(&mut text, item.get("flags"));
             quote(&text, &mut out);
@@ -431,7 +444,11 @@ pub(crate) fn text(data: &Value) -> String {
         out.push('\n');
     }
     for item in unknown {
-        let mut words = vec!["unknown", str_of(item, "tag"), str_of(item, "reason")];
+        let mut words = if let Some(pat) = item.get("pattern").and_then(Value::as_str) {
+            vec!["unknown", "pattern", pat, str_of(item, "reason")]
+        } else {
+            vec!["unknown", str_of(item, "tag"), str_of(item, "reason")]
+        };
         let (label, list) = if item.get("libraries").is_some() {
             ("in", ids(item.get("libraries")))
         } else {

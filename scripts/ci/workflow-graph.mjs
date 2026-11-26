@@ -336,6 +336,7 @@ export const WORKFLOW_GRAPH = {
 			'cargoConfig',
 		],
 		extra: [
+			'foundations/specimen/defaults/pack/**',
 			'foundations/specimen/fixtures/pack/**',
 			'foundations/specimen/schema/pack/**',
 			'foundations/specimen/docs/pack-format.md',

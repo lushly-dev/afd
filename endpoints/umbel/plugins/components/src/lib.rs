@@ -21,6 +21,7 @@
 #![cfg_attr(not(feature = "component"), forbid(unsafe_code))]
 
 mod brief;
+mod brief_patterns;
 mod check;
 mod consumer;
 mod entry;

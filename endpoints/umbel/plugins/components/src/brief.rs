@@ -7,9 +7,13 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use serde_json::{Map, Value, json};
 use umbel_sdk::{Cx, Level, Outcome, success};
 
+use crate::brief_patterns::{
+    ResolvedExplicit, find_pattern, resolve_entry_patterns, resolve_explicit_patterns,
+};
 use crate::entry::{self, Entry, SECTIONS, Section};
 use crate::fit::{fit_count, fits};
 use crate::list::{content_library, identity};
+use crate::pack::schema_pattern::{PatternRecord, effective_approval, is_visible_approval};
 use crate::pack::{self, Library};
 use crate::{Settings, basis_rank, fail, input, render, scan, select};
 
@@ -312,6 +316,12 @@ struct Brief<'a> {
     consumer: Option<String>,
     /// The profile's statements, sent once in every answer and never shed (amendment A28).
     guidance: Guidance,
+    /// Pre-resolved visible explicit pattern ids requested via `input.patterns[]` (Patterns spec §8).
+    resolved_explicit: Vec<(usize, String)>,
+    /// Unresolved or ambiguous explicit pattern ids reported in `unknown[]`.
+    unknown_patterns: Vec<Value>,
+    /// Whether `proposed` patterns, statements and pending bindings are visible.
+    include_proposed: bool,
 }
 
 /// The deployment's guidance as an answer carries it: `content.guidance`, when any statement is
@@ -381,45 +391,43 @@ impl Brief<'_> {
         (!qualify && self.known.contains(id)) || self.known.contains(&format!("{library}/{id}"))
     }
 
-    /// Resolves `(library_id, pattern_name)` to `(library_index, &PatternRecord)` when loaded.
-    fn find_pattern(
-        &self,
-        library: &str,
-        pattern: &str,
-    ) -> Option<(usize, &crate::pack::schema_pattern::PatternRecord)> {
-        let index = self.libraries.iter().position(|lib| lib.id == library)?;
-        let record = self.libraries[index]
-            .patterns
-            .iter()
-            .find(|p| p.pattern == pattern)?;
-        Some((index, record))
-    }
-
-    /// Unique loaded `(library_index, &PatternRecord)` referenced by the first `count` entries
-    /// (in first-referenced order), when `patterns` is in the requested sections.
-    fn referenced_patterns(
-        &self,
-        count: usize,
-    ) -> Vec<(usize, &crate::pack::schema_pattern::PatternRecord)> {
-        if !self.names.contains(&"patterns") {
-            return Vec::new();
-        }
+    /// Unique loaded visible `(library_index, &PatternRecord)` referenced by the first `count`
+    /// entries and pre-resolved explicit `input.patterns[]` (in first-referenced order).
+    fn referenced_patterns(&self, count: usize) -> Vec<(usize, &PatternRecord)> {
         let mut seen: HashSet<(String, String)> = HashSet::new();
         let mut out = Vec::new();
-        for (_, entry) in self.entries(count) {
-            for (name, section) in &entry.sections {
-                if *name != "patterns" {
-                    continue;
-                }
-                if let Section::Patterns(links) = section {
-                    for cp in links {
-                        if seen.insert((cp.library.clone(), cp.pattern.clone()))
-                            && let Some(found) = self.find_pattern(&cp.library, &cp.pattern)
-                        {
-                            out.push(found);
+        if self.names.contains(&"patterns") {
+            for (_, entry) in self.entries(count) {
+                for (name, section) in &entry.sections {
+                    if *name != "patterns" {
+                        continue;
+                    }
+                    if let Section::Patterns(links) = section {
+                        for cp in links {
+                            if let Some((idx, rec)) =
+                                find_pattern(self.libraries, &cp.library, &cp.pattern)
+                                && is_visible_approval(
+                                    rec.approval_status.as_deref(),
+                                    self.include_proposed,
+                                )
+                                && seen
+                                    .insert((self.libraries[idx].id.clone(), rec.pattern.clone()))
+                            {
+                                out.push((idx, rec));
+                            }
                         }
                     }
                 }
+            }
+        }
+        for (idx, pat) in &self.resolved_explicit {
+            if let Some(rec) = self.libraries[*idx]
+                .patterns
+                .iter()
+                .find(|p| p.pattern == *pat)
+                && seen.insert((self.libraries[*idx].id.clone(), rec.pattern.clone()))
+            {
+                out.push((*idx, rec));
             }
         }
         out
@@ -428,7 +436,7 @@ impl Brief<'_> {
     fn assemble(&self, steps: usize, count: usize) -> Assembled {
         let send_rules = self.rule_text && !ORDER[..steps].contains(&Step::RuleText);
         let send_patterns = self.rule_text
-            && self.names.contains(&"patterns")
+            && (self.names.contains(&"patterns") || !self.resolved_explicit.is_empty())
             && !ORDER[..steps].contains(&Step::PatternKeep);
         let shed_customize = ORDER[..steps].contains(&Step::PatternCustomize);
         let referenced = self.referenced_patterns(count);
@@ -496,8 +504,21 @@ impl Brief<'_> {
         // content is active for this request (amendment A31.6).
         if self.rule_text && !self.serves_authored {
             for (_, record) in &referenced {
-                left_out += record.keep.iter().filter(|st| st.gate.is_none()).count();
-                left_out += record.customize.len();
+                left_out += record
+                    .keep
+                    .iter()
+                    .filter(|st| {
+                        is_visible_approval(st.approval_status.as_deref(), self.include_proposed)
+                            && st.gate.is_none()
+                    })
+                    .count();
+                left_out += record
+                    .customize
+                    .iter()
+                    .filter(|st| {
+                        is_visible_approval(st.approval_status.as_deref(), self.include_proposed)
+                    })
+                    .count();
             }
         }
 
@@ -507,11 +528,20 @@ impl Brief<'_> {
                 let owner_id = self.libraries[*owner_index].id.as_str();
                 let mut keep = Vec::new();
                 for st in &record.keep {
+                    if !is_visible_approval(st.approval_status.as_deref(), self.include_proposed) {
+                        continue;
+                    }
                     if st.gate.is_none() && !self.serves_authored {
                         continue;
                     }
                     let mut obj = Map::new();
                     obj.insert("id".to_owned(), Value::String(st.id.clone()));
+                    if effective_approval(st.approval_status.as_deref()) == "proposed" {
+                        obj.insert(
+                            "approvalStatus".to_owned(),
+                            Value::String("proposed".to_owned()),
+                        );
+                    }
                     if !self.is_known(owner_id, &st.id, qualify) {
                         obj.insert("text".to_owned(), Value::String(st.text.clone()));
                         if scan::flag_item(&mut obj) {
@@ -523,8 +553,20 @@ impl Brief<'_> {
                 let mut customize = Vec::new();
                 if self.serves_authored && !shed_customize {
                     for st in &record.customize {
+                        if !is_visible_approval(
+                            st.approval_status.as_deref(),
+                            self.include_proposed,
+                        ) {
+                            continue;
+                        }
                         let mut obj = Map::new();
                         obj.insert("id".to_owned(), Value::String(st.id.clone()));
+                        if effective_approval(st.approval_status.as_deref()) == "proposed" {
+                            obj.insert(
+                                "approvalStatus".to_owned(),
+                                Value::String("proposed".to_owned()),
+                            );
+                        }
                         if !self.is_known(owner_id, &st.id, qualify) {
                             obj.insert("text".to_owned(), Value::String(st.text.clone()));
                             if scan::flag_item(&mut obj) {
@@ -538,6 +580,10 @@ impl Brief<'_> {
                 entry.insert("library".to_owned(), Value::String(owner_id.to_owned()));
                 entry.insert("pattern".to_owned(), Value::String(record.pattern.clone()));
                 entry.insert("status".to_owned(), Value::String(record.status.clone()));
+                entry.insert(
+                    "approvalStatus".to_owned(),
+                    Value::String(effective_approval(record.approval_status.as_deref()).to_owned()),
+                );
                 if let Some(replaced_by) = &record.replaced_by {
                     entry.insert("replacedBy".to_owned(), Value::String(replaced_by.clone()));
                 }
@@ -551,6 +597,8 @@ impl Brief<'_> {
         } else {
             None
         };
+
+        unknown.extend(self.unknown_patterns.iter().cloned());
 
         Assembled {
             served,
@@ -619,7 +667,14 @@ impl Brief<'_> {
                         patterns: if self.rule_text && self.serves_authored {
                             self.referenced_patterns(count)
                                 .into_iter()
-                                .filter(|(_, record)| !record.customize.is_empty())
+                                .filter(|(_, record)| {
+                                    record.customize.iter().any(|st| {
+                                        is_visible_approval(
+                                            st.approval_status.as_deref(),
+                                            self.include_proposed,
+                                        )
+                                    })
+                                })
                                 .map(|(owner, record)| {
                                     (self.libraries[owner].id.clone(), record.pattern.clone())
                                 })
@@ -692,16 +747,20 @@ impl Brief<'_> {
         if self.by_api {
             for (owner_index, record) in self.referenced_patterns(count) {
                 let owner_id = &self.libraries[owner_index].id;
+                let mut open = json!({
+                    "command": "components-pattern-open",
+                    "library": owner_id,
+                    "pattern": record.pattern,
+                    "sections": ["keep", "customize"],
+                });
+                if self.include_proposed {
+                    open["includeProposed"] = Value::Bool(true);
+                }
                 out.push(json!({
                     "reason": "detail",
                     "pattern": format!("{owner_id}/{}", record.pattern),
                     "pieces": ["patterns"],
-                    "open": {
-                        "command": "components-pattern-open",
-                        "library": owner_id,
-                        "pattern": record.pattern,
-                        "sections": ["keep", "customize"],
-                    },
+                    "open": open,
                 }));
             }
         }
@@ -713,6 +772,7 @@ impl Brief<'_> {
         steps: usize,
         left_out: usize,
         by_detail: Vec<Value>,
+        include_proposed: bool,
     ) -> Vec<Value> {
         let mut omitted = Vec::new();
         if left_out > 0 {
@@ -783,17 +843,21 @@ impl Brief<'_> {
             }));
         }
         for (lib, pat, pcs, secs) in pattern_omissions {
+            let mut open = json!({
+                "command": "components-pattern-open",
+                "library": lib,
+                "pattern": pat,
+                "sections": secs,
+            });
+            if include_proposed {
+                open["includeProposed"] = Value::Bool(true);
+            }
             omitted.push(json!({
                 "reason": "budget",
                 "pattern": format!("{lib}/{pat}"),
                 "sections": [],
                 "pieces": pcs,
-                "open": {
-                    "command": "components-pattern-open",
-                    "library": lib,
-                    "pattern": pat,
-                    "sections": secs,
-                },
+                "open": open,
             }));
         }
         omitted
@@ -818,6 +882,7 @@ impl Brief<'_> {
         if let Some(rules) = assembled.rules {
             content["rules"] = Value::Array(rules);
         }
+        let pattern_count = assembled.patterns.as_ref().map_or(0, Vec::len);
         if let Some(patterns) = assembled.patterns {
             content["patterns"] = Value::Array(patterns);
         }
@@ -829,6 +894,7 @@ impl Brief<'_> {
             steps,
             assembled.left_out + self.guidance.left_out,
             self.left_out_by_detail(count),
+            self.include_proposed,
         );
         let excluded: std::collections::BTreeSet<&str> = self.asked[..count]
             .iter()
@@ -866,11 +932,25 @@ impl Brief<'_> {
             }
         }
         let answered = data["libraries"].as_array().map_or(0, Vec::len);
+        let unknown_tags = assembled
+            .unknown
+            .iter()
+            .filter(|item| item.get("tag").is_some())
+            .count();
+        let unknown_patterns = assembled
+            .unknown
+            .iter()
+            .filter(|item| item.get("pattern").is_some())
+            .count();
         let mut reasoning = format!(
-            "Briefed {} component(s) from {answered} library(ies), with {} tag(s) unknown and {shed_count} section(s) or piece(s) left out to fit.",
+            "Briefed {} component(s) from {answered} library(ies), with {unknown_tags} tag(s) unknown and {shed_count} section(s) or piece(s) left out to fit.",
             assembled.components.len(),
-            assembled.unknown.len(),
         );
+        if pattern_count > 0 || unknown_patterns > 0 {
+            reasoning.push_str(&format!(
+                " Included {pattern_count} pattern(s) with {unknown_patterns} pattern(s) unknown."
+            ));
+        }
         let statements = self.guidance.statements();
         if statements > 0 {
             reasoning.push_str(&format!(
@@ -1128,16 +1208,65 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
     }
 
     let Chosen {
-        names,
+        names: section_names,
         rule_text,
         attribute_rules,
     } = chosen_sections(input);
+    let mut pattern_bindings: BTreeMap<String, String> = BTreeMap::new();
+    for lib in &libraries {
+        for (source, target) in &lib.catalog.pattern_bindings {
+            pattern_bindings
+                .entry(source.clone())
+                .or_insert_with(|| target.clone());
+        }
+    }
+    if let Some(selected) = &selected {
+        for (source, target) in &selected.pattern_bindings {
+            pattern_bindings.insert(source.clone(), target.clone());
+        }
+    }
+    let include_proposed = input
+        .get("includeProposed")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+
+    // Apply `patternBindings` and `approvalStatus` visibility to component `patterns[]` links so
+    // component entries and `content.patterns` always agree.
+    for item in &mut asked {
+        if let Asked::Entry { entry, .. } = item
+            && let Err(err) =
+                resolve_entry_patterns(entry, &libraries, &pattern_bindings, include_proposed)
+        {
+            return fail::pattern_binding_invalid(err.reason());
+        }
+    }
+
+    // Resolve explicit `input.patterns[]` up front, reporting unknown, hidden, and ambiguous
+    // requests in `unknown[]` and checking `default_library` consistently with `tags`.
+    let ResolvedExplicit {
+        resolved: resolved_explicit,
+        unknown: unknown_patterns,
+    } = match resolve_explicit_patterns(
+        input,
+        &libraries,
+        &names,
+        &pattern_bindings,
+        settings.default_library.as_deref(),
+        include_proposed,
+    ) {
+        Ok(res) => res,
+        Err(outcome) => return outcome,
+    };
+
     let brief = Brief {
         consumer: selected.as_ref().map(|selected| selected.name.clone()),
         guidance: Guidance::new(selected.as_ref(), &settings),
+        resolved_explicit,
+        unknown_patterns,
+        include_proposed,
         libraries: &libraries,
         asked,
-        names,
+        names: section_names,
         rule_text,
         attribute_rules,
         by_default: input.get("sections").is_none()
@@ -1178,7 +1307,7 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
             let fitting = fit_count(total, target, |count| {
                 brief.build(ORDER.len(), count, &brief.effects(count))
             });
-            return fail::brief_budget_exceeded(fitting, brief.guidance.statements());
+            return fail::brief_budget_exceeded(fitting, brief.guidance.statements(), total);
         }
         steps += 1;
         // A step that takes nothing away leaves the answer as it was, except the rule-text step,

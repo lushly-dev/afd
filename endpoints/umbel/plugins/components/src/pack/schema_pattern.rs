@@ -15,11 +15,28 @@ use super::text;
 
 const KEEP_BASES: &[&str] = &["verified", "ungated", "out-of-context"];
 const PATTERN_SCOPES: &[&str] = &["control", "composition"];
+pub(crate) const APPROVAL_STATUSES: &[&str] = &["proposed", "approved", "deprecated"];
 const STANDARD_DOM_EVENTS: &[&str] = &["input", "change", "submit", "reset"];
 const REDUCED_MOTIONS: &[&str] = &["reduce", "no-preference"];
 const MOTIONS: &[&str] = &["natural", "settled"];
 const CHECKED_WORDS: &[&str] = &["mixed"];
 const INVALID_WORDS: &[&str] = &["grammar", "spelling"];
+
+/// Effective approval status when omitted in Pack Format 2 (defaults to `"approved"`).
+pub(crate) fn effective_approval(status: Option<&str>) -> &str {
+    status.unwrap_or("approved")
+}
+
+/// Whether content with `status` is served for a call with `include_proposed`.
+/// Only `"approved"` (or omitted) is served by default; `"proposed"` is exposed only when
+/// `include_proposed` is true, and `"deprecated"` approvalStatus stays hidden.
+pub(crate) fn is_visible_approval(status: Option<&str>, include_proposed: bool) -> bool {
+    match effective_approval(status) {
+        "approved" => true,
+        "proposed" => include_proposed,
+        _ => false,
+    }
+}
 
 impl Shape {
     pub(super) fn keep_basis(&mut self, at: &str, value: Field<'_>) {
@@ -151,13 +168,10 @@ impl Shape {
             self.issue(SCHEMA_INVALID, at, true);
             return;
         };
-        let ok = if let Some((lib, pat)) = text.split_once('/') {
-            text.len() <= patterns::QUALIFIED_PATTERN.max
-                && patterns::QUALIFIED_PATTERN.matches(text)
-                && lib.len() <= patterns::LIBRARY.max
-                && pat.len() <= patterns::PATTERN.max
+        let ok = if text.contains('/') {
+            patterns::accepts_qualified_pattern(text)
         } else {
-            text.len() <= patterns::PATTERN.max && patterns::PATTERN.matches(text)
+            patterns::PATTERN.accepts(text)
         };
         if !ok {
             self.issue(IDENTIFIER_INVALID, at, false);
@@ -189,7 +203,7 @@ impl Shape {
     }
 
     fn pattern_statement(&mut self, at: &str, value: Field<'_>) {
-        let Some(map) = self.object(at, value, &["id", "text"]) else {
+        let Some(map) = self.object(at, value, &["id", "text", "approvalStatus"]) else {
             return;
         };
         self.identifier(&child(at, "id"), map.get("id"), patterns::ID);
@@ -200,10 +214,17 @@ impl Shape {
             false,
             1,
         );
+        if map.get("approvalStatus").is_some() {
+            self.one_of(
+                &child(at, "approvalStatus"),
+                map.get("approvalStatus"),
+                APPROVAL_STATUSES,
+            );
+        }
     }
 
     fn pattern_keep_statement(&mut self, at: &str, value: Field<'_>) {
-        let Some(map) = self.object(at, value, &["id", "text", "gate"]) else {
+        let Some(map) = self.object(at, value, &["id", "text", "gate", "approvalStatus"]) else {
             return;
         };
         self.identifier(&child(at, "id"), map.get("id"), patterns::ID);
@@ -215,6 +236,108 @@ impl Shape {
             1,
         );
         self.opt_identifier(&child(at, "gate"), map.get("gate"), patterns::GATE);
+        if map.get("approvalStatus").is_some() {
+            self.one_of(
+                &child(at, "approvalStatus"),
+                map.get("approvalStatus"),
+                APPROVAL_STATUSES,
+            );
+        }
+    }
+
+    fn digest_map(&mut self, at: &str, value: Field<'_>) {
+        let Some(Value::Object(map)) = value else {
+            self.issue(SCHEMA_INVALID, at, true);
+            return;
+        };
+        let mark = self.mark();
+        for (id, digest) in map {
+            let item_at = child(at, id);
+            if id.len() > patterns::ID.max || !patterns::ID.matches(id) {
+                self.identifier(&item_at, Some(&Value::String(id.clone())), patterns::ID);
+            }
+            self.identifier(&item_at, Some(digest), patterns::DIGEST);
+        }
+        if !self.aborted(mark) && map.len() > 256 {
+            self.issue(SCHEMA_INVALID, at, false);
+        }
+    }
+
+    fn revision_or_digest(&mut self, at: &str, value: Field<'_>) {
+        let Some(Value::String(text)) = value else {
+            self.issue(SCHEMA_INVALID, at, true);
+            return;
+        };
+        if !(patterns::DIGEST.accepts(text) || patterns::REVISION.accepts(text)) {
+            self.issue(IDENTIFIER_INVALID, at, false);
+        }
+    }
+
+    fn pattern_derived_from(&mut self, at: &str, value: Field<'_>) {
+        let Some(map) = self.object(
+            at,
+            value,
+            &[
+                "library",
+                "pattern",
+                "version",
+                "revision",
+                "statements",
+                "declined",
+            ],
+        ) else {
+            return;
+        };
+        self.identifier(&child(at, "library"), map.get("library"), patterns::LIBRARY);
+        self.identifier(&child(at, "pattern"), map.get("pattern"), patterns::PATTERN);
+        self.identifier(&child(at, "version"), map.get("version"), patterns::VERSION);
+        self.revision_or_digest(&child(at, "revision"), map.get("revision"));
+        self.digest_map(&child(at, "statements"), map.get("statements"));
+        if map.get("declined").is_some() {
+            self.digest_map(&child(at, "declined"), map.get("declined"));
+        }
+    }
+
+    fn waived_keep_entry(&mut self, at: &str, value: Field<'_>) {
+        let Some(map) = self.object(at, value, &["id", "reason"]) else {
+            return;
+        };
+        self.identifier(&child(at, "id"), map.get("id"), patterns::ID);
+        self.text(
+            &child(at, "reason"),
+            map.get("reason"),
+            text::STATEMENT,
+            false,
+            1,
+        );
+    }
+
+    pub(super) fn catalog_pattern_bindings(&mut self, value: Field<'_>) {
+        let Some(value) = value else {
+            return;
+        };
+        let Some(Value::Object(map)) = Some(value) else {
+            self.issue(SCHEMA_INVALID, "/patternBindings", true);
+            return;
+        };
+        let mark = self.mark();
+        for (source, target) in map {
+            let item_at = child("/patternBindings", source);
+            if !patterns::accepts_qualified_pattern(source) {
+                self.issue(IDENTIFIER_INVALID, &item_at, false);
+            }
+            match target {
+                Value::String(text) => {
+                    if !patterns::accepts_qualified_pattern(text) {
+                        self.issue(IDENTIFIER_INVALID, &item_at, false);
+                    }
+                }
+                _ => self.issue(SCHEMA_INVALID, &item_at, true),
+            }
+        }
+        if !self.aborted(mark) && map.len() > 256 {
+            self.issue(SCHEMA_INVALID, "/patternBindings", false);
+        }
     }
 
     fn role_set(&mut self, at: &str, value: Field<'_>) {
@@ -631,6 +754,9 @@ impl Shape {
             "pattern",
             "summary",
             "status",
+            "approvalStatus",
+            "derivedFrom",
+            "waivedKeep",
             "replacedBy",
             "scope",
             "facets",
@@ -648,6 +774,23 @@ impl Shape {
         self.identifier("/pattern", map.get("pattern"), patterns::PATTERN);
         self.opt_text("/summary", map.get("summary"), text::SUMMARY, false);
         self.one_of("/status", map.get("status"), STATUSES);
+        if map.get("approvalStatus").is_some() {
+            self.one_of(
+                "/approvalStatus",
+                map.get("approvalStatus"),
+                APPROVAL_STATUSES,
+            );
+        }
+        if map.get("derivedFrom").is_some() {
+            self.pattern_derived_from("/derivedFrom", map.get("derivedFrom"));
+        }
+        self.opt_array(
+            "/waivedKeep",
+            map.get("waivedKeep"),
+            0,
+            64,
+            Self::waived_keep_entry,
+        );
         if map.get("replacedBy").is_some() {
             self.pattern_or_qualified("/replacedBy", map.get("replacedBy"));
         }
@@ -760,6 +903,7 @@ impl Shape {
             "pattern",
             "name",
             "status",
+            "approvalStatus",
             "replacedBy",
             "html",
             "css",
@@ -780,6 +924,13 @@ impl Shape {
         self.identifier("/pattern", map.get("pattern"), patterns::PATTERN);
         self.identifier("/name", map.get("name"), patterns::COPY_NAME);
         self.one_of("/status", map.get("status"), STATUSES);
+        if map.get("approvalStatus").is_some() {
+            self.one_of(
+                "/approvalStatus",
+                map.get("approvalStatus"),
+                APPROVAL_STATUSES,
+            );
+        }
         self.opt_identifier("/replacedBy", map.get("replacedBy"), patterns::COPY_NAME);
         self.text("/html", map.get("html"), text::COPY_HTML, true, 1);
         self.text("/css", map.get("css"), text::COPY_CSS, true, 0);
@@ -823,6 +974,7 @@ impl Shape {
                 "pattern",
                 "summary",
                 "status",
+                "approvalStatus",
                 "replacedBy",
                 "scope",
                 "facets",
@@ -842,6 +994,13 @@ impl Shape {
                     false,
                 );
                 shape.one_of(&child(at, "status"), entry.get("status"), STATUSES);
+                if entry.get("approvalStatus").is_some() {
+                    shape.one_of(
+                        &child(at, "approvalStatus"),
+                        entry.get("approvalStatus"),
+                        APPROVAL_STATUSES,
+                    );
+                }
                 if entry.get("replacedBy").is_some() {
                     shape.pattern_or_qualified(&child(at, "replacedBy"), entry.get("replacedBy"));
                 }
@@ -866,6 +1025,7 @@ impl Shape {
                 "pattern",
                 "name",
                 "status",
+                "approvalStatus",
                 "replacedBy",
                 "revision",
                 "fingerprint",
@@ -880,6 +1040,13 @@ impl Shape {
                 );
                 shape.identifier(&child(at, "name"), entry.get("name"), patterns::COPY_NAME);
                 shape.one_of(&child(at, "status"), entry.get("status"), STATUSES);
+                if entry.get("approvalStatus").is_some() {
+                    shape.one_of(
+                        &child(at, "approvalStatus"),
+                        entry.get("approvalStatus"),
+                        APPROVAL_STATUSES,
+                    );
+                }
                 shape.opt_identifier(
                     &child(at, "replacedBy"),
                     entry.get("replacedBy"),
@@ -949,21 +1116,44 @@ pub(crate) struct ComponentPattern {
     pub(crate) keep: Vec<KeepBasis>,
 }
 
+/// Provenance of a copied pattern (`derivedFrom`, Patterns spec §8).
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub(crate) struct PatternDerivedFrom {
+    pub(crate) library: String,
+    pub(crate) pattern: String,
+    pub(crate) version: String,
+    pub(crate) revision: String,
+    pub(crate) statements: BTreeMap<String, String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) declined: Option<BTreeMap<String, String>>,
+}
+
+/// Recorded waiver reason for a dropped upstream `keep` statement.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub(crate) struct WaivedKeep {
+    pub(crate) id: String,
+    pub(crate) reason: String,
+}
+
 /// A portable pattern guidance statement (`useWhen`, `avoidWhen`, `customize`).
 #[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
 pub(crate) struct PatternStatement {
     pub(crate) id: String,
     pub(crate) text: String,
+    pub(crate) approval_status: Option<String>,
 }
 
 /// A portable pattern `keep` statement, optionally backed by a named gate.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
 pub(crate) struct PatternKeepStatement {
     pub(crate) id: String,
     pub(crate) text: String,
     pub(crate) gate: Option<String>,
+    pub(crate) approval_status: Option<String>,
 }
 
 /// A same-library implementation entry in a pattern record.
@@ -993,6 +1183,10 @@ pub(crate) struct PatternRecord {
     pub(crate) pattern: String,
     pub(crate) summary: Option<String>,
     pub(crate) status: String,
+    pub(crate) approval_status: Option<String>,
+    pub(crate) derived_from: Option<PatternDerivedFrom>,
+    #[serde(default)]
+    pub(crate) waived_keep: Vec<WaivedKeep>,
     pub(crate) replaced_by: Option<String>,
     pub(crate) scope: String,
     pub(crate) facets: BTreeMap<String, Vec<String>>,
@@ -1021,6 +1215,7 @@ pub(crate) struct CopyRecord {
     pub(crate) pattern: String,
     pub(crate) name: String,
     pub(crate) status: String,
+    pub(crate) approval_status: Option<String>,
     pub(crate) replaced_by: Option<String>,
     pub(crate) html: String,
     pub(crate) css: String,
@@ -1044,6 +1239,7 @@ pub(crate) struct CatalogPatternEntry {
     pub(crate) pattern: String,
     pub(crate) summary: Option<String>,
     pub(crate) status: String,
+    pub(crate) approval_status: Option<String>,
     pub(crate) replaced_by: Option<String>,
     pub(crate) scope: String,
     pub(crate) facets: BTreeMap<String, Vec<String>>,
@@ -1058,6 +1254,7 @@ pub(crate) struct CatalogCopyEntry {
     pub(crate) pattern: String,
     pub(crate) name: String,
     pub(crate) status: String,
+    pub(crate) approval_status: Option<String>,
     pub(crate) replaced_by: Option<String>,
     pub(crate) revision: String,
     pub(crate) fingerprint: String,
