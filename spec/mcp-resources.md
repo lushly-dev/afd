@@ -200,6 +200,12 @@ re-reads them. It MUST refuse to start, with an error naming the skill and the r
 | Manifest boundary | Each file's URI, `skill://<skill path>/<file path>`, identifies a distinct file inside the skill's directory, as SEP-2640 requires of every manifest URI. Compare the URIs after RFC 3986 normalization (section 6.2.2), which decodes percent-encoded unreserved characters, so `%2e` is `.` and `%41` is `A`. In the path before any `?` or `#`, resolving `.` and `..` segments must not leave the skill's directory, the last segment is not empty, `.` or `..`, and no two files' URIs are equal. So `%2e%2e/x.md` and `refs/%2E` are refused, and so is `%41.md` beside `A.md` |
 | Limits | At most 512 files and 16 MiB (16,777,216 bytes) in total per skill, `SKILL.md` included: the extension's limits, which every conforming host accepts |
 
+A host may load less than these limits. Claude Code shows up to 100 skills a server, and for the
+skills it scans (from claude.ai Directory connectors and connectors with organization scanning, not
+a server added with `claude mcp add`) loads up to 100 KB a text file and 400 KB a skill. So a catalog
+that passes S2 can be partly invisible there; `afd validate --surface` warns about it without
+refusing the catalog.
+
 The server never acts on a skill's content. It reads only the frontmatter, to check it and to serve
 it; the body and every other file are served as bytes.
 

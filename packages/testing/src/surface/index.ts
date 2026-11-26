@@ -22,13 +22,22 @@ export {
 	checkSchemaComplexity,
 	DESCRIPTION_VERBS,
 } from './rules.js';
-
 // Schema complexity
 export { computeComplexity } from './schema-complexity.js';
 // Schema overlap
 export { commandParametersToJsonSchema, compareSchemas } from './schema-overlap.js';
 // Similarity engine
 export { buildSimilarityMatrix, cosineSimilarity } from './similarity.js';
+// Claude Code's skill limits
+export {
+	CLAUDE_CODE_SKILL_LIMITS,
+	CLAUDE_CODE_SOURCE,
+	checkClaudeCodeSkillLimits,
+	type SkillLimitFinding,
+	type SkillLimitRule,
+	type SkillManifestEntry,
+	type SkillManifestResource,
+} from './skill-limits.js';
 // Types
 export type {
 	ComplexityBreakdown,

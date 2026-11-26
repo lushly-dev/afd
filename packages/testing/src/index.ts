@@ -308,6 +308,10 @@ export type {
 	SimilarityMatrix,
 	SimilarityOptions,
 	SimilarityPair,
+	SkillLimitFinding,
+	SkillLimitRule,
+	SkillManifestEntry,
+	SkillManifestResource,
 	SurfaceCommand,
 	SurfaceFinding,
 	SurfaceRule,
@@ -317,6 +321,9 @@ export type {
 } from './surface/index.js';
 export {
 	buildSimilarityMatrix,
+	CLAUDE_CODE_SKILL_LIMITS,
+	CLAUDE_CODE_SOURCE,
+	checkClaudeCodeSkillLimits,
 	checkDescriptionInjection,
 	checkDescriptionQuality,
 	checkInjection,

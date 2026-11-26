@@ -752,6 +752,11 @@
 			"status": "yes",
 			"evidence": ["python/tests/test_scenarios.py", "python/tests/test_surface_rules.py"]
 		},
+		"tooling.skill-limits": {
+			"status": "planned",
+			"note": "([#2627](https://github.com/lushly-dev/afd/issues/2627)): the same check in the Python CLI, on the shared vectors",
+			"evidence": ["packages/testing/src/surface/skill-limits-vectors.json"]
+		},
 		"tooling.ui-packages": {
 			"status": "na",
 			"evidence": ["docs/language-parity.md"]
