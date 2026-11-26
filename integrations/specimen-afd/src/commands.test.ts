@@ -546,6 +546,19 @@ function bench(): SpecimenCommandBench {
 				},
 			],
 		})),
+		panelWalk: vi.fn(async () => ({
+			walk: 'walk-aaaaaaaaaaaa',
+			job: 'checkout-out-of-stock',
+			persona: 'p-sr',
+			modality: 'screen-reader' as const,
+			ending: 'done' as const,
+			actions: 2,
+			path: { done: true, failed: 0, repeats: 0, outside: 0, deviations: 0 },
+			findings: [],
+			unmeasured: [
+				{ area: 'forced-colors', reason: 'not tested', addToMeasure: 'specimen-themes' },
+			],
+		})),
 		review: vi.fn(async () => ({
 			before: { set: 'set-4f1c0a9e2b7d', revision: 'a1b2c3d', dirty: false },
 			after: { set: 'set-7e2a90c4d311', revision: 'e4f5a6b', dirty: false },
@@ -680,6 +693,7 @@ describe('specimen commands', () => {
 			'decision-list',
 			'decision-check',
 			'design-states',
+			'panel-walk',
 		]);
 		for (const command of commands) {
 			expect(command.expose).toEqual({ mcp: true, cli: true });
@@ -2752,6 +2766,111 @@ describe('specimen commands', () => {
 					code: 'TARGET_COMMAND_NOT_FOUND',
 					message: expect.stringContaining('book-teleport'),
 					suggestion: expect.stringContaining('manifest'),
+				});
+			} finally {
+				await realBench.close();
+			}
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it('exposes panel-walk as a long-running optional-task mutation without approval, enforces modality tools, and checks outputBudget', async () => {
+		const root = await mkdtemp(join(tmpdir(), 'specimen-afd-panel-walk-'));
+		try {
+			await writeFile(
+				join(root, 'walk-driver.mjs'),
+				`export default async function driver(ctx) {
+					const oversized = ctx.target.includes('oversized=1');
+					return {
+						transcript: 'Done.',
+						actions: 1,
+						journal: [],
+						findings: oversized
+							? Array.from({ length: 120 }, (_, i) => ({
+									summary: 'Finding ' + i + ' ' + 'x'.repeat(250),
+									evidence: 'observed',
+									where: 'checkout-screen',
+								}))
+							: [],
+					};
+				}\n`
+			);
+			await writeFile(
+				join(root, 'specimen.config.json'),
+				JSON.stringify({
+					panel: {
+						jobs: ['checkout-out-of-stock'],
+						personas: [{ id: 'p-sr', modality: 'screen-reader' }],
+						driver: './walk-driver.mjs',
+					},
+				})
+			);
+			const realBench = await createSpecimenBench({ root });
+			try {
+				const commands = createSpecimenCommands(realBench);
+				const def = commands.find((command) => command.name === 'panel-walk');
+				expect(def).toMatchObject({
+					name: 'panel-walk',
+					mutation: true,
+					executionTime: 'long-running',
+					task: 'optional',
+					outputBudget: { defaultBytes: 24576, maxBytes: 65536 },
+					errors: ['MODALITY_FORBIDDEN', 'JOB_NOT_FOUND', 'PERSONA_NOT_FOUND', 'WALK_NOT_FOUND'],
+					expose: { mcp: true, cli: true },
+				});
+				expect(def?.confirmPrompt).toBeUndefined();
+
+				const forbidden = await executeSpecimenCommand(realBench, 'panel-walk', {
+					job: 'checkout-out-of-stock',
+					persona: 'p-sr',
+					modality: 'screen-reader',
+					target: 'http://127.0.0.1:4173/checkout',
+					requestedTools: ['click', 'dom_query'],
+				});
+				expect(forbidden.success).toBe(false);
+				expect(forbidden.error).toMatchObject({
+					code: 'MODALITY_FORBIDDEN',
+					suggestion: expect.stringContaining('modality'),
+				});
+
+				const ok = await executeSpecimenCommand(realBench, 'panel-walk', {
+					job: 'checkout-out-of-stock',
+					persona: 'p-sr',
+					modality: 'screen-reader',
+					target: 'http://127.0.0.1:4173/checkout',
+					appDate: '2030-05-12',
+				});
+				expect(ok.success).toBe(true);
+				expect(ok.data).toMatchObject({
+					walk: expect.stringMatching(/^walk-[0-9a-hjkmnp-tv-z]{12}$/),
+					modality: 'screen-reader',
+					ending: 'done',
+					path: { done: true, deviations: 0 },
+				});
+				expect(ok.metadata?.['dev.afd/outputBudget']).toMatchObject({
+					limitBytes: 24576,
+					usedBytes: expect.any(Number),
+				});
+
+				// Oversized mutation result keeps data (no truncation) and appends caution warning
+				const over = await executeSpecimenCommand(realBench, 'panel-walk', {
+					job: 'checkout-out-of-stock',
+					persona: 'p-sr',
+					modality: 'screen-reader',
+					target: 'http://127.0.0.1:4173/checkout?oversized=1',
+				});
+				expect(over.success).toBe(true);
+				expect(over.warnings).toEqual(
+					expect.arrayContaining([
+						expect.objectContaining({
+							code: 'OUTPUT_BUDGET_EXCEEDED',
+							severity: 'caution',
+						}),
+					])
+				);
+				expect(over.metadata?.['dev.afd/outputBudget']).toMatchObject({
+					limitBytes: 24576,
 				});
 			} finally {
 				await realBench.close();

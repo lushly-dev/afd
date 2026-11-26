@@ -1,5 +1,12 @@
 /** AFD command definitions shared by the CLI and MCP hosts. */
-import type { Actor, CommandContext, CommandResult } from '@lushly-dev/afd-core';
+import {
+	type Actor,
+	AFD_OUTPUT_BUDGET_META_KEY,
+	type CommandContext,
+	type CommandResult,
+	type OutputBudget,
+	type Warning,
+} from '@lushly-dev/afd-core';
 import {
 	defineCommand,
 	failure,
@@ -60,6 +67,8 @@ import {
 	packExportRunSchema,
 	packRequestSchema,
 	packRunSchema,
+	panelWalkRequestSchema,
+	panelWalkResultSchema,
 	pointCheckRequestSchema,
 	pointCheckResultSchema,
 	pointMoveRequestSchema,
@@ -151,6 +160,8 @@ import type {
 	PackExportRun,
 	PackRequest,
 	PackRun,
+	PanelWalkRequest,
+	PanelWalkResult,
 	PointCheckRequest,
 	PointCheckResult,
 	PointMoveRequest,
@@ -357,6 +368,7 @@ export interface SpecimenCommandBench {
 	listDecisions(): Promise<DecisionListResult>;
 	checkDecisions(request?: DecisionCheckRequest): Promise<DecisionCheckResult>;
 	designStates(request?: DesignStatesRequest): Promise<DesignStatesResult>;
+	panelWalk(request: PanelWalkRequest): Promise<PanelWalkResult>;
 }
 
 /** One story or synthesized gate by id, or a suite by filter; the handler tells them apart. */
@@ -397,6 +409,11 @@ const ERROR_SUGGESTIONS: Readonly<Record<string, string>> = {
 	PATTERN_SETUP_MISSING:
 		'Add the missing setup case (run specimen-suggest with the reported pattern: obligation) or declare a contexts limit on the implementation.',
 	POINT_STALE: 'Run specimen-point again to capture a fresh point id before saving.',
+	MODALITY_FORBIDDEN:
+		'Remove forbidden tools and run with only the tools permitted for the persona modality.',
+	JOB_NOT_FOUND: "Pass a job id present in the product's scenarios/ directory.",
+	PERSONA_NOT_FOUND: "Pass a persona id declared in the product's persona set.",
+	WALK_NOT_FOUND: 'Run panel-walk first to produce a baseline walk id.',
 };
 
 async function result<T>(
@@ -1124,6 +1141,26 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				'Pass at least one command name in commands or a scenario path in scenario, and verify commandManifest in specimen.config.json.'
 			),
 	});
+	const panelWalk = defineCommand({
+		...common,
+		name: 'panel-walk',
+		description:
+			'Run one modality-enforced persona walk against a running application (pointer, keyboard, screen-reader, or low-vision), injecting appDate into the walk prompt, requiring an explicit Done./Stopped ending, computing journal path deviations, classifying findings (observed/hypothesis), and optionally running blind pairwise report comparison against baselineWalk.',
+		mutation: true,
+		executionTime: 'long-running',
+		task: 'optional',
+		outputBudget: { defaultBytes: 24576, maxBytes: 65536 },
+		errors: ['MODALITY_FORBIDDEN', 'JOB_NOT_FOUND', 'PERSONA_NOT_FOUND', 'WALK_NOT_FOUND'],
+		input: panelWalkRequestSchema,
+		output: panelWalkResultSchema,
+		handler: async (input) =>
+			result(
+				() => bench.panelWalk(input),
+				panelWalkResultSchema,
+				'SPECIMEN_PANEL_WALK_FAILED',
+				'Verify the job, persona, modality, and target URL, then re-run panel-walk.'
+			),
+	});
 	return [
 		list,
 		render,
@@ -1163,6 +1200,7 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		decisionList,
 		decisionCheck,
 		designStates,
+		panelWalk,
 	] as const;
 }
 
@@ -1177,9 +1215,12 @@ export interface ExecuteSpecimenCommandOptions {
 	humanConfirmed?: boolean;
 	/** Optional host-verified identifier for the confirming person. */
 	confirmedBy?: string;
+	/** Optional caller output budget ask (`{ maxBytes }` or byte count) forwarded from `_meta["dev.afd/outputBudget"]`. */
+	outputBudget?: unknown;
 }
 
 const HUMAN_CONFIRMED = Symbol('specimen.humanConfirmed');
+const utf8Encoder = new TextEncoder();
 
 interface SpecimenCommandContext extends CommandContext {
 	[HUMAN_CONFIRMED]?: { confirmedBy?: string };
@@ -1189,6 +1230,36 @@ function normalizeOptionalId(value: unknown): string | undefined {
 	if (typeof value !== 'string') return undefined;
 	const trimmed = value.trim();
 	return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function parseOutputBudgetAsk(raw: unknown): number | undefined {
+	if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined;
+	const keys = Object.keys(raw);
+	if (keys.length !== 1 || keys[0] !== 'maxBytes') return undefined;
+	const maxBytes = (raw as { maxBytes?: unknown }).maxBytes;
+	if (typeof maxBytes !== 'number' || !Number.isSafeInteger(maxBytes) || maxBytes < 1) {
+		return undefined;
+	}
+	return maxBytes;
+}
+
+function effectiveOutputBudget(budget: OutputBudget, askBytes: number | undefined): number {
+	if (askBytes === undefined) return budget.defaultBytes;
+	return Math.min(askBytes, budget.maxBytes);
+}
+
+function measureBudgetBytes(res: CommandResult<unknown>): number | undefined {
+	try {
+		const withoutMetadata: Record<string, unknown> = Object.create(null);
+		const record = res as unknown as Record<string, unknown>;
+		for (const key of Object.keys(record)) {
+			if (key !== 'metadata') withoutMetadata[key] = record[key];
+		}
+		const json = JSON.stringify(withoutMetadata);
+		return json === undefined ? undefined : utf8Encoder.encode(json).length;
+	} catch {
+		return undefined;
+	}
 }
 
 async function execute<TInput extends z.ZodType, TOutput>(
@@ -1203,9 +1274,28 @@ async function execute<TInput extends z.ZodType, TOutput>(
 			message: parsed.error.message,
 			suggestion: `Provide input matching the ${command.name} schema.`,
 		});
+	let askBytes: number | undefined;
+	if (options?.outputBudget !== undefined && options.outputBudget !== null) {
+		const rawAsk =
+			typeof options.outputBudget === 'number'
+				? { maxBytes: options.outputBudget }
+				: options.outputBudget;
+		askBytes = parseOutputBudgetAsk(rawAsk);
+		if (askBytes === undefined) {
+			return failure({
+				code: 'VALIDATION_ERROR',
+				message: `Invalid output budget in _meta["${AFD_OUTPUT_BUDGET_META_KEY}"]`,
+				suggestion: `Pass _meta["${AFD_OUTPUT_BUDGET_META_KEY}"] = { "maxBytes": N } with a positive integer.`,
+			});
+		}
+	}
+	const limitBytes = command.outputBudget
+		? effectiveOutputBudget(command.outputBudget, askBytes)
+		: undefined;
 	const confirmedBy = normalizeOptionalId(options?.confirmedBy);
 	const context: SpecimenCommandContext = {
 		actor: options?.actor ?? { kind: 'script' },
+		...(limitBytes !== undefined ? { outputBudget: limitBytes } : {}),
 		...(options?.humanConfirmed === true && command.confirmPrompt
 			? {
 					[HUMAN_CONFIRMED]: {
@@ -1214,7 +1304,50 @@ async function execute<TInput extends z.ZodType, TOutput>(
 				}
 			: {}),
 	};
-	return command.handler(parsed.data, context);
+	const outcome = await command.handler(parsed.data, context);
+	if (!command.outputBudget || limitBytes === undefined || outcome.success !== true) {
+		return outcome;
+	}
+	const usedBytes = measureBudgetBytes(outcome);
+	if (usedBytes === undefined) return outcome;
+	if (usedBytes > limitBytes && command.mutation !== true) {
+		const { maxBytes } = command.outputBudget;
+		const suggestion =
+			limitBytes < maxBytes
+				? `Narrow the request or ask for up to ${maxBytes} bytes with _meta["${AFD_OUTPUT_BUDGET_META_KEY}"] = { "maxBytes": ${maxBytes} }.`
+				: `Narrow the request; ${maxBytes} bytes is this command's largest output budget.`;
+		return failure({
+			code: 'OUTPUT_BUDGET_EXCEEDED',
+			message: `The result is ${usedBytes} bytes, over this call's output budget of ${limitBytes} bytes`,
+			suggestion,
+			retryable: false,
+			details: { limitBytes, actualBytes: usedBytes, maxBytes },
+		});
+	}
+	const report = { limitBytes, usedBytes };
+	if (usedBytes > limitBytes) {
+		const warning: Warning = {
+			code: 'OUTPUT_BUDGET_EXCEEDED',
+			message: `The result is ${usedBytes} bytes, over this call's output budget of ${limitBytes} bytes; the change was made`,
+			severity: 'caution',
+			details: { limitBytes, actualBytes: usedBytes },
+		};
+		return {
+			...outcome,
+			warnings: [...(outcome.warnings ?? []), warning],
+			metadata: {
+				...outcome.metadata,
+				[AFD_OUTPUT_BUDGET_META_KEY]: report,
+			},
+		};
+	}
+	return {
+		...outcome,
+		metadata: {
+			...outcome.metadata,
+			[AFD_OUTPUT_BUDGET_META_KEY]: report,
+		},
+	};
 }
 
 /** Execute through the command schema; adapters must not call handlers with unvalidated data. */
@@ -1263,6 +1396,7 @@ export async function executeSpecimenCommand(
 		decisionList,
 		decisionCheck,
 		designStates,
+		panelWalk,
 	] = createSpecimenCommands(bench);
 	switch (name) {
 		case 'specimen-list':
@@ -1341,12 +1475,14 @@ export async function executeSpecimenCommand(
 			return execute(decisionCheck, input, options);
 		case 'design-states':
 			return execute(designStates, input, options);
+		case 'panel-walk':
+			return execute(panelWalk, input, options);
 		default:
 			return failure({
 				code: 'COMMAND_NOT_FOUND',
 				message: `Unknown command: ${name}`,
 				suggestion:
-					'Use specimen list, validate, inspect, render, capture, compare, review, run, themes, migrate, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, job-run, decision-record, decision-get, decision-list, decision-check, or design-states.',
+					'Use specimen list, validate, inspect, render, capture, compare, review, run, themes, migrate, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, job-run, decision-record, decision-get, decision-list, decision-check, design-states, or panel-walk.',
 			});
 	}
 }

@@ -153,6 +153,7 @@ export async function createSpecimenMcpServer(
 			description: command.description,
 			inputSchema: command.jsonSchema as { type: 'object'; [key: string]: unknown },
 			annotations: commandToolAnnotations(command),
+			...(command.outputBudget ? { _meta: { 'dev.afd/outputBudget': command.outputBudget } } : {}),
 		})),
 	}));
 	server.server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
@@ -208,9 +209,11 @@ export async function createSpecimenMcpServer(
 			humanConfirmed = true;
 		}
 
+		const metaBudget = request.params._meta?.['dev.afd/outputBudget'];
 		const result = await executeSpecimenCommand(bench, name, validatedInput, {
 			actor: { kind: 'agent' },
 			...(humanConfirmed ? { humanConfirmed: true } : {}),
+			...(metaBudget !== undefined ? { outputBudget: metaBudget } : {}),
 		});
 		return {
 			content: [{ type: 'text' as const, text: JSON.stringify(result) }],

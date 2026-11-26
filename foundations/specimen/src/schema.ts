@@ -1465,4 +1465,5 @@ export const jobRunSchema = z.strictObject({
 
 export * from './decision-schema.js';
 export * from './design-schema.js';
+export * from './panel-schema.js';
 export * from './review-schema.js';

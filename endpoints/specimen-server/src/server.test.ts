@@ -89,9 +89,13 @@ describe('Specimen MCP endpoint', () => {
 		try {
 			const definitions = createSpecimenCommands(bench).filter((command) => command.expose?.mcp);
 			const { tools } = await client.listTools();
-			expect(tools).toHaveLength(38);
+			expect(tools).toHaveLength(39);
 			expect(tools.find((tool) => tool.name === 'design-states')?.annotations).toEqual({
 				readOnlyHint: true,
+			});
+			expect(tools.find((tool) => tool.name === 'panel-walk')?.annotations).toEqual({
+				readOnlyHint: false,
+				destructiveHint: false,
 			});
 			expect(tools.find((tool) => tool.name === 'specimen-review')?.annotations).toEqual({
 				readOnlyHint: true,
@@ -102,6 +106,9 @@ describe('Specimen MCP endpoint', () => {
 					description: command.description,
 					inputSchema: command.jsonSchema,
 					annotations: commandToolAnnotations(command),
+					...(command.outputBudget
+						? { _meta: { 'dev.afd/outputBudget': command.outputBudget } }
+						: {}),
 				}))
 			);
 			expect(tools.find((tool) => tool.name === 'decision-record')?.annotations).toEqual({
@@ -1249,6 +1256,82 @@ describe('Specimen MCP endpoint', () => {
 			expect(missing.isError).toBe(true);
 			expect(envelope(missing as CallToolResult).error).toMatchObject({
 				code: 'TARGET_COMMAND_NOT_FOUND',
+			});
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	it('exposes panel-walk over MCP with modality enforcement, outputBudget metadata, and baseline comparison', async () => {
+		const dir = await mkdtemp(join(tmpdir(), 'specimen-mcp-panel-walk-'));
+		try {
+			await writeFile(
+				join(dir, 'walk-driver.mjs'),
+				`export default async function driver() {
+					return { transcript: 'Done.', actions: 1, journal: [], findings: [] };
+				}\n`
+			);
+			await writeFile(
+				join(dir, 'specimen.config.json'),
+				JSON.stringify({
+					panel: {
+						jobs: ['checkout-out-of-stock'],
+						personas: [{ id: 'p-sr', modality: 'screen-reader' }],
+						driver: './walk-driver.mjs',
+					},
+				})
+			);
+			const server = await createSpecimenMcpServer({ root: dir });
+			servers.push(server);
+			const client = new Client({ name: 'specimen-panel-walk-test', version: '1.0.0' });
+			clients.push(client);
+			const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+			await server.connect(serverTransport);
+			await client.connect(clientTransport);
+
+			const listed = await client.listTools();
+			const walkTool = listed.tools.find((t) => t.name === 'panel-walk') as
+				| { _meta?: Record<string, unknown> }
+				| undefined;
+			expect(walkTool?._meta?.['dev.afd/outputBudget']).toEqual({
+				defaultBytes: 24576,
+				maxBytes: 65536,
+			});
+
+			const forbidden = await client.callTool({
+				name: 'panel-walk',
+				arguments: {
+					job: 'checkout-out-of-stock',
+					persona: 'p-sr',
+					modality: 'screen-reader',
+					target: 'http://127.0.0.1:4173/checkout',
+					requestedTools: ['click'],
+				},
+			});
+			expect(forbidden.isError).toBe(true);
+			expect(envelope(forbidden as CallToolResult).error).toMatchObject({
+				code: 'MODALITY_FORBIDDEN',
+			});
+
+			const ok = await client.callTool({
+				name: 'panel-walk',
+				arguments: {
+					job: 'checkout-out-of-stock',
+					persona: 'p-sr',
+					modality: 'screen-reader',
+					target: 'http://127.0.0.1:4173/checkout',
+					appDate: '2030-05-12',
+				},
+			});
+			expect(ok.isError).toBe(false);
+			const parsed = envelope(ok as CallToolResult);
+			expect(parsed.data).toMatchObject({
+				walk: expect.stringMatching(/^walk-[0-9a-hjkmnp-tv-z]{12}$/),
+				modality: 'screen-reader',
+				ending: 'done',
+			});
+			expect(parsed.metadata?.['dev.afd/outputBudget']).toMatchObject({
+				limitBytes: 24576,
 			});
 		} finally {
 			await rm(dir, { recursive: true, force: true });
