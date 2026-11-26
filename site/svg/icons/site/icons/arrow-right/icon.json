@@ -1,0 +1,20 @@
+{
+  "meaning": "Go on, or run the next step",
+  "aliases": [],
+  "category": "",
+  "notes": "",
+  "alike": [],
+  "mirror": false,
+  "reviews": [
+    {
+      "master": "outline-24",
+      "hash": "f313661922e5",
+      "by": "agent",
+      "reviewer": "claude-opus-5-5",
+      "verdict": "pass",
+      "notes": "Replaces the site's Lucide arrow-right (also .icon--down, rotated). Read at 24 and 16px, light and dark: names correctly; the head's 6.5-unit arms sit inside the keyline.",
+      "at": "2026-11-26T20:43:04.264Z"
+    }
+  ],
+  "approvals": {}
+}

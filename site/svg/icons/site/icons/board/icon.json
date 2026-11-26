@@ -1,0 +1,20 @@
+{
+  "meaning": "A board view, in columns",
+  "aliases": [],
+  "category": "",
+  "notes": "",
+  "alike": [],
+  "mirror": false,
+  "reviews": [
+    {
+      "master": "outline-24",
+      "hash": "d066bb293c85",
+      "by": "agent",
+      "reviewer": "claude-opus-5-5",
+      "verdict": "pass",
+      "notes": "Replaces the site's Lucide columns-3. Read at 24 and 16px, light and dark: names correctly; a landscape frame (17.2 by 15.2) where Lucide's is square. Density warning kept: a framed icon is heavier than the arrows around it, as in Violet's set.",
+      "at": "2026-11-26T20:43:09.494Z"
+    }
+  ],
+  "approvals": {}
+}

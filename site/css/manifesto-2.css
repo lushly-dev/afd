@@ -138,35 +138,35 @@ code {
 	vertical-align: middle;
 }
 .icon--out {
-	--icon: url("../svg/lucide/arrow-up-right.svg");
+	--icon: url("../svg/icons/site/icons/arrow-up-right/outline-24.svg");
 }
 .icon--down {
-	--icon: url("../svg/lucide/arrow-right.svg");
+	--icon: url("../svg/icons/site/icons/arrow-right/outline-24.svg");
 	transform: rotate(90deg);
 }
 .icon--plus {
-	--icon: url("../svg/lucide/plus.svg");
+	--icon: url("../svg/icons/site/icons/plus/outline-24.svg");
 }
 .icon--return {
-	--icon: url("../svg/lucide/corner-down-left.svg");
+	--icon: url("../svg/icons/site/icons/return/outline-24.svg");
 }
 .icon--list {
-	--icon: url("../svg/lucide/list.svg");
+	--icon: url("../svg/icons/site/icons/list/outline-24.svg");
 }
 .icon--board {
-	--icon: url("../svg/lucide/columns-3.svg");
+	--icon: url("../svg/icons/site/icons/board/outline-24.svg");
 }
 .icon--terminal {
-	--icon: url("../svg/lucide/terminal.svg");
+	--icon: url("../svg/icons/site/icons/terminal/outline-24.svg");
 }
 .icon--right {
-	--icon: url("../svg/lucide/arrow-right.svg");
+	--icon: url("../svg/icons/site/icons/arrow-right/outline-24.svg");
 }
 .icon--copy {
-	--icon: url("../svg/lucide/copy.svg");
+	--icon: url("../svg/icons/site/icons/copy/outline-24.svg");
 }
 .icon--close {
-	--icon: url("../svg/lucide/x.svg");
+	--icon: url("../svg/icons/site/icons/close/outline-24.svg");
 }
 .manifesto-nav {
 	position: sticky;

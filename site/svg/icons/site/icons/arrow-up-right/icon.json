@@ -1,0 +1,20 @@
+{
+  "meaning": "Opens elsewhere, such as an outside link",
+  "aliases": [],
+  "category": "",
+  "notes": "",
+  "alike": [],
+  "mirror": false,
+  "reviews": [
+    {
+      "master": "outline-24",
+      "hash": "4a936e35b61a",
+      "by": "agent",
+      "reviewer": "claude-opus-5-5",
+      "verdict": "pass",
+      "notes": "Replaces the site's Lucide arrow-up-right for outside links. Read at 24 and 16px, light and dark: names correctly; open corner head, 9.5 units.",
+      "at": "2026-11-26T20:43:11.147Z"
+    }
+  ],
+  "approvals": {}
+}
