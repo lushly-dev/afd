@@ -229,6 +229,7 @@ export const WORKFLOW_GRAPH = {
 		extra: [
 			'endpoints/loam/plugins/mail/engine/**',
 			'endpoints/loam/plugins/mail/mount/**',
+			'endpoints/loam/plugins/mail/app/**',
 			'foundations/violet/**',
 			'integrations/violet-afd/**',
 		],

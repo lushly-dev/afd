@@ -1242,7 +1242,7 @@ test('loam-plugins.yml violet gate opens on transitive workspace dependency chan
 	assert.deepEqual(planSuites(docsOnly, { root: repoRoot, suites: [suite] }), []);
 });
 
-test('loam-desktop.yml runs on mail engine, mail mount and packages/rust changes (#1997)', () => {
+test('loam-desktop.yml runs on mail engine, mail mount, mail app and packages/rust changes (#1997, P5-A9)', () => {
 	const root = join(import.meta.dirname, '..');
 	const workflow = readFileSync(join(root, '.github/workflows/loam-desktop.yml'), 'utf8');
 	const { paths, gates } = readTrigger(workflow);
@@ -1253,6 +1253,7 @@ test('loam-desktop.yml runs on mail engine, mail mount and packages/rust changes
 	for (const file of [
 		'endpoints/loam/plugins/mail/engine/src/lib.rs',
 		'endpoints/loam/plugins/mail/mount/loam-app.toml',
+		'endpoints/loam/plugins/mail/app/src/reply.ts',
 		'packages/rust/src/lib.rs',
 	]) {
 		assert.equal(

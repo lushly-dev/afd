@@ -24,6 +24,7 @@ on:
       - '.cargo/config.toml'
       - 'endpoints/loam/plugins/mail/engine/**'
       - 'endpoints/loam/plugins/mail/mount/**'
+      - 'endpoints/loam/plugins/mail/app/**'
       - 'foundations/violet/**'
       - 'integrations/violet-afd/**'
       - '.github/workflows/loam-desktop.yml'
@@ -50,6 +51,7 @@ on:
       - '.cargo/config.toml'
       - 'endpoints/loam/plugins/mail/engine/**'
       - 'endpoints/loam/plugins/mail/mount/**'
+      - 'endpoints/loam/plugins/mail/app/**'
       - 'foundations/violet/**'
       - 'integrations/violet-afd/**'
       - '.github/workflows/loam-desktop.yml'
@@ -97,7 +99,7 @@ jobs:
           filter: blob:none
           persist-credentials: false
       - id: run
-        run: node scripts/affected.mjs gate --package @lushly-dev/loam-desktop --path endpoints/loam/packages/desktop/ --path endpoints/loam/plugins/mail/engine/ --path endpoints/loam/plugins/mail/mount/ --path packages/rust/ --path .cargo/config.toml --path .github/workflows/loam-desktop.yml --path .github/actions/setup-node-pnpm/
+        run: node scripts/affected.mjs gate --package @lushly-dev/loam-desktop --path endpoints/loam/packages/desktop/ --path endpoints/loam/plugins/mail/engine/ --path endpoints/loam/plugins/mail/mount/ --path endpoints/loam/plugins/mail/app/ --path packages/rust/ --path .cargo/config.toml --path .github/workflows/loam-desktop.yml --path .github/actions/setup-node-pnpm/
 
   linux:
     name: Desktop on Linux
@@ -130,14 +132,17 @@ jobs:
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
-          workspaces: endpoints/loam/packages/desktop/src-tauri
+          workspaces: |
+            endpoints/loam/packages/desktop/src-tauri
+            endpoints/loam/plugins/mail/engine
       - name: Install tauri-driver
         working-directory: endpoints/loam/packages/desktop/src-tauri
         run: cargo install tauri-driver --version 2.1.0 --locked
       # `web`'s build copies `@lushly-dev/loam-copilot`'s frame into `dist/sandbox/copilot/`, which P5-A2 serves. Without the
       # hosted server, the frozen lane's (Loam's D162), which the web host lists only for its hosted criterion.
+      # And the mail app, which P5-A9 (`test/mail.test.ts`) mounts beside the real mail engine.
       - name: Build the web host and its dependencies
-        run: pnpm -F "@lushly-dev/loam-desktop..." -F "!@lushly-dev/loam-host" build
+        run: pnpm -F "@lushly-dev/loam-desktop..." -F "@lushly-dev/loam-app-mail..." -F "!@lushly-dev/loam-host" build
       - name: Build the bundled empty shell
         run: pnpm -F @lushly-dev/loam-desktop build:site
       - name: Format
@@ -151,6 +156,13 @@ jobs:
         run: cargo test --locked
       - name: Build the app
         run: pnpm -F @lushly-dev/loam-desktop build:app
+      # P5-A9 mounts the real engine, a test build with its scripted IMAP and SMTP servers (the mail plugin's
+      # specification, 12.4); the suite finds it by LOAM_MAIL_BINARY.
+      - name: Build the mail engine with its test doubles
+        working-directory: endpoints/loam/plugins/mail/engine
+        run: |
+          cargo build --locked --features test-doubles --bin loam-mail
+          echo "LOAM_MAIL_BINARY=$(cargo metadata --format-version 1 --no-deps | jq -r .target_directory)/debug/loam-mail" >> "$GITHUB_ENV"
       # A session bus for single instance, and a display for the webview.
       - name: Desktop suite under tauri-driver
         run: dbus-run-session -- xvfb-run -a pnpm -F @lushly-dev/loam-desktop test:desktop
