@@ -337,6 +337,8 @@ test('every non-reusable workflow job declares timeout-minutes, ci.yml disables 
 	}
 	const names = watched.map((pattern) => pattern.replace(/\\(.)/g, '$1'));
 	assert.deepEqual([...names].sort(), [...scheduledNames].sort());
+	// Scheduled runs are on main; other branches' completions would only start skipped runs.
+	assert.deepEqual(watcher.triggers.workflow_run?.branches, ['main']);
 });
 
 test('agent instruction files fit what every harness loads', () => {

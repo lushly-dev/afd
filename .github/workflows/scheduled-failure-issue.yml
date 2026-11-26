@@ -8,6 +8,9 @@ name: Scheduled failure issue
 # (`*`, `?`, `+`, `[`, `]`, `!`) is escaped with `\`: an unescaped `C++` stops this file from
 # loading and turns every watched run's completion into a startup failure. Keep entries plain or
 # single-quoted: the contract test's parser does not decode double-quoted escapes.
+#
+# `branches` filters on the branch of the run that completed. Scheduled runs are on main, so it
+# keeps pull request and merge queue completions from starting a run that would only be skipped.
 on:
   workflow_run:
     workflows:
@@ -22,6 +25,7 @@ on:
       - Python newest MCP SDK
       - Rust
       - Umbel
+    branches: [main]
     types: [completed]
 
 permissions:
