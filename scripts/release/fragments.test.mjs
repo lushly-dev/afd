@@ -1,13 +1,24 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import test from 'node:test';
+import test, { after } from 'node:test';
 import { fragmentOperation } from './fragments.mjs';
 
+/** Fixture folders, removed once this file's tests finish so no git fixture outlives the run. */
+const temps = [];
+after(() => {
+	for (const dir of temps) rmSync(dir, { recursive: true, force: true });
+});
+function tempDir(prefix) {
+	const dir = mkdtempSync(join(tmpdir(), prefix));
+	temps.push(dir);
+	return dir;
+}
+
 function fixture() {
-	const root = mkdtempSync(join(tmpdir(), 'afd-fragments-'));
+	const root = tempDir('afd-fragments-');
 	const units = ['a', 'b'].map((id) => ({
 		id,
 		protocol: 'npm-changesets',

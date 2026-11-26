@@ -1,16 +1,27 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import test from 'node:test';
+import test, { after } from 'node:test';
 import { runChangeset } from './changeset.mjs';
 import { parseFragments } from './control.mjs';
 
+/** Fixture folders, removed once this file's tests finish so no git fixture outlives the run. */
+const temps = [];
+after(() => {
+	for (const dir of temps) rmSync(dir, { recursive: true, force: true });
+});
+function tempDir(prefix) {
+	const dir = mkdtempSync(join(tmpdir(), prefix));
+	temps.push(dir);
+	return dir;
+}
+
 const require = createRequire(import.meta.url);
 function fixture() {
-	const root = mkdtempSync(join(tmpdir(), 'afd-changeset-guard-'));
+	const root = tempDir('afd-changeset-guard-');
 	const inventory = {
 		schemaVersion: 1,
 		units: [

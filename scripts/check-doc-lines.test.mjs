@@ -4,8 +4,19 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import test from 'node:test';
+import test, { after } from 'node:test';
 import { fileURLToPath } from 'node:url';
+
+/** Fixture folders, removed once this file's tests finish so no git fixture outlives the run. */
+const temps = [];
+after(() => {
+	for (const dir of temps) rmSync(dir, { recursive: true, force: true });
+});
+function tempDir(prefix) {
+	const dir = mkdtempSync(join(tmpdir(), prefix));
+	temps.push(dir);
+	return dir;
+}
 
 const here = dirname(fileURLToPath(import.meta.url));
 const script = join(here, 'check-doc-lines.mjs');
@@ -14,7 +25,7 @@ const DOC = 'docs/STATUS.md';
 
 /** A fixture repository: `files` by path, and the policy unless a file replaces it. */
 function fixture(policy, files) {
-	const root = mkdtempSync(join(tmpdir(), 'afd-doc-lines-'));
+	const root = tempDir('afd-doc-lines-');
 	const all = { [POLICY]: JSON.stringify(policy), ...files };
 	for (const [path, text] of Object.entries(all)) {
 		mkdirSync(dirname(join(root, path)), { recursive: true });
@@ -269,7 +280,7 @@ test('a missing or empty document fails instead of passing unchecked', () => {
 });
 
 test('a policy that checks nothing, or is malformed, fails', () => {
-	const noPolicy = run(mkdtempSync(join(tmpdir(), 'afd-doc-lines-')));
+	const noPolicy = run(tempDir('afd-doc-lines-'));
 	assert.equal(noPolicy.status, 1);
 	assert.match(noPolicy.stderr, /the policy file is missing/);
 

@@ -14,6 +14,22 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 
 ## Findings
 
+### The Air reads unhealthy from test fixtures in a temp root, 2026-11-26 (#1693, #2625)
+
+- **The Air's applied reclaim of 2026-11-25 21:47Z had 679 failures,** and `disk-status` turned
+  unhealthy the day before the tier-2 check. Each was an `[[aged]]` entry under
+  `/Volumes/Dev/tmp/*` whose folder held a git checkout, which the reclaim leaves in place and
+  scores as `partial`. Its other 2,646 actions were done, 115.61 GB on `/Volumes/Dev`.
+- **677 were git fixtures that three script tests never removed** (`check-doc-lines` and the
+  release `changeset` and `fragments` tests). One more was a session's own temp folder holding
+  203 of the same. Those 880 (97 MB) were removed by hand once every commit in each was shown
+  to be a fixture's (`t@example.invalid` or `fixture@example.invalid`). Those three tests, and
+  three that leaked plain folders (`check-versions`, release `language` and `control`), now
+  remove their fixtures when the file's tests finish.
+- **The last is pytest's own `pytest-of-<user>`,** which keeps three runs, some holding a git
+  repository from `tmp_path`. It was left in place. A kept checkout still scores as a failure,
+  so a temp root a test suite writes to keeps a machine unhealthy: #2625.
+
 ### Hero verification checklist and in-tree Umbel/Rust disk guards, 2026-11-24 (#1693, #2241)
 
 - **Hero checklist verified (#1693):** `lushly-botcore` v0.8.0 (`87d0a184e`) is healthy on Hero
