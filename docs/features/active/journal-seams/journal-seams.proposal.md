@@ -8,10 +8,10 @@ Epic: [#2677](https://github.com/lushly-dev/afd/issues/2677).
 
 | Field | Value |
 |---|---|
-| Status | Proposed 2026-11-26. No code. |
+| Status | Approved 2026-11-26: the owner accepted decisions J1 to J6 as recommended, and J2 holds every member of the journal entry and the result ([Approved and held](#approved-and-held)). No code yet; progress is in [STATUS.md](./STATUS.md). |
 | Author | jasfalk (drafted with Claude) |
-| Packages | `spec/`, `packages/core`, `packages/server`, `python/`, `packages/rust`, `packages/cpp` |
-| Related | [`spec/journal.md`](../../../../spec/journal.md), [`spec/dispatch.md`](../../../../spec/dispatch.md), [approvals](../../../../spec/command-metadata.md#approvals), Umbel decisions D66 and D208 ([decisions](../../../../endpoints/umbel/docs/decisions.md)), [Loam OS](../../active/loam-os/loam-os.proposal.md#what-umbel-and-afd-need), [idempotency keys](../idempotency-keys/idempotency-keys.proposal.md) |
+| Packages | `spec/`, `packages/core`, `packages/server`, `packages/client`, `python/`, `packages/rust`, `packages/cpp` |
+| Related | [`spec/journal.md`](../../../../spec/journal.md), [`spec/dispatch.md`](../../../../spec/dispatch.md), [approvals](../../../../spec/command-metadata.md#approvals), Umbel decisions D66 and D208 ([decisions](../../../../endpoints/umbel/docs/decisions.md)), [Loam OS](../loam-os/loam-os.proposal.md#what-umbel-and-afd-need), [idempotency keys](../idempotency-keys/idempotency-keys.proposal.md) |
 
 ## Why
 
@@ -28,8 +28,9 @@ One host has asked: Loam OS, which needs an intent written before a command that
 something. A second is prospective and not in this repository: a product that keeps books on AFD
 (the question came from assessing an ERP built as a separate project on top). It would need the
 same, plus a record nobody can edit unnoticed and the name of whoever approved a held action.
-Neither record belongs in AFD. Both need four small things from it, and J2 asks whether one
-host and one prospect are enough to add optional members to the entry.
+Neither record belongs in AFD. Both need four small things from it. J2 builds now the parts
+that touch no entry and no result, and holds the rest until the owner decides to build the
+layered product.
 
 ## Today
 
@@ -85,6 +86,32 @@ Four additions. No result and no entry changes unless the host turns one on. Two
 always present and change neither: the `dispatchId` on the context (S1) and the `approvalId` on a
 held call's request (S3).
 
+### Approved and held
+
+Decided by the owner on 2026-11-26 (J2):
+
+- **Built now:** what touches no entry and no result. S1's `dispatchId` on the context, and S3's
+  `onApprovalAccepted` hook with the `approvalId` on a held call's request. Phase 0
+  ([#2678](https://github.com/lushly-dev/afd/issues/2678)), which only states what each language records at a deadline today,
+  goes ahead too.
+- **Held** until the owner decides to build the layered product
+  ([#2725](https://github.com/lushly-dev/afd/issues/2725)): every member of the journal entry and the result. That is
+  S2 (`ext` and `annotate`), S4 (`recordAbandoned`), and S1's `dispatchIds` option that stamps the
+  id on results and entries. The worked example ([#2683](https://github.com/lushly-dev/afd/issues/2683)) needs `ext`, so it is
+  held with them.
+
+The held parts stay specified below, so they can be picked up without a new proposal. Until
+then a host keeps its own record beside the journal, keyed by the `dispatchId`. For D208 that
+means settling an intent in its own record after the call returns, since the journal entry does
+not carry the id; Umbel's decision log says whether it does that or keeps its trace-id refusal.
+
+Two details were added while recording J2 and were not put to the owner as questions:
+
+- `onApprovalAccepted` is also given the call's `dispatchId` (S3). With `annotate` held, the hook
+  is the only place an approval can meet its dispatch.
+- The vectors for what is built now are named under [Spec changes](#spec-changes). The
+  proposal named only `vectors/journal-ext.json`, which is held.
+
 ### S1. A dispatch id
 
 The engine gives every dispatch a `dispatchId`: 128 random bits, base64url, set by the engine
@@ -94,13 +121,15 @@ item and a pipeline step are each a dispatch and get their own. The trace id kee
 it correlates the calls of one request, so sharing it across steps is correct.
 
 By default that is all: the id is on the context, its name is left out of the context digest's
-`keys`, and no result or entry changes. With the server or registry option `dispatchIds: true`,
-the id is also stamped on the result as `metadata.dispatchId` and written to the entry as
+`keys`, and no result or entry changes. With the server or registry option `dispatchIds: true`
+(held, [#2725](https://github.com/lushly-dev/afd/issues/2725)), the id is also stamped on the result as `metadata.dispatchId` and written to the entry as
 `dispatchId`. Replay sets the recorded id through the engine's own replay path, the one that
 feeds back the tape, never through anything a caller can send. A middleware, such as D208's,
 needs only the context value.
 
 ### S2. Entry extensions
+
+Held ([#2725](https://github.com/lushly-dev/afd/issues/2725)).
 
 An entry gains an optional `ext` object. Its keys follow `toolMeta`'s
 [key rule](../../../../spec/mcp-resources.md#t2-the-key-rule) (a reverse-DNS prefix, never
@@ -129,8 +158,10 @@ defining a hash chain.
 
 ### S3. An approval summary
 
-When the approval step admits a call, it calls an optional `onApprovalAccepted` hook and makes
-the same value available to the recorder's `annotate`:
+When the approval step admits a call, it calls an optional `onApprovalAccepted` hook with the
+summary below and the call's `dispatchId`, so a host that keeps its own record can file the
+approval beside the dispatch. Once S2 is built, the recorder's `annotate` is given the same
+summary:
 
 | Member | Value |
 |---|---|
@@ -157,9 +188,12 @@ decision. The summary gives the host the join key, and whoever asks the person c
   That client cannot portably obtain the id: the nonce travels inside the `requestState`, which
   is opaque to clients and which Python seals. The entry's `actor` is the only join.
 
-The surface keeps the id beside the person, and the journal holds it beside the effect.
+The surface keeps the id beside the person. The host's own record holds it beside the dispatch
+now, and the journal holds it beside the effect once S2 is built.
 
 ### S4. Abandoned calls
+
+Held ([#2725](https://github.com/lushly-dev/afd/issues/2725)), except phase 0, which states today's behaviour.
 
 `spec/journal.md` gains a rule for a call whose caller was given a deadline failure in place of
 the handler's result: the command's own deadline (`TIMEOUT`), a batch's (`BATCH_TIMEOUT`), a
@@ -177,7 +211,7 @@ Three cases are out of scope. A batch item or pipeline step that never started d
 having no entry is correct. A client's own `TIMEOUT` or `STREAM_TIMEOUT` never reaches the
 engine, so the entry holds the handler's result. A task stopped at its token's expiry
 (`TASK_TOKEN_EXPIRED`) has the same mismatch between its entry and what its caller is told, but
-the caller reads a task's outcome from the task; the spec issue decides whether to mark it.
+the caller reads a task's outcome from the task; the held issue ([#2725](https://github.com/lushly-dev/afd/issues/2725)) decides whether to mark it.
 Caller cancellation is not part of this either. After a handler starts, cancellation is cooperative
 and the engine keeps the handler's actual result
 ([execution controls](../../../../spec/execution-controls.md)), so nothing is abandoned.
@@ -197,16 +231,29 @@ one as an ordinary call.
   needs several writes to commit together should make them one command. Listed as J4.
 - **Event sourcing**, as `spec/journal.md` already says.
 
-## Spec changes (first pull request)
+## Spec changes
+
+Built now (the first pull request; phase 0 separately adds to `spec/journal.md` what each
+language records at a deadline today):
+
+- `spec/context-fields.md`: `dispatchId` joins the reserved names.
+- `spec/dispatch.md`: the engine sets `dispatchId` before stage 1. A batch item and a pipeline
+  step each get their own.
+- `spec/journal.md`: one sentence, that `dispatchId` is left out of the context digest's `keys`,
+  so no hash changes.
+- `spec/command-metadata.md`, Approvals: the summary, `onApprovalAccepted` (given the summary
+  and the call's `dispatchId`), and `approvalId` on the held-call requests.
+- Vectors: a new `vectors/dispatch-id.json` for the id (present on a single dispatch, distinct
+  per batch item and pipeline step, absent from the context digest's `keys`), since
+  `vectors/dispatch.json` covers single-command order only; and the `approvalId` of each
+  accepted token in `vectors/approval-tokens.json`.
+
+Held ([#2725](https://github.com/lushly-dev/afd/issues/2725)):
 
 - `spec/journal.md`: the `dispatchId`, `ext`, `extOmitted`, `abandoned` and `late` members, the
   reader rule for `ext`, what `annotate` is given, the abandoned-call rule, and what replay does
   with each.
-- `spec/context-fields.md`: `dispatchId` joins the reserved names.
-- `spec/dispatch.md`: the engine sets `dispatchId` before stage 1 and, with `dispatchIds`,
-  stamps `metadata.dispatchId` at stage 12.
-- `spec/command-metadata.md`, Approvals: the summary, `onApprovalAccepted`, and `approvalId` on
-  the held-call requests.
+- `spec/dispatch.md`: with `dispatchIds`, the engine stamps `metadata.dispatchId` at stage 12.
 - `spec/wire/journal.jsonl` gains lines with the new members; its existing lines keep their
   bytes. A new `vectors/journal-ext.json` holds entries on either side of the cap and the
   round trip every reader must pass.
@@ -217,18 +264,22 @@ one as an ordinary call.
 | # | Phase | Exit |
 |---|---|---|
 | 0 | State and pin what each language records at a deadline today ([#2678](https://github.com/lushly-dev/afd/issues/2678)) | `spec/journal.md` says it per language, and each has a test |
-| 1 | Spec and vectors ([#2679](https://github.com/lushly-dev/afd/issues/2679)) | The spec changes above are merged and the vector file loads in every language's suite, each case skipped with its tracking issue |
-| 2 | TypeScript ([#2680](https://github.com/lushly-dev/afd/issues/2680)): the four seams | The vectors pass, and `wire/journal.jsonl`'s existing lines are byte-identical |
-| 3 | Rust ([#2681](https://github.com/lushly-dev/afd/issues/2681)), which Loam OS M1 consumes first | The vectors pass, and Umbel's D208 middleware uses `dispatchId` or its decision log says why not |
-| 4 | Python and C++ ([#2682](https://github.com/lushly-dev/afd/issues/2682)) | The vectors pass, and an entry with `ext` written by each language is read and rewritten unchanged by the other three |
-| 5 | A worked example ([#2683](https://github.com/lushly-dev/afd/issues/2683)): the `pond` example chains entries by hash | A test edits one journal line and the check names it, using only public API |
+| 1 | Spec and vectors for the dispatch id and the approval hook ([#2679](https://github.com/lushly-dev/afd/issues/2679)) | The "built now" spec changes are merged and the new vector cases load in every language's suite, each skipped with its tracking issue |
+| 2 | TypeScript ([#2680](https://github.com/lushly-dev/afd/issues/2680)): the dispatch id and the approval hook | The vector cases pass, and `wire/journal.jsonl` is byte-identical |
+| 3 | Rust ([#2681](https://github.com/lushly-dev/afd/issues/2681)), which Loam OS M1 consumes first | The vector cases pass, and Umbel's D208 middleware uses `dispatchId` or its decision log says why not |
+| 4 | Python and C++ ([#2682](https://github.com/lushly-dev/afd/issues/2682)) | The vector cases pass, and the parity page shows no gap |
+| Held | The entry members, in the spec and four languages ([#2725](https://github.com/lushly-dev/afd/issues/2725)) | An entry with `ext` written by each language is read and rewritten unchanged by the other three, and `wire/journal.jsonl`'s existing lines are byte-identical |
+| Held | A worked example ([#2683](https://github.com/lushly-dev/afd/issues/2683)): the `pond` example chains entries by hash | A test edits one journal line and the check names it, using only public API |
 
-## Decisions for the owner
+## Decisions
 
-| # | Question | Recommendation |
+Decided by the owner on 2026-11-26, each as recommended. J3 and J5 describe the held parts and
+apply when those are built.
+
+| # | Question | Decision |
 |---|---|---|
 | J1 | A new `dispatchId`, or random trace ids for pipeline steps (the other option D208 names)? | A `dispatchId`. The trace id is correlation and callers set it; changing it per step breaks tracing and still lets a caller repeat one. |
-| J2 | D208 kept `spec/journal.md` unchanged "for a need only this host has". One host has asked and a second is only prospective. Is that enough for optional members on the entry? | Yes for S1's context value and S3's hook, which touch no entry. For the entry members (S2, S4, and S1's opt-in stamp), yes if the owner expects the layered product to be built; otherwise hold them until it asks. |
+| J2 | D208 kept `spec/journal.md` unchanged "for a need only this host has". One host has asked and a second is only prospective. Is that enough for optional members on the entry? | Split. Built now: S1's context value and S3's hook, which touch no entry. Held: the entry members (S2, S4, and S1's opt-in stamp), until the owner decides to build the layered product. |
 | J3 | Is the `dispatchId` written to results and entries only when the host opts in, or always? | Opt-in. Always-on changes every recorded result and breaks the byte-compared fixture for a value most hosts never read. |
 | J4 | A begin and end hook around a batch or pipeline, for a host that wants the group to commit together? | Not now. No consumer needs it, and "one command, one transaction" is the simpler rule to teach. |
 | J5 | Is `ext` one open object, or does AFD name the members a host is likely to want (`prevHash`, `approver`)? | One open object. Naming them makes AFD responsible for a chain format and an approver model it does not have. |
@@ -236,12 +287,19 @@ one as an ordinary call.
 
 ## Exit criteria
 
-- Every case in the new vectors passes in all four languages, and `wire/journal.jsonl`'s
-  existing lines are byte-identical.
-- A server that turns nothing on returns the same results and writes the same journal bytes as
-  before.
+For what is built now:
+
+- Every new vector case passes in all four languages.
+- Every server returns the same results and writes the same journal bytes as before:
+  `wire/journal.jsonl` and every context digest are unchanged.
+- Umbel's D208 middleware uses `dispatchId` in place of its trace-id refusal, or its decision
+  log says why not.
+
+For the held parts, when they are built:
+
+- Every case in `vectors/journal-ext.json` and every new `wire/journal.jsonl` line passes in all
+  four languages.
+- A server that turns nothing on still returns the same results and journal bytes.
 - An entry with `ext` written by each language is read and rewritten unchanged by the other
   three.
 - The `pond` example detects an edited journal line using only public API.
-- Umbel's D208 middleware uses `dispatchId` in place of its trace-id refusal, or its decision
-  log says why not.
