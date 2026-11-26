@@ -1,0 +1,179 @@
+/**
+ * @fileoverview `loam plugin pack`: `plugin check` over a plugin's source, then a directory bundle the desktop installs
+ * (phase 5 no-terminal amendment, 4.1 and 10): `plugin-manifest.json`, each packed app and each engine artifact,
+ * nothing else. The bundle is checked again as written, and its digest reported. A `.loam-plugin` archive is step
+ * 9a2's.
+ */
+
+import { randomBytes } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { chmod, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { basename, dirname, join, resolve } from 'node:path';
+import type { Finding } from './check.js';
+import {
+	PLUGIN_MANIFEST,
+	type PluginCheckReport,
+	packedManifestText,
+	pluginCheck,
+} from './plugin-check.js';
+import { copyListed, isWithin, realish } from './tree.js';
+
+export interface PluginPackOptions {
+	/** The plugin's source, holding `loam-plugin.toml`; the working directory when left out. */
+	dir?: string;
+	/** The bundle directory to write. */
+	out: string;
+}
+
+export interface PluginPackResult {
+	report: PluginCheckReport;
+	/** Where it was written; only when nothing was refused. */
+	out?: string;
+	/** Each file written, relative to `out`. */
+	files: string[];
+	/** The written bundle's digest (7.1), which the desktop's consent screen shows. */
+	bundleSha256?: string;
+}
+
+const outInvalid = (message: string, suggestion: string): Finding => ({
+	code: 'PLUGIN_PACK_OUT_INVALID',
+	key: '--out',
+	message,
+	suggestion,
+});
+
+/** Beside `--out`: the digest of the bundle this command wrote there, which is what lets it replace that bundle. */
+export const packRecordOf = (out: string): string =>
+	join(dirname(out), `.${basename(out)}.loam-pack.json`);
+
+/**
+ * Whether `out` may be replaced: absent, empty, or the bundle this command wrote, unchanged since, as the record beside
+ * it shows: a file added anywhere in it, an app's directory included, changes its digest. Neither a file with a common
+ * name nor a bundle that merely checks authorizes a recursive delete.
+ */
+async function replaceableBundle(out: string): Promise<boolean> {
+	if (!existsSync(out)) return true;
+	const names = await readdir(out).catch(() => undefined);
+	if (names === undefined) return false;
+	if (names.length === 0) return true;
+	let recorded: unknown;
+	try {
+		recorded = (JSON.parse(await readFile(packRecordOf(out), 'utf8')) as { bundleSha256?: unknown })
+			.bundleSha256;
+	} catch {
+		return false;
+	}
+	const bundle = await pluginCheck({ dir: out });
+	return bundle.ok && bundle.form === 'bundle' && bundle.bundleSha256 === recorded;
+}
+
+export async function pluginPack(options: PluginPackOptions): Promise<PluginPackResult> {
+	const root = await realish(options.dir ?? '.');
+	const out = await realish(resolve(options.out));
+	const report = await pluginCheck({ dir: root });
+	const refused = (...findings: Finding[]): PluginPackResult => ({
+		report: { ...report, ok: false, refusals: [...report.refusals, ...findings] },
+		files: [],
+	});
+	if (!report.ok || !report.manifest || !report.files) return refused();
+	if (report.form !== 'source') {
+		return refused({
+			code: 'PLUGIN_MANIFEST_INVALID',
+			key: PLUGIN_MANIFEST,
+			message: 'The directory is a packed bundle already.',
+			suggestion:
+				'Pack the source that holds `loam-plugin.toml`; to check this bundle, run `loam plugin check`.',
+		});
+	}
+	if (isWithin(out, root) || isWithin(root, out)) {
+		return refused(
+			outInvalid(
+				'`--out` is the plugin itself, a directory inside it or one above it.',
+				'Pack into a directory of its own, such as `dist/<id>-bundle`, outside the source.'
+			)
+		);
+	}
+	if (!(await replaceableBundle(out))) {
+		return refused(
+			outInvalid(
+				'`--out` holds files `loam plugin pack` did not write, or a bundle that changed since it wrote it.',
+				'Choose an empty directory; a bundle `loam plugin pack` wrote there, unchanged, is replaced.'
+			)
+		);
+	}
+
+	// Written beside `--out` and checked there first, so a failed pack leaves the earlier bundle as it was.
+	const staging = join(
+		dirname(out),
+		`.${basename(out)}.loam-pack-${randomBytes(6).toString('hex')}`
+	);
+	const failed = async (refusals: Finding[]): Promise<PluginPackResult> => {
+		await rm(staging, { recursive: true, force: true });
+		return { report: { ...report, ok: false, refusals }, files: [] };
+	};
+	let written: PluginCheckReport;
+	try {
+		await mkdir(staging, { recursive: true, mode: 0o700 });
+		await writeFile(join(staging, PLUGIN_MANIFEST), packedManifestText(report.manifest));
+		await copyListed(
+			report.files.map(({ path, source }) => ({ path: join(...path.split('/')), source })),
+			staging
+		);
+		// An engine is a program the desktop runs; the rest are data.
+		if (process.platform !== 'win32') {
+			for (const { path } of report.engines ?? [])
+				await chmod(join(staging, ...path.split('/')), 0o755);
+		}
+		// What was written is what the desktop's inspect reads: check it as a bundle, and as the source checked.
+		written = await pluginCheck({ dir: staging });
+	} catch (cause) {
+		return failed([
+			{
+				code: 'PLUGIN_PACK_FAILED',
+				key: '--out',
+				message: `Writing the bundle failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+				suggestion: 'Check the space and permissions where `--out` is, then pack again.',
+			},
+		]);
+	}
+	if (!written.ok || written.bundleSha256 !== report.bundleSha256) {
+		return failed([
+			...written.refusals,
+			{
+				code: 'PLUGIN_HASH_MISMATCH',
+				key: '--out',
+				message: 'The bundle as written does not match the source it was packed from.',
+				suggestion: 'A file changed while packing: pack again.',
+			},
+		]);
+	}
+	// The record is written first and renamed into place last, so a bundle in `--out` always has its own record or
+	// none, never an earlier one's that would keep the next pack from replacing it.
+	const record = `${staging}.json`;
+	try {
+		await writeFile(
+			record,
+			`${JSON.stringify({ written_by: 'loam plugin pack', bundleSha256: written.bundleSha256 }, null, '\t')}\n`
+		);
+		await rm(packRecordOf(out), { force: true });
+		await rm(out, { recursive: true, force: true });
+		await rename(staging, out);
+		await rename(record, packRecordOf(out));
+	} catch (cause) {
+		await rm(record, { force: true });
+		return failed([
+			{
+				code: 'PLUGIN_PACK_FAILED',
+				key: '--out',
+				message: `Putting the bundle in place failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+				suggestion: 'Check the permissions where `--out` is, then pack again.',
+			},
+		]);
+	}
+	return {
+		report,
+		out,
+		files: [PLUGIN_MANIFEST, ...report.files.map(({ path }) => path)].sort(),
+		bundleSha256: written.bundleSha256,
+	};
+}

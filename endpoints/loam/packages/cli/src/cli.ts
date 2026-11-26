@@ -12,6 +12,8 @@ import {
 	copilotKeySetCommand,
 	deploymentCheckCommand,
 	deploymentWriteCommand,
+	pluginCheckCommand,
+	pluginPackCommand,
 } from './commands.js';
 
 export interface CliIO {
@@ -65,6 +67,19 @@ const SUBCOMMANDS: Record<string, Subcommand> = {
 			host: 'host',
 		},
 		positionals: [],
+	},
+	// The phase 5 no-terminal amendment, 10: a plugin author's tools; installing is the desktop's.
+	'plugin check': {
+		command: pluginCheckCommand,
+		usage: 'loam plugin check [<dir>]',
+		options: {},
+		positionals: ['dir'],
+	},
+	'plugin pack': {
+		command: pluginPackCommand,
+		usage: 'loam plugin pack [<dir>] --out <dir>',
+		options: { out: 'out' },
+		positionals: ['dir'],
 	},
 	// Phase 5 specification, 4.2: at a terminal, the development path for a model's key.
 	'copilot key set': {

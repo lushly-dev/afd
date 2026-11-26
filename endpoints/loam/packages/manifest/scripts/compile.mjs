@@ -60,6 +60,17 @@ export function serverAjv(options = {}) {
 }
 
 /**
+ * An Ajv instance with the core and `loam-plugin.toml`'s schema (phase 5 no-terminal amendment, 4.2), which only a
+ * deployer's tool reads: `loam plugin check`, `loam plugin pack`, and the desktop's Rust reader of the same rules.
+ */
+export function pluginAjv(options = {}) {
+	const ajv = createAjv(options);
+	ajv.addSchema(readCore());
+	ajv.addSchema(readSchema('loam-plugin'));
+	return ajv;
+}
+
+/**
  * Standalone output still `require`s Ajv's small runtime helpers; turn them into imports. Nothing
  * reads an error's `schemaPath`, and dropping it saves a tenth of what the page loads.
  */
@@ -84,9 +95,9 @@ function toModule(source) {
  * The standalone validators as ESM source, by file name in dist/. A schema that does not compile
  * strictly, or a `$ref` that does not resolve against spec/, throws here and fails the build.
  *
- * Four files, because the package has `sideEffects: false`: a page that imports only `readManifest`
+ * Five files, because the package has `sideEffects: false`: a page that imports only `readManifest`
  * and `readProjection` carries neither the core's validator nor the deployment file's, and nothing but the hosted
- * server loads the server configuration's.
+ * server loads the server configuration's, and nothing but a deployer's tool the plugin manifest's.
  */
 export function compileValidators() {
 	const code = { source: true, esm: true, lines: false };
@@ -119,6 +130,10 @@ export function compileValidators() {
 		// The hosted server's own file (phase 6 specification, 3.2): only `/server` loads it.
 		'validate-server.generated.js': toModule(
 			standalone(serverAjv({ code }), { validateServerConfig: readSchema('server').$id })
+		),
+		// A plugin bundle's manifest (phase 5 no-terminal amendment, 4.2): only `/plugin` loads it.
+		'validate-plugin.generated.js': toModule(
+			standalone(pluginAjv({ code }), { validatePluginManifest: readSchema('loam-plugin').$id })
 		),
 	};
 }
@@ -255,6 +270,7 @@ export async function generateTypes() {
 		['deployment', 4, 'DeploymentV4'],
 		['projection', 4, 'ProjectionV4'],
 		['server', 1, 'ServerConfigV1'],
+		['loam-plugin', 1, 'PluginManifestV1'],
 	]) {
 		const document = readSchema(schema, version);
 		const { title: _title, ...flat } = closeForTypes(

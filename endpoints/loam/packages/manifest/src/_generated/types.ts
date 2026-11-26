@@ -1914,3 +1914,352 @@ export interface ServerConfigV1 {
 		agent_guide?: boolean;
 	};
 }
+
+export interface PluginManifestV1 {
+	plugin_manifest_version: 1;
+	plugin: {
+		id: string;
+		title: string;
+		version: string;
+		description: string;
+		license?: string;
+		homepage?: string;
+	};
+	/**
+	 * @minItems 1
+	 * @maxItems 8
+	 */
+	apps:
+		| [
+				{
+					id: string;
+					path: string;
+				}
+		  ]
+		| [
+				{
+					id: string;
+					path: string;
+				},
+				{
+					id: string;
+					path: string;
+				}
+		  ]
+		| [
+				{
+					id: string;
+					path: string;
+				},
+				{
+					id: string;
+					path: string;
+				},
+				{
+					id: string;
+					path: string;
+				}
+		  ]
+		| [
+				{
+					id: string;
+					path: string;
+				},
+				{
+					id: string;
+					path: string;
+				},
+				{
+					id: string;
+					path: string;
+				},
+				{
+					id: string;
+					path: string;
+				}
+		  ]
+		| [
+				{
+					id: string;
+					path: string;
+				},
+				{
+					id: string;
+					path: string;
+				},
+				{
+					id: string;
+					path: string;
+				},
+				{
+					id: string;
+					path: string;
+				},
+				{
+					id: string;
+					path: string;
+				}
+		  ]
+		| [
+				{
+					id: string;
+					path: string;
+				},
+				{
+					id: string;
+					path: string;
+				},
+				{
+					id: string;
+					path: string;
+				},
+				{
+					id: string;
+					path: string;
+				},
+				{
+					id: string;
+					path: string;
+				},
+				{
+					id: string;
+					path: string;
+				}
+		  ]
+		| [
+				{
+					id: string;
+					path: string;
+				},
+				{
+					id: string;
+					path: string;
+				},
+				{
+					id: string;
+					path: string;
+				},
+				{
+					id: string;
+					path: string;
+				},
+				{
+					id: string;
+					path: string;
+				},
+				{
+					id: string;
+					path: string;
+				},
+				{
+					id: string;
+					path: string;
+				}
+		  ]
+		| [
+				{
+					id: string;
+					path: string;
+				},
+				{
+					id: string;
+					path: string;
+				},
+				{
+					id: string;
+					path: string;
+				},
+				{
+					id: string;
+					path: string;
+				},
+				{
+					id: string;
+					path: string;
+				},
+				{
+					id: string;
+					path: string;
+				},
+				{
+					id: string;
+					path: string;
+				},
+				{
+					id: string;
+					path: string;
+				}
+		  ];
+	engine?: {
+		id: string;
+		kind: 'http-service';
+		mount_app: string;
+		service_mode: 'login';
+		artifacts: {
+			'darwin-arm64'?: {
+				path: string;
+				sha256: string;
+			};
+			'darwin-x64'?: {
+				path: string;
+				sha256: string;
+			};
+			'windows-x64'?: {
+				path: string;
+				sha256: string;
+			};
+			'windows-arm64'?: {
+				path: string;
+				sha256: string;
+			};
+			'linux-x64'?: {
+				path: string;
+				sha256: string;
+			};
+			'linux-arm64'?: {
+				path: string;
+				sha256: string;
+			};
+		};
+		auth: {
+			mode: 'approver' | 'agent' | 'none';
+		};
+		mount?: {
+			audience?: 'person';
+			labels?: 'whole' | 'per-part';
+			approvals?: 'none' | 'shell';
+			expose?: {
+				agent?: boolean;
+				palette?: boolean;
+			};
+			commands?: {
+				[k: string]: {
+					expose?: {
+						agent?: boolean;
+						palette?: boolean;
+						apps?: boolean;
+					};
+					/**
+					 * @minItems 1
+					 */
+					effects?: [
+						'inspect' | 'plugin-state' | 'external' | 'store-write' | 'workspace-write',
+						...('inspect' | 'plugin-state' | 'external' | 'store-write' | 'workspace-write')[]
+					];
+					destructive?: boolean;
+					preview?: {
+						command: string;
+						/**
+						 * @minItems 1
+						 * @maxItems 16
+						 */
+						input:
+							| [string]
+							| [string, string]
+							| [string, string, string]
+							| [string, string, string, string]
+							| [string, string, string, string, string]
+							| [string, string, string, string, string, string]
+							| [string, string, string, string, string, string, string]
+							| [string, string, string, string, string, string, string, string]
+							| [string, string, string, string, string, string, string, string, string]
+							| [string, string, string, string, string, string, string, string, string, string]
+							| [
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string
+							  ]
+							| [
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string
+							  ]
+							| [
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string
+							  ]
+							| [
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string
+							  ]
+							| [
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string
+							  ]
+							| [
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string,
+									string
+							  ];
+					};
+				};
+			};
+		};
+	};
+}

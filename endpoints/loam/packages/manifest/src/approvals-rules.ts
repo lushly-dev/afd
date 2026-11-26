@@ -19,8 +19,14 @@ interface ApprovalsEntry {
 	>;
 }
 
+/** The two codes these rules refuse with, which a plugin's manifest shares (phase 5 no-terminal amendment, 4.4). */
+export type ApprovalsRefusalCode = Extract<
+	DeploymentRefusal['code'],
+	'DEPLOYMENT_PREVIEW_REQUIRED' | 'DEPLOYMENT_PREVIEW_INVALID'
+>;
+
 type Refuse = (
-	code: DeploymentRefusal['code'],
+	code: ApprovalsRefusalCode,
 	pointer: string,
 	message: string,
 	suggestion: string
