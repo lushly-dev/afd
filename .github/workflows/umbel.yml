@@ -21,6 +21,7 @@ on:
       - 'foundations/fast-af/packages/violet-elements/pack/**'
       - 'foundations/fast-af/packages/violet-elements/specimen.config.json'
       - 'foundations/fast-af/packages/violet-elements/package.json'
+      - 'architecture.json'
       - '.github/workflows/umbel.yml'
       - '.github/workflows/queue.yml'
       - '.github/actions/setup-node-pnpm/**'
@@ -46,6 +47,7 @@ on:
       - 'foundations/fast-af/packages/violet-elements/pack/**'
       - 'foundations/fast-af/packages/violet-elements/specimen.config.json'
       - 'foundations/fast-af/packages/violet-elements/package.json'
+      - 'architecture.json'
       - '.github/workflows/umbel.yml'
       - '.github/workflows/queue.yml'
       - '.github/actions/setup-node-pnpm/**'
@@ -76,7 +78,7 @@ jobs:
       workflow: umbel.yml
 
   scope:
-    # A todo example or AFD CLI change (or one to a package the CLI is built from) runs only the conformance job; the host checks need a change to Umbel, the afd crate or this workflow. Scheduled and manual runs check everything.
+    # A todo example or AFD CLI change (or one to a package the CLI is built from) runs only the conformance job; the host checks need a change to Umbel, the afd crate, architecture.json (whose Umbel surfaces the host tests check, D213) or this workflow. Scheduled and manual runs check everything.
     name: Affected units
     needs: queue
     if: needs.queue.outputs.run == 'true'
@@ -93,7 +95,7 @@ jobs:
           fetch-depth: 0
           filter: blob:none
       - id: host
-        run: node scripts/affected.mjs gate --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/ --path packages/examples/todo/backends/rust/ --path foundations/specimen/defaults/pack/ --path foundations/specimen/fixtures/pack/ --path foundations/specimen/schema/pack/ --path foundations/specimen/docs/pack-format.md --path foundations/fast-af/packages/violet-elements/pack/ --path foundations/fast-af/packages/violet-elements/specimen.config.json --path foundations/fast-af/packages/violet-elements/package.json --path .cargo/config.toml --path .github/workflows/umbel.yml
+        run: node scripts/affected.mjs gate --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/ --path packages/examples/todo/backends/rust/ --path foundations/specimen/defaults/pack/ --path foundations/specimen/fixtures/pack/ --path foundations/specimen/schema/pack/ --path foundations/specimen/docs/pack-format.md --path foundations/fast-af/packages/violet-elements/pack/ --path foundations/fast-af/packages/violet-elements/specimen.config.json --path foundations/fast-af/packages/violet-elements/package.json --path .cargo/config.toml --path architecture.json --path .github/workflows/umbel.yml
 
   check:
     name: Umbel (fmt, clippy, test)

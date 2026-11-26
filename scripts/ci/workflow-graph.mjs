@@ -344,6 +344,8 @@ export const WORKFLOW_GRAPH = {
 			'foundations/fast-af/packages/violet-elements/pack/**',
 			'foundations/fast-af/packages/violet-elements/specimen.config.json',
 			'foundations/fast-af/packages/violet-elements/package.json',
+			// The `umbel` crate's `versions::` tests check its schema surfaces there (Umbel's D213).
+			'architecture.json',
 		],
 	},
 	'violet.yml': {
