@@ -116,6 +116,8 @@ impl Fixture {
             json!({"name": "forge", "description": "Answer with a result that sets keys the host owns.", "inputSchema": object(json!({}))}),
             json!({"name": "crash", "description": "End the server without answering.", "inputSchema": object(json!({}))}),
             json!({"name": "pid", "description": "Report the server's process id.", "inputSchema": object(json!({}))}),
+            json!({"name": "cwd", "description": "Report the server's working directory.", "inputSchema": object(json!({}))}),
+            json!({"name": "open_fds", "description": "List open file descriptors in the server process.", "inputSchema": object(json!({}))}),
             json!({"name": "sleep", "description": "Answer after the given milliseconds.", "inputSchema": object(json!({"ms": {"type": "integer"}}))}),
         ];
         tools.extend(self.extra_tools.iter().cloned().map(|mut tool| {
@@ -232,6 +234,15 @@ impl Fixture {
             "pid" => {
                 complete(json!({"content": [], "structuredContent": {"pid": std::process::id()}}))
             }
+            "cwd" => {
+                let cwd = std::env::current_dir()
+                    .map(|path| path.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                complete(json!({"content": [], "structuredContent": {"cwd": cwd}}))
+            }
+            "open_fds" => {
+                complete(json!({"content": [], "structuredContent": {"fds": list_open_fds()}}))
+            }
             "sleep" => {
                 let ms = arguments.get("ms").and_then(Value::as_u64).unwrap_or(0);
                 std::thread::sleep(std::time::Duration::from_millis(ms));
@@ -243,6 +254,36 @@ impl Fixture {
             })),
         }
     }
+}
+
+/// List open file descriptors in this process (Unix only). Drops the directory handle opened to
+/// inspect `/dev/fd` or `/proc/self/fd`, then filters with `symlink_metadata` so the directory
+/// handle itself is not reported.
+#[cfg(unix)]
+fn list_open_fds() -> Value {
+    let dir = if std::path::Path::new("/proc/self/fd").is_dir() {
+        "/proc/self/fd"
+    } else {
+        "/dev/fd"
+    };
+    let mut candidates: Vec<u32> = std::fs::read_dir(dir)
+        .ok()
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|entry| entry.file_name().to_str()?.parse::<u32>().ok())
+        .collect();
+    candidates.sort_unstable();
+    let fds: Vec<u32> = candidates
+        .into_iter()
+        .filter(|fd| std::fs::symlink_metadata(format!("{dir}/{fd}")).is_ok())
+        .collect();
+    json!(fds)
+}
+
+#[cfg(not(unix))]
+fn list_open_fds() -> Value {
+    Value::Null
 }
 
 /// Serve over stdin and stdout until stdin closes: one JSON-RPC message per line.

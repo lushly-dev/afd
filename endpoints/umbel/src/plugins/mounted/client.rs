@@ -7,7 +7,6 @@
 //! spawned onto it and awaited from the caller's runtime.
 
 use std::collections::VecDeque;
-use std::ffi::OsString;
 use std::io;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -71,12 +70,16 @@ impl std::fmt::Debug for Secret {
     }
 }
 
-/// How the child of a stdio mount is started.
+/// How the child of a stdio mount is started. `root`, `state_dir`, `command` and `relative_cwd`
+/// are kept so every spawn and respawn re-resolves and re-validates the executable and working
+/// directory before `Command::spawn` runs (D205).
 #[derive(Debug, Clone)]
 pub(crate) struct StdioSpec {
-    pub program: OsString,
+    pub root: PathBuf,
+    pub state_dir: PathBuf,
+    pub command: String,
     pub args: Vec<String>,
-    pub cwd: PathBuf,
+    pub relative_cwd: Option<String>,
     /// The whole environment of the child: `PATH` (plus `SystemRoot` on Windows) and the
     /// configured variables, nothing else.
     pub env: Vec<(String, String)>,
@@ -667,20 +670,22 @@ fn spawn(
     limit: &Arc<Limit>,
     deadline: Instant,
 ) -> Result<(ChildTransport, ChildWatch), String> {
-    let mut command = Command::new(&stdio.program);
+    let launch = super::resolve_stdio_launch(stdio).map_err(|err| err.into_message())?;
+    let mut command = Command::new(&launch.program);
     command
         .args(&stdio.args)
-        .current_dir(&stdio.cwd)
+        .current_dir(&launch.cwd)
         .env_clear()
         .envs(stdio.env.iter().map(|(name, value)| (name, value)))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
+    umbel_process::close_extra_fds(command.as_std_mut());
     let mut child = command.spawn().map_err(|error| {
         format!(
             "cannot start `{}`: {error}",
-            stdio.program.to_string_lossy()
+            launch.program.to_string_lossy()
         )
     })?;
     let (Some(stdin), Some(stdout), Some(stderr)) =

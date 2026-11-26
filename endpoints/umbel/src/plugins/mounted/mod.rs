@@ -11,9 +11,9 @@ mod scan;
 mod schema;
 mod transport;
 
-use std::collections::{BTreeMap, BTreeSet};
-use std::ffi::OsString;
-use std::path::{Component, Path};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::ffi::{OsStr, OsString};
+use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -101,15 +101,6 @@ fn spec(request: &Request<'_>, mount: &MountDecl) -> Result<MountSpec, PluginErr
             let first = mount.command.first().ok_or_else(|| {
                 PluginError::manifest_invalid(&request.manifest.file, "mount.command", "is empty")
             })?;
-            let program = program(request.root, first).map_err(|problem| {
-                PluginError::manifest_invalid(&request.manifest.file, "mount.command", problem)
-            })?;
-            let cwd = match &mount.cwd {
-                Some(relative) => confined(request.root, relative).map_err(|problem| {
-                    PluginError::manifest_invalid(&request.manifest.file, "mount.cwd", problem)
-                })?,
-                None => request.root.to_path_buf(),
-            };
             // `PATH` (plus `SystemRoot` on Windows, which Node/OpenSSL need for the OS RNG),
             // then the manifest's defaults, overridden by the instance's: nothing else of the
             // host's environment reaches the child.
@@ -119,12 +110,26 @@ fn spec(request: &Request<'_>, mount: &MountDecl) -> Result<MountSpec, PluginErr
                 &mount.env,
                 &instance.env,
             );
-            Endpoint::Stdio(StdioSpec {
-                program,
+            let stdio = StdioSpec {
+                root: request.root.to_path_buf(),
+                state_dir: request.workspace.state_dir(),
+                command: first.clone(),
                 args: mount.command.iter().skip(1).cloned().collect(),
-                cwd,
+                relative_cwd: mount.cwd.clone(),
                 env,
-            })
+            };
+            // Validate once at seal so manifest/source problems surface with their exact codes;
+            // `client::spawn` calls the same resolver before every spawn and respawn.
+            resolve_stdio_launch(&stdio).map_err(|error| match error {
+                LaunchError::Source(problem) => bad("source", problem),
+                LaunchError::Cwd(problem) => {
+                    PluginError::manifest_invalid(&request.manifest.file, "mount.cwd", problem)
+                }
+                LaunchError::Command(problem) => {
+                    PluginError::manifest_invalid(&request.manifest.file, "mount.command", problem)
+                }
+            })?;
+            Endpoint::Stdio(stdio)
         }
         Transport::Http => {
             let url = instance
@@ -166,23 +171,326 @@ fn spec(request: &Request<'_>, mount: &MountDecl) -> Result<MountSpec, PluginErr
     })
 }
 
-/// The program to start: the plugin's own file when the first element names one inside the plugin
-/// root, else the name as given, which the operating system finds on `PATH`.
-fn program(root: &Path, first: &str) -> Result<OsString, String> {
-    let has_separator = first.contains('/') || first.contains('\\');
-    if !has_separator {
-        let inside = root.join(first);
-        return Ok(if inside.is_file() {
-            inside.into_os_string()
-        } else {
-            OsString::from(first)
-        });
+/// Maximum symbolic link hops followed when resolving a path with missing leaves.
+const MAX_SYMLINK_HOPS: usize = 40;
+
+/// Validated, concrete executable path and working directory handed to `Command::new`.
+pub(crate) struct ResolvedLaunch {
+    pub program: OsString,
+    pub cwd: PathBuf,
+}
+
+/// Which field of a stdio mount failed launch validation.
+#[derive(Debug)]
+pub(crate) enum LaunchError {
+    Source(String),
+    Cwd(String),
+    Command(String),
+}
+
+impl LaunchError {
+    pub(crate) fn into_message(self) -> String {
+        match self {
+            Self::Source(problem) => format!("plugin source {problem}"),
+            Self::Cwd(problem) => format!("mount.cwd: {problem}"),
+            Self::Command(problem) => format!("mount.command: {problem}"),
+        }
     }
-    confined(root, first).map(std::path::PathBuf::into_os_string)
+}
+
+/// Resolve and validate a stdio mount's working directory and executable against the plugin root
+/// and workspace `state/` directory. Called both at seal and immediately before every spawn or
+/// respawn so a path change between launches cannot redirect execution into `state/` or outside
+/// the plugin directory.
+pub(crate) fn resolve_stdio_launch(stdio: &StdioSpec) -> Result<ResolvedLaunch, LaunchError> {
+    let state_dir = resolve_path(&stdio.state_dir)
+        .map_err(|problem| LaunchError::Source(format!("cannot resolve state/: {problem}")))?;
+    let cwd = match &stdio.relative_cwd {
+        Some(relative) => {
+            let resolved = confined(&stdio.root, relative).map_err(LaunchError::Cwd)?;
+            if resolved.starts_with(&state_dir) {
+                return Err(LaunchError::Cwd(format!(
+                    "`{relative}` is under state/, which the host owns"
+                )));
+            }
+            resolved
+        }
+        None => {
+            let resolved = resolve_path(&stdio.root).map_err(LaunchError::Source)?;
+            if resolved.starts_with(&state_dir) {
+                return Err(LaunchError::Source(
+                    "is under state/, which the host owns".to_owned(),
+                ));
+            }
+            resolved
+        }
+    };
+    let program = program(&stdio.root, &stdio.command, &stdio.env, &cwd, &state_dir)
+        .map_err(LaunchError::Command)?;
+    Ok(ResolvedLaunch { program, cwd })
+}
+
+/// The concrete program to pass to `Command::new`: the canonical file inside the plugin root when
+/// the first element names one (or has a path separator / Windows prefix), or the resolved
+/// absolute executable from the child's `PATH` (when found). Refuses any resolved target under
+/// `state_dir`, any escape out of `root`, and trailing path separators.
+fn program(
+    root: &Path,
+    first: &str,
+    env: &[(String, String)],
+    cwd: &Path,
+    state_dir: &Path,
+) -> Result<OsString, String> {
+    if first.is_empty() {
+        return Err("is empty".to_owned());
+    }
+    if matches!(first, "." | "..") || first.ends_with('/') || first.ends_with('\\') {
+        return Err(format!("`{first}` must name a file, not a directory"));
+    }
+    let has_path_syntax = first.contains('/')
+        || first.contains('\\')
+        || Path::new(first)
+            .components()
+            .any(|part| matches!(part, Component::Prefix(_)));
+    if has_path_syntax {
+        return resolve_plugin_command(root, first, state_dir);
+    }
+
+    // Bare name: check inside the plugin root first (matching `CreateProcessW`'s `.exe` suffix on
+    // Windows), refusing symlink escapes and targets under `state/`.
+    for candidate_name in bare_candidates(first) {
+        let inside = root.join(&candidate_name);
+        let is_symlink = inside
+            .symlink_metadata()
+            .is_ok_and(|meta| meta.file_type().is_symlink());
+        if is_symlink || inside.is_file() {
+            let resolved = confined(root, &candidate_name)?;
+            if resolved.starts_with(state_dir) {
+                return Err(format!("`{first}` is under state/, which the host owns"));
+            }
+            if resolved.is_file() {
+                return Ok(resolved.into_os_string());
+            }
+        }
+    }
+
+    // Otherwise resolve against the child's effective `PATH` and pass the selected absolute path
+    // to `Command::new` so the OS executes the exact file that was checked.
+    if let Some(found) = resolve_on_child_path(first, env, cwd, state_dir)? {
+        return Ok(found.into_os_string());
+    }
+
+    // On Windows, `CreateProcessW` also searches `cwd` when `PATH` has no match.
+    #[cfg(windows)]
+    for candidate_name in bare_candidates(first) {
+        let in_cwd = cwd.join(&candidate_name);
+        if in_cwd.symlink_metadata().is_ok() {
+            let resolved = resolve_path(&in_cwd)?;
+            if resolved.starts_with(state_dir) {
+                return Err(format!("`{first}` is under state/, which the host owns"));
+            }
+            if resolved.is_file() {
+                return Ok(resolved.into_os_string());
+            }
+        }
+    }
+
+    Ok(OsString::from(first))
+}
+
+fn resolve_plugin_command(
+    root: &Path,
+    relative: &str,
+    state_dir: &Path,
+) -> Result<OsString, String> {
+    let resolved = confined(root, relative)?;
+    if resolved.starts_with(state_dir) {
+        return Err(format!("`{relative}` is under state/, which the host owns"));
+    }
+    #[cfg(windows)]
+    if !resolved.is_file() && !relative.to_ascii_lowercase().ends_with(".exe") {
+        let with_exe = format!("{relative}.exe");
+        let resolved_exe = confined(root, &with_exe)?;
+        if resolved_exe.starts_with(state_dir) {
+            return Err(format!("`{relative}` is under state/, which the host owns"));
+        }
+        if resolved_exe.is_file() {
+            return Ok(resolved_exe.into_os_string());
+        }
+    }
+    Ok(resolved.into_os_string())
+}
+
+fn bare_candidates(first: &str) -> Vec<String> {
+    #[cfg(windows)]
+    {
+        let mut out = Vec::new();
+        if Path::new(first).extension().is_some() {
+            out.push(first.to_owned());
+        }
+        if !first.to_ascii_lowercase().ends_with(".exe") {
+            out.push(format!("{first}.exe"));
+        }
+        if out.is_empty() {
+            out.push(first.to_owned());
+        }
+        out
+    }
+    #[cfg(not(windows))]
+    {
+        vec![first.to_owned()]
+    }
+}
+
+/// Resolve a bare program name on the child's effective `PATH`, mirroring the OS's search rules:
+/// - Unix: empty entries mean `cwd`; skips files that are not regular files executable by the
+///   current user (`access(X_OK)`), refusing any candidate under `state_dir` encountered at or
+///   before the selected executable.
+/// - Windows: skips empty entries (matching Rust's `std::sys::process::windows`), checks exact
+///   extensioned names and `.exe` suffixes, refusing any match under `state_dir`.
+fn resolve_on_child_path(
+    first: &str,
+    env: &[(String, String)],
+    cwd: &Path,
+    state_dir: &Path,
+) -> Result<Option<PathBuf>, String> {
+    let Some(path_value) = env
+        .iter()
+        .find(|(key, _)| {
+            if cfg!(windows) {
+                key.eq_ignore_ascii_case("PATH")
+            } else {
+                key == "PATH"
+            }
+        })
+        .map(|(_, value)| value.as_str())
+    else {
+        return Ok(None);
+    };
+    let candidates = bare_candidates(first);
+    for entry in std::env::split_paths(path_value) {
+        if cfg!(windows) && entry.as_os_str().is_empty() {
+            continue;
+        }
+        let dir = if entry.as_os_str().is_empty() {
+            cwd.to_path_buf()
+        } else if entry.is_relative() {
+            cwd.join(&entry)
+        } else {
+            entry
+        };
+        for candidate_name in &candidates {
+            let candidate = dir.join(candidate_name);
+            if candidate.symlink_metadata().is_err() {
+                continue;
+            }
+            let resolved = resolve_path(&candidate)?;
+            if resolved.starts_with(state_dir) {
+                return Err(format!("`{first}` is under state/, which the host owns"));
+            }
+            if umbel_process::is_executable_by_current_user(&resolved) {
+                return Ok(Some(resolved));
+            }
+        }
+    }
+    Ok(None)
+}
+
+/// Canonicalize `path`, or resolve its symlinks (including dangling targets, up to
+/// [`MAX_SYMLINK_HOPS`]) and normalize any missing leaf components on the canonical ancestor.
+/// Preserves non-`NotFound` errors (such as `NotADirectory` for a regular file followed by `/`).
+fn resolve_path(path: &Path) -> Result<PathBuf, String> {
+    match std::fs::canonicalize(path) {
+        Ok(resolved) => return Ok(resolved),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(format!("`{}` cannot be resolved: {error}", path.display())),
+    }
+
+    let mut queue: VecDeque<OsString> = VecDeque::new();
+    let mut current = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::Prefix(prefix) => current.push(prefix.as_os_str()),
+            Component::RootDir => current.push(component.as_os_str()),
+            Component::CurDir => {}
+            Component::ParentDir => queue.push_back(OsString::from("..")),
+            Component::Normal(segment) => queue.push_back(segment.to_os_string()),
+        }
+    }
+
+    let mut hops = 0usize;
+    while let Some(segment) = queue.pop_front() {
+        if segment == OsStr::new(".") {
+            continue;
+        }
+        if segment == OsStr::new("..") {
+            current.pop();
+            continue;
+        }
+        current.push(&segment);
+        match std::fs::symlink_metadata(&current) {
+            Ok(meta) if meta.file_type().is_symlink() => {
+                hops += 1;
+                if hops > MAX_SYMLINK_HOPS {
+                    return Err(format!(
+                        "`{}` exceeds the symbolic link hop limit",
+                        path.display()
+                    ));
+                }
+                let target = std::fs::read_link(&current)
+                    .map_err(|error| format!("`{}` cannot be read: {error}", current.display()))?;
+                if target.is_absolute() {
+                    current.clear();
+                } else {
+                    current.pop();
+                }
+                let mut prefix_items: Vec<OsString> = Vec::new();
+                for part in target.components() {
+                    match part {
+                        Component::Prefix(prefix) => current.push(prefix.as_os_str()),
+                        Component::RootDir => current.push(part.as_os_str()),
+                        Component::CurDir => {}
+                        Component::ParentDir => prefix_items.push(OsString::from("..")),
+                        Component::Normal(seg) => prefix_items.push(seg.to_os_string()),
+                    }
+                }
+                for item in prefix_items.into_iter().rev() {
+                    queue.push_front(item);
+                }
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(format!(
+                    "`{}` cannot be resolved: {error}",
+                    current.display()
+                ));
+            }
+        }
+    }
+
+    // Re-base onto the canonical form of the deepest existing ancestor so platform aliases
+    // (such as `/var` -> `/private/var` on macOS or `\\?\` on Windows) match `canonicalize`.
+    let components: Vec<Component<'_>> = current.components().collect();
+    for split in (1..=components.len()).rev() {
+        let mut prefix = PathBuf::new();
+        for part in &components[..split] {
+            prefix.push(part.as_os_str());
+        }
+        if let Ok(mut resolved) = std::fs::canonicalize(&prefix) {
+            for part in &components[split..] {
+                if let Component::Normal(segment) = part {
+                    resolved.push(segment);
+                }
+            }
+            return Ok(resolved);
+        }
+    }
+    Ok(current)
 }
 
 /// `relative` joined to `root`, which must stay inside it once symlinks are resolved.
-fn confined(root: &Path, relative: &str) -> Result<std::path::PathBuf, String> {
+fn confined(root: &Path, relative: &str) -> Result<PathBuf, String> {
     let path = Path::new(relative);
     if path.is_absolute()
         || path
@@ -193,11 +501,9 @@ fn confined(root: &Path, relative: &str) -> Result<std::path::PathBuf, String> {
             "`{relative}` must be a relative path inside the plugin directory"
         ));
     }
-    let joined = root.join(path);
-    // A path that does not exist yet stays as written (the spawn reports it); one that does is
-    // resolved, so a symbolic link cannot lead out of the plugin directory.
-    let resolved = std::fs::canonicalize(&joined).unwrap_or(joined);
-    if resolved.starts_with(root) {
+    let canonical_root = resolve_path(root)?;
+    let resolved = resolve_path(&canonical_root.join(path))?;
+    if resolved.starts_with(&canonical_root) {
         Ok(resolved)
     } else {
         Err(format!("`{relative}` leaves the plugin directory"))
@@ -611,8 +917,9 @@ fn build_child_env(
 
 #[cfg(test)]
 mod tests {
-    use super::build_child_env;
+    use super::{build_child_env, confined, program, resolve_on_child_path, resolve_path};
     use std::collections::BTreeMap;
+    use std::fs;
 
     fn map(entries: &[(&str, &str)]) -> BTreeMap<String, String> {
         entries
@@ -692,5 +999,96 @@ mod tests {
                 ("systemroot".to_owned(), "E:\\InstanceRoot".to_owned()),
             ]
         );
+    }
+
+    #[test]
+    fn resolve_path_canonicalizes_ancestor_for_missing_leaves() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = fs::canonicalize(dir.path()).unwrap();
+        let missing = dir.path().join("state").join("missing").join("sub");
+        assert_eq!(
+            resolve_path(&missing).unwrap(),
+            root.join("state").join("missing").join("sub")
+        );
+    }
+
+    #[test]
+    fn confined_and_bare_program_refuse_symlink_escapes_and_trailing_slashes() {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = dir.path().join("outside");
+        let plugin = dir.path().join("plugin");
+        let state = resolve_path(&dir.path().join("state")).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        fs::create_dir_all(&plugin).unwrap();
+        fs::create_dir_all(plugin.join("node")).unwrap();
+        fs::write(outside.join("tool"), "x").unwrap();
+        fs::write(plugin.join("regular"), "x").unwrap();
+
+        // A subdirectory sharing a bare command name does not shadow PATH resolution.
+        assert_eq!(
+            program(&plugin, "node", &[], &plugin, &state).unwrap(),
+            std::ffi::OsString::from("node")
+        );
+
+        // Trailing separators on commands are refused rather than stripped.
+        assert!(program(&plugin, "regular/", &[], &plugin, &state).is_err());
+
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(outside.join("tool"), plugin.join("tool")).unwrap();
+            std::os::unix::fs::symlink(&outside, plugin.join("linkdir")).unwrap();
+            std::os::unix::fs::symlink(
+                dir.path().join("state").join("missing"),
+                plugin.join("dangling"),
+            )
+            .unwrap();
+
+            assert!(confined(&plugin, "linkdir/missing").is_err());
+            assert!(confined(&plugin, "dangling").is_err());
+            assert!(program(&plugin, "tool", &[], &plugin, &state).is_err());
+            assert!(program(&plugin, "dangling", &[], &plugin, &state).is_err());
+        }
+    }
+
+    #[test]
+    fn resolve_on_child_path_refuses_state_and_returns_absolute_executable() {
+        let dir = tempfile::tempdir().unwrap();
+        let decoy_dir = dir.path().join("decoy");
+        let bin_dir = dir.path().join("state").join("bin");
+        let good_dir = dir.path().join("good");
+        fs::create_dir_all(&decoy_dir).unwrap();
+        fs::create_dir_all(&bin_dir).unwrap();
+        fs::create_dir_all(&good_dir).unwrap();
+        let binary_name = if cfg!(windows) { "tool.exe" } else { "tool" };
+        // Non-executable decoy ahead of state/bin on Unix must not hide the state/bin match.
+        #[cfg(unix)]
+        fs::write(decoy_dir.join(binary_name), "x").unwrap();
+        fs::write(bin_dir.join(binary_name), "x").unwrap();
+
+        let state = resolve_path(&dir.path().join("state")).unwrap();
+        let path_env = std::env::join_paths([&decoy_dir, &bin_dir])
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        let env = vec![("PATH".to_owned(), path_env)];
+        assert!(resolve_on_child_path("tool", &env, dir.path(), &state).is_err());
+
+        // An executable outside `state/` resolves to its canonical absolute path.
+        let good_bin = good_dir.join(binary_name);
+        fs::write(&good_bin, "#!/bin/sh\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&good_bin, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        let ok_path = std::env::join_paths([&good_dir, &bin_dir])
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        let ok_env = vec![("PATH".to_owned(), ok_path)];
+        let resolved = resolve_on_child_path("tool", &ok_env, dir.path(), &state)
+            .unwrap()
+            .unwrap();
+        assert_eq!(resolved, fs::canonicalize(&good_bin).unwrap());
     }
 }

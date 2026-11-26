@@ -1333,3 +1333,134 @@ async fn a_mounted_tool_with_non_human_approval_runs_for_humans_and_holds_agents
     assert!(ok.success, "{ok:?}");
     assert_eq!(ok.data.unwrap(), json!({"args": {"value": "hi"}}));
 }
+
+#[tokio::test]
+async fn a_stdio_mount_runs_outside_state_and_inherits_no_extra_descriptors() {
+    let dir = fx_stdio("", "", "");
+    let host = open(dir.path()).unwrap();
+
+    // Working directory is the plugin directory, outside `state/`.
+    let cwd = call(&host, "fx-cwd", json!({})).await.data.unwrap()["cwd"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let cwd_canon = std::fs::canonicalize(&cwd).unwrap();
+    let state_canon = std::fs::canonicalize(dir.path().join("state")).unwrap();
+    let plugin_canon = std::fs::canonicalize(dir.path().join("plugins/fx")).unwrap();
+    assert_eq!(cwd_canon, plugin_canon);
+    assert!(
+        !cwd_canon.starts_with(&state_canon),
+        "cwd {cwd_canon:?} must not be under state/ {state_canon:?}"
+    );
+
+    // On Unix, no host descriptor (workspace lock, journal, stores, sockets) leaks beyond stdio.
+    #[cfg(unix)]
+    {
+        let fds = call(&host, "fx-open-fds", json!({})).await.data.unwrap()["fds"].clone();
+        assert_eq!(fds, json!([0, 1, 2]), "unexpected inherited fds: {fds}");
+    }
+}
+
+#[tokio::test]
+async fn a_stdio_mount_refuses_source_cwd_or_command_under_state() {
+    // 1. Plugin directory placed inside `state/` is refused by source resolution.
+    let dir = workspace(&config(&[("fx", "source = \"state/fx\"")], ""));
+    let state_plugin = dir.path().join("state/fx");
+    std::fs::create_dir_all(&state_plugin).unwrap();
+    std::fs::write(
+        state_plugin.join("umbel-plugin.toml"),
+        fx_manifest(FX_STDIO, "", ""),
+    )
+    .unwrap();
+    let error = error_of(open(dir.path()));
+    assert_eq!(error.code(), "PLUGIN_CONFIG_INVALID", "{error}");
+    assert!(error.message().contains("state/"), "{error}");
+
+    // 2. Plugin at workspace root (`source = "."`) with `mount.cwd = "state"` or `"state/keys"`.
+    for bad_cwd in ["state", "state/keys", "state/missing"] {
+        let dir = workspace(&config(&[("fx", "source = \".\"")], ""));
+        std::fs::write(
+            dir.path().join("umbel-plugin.toml"),
+            fx_manifest(FX_STDIO, &format!("cwd = \"{bad_cwd}\""), ""),
+        )
+        .unwrap();
+        let error = error_of(open(dir.path()));
+        assert_eq!(
+            error.code(),
+            "PLUGIN_MANIFEST_INVALID",
+            "{bad_cwd}: {error}"
+        );
+        assert!(error.message().contains("state/"), "{bad_cwd}: {error}");
+    }
+
+    // 3. Plugin at workspace root (`source = "."`) with `mount.command` pointing inside `state/`.
+    let dir = workspace(&config(&[("fx", "source = \".\"")], ""));
+    let state_bin = dir.path().join("state/bin");
+    std::fs::create_dir_all(&state_bin).unwrap();
+    let binary_name = if cfg!(windows) { "fx.exe" } else { "fx" };
+    std::fs::write(state_bin.join(binary_name), "x").unwrap();
+    std::fs::write(
+        dir.path().join("umbel-plugin.toml"),
+        fx_manifest(
+            &format!("transport = \"stdio\"\ncommand = [\"state/bin/{binary_name}\"]"),
+            "",
+            "",
+        ),
+    )
+    .unwrap();
+    let error = error_of(open(dir.path()));
+    assert_eq!(error.code(), "PLUGIN_MANIFEST_INVALID", "{error}");
+    assert!(error.message().contains("state/"), "{error}");
+
+    // 4. Bare command resolved via child's PATH pointing into `state/`.
+    let dir = workspace(&config(&[("fx", "source = \"plugins/fx\"")], ""));
+    let state_bin = dir.path().join("state/bin");
+    std::fs::create_dir_all(&state_bin).unwrap();
+    std::fs::write(state_bin.join(binary_name), "x").unwrap();
+    let state_bin_str = state_bin.to_string_lossy().replace('\\', "\\\\");
+    // Rewrite umbel.toml with PATH pointing to state/bin.
+    std::fs::write(
+        dir.path().join("umbel.toml"),
+        config(
+            &[(
+                "fx",
+                &format!("source = \"plugins/fx\"\n[plugins.fx.env]\nPATH = \"{state_bin_str}\""),
+            )],
+            "",
+        ),
+    )
+    .unwrap();
+    plugin_dir(
+        dir.path(),
+        "fx",
+        &fx_manifest("transport = \"stdio\"\ncommand = [\"fx\"]", "", ""),
+    );
+    let error = error_of(open(dir.path()));
+    assert_eq!(error.code(), "PLUGIN_MANIFEST_INVALID", "{error}");
+    assert!(error.message().contains("state/"), "{error}");
+
+    // 5. On respawn, the command re-resolves and refuses a plugin binary swapped for a symlink into state/.
+    let dir = fx_stdio("", "", "");
+    let host = open(dir.path()).unwrap();
+    let _ = call(&host, "fx-pid", json!({})).await;
+    #[cfg(unix)]
+    {
+        // Replace the plugin's binary with a symlink into `state/` before triggering a respawn.
+        let state_bin = dir.path().join("state/evil-bin");
+        std::fs::write(&state_bin, "#!/bin/sh\n").unwrap();
+        let plugin_bin = dir.path().join("plugins/fx/bin/fixture");
+        std::fs::remove_file(&plugin_bin).unwrap();
+        std::os::unix::fs::symlink(&state_bin, &plugin_bin).unwrap();
+        let _ = call(&host, "fx-crash", json!({})).await;
+        let refused = retry(async || {
+            let result = call(&host, "fx-pid", json!({})).await;
+            (!result.success
+                && (message(&result).contains("leaves the plugin directory")
+                    || message(&result).contains("state/")))
+            .then_some(result)
+        })
+        .await;
+        let refused = refused.expect("respawn should refuse symlink escape into state/");
+        assert_eq!(code(&refused), "PLUGIN_UNAVAILABLE");
+    }
+}

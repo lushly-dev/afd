@@ -4472,6 +4472,7 @@ dependencies = [
  "umbel-embed",
  "umbel-plugin-components",
  "umbel-plugin-hello",
+ "umbel-process",
  "umbel-scan",
  "umbel-sdk",
  "umbel-store",
@@ -4782,6 +4783,13 @@ dependencies = [
  "toml",
  "umbel",
  "umbel-sdk",
+]
+
+[[package]]
+name = "umbel-process"
+version = "0.1.0"
+dependencies = [
+ "libc",
 ]
 
 [[package]]

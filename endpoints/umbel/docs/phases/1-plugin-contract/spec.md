@@ -1105,10 +1105,17 @@ first_class = true            # optional suggestion
   overrides are keyed by plugin id.
 - **What a mount does not import in phase 1:** the server's resources,
   prompts and skills (federation's work, after O1).
-- **Trust** (owner decision 2, section 11): a stdio child runs as the host's
-  operating-system user with no OS sandbox, and can read `state/keys/` and
-  every space; a stdio mount is as trusted as a compiled plugin. Clearing
-  the environment is hygiene, not isolation.
+- **Trust** (owner decision 2, section 11; [D205](../../decisions.md)): compiled
+  plugins are trusted code, components are the untrusted-code route (D192, D193),
+  and a stdio child runs as the host's operating-system user with no OS sandbox,
+  so it can read `state/keys/` and every space; mounting a stdio server in
+  `umbel.toml` trusts it with the host user's file access until OS sandboxing
+  lands, and hosted deployments should not allow stdio mounts until then.
+  Clearing the environment (`PATH`, plus `SystemRoot` on Windows, and configured
+  `env`), refusing plugin directories, `mount.cwd`, and `mount.command`
+  (including symlinks and `PATH`-resolved binaries) under `state/` on every
+  spawn and respawn, and on Unix marking inherited descriptors above stdio
+  close-on-exec are startup hygiene, not OS isolation.
 
 ### 6.4 Pack plugins
 
@@ -1234,7 +1241,9 @@ through `_meta["dev.umbel/origin"].effects`, on every plugin tool.
   `dev.umbel/space` and `dev.umbel/mutation` remain the host's.
 - **Journaling** is unchanged: every call is journaled with its input, the
   actor and the plugin gate's stamps; a plugin command declared a mutation
-  becomes an event in its space with `record` from its metadata.
+  becomes an event in its space with `record` from its metadata, except that a
+  compiled plugin command declaring `secret` writes no journal entry (dropped by
+  the host redactor, tapes included) and therefore produces no event ([D205](../../decisions.md)).
 
 ### 8.2 Packs
 
@@ -2215,7 +2224,7 @@ manifest's `PluginKind` is parsed crate-wide, and the writer of the one-plugin `
 | Date | Follow-up | Owner |
 | --- | --- | --- |
 | 2026-11-01 | ~~The owner's decision on the four trust-model points of [section 11](#11-security) before step 2 merges~~ Done 2026-11-01: decided by the owner, recorded in section 11, D42 and D43 | Owner |
-| 2026-11-01 | Operating-system sandboxing for stdio mounts (owner decision 2): a stdio child runs as the host's user and can read `state/keys/` and every space; evaluate per-platform sandboxes (for example Landlock or a separate user on Linux, `sandbox-exec` successors on macOS) | A later phase; owner to place |
+| 2026-11-01 | Operating-system sandboxing for stdio mounts (owner decision 2): a stdio child runs as the host's user and can read `state/keys/` and every space; evaluate per-platform sandboxes (for example Landlock or a separate user on Linux, `sandbox-exec` successors on macOS) | Placed as a planned phase, Linux first ([D205](../../decisions.md), 2026-11-25) |
 | 2026-11-01 | Carry the plugin inside the provenance envelope: version 0 is closed with no source field, so phase 1 attributes plugin results through the gate's `dev.umbel/plugin` stamp | Phase 3 (envelope version 1) |
 | 2026-11-01 | A precompiled component cache: wasmtime's `Component::deserialize` is `unsafe`, which the crate forbids; decide whether a reviewed `unsafe` module or a safe alternative is worth it once startup cost is measured | Phase 7, or earlier if measured |
 | 2026-11-01 | A mount's tool snapshot under `state/`, so one-shot CLI calls do not spawn every mounted server at `seal` | A later phase |
