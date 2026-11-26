@@ -40,11 +40,7 @@ import { join } from 'node:path';
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { MemoryJournalSink } from '@lushly-dev/afd-core';
 import { createInProcessLauncher } from '@lushly-dev/loam-copilot';
-import {
-	createTestProvider,
-	type ModelScriptV1,
-	type TestProviderV1,
-} from '@lushly-dev/loam-copilot/test-provider';
+import type { ModelScriptV1, TestProviderV1 } from '@lushly-dev/loam-copilot/test-provider';
 import type { ManifestV2, ProjectionV4 } from '@lushly-dev/loam-manifest';
 import { type DataAdapter, MemoryAdapter } from '@lushly-dev/local-db';
 import { type CopilotHostV1, createCopilotHost } from '../src/copilot/host.js';
@@ -56,6 +52,7 @@ import { scopeKeyOf, storeRecordId } from '../src/scope/store-id.js';
 import { createFixedEnvironment } from '../src/testing.js';
 import type { KernelPorts, LoamKernel } from '../src/types.js';
 import { LOAM, type SeedAppV1, seedApps } from './apps.js';
+import { P5_AUTONOMY } from './host-seed.js';
 import {
 	MAILFIX_MANIFEST,
 	MAILFIXAPP_DEFINITION,
@@ -63,7 +60,7 @@ import {
 	mailfixEntry,
 	mountedMailfix,
 } from './mailfix-mount.js';
-import { MODEL_SCRIPTS, UNIT_SCRIPTS } from './model-scripts.js';
+import { createScenarioProvider } from './model-scripts.js';
 
 export interface SeededKernel {
 	kernel: LoamKernel;
@@ -315,9 +312,9 @@ export async function p5Base(options: {
 	/** Keys over `mailfix`'s entry, for a test of another `approvals` or preview (7.2). */
 	mailfixEntry?: Record<string, unknown>;
 }): Promise<SeededKernel> {
-	const provider = createTestProvider({
-		scripts: { ...MODEL_SCRIPTS, ...options.scripts },
-		compose: options.compose ?? UNIT_SCRIPTS['echo-unit'],
+	const provider = createScenarioProvider({
+		...(options.scripts ? { extra: options.scripts } : {}),
+		...(options.compose ? { compose: options.compose } : {}),
 	});
 	const host = createCopilotHost({
 		launcher: createInProcessLauncher(),
@@ -347,14 +344,7 @@ export async function p5Base(options: {
 		const found = await seeded.kernel.call('app-instance-refresh', { instance });
 		if (!found.success) throw new Error(`p5-base: ${instance}: ${JSON.stringify(found.error)}`);
 	}
-	for (const [instance, command, mode] of [
-		['shell', 'project-create', 'act'],
-		['shell', 'document-create', 'act'],
-		['tally', 'tally-add', 'act'],
-		['tally', 'tally-reset', 'suggest'],
-		['mailfix', 'mailfix-thread-archive', 'act'],
-		['mailfix', 'mailfix-draft-create', 'act'],
-	] as const) {
+	for (const [instance, command, mode] of P5_AUTONOMY) {
 		const set = await seeded.kernel.call('autonomy-set', {
 			level: 'workspace',
 			instance,

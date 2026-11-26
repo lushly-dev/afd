@@ -39,6 +39,7 @@
 	"devDependencies": {
 		"@better-auth/passkey": "1.7.26",
 		"@lushly-dev/afd-server": "workspace:*",
+		"@lushly-dev/afd-testing": "workspace:*",
 		"@lushly-dev/loam-app-checklist": "workspace:*",
 		"@lushly-dev/loam-app-hello": "workspace:*",
 		"@lushly-dev/loam-app-notes": "workspace:*",

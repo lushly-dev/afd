@@ -10,10 +10,12 @@ on:
     paths:
       - 'endpoints/loam/**'
       - '!endpoints/loam/docs/**'
+      - 'endpoints/loam/docs/phases/*/scenarios/**'
       - '!endpoints/loam/plugins/**'
       - 'packages/rust/**'
       - 'foundations/fast-af/**'
       - 'packages/core/**'
+      - 'packages/testing/**'
       - 'packages/server/**'
       - 'packages/view-state/**'
       - 'packages/auth/**'
@@ -37,10 +39,12 @@ on:
     paths:
       - 'endpoints/loam/**'
       - '!endpoints/loam/docs/**'
+      - 'endpoints/loam/docs/phases/*/scenarios/**'
       - '!endpoints/loam/plugins/**'
       - 'packages/rust/**'
       - 'foundations/fast-af/**'
       - 'packages/core/**'
+      - 'packages/testing/**'
       - 'packages/server/**'
       - 'packages/view-state/**'
       - 'packages/auth/**'
@@ -230,6 +234,19 @@ jobs:
           }
           if (-not $driver) {
             throw "msedgedriver.exe not found on windows-latest runner"
+          }
+          # The runner's EdgeDriver follows Edge, not the WebView2 runtime the app runs on; when their major
+          # versions differ no session starts ("only supports Microsoft Edge version ..."), so the driver of the
+          # runtime's own version is fetched from Microsoft's EdgeDriver host.
+          $driverMajor = ((& $driver --version) -replace '^\D*(\d+)\..*$', '$1')
+          $runtimeMajor = ($webview2Version -split '\.')[0]
+          if ($webview2Version -ne "unknown" -and $driverMajor -ne $runtimeMajor) {
+            $dir = Join-Path $env:RUNNER_TEMP "edgedriver-$webview2Version"
+            $zip = "$dir.zip"
+            Invoke-WebRequest -Uri "https://msedgedriver.microsoft.com/$webview2Version/edgedriver_win64.zip" -OutFile $zip
+            Expand-Archive -Path $zip -DestinationPath $dir -Force
+            $driver = Join-Path $dir "msedgedriver.exe"
+            if (-not (Test-Path $driver)) { throw "EdgeDriver $webview2Version has no msedgedriver.exe" }
           }
           $driverVersion = & $driver --version
           "LOAM_DESKTOP_NATIVE_DRIVER=$driver" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8

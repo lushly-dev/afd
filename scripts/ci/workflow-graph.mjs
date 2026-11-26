@@ -213,10 +213,12 @@ export const WORKFLOW_GRAPH = {
 	'loam-desktop.yml': {
 		usesSetupAction: true,
 		groups: [
-			'loamCore',
+			// With the scenario folders: the desktop runs phase 5's slice from them (P5-A1).
+			'loamWithScenarios',
 			'rust',
 			'fastAf',
 			'afdCore',
+			'afdTesting',
 			'afdServer',
 			'afdViewState',
 			'afdAuth',

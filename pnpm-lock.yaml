@@ -635,6 +635,9 @@ importers:
       '@lushly-dev/afd-server':
         specifier: workspace:*
         version: link:../../../../packages/server
+      '@lushly-dev/afd-testing':
+        specifier: workspace:*
+        version: link:../../../../packages/testing
       '@lushly-dev/loam-cli':
         specifier: workspace:*
         version: link:../cli
@@ -1015,6 +1018,9 @@ importers:
       '@lushly-dev/afd-server':
         specifier: workspace:*
         version: link:../../../../packages/server
+      '@lushly-dev/afd-testing':
+        specifier: workspace:*
+        version: link:../../../../packages/testing
       '@lushly-dev/loam-app-checklist':
         specifier: workspace:*
         version: link:../../apps/checklist

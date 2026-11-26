@@ -1,29 +1,27 @@
 /**
- * Loam's scenario runner (phase 4 specification, Jobs and scenarios; phase 5 specification, the same). Each file
- * tagged `loam-runner` runs on a fresh seed from `kernel/scenarios/seeds.ts` (`seed:<name>`, default its phase's:
- * `p4-base` or `p5-base`). Each phase's files stay in its `docs/phases/<phase>/scenarios/`, where phase 5's step 1
- * left its own, and run from there as their commands are built.
- * AFD's runner resolves step references and evaluates each step; this file reads each step's directives:
+ * Loam's scenario runner in the kernel's units (phase 4 specification, Jobs and scenarios; phase 5 specification, the
+ * same and P5-A1). Each file tagged `loam-runner` runs on a fresh seed from `kernel/scenarios/seeds.ts` (`seed:<name>`,
+ * default its phase's: `p4-base` or `p5-base`). Each phase's files stay in its `docs/phases/<phase>/scenarios/`, where
+ * phase 5's step 1 left its own, and run from there as their commands are built. The runner and its directives are
+ * `kernel/scenarios/runner.ts`, which Chromium's and the desktop's runners share; here its host is the seed's kernel in
+ * this process, and `[caller: <instance>, inactive]` opens `console`, the seed's plain app.
  *
- * - `[agent]`: the agent interface, as `shell-agent` for the person;
- * - `[caller: <instance>]` and `[caller: <instance>, inactive]`: that instance's port;
- * - `[scope: <project id>]`, after any caller: the call's scope.
- *
- * With no caller directive the step is the person's, at the palette. An unknown directive, two callers or a scope
- * before a caller fails the file. A file runs once its commands exist: {@link RUNS} names the step that makes each
- * pending file runnable, and a file in neither list fails, so none is skipped by accident.
+ * A file runs once its commands exist: {@link RUNS} names the step that makes each pending file runnable, and a file in
+ * neither list fails, so none is skipped by accident.
  */
 
-import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { CommandResult } from '@lushly-dev/afd-core';
-import {
-	createInProcessExecutor,
-	parseScenarioString,
-	type Scenario,
-} from '@lushly-dev/afd-testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import { readDirectives } from '../scenarios/directives.js';
+import {
+	namesTagged,
+	readScenario,
+	runScenario,
+	type ScenarioHost,
+	scenarioNames,
+	seedOf,
+} from '../scenarios/runner.js';
 import { P4_PERSON, P4_PROJECTS, P4_SEED, SEEDS, type SeededKernel } from '../scenarios/seeds.js';
 
 const PHASE_4 = fileURLToPath(
@@ -83,80 +81,42 @@ const RUNS: Readonly<Record<string, string>> = Object.freeze({
 	'events-since-cursor': "milestone B's amendment: event-list",
 });
 
-const seedOf = (scenario: Scenario, fallback: string): string =>
-	(scenario.tags ?? []).find((tag) => tag.startsWith('seed:'))?.slice('seed:'.length) ?? fallback;
+/** Milestone A's jobs (the specification's "The slice"), the files tagged `slice`: P5-A1's, in every place it names. */
+const SLICE_JOBS = [
+	'approval-health',
+	'approve-mail-send',
+	'copilot-drives-shell',
+	'copilot-suggests-only',
+	'mail-cannot-act-elsewhere',
+	'no-model-configured',
+	'person-sends-mail',
+	'reply-set-fresh-context',
+	'stop-the-copilot',
+];
 
 async function runFile(
 	directory: string,
 	file: string,
 	fallback: string
 ): Promise<{ passed: boolean; detail: string }> {
-	const parsed = parseScenarioString(readFileSync(`${directory}${file}`, 'utf8'), file);
-	if (!parsed.success) throw new Error(`${file}: ${parsed.error}`);
-	const scenario = parsed.scenario;
+	const scenario = readScenario(directory, file);
 	const make = SEEDS[seedOf(scenario, fallback)];
 	if (!make) throw new Error(`${file}: no seed '${seedOf(scenario, fallback)}'`);
-	const directives = scenario.steps.map((step) => readDirectives(step.description ?? ''));
 	seeded = await make();
 	const { kernel } = seeded;
-	let index = 0;
-	const executor = createInProcessExecutor({
-		stopOnFailure: true,
-		onStepComplete: () => {
-			index += 1;
+	const options = (scope?: { workspace: 'personal'; project: string }) => (scope ? { scope } : {});
+	const host: ScenarioHost = {
+		inactiveApp: 'console',
+		call: (command, input, scope) => kernel.call(command, input, options(scope)),
+		agent: (command, input, scope) => kernel.agent.call(command, input, options(scope)),
+		port(instance, command, input, scope) {
+			const port = kernel.appPort(instance);
+			return (
+				scope ? port.surface({ scope }).call(command, input) : port.call(command, input)
+			) as Promise<CommandResult<unknown>>;
 		},
-		async handler(command, input): Promise<CommandResult<unknown>> {
-			const directive = directives[index] ?? {};
-			const scope = directive.scope
-				? ({ workspace: 'personal', project: directive.scope } as const)
-				: undefined;
-			const options = scope ? { scope } : {};
-			const caller = directive.caller;
-			if (caller && 'agent' in caller) return kernel.agent.call(command, input, options);
-			if (caller) {
-				// The step's setup: an app that does not open fails the step, rather than run as another (the review's G).
-				const opened = await kernel.call('app-open', {
-					instance: caller.inactive ? 'console' : caller.instance,
-				});
-				if (!opened.success) return opened as CommandResult<unknown>;
-				const port = kernel.appPort(caller.instance);
-				// A scope directive binds the port to that scope, as a surface's port is bound (phase 2 specification, 3.6).
-				return (
-					scope ? port.surface({ scope }).call(command, input) : port.call(command, input)
-				) as Promise<CommandResult>;
-			}
-			// A person reads the copilot's answer before writing again: a message sent after they answered a confirmation,
-			// while the turn it follows still continues (3.5), waits for it, as `COPILOT_TURN_RUNNING`'s retryable
-			// suggestion says. Only then, so a file can still assert the code itself.
-			if (
-				command === 'copilot-message-send' &&
-				scenario.steps.slice(0, index).some((step) => step.command === 'notification-act')
-			) {
-				for (let attempt = 0; ; attempt += 1) {
-					const sent = await kernel.call(command, input, options);
-					if (sent.error?.code !== 'COPILOT_TURN_RUNNING' || attempt >= 200) return sent;
-					await new Promise((resolve) => setTimeout(resolve, 10));
-				}
-			}
-			return kernel.call(command, input, options);
-		},
-	});
-	const result = await executor.execute(scenario);
-	const failed = result.stepResults.filter((step) => step.outcome !== 'pass');
-	return {
-		passed: result.outcome === 'pass',
-		detail: JSON.stringify(
-			failed.map((step) => ({
-				step: step.stepId,
-				command: step.command,
-				assertions: step.assertions.filter((assertion) => !assertion.passed),
-				error: step.error,
-				actual: step.commandResult,
-			})),
-			null,
-			2
-		),
 	};
+	return runScenario(scenario, host);
 }
 
 let seeded: SeededKernel | undefined;
@@ -167,25 +127,23 @@ afterEach(async () => {
 });
 
 /**
- * Phase 4's exit rows the runner's titles claim (its section 19): every phase 4 file is P4-E16's, and P4-E4's row names
- * the `autonomy-per-command` and `owner-ceiling` cases as its own too. Phase 5's titles claim no row.
+ * The exit rows the runner's titles claim. Phase 4's (its section 19): every phase 4 file is P4-E16's, and P4-E4's row
+ * names the `autonomy-per-command` and `owner-ceiling` cases as its own too. Phase 5's (its section 18): every file
+ * tagged `slice` is P5-A1's, milestone A's jobs; the files of milestone B claim no row until its exit check reads them.
  */
 const P4_ROWS_OF: Readonly<Record<string, string>> = Object.freeze({
 	'autonomy-per-command': 'P4-E4: ',
 	'owner-ceiling': 'P4-E4: ',
 });
+const SLICE = new Set(namesTagged(PHASE_5, 'slice'));
 
 for (const [phase, directory, runs, fallback, row] of [
 	['phase 4', PHASE_4, RUNS_4, 'p4-base', 'P4-E16: '],
 	['phase 5', PHASE_5, RUNS, 'p5-base', ''],
 ] as const) {
 	describe(`${row}Loam's runner: ${phase}'s scenarios`, () => {
-		const files = readdirSync(directory).filter((name) => name.endsWith('.scenario.yaml'));
-
 		it(`${row}knows every file, so none is left out by accident`, () => {
-			expect(files.map((name) => name.replace('.scenario.yaml', '')).sort()).toEqual(
-				Object.keys(runs).sort()
-			);
+			expect(scenarioNames(directory)).toEqual(Object.keys(runs).sort());
 		});
 
 		// P4-E16: "no job was skipped": every phase 4 file runs now, so a file set back to a later step fails here.
@@ -195,13 +153,23 @@ for (const [phase, directory, runs, fallback, row] of [
 			});
 
 		for (const name of Object.keys(runs).filter((key) => runs[key] === 'now')) {
-			it(`${row}${row ? (P4_ROWS_OF[name] ?? '') : ''}passes ${name}`, async () => {
+			const rows = row ? `${row}${P4_ROWS_OF[name] ?? ''}` : SLICE.has(name) ? 'P5-A1: ' : '';
+			it(`${rows}passes ${name}`, async () => {
 				const { passed, detail } = await runFile(directory, `${name}.scenario.yaml`, fallback);
 				expect(passed, detail).toBe(true);
 			}, 30_000);
 		}
 	});
 }
+
+// P5-A1: "every scenario tagged slice passes": the slice is the nine jobs of milestone A (its Jobs and scenarios), each
+// running now, so a file tagged `slice` that is set back to a later step, or a job dropped from the slice, fails here.
+describe("P5-A1: Loam's runner: phase 5's slice", () => {
+	it('P5-A1: tags the nine jobs of milestone A slice, and runs each now', () => {
+		expect([...SLICE].sort()).toEqual(SLICE_JOBS);
+		expect(SLICE_JOBS.filter((name) => RUNS[name] !== 'now')).toEqual([]);
+	});
+});
 
 describe("Loam's runner: the p4-base seed", () => {
 	it('holds a local workspace signed in as its one person, an owner, and Atlas and Beacon by fixed id', async () => {

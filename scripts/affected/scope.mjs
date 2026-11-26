@@ -102,6 +102,13 @@ export const EXTRA_INPUTS = [
 		packages: ['@lushly-dev/loam-kernel'],
 		ownTests: true,
 	},
+	// `p5-base`'s calls come from `p4-base.seed.json` (kernel/scenarios/host-seed.ts), which Chromium's and the desktop's
+	// scenario runners read too (phase 5 specification, P5-A1): their own tests alone.
+	{
+		prefix: 'endpoints/loam/docs/phases/4-settings/scenarios/p4-base.seed.json',
+		packages: ['@lushly-dev/loam-web', '@lushly-dev/loam-desktop'],
+		ownTests: true,
+	},
 	...[
 		'endpoints/loam/apps/hello/',
 		'endpoints/loam/apps/tally/',

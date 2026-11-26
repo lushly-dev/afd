@@ -1276,6 +1276,37 @@ test('loam-desktop.yml runs on mail engine, mail mount, mail app and packages/ru
 	}
 });
 
+test("loam-desktop.yml runs on the slice's scenario files, p4-base's calls and afd-testing, which its runner reads (P5-A1)", () => {
+	const root = join(import.meta.dirname, '..');
+	const workflow = readFileSync(join(root, '.github/workflows/loam-desktop.yml'), 'utf8');
+	const { paths, gates } = readTrigger(workflow);
+	const scope = (files) => resolveScope({ root, files, git: () => '' });
+	const desktopGate = (files) =>
+		gate(scope(files), parseArgs(['gate', ...gates.get('run')], {})).run;
+
+	for (const file of [
+		'endpoints/loam/docs/phases/5-copilot/scenarios/stop-the-copilot.scenario.yaml',
+		'endpoints/loam/docs/phases/4-settings/scenarios/p4-base.seed.json',
+		'endpoints/loam/packages/kernel/scenarios/runner.ts',
+		'packages/testing/src/index.ts',
+	]) {
+		assert.equal(
+			workflowTrigger(scope([file]), { paths, gates }).run,
+			true,
+			`loam-desktop.yml trigger should match ${file}`
+		);
+		assert.equal(desktopGate([file]), true, `loam-desktop.yml scope gate should run for ${file}`);
+	}
+	// The rest of the specification's folder is prose no suite reads.
+	for (const file of ['endpoints/loam/docs/phases/5-copilot/spec.md']) {
+		assert.equal(
+			workflowTrigger(scope([file]), { paths, gates }).run,
+			false,
+			`loam-desktop.yml trigger should skip ${file}`
+		);
+	}
+});
+
 test('loam.yml gates test:webkit to darwin and reports it as remote only on win32 and linux (#2366)', () => {
 	const repoRoot = join(import.meta.dirname, '..');
 	const suite = SUITES.find((entry) => entry.workflow === 'loam.yml');

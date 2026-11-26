@@ -26,6 +26,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { systemKeychain } from '@lushly-dev/loam-cli/copilot-key';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { restrict, system } from './fixtures/owner-only';
 import {
 	type Desktop,
 	desktopDeployment,
@@ -37,8 +38,6 @@ import {
 } from './harness';
 
 const windows = process.platform === 'win32';
-/** Windows' own tools, by path: another `whoami` on `PATH` (Git's) takes other arguments. */
-const system = () => join(process.env.SystemRoot ?? process.env.windir ?? '', 'System32');
 const FILE_KEY = `sk-local-file-${randomBytes(12).toString('hex')}`;
 const KEYCHAIN_KEY = `sk-local-keychain-${randomBytes(12).toString('hex')}`;
 const SERVICE = 'loam-copilot-test';
@@ -131,27 +130,6 @@ function answer(text: string, response: import('node:http').ServerResponse, held
 		})
 	);
 	response.end('data: [DONE]\n\n');
-}
-
-/** Only its owner may read it, as the Rust host requires of a key file (4.2). */
-function restrict(path: string): void {
-	if (!windows) {
-		spawnSync('chmod', ['600', path]);
-		return;
-	}
-	const sid = /"(S-1-[0-9-]+)"\s*$/.exec(
-		spawnSync(join(system(), 'whoami.exe'), ['/user', '/fo', 'csv', '/nh'], {
-			encoding: 'utf8',
-		}).stdout.trim()
-	)?.[1];
-	if (!sid) throw new Error('whoami named no SID');
-	const icacls = join(system(), 'icacls.exe');
-	const reset = spawnSync(icacls, [path, '/reset']);
-	if (reset.status !== 0) throw new Error('icacls /reset failed');
-	const done = spawnSync(icacls, [path, '/inheritance:r', '/grant:r', `*${sid}:F`]);
-	if (done.status !== 0) throw new Error('icacls failed');
-	const owned = spawnSync(icacls, [path, '/setowner', `*${sid}`]);
-	if (owned.status !== 0) throw new Error('icacls /setowner failed');
 }
 
 function copilotTable(keyFile: string): string {
@@ -430,7 +408,7 @@ describe('P5-A3: the model transport on the desktop', () => {
 		expect(received.length).toBe(before);
 	});
 
-	it("P5-A3 (D153): no message a frame like the runtime's posts runs model_send: the provider hears nothing", async () => {
+	it("P5-A3: D153, no message a frame like the runtime's posts runs model_send: the provider hears nothing", async () => {
 		const before = received.length;
 		const refusals = desktop.stderr.keyRefusals;
 		// The probe says it ran, and through which paths it posted, so a frame that never ran cannot pass for one refused.
