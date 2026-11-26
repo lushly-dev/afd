@@ -1,6 +1,11 @@
 /** AFD command definitions shared by the CLI and MCP hosts. */
 import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
-import { defineCommand, failure, success } from '@lushly-dev/afd-server/define';
+import {
+	defineCommand,
+	failure,
+	success,
+	type ZodCommandDefinition,
+} from '@lushly-dev/afd-server/define';
 import {
 	createDirectRegistry,
 	type DirectCommandRegistry,
@@ -87,6 +92,7 @@ import {
 } from '@lushly-dev/specimen/schema';
 import { z } from 'zod';
 import { type ExecuteSpecimenCommandOptions, executeValidatedCommand } from './execute.js';
+import { createPanelReviewCommands } from './panel-review-commands.js';
 import { createPatternForkCommands } from './pattern-commands.js';
 import {
 	ERROR_SUGGESTIONS,
@@ -185,6 +191,10 @@ import type {
 	PackExportRun,
 	PackRequest,
 	PackRun,
+	PanelCalibrateRequest,
+	PanelCalibrateResult,
+	PanelReviewRequest,
+	PanelReviewResult,
 	PanelWalkRequest,
 	PanelWalkResult,
 	PatternCompareRequest,
@@ -203,6 +213,8 @@ import type {
 	RecordDecisionOptions,
 	ReviewRequest,
 	ReviewResult,
+	RunPanelCalibrateOptions,
+	RunPanelReviewOptions,
 	RunRequest,
 	SpecimenEntry,
 	SpecimenListFilter,
@@ -400,6 +412,14 @@ export interface SpecimenCommandBench {
 	checkDecisions(request?: DecisionCheckRequest): Promise<DecisionCheckResult>;
 	designStates(request?: DesignStatesRequest): Promise<DesignStatesResult>;
 	panelWalk(request: PanelWalkRequest): Promise<PanelWalkResult>;
+	panelReview(
+		request: PanelReviewRequest,
+		options?: RunPanelReviewOptions
+	): Promise<PanelReviewResult>;
+	panelCalibrate(
+		request: PanelCalibrateRequest,
+		options?: RunPanelCalibrateOptions
+	): Promise<PanelCalibrateResult>;
 	listDesignCards(request?: DesignCardListRequest): Promise<DesignCardListResult>;
 	recordDesignRelease(
 		request: DesignReleaseRequest,
@@ -1255,6 +1275,45 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				'Verify the job, persona, modality, and target URL, then re-run panel-walk.'
 			),
 	});
+	const [panelReview, panelCalibrate] = createPanelReviewCommands(
+		bench,
+		result,
+		async (provInput, context) => {
+			const direct = createDirectRegistry([decisionRecord]);
+			const res = await direct.execute(
+				'decision-record',
+				{
+					items: provInput.items,
+					chosen: provInput.chosen,
+					reason: provInput.reason,
+					provisional: true,
+					panel: { reviewers: provInput.reviewers, split: provInput.split },
+				},
+				{
+					...context,
+					[SPECIMEN_CHANGE_AUTHOR_CONTEXT_KEY]: markSpecimenChangeAuthor(provInput.changeAuthor),
+				}
+			);
+			if (!res.success) {
+				const err = new Error(
+					res.error?.message ?? 'Provisional Mode 3 decision-record settlement failed.'
+				) as Error & { code?: string; suggestion?: string; details?: Record<string, unknown> };
+				err.code = res.error?.code ?? 'DECISION_RECORD_FAILED';
+				if (res.error?.suggestion) err.suggestion = res.error.suggestion;
+				if (res.error?.details) err.details = res.error.details;
+				throw err;
+			}
+			if (
+				res.data &&
+				typeof res.data === 'object' &&
+				'decision' in res.data &&
+				typeof (res.data as { decision?: unknown }).decision === 'string'
+			) {
+				return { decision: (res.data as { decision: string }).decision };
+			}
+			return undefined;
+		}
+	);
 	const [patternFork, patternCompare, patternMerge] = createPatternForkCommands(bench, result);
 	return [
 		list,
@@ -1301,6 +1360,8 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		patternFork,
 		patternCompare,
 		patternMerge,
+		panelReview,
+		panelCalibrate,
 	] as const;
 }
 
@@ -1323,149 +1384,16 @@ export async function executeSpecimenCommand(
 	input: unknown,
 	options?: ExecuteSpecimenCommandOptions
 ): Promise<CommandResult<unknown>> {
-	const [
-		list,
-		render,
-		capture,
-		compare,
-		diff,
-		review,
-		build,
-		validate,
-		runStory,
-		a11y,
-		profile,
-		baseline,
-		contract,
-		suggest,
-		coverage,
-		matrix,
-		inspect,
-		migrate,
-		pack,
-		packCheck,
-		packExport,
-		themes,
-		point,
-		pointMove,
-		pointCheck,
-		noteAdd,
-		noteList,
-		noteCheck,
-		noteMove,
-		noteResolve,
-		noteReopen,
-		jobCreate,
-		jobRun,
-		decisionRecord,
-		decisionGet,
-		decisionList,
-		decisionCheck,
-		designStates,
-		panelWalk,
-		designCardList,
-		designRelease,
-		patternFork,
-		patternCompare,
-		patternMerge,
-	] = createSpecimenCommands(bench);
-	switch (name) {
-		case 'specimen-list':
-			return executeValidatedCommand(list, input, options);
-		case 'specimen-render':
-			return executeValidatedCommand(render, input, options);
-		case 'specimen-capture':
-			return executeValidatedCommand(capture, input, options);
-		case 'specimen-compare':
-			return executeValidatedCommand(compare, input, options);
-		case 'specimen-diff':
-			return executeValidatedCommand(diff, input, options);
-		case 'specimen-review':
-			return executeValidatedCommand(review, input, options);
-		case 'specimen-build':
-			return executeValidatedCommand(build, input, options);
-		case 'specimen-validate':
-			return executeValidatedCommand(validate, input, options);
-		case 'specimen-run':
-			return executeValidatedCommand(runStory, input, options);
-		case 'specimen-a11y':
-			return executeValidatedCommand(a11y, input, options);
-		case 'specimen-profile':
-			return executeValidatedCommand(profile, input, options);
-		case 'specimen-baseline':
-			return executeValidatedCommand(baseline, input, options);
-		case 'specimen-suggest':
-			return executeValidatedCommand(suggest, input, options);
-		case 'specimen-contract':
-			return executeValidatedCommand(contract, input, options);
-		case 'specimen-coverage':
-			return executeValidatedCommand(coverage, input, options);
-		case 'specimen-matrix':
-			return executeValidatedCommand(matrix, input, options);
-		case 'specimen-inspect':
-			return executeValidatedCommand(inspect, input, options);
-		case 'specimen-migrate':
-			return executeValidatedCommand(migrate, input, options);
-		case 'specimen-pack':
-			return executeValidatedCommand(pack, input, options);
-		case 'specimen-pack-check':
-			return executeValidatedCommand(packCheck, input, options);
-		case 'specimen-pack-export':
-			return executeValidatedCommand(packExport, input, options);
-		case 'specimen-themes':
-			return executeValidatedCommand(themes, input, options);
-		case 'specimen-point':
-			return executeValidatedCommand(point, input, options);
-		case 'specimen-point-move':
-			return executeValidatedCommand(pointMove, input, options);
-		case 'specimen-point-check':
-			return executeValidatedCommand(pointCheck, input, options);
-		case 'specimen-note-add':
-			return executeValidatedCommand(noteAdd, input, options);
-		case 'specimen-note-list':
-			return executeValidatedCommand(noteList, input, options);
-		case 'specimen-note-check':
-			return executeValidatedCommand(noteCheck, input, options);
-		case 'specimen-note-move':
-			return executeValidatedCommand(noteMove, input, options);
-		case 'specimen-note-resolve':
-			return executeValidatedCommand(noteResolve, input, options);
-		case 'specimen-note-reopen':
-			return executeValidatedCommand(noteReopen, input, options);
-		case 'specimen-job-create':
-			return executeValidatedCommand(jobCreate, input, options);
-		case 'specimen-job-run':
-			return executeValidatedCommand(jobRun, input, options);
-		case 'decision-record':
-			return executeValidatedCommand(decisionRecord, input, options);
-		case 'decision-get':
-			return executeValidatedCommand(decisionGet, input, options);
-		case 'decision-list':
-			return executeValidatedCommand(decisionList, input, options);
-		case 'decision-check':
-			return executeValidatedCommand(decisionCheck, input, options);
-		case 'design-states':
-			return executeValidatedCommand(designStates, input, options);
-		case 'panel-walk':
-			return executeValidatedCommand(panelWalk, input, options);
-		case 'design-card-list':
-			return executeValidatedCommand(designCardList, input, options);
-		case 'design-release':
-			return executeValidatedCommand(designRelease, input, options);
-		case 'specimen-pattern-fork':
-			return executeValidatedCommand(patternFork, input, options);
-		case 'specimen-pattern-compare':
-			return executeValidatedCommand(patternCompare, input, options);
-		case 'specimen-pattern-merge':
-			return executeValidatedCommand(patternMerge, input, options);
-		default:
-			return failure({
-				code: 'COMMAND_NOT_FOUND',
-				message: `Unknown command: ${name}`,
-				suggestion:
-					'Use specimen list, validate, inspect, render, capture, compare, review, run, themes, migrate, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, job-run, decision-record, decision-get, decision-list, decision-check, design-states, panel-walk, design-card-list, design-release, specimen-pattern-fork, specimen-pattern-compare, or specimen-pattern-merge.',
-			});
+	const command = createSpecimenCommands(bench).find((cmd) => cmd.name === name);
+	if (!command) {
+		return failure({
+			code: 'COMMAND_NOT_FOUND',
+			message: `Unknown command: ${name}`,
+			suggestion:
+				'Use specimen list, validate, inspect, render, capture, compare, review, run, themes, migrate, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, job-run, decision-record, decision-get, decision-list, decision-check, design-states, panel-walk, panel-review, panel-calibrate, design-card-list, design-release, specimen-pattern-fork, specimen-pattern-compare, or specimen-pattern-merge.',
+		});
 	}
+	return executeValidatedCommand(command as ZodCommandDefinition, input, options);
 }
 
 /** Compare captures through the shared AFD command without creating a browser bench. */

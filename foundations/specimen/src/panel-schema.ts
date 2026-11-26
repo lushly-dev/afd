@@ -105,6 +105,7 @@ export const panelWalkRecordSchema = z.strictObject({
 export const personaDefinitionSchema = z.strictObject({
 	id: trimmedText,
 	modality: modalitySchema,
+	family: trimmedText.optional(),
 	name: trimmedText.optional(),
 	stance: trimmedText.optional(),
 	card: trimmedText.optional(),
@@ -115,4 +116,7 @@ export const panelConfigSchema = z.strictObject({
 	jobs: z.array(trimmedText).optional(),
 	scenariosDir: trimmedText.optional(),
 	driver: trimmedText.optional(),
+	allowUnverifiedLocal: z.boolean().optional(),
+	changeAuthors: z.record(trimmedText, trimmedText).optional(),
+	memberCostUsd: z.number().finite().positive().optional(),
 });

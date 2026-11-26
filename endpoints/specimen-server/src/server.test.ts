@@ -331,9 +331,15 @@ describe('Specimen MCP endpoint (@lushly-dev/afd-server)', () => {
 			'specimen-review',
 			'specimen-validate',
 			'panel-walk',
+			'panel-review',
 			'design-release',
-			'specimen-list',
 		]);
+		expect(
+			hybridTools.find((t) => t.name === 'panel-review')?._meta?.['dev.afd/outputBudget']
+		).toEqual({
+			defaultBytes: 32768,
+			maxBytes: 98304,
+		});
 		expect(
 			hybridTools.find((t) => t.name === 'design-states')?._meta?.['dev.afd/outputBudget']
 		).toEqual({
@@ -365,24 +371,25 @@ describe('Specimen MCP endpoint (@lushly-dev/afd-server)', () => {
 			'host-verified'
 		);
 
-		// afd-discover reaches all 44 Specimen commands cleanly.
+		// afd-discover reaches all 46 Specimen commands cleanly.
 		const discovered = mcpResult(await callTool(hybridUrl, 'afd-discover', { limit: 100 }));
 		expect(discovered.success).toBe(true);
-		expect((discovered.data as { total: number }).total).toBe(44);
+		expect((discovered.data as { total: number }).total).toBe(46);
 
-		// Grouped strategy exposes category groups (`specimen`, `decision`, `design`) + meta-tools.
+		// Grouped strategy exposes category groups (`specimen`, `decision`, `design`, `panel`) + meta-tools.
 		const { url: groupedUrl } = await mountHandler({ toolStrategy: 'grouped' });
 		const groupedNames = (await listTools(groupedUrl)).map((t) => t.name);
 		expect(groupedNames).toContain('specimen');
 		expect(groupedNames).toContain('decision');
 		expect(groupedNames).toContain('design');
+		expect(groupedNames).toContain('panel');
 		expect(groupedNames).toContain('afd-call');
 
-		// Individual strategy exposes all 44 Specimen commands with annotations and schemas.
+		// Individual strategy exposes all 46 Specimen commands with annotations and schemas.
 		const { url: individualUrl } = await mountHandler({ toolStrategy: 'individual' });
 		const individualTools = await listTools(individualUrl);
 		const individualSpecimen = individualTools.filter((t) => !t.name.startsWith('afd-'));
-		expect(individualSpecimen).toHaveLength(44);
+		expect(individualSpecimen).toHaveLength(46);
 		expect(individualTools.find((t) => t.name === 'design-states')?.annotations).toMatchObject({
 			readOnlyHint: true,
 		});
@@ -413,13 +420,22 @@ describe('Specimen MCP endpoint (@lushly-dev/afd-server)', () => {
 		expect(
 			individualTools.find((t) => t.name === 'specimen-pattern-merge')?.annotations
 		).toMatchObject({ readOnlyHint: false });
+		expect(individualTools.find((t) => t.name === 'panel-review')?.annotations).toMatchObject({
+			readOnlyHint: false,
+		});
+		expect(individualTools.find((t) => t.name === 'panel-calibrate')?.annotations).toMatchObject({
+			readOnlyHint: false,
+		});
+		expect(individualTools.find((t) => t.name === 'panel-calibrate')?._meta?.confirmationMode).toBe(
+			'host-verified'
+		);
 
-		// Lazy strategy exposes only the 5 AFD meta-tools while keeping all 44 commands discoverable.
+		// Lazy strategy exposes only the 5 AFD meta-tools while keeping all 46 commands discoverable.
 		const { url: lazyUrl } = await mountHandler({ toolStrategy: 'lazy' });
 		const lazyNames = (await listTools(lazyUrl)).map((t) => t.name);
 		expect(lazyNames).toEqual(['afd-discover', 'afd-detail', 'afd-call', 'afd-batch', 'afd-pipe']);
 		const lazyDiscovered = mcpResult(await callTool(lazyUrl, 'afd-discover', { limit: 100 }));
-		expect((lazyDiscovered.data as { total: number }).total).toBe(44);
+		expect((lazyDiscovered.data as { total: number }).total).toBe(46);
 	});
 
 	it('preserves CLI envelopes, structured errors, and job-create + jobs@1 coverage over MCP', async () => {
@@ -462,11 +478,11 @@ describe('Specimen MCP endpoint (@lushly-dev/afd-server)', () => {
 				},
 			})
 		).toBe(0);
-		const listed = mcpResult(await callTool(url, 'specimen-list', {}));
+		const listed = mcpResult(await callViaAfd(url, 'specimen-list', {}));
 		expect(listed.success).toBe(true);
 		expect(listed.data).toEqual(JSON.parse(cliOutput).data);
 
-		const invalid = mcpResult(await callTool(url, 'specimen-list', { unexpected: true }));
+		const invalid = mcpResult(await callViaAfd(url, 'specimen-list', { unexpected: true }));
 		expect(invalid).toMatchObject({
 			success: false,
 			error: { code: 'VALIDATION_ERROR' },
@@ -977,12 +993,15 @@ describe('Specimen MCP endpoint (@lushly-dev/afd-server)', () => {
 		});
 		await client.connect(transport);
 		const listedNames = (await client.listTools()).tools.map((tool) => tool.name);
-		expect(listedNames).toContain('specimen-list');
+		expect(listedNames).toContain('panel-review');
 		expect(listedNames).toContain('design-card-list');
 		expect(listedNames).toContain('design-release');
 		expect(listedNames).toContain('afd-discover');
 
-		const result = await client.callTool({ name: 'specimen-list', arguments: {} });
+		const result = await client.callTool({
+			name: 'afd-call',
+			arguments: { command: 'specimen-list', input: {} },
+		});
 		const cliBin = new URL('../../specimen-cli/dist/bin.js', import.meta.url);
 		const cli = await exec(process.execPath, [fileURLToPath(cliBin), '--root', root, 'list']);
 		expect(result.isError).toBe(false);
@@ -1512,6 +1531,78 @@ describe('Specimen MCP endpoint (@lushly-dev/afd-server)', () => {
 		expect(compared.data).toMatchObject({
 			pattern: 'error-recovery',
 			source: { library: 'afd-defaults', pattern: 'error-recovery', baseVersion: '1.0.0' },
+		});
+	});
+
+	it('enforces HumanRelay host-verified confirmation on panel-calibrate (unavailable, declined, accepted) over MCP and runs panel-review withdraw', async () => {
+		await writeFile(join(root, 'commands.json'), JSON.stringify({ commands: ['order-create'] }));
+		await writeFile(
+			join(root, 'specimen.config.json'),
+			JSON.stringify({ commandManifest: './commands.json' })
+		);
+		const { url: noRelayUrl } = await mountHandler({ toolStrategy: 'individual' });
+
+		// Without a HumanRelay, host-verified panel-calibrate fails closed with CONFIRMATION_REQUIRED
+		const blocked = mcpResult(
+			await callTool(noRelayUrl, 'panel-calibrate', { action: 'sample', count: 2 }, urlCaps())
+		);
+		expect(blocked).toMatchObject({
+			success: false,
+			error: { code: 'CONFIRMATION_REQUIRED' },
+		});
+
+		// With a HumanRelay: declined confirmation returns CONFIRMATION_DECLINED; accepted executes handler
+		const relay = new FakeHumanRelay();
+		const { url: relayUrl } = await mountHandler({
+			toolStrategy: 'individual',
+			humanRelay: relay,
+		});
+		const recordArgs = {
+			action: 'record',
+			sample: 'cal-000000000000',
+			judgements: [],
+		};
+		const prompt1 = await callTool(relayUrl, 'panel-calibrate', recordArgs, urlCaps());
+		const state1 = (prompt1.result as { requestState: string }).requestState;
+		expect(state1).toBeTruthy();
+		relay.answer({ kind: 'declined' });
+		const declined = mcpResult(
+			await callTool(relayUrl, 'panel-calibrate', recordArgs, urlCaps(), {
+				inputResponses: { relay: { action: 'accept' } },
+				requestState: state1,
+			})
+		);
+		expect(declined).toMatchObject({
+			success: false,
+			error: { code: 'CONFIRMATION_DECLINED' },
+		});
+
+		const prompt2 = await callTool(relayUrl, 'panel-calibrate', recordArgs, urlCaps());
+		const state2 = (prompt2.result as { requestState: string }).requestState;
+		relay.answer({ kind: 'approved', decisionId: 'relay-cal-1' });
+		const approvedRecord = mcpResult(
+			await callTool(relayUrl, 'panel-calibrate', recordArgs, urlCaps(), {
+				inputResponses: { relay: { action: 'accept' } },
+				requestState: state2,
+			})
+		);
+		// Handler actually ran with humanConfirmed: true and returned canonical SAMPLE_NOT_FOUND (not PERSON_REQUIRED!)
+		expect(approvedRecord).toMatchObject({
+			success: false,
+			error: { code: 'SAMPLE_NOT_FOUND' },
+		});
+
+		// Unknown run withdraw returns structured RUN_NOT_FOUND over MCP
+		const missingRun = mcpResult(
+			await callTool(noRelayUrl, 'panel-review', {
+				action: 'withdraw',
+				run: 'run-000000000000',
+				reason: 'Unknown run test',
+			})
+		);
+		expect(missingRun).toMatchObject({
+			success: false,
+			error: { code: 'RUN_NOT_FOUND' },
 		});
 	});
 });

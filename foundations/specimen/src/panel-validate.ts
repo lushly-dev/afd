@@ -132,7 +132,15 @@ export function parsePanelWalkRequest(value: unknown): PanelWalkRequest {
 /** Zero-Zod validator for optional `panel` section in `specimen.config.json`. */
 export function parsePanelConfig(value: unknown): PanelConfig {
 	const path = 'configuration.panel';
-	const fields = record(value, path, ['personas', 'jobs', 'scenariosDir', 'driver']);
+	const fields = record(value, path, [
+		'personas',
+		'jobs',
+		'scenariosDir',
+		'driver',
+		'allowUnverifiedLocal',
+		'changeAuthors',
+		'memberCostUsd',
+	]);
 
 	let personas: PersonaDefinition[] | undefined;
 	if (fields.personas !== undefined) {
@@ -141,13 +149,14 @@ export function parsePanelConfig(value: unknown): PanelConfig {
 		}
 		personas = fields.personas.map((entry, idx) => {
 			const entryPath = `${path}.personas[${idx}]`;
-			const obj = record(entry, entryPath, ['id', 'modality', 'name', 'stance', 'card']);
+			const obj = record(entry, entryPath, ['id', 'modality', 'name', 'stance', 'card', 'family']);
 			return {
 				id: text(obj.id, `${entryPath}.id`),
 				modality: modalityChoice(obj.modality, `${entryPath}.modality`),
 				...(obj.name === undefined ? {} : { name: text(obj.name, `${entryPath}.name`) }),
 				...(obj.stance === undefined ? {} : { stance: text(obj.stance, `${entryPath}.stance`) }),
 				...(obj.card === undefined ? {} : { card: text(obj.card, `${entryPath}.card`) }),
+				...(obj.family === undefined ? {} : { family: text(obj.family, `${entryPath}.family`) }),
 			};
 		});
 	}
@@ -164,10 +173,49 @@ export function parsePanelConfig(value: unknown): PanelConfig {
 			: text(fields.scenariosDir, `${path}.scenariosDir`);
 	const driver = fields.driver === undefined ? undefined : text(fields.driver, `${path}.driver`);
 
+	let allowUnverifiedLocal: boolean | undefined;
+	if (fields.allowUnverifiedLocal !== undefined) {
+		if (typeof fields.allowUnverifiedLocal !== 'boolean') {
+			fail(`${path}.allowUnverifiedLocal`, 'expected a boolean');
+		}
+		allowUnverifiedLocal = fields.allowUnverifiedLocal;
+	}
+
+	let changeAuthors: Record<string, string> | undefined;
+	if (fields.changeAuthors !== undefined) {
+		if (
+			typeof fields.changeAuthors !== 'object' ||
+			fields.changeAuthors === null ||
+			Array.isArray(fields.changeAuthors)
+		) {
+			fail(`${path}.changeAuthors`, 'expected a record of change id to author id');
+		}
+		changeAuthors = {};
+		for (const [k, v] of Object.entries(fields.changeAuthors as Record<string, unknown>)) {
+			if (!k.trim()) fail(`${path}.changeAuthors`, 'expected a non-empty change id key');
+			changeAuthors[k] = text(v, `${path}.changeAuthors.${k}`);
+		}
+	}
+
+	let memberCostUsd: number | undefined;
+	if (fields.memberCostUsd !== undefined) {
+		if (
+			typeof fields.memberCostUsd !== 'number' ||
+			!Number.isFinite(fields.memberCostUsd) ||
+			fields.memberCostUsd < 0
+		) {
+			fail(`${path}.memberCostUsd`, 'expected a finite non-negative number');
+		}
+		memberCostUsd = fields.memberCostUsd;
+	}
+
 	return {
 		...(personas === undefined ? {} : { personas }),
 		...(jobs === undefined ? {} : { jobs }),
 		...(scenariosDir === undefined ? {} : { scenariosDir }),
 		...(driver === undefined ? {} : { driver }),
+		...(allowUnverifiedLocal === undefined ? {} : { allowUnverifiedLocal }),
+		...(changeAuthors === undefined ? {} : { changeAuthors }),
+		...(memberCostUsd === undefined ? {} : { memberCostUsd }),
 	};
 }

@@ -628,6 +628,66 @@ function bench(): SpecimenCommandBench {
 			stagedStatus: 'proposed' as const,
 			nextSteps: ['Approve via decision-record.'],
 		})),
+		panelReview: vi.fn(async (request) =>
+			request.action === 'withdraw'
+				? {
+						run: request.run,
+						withdrawn: true as const,
+						withdrawnCards: [],
+						withdrawnProvisional: 1,
+						preservedDecidedCards: [],
+						reason: request.reason,
+					}
+				: {
+						run: 'run-a1b2c3d4e5f6',
+						round: 1,
+						panelSize: request.panelSize ?? 5,
+						walks: ['walk-a1b2c3d4e5f6'],
+						overlap: { families: ['anthropic', 'openai'], sharedFindings: 1, uniqueFindings: 0 },
+						provisional: [
+							{
+								item: 'item-1',
+								summary: 'Agreed clean.',
+								decidedBy: { kind: 'panel' as const, reviewers: ['rev-1'], split: '5-0' },
+								provisional: true as const,
+							},
+						],
+						escalated: [],
+						stoppedBy: 'converged' as const,
+						nextSteps: ['Inspect design-card-list.'],
+						unmeasured: [],
+					}
+		),
+		panelCalibrate: vi.fn(async (request) =>
+			request.action === 'sample'
+				? {
+						sample: 'cal-a1b2c3d4e5f6',
+						items: [
+							{
+								item: 'item-1',
+								summary: 'Agreed clean.',
+								evidence: { walk: 'walk-a1b2c3d4e5f6' },
+							},
+						],
+						unmeasured: [],
+					}
+				: {
+						sample: request.sample,
+						items: [
+							{
+								item: 'item-1',
+								summary: 'Agreed clean.',
+								evidence: { walk: 'walk-a1b2c3d4e5f6' },
+								panelVerdict: 'accept' as const,
+							},
+						],
+						recorded: request.judgements.length,
+						disagreed: 0,
+						disagreementRate: 0,
+						reopenedCards: [],
+						unmeasured: [],
+					}
+		),
 		review: vi.fn(async () => ({
 			before: { set: 'set-4f1c0a9e2b7d', revision: 'a1b2c3d', dirty: false },
 			after: { set: 'set-7e2a90c4d311', revision: 'e4f5a6b', dirty: false },
@@ -768,6 +828,8 @@ describe('specimen commands', () => {
 			'specimen-pattern-fork',
 			'specimen-pattern-compare',
 			'specimen-pattern-merge',
+			'panel-review',
+			'panel-calibrate',
 		]);
 		for (const command of commands) {
 			expect(command.expose).toEqual({ mcp: true, cli: true });
@@ -3201,5 +3263,262 @@ describe('specimen commands', () => {
 			stagedStatus: 'proposed',
 			accepted: ['error-recovery.keep.next'],
 		});
+
+		expect(byName('panel-review')).toMatchObject({
+			mutation: true,
+			executionTime: 'long-running',
+			task: 'optional',
+			outputBudget: { defaultBytes: 32768, maxBytes: 98304 },
+		});
+		expect(byName('panel-review')?.approval).toBeUndefined();
+		expect(byName('panel-calibrate')).toMatchObject({
+			mutation: true,
+			confirmationMode: 'host-verified',
+			outputBudget: { defaultBytes: 16384, maxBytes: 49152 },
+		});
+
+		const reviewed = await executeSpecimenCommand(instance, 'panel-review', {
+			change: 'checkout-fix',
+			jobs: ['checkout-out-of-stock'],
+			target: 'http://127.0.0.1:4181/?screen=checkout',
+			appDate: '2030-05-12',
+		});
+		expect(reviewed.success).toBe(true);
+		expect(reviewed.data).toMatchObject({ run: 'run-a1b2c3d4e5f6', panelSize: 5 });
+
+		const sampled = await executeSpecimenCommand(instance, 'panel-calibrate', {
+			action: 'sample',
+			count: 2,
+			seed: 7,
+		});
+		expect(sampled.success).toBe(true);
+		expect(sampled.data).toMatchObject({ sample: 'cal-a1b2c3d4e5f6' });
+
+		// Security: unverified actor.kind === 'human' MUST NOT pass invokingActorKind: 'person' to panelCalibrate
+		await executeSpecimenCommand(
+			instance,
+			'panel-calibrate',
+			{
+				action: 'record',
+				sample: 'cal-a1b2c3d4e5f6',
+				judgements: [{ item: 'item-1', verdict: 'accept' }],
+			},
+			{ actor: { kind: 'human', id: 'spoofed' } }
+		);
+		expect(instance.panelCalibrate).toHaveBeenLastCalledWith(
+			expect.objectContaining({ action: 'record' }),
+			expect.objectContaining({ invokingActorKind: 'script', actorId: 'spoofed' })
+		);
+
+		// Verified actor kinds + host-verified humanConfirmed + server changeAuthor pass through cleanly
+		await executeSpecimenCommand(
+			instance,
+			'panel-review',
+			{
+				change: 'checkout-fix',
+				jobs: ['checkout-out-of-stock'],
+				target: 'http://127.0.0.1:4181/?screen=checkout',
+				appDate: '2030-05-12',
+			},
+			{ actor: { kind: 'agent', id: 'reviewer-1' }, changeAuthor: 'author-1' }
+		);
+		expect(instance.panelReview).toHaveBeenLastCalledWith(
+			expect.objectContaining({ change: 'checkout-fix' }),
+			expect.objectContaining({ actorId: 'reviewer-1', changeAuthor: 'author-1' })
+		);
+
+		await executeSpecimenCommand(
+			instance,
+			'panel-calibrate',
+			{
+				action: 'record',
+				sample: 'cal-a1b2c3d4e5f6',
+				judgements: [{ item: 'item-1', verdict: 'accept' }],
+			},
+			{ actor: { kind: 'agent', id: 'agent-1' } }
+		);
+		expect(instance.panelCalibrate).toHaveBeenLastCalledWith(
+			expect.objectContaining({ action: 'record' }),
+			expect.objectContaining({ invokingActorKind: 'agent', actorId: 'agent-1' })
+		);
+
+		await executeSpecimenCommand(
+			instance,
+			'panel-calibrate',
+			{
+				action: 'record',
+				sample: 'cal-a1b2c3d4e5f6',
+				judgements: [{ item: 'item-1', verdict: 'accept' }],
+			},
+			{ actor: { kind: 'test', id: 'test-1' } }
+		);
+		expect(instance.panelCalibrate).toHaveBeenLastCalledWith(
+			expect.objectContaining({ action: 'record' }),
+			expect.objectContaining({ invokingActorKind: 'test', actorId: 'test-1' })
+		);
+
+		await executeSpecimenCommand(
+			instance,
+			'panel-calibrate',
+			{
+				action: 'record',
+				sample: 'cal-a1b2c3d4e5f6',
+				judgements: [{ item: 'item-1', verdict: 'accept' }],
+			},
+			{ humanConfirmed: true, confirmedBy: 'owner-1', channel: 'mcp-relay' }
+		);
+		expect(instance.panelCalibrate).toHaveBeenLastCalledWith(
+			expect.objectContaining({ action: 'record' }),
+			expect.objectContaining({
+				humanConfirmed: true,
+				invokingActorKind: 'person',
+				actorId: 'owner-1',
+			})
+		);
+	});
+
+	it('executes panel-review Mode 3 provisional decision-record via DirectRegistry without deadlocking and propagates errors', async () => {
+		const root = await mkdtemp(join(tmpdir(), 'specimen-afd-panel-mode3-'));
+		try {
+			await mkdir(join(root, 'specimens/jobs'), { recursive: true });
+			await writeFile(
+				join(root, 'specimens/jobs/checkout-fix.scenario.yaml'),
+				[
+					'name: Checkout fix',
+					'steps:',
+					'  - description: Checkout step',
+					'    command: cart-checkout',
+					'    expect: { success: true }',
+					'',
+				].join('\n')
+			);
+			await writeFile(
+				join(root, 'specimen.config.json'),
+				JSON.stringify({
+					specimens: [
+						{
+							id: 'checkout-fix',
+							title: 'Checkout/Fix',
+							module: './noop.js',
+							exportName: 'default',
+							job: {
+								scenario: './specimens/jobs/checkout-fix.scenario.yaml',
+								target: 'app',
+								captures: [{ after: 'Checkout step', name: 'checkout' }],
+							},
+						},
+					],
+					panel: {
+						changeAuthors: { 'mode3-change': 'author-bot' },
+					},
+				})
+			);
+			await writeFile(join(root, 'noop.js'), 'export default {};\n');
+
+			// Produce two real capture sets (`before` and `after`) with a real reviewable change
+			const entries: SpecimenEntry[] = [
+				{ id: 'checkout-btn', title: 'Checkout/Btn', module: './noop.js', exportName: 'default' },
+			];
+			const makeCapture = (label: string, text: string) =>
+				runCaptureSet(
+					{
+						root,
+						entries,
+						workers: 1,
+						prepare: async () => {},
+						sourceState: async () => ({ revision: 'a1b2c3d', dirty: false }),
+						render: async ({ entry, context }) => {
+							const obs = observation();
+							obs.manifest.specimenId = entry.id;
+							obs.manifest.context.theme = context.theme;
+							obs.manifest.context.viewport = context.viewport;
+							obs.channels.dom.raw = `<button>${text}</button>`;
+							obs.channels.a11y.snapshot = `- button "${text}"`;
+							return obs;
+						},
+					},
+					{ label }
+				);
+			const before = await makeCapture('before-mode3', 'Checkout');
+			const after = await makeCapture('after-mode3', 'Place order');
+
+			const cleanDriver = async () => ({
+				transcript: 'Completed checkout.\nDone.',
+				actions: 1,
+				journal: [{ command: 'cart-checkout', success: true }],
+				findings: [],
+			});
+			const realBench = await createSpecimenBench({ root });
+			const drivenBench: SpecimenCommandBench = Object.assign(Object.create(realBench), {
+				panelReview: (
+					req: Parameters<SpecimenCommandBench['panelReview']>[0],
+					opts?: Parameters<SpecimenCommandBench['panelReview']>[1]
+				) => realBench.panelReview(req, { ...opts, driver: cleanDriver }),
+			});
+			try {
+				const res = await executeSpecimenCommand(
+					drivenBench,
+					'panel-review',
+					{
+						change: 'mode3-change',
+						jobs: ['checkout-fix'],
+						target: 'http://127.0.0.1:4181/?screen=checkout',
+						appDate: '2030-05-12',
+						captures: { before: before.set, after: after.set },
+					},
+					{ actor: { kind: 'agent', id: 'independent-reviewer' } }
+				);
+				expect(res.error).toBeUndefined();
+				expect(res.success).toBe(true);
+				const listed = await listDecisions(root, { kind: 'answer' });
+				expect(listed.decisions).toHaveLength(1);
+				const recorded = await getDecision(root, {
+					decision: listed.decisions[0]?.decision as string,
+				});
+				expect(recorded.kind).toBe('answer');
+				if (recorded.kind === 'answer') {
+					expect(recorded.provisional).toBe(true);
+					expect(recorded.decidedBy).toMatchObject({ kind: 'panel', split: '5-0' });
+				}
+			} finally {
+				await realBench.close();
+			}
+
+			// Verify Mode 3 error propagation (no swallowing) + cost-ledger preservation when recordDecision fails
+			const after2 = await makeCapture('after-mode3-2', 'Submit order');
+			const failingBench = await createSpecimenBench({ root });
+			try {
+				// Wrap bench so recordDecision fails deterministically during Mode 3 recording
+				const wrapped: SpecimenCommandBench = Object.assign(Object.create(failingBench), {
+					recordDecision: async () => {
+						throw Object.assign(new Error('Simulated Mode 3 failure'), {
+							code: 'AUTHOR_CANNOT_DECIDE',
+						});
+					},
+					panelReview: (
+						req: Parameters<SpecimenCommandBench['panelReview']>[0],
+						opts?: Parameters<SpecimenCommandBench['panelReview']>[1]
+					) => failingBench.panelReview(req, { ...opts, driver: cleanDriver }),
+				});
+				const failed = await executeSpecimenCommand(
+					wrapped,
+					'panel-review',
+					{
+						change: 'mode3-change',
+						jobs: ['checkout-fix'],
+						target: 'http://127.0.0.1:4181/?screen=checkout',
+						appDate: '2030-05-12',
+						captures: { before: after.set, after: after2.set },
+					},
+					{ actor: { kind: 'agent', id: 'independent-reviewer' } }
+				);
+				expect(failed.success).toBe(false);
+				expect(failed.error?.code).toBe('AUTHOR_CANNOT_DECIDE');
+			} finally {
+				await failingBench.close();
+			}
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
 	});
 });

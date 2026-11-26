@@ -36,6 +36,8 @@ import {
 	writePack,
 	writePackIndex,
 } from './pack-files.js';
+import { runPanelCalibrate } from './panel-calibrate.js';
+import { runPanelReview } from './panel-review.js';
 import { type RunPanelWalkOptions, runPanelWalk } from './panel-walk.js';
 import { runPatternCompare, runPatternFork, runPatternMerge } from './pattern-fork.js';
 import {
@@ -125,6 +127,10 @@ import type {
 	PackExportRun,
 	PackRequest,
 	PackRun,
+	PanelCalibrateRequest,
+	PanelCalibrateResult,
+	PanelReviewRequest,
+	PanelReviewResult,
 	PanelWalkRequest,
 	PanelWalkResult,
 	PatternCompareRequest,
@@ -143,6 +149,8 @@ import type {
 	RecordDecisionOptions,
 	ReviewRequest,
 	ReviewResult,
+	RunPanelCalibrateOptions,
+	RunPanelReviewOptions,
 	RunRequest,
 	SpecimenEntry,
 	SpecimenListFilter,
@@ -356,6 +364,16 @@ export interface SpecimenBench {
 	designStates(request?: DesignStatesRequest): Promise<DesignStatesResult>;
 	/** Run one modality-enforced persona walk against a running application target. */
 	panelWalk(request: PanelWalkRequest, options?: RunPanelWalkOptions): Promise<PanelWalkResult>;
+	/** Orchestrate a multi-persona panel review or withdraw a prior panel review run. */
+	panelReview(
+		request: PanelReviewRequest,
+		options?: RunPanelReviewOptions
+	): Promise<PanelReviewResult>;
+	/** Sample provisional panel agreements blindly or record independent human calibration judgements. */
+	panelCalibrate(
+		request: PanelCalibrateRequest,
+		options?: RunPanelCalibrateOptions
+	): Promise<PanelCalibrateResult>;
 	/** List persisted design cards under `specimens/cards/` with severity ordering, filtering, and cursor pagination. */
 	listDesignCards(request?: DesignCardListRequest): Promise<DesignCardListResult>;
 	/** Record a design release manifest under `specimens/releases/<release>.json` after verifying approvals and open cards. */
@@ -395,6 +413,8 @@ export type BenchRuntime = Omit<
 	| 'checkDecisions'
 	| 'designStates'
 	| 'panelWalk'
+	| 'panelReview'
+	| 'panelCalibrate'
 	| 'listDesignCards'
 	| 'recordDesignRelease'
 	| 'patternFork'
@@ -1222,6 +1242,40 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 				activePanelWalks.delete(task);
 				panelWalkAbort.signal.removeEventListener('abort', onBenchClose);
 				walkOptions?.signal?.removeEventListener('abort', onCallerAbort);
+			});
+			activePanelWalks.add(task);
+			return task;
+		},
+		async panelReview(rawRequest, reviewOptions) {
+			const snapshot = ensureOpen();
+			const current = await refreshConfigIfChanged(snapshot);
+			const combinedController = new AbortController();
+			const onBenchClose = () => combinedController.abort();
+			const onCallerAbort = () => combinedController.abort();
+			panelWalkAbort.signal.addEventListener('abort', onBenchClose, { once: true });
+			reviewOptions?.signal?.addEventListener('abort', onCallerAbort, { once: true });
+			if (panelWalkAbort.signal.aborted || reviewOptions?.signal?.aborted) {
+				combinedController.abort();
+			}
+			// Run outside `enqueueLocal` so in-process Mode 3 `DirectRegistry` calls to
+			// `bench.recordDecision` never deadlock on `pending`; `.panel-runs.lock` serializes writes.
+			const task = runPanelReview(current, rawRequest, {
+				...reviewOptions,
+				signal: combinedController.signal,
+			}).finally(() => {
+				activePanelWalks.delete(task);
+				panelWalkAbort.signal.removeEventListener('abort', onBenchClose);
+				reviewOptions?.signal?.removeEventListener('abort', onCallerAbort);
+			});
+			activePanelWalks.add(task);
+			return task;
+		},
+		async panelCalibrate(rawRequest, calibrateOptions) {
+			const snapshot = ensureOpen();
+			// Run outside `enqueueLocal` so concurrent `panelReview` (which acquires `.panel-runs.lock`
+			// before calling Mode 3 `recordDecision` via `enqueueLocal`) can never AB-BA deadlock.
+			const task = runPanelCalibrate(snapshot.root, rawRequest, calibrateOptions).finally(() => {
+				activePanelWalks.delete(task);
 			});
 			activePanelWalks.add(task);
 			return task;

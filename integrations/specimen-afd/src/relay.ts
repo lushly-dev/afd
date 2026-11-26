@@ -177,4 +177,14 @@ export const ERROR_SUGGESTIONS: Readonly<Record<string, string>> = {
 		'Review and decide all open and changes-requested cards in design-card-list before releasing.',
 	DECISION_NOT_APPROVED:
 		'Pass only active, non-superseded, non-provisional person-approved decisions to design-release.',
+	AUTHOR_CANNOT_REVIEW:
+		'Have an independent reviewer (whose ctx.actor.id differs from the change author) run panel-review.',
+	BUDGET_EXCEEDED:
+		'Inspect emitted cards in design-card-list or raise budget.maxRounds / budget.maxCostUsd before starting another panel-review round.',
+	RUN_NOT_FOUND:
+		'Check the run id returned by panel-review before calling panel-review with action: "withdraw".',
+	NOTHING_TO_SAMPLE:
+		'Run panel-review first to generate provisional panel agreements before calling panel-calibrate.',
+	SAMPLE_NOT_FOUND:
+		'Run panel-calibrate with action: "sample" first to generate a valid sample id.',
 };

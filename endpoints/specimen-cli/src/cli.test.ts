@@ -499,6 +499,53 @@ function harness() {
 			stagedStatus: 'proposed' as const,
 			nextSteps: ['Approve via decision-record.'],
 		})),
+		panelReview: vi.fn(async (request) =>
+			request.action === 'withdraw'
+				? {
+						run: request.run,
+						withdrawn: true as const,
+						withdrawnCards: [],
+						withdrawnProvisional: 1,
+						preservedDecidedCards: [],
+						reason: request.reason,
+					}
+				: {
+						run: 'run-a1b2c3d4e5f6',
+						round: 1,
+						panelSize: request.panelSize ?? 5,
+						walks: ['walk-a1b2c3d4e5f6'],
+						overlap: { families: ['anthropic'], sharedFindings: 0, uniqueFindings: 0 },
+						provisional: [],
+						escalated: [],
+						stoppedBy: 'converged' as const,
+						nextSteps: ['Inspect design-card-list.'],
+						unmeasured: [],
+					}
+		),
+		panelCalibrate: vi.fn(async (request) =>
+			request.action === 'sample'
+				? {
+						sample: 'cal-a1b2c3d4e5f6',
+						items: [{ item: 'item-1', summary: 'Clean', evidence: { walk: 'walk-a1b2c3d4e5f6' } }],
+						unmeasured: [],
+					}
+				: {
+						sample: request.sample,
+						items: [
+							{
+								item: 'item-1',
+								summary: 'Clean',
+								evidence: { walk: 'walk-a1b2c3d4e5f6' },
+								panelVerdict: 'accept' as const,
+							},
+						],
+						recorded: request.judgements.length,
+						disagreed: 0,
+						disagreementRate: 0,
+						reopenedCards: [],
+						unmeasured: [],
+					}
+		),
 		close: vi.fn(async () => {}),
 	};
 	const createBench = vi.fn(async () => bench);
@@ -2671,6 +2718,46 @@ describe('specimen CLI', () => {
 			decline: ['error-recovery.keep.focus'],
 			waivers: [{ id: 'error-recovery.keep.focus', reason: 'Kiosk touch display' }],
 		});
+	});
+
+	it('forwards panel-review and panel-calibrate flags cleanly', async () => {
+		const h = harness();
+		expect(
+			await runCli(
+				[
+					'panel-review',
+					'--change',
+					'checkout-fix',
+					'--jobs',
+					'checkout-out-of-stock',
+					'--target',
+					'http://127.0.0.1:4181/?screen=checkout',
+					'--app-date',
+					'2030-05-12',
+					'--panel-size',
+					'5',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.panelReview).toHaveBeenCalledWith(
+			{
+				change: 'checkout-fix',
+				jobs: ['checkout-out-of-stock'],
+				target: 'http://127.0.0.1:4181/?screen=checkout',
+				appDate: '2030-05-12',
+				panelSize: 5,
+			},
+			expect.anything()
+		);
+
+		expect(
+			await runCli(['panel-calibrate', '--action', 'sample', '--count', '2', '--seed', '7'], h.io)
+		).toBe(0);
+		expect(h.bench.panelCalibrate).toHaveBeenCalledWith(
+			{ action: 'sample', count: 2, seed: 7 },
+			expect.anything()
+		);
 	});
 });
 

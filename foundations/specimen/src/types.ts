@@ -11,6 +11,7 @@ export type * from './decision-types.js';
 export type * from './design-types.js';
 export type * from './note-types.js';
 export type * from './pack-types.js';
+export type * from './panel-review-types.js';
 export type * from './pattern-types.js';
 export type * from './point-types.js';
 export type * from './review-types.js';

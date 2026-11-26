@@ -3,7 +3,7 @@
  *
  * Uses the `hybrid` tool strategy by default (5 meta-tools + up to 8 first-class Specimen tools),
  * enforces `confirmations: 'require-human'`, and wires `HumanRelay` host-verified confirmation
- * (`spec/command-metadata.md`) for `decision-record` and `design-release`.
+ * (`spec/command-metadata.md`) for `decision-record`, `design-release`, and `panel-calibrate`.
  */
 import {
 	createMcpHandler,
@@ -49,19 +49,19 @@ export const PREFERRED_SPECIMEN_FIRST_CLASS_TOOLS = [
 ] as const;
 
 const SPECIMEN_MCP_INSTRUCTIONS =
-	'Specimen observes and tests native components, retained stories, and job specimens, reviews unsettled changes, lists design decision cards, and records design decisions and releases under specimens/. Start with specimen-list, specimen-validate, and design-card-list; call decision-check before editing files, specimens, or tokens covered by a decision; use specimen-review to inspect unsettled changes (open items and decision cards belong to the person). Host-verified commands (decision-record, design-release) require a person to confirm through the configured HumanRelay; agents must not fabricate human confirmation. Use afd-discover and afd-detail to inspect any Specimen command not listed as a first-class tool. Use this server with trusted local projects.';
+	'Specimen observes and tests native components, retained stories, and job specimens, reviews unsettled changes, orchestrates multi-persona panel reviews, lists design decision cards, and records design decisions and releases under specimens/. Start with specimen-list, specimen-validate, and design-card-list; call decision-check before editing files, specimens, or tokens covered by a decision; use specimen-review to inspect unsettled changes (open items and decision cards belong to the person). Host-verified commands (decision-record, design-release, panel-calibrate) require a person to confirm through the configured HumanRelay; agents must not fabricate human confirmation. Use afd-discover and afd-detail to inspect any Specimen command not listed as a first-class tool. Use this server with trusted local projects.';
 
 /** Options for creating the Specimen MCP server or embeddable HTTP handler. */
 export interface SpecimenMcpServerOptions extends BenchOptions {
 	/**
 	 * Confirmation enforcement (`spec/command-metadata.md`).
 	 * Always `'require-human'`: commands declaring `confirmPrompt` require accepted human
-	 * confirmation, and host-verified commands (`decision-record`, `design-release`) require
-	 * a configured `humanRelay` with MCP 2026-07-28 URL-mode elicitation.
+	 * confirmation, and host-verified commands (`decision-record`, `design-release`, `panel-calibrate`)
+	 * require a configured `humanRelay` with MCP 2026-07-28 URL-mode elicitation.
 	 */
 	confirmations?: 'require-human';
 	/**
-	 * Host-verified confirmation relay for `decision-record` and `design-release`.
+	 * Host-verified confirmation relay for `decision-record`, `design-release`, and `panel-calibrate`.
 	 * Without one, MCP and HTTP calls to host-verified commands fail closed with `CONFIRMATION_REQUIRED`.
 	 */
 	humanRelay?: HumanRelay;
