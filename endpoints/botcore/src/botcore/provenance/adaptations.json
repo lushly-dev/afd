@@ -1951,10 +1951,21 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "157f91679024bf53ad6ce7872f3cc86b1f82177e0420ab4330d4cf5f8c3df65b",
+      "current_import_sha256": "0f7f80af2ea89999bcdb9a93377d3f012a823d06dabf8f52987629576125f789",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Factory gate exemptions need the live foreman; the lane rechecks repair gate edits"
+      "import_reason": "Fix botcore bug batch: check free disk before coverage (#1660), clear status:in-progress on merged gateway claims and retries (#1810), keep usable [tools] entries on disk-setup rerun and report changed_tools (#1934), and isolate host ~/.cargo/config.toml in tests (#1954); Factory gate exemptions need the live foreman; the lane rechecks repair gate edits; Gateway tests move tmp_path off a %TEMP% the Windows token store refuses (#2696)"
+    },
+    {
+      "path": "plugins/botcore-factory/tests/private_temp.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "74af640a79b252f565d20927c3a3b4d87e0ed21498b09e3ad62dc7434b891baf",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Gateway tests move tmp_path off a %TEMP% the Windows token store refuses (#2696)"
     },
     {
       "path": "plugins/botcore-factory/tests/small_worlds.py",
@@ -2208,6 +2219,17 @@
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test (lushly-dev/afd#1793); Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test; a lock file being deleted on Windows counts as held (lushly-dev/afd#1793)"
+    },
+    {
+      "path": "plugins/botcore-factory/tests/test_private_temp.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "dbff05cc1c50a633f2fbf7166f323c2830366f6afb1ab46a4aa606106369e32d",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Gateway tests move tmp_path off a %TEMP% the Windows token store refuses (#2696)"
     },
     {
       "path": "plugins/botcore-factory/tests/test_queue.py",
