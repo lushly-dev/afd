@@ -12,9 +12,7 @@ technique has precedent elsewhere: compilers apply their own fix suggestions and
 proof assistants replay a suggestion before offering it. No agent-facing interface the research
 found does it.
 
-**Status.** Active. The owner's go-ahead of 2026-11-24 covered steps 1 to 3, with a check-in before
-step 4. At that check-in, the same day, the owner agreed to step 4 as a pilot on the factory and to
-step 5 after it. [STATUS.md](STATUS.md) records each step.
+**Status.** Complete (2026-11-25, closes [#2424](https://github.com/lushly-dev/afd/issues/2424)). All five steps merged ([#2433](https://github.com/lushly-dev/afd/pull/2433), [#2448](https://github.com/lushly-dev/afd/pull/2448), [#2459](https://github.com/lushly-dev/afd/pull/2459), [#2442](https://github.com/lushly-dev/afd/pull/2442), [#2476](https://github.com/lushly-dev/afd/pull/2476), [#2518](https://github.com/lushly-dev/afd/pull/2518), [#2539](https://github.com/lushly-dev/afd/pull/2539)); remaining follow-ups are tracked as [#2607](https://github.com/lushly-dev/afd/issues/2607)–[#2613](https://github.com/lushly-dev/afd/issues/2613) in [STATUS.md](STATUS.md).
 
 ## The steps
 

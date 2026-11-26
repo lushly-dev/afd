@@ -4,7 +4,7 @@ A failed command's `suggestion` tells the caller how to recover, in prose. An ag
 does what it says. Nothing checks that the step it describes exists, can be called, or helps. A
 survey of 379 suggestions across five AFD surfaces found 18% that a program could follow exactly
 as written, and suggestions that named commands no surface registers
-([research](../docs/features/active/verified-recovery/recovery-research.md)).
+([research](../docs/features/complete/verified-recovery/recovery-research.md)).
 
 `CommandError.recovery` is the same step in a form a program can follow and a test can check. It
 sits beside `suggestion`, never in its place: people and models read the prose, and tools and
@@ -128,7 +128,7 @@ A transient failure:
 ## What a test can check
 
 Because the step is structured, a test can follow it and judge the result
-([verified recovery](../docs/features/active/verified-recovery/verified-recovery.proposal.md)):
+([verified recovery](../docs/features/complete/verified-recovery/verified-recovery.proposal.md)):
 a `call` recovery's command must be callable and not refuse in the same way; with `thenRetry` the
 repeated call must succeed or fail with a different, expected code; a `fix-input` recovery's input
 must pass validation; and a chain of recoveries must end within a bound without returning to the
@@ -142,7 +142,7 @@ The errors AFD's own engines emit (registries, servers, routers, middleware, the
 approval steps, and the context commands) carry the recovery this table gives, in all four
 implementations. A batch item or pipeline step that fails with one of these errors carries the
 same recovery. Every other engine error carries none for now
-([follow-ups](../docs/features/active/verified-recovery/STATUS.md#follow-ups)).
+([follow-ups](../docs/features/complete/verified-recovery/STATUS.md#follow-ups)).
 
 The recovery describes the same step as the error's `suggestion` (rule 1). Where a row turns on
 whether the caller can call a command, the engine decides it once and uses the answer for both:
