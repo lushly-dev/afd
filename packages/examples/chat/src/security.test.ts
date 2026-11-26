@@ -3,15 +3,19 @@
  * route the demo uses, and the WebSocket server.
  */
 
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, request as httpRequest, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { createMcpHandler } from '@lushly-dev/afd-server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import { allCommands } from './commands/index.js';
 import { createChatMcpOptions, demoOrigins, type Env, loadChatConfig } from './config.js';
 import { chatService } from './services/chat.js';
-import { type ChatRealtimeServer, createWebSocketServer } from './ws-server.js';
+import { type ChatRealtimeServer, createWebSocketServer, demoFile } from './ws-server.js';
 
 const DEMO_ORIGIN = 'http://localhost:3001';
 
@@ -119,9 +123,12 @@ describe('MCP /rpc route', () => {
 describe('WebSocket server', () => {
 	let realtime: ChatRealtimeServer | undefined;
 
+	const tempDirs: string[] = [];
+
 	afterEach(async () => {
 		await realtime?.close();
 		realtime = undefined;
+		for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 	});
 
 	async function start(options: Parameters<typeof createWebSocketServer>[0] = {}) {
@@ -203,16 +210,83 @@ describe('WebSocket server', () => {
 		ws.close();
 	});
 
-	it('serves the demo page with a script-restricting CSP', async () => {
-		const { port } = await start();
+	/** A stand-in for Vite's output, so the page tests need no build. */
+	function demoFixture(): URL {
+		const dir = mkdtempSync(join(tmpdir(), 'chat-demo-'));
+		tempDirs.push(dir);
+		mkdirSync(join(dir, 'assets'));
+		writeFileSync(
+			join(dir, 'index.html'),
+			'<!doctype html><script type="module" src="/assets/index-abc123.js"></script>'
+		);
+		writeFileSync(join(dir, 'assets', 'index-abc123.js'), 'export {};');
+		writeFileSync(join(dir, 'secret.txt'), 'not served');
+		return pathToFileURL(`${dir}/`);
+	}
+
+	it('serves the built demo page with a script-restricting CSP', async () => {
+		const { port } = await start({ demoDir: demoFixture() });
 		const res = await fetch(`http://127.0.0.1:${port}/`);
 		const html = await res.text();
 
 		expect(res.status).toBe(200);
 		expect(res.headers.get('content-security-policy')).toContain("script-src 'self'");
-		expect(html).toContain('src="demo.js"');
+		expect(html).toContain('src="/assets/index-abc123.js"');
 		expect(html).not.toMatch(/\son[a-z]+=/i);
-		expect((await fetch(`http://127.0.0.1:${port}/package.json`)).status).toBe(404);
+
+		const script = await fetch(`http://127.0.0.1:${port}/assets/index-abc123.js`);
+		expect(script.status).toBe(200);
+		expect(script.headers.get('content-type')).toBe('text/javascript; charset=utf-8');
+	});
+
+	it('serves nothing outside the page and its assets folder', async () => {
+		const { port } = await start({ demoDir: demoFixture() });
+		// Sent raw: fetch would resolve `..` before the request left the client.
+		const rawStatus = (path: string) =>
+			new Promise<number>((resolve, reject) => {
+				const req = httpRequest({ host: '127.0.0.1', port, path }, (res) => {
+					res.resume();
+					resolve(res.statusCode ?? 0);
+				});
+				req.on('error', reject);
+				req.end();
+			});
+		for (const path of [
+			'/package.json',
+			'/secret.txt',
+			'/assets/../secret.txt',
+			'/assets/%2e%2e%2fsecret.txt',
+			'/assets/..%2fsecret.txt',
+			'/assets/x.txt',
+		]) {
+			expect(await rawStatus(path), path).toBe(404);
+		}
+	});
+
+	it('answers 404, not 503, for an asset a rebuild has replaced', async () => {
+		const { port } = await start({ demoDir: demoFixture() });
+		const res = await fetch(`http://127.0.0.1:${port}/assets/index-old999.js`);
+
+		expect(res.status).toBe(404);
+	});
+
+	it('says how to build the demo when it has not been built', async () => {
+		const dir = mkdtempSync(join(tmpdir(), 'chat-demo-'));
+		tempDirs.push(dir);
+		const { port } = await start({ demoDir: pathToFileURL(`${join(dir, 'missing')}/`) });
+		const res = await fetch(`http://127.0.0.1:${port}/`);
+
+		expect(res.status).toBe(503);
+		expect(await res.text()).toContain('pnpm build');
+	});
+
+	it('names every asset by plain file name only', () => {
+		const dir = new URL('file:///demo/');
+		expect(demoFile('/assets/index-abc.css', dir)?.type).toBe('text/css; charset=utf-8');
+		expect(demoFile('/assets/sub/index.js', dir)).toBeUndefined();
+		expect(demoFile('/assets/.hidden.js', dir)).toBeUndefined();
+		expect(demoFile('/demo.js', dir)).toBeUndefined();
+		expect(demoFile('/', new URL('file:///demo'))?.file.href).toBe('file:///demo/index.html');
 	});
 
 	it('refuses a Host header that does not name this server (DNS rebinding)', async () => {

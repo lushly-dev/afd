@@ -476,10 +476,9 @@ packages/examples/chat/
 │   ├── ws-server.ts
 │   ├── server.ts
 │   └── index.ts
-├── frontend/
-│   └── src/
-│       ├── App.tsx
-│       └── ChatRoom.tsx
+├── demo/              # browser demo on violet-elements, built into dist/demo
+│   ├── index.html
+│   └── main.ts
 ├── package.json
 └── README.md
 ```
