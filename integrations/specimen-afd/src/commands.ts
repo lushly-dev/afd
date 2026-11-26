@@ -818,7 +818,8 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 	const build = defineCommand({
 		...common,
 		name: 'specimen-build',
-		description: 'Build the static specimen bench and check its shell budget',
+		description:
+			'Build the static specimen bench and check it: the shell and interaction ceilings, and waste such as a duplicated package or an accessibility engine every case loads',
 		mutation: true,
 		input: z.object({ outDir: z.string().min(1) }).strict(),
 		output: buildOutputSchema,
@@ -827,7 +828,7 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				() => bench.build(input.outDir),
 				buildOutputSchema,
 				'SPECIMEN_BUILD_FAILED',
-				'Choose an empty output directory and inspect the build or budget failure before retrying.'
+				'Choose an empty output directory, then read specimen-build.json in it: waste lists each cause to fix, and categories the ceiling a category passed.'
 			),
 	});
 	const pack = defineCommand({
