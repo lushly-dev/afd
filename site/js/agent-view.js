@@ -20,7 +20,7 @@ async function render(code) {
 			`<span class="tok-label">Data:</span>\n${escape(cache.trim())}\n\n` +
 			'<span class="tok-label">Confidence:</span> ██████████ 100%\n' +
 			'<span class="tok-label">Reasoning:</span> Served the canonical agent-readable summary of this page.\n' +
-			'<span class="tok-label">Suggestions:</span> npm install @lushly-dev/afd-core @lushly-dev/afd-server';
+			'<span class="tok-label">Suggestions:</span> npm install @lushly-dev/afd-core @lushly-dev/afd-server zod';
 	} catch {
 		code.innerHTML =
 			`${command}<span class="tok-err">✗ Failed</span>\n\n` +

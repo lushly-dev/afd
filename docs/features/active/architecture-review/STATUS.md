@@ -63,7 +63,7 @@ These keep their own work; this review only cross-references them.
 
 - [#1747](https://github.com/lushly-dev/afd/issues/1747) core: createCommandRegistry.execute runs the server engine, or is deprecated
 
-- [#1748](https://github.com/lushly-dev/afd/issues/1748) packages: zod as a peer dependency of server, testing and view-state
+- [#1748](https://github.com/lushly-dev/afd/issues/1748) packages: zod as a peer dependency of server, testing and view-state; merged in #2645
 
 ### TypeScript packages around the core
 

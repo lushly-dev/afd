@@ -5,10 +5,12 @@ Server-side utilities for building AFD-compliant MCP servers with Zod validation
 ## Installation
 
 ```bash
-npm install @lushly-dev/afd-server
+npm install @lushly-dev/afd-server zod
 # or
-pnpm add @lushly-dev/afd-server
+pnpm add @lushly-dev/afd-server zod
 ```
+
+`zod` (`^4.6.6`) is a peer dependency: your commands' schemas and the server share your application's copy.
 
 ## Features
 
