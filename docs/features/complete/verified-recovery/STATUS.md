@@ -1,6 +1,6 @@
 # Verified recovery: status
 
-**State** Active.
+**State** Complete (2026-11-25). All five steps merged; remaining follow-ups are filed as GitHub issues below.
 Epic: [#2424](https://github.com/lushly-dev/afd/issues/2424).
 [Proposal](verified-recovery.proposal.md) · [Research](recovery-research.md)
 
@@ -30,8 +30,9 @@ sentence; edit only your step's line. Keep earlier entries as history.
   - Kept: the gateway's `CLAIM_LOST` names the factory's `lane-drop` while telling the caller to
     stop; it describes what the foreman does, so it is an external step for that caller, not a
     command it should call.
-  - Umbel's suggestions that spell CLI commands its parser refuses are fixed on their own branch,
-    since Umbel has its own gate.
+  - Umbel's suggestions that spell CLI commands its parser refuses were fixed on their own branches,
+    since Umbel has its own gate (merged as [#2448](https://github.com/lushly-dev/afd/pull/2448)
+    and [#2459](https://github.com/lushly-dev/afd/pull/2459)).
 
 - **Step 2, a structured recovery:** merged 2026-11-24 as [#2442](https://github.com/lushly-dev/afd/pull/2442).
   - `CommandError.recovery` ([`spec/recovery.md`](../../../../spec/recovery.md)): `call`,
@@ -139,14 +140,14 @@ sentence; edit only your step's line. Keep earlier entries as history.
 
 ## Follow-ups
 
-| Raised | By | Follow-up |
-| --- | --- | --- |
-| 2026-11-24 | Step 2 | Engine-emitted errors carry no `recovery` yet: unknown commands, rate limits, confirmations and approvals. Add them in all four languages at once |
-| 2026-11-24 | Step 2 | The server's default instructions still say "follow error.suggestion to recover"; once engines set `recovery`, say to follow it when present |
-| 2026-11-24 | Step 3 | `botcore-factory` still requires `afd>=0.9.0` though its refusals use `recovery`; raise the floor to the first afd release that ships it |
-| 2026-11-24 | Step 3 | A malformed `expect.error.suggestion` matcher is worded differently by the runners: TypeScript says `Invalid assertion at error.suggestion: 'contains' expects a string`, Python `'expect.error.suggestion.contains' expects a string`. Recovery assertions are worded alike. Give suggestions TypeScript's wording in Python, which also drops the doubled field name in a `follow.expect` message (`'follow.expect': 'follow.expect.error.suggestion…'`). One more gap: each runner checks `matches` with its own regular-expression engine, so `(?P<a>x)` passes only in Python and `(?<a>x)` only in TypeScript. Python refuses `not_exists` in a recovery assertion, where TypeScript would read it as a field name, and prints a whole-number float in an unreadable recovery as `1.0` where TypeScript prints `1` |
-| 2026-11-24 | Step 4 | `foreman-handoff` frees the foreman for whoever passes the holder's session id, which `FOREMAN_BUSY`'s details show. So a refused foreman can take over instead of stopping. Decide whether a handoff needs more than the id |
-| 2026-11-24 | Step 4 | The explorer accepts a `fix-input` or `retry` whose call made again refuses with another code when the refused call can still succeed, where the scenario runners' default expects success; 9 such cases pass today. Two branches of its judgement are untested: a `fix-input` or `retry` whose call leaves the explored states is out of reach and never fires, and only the first remaining way is checked for that. Decide the rule for both if the explorer grows |
-| 2026-11-24 | Step 4 | `gate-allow` records an allowance for a head no branch has (the explorer passes `0000000` on a working cell). Decide whether it should refuse a head that does not exist |
-| 2026-11-24 | Step 5 | Engine errors left without a recovery in step 5: `VALIDATION_ERROR` (a `fix-input` from `details`, though unexpected fields need `external`), `OUTPUT_BUDGET_EXCEEDED` (the budget is in `_meta`, not `input`), the timeout and stream errors (the command may have run), `INSUFFICIENT_SCOPE`, the Tasks `UNAUTHORIZED` and `TASK_TOKEN_EXPIRED`. Give each a recovery where its step can be named |
-| 2026-11-25 | Step 5 | A host-verified confirmation the server cannot relay from inside `afd-batch` or `afd-pipe` tells the caller to call the command on its own, and carries `external` (the table's `CONFIRMATION_REQUIRED` row), while the same step for an approval carries none (`APPROVAL_REQUIRED`'s reshape row). Decide whether the confirmation should carry none too, in all four languages, or say in `spec/recovery.md` why the two differ |
+| Raised | By | Follow-up | Tracking |
+| --- | --- | --- | --- |
+| 2026-11-24 | Step 2 | Engine-emitted errors carry no `recovery` yet: unknown commands, rate limits, confirmations and approvals. Add them in all four languages at once | Done in Step 5 ([#2539](https://github.com/lushly-dev/afd/pull/2539)) |
+| 2026-11-24 | Step 2 | The server's default instructions still say "follow error.suggestion to recover"; once engines set `recovery`, say to follow it when present | Done in Step 5 ([#2539](https://github.com/lushly-dev/afd/pull/2539)) |
+| 2026-11-24 | Step 3 | `botcore-factory` still requires `afd>=0.9.0` though its refusals use `recovery`; raise the floor to the first afd release that ships it | [#2607](https://github.com/lushly-dev/afd/issues/2607) |
+| 2026-11-24 | Step 3 | A malformed `expect.error.suggestion` matcher is worded differently by the runners: TypeScript says `Invalid assertion at error.suggestion: 'contains' expects a string`, Python `'expect.error.suggestion.contains' expects a string`. Recovery assertions are worded alike. Give suggestions TypeScript's wording in Python, which also drops the doubled field name in a `follow.expect` message (`'follow.expect': 'follow.expect.error.suggestion…'`). One more gap: each runner checks `matches` with its own regular-expression engine, so `(?P<a>x)` passes only in Python and `(?<a>x)` only in TypeScript. Python refuses `not_exists` in a recovery assertion, where TypeScript would read it as a field name, and prints a whole-number float in an unreadable recovery as `1.0` where TypeScript prints `1` | [#2608](https://github.com/lushly-dev/afd/issues/2608) |
+| 2026-11-24 | Step 4 | `foreman-handoff` frees the foreman for whoever passes the holder's session id, which `FOREMAN_BUSY`'s details show. So a refused foreman can take over instead of stopping. Decide whether a handoff needs more than the id | [#2609](https://github.com/lushly-dev/afd/issues/2609) |
+| 2026-11-24 | Step 4 | The explorer accepts a `fix-input` or `retry` whose call made again refuses with another code when the refused call can still succeed, where the scenario runners' default expects success; 9 such cases pass today. Two branches of its judgement are untested: a `fix-input` or `retry` whose call leaves the explored states is out of reach and never fires, and only the first remaining way is checked for that. Decide the rule for both if the explorer grows, and whether to expand small-worlds exploration beyond the factory pilot | [#2610](https://github.com/lushly-dev/afd/issues/2610) |
+| 2026-11-24 | Step 4 | `gate-allow` records an allowance for a head no branch has (the explorer passes `0000000` on a working cell). Decide whether it should refuse a head that does not exist | [#2611](https://github.com/lushly-dev/afd/issues/2611) |
+| 2026-11-24 | Step 5 | Engine errors left without a recovery in step 5: `VALIDATION_ERROR` (a `fix-input` from `details`, though unexpected fields need `external`), `OUTPUT_BUDGET_EXCEEDED` (the budget is in `_meta`, not `input`), the timeout and stream errors (the command may have run), `INSUFFICIENT_SCOPE`, the Tasks `UNAUTHORIZED` and `TASK_TOKEN_EXPIRED`. Give each a recovery where its step can be named | [#2612](https://github.com/lushly-dev/afd/issues/2612) |
+| 2026-11-25 | Step 5 | A host-verified confirmation the server cannot relay from inside `afd-batch` or `afd-pipe` tells the caller to call the command on its own, and carries `external` (the table's `CONFIRMATION_REQUIRED` row), while the same step for an approval carries none (`APPROVAL_REQUIRED`'s reshape row). Decide whether the confirmation should carry none too, in all four languages, or say in `spec/recovery.md` why the two differ | [#2613](https://github.com/lushly-dev/afd/issues/2613) |
