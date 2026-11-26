@@ -92,12 +92,23 @@ export function sessionLimits(
 	return { maxSessions, perOwner };
 }
 
-export function createSessionStore(options: SessionStoreOptions = {}): SessionStore {
-	const { idleTimeoutMs = DEFAULT_SESSION_IDLE_TIMEOUT_MS, now = Date.now } = options;
+/**
+ * A session store's limits, defaults applied, as {@link createSessionStore} reads them.
+ *
+ * @throws Error as {@link sessionLimits} does, or when the idle timeout is not positive
+ */
+export function sessionStoreLimits(options: SessionStoreOptions = {}) {
+	const { idleTimeoutMs = DEFAULT_SESSION_IDLE_TIMEOUT_MS } = options;
 	const { maxSessions, perOwner } = sessionLimits(options.maxSessions, options.maxSessionsPerOwner);
 	if (!Number.isFinite(idleTimeoutMs) || idleTimeoutMs <= 0) {
 		throw new Error('sessionIdleTimeoutMs must be a positive number');
 	}
+	return { maxSessions, perOwner, idleTimeoutMs };
+}
+
+export function createSessionStore(options: SessionStoreOptions = {}): SessionStore {
+	const { now = Date.now } = options;
+	const { maxSessions, perOwner, idleTimeoutMs } = sessionStoreLimits(options);
 	// Map order is least recently used first: `get` moves a session to the end.
 	const sessions = new Map<string, Session>();
 

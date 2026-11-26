@@ -325,6 +325,13 @@ const HOST_IMPORTS =
  *   52,500, 92,200 and 120,200. With #2141's context-field redaction merged (`main` at `e0dbde691`),
  *   host, approval and tool-surface measure 52,535 / 67,819 / 92,205; raised to 52,700, 68,000 and
  *   92,400 (every-export stays within 120,200).
+ *   Per-request hoisting (#1746, under D115): the router looks a call's command up in a name map
+ *   built once, and its group in groups built at the first grouped call, instead of scanning every
+ *   command; the grouped tool is assembled from per-command pieces, which the server's memoised
+ *   list (`createToolsList`, not bundled here) builds once. Measured on #1743's head `a0d1c3121`
+ *   92,108 / 120,086 bytes and 92,568 / 120,549 after, with esbuild 0.28.2; the two it exceeds are
+ *   raised to 92,700 and 120,700. Host and approval are unchanged. On `main` at `5e33124` (#1743 and
+ *   #2141 merged) it measures 92,665 / 120,646; raised to 92,900 and 120,900.
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
@@ -347,9 +354,9 @@ const DIRECT_BUDGETS = [
 	{
 		what: 'a host with the tool surface',
 		imports: `${HOST_IMPORTS}, createDirectToolSurface`,
-		bytes: 92_400,
+		bytes: 92_900,
 	},
-	{ what: 'every export', imports: undefined, bytes: 120_200 },
+	{ what: 'every export', imports: undefined, bytes: 120_900 },
 ];
 
 /** The modules only the tool surface needs. */

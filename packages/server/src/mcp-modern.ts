@@ -61,7 +61,7 @@ import {
 	InputRequiredSignal,
 } from './confirmations.js';
 import { AFD_CONTEXT_FIELDS_META_KEY, type ContextField } from './context-fields.js';
-import { describeContextFields } from './context-fields-describe.js';
+import { type DescribedContextField, describeContextFields } from './context-fields-describe.js';
 import { bindContextState } from './context-scope.js';
 import {
 	ANSWER_TTL_SECONDS,
@@ -106,7 +106,7 @@ export interface ModernMcpDeps {
 	version: string;
 	/** Natural-language guidance returned by `server/discover`. */
 	instructions: string;
-	getToolsList: (context: CommandContext) => unknown[];
+	getToolsList: (context: CommandContext) => readonly unknown[];
 	/** Runs the router's stages after admission (`admission.ts`): a tool router, or a plain function. */
 	routeToolCall: ToolRouter | ToolCallFunction;
 	/** Configured contexts; enables `_meta["dev.afd/context"]`. */
@@ -268,12 +268,13 @@ function refuseApprovalKeyBeforeParsing(
 }
 
 /**
- * Create the server factory both entries share. It runs once per HTTP request, and once per
- * stdio connection (plus a discarded `server/discover` probe instance).
+ * The freshness hint of `tools/list` and `server/discover`, defaults applied.
+ *
+ * @throws Error when `toolsListTtlMs` is not a non-negative integer
  */
-function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
-	const report = reporter(deps.onError);
-	const contextNames = new Set((deps.contexts ?? []).map((context) => context.name));
+export function resolveToolsListTtlMs(
+	deps: Pick<ModernMcpDeps, 'contexts' | 'toolStrategy' | 'toolsListTtlMs'>
+): number {
 	// With contexts, tools/list varies by `_meta["dev.afd/context"]`, which SDK clients leave
 	// out of their cache key, so the default is "always stale" there. The hybrid and lazy lists
 	// do not vary by context (spec/tool-strategies.md, H6 and "lazy").
@@ -285,6 +286,39 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 	if (!Number.isSafeInteger(ttlMs) || ttlMs < 0) {
 		throw new Error('toolsListTtlMs must be a non-negative integer');
 	}
+	return ttlMs;
+}
+
+/**
+ * The SDK's own check of the `/mcp` body limit (`createMcpHandler`'s `maxRequestBodySize`, the
+ * first the lane's options meet), made without building the lane, so stdio refuses what HTTP
+ * would with the same error. `stdio-runtime.test.ts` calls the SDK's check beside it and fails if
+ * an SDK upgrade changes it.
+ *
+ * @throws RangeError when `maxBodyBytes` is not a positive number
+ */
+export function checkModernBodyLimit(maxBodyBytes: unknown): void {
+	if (typeof maxBodyBytes !== 'number' || !Number.isFinite(maxBodyBytes) || maxBodyBytes <= 0) {
+		throw new RangeError(
+			`maxRequestBodySize must be a positive number of bytes, got ${String(maxBodyBytes)}`
+		);
+	}
+}
+
+/**
+ * Create the server factory both entries share. It runs once per HTTP request, and once per
+ * stdio connection (plus a discarded `server/discover` probe instance).
+ *
+ * The SDK needs a new `Server` for each exchange: `createMcpHandler` refuses an instance still
+ * serving another request, and binds the request's era, protocol revision and client identity
+ * to the instance. So the factory builds one per call, and everything that does not depend on
+ * the request is built once per server (#1746): capabilities and cache hints for each era here,
+ * and the described context fields at the first call that needs them.
+ */
+function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
+	const report = reporter(deps.onError);
+	const contextNames = new Set((deps.contexts ?? []).map((context) => context.name));
+	const ttlMs = resolveToolsListTtlMs(deps);
 
 	/**
 	 * The context state of one request: `undefined` without contexts; the connection's stack
@@ -524,37 +558,53 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 		);
 	}
 
-	return ({ era }: McpRequestContext) => {
-		const isHttp = options.requestValues !== undefined;
+	const isHttp = options.requestValues !== undefined;
+	const authConfigured = deps.authConfigured === true || options.requireView === true;
+	const resourceCaps = deps.resources?.capabilities as
+		| (Record<string, unknown> & { extensions?: Record<string, Record<string, unknown>> })
+		| undefined;
+	/** The capabilities of an exchange in `era`: only a modern one may declare MCP Tasks. */
+	const capabilitiesFor = (era: McpRequestContext['era']) => {
 		const declaresTasks = era === 'modern' && deps.tasks?.declaresTasksTo(isHttp) === true;
-		const resourceCaps = deps.resources?.capabilities as
-			| (Record<string, unknown> & { extensions?: Record<string, Record<string, unknown>> })
-			| undefined;
 		const extensions = {
 			...(resourceCaps?.extensions ?? {}),
 			...(declaresTasks ? { [TASKS_EXTENSION_ID]: {} } : {}),
 		};
-		const capabilities = {
+		return {
 			tools: { listChanged: false },
 			...resourceCaps,
 			...(Object.keys(extensions).length > 0 && { extensions }),
 		};
-		const authConfigured = deps.authConfigured === true || options.requireView === true;
+	};
+	// The SDK copies these before changing them, so every instance can be given the same objects.
+	const capabilities = {
+		modern: capabilitiesFor('modern'),
+		legacy: capabilitiesFor('legacy'),
+	};
+	const cacheHints = {
+		// A list filtered by authorization varies by caller (M6, "Listing").
+		'tools/list': { ttlMs, cacheScope: options.privateToolsList ? 'private' : 'public' },
+		'server/discover': { ttlMs, cacheScope: 'public' },
+		...(deps.resources &&
+			resourceCacheHints(
+				deps.resourcesTtlMs ?? ttlMs,
+				Boolean(authConfigured && deps.resources.hasProvider)
+			)),
+	};
+	/**
+	 * The declared context fields as `server/discover` lists them. Described at the first exchange,
+	 * where they always were: a field JSON Schema cannot represent (`z.coerce.date()`) fails each
+	 * `/mcp` exchange and stdio connection, as before, not the server's construction.
+	 */
+	let described: DescribedContextField[] | undefined;
+
+	return ({ era }: McpRequestContext) => {
 		const server = new Server(
 			{ name: deps.name, version: deps.version },
 			{
-				capabilities: capabilities as never,
+				capabilities: capabilities[era] as never,
 				instructions: deps.instructions,
-				cacheHints: {
-					// A list filtered by authorization varies by caller (M6, "Listing").
-					'tools/list': { ttlMs, cacheScope: options.privateToolsList ? 'private' : 'public' },
-					'server/discover': { ttlMs, cacheScope: 'public' },
-					...(deps.resources &&
-						resourceCacheHints(
-							deps.resourcesTtlMs ?? ttlMs,
-							Boolean(authConfigured && deps.resources.hasProvider)
-						)),
-				},
+				cacheHints: cacheHints as never,
 			}
 		);
 		deps.resources?.install(server, {
@@ -577,16 +627,17 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 		refuseApprovalKeyBeforeParsing(server, era === 'modern', report);
 
 		if (deps.contextFields?.length) {
+			described ??= describeContextFields(deps.contextFields);
+			const fields = described;
 			// The SDK's serving layer installs its own `server/discover` handler, which calls
 			// `_ondiscover()` per request; wrapping it adds the declared fields to that answer.
 			// `context-fields-mcp.test.ts` fails if an SDK upgrade changes this.
-			const described = describeContextFields(deps.contextFields);
 			const sdk = server as unknown as { _ondiscover(): Record<string, unknown> };
 			const discover = sdk._ondiscover.bind(server);
 			sdk._ondiscover = () => {
 				const result = discover();
 				const meta = result._meta && typeof result._meta === 'object' ? result._meta : {};
-				return { ...result, _meta: { ...meta, [AFD_CONTEXT_FIELDS_META_KEY]: described } };
+				return { ...result, _meta: { ...meta, [AFD_CONTEXT_FIELDS_META_KEY]: fields } };
 			};
 		}
 

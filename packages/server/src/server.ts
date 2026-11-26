@@ -25,21 +25,30 @@ import { createConfirmationGate } from './confirmation-gate.js';
 import { checkContextFields } from './context-fields.js';
 import { createContextState, resolveContextState } from './context-scope.js';
 import { createExecutionEngine, type ExecutionDeps } from './execution.js';
-import { createHttpHandler } from './http-handler.js';
-import { createSessionStore, DEFAULT_MAX_SESSIONS, sessionLimits } from './http-sessions.js';
+import { checkHttpHandlerOptions, createHttpHandler } from './http-handler.js';
+import {
+	createSessionStore,
+	DEFAULT_MAX_SESSIONS,
+	type SessionStoreOptions,
+	sessionLimits,
+	sessionStoreLimits,
+} from './http-sessions.js';
 import { createHumanRelayGate } from './human-relay.js';
 import { checkInstanceState, warnInstancesOnce } from './instance-state.js';
 import {
+	checkAuthOptions,
 	createAuthLayer,
 	type PreDispatchCheck,
 	type PreDispatchCheckOptions,
 } from './mcp-auth.js';
 import type { Credentials } from './mcp-auth-rules.js';
 import {
+	checkModernBodyLimit,
 	createModernHttpLane,
 	DEFAULT_TOOLS_LIST_TTL_MS,
 	defaultInstructions,
 	type ModernMcpDeps,
+	resolveToolsListTtlMs,
 	serveModernStdio,
 } from './mcp-modern.js';
 import { assertToolMeta } from './meta-keys.js';
@@ -57,7 +66,7 @@ import { isStdinPiped } from './server-types.js';
 import { assertValidTaskCommands } from './tasks.js';
 import { TaskRuntime } from './tasks-runtime.js';
 import { createToolRouter } from './tool-router.js';
-import { getToolsList } from './tools.js';
+import { createToolsList } from './tools.js';
 import { resolveMaxValidationIssues, validateInputEnhanced } from './validation.js';
 
 export type {
@@ -92,11 +101,13 @@ const executionScopes: CommandMiddleware = async (commandName, input, context, n
 };
 
 /**
- * The wiring every lane of one server shares: engines, routers, admission, the HTTP handler and
- * the stdio lane's dependencies. Exported for tests that drive several lanes of one server; not
- * part of the package's entry points.
+ * The wiring every lane of one server shares, stdio's included: engines, routers, the tools list
+ * and the MCP lanes' dependencies. It builds nothing HTTP-only (#1746): that is
+ * {@link createHttpRuntime}'s, which also calls `httpRouting` for the HTTP routes' engine and
+ * router. Every option either one reads is checked here, so a server that would fail over HTTP
+ * fails to build over stdio too.
  */
-export function createSharedHttpRuntime(options: McpHandlerOptions) {
+function createServerCore(options: McpHandlerOptions) {
 	const {
 		name,
 		version,
@@ -104,7 +115,6 @@ export function createSharedHttpRuntime(options: McpHandlerOptions) {
 		port = 3100,
 		host = 'localhost',
 		devMode = false,
-		cors = false,
 		middleware = [],
 		onCommand,
 		onError,
@@ -156,17 +166,9 @@ export function createSharedHttpRuntime(options: McpHandlerOptions) {
 		// Checked even without `contexts`, where no session is issued and the quota has no effect.
 		sessionLimits(options.maxSessions, options.maxSessionsPerOwner);
 	}
-	const sessions = contextState
-		? createSessionStore({
-				maxSessions: options.maxSessions,
-				// Without `auth` every caller is one owner, so its quota is the whole store.
-				maxSessionsPerOwner: options.auth
-					? options.maxSessionsPerOwner
-					: (options.maxSessions ?? DEFAULT_MAX_SESSIONS),
-				idleTimeoutMs: options.sessionIdleTimeoutMs,
-				...(clock ? { now: () => clock.now() } : {}),
-			})
-		: undefined;
+	// Only HTTP builds the session store, but its options are checked here, so stdio refuses them
+	// too. Each of HTTP's own checks below runs where HTTP built what it checks, in the same order.
+	if (contextState) sessionStoreLimits(sessionStoreOptions(options));
 
 	const registeredCommands = [...validatedCommands];
 	if (contextState && contexts) {
@@ -299,11 +301,6 @@ export function createSharedHttpRuntime(options: McpHandlerOptions) {
 	};
 	// The MCP lanes: the router serves the meta-tools there, so a refusal may name them.
 	const remoteEngine = createExecutionEngine(remoteDeps);
-	// The HTTP `/rpc`, `/batch` and `/stream` lanes run commands without the router, which serves
-	// `afd-discover` and the other meta-tools only over MCP. Their refusals name a meta-tool
-	// nowhere, or an unknown command would recover with a call that is itself not found; they
-	// offer `afd-help` when it is registered and callable (`spec/recovery.md`, "Engine errors").
-	const httpEngine = createExecutionEngine({ ...remoteDeps, metaTools: false });
 	const exposedCommandNames = new Set(remoteCommands.map((c) => c.name));
 	const confirmations = createConfirmationGate(options.confirmations ?? 'off', remoteCommands);
 	const defaultActor = options.actor ?? { kind: 'agent' as const };
@@ -317,10 +314,6 @@ export function createSharedHttpRuntime(options: McpHandlerOptions) {
 		maxValidationIssues,
 		onError,
 	});
-	const mutationNames = new Set(
-		remoteCommands.filter((command) => command.mutation === true).map((command) => command.name)
-	);
-
 	const routeToolCall = createToolRouter({
 		executeCommand: remoteEngine.executeCommand,
 		executeBatch: remoteEngine.executeBatch,
@@ -337,57 +330,65 @@ export function createSharedHttpRuntime(options: McpHandlerOptions) {
 		maxBatchSize,
 		maxBatchParallelism,
 	});
-	// The HTTP `/rpc`, `/batch` and `/stream` routes: the same stages on `httpEngine`, whose
-	// refusals name no meta-tool, since those routes serve none (`spec/recovery.md`).
-	const restRouter = createToolRouter({
-		executeCommand: httpEngine.executeCommand,
-		executeBatch: httpEngine.executeBatch,
-		executePipeline: httpEngine.executePipeline,
+	/**
+	 * What only the HTTP `/rpc`, `/batch` and `/stream` routes use, built when HTTP is served: an
+	 * engine whose refusals name no meta-tool, since those routes serve none, and only `afd-help`
+	 * when it is registered and callable (`spec/recovery.md`, "Engine errors"); the same router
+	 * stages on it; and the mutations GET streaming refuses.
+	 */
+	const httpRouting = () => {
+		const httpEngine = createExecutionEngine({ ...remoteDeps, metaTools: false });
+		const restRouter = createToolRouter({
+			executeCommand: httpEngine.executeCommand,
+			executeBatch: httpEngine.executeBatch,
+			executePipeline: httpEngine.executePipeline,
+			commands: remoteCommands,
+			toolStrategy,
+			groupByFn,
+			devMode,
+			allCommands: remoteCommands,
+			exposedCommandNames,
+			contextState,
+			confirmations,
+			humanRelay,
+			maxBatchSize,
+			maxBatchParallelism,
+			metaTools: false,
+			callTracePrefix: 'rpc',
+		});
+		const mutationNames = new Set(
+			remoteCommands.filter((command) => command.mutation === true).map((command) => command.name)
+		);
+		return { httpEngine, restRouter, mutationNames };
+	};
+
+	// Built once per command and group, and whole for each context when no scope view narrows it.
+	const toolsList = createToolsList({
 		commands: remoteCommands,
 		toolStrategy,
 		groupByFn,
-		devMode,
-		allCommands: remoteCommands,
-		exposedCommandNames,
-		contextState,
-		confirmations,
-		humanRelay,
-		maxBatchSize,
-		maxBatchParallelism,
-		metaTools: false,
-		callTracePrefix: 'rpc',
+		options: {
+			outputSchema: options.advertiseOutputSchema,
+			confirmations: confirmations.mode,
+			firstClassTools,
+		},
+		contexts: contexts?.map((context) => context.name),
 	});
-
 	const boundGetToolsList = (context: CommandContext = {}) =>
-		getToolsList(
+		toolsList(
 			listedCommands(remoteCommands, context),
-			toolStrategy,
-			groupByFn,
-			resolveContextState(context, contextState)?.getActive(),
-			{
-				outputSchema: options.advertiseOutputSchema,
-				confirmations: confirmations.mode,
-				firstClassTools,
-			}
+			resolveContextState(context, contextState)?.getActive()
 		);
 
-	const maxBodyBytes = options.maxBodyBytes ?? 1024 * 1024;
-	const auth = options.auth
-		? createAuthLayer(options.auth, {
-				maxBodyBytes,
-				clock,
-				commands: remoteCommands,
-				toolStrategy,
-				groupByFn,
-			})
-		: undefined;
+	// Checked here, so a bad `auth` option fails a stdio server too; the layer is built for HTTP.
+	if (options.auth) checkAuthOptions(options.auth, remoteCommands);
 	const taskRuntime = new TaskRuntime({
 		commands: remoteCommands,
 		executeCommand: remoteEngine.executeCommand,
 		store: options.taskStore,
 		options: options.taskOptions,
 		clock,
-		hasAuth: Boolean(auth),
+		hasAuth: Boolean(options.auth),
 		hasContextHook: Boolean(options.createContext),
 		actor: options.actor ?? { kind: 'agent' },
 	});
@@ -408,18 +409,90 @@ export function createSharedHttpRuntime(options: McpHandlerOptions) {
 		resources,
 		resourcesTtlMs,
 		tasks: taskRuntime,
-		authConfigured: Boolean(auth),
+		authConfigured: Boolean(options.auth),
 		devMode,
 		onError,
 	};
+	// The `/mcp` lane's options, then the handler's (its SSE hub's among them), as HTTP builds
+	// them: a stdio server builds neither, yet refuses what an HTTP one would. Stdio reads the TTL.
+	resolveToolsListTtlMs(modernDeps);
+	checkModernBodyLimit(options.maxBodyBytes ?? 1024 * 1024);
+	checkHttpHandlerOptions({
+		allowedOrigins: options.allowedOrigins,
+		maxBodyBytes: options.maxBodyBytes,
+		maxSseConnections: options.maxSseConnections,
+	});
+
+	return {
+		engine,
+		contextFields,
+		routeToolCall,
+		httpRouting,
+		taskRuntime,
+		getToolsList: boundGetToolsList,
+		modernDeps,
+		contextState,
+		remoteCommands,
+		httpWarning: instanceState.httpWarning,
+		url: `http://${host}:${port}`,
+	};
+}
+
+type ServerCore = ReturnType<typeof createServerCore>;
+
+/** The HTTP session store's options: sessions exist only with `contexts`. */
+function sessionStoreOptions(options: McpHandlerOptions): SessionStoreOptions {
+	const { clock } = options;
+	return {
+		maxSessions: options.maxSessions,
+		// Without `auth` every caller is one owner, so its quota is the whole store.
+		maxSessionsPerOwner: options.auth
+			? options.maxSessionsPerOwner
+			: (options.maxSessions ?? DEFAULT_MAX_SESSIONS),
+		idleTimeoutMs: options.sessionIdleTimeoutMs,
+		...(clock ? { now: () => clock.now() } : {}),
+	};
+}
+
+/**
+ * What only HTTP serves, on a server's {@link createServerCore}: the session store, the
+ * authorization layer, the `/mcp` lane, and the handler with its SSE hub.
+ */
+function createHttpRuntime(core: ServerCore, options: McpHandlerOptions) {
+	const {
+		name,
+		version,
+		port = 3100,
+		host = 'localhost',
+		devMode = false,
+		cors = false,
+		onError,
+		toolStrategy = 'grouped',
+		groupByFn,
+		maxBatchSize,
+		maxBatchParallelism,
+		clock,
+	} = options;
+	const sessions = core.contextState ? createSessionStore(sessionStoreOptions(options)) : undefined;
+	const maxBodyBytes = options.maxBodyBytes ?? 1024 * 1024;
+	const auth = options.auth
+		? createAuthLayer(options.auth, {
+				maxBodyBytes,
+				clock,
+				commands: core.remoteCommands,
+				toolStrategy,
+				groupByFn,
+			})
+		: undefined;
 	const modern = createModernHttpLane({
-		...modernDeps,
+		...core.modernDeps,
 		createContext: options.createContext,
 		maxBodyBytes,
 		auth,
 	});
 
-	const { handler, dispose: disposeHttp } = createHttpHandler({
+	const { httpEngine, restRouter, mutationNames } = core.httpRouting();
+	const { handler, dispose } = createHttpHandler({
 		name,
 		version,
 		host,
@@ -430,8 +503,8 @@ export function createSharedHttpRuntime(options: McpHandlerOptions) {
 		allowedOrigins: options.allowedOrigins,
 		maxBodyBytes: options.maxBodyBytes,
 		maxSseConnections: options.maxSseConnections,
-		getToolsList: boundGetToolsList,
-		routeToolCall,
+		getToolsList: core.getToolsList,
+		routeToolCall: core.routeToolCall,
 		approver: options.approver,
 		actor: options.actor ?? { kind: 'agent' },
 		restRouter,
@@ -439,31 +512,40 @@ export function createSharedHttpRuntime(options: McpHandlerOptions) {
 		isMutation: (commandName) => mutationNames.has(commandName),
 		sessions,
 		createContext: options.createContext,
-		contextFields,
+		contextFields: core.contextFields,
 		onError,
 		modern,
 		auth,
-		tasks: taskRuntime,
+		tasks: core.taskRuntime,
 		maxBatchSize,
 		maxBatchParallelism,
 	});
-	const dispose = () => {
-		taskRuntime.dispose();
-		disposeHttp();
-	};
+	return { handler, dispose, auth };
+}
 
+/**
+ * The wiring every lane of one server shares, with its HTTP runtime built: engines, routers,
+ * admission, the HTTP handler and the stdio lane's dependencies. Exported for tests that drive
+ * several lanes of one server; not part of the package's entry points.
+ */
+export function createSharedHttpRuntime(options: McpHandlerOptions) {
+	const core = createServerCore(options);
+	const http = createHttpRuntime(core, options);
 	return {
-		engine,
-		contextFields,
-		routeToolCall,
-		getToolsList: boundGetToolsList,
-		handler,
-		dispose,
-		modernDeps,
-		contextState,
-		auth,
-		httpWarning: instanceState.httpWarning,
-		url: `http://${host}:${port}`,
+		engine: core.engine,
+		contextFields: core.contextFields,
+		routeToolCall: core.routeToolCall,
+		getToolsList: core.getToolsList,
+		handler: http.handler,
+		dispose: () => {
+			core.taskRuntime.dispose();
+			http.dispose();
+		},
+		modernDeps: core.modernDeps,
+		contextState: core.contextState,
+		auth: http.auth,
+		httpWarning: core.httpWarning,
+		url: core.url,
 	};
 }
 
@@ -552,7 +634,7 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 
 	// ── Shared execution/runtime wiring ─────────────────────────────────────
 
-	const sharedRuntime = createSharedHttpRuntime({
+	const runtimeOptions: McpHandlerOptions = {
 		...options,
 		name,
 		version,
@@ -567,7 +649,14 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 		toolStrategy,
 		groupByFn,
 		contexts,
-	});
+	};
+	const core = createServerCore(runtimeOptions);
+	// Only HTTP builds the HTTP runtime: stdio serves no session, SSE stream or token (#1746).
+	const http = useHttp ? createHttpRuntime(core, runtimeOptions) : undefined;
+	const dispose = () => {
+		core.taskRuntime.dispose();
+		http?.dispose();
+	};
 
 	// ── Server state ────────────────────────────────────────────────────────
 
@@ -583,7 +672,7 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 
 			// Stdio via the MCP SDK v2: dual-era (2026-07-28 per-request _meta, or initialize).
 			if (useStdio) {
-				stdioHandle = serveModernStdio(sharedRuntime.modernDeps, sharedRuntime.contextState);
+				stdioHandle = serveModernStdio(core.modernDeps, core.contextState);
 				isRunning = true;
 				// stdout carries MCP frames, so the notice goes to stderr.
 				console.error(
@@ -596,8 +685,8 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 			}
 
 			// HTTP transport
-			if (useHttp) {
-				httpServer = createServer(sharedRuntime.handler);
+			if (http) {
+				httpServer = createServer(http.handler);
 
 				await new Promise<void>((resolve, reject) => {
 					httpServer?.on('error', reject);
@@ -607,9 +696,9 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 					});
 				});
 				console.error(
-					`[${name}] MCP transport: http at ${sharedRuntime.url}${autoDetected ? ' (auto-detected because stdin is a TTY)' : ''}`
+					`[${name}] MCP transport: http at ${core.url}${autoDetected ? ' (auto-detected because stdin is a TTY)' : ''}`
 				);
-				warnInstancesOnce(sharedRuntime.httpWarning);
+				warnInstancesOnce(core.httpWarning);
 			}
 		},
 
@@ -617,13 +706,13 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 			if (!isRunning) return;
 
 			if (stdioHandle) {
-				sharedRuntime.dispose();
+				dispose();
 				await stdioHandle.close();
 				stdioHandle = null;
 			}
 
 			if (httpServer) {
-				sharedRuntime.dispose();
+				dispose();
 				httpServer.closeAllConnections();
 				await new Promise<void>((resolve, reject) => {
 					httpServer?.close((err) => {
@@ -638,10 +727,10 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 		},
 
 		getUrl() {
-			return useHttp ? sharedRuntime.url : 'stdio://';
+			return useHttp ? core.url : 'stdio://';
 		},
 
-		contextFields: sharedRuntime.contextFields,
+		contextFields: core.contextFields,
 
 		getCommands() {
 			return commands;
@@ -655,10 +744,10 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 		execute: (name, input, context) =>
 			context?.interface === 'apps'
 				? Promise.resolve(failure(callNotGranted()))
-				: sharedRuntime.engine.executeCommand(name, input, context),
+				: core.engine.executeCommand(name, input, context),
 		executePipeline: (request, context) =>
 			context?.interface === 'apps'
 				? executeCorePipeline(request, async () => failure(callNotGranted()))
-				: sharedRuntime.engine.executePipeline(request, context),
+				: core.engine.executePipeline(request, context),
 	};
 }

@@ -302,6 +302,30 @@ export function createToolRouter(deps: ToolRouterDeps): ToolRouter {
 		const result = await executeCommand(name, input, context);
 		return out(result, !result.success);
 	};
+	// Built once (#1746), so a call looks its command up instead of scanning every command. The
+	// first command of a name wins, as `find` would pick it.
+	const commandsByName = new Map<string, ZodCommandDefinition>();
+	for (const command of deps.commands) {
+		if (!commandsByName.has(command.name)) commandsByName.set(command.name, command);
+	}
+	/**
+	 * The grouped strategy's groups, in command order: built at the first grouped call, which calls
+	 * `groupByFn` once per command, so it must answer the same for the same command.
+	 */
+	let groups: Map<string, ZodCommandDefinition[]> | undefined;
+	const groupMembers = (group: string): ZodCommandDefinition[] => {
+		if (!groups) {
+			const built = new Map<string, ZodCommandDefinition[]>();
+			for (const command of deps.commands) {
+				const name = commandGroup(command, groupByFn);
+				const members = built.get(name);
+				if (members) members.push(command);
+				else built.set(name, [command]);
+			}
+			groups = built;
+		}
+		return groups.get(group) ?? [];
+	};
 
 	/**
 	 * Route one tool call.
@@ -373,7 +397,7 @@ export function createToolRouter(deps: ToolRouterDeps): ToolRouter {
 			const relay = approvalRelay(callContext);
 			if (!relay) return { context: traced(prefix) };
 			const steps = withoutApprovalRelay(traced(prefix));
-			const upFront = relay.upFront?.(tool, request, commands);
+			const upFront = relay.upFront?.(tool, request, commands());
 			return upFront
 				? { context: bindUpFrontApproval(steps, upFront), upFront }
 				: { context: steps };
@@ -388,13 +412,22 @@ export function createToolRouter(deps: ToolRouterDeps): ToolRouter {
 		if (view && decision && decision !== 'proceed') {
 			return refusedCall(toolName, view.insufficientScope(decision.forbidden));
 		}
-		const commands = knownOnly(deps.commands, callContext);
-		const allCommands = deps.allCommands && knownOnly(deps.allCommands, callContext);
+		// The commands that exist for the caller: every command without a view. A view's list is
+		// filtered only when a route needs it, and one command is looked up by name.
+		let known: ZodCommandDefinition[] | undefined;
+		const commands = (): ZodCommandDefinition[] => {
+			known ??= knownOnly(deps.commands, callContext);
+			return known;
+		};
+		const lookup = (name: string): ZodCommandDefinition | undefined => {
+			const command = commandsByName.get(name);
+			return command && (!view || view.known(name)) ? command : undefined;
+		};
 		// Whether the caller can call a command, decided once for each refusal's suggestion and
 		// recovery (`spec/recovery.md`, "Engine errors"). The router serves every meta-tool.
 		const surface: CallableSurface = {
 			metaTools: deps.metaTools ?? true,
-			command: (name: string) => commands.find((command) => command.name === name),
+			command: lookup,
 			...(view && { shown: (name: string) => view.shown(name) }),
 		};
 		const can = (name: string) => canCall(surface, name, callContext, contextState?.getActive());
@@ -415,7 +448,7 @@ export function createToolRouter(deps: ToolRouterDeps): ToolRouter {
 		const requiredTaskIn = (steps: readonly { command: string }[]) =>
 			taskDispatch
 				? existing([...steps])
-						.map((s) => commands.find((c) => c.name === s.command))
+						.map((s) => lookup(s.command))
 						.find((c) => c?.task === 'required')
 				: undefined;
 
@@ -435,13 +468,13 @@ export function createToolRouter(deps: ToolRouterDeps): ToolRouter {
 			if (refused) return refused;
 
 			// Check if command exists in the exposed commands
-			const cmd = commands.find((c) => c.name === commandName);
+			const cmd = lookup(commandName);
 			if (!cmd) {
 				// An unexposed command gets the same answer as an unknown one, so a remote
 				// caller cannot learn that a private command exists (spec/error-codes.md, D4).
 				// Suggest a few close matches the caller can use.
 				const callable = filterAllowed(
-					filterByContext(shownOnly(commands, callContext), contextState?.getActive()),
+					filterByContext(shownOnly(commands(), callContext), contextState?.getActive()),
 					callContext
 				);
 				return out(
@@ -489,7 +522,7 @@ export function createToolRouter(deps: ToolRouterDeps): ToolRouter {
 			if (!parsed.success) return out(parsed.result, true);
 			// Filter by active context when context state is available, and by the call's `allow`
 			const discoverCommands = filterAllowed(
-				filterByContext(listedCommands(commands, callContext), contextState?.getActive()),
+				filterByContext(listedCommands(commands(), callContext), contextState?.getActive()),
 				callContext
 			);
 			const result = executeDiscover(discoverCommands, parsed.data);
@@ -505,12 +538,13 @@ export function createToolRouter(deps: ToolRouterDeps): ToolRouter {
 				'Provide { command: "command-name" } or { command: ["name-1", "name-2"] } (max 10)'
 			);
 			if (!parsed.success) return out(parsed.result, true);
-			const exposedNames = exposedCommandNames ?? new Set(commands.map((c) => c.name));
+			const exposedNames = exposedCommandNames ?? new Set(commands().map((c) => c.name));
+			const allCommands = deps.allCommands && knownOnly(deps.allCommands, callContext);
 			// Filter by active context so agents cannot inspect commands outside their context, and
 			// by the call's `allow`, so a refused command reads as unknown
 			const contextFilteredCmds = filterAllowed(
 				filterByContext(
-					listedCommands(allCommands ?? commands, callContext),
+					listedCommands(allCommands ?? commands(), callContext),
 					contextState?.getActive()
 				),
 				callContext
@@ -657,7 +691,7 @@ export function createToolRouter(deps: ToolRouterDeps): ToolRouter {
 
 			// Only the commands the call's `allow` permits, so a refused command is invisible here: it
 			// cannot make an action ambiguous, and a group with none left is refused as a whole.
-			const groupCommands = commands.filter((cmd) => commandGroup(cmd, groupByFn) === toolName);
+			const groupCommands = knownOnly(groupMembers(toolName), callContext);
 			const allowedGroupCommands = filterAllowed(groupCommands, callContext);
 			if (groupCommands.length > 0 && allowedGroupCommands.length === 0) {
 				return out(failure(commandNotAllowed(toolName)), true);
@@ -730,7 +764,7 @@ export function createToolRouter(deps: ToolRouterDeps): ToolRouter {
 		const refused = allowDenial(toolName, callContext);
 		if (refused) return refused;
 		// Context check: validate the command is accessible in current context
-		const command = commands.find((c) => c.name === toolName);
+		const command = lookup(toolName);
 		const denied = contextDenial(command, toolName, contextState, can);
 		if (denied) return denied;
 

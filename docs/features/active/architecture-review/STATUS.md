@@ -59,7 +59,7 @@ These keep their own work; this review only cross-references them.
 
 - [#1745](https://github.com/lushly-dev/afd/issues/1745) core: one canonical JSON implementation instead of four
 
-- [#1746](https://github.com/lushly-dev/afd/issues/1746) server: stop recomputing tool lists, context-field schemas and the SDK server on every request
+- [#1746](https://github.com/lushly-dev/afd/issues/1746) server: stop recomputing tool lists, context-field schemas and the SDK server on every request; merged in #2660
 
 - [#1747](https://github.com/lushly-dev/afd/issues/1747) core: createCommandRegistry.execute runs the server engine, or is deprecated
 
