@@ -7,8 +7,9 @@
  */
 
 import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { readFile, unlink } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import type { CardChosen, CardPatternAction, CardStatus, DesignCardRecord } from './card-types.js';
 import { cardFilePath, computeCardDigest, readCardRecord, writeCardRecord } from './cards.js';
 import {
@@ -20,6 +21,11 @@ import {
 	typedError,
 	writeDecisionFile,
 } from './decisions-store.js';
+import { getDefaultPatternsPackDir } from './defaults.js';
+import { canonicalJson, packDigest } from './pack.js';
+import { PACK_PATTERNS } from './pack-atoms.js';
+import { BUILTIN_DEFAULTS_UPSTREAM_PREFIX, extractCardUpstreamDigests } from './pattern-fork.js';
+import { DEFAULT_PATTERNS_DIRECTORY, resolvePatternSource } from './patterns.js';
 import { assertRealContained, assertRealFileContained, writeFileAtomic } from './sets.js';
 import type {
 	CardDecisionRecord,
@@ -59,35 +65,112 @@ export function effectiveChangeSignature(card: DesignCardRecord): string {
 		.digest('hex');
 }
 
-function digestText(text: string): string {
-	return `sha256:${createHash('sha256').update(text, 'utf8').digest('hex')}`;
+async function readSiblingLibraryVersion(
+	baseDir: string,
+	upstreamAbs: string
+): Promise<string | undefined> {
+	// Pack Format 2 pattern files live at `data/<library>/patterns/<pattern>.json`; catalog is `../library.json`.
+	const catalogFile = join(dirname(dirname(upstreamAbs)), 'library.json');
+	try {
+		await assertRealFileContained(
+			baseDir,
+			catalogFile,
+			`Upstream catalog escapes authorized pack root: ${catalogFile}`
+		);
+		const raw = JSON.parse(await readFile(catalogFile, 'utf8')) as {
+			package?: { version?: unknown };
+		};
+		return typeof raw.package?.version === 'string' ? raw.package.version : undefined;
+	} catch {
+		return undefined;
+	}
 }
 
-function extractStatementDigests(patternObj: Record<string, unknown>): Record<string, string> {
-	const digests: Record<string, string> = {};
-	for (const section of ['useWhen', 'avoidWhen', 'keep', 'customize'] as const) {
-		const list = patternObj[section];
-		if (!Array.isArray(list)) continue;
-		for (const item of list) {
-			if (
-				typeof item === 'object' &&
-				item !== null &&
-				typeof (item as { id?: unknown }).id === 'string' &&
-				typeof (item as { text?: unknown }).text === 'string'
-			) {
-				const rec = item as { id: string; text: string; gate?: unknown; setup?: unknown };
-				const id = rec.id;
-				digests[id] = digestText(rec.text);
-				if (rec.gate !== undefined) {
-					digests[`${id}#gate`] = digestText(JSON.stringify(rec.gate));
-				}
-				if (rec.setup !== undefined) {
-					digests[`${id}#setup`] = digestText(JSON.stringify(rec.setup));
-				}
+async function resolveConfiguredPatternSourceRoots(
+	root: string,
+	configPath?: string
+): Promise<string[]> {
+	const configRel = configPath ?? 'specimen.config.json';
+	const configAbs = resolve(root, configRel);
+	if (!existsSync(configAbs)) return [];
+	try {
+		await assertRealFileContained(
+			root,
+			configAbs,
+			`Config path escapes workspace root: ${configRel}`
+		);
+		const raw = JSON.parse(await readFile(configAbs, 'utf8')) as {
+			patternSources?: unknown;
+		};
+		if (!Array.isArray(raw.patternSources)) return [];
+		const roots: string[] = [];
+		for (const source of raw.patternSources) {
+			if (typeof source !== 'string' || !source.trim()) continue;
+			try {
+				roots.push(await resolvePatternSource(configAbs, source));
+			} catch {
+				// Skip unresolvable source entries; remaining sources may still match.
 			}
 		}
+		return roots;
+	} catch {
+		return [];
 	}
-	return digests;
+}
+
+async function resolveCardUpstreamAbs(
+	root: string,
+	upstreamPath: string,
+	configPath?: string
+): Promise<{ upstreamAbs: string; baseDir: string }> {
+	if (upstreamPath.startsWith(BUILTIN_DEFAULTS_UPSTREAM_PREFIX)) {
+		const patternName = upstreamPath.slice(BUILTIN_DEFAULTS_UPSTREAM_PREFIX.length);
+		if (!PACK_PATTERNS.pattern.test(patternName) || patternName.length > 64) {
+			throw typedError(
+				'UPSTREAM_CHANGED',
+				`Invalid builtin defaults upstream path '${upstreamPath}'.`,
+				'Re-run specimen-pattern-compare and specimen-pattern-merge to stage a verifiable merge card.'
+			);
+		}
+		const packDir = getDefaultPatternsPackDir();
+		const upstreamAbs = join(packDir, 'data', 'afd-defaults', 'patterns', `${patternName}.json`);
+		await assertRealFileContained(
+			packDir,
+			upstreamAbs,
+			`Builtin upstream pattern file escapes defaults pack: ${upstreamPath}`
+		);
+		return { upstreamAbs, baseDir: packDir };
+	}
+
+	const upstreamAbs = isAbsolute(upstreamPath)
+		? resolve(upstreamPath)
+		: resolve(root, upstreamPath);
+
+	// 1. Check containment inside workspace root first (covers local/relative upstream packs).
+	try {
+		await assertRealFileContained(
+			root,
+			upstreamAbs,
+			`Upstream pattern file escapes workspace root: ${upstreamPath}`
+		);
+		return { upstreamAbs, baseDir: root };
+	} catch (workspaceErr) {
+		// 2. Also authorize configured external patternSources packs (e.g. installed npm packages or sibling packs).
+		const sourceRoots = await resolveConfiguredPatternSourceRoots(root, configPath);
+		for (const packRoot of sourceRoots) {
+			try {
+				await assertRealFileContained(
+					packRoot,
+					upstreamAbs,
+					`Upstream pattern file escapes pattern source pack: ${upstreamPath}`
+				);
+				return { upstreamAbs, baseDir: packRoot };
+			} catch {
+				// Try next configured source root.
+			}
+		}
+		throw workspaceErr;
+	}
 }
 
 async function readJsonFileStrict(
@@ -127,6 +210,7 @@ interface PlannedFileWrite {
 interface PreparedPatternAction {
 	writes: PlannedFileWrite[];
 	appliedPatterns: string[];
+	patternDigests: Record<string, string>;
 }
 
 async function preparePatternAction(
@@ -134,8 +218,16 @@ async function preparePatternAction(
 	action: CardPatternAction,
 	cardId: string
 ): Promise<PreparedPatternAction> {
-	const patternsRoot = join(resolve(root), 'specimens', 'patterns');
+	const configBaseDir = action.configPath
+		? dirname(resolve(root, action.configPath))
+		: resolve(root);
+	const patternsRoot = join(configBaseDir, DEFAULT_PATTERNS_DIRECTORY);
 	const patternAbs = resolve(root, action.patternPath);
+	await assertRealContained(
+		root,
+		patternsRoot,
+		`Patterns root escapes workspace root: ${DEFAULT_PATTERNS_DIRECTORY}`
+	);
 	await assertRealContained(
 		root,
 		patternAbs,
@@ -144,7 +236,7 @@ async function preparePatternAction(
 	await assertRealContained(
 		patternsRoot,
 		patternAbs,
-		`Pattern path must reside under specimens/patterns/: ${action.patternPath}`
+		`Pattern path must reside under ${DEFAULT_PATTERNS_DIRECTORY}/: ${action.patternPath}`
 	);
 
 	const writes: PlannedFileWrite[] = [];
@@ -153,7 +245,7 @@ async function preparePatternAction(
 		await assertRealFileContained(
 			patternsRoot,
 			patternAbs,
-			`Forked pattern file escapes specimens/patterns/: ${action.patternPath}`
+			`Forked pattern file escapes ${DEFAULT_PATTERNS_DIRECTORY}/: ${action.patternPath}`
 		);
 		const { rawText: origPatternText, data: raw } = await readJsonFileStrict(
 			patternAbs,
@@ -209,7 +301,12 @@ async function preparePatternAction(
 				originalContent: origConfigText,
 			});
 		}
-		return { writes, appliedPatterns: [`${action.library}/${action.pattern}`] };
+		const qualified = `${action.library}/${action.pattern}`;
+		return {
+			writes,
+			appliedPatterns: [qualified],
+			patternDigests: { [qualified]: packDigest(canonicalJson(updated)) },
+		};
 	}
 
 	// Merge action: authoritative upstream staleness verification is REQUIRED (never fail-open).
@@ -220,11 +317,10 @@ async function preparePatternAction(
 			'Re-run specimen-pattern-compare and specimen-pattern-merge to stage a verifiable merge card.'
 		);
 	}
-	const upstreamAbs = resolve(root, action.upstreamPath);
-	await assertRealFileContained(
+	const { upstreamAbs, baseDir: upstreamBaseDir } = await resolveCardUpstreamAbs(
 		root,
-		upstreamAbs,
-		`Upstream pattern file escapes workspace root: ${action.upstreamPath}`
+		action.upstreamPath,
+		action.configPath
 	);
 	const { data: upstreamRaw } = await readJsonFileStrict(
 		upstreamAbs,
@@ -232,8 +328,11 @@ async function preparePatternAction(
 		'Re-run specimen-pattern-compare and specimen-pattern-merge against the current upstream pattern.'
 	);
 
-	// 1. Verify pinned upstream version when present on live upstream
-	const liveVersion = typeof upstreamRaw.version === 'string' ? upstreamRaw.version : undefined;
+	// 1. Verify pinned upstream version when present on live upstream or its Pack Format 2 catalog
+	const liveVersion =
+		typeof upstreamRaw.version === 'string'
+			? upstreamRaw.version
+			: await readSiblingLibraryVersion(upstreamBaseDir, upstreamAbs);
 	if (liveVersion !== undefined && liveVersion !== action.upstreamVersion) {
 		throw typedError(
 			'UPSTREAM_CHANGED',
@@ -248,26 +347,16 @@ async function preparePatternAction(
 		);
 	}
 
-	// 2. Verify complete statement digests bidirectionally (changed, removed, or newly added statements + gate/setup)
-	const currentDigests = extractStatementDigests(upstreamRaw);
+	// 2. Verify complete statement digests bidirectionally (changed, removed, or newly added statements AND #gate/#setup keys)
+	const currentDigests = extractCardUpstreamDigests(upstreamRaw);
 	const changedIds: string[] = [];
 	for (const [stmtId, pinnedDigest] of Object.entries(action.upstreamDigests)) {
 		if (currentDigests[stmtId] !== pinnedDigest) {
 			changedIds.push(stmtId);
 		}
 	}
-	// Detect newly added statements (non-#gate/#setup ids) or changed gate/setup when pinned
 	for (const liveId of Object.keys(currentDigests)) {
-		if (liveId.includes('#')) {
-			if (
-				liveId in action.upstreamDigests &&
-				action.upstreamDigests[liveId] !== currentDigests[liveId]
-			) {
-				if (!changedIds.includes(liveId)) changedIds.push(liveId);
-			}
-			continue;
-		}
-		if (!(liveId in action.upstreamDigests)) {
+		if (!(liveId in action.upstreamDigests) && !changedIds.includes(liveId)) {
 			changedIds.push(liveId);
 		}
 	}
@@ -285,16 +374,40 @@ async function preparePatternAction(
 		);
 	}
 
-	let origTargetContent: string | null = null;
-	try {
-		await assertRealFileContained(
-			patternsRoot,
-			patternAbs,
-			`Target pattern file escapes specimens/patterns/: ${action.patternPath}`
+	// 3. Verify target local pattern still exists and has not changed since staging (never lose concurrent local edits).
+	if (!existsSync(patternAbs)) {
+		throw typedError(
+			'STALE_CARD',
+			`Local pattern '${action.patternPath}' no longer exists on disk since merge card '${cardId}' was staged.`,
+			'Restore the local pattern or re-run specimen-pattern-compare and specimen-pattern-merge.',
+			{ card: cardId, patternPath: action.patternPath }
 		);
-		origTargetContent = await readFile(patternAbs, 'utf8');
-	} catch (error) {
-		if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+	}
+	await assertRealFileContained(
+		patternsRoot,
+		patternAbs,
+		`Target pattern file escapes ${DEFAULT_PATTERNS_DIRECTORY}/: ${action.patternPath}`
+	);
+	const { rawText: origTargetContent, data: liveLocalRaw } = await readJsonFileStrict(
+		patternAbs,
+		`Target pattern '${action.patternPath}'`,
+		'Fix JSON syntax in the local pattern file and re-run specimen-pattern-merge before approving.'
+	);
+	if (action.localDigest !== undefined) {
+		const liveLocalDigest = packDigest(canonicalJson(liveLocalRaw));
+		if (liveLocalDigest !== action.localDigest) {
+			throw typedError(
+				'STALE_CARD',
+				`Local pattern '${action.patternPath}' was modified after merge card '${cardId}' was staged.`,
+				'Re-run specimen-pattern-compare and specimen-pattern-merge to incorporate intervening local edits before approving.',
+				{
+					card: cardId,
+					patternPath: action.patternPath,
+					expectedLocalDigest: action.localDigest,
+					actualLocalDigest: liveLocalDigest,
+				}
+			);
+		}
 	}
 
 	const mergedPattern = {
@@ -306,7 +419,69 @@ async function preparePatternAction(
 		content: `${JSON.stringify(mergedPattern, null, '\t')}\n`,
 		originalContent: origTargetContent,
 	});
-	return { writes, appliedPatterns: [`${action.library}/${action.pattern}`] };
+	const qualified = `${action.library}/${action.pattern}`;
+	return {
+		writes,
+		appliedPatterns: [qualified],
+		patternDigests: { [qualified]: packDigest(canonicalJson(mergedPattern)) },
+	};
+}
+
+async function prepareForkRejectionCleanup(
+	root: string,
+	action: CardPatternAction
+): Promise<PreparedPatternAction | undefined> {
+	if (action.kind !== 'fork' || !action.bind || !action.source) return undefined;
+	const configRel = action.configPath ?? 'specimen.config.json';
+	const configAbs = resolve(root, configRel);
+	if (!existsSync(configAbs)) return undefined;
+	await assertRealFileContained(
+		root,
+		configAbs,
+		`Config path escapes workspace root: ${configRel}`
+	);
+	const { rawText: origConfigText, data: configRaw } = await readJsonFileStrict(
+		configAbs,
+		`Specimen config '${configRel}'`,
+		'Ensure specimen.config.json is valid JSON before rejecting a bound pattern fork.'
+	);
+	if (
+		typeof configRaw.patternBindings !== 'object' ||
+		configRaw.patternBindings === null ||
+		Array.isArray(configRaw.patternBindings)
+	) {
+		return undefined;
+	}
+	const bindings = { ...(configRaw.patternBindings as Record<string, string>) };
+	const expectedTarget = `${action.library}/${action.pattern}`;
+	if (bindings[action.source] !== expectedTarget) return undefined;
+	delete bindings[action.source];
+	const nextConfig = { ...configRaw };
+	if (Object.keys(bindings).length > 0) {
+		nextConfig.patternBindings = bindings;
+	} else {
+		delete nextConfig.patternBindings;
+	}
+	try {
+		parseConfig(nextConfig);
+	} catch (error) {
+		throw typedError(
+			'VALIDATION_ERROR',
+			`Removing pending binding from '${configRel}' failed config validation: ${error instanceof Error ? error.message : String(error)}`,
+			'Fix specimen.config.json before rejecting this pattern binding.'
+		);
+	}
+	return {
+		writes: [
+			{
+				absPath: configAbs,
+				content: `${JSON.stringify(nextConfig, null, '\t')}\n`,
+				originalContent: origConfigText,
+			},
+		],
+		appliedPatterns: [],
+		patternDigests: {},
+	};
 }
 
 export async function recordCardDecision(
@@ -334,7 +509,7 @@ export async function recordCardDecision(
 
 	// Phase 1: Preflight ALL cards & validations before ANY disk writes
 	const cards: DesignCardRecord[] = [];
-	const origCardTexts = new Map<string, string>();
+	const origCardTexts = new Map<string, string | null>();
 	for (const cardId of targetCardIds) {
 		const card = await readCardRecord(root, cardId);
 		if (!DECIDABLE_CARD_STATUSES.has(card.status)) {
@@ -357,7 +532,10 @@ export async function recordCardDecision(
 				);
 			}
 		}
-		origCardTexts.set(card.card, await readFile(cardFilePath(root, card.card), 'utf8'));
+		origCardTexts.set(
+			card.card,
+			await readFile(cardFilePath(root, card.card), 'utf8').catch(() => null)
+		);
 		cards.push(card);
 	}
 
@@ -464,6 +642,11 @@ export async function recordCardDecision(
 					await preparePatternAction(root, card.patternAction, card.card)
 				);
 			}
+		} else if (chosen === 'reject' && card.patternAction) {
+			const cleanup = await prepareForkRejectionCleanup(root, card.patternAction);
+			if (cleanup) {
+				preparedActions.set(card.card, cleanup);
+			}
 		}
 	}
 
@@ -499,6 +682,7 @@ export async function recordCardDecision(
 			}
 
 			const appliedPatterns = prepared?.appliedPatterns;
+			const patternDigests = prepared?.patternDigests;
 			const record: CardDecisionRecord = {
 				id,
 				kind: 'card',
@@ -515,6 +699,9 @@ export async function recordCardDecision(
 				...(trimmedRemediation !== undefined ? { remediation: trimmedRemediation } : {}),
 				changeSignature: sig,
 				...(appliedPatterns !== undefined && appliedPatterns.length > 0 ? { appliedPatterns } : {}),
+				...(patternDigests !== undefined && Object.keys(patternDigests).length > 0
+					? { patternDigests }
+					: {}),
 				decidedAt,
 				decidedBy,
 			};

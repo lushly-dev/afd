@@ -447,13 +447,68 @@ export const packPatternGateSchema = z.strictObject({
 	scenario: z.array(portableScenarioStepSchema).min(1).max(32),
 });
 
+export const approvalStatusSchema = z.enum(['proposed', 'approved', 'deprecated']);
+
+export const patternDigestMapSchema = z
+	.record(packIdentifier('id'), packIdentifier('digest'))
+	.refine(
+		(value) => Object.keys(value).length <= 256,
+		'A derivedFrom digest map may declare at most 256 entries'
+	)
+	.meta({ maxProperties: 256 });
+
+export const patternDerivedFromRevisionSchema = z
+	.string()
+	.superRefine((value, context) => {
+		const isDigest = value.length <= IDENTIFIER_MAX.digest && PACK_PATTERNS.digest.test(value);
+		const isRevision =
+			value.length <= IDENTIFIER_MAX.revision && PACK_PATTERNS.revision.test(value);
+		if (!isDigest && !isRevision) {
+			context.addIssue({
+				code: 'custom',
+				message: 'Invalid derivedFrom revision or digest identifier',
+				params: { pack: IDENTIFIER_INVALID },
+			});
+		}
+	})
+	.meta({
+		anyOf: [
+			{
+				type: 'string',
+				maxLength: IDENTIFIER_MAX.digest,
+				pattern: PACK_PATTERNS.digest.source,
+			},
+			{
+				type: 'string',
+				maxLength: IDENTIFIER_MAX.revision,
+				pattern: PACK_PATTERNS.revision.source,
+			},
+		],
+	});
+
+export const patternDerivedFromSchema = z.strictObject({
+	library: packIdentifier('library'),
+	pattern: packIdentifier('pattern'),
+	version: packIdentifier('version'),
+	revision: patternDerivedFromRevisionSchema,
+	statements: patternDigestMapSchema,
+	declined: patternDigestMapSchema.optional(),
+});
+
+export const waivedKeepEntrySchema = z.strictObject({
+	id: packIdentifier('id'),
+	reason: packText(PACK_TEXT_LIMITS.statement),
+});
+
 export const patternStatementSchema = z.strictObject({
 	id: packIdentifier('id'),
 	text: packText(PACK_TEXT_LIMITS.statement),
+	approvalStatus: approvalStatusSchema.optional(),
 });
 
 export const patternKeepStatementSchema = z.strictObject({
 	id: packIdentifier('id'),
 	text: packText(PACK_TEXT_LIMITS.statement),
 	gate: packIdentifier('gate').optional(),
+	approvalStatus: approvalStatusSchema.optional(),
 });

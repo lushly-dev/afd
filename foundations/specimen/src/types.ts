@@ -245,6 +245,7 @@ export type {
 } from './job-types.js';
 
 export type * from './panel-types.js';
+export type * from './pattern-fork-types.js';
 
 import type { JobConfig, JobScenario, JobSource, ResolvedJobCapture } from './job-types.js';
 import type { PanelConfig } from './panel-types.js';

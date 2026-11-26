@@ -14,7 +14,7 @@ import {
 	type SpecimenCommandBench,
 } from '@lushly-dev/specimen-afd';
 import { z } from 'zod';
-import { runDesignCliAction } from './design-actions.js';
+import { DESIGN_ALLOWED_OPTIONS, isDesignCliAction, runDesignCliAction } from './design-actions.js';
 
 interface CliBench extends SpecimenCommandBench {
 	close(): Promise<void>;
@@ -165,6 +165,12 @@ const valueOptions = new Set([
 	'decisions',
 	'released-at',
 	'meant-to-fix',
+	'source',
+	'upstream-version',
+	'accept',
+	'decline',
+	'waivers',
+	'resolutions',
 ]);
 const flagOptions = new Set([
 	'require-visual',
@@ -180,6 +186,8 @@ const flagOptions = new Set([
 	'include-decided',
 	'released',
 	'unreleased',
+	'bind',
+	'all-statements',
 ]);
 function parseArguments(args: string[]): ParsedArguments {
 	const positionals: string[] = [];
@@ -208,7 +216,7 @@ function parseArguments(args: string[]): ParsedArguments {
 	const action = positionals.shift();
 	if (!action)
 		throw new Error(
-			'Choose a command: list, validate, inspect, render, capture, compare, review, run, themes, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, job-run, decision-record, decision-get, decision-list, decision-check, design-states, panel-walk, design-card-list, or design-release'
+			'Choose a command: list, validate, inspect, render, capture, compare, review, run, themes, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, job-run, decision-record, decision-get, decision-list, decision-check, design-states, panel-walk, design-card-list, design-release, pattern-fork, pattern-compare, or pattern-merge'
 		);
 	return { action, positionals, options, flags };
 }
@@ -534,52 +542,7 @@ function validateOptions(parsed: ParsedArguments): void {
 			'after',
 		]),
 		'decision-check': new Set(['root', 'config', 'output', 'files', 'specimens', 'tokens']),
-		'design-states': new Set([
-			'root',
-			'config',
-			'output',
-			'commands',
-			'scenario',
-			'consumer',
-			'include-proposed',
-			'limit',
-			'after',
-		]),
-		'panel-walk': new Set([
-			'root',
-			'config',
-			'output',
-			'job',
-			'persona',
-			'modality',
-			'target',
-			'app-date',
-			'max-actions',
-			'baseline-walk',
-			'requested-tools',
-		]),
-		'design-card-list': new Set([
-			'root',
-			'config',
-			'output',
-			'card',
-			'status',
-			'severity',
-			'scope',
-			'include-provisional',
-			'include-decided',
-			'limit',
-			'after',
-		]),
-		'design-release': new Set([
-			'root',
-			'config',
-			'output',
-			'release',
-			'decisions',
-			'scope',
-			'released-at',
-		]),
+		...DESIGN_ALLOWED_OPTIONS,
 	};
 	const known = allowed[parsed.action];
 	if (!known) throw new Error(`Unknown command: ${parsed.action}`);
@@ -689,6 +652,20 @@ function validateOptions(parsed: ParsedArguments): void {
 			throw new Error('Give a job id positionally or with --job, not both.');
 		if (parsed.positionals.length > 1)
 			throw new Error('panel-walk expects at most 1 positional argument');
+		return;
+	}
+	if (parsed.action === 'pattern-fork') {
+		if (parsed.options.has('source') && parsed.positionals.length > 0)
+			throw new Error('Give source positionally or with --source, not both.');
+		if (parsed.positionals.length > 2)
+			throw new Error('pattern-fork expects at most 2 positional arguments');
+		return;
+	}
+	if (parsed.action === 'pattern-compare' || parsed.action === 'pattern-merge') {
+		if (parsed.options.has('pattern') && parsed.positionals.length > 0)
+			throw new Error('Give pattern positionally or with --pattern, not both.');
+		if (parsed.positionals.length > 1)
+			throw new Error(`${parsed.action} expects at most 1 positional argument`);
 		return;
 	}
 	const expected =
@@ -1010,12 +987,7 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 					...(parsed.options.has('specimens') ? { specimens: splitList('specimens') } : {}),
 					...(parsed.options.has('tokens') ? { tokens: splitList('tokens') } : {}),
 				});
-			} else if (
-				parsed.action === 'design-states' ||
-				parsed.action === 'panel-walk' ||
-				parsed.action === 'design-card-list' ||
-				parsed.action === 'design-release'
-			) {
+			} else if (isDesignCliAction(parsed.action)) {
 				const designResult = await runDesignCliAction(bench, parsed, (prompt) =>
 					promptCliHumanConfirmation(prompt, io.confirmPrompt)
 				);
@@ -1471,7 +1443,7 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 			code: 'SPECIMEN_CLI_ERROR',
 			message,
 			suggestion:
-				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID [--set SET], capture [IDS...] [--label NAME], compare ID1 ID2..., review (BEFORE AFTER | --before SET --after SET) [--ids A,B], run ID, a11y [ID] [--set SET], themes [ID] [--theme light,dark] [--threshold 0.02], migrate [--files A,B] [--helpers] [--apply], diff LEFT RIGHT, build OUTDIR, pack [TAG], pack-check [TAG], pack-export DIR, point POINTER | ID (--role ROLE [--name NAME] | --selector CSS), point-move POINT_ID DIRECTION [--index N], point-check POINT_ID, note-add (--point ID | --pointer URI) --text TEXT [--assignee NAME], note-list [--specimen ID] [--state open|resolved|all] [--assignee NAME] [--orphaned] [--limit N] [--after ID], note-check [SPECIMEN_ID], note-move NOTE_ID (--point ID | --pointer URI) --reason TEXT, note-resolve (NOTE_ID | --ids A,B) --outcome OUTCOME --reason TEXT [--revision SHA] [--capture REF], note-reopen NOTE_ID --reason TEXT, job-create ID --scenario PATH --module PATH --export-name NAME --target ID --captures STEPS, job-run ID [--label NAME], decision-record --chosen VAL --reason TEXT (--set SET --slug SLUG --question TEXT | --supersedes IDS | --items ITEMS | --card CARD | --cards CARDS), decision-get ID, decision-list [--kind choice|card|answer|all] [--released|--unreleased] [--limit N] [--after ID], decision-check [--files A,B] [--specimens A,B] [--tokens A,B], design-states [COMMANDS...] [--commands A,B] [--scenario PATH] [--consumer NAME] [--include-proposed] [--limit N] [--after CURSOR], panel-walk --job ID --persona ID --modality MODALITY --target URL, design-card-list [--card ID] [--status STATUS] [--severity SEV] [--scope SCOPE] [--include-provisional] [--include-decided] [--limit N] [--after ID], or design-release --release VER --decisions IDS [--scope SCOPE] [--released-at ISO]; check option values and file paths.',
+				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID [--set SET], capture [IDS...] [--label NAME], compare ID1 ID2..., review (BEFORE AFTER | --before SET --after SET) [--ids A,B], run ID, a11y [ID] [--set SET], themes [ID] [--theme light,dark] [--threshold 0.02], migrate [--files A,B] [--helpers] [--apply], diff LEFT RIGHT, build OUTDIR, pack [TAG], pack-check [TAG], pack-export DIR, point POINTER | ID (--role ROLE [--name NAME] | --selector CSS), point-move POINT_ID DIRECTION [--index N], point-check POINT_ID, note-add (--point ID | --pointer URI) --text TEXT [--assignee NAME], note-list [--specimen ID] [--state open|resolved|all] [--assignee NAME] [--orphaned] [--limit N] [--after ID], note-check [SPECIMEN_ID], note-move NOTE_ID (--point ID | --pointer URI) --reason TEXT, note-resolve (NOTE_ID | --ids A,B) --outcome OUTCOME --reason TEXT [--revision SHA] [--capture REF], note-reopen NOTE_ID --reason TEXT, job-create ID --scenario PATH --module PATH --export-name NAME --target ID --captures STEPS, job-run ID [--label NAME], decision-record --chosen VAL --reason TEXT (--set SET --slug SLUG --question TEXT | --supersedes IDS | --items ITEMS | --card CARD | --cards CARDS), decision-get ID, decision-list [--kind choice|card|answer|all] [--released|--unreleased] [--limit N] [--after ID], decision-check [--files A,B] [--specimens A,B] [--tokens A,B], design-states [COMMANDS...] [--commands A,B] [--scenario PATH] [--consumer NAME] [--include-proposed] [--limit N] [--after CURSOR], panel-walk --job ID --persona ID --modality MODALITY --target URL, design-card-list [--card ID] [--status STATUS] [--severity SEV] [--scope SCOPE] [--include-provisional] [--include-decided] [--limit N] [--after ID], design-release --release VER --decisions IDS [--scope SCOPE] [--released-at ISO], pattern-fork --source LIB/PAT [--target PAT] [--bind], pattern-compare [--pattern PAT] [--upstream-version VER] [--all-statements], or pattern-merge --pattern PAT [--upstream-version VER] [--accept IDS] [--decline IDS] [--waivers JSON] [--resolutions JSON]; check option values and file paths.',
 		});
 	} finally {
 		if (bench) {

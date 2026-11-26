@@ -22,6 +22,7 @@ export {
 	cardNotFoundError,
 	cardsDir,
 	computeCardDigest,
+	deterministicKeepWaiverCardId,
 	generateCardId,
 	listDesignCards,
 	readAllCards,
@@ -192,6 +193,18 @@ export {
 	writeWalkRecord,
 } from './panel-walk.js';
 export { computePatternCoverage, PATTERNS_OBLIGATIONS } from './pattern-coverage.js';
+export {
+	BUILTIN_DEFAULTS_UPSTREAM_PREFIX,
+	computePatternStatementDigests,
+	computeSingleStatementDigest,
+	digestPatternText,
+	extractCardUpstreamDigests,
+	type ResolvedUpstreamPattern,
+	resolveUpstreamPattern,
+	runPatternCompare,
+	runPatternFork,
+	runPatternMerge,
+} from './pattern-fork.js';
 export {
 	checkImplementationContexts,
 	DEFAULT_PATTERN_LIBRARY,

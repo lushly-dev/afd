@@ -465,11 +465,31 @@ export async function exportPack(
 	};
 	if (typeof identity.name !== 'string' || typeof identity.version !== 'string')
 		throw new Error(`${pack.package} has no package name and version to stamp.`);
+	const localApprovalByPattern = new Map(
+		(config.patterns?.patterns ?? []).map((item) => [item.pattern, item.approvalStatus])
+	);
+	const compiledPatternBindings: Record<string, string> = {};
+	for (const [source, target] of Object.entries(config.config.patternBindings ?? {})) {
+		const slash = target.indexOf('/');
+		if (slash > 0) {
+			const targetLib = target.slice(0, slash);
+			const targetPat = target.slice(slash + 1);
+			if (targetLib === pack.library) {
+				if (!localApprovalByPattern.has(targetPat)) continue;
+				const approval = localApprovalByPattern.get(targetPat);
+				if (approval !== undefined && approval !== 'approved') continue;
+			}
+		}
+		compiledPatternBindings[source] = target;
+	}
 	const catalog = packCatalog(files, pack.library, {
 		title: pack.title,
 		package: { name: identity.name, version: identity.version },
 		prefix: pack.prefix,
 		...(request.revision ? { revision: request.revision } : {}),
+		...(Object.keys(compiledPatternBindings).length > 0
+			? { patternBindings: compiledPatternBindings }
+			: {}),
 	});
 
 	const target = resolve(dirname(config.file), request.directory);

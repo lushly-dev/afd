@@ -2,8 +2,13 @@ import { type Dirent, existsSync, statSync } from 'node:fs';
 import { readdir, readFile, realpath } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { getDefaultPatternsPackDir, isBuiltinDefaultPatternSource } from './defaults.js';
+import {
+	getDefaultPatternsPackDir,
+	isBuiltinDefaultPatternSource,
+	loadDefaultPatterns,
+} from './defaults.js';
 import { guidePatternRegExp, type LoadedGuides } from './guides.js';
+import { canonicalJson, packDigest } from './pack.js';
 import { PACK_PATTERNS } from './pack-schema.js';
 import type { ImplementationContexts, PatternFile, PatternSetupBinding } from './pattern-types.js';
 import { type StoryPatternBinding, sameFile } from './stories.js';
@@ -30,6 +35,8 @@ export type PatternProblemCode =
 	| 'GATE_UNKNOWN'
 	| 'TARGET_UNKNOWN'
 	| 'DUPLICATE_ID'
+	| 'WAIVER_REASON_REQUIRED'
+	| 'PATTERN_APPROVAL_MISMATCH'
 	| 'PATTERN_SCHEMA_INVALID'
 	| 'PATTERN_TEXT_TOO_LONG'
 	| 'PATTERN_TEXT_INVALID'
@@ -88,6 +95,10 @@ const SUGGESTIONS: Record<PatternProblemCode, string> = {
 		'Declare the target alias in setups.<setup>.targets or fix the target name in the gate step.',
 	DUPLICATE_ID:
 		'Give each statement, pattern, step, and case id a unique id; a statement lives in a pattern or in a guide, never both.',
+	WAIVER_REASON_REQUIRED:
+		'Record a waiver reason in waivedKeep for every dropped upstream keep statement, or restore the keep statement from the upstream pattern.',
+	PATTERN_APPROVAL_MISMATCH:
+		'Re-approve modified copied patterns through specimen-pattern-merge and decision-record rather than editing approved files directly.',
 	PATTERN_SCHEMA_INVALID: 'Match @lushly-dev/specimen/pattern.schema.json.',
 	PATTERN_TEXT_TOO_LONG:
 		'Shorten the text within the pack limit (160 summary, 240 statement/setup).',
@@ -987,7 +998,125 @@ export async function loadPatterns(options: LoadPatternsOptions): Promise<Loaded
 		}
 	}
 
-	// 3. Same-library `replacedBy` references.
+	// 3. Same-library `replacedBy` references and copied-pattern waiver / approval integrity checks.
+	let cachedDefaultPatterns: Record<string, PatternFile> | undefined;
+	const getDefaultPatterns = async () => {
+		if (!cachedDefaultPatterns) {
+			cachedDefaultPatterns = await loadDefaultPatterns().catch(() => ({}));
+		}
+		return cachedDefaultPatterns;
+	};
+
+	const hasDerivedPatterns = loaded.patterns.some((p) => p.derivedFrom !== undefined);
+	const latestApprovedPatternDigest = new Map<
+		string,
+		{ decidedAt: string; id: string; digest: string }
+	>();
+	const openForkCardPatterns = new Set<string>();
+	if (hasDerivedPatterns) {
+		const decDir = join(root, 'specimens', 'decisions');
+		if (existsSync(decDir)) {
+			const decEntries = await readdir(decDir, { withFileTypes: true }).catch(() => [] as Dirent[]);
+			const parsedDecisions: Array<{
+				id: string;
+				kind?: string;
+				chosen?: string;
+				decidedAt: string;
+				decidedByKind?: string;
+				supersedes?: string | string[];
+				patternDigests?: Record<string, string>;
+			}> = [];
+			const supersededIds = new Set<string>();
+			for (const entry of decEntries) {
+				if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
+				try {
+					const dec = JSON.parse(await readFile(join(decDir, entry.name), 'utf8')) as {
+						id?: string;
+						kind?: string;
+						chosen?: string;
+						decidedAt?: string;
+						decidedBy?: { kind?: string };
+						supersedes?: unknown;
+						patternDigests?: Record<string, string>;
+					};
+					const decId = typeof dec.id === 'string' ? dec.id : entry.name;
+					if (typeof dec.supersedes === 'string') {
+						supersededIds.add(dec.supersedes);
+					} else if (Array.isArray(dec.supersedes)) {
+						for (const item of dec.supersedes) {
+							if (typeof item === 'string') supersededIds.add(item);
+						}
+					}
+					parsedDecisions.push({
+						id: decId,
+						kind: dec.kind,
+						chosen: dec.chosen,
+						decidedAt: typeof dec.decidedAt === 'string' ? dec.decidedAt : '',
+						decidedByKind: dec.decidedBy?.kind,
+						patternDigests: isPlainObject(dec.patternDigests)
+							? (dec.patternDigests as Record<string, string>)
+							: undefined,
+					});
+				} catch {
+					// Ignore unreadable/non-decision files here; decision-check validates them separately.
+				}
+			}
+			for (const dec of parsedDecisions) {
+				if (
+					dec.kind !== 'card' ||
+					dec.chosen !== 'approve' ||
+					supersededIds.has(dec.id) ||
+					(dec.decidedByKind !== 'person' && dec.decidedByKind !== 'test') ||
+					!dec.patternDigests
+				) {
+					continue;
+				}
+				for (const [qualKey, digestVal] of Object.entries(dec.patternDigests)) {
+					if (typeof digestVal !== 'string') continue;
+					const prev = latestApprovedPatternDigest.get(qualKey);
+					if (
+						!prev ||
+						dec.decidedAt > prev.decidedAt ||
+						(dec.decidedAt === prev.decidedAt && dec.id > prev.id)
+					) {
+						latestApprovedPatternDigest.set(qualKey, {
+							decidedAt: dec.decidedAt,
+							id: dec.id,
+							digest: digestVal,
+						});
+					}
+				}
+			}
+		}
+		const cardDir = join(root, 'specimens', 'cards');
+		if (existsSync(cardDir)) {
+			const cardEntries = await readdir(cardDir, { withFileTypes: true }).catch(
+				() => [] as Dirent[]
+			);
+			for (const entry of cardEntries) {
+				if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
+				try {
+					const card = JSON.parse(await readFile(join(cardDir, entry.name), 'utf8')) as {
+						status?: string;
+						patternAction?: { kind?: string; pattern?: string };
+					};
+					if (
+						(card.status === 'open' ||
+							card.status === 'changes-requested' ||
+							card.status === 'deferred' ||
+							card.status === 'provisional') &&
+						card.patternAction?.kind === 'fork' &&
+						typeof card.patternAction.pattern === 'string'
+					) {
+						openForkCardPatterns.add(card.patternAction.pattern);
+					}
+				} catch {
+					// Ignore malformed cards here.
+				}
+			}
+		}
+	}
+
 	for (const pattern of loaded.patterns) {
 		if (pattern.replacedBy !== undefined && !pattern.replacedBy.includes('/')) {
 			if (!knownLocalPatternIds.has(pattern.replacedBy)) {
@@ -998,6 +1127,117 @@ export async function loadPatterns(options: LoadPatternsOptions): Promise<Loaded
 					file: pattern.file,
 					field: 'replacedBy',
 				});
+			}
+		}
+
+		// Duplicate `waivedKeep` ids.
+		const seenWaivers = new Set<string>();
+		(pattern.waivedKeep ?? []).forEach((waiver, index) => {
+			if (seenWaivers.has(waiver.id)) {
+				problems.push({
+					severity: 'error',
+					code: 'DUPLICATE_ID',
+					message: `${pattern.file}: waivedKeep[${index}] duplicates keep statement id '${waiver.id}'`,
+					file: pattern.file,
+					field: `waivedKeep[${index}].id`,
+				});
+			} else {
+				seenWaivers.add(waiver.id);
+			}
+		});
+
+		// Copied-pattern `WAIVER_REASON_REQUIRED` check for dropped upstream `keep` statements.
+		if (pattern.derivedFrom) {
+			const extKey = `${pattern.derivedFrom.library}/${pattern.derivedFrom.pattern}`;
+			const extPattern =
+				loaded.external[extKey]?.data ??
+				(pattern.derivedFrom.library === 'afd-defaults'
+					? (await getDefaultPatterns())[pattern.derivedFrom.pattern]
+					: undefined);
+			const upstreamKeepIds = new Set<string>();
+			const upstreamNonKeepIds = new Set<string>();
+			if (extPattern) {
+				for (const item of extPattern.keep ?? []) {
+					if (Object.hasOwn(pattern.derivedFrom.statements, item.id)) {
+						upstreamKeepIds.add(item.id);
+					}
+				}
+				for (const section of ['useWhen', 'avoidWhen', 'customize'] as const) {
+					for (const item of extPattern[section] ?? []) {
+						upstreamNonKeepIds.add(item.id);
+					}
+				}
+			}
+			const localKeepIds = new Set((pattern.keep ?? []).map((item) => item.id));
+			const allLocalIds = new Set<string>([
+				...localKeepIds,
+				...(pattern.useWhen ?? []).map((item) => item.id),
+				...(pattern.avoidWhen ?? []).map((item) => item.id),
+				...(pattern.customize ?? []).map((item) => item.id),
+			]);
+			const validWaivedIds = new Set(
+				(pattern.waivedKeep ?? [])
+					.filter((item) => item.reason.trim().length > 0)
+					.map((item) => item.id)
+			);
+			const mustBeWaived = new Set<string>();
+			for (const stmtId of Object.keys(pattern.derivedFrom.statements)) {
+				const knownKeep = upstreamKeepIds.has(stmtId) || stmtId.includes('.keep.');
+				if (knownKeep && !localKeepIds.has(stmtId)) {
+					mustBeWaived.add(stmtId);
+					continue;
+				}
+				// Fail closed when a derived statement is dropped locally and its original section
+				// cannot be confirmed as non-keep from the resolved upstream pattern.
+				if (!allLocalIds.has(stmtId) && !upstreamNonKeepIds.has(stmtId)) {
+					mustBeWaived.add(stmtId);
+				}
+			}
+			for (const keepId of [...mustBeWaived].sort()) {
+				if (!validWaivedIds.has(keepId)) {
+					problems.push({
+						severity: 'error',
+						code: 'WAIVER_REASON_REQUIRED',
+						message: `${pattern.file}: dropped upstream keep statement '${keepId}' requires a waiver reason in waivedKeep`,
+						file: pattern.file,
+						field: 'waivedKeep',
+					});
+				}
+			}
+
+			// Approval digest integrity check when a copied pattern claims approved (or omits approvalStatus while fork card is open).
+			if (pattern.approvalStatus !== 'proposed' && openForkCardPatterns.has(pattern.pattern)) {
+				problems.push({
+					severity: 'error',
+					code: 'PATTERN_APPROVAL_MISMATCH',
+					message: `${pattern.file}: pattern '${pattern.pattern}' cannot be approved while its fork approval card is still open`,
+					file: pattern.file,
+					field: 'approvalStatus',
+				});
+			} else if (pattern.approvalStatus === 'approved') {
+				const primaryKey = `${localLibrary ?? 'local'}/${pattern.pattern}`;
+				const approvedEntry = latestApprovedPatternDigest.get(primaryKey);
+				if (!approvedEntry) {
+					problems.push({
+						severity: 'error',
+						code: 'PATTERN_APPROVAL_MISMATCH',
+						message: `${pattern.file}: approved copied pattern '${primaryKey}' has no matching person approval decision in specimens/decisions/`,
+						file: pattern.file,
+						field: 'approvalStatus',
+					});
+				} else {
+					const { file: _ignoredFile, ...patternWithoutFile } = pattern;
+					const currentDigest = packDigest(canonicalJson(patternWithoutFile));
+					if (currentDigest !== approvedEntry.digest) {
+						problems.push({
+							severity: 'error',
+							code: 'PATTERN_APPROVAL_MISMATCH',
+							message: `${pattern.file}: approved pattern '${pattern.pattern}' was modified after approval decision '${approvedEntry.id}'`,
+							file: pattern.file,
+							field: 'approvalStatus',
+						});
+					}
+				}
 			}
 		}
 	}

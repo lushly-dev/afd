@@ -87,6 +87,7 @@ import {
 } from '@lushly-dev/specimen/schema';
 import { z } from 'zod';
 import { type ExecuteSpecimenCommandOptions, executeValidatedCommand } from './execute.js';
+import { createPatternForkCommands } from './pattern-commands.js';
 import {
 	ERROR_SUGGESTIONS,
 	markSpecimenChangeAuthor,
@@ -186,6 +187,12 @@ import type {
 	PackRun,
 	PanelWalkRequest,
 	PanelWalkResult,
+	PatternCompareRequest,
+	PatternCompareResult,
+	PatternForkRequest,
+	PatternForkResult,
+	PatternMergeRequest,
+	PatternMergeResult,
 	PointCheckRequest,
 	PointCheckResult,
 	PointMoveRequest,
@@ -398,6 +405,9 @@ export interface SpecimenCommandBench {
 		request: DesignReleaseRequest,
 		options?: RecordDecisionOptions
 	): Promise<DesignReleaseResult>;
+	patternFork(request: PatternForkRequest): Promise<PatternForkResult>;
+	patternCompare(request?: PatternCompareRequest): Promise<PatternCompareResult>;
+	patternMerge(request: PatternMergeRequest): Promise<PatternMergeResult>;
 }
 
 /** One story or synthesized gate by id, or a suite by filter; the handler tells them apart. */
@@ -1245,6 +1255,7 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				'Verify the job, persona, modality, and target URL, then re-run panel-walk.'
 			),
 	});
+	const [patternFork, patternCompare, patternMerge] = createPatternForkCommands(bench, result);
 	return [
 		list,
 		render,
@@ -1287,6 +1298,9 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		panelWalk,
 		designCardList,
 		designRelease,
+		patternFork,
+		patternCompare,
+		patternMerge,
 	] as const;
 }
 
@@ -1351,6 +1365,9 @@ export async function executeSpecimenCommand(
 		panelWalk,
 		designCardList,
 		designRelease,
+		patternFork,
+		patternCompare,
+		patternMerge,
 	] = createSpecimenCommands(bench);
 	switch (name) {
 		case 'specimen-list':
@@ -1435,12 +1452,18 @@ export async function executeSpecimenCommand(
 			return executeValidatedCommand(designCardList, input, options);
 		case 'design-release':
 			return executeValidatedCommand(designRelease, input, options);
+		case 'specimen-pattern-fork':
+			return executeValidatedCommand(patternFork, input, options);
+		case 'specimen-pattern-compare':
+			return executeValidatedCommand(patternCompare, input, options);
+		case 'specimen-pattern-merge':
+			return executeValidatedCommand(patternMerge, input, options);
 		default:
 			return failure({
 				code: 'COMMAND_NOT_FOUND',
 				message: `Unknown command: ${name}`,
 				suggestion:
-					'Use specimen list, validate, inspect, render, capture, compare, review, run, themes, migrate, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, job-run, decision-record, decision-get, decision-list, decision-check, design-states, panel-walk, design-card-list, or design-release.',
+					'Use specimen list, validate, inspect, render, capture, compare, review, run, themes, migrate, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, job-run, decision-record, decision-get, decision-list, decision-check, design-states, panel-walk, design-card-list, design-release, specimen-pattern-fork, specimen-pattern-compare, or specimen-pattern-merge.',
 			});
 	}
 }

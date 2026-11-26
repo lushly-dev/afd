@@ -105,6 +105,11 @@ export const cardPatternActionSchema = z.union([
 		upstreamVersion: z.string().min(1),
 		upstreamDigests: z.record(z.string(), z.string()),
 		upstreamPath: z.string().min(1),
+		localDigest: z
+			.string()
+			.regex(/^sha256:[0-9a-f]{64}$/)
+			.optional(),
+		configPath: z.string().min(1).optional(),
 		stagedPattern: z.record(z.string(), z.unknown()),
 	}),
 ]);

@@ -116,6 +116,7 @@ export interface CardDecisionRecord {
 	remediation?: string;
 	changeSignature?: string;
 	appliedPatterns?: string[];
+	patternDigests?: Record<string, string>;
 	decidedAt: string;
 	decidedBy: DecisionActor;
 }

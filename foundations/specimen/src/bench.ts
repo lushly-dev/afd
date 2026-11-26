@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFile, realpath } from 'node:fs/promises';
+import { readdir, readFile, realpath } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { BenchWorkerClient } from './bench-worker-client.js';
 import { listDesignCards } from './cards.js';
@@ -37,6 +37,7 @@ import {
 	writePackIndex,
 } from './pack-files.js';
 import { type RunPanelWalkOptions, runPanelWalk } from './panel-walk.js';
+import { runPatternCompare, runPatternFork, runPatternMerge } from './pattern-fork.js';
 import {
 	checkImplementationContexts,
 	effectiveGateContext,
@@ -126,6 +127,12 @@ import type {
 	PackRun,
 	PanelWalkRequest,
 	PanelWalkResult,
+	PatternCompareRequest,
+	PatternCompareResult,
+	PatternForkRequest,
+	PatternForkResult,
+	PatternMergeRequest,
+	PatternMergeResult,
 	PointCheckRequest,
 	PointCheckResult,
 	PointMoveRequest,
@@ -356,6 +363,12 @@ export interface SpecimenBench {
 		request: DesignReleaseRequest,
 		options?: RecordDecisionOptions
 	): Promise<DesignReleaseResult>;
+	/** Copy an upstream pattern into `specimens/patterns/<target>/pattern.json` as proposed with `derivedFrom` digests. */
+	patternFork(request: PatternForkRequest): Promise<PatternForkResult>;
+	/** Compare one copied pattern (or all copied patterns in bulk) statement-by-statement against its upstream source. */
+	patternCompare(request?: PatternCompareRequest): Promise<PatternCompareResult>;
+	/** Stage selected upstream pattern updates and declines onto a pinned guidance decision card. */
+	patternMerge(request: PatternMergeRequest): Promise<PatternMergeResult>;
 	build(
 		outDir: string
 	): Promise<{ directory: string; shellBytes: number; budget: number; files: string[] }>;
@@ -384,6 +397,9 @@ export type BenchRuntime = Omit<
 	| 'panelWalk'
 	| 'listDesignCards'
 	| 'recordDesignRelease'
+	| 'patternFork'
+	| 'patternCompare'
+	| 'patternMerge'
 > & {
 	/** Build the configured pack from two passes over every case, and write nothing. */
 	packBuild(request?: PackBuildRequest): Promise<PackBuildRun>;
@@ -541,6 +557,42 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 	};
 	const activePanelWalks = new Set<Promise<unknown>>();
 	const panelWalkAbort = new AbortController();
+	const computePatternsDigest = async (current: LoadedConfig): Promise<string> => {
+		const dir = resolve(dirname(current.file), 'specimens/patterns');
+		const fileSet = new Set<string>((current.patterns?.patterns ?? []).map((item) => item.file));
+		const entries = await readdir(dir, { withFileTypes: true }).catch(() => null);
+		if (entries) {
+			for (const entry of entries) {
+				if (entry.isDirectory()) fileSet.add(join(dir, entry.name, 'pattern.json'));
+			}
+		}
+		const files = [...fileSet].sort();
+		if (files.length === 0) return '';
+		const hash = createHash('sha256');
+		for (const file of files) {
+			const text = await readFile(file, 'utf8').catch(() => null);
+			if (text !== null) {
+				hash.update(file).update('\0').update(text).update('\0');
+			}
+		}
+		return hash.digest('hex');
+	};
+	let lastPatternsDigest = await computePatternsDigest(config);
+	const reloadConfigNow = async (): Promise<LoadedConfig> => {
+		const reloaded = freezeConfig(await loadConfig(options));
+		if (reloaded.stories?.discovery.errors.length) {
+			throw new Error(reloaded.stories.discovery.errors.join('\n'));
+		}
+		config = reloaded;
+		lastPatternsDigest = await computePatternsDigest(reloaded);
+		loadedJobSources = undefined;
+		if (backend) {
+			const oldBackend = backend;
+			backend = undefined;
+			await oldBackend.close();
+		}
+		return reloaded;
+	};
 	const refreshConfigIfChanged = async (current: LoadedConfig): Promise<LoadedConfig> => {
 		const configText = await readFile(current.file, 'utf8').catch(() => null);
 		const configDigest =
@@ -552,19 +604,15 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 				manifestText === null ? null : createHash('sha256').update(manifestText).digest('hex');
 			manifestChanged = manifestDigest !== (current.manifestDigest ?? null);
 		}
-		if (configDigest === current.digest && !manifestChanged) return current;
-		const reloaded = freezeConfig(await loadConfig(options));
-		if (reloaded.stories?.discovery.errors.length) {
-			throw new Error(reloaded.stories.discovery.errors.join('\n'));
+		const patternsDigest = await computePatternsDigest(current);
+		if (
+			configDigest === current.digest &&
+			!manifestChanged &&
+			patternsDigest === lastPatternsDigest
+		) {
+			return current;
 		}
-		config = reloaded;
-		loadedJobSources = undefined;
-		if (backend) {
-			const oldBackend = backend;
-			backend = undefined;
-			await oldBackend.close();
-		}
-		return reloaded;
+		return reloadConfigNow();
 	};
 	/** Build with the last full build's index for one component, and keep a full build's index. */
 	const packBuild = async (snapshot: LoadedConfig, rawRequest: PackRequest) => {
@@ -921,17 +969,17 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 			return enqueue((client) => client.coverage(request));
 		},
 		async pack(rawRequest = {}) {
-			const snapshot = ensureDiscovered();
+			const snapshot = await refreshConfigIfChanged(ensureDiscovered());
 			const { build, allowFailed } = await packBuild(snapshot, rawRequest);
 			return writePack(snapshot, build, allowFailed);
 		},
 		async packCheck(rawRequest = {}) {
-			const snapshot = ensureDiscovered();
+			const snapshot = await refreshConfigIfChanged(ensureDiscovered());
 			const { build, allowFailed } = await packBuild(snapshot, rawRequest);
 			return checkCommitted(snapshot, build, allowFailed);
 		},
 		async packExport(rawRequest) {
-			const snapshot = ensureOpen();
+			const snapshot = await refreshConfigIfChanged(ensureOpen());
 			return exportPack(snapshot, parsePackExportRequest(rawRequest));
 		},
 		async a11y(rawRequest = {}) {
@@ -1125,8 +1173,14 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 			return enqueueLocal((current) => reopenNote(current.root, request));
 		},
 		async recordDecision(rawRequest, decisionOptions) {
-			const snapshot = ensureOpen();
-			return recordDecision(snapshot.root, rawRequest, decisionOptions);
+			ensureOpen();
+			return enqueueLocal(async (initial) => {
+				const result = await recordDecision(initial.root, rawRequest, decisionOptions);
+				if (rawRequest.card !== undefined || rawRequest.cards !== undefined) {
+					await reloadConfigNow();
+				}
+				return result;
+			});
 		},
 		async review(rawRequest) {
 			const snapshot = ensureOpen();
@@ -1179,6 +1233,29 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		async recordDesignRelease(rawRequest, decisionOptions) {
 			const snapshot = ensureOpen();
 			return recordDesignRelease(snapshot.root, rawRequest, decisionOptions);
+		},
+		async patternFork(rawRequest) {
+			ensureOpen();
+			return enqueueLocal(async (initial) => {
+				const current = await refreshConfigIfChanged(initial);
+				const result = await runPatternFork(current, rawRequest);
+				await reloadConfigNow();
+				return result;
+			});
+		},
+		async patternCompare(rawRequest = {}) {
+			ensureOpen();
+			return enqueueLocal(async (initial) => {
+				const current = await refreshConfigIfChanged(initial);
+				return runPatternCompare(current, rawRequest);
+			});
+		},
+		async patternMerge(rawRequest) {
+			ensureOpen();
+			return enqueueLocal(async (initial) => {
+				const current = await refreshConfigIfChanged(initial);
+				return runPatternMerge(current, rawRequest);
+			});
 		},
 		close() {
 			closing ??= (async () => {

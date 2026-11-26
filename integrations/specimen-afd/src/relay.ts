@@ -165,6 +165,10 @@ export const ERROR_SUGGESTIONS: Readonly<Record<string, string>> = {
 		'Approve regression cards individually with regressionAccepted: true and an explicit reason.',
 	UPSTREAM_CHANGED:
 		'Re-run specimen-pattern-compare and specimen-pattern-merge against the current upstream pattern before approving.',
+	NOT_A_COPIED_PATTERN:
+		'Only patterns with derivedFrom (created by specimen-pattern-fork) can be compared or merged upstream.',
+	STATEMENT_CONFLICT:
+		'Provide a resolutions entry with merged text (and gate/setup when paired) for every changed-both statement being accepted.',
 	REFUSED_AS_UNSAFE:
 		'Inspect the blocking safety refusal in decision-list and provide both supersedes and remediation once the safety issue is fixed.',
 	AUTHOR_CANNOT_DECIDE:

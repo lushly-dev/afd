@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+	approvalStatusSchema,
 	PACK_FORMAT_VERSION,
 	PACK_TEXT_LIMITS,
 	packFacetsSchema,
@@ -8,9 +9,11 @@ import {
 	packPatternGateSchema,
 	packPatternRef,
 	packText,
+	patternDerivedFromSchema,
 	patternKeepStatementSchema,
 	patternSetupSchema,
 	patternStatementSchema,
+	waivedKeepEntrySchema,
 } from './pack-atoms.js';
 
 export {
@@ -304,6 +307,9 @@ export const packPatternSchema = z
 		pattern: packIdentifier('pattern'),
 		summary: packText(PACK_TEXT_LIMITS.summary).optional(),
 		status: statusEnum,
+		approvalStatus: approvalStatusSchema.optional(),
+		derivedFrom: patternDerivedFromSchema.optional(),
+		waivedKeep: z.array(waivedKeepEntrySchema).max(64).optional(),
 		replacedBy: packPatternRef().optional(),
 		scope: patternScopeEnum,
 		facets: packFacetsSchema,
@@ -334,6 +340,7 @@ export const packCopySchema = z
 		pattern: packIdentifier('pattern'),
 		name: packIdentifier('copyName'),
 		status: statusEnum,
+		approvalStatus: approvalStatusSchema.optional(),
 		replacedBy: packIdentifier('copyName').optional(),
 		html: packText(PACK_TEXT_LIMITS.copyHtml, 'multi', 1),
 		css: packText(PACK_TEXT_LIMITS.copyCss, 'multi', 0),
@@ -362,6 +369,7 @@ const catalogPatternEntrySchema = z
 		pattern: packIdentifier('pattern'),
 		summary: packText(PACK_TEXT_LIMITS.summary).optional(),
 		status: statusEnum,
+		approvalStatus: approvalStatusSchema.optional(),
 		replacedBy: packPatternRef().optional(),
 		scope: patternScopeEnum,
 		facets: packFacetsSchema,
@@ -378,6 +386,7 @@ const catalogCopyEntrySchema = z
 		pattern: packIdentifier('pattern'),
 		name: packIdentifier('copyName'),
 		status: statusEnum,
+		approvalStatus: approvalStatusSchema.optional(),
 		replacedBy: packIdentifier('copyName').optional(),
 		revision: packIdentifier('digest'),
 		fingerprint: packIdentifier('digest'),
@@ -421,6 +430,14 @@ export const packLibrarySchema = z.strictObject({
 	...libraryFieldsBase,
 	patterns: z.array(catalogPatternEntrySchema).max(256),
 	copies: z.array(catalogCopyEntrySchema).max(512),
+	patternBindings: z
+		.record(packIdentifier('qualifiedPattern'), packIdentifier('qualifiedPattern'))
+		.refine(
+			(value) => Object.keys(value).length <= 256,
+			'A catalog may declare at most 256 pattern bindings'
+		)
+		.meta({ maxProperties: 256 })
+		.optional(),
 });
 
 export type PackKeepBasis = z.infer<typeof packKeepBasisSchema>;

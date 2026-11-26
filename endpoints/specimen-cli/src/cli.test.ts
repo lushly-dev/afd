@@ -453,6 +453,52 @@ function harness() {
 			nextSteps: [],
 			unmeasured: [],
 		})),
+		patternFork: vi.fn(async (request) => ({
+			pattern: request.target ?? request.source.split('/')[1] ?? 'error-recovery',
+			path: `specimens/patterns/${request.target ?? 'error-recovery'}/pattern.json`,
+			approvalStatus: 'proposed' as const,
+			derivedFrom: {
+				library: request.source.split('/')[0] ?? 'afd-defaults',
+				pattern: request.source.split('/')[1] ?? 'error-recovery',
+				version: '1.0.0',
+				revision: `sha256:${'a'.repeat(64)}`,
+				statements: { 'error-recovery.keep.next': `sha256:${'b'.repeat(64)}` },
+			},
+			bindingStatus: request.bind ? ('pending-approval' as const) : ('unbound' as const),
+			card: 'card-f0rk00000001',
+			nextSteps: ['Approve via decision-record.'],
+		})),
+		patternCompare: vi.fn(async (request) =>
+			request?.pattern
+				? {
+						pattern: request.pattern,
+						source: {
+							library: 'afd-defaults',
+							pattern: request.pattern,
+							baseVersion: '1.0.0',
+							currentVersion: '1.1.0',
+						},
+						statements: [],
+						waivers: [],
+						nextSteps: ['Run specimen-pattern-merge.'],
+						unmeasured: [],
+					}
+				: {
+						patterns: [],
+						nextSteps: ['All copied patterns up to date.'],
+						unmeasured: [],
+					}
+		),
+		patternMerge: vi.fn(async (request) => ({
+			pattern: request.pattern,
+			card: 'card-m3rg00000001',
+			upstreamVersion: request.upstreamVersion ?? '1.1.0',
+			upstreamDigests: { 'error-recovery.keep.next': `sha256:${'c'.repeat(64)}` },
+			accepted: request.accept ?? [],
+			declined: request.decline ?? [],
+			stagedStatus: 'proposed' as const,
+			nextSteps: ['Approve via decision-record.'],
+		})),
 		close: vi.fn(async () => {}),
 	};
 	const createBench = vi.fn(async () => bench);
@@ -2561,6 +2607,70 @@ describe('specimen CLI', () => {
 		expect(JSON.parse(relOk)).toMatchObject({ success: true, data: { release: '1.0.0' } });
 		const manifest = await readReleaseManifest(root, '1.0.0');
 		expect(manifest?.releasedBy).toEqual({ kind: 'person', id: 'cli-person', channel: 'cli' });
+	});
+
+	it('dispatches pattern-fork, pattern-compare, and pattern-merge CLI actions', async () => {
+		const h = harness();
+		expect(
+			await runCli(
+				[
+					'pattern-fork',
+					'--source',
+					'afd-defaults/error-recovery',
+					'--target',
+					'error-recovery',
+					'--bind',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.patternFork).toHaveBeenCalledWith({
+			source: 'afd-defaults/error-recovery',
+			target: 'error-recovery',
+			bind: true,
+		});
+
+		expect(
+			await runCli(
+				[
+					'pattern-compare',
+					'--pattern',
+					'error-recovery',
+					'--upstream-version',
+					'1.1.0',
+					'--all-statements',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.patternCompare).toHaveBeenCalledWith({
+			pattern: 'error-recovery',
+			upstreamVersion: '1.1.0',
+			onlyChanged: false,
+		});
+
+		expect(
+			await runCli(
+				[
+					'pattern-merge',
+					'--pattern',
+					'error-recovery',
+					'--accept',
+					'error-recovery.keep.next',
+					'--decline',
+					'error-recovery.keep.focus',
+					'--waivers',
+					JSON.stringify([{ id: 'error-recovery.keep.focus', reason: 'Kiosk touch display' }]),
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.patternMerge).toHaveBeenCalledWith({
+			pattern: 'error-recovery',
+			accept: ['error-recovery.keep.next'],
+			decline: ['error-recovery.keep.focus'],
+			waivers: [{ id: 'error-recovery.keep.focus', reason: 'Kiosk touch display' }],
+		});
 	});
 });
 
