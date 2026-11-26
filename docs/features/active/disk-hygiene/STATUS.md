@@ -14,6 +14,38 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 
 ## Findings
 
+### Hero's view and its first week of receipts, 2026-11-26 (#1693)
+
+- **`--unclassified` on Hero** (botcore 0.8.0, `C:\Users\falki\afd`, 129 worktrees, 132 s,
+  `complete: True`, no list truncated or incomplete): Specimen's staged `host-win32-x64/bin/`
+  (23), `.specimen/` (16: 14 under `endpoints/loam/apps/notes/specimens/`, one under
+  `endpoints/loam/packages/chrome/specimens/`, one at the root), Tauri's `gen/` (8),
+  `packages/rust/Cargo.lock` (5), `.umbel/` (3), `.claude/worktrees/` (1) and Loam desktop's
+  `dist-installers/` (1). Only the last was new and rebuildable: `build:installers` stages it
+  and `clean` removes it, so it is now named. Botcore's `scan_unclassified`, run on that
+  worktree with this branch's `botcore.toml` (`disk-report` reads `[disk]` only from
+  `origin/main`), found nothing unclassified. `.specimen/` stays unnamed on purpose: it keeps
+  capture sets, labels and evidence a decision has not yet recorded under `specimens/`.
+- **Dry run** (`disk-reclaim`, tier 1; `disk-setup` has no dry-run mode and was not rerun, so
+  `disk.toml` and the scheduled task are as verified on 2026-11-24): 2,505 strips and `uv cache
+  prune`, 77.45 GB planned (botcore's GB, 2^30 bytes), no failures. Ten entries were checked by
+  hand, the four largest `**/target` (20.5, 12.4, 8.1 and 3.8 GB, each with `CACHEDIR.TAG`,
+  idle 1.1 to 1.6 days against a 1-day limit) and one each of `dist`, `*.tsbuildinfo`,
+  `coverage`, `health-dashboard/test-results`, `*.egg-info` and `__pycache__` (idle 3.3 to 3.9
+  days against 3): all ignored, no tracked file, no reparse point, no `.git` inside, inside
+  their worktree.
+- **Receipts.** Six applies, 2026-11-20 to 2026-11-25: the rollout's at 23:43Z on 2026-11-20,
+  then the scheduled daily run (23:03Z, then 22:02Z to 22:15Z). 627, 598, 1,654, 921, 131 and
+  106 actions, all `done`, no failures, 1,728.8 GB in all on `D:\` and a net 164.4 GB on `C:\`.
+  Neither volume went below its 100 GB threshold (C: 2,650 GB and D: 2,588 GB free today).
+- **Idle worktrees.** Today's dry run counted 64 idle afd worktrees (59 T3 Code's) and 23 in
+  Lushly (all T3 Code's), up from 23 and 21 at the 2026-11-25 apply.
+- **Lushly has no `[disk]` list yet**, so every ignored path in its 60 worktrees is
+  unclassified (13 lists hit the 50-path limit): per-package `node_modules/`, `.turbo/` and
+  `dist/`, `coverage/`, `custom-elements.json`, `artifacts/`, `apps/web/public/field-notes/` and
+  `apps/web/public/site/theme/`, `.env` copies and a few one-offs. Naming them is
+  [lushly#2697](https://github.com/lushly-dev/lushly/issues/2697).
+
 ### The Air reads unhealthy from test fixtures in a temp root, 2026-11-26 (#1693, #2625)
 
 - **The Air's applied reclaim of 2026-11-25 21:47Z had 679 failures,** and `disk-status` turned
@@ -290,7 +322,7 @@ Read this before the [proposal](disk-hygiene.proposal.md). Active since 2026-11-
 
 - Adoption in Lushly ([lushly#2697](https://github.com/lushly-dev/lushly/issues/2697)): after the release.
 
-- Rollout to the Air, Random and Hero, and retiring the cleanup agent (#1693): rolled out 2026-11-20; afd's `regenerable` list finished and Random set up again 2026-11-22, Air verified 2026-11-23, Hero verified 2026-11-24 (see Findings); a week of receipts, then the cleanup agent is retired.
+- Rollout to the Air, Random and Hero, and retiring the cleanup agent (#1693): rolled out 2026-11-20; afd's `regenerable` list finished and Random set up again 2026-11-22, Air verified 2026-11-23, Hero verified 2026-11-24, Hero's list and dry run rechecked 2026-11-26 (see Findings); the Air and Random rechecked against the new list (Hero's cell cannot reach them), a week of receipts on each, then the cleanup agent is retired.
 
 - A scheduled run that waits for ever (#1902): merged in #1923.
 
