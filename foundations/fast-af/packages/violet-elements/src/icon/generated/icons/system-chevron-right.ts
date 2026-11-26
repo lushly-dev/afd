@@ -10,7 +10,7 @@ export const systemChevronRightIcon = {
   "name": "system/chevron-right",
   "sourceId": "system",
   "originalFile": "chevron-right.svg",
-  "svg": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M9 6L15 12L9 18\"/></svg>"
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9.25 5.25 L15.75 12 L9.25 18.75\"/></svg>"
 } as const satisfies VioletIconDefinition;
 
 export function registerSystemChevronRightIcon(): VioletIconDefinition {

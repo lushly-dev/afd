@@ -10,7 +10,7 @@ export const systemSettingsIcon = {
   "name": "system/settings",
   "sourceId": "system",
   "originalFile": "settings.svg",
-  "svg": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" xmlns=\"http://www.w3.org/2000/svg\"><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.4 15A1.7 1.7 0 0 0 19.7 16.9L19.8 17A2 2 0 1 1 17 19.8L16.9 19.7A1.7 1.7 0 0 0 15 19.4A1.7 1.7 0 0 0 14 21V21.3A2 2 0 1 1 10 21.3V21A1.7 1.7 0 0 0 9 19.4A1.7 1.7 0 0 0 7.1 19.7L7 19.8A2 2 0 1 1 4.2 17L4.3 16.9A1.7 1.7 0 0 0 4.6 15A1.7 1.7 0 0 0 3 14H2.7A2 2 0 1 1 2.7 10H3A1.7 1.7 0 0 0 4.6 9A1.7 1.7 0 0 0 4.3 7.1L4.2 7A2 2 0 1 1 7 4.2L7.1 4.3A1.7 1.7 0 0 0 9 4.6H9.1A1.7 1.7 0 0 0 10 3V2.7A2 2 0 1 1 14 2.7V3A1.7 1.7 0 0 0 15 4.6A1.7 1.7 0 0 0 16.9 4.3L17 4.2A2 2 0 1 1 19.8 7L19.7 7.1A1.7 1.7 0 0 0 19.4 9V9.1A1.7 1.7 0 0 0 21 10H21.3A2 2 0 1 1 21.3 14H21A1.7 1.7 0 0 0 19.4 15Z\"/></svg>"
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M10.5 5.57 L10.5 3.1 L13.5 3.1 L13.5 5.57 A6.6 6.6 0 0 1 16.82 7.49 L18.96 6.25 L20.46 8.85 L18.32 10.09 A6.6 6.6 0 0 1 18.32 13.91 L20.46 15.15 L18.96 17.75 L16.82 16.51 A6.6 6.6 0 0 1 13.5 18.43 L13.5 20.9 L10.5 20.9 L10.5 18.43 A6.6 6.6 0 0 1 7.18 16.51 L5.04 17.75 L3.54 15.15 L5.68 13.91 A6.6 6.6 0 0 1 5.68 10.09 L3.54 8.85 L5.04 6.25 L7.18 7.49 A6.6 6.6 0 0 1 10.5 5.57 Z\"/><circle cx=\"12\" cy=\"12\" r=\"2.6\"/></svg>"
 } as const satisfies VioletIconDefinition;
 
 export function registerSystemSettingsIcon(): VioletIconDefinition {

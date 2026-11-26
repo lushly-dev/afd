@@ -4,7 +4,7 @@ import type { ViewTemplate } from "@lushly-dev/fast-element";
 import { resolveVioletIcon } from "./icon-registry";
 
 const fallbackSvg =
-    "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M5 5L19 19\"/><path d=\"M19 5L5 19\"/></svg>";
+    "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M5 5L19 19\"/><path d=\"M19 5L5 19\"/></svg>";
 const iconTemplateCache = new Map<string, ViewTemplate>();
 
 function getIconTemplate(svg: string): ViewTemplate {

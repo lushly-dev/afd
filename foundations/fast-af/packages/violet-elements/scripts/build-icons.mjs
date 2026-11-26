@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const packageRoot = process.cwd();
@@ -31,13 +31,60 @@ function normalizeSvg(svg) {
     .trim();
 }
 
-await rm(generatedRoot, { recursive: true, force: true });
-await mkdir(generatedIconsRoot, { recursive: true });
+/** Code-point order, so the generated files do not depend on the machine's locale. */
+function byCodePoint(a, b) {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
 
+/** Whether a file exists; any error other than "not found" is thrown. */
+async function exists(path) {
+  try {
+    await stat(path);
+    return true;
+  } catch (error) {
+    if (error.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+/**
+ * A source's SVGs, one per icon, sorted by name. A set drawn with an icon kit (an
+ * `iconset.json` beside `source.json`) keeps each icon in `icons/<name>/` beside its
+ * `icon.json`, and the build takes its default drawing. An imported set keeps flat
+ * files in `raw/`.
+ */
+async function sourceFiles(sourceId, sourceDir) {
+  const specPath = resolve(sourceDir, "iconset.json");
+  if (!(await exists(specPath))) {
+    const rawDir = resolve(sourceDir, "raw");
+    return (await readdir(rawDir, { withFileTypes: true }))
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".svg"))
+      .map((entry) => ({ file: entry.name, path: resolve(rawDir, entry.name) }))
+      .sort((a, b) => byCodePoint(a.file, b.file));
+  }
+  const spec = JSON.parse(await readFile(specPath, "utf8"));
+  if (!Number.isInteger(spec?.defaultSize)) {
+    throw new Error(`${sourceId}: iconset.json needs an integer defaultSize to choose each icon's drawing.`);
+  }
+  const drawing = `${spec.defaultVariant ?? "outline"}-${spec.defaultSize}.svg`;
+  const iconsDir = resolve(sourceDir, "icons");
+  const files = [];
+  for (const entry of await readdir(iconsDir, { withFileTypes: true })) {
+    if (!entry.isDirectory() || !(await exists(resolve(iconsDir, entry.name, "icon.json")))) continue;
+    const path = resolve(iconsDir, entry.name, drawing);
+    if (!(await exists(path))) {
+      throw new Error(`${sourceId}/${entry.name}: the icon has no ${drawing}, its default drawing. Save one, or remove the icon's folder.`);
+    }
+    files.push({ file: `${entry.name}.svg`, path });
+  }
+  return files.sort((a, b) => byCodePoint(a.file, b.file));
+}
+
+// Read every source before touching the generated folder, so a bad source leaves it as it was.
 const sourceIds = (await readdir(sourcesRoot, { withFileTypes: true }))
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name)
-  .sort((a, b) => a.localeCompare(b));
+  .sort(byCodePoint);
 
 const icons = [];
 const sources = [];
@@ -47,14 +94,8 @@ for (const sourceId of sourceIds) {
   const source = JSON.parse(await readFile(resolve(sourceDir, "source.json"), "utf8"));
   sources.push(source);
 
-  const rawDir = resolve(sourceDir, "raw");
-  const files = (await readdir(rawDir, { withFileTypes: true }))
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".svg"))
-    .map((entry) => entry.name)
-    .sort((a, b) => a.localeCompare(b));
-
-  for (const file of files) {
-    const svg = await readFile(resolve(rawDir, file), "utf8");
+  for (const { file, path } of await sourceFiles(sourceId, sourceDir)) {
+    const svg = await readFile(path, "utf8");
     icons.push({
       name: toIconName(sourceId, file),
       sourceId,
@@ -65,6 +106,9 @@ for (const sourceId of sourceIds) {
     });
   }
 }
+
+await rm(generatedRoot, { recursive: true, force: true });
+await mkdir(generatedIconsRoot, { recursive: true });
 
 const sourceLines = [
   "/*",

@@ -10,7 +10,7 @@ export const systemAttachIcon = {
   "name": "system/attach",
   "sourceId": "system",
   "originalFile": "attach.svg",
-  "svg": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M21.44 11.05L12.25 20.24A5.37 5.37 0 0 1 4.63 12.62L13.82 3.44A3.58 3.58 0 0 1 18.88 8.5L9.69 17.69A1.79 1.79 0 0 1 7.16 15.16L15.64 6.68\"/></svg>"
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9.71 6.72 L5.37 11.89 A4.25 4.25 0 0 0 11.88 17.35 L19.35 8.45 A2.13 2.13 0 0 0 16.1 5.72 L8.79 14.43\"/></svg>"
 } as const satisfies VioletIconDefinition;
 
 export function registerSystemAttachIcon(): VioletIconDefinition {

@@ -1,0 +1,20 @@
+{
+  "meaning": "Search, or find in a list",
+  "aliases": [],
+  "category": "",
+  "notes": "",
+  "alike": [],
+  "mirror": false,
+  "reviews": [
+    {
+      "master": "outline-24",
+      "hash": "ec52b73c326e",
+      "by": "agent",
+      "reviewer": "claude-opus-5-5",
+      "verdict": "pass",
+      "notes": "Seed candidate for afd#2567, drawn from scratch with the kit's generator (no third-party geometry). Read on the set sheet and the three-set comparison at 48, 24 and 16px: names correctly at 16px, weight sits in the row.",
+      "at": "2026-11-26T00:03:26.816Z"
+    }
+  ],
+  "approvals": {}
+}

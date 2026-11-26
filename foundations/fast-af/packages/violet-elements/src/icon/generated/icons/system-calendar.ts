@@ -10,7 +10,7 @@ export const systemCalendarIcon = {
   "name": "system/calendar",
   "sourceId": "system",
   "originalFile": "calendar.svg",
-  "svg": "<svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M4 1.75a.75.75 0 0 1 1.5 0V3h5V1.75a.75.75 0 0 1 1.5 0V3h.25A1.75 1.75 0 0 1 14 4.75v7.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-7.5A1.75 1.75 0 0 1 3.75 3H4V1.75Z\" stroke=\"currentColor\" stroke-width=\"1.25\"/><path d=\"M2.625 6.25h10.75\" stroke=\"currentColor\" stroke-width=\"1.25\" stroke-linecap=\"round\"/><path d=\"M5.25 8.5h1.5M9.25 8.5h1.5M5.25 11h1.5M9.25 11h1.5\" stroke=\"currentColor\" stroke-width=\"1.25\" stroke-linecap=\"round\"/></svg>"
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3.9 7.35 A2.25 2.25 0 0 1 6.15 5.1 L17.85 5.1 A2.25 2.25 0 0 1 20.1 7.35 L20.1 18.35 A2.25 2.25 0 0 1 17.85 20.6 L6.15 20.6 A2.25 2.25 0 0 1 3.9 18.35 Z\"/><path d=\"M3.9 10 L20.1 10\"/><path d=\"M8.5 3 L8.5 7\"/><path d=\"M15.5 3 L15.5 7\"/><circle cx=\"15.25\" cy=\"15.25\" r=\"1.4\" fill=\"currentColor\" stroke=\"none\"/></svg>"
 } as const satisfies VioletIconDefinition;
 
 export function registerSystemCalendarIcon(): VioletIconDefinition {

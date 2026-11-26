@@ -143,8 +143,10 @@ describe("violet-alert", () => {
         const icon = alert.shadowRoot?.querySelector(".leading violet-icon");
 
         expect(icon?.getAttribute("icon")).toBe("system/checkmark");
-        expect(icon?.shadowRoot?.querySelector(".glyph")?.innerHTML).toContain('d="M5 12L10 17L20 7"');
-        expect(systemCheckmarkIcon.svg).toContain('d="M5 12L10 17L20 7"');
+        // Compare with the registered checkmark's own path, so a redrawn icon does not break the test.
+        const checkmarkPath = /\sd="[^"]+"/u.exec(systemCheckmarkIcon.svg)?.[0];
+        expect(checkmarkPath).toBeTruthy();
+        expect(icon?.shadowRoot?.querySelector(".glyph")?.innerHTML).toContain(checkmarkPath);
     });
 
     describe("narrow action row (#1589)", () => {

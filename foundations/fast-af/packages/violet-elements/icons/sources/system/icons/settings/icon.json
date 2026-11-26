@@ -1,0 +1,38 @@
+{
+  "meaning": "Settings and preferences",
+  "aliases": [],
+  "category": "",
+  "notes": "",
+  "alike": [],
+  "mirror": false,
+  "reviews": [
+    {
+      "master": "outline-24",
+      "hash": "05bad611456c",
+      "by": "agent",
+      "reviewer": "claude-opus-5-5",
+      "verdict": "pass",
+      "notes": "Seed candidate for afd#2567, drawn from scratch with the kit's generator (no third-party geometry). Read on the set sheet and the three-set comparison at 48, 24 and 16px: names correctly at 16px, weight sits in the row. Density warning kept on purpose: a gear is the densest icon in any set; it names correctly at 16px on the sheet.",
+      "at": "2026-11-26T00:03:27.712Z"
+    },
+    {
+      "master": "outline-24",
+      "hash": "aeea1d8b2177",
+      "by": "agent",
+      "reviewer": "claude-opus-5-5",
+      "verdict": "pass",
+      "notes": "Key, drawn from scratch for afd#2567 (no third-party geometry). Read on the sixteen-icon set sheet at 48, 24 and 16px: names correctly at 16px and sits in the row. Gear trimmed (tips 8.9, root 6.6, hub 2.6) to lighten it; the density warning that remains is kept, as a gear is the densest icon in any set.",
+      "at": "2026-11-26T00:05:25.666Z"
+    },
+    {
+      "master": "outline-24",
+      "hash": "2f27e45c0d9f",
+      "by": "agent",
+      "reviewer": "claude-opus-5-5",
+      "verdict": "pass",
+      "notes": "Same gear with the zero-length segments after each root arc removed (review of #2567). Read on the set sheet at 48, 24 and 16px: unchanged in look, names correctly at 16px. Density warning kept: a gear is the densest icon in any set.",
+      "at": "2026-11-26T02:11:21.724Z"
+    }
+  ],
+  "approvals": {}
+}

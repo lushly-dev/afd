@@ -10,7 +10,7 @@ export const systemDismissIcon = {
   "name": "system/dismiss",
   "sourceId": "system",
   "originalFile": "dismiss.svg",
-  "svg": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M6 6L18 18\"/><path d=\"M18 6L6 18\"/></svg>"
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6.75 6.75 L17.25 17.25\"/><path d=\"M17.25 6.75 L6.75 17.25\"/></svg>"
 } as const satisfies VioletIconDefinition;
 
 export function registerSystemDismissIcon(): VioletIconDefinition {
