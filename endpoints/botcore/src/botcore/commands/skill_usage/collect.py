@@ -523,9 +523,15 @@ def _parse_origin_url(text: str) -> str | None:
             value = value[1 : value.index('"', 1)]
         else:
             value = re.split(r"\s+[#;]", value, maxsplit=1)[0].strip()
+        value = _CONFIG_ESCAPE.sub(lambda m: _CONFIG_ESCAPES.get(m[1], m[1]), value)
         if value:
             return value
     return None
+
+
+#: Git config escapes (`git remote add` writes each backslash of a Windows path twice).
+_CONFIG_ESCAPE = re.compile(r"\\(.)")
+_CONFIG_ESCAPES = {"n": "\n", "t": "\t", "b": "\b"}
 
 
 def _origin_from_git_config(root: Path) -> str | None:
@@ -547,7 +553,13 @@ def project_remote(root: Path) -> str | None:
         url = git_out(root, "remote", "get-url", "origin", timeout=GIT_SECONDS).strip()
     except GitError:
         url = _origin_from_git_config(root) or ""
-    match = _REMOTE.search(url)
+    return remote_repo(url)
+
+
+def remote_repo(url: str) -> str | None:
+    """`owner/name` from an origin URL or path. A Windows path's backslashes separate as `/`
+    does, so a local origin names the same repository on every system."""
+    match = _REMOTE.search(url.replace("\\", "/"))
     return match.group(1) if match else None
 
 

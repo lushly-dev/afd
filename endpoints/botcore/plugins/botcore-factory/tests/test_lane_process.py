@@ -10,6 +10,8 @@ import pytest
 
 from botcore_factory.fixture_world import FIXTURE_LANE_PID
 from botcore_factory.lane_process import host_lock, pins, run_loop, toolchain_mismatches
+from botcore_factory.lock import LaneLocked
+from botcore_factory.runtime import Refusal
 
 
 def lock_of(run):
@@ -173,8 +175,6 @@ async def test_a_host_probe_names_the_missing_nvmrc_node_and_not_the_default_nod
 
 
 def test_run_loop_refuses_when_the_nvmrc_node_is_not_installed(make_run, tmp_path, example_repo):
-    from botcore_factory.runtime import Refusal
-
     target = _target_with_nvmrc(tmp_path, example_repo, "26")
     run = make_run("running", lane={"running": False})
     lock_of(run).release(FIXTURE_LANE_PID)
@@ -261,12 +261,91 @@ def test_run_loop_takes_the_lock_steps_and_ends_the_run(make_run):
 
 
 def test_run_loop_refuses_while_another_lane_runs(make_run):
-    from botcore_factory.runtime import Refusal
-
     run = make_run("running")
     with pytest.raises(Refusal) as refused:
         run_loop(run.factory(), steps=1, sleep=lambda _: None)
     assert refused.value.code == "LANE_LOCKED"
+
+
+async def test_run_loop_takes_the_lock_over_from_the_launcher_that_started_it(
+    make_run, monkeypatch
+):
+    # On Windows a venv's python.exe is a launcher: lane-start's pid is the interpreter's parent.
+    run = make_run("running", lane={"running": False})
+    lock_of(run).release(FIXTURE_LANE_PID)
+    started = (await run.call("lane_start")).data
+    launcher = started["pid"]
+    assert launcher != os.getpid()
+    monkeypatch.setattr(os, "getppid", lambda: launcher)
+    world = run.world_data()
+    world["processes"].setdefault("startTimes", {})[str(os.getpid())] = 123.0
+    run.world_path.write_text(json.dumps(world))
+    seen = []
+
+    def during(_):
+        seen.append((lock_of(run).live_holder(), run.state()["lane"]))
+
+    result = run_loop(run.factory(), steps=2, sleep=during, poll=0)
+    holder, lane = seen[0]
+    # lane-stop and terminate name the interpreter, with its own start time.
+    assert (holder["pid"], holder["startedAt"]) == (os.getpid(), 123.0)
+    assert (lane["running"], lane["pid"], lane["runId"]) == (True, os.getpid(), started["runId"])
+    assert result["runId"] == started["runId"]
+    assert [r["kind"] for r in run.store.read_records()].count("run-started") == 1
+    assert lock_of(run).holder() is None
+
+
+async def test_run_loop_refuses_a_lane_start_pid_that_is_not_its_parent(make_run, monkeypatch):
+    run = make_run("running", lane={"running": False})
+    lock_of(run).release(FIXTURE_LANE_PID)
+    started = (await run.call("lane_start")).data
+    monkeypatch.setattr(os, "getppid", lambda: started["pid"] + 1)
+    with pytest.raises(Refusal) as refused:
+        run_loop(run.factory(), steps=1, sleep=lambda _: None)
+    assert refused.value.code == "LANE_LOCKED"
+    assert lock_of(run).live_holder()["pid"] == started["pid"]
+    assert run.state()["lane"]["pid"] == started["pid"]
+
+
+@pytest.mark.parametrize("lane", [{"running": False}, {"pid": FIXTURE_LANE_PID + 1}])
+def test_run_loop_refuses_its_parent_s_lock_unless_the_state_names_it_running(
+    make_run, monkeypatch, lane
+):
+    # A lane-start that failed after starting the child never marked the run as the parent's.
+    run = make_run("running")
+    with run.store.update("test") as state:
+        state["lane"].update(lane)
+    monkeypatch.setattr(os, "getppid", lambda: FIXTURE_LANE_PID)
+    with pytest.raises(Refusal) as refused:
+        run_loop(run.factory(), steps=1, sleep=lambda _: None)
+    assert refused.value.code == "LANE_LOCKED"
+    assert lock_of(run).live_holder()["pid"] == FIXTURE_LANE_PID
+
+
+def test_run_loop_continues_the_run_lane_start_handed_to_it(make_run):
+    # POSIX: start_detached's pid is the lane process itself, so nothing is taken over.
+    run = make_run("running")
+    lock_of(run).hand_over(os.getpid())
+    with run.store.update("test") as state:
+        state["lane"]["pid"] = os.getpid()
+    run_id = run.state()["lane"]["runId"]
+    seen = []
+    result = run_loop(
+        run.factory(), steps=2, sleep=lambda _: seen.append(run.state()["lane"]["pid"]), poll=0
+    )
+    assert result["runId"] == run_id and seen == [os.getpid()]
+    assert [r["kind"] for r in run.store.read_records()].count("run-started") == 0
+
+
+def test_run_loop_refuses_another_repository_s_lane_held_by_its_parent(make_run, monkeypatch):
+    run = make_run("running")  # The state names FIXTURE_LANE_PID: only the repository differs.
+    lock_of(run).release(FIXTURE_LANE_PID)
+    lock_of(run).acquire(FIXTURE_LANE_PID, repository="other/repo")
+    monkeypatch.setattr(os, "getppid", lambda: FIXTURE_LANE_PID)
+    with pytest.raises(Refusal) as refused:
+        run_loop(run.factory(), steps=1, sleep=lambda _: None)
+    assert refused.value.code == "LANE_LOCKED"
+    assert lock_of(run).live_holder()["pid"] == FIXTURE_LANE_PID
 
 
 def test_a_restarted_lane_lands_what_merged_meanwhile(make_run):
@@ -282,6 +361,13 @@ def test_a_restarted_lane_lands_what_merged_meanwhile(make_run):
     kinds = [r["kind"] for r in run.store.read_records()]
     assert "merged" in kinds and "rerun" in kinds
     assert all(e["branch"] != "feat/export-csv" for e in run.state()["queue"])
+
+
+def test_a_checked_hand_over_refuses_when_the_lock_moved(make_run):
+    run = make_run("running")
+    with pytest.raises(LaneLocked):
+        lock_of(run).hand_over(os.getpid(), from_pid=FIXTURE_LANE_PID + 1)
+    assert lock_of(run).holder()["pid"] == FIXTURE_LANE_PID
 
 
 async def test_the_lock_is_one_per_host(make_run, tmp_path):
@@ -396,8 +482,6 @@ RUN_REFUSALS = [
 
 @pytest.mark.parametrize("overrides,code", RUN_REFUSALS, ids=[r[1] for r in RUN_REFUSALS])
 def test_run_loop_refuses_on_lane_start_s_grounds(make_run, overrides, code):
-    from botcore_factory.runtime import Refusal
-
     run = make_run("running", lane={"running": False}, **overrides)
     lock_of(run).release(FIXTURE_LANE_PID)
     with pytest.raises(Refusal) as refused:
@@ -407,8 +491,6 @@ def test_run_loop_refuses_on_lane_start_s_grounds(make_run, overrides, code):
 
 
 def test_run_loop_refuses_a_toolchain_off_the_pins(make_run, tmp_path, example_repo):
-    from botcore_factory.runtime import Refusal
-
     target = tmp_path / "pinned"
     (target / ".github").mkdir(parents=True)
     (target / "botcore.toml").write_bytes((example_repo / "botcore.toml").read_bytes())

@@ -5,10 +5,12 @@ required check on main, the Node ``.nvmrc`` names installed and the toolchains t
 pins, read on that Node as validation runs (its bin directory first on ``PATH``). It takes the
 lock, starts
 ``python -m botcore_factory.lane_main`` detached (Windows: DETACHED_PROCESS |
-CREATE_NEW_PROCESS_GROUP; POSIX: a new session) and hands the lock to it. That process runs the
-loop (``run_loop``): it resumes where the last one stopped (a branch that was validating goes
-back to the front; a PR that merged meanwhile is landed), steps until asked to stop, then writes
-the run's summary and releases the lock.
+CREATE_NEW_PROCESS_GROUP; POSIX: a new session) and hands the lock to it. On Windows a venv's
+``python.exe`` is a launcher that runs the real interpreter as its child, so that child takes the
+lock and the lane's pid over from its parent. The interpreter runs the loop (``run_loop``): it
+resumes where the last one stopped (a branch that was validating goes back to the front; a PR
+that merged meanwhile is landed), steps until asked to stop, then writes the run's summary and
+releases the lock.
 
 A dead lane cannot report itself, so ``lane-status`` and ``lane-wait`` check the lock's process
 (``check_lane``) and raise ``lane-stopped`` when the lane state says running and no live
@@ -377,6 +379,18 @@ def resume(factory: Factory) -> list[str]:
         return resumed.actions
 
 
+def started_by_parent(factory: Factory, state: dict[str, Any], holder: dict[str, Any]) -> bool:
+    """Whether lane-start handed this repository's lock to this process's parent (a launcher)."""
+    parent = os.getppid()
+    return (
+        holder.get("pid") == parent
+        and holder.get("pid") != os.getpid()
+        and ours(factory, holder)
+        and state["lane"].get("running") is True
+        and state["lane"].get("pid") == parent
+    )
+
+
 def run_loop(
     factory: Factory,
     *,
@@ -390,21 +404,30 @@ def run_loop(
     require_check(factory)
     require_toolchains(factory, "start the lane again")
     lock = host_lock(factory)
-    holder = lock.live_holder()
-    if holder is not None and holder.get("pid") != os.getpid():
-        raise Refusal(
-            "LANE_LOCKED",
-            f"A lane already runs here: pid {holder.get('pid')}",
-            "Stop it with lane-stop first",
-            recovery=call("lane-stop", then_retry=True),
-        )
-    if holder is None:
-        lock.acquire(os.getpid(), repository=factory.world.github.repository())
-        with factory.store.update("lane-run") as state:
-            at = _now(factory)
-            run_id = new_run(state, at)
-            state["lane"].update(running=True, pid=os.getpid(), runId=run_id, startedAt=at)
-            factory.store.append_record(make("run-started", at, run_id, host=me))
+    with factory.store.update("lane-run") as state:
+        # Under the state lock, so a lane-start still handing the lock over has finished.
+        holder, pid = lock.live_holder(), os.getpid()
+        try:
+            if holder is None:
+                lock.acquire(pid, repository=factory.world.github.repository())
+                at = _now(factory)
+                run_id = new_run(state, at)
+                state["lane"].update(running=True, pid=pid, runId=run_id, startedAt=at)
+                factory.store.append_record(make("run-started", at, run_id, host=me))
+            elif started_by_parent(factory, state, holder):
+                # A Windows venv's python.exe is a launcher that runs the interpreter as its
+                # child: lane-start handed the lock to the launcher, so the interpreter takes it.
+                lock.hand_over(pid, from_pid=holder["pid"])
+                state["lane"]["pid"] = pid
+            elif holder.get("pid") != pid:
+                raise LaneLocked(holder)
+        except LaneLocked as locked:
+            raise Refusal(
+                "LANE_LOCKED",
+                f"A lane already runs here: {locked}",
+                "Stop it with lane-stop first",
+                recovery=call("lane-stop", then_retry=True),
+            ) from locked
     resume(factory)
     count = 0
     while True:
