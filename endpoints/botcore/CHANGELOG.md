@@ -11,6 +11,16 @@ as a dated section when a release is prepared, so nothing is added under `Unrele
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-11-26
+
+A patch release with two fixes: managed host MCP servers keep working with the next `afd` release, and `disk-run` no longer loses an update to `check.json` on Windows.
+
+### Fixed
+
+- **`create_host_mcp_server` keeps working with the next `afd` release**, which no longer registers tools in the MCP SDK's tool manager (lushly-dev/afd#1756): the compatibility aliases' input schemas, which the SDK checks `Mcp-Param` headers against, are given to `afd`'s own table when it has one, and to the SDK's tool manager on `afd` 0.13. Enabling telemetry no longer imports the deprecated `afd.server.middleware.TelemetrySink`.
+
+- **`disk-run`** no longer loses an update to `check.json` on Windows when a reader, such as `disk-status`, has the file open as it is replaced: the write is tried again for up to two seconds, and `disk-status` no longer reads the record as missing while it is replaced (#2538).
+
 ## [0.10.0] - 2026-11-26
 
 Phase 1 of test effectiveness (`gate-outcome-collect` and `gate-outcome-report` by workflow, check, and area, with hourly collection, 180-day record folding, multi-unit area attribution, and record-vs-source separation), `botcore docs [TOPIC]` on the command line, managed host MCP servers running on `afd.server.create_server` with AFD's five standard meta-tools and dual-era MCP (raising the optional `[mcp]` extra to `afd[server]>=0.13.0` and `mcp>=2.3,<3`), `upload_routes` scoping for HTTP hosts, external skill directories and aliases in `skill-usage-report`/`skill-usage-triggers`, `botcore-factory` structured recoveries and claim/journal hardening, and `disk-reclaim` pressure-large escalation with `.cargo-lock` protection. Includes breaking changes in `botcore-connectors` (GitHub tokens come from environment variables only, with no `gh auth token` subprocess fallback) and `botcore-factory` (`gate-allow` and `ejection-excuse` require the live foreman session, and `gate-allow` now requires `head`).
