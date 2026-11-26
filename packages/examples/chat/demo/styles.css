@@ -1,0 +1,110 @@
+/* Page layout over violet-elements' theme tokens; the components draw themselves. */
+:root {
+	color-scheme: light dark;
+	--gap: var(--violet-space-layout-panel, 1rem);
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	background: var(--violet-color-surface-page, Canvas);
+	color: var(--violet-color-text-primary, CanvasText);
+	font-family: var(--violet-font-family-body, system-ui, sans-serif);
+	font-size: var(--violet-type-body-size, 1rem);
+	line-height: 1.5;
+}
+
+.page {
+	display: grid;
+	gap: var(--gap);
+	max-inline-size: 48rem;
+	margin-inline: auto;
+	padding: calc(var(--gap) * 1.5) var(--gap);
+}
+
+h1,
+h2 {
+	font-family: var(--violet-font-family-heading, inherit);
+	line-height: 1.25;
+	margin: 0;
+}
+
+h1 {
+	font-size: 1.6rem;
+}
+
+h2 {
+	font-size: 1.05rem;
+}
+
+.lede {
+	margin: calc(var(--gap) / 4) 0 0;
+	color: var(--violet-color-text-secondary, inherit);
+}
+
+code {
+	font-family: var(--violet-font-family-mono, ui-monospace, monospace);
+	font-size: 0.85em;
+}
+
+.join {
+	min-inline-size: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: end;
+	gap: calc(var(--gap) / 2);
+}
+
+.join violet-select,
+.join violet-text-field {
+	flex: 1 1 12rem;
+}
+
+.join[hidden],
+violet-message-status[hidden] {
+	display: none;
+}
+
+.chat {
+	display: grid;
+	gap: calc(var(--gap) / 2);
+}
+
+violet-conversation-thread {
+	block-size: min(28rem, 60vh);
+	background: var(--violet-color-surface-card, Canvas);
+	border-radius: var(--violet-radius-floating, 0.75rem);
+	box-shadow: var(--violet-shadow-card, none);
+}
+
+violet-conversation-thread [slot="empty"] {
+	margin: 0;
+}
+
+.sender {
+	font-weight: 600;
+}
+
+.flow {
+	color: var(--violet-color-text-secondary, inherit);
+}
+
+.flow ol {
+	margin: calc(var(--gap) / 2) 0 0;
+	padding-inline-start: 1.25rem;
+}
+
+.visually-hidden {
+	position: absolute;
+	inline-size: 1px;
+	block-size: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}

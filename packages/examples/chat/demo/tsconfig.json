@@ -1,0 +1,16 @@
+{
+	"extends": "../../../../tsconfig.json",
+	"compilerOptions": {
+		"target": "ES2022",
+		"lib": ["ES2024", "DOM", "DOM.Iterable"],
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"useDefineForClassFields": false,
+		"noEmit": true,
+		"declaration": false,
+		"declarationMap": false,
+		"sourceMap": false,
+		"types": ["vite/client"]
+	},
+	"include": ["./**/*.ts", "../vite.config.ts"]
+}

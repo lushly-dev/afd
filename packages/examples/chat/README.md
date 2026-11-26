@@ -30,8 +30,16 @@ afd call chat-connect '{"roomId": "general", "nickname": "CLI-User"}'
 Open `http://localhost:3001` for the browser demo. It calls `chat-connect`
 through the MCP server's `/rpc` route (JSON-RPC with the command name as the
 method), so every call gets the same Zod validation, `expose.mcp` check,
-middleware and body limit as any other MCP call. Opening `demo.html` from disk
-does not work: a `file://` page sends `Origin: null`, which both servers refuse.
+middleware and body limit as any other MCP call.
+
+The demo is in `demo/` and is built from `violet-elements`' conversation
+components (`violet-conversation-thread`, `violet-message`,
+`violet-chat-composer`) in the built-in AFD theme, following the system's light
+or dark setting. `pnpm build` and `pnpm dev` build it with Vite into
+`dist/demo`, which the realtime server serves; after editing `demo/`, run
+`pnpm build:demo` and reload. There is no Vite dev server, and opening the page
+from disk does not work, because both servers accept only their own origins (a
+`file://` page sends `Origin: null`).
 
 ## Security defaults
 

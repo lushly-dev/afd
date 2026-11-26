@@ -2,7 +2,7 @@
  * @fileoverview WebSocket server for real-time chat
  *
  * This server handles WebSocket connections after handoff from the chat-connect
- * command, and serves the browser demo (`demo.html`) from the same origin.
+ * command, and serves the browser demo (built into `dist/demo`) from the same origin.
  *
  * Security defaults:
  * - binds 127.0.0.1;
@@ -115,6 +115,8 @@ export interface WebSocketServerOptions {
 	allowedOrigins?: string[];
 	/** Host names accepted in the `Host` header (default: localhost, 127.0.0.1, [::1] and `host`). */
 	allowedHosts?: string[];
+	/** Folder holding the built demo page (default `dist/demo`, written by `vite build`). */
+	demoDir?: URL;
 }
 
 export interface ChatRealtimeServer {
@@ -140,17 +142,31 @@ const DEMO_CSP = [
 	"frame-ancestors 'none'",
 ].join('; ');
 
-const DEMO_FILES: Record<string, { file: URL; type: string }> = {
-	'/': { file: new URL('../demo.html', import.meta.url), type: 'text/html; charset=utf-8' },
-	'/demo.html': {
-		file: new URL('../demo.html', import.meta.url),
-		type: 'text/html; charset=utf-8',
-	},
-	'/demo.js': {
-		file: new URL('../demo.js', import.meta.url),
-		type: 'text/javascript; charset=utf-8',
-	},
+/** The built demo (`vite build` writes it here; see vite.config.ts). */
+const DEFAULT_DEMO_DIR = new URL('../dist/demo/', import.meta.url);
+
+const DEMO_TYPES: Record<string, string> = {
+	'.js': 'text/javascript; charset=utf-8',
+	'.css': 'text/css; charset=utf-8',
+	'.woff2': 'font/woff2',
+	'.svg': 'image/svg+xml',
 };
+
+/**
+ * The file a page request names inside `demoDir`, or `undefined` for anything else: the page
+ * itself at `/`, and Vite's flat `assets/` folder by plain file name, so no path can leave it.
+ */
+export function demoFile(pathname: string, demoDir: URL): { file: URL; type: string } | undefined {
+	// Without a trailing slash, relative URLs would resolve beside the folder, not in it.
+	if (!demoDir.pathname.endsWith('/')) demoDir = new URL(`${demoDir.href}/`);
+	if (pathname === '/' || pathname === '/index.html') {
+		return { file: new URL('index.html', demoDir), type: 'text/html; charset=utf-8' };
+	}
+	const asset = /^\/assets\/([A-Za-z0-9_-][A-Za-z0-9_.-]*)$/.exec(pathname)?.[1];
+	const type = asset ? DEMO_TYPES[asset.slice(asset.lastIndexOf('.'))] : undefined;
+	if (!asset || !type || asset.includes('..')) return undefined;
+	return { file: new URL(`assets/${asset}`, demoDir), type };
+}
 
 /** Whether an upgrade or page request comes from an allowed browser origin (or no browser). */
 export function isOriginAllowed(origin: string | undefined, allowed: readonly string[]): boolean {
@@ -182,6 +198,7 @@ export function createWebSocketServer(options: WebSocketServerOptions = {}): Cha
 	const hostName = host.includes(':') && !host.startsWith('[') ? `[${host}]` : host;
 	const allowedHosts = options.allowedHosts ?? ['localhost', '127.0.0.1', '[::1]', hostName];
 	const allowedOrigins = options.allowedOrigins ?? demoOrigins(port);
+	const demoDir = options.demoDir ?? DEFAULT_DEMO_DIR;
 
 	const http = createServer(async (req: IncomingMessage, res: ServerResponse) => {
 		if (!isHostAllowed(req.headers.host, allowedHosts)) {
@@ -189,7 +206,7 @@ export function createWebSocketServer(options: WebSocketServerOptions = {}): Cha
 			return;
 		}
 		const pathname = new URL(req.url ?? '/', 'http://localhost').pathname;
-		const entry = DEMO_FILES[pathname];
+		const entry = demoFile(pathname, demoDir);
 		if (req.method !== 'GET' || !entry) {
 			sendText(res, 404, 'Not found. Connect with WebSocket to /rooms/:roomId');
 			return;
@@ -204,7 +221,16 @@ export function createWebSocketServer(options: WebSocketServerOptions = {}): Cha
 			});
 			res.end(body);
 		} catch {
-			sendText(res, 500, 'Demo page unavailable');
+			// A missing page means no build; a missing asset is a stale page after a rebuild.
+			if (entry.type.startsWith('text/html')) {
+				sendText(
+					res,
+					503,
+					'Demo page not built. Run pnpm build (or pnpm dev) in packages/examples/chat.'
+				);
+			} else {
+				sendText(res, 404, 'Not found. Reload the page.');
+			}
 		}
 	});
 
