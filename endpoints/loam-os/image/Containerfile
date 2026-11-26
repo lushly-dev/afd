@@ -1,0 +1,163 @@
+# Loam OS session image (M0, issue #2618): the toolchains `main` pins, for running
+# `pnpm verify` in a Linux machine. Operator runbook: docs/operations/loam-os-image.md.
+#
+# Every version below is read from this repository or its CI workflows. Where a pin has no
+# source in the repository (the base image's digest, uv, rustup, the Python patch release), the
+# comment says so and what was used. When a pin in the repository moves, change it here in the
+# same pull request, build, pin the new digest and run `pnpm verify --all` on `main` in it
+# before any lane uses it.
+#
+# The image holds no AFD client and no credentials. It runs as `agent` (uid 1000), not root.
+# It builds for linux/amd64 and linux/arm64: each binary download is chosen by TARGETARCH.
+
+# uv: CI's astral-sh/setup-uv@v10.3.3 steps set no `version`, so CI takes the latest release
+# when it runs; no pyproject.toml sets `required-version`. The image pins the latest release
+# at the time it was written (0.13.10, 2026-11) by its multi-arch index digest.
+FROM ghcr.io/astral-sh/uv:0.13.10@sha256:a3ea1357342c1a4bf9a0c53a3deb1b55379aefa037338d8113d5771efa01774f AS uv
+
+# Base: minimal headless Ubuntu LTS (the owner's decision of 2026-11-25 in the Loam OS
+# proposal), at the release CI runs on: GitHub's `ubuntu-latest` has been Ubuntu 26.04 since
+# 2026-10-30 (docs/features/complete/platform-monorepo/STATUS.md), and Loam's Linux desktop job
+# records WebKitGTK 2.52.6 there, the version this archive installs. The digest is the
+# multi-arch index of ubuntu:26.04 (26.04.1 LTS).
+FROM ubuntu:26.04@sha256:d66b366dac61b575bee2aef07e9c26e8070096fbe84a3d4d3eb0da069b5d76db
+
+ARG TARGETARCH
+
+# Node: `.nvmrc` holds `26`; CI's setup-node resolves it to the newest 26.x when it runs.
+# The image pins the newest 26.x at the time it was written, with nodejs.org's SHA-256 sums.
+ARG NODE_VERSION=26.13.1
+ARG NODE_SHA256_AMD64=5c063e46bab0fbc1c17cc445d7ff129cbdcd0471be6ed83b6ab864f8143bc864
+ARG NODE_SHA256_ARM64=89e1853138db51e8b82d3e98ba9c0d3f2956a28e5e55ea1b7e12d25aae92d5dd
+# pnpm: the root package.json's `packageManager` field.
+ARG PNPM_VERSION=12.22.0
+# Playwright: the one version in pnpm-lock.yaml (`playwright@1.64.1`, `@playwright/test@1.64.1`).
+ARG PLAYWRIGHT_VERSION=1.64.1
+# Rust: every rust-toolchain.toml in the repository pins channel 1.100.0 with clippy and
+# rustfmt on the minimal profile; endpoints/umbel/rust-toolchain.toml adds wasm32-wasip2.
+# MSRV 1.97 (umbel.yml) and nightly (rust.yml) are remote-only legs of `pnpm verify`, so the
+# image does not carry them.
+ARG RUST_VERSION=1.100.0
+# rustup itself has no pin in the repository: the newest release at the time it was written,
+# with static.rust-lang.org's SHA-256 sums.
+ARG RUSTUP_VERSION=1.29.3
+ARG RUSTUP_SHA256_AMD64=b1c8cb14e30889e7e2999e6b69e62d9e9b9ffc0f4df8180564d306d9680e6c55
+ARG RUSTUP_SHA256_ARM64=9f608c142e0e38a78957d0661ba1dfaf0b6fb37184cfaa4b9a0aa57af6184282
+# Python: 3.12, the version CI's single-version Python jobs set up (conformance.yml,
+# health-dashboard.yml, the publish workflows); Ubuntu 26.04's own python3 is 3.14. The patch
+# release is the newest 3.12 uv 0.13.10 offers, as setup-python takes the newest 3.12.
+ARG PYTHON_VERSION=3.12.16
+
+# SPECIMEN_CHROMIUM_SANDBOX=0: the runtime's default seccomp profile refuses the user namespace
+# Chromium's sandbox needs, which the Specimen host cannot read from the kernel's settings, so
+# its sandboxed Chromium fails to start. foundations/specimen/README.md names this switch for a
+# container. The machine itself is the sandbox; Playwright's own launches already pass
+# --no-sandbox.
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    SPECIMEN_CHROMIUM_SANDBOX=0
+
+# System packages, from Ubuntu 26.04's signed archive:
+# - base: git (2.53), curl, certificates, archive tools, jq (loam-desktop.yml reads cargo
+#   metadata with it).
+# - C and C++: build-essential (GCC 15, C++20) and CMake 4.2; packages/cpp needs CMake 3.25
+#   and preset schema 6. OpenSSL's tool and headers (verify checks `openssl`; Loam's dev
+#   profile makes certificates with it). No NASM: only aws-lc-sys's Windows build needs it
+#   (SETUP.md); on Linux it builds with the C compiler.
+# - loam-desktop (Tauri) on Linux: loam-desktop.yml's list, word for word, with xvfb, dbus-x11
+#   and WebKitWebDriver (`webkitgtk-webdriver` in 26.04's archive).
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      ca-certificates curl git xz-utils unzip zip jq file less procps \
+      build-essential cmake pkg-config openssl libssl-dev \
+      libwebkit2gtk-4.1-dev libxdo-dev librsvg2-dev patchelf xdg-utils xvfb dbus-x11 \
+      webkitgtk-webdriver \
+ && command -v WebKitWebDriver \
+ && git --version \
+ && rm -rf /var/lib/apt/lists/*
+
+# Node from nodejs.org, checked against its pinned sum, into /usr/local.
+RUN set -eux; \
+    case "$TARGETARCH" in \
+      amd64) arch=x64;   sum="$NODE_SHA256_AMD64" ;; \
+      arm64) arch=arm64; sum="$NODE_SHA256_ARM64" ;; \
+      *) echo "unsupported TARGETARCH $TARGETARCH" >&2; exit 1 ;; \
+    esac; \
+    file="node-v${NODE_VERSION}-linux-${arch}.tar.xz"; \
+    curl -fsSLo "/tmp/$file" "https://nodejs.org/dist/v${NODE_VERSION}/$file"; \
+    echo "$sum  /tmp/$file" | sha256sum -c -; \
+    tar -xJf "/tmp/$file" -C /usr/local --strip-components=1 --no-same-owner; \
+    rm "/tmp/$file"; \
+    node --version; npm --version
+
+# pnpm at the `packageManager` version, from npm by exact version. Node 26 bundles no
+# corepack, so it comes from npm.
+RUN npm install -g "pnpm@${PNPM_VERSION}" && npm cache clean --force && pnpm --version
+
+# The system libraries Playwright's Chromium and Firefox need. The browsers themselves are
+# installed as the user, below.
+RUN set -eux; \
+    apt-get update; \
+    npx -y "playwright@${PLAYWRIGHT_VERSION}" install-deps chromium firefox; \
+    rm -rf /root/.npm /var/lib/apt/lists/*
+
+# uv, from the pinned image above.
+COPY --from=uv /uv /uvx /usr/local/bin/
+
+# The ordinary user. Ubuntu's image ships `ubuntu` at uid 1000; it is replaced by `agent`.
+RUN userdel -r ubuntu 2>/dev/null || true; \
+    useradd --create-home --uid 1000 --shell /bin/bash agent
+
+USER agent
+WORKDIR /home/agent
+# The toolchains the image owns live under the user's home: ~/.cargo/bin and ~/.rustup (Rust),
+# ~/.local/share/uv/python and ~/.local/bin (Python), ~/.cache/ms-playwright (browsers). A
+# machine's volumes must not be mounted over them; see the image's README.
+# uv uses the image's Python 3.12 and never downloads another, so a validate step with no
+# network does not reach for one.
+ENV HOME=/home/agent \
+    CARGO_HOME=/home/agent/.cargo \
+    RUSTUP_HOME=/home/agent/.rustup \
+    PATH=/home/agent/.cargo/bin:/home/agent/.local/bin:$PATH \
+    UV_PYTHON=3.12 \
+    UV_PYTHON_PREFERENCE=only-managed \
+    UV_PYTHON_DOWNLOADS=never
+
+# Rust through rustup, as the user, so Cargo's registry and git caches are the user's own.
+RUN set -eux; \
+    case "$TARGETARCH" in \
+      amd64) triple=x86_64-unknown-linux-gnu;  sum="$RUSTUP_SHA256_AMD64" ;; \
+      arm64) triple=aarch64-unknown-linux-gnu; sum="$RUSTUP_SHA256_ARM64" ;; \
+      *) echo "unsupported TARGETARCH $TARGETARCH" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSLo /tmp/rustup-init "https://static.rust-lang.org/rustup/archive/${RUSTUP_VERSION}/${triple}/rustup-init"; \
+    echo "$sum  /tmp/rustup-init" | sha256sum -c -; \
+    chmod +x /tmp/rustup-init; \
+    /tmp/rustup-init -y --no-modify-path --profile minimal \
+      --default-toolchain "$RUST_VERSION" -c clippy -c rustfmt -t wasm32-wasip2; \
+    rm /tmp/rustup-init; \
+    rustc --version; cargo --version; rustup target list --installed
+
+# Python 3.12 from uv's managed builds, with `python` and `python3` in ~/.local/bin ahead of
+# the system's 3.14, as setup-python puts 3.12 first on CI's PATH.
+RUN set -eux; \
+    UV_PYTHON_DOWNLOADS=automatic uv python install --default "$PYTHON_VERSION"; \
+    python --version; python3 --version; uv python find
+
+# Playwright's Chromium (and its headless shell) and Firefox, in the user's default cache
+# (~/.cache/ms-playwright), where CI's runners have them. Not a shared PLAYWRIGHT_BROWSERS_PATH:
+# Better Auth's hosted-fixture tests start their runner with only PATH, HOME and TMPDIR, so a
+# custom path does not reach it. Firefox because `pnpm verify` runs loam-web's `test:firefox`
+# locally (loam.yml); WebKit is darwin-only there.
+RUN set -eux; \
+    npx -y "playwright@${PLAYWRIGHT_VERSION}" install chromium firefox; \
+    rm -rf "$HOME/.npm"; \
+    ls "$HOME/.cache/ms-playwright"
+
+LABEL org.opencontainers.image.title="loam-os-session" \
+      org.opencontainers.image.description="Loam OS session image: the toolchains lushly-dev/afd main pins" \
+      org.opencontainers.image.source="https://github.com/lushly-dev/afd" \
+      org.opencontainers.image.licenses="MIT"
+
+CMD ["bash"]
