@@ -1,0 +1,6 @@
+# The repository's toolchain, as Umbel pins it (endpoints/umbel/rust-toolchain.toml): this unit
+# builds Umbel's crates from source, so both must agree. Bump them together.
+[toolchain]
+channel = "1.100.0"
+components = ["clippy", "rustfmt"]
+profile = "minimal"

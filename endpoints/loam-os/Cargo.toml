@@ -1,0 +1,45 @@
+[package]
+name = "loam-os-host"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+default-run = "loam-os"
+publish = false
+license = "MIT"
+description = "Loam OS host: the process that makes and governs Linux machines for agents' work, built on Umbel's host library"
+repository = "https://github.com/lushly-dev/afd"
+
+# Its own workspace: Umbel's members must sit under endpoints/umbel, and keeping this unit apart
+# leaves Umbel's workspace, lockfile and gates as they are (Loam OS M0, #2617).
+[workspace]
+
+[[bin]]
+name = "loam-os"
+path = "src/main.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+# The command line, the embedded stores and the HTTP surface, and no loader (so no wasmtime), as
+# `umbel-first-party` builds it.
+umbel = { path = "../umbel", default-features = false, features = ["auth", "cli", "store-embedded"] }
+umbel-sdk = { path = "../umbel/sdk" }
+
+[build-dependencies]
+umbel-sdk = { path = "../umbel/sdk" }
+
+[dev-dependencies]
+afd = { path = "../../packages/rust", default-features = false }
+tempfile = "3"
+umbel = { path = "../umbel", default-features = false, features = ["cli", "store-embedded", "testkit"] }
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+unreachable_pub = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+expect_used = "warn"

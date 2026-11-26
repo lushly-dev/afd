@@ -56,6 +56,8 @@ playwright-report/
 Cargo.lock
 # Umbel is a binary: its lock is committed so CI builds what it tested
 !endpoints/umbel/Cargo.lock
+# So is the Loam OS host, built on Umbel's crates
+!endpoints/loam-os/Cargo.lock
 # So is Specimen's native host
 !foundations/specimen/host/Cargo.lock
 # And Mail's engine

@@ -354,7 +354,15 @@ const SUITE_CONFIG = [
 			'Linux, the per-feature and wasm32-wasip2 clippy legs, MSRV 1.97 (daily) and plugin isolation',
 		extract(wf) {
 			requireGate(wf, 'host');
+			requireGate(wf, 'loamos');
+			requireGate(wf, 'conformance');
 			const cwd = wf.jobs.check.defaultWorkingDirectory;
+			const loamOsCwd = wf.jobs['loam-os']?.defaultWorkingDirectory;
+			const loamOsSteps = [
+				findStep(wf, 'loam-os', (s) => s.run === 'cargo fmt --all --check'),
+				findStep(wf, 'loam-os', (s) => s.run.startsWith('cargo clippy --locked')),
+				findStep(wf, 'loam-os', (s) => s.run.startsWith('cargo test --no-fail-fast')),
+			].map((step) => ({ gate: 'loamos', cwd: loamOsCwd, run: step.run }));
 			const fmt = findStep(wf, 'check', (s) => s.run === 'cargo fmt --all --check');
 			const clippy = findStep(wf, 'check', (s) =>
 				s.run.startsWith('cargo clippy --locked --workspace')
@@ -375,10 +383,14 @@ const SUITE_CONFIG = [
 							s.run.includes('external-clients.sh'))
 				)
 				.map((s) => {
-					if (s.run.includes('afd-cli')) return { run: 'pnpm -F "@lushly-dev/afd-cli..." build' };
+					if (s.run.includes('afd-cli'))
+						return { gate: 'conformance', run: 'pnpm -F "@lushly-dev/afd-cli..." build' };
 					if (s.run.includes('external-clients.sh'))
-						return { run: 'bash endpoints/umbel/tests/scripts/external-clients.sh' };
-					return { run: s.run };
+						return {
+							gate: 'conformance',
+							run: 'bash endpoints/umbel/tests/scripts/external-clients.sh',
+						};
+					return { gate: 'conformance', run: s.run };
 				});
 			return [
 				{ gate: 'host', cwd, run: fmt.run },
@@ -405,6 +417,7 @@ const SUITE_CONFIG = [
 					cwd,
 					run: 'cargo test --no-fail-fast --locked -p umbel-store -p umbel-store-embedded',
 				},
+				...loamOsSteps,
 				...confSteps,
 			];
 		},
