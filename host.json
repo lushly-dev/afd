@@ -1,0 +1,11 @@
+{
+  "cores": 32,
+  "freeDiskGb": 2652.8,
+  "id": "HERO",
+  "measured": false,
+  "memoryGb": 63.6,
+  "missing": [],
+  "name": "HERO",
+  "probedAt": "2026-11-26T19:49:12.625083Z",
+  "suggestedSlots": 1
+}
