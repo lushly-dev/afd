@@ -9,8 +9,9 @@
  * Each platform's own keychain tool writes the entry, with the key on its standard input, never on a command line:
  * on Windows a generic credential whose target is `<service>/<account>`, through the Credential Manager's
  * `CredWriteW`, with the key as UTF-16 as Windows stores a typed password; on macOS a generic password through
- * `security`'s interactive mode; on Linux a Secret Service item through `secret-tool`. The Rust host reads each the
- * same way (`src-tauri/src/models.rs`).
+ * `security`'s interactive mode (verified via read-back; `src-tauri/src/keychain.rs` reads it natively via
+ * `Security.framework` / `apple-native-keyring-store` with ordered search-list lookup, which may show a one-time
+ * Keychain Access prompt on first read of a CLI-written item); on Linux a Secret Service item through `secret-tool`.
  */
 
 import { spawn } from 'node:child_process';
@@ -236,13 +237,65 @@ export function readSecretFromTerminal(prompt: string): Promise<string> {
 	});
 }
 
+/**
+ * Maximum encoded interactive command length accepted by macOS `/usr/bin/security -i` (`readline.c` reads into
+ * a 4,096-byte buffer, capping commands at 4,095 bytes). Pre-checking prevents `-U` from truncating and
+ * overwriting an existing credential before read-back detects the mismatch.
+ */
+export const MACOS_SECURITY_LINE_MAX_BYTES = 4094;
+
+/** Output of one keychain helper invocation; callers must never log `stdout` or `stderr`. */
+export interface KeychainCommandResult {
+	code: number | null;
+	stdout: string;
+	stderr: string;
+}
+
+/** Injectable runner for OS keychain helper binaries (used by `systemKeychain` tests). */
+export type KeychainCommandRunner = (
+	program: string,
+	args: string[],
+	stdin?: string
+) => Promise<KeychainCommandResult>;
+
 /** Runs `program` with `stdin` as its whole input, failing on a non-zero exit. Its output is discarded. */
 function runWithInput(program: string, args: string[], stdin: string): Promise<void> {
 	return new Promise((resolve, reject) => {
 		const child = spawn(program, args, { stdio: ['pipe', 'ignore', 'ignore'], windowsHide: true });
 		child.on('error', reject);
+		child.stdin.on('error', () => {});
 		child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`exit ${code}`))));
 		child.stdin.end(stdin);
+	});
+}
+
+/** Runs `program` capturing stdout and stderr so callers can detect silent errors and verify read-back. */
+function runCapturing(
+	program: string,
+	args: string[],
+	stdin?: string
+): Promise<KeychainCommandResult> {
+	return new Promise((resolve, reject) => {
+		const child = spawn(program, args, {
+			stdio: [stdin === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
+			windowsHide: true,
+		});
+		const stdoutChunks: Buffer[] = [];
+		const stderrChunks: Buffer[] = [];
+		child.stdout?.on('data', (chunk: Buffer) => stdoutChunks.push(chunk));
+		child.stderr?.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
+		child.stdin?.on('error', () => {});
+		child.on('error', reject);
+		child.on('close', (code) => {
+			resolve({
+				code,
+				stdout: Buffer.concat(stdoutChunks).toString('utf8'),
+				stderr: Buffer.concat(stderrChunks).toString('utf8'),
+			});
+		});
+		if (stdin !== undefined) {
+			child.stdin?.end(stdin);
+		}
 	});
 }
 
@@ -279,7 +332,10 @@ $secret = [Console]::In.ReadLine()
 `;
 
 /** The OS keychain on this platform, written by its own tool with the key on standard input. */
-export function systemKeychain(platform: NodeJS.Platform = process.platform): KeychainV1 {
+export function systemKeychain(
+	platform: NodeJS.Platform = process.platform,
+	run: KeychainCommandRunner = runCapturing
+): KeychainV1 {
 	return {
 		async set(service, account, secret) {
 			if (!KEYCHAIN_NAME.test(service) || !KEYCHAIN_NAME.test(account) || !KEY_PATTERN.test(secret))
@@ -303,6 +359,7 @@ export function systemKeychain(platform: NodeJS.Platform = process.platform): Ke
 						}
 					);
 					child.on('error', reject);
+					child.stdin.on('error', () => {});
 					child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`exit ${code}`))));
 					child.stdin.end(`${secret}\n`);
 				});
@@ -310,12 +367,29 @@ export function systemKeychain(platform: NodeJS.Platform = process.platform): Ke
 			}
 			if (platform === 'darwin') {
 				// `security`'s interactive mode reads its command from standard input; the names and the key hold no
-				// quote, space or backslash, so each is one quoted word.
-				await runWithInput(
-					'/usr/bin/security',
-					['-i'],
-					`add-generic-password -U -s "${service}" -a "${account}" -l "Loam copilot key" -w "${secret}"\n`
-				);
+				// quote, space or backslash, so each is one quoted word. Pre-check the encoded line length against
+				// Apple's 4,095-byte interactive buffer before spawning so `-U` can never overwrite an existing entry
+				// with a truncated value; then capture all stderr bytes and confirm the stored secret by read-back.
+				const commandLine = `add-generic-password -U -s "${service}" -a "${account}" -l "Loam copilot key" -w "${secret}"\n`;
+				if (Buffer.byteLength(commandLine, 'utf8') > MACOS_SECURITY_LINE_MAX_BYTES) {
+					throw new Error('macOS keychain command too long');
+				}
+				const written = await run('/usr/bin/security', ['-i'], commandLine);
+				if (written.code !== 0 || written.stderr.length > 0) {
+					throw new Error('macOS keychain write failed');
+				}
+				const verified = await run('/usr/bin/security', [
+					'find-generic-password',
+					'-s',
+					service,
+					'-a',
+					account,
+					'-w',
+				]);
+				const stored = verified.stdout.replace(/\r?\n$/, '');
+				if (verified.code !== 0 || verified.stderr.length > 0 || stored !== secret) {
+					throw new Error('macOS keychain verification failed');
+				}
 				return;
 			}
 			// `secret-tool` reads the secret from standard input when it is not a terminal, to its end.

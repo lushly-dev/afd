@@ -13,6 +13,7 @@ import themeCss from '@lushly-dev/loam-theme/loam-theme.css?inline';
 // links from `index.html`, and the woff2 files beside it, since Loam loads nothing from another origin.
 import '@lushly-dev/loam-theme/loam-fonts.css';
 import { lazyCopilot } from './copilot-lazy.js';
+import { captureDesktopInvoke } from './desktop-ipc.js';
 import { createHostKernel, mediaEnvironment, OTHER_TAB_NOTICE } from './host.js';
 import { type ProviderIdentity, probeIdentity } from './identity.js';
 import { applyPageAppearance } from './page-appearance.js';
@@ -33,11 +34,14 @@ const AUTH_PATH = /^(?!\.\.?(\/|$))(?!.*\/\.\.?(\/|$))[A-Za-z0-9._~-]+(\/[A-Za-z
  */
 const base = new URL('../', /* @vite-ignore */ import.meta.url).href;
 
+/** Captured once at boot before stage B loads any native app (defense in depth, not realm isolation: D54). */
+const desktopInvoke = captureDesktopInvoke(window);
+
 /**
  * Phase 3's 4.3 refresh, its provider given once probed: the hosted relay's own `401` runs it, as the trust-record
  * transport's does (phase 6 specification, 8.1). Never an instance's answer, which the relay does not mark.
  */
-const session = createSessionRefresh(base);
+const session = createSessionRefresh(base, desktopInvoke);
 
 /** The reader and the ports, in a chunk of their own: what stage B calls. */
 async function loadApps(raw: unknown): Promise<AppsLoad> {
@@ -196,7 +200,7 @@ async function boot(): Promise<void> {
 				return createWebCopilot({
 					document,
 					sandboxOrigin: named.sandboxOrigin,
-					transport: createHostTransport(window),
+					transport: createHostTransport(window, undefined, desktopInvoke),
 				}).host;
 			})
 		: undefined;
@@ -241,14 +245,11 @@ async function boot(): Promise<void> {
 	});
 	// The desktop's inbound endpoint (phase 6 specification, 10.8): its dispatcher in a chunk of its own, once stage B
 	// has loaded, and only where Tauri's IPC is in the page; a browser never loads it.
-	if (
-		typeof (window as { __TAURI_INTERNALS__?: { invoke?: unknown } }).__TAURI_INTERNALS__
-			?.invoke === 'function'
-	) {
+	if (desktopInvoke) {
 		const ready = host;
 		void host.kernel.appsReady
 			.then(() => import('./inbound.js'))
-			.then(({ startInbound }) => startInbound(window, ready))
+			.then(({ startInbound }) => startInbound(window, ready, undefined, undefined, desktopInvoke))
 			.catch(reportError);
 	}
 	// Stage B loads Better Auth's client in `provider` mode only (4.2).

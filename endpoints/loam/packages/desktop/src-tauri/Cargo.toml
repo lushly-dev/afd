@@ -43,6 +43,13 @@ getrandom = "=0.3.4"
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+# A copilot provider's key from the macOS keychain (phase 5 specification, 4.2), via Security.framework
+# instead of spawning `/usr/bin/security`, at the exact versions `loam-mail` and `Cargo.lock` already pin.
+[target.'cfg(target_os = "macos")'.dependencies]
+apple-native-keyring-store = { version = "=1.0.2", default-features = false, features = ["keychain"] }
+keyring-core = "=1.0.1"
+security-framework = "=3.7.0"
+
 # A copilot provider's key from the Credential Manager (phase 5 specification, 4.2), owner-only ACL checks on open
 # file handles (`mounts::owner_only`), `inbound.json` created owner-only and the bridge's console (10.8), at the version
 # Tauri's own dependencies already lock.

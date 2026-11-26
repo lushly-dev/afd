@@ -7,14 +7,7 @@
  */
 
 import type { McpTool, McpToolCallResult, MountTransport } from '@lushly-dev/loam-kernel';
-
-/**
- * What Tauri's IPC script puts in the page. On WebView2 the frames have it too, and their `invoke` reaches
- * nothing: their policies hold no IPC source and wry hears the main frame's messages alone (10.2, P6-D4).
- */
-interface TauriInternals {
-	invoke(command: string, args: Record<string, unknown>): Promise<unknown>;
-}
+import { captureDesktopInvoke, type DesktopInvoke } from './desktop-ipc.js';
 
 /** The version the handshake offers; the server answers with the one it speaks. */
 export const DESKTOP_PROTOCOL_VERSION = '2025-06-18';
@@ -36,6 +29,11 @@ const MODERN_META = Object.freeze({
 export interface DesktopMountOptions {
 	/** `modern` for an instance whose entry releases commands for a person (7.2). */
 	era?: 'modern';
+	/**
+	 * Boot-captured Tauri IPC invoker (`desktop-ipc.ts`), or `null` when absent at boot so globals are never
+	 * re-read later; omitted (`undefined`) captures on construction for direct unit callers.
+	 */
+	invoke?: DesktopInvoke | null;
 }
 
 /** Pages of `tools/list` read, so a server cannot keep a discovery in a loop. */
@@ -59,20 +57,15 @@ function refusalOf(cause: unknown): MountRefusal {
 	);
 }
 
-function internals(): TauriInternals {
-	const found = (globalThis as { __TAURI_INTERNALS__?: TauriInternals }).__TAURI_INTERNALS__;
-	if (typeof found?.invoke !== 'function') throw new MountRefusal('MOUNT_UNREACHABLE');
-	return found;
-}
-
 /** `invoke`, which an abort leaves behind: the host's answer, if it comes, is dropped. */
 async function call(
+	invoke: DesktopInvoke | null,
 	command: 'mount_open' | 'mount_send' | 'mount_close',
 	args: Record<string, unknown>,
 	signal?: AbortSignal
 ): Promise<unknown> {
-	if (signal?.aborted) throw new MountRefusal('MOUNT_UNREACHABLE');
-	const answer = internals().invoke(command, args);
+	if (signal?.aborted || !invoke) throw new MountRefusal('MOUNT_UNREACHABLE');
+	const answer = invoke(command, args);
 	if (!signal) return answer;
 	return new Promise((resolve, reject) => {
 		const abort = () => reject(new MountRefusal('MOUNT_UNREACHABLE'));
@@ -95,6 +88,7 @@ export function createDesktopMountTransport(
 	instance: string,
 	options: DesktopMountOptions = {}
 ): MountTransport {
+	const invoke = options.invoke !== undefined ? options.invoke : captureDesktopInvoke();
 	let handle: number | undefined;
 	let id = 0;
 	/** Whether the connection is on the modern era: its keys go on every request's `_meta`, the kernel's beside them. */
@@ -112,6 +106,7 @@ export function createDesktopMountTransport(
 			: given;
 		try {
 			const answer = await call(
+				invoke,
 				'mount_send',
 				{ handle, message: { jsonrpc: '2.0', id: sent, method, params } },
 				signal
@@ -125,7 +120,7 @@ export function createDesktopMountTransport(
 	return {
 		async connect(signal) {
 			try {
-				const opened = await call('mount_open', { instance }, signal);
+				const opened = await call(invoke, 'mount_open', { instance }, signal);
 				if (typeof opened !== 'number' || !Number.isSafeInteger(opened))
 					throw new MountRefusal('MOUNT_UNREACHABLE');
 				handle = opened;
@@ -158,6 +153,7 @@ export function createDesktopMountTransport(
 			if (typeof protocolVersion !== 'string') throw new MountRefusal('MOUNT_UNREACHABLE');
 			try {
 				await call(
+					invoke,
 					'mount_send',
 					{ handle, message: { jsonrpc: '2.0', method: 'notifications/initialized' } },
 					signal
@@ -194,7 +190,7 @@ export function createDesktopMountTransport(
 			const held = handle;
 			handle = undefined;
 			if (held === undefined) return;
-			await call('mount_close', { handle: held }).catch(() => {});
+			await call(invoke, 'mount_close', { handle: held }).catch(() => {});
 		},
 	};
 }

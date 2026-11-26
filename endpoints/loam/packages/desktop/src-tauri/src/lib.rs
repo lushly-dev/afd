@@ -7,6 +7,7 @@ pub mod bridge;
 pub mod connection;
 pub mod era;
 pub mod inbound;
+pub(crate) mod keychain;
 pub mod logging;
 pub mod models;
 pub mod mounts;
