@@ -11,6 +11,11 @@
 
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::sync::Arc;
+
+use tokio::sync::{Mutex, Semaphore};
+use tokio::task::JoinSet;
+use tokio::time::{Instant, timeout_at};
 
 use super::error::PluginError;
 use super::files::DirFiles;
@@ -222,13 +227,34 @@ const SHOWN_PROBLEMS: usize = 3;
 /// pack, handed to the plugin's own check, the same reader its commands use, so the codes match a
 /// call's exactly. A failure is `fail` for a required instance, `warn` for an optional one or a
 /// retryable failure. An override whose plugin offers no check is counted, and checked for its
-/// layout only (`plugins.packs`).
-pub(crate) fn pack_checks_check(loaded: &LoadedPlugins) -> Check {
+/// layout only (`plugins.packs`). A check that panics is `fail` whatever its instance; one that
+/// gets no turn of D204's bound, or does not finish, by `deadline` is `warn` (`run_plugin_check`).
+pub(crate) async fn pack_checks_check(
+    loaded: &LoadedPlugins,
+    turns: &Arc<Semaphore>,
+    deadline: Instant,
+) -> Check {
+    let checks = loaded
+        .pack_checks
+        .iter()
+        .cloned()
+        .map(|target| (Arc::clone(&target.in_flight), move || target.run()));
+    let results = run_plugin_checks(checks, turns, deadline).await;
     let mut issues = Vec::new();
     let mut checked = 0;
     let mut unchecked = 0;
-    for target in &loaded.pack_checks {
-        let Some(result) = target.run() else {
+    for (target, result) in loaded.pack_checks.iter().zip(results) {
+        let result = match result {
+            Ok(result) => result,
+            Err(failure) => {
+                issues.push(failure.issue(format!(
+                    "{}: the check of pack `{}` in space `{}`",
+                    target.instance, target.pack, target.space
+                )));
+                continue;
+            }
+        };
+        let Some(result) = result else {
             unchecked += 1;
             continue;
         };
@@ -253,13 +279,32 @@ pub(crate) fn pack_checks_check(loaded: &LoadedPlugins) -> Check {
 /// `plugins.config_checks` on a sealed host (D206): each loaded compiled instance's configuration,
 /// handed to the plugin's own check, which reads it as its commands do. A failure is `fail` for a
 /// required instance, `warn` for an optional one or a retryable failure. An instance whose plugin
-/// offers no check is counted, and its configuration was checked against its schema at open.
-pub(crate) fn config_checks_check(loaded: &LoadedPlugins) -> Check {
+/// offers no check is counted, and its configuration was checked against its schema at open. A
+/// check that panics is `fail` whatever its instance; one that gets no turn of D204's bound, or
+/// does not finish, by `deadline` is `warn` (`run_plugin_check`).
+pub(crate) async fn config_checks_check(
+    loaded: &LoadedPlugins,
+    turns: &Arc<Semaphore>,
+    deadline: Instant,
+) -> Check {
+    let checks = loaded
+        .config_checks
+        .iter()
+        .cloned()
+        .map(|target| (Arc::clone(&target.in_flight), move || target.run()));
+    let results = run_plugin_checks(checks, turns, deadline).await;
     let mut issues = Vec::new();
     let mut checked = 0;
     let mut unchecked = 0;
-    for target in &loaded.config_checks {
-        let Some(result) = target.run() else {
+    for (target, result) in loaded.config_checks.iter().zip(results) {
+        let result = match result {
+            Ok(result) => result,
+            Err(failure) => {
+                issues.push(failure.issue(format!("{}: the configuration check", target.instance)));
+                continue;
+            }
+        };
+        let Some(result) = result else {
             unchecked += 1;
             continue;
         };
@@ -329,14 +374,145 @@ fn plugin_issue(
     })
 }
 
-/// A sealed-host check whose run did not finish (its blocking thread panicked): a failure, so a
-/// plugin's crashing check never leaves the check at `skip` on a sealed host.
-pub(crate) fn panicked_check(id: &str) -> Check {
-    Check::fail(
-        id,
-        "a plugin's own check panicked before it answered, so no result of this check was kept",
-        "Run the doctor again; if it repeats, run each plugin's commands to find the one that fails, and report it to its author.",
-    )
+// All targets share a report deadline. Keep results in loader order even when workers
+// finish out of order, and cancel any pending work when the report is dropped.
+async fn run_plugin_checks<T: Send + 'static>(
+    checks: impl Iterator<Item = (Arc<Mutex<()>>, impl FnOnce() -> T + Send + 'static)>,
+    turns: &Arc<Semaphore>,
+    deadline: Instant,
+) -> Vec<Result<T, PluginCheckFailure>> {
+    let mut tasks = JoinSet::new();
+    for (index, (in_flight, run)) in checks.enumerate() {
+        let turns = Arc::clone(turns);
+        tasks.spawn(async move {
+            (
+                index,
+                run_plugin_check(turns, in_flight, deadline, run).await,
+            )
+        });
+    }
+    let mut results = tasks.join_all().await;
+    results.sort_unstable_by_key(|(index, _)| *index);
+    results.into_iter().map(|(_, result)| result).collect()
+}
+
+/// Why a plugin's own check gave the doctor no result.
+#[derive(Debug)]
+enum PluginCheckFailure {
+    /// No turn of D204's bound came free before the deadline: the check never ran.
+    Busy,
+    /// It ran and had not finished before the deadline, or finished at or after it.
+    TimedOut,
+    /// It panicked.
+    Panicked,
+    /// The host could not start its thread.
+    Unavailable,
+    /// An earlier report's run of the same check was still going at the deadline.
+    AlreadyRunning,
+}
+
+impl PluginCheckFailure {
+    /// The issue for `subject`, logged: fatal for a panic whatever the instance, else a warning.
+    fn issue(&self, subject: String) -> Issue {
+        let message = format!("{subject} {}", self.message());
+        tracing::warn!(check = %message, "a plugin's own doctor check gave no result");
+        Issue {
+            fatal: matches!(self, Self::Panicked),
+            message,
+            suggestion: self.suggestion().to_owned(),
+        }
+    }
+
+    fn message(&self) -> &'static str {
+        match self {
+            Self::Busy => "got no turn before its deadline (limits.compiled_calls)",
+            Self::TimedOut => "did not finish before its deadline (limits.compiled_timeout_ms)",
+            Self::Panicked => "panicked",
+            Self::Unavailable => "could not start a thread",
+            Self::AlreadyRunning => "is still running from an earlier doctor report",
+        }
+    }
+
+    fn suggestion(&self) -> &'static str {
+        match self {
+            Self::Busy => {
+                "Run workspace-doctor again once the plugin calls under way finish, or raise limits.compiled_calls."
+            }
+            Self::TimedOut => {
+                "Run workspace-doctor again; if it repeats, raise limits.compiled_timeout_ms or report the slow check to the plugin's author."
+            }
+            Self::Panicked => {
+                "Run the plugin's commands to see whether they fail too, and report the panic to the plugin's author."
+            }
+            Self::Unavailable => "Free system resources, then run workspace-doctor again.",
+            Self::AlreadyRunning => {
+                "Run workspace-doctor again once the earlier report's check finishes; if it never does, restart the host and report the hang to the plugin's author."
+            }
+        }
+    }
+}
+
+/// Run one plugin check under D204's bound (`turns`) by `deadline`. An earlier report's run of the
+/// same check (`in_flight`) is waited for within the deadline, so two reports never run it at once
+/// and a report beside another still gets its result.
+async fn run_plugin_check<T: Send + 'static>(
+    turns: Arc<Semaphore>,
+    in_flight: Arc<Mutex<()>>,
+    deadline: Instant,
+    run: impl FnOnce() -> T + Send + 'static,
+) -> Result<T, PluginCheckFailure> {
+    let running = timeout_at(deadline, in_flight.lock_owned())
+        .await
+        .map_err(|_| PluginCheckFailure::AlreadyRunning)?;
+    let turn = timeout_at(deadline, turns.acquire_owned())
+        .await
+        .map_err(|_| PluginCheckFailure::Busy)?
+        .map_err(|_| PluginCheckFailure::Unavailable)?;
+    // A turn that came at the deadline came too late: the check does not start.
+    if Instant::now() >= deadline {
+        return Err(PluginCheckFailure::Busy);
+    }
+    let (send, receive) = tokio::sync::oneshot::channel();
+    let runtime = tokio::runtime::Handle::current();
+    // A synchronous plugin hook cannot be stopped and can keep running after the report returns.
+    // Its thread keeps the turn and the in-flight lock until the hook exits, and stays outside
+    // Tokio's shutdown wait.
+    std::thread::Builder::new()
+        .name("umbel-doctor-check".into())
+        .spawn(move || {
+            let _runtime = runtime.enter();
+            let result =
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(run)).map_err(|_| ());
+            let finished = Instant::now();
+            drop(running);
+            drop(turn);
+            if send.send((result, finished)).is_err() {
+                tracing::warn!(
+                    "a plugin's own doctor check finished after its report; its result was dropped"
+                );
+            }
+        })
+        .map_err(|_| PluginCheckFailure::Unavailable)?;
+    match timeout_at(deadline, receive).await {
+        Ok(Ok((result, finished))) => settled(result, finished, deadline),
+        // The thread ended without answering: it died unwinding.
+        Ok(Err(_)) => Err(PluginCheckFailure::Panicked),
+        Err(_) => Err(PluginCheckFailure::TimedOut),
+    }
+}
+
+/// A finished check's result: a panic is one whenever it came, and a result finished at or after
+/// the deadline is late even when the report sees it before its timer (as D204's calls are).
+fn settled<T>(
+    result: Result<T, ()>,
+    finished: Instant,
+    deadline: Instant,
+) -> Result<T, PluginCheckFailure> {
+    let result = result.map_err(|()| PluginCheckFailure::Panicked)?;
+    if finished >= deadline {
+        return Err(PluginCheckFailure::TimedOut);
+    }
+    Ok(result)
 }
 
 /// The first problems of a failure's `details.problems`, each `CODE path#at` (`CODE at` with no
@@ -800,4 +976,103 @@ fn skills(loaded: &[Loaded<'_>]) -> Check {
         &issues,
         &[],
     )
+}
+
+#[cfg(test)]
+mod plugin_check_tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[tokio::test(start_paused = true)]
+    async fn a_timed_out_hook_keeps_its_turn_until_it_exits() {
+        let turns = Arc::new(Semaphore::new(1));
+        let in_flight = Arc::new(Mutex::new(()));
+        let (release, wait) = std::sync::mpsc::channel::<()>();
+        let (entered, in_runtime) = std::sync::mpsc::channel::<bool>();
+        let deadline = Instant::now() + Duration::from_secs(1);
+        let result = run_plugin_check(
+            Arc::clone(&turns),
+            Arc::clone(&in_flight),
+            deadline,
+            move || {
+                let _ = entered.send(tokio::runtime::Handle::try_current().is_ok());
+                wait.recv()
+            },
+        )
+        .await;
+        assert!(matches!(result, Err(PluginCheckFailure::TimedOut)));
+        // The hook ran inside the runtime, so it can use the host's async services.
+        assert_eq!(in_runtime.recv(), Ok(true));
+        assert_eq!(turns.available_permits(), 0);
+        let retry = run_plugin_check(
+            Arc::clone(&turns),
+            in_flight,
+            Instant::now() + Duration::from_secs(1),
+            || (),
+        )
+        .await;
+        assert!(matches!(retry, Err(PluginCheckFailure::AlreadyRunning)));
+        assert!(release.send(()).is_ok());
+        assert!(turns.acquire().await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn a_second_report_waits_for_a_check_still_queued_in_the_first() {
+        let turns = Arc::new(Semaphore::new(1));
+        let held = Arc::clone(&turns).acquire_owned().await.unwrap();
+        let in_flight = Arc::new(Mutex::new(()));
+        let deadline = Instant::now() + Duration::from_secs(60);
+        let first = tokio::spawn(run_plugin_check(
+            Arc::clone(&turns),
+            Arc::clone(&in_flight),
+            deadline,
+            || 1,
+        ));
+        // The first report holds the check while it waits for a turn.
+        while in_flight.try_lock().is_ok() {
+            tokio::task::yield_now().await;
+        }
+        let second = tokio::spawn(run_plugin_check(
+            Arc::clone(&turns),
+            Arc::clone(&in_flight),
+            deadline,
+            || 2,
+        ));
+        tokio::task::yield_now().await;
+        drop(held);
+        assert!(matches!(first.await.unwrap(), Ok(1)));
+        assert!(matches!(second.await.unwrap(), Ok(2)));
+    }
+
+    #[tokio::test]
+    async fn a_turn_that_never_comes_is_busy_and_never_runs() {
+        let turns = Arc::new(Semaphore::new(1));
+        let _held = Arc::clone(&turns).acquire_owned().await.unwrap();
+        let ran = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let flag = Arc::clone(&ran);
+        let result = run_plugin_check(
+            turns,
+            Arc::new(Mutex::new(())),
+            Instant::now() + Duration::from_millis(50),
+            move || flag.store(true, std::sync::atomic::Ordering::SeqCst),
+        )
+        .await;
+        assert!(matches!(result, Err(PluginCheckFailure::Busy)));
+        assert!(!ran.load(std::sync::atomic::Ordering::SeqCst));
+    }
+
+    #[test]
+    fn a_result_finished_at_the_deadline_is_late_and_a_panic_is_a_panic() {
+        let deadline = Instant::from_std(std::time::Instant::now());
+        let before = deadline - Duration::from_millis(1);
+        assert!(matches!(settled(Ok(1), before, deadline), Ok(1)));
+        assert!(matches!(
+            settled(Ok(1), deadline, deadline),
+            Err(PluginCheckFailure::TimedOut)
+        ));
+        assert!(matches!(
+            settled::<()>(Err(()), deadline, deadline),
+            Err(PluginCheckFailure::Panicked)
+        ));
+    }
 }

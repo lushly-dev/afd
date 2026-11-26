@@ -107,6 +107,19 @@ impl CompiledGate {
         Some(start + timeout)
     }
 
+    /// The turns of the bound, which the doctor's runs of plugins' own checks take as calls do.
+    pub(crate) fn turns(&self) -> &Arc<Semaphore> {
+        &self.turns
+    }
+
+    /// The deadline of the doctor's plugin checks, begun at `start` in `context`: a call's, or
+    /// `limits.compiled_timeout_ms` from `start` where a call would have none (a task, the host's
+    /// command line), so a report always ends.
+    pub(crate) fn check_deadline(&self, context: &CommandContext, start: Instant) -> Instant {
+        self.deadline(context, start)
+            .unwrap_or(start + self.timeout)
+    }
+
     /// A turn by `deadline`, unless `caller` is cancelled first.
     async fn turn(
         &self,

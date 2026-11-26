@@ -16,6 +16,7 @@ pub(crate) struct ConfigCheck {
     pub required: bool,
     pub plugin: Arc<dyn CompiledPlugin>,
     pub services: Services,
+    pub in_flight: Arc<tokio::sync::Mutex<()>>,
     /// The space the check runs in: `None` for the workspace's default space, else the
     /// instance's first enabled space when the default is not one of its spaces.
     pub space: Option<String>,
@@ -58,6 +59,7 @@ pub(crate) struct PackCheck {
     pub space: String,
     pub plugin: Arc<dyn CompiledPlugin>,
     pub services: Services,
+    pub in_flight: Arc<tokio::sync::Mutex<()>>,
 }
 
 impl PackCheck {

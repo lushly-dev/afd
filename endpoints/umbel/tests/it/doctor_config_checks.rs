@@ -420,9 +420,78 @@ async fn a_check_that_panics_fails_instead_of_staying_skipped() {
     let (_host, report) = sealed(&root, Panicky).await;
     let check = find(&report, "plugins.config_checks");
     assert_eq!(check["status"], "fail", "{check}");
+    assert_eq!(check["message"], "fleet: the configuration check panicked");
+    assert_eq!(report["healthy"], false);
+}
+
+/// Answers its configuration check only once the test releases it, after the doctor's deadline,
+/// and says when it has.
+struct Stuck {
+    release: std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
+    done: std::sync::mpsc::Sender<()>,
+}
+
+impl Plugin for Stuck {
+    fn manifest(&self) -> &'static str {
+        MANIFEST
+    }
+
+    fn assets(&self) -> &'static [Asset] {
+        ASSETS
+    }
+
+    fn handle(&self, _name: &str, _input: Value, _cx: &mut Cx) -> Outcome {
+        success(json!({}))
+    }
+
+    fn check_config(&self, _cx: &mut Cx) -> Option<Outcome> {
+        let _ = self
+            .release
+            .lock()
+            .unwrap()
+            .recv_timeout(std::time::Duration::from_secs(60));
+        let _ = self.done.send(());
+        Some(failure("FLEET_LATE", "answered too late", "Retry."))
+    }
+}
+
+#[tokio::test]
+async fn a_check_past_the_deadline_warns_naming_its_instance() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("ws");
+    fs::create_dir_all(&root).unwrap();
+    fs::write(
+        root.join("umbel.toml"),
+        format!(
+            "config_version = 7\ndefault_space = \"main\"\n[spaces.main]\n[plugins]\nenabled = [\"fleet\"]\n[limits]\ncompiled_timeout_ms = 1000\n{VALID}"
+        ),
+    )
+    .unwrap();
+    let (release, wait) = std::sync::mpsc::channel();
+    let (done, finished) = std::sync::mpsc::channel();
+    let stuck = Stuck {
+        release: std::sync::Mutex::new(wait),
+        done,
+    };
+    let (host, report) = sealed(&root, stuck).await;
+    let check = find(&report, "plugins.config_checks");
+    assert_eq!(check["status"], "warn", "{check}");
+    assert_eq!(
+        check["message"],
+        "fleet: the configuration check did not finish before its deadline \
+         (limits.compiled_timeout_ms)"
+    );
     assert!(
-        check["message"].as_str().unwrap().contains("panicked"),
+        check["suggestion"]
+            .as_str()
+            .unwrap()
+            .contains("raise limits.compiled_timeout_ms"),
         "{check}"
     );
-    assert_eq!(report["healthy"], false);
+    // Let the hook return before the workspace folder goes.
+    release.send(()).unwrap();
+    finished
+        .recv_timeout(std::time::Duration::from_secs(60))
+        .unwrap();
+    drop(host);
 }
