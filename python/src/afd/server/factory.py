@@ -1074,7 +1074,9 @@ class MCPServer:
                 with suppress(AttributeError, TypeError):
                     setattr(context, JOURNALED_CONTEXT_FIELDS, journaled)
             return None
-        return apply_context_fields(self.config.context_fields, context, command.name)
+        return apply_context_fields(
+            self.config.context_fields, context, command.name, dev_mode=self.config.dev_mode
+        )
 
     def _is_hidden_for_execution(
         self,

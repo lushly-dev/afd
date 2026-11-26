@@ -313,6 +313,10 @@ const HOST_IMPORTS =
  *   Journal secret scope: marking the engine's continuations (`markEngineNext`,
  *   `inheritEngineNext`, `liveSecret`) and walking every recording layer's tape bring every-export,
  *   with `main` at `bede7d3fd` merged, to 119,592 bytes (raised 119,500 → 120,000).
+ *   Context-field exception redaction (#2141): `applyContextFields` takes `devMode` and `onError`
+ *   and keeps a schema's exception text out of production errors, bringing host, with `main` at
+ *   `d831d4044` merged, to 52,366 bytes (raised 52,300 → 52,500 under D115); approval, tool-surface
+ *   and every-export stay within their ceilings.
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
@@ -325,7 +329,7 @@ const DIRECT_BUDGETS = [
 	{
 		what: 'a host that imports the registry, the journal and defineCommand',
 		imports: HOST_IMPORTS,
-		bytes: 52_300,
+		bytes: 52_500,
 	},
 	{
 		what: 'the same host with the approval middleware',

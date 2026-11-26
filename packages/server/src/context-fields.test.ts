@@ -133,26 +133,75 @@ describe('context field values in process', () => {
 				},
 			}),
 		};
-		const guarded = createDirectRegistry([probe], { contextFields: [throwingField] });
+		const onError = vi.fn();
+		const guarded = createDirectRegistry([probe], { contextFields: [throwingField], onError });
 		const result = await guarded.execute('scope-probe', {}, { scope: 42 });
 
 		expect(handler).not.toHaveBeenCalled();
 		expect(result.success).toBe(false);
+		// Outside devMode the exception text stays on the server (#2141).
 		expect(result.error).toMatchObject({
 			code: 'VALIDATION_ERROR',
 			message: "Context field 'scope' is not valid",
 			details: {
 				field: 'scope',
 				meta: 'dev.example/scope',
-				errors: [{ path: '', message: 'error-map-sentinel' }],
+				errors: [{ path: '', message: 'The value could not be validated' }],
 			},
 		});
+		expect(JSON.stringify(result)).not.toContain('error-map-sentinel');
 		expect(result.error?.suggestion).toContain('_meta["dev.example/scope"]');
+		expect(onError).toHaveBeenCalledTimes(1);
+		expect(onError.mock.calls[0]?.[0]).toMatchObject({ message: 'error-map-sentinel' });
 
 		// A valid value still reaches the handler normally.
 		const ok = await guarded.execute('scope-probe', {}, { scope: 'atlas' });
 		expect(ok.success).toBe(true);
 		expect(handler).toHaveBeenCalledTimes(1);
+	});
+
+	it("return a throwing schema callback's text only in devMode (#2141)", async () => {
+		const throwingField: ContextField = {
+			name: 'scope',
+			meta: 'dev.example/scope',
+			schema: z.string({
+				error: () => {
+					throw new Error('error-map-sentinel');
+				},
+			}),
+		};
+		const onError = vi.fn();
+		const dev = createDirectRegistry([echo], {
+			contextFields: [throwingField],
+			devMode: true,
+			onError,
+		});
+		const result = await dev.execute('scope-echo', {}, { scope: 42 });
+		expect(result.error?.details).toMatchObject({
+			errors: [{ path: '', message: 'error-map-sentinel' }],
+		});
+		expect(onError).toHaveBeenCalledTimes(1);
+	});
+
+	it('keep the result when onError itself throws (#2141)', async () => {
+		const throwingField: ContextField = {
+			name: 'scope',
+			meta: 'dev.example/scope',
+			schema: z.string().transform(() => {
+				throw new Error('transform-sentinel');
+			}),
+		};
+		const registry = createDirectRegistry([echo], {
+			contextFields: [throwingField],
+			onError: () => {
+				throw new Error('hook failed');
+			},
+		});
+		const result = await registry.execute('scope-echo', {}, { scope: 'atlas' });
+		expect(result.error).toMatchObject({
+			code: 'VALIDATION_ERROR',
+			details: { errors: [{ path: '', message: 'The value could not be validated' }] },
+		});
 	});
 });
 

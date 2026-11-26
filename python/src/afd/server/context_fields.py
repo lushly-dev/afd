@@ -55,6 +55,9 @@ __all__ = [
 
 logger = logging.getLogger("afd.server")
 
+# What the caller reads, outside dev mode, when a field's validator raised.
+_VALIDATOR_RAISED = "The value could not be validated"
+
 AFD_CONTEXT_FIELDS_META_KEY = "dev.afd/context-fields"
 """The ``_meta`` key under which ``server/discover`` lists the declared fields."""
 
@@ -288,7 +291,11 @@ def _as_field(item: Any) -> ContextField:
 
 
 def apply_context_fields(
-    fields: Sequence[ContextField], context: Any, command_name: str | None = None
+    fields: Sequence[ContextField],
+    context: Any,
+    command_name: str | None = None,
+    *,
+    dev_mode: bool = False,
 ) -> CommandResult[Any] | None:
     """Validate a call's declared fields on ``context``.
 
@@ -298,6 +305,10 @@ def apply_context_fields(
     no value. ``required`` is not enforced for AFD's own commands (a
     ``command_name`` starting with ``afd-``), so a client can discover the
     fields before it sends them; a value they do get is still validated.
+
+    A validator that raises an exception pydantic does not turn into a
+    validation error is logged to ``afd.server``, and its text is returned to
+    the caller only when ``dev_mode`` is true.
 
     Returns:
         A ``VALIDATION_ERROR`` result for an invalid value or a missing
@@ -333,11 +344,14 @@ def apply_context_fields(
                 ],
             )
         except Exception as exc:
-            # A validator that raises something other than ValueError or AssertionError.
+            # A validator that raises something other than ValueError or AssertionError. Its
+            # text reaches the caller only in dev mode; the log always has it (#2141).
+            logger.error("Validating context field '%s' raised", declared.name, exc_info=exc)
+            message = (str(exc) or type(exc).__name__) if dev_mode else _VALIDATOR_RAISED
             return _field_failure(
                 declared,
                 f"Context field '{declared.name}' is not valid",
-                [{"path": "", "message": str(exc) or type(exc).__name__}],
+                [{"path": "", "message": message}],
             )
     try:
         context.extra = values

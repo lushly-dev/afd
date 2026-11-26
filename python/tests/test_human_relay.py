@@ -8,7 +8,7 @@ import base64
 import dataclasses
 import hashlib
 import json
-from typing import Any
+from typing import Annotated, Any
 
 import httpx
 import pytest
@@ -1639,6 +1639,43 @@ async def test_pending_restore_preserves_exclude_unset_and_dynamic_context_field
     assert observed[0]["req_id"] == "req-1"
     # Handler must see the exact same dynamic context_field value that relay.resume verified.
     assert observed[0]["ctx_nonce"] == relay.resumes[0][1].context.extra["scope"].nonce
+
+
+async def test_a_raising_context_field_validator_is_redacted_before_begin() -> None:
+    # #2141: on the relay path too, the validator's text reaches the caller only in dev mode.
+    from pydantic import PlainValidator
+
+    def explode(value: Any) -> Any:
+        raise RuntimeError("tenant-sentinel")
+
+    tenant_schema = Annotated[Any, PlainValidator(explode)]
+
+    for dev_mode, expected in (
+        (False, "The value could not be validated"),
+        (True, "tenant-sentinel"),
+    ):
+        relay = _ScriptedRelay()
+        server = create_server(
+            "hv-raising-field",
+            tool_strategy="individual",
+            human_relay=relay,
+            dev_mode=dev_mode,
+            context_fields=[
+                ContextField(name="tenant", meta="dev.example/tenant", schema=tenant_schema)
+            ],
+        )
+
+        @server.command("doc-erase", "Erase doc", confirmation_mode="host-verified", expose=MCP)
+        async def erase(input: Any, context: CommandContext) -> Any:
+            return success({"ok": True})
+
+        res = await _http_call(server, "doc-erase", {}, extra_meta={"dev.example/tenant": "acme"})
+        body = json.loads(res["result"]["content"][0]["text"])
+        assert body["error"]["code"] == "VALIDATION_ERROR"
+        assert body["error"]["details"]["errors"] == [{"path": "", "message": expected}]
+        if not dev_mode:
+            assert "tenant-sentinel" not in json.dumps(res)
+        assert relay.begins == []
 
 
 async def test_unbindable_pydantic_models_rejected_before_begin() -> None:

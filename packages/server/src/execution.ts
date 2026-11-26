@@ -266,7 +266,10 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 			});
 		}
 
-		const invalidField = applyContextFields(deps.contextFields ?? [], context, commandName);
+		const invalidField = applyContextFields(deps.contextFields ?? [], context, commandName, {
+			devMode,
+			onError: reportError,
+		});
 		if (invalidField) return invalidField;
 
 		const invalidBudget = applyOutputBudget(command, context);
