@@ -768,7 +768,10 @@ function isSafeSingleSegmentId(id: string): boolean {
 	);
 }
 
-async function resolveWalkJob(config: LoadedConfig, jobId: string): Promise<ResolvedWalkJob> {
+export async function resolveWalkJob(
+	config: LoadedConfig,
+	jobId: string
+): Promise<ResolvedWalkJob> {
 	const panelJobs = config.config.panel?.jobs ?? [];
 	const configuredEntry = config.entries.find((e) => e.id === jobId && e.job !== undefined);
 

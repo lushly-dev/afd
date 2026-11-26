@@ -23,6 +23,8 @@ export interface PersonaDefinition {
 	name?: string;
 	stance?: string;
 	card?: string;
+	/** Optional model family identifier for cross-family overlap reporting in `panel-review`. */
+	family?: string;
 }
 
 export interface PanelConfig {
@@ -31,6 +33,12 @@ export interface PanelConfig {
 	scenariosDir?: string;
 	/** Optional relative JS/ESM module exporting a default `PanelWalkDriver`. */
 	driver?: string;
+	/** Allow `panel-review` when `ctx.actor.id` is absent (records `reviewer-identity` in `unmeasured`). */
+	allowUnverifiedLocal?: boolean;
+	/** Optional server-side mapping of change identifier to author id for independence checks. */
+	changeAuthors?: Record<string, string>;
+	/** Optional estimated cost in USD per panel member walk for budget accounting (defaults to 0.5). */
+	memberCostUsd?: number;
 }
 
 export interface ModalityToolPolicy {

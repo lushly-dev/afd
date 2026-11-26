@@ -80,6 +80,35 @@ export const DESIGN_ALLOWED_OPTIONS: Record<string, Set<string>> = {
 		'waivers',
 		'resolutions',
 	]),
+	'panel-review': new Set([
+		'root',
+		'config',
+		'output',
+		'action',
+		'change',
+		'author',
+		'jobs',
+		'target',
+		'app-date',
+		'before',
+		'after',
+		'panel-size',
+		'max-rounds',
+		'max-cost-usd',
+		'baseline',
+		'run',
+		'reason',
+	]),
+	'panel-calibrate': new Set([
+		'root',
+		'config',
+		'output',
+		'action',
+		'count',
+		'seed',
+		'sample',
+		'judgements',
+	]),
 };
 
 export function isDesignCliAction(action: string): boolean {
@@ -261,6 +290,132 @@ export async function runDesignCliAction(
 			...(decline !== undefined ? { decline } : {}),
 			...(waivers !== undefined ? { waivers } : {}),
 			...(resolutions !== undefined ? { resolutions } : {}),
+		});
+	}
+	if (parsed.action === 'panel-review') {
+		const subAction = parsed.options.get('action');
+		if (subAction !== undefined && subAction !== 'review' && subAction !== 'withdraw') {
+			throw new Error(`Invalid --action for panel-review: ${subAction}; use review or withdraw`);
+		}
+		if (subAction === 'withdraw') {
+			return executeSpecimenCommand(bench, 'panel-review', {
+				action: 'withdraw',
+				run: parsed.options.get('run') ?? parsed.positionals[0],
+				reason: parsed.options.get('reason'),
+			});
+		}
+		const jobs = (parsed.options.get('jobs') ?? '')
+			.split(',')
+			.map((s) => s.trim())
+			.filter(Boolean);
+		const rawPanelSize = parsed.options.get('panel-size');
+		let panelSize: number | undefined;
+		if (rawPanelSize !== undefined) {
+			const n = Number(rawPanelSize);
+			if (!rawPanelSize.trim() || !Number.isInteger(n) || n < 1) {
+				throw new Error('--panel-size expects a positive integer');
+			}
+			panelSize = n;
+		}
+		const rawMaxRounds = parsed.options.get('max-rounds');
+		let maxRounds: number | undefined;
+		if (rawMaxRounds !== undefined) {
+			const n = Number(rawMaxRounds);
+			if (!rawMaxRounds.trim() || !Number.isInteger(n) || n < 0) {
+				throw new Error('--max-rounds expects a non-negative integer');
+			}
+			maxRounds = n;
+		}
+		const rawMaxCost = parsed.options.get('max-cost-usd');
+		let maxCostUsd: number | undefined;
+		if (rawMaxCost !== undefined) {
+			const n = Number(rawMaxCost);
+			if (!rawMaxCost.trim() || !Number.isFinite(n) || n < 0) {
+				throw new Error('--max-cost-usd expects a non-negative number');
+			}
+			maxCostUsd = n;
+		}
+		const captures =
+			parsed.options.has('before') || parsed.options.has('after')
+				? {
+						...(parsed.options.has('before') ? { before: parsed.options.get('before') } : {}),
+						...(parsed.options.has('after') ? { after: parsed.options.get('after') } : {}),
+					}
+				: undefined;
+		const budget =
+			maxRounds !== undefined || maxCostUsd !== undefined
+				? {
+						...(maxRounds !== undefined ? { maxRounds } : {}),
+						...(maxCostUsd !== undefined ? { maxCostUsd } : {}),
+					}
+				: undefined;
+		return executeSpecimenCommand(bench, 'panel-review', {
+			...(subAction === 'review' ? { action: 'review' } : {}),
+			change: parsed.options.get('change') ?? parsed.positionals[0],
+			...(parsed.options.has('author') ? { author: parsed.options.get('author') } : {}),
+			jobs,
+			target: parsed.options.get('target'),
+			appDate: parsed.options.get('app-date'),
+			...(captures !== undefined ? { captures } : {}),
+			...(panelSize !== undefined ? { panelSize } : {}),
+			...(budget !== undefined ? { budget } : {}),
+			...(parsed.options.has('baseline') ? { baseline: parsed.options.get('baseline') } : {}),
+		});
+	}
+	if (parsed.action === 'panel-calibrate') {
+		const subAction = parsed.options.get('action') ?? parsed.positionals[0];
+		if (subAction !== 'sample' && subAction !== 'record') {
+			throw new Error(
+				`Invalid action for panel-calibrate: ${subAction ?? '(missing)'}; use sample or record`
+			);
+		}
+		if (subAction === 'record') {
+			const positionalSample = parsed.options.has('action')
+				? parsed.positionals[0]
+				: parsed.positionals[1];
+			const sample = parsed.options.get('sample') ?? positionalSample;
+			const judgements = parsed.options.has('judgements')
+				? parseJsonArrayOption<{ item: string; verdict: 'accept' | 'reject'; reason?: string }>(
+						parsed.options.get('judgements') ?? '',
+						'judgements'
+					)
+				: [];
+			const confirmation = await confirmRelease(
+				`Confirm panel-calibrate record for sample ${sample ?? ''} (${judgements.length} judgement(s))?`
+			);
+			return executeSpecimenCommand(
+				bench,
+				'panel-calibrate',
+				{
+					action: 'record',
+					sample,
+					judgements,
+				},
+				confirmation
+			);
+		}
+		const rawCount = parsed.options.get('count');
+		let count: number | undefined;
+		if (rawCount !== undefined) {
+			const n = Number(rawCount);
+			if (!rawCount.trim() || !Number.isInteger(n) || n < 1) {
+				throw new Error('--count expects a positive integer');
+			}
+			count = n;
+		}
+		const rawSeed = parsed.options.get('seed');
+		let seed: number | undefined;
+		if (rawSeed !== undefined) {
+			const n = Number(rawSeed);
+			if (!rawSeed.trim() || !Number.isInteger(n) || n < 0) {
+				throw new Error('--seed expects a non-negative integer');
+			}
+			seed = n;
+		}
+		return executeSpecimenCommand(bench, 'panel-calibrate', {
+			action: 'sample',
+			...(count !== undefined ? { count } : {}),
+			...(seed !== undefined ? { seed } : {}),
 		});
 	}
 	return undefined;
