@@ -352,9 +352,12 @@ function completionChange(
 	at: number,
 	ttlMs: number
 ): TaskChange {
-	const toolResult = resultContent(result, !result.success);
+	// A result JSON cannot hold (a BigInt, a cycle) throws in resultContent too: the task fails
+	// with an internal error instead of staying `working`.
+	let toolResult: ReturnType<typeof resultContent>;
 	let serialized: string;
 	try {
+		toolResult = resultContent(result, !result.success);
 		serialized = JSON.stringify(toolResult);
 	} catch {
 		return { kind: 'failed', error: internalErrorObject(), at, ttlMs };

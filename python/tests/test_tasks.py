@@ -1258,6 +1258,8 @@ async def test_unserializable_result_and_store_create_cancel_and_repr_redaction_
         assert settled.status == "failed"
         assert settled.error is not None
         assert settled.error["code"] == -32603
+        # Claude Code reads a failed task's error.message (#2501).
+        assert settled.error["message"] == "Internal error"
 
     # 2. Cancelling mid-store.create() releases max_running slot
     entered_create = asyncio.Event()

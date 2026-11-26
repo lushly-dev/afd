@@ -1,5 +1,5 @@
 {
-	"description": "MCP Tasks (spec/command-metadata.md, \"Tasks\"; MCP 2026-07-28 SEP-2663) against a backend where todo-create-batch declares task: \"optional\". Each case names the client it needs: \"tasks\" declares the io.modelcontextprotocol/tasks capability on MCP 2026-07-28 and expects todo-create-batch to return a task polled via tasks/get to completion; \"no-tasks\" declares no tasks capability and expects todo-create-batch to run inline. For TypeScript, Python and Rust backends, dx/run-conformance.ts also runs post-completion retention and execution run-budget timeout checks against todo-slow-task (TASK_CONFORMANCE=1).",
+	"description": "MCP Tasks (spec/command-metadata.md, \"Tasks\"; MCP 2026-07-28 SEP-2663) against a backend where todo-create-batch declares task: \"optional\". Each case names the client it needs: \"tasks\" declares the io.modelcontextprotocol/tasks capability on MCP 2026-07-28 and expects todo-create-batch to return a task polled via tasks/get to completion; \"no-tasks\" declares no tasks capability and expects todo-create-batch to run inline. For TypeScript, Python and Rust backends, dx/run-conformance.ts also runs post-completion retention and execution run-budget timeout checks against todo-slow-task (TASK_CONFORMANCE=1). Cases may read the task's wire messages under \"$task\": \"$task.answer\" is the task answer to tools/call, \"$task.get\" the tasks/get answer that settled it and \"$task.answeredMs\" how long the task answer took to arrive. The Claude Code cases check what Claude Code's task client requires (https://code.claude.com/docs/en/mcp#mcp-tasks-for-server-authors, read 2026-11-26). Its rule that a failed task carries error.message cannot be reached from a command: a failed CommandResult is a completed task with isError, and failed is kept for internal errors, so each language's task unit tests cover it.",
 	"tests": [
 		{
 			"name": "afd-detail reports task: optional on todo-create-batch",
@@ -76,6 +76,88 @@
 				"data.succeeded.1.title": "Inline batch two"
 			},
 			"then": { "command": "todo-list", "input": {}, "expect": { "data.total": 2 } }
+		},
+		{
+			"name": "Claude Code: the task answer carries every field its client requires",
+			"description": "Claude Code's task client needs resultType \"task\", a taskId of at most 128 printable ASCII characters with no spaces, a status, createdAt, lastUpdatedAt and ttlMs (the tasks extension) and pollIntervalMs, which it clamps to 250-30000",
+			"client": "tasks",
+			"implementedBy": ["typescript", "rust", "python"],
+			"setup": [],
+			"command": "todo-create-batch",
+			"input": { "todos": [{ "title": "Claude Code task" }] },
+			"expect": {
+				"success": true,
+				"data.summary.successCount": 1,
+				"$task.answer.resultType": "task",
+				"$task.answer.taskId": { "matches": "^[\\x21-\\x7E]{1,128}$" },
+				"$task.answer.status": "working",
+				"$task.answer.createdAt": { "type": "string" },
+				"$task.answer.lastUpdatedAt": { "type": "string" },
+				"$task.answer.ttlMs": { "type": "number" },
+				"$task.answer.pollIntervalMs": { "type": "number" }
+			}
+		},
+		{
+			"name": "Claude Code: tasks/get answers carry every field its client requires",
+			"description": "Claude Code polls tasks/get and needs resultType \"complete\", taskId, status, createdAt, lastUpdatedAt and ttlMs in each answer, and reads the outcome from the completed task's result",
+			"client": "tasks",
+			"implementedBy": ["typescript", "rust", "python"],
+			"setup": [],
+			"command": "todo-create-batch",
+			"input": { "todos": [{ "title": "Claude Code poll" }] },
+			"expect": {
+				"success": true,
+				"$task.get.resultType": "complete",
+				"$task.get.taskId": { "matches": "^[\\x21-\\x7E]{1,128}$" },
+				"$task.get.status": "completed",
+				"$task.get.createdAt": { "type": "string" },
+				"$task.get.lastUpdatedAt": { "type": "string" },
+				"$task.get.ttlMs": { "type": "number" },
+				"$task.get.result": { "exists": true }
+			}
+		},
+		{
+			"name": "Claude Code: the task answer does not wait for the work, and a working poll carries every field",
+			"description": "Claude Code expects the task answer at once and the work after it (over HTTP, within its per-request timer). A task that sleeps 3000 ms answers while it is still working, well inside the sleep (the runner times the answer with a monotonic clock over stdio), and Claude Code's first tasks/get, while it still works, carries resultType \"complete\", taskId, status, createdAt, lastUpdatedAt and ttlMs. The answer arriving before the sleep ends shows the server did not wait for the work; it cannot show the handler had not yet started",
+			"client": "tasks",
+			"implementedBy": ["typescript", "rust", "python"],
+			"setup": [],
+			"command": "todo-slow-task",
+			"input": { "delayMs": 3000 },
+			"expect": {
+				"success": true,
+				"data.delayedMs": 3000,
+				"$task.answer.status": "working",
+				"$task.answeredMs": { "lessThan": 2500 },
+				"$task.firstGet.resultType": "complete",
+				"$task.firstGet.taskId": { "matches": "^[\\x21-\\x7E]{1,128}$" },
+				"$task.firstGet.status": "working",
+				"$task.firstGet.createdAt": { "type": "string" },
+				"$task.firstGet.lastUpdatedAt": { "type": "string" },
+				"$task.firstGet.ttlMs": { "type": "number" },
+				"$task.get.status": "completed"
+			}
+		},
+		{
+			"name": "Claude Code: a failed task carries error.message",
+			"description": "Claude Code tells the model a failed task's error.message. AFD fails a task only for an internal error: here a result JSON cannot hold (a BigInt in TypeScript, a cycle in Python). Rust's results are always JSON, so its failed shape is unit-tested in packages/rust/tests/server_tasks.rs",
+			"client": "tasks",
+			"implementedBy": ["typescript", "python"],
+			"setup": [],
+			"command": "todo-unserializable-task",
+			"input": {},
+			"expect": {
+				"$task.answer.resultType": "task",
+				"$task.get.resultType": "complete",
+				"$task.get.taskId": { "matches": "^[\\x21-\\x7E]{1,128}$" },
+				"$task.get.status": "failed",
+				"$task.get.createdAt": { "type": "string" },
+				"$task.get.lastUpdatedAt": { "type": "string" },
+				"$task.get.ttlMs": { "type": "number" },
+				"$task.get.error.code": -32603,
+				"$task.get.error.message": { "type": "string" },
+				"$task.get.result": { "exists": false }
+			}
 		}
 	]
 }

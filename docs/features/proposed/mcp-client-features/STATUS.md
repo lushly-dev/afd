@@ -39,7 +39,7 @@ GitHub labels stay on the linked issues; the table below records each issue's st
 | [#2498](https://github.com/lushly-dev/afd/issues/2498) | Plan, proposal, this `STATUS.md` and feature index row | Done ([#2549](https://github.com/lushly-dev/afd/pull/2549)) | Adds `docs/features/proposed/mcp-client-features/` and index row in `docs/features/README.md`; no code changes |
 | [#2499](https://github.com/lushly-dev/afd/issues/2499) | Botcore managed host (`create_host_mcp_server`) on `afd.create_server` with old tool names as aliases | Done ([#2580](https://github.com/lushly-dev/afd/pull/2580)) | Moved `create_host_mcp_server` onto `afd.server.create_server` with `create_host_policy_middleware`, `command_tools` -> `"lazy"`/`"individual"`, `{name}-start`/`-call`/`-docs` compatibility aliases, `raw_python=True` preserved, `host_http.py` unchanged |
 | [#2500](https://github.com/lushly-dev/afd/issues/2500) | Task retention: keep finished result one hour after completion (TS, Python, Rust, `spec/`) | Done ([#2575](https://github.com/lushly-dev/afd/pull/2575)) | Separated 1 h `maxRunMs` run budget from 1 h `ttlMs` post-completion retention across TS, Python, Rust, Umbel `SqliteTasks`, `spec/command-metadata.md`, and todo tasks conformance |
-| [#2501](https://github.com/lushly-dev/afd/issues/2501) | Check AFD and Umbel tasks against Claude Code's task client requirements + live run | Planned | Add conformance cases in `task-cases.json` for TS, Python and Rust; record one live Claude Code (>= 2.1.304) run under [Measurements and live checks](#measurements-and-live-checks) |
+| [#2501](https://github.com/lushly-dev/afd/issues/2501) | Check AFD and Umbel tasks against Claude Code's task client requirements + live run | Done ([#2635](https://github.com/lushly-dev/afd/pull/2635)) | Four Claude Code cases in `packages/examples/todo/spec/task-cases.json`: the task answer's fields and `taskId` format, the settled `tasks/get` answer, a working poll and an answer that does not wait for the work, and a `failed` task's `error.message` (TypeScript and Python; Rust's results are always JSON, so `server_tasks.rs` covers it). They pass on `ts` and `py` (13/13) and `rs` (12/12), 2026-11-26, `--suite tasks --mode modern`. The runner reads `tasks/get` off the wire, since the SDK client drops `resultType`. The failed case found a TypeScript bug: an unserializable result crashed a stdio server; fixed in `tasks-runtime.ts`. Umbel's task answers come from `packages/rust`, covered by `rs`; Umbel itself is not in the tasks suite. Live run below |
 | [#2502](https://github.com/lushly-dev/afd/issues/2502) | Warn without refusing when a skill catalog exceeds Claude Code's limits | Planned (approach first) | Propose approach first: `SkillCatalog` vs `afd validate --surface`, host configurability |
 | [#2503](https://github.com/lushly-dev/afd/issues/2503) | Measure meta-tools vs per-command tools and hybrid strategy under Claude's tool search | Planned (approach first) | Measure on todo example and an Umbel instance; record results and default recommendation under [Measurements and live checks](#measurements-and-live-checks) |
 | [#2504](https://github.com/lushly-dev/afd/issues/2504) | Botcore serves registered skill folders over `io.modelcontextprotocol/skills` (keeping `skill-seed`) | Deferred (blocked) | Blocked by `#2499`: requires Botcore's managed host on `afd.create_server` |
@@ -63,8 +63,19 @@ Full details and codebase comparison are in the
 
 ## Measurements and live checks
 
-- **Live Claude Code task run (`#2501`):** not run yet. Record Claude Code version (>= 2.1.304),
-  date, target server (todo or Umbel) and outcome here when `#2501` runs.
+- **Live Claude Code task run (`#2501`), 2026-11-26:** Claude Code 2.1.332, local, Sonnet 5.5,
+  against the TypeScript todo server over stdio (`TASK_CONFORMANCE=1`), every message logged by a
+  stdio proxy.
+  - A one-shot `claude -p` declared no tasks (`clientCapabilities` of `roots` and `elicitation`
+    only), so `afd-call` of `todo-slow-task` ran inline, as it must for such a client.
+  - `claude -p --input-format stream-json` with `CLAUDE_AUTO_BACKGROUND_TASKS=1` and its input kept
+    open declared `io.modelcontextprotocol/tasks` on `server/discover` and every call. `afd-call` of
+    `todo-slow-task` (`delayMs: 3000`) answered at once with `resultType: "task"`, a 26-character
+    `taskId`, `status: "working"`, `ttlMs: 7200000` and `pollIntervalMs: 1000`. Claude Code polled
+    `tasks/get` 60 ms later, then once a second (the server's `pollIntervalMs`), each answer
+    carrying `resultType: "complete"`, until `completed` with `ttlMs: 3603012`. The model received
+    `{"success":true,"data":{"delayedMs":3000}}` as the tool's result.
+
 - **Tool-search strategy benchmark (`#2503`):** not run yet. Record client version, date, token and
   call measurements for meta-tools, per-command tools and hybrid, and the default recommendation
   here when `#2503` runs.
@@ -87,3 +98,4 @@ Full details and codebase comparison are in the
 | 2026-11-24 | `#2498` planning session | Added `docs/features/proposed/mcp-client-features/` (`mcp-client-features.proposal.md`, `STATUS.md`) and indexed the feature in `docs/features/README.md` |
 | 2026-11-25 | `#2499` Botcore host on AFD MCP | Rebuilt `create_host_mcp_server` on `afd.server.create_server` with `create_host_policy_middleware`, `"lazy"`/`"individual"` strategy mapping, `{name}-start`/`-call`/`-docs` compatibility aliases, and `2026-07-28` `server/discover` coverage; verified with `pnpm verify` (`ci.yml`, `alfred.yml`, `botcore.yml`, `botcore-factory.yml`, `health.yml`, `health-dashboard.yml`) |
 | 2026-11-25 | `#2500` task retention | Separated 1 h execution run budget (`maxRunMs`) from 1 h post-completion retention (`ttlMs`) in `spec/command-metadata.md`, TypeScript, Python, Rust, Umbel `SqliteTasks`, and todo conformance; verified with TS/Python/Rust/Umbel task suites, `tasks` conformance (`ts`, `py`, `rs`), and `pnpm verify` |
+| 2026-11-26 | `#2501` Claude Code task client | Added four Claude Code cases to the todo tasks suite (`$task` wire view, `todo-unserializable-task`, and `matches`/`type`/`lessThan` matchers in `dx/conformance.ts`), passing on `ts`, `py` and `rs`; fixed TypeScript tasks whose result cannot be serialized; recorded a live Claude Code 2.1.332 task run end to end |
