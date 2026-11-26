@@ -1464,3 +1464,64 @@ async fn a_stdio_mount_refuses_source_cwd_or_command_under_state() {
         assert_eq!(code(&refused), "PLUGIN_UNAVAILABLE");
     }
 }
+
+/// A fixture another process still holds open for writing, as a child forked while the fixture
+/// was being copied holds it until its own `exec`: Linux refuses to start it (`ETXTBSY`). The
+/// loader starts it again with a backoff: one whose writer never lets go fails only after the
+/// backoff (10 + 20 + 40 + 80 + 160 ms), and one whose writer lets go after 50 ms starts (#2655).
+#[cfg(target_os = "linux")]
+#[test]
+fn a_stdio_mount_busy_for_a_moment_starts_once_its_writer_lets_go() {
+    let busy = |dir: &TempDir| {
+        let binary = dir.path().join("plugins/fx/bin/fixture");
+        // A copy of its own (not a hard link to the built fixture, which other tests start).
+        std::fs::remove_file(&binary).unwrap();
+        std::fs::copy(mounted::fixture_bin(), &binary).unwrap();
+        let writer = std::fs::OpenOptions::new()
+            .write(true)
+            .open(&binary)
+            .unwrap();
+        match std::process::Command::new(&binary).spawn() {
+            // A kernel that lets a file open for writing be started has no race to test.
+            Ok(mut child) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                None
+            }
+            Err(refused) => {
+                assert_eq!(
+                    refused.kind(),
+                    std::io::ErrorKind::ExecutableFileBusy,
+                    "the fixture is busy while it is open for writing: {refused}"
+                );
+                Some(writer)
+            }
+        }
+    };
+
+    let held = fx_stdio("", "", "");
+    let Some(writer) = busy(&held) else {
+        eprintln!("skipped: this kernel starts a file that is open for writing");
+        return;
+    };
+    let started = Instant::now();
+    let error = error_of(open(held.path()));
+    let waited = started.elapsed();
+    drop(writer);
+    assert_eq!(error.code(), "PLUGIN_LOAD_FAILED", "{error}");
+    assert!(error.message().contains("busy"), "{error}");
+    assert!(
+        waited >= Duration::from_millis(300),
+        "the loader retried through its backoff before failing: {waited:?}"
+    );
+
+    let dir = fx_stdio("", "", "");
+    let writer = busy(&dir).unwrap();
+    let release = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(50));
+        drop(writer);
+    });
+    let host = open(dir.path());
+    release.join().unwrap();
+    assert!(host.is_ok(), "{:?}", host.err());
+}

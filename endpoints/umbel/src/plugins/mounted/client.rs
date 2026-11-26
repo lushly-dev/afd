@@ -458,8 +458,9 @@ async fn handshake(
     let info = client_info(handshake);
     let (served, watch) = match &spec.endpoint {
         Endpoint::Stdio(stdio) => {
-            let (transport, watch) =
-                spawn(spec, stdio, &limit, deadline).map_err(Failure::Other)?;
+            let (transport, watch) = spawn(spec, stdio, &limit, deadline)
+                .await
+                .map_err(Failure::Other)?;
             (
                 info.serve_with_lifecycle(transport, lifecycle).await,
                 Some(watch),
@@ -661,33 +662,67 @@ fn append_diagnostics(message: String, detail: Option<String>) -> String {
     }
 }
 
+/// How many times [`start_child`] starts a child that the OS refused as busy.
+const TEXT_BUSY_ATTEMPTS: u32 = 6;
+
+/// Resolve the launch (D205's checks) and start the child, again with a short backoff (10 ms
+/// doubling, within `deadline`) while the OS refuses it with `ETXTBSY`. Linux refuses to `exec` a
+/// file that any process holds open for writing, and a file just written by this process stays
+/// open in every child another thread forked before that child's own `exec` closes it, so a
+/// mount installed and started by a multithreaded host can be refused for a moment through no
+/// fault of its own (#2655). Each attempt resolves and checks the launch afresh, so a path that
+/// changed during the wait is checked before it is started, and none starts past `deadline`.
+async fn start_child(stdio: &StdioSpec, deadline: Instant) -> Result<Child, String> {
+    let mut wait = Duration::from_millis(10);
+    let mut attempt = 1;
+    loop {
+        let launch = super::resolve_stdio_launch(stdio).map_err(|err| err.into_message())?;
+        let mut command = Command::new(&launch.program);
+        command
+            .args(&stdio.args)
+            .current_dir(&launch.cwd)
+            .env_clear()
+            .envs(stdio.env.iter().map(|(name, value)| (name, value)))
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .kill_on_drop(true);
+        umbel_process::close_extra_fds(command.as_std_mut());
+        let refused = |error: io::Error| {
+            format!(
+                "cannot start `{}`: {error}",
+                launch.program.to_string_lossy()
+            )
+        };
+        match command.spawn() {
+            Ok(child) => return Ok(child),
+            Err(error)
+                if error.kind() == io::ErrorKind::ExecutableFileBusy
+                    && attempt < TEXT_BUSY_ATTEMPTS
+                    && Instant::now() + wait < deadline =>
+            {
+                tokio::time::sleep(wait).await;
+                if Instant::now() >= deadline {
+                    return Err(refused(error));
+                }
+                wait *= 2;
+                attempt += 1;
+            }
+            Err(error) => return Err(refused(error)),
+        }
+    }
+}
+
 /// Start the child: environment cleared to `PATH` (plus `SystemRoot` on Windows) and the
 /// configured variables, `kill_on_drop`, stdin and stdout for JSON-RPC, stderr forwarded line by
 /// line to the host log and tailed for startup diagnostics.
-fn spawn(
+async fn spawn(
     spec: &MountSpec,
     stdio: &StdioSpec,
     limit: &Arc<Limit>,
     deadline: Instant,
 ) -> Result<(ChildTransport, ChildWatch), String> {
-    let launch = super::resolve_stdio_launch(stdio).map_err(|err| err.into_message())?;
-    let mut command = Command::new(&launch.program);
-    command
-        .args(&stdio.args)
-        .current_dir(&launch.cwd)
-        .env_clear()
-        .envs(stdio.env.iter().map(|(name, value)| (name, value)))
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true);
-    umbel_process::close_extra_fds(command.as_std_mut());
-    let mut child = command.spawn().map_err(|error| {
-        format!(
-            "cannot start `{}`: {error}",
-            launch.program.to_string_lossy()
-        )
-    })?;
+    let mut child = start_child(stdio, deadline).await?;
     let (Some(stdin), Some(stdout), Some(stderr)) =
         (child.stdin.take(), child.stdout.take(), child.stderr.take())
     else {

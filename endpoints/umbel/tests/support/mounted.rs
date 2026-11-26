@@ -48,6 +48,12 @@ pub fn hello_crate() -> PathBuf {
 }
 
 /// Hard-link `from` to `to` (a copy where the filesystems differ).
+///
+/// A copy is open for writing while it is made, and a child another test thread forks meanwhile
+/// holds that descriptor until its own `exec`, so on Linux starting the copy can fail for a
+/// moment with `ETXTBSY`. The mounted loader starts it again in that case (#2655); a helper that
+/// writes a binary and starts it itself would need the same. `copy_tree` copies only packs and
+/// skills, and the `state/bin` binaries in `plugin_mounted.rs` are refused before any start.
 pub fn link_or_copy(from: &Path, to: &Path) {
     std::fs::create_dir_all(to.parent().unwrap()).unwrap();
     if std::fs::hard_link(from, to).is_err() {
