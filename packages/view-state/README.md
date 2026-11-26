@@ -14,10 +14,12 @@ UI state (panels, sidebars, selections, tool modes) typically lives outside the 
 ## Installation
 
 ```bash
-npm install @lushly-dev/afd-view-state
+npm install @lushly-dev/afd-view-state zod
 # or
-pnpm add @lushly-dev/afd-view-state
+pnpm add @lushly-dev/afd-view-state zod
 ```
+
+`zod` (`^4.6.6`) is a peer dependency, shared with `@lushly-dev/afd-server`.
 
 ## Quick start
 

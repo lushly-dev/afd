@@ -4,12 +4,12 @@
 
 import type { ZodType, z } from 'zod';
 import {
-	$ZodDefault,
+	type $ZodDefault,
 	type $ZodIssue,
-	$ZodNullable,
-	$ZodObject,
-	$ZodOptional,
-	$ZodPipe,
+	type $ZodNullable,
+	type $ZodObject,
+	type $ZodOptional,
+	type $ZodPipe,
 	type $ZodType,
 	safeParse,
 } from 'zod/v4/core';
@@ -214,25 +214,32 @@ function extractSchemaInfo(schema: $ZodType, input: unknown): SchemaInfo {
 	return { expectedFields, unexpectedFields, missingFields };
 }
 
-// Read through `_zod.def` and core's classes: a Zod Mini schema has no `.shape` or `.unwrap()`, and
-// a classic one has the same def.
+// Read the structural marker `_zod.def.type`, not `instanceof` against this package's classes: a
+// schema may come from the application's own copy of Zod (#1748), whose classes match ours only
+// through Zod's trait-name `Symbol.hasInstance`. A Zod Mini schema has no `.shape` or `.unwrap()`,
+// and a classic one has the same def.
 function getSchemaShape(schema: $ZodType): Readonly<Record<string, $ZodType>> | null {
-	if (schema instanceof $ZodObject) return schema._zod.def.shape;
-	if (schema instanceof $ZodPipe) return getSchemaShape(schema._zod.def.in);
-	if (
-		schema instanceof $ZodOptional ||
-		schema instanceof $ZodNullable ||
-		schema instanceof $ZodDefault
-	) {
-		return getSchemaShape(schema._zod.def.innerType);
+	const def = schema._zod.def;
+	switch (def.type) {
+		case 'object':
+			return (def as $ZodObject['_zod']['def']).shape;
+		case 'pipe':
+			return getSchemaShape((def as $ZodPipe['_zod']['def']).in);
+		case 'optional':
+		case 'nullable':
+		case 'default':
+			return getSchemaShape(
+				(def as ($ZodOptional | $ZodNullable | $ZodDefault)['_zod']['def']).innerType
+			);
+		default:
+			return null;
 	}
-	return null;
 }
 
 function isRequiredField(schema: $ZodType): boolean {
-	if (schema instanceof $ZodOptional) return false;
-	if (schema instanceof $ZodDefault) return false;
-	if (schema instanceof $ZodPipe) return isRequiredField(schema._zod.def.in);
+	const def = schema._zod.def;
+	if (def.type === 'optional' || def.type === 'default') return false;
+	if (def.type === 'pipe') return isRequiredField((def as $ZodPipe['_zod']['def']).in);
 	return true;
 }
 

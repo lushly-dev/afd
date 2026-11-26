@@ -5,10 +5,12 @@ Testing utilities for Agent-First Development.
 ## Installation
 
 ```bash
-npm install @lushly-dev/afd-testing --save-dev
+npm install @lushly-dev/afd-testing zod --save-dev
 # or
-pnpm add @lushly-dev/afd-testing -D
+pnpm add @lushly-dev/afd-testing zod -D
 ```
+
+`zod` (`^4.6.6`) is a peer dependency, shared with `@lushly-dev/afd-server`; an application that already depends on it needs no second install.
 
 ## Overview
 

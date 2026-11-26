@@ -58,11 +58,11 @@
 	},
 	"sideEffects": false,
 	"dependencies": {
-		"@lushly-dev/afd-server": "workspace:*",
-		"zod": "^4.6.6"
+		"@lushly-dev/afd-server": "workspace:*"
 	},
 	"peerDependencies": {
-		"@lushly-dev/local-db": "workspace:^"
+		"@lushly-dev/local-db": "workspace:^",
+		"zod": "^4.6.6"
 	},
 	"peerDependenciesMeta": {
 		"@lushly-dev/local-db": {
@@ -76,7 +76,8 @@
 		"@vitest/coverage-v8": "^5.1.1",
 		"rimraf": "^6.1.4",
 		"typescript": "^7.0.2",
-		"vitest": "^5.1.1"
+		"vitest": "^5.1.1",
+		"zod": "^4.6.6"
 	},
 	"publishConfig": {
 		"access": "public"

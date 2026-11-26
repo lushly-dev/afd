@@ -7,7 +7,7 @@
 
 import type { JsonSchema } from '@lushly-dev/afd-core';
 import type { ZodObject, ZodRawShape, ZodType } from 'zod';
-import { $ZodObject, type $ZodType } from 'zod/v4/core';
+import type { $ZodType } from 'zod/v4/core';
 import {
 	defineCommandWithSchema,
 	type ZodCommandDefinition,
@@ -73,8 +73,9 @@ export function getRequiredFields(schema: $ZodType): string[] {
 }
 
 /**
- * Check if a Zod schema represents an object type.
+ * Check if a Zod schema represents an object type. Reads `_zod.def.type`, so a schema from the
+ * application's own copy of Zod answers too.
  */
 export function isObjectSchema(schema: ZodType): schema is ZodObject<ZodRawShape> {
-	return schema instanceof $ZodObject;
+	return (schema as Partial<ZodType> | undefined)?._zod?.def?.type === 'object';
 }

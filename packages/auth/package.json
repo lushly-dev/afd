@@ -47,7 +47,7 @@
 		"@lushly-dev/afd-server": "workspace:^",
 		"better-auth": "^1.7.18",
 		"react": "^18.0.0 || ^19.0.0",
-		"zod": "^4.0.0"
+		"zod": "^4.6.6"
 	},
 	"peerDependenciesMeta": {
 		"@lushly-dev/afd-server": {
