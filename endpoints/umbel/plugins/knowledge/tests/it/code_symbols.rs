@@ -324,6 +324,7 @@ fn a_parse_cancelled_by_its_time_bound_is_plain_text() {
 fn a_query_cancelled_by_its_time_bound_is_plain_text() {
     let text = "fn a() {}\n".repeat(50_000);
     let budget = Budget {
+        parse: Duration::from_secs(120),
         query: Duration::ZERO,
         ..Budget::default()
     };
