@@ -175,7 +175,12 @@ export interface DocumentCheck {
 	 * A record written with its workspace, actor and time, or refused (architecture section 7), in one batch
 	 * with `with`, what must land with it or not at all: a new document's content, a moved one's row.
 	 */
-	put(record: DocumentRecordV1, with_?: BatchOperation[], traceId?: string): Promise<void>;
+	put(
+		record: DocumentRecordV1,
+		with_?: BatchOperation[],
+		traceId?: string,
+		stamp?: boolean
+	): Promise<void>;
 	/** Tell the journal's order that `context` is reading or writing document (or app content) records (#2117). */
 	order(
 		context: CommandContext,
@@ -289,8 +294,12 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 	): Promise<DocumentRecordV1 | CommandResult<never>> {
 		const call = context as CommandContext & KernelFieldContext;
 		const here = call.scope as ScopeV1;
-		if (typeof document === 'string' && document !== '')
+		if (typeof document === 'string' && document !== '') {
 			deps.recordOrder?.(call.traceId, `doc:${document}`)?.read();
+			// A type's instance command reads none of what a stamp changes, the time and the person: only a call that may
+			// answer with the record does (#2705).
+			if (!typeOfCommand(name)) deps.recordOrder?.(call.traceId, `doc-stamp:${document}`)?.read();
+		}
 		const record =
 			typeof document === 'string' && document !== ''
 				? await store.get<DocumentRecordV1>(DOCUMENT_TABLE, document)
@@ -342,10 +351,12 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 	async function put(
 		record: DocumentRecordV1,
 		with_: BatchOperation[] = [],
-		traceId?: string
+		traceId?: string,
+		stamp = false
 	): Promise<void> {
 		checkStamped(DOCUMENT_TABLE, record);
-		deps.recordOrder?.(traceId, `doc:${record.id}`)?.wrote();
+		if (!stamp) deps.recordOrder?.(traceId, `doc:${record.id}`)?.wrote();
+		deps.recordOrder?.(traceId, `doc-stamp:${record.id}`)?.wrote();
 		deps.recordOrder?.(traceId, 'record:document')?.wrote();
 		const { summary } = await store.batch([
 			...with_,
@@ -408,7 +419,8 @@ export function createDocumentCheck(deps: DocumentCheckDeps): DocumentCheck {
 			await put(
 				{ ...record, updatedAt: callNow(call), updatedBy: personOf(call) },
 				[],
-				call.traceId
+				call.traceId,
+				true
 			);
 			scope.note(call.traceId, { document: record.id });
 		},

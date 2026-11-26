@@ -853,7 +853,10 @@ export function createDocumentCommands(
 			const expire = (links: BatchOperation[]) => {
 				if (expired.length > 0) {
 					check.order(context)?.wrote();
-					for (const record of expired) check.order(context, `doc:${record.id}`)?.wrote();
+					for (const record of expired) {
+						check.order(context, `doc:${record.id}`)?.wrote();
+						check.order(context, `doc-stamp:${record.id}`)?.wrote();
+					}
 					if (links.length > 0) check.order(context, 'record:document-link')?.wrote();
 					for (const instance of new Set(expired.map((record) => record.instance)))
 						check.order(context, `app:${instance}`)?.wrote();
