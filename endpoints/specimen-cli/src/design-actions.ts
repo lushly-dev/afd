@@ -1,4 +1,4 @@
-/** CLI dispatch helpers for Agent-First Design commands (`design-states`, `panel-walk`, `design-card-list`, `design-release`). */
+/** CLI dispatch helpers for Agent-First Design & copied-pattern commands. */
 import type { CommandResult } from '@lushly-dev/afd-core';
 import { executeSpecimenCommand, type SpecimenCommandBench } from '@lushly-dev/specimen-afd';
 
@@ -12,6 +12,92 @@ export interface DesignParsedArguments {
 export type CliConfirmResult =
 	| { humanConfirmed: true; channel: 'cli'; confirmedBy?: string }
 	| undefined;
+
+export const DESIGN_ALLOWED_OPTIONS: Record<string, Set<string>> = {
+	'design-states': new Set([
+		'root',
+		'config',
+		'output',
+		'commands',
+		'scenario',
+		'consumer',
+		'include-proposed',
+		'limit',
+		'after',
+	]),
+	'panel-walk': new Set([
+		'root',
+		'config',
+		'output',
+		'job',
+		'persona',
+		'modality',
+		'target',
+		'app-date',
+		'max-actions',
+		'baseline-walk',
+		'requested-tools',
+	]),
+	'design-card-list': new Set([
+		'root',
+		'config',
+		'output',
+		'card',
+		'status',
+		'severity',
+		'scope',
+		'include-provisional',
+		'include-decided',
+		'limit',
+		'after',
+	]),
+	'design-release': new Set([
+		'root',
+		'config',
+		'output',
+		'release',
+		'decisions',
+		'scope',
+		'released-at',
+	]),
+	'pattern-fork': new Set(['root', 'config', 'output', 'source', 'target', 'bind']),
+	'pattern-compare': new Set([
+		'root',
+		'config',
+		'output',
+		'pattern',
+		'upstream-version',
+		'all-statements',
+	]),
+	'pattern-merge': new Set([
+		'root',
+		'config',
+		'output',
+		'pattern',
+		'upstream-version',
+		'accept',
+		'decline',
+		'waivers',
+		'resolutions',
+	]),
+};
+
+export function isDesignCliAction(action: string): boolean {
+	return Object.hasOwn(DESIGN_ALLOWED_OPTIONS, action);
+}
+
+function parseJsonArrayOption<T>(raw: string, flagName: string): T[] {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(raw);
+	} catch {
+		throw new Error(`--${flagName} expects a valid JSON array`);
+	}
+	if (!Array.isArray(parsed)) {
+		throw new Error(`--${flagName} expects a JSON array`);
+	}
+	return parsed as T[];
+}
 
 export async function runDesignCliAction(
 	bench: SpecimenCommandBench,
@@ -118,6 +204,64 @@ export async function runDesignCliAction(
 			},
 			releaseConfirmation
 		);
+	}
+	if (parsed.action === 'pattern-fork') {
+		return executeSpecimenCommand(bench, 'specimen-pattern-fork', {
+			source: parsed.options.get('source') ?? parsed.positionals[0],
+			...(parsed.options.has('target')
+				? { target: parsed.options.get('target') }
+				: parsed.positionals[1]
+					? { target: parsed.positionals[1] }
+					: {}),
+			...(parsed.flags.has('bind') ? { bind: true } : {}),
+		});
+	}
+	if (parsed.action === 'pattern-compare') {
+		const pattern = parsed.options.get('pattern') ?? parsed.positionals[0];
+		return executeSpecimenCommand(bench, 'specimen-pattern-compare', {
+			...(pattern !== undefined ? { pattern } : {}),
+			...(parsed.options.has('upstream-version')
+				? { upstreamVersion: parsed.options.get('upstream-version') }
+				: {}),
+			...(parsed.flags.has('all-statements') ? { onlyChanged: false } : {}),
+		});
+	}
+	if (parsed.action === 'pattern-merge') {
+		const pattern = parsed.options.get('pattern') ?? parsed.positionals[0];
+		const accept = parsed.options.has('accept')
+			? (parsed.options.get('accept') ?? '')
+					.split(',')
+					.map((s) => s.trim())
+					.filter(Boolean)
+			: undefined;
+		const decline = parsed.options.has('decline')
+			? (parsed.options.get('decline') ?? '')
+					.split(',')
+					.map((s) => s.trim())
+					.filter(Boolean)
+			: undefined;
+		const waivers = parsed.options.has('waivers')
+			? parseJsonArrayOption<{ id: string; reason: string }>(
+					parsed.options.get('waivers') ?? '',
+					'waivers'
+				)
+			: undefined;
+		const resolutions = parsed.options.has('resolutions')
+			? parseJsonArrayOption<{ id: string; text: string; gate?: string; setup?: string }>(
+					parsed.options.get('resolutions') ?? '',
+					'resolutions'
+				)
+			: undefined;
+		return executeSpecimenCommand(bench, 'specimen-pattern-merge', {
+			pattern,
+			...(parsed.options.has('upstream-version')
+				? { upstreamVersion: parsed.options.get('upstream-version') }
+				: {}),
+			...(accept !== undefined ? { accept } : {}),
+			...(decline !== undefined ? { decline } : {}),
+			...(waivers !== undefined ? { waivers } : {}),
+			...(resolutions !== undefined ? { resolutions } : {}),
+		});
 	}
 	return undefined;
 }

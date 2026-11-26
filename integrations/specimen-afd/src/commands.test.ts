@@ -582,6 +582,52 @@ function bench(): SpecimenCommandBench {
 			nextSteps: [],
 			unmeasured: [],
 		})),
+		patternFork: vi.fn(async (request) => ({
+			pattern: request.target ?? request.source.split('/')[1] ?? 'error-recovery',
+			path: `specimens/patterns/${request.target ?? 'error-recovery'}/pattern.json`,
+			approvalStatus: 'proposed' as const,
+			derivedFrom: {
+				library: request.source.split('/')[0] ?? 'afd-defaults',
+				pattern: request.source.split('/')[1] ?? 'error-recovery',
+				version: '1.0.0',
+				revision: `sha256:${'a'.repeat(64)}`,
+				statements: { 'error-recovery.keep.next': `sha256:${'b'.repeat(64)}` },
+			},
+			bindingStatus: request.bind ? ('pending-approval' as const) : ('unbound' as const),
+			card: 'card-f0rk00000001',
+			nextSteps: ['Approve via decision-record.'],
+		})),
+		patternCompare: vi.fn(async (request) =>
+			request?.pattern
+				? {
+						pattern: request.pattern,
+						source: {
+							library: 'afd-defaults',
+							pattern: request.pattern,
+							baseVersion: '1.0.0',
+							currentVersion: '1.1.0',
+						},
+						statements: [],
+						waivers: [],
+						nextSteps: ['Run specimen-pattern-merge.'],
+						unmeasured: [],
+					}
+				: {
+						patterns: [],
+						nextSteps: ['All copied patterns up to date.'],
+						unmeasured: [],
+					}
+		),
+		patternMerge: vi.fn(async (request) => ({
+			pattern: request.pattern,
+			card: 'card-m3rg00000001',
+			upstreamVersion: request.upstreamVersion ?? '1.1.0',
+			upstreamDigests: { 'error-recovery.keep.next': `sha256:${'c'.repeat(64)}` },
+			accepted: request.accept ?? [],
+			declined: request.decline ?? [],
+			stagedStatus: 'proposed' as const,
+			nextSteps: ['Approve via decision-record.'],
+		})),
 		review: vi.fn(async () => ({
 			before: { set: 'set-4f1c0a9e2b7d', revision: 'a1b2c3d', dirty: false },
 			after: { set: 'set-7e2a90c4d311', revision: 'e4f5a6b', dirty: false },
@@ -719,6 +765,9 @@ describe('specimen commands', () => {
 			'panel-walk',
 			'design-card-list',
 			'design-release',
+			'specimen-pattern-fork',
+			'specimen-pattern-compare',
+			'specimen-pattern-merge',
 		]);
 		for (const command of commands) {
 			expect(command.expose).toEqual({ mcp: true, cli: true });
@@ -3100,5 +3149,57 @@ describe('specimen commands', () => {
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
+	});
+
+	it('exposes Phase B2 copied-pattern commands with outputBudgets and validates inputs', async () => {
+		const instance = bench();
+		const commands = createSpecimenCommands(instance);
+		const byName = (name: string) => commands.find((c) => c.name === name);
+
+		expect(byName('specimen-pattern-fork')).toMatchObject({
+			mutation: true,
+			outputBudget: { defaultBytes: 16384, maxBytes: 49152 },
+		});
+		expect(byName('specimen-pattern-compare')).toMatchObject({
+			mutation: false,
+			outputBudget: { defaultBytes: 32768, maxBytes: 98304 },
+		});
+		expect(byName('specimen-pattern-merge')).toMatchObject({
+			mutation: true,
+			outputBudget: { defaultBytes: 16384, maxBytes: 49152 },
+		});
+
+		const forked = await executeSpecimenCommand(instance, 'specimen-pattern-fork', {
+			source: 'afd-defaults/error-recovery',
+			target: 'error-recovery',
+			bind: true,
+		});
+		expect(forked.success).toBe(true);
+		expect(forked.data).toMatchObject({
+			pattern: 'error-recovery',
+			approvalStatus: 'proposed',
+			bindingStatus: 'pending-approval',
+		});
+
+		const compared = await executeSpecimenCommand(instance, 'specimen-pattern-compare', {
+			pattern: 'error-recovery',
+		});
+		expect(compared.success).toBe(true);
+
+		const badMerge = await executeSpecimenCommand(instance, 'specimen-pattern-merge', {
+			pattern: 'error-recovery',
+		});
+		expect(badMerge.success).toBe(false);
+		expect(badMerge.error?.code).toBe('VALIDATION_ERROR');
+
+		const merged = await executeSpecimenCommand(instance, 'specimen-pattern-merge', {
+			pattern: 'error-recovery',
+			accept: ['error-recovery.keep.next'],
+		});
+		expect(merged.success).toBe(true);
+		expect(merged.data).toMatchObject({
+			stagedStatus: 'proposed',
+			accepted: ['error-recovery.keep.next'],
+		});
 	});
 });

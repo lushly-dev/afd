@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import type { Dirent } from 'node:fs';
+import { type Dirent, existsSync } from 'node:fs';
 import { mkdir, readdir, readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { designCardRecordSchema } from './card-schema.js';
@@ -17,6 +17,9 @@ import {
 import { parseDesignCardListRequest } from './card-validate.js';
 import { compareCodeUnits, typedError } from './decisions-store.js';
 import type { SpecimenHostError } from './host.js';
+import { PACK_PATTERNS } from './pack-atoms.js';
+import { patternFileSchema } from './pattern-schema.js';
+import { DEFAULT_PATTERNS_DIRECTORY } from './patterns.js';
 import { assertRealContained, assertRealFileContained, writeFileAtomic } from './sets.js';
 
 export const CARDS_PAGE_FILE = 'cards.html';
@@ -111,33 +114,189 @@ export async function writeCardRecord(root: string, record: DesignCardRecord): P
 	return cardRelativePath(parsed.data.card);
 }
 
-/** Read and validate one persisted decision card under `specimens/cards/<card>.json`. */
-export async function readCardRecord(root: string, cardId: string): Promise<DesignCardRecord> {
-	const trimmed = cardId.trim();
-	if (!CARD_ID_PATTERN.test(trimmed)) {
-		throw typedError(
-			'CARD_NOT_FOUND',
-			`Decision card not found: ${trimmed}`,
-			'Run design-card-list to see current decision card ids.',
-			{ card: trimmed }
-		);
+/** Short stable hash of a waiver reason so changing the reason opens a fresh review card. */
+export function waiverReasonHash(reason: string): string {
+	return createHash('sha256').update(reason.trim(), 'utf8').digest('hex').slice(0, 12);
+}
+
+/** Deterministic Crockford card id for a hand-authored `waivedKeep` entry lacking a persisted card. */
+export function deterministicKeepWaiverCardId(
+	pattern: string,
+	waiverId: string,
+	reason = '',
+	epoch = ''
+): string {
+	const key = epoch
+		? `keep-waiver:${pattern}:${waiverId}:${reason.trim()}:${epoch}`
+		: reason.trim().length > 0
+			? `keep-waiver:${pattern}:${waiverId}:${reason.trim()}`
+			: `keep-waiver:${pattern}:${waiverId}`;
+	const digest = createHash('sha256').update(key, 'utf8').digest();
+	let suffix = '';
+	for (let i = 0; i < CARD_ID_LENGTH; i++) {
+		suffix += CROCKFORD[(digest[i] ?? 0) & 31];
 	}
-	const filePath = cardFilePath(root, trimmed);
-	let rawText: string;
-	try {
-		await assertRealFileContained(root, filePath, `Card file escapes workspace root: ${trimmed}`);
-		rawText = await readFile(filePath, 'utf8');
-	} catch (error) {
-		if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-			throw typedError(
-				'CARD_NOT_FOUND',
-				`Decision card not found: ${trimmed}`,
-				'Run design-card-list to see current decision card ids.',
-				{ card: trimmed }
-			);
+	return `card-${suffix}`;
+}
+
+function compareCardOrder(a: DesignCardRecord, b: DesignCardRecord): number {
+	const decCmp = compareCodeUnits(a.decision ?? '', b.decision ?? '');
+	if (decCmp !== 0) return decCmp;
+	const timeCmp = compareCodeUnits(a.createdAt ?? '', b.createdAt ?? '');
+	if (timeCmp !== 0) return timeCmp;
+	return compareCodeUnits(a.card, b.card);
+}
+
+function latestApprovedWaiverRemoval(
+	persistedCards: readonly DesignCardRecord[],
+	relPath: string,
+	waiverId: string
+): DesignCardRecord | undefined {
+	let latest: DesignCardRecord | undefined;
+	for (const card of persistedCards) {
+		if (card.status !== 'approved') continue;
+		if (card.patternAction?.kind !== 'merge' || card.patternAction.patternPath !== relPath)
+			continue;
+		const stagedWaivers = Array.isArray(card.patternAction.stagedPattern.waivedKeep)
+			? (card.patternAction.stagedPattern.waivedKeep as Array<{ id?: unknown }>)
+			: [];
+		const stillWaived = stagedWaivers.some((item) => item?.id === waiverId);
+		if (stillWaived) continue;
+		if (!latest || compareCardOrder(card, latest) > 0) {
+			latest = card;
 		}
-		throw error;
 	}
+	return latest;
+}
+
+async function deriveUnpersistedKeepWaiverCards(
+	root: string,
+	persistedCards: readonly DesignCardRecord[]
+): Promise<DesignCardRecord[]> {
+	const patternsDir = join(resolve(root), DEFAULT_PATTERNS_DIRECTORY);
+	if (!existsSync(patternsDir)) return [];
+
+	const activePersistedById = new Map<string, DesignCardRecord>();
+	for (const card of persistedCards) {
+		if (card.status === 'withdrawn') continue;
+		activePersistedById.set(card.card, card);
+	}
+
+	let entries: Dirent[];
+	try {
+		await assertRealContained(root, patternsDir, `Patterns directory escapes root: ${patternsDir}`);
+		entries = await readdir(patternsDir, { withFileTypes: true });
+	} catch {
+		return [];
+	}
+
+	const names = entries
+		.filter((e) => e.isDirectory() && PACK_PATTERNS.pattern.test(e.name))
+		.map((e) => e.name)
+		.sort(compareCodeUnits);
+
+	const virtualCards: DesignCardRecord[] = [];
+	for (const name of names) {
+		const filePath = join(patternsDir, name, 'pattern.json');
+		if (!existsSync(filePath)) continue;
+		let parsed: ReturnType<typeof patternFileSchema.safeParse>;
+		try {
+			await assertRealFileContained(patternsDir, filePath, `Pattern file escapes patterns dir`);
+			const raw = JSON.parse(await readFile(filePath, 'utf8'));
+			parsed = patternFileSchema.safeParse(raw);
+		} catch {
+			continue;
+		}
+		if (!parsed.success || !parsed.data.waivedKeep?.length) continue;
+		const relPath = `${DEFAULT_PATTERNS_DIRECTORY}/${name}/pattern.json`;
+		const sourceRef = parsed.data.derivedFrom
+			? `${parsed.data.derivedFrom.library}/${parsed.data.derivedFrom.pattern}`
+			: name;
+		for (const waiver of parsed.data.waivedKeep) {
+			const reasonHash = waiverReasonHash(waiver.reason);
+			const exactTouch = `${relPath}#${waiver.id}@${reasonHash}`;
+			const latestRemoval = latestApprovedWaiverRemoval(persistedCards, relPath, waiver.id);
+			const epoch = latestRemoval?.card ?? '';
+			const cardId = deterministicKeepWaiverCardId(name, waiver.id, waiver.reason, epoch);
+
+			// Check if an active (non-withdrawn, non-superseded) persisted card already covers this exact waiver content.
+			const matchingPersisted = persistedCards.find((card) => {
+				if (card.status === 'withdrawn') return false;
+				// A rejected merge card never authorizes a hand-authored keep waiver later.
+				if (card.status === 'rejected' && card.patternAction !== undefined) return false;
+				const matchesId = card.card === cardId;
+				const matchesExactTouch =
+					card.why.trigger === 'keep-waiver' && card.touches.includes(exactTouch);
+				if (!matchesId && !matchesExactTouch) return false;
+				// If the waiver was approved earlier, removed in a later approved merge, and then reintroduced,
+				// that earlier approved card no longer covers the reintroduced waiver.
+				if (
+					card.status === 'approved' &&
+					latestRemoval &&
+					compareCardOrder(card, latestRemoval) < 0
+				) {
+					return false;
+				}
+				return true;
+			});
+			if (matchingPersisted || activePersistedById.has(cardId)) continue;
+
+			const changeSignature = createHash('sha256')
+				.update(
+					JSON.stringify({
+						kind: 'keep-waiver',
+						pattern: name,
+						id: waiver.id,
+						reason: waiver.reason.trim(),
+					}),
+					'utf8'
+				)
+				.digest('hex');
+
+			virtualCards.push({
+				card: cardId,
+				scope: 'guidance',
+				what: `Review waived keep '${waiver.id}' in copied pattern '${name}'`,
+				owner: 'product',
+				touches: [relPath, `${relPath}#${waiver.id}`, exactTouch],
+				severity: 'major',
+				visual: {
+					kind: 'diff',
+					summary: `Upstream keep statement '${waiver.id}' from '${sourceRef}' is waived: ${waiver.reason}`,
+				},
+				why: {
+					findings: [
+						{
+							summary: `Dropped upstream keep '${waiver.id}' with waiver reason: ${waiver.reason}`,
+							evidence: 'observed',
+						},
+					],
+					reviewerCount: 1,
+					split: '1-0',
+					trigger: 'keep-waiver',
+				},
+				effect: {
+					gatesBefore: { passed: 0, failed: 0 },
+					gatesAfter: { passed: 0, failed: 0 },
+					checksSummary: `Waiver recorded in ${relPath}; requires person decision before release.`,
+					regression: false,
+				},
+				risk: {
+					affects: [sourceRef, name],
+					undoable: true,
+				},
+				status: 'open',
+				changeSignature,
+			});
+		}
+	}
+	return virtualCards;
+}
+
+async function readPersistedCardFile(root: string, trimmed: string): Promise<DesignCardRecord> {
+	const filePath = cardFilePath(root, trimmed);
+	await assertRealFileContained(root, filePath, `Card file escapes workspace root: ${trimmed}`);
+	const rawText = await readFile(filePath, 'utf8');
 	let raw: unknown;
 	try {
 		raw = JSON.parse(rawText);
@@ -159,16 +318,14 @@ export async function readCardRecord(root: string, cardId: string): Promise<Desi
 	return parsed.data;
 }
 
-/** Read all decision card records under `specimens/cards/` (including confined symlinks). */
-export async function readAllCards(root: string): Promise<DesignCardRecord[]> {
+async function readPersistedCards(root: string): Promise<DesignCardRecord[]> {
 	const dir = cardsDir(root);
-	let entries: Dirent[];
+	let entries: Dirent[] = [];
 	try {
 		await assertRealContained(root, dir, `Cards directory escapes workspace root: ${dir}`);
 		entries = await readdir(dir, { withFileTypes: true });
 	} catch (error) {
-		if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
-		throw error;
+		if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
 	}
 	const ids = entries
 		.filter((e) => (e.isFile() || e.isSymbolicLink()) && e.name.endsWith('.json'))
@@ -178,9 +335,46 @@ export async function readAllCards(root: string): Promise<DesignCardRecord[]> {
 
 	const cards: DesignCardRecord[] = [];
 	for (const id of ids) {
-		cards.push(await readCardRecord(root, id));
+		cards.push(await readPersistedCardFile(root, id));
 	}
 	return cards;
+}
+
+/** Read and validate one persisted decision card under `specimens/cards/<card>.json`. */
+export async function readCardRecord(root: string, cardId: string): Promise<DesignCardRecord> {
+	const trimmed = cardId.trim();
+	if (!CARD_ID_PATTERN.test(trimmed)) {
+		throw typedError(
+			'CARD_NOT_FOUND',
+			`Decision card not found: ${trimmed}`,
+			'Run design-card-list to see current decision card ids.',
+			{ card: trimmed }
+		);
+	}
+	try {
+		return await readPersistedCardFile(root, trimmed);
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+			const persisted = await readPersistedCards(root);
+			const virtualCards = await deriveUnpersistedKeepWaiverCards(root, persisted);
+			const matched = virtualCards.find((c) => c.card === trimmed);
+			if (matched) return matched;
+			throw typedError(
+				'CARD_NOT_FOUND',
+				`Decision card not found: ${trimmed}`,
+				'Run design-card-list to see current decision card ids.',
+				{ card: trimmed }
+			);
+		}
+		throw error;
+	}
+}
+
+/** Read all decision card records under `specimens/cards/` plus unpersisted `keep-waiver` cards. */
+export async function readAllCards(root: string): Promise<DesignCardRecord[]> {
+	const cards = await readPersistedCards(root);
+	const virtualWaivers = await deriveUnpersistedKeepWaiverCards(root, cards);
+	return [...cards, ...virtualWaivers];
 }
 
 function toCardSummary(record: DesignCardRecord): DesignCardSummary {

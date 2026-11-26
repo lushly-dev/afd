@@ -384,6 +384,7 @@ export const decisionGetResultSchema = z.union([
 		remediation: z.string().min(1).optional(),
 		changeSignature: z.string().min(1).optional(),
 		appliedPatterns: z.array(z.string().min(1)).optional(),
+		patternDigests: z.record(z.string().min(1), z.string().min(1)).optional(),
 		decidedAt: z.string().min(1),
 		decidedBy: decisionActorSchema,
 	}),

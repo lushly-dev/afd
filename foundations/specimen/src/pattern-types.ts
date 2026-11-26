@@ -9,12 +9,29 @@ import type {
 
 export type PatternScope = 'control' | 'composition';
 export type PatternStatus = 'stable' | 'preview' | 'deprecated';
+export type PatternApprovalStatus = 'proposed' | 'approved' | 'deprecated';
+
+export interface PatternDerivedFrom {
+	library: string;
+	pattern: string;
+	version: string;
+	revision: string;
+	statements: Record<string, string>;
+	declined?: Record<string, string>;
+}
+
+export interface WaivedKeepEntry {
+	id: string;
+	reason: string;
+}
 
 export interface PatternStatement {
 	/** Matches `PACK_PATTERNS.id` (e.g., `select.keep.escape-closes`). Unique across all guides, rules, and patterns in the library. */
 	id: string;
 	/** Single-line text, 1..240 Unicode code points, no controls or bidi overrides. */
 	text: string;
+	/** Optional approval status (`approved` when omitted). */
+	approvalStatus?: PatternApprovalStatus;
 }
 
 export interface PatternKeepStatement extends PatternStatement {
@@ -140,6 +157,12 @@ export interface PatternFile {
 	summary?: string;
 	/** Defaults to `'stable'` when omitted in source; required in pack format 2. */
 	status?: PatternStatus;
+	/** Optional approval status (`approved` when omitted; `proposed` until a person approves a fork/merge). */
+	approvalStatus?: PatternApprovalStatus;
+	/** Recorded upstream source and per-statement fork/merge digests for copied patterns. */
+	derivedFrom?: PatternDerivedFrom;
+	/** Recorded reasons for upstream `keep` statements waived in a copied pattern. */
+	waivedKeep?: WaivedKeepEntry[];
 	/** Allowed only when `status === 'deprecated'`. Same-library `<pattern>` or cross-library `<library>/<pattern>`. */
 	replacedBy?: string;
 	scope: PatternScope;

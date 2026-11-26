@@ -32,6 +32,9 @@ function text(value: unknown, path: string): string {
 const SCOPE_OPTIONS = ['all', ...CARD_SCOPE_VALUES] as const;
 const LIST_STATUS_OPTIONS = ['open', 'deferred', 'changes-requested', 'withdrawn', 'all'] as const;
 
+const QUALIFIED_PATTERN_KEY = /^[a-z][a-z0-9-]{0,63}\/[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/;
+const MAX_PATTERN_BINDINGS = 256;
+
 export function parsePatternBindings(
 	value: unknown,
 	path = 'configuration.patternBindings'
@@ -39,11 +42,21 @@ export function parsePatternBindings(
 	if (typeof value !== 'object' || value === null || Array.isArray(value)) {
 		fail(path, 'expected a record of pattern id bindings');
 	}
+	const entries = Object.entries(value as Record<string, unknown>);
+	if (entries.length > MAX_PATTERN_BINDINGS) {
+		fail(path, `expected at most ${MAX_PATTERN_BINDINGS} pattern bindings`);
+	}
 	const out: Record<string, string> = {};
-	for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
-		if (!key.length) fail(path, 'expected a non-empty pattern key');
-		if (typeof val !== 'string' || !val.length)
-			fail(`${path}.${key}`, 'expected a non-empty pattern target');
+	for (const [key, val] of entries) {
+		if (!QUALIFIED_PATTERN_KEY.test(key) || key.length > 129) {
+			fail(path, `invalid qualified pattern key "${key}" (expected <library>/<pattern>)`);
+		}
+		if (typeof val !== 'string' || !QUALIFIED_PATTERN_KEY.test(val) || val.length > 129) {
+			fail(
+				`${path}.${key}`,
+				`invalid qualified pattern target "${String(val)}" (expected <library>/<pattern>)`
+			);
+		}
 		out[key] = val;
 	}
 	return out;

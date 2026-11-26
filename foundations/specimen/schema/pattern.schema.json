@@ -18,6 +18,97 @@
 			"type": "string",
 			"enum": ["stable", "preview", "deprecated"]
 		},
+		"approvalStatus": {
+			"type": "string",
+			"enum": ["proposed", "approved", "deprecated"]
+		},
+		"derivedFrom": {
+			"type": "object",
+			"properties": {
+				"library": {
+					"type": "string",
+					"maxLength": 64,
+					"pattern": "^[a-z][a-z0-9-]{0,63}$"
+				},
+				"pattern": {
+					"type": "string",
+					"maxLength": 64,
+					"pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$"
+				},
+				"version": {
+					"type": "string",
+					"maxLength": 64,
+					"pattern": "^(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+				},
+				"revision": {
+					"type": "string",
+					"anyOf": [
+						{
+							"type": "string",
+							"maxLength": 71,
+							"pattern": "^sha256:[0-9a-f]{64}$"
+						},
+						{
+							"type": "string",
+							"maxLength": 64,
+							"pattern": "^[0-9a-f]{40}(?:[0-9a-f]{24})?$"
+						}
+					]
+				},
+				"statements": {
+					"type": "object",
+					"propertyNames": {
+						"type": "string",
+						"maxLength": 128,
+						"pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$"
+					},
+					"additionalProperties": {
+						"type": "string",
+						"maxLength": 71,
+						"pattern": "^sha256:[0-9a-f]{64}$"
+					},
+					"maxProperties": 256
+				},
+				"declined": {
+					"type": "object",
+					"propertyNames": {
+						"type": "string",
+						"maxLength": 128,
+						"pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$"
+					},
+					"additionalProperties": {
+						"type": "string",
+						"maxLength": 71,
+						"pattern": "^sha256:[0-9a-f]{64}$"
+					},
+					"maxProperties": 256
+				}
+			},
+			"required": ["library", "pattern", "version", "revision", "statements"],
+			"additionalProperties": false
+		},
+		"waivedKeep": {
+			"maxItems": 64,
+			"type": "array",
+			"items": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"maxLength": 128,
+						"pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$"
+					},
+					"reason": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 240,
+						"pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u202A-\\u202E\\u2066-\\u2069]*$"
+					}
+				},
+				"required": ["id", "reason"],
+				"additionalProperties": false
+			}
+		},
 		"replacedBy": {
 			"anyOf": [
 				{
@@ -77,6 +168,10 @@
 						"minLength": 1,
 						"maxLength": 240,
 						"pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u202A-\\u202E\\u2066-\\u2069]*$"
+					},
+					"approvalStatus": {
+						"type": "string",
+						"enum": ["proposed", "approved", "deprecated"]
 					}
 				},
 				"required": ["id", "text"],
@@ -99,6 +194,10 @@
 						"minLength": 1,
 						"maxLength": 240,
 						"pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u202A-\\u202E\\u2066-\\u2069]*$"
+					},
+					"approvalStatus": {
+						"type": "string",
+						"enum": ["proposed", "approved", "deprecated"]
 					}
 				},
 				"required": ["id", "text"],
@@ -126,6 +225,10 @@
 						"type": "string",
 						"maxLength": 64,
 						"pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+					},
+					"approvalStatus": {
+						"type": "string",
+						"enum": ["proposed", "approved", "deprecated"]
 					}
 				},
 				"required": ["id", "text"],
@@ -148,6 +251,10 @@
 						"minLength": 1,
 						"maxLength": 240,
 						"pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u202A-\\u202E\\u2066-\\u2069]*$"
+					},
+					"approvalStatus": {
+						"type": "string",
+						"enum": ["proposed", "approved", "deprecated"]
 					}
 				},
 				"required": ["id", "text"],

@@ -21,6 +21,10 @@
 			"type": "string",
 			"enum": ["stable", "preview", "deprecated"]
 		},
+		"approvalStatus": {
+			"type": "string",
+			"enum": ["proposed", "approved", "deprecated"]
+		},
 		"replacedBy": {
 			"type": "string",
 			"maxLength": 64,

@@ -107,6 +107,10 @@
 						"type": "string",
 						"enum": ["stable", "preview", "deprecated"]
 					},
+					"approvalStatus": {
+						"type": "string",
+						"enum": ["proposed", "approved", "deprecated"]
+					},
 					"replacedBy": {
 						"type": "string",
 						"anyOf": [
@@ -194,6 +198,10 @@
 						"type": "string",
 						"enum": ["stable", "preview", "deprecated"]
 					},
+					"approvalStatus": {
+						"type": "string",
+						"enum": ["proposed", "approved", "deprecated"]
+					},
 					"replacedBy": {
 						"type": "string",
 						"maxLength": 64,
@@ -232,6 +240,30 @@
 					}
 				]
 			}
+		},
+		"patternBindings": {
+			"type": "object",
+			"propertyNames": {
+				"type": "string",
+				"maxLength": 129,
+				"pattern": "^[a-z][a-z0-9-]{0,63}\\/[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$",
+				"allOf": [
+					{
+						"pattern": "/[a-z0-9.-]{1,64}$"
+					}
+				]
+			},
+			"additionalProperties": {
+				"type": "string",
+				"maxLength": 129,
+				"pattern": "^[a-z][a-z0-9-]{0,63}\\/[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$",
+				"allOf": [
+					{
+						"pattern": "/[a-z0-9.-]{1,64}$"
+					}
+				]
+			},
+			"maxProperties": 256
 		}
 	},
 	"required": [

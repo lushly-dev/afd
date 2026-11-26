@@ -77,6 +77,7 @@ export interface PackStamp {
 	package: { name: string; version: string };
 	prefix: string;
 	revision?: string;
+	patternBindings?: Record<string, string>;
 }
 
 type AnyComponent = PackComponent | PackComponentV1;
@@ -426,6 +427,13 @@ function checkPatternRecord(
 				: ([impl.kind, impl.name] as const)
 		)
 	);
+	if (value.waivedKeep) {
+		checker.uniqueIds(
+			path,
+			'/waivedKeep',
+			value.waivedKeep.map((item) => item.id)
+		);
+	}
 }
 
 function checkCopyRecord(
@@ -717,6 +725,7 @@ function checkCatalog(
 				record &&
 				(record.summary !== entry.summary ||
 					record.status !== entry.status ||
+					record.approvalStatus !== entry.approvalStatus ||
 					record.replacedBy !== entry.replacedBy ||
 					record.scope !== entry.scope ||
 					canonicalJson(record.facets) !== canonicalJson(entry.facets))
@@ -771,6 +780,7 @@ function checkCatalog(
 			if (
 				record &&
 				(record.status !== entry.status ||
+					record.approvalStatus !== entry.approvalStatus ||
 					record.replacedBy !== entry.replacedBy ||
 					record.revision !== entry.revision ||
 					record.fingerprint !== entry.fingerprint)
@@ -957,6 +967,7 @@ export function packCatalog(files: PackFiles, library: string, stamp: PackStamp)
 			pattern: name,
 			...(record.summary === undefined ? {} : { summary: record.summary }),
 			status: record.status,
+			...(record.approvalStatus === undefined ? {} : { approvalStatus: record.approvalStatus }),
 			...(record.replacedBy === undefined ? {} : { replacedBy: record.replacedBy }),
 			scope: record.scope,
 			facets: record.facets,
@@ -983,12 +994,17 @@ export function packCatalog(files: PackFiles, library: string, stamp: PackStamp)
 			pattern: pat,
 			name,
 			status: record.status,
+			...(record.approvalStatus === undefined ? {} : { approvalStatus: record.approvalStatus }),
 			...(record.replacedBy === undefined ? {} : { replacedBy: record.replacedBy }),
 			revision: record.revision,
 			fingerprint: record.fingerprint,
 			digest: packDigest(bytes),
 		};
 	});
+	const activeBindings =
+		stamp.patternBindings && Object.keys(stamp.patternBindings).length > 0
+			? stamp.patternBindings
+			: undefined;
 	const catalog: PackLibrary = {
 		format: PACK_FORMAT_VERSION,
 		library,
@@ -1001,6 +1017,7 @@ export function packCatalog(files: PackFiles, library: string, stamp: PackStamp)
 		components,
 		patterns,
 		copies,
+		...(activeBindings === undefined ? {} : { patternBindings: activeBindings }),
 	};
 	return canonicalJson(catalog);
 }

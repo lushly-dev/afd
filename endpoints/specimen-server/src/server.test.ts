@@ -365,10 +365,10 @@ describe('Specimen MCP endpoint (@lushly-dev/afd-server)', () => {
 			'host-verified'
 		);
 
-		// afd-discover reaches all 41 Specimen commands cleanly.
+		// afd-discover reaches all 44 Specimen commands cleanly.
 		const discovered = mcpResult(await callTool(hybridUrl, 'afd-discover', { limit: 100 }));
 		expect(discovered.success).toBe(true);
-		expect((discovered.data as { total: number }).total).toBe(41);
+		expect((discovered.data as { total: number }).total).toBe(44);
 
 		// Grouped strategy exposes category groups (`specimen`, `decision`, `design`) + meta-tools.
 		const { url: groupedUrl } = await mountHandler({ toolStrategy: 'grouped' });
@@ -378,11 +378,11 @@ describe('Specimen MCP endpoint (@lushly-dev/afd-server)', () => {
 		expect(groupedNames).toContain('design');
 		expect(groupedNames).toContain('afd-call');
 
-		// Individual strategy exposes all 41 Specimen commands with annotations and schemas.
+		// Individual strategy exposes all 44 Specimen commands with annotations and schemas.
 		const { url: individualUrl } = await mountHandler({ toolStrategy: 'individual' });
 		const individualTools = await listTools(individualUrl);
 		const individualSpecimen = individualTools.filter((t) => !t.name.startsWith('afd-'));
-		expect(individualSpecimen).toHaveLength(41);
+		expect(individualSpecimen).toHaveLength(44);
 		expect(individualTools.find((t) => t.name === 'design-states')?.annotations).toMatchObject({
 			readOnlyHint: true,
 		});
@@ -404,13 +404,22 @@ describe('Specimen MCP endpoint (@lushly-dev/afd-server)', () => {
 		expect(individualTools.find((t) => t.name === 'design-release')?.annotations).toMatchObject({
 			readOnlyHint: false,
 		});
+		expect(
+			individualTools.find((t) => t.name === 'specimen-pattern-fork')?.annotations
+		).toMatchObject({ readOnlyHint: false });
+		expect(
+			individualTools.find((t) => t.name === 'specimen-pattern-compare')?.annotations
+		).toMatchObject({ readOnlyHint: true });
+		expect(
+			individualTools.find((t) => t.name === 'specimen-pattern-merge')?.annotations
+		).toMatchObject({ readOnlyHint: false });
 
-		// Lazy strategy exposes only the 5 AFD meta-tools while keeping all 41 commands discoverable.
+		// Lazy strategy exposes only the 5 AFD meta-tools while keeping all 44 commands discoverable.
 		const { url: lazyUrl } = await mountHandler({ toolStrategy: 'lazy' });
 		const lazyNames = (await listTools(lazyUrl)).map((t) => t.name);
 		expect(lazyNames).toEqual(['afd-discover', 'afd-detail', 'afd-call', 'afd-batch', 'afd-pipe']);
 		const lazyDiscovered = mcpResult(await callTool(lazyUrl, 'afd-discover', { limit: 100 }));
-		expect((lazyDiscovered.data as { total: number }).total).toBe(41);
+		expect((lazyDiscovered.data as { total: number }).total).toBe(44);
 	});
 
 	it('preserves CLI envelopes, structured errors, and job-create + jobs@1 coverage over MCP', async () => {
@@ -1458,5 +1467,51 @@ describe('Specimen MCP endpoint (@lushly-dev/afd-server)', () => {
 		const detail = mcpResult(await callTool(url, 'afd-detail', { command: ['design-release'] }));
 		expect(detail.success).toBe(true);
 		expect(JSON.stringify(detail.data)).toContain('host-verified');
+	});
+
+	it('executes specimen-pattern-fork, HumanRelay decision-record approval, and specimen-pattern-compare over MCP', async () => {
+		const relay = new FakeHumanRelay();
+		relay.confirmedBy = 'alice';
+		const { url } = await mountHandler({ humanRelay: relay });
+
+		const forked = mcpResult(
+			await callViaAfd(url, 'specimen-pattern-fork', {
+				source: 'afd-defaults/error-recovery',
+				target: 'error-recovery',
+				bind: true,
+			})
+		);
+		expect(forked.success).toBe(true);
+		const forkData = forked.data as { card: string; approvalStatus: string; bindingStatus: string };
+		expect(forkData.approvalStatus).toBe('proposed');
+		expect(forkData.bindingStatus).toBe('pending-approval');
+
+		// Approve the fork card through HumanRelay over MCP
+		const approveArgs = {
+			card: forkData.card,
+			chosen: 'approve',
+			reason: 'Approve forked error-recovery pattern over MCP.',
+		};
+		const prompt = await callTool(url, 'decision-record', approveArgs, urlCaps());
+		const relayState = (prompt.result as { requestState: string }).requestState;
+		expect(relayState).toBeTruthy();
+
+		relay.answer({ kind: 'approved', decisionId: 'relay-fork-1' });
+		const approved = mcpResult(
+			await callTool(url, 'decision-record', approveArgs, urlCaps(), {
+				inputResponses: { relay: { action: 'accept' } },
+				requestState: relayState,
+			})
+		);
+		expect(approved.success).toBe(true);
+
+		const compared = mcpResult(
+			await callViaAfd(url, 'specimen-pattern-compare', { pattern: 'error-recovery' })
+		);
+		expect(compared.success).toBe(true);
+		expect(compared.data).toMatchObject({
+			pattern: 'error-recovery',
+			source: { library: 'afd-defaults', pattern: 'error-recovery', baseVersion: '1.0.0' },
+		});
 	});
 });

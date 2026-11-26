@@ -123,6 +123,10 @@ export type CardPatternAction =
 			upstreamDigests: Record<string, string>;
 			/** Required path to the authoritative upstream pattern.json used for staleness verification. */
 			upstreamPath: string;
+			/** Canonical sha256 digest of the local pattern.json at staging time (detects concurrent local edits). */
+			localDigest?: string;
+			/** Optional config path (relative to workspace root) used to locate patternSources and specimens/patterns. */
+			configPath?: string;
 			stagedPattern: Record<string, unknown>;
 	  };
 

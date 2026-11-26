@@ -1,12 +1,14 @@
 import { z } from 'zod';
 import {
 	a11yExpectationSchema,
+	approvalStatusSchema,
 	focusExpectationSchema,
 	isAscendingUnique,
 	layoutExpectationSchema,
 	PACK_TEXT_LIMITS,
 	packIdentifier,
 	packText,
+	patternDerivedFromSchema,
 	patternKeepStatementSchema,
 	patternSetupSchema,
 	patternStatementSchema,
@@ -20,6 +22,7 @@ import {
 	standardDomEventSchema,
 	TEXT_INVALID,
 	TEXT_TOO_LONG,
+	waivedKeepEntrySchema,
 } from './pack-atoms.js';
 import { contextSchema } from './schema.js';
 
@@ -148,6 +151,9 @@ export const patternFileSchema = z
 		pattern: packIdentifier('pattern'),
 		summary: packText(PACK_TEXT_LIMITS.summary).optional(),
 		status: z.enum(['stable', 'preview', 'deprecated']).optional(),
+		approvalStatus: approvalStatusSchema.optional(),
+		derivedFrom: patternDerivedFromSchema.optional(),
+		waivedKeep: z.array(waivedKeepEntrySchema).max(64).optional(),
 		replacedBy: z.union([packIdentifier('pattern'), packIdentifier('qualifiedPattern')]).optional(),
 		scope: z.enum(['control', 'composition']),
 		facets: patternFacetsSchema.optional(),

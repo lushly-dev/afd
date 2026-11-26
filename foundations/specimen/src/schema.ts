@@ -1467,4 +1467,5 @@ export * from './card-schema.js';
 export * from './decision-schema.js';
 export * from './design-schema.js';
 export * from './panel-schema.js';
+export * from './pattern-fork-schema.js';
 export * from './review-schema.js';
