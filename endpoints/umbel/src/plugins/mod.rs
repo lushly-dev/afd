@@ -8,6 +8,7 @@
 
 mod attestation;
 mod check;
+mod check_targets;
 mod compiled;
 mod compiled_gate;
 #[cfg(feature = "component")]
@@ -42,7 +43,8 @@ pub(crate) use compiled_gate::CompiledGate;
 #[cfg(feature = "store-embedded")]
 pub(crate) use content::file_hash as own_file_hash;
 pub(crate) use doctor::{
-    checks as doctor_checks, first_class_check, loaded_check, pack_checks_check, pipelines_check,
+    checks as doctor_checks, config_checks_check, first_class_check, loaded_check,
+    pack_checks_check, panicked_check, pipelines_check,
 };
 pub use error::{PluginError, codes};
 pub use files::{AssetFiles, DirFiles, PluginFiles};

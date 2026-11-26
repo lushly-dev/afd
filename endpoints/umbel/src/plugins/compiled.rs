@@ -45,6 +45,17 @@ pub trait CompiledPlugin: Send + Sync + 'static {
         let _ = (pack, services);
         None
     }
+
+    /// The plugin's own check of its configuration, run once for each instance by the doctor
+    /// (`plugins.config_checks`). `services` are the instance's granted services for a call in
+    /// the workspace's default space (or the instance's first enabled space when the default is
+    /// not one of its spaces), so [`CallServices::config`] reads the configuration as its
+    /// commands would. `None`, the default, offers no check; otherwise an AFD `CommandResult` as
+    /// JSON. See [`umbel_sdk::Plugin::check_config`].
+    fn check_config(&self, services: CallServices) -> Option<Value> {
+        let _ = services;
+        None
+    }
 }
 
 impl<T: CompiledPlugin + ?Sized> CompiledPlugin for Arc<T> {
@@ -62,6 +73,10 @@ impl<T: CompiledPlugin + ?Sized> CompiledPlugin for Arc<T> {
 
     fn check_pack(&self, pack: &str, services: CallServices) -> Option<Value> {
         (**self).check_pack(pack, services)
+    }
+
+    fn check_config(&self, services: CallServices) -> Option<Value> {
+        (**self).check_config(services)
     }
 }
 
@@ -196,6 +211,21 @@ impl<P: umbel_sdk::Plugin> CompiledPlugin for SdkPlugin<P> {
         let mut cx = Cx::new(call, services);
         self.plugin
             .check_pack(pack, &mut cx)
+            .map(umbel_sdk::Outcome::into_value)
+    }
+
+    fn check_config(&self, services: CallServices) -> Option<Value> {
+        let space = services.space().as_str().to_owned();
+        let call = CallContext {
+            command: String::new(),
+            space: Some(space.clone()),
+            spaces: vec![space],
+            interface: "cli".to_owned(),
+            ..CallContext::default()
+        };
+        let mut cx = Cx::new(call, services);
+        self.plugin
+            .check_config(&mut cx)
             .map(umbel_sdk::Outcome::into_value)
     }
 }

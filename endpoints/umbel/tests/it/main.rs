@@ -42,6 +42,7 @@ mod cursors;
 mod default_tools;
 mod doctor;
 mod doctor_auth;
+mod doctor_config_checks;
 mod doctor_pack_checks;
 mod doctor_plugins;
 mod doctor_sealed;

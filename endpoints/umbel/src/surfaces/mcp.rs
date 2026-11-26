@@ -16,6 +16,24 @@ pub(crate) fn mode(confirmations: Confirmations) -> ConfirmationMode {
     }
 }
 
+/// The name and version the MCP server announces in `initialize` (`serverInfo`). Umbel's own,
+/// unless the embedding binary sets its own with
+/// [`HostBuilder::with_server_identity`](crate::HostBuilder::with_server_identity).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ServerIdentity {
+    pub(crate) name: String,
+    pub(crate) version: String,
+}
+
+impl Default for ServerIdentity {
+    fn default() -> Self {
+        Self {
+            name: "umbel".to_owned(),
+            version: env!("CARGO_PKG_VERSION").to_owned(),
+        }
+    }
+}
+
 /// Build the server over `registry` and check its surface (`McpServer::validate`).
 ///
 /// With `contexts`, the server scopes commands by them and registers `afd-context-list`,
@@ -32,10 +50,11 @@ pub(crate) fn build_server(
     first_class: &[String],
     contexts: &[ContextConfig],
     clock: Option<&Arc<dyn Clock>>,
+    identity: &ServerIdentity,
 ) -> Result<McpServer, HostError> {
     let config = &workspace.config().mcp;
     let key = workspace.confirmation_key()?;
-    let mut server = McpServer::new(Arc::clone(registry), "umbel", env!("CARGO_PKG_VERSION"))
+    let mut server = McpServer::new(Arc::clone(registry), &identity.name, &identity.version)
         .with_tool_strategy(ToolStrategy::Hybrid)
         .with_context_hook(principal::hook(
             Arc::new(workspace.config().clone()),

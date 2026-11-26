@@ -99,4 +99,24 @@ pub trait Plugin: Send + Sync + 'static {
         let _ = (pack, cx);
         None
     }
+
+    /// The plugin's own check of its configuration (the instance's `[plugins.<id>.config]`),
+    /// which the host's doctor runs once for each instance before any command is called
+    /// (`plugins.config_checks`). The configuration schema checks its shape when the workspace
+    /// opens; this is for what a schema cannot say, such as one entry naming another or a
+    /// resource the configuration names being reachable. `cx` holds the plugin's own grants in
+    /// the workspace's default space, or in the instance's first enabled space when the default
+    /// is not one of its spaces, so [`Cx::config`] reads the configuration as a command would.
+    ///
+    /// Answer `None`, the default, to offer no check. Otherwise answer as
+    /// [`Plugin::check_pack`] does: a success, or the failure a command would answer, whose
+    /// code, message, suggestion and first `details.problems` the doctor shows. A retryable
+    /// failure is a warning there, not a failure. The doctor runs it on a blocking thread, so
+    /// it may read files or probe a local service, briefly.
+    ///
+    /// A compiled plugin only, as [`Plugin::check_pack`] is.
+    fn check_config(&self, cx: &mut Cx) -> Option<Outcome> {
+        let _ = cx;
+        None
+    }
 }

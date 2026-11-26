@@ -40,16 +40,13 @@ pub fn close_extra_fds(command: &mut Command) {
 /// files that `execvp` would skip with `EACCES` are not mistaken for runnable executables.
 /// On Windows, checks `path.is_file()`.
 pub fn is_executable_by_current_user(path: &Path) -> bool {
-    if !path.is_file() {
-        return false;
-    }
     #[cfg(unix)]
     {
-        unix::is_executable(path)
+        path.is_file() && unix::is_executable(path)
     }
     #[cfg(not(unix))]
     {
-        true
+        path.is_file()
     }
 }
 
