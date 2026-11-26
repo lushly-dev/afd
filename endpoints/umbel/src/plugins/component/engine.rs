@@ -73,7 +73,12 @@ fn build() -> Result<Shared, String> {
         .consume_fuel(true)
         .epoch_interruption(true)
         // A trap's message is the trap, with no stack of the plugin's internal frames.
-        .wasm_backtrace_max_frames(None);
+        .wasm_backtrace_max_frames(None)
+        // On macOS, catch wasm traps with signal handlers, as on Linux, not Wasmtime's Mach
+        // exception thread: in Wasmtime 48 that thread aborts the process when any signal lands
+        // on it, and the host takes `SIGCHLD` for every mounted child it starts (#2458). Fixed
+        // upstream in Wasmtime 50 (bytecodealliance/wasmtime#14414); drop this line on upgrading.
+        .macos_use_mach_ports(false);
     let engine =
         Engine::new(&config).map_err(|error| format!("cannot create the engine: {error:#}"))?;
 
@@ -144,4 +149,66 @@ fn link(linker: &mut Linker<CallState>) -> wasmtime::Result<()> {
     cli::terminal_stdout::add_to_linker::<CallState, WasiCli>(linker, CallState::cli)?;
     cli::terminal_stderr::add_to_linker::<CallState, WasiCli>(linker, CallState::cli)?;
     Ok(())
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+
+    use super::shared;
+    use std::process::Command;
+
+    /// Set in the child process the test below starts.
+    const CHILD: &str = "UMBEL_ENGINE_SIGNAL_CHILD";
+    const NAME: &str =
+        "plugins::component::engine::tests::the_engine_lives_through_signals_to_any_of_its_threads";
+
+    /// A process with the engine and a `SIGCHLD` handler (tokio installs one to reap children)
+    /// takes a flood of `SIGCHLD`, which the OS hands to any thread of the process. Wasmtime 48's
+    /// Mach exception thread on macOS aborted when one landed on it (`mach_msg` returns
+    /// `MACH_RCV_INTERRUPTED`), which aborted Umbel's `it` binary beside the mounted tests (#2458).
+    #[test]
+    fn the_engine_lives_through_signals_to_any_of_its_threads() {
+        if std::env::var_os(CHILD).is_some() {
+            child();
+            return;
+        }
+        let output = Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", NAME, "--nocapture", "--test-threads=1"])
+            .env(CHILD, "1")
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "the child did not live through the signals: {}\n{}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains("1 passed"),
+            "the child ran the test: {}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+    }
+
+    fn child() {
+        assert!(shared().is_ok(), "the engine");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            let _handler =
+                tokio::signal::unix::signal(tokio::signal::unix::SignalKind::child()).unwrap();
+            let status = Command::new("sh")
+                .args([
+                    "-c",
+                    "i=0; while [ $i -lt 3000 ]; do kill -s CHLD \"$0\" || exit 1; i=$((i+1)); done",
+                    &std::process::id().to_string(),
+                ])
+                .status()
+                .unwrap();
+            assert!(status.success(), "the signals were sent: {status}");
+        });
+    }
 }

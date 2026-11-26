@@ -83,12 +83,33 @@ pub(crate) fn restore_memory(dir: &Path, _space: &str, backup: &Path) -> Result<
     file.sync_all().map_err(io)
 }
 
+/// The lock timeout of the writer children that contend with each other and the parent: long
+/// enough that a machine busy with other suites does not turn a wait into `Busy` (#2637). The
+/// timeout itself is tested by the `busy` and `memory-busy` children, which keep 200 ms.
+pub(crate) const CHILD_LOCK_TIMEOUT_MS: u64 = 60_000;
+
+/// The options of a contending writer child.
+pub(crate) fn child_options() -> StoreOptions {
+    StoreOptions {
+        lock_timeout_ms: CHILD_LOCK_TIMEOUT_MS,
+    }
+}
+
 /// Open the SQLite stores, the tantivy index and the memory store of `space` under `dir`, with
 /// the memory restore of section 5.4.
 pub(crate) fn open(dir: &Path, space: &str) -> Result<Stores, StoreError> {
-    let store = open_with(dir, space, StoreOptions::default())?;
-    let index = open_index(dir, space, StoreOptions::default())?;
-    let memory = open_memory(dir, space, StoreOptions::default())?;
+    open_stores(dir, space, StoreOptions::default())
+}
+
+/// [`open`] with `options` for every store.
+pub(crate) fn open_stores(
+    dir: &Path,
+    space: &str,
+    options: StoreOptions,
+) -> Result<Stores, StoreError> {
+    let store = open_with(dir, space, options)?;
+    let index = open_index(dir, space, options)?;
+    let memory = open_memory(dir, space, options)?;
     Ok(Stores {
         documents: store.clone(),
         graph: store,
@@ -138,14 +159,14 @@ pub(crate) fn writer_child() {
     match std::env::var(ENV_MODE).as_deref() {
         Ok("race") => {
             wait_for_start().unwrap_or_else(|e| fail(e));
-            let stores =
-                open(dir, SPACE).unwrap_or_else(|e| fail(format!("opening the store: {e}")));
+            let stores = open_stores(dir, SPACE, child_options())
+                .unwrap_or_else(|e| fail(format!("opening the store: {e}")));
             write_documents(&stores).unwrap_or_else(|e| fail(e));
         }
         Ok("index") => {
             wait_for_start().unwrap_or_else(|e| fail(e));
-            let stores =
-                open(dir, SPACE).unwrap_or_else(|e| fail(format!("opening the store: {e}")));
+            let stores = open_stores(dir, SPACE, child_options())
+                .unwrap_or_else(|e| fail(format!("opening the store: {e}")));
             index_child(&stores).unwrap_or_else(|e| fail(e));
         }
         Ok("hold") => {
@@ -168,13 +189,13 @@ pub(crate) fn writer_child() {
             }
         }
         Ok("memory") => {
-            let memory = open_memory(dir, SPACE, StoreOptions::default())
+            let memory = open_memory(dir, SPACE, child_options())
                 .unwrap_or_else(|e| fail(format!("opening the memory store: {e}")));
             run_memory_child(&*memory).unwrap_or_else(|e| fail(e));
         }
         Ok("memory-race") => {
             wait_for_start().unwrap_or_else(|e| fail(e));
-            let memory = open_memory(dir, SPACE, StoreOptions::default())
+            let memory = open_memory(dir, SPACE, child_options())
                 .unwrap_or_else(|e| fail(format!("opening the memory store: {e}")));
             write_memories(&*memory).unwrap_or_else(|e| fail(e));
         }
@@ -248,8 +269,8 @@ pub(crate) fn writer_child() {
             }
         }
         _ => {
-            let stores =
-                open(dir, SPACE).unwrap_or_else(|e| fail(format!("opening the store: {e}")));
+            let stores = open_stores(dir, SPACE, child_options())
+                .unwrap_or_else(|e| fail(format!("opening the store: {e}")));
             run_child(&stores).unwrap_or_else(|e| fail(e));
         }
     }

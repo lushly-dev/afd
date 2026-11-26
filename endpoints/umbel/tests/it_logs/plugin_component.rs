@@ -135,7 +135,10 @@ async fn a_call_outside_the_instances_spaces_is_refused_before_the_component_run
 /// wit-bindgen or to the standard library that adds an import shows here.
 #[test]
 fn hellos_imports_are_exactly_the_ones_its_grants_allow() {
-    let engine = wasmtime::Engine::default();
+    // The host's trap mode: Wasmtime refuses a second engine with another in the same process.
+    let mut config = wasmtime::Config::new();
+    config.macos_use_mach_ports(false);
+    let engine = wasmtime::Engine::new(&config).unwrap();
     let bytes = std::fs::read(wasm("umbel_plugin_hello")).unwrap();
     let component = wasmtime::component::Component::new(&engine, bytes).unwrap();
     let ty = component.component_type();
