@@ -10,12 +10,13 @@
  * ignored. In tool arguments the key is refused from every caller.
  *
  * The lane that received a request decides who is an approver and binds the result to the
- * `CommandContext` under a private symbol, as the approval relay is bound, so `createContext`
+ * `CommandContext`'s host state (`host-state.ts`), as the approval relay is bound, so `createContext`
  * cannot forge one. Loads no Node.js built-in.
  */
 
 import type { Actor, CommandContext, CommandError } from '@lushly-dev/afd-core';
 import { ErrorCodes } from '@lushly-dev/afd-core';
+import { hostState, withHostState } from './host-state.js';
 import { type PrincipalCredentials, principalBinding } from './principal-binding.js';
 
 /** `_meta` key an approver sets to the approval token of the call it retries. */
@@ -40,19 +41,14 @@ export interface ApproverCall {
 	evidence?: unknown;
 }
 
-const APPROVER = Symbol('afd.approver');
-
-type ApproverContext = CommandContext & { [APPROVER]?: ApproverCall };
-
 /** Return a copy of `context` bound to an approver's call. */
 export function bindApprover(context: CommandContext, call: ApproverCall): CommandContext {
-	const bound: ApproverContext = { ...context, [APPROVER]: call };
-	return bound;
+	return withHostState(context, { approver: call });
 }
 
 /** The approver's call bound to `context`, if its caller is an approver. */
 export function approverCall(context: CommandContext | undefined): ApproverCall | undefined {
-	return (context as ApproverContext | undefined)?.[APPROVER];
+	return hostState(context).approver;
 }
 
 /**

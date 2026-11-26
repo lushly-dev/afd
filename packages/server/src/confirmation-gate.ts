@@ -1,7 +1,7 @@
 /**
  * @fileoverview The confirmation gate (`spec/command-metadata.md`, "Confirmations"): the check
  * that decides whether a call to confirm-gated commands may run, its binding digest, and the
- * check of the HTTP routes.
+ * confirmation channel of the HTTP routes.
  *
  * Split from `confirmations.ts` because the binding digest uses `node:crypto`: only the MCP server
  * (`server.ts`) and its HTTP handler import this module, so the tool router and the tool list stay
@@ -10,10 +10,10 @@
 
 import { createHash } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
-import type { CommandError } from '@lushly-dev/afd-core';
 import { ErrorCodes } from '@lushly-dev/afd-core';
 import {
 	type Acknowledgement,
+	type ConfirmationChannel,
 	type ConfirmationGate,
 	type ConfirmationMode,
 	type ConfirmationStep,
@@ -160,22 +160,21 @@ function headerAcknowledgement(req: IncomingMessage): Acknowledgement {
 }
 
 /**
- * The check of the HTTP routes (`/rpc`, `/batch`, `/stream`), which have no elicitation channel:
- * the confirmation error for a request, or `undefined` when it may run.
+ * What a request to the HTTP routes (`/rpc`, `/batch`, `/stream`) can carry for confirmations: no
+ * elicitation, and the command names its `Afd-Confirm` header acknowledges. The router's gate then
+ * decides it as it decides any call (`admission.ts`).
  */
-export function createHttpConfirmationCheck(gate: ConfirmationGate | undefined) {
-	return async (
-		req: IncomingMessage,
-		steps: ConfirmationStep[]
-	): Promise<CommandError | undefined> => {
-		if (!gate || gate.mode === 'off') return undefined;
-		const names = [...new Set(gate.gated(steps).map((step) => step.command))];
-		const outcome = await gate.check(
-			steps,
-			headerAcknowledgement(req),
-			undefined,
-			`repeat the request with the header 'Afd-Confirm: ${names.join(', ')}'`
-		);
-		return outcome.kind === 'error' ? outcome.error : undefined;
+export function httpConfirmationChannel(req: IncomingMessage): ConfirmationChannel {
+	return {
+		canElicit: false,
+		acknowledged: false,
+		response: async () => 'missing',
+		request: async () => {
+			throw new Error('The HTTP routes cannot ask for a confirmation');
+		},
+		acknowledgement: {
+			names: headerAcknowledgement(req),
+			how: (names) => `repeat the request with the header 'Afd-Confirm: ${names.join(', ')}'`,
+		},
 	};
 }

@@ -15,8 +15,8 @@
  * handler runs. In-process calls (DirectClient, `server.execute`) are never gated.
  *
  * The lane that received a request describes what that request can carry with a
- * {@link ConfirmationChannel}, bound to the `CommandContext` under a private symbol (as context
- * state is), so `createContext` cannot forge one.
+ * {@link ConfirmationChannel}, bound to the `CommandContext`'s host state (`host-state.ts`, as
+ * context state is), so `createContext` cannot forge one.
  *
  * Module-graph rule: this module loads no Node.js built-in, because the tool router and the tool
  * list import it and `createDirectToolSurface` bundles them for the browser. The gate itself,
@@ -25,6 +25,7 @@
  */
 
 import type { CommandContext, CommandError } from '@lushly-dev/afd-core';
+import { hostState, withHostState } from './host-state.js';
 import type { ZodCommandDefinition } from './schema.js';
 
 /** How a server treats `confirmPrompt`: not at all, or as a required confirmation. */
@@ -69,6 +70,15 @@ export interface ConfirmationChannel {
 	response(binding: string): Promise<'accept' | 'decline' | 'missing'>;
 	/** The `input_required` result that asks `message`, bound to `binding`. */
 	request(message: string, binding: string): Promise<unknown>;
+	/**
+	 * On a lane whose acknowledgement is not a tool argument (the HTTP routes' `Afd-Confirm`
+	 * header): what the request acknowledges, and how to acknowledge the gated `names`. A `confirm`
+	 * argument then acknowledges nothing.
+	 */
+	readonly acknowledgement?: {
+		readonly names: Acknowledgement;
+		how(names: readonly string[]): string;
+	};
 }
 
 /** What the gate decided for one call. */
@@ -88,24 +98,19 @@ export class InputRequiredSignal {
 /** How the caller acknowledges: every gated command, or the named ones. */
 export type Acknowledgement = 'all' | ReadonlySet<string> | undefined;
 
-const CHANNEL = Symbol('afd.confirmationChannel');
-
-type ChannelContext = CommandContext & { [CHANNEL]?: ConfirmationChannel };
-
 /** Return a copy of `context` bound to `channel`. */
 export function bindConfirmationChannel(
 	context: CommandContext,
 	channel: ConfirmationChannel
 ): CommandContext {
-	const bound: ChannelContext = { ...context, [CHANNEL]: channel };
-	return bound;
+	return withHostState(context, { confirmationChannel: channel });
 }
 
 /** The channel bound to `context`, if any. */
 export function confirmationChannel(
 	context: CommandContext | undefined
 ): ConfirmationChannel | undefined {
-	return (context as ChannelContext | undefined)?.[CHANNEL];
+	return hostState(context).confirmationChannel;
 }
 
 /** Whether a command's own input schema declares a `confirm` property. */

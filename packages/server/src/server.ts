@@ -27,7 +27,7 @@ import { createContextState, resolveContextState } from './context-scope.js';
 import { createExecutionEngine, type ExecutionDeps } from './execution.js';
 import { createHttpHandler } from './http-handler.js';
 import { createSessionStore, DEFAULT_MAX_SESSIONS, sessionLimits } from './http-sessions.js';
-import { createHttpHostVerifiedCheck, createHumanRelayGate } from './human-relay.js';
+import { createHumanRelayGate } from './human-relay.js';
 import { checkInstanceState, warnInstancesOnce } from './instance-state.js';
 import {
 	createAuthLayer,
@@ -91,7 +91,12 @@ const executionScopes: CommandMiddleware = async (commandName, input, context, n
 		: next();
 };
 
-function createSharedHttpRuntime(options: McpHandlerOptions) {
+/**
+ * The wiring every lane of one server shares: engines, routers, admission, the HTTP handler and
+ * the stdio lane's dependencies. Exported for tests that drive several lanes of one server; not
+ * part of the package's entry points.
+ */
+export function createSharedHttpRuntime(options: McpHandlerOptions) {
 	const {
 		name,
 		version,
@@ -312,10 +317,6 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		maxValidationIssues,
 		onError,
 	});
-	const hostVerifiedCheck = createHttpHostVerifiedCheck(
-		remoteCommands,
-		Boolean(options.humanRelay)
-	);
 	const mutationNames = new Set(
 		remoteCommands.filter((command) => command.mutation === true).map((command) => command.name)
 	);
@@ -335,6 +336,26 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		humanRelay,
 		maxBatchSize,
 		maxBatchParallelism,
+	});
+	// The HTTP `/rpc`, `/batch` and `/stream` routes: the same stages on `httpEngine`, whose
+	// refusals name no meta-tool, since those routes serve none (`spec/recovery.md`).
+	const restRouter = createToolRouter({
+		executeCommand: httpEngine.executeCommand,
+		executeBatch: httpEngine.executeBatch,
+		executePipeline: httpEngine.executePipeline,
+		commands: remoteCommands,
+		toolStrategy,
+		groupByFn,
+		devMode,
+		allCommands: remoteCommands,
+		exposedCommandNames,
+		contextState,
+		confirmations,
+		humanRelay,
+		maxBatchSize,
+		maxBatchParallelism,
+		metaTools: false,
+		callTracePrefix: 'rpc',
 	});
 
 	const boundGetToolsList = (context: CommandContext = {}) =>
@@ -413,12 +434,9 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		routeToolCall,
 		approver: options.approver,
 		actor: options.actor ?? { kind: 'agent' },
-		executeCommand: httpEngine.executeCommand,
-		executeBatch: httpEngine.executeBatch,
+		restRouter,
 		executeStream: httpEngine.executeStream,
 		isMutation: (commandName) => mutationNames.has(commandName),
-		confirmations,
-		hostVerifiedCheck,
 		sessions,
 		createContext: options.createContext,
 		contextFields,

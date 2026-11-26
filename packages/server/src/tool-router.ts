@@ -50,6 +50,7 @@ import {
 	type Acknowledgement,
 	type ConfirmationGate,
 	type ConfirmationOutcome,
+	confirmationChannel,
 	declaresConfirmInput,
 	type HumanRelayGate,
 	InputRequiredSignal,
@@ -81,6 +82,78 @@ export interface ToolCallResult {
 	isError: boolean;
 }
 
+/**
+ * What routing one call produced, before a lane encodes it: a result value (a `CommandResult`, a
+ * `BatchResult`, a pipeline result, or a meta-tool's answer), or a tool result already shaped for
+ * MCP (a task the call created).
+ */
+export type RouteOutcome =
+	| { kind: 'value'; value: unknown; isError: boolean }
+	| { kind: 'tool'; result: ToolCallResult }
+	/**
+	 * Refused by admission (`admission.ts`) before the router: each lane shapes `error` itself (a
+	 * `CommandResult` over MCP and `/rpc`, a `BatchResult` on `/batch`, an error chunk on `/stream`).
+	 */
+	| { kind: 'refused'; error: CommandError };
+
+/** A routing outcome carrying `value`. */
+export function out(value: unknown, isError: boolean): RouteOutcome {
+	return { kind: 'value', value, isError };
+}
+
+/** The MCP tool result of a routing outcome. */
+export function toolResultOf(outcome: RouteOutcome): ToolCallResult {
+	if (outcome.kind === 'tool') return outcome.result;
+	if (outcome.kind === 'refused') return resultContent(failure(outcome.error), true);
+	return resultContent(outcome.value, outcome.isError);
+}
+
+/**
+ * Runs the one command a call admitted. The default runs it through the engine; the `/stream`
+ * lane takes the admitted command, input and context instead, and streams it.
+ */
+export type RunAdmitted = (
+	name: string,
+	input: unknown,
+	context: CommandContext
+) => Promise<RouteOutcome>;
+
+/** A routed tool call's answer as an MCP tool result, with the raw stages beside it. */
+export interface ToolRouter {
+	(toolName: string, args: unknown, callContext?: CommandContext): Promise<ToolCallResult>;
+	/**
+	 * Route one call and return its outcome unencoded (the HTTP routes encode it themselves).
+	 * `run` replaces the engine for the one command a single-command call admits.
+	 */
+	route(
+		toolName: string,
+		args: unknown,
+		callContext?: CommandContext,
+		run?: RunAdmitted
+	): Promise<RouteOutcome>;
+}
+
+/** A plain tool-call function, as tests and hosts may pass for a router. */
+export type ToolCallFunction = (
+	toolName: string,
+	args: Record<string, unknown>,
+	context: CommandContext
+) => Promise<ToolCallResult>;
+
+/** `router` as a {@link ToolRouter}: a plain function's results are already MCP tool results. */
+export function asToolRouter(router: ToolRouter | ToolCallFunction): ToolRouter {
+	if ('route' in router) return router;
+	const route = async (toolName: string, args: unknown, context: CommandContext = {}) => ({
+		kind: 'tool' as const,
+		result: await router(toolName, (args ?? {}) as Record<string, unknown>, context),
+	});
+	return Object.assign(
+		async (toolName: string, args: unknown, context?: CommandContext) =>
+			toolResultOf(await route(toolName, args, context)),
+		{ route }
+	);
+}
+
 export interface ToolRouterDeps {
 	executeCommand: (
 		name: string,
@@ -107,6 +180,14 @@ export interface ToolRouterDeps {
 	maxBatchSize?: number;
 	/** Maximum parallelism accepted in a single batch (default: 16). */
 	maxBatchParallelism?: number;
+	/**
+	 * Whether this router's callers can call the meta-tools (default `true`): a refusal names one
+	 * in its suggestion and recovery only then. The HTTP routes, which serve no meta-tool, set
+	 * `false` (`spec/recovery.md`, "Engine errors").
+	 */
+	metaTools?: boolean;
+	/** The trace ID prefix of a single command's run (default `afd-call`; the HTTP routes: `rpc`). */
+	callTracePrefix?: string;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -139,6 +220,13 @@ function failedPipeline(error: CommandError) {
 		...emptyPipelineResult,
 		steps: [{ index: -1, command: '', status: 'failure', executionTimeMs: 0, error }],
 	};
+}
+
+/** A call refused before any command runs, shaped as its tool's own result. */
+export function refusedCall(toolName: string, error: CommandError): RouteOutcome {
+	if (toolName === 'afd-batch') return out(createFailedBatchResult(error, {}), true);
+	if (toolName === 'afd-pipe') return out(failedPipeline(error), true);
+	return out(failure(error), true);
 }
 
 /**
@@ -182,10 +270,10 @@ function contextDenial(
 	commandName: string,
 	contextState: ContextState | null | undefined,
 	can: (name: string) => boolean
-): ToolCallResult | undefined {
+): RouteOutcome | undefined {
 	const activeContext = contextState?.getActive();
 	if (!cmd || !activeContext || isAccessibleInContext(cmd, activeContext)) return undefined;
-	return resultContent(
+	return out(
 		{ success: false, error: notInContextError(commandName, activeContext, cmd.contexts, can) },
 		true
 	);
@@ -195,9 +283,9 @@ function contextDenial(
  * The `COMMAND_NOT_ALLOWED` tool result when the `allow` option of a direct registry call refuses
  * `commandName`; undefined otherwise, and always on the MCP lanes, which bind no `allow`.
  */
-function allowDenial(commandName: string, callContext: CommandContext): ToolCallResult | undefined {
+function allowDenial(commandName: string, callContext: CommandContext): RouteOutcome | undefined {
 	if (isCommandAllowed(callContext, commandName)) return undefined;
-	return resultContent(failure(commandNotAllowed(commandName)), true);
+	return out(failure(commandNotAllowed(commandName)), true);
 }
 
 /**
@@ -207,8 +295,13 @@ function allowDenial(commandName: string, callContext: CommandContext): ToolCall
  * command is not run, suggested, discovered or described. The engine checks it again for each
  * command it runs, so batch items and pipeline steps are covered too.
  */
-export function createToolRouter(deps: ToolRouterDeps) {
+export function createToolRouter(deps: ToolRouterDeps): ToolRouter {
 	const { executeCommand, executeBatch, executePipeline, toolStrategy, groupByFn, devMode } = deps;
+	const callPrefix = deps.callTracePrefix ?? 'afd-call';
+	const engineRun: RunAdmitted = async (name, input, context) => {
+		const result = await executeCommand(name, input, context);
+		return out(result, !result.success);
+	};
 
 	/**
 	 * Route one tool call.
@@ -216,11 +309,12 @@ export function createToolRouter(deps: ToolRouterDeps) {
 	 * @param callContext - Base `CommandContext` for commands this call runs (request values,
 	 *   `signal`, and the caller's context state); each execution adds its own `traceId`.
 	 */
-	return async function routeToolCall(
+	async function route(
 		toolName: string,
 		args: unknown,
-		callContext: CommandContext = {}
-	): Promise<ToolCallResult> {
+		callContext: CommandContext = {},
+		run: RunAdmitted = engineRun
+	): Promise<RouteOutcome> {
 		const contextState = resolveContextState(callContext, deps.contextState);
 		const gate = deps.confirmations;
 		/**
@@ -231,12 +325,22 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			steps: Array<{ command: string; input: unknown }>,
 			acknowledged: Acknowledgement,
 			howToAcknowledge: string,
-			toResult: (outcome: Extract<ConfirmationOutcome, { kind: 'error' }>) => ToolCallResult = (
+			toResult: (outcome: Extract<ConfirmationOutcome, { kind: 'error' }>) => RouteOutcome = (
 				outcome
-			) => resultContent({ success: false, error: outcome.error }, true)
-		): Promise<ToolCallResult | undefined> => {
+			) => out({ success: false, error: outcome.error }, true)
+		): Promise<RouteOutcome | undefined> => {
 			if (!gate || gate.mode === 'off') return undefined;
-			const outcome = await gate.check(steps, acknowledged, callContext, howToAcknowledge);
+			// A lane whose acknowledgement is not an argument (the HTTP routes' `Afd-Confirm`
+			// header) says what it acknowledges and how to send it; an argument counts for nothing.
+			const byLane = confirmationChannel(callContext)?.acknowledgement;
+			const outcome = await gate.check(
+				steps,
+				byLane ? byLane.names : acknowledged,
+				callContext,
+				byLane
+					? byLane.how([...new Set(gate.gated(steps).map((step) => step.command))])
+					: howToAcknowledge
+			);
 			if (outcome.kind === 'proceed') return undefined;
 			if (outcome.kind === 'input-required') throw new InputRequiredSignal(outcome.result);
 			return toResult(outcome);
@@ -249,13 +353,12 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			cmd: ZodCommandDefinition | undefined,
 			input: unknown,
 			prefix: string
-		): Promise<ToolCallResult | undefined> => {
+		): Promise<RouteOutcome | undefined> => {
 			if (!deps.humanRelay || cmd?.confirmationMode !== 'host-verified') return undefined;
 			const outcome = await deps.humanRelay.check(cmd, input, traced(prefix));
 			if (outcome.kind === 'input-required') throw new InputRequiredSignal(outcome.result);
-			if (outcome.kind === 'error') return resultContent(failure(outcome.error), true);
-			const result = await executeCommand(cmd.name, input, outcome.context);
-			return resultContent(result, !result.success);
+			if (outcome.kind === 'error') return out(failure(outcome.error), true);
+			return run(cmd.name, input, outcome.context);
 		};
 		/**
 		 * The context of a batch's or pipeline's steps. Steps cannot ask for approval mid-run (the
@@ -283,17 +386,14 @@ export function createToolRouter(deps: ToolRouterDeps) {
 		const view = scopeViewOf(callContext);
 		const decision = view?.decideCall(toolName, args);
 		if (view && decision && decision !== 'proceed') {
-			const error = view.insufficientScope(decision.forbidden);
-			if (toolName === 'afd-batch') return resultContent(createFailedBatchResult(error, {}), true);
-			if (toolName === 'afd-pipe') return resultContent(failedPipeline(error), true);
-			return resultContent(failure(error), true);
+			return refusedCall(toolName, view.insufficientScope(decision.forbidden));
 		}
 		const commands = knownOnly(deps.commands, callContext);
 		const allCommands = deps.allCommands && knownOnly(deps.allCommands, callContext);
 		// Whether the caller can call a command, decided once for each refusal's suggestion and
 		// recovery (`spec/recovery.md`, "Engine errors"). The router serves every meta-tool.
 		const surface: CallableSurface = {
-			metaTools: true,
+			metaTools: deps.metaTools ?? true,
 			command: (name: string) => commands.find((command) => command.name === name),
 			...(view && { shown: (name: string) => view.shown(name) }),
 		};
@@ -303,10 +403,15 @@ export function createToolRouter(deps: ToolRouterDeps) {
 		const existing = <T extends { command: string }>(steps: T[]): T[] =>
 			view ? steps.filter((step) => view.known(step.command)) : steps;
 		const taskDispatch = taskDispatchOf(callContext);
-		const runTask = (cmd: ZodCommandDefinition | undefined, input: unknown, prefix: string) =>
-			taskDispatch && (cmd?.task === 'optional' || cmd?.task === 'required')
-				? taskDispatch.dispatch(cmd, input, traced(prefix))
-				: undefined;
+		const runTask = async (
+			cmd: ZodCommandDefinition | undefined,
+			input: unknown,
+			prefix: string
+		): Promise<RouteOutcome | undefined> => {
+			if (!taskDispatch || (cmd?.task !== 'optional' && cmd?.task !== 'required')) return undefined;
+			const result = await taskDispatch.dispatch(cmd, input, traced(prefix));
+			return result && { kind: 'tool', result };
+		};
 		const requiredTaskIn = (steps: readonly { command: string }[]) =>
 			taskDispatch
 				? existing([...steps])
@@ -322,7 +427,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 				args,
 				'Provide { command: "command-name", input: {...} }'
 			);
-			if (!parsed.success) return resultContent(parsed.result, true);
+			if (!parsed.success) return out(parsed.result, true);
 			const { command: commandName, input, confirm: confirmArg } = parsed.data;
 
 			// Before the lookup, so a refused name gives the same answer whether it exists.
@@ -339,7 +444,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 					filterByContext(shownOnly(commands, callContext), contextState?.getActive()),
 					callContext
 				);
-				return resultContent(
+				return out(
 					failure(
 						notFoundError(
 							commandName,
@@ -355,7 +460,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			const denied = contextDenial(cmd, commandName, contextState, can);
 			if (denied) return denied;
 
-			const hostVerified = await runHostVerified(cmd, input ?? {}, 'afd-call');
+			const hostVerified = await runHostVerified(cmd, input ?? {}, callPrefix);
 			if (hostVerified) return hostVerified;
 
 			const unconfirmed = await confirm(
@@ -365,13 +470,12 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			);
 			if (unconfirmed) return unconfirmed;
 
-			const dispatched = await runTask(cmd, input ?? {}, 'afd-call');
+			const dispatched = await runTask(cmd, input ?? {}, callPrefix);
 			if (dispatched) return dispatched;
 
 			// Execute through the execution engine (full middleware chain)
 			approvalRelay(callContext)?.route(commandName);
-			const result = await executeCommand(commandName, input ?? {}, traced('afd-call'));
-			return resultContent(result, !result.success);
+			return run(commandName, input ?? {}, traced(callPrefix));
 		}
 
 		// Handle afd-discover (listed by the lazy strategy, routable in all)
@@ -382,14 +486,14 @@ export function createToolRouter(deps: ToolRouterDeps) {
 				args,
 				'Provide optional { category, tag, tagMode, search, includeMutation, limit, offset }'
 			);
-			if (!parsed.success) return resultContent(parsed.result, true);
+			if (!parsed.success) return out(parsed.result, true);
 			// Filter by active context when context state is available, and by the call's `allow`
 			const discoverCommands = filterAllowed(
 				filterByContext(listedCommands(commands, callContext), contextState?.getActive()),
 				callContext
 			);
 			const result = executeDiscover(discoverCommands, parsed.data);
-			return resultContent(result, false);
+			return out(result, false);
 		}
 
 		// Handle afd-detail (listed by the lazy and grouped strategies, routable in all)
@@ -400,7 +504,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 				args,
 				'Provide { command: "command-name" } or { command: ["name-1", "name-2"] } (max 10)'
 			);
-			if (!parsed.success) return resultContent(parsed.result, true);
+			if (!parsed.success) return out(parsed.result, true);
 			const exposedNames = exposedCommandNames ?? new Set(commands.map((c) => c.name));
 			// Filter by active context so agents cannot inspect commands outside their context, and
 			// by the call's `allow`, so a refused command reads as unknown
@@ -417,7 +521,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 				parsed.data,
 				notFoundNext(can)
 			);
-			return resultContent(result, false);
+			return out(result, false);
 		}
 
 		// Handle built-in afd-batch tool
@@ -427,7 +531,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			const check = checkMetaArgs(batchArgsSchema, args);
 			if (!check.success || !isBatchRequest(args)) {
 				const usage = 'Provide { commands: [...] } with command objects';
-				return resultContent(
+				return out(
 					failedBatchRequest(
 						{},
 						check.success ? undefined : { errors: check.errors },
@@ -441,12 +545,12 @@ export function createToolRouter(deps: ToolRouterDeps) {
 				maxBatchParallelism: deps.maxBatchParallelism,
 			});
 			if (limitError) {
-				return resultContent(createFailedBatchResult(limitError, {}), true);
+				return out(createFailedBatchResult(limitError, {}), true);
 			}
 			const batchArgs = args as unknown as Record<string, unknown>;
 			const requiredBatch = requiredTaskIn(args.commands);
 			if (requiredBatch && taskDispatch) {
-				return resultContent(
+				return out(
 					createFailedBatchResult(
 						taskDispatch.refuseComposite('afd-batch', requiredBatch.name),
 						{}
@@ -459,13 +563,13 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			);
 			const hostVerifiedBatch = deps.humanRelay?.refuseSteps(batchSteps);
 			if (hostVerifiedBatch) {
-				return resultContent(createFailedBatchResult(hostVerifiedBatch, {}), true);
+				return out(createFailedBatchResult(hostVerifiedBatch, {}), true);
 			}
 			const unconfirmed = await confirm(
 				batchSteps,
 				namedAcknowledgement(batchArgs.confirm),
 				'repeat the afd-batch with confirm: [the command names]',
-				(outcome) => resultContent(createFailedBatchResult(outcome.error, {}), true)
+				(outcome) => out(createFailedBatchResult(outcome.error, {}), true)
 			);
 			if (unconfirmed) return unconfirmed;
 			const request = withoutConfirm(args);
@@ -473,8 +577,8 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			const result = await executeBatch(request, steps.context);
 			// Nothing ran: the whole batch was refused, or waits for the user's approval.
 			const refusal = steps.upFront?.refusal;
-			if (refusal) return resultContent(createFailedBatchResult(refusal, {}), true);
-			return resultContent(result, !result.success);
+			if (refusal) return out(createFailedBatchResult(refusal, {}), true);
+			return out(result, !result.success);
 		}
 
 		// Handle built-in afd-pipe tool
@@ -485,7 +589,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			if (!check.success || !isPipelineRequest(args)) {
 				const usage =
 					'Provide steps with nonempty command names, object inputs, valid conditions, and correctly typed options; input must be JSON';
-				return resultContent(
+				return out(
 					{
 						...emptyPipelineResult,
 						steps: [
@@ -509,7 +613,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			const pipeArgs = args as unknown as Record<string, unknown>;
 			const requiredPipe = requiredTaskIn(args.steps);
 			if (requiredPipe && taskDispatch) {
-				return resultContent(
+				return out(
 					failedPipeline(taskDispatch.refuseComposite('afd-pipe', requiredPipe.name)),
 					true
 				);
@@ -519,22 +623,22 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			);
 			const hostVerifiedPipe = deps.humanRelay?.refuseSteps(pipeSteps);
 			if (hostVerifiedPipe) {
-				return resultContent(failedPipeline(hostVerifiedPipe), true);
+				return out(failedPipeline(hostVerifiedPipe), true);
 			}
 			const unconfirmed = await confirm(
 				pipeSteps,
 				namedAcknowledgement(pipeArgs.confirm),
 				'repeat the afd-pipe with confirm: [the command names]',
-				(outcome) => resultContent(failedPipeline(outcome.error), true)
+				(outcome) => out(failedPipeline(outcome.error), true)
 			);
 			if (unconfirmed) return unconfirmed;
 			const request = withoutConfirm(args);
 			const steps = stepsContext('afd-pipe', 'pipeline', request);
 			const result = await executePipeline(request, steps.context);
 			const refusal = steps.upFront?.refusal;
-			if (refusal) return resultContent(failedPipeline(refusal), true);
+			if (refusal) return out(failedPipeline(refusal), true);
 			const hasFailed = result.steps.some((s) => s.status === 'failure');
-			return resultContent(result, hasFailed);
+			return out(result, hasFailed);
 		}
 
 		// Handle grouped tool calls (when toolStrategy === "grouped")
@@ -556,7 +660,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			const groupCommands = commands.filter((cmd) => commandGroup(cmd, groupByFn) === toolName);
 			const allowedGroupCommands = filterAllowed(groupCommands, callContext);
 			if (groupCommands.length > 0 && allowedGroupCommands.length === 0) {
-				return resultContent(failure(commandNotAllowed(toolName)), true);
+				return out(failure(commandNotAllowed(toolName)), true);
 			}
 
 			if (action && typeof action === 'string') {
@@ -564,7 +668,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 					(command) => commandAction(command) === action
 				);
 				if (candidates.length !== 1) {
-					return resultContent(
+					return out(
 						failure({
 							code: candidates.length ? 'AMBIGUOUS_ACTION' : 'COMMAND_NOT_FOUND',
 							message: `Action '${truncateName(action)}' does not identify one command in group '${truncateName(toolName)}'`,
@@ -597,8 +701,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 				if (dispatched) return dispatched;
 
 				approvalRelay(callContext)?.route(actualCommandName);
-				const result = await executeCommand(actualCommandName, commandParams, traced('trace'));
-				return resultContent(result, !result.success);
+				return run(actualCommandName, commandParams, traced('trace'));
 			}
 
 			// In grouped mode, if tool is a known group but action is missing/invalid,
@@ -608,7 +711,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			if (shownGroupCommands.length > 0) {
 				const availableActions = shownGroupCommands.map(commandAction);
 
-				return resultContent(
+				return out(
 					{
 						success: false,
 						error: {
@@ -660,7 +763,10 @@ export function createToolRouter(deps: ToolRouterDeps) {
 		if (dispatched) return dispatched;
 
 		approvalRelay(callContext)?.route(toolName);
-		const result = await executeCommand(toolName, input, traced('trace'));
-		return resultContent(result, !result.success);
-	};
+		return run(toolName, input, traced('trace'));
+	}
+
+	const routeToolCall = async (toolName: string, args: unknown, callContext?: CommandContext) =>
+		toolResultOf(await route(toolName, args, callContext));
+	return Object.assign(routeToolCall, { route });
 }

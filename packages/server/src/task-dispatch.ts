@@ -1,13 +1,15 @@
 /**
  * @fileoverview Per-request MCP Tasks dispatch seam (`spec/command-metadata.md`, "Tasks").
  *
- * The MCP lane binds a {@link TaskDispatch} to each `tools/call` context under a module-private
- * symbol (like `scope-view.ts` and `confirmations.ts`), so `createContext` and tool arguments can
- * never forge one. This module imports nothing at run time, so the tool router — which `/direct`
- * also bundles — reads it without pulling Node.js built-ins or the task runtime into `/direct`.
+ * The MCP lane binds a {@link TaskDispatch} to each `tools/call` context's host state
+ * (`host-state.ts`, like `scope-view.ts` and `confirmations.ts`), so `createContext` and tool
+ * arguments can never forge one. This module loads only `host-state.ts`, so the tool router, which
+ * `/direct` also bundles, reads it without pulling Node.js built-ins or the task runtime into
+ * `/direct`.
  */
 
 import type { CommandContext, CommandError } from '@lushly-dev/afd-core';
+import { hostState, withHostState } from './host-state.js';
 import type { ZodCommandDefinition } from './schema.js';
 import type { ToolCallResult } from './tool-router.js';
 
@@ -32,24 +34,18 @@ export interface TaskDispatch {
 	refuseComposite(tool: 'afd-batch' | 'afd-pipe', commandName: string): CommandError;
 }
 
-const DISPATCH = Symbol('afd.taskDispatch');
-
-type TaskDispatchContext = CommandContext & { [DISPATCH]?: TaskDispatch };
-
 /** Return a copy of `context` bound to `dispatch`. */
 export function bindTaskDispatch<T extends CommandContext>(context: T, dispatch: TaskDispatch): T {
-	return { ...context, [DISPATCH]: dispatch };
+	return withHostState(context, { taskDispatch: dispatch });
 }
 
 /** The task dispatch bound to `context`, if any. */
 export function taskDispatchOf(context: CommandContext | undefined): TaskDispatch | undefined {
-	return (context as TaskDispatchContext | undefined)?.[DISPATCH];
+	return hostState(context).taskDispatch;
 }
 
 /** Return a copy of `context` without any bound task dispatch (for nested calls inside a task). */
 export function withoutTaskDispatch<T extends CommandContext>(context: T): T {
-	if (!(context as TaskDispatchContext)[DISPATCH]) return context;
-	const copy = { ...context } as TaskDispatchContext;
-	delete copy[DISPATCH];
-	return copy as T;
+	if (!hostState(context).taskDispatch) return context;
+	return withHostState(context, { taskDispatch: undefined });
 }

@@ -25,6 +25,19 @@ import { createRateLimitMiddleware } from './middleware.js';
 import { defineCommand } from './schema.js';
 import { createMcpHandler } from './server.js';
 import type { McpHandlerOptions } from './server-types.js';
+import { createToolRouter } from './tool-router.js';
+
+/** The HTTP routes' router of a handler with no commands. */
+function emptyRouter() {
+	const engine = createExecutionEngine({ commandMap: new Map(), middleware: [], devMode: false });
+	return createToolRouter({
+		...engine,
+		commands: [],
+		toolStrategy: 'individual',
+		devMode: false,
+		metaTools: false,
+	});
+}
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -367,6 +380,17 @@ describe('HTTP lane refusals', () => {
 });
 
 describe('GET /stream', () => {
+	it('answers a path that names no command with 400, on GET and POST (#1743)', async () => {
+		const { url } = await host();
+		for (const response of [await fetch(`${url}/stream/`), await post(url, '/stream/', {})]) {
+			expect(response.status).toBe(400);
+			const body = (await response.json()) as { error: { code: string; suggestion: string } };
+			expect(body.error.code).toBe('HTTP_400');
+			expect(body.error.suggestion).toContain('/stream/<command>');
+		}
+		expect(seen).toHaveLength(0);
+	});
+
 	it('refuses mutations with 405 and points to POST', async () => {
 		const { url } = await host();
 		const response = await fetch(`${url}/stream/item-write?input=%7B%7D`);
@@ -462,6 +486,7 @@ describe('/sse connections', () => {
 			sseHeartbeatMs: 10,
 			getToolsList: () => [],
 			routeToolCall: async () => ({ content: [], isError: false }),
+			restRouter: emptyRouter(),
 			...engine,
 		});
 		const url = await listen(http.handler, http.dispose);
@@ -489,6 +514,7 @@ describe('/sse connections', () => {
 			devMode: false,
 			getToolsList: () => [],
 			routeToolCall: async () => ({ content: [], isError: false }),
+			restRouter: emptyRouter(),
 			...createExecutionEngine({ commandMap: new Map(), middleware: [], devMode: false }),
 		};
 		expect(() => createHttpHandler({ ...base, maxSseConnections: 0 })).toThrow('maxSseConnections');
