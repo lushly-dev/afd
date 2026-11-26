@@ -153,6 +153,11 @@ describe('P2-E3: two projects, and an app at each level', () => {
 		expect(await tasks.getAttribute('aria-disabled')).toBeNull();
 		await openApp(page, 'tasks');
 		await page.locator('tasks-main').waitFor();
+		expect(
+			await page
+				.locator('tasks-main h1')
+				.evaluate((heading) => getComputedStyle(heading).fontFamily)
+		).toMatch(/^"?Space Grotesk"?,/);
 		expect(opened.errors).toEqual([]);
 		expect(opened.violations).toEqual([]);
 		await opened.context.close();

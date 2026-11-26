@@ -1,0 +1,20 @@
+name: Use reserved keyboard actions from the shell
+job: reserved-keys
+description: When I cannot use a reserved chord, I want to invoke the same action from the shell.
+steps:
+  - command: shell-focus-next
+    input: {}
+    expect:
+      success: true
+  - command: shell-focus-previous
+    input: {}
+    expect:
+      success: true
+  - command: shell-save
+    input: {}
+    expect:
+      success: true
+  - command: shell-project-switcher
+    input: {}
+    expect:
+      success: true

@@ -202,8 +202,8 @@ describe('P2-E1: one first paint', () => {
 		// 344,982 against `main` at `bd30d790b`), and raised under D115 by #2539 (engine errors carry a recovery in
 		// `afd-server`'s `command-routing.ts`, on top of #2576's `secret` commands; measured 346,326 against `main` at
 		// `ad9e42890`), and by #2599 (Violet's redrawn system icons, +66; measured 346,861 against `main` at
-		// `7e75987e9`).
-		expect(javascript).toBeLessThanOrEqual(347_200);
+		// `7e75987e9`), then by the local workspace backup and shell commands (348,039 on `5ade6c0f4`).
+		expect(javascript).toBeLessThanOrEqual(348_350);
 		expect(javascript).toBe(budgetRow());
 		// Stage B still runs in every deployment: `late` loads after the mark, on the empty shell too.
 		await expect

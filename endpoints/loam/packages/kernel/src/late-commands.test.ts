@@ -5,6 +5,7 @@ import { MemoryAdapter } from '@lushly-dev/local-db';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { createKernel } from './kernel.js';
+import { SHELL_KEY_ACTIONS } from './keybindings.js';
 import { SHELL_COMMAND_NAMES } from './shell-command-names.js';
 import { createFixedEnvironment } from './testing.js';
 
@@ -58,7 +59,10 @@ describe('stage A and stage B', () => {
 		// afd-auth keeps `auth-sign-in` off the agent surface.
 		expect(kernel.agent.listCommands().map((row) => row.name)).toEqual(
 			SHELL_COMMAND_NAMES.filter(
-				(name) => !(COPILOT_QUERIES as readonly string[]).includes(name) && name !== 'auth-sign-in'
+				(name) =>
+					!(COPILOT_QUERIES as readonly string[]).includes(name) &&
+					!SHELL_KEY_ACTIONS.some((action) => action === name) &&
+					name !== 'auth-sign-in'
 			)
 		);
 		expect(kernel.lateFailure).toBeUndefined();

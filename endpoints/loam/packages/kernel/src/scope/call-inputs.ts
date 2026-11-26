@@ -167,6 +167,10 @@ export const SHELL_INPUTS: Readonly<Record<string, unknown>> = {
 	'limit-usage-get': {},
 	// Phase 4's step 7: the bindings in force, the person's own overrides among them (8.5).
 	'keybinding-list': { all: true },
+	'shell-focus-next': {},
+	'shell-focus-previous': {},
+	'shell-save': {},
+	'shell-project-switcher': {},
 };
 
 /**

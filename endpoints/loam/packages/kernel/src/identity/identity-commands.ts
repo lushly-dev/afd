@@ -26,6 +26,12 @@ import {
  * MCP. Frozen here, with the names later steps build, so a step that adds one adds no exemption by mistake.
  */
 export const HUMAN_COMMANDS: readonly string[] = Object.freeze([
+	'shell-focus-next',
+	'shell-focus-previous',
+	'shell-save',
+	'shell-project-switcher',
+	'storage-persistence-get',
+	'workspace-export',
 	'account-update',
 	'account-passkey-list',
 	'account-passkey-add',

@@ -20,6 +20,7 @@ import {
 import { LocalAuthAdapter } from '@lushly-dev/loam-kernel/local-auth';
 
 import { IndexedDbAdapter } from '@lushly-dev/local-db/indexeddb';
+import { type LocalWorkspacePorts, localWorkspaceBackup } from './local-workspace.js';
 
 /** The databases the browser host owns (6.4, 6.6). */
 export const STORE_NAME = 'loam-store';
@@ -68,6 +69,7 @@ export interface HostKernelOptions {
 	 * `local`, with a `LocalAuthAdapter` per page (D162).
 	 */
 	auth?: AuthAdapter;
+	localWorkspace?: LocalWorkspacePorts;
 	membership?: KernelOptions['membership'];
 	identityPorts?: KernelOptions['identityPorts'];
 	/** The deployment's copilot providers and the host's runner (phase 5 specification, 3.2 and 4.1). */
@@ -140,11 +142,15 @@ export async function createHostKernel(options: HostKernelOptions): Promise<Host
 			await new Promise((resolve) => setTimeout(resolve, LOCK_RETRY_MS));
 		}
 	}
+	const store = new IndexedDbAdapter({
+		name: STORE_NAME,
+		...(options.indexedDB ? { indexedDB: options.indexedDB } : {}),
+	});
 	const { kernel, inboundCommands } = await createKernelParts({
-		store: new IndexedDbAdapter({
-			name: STORE_NAME,
-			...(options.indexedDB ? { indexedDB: options.indexedDB } : {}),
-		}),
+		store,
+		...(options.auth
+			? {}
+			: { localWorkspace: localWorkspaceBackup(store, options.localWorkspace) }),
 		storeKind: 'indexeddb',
 		journal,
 		auth: options.auth ?? new LocalAuthAdapter(),

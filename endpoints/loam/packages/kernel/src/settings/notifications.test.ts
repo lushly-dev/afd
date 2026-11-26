@@ -28,6 +28,7 @@ import {
 	createNotifications,
 	NOTIFICATION_LIST_BUDGET,
 	NOTIFICATION_QUOTA,
+	NOTIFICATION_SOURCE_QUOTA,
 	NOTIFICATION_TABLE,
 	orphanNotice,
 	orphanRecipients,
@@ -336,10 +337,40 @@ describe('P4-E6: rates (10.2, 6.1)', () => {
 });
 
 describe('P4-E6: the quota (10.1)', () => {
+	it('reserves room for other sources when one app reaches its unread limit', async () => {
+		const { probe, sums, store } = await boot();
+		for (let index = 1; index <= NOTIFICATION_SOURCE_QUOTA; index++)
+			await store.create(NOTIFICATION_TABLE, row(index) as never);
+		const refused = await probe.call('notification-push', { title: 'one more' });
+		expect(refused.error).toMatchObject({
+			code: 'QUOTA_EXCEEDED',
+			details: { kind: 'notifications', limit: NOTIFICATION_SOURCE_QUOTA },
+		});
+		expect((await sums.call('notification-push', { title: 'another source' })).success).toBe(true);
+	});
+
+	it('replaces its own read history before evicting notices from another app', async () => {
+		const { probe, store } = await boot();
+		const other = row(0, { source: 'sums', readAt: 1 });
+		await store.create(NOTIFICATION_TABLE, other as never);
+		for (let index = 1; index <= NOTIFICATION_SOURCE_QUOTA; index++)
+			await store.create(NOTIFICATION_TABLE, row(index, { readAt: 1 }) as never);
+		expect((await probe.call('notification-push', { title: 'new' })).success).toBe(true);
+		const rows = (await store.list<NotificationV1>(NOTIFICATION_TABLE)).data;
+		expect(rows.some((notice) => notice.id === other.id)).toBe(true);
+		expect(rows.some((notice) => notice.id === row(1).id)).toBe(false);
+		expect(rows.filter((notice) => notice.source === 'probe')).toHaveLength(
+			NOTIFICATION_SOURCE_QUOTA
+		);
+	});
+
 	it('refuses a push past 500 unread notices, which are never dropped; confirmations count for nothing', async () => {
 		const { kernel, probe, store } = await boot();
 		for (let index = 1; index <= NOTIFICATION_QUOTA; index++)
-			await store.create(NOTIFICATION_TABLE, row(index) as never);
+			await store.create(
+				NOTIFICATION_TABLE,
+				row(index, { source: `source-${index % 5}` }) as never
+			);
 		await store.create(NOTIFICATION_TABLE, pending(9_999) as never);
 		const refused = await probe.call('notification-push', { title: 'one more' });
 		expect(refused.error).toMatchObject({
@@ -359,7 +390,10 @@ describe('P4-E6: the quota (10.1)', () => {
 	it("never refuses the shell's own notices, nor counts them (R1)", async () => {
 		const { kernel, probe, store } = await boot();
 		for (let index = 1; index <= NOTIFICATION_QUOTA; index++)
-			await store.create(NOTIFICATION_TABLE, row(index) as never);
+			await store.create(
+				NOTIFICATION_TABLE,
+				row(index, { source: `source-${index % 5}` }) as never
+			);
 		expect((await probe.call('notification-push', { title: 'no room' })).error?.code).toBe(
 			'QUOTA_EXCEEDED'
 		);
@@ -377,7 +411,10 @@ describe('P4-E6: the quota (10.1)', () => {
 	it('admits concurrent pushes one at a time: 499 unread and two pushes leave 500', async () => {
 		const { kernel, probe, sums, store } = await boot();
 		for (let index = 1; index < NOTIFICATION_QUOTA; index++)
-			await store.create(NOTIFICATION_TABLE, row(index) as never);
+			await store.create(
+				NOTIFICATION_TABLE,
+				row(index, { source: `source-${index % 5}` }) as never
+			);
 		const answers = await Promise.all([
 			probe.call('notification-push', { title: 'first' }),
 			sums.call('notification-push', { title: 'second' }),
@@ -390,7 +427,10 @@ describe('P4-E6: the quota (10.1)', () => {
 	it('takes a push with 499 unread notices however many confirmations wait', async () => {
 		const { probe, store } = await boot();
 		for (let index = 1; index < NOTIFICATION_QUOTA; index++)
-			await store.create(NOTIFICATION_TABLE, row(index) as never);
+			await store.create(
+				NOTIFICATION_TABLE,
+				row(index, { source: `source-${index % 5}` }) as never
+			);
 		for (let index = 0; index < 20; index++)
 			await store.create(NOTIFICATION_TABLE, pending(10_000 + index) as never);
 		expect((await probe.call('notification-push', { title: 'fits' })).success).toBe(true);

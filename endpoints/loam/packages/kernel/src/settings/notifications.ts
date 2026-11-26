@@ -39,6 +39,7 @@ export const NOTIFICATION_TABLE = 'notification';
  * agents is refused. The shell's own notices, as confirmations, count for neither side and are never refused (R1).
  */
 export const NOTIFICATION_QUOTA = 500;
+export const NOTIFICATION_SOURCE_QUOTA = 100;
 
 /** `notification-list`'s page (10.2): 1 to 100, 20 by default. */
 export const NOTIFICATION_PAGE = 20;
@@ -318,12 +319,14 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 			{ retryable: true, details: { limit, retryAfterMs } }
 		);
 
-	const quotaRefusal = () =>
+	const quotaRefusal = (limit: number) =>
 		fail(
 			'QUOTA_EXCEEDED',
-			`The person has ${NOTIFICATION_QUOTA} unread notices, which are never dropped`,
+			limit === NOTIFICATION_QUOTA
+				? `This inbox already has ${limit} unread notices`
+				: `This source already has ${limit} unread notices in the inbox`,
 			'Ask the person to read or archive notifications, then push again',
-			{ details: { kind: 'notifications', limit: NOTIFICATION_QUOTA } }
+			{ details: { kind: 'notifications', limit } }
 		);
 
 	/**
@@ -344,31 +347,45 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 		return run;
 	}
 
-	/** Whether the person holds 500 unread notices from apps and agents (10.1, R1). */
-	const full = async (person: string): Promise<boolean> =>
-		(await noticesOf(person)).filter((row) => counted(row) && unread(row)).length >=
-		NOTIFICATION_QUOTA;
+	const quotaSource = (source: string): string => (source.startsWith('agent:') ? 'agent:' : source);
 
-	/**
-	 * Write one notice, inside the person's admission (10.1): refused (`'full'`) at 500 unread notices from apps and
-	 * agents, never for the shell's own (R1); otherwise the oldest read or archived notices go to keep the person's at
-	 * most 500, in one store batch with the insert, so a failed insert keeps them.
-	 */
+	/** The unread quota that prevents another notice from this source. */
+	function quota(notices: NotificationV1[], source: string): number | undefined {
+		if (source === 'shell') return undefined;
+		const held = notices.filter((row) => counted(row) && unread(row));
+		if (held.length >= NOTIFICATION_QUOTA) return NOTIFICATION_QUOTA;
+		const bucket = quotaSource(source);
+		if (
+			held.filter((row) => quotaSource(row.source) === bucket).length >= NOTIFICATION_SOURCE_QUOTA
+		)
+			return NOTIFICATION_SOURCE_QUOTA;
+		return undefined;
+	}
+
+	/** Admit the notice and evict old read or archived notices in the same store batch. */
 	async function insert(
 		context: CommandContext,
 		person: string,
 		source: string,
 		fields: Pick<NotificationV1, 'title' | 'tone'> &
 			Partial<Pick<NotificationV1, 'body' | 'link' | 'action'>>
-	): Promise<NotificationV1 | 'full'> {
+	): Promise<NotificationV1 | number> {
 		const notices = (await noticesOf(person)).filter((row) => row.kind === 'notice');
-		if (
-			source !== 'shell' &&
-			notices.filter((row) => counted(row) && unread(row)).length >= NOTIFICATION_QUOTA
-		)
-			return 'full';
+		const limit = quota(notices, source);
+		if (limit !== undefined) return limit;
 		const spare = notices.filter((row) => !unread(row)).sort((a, b) => -newestFirst(a, b));
-		const evicted = spare.slice(0, Math.max(0, notices.length - NOTIFICATION_QUOTA + 1));
+		const bucket = quotaSource(source);
+		const sameSource = (row: NotificationV1): boolean => quotaSource(row.source) === bucket;
+		const sourceExcess =
+			source === 'shell'
+				? 0
+				: Math.max(0, notices.filter(sameSource).length - NOTIFICATION_SOURCE_QUOTA + 1);
+		const ownEvicted = new Set(spare.filter(sameSource).slice(0, sourceExcess));
+		const sharedExcess = Math.max(0, notices.length - ownEvicted.size - NOTIFICATION_QUOTA + 1);
+		const evicted = [
+			...ownEvicted,
+			...spare.filter((row) => !ownEvicted.has(row)).slice(0, sharedExcess),
+		];
 		const record = stamp(context, person, source, fields);
 		wroteOrder(context);
 		const { summary } = await store.batch([
@@ -595,7 +612,7 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 					...(action !== undefined ? { action } : {}),
 				})
 			);
-			if (notification === 'full') return quotaRefusal();
+			if (typeof notification === 'number') return quotaRefusal(notification);
 			return kit.success({ notification: structuredClone(notification) });
 		},
 	});
@@ -1042,12 +1059,13 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 				const muted = source.kind === 'app' && prefs.muted.includes(source.instance);
 				if (sticky) {
 					return admit(person, async () => {
-						if (source.kind !== 'shell' && (await full(person))) return quotaRefusal();
+						const limit = quota(await noticesOf(person), sourceName(source));
+						if (limit !== undefined) return quotaRefusal(limit);
 						const shown = await show(input, context, muted);
 						if (!shown.success || !shown.data) return shown;
 						const ref = shown.data;
 						const notice = await insert(context, person, sourceName(source), fieldsOf(toast));
-						if (notice === 'full') return kit.success(ref);
+						if (typeof notice === 'number') return kit.success(ref);
 						deps.overlays.land(ref.overlayId, notice.id);
 						return kit.success({ ...ref, notification: notice.id });
 					});
@@ -1067,7 +1085,7 @@ export function createNotifications(deps: NotificationDeps): Notifications {
 				}
 				await admit(person, async () => {
 					const notice = await insert(context, person, sourceName(source), fieldsOf(toast));
-					if (notice !== 'full') deps.overlays.land(ref.overlayId, notice.id);
+					if (typeof notice !== 'number') deps.overlays.land(ref.overlayId, notice.id);
 				});
 				return kit.success(ref);
 			},

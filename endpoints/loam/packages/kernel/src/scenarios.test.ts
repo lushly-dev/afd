@@ -54,6 +54,7 @@ const RUNS_4: Readonly<Record<string, string>> = Object.freeze({
 	'inbox-action': 'now',
 	'agent-leaves-notice': 'now',
 	'rebind-a-chord': 'now',
+	'reserved-keys': 'now',
 	// Its steps push notices against the fixed rate of `notification-push`, step 5's, which has merged; step 10's own
 	// limits are P4-E10's units and Chromium (`late/limits.test.ts`, `web/test/browser/limits.test.ts`).
 	'limit-refuses-call': 'now',
@@ -104,6 +105,7 @@ async function runFile(
 	if (!make) throw new Error(`${file}: no seed '${seedOf(scenario, fallback)}'`);
 	seeded = await make();
 	const { kernel } = seeded;
+	if (scenario.job === 'reserved-keys') kernel.bindShellKeys?.(() => true);
 	const options = (scope?: { workspace: 'personal'; project: string }) => (scope ? { scope } : {});
 	const host: ScenarioHost = {
 		inactiveApp: 'console',

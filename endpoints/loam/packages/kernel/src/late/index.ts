@@ -37,7 +37,7 @@ import { personalWrites } from '../identity/personal-writes.js';
 import type { SessionSettle } from '../identity/session-settle.js';
 import type { StoreOrderV1 } from '../journal-order.js';
 import { type JournalFilterContext, journalsCommand } from '../journal-redact.js';
-import type { KeybindingRegistry } from '../keybindings.js';
+import { type KeybindingRegistry, SHELL_KEY_ACTIONS, type ShellKeyAction } from '../keybindings.js';
 import { createDefaultLayout } from '../layout.js';
 import type { KernelLimits } from '../limits.js';
 import { createOverlayCommands, openerOf, ownerTitle } from '../overlays/commands.js';
@@ -96,7 +96,9 @@ import { overBound } from '../settings/input-bound.js';
 import type { ActionVerdict } from '../settings/notifications.js';
 import { badCaller, confirmPromptFor, copilotPartsOf, genericAskedFor } from './copilot-wiring.js';
 import { createJournalWrappers, type JournalWrappers } from './journal-wrappers.js';
+import { createLocalWorkspaceCommands } from './local-workspace-commands.js';
 import { createMountedApprovals } from './mounted-approvals.js';
+import { createShellKeyCommands } from './shell-key-commands.js';
 
 export { createOverlayStore } from '../overlays/store.js';
 export { withBootActions } from './boot-actions.js';
@@ -108,6 +110,8 @@ export type LateCommandDeps = ShellCommandDeps &
 		limits?: KernelLimits;
 		/** The kernel's keybindings, which `late-settings` gives the person's overrides (phase 4 specification, 8.3). */
 		keybindings?: KeybindingRegistry;
+		performShellKey?(action: ShellKeyAction): boolean;
+		localWorkspace?: KernelOptions['localWorkspace'];
 		/**
 		 * Whether a command's advertised JSON Schema needs input: first paint's `needsInput`, given here so this chunk
 		 * imports none of it. A mounted command's runtime input is loose, so its advertised schema decides (8.3).
@@ -665,13 +669,11 @@ export async function createLateParts(
 	// The workspace's `loam.limits` read into the limits the kernel has enforced since boot (phase 4's section 11).
 	await settings.readLimits();
 	endIfDisposed();
-	// `keybinding-list` (8.5), in `late-settings` beside the settings whose overrides the registry holds.
 	const keybindingCommands = createKeybindingCommands({
 		...(deps.keybindings ? { keybindings: deps.keybindings } : {}),
 		activeApp: () => deps.state.activeApp(),
 		kit: DOCUMENT_KIT,
 	});
-	// `limit-usage-get` and boot's `store-usage-settle` (section 11), in `late-settings` beside the settings.
 	const limitCommands = createLimitCommands({
 		scope: deps.scope,
 		apps: deps.apps,
@@ -707,7 +709,7 @@ export async function createLateParts(
 		store: deps.store,
 		scope: deps.scope,
 		apps: deps.apps,
-		// The live registry's names (R4), so a host's own commands are the shell's too.
+		agentCommandNames: () => new Set(deps.agentCommands?.().map(({ name }) => name)),
 		commandNames: () => deps.commandNames?.() ?? SHELL_COMMAND_NAMES,
 		internal: (name) => INTERNAL_COMMANDS.includes(name),
 		isMutation: deps.isMutation,
@@ -1085,12 +1087,13 @@ export async function createLateParts(
 			confirmations.settle,
 			...limitCommands.commands,
 			...keybindingCommands,
+			...createShellKeyCommands(SHELL_KEY_ACTIONS, deps.performShellKey),
+			...(deps.localWorkspace ? createLocalWorkspaceCommands(deps.localWorkspace) : []),
 			limitCommands.settleCommand,
 			limitCommands.noticeCommand,
 		].map((command) => [command.name, command])
 	);
-	// `toast-show` with the inbox's half (6.1, 3.7): a sticky toast also lands as a notice, and a muted app's is never
-	// shown.
+	// A sticky toast lands in the inbox, including a muted app's unseen toast (6.1, 3.7).
 	byName.set(
 		'toast-show',
 		notifications.toastShow(byName.get('toast-show') as ZodCommandDefinition)
@@ -1166,7 +1169,6 @@ export async function createLateParts(
 		'auth-sign-in',
 		identityCommands.signIn(byName.get('auth-sign-in') as ZodCommandDefinition)
 	);
-	// A persona's emphasis orders the palette's results, hiding none (phase 3 specification, 6.2).
 	const categories = new Map(
 		[...byName.values()].map((command) => [command.name, command.category])
 	);
@@ -1220,12 +1222,13 @@ export async function createLateParts(
 			},
 		} as ZodCommandDefinition);
 	}
-	// After stage B, `section-get` names the active tab's document as the documents section's path (5.1).
 	byName.set('section-get', editor.sectionGet(byName.get('section-get') as ZodCommandDefinition));
 	const parts: LateParts = {
 		shell: [
 			...SHELL_COMMAND_NAMES.map((name) => byName.get(name) as ZodCommandDefinition),
-			...TRUST_COMMAND_NAMES.flatMap((name) => byName.get(name) ?? []),
+			...[...TRUST_COMMAND_NAMES, 'storage-persistence-get', 'workspace-export'].flatMap(
+				(name) => byName.get(name) ?? []
+			),
 		],
 		internal: [
 			...createPortRefusals(deps.limits),

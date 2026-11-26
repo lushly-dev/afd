@@ -170,6 +170,13 @@ export class IndexedDbAdapter implements DataAdapter {
 		});
 	}
 
+	/** Read every table in one IndexedDB transaction, including dynamically named app tables. */
+	snapshot(): Promise<StoredRecord[]> {
+		return this.transact('readonly', (store) =>
+			settle<StoredRecord[]>(store.getAll(), 'read a database snapshot')
+		);
+	}
+
 	/** `status: 'ok'`, the database schema version, and the number of nonempty tables. */
 	async health(): Promise<HealthStatus> {
 		const tables = await this.transact('readonly', countTables);

@@ -43,7 +43,7 @@ import {
 import { createBootCommands, takesProject } from './boot-commands.js';
 import { INTERNAL_COMMANDS, type InboundParts, inboundCache, SHELL_EXPOSE } from './commands.js';
 import { KERNEL_CONTEXT_FIELDS, type KernelCallFields } from './context-fields.js';
-import { kernelFailure, LoamKernelError } from './errors.js';
+import { LoamKernelError } from './errors.js';
 import { createJournalOrder, type NestedRerunV1 } from './journal-order.js';
 import { finishRerun, type KernelPartsInternals, rerunFailure } from './replay-internals.js';
 
@@ -62,8 +62,8 @@ import {
 	createKeybindings,
 	type KeybindingRegistry,
 	needsInput,
-	SHELL_KEY_ACTIONS,
 	SHELL_KEYBINDINGS_V0,
+	type ShellKeyAction,
 } from './keybindings.js';
 import type { LateParts } from './late/index.js';
 import type { WrapperRedact } from './late/journal-wrappers.js';
@@ -609,6 +609,8 @@ export async function createKernelParts(
 		retryable: true,
 	});
 
+	let performShellKey: ((action: ShellKeyAction) => boolean) | undefined;
+
 	/** The late commands join `fixed`. A chunk that fails is `lateFailure`; a name they repeat rejects. */
 	async function loadLate(): Promise<void> {
 		let parts: LateParts;
@@ -624,6 +626,7 @@ export async function createKernelParts(
 				...options,
 				limits,
 				keybindings,
+				performShellKey: (action) => performShellKey?.(action) ?? false,
 				needsInput,
 				viewState,
 				state,
@@ -959,14 +962,6 @@ export async function createKernelParts(
 			});
 		}
 		if (lateFailure && !mutations.has(name)) return failure(lateFailure);
-		// A reserved chord's action is named in `keybinding-list` and overrides, but is no command yet (8.5, R1).
-		if (SHELL_KEY_ACTIONS.includes(name)) {
-			return kernelFailure(
-				'KEYBINDING_ACTION_ONLY',
-				`${name} is a reserved chord's action in the shell's chrome, not a command`,
-				`Press its keys: keybinding-list { command: '${name}' } names them`
-			);
-		}
 		// Only a call the caller's interface may make: one it is not exposed to runs, and is refused as it was live, so a
 		// replay never answers it from an entry its handler could not have reached (#859).
 		const runsOn = registryFor(registries, iface, fields.caller);
@@ -1189,6 +1184,12 @@ export async function createKernelParts(
 
 	const kernel: LoamKernel = {
 		version: 5,
+		bindShellKeys(perform) {
+			performShellKey = perform;
+			return () => {
+				if (performShellKey === perform) performShellKey = undefined;
+			};
+		},
 		call: (name, input, callOptions) => run('palette', name, input, callOptions),
 		listCommands: () => summarize(registries.palette),
 		subscribe(listener) {

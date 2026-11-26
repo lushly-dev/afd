@@ -12,7 +12,12 @@
  * naming its app; a command that needs input runs through `palette-run`, whose prompt asks for it in the slot.
  */
 
-import type { CommandSummary, LoamKernel, PaletteItem } from '@lushly-dev/loam-kernel';
+import {
+	type CommandSummary,
+	type LoamKernel,
+	type PaletteItem,
+	SHELL_KEY_ACTIONS,
+} from '@lushly-dev/loam-kernel';
 import type { NewItemV1 } from '@lushly-dev/loam-sdk';
 import type { NewHost } from '../new/new-menu.js';
 import type { LoamPalette, PaletteFailure, PaletteResult } from './palette.js';
@@ -178,6 +183,8 @@ export class ShellPalette {
 			await runNew(this.#shell, row.item);
 			return null;
 		}
+		const shellKey = SHELL_KEY_ACTIONS.some((action) => action === name);
+		if (shellKey) await kernel.call('palette-close');
 		const result = !row
 			? await kernel.call(name, {})
 			: 'input' in row
@@ -189,12 +196,20 @@ export class ShellPalette {
 						? await kernel.call('section-open', { section: 'settings', target: row.setting })
 						: await kernel.call('document-open', { document: row.document, preview: false });
 		if (!result.success) {
+			if (shellKey) {
+				await kernel.call('toast-show', {
+					message: (result.error?.message ?? `${name} failed`).slice(0, 200),
+					tone: 'warning',
+				});
+				return null;
+			}
 			return {
 				message: result.error?.message ?? `${name} failed`,
 				...(result.error?.suggestion !== undefined ? { suggestion: result.error.suggestion } : {}),
 			};
 		}
-		if (name !== 'palette-close' && name !== 'palette-open') await kernel.call('palette-close');
+		if (!shellKey && name !== 'palette-close' && name !== 'palette-open')
+			await kernel.call('palette-close');
 		return null;
 	}
 }

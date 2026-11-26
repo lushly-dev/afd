@@ -123,6 +123,7 @@ interface PanelExtra {
 	/** The keybinding editor's: every binding, for its warnings (8.3). */
 	bindings?: ListedBindingV1[];
 	usage?: Partial<Record<string, string>>;
+	storage?: string;
 }
 
 /** Where a value comes from, in words (3.5). */
@@ -673,7 +674,7 @@ export class LoamSettingsSection extends SettingsElement {
 		const active = this.shadowRoot?.activeElement;
 		const focusedId = active?.id;
 		this.#current = new Map(listed.data.values.map((row) => [row.key, { row, level, scope }]));
-		const boxes = listed.data.values.map((row) => {
+		const boxes = listed.data.values.map<HTMLElement>((row) => {
 			const box = this.#field(section, level, row, extra);
 			const old = panel.querySelector<HTMLElement>(
 				`.field[data-section="${CSS.escape(section.section)}"][data-key="${CSS.escape(row.key)}"]`
@@ -694,6 +695,7 @@ export class LoamSettingsSection extends SettingsElement {
 			editor.after(...[...box.childNodes].slice(1));
 			return old;
 		});
+		if (extra.storage) boxes.unshift(el('p', { class: 'note' }, extra.storage));
 		if (boxes.length === 0) {
 			panel.replaceChildren(
 				el('p', { class: 'note' }, 'Nothing in this section is set at this level.')
@@ -730,7 +732,19 @@ export class LoamSettingsSection extends SettingsElement {
 					? usageLine(key as LimitKey, rows, titleOf)
 					: usageUnavailable(read.error?.code);
 			}
-			return { commands: [], usage };
+			const status = this.kernel
+				.listCommands()
+				.some(({ name }) => name === 'storage-persistence-get')
+				? (await this.#call<{ status: string }>('storage-persistence-get', {})).data?.status
+				: undefined;
+			const storage =
+				status &&
+				{
+					persistent: 'Persistent storage is enabled for this local workspace.',
+					'best-effort': 'The browser may clear local workspace data when storage runs low.',
+					unavailable: 'The host could not request persistent storage for this local workspace.',
+				}[status];
+			return { commands: [], usage, ...(storage ? { storage } : {}) };
 		}
 		if (section.section !== 'loam.keybindings' || !this.kernel) return { commands: [] };
 		const [found, listed] = await Promise.all([

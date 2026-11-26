@@ -5,7 +5,7 @@
 # since AFD compares a YAML list whole.
 # Pressing keys is the chrome's; P4-E9 presses them on German and Cyrillic layouts. Amended by
 # step 7 (the coordinator's R1): no command opens the switcher, so its chord's action is named
-# `shell-project-switcher`, listed and rebindable, and refused as a command (KEYBINDING_ACTION_ONLY).
+# `shell-project-switcher`, a local shell command that is listed and rebindable.
 name: Open the project switcher from the keyboard, and make it mine
 description: >-
   When I switch projects many times a day, I want a chord for the switcher that works on my
