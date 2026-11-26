@@ -80,6 +80,6 @@ that hits a usage limit stalls while holding its claim. Dials (`dial-get`, `dial
 
 ## Host notes
 
-- **`random`** also runs Lushly's script lane, whose lock this lane cannot see. Start AFD's lane
-  only while Lushly's is idle: `node scripts/merge-lane.mjs status --json` in the Lushly checkout
-  shows `running` and its queue. This note goes with [#1309](https://github.com/lushly-dev/afd/issues/1309).
+- **`random`** also runs Lushly's script lane. Both lanes take one host validation lock
+  (`~/.cache/lushly-factory/validation-lock.json`), so each waits for the other's validation;
+  `lane-status` shows the wait as `waitingOnHostLock`, which is not a stall.

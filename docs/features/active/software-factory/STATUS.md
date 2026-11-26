@@ -272,6 +272,25 @@ how to record a decision with `event-resolve` and its `note` argument.
 
 The lane host, its slots, Node and the other toolchains.
 
+#### Shared host validation lock checked across both lanes (Phase C), 2026-11-26
+
+Pull request [#2697](https://github.com/lushly-dev/afd/pull/2697), for
+[#1309](https://github.com/lushly-dev/afd/issues/1309), after Phase B landed in Lushly
+(lushly-dev/lushly#2956). Completes the `#1309` remainder in the Phase A entry below:
+
+- **Both directions, one machine:** on the MacBook Air, AFD's `ValidationLock` and Lushly's
+  `createHostValidationLock` ran as separate processes over one `LUSHLY_FACTORY_HOST_LOCK_DIR`.
+  Lushly's `acquire` waited behind AFD's hold (blocker `botcore-factory`) and took the lock
+  4.1 s later, as AFD released; AFD's `try_acquire` waited behind Lushly's (blocker
+  `lushly-merge-lane`) and took it 4.3 s later. The file ended with no owner and no waiters.
+- **On `random`, against the live lane:** with Lushly's lane holding the real lock for
+  `pnpm validate:coverage`, AFD's code (Python 3.12, `check_available` with no waiter
+  registered) named that hold, its PID and `acquiredAt` as its blocker, so the two languages
+  agree on process identity there. Lushly waiting on a real AFD lane on `random` was not run:
+  it would hold up Lushly's working lane.
+- Replaced `run-fleet`'s manual `random` host note (start AFD's lane only while Lushly's is idle)
+  with how the shared lock shows: the lanes now wait for each other (`waitingOnHostLock`).
+
 #### Shared host validation lock (Phase A: AFD), 2026-11-22
 
 Branch `t3/host-validation-lock-1309`, for
@@ -557,7 +576,8 @@ handled `main-broken` was never resolved, so the next foreman would file it agai
 
 Known before the first run: on `random`, Lushly's script lane and this lane share the cores and
 the plugin's host lock cannot see Lushly's, so AFD's lane runs only while Lushly's is idle
-([#1309](https://github.com/lushly-dev/afd/issues/1309)). A read-only probe of the real host on the MacBook Air (2026-11-15) found no
+([#1309](https://github.com/lushly-dev/afd/issues/1309); superseded: both lanes now take one host
+validation lock, see the 2026-11-26 Phase C entry under Hosts and toolchains). A read-only probe of the real host on the MacBook Air (2026-11-15) found no
 lane host set, no machine probed, and `canStartCell` false there (7.1 GB free against
 `host.minFreeGb` 8).
 
