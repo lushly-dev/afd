@@ -14,6 +14,7 @@ mod mounted;
 mod support;
 
 mod auth_tokens;
+mod call_metrics;
 #[cfg(feature = "component")]
 mod component_limits;
 mod gateway_mode;

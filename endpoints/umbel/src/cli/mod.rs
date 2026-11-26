@@ -41,10 +41,10 @@ use std::ffi::OsString;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::Instant;
 
 /// What the CLI reads from its surroundings: the current directory, `UMBEL_WORKSPACE`, the
-/// `UMBEL_LOG`, `UMBEL_HTTP_BIND` and `UMBEL_HTTP_PERSON_BIND` overrides, and the terminal.
+/// `UMBEL_LOG`, `UMBEL_HTTP_BIND` and `UMBEL_HTTP_PERSON_BIND` overrides, the terminal, and the
+/// environment variables (`UMBEL_METRICS_BIND` among them, read from `vars`).
 pub struct Environment {
     /// The current directory: where `init` creates a workspace and the upward search starts.
     pub cwd: PathBuf,
@@ -207,7 +207,18 @@ where
             bind,
             person_bind,
             print_token,
+            metrics_bind,
         } => {
+            let metrics = match serve_metrics(metrics_bind, environment) {
+                Ok(metrics) => metrics,
+                Err(message) => {
+                    return fail_on_stderr(&output::pre_run_failure(
+                        error_codes::INVALID_INPUT,
+                        &message,
+                        "Give a loopback address such as 127.0.0.1:9464; to scrape from another machine, put a proxy or tunnel you secure in front of it.",
+                    ));
+                }
+            };
             let mode = match (stdio, http) {
                 (true, false) if bind.is_none() && person_bind.is_none() && !print_token => {
                     serve::Mode::Stdio
@@ -227,7 +238,7 @@ where
                 (bind, person_bind),
                 environment,
                 configure,
-                mode,
+                serve::Options { mode, metrics },
                 writers.out,
             ))
             .await;
@@ -348,6 +359,24 @@ where
     .await
 }
 
+/// The metrics listener's address (D217): `--metrics-bind`, else `UMBEL_METRICS_BIND` (an empty
+/// one is unset), else none, since metrics are off by default. Loopback only.
+fn serve_metrics(
+    flag: Option<String>,
+    environment: &Environment,
+) -> Result<Option<std::net::SocketAddr>, String> {
+    let chosen = flag.map(|value| (value, "--metrics-bind")).or_else(|| {
+        environment
+            .vars
+            .get("UMBEL_METRICS_BIND")
+            .filter(|value| !value.is_empty())
+            .map(|value| (value.clone(), "UMBEL_METRICS_BIND"))
+    });
+    chosen
+        .map(|(value, source)| crate::metrics::parse_bind(&value, source))
+        .transpose()
+}
+
 /// Whether the arguments name the `serve` verb, loosely: a startup failure of `serve` is written
 /// to stderr, never stdout, even when the arguments do not parse.
 fn names_serve(args: &[OsString]) -> bool {
@@ -378,12 +407,12 @@ async fn serve_host(
     bind: (Option<String>, Option<String>),
     environment: &Environment,
     configure: impl FnOnce(HostBuilder) -> HostBuilder,
-    mode: serve::Mode,
+    options: serve::Options,
     out: &mut dyn Write,
 ) -> i32 {
     let (sealed, _, _) = build_host(flag, log, bind, environment, configure);
     let outcome = match sealed {
-        Ok(host) => serve::serve(&host, mode, out).await,
+        Ok(host) => serve::serve(&host, options, out).await,
         Err(error) => Err(error),
     };
     match outcome {
@@ -545,9 +574,8 @@ async fn run_command(
         .person_decl(command)
         .is_some_and(|person| person.cli == crate::plugins::Assurance::Verified)
     {
-        let started = Instant::now();
+        // The registry's metrics layer writes the call line (D217).
         let result = person::run(host, command, input, environment).await;
-        logging::log_call(command, None, started.elapsed().as_millis(), result.success);
         return writers.exit_for(&result);
     }
     // Whether a person is at the terminal (phase 3 section 3.3): stdin and stderr are terminals,
@@ -615,15 +643,7 @@ async fn run_command(
             Value::String(command.to_owned()),
         );
     }
-    let trace_id = context.trace_id.clone();
-    let started = Instant::now();
     let result = client.call(command, input, Some(context)).await;
-    logging::log_call(
-        command,
-        trace_id.as_deref(),
-        started.elapsed().as_millis(),
-        result.success,
-    );
     writers.exit_for(&result)
 }
 
@@ -681,12 +701,43 @@ mod tests {
         &'a Option<String>,
         (Option<String>, Option<String>),
         &'a Environment,
-        serve::Mode,
+        serve::Options,
         &'a mut Vec<u8>,
     );
 
     fn future_size_of<A, F: std::future::Future>(_: fn(A) -> F) -> usize {
         std::mem::size_of::<F>()
+    }
+
+    /// Metrics are off unless asked for; the flag wins over the variable, an empty variable is
+    /// unset, and a refusal names where the value came from (D217).
+    #[test]
+    fn the_metrics_address_comes_from_the_flag_then_the_variable() {
+        let mut environment = Environment::from_process();
+        environment.vars.remove("UMBEL_METRICS_BIND");
+        assert_eq!(serve_metrics(None, &environment), Ok(None));
+        environment
+            .vars
+            .insert("UMBEL_METRICS_BIND".to_owned(), String::new());
+        assert_eq!(serve_metrics(None, &environment), Ok(None));
+        environment
+            .vars
+            .insert("UMBEL_METRICS_BIND".to_owned(), "127.0.0.1:9100".to_owned());
+        assert_eq!(
+            serve_metrics(None, &environment),
+            Ok(Some("127.0.0.1:9100".parse().unwrap()))
+        );
+        assert_eq!(
+            serve_metrics(Some("[::1]:9200".to_owned()), &environment),
+            Ok(Some("[::1]:9200".parse().unwrap()))
+        );
+        let flag = serve_metrics(Some("0.0.0.0:9200".to_owned()), &environment).unwrap_err();
+        assert!(flag.starts_with("--metrics-bind"), "{flag}");
+        environment
+            .vars
+            .insert("UMBEL_METRICS_BIND".to_owned(), "0.0.0.0:9100".to_owned());
+        let variable = serve_metrics(None, &environment).unwrap_err();
+        assert!(variable.starts_with("UMBEL_METRICS_BIND"), "{variable}");
     }
 
     /// Windows debug builds give the main thread a 1 MiB stack, so `cli::run` and its boxed

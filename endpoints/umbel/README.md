@@ -72,6 +72,25 @@ stdio servers from different harness sessions, an HTTP server and one-shot CLI
 commands. The [phase 0 specification](docs/phases/0-host-skeleton/spec.md)
 defines the configuration, commands, surfaces and shapes.
 
+### Metrics and call logs
+
+Metrics are off by default. `umbel serve --metrics-bind 127.0.0.1:9464` (or
+`UMBEL_METRICS_BIND`), with either transport, serves `GET /metrics` in the
+Prometheus text format: `umbel_command_calls_total` by command and outcome
+(`ok`, `held` for a call waiting on an approval, `error`), and the
+`umbel_command_duration_seconds` histogram by command. Each process counts its
+own calls and needs its own address. The listener binds a loopback address
+only, answers only a loopback `Host`, and has no authentication, so scrape it
+from another machine through a proxy or tunnel you secure that sends a
+loopback `Host` (such as `127.0.0.1:9464`). It names commands
+and counts, never a principal, a space or content ([D217](docs/decisions.md)).
+
+Each call writes one `command finished` line at `debug` on the target
+`umbel::call`; turn it on with `--log umbel::call=debug`. Its `request_id` is the
+W3C trace id of an MCP request's `_meta.traceparent`, so a line joins the
+caller's trace; without one the host makes a new id, which a pipeline's steps
+share.
+
 ## Write a plugin
 
 A plugin is a directory (or, for a compiled plugin, a crate) with one manifest, `umbel-plugin.toml`.

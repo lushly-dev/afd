@@ -5,13 +5,14 @@
 //! `dev.umbel/mutation`, and these layers **always overwrite** them: a handler (or a plugin) can
 //! neither forge a mutation, nor hide one, nor redirect an event to another space.
 //!
-//! Outermost first: the event stamp, then the hidden-instance check (`auth::scope_gate`), the
+//! Outermost first: (installed by `seal`) the metrics layer (`metrics`, D217), which only
+//! observes, then the event stamp, then the hidden-instance check (`auth::scope_gate`), the
 //! space check, the access check, the scope gate (`auth::scope_gate`), the read limit
 //! (`shared::read_limit`, hosted modes), the plugin gate, the shared store's spend reporting
 //! (`shared::nonces`, hosted modes) and (installed by `seal`) the approval middleware, as phase 5
-//! section 6.3's layer 7 orders them. The
-//! event stamp is outermost so that it runs last on the way out and can put the default space on
-//! a mutation of a command that has no `space` input.
+//! section 6.3's layer 7 orders them. The event stamp is the outermost layer that changes a
+//! result, so that it runs last on the way out and can put the default space on a mutation of a
+//! command that has no `space` input.
 
 use crate::access::{Caller, listed_for, reader_filter};
 use crate::events::CHANGES_KEY;

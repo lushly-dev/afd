@@ -1347,6 +1347,10 @@ names, D16), `contentHash`, `derivedFrom`, `access`, `sensitivity`,
   name, trace id and duration are.
 - **Telemetry:** none beyond the journal in phase 0. No OpenTelemetry export
   until W12 has a release and the AFD Rust telemetry middleware lands.
+  **Amended by D217:** metrics per command in the Prometheus text format,
+  exposed only by `umbel serve --metrics-bind <loopback addr>`, and one
+  `umbel::call` line per call carrying the request id of the MCP request's
+  `_meta.traceparent`.
 - **Security defaults:** HTTP binds loopback only and refuses anything else,
   and every HTTP request needs the workspace's bearer token (D32); Host and
   Origin validation from AFD with empty origins refused and no wildcard host;

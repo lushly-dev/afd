@@ -80,8 +80,9 @@ async fn stdio_calls_are_the_local_agent_with_process_authentication() {
         expect_valid(&validator, &data["principal"]);
         assert_eq!(data["interface"], "mcp");
         // The principal, the (here empty) claim groups, the (here null) person decision, the
-        // (here null) check before a decision, the (here null) page of a preview and the HTTP
-        // request's usage slot (null over stdio) are the only keys the hook adds.
+        // (here null) check before a decision, the (here null) page of a preview, the call
+        // line's request id (D217) and the HTTP request's usage slot (null over stdio) are the
+        // only keys the hook adds.
         assert_eq!(
             data["extraKeys"],
             json!([
@@ -90,6 +91,7 @@ async fn stdio_calls_are_the_local_agent_with_process_authentication() {
                 "dev.umbel/person-decision",
                 "dev.umbel/preview-page",
                 "dev.umbel/principal",
+                "dev.umbel/request-id",
                 "dev.umbel/usage"
             ])
         );
@@ -149,6 +151,7 @@ async fn http_calls_are_the_loopback_agent_with_no_authentication() {
                 "dev.umbel/person-decision",
                 "dev.umbel/preview-page",
                 "dev.umbel/principal",
+                "dev.umbel/request-id",
                 "dev.umbel/usage"
             ])
         );
@@ -308,6 +311,7 @@ async fn the_journal_keeps_the_expected_actor_and_a_digest_of_the_expected_conte
             .with_extra("dev.umbel/person-decision", Value::Null)
             .with_extra("dev.umbel/person-check", Value::Null)
             .with_extra("dev.umbel/preview-page", Value::Null)
+            .with_extra("dev.umbel/request-id", Value::Null)
             .with_extra("dev.umbel/usage", Value::Null);
         assert_eq!(
             entry.context_digest.hash,

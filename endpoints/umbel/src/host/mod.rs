@@ -532,6 +532,13 @@ impl HostBuilder {
         )?;
         let server = serve_skills(server, &loaded)?;
         let stash = Arc::new(crate::positions::Stash::default());
+        // Metrics per command and the call line (D217), outside every other layer, so a call's
+        // duration and outcome are what its caller got; one series per command sealed so far,
+        // which is every command, so no caller can add one.
+        let metrics = Arc::new(crate::metrics::Metrics::new(
+            registry.list().iter().map(|command| command.name.clone()),
+        ));
+        registry.add_middleware(crate::metrics::middleware(Arc::clone(&metrics)));
         let scope_policy = install_middleware(
             &registry,
             &workspace,
@@ -603,6 +610,7 @@ impl HostBuilder {
             clock: self.clock,
             loaded,
             scope_policy,
+            metrics,
             #[cfg(feature = "auth")]
             token_verifier: self.token_verifier,
             #[cfg(feature = "auth")]
@@ -712,7 +720,8 @@ fn has_property(registry: &CommandRegistry, name: &str, property: &str) -> bool 
         .is_some()
 }
 
-/// Install the middleware, outermost first: the event stamp, the hidden-instance check, the space
+/// Install the middleware inside the metrics layer `seal` adds first, outermost first: the event
+/// stamp, the hidden-instance check, the space
 /// check, the access check, the scope gate, the read limit (hosted modes), the plugin gate, the
 /// shared store's spend reporting (hosted modes), approvals (phase 5 section 6.3, layer 7). Returns section 5.2's rules over the sealed commands, which the scope gate and
 /// the HTTP surface's resolver share.
@@ -1051,6 +1060,8 @@ pub struct Host {
     /// Section 5.2's rules over the sealed commands, for the resolver and the scope gate.
     #[cfg_attr(not(feature = "auth"), allow(dead_code))]
     scope_policy: Arc<crate::auth::scopes::ScopePolicy>,
+    /// Metrics per command (D217), which `umbel serve --metrics-bind` exposes.
+    metrics: Arc<crate::metrics::Metrics>,
     #[cfg(feature = "auth")]
     token_verifier: Option<Arc<dyn afd::server::auth::TokenVerifier>>,
     #[cfg(feature = "auth")]
@@ -1072,6 +1083,19 @@ impl Host {
     /// one answers `UNAUTHORIZED`. Use [`Host::context`] for a library call.
     pub fn registry(&self) -> Arc<CommandRegistry> {
         Arc::clone(&self.registry)
+    }
+
+    /// Metrics per command in the Prometheus text exposition format, version 0.0.4 (D217):
+    /// `umbel_command_calls_total` by command and outcome, and the
+    /// `umbel_command_duration_seconds` histogram by command. Labels name registered commands
+    /// only; no principal, space or content.
+    pub fn metrics_text(&self) -> String {
+        self.metrics.render()
+    }
+
+    #[cfg(feature = "cli")]
+    pub(crate) fn metrics(&self) -> Arc<crate::metrics::Metrics> {
+        Arc::clone(&self.metrics)
     }
 
     /// The workspace.
@@ -1271,7 +1295,7 @@ impl Host {
     /// A context for a library call: `actor`, a new trace id, and the principal under
     /// `extra["dev.umbel/principal"]` with transport `library` and authentication `embedder`.
     pub fn context(&self, actor: Actor) -> CommandContext {
-        let mut context = CommandContext::new().with_trace_id(new_trace_id());
+        let mut context = with_request_id(CommandContext::new().with_trace_id(new_trace_id()));
         Principal::new(actor, Transport::Library, Authentication::Embedder)
             .with_policy_version(self.workspace.config().policy_version.clone())
             .apply(&mut context);
@@ -1297,7 +1321,7 @@ impl Host {
     pub(crate) fn cli_context(&self) -> CommandContext {
         let actor =
             Actor::new(afd::ActorKind::Human).with_id(&self.workspace.config().principal.local_id);
-        let mut context = CommandContext::new().with_trace_id(new_trace_id());
+        let mut context = with_request_id(CommandContext::new().with_trace_id(new_trace_id()));
         Principal::new(actor, Transport::Cli, Authentication::Process)
             .with_policy_version(self.workspace.config().policy_version.clone())
             .apply(&mut context);
@@ -1305,6 +1329,17 @@ impl Host {
         crate::authority::seal_cli(&mut context);
         context
     }
+}
+
+/// `context` with its trace id as its request id (D217), so the calls it makes share the id.
+fn with_request_id(mut context: CommandContext) -> CommandContext {
+    if let Some(trace) = context.trace_id.clone() {
+        context.extra.insert(
+            crate::logging::REQUEST_ID_KEY.to_owned(),
+            Value::String(trace),
+        );
+    }
+    context
 }
 
 /// A new trace id: 16 random bytes as lowercase hex, or the clock's nanoseconds when the
