@@ -917,7 +917,9 @@ fn build_child_env(
 
 #[cfg(test)]
 mod tests {
-    use super::{build_child_env, confined, program, resolve_on_child_path, resolve_path};
+    #[cfg(unix)]
+    use super::confined;
+    use super::{build_child_env, program, resolve_on_child_path, resolve_path};
     use std::collections::BTreeMap;
     use std::fs;
 

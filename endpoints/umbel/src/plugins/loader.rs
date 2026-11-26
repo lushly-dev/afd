@@ -18,6 +18,7 @@ use afd::{
 };
 use serde_json::Value;
 
+use super::check_targets::{ConfigCheck, PackCheck};
 use super::compiled::{CompiledPlugin, PluginCommand, has_space_property};
 use super::compiled_gate::gated;
 #[cfg(feature = "component")]
@@ -202,44 +203,9 @@ pub(crate) struct LoadedPlugins {
     /// `plugins.pack_checks` hands to the plugin's own check (D172), in instance order, then pack
     /// and space order.
     pub pack_checks: Vec<PackCheck>,
-}
-
-/// One space override of one compiled instance's pack, and what checking it needs (D172).
-#[derive(Clone)]
-pub(crate) struct PackCheck {
-    pub instance: String,
-    pub required: bool,
-    pub pack: String,
-    pub space: String,
-    pub plugin: Arc<dyn CompiledPlugin>,
-    pub services: Services,
-}
-
-impl PackCheck {
-    /// Run the plugin's own check against the override: `None` when the plugin offers none.
-    pub(crate) fn run(&self) -> Option<Value> {
-        let input = serde_json::json!({ "space": self.space });
-        let services = self.services.call(&input, &afd::CommandContext::default());
-        self.plugin.check_pack(&self.pack, services)
-    }
-}
-
-impl std::fmt::Debug for PackCheck {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PackCheck")
-            .field("instance", &self.instance)
-            .field("required", &self.required)
-            .field("pack", &self.pack)
-            .field("space", &self.space)
-            .finish_non_exhaustive()
-    }
-}
-
-impl PartialEq for PackCheck {
-    fn eq(&self, other: &Self) -> bool {
-        (&self.instance, self.required, &self.pack, &self.space)
-            == (&other.instance, other.required, &other.pack, &other.space)
-    }
+    /// Every loaded compiled instance, whose own configuration check the doctor's
+    /// `plugins.config_checks` runs, in instance order.
+    pub config_checks: Vec<ConfigCheck>,
 }
 
 impl LoadedPlugins {
@@ -346,6 +312,8 @@ struct Prepared {
     skills: Vec<LoadedSkill>,
     /// A compiled instance's space overrides, for the doctor (D172).
     pack_checks: Vec<PackCheck>,
+    /// A compiled instance's configuration check, for the doctor.
+    config_check: Option<ConfigCheck>,
 }
 
 /// One instance in `plugins.enabled` order: failed, or prepared and waiting for its pipelines.
@@ -485,6 +453,7 @@ pub(crate) fn load(inputs: &Inputs<'_>) -> Result<LoadedPlugins, PluginError> {
         loaded.suggestions.extend(prepared.suggestions);
         loaded.skills.extend(prepared.skills);
         loaded.pack_checks.extend(prepared.pack_checks);
+        loaded.config_checks.extend(prepared.config_check);
         loaded.instances.push(prepared.report);
     }
     Ok(loaded)
@@ -967,6 +936,7 @@ fn prepare(
             spaces: enabled,
             skills,
             pack_checks: Vec::new(),
+            config_check: None,
         });
     }
 
@@ -1031,6 +1001,16 @@ fn prepare(
             .collect(),
         None => Vec::new(),
     };
+    let config_check = resolved.compiled.as_ref().map(|plugin| ConfigCheck {
+        instance: instance.id.clone(),
+        required,
+        plugin: Arc::clone(plugin),
+        services: services.clone(),
+        space: (!spaces_enabled.contains(workspace.default_space()))
+            .then(|| spaces_enabled.first())
+            .flatten()
+            .map(|space| space.as_str().to_owned()),
+    });
     let implementations = match &resolved.compiled {
         Some(plugin) => plugin.commands(services)?,
         #[cfg(feature = "component")]
@@ -1143,6 +1123,7 @@ fn prepare(
         spaces: space_names,
         skills,
         pack_checks,
+        config_check,
     })
 }
 

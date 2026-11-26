@@ -13,8 +13,8 @@ use super::{Builtin, empty_input, expose_everywhere_but_the_palette, returns_obj
 use crate::doctor::{self, AuthInputs, Check, CheckStatus};
 use crate::host::RESERVED_VERBS;
 use crate::plugins::{
-    CompiledCatalog, LoadedPlugins, first_class_check, loaded_check, pack_checks_check,
-    pipelines_check,
+    CompiledCatalog, LoadedPlugins, config_checks_check, first_class_check, loaded_check,
+    pack_checks_check, panicked_check, pipelines_check,
 };
 use crate::store::Hub;
 use crate::surfaces::{self, FirstClassPlan};
@@ -73,8 +73,16 @@ fn person_mcp(loaded: &LoadedPlugins) -> Vec<String> {
 impl Handler {
     fn mcp_surface(&self, registry: &Arc<CommandRegistry>) -> Check {
         let first_class = self.first_class.get().cloned().unwrap_or_default();
-        // The live registry already has the context commands, so none are passed here.
-        match surfaces::mcp::build_server(registry, &self.workspace, &first_class, &[], None) {
+        // The live registry already has the context commands, so none are passed here; the
+        // server's announced identity does not change what validates, so Umbel's own serves.
+        match surfaces::mcp::build_server(
+            registry,
+            &self.workspace,
+            &first_class,
+            &[],
+            None,
+            &surfaces::mcp::ServerIdentity::default(),
+        ) {
             Ok(_) => Check::pass(
                 "mcp.surface",
                 format!(
@@ -174,14 +182,29 @@ impl CommandHandler for Handler {
         let pack_checks = match self.loaded.get() {
             Some(loaded) if registry.is_some() => {
                 let loaded = Arc::clone(loaded);
-                tokio::task::spawn_blocking(move || pack_checks_check(&loaded))
-                    .await
-                    .ok()
+                Some(
+                    tokio::task::spawn_blocking(move || pack_checks_check(&loaded))
+                        .await
+                        .unwrap_or_else(|_| panicked_check("plugins.pack_checks")),
+                )
+            }
+            _ => None,
+        };
+        // The plugins' own configuration checks may read files or probe a local service.
+        let config_checks = match self.loaded.get() {
+            Some(loaded) if registry.is_some() => {
+                let loaded = Arc::clone(loaded);
+                Some(
+                    tokio::task::spawn_blocking(move || config_checks_check(&loaded))
+                        .await
+                        .unwrap_or_else(|_| panicked_check("plugins.config_checks")),
+                )
             }
             _ => None,
         };
         if let Some(registry) = registry {
             let mut pack_checks = pack_checks;
+            let mut config_checks = config_checks;
             for check in &mut report.checks {
                 if check.status != CheckStatus::Skip {
                     continue;
@@ -206,6 +229,11 @@ impl CommandHandler for Handler {
                     }
                     "plugins.pack_checks" => {
                         if let Some(found) = pack_checks.take() {
+                            *check = found;
+                        }
+                    }
+                    "plugins.config_checks" => {
+                        if let Some(found) = config_checks.take() {
                             *check = found;
                         }
                     }

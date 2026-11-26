@@ -2,8 +2,9 @@
 //!
 //! `plugins.config`, `plugins.sources`, `plugins.grants`, `plugins.packs` and `plugins.skills`
 //! read `umbel.toml` and the plugin directories; they compile nothing, spawn nothing and need
-//! no sealed host. `plugins.loaded`, `plugins.first_class`, `plugins.pipelines` and
-//! `plugins.pack_checks` need the loader, so they are `skip` until a sealed host fills them in.
+//! no sealed host. `plugins.loaded`, `plugins.first_class`, `plugins.pipelines`,
+//! `plugins.pack_checks` and `plugins.config_checks` need the loader, so they are `skip` until a
+//! sealed host fills them in.
 //!
 //! A `compiled:<id>` source resolves only against the binary's catalog. A doctor run with no
 //! catalog reports such an instance as `skip`, never as `fail`.
@@ -214,7 +215,7 @@ pub(crate) fn pipelines_check(loaded: &LoadedPlugins) -> Check {
     )
 }
 
-/// How many of a failure's problems `plugins.pack_checks` shows.
+/// How many of a failure's problems `plugins.pack_checks` and `plugins.config_checks` show.
 const SHOWN_PROBLEMS: usize = 3;
 
 /// `plugins.pack_checks` on a sealed host (D172): every space override of a compiled instance's
@@ -232,48 +233,13 @@ pub(crate) fn pack_checks_check(loaded: &LoadedPlugins) -> Check {
             continue;
         };
         checked += 1;
-        if result.get("success").and_then(serde_json::Value::as_bool) == Some(true) {
-            continue;
-        }
-        let error = result.get("error").cloned().unwrap_or_default();
-        let text = |key: &str| {
-            error
-                .get(key)
-                .and_then(serde_json::Value::as_str)
-                .unwrap_or_default()
-                .to_owned()
-        };
-        let retryable = error
-            .get("retryable")
-            .and_then(serde_json::Value::as_bool)
-            .unwrap_or(false);
-        let mut message = format!(
-            "{}: the override of pack `{}` in space `{}` fails the plugin's check: {}: {}",
-            target.instance,
-            target.pack,
-            target.space,
-            if text("code").is_empty() {
-                "PLUGIN_RESULT_INVALID".to_owned()
-            } else {
-                text("code")
-            },
-            text("message"),
+        let subject = format!(
+            "{}: the override of pack `{}` in space `{}` fails the plugin's check",
+            target.instance, target.pack, target.space
         );
-        let problems = shown_problems(&error);
-        if !problems.is_empty() {
-            message.push_str(&format!(" ({problems})"));
-        }
-        let suggestion = match text("suggestion") {
-            empty if empty.is_empty() => {
-                "Run a command of the plugin in that space for its own suggestion.".to_owned()
-            }
-            given => given,
-        };
-        issues.push(Issue {
-            fatal: target.required && !retryable,
-            message,
-            suggestion,
-        });
+        issues.extend(plugin_issue(&result, target.required, subject, || {
+            "Run a command of the plugin in that space for its own suggestion.".to_owned()
+        }));
     }
     let mut pass = format!("{checked} override(s) pass their plugin's own check");
     if unchecked > 0 {
@@ -284,7 +250,97 @@ pub(crate) fn pack_checks_check(loaded: &LoadedPlugins) -> Check {
     verdict("plugins.pack_checks", pass, &issues, &[])
 }
 
-/// The first problems of a failure's `details.problems`, each `CODE path#at`, and how many more.
+/// `plugins.config_checks` on a sealed host (D206): each loaded compiled instance's configuration,
+/// handed to the plugin's own check, which reads it as its commands do. A failure is `fail` for a
+/// required instance, `warn` for an optional one or a retryable failure. An instance whose plugin
+/// offers no check is counted, and its configuration was checked against its schema at open.
+pub(crate) fn config_checks_check(loaded: &LoadedPlugins) -> Check {
+    let mut issues = Vec::new();
+    let mut checked = 0;
+    let mut unchecked = 0;
+    for target in &loaded.config_checks {
+        let Some(result) = target.run() else {
+            unchecked += 1;
+            continue;
+        };
+        checked += 1;
+        let subject = format!(
+            "{}: its configuration fails the plugin's check",
+            target.instance
+        );
+        issues.extend(plugin_issue(&result, target.required, subject, || {
+            format!(
+                "Fix [plugins.{}.config] in umbel.toml, then run workspace-doctor again.",
+                target.instance
+            )
+        }));
+    }
+    let mut pass = format!("{checked} instance(s) pass their plugin's configuration check");
+    if unchecked > 0 {
+        pass.push_str(&format!(
+            "; {unchecked} instance(s) of plugins that offer no check are checked against their schema only"
+        ));
+    }
+    verdict("plugins.config_checks", pass, &issues, &[])
+}
+
+/// The issue a plugin's own check answered, or `None` for a success: `subject`, then the
+/// failure's code (`PLUGIN_RESULT_INVALID` when it names none), message and first problems, with
+/// its suggestion or `fallback`'s. Fatal only for a required instance and a failure that is not
+/// retryable.
+fn plugin_issue(
+    result: &serde_json::Value,
+    required: bool,
+    subject: String,
+    fallback: impl FnOnce() -> String,
+) -> Option<Issue> {
+    if result.get("success").and_then(serde_json::Value::as_bool) == Some(true) {
+        return None;
+    }
+    let error = result.get("error").cloned().unwrap_or_default();
+    let text = |key: &str| {
+        error
+            .get(key)
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default()
+            .to_owned()
+    };
+    let retryable = error
+        .get("retryable")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+    let code = match text("code") {
+        empty if empty.is_empty() => "PLUGIN_RESULT_INVALID".to_owned(),
+        code => code,
+    };
+    let mut message = format!("{subject}: {code}: {}", text("message"));
+    let problems = shown_problems(&error);
+    if !problems.is_empty() {
+        message.push_str(&format!(" ({problems})"));
+    }
+    let suggestion = match text("suggestion") {
+        empty if empty.is_empty() => fallback(),
+        given => given,
+    };
+    Some(Issue {
+        fatal: required && !retryable,
+        message,
+        suggestion,
+    })
+}
+
+/// A sealed-host check whose run did not finish (its blocking thread panicked): a failure, so a
+/// plugin's crashing check never leaves the check at `skip` on a sealed host.
+pub(crate) fn panicked_check(id: &str) -> Check {
+    Check::fail(
+        id,
+        "a plugin's own check panicked before it answered, so no result of this check was kept",
+        "Run the doctor again; if it repeats, run each plugin's commands to find the one that fails, and report it to its author.",
+    )
+}
+
+/// The first problems of a failure's `details.problems`, each `CODE path#at` (`CODE at` with no
+/// path), and how many more.
 fn shown_problems(error: &serde_json::Value) -> String {
     let Some(problems) = error
         .get("details")
@@ -307,7 +363,9 @@ fn shown_problems(error: &serde_json::Value) -> String {
             match (field(problem, "path"), field(problem, "at")) {
                 (Some(path), Some(at)) => format!("{code} {path}#{at}"),
                 (Some(path), None) => format!("{code} {path}"),
-                (None, _) => code,
+                // A configuration problem has a pointer into the configuration and no file.
+                (None, Some(at)) => format!("{code} {at}"),
+                (None, None) => code,
             }
         })
         .collect();
@@ -324,7 +382,7 @@ fn shown_problems(error: &serde_json::Value) -> String {
     shown.join(", ")
 }
 
-/// The nine plugin checks, in order.
+/// The ten plugin checks, in order.
 pub(crate) fn checks(
     file: Option<&ConfigFile>,
     root: &Path,
@@ -336,6 +394,7 @@ pub(crate) fn checks(
             Check::skip_sealed("plugins.first_class"),
             Check::skip_sealed("plugins.pipelines"),
             Check::skip_sealed("plugins.pack_checks"),
+            Check::skip_sealed("plugins.config_checks"),
         ]
     };
     let dependent = |message: &str| {

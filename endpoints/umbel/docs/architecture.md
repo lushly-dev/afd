@@ -78,7 +78,9 @@ its own backends, on its own terms?
 11. **Stateless and horizontal.** No in-memory sessions, handles as
     arguments, integrity-checked request state, scale behind gateways.
     Instances behind one URL share the confirmation key and the approval
-    nonce store.
+    nonce store. One binary is excepted: the Loam OS host holds a
+    supervisor, a reaper and a proxy in its process, rebuilt from its records
+    on disk at restart ([D207](decisions.md)).
 12. **Small surfaces, measured.** A few first-class tools with lazy discovery
     for the rest, the hybrid strategy decided in [D27](decisions.md);
     concise and detailed result formats;

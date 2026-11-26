@@ -116,6 +116,8 @@ pub struct HostBuilder {
     /// unless a test sets them.
     #[cfg(feature = "auth")]
     usage: crate::usage::Setup,
+    /// The MCP server's announced name and version: Umbel's, unless the embedder sets its own.
+    server_identity: surfaces::mcp::ServerIdentity,
 }
 
 /// What a test sees of a held approval: AFD's request, its token included.
@@ -147,7 +149,24 @@ impl HostBuilder {
             embedders: BTreeMap::new(),
             #[cfg(feature = "auth")]
             usage: crate::usage::Setup::default(),
+            server_identity: surfaces::mcp::ServerIdentity::default(),
         }
+    }
+
+    /// Announce `name` and `version` as the MCP server's `serverInfo` instead of Umbel's own, for
+    /// a binary that embeds the host as a product of its own (the Loam OS host). Only the
+    /// announced identity changes: tool names, the registry and every other surface are the same.
+    #[must_use]
+    pub fn with_server_identity(
+        mut self,
+        name: impl Into<String>,
+        version: impl Into<String>,
+    ) -> Self {
+        self.server_identity = surfaces::mcp::ServerIdentity {
+            name: name.into(),
+            version: version.into(),
+        };
+        self
     }
 
     /// Make a compiled plugin available as `compiled:<id>`, where `<id>` is the `plugin.id` of
@@ -508,6 +527,7 @@ impl HostBuilder {
             &first_class,
             &loaded.contexts,
             self.clock.as_ref(),
+            &self.server_identity,
         )?;
         let server = serve_skills(server, &loaded)?;
         let stash = Arc::new(crate::positions::Stash::default());

@@ -123,7 +123,8 @@ fn a_fresh_workspace_is_healthy_with_seventeen_skipped_checks() {
             "plugins.loaded",
             "plugins.first_class",
             "plugins.pipelines",
-            "plugins.pack_checks"
+            "plugins.pack_checks",
+            "plugins.config_checks"
         ]
     );
     for check in &report.checks {
@@ -150,6 +151,7 @@ fn a_fresh_workspace_is_healthy_with_seventeen_skipped_checks() {
             "plugins.first_class",
             "plugins.pipelines",
             "plugins.pack_checks",
+            "plugins.config_checks",
         ];
         let expected = if sealed_only.contains(&check.id.as_str()) {
             CheckStatus::Skip
