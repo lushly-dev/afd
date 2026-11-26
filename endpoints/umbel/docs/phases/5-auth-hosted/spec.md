@@ -2675,6 +2675,33 @@ marked "(review)"; the fifth improvement was settled by the coordinator on 2026-
 | 8.5's seam | Step 11's erasure outbox, "in the same transaction that destroys the keys" | Not built here. The erase and the forget run the same steps after their first transaction (`Erasure` in `store-embedded/src/memory/erase.rs`), so step 11 adds the outbox row once, in step 2's key-destroying transaction, for both | Step 11's |
 | 14: tests | `plugins/memory/tests/erase.rs`, `editors.rs`, `confirm_preview.rs` | The three, end to end with the kit over real sockets (`tests/hosted_kit/`, which includes the host's `tests/support/hosted.rs` by path; the memory crate's dev-dependencies gain the `auth` feature, `umbel-testkit-idp` and the HTTP client crates, all in the lock): one eraser and two; the same person twice through another client; a changed plan and the window passing voiding the request; a request expiring and a plan going stale between the decision and the run; a non-eraser, an eraser without the `erase` scope (the 403), a hidden space against an undeclared one; the library and a terminal (with their codes); mode `none`; (review) another eraser's wrong plan leaving the request, records changed before the run voiding it, an erase without the eraser's own dry run, the check before begin asking alike whether or not the target has records, a first eraser removed from `erasers` within the window; a gateway's person listener; after an erase another reader's recall, list and status byte for byte as before the records were written, the target reading nothing, the keys destroyed and no canary in any file, the notice in the target's stream alone, the journal's kept input; an editor at a terminal, a person who is not one, an editor's agent over MCP whatever sharing allows (answered by the plugin's own check), the owner through equivalents, the library's person, a `*` group; the confirmation on the page with its preview, a decline, another's record before anyone is asked, a legacy record through equivalents, the library's `embedder` assurance for the operator only, a forged CLI context with and without a person-page mark (neither terminal nor verified), a gateway with a phishing-resistant login (a phishable one refused at return) and with a phishable class (nothing served), and the terminal's preview. Also `store-embedded/tests/memory_erase.rs` (dry runs, a request left by another plan and voided by changed records, purges by a write and a sweep), `tests/memory_grants.rs`'s unguarded erase and the host's `editors` rule with no plugin check in front, the unit tests of `erase_step`, the plan and the doctor check, and `tests/schemas/phase5_records.rs`'s `embedder` and `erasure` shapes (examples `provenance-envelope.v3.embedder.json`, `event.v3.erasure.json`). Clocks are manual and every wait is for a state | Each check has a test that fails without it |
 
+## Amendments from #1771: indexed event reads
+
+Made in the pull request for [#1771](https://github.com/lushly-dev/afd/issues/1771), recorded as
+[D209](../../decisions.md), with the stream index of the
+[phase 0 specification](../0-host-skeleton/spec.md#amendments-from-1771-indexed-event-reads).
+Section 9.3's rules are unchanged: every position a sealed caller sees is still that of an event
+it can read, and no answer changes.
+
+- **E1. Sealed `event-list` and `event-ack`** no longer read the whole stream. The events after
+  the starting position are read forward from the index record before them; the last event the
+  caller can read at or before a position (the cursor when the page is empty, `head`, the
+  acknowledged position, and `event-ack`'s `previous`, which is all it reads) is found by reading
+  back one 256-event block at a time until the caller can read one. The cost is the page and the
+  distance back to the caller's nearest readable event, so it is linear only for a caller who can
+  read almost nothing.
+- **E2. Sealed `space-list`'s `events`** is still a count of every event the caller can read, so
+  it still reads the whole stream (`count_readable`). A count per reader needs a cache per reader,
+  the follow-up of 2026-11-08 below, which D209 leaves open.
+- **E3. Timing.** A sealed read's time now grows with how far back the caller's nearest readable
+  event is, instead of with the stream's length: a timing signal, not a result difference, of the
+  kind the prefix-expansion follow-up of 2026-11-08 describes. A damaged line is reported only
+  when a read reaches it, as the plain `event-list` already did; the doctor still reads every line.
+- **E4. Measured:** on macOS (release build, Apple Silicon, load 40 to 60), a sealed caller who reads every
+  100th of 1,000,000 events: `event-list` after its head took 21.5 s without the index and 1.25 ms
+  with it, its first page 8.08 s and 8.62 ms, and `space-list` 13.8 s either way
+  (`cursor_v1::sealed_event_reads_at_1k_and_1m`, ignored by default).
+
 ## Follow-ups
 
 | Date | Follow-up | Owner |
@@ -2717,3 +2744,4 @@ marked "(review)"; the fifth improvement was settled by the coordinator on 2026-
 | 2026-11-10 | Rows past `usage.retention_days` are purged by any append, by each HTTP surface's writer at start and every hour, and by the operator's `usage-list`; a workspace that stops serving HTTP keeps them on disk (read by no one) until one of those runs. Decide whether the doctor's store checks should report or purge them (step 9) | Phase 5 owning agent |
 | 2026-11-10 | `first-party/tests/hosted_not_request_path.rs` (12.3) and exit point 7 (each call and poll has one usage event; bo's `usage-list` shows only his) are step 12's; step 9's `tests/usage.rs` holds both on the host's own surfaces (step 9) | Step 12 |
 | 2026-11-10 | Phase 6 moves `UsageStore` into `umbel_store::state` with the other host-state traits, and its PostgreSQL form seals every field but the time (phase 6 section 5.3); the trait's five methods (append with drops and purge, a task's creation, a page, the drop count, purge) are step 9's | Phase 6, step 2 |
+| 2026-11-26 | A sealed `event-list` or `event-ack` now takes time that grows with how many events the caller cannot read lie between its position and its nearest readable one, to about one 256-event block (D209, [Amendments from #1771](#amendments-from-1771-indexed-event-reads)); before, it grew with the stream's length. A timing channel, not a result difference, like the prefix walk's above. Bound it (for example a per-reader cache of readable positions, which would also bound `space-list`'s count) if step 12's hosted leak tests can measure it | Phase 5 owning agent, with step 12 |

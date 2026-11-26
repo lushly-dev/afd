@@ -48,6 +48,8 @@ mod doctor_pack_checks;
 mod doctor_plugins;
 mod doctor_sealed;
 mod doctor_stores;
+mod events_index;
+mod events_scale;
 mod first_class_plugins;
 mod grants;
 #[cfg(all(feature = "component", feature = "mounted", feature = "cli"))]

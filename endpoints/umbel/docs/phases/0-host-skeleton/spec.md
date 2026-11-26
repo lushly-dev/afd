@@ -1680,6 +1680,50 @@ the tests needed:
 - The `cli.rs` case `serve_is_reserved_but_not_yet_available` is removed; `process.rs`
   covers `serve`.
 
+## Amendments from #1771: indexed event reads
+
+Made in the pull request for [#1771](https://github.com/lushly-dev/afd/issues/1771), recorded as
+[D209](../../decisions.md). Section 6 and the tree of section 2 stand as written; this adds to them:
+
+- **E1. `state/spaces/<space>/events.idx`** sits beside each `events.jsonl`: a sparse index of the
+  stream. A 16-byte header (the bytes `UMBELIDX`, then format version 0 and the stride 256, each a
+  little-endian `u32`), then one 16-byte record for every 256th event: its `seq` and the byte
+  offset where its line starts, each a little-endian `u64`. Record `i` holds event
+  `(i + 1) × 256`. The stream stays the source of truth and append-only; the index is derived,
+  is never fsynced, and may be deleted at any time.
+- **E2. Writers keep it under the workspace lock.** Opening a stream for append (step 5 of the
+  projection, the catch-up and `Host::repair_events`) checks the index's last record against the
+  stream, cuts a torn record, drops records past a cut stream, starts again from nothing when the
+  last record names the wrong line or the header is not this format, and fills a gap by reading
+  forward from the last good record, so a workspace written before D209 gets its index at its
+  first append. An append writes its record after its event's line. A failed index write is
+  logged and never fails the append or the command. `event-rebuild` writes the new index over the
+  old one after it replaces the stream, and removes the old one when that write fails.
+- **E3. Readers take no lock and never write the index.** `event-list` and `event-ack` check
+  each record they use against the stream they opened (a line starts at that offset and is that
+  event) and read the stream from the start when the index is missing, short, of another format
+  or wrong. A cursor read seeks to the record at or before the event after the cursor, so it
+  reads at most 255 lines it skips plus its page, whatever the stream's length. `space-list` does
+  not use the index: it reads a stream's tail, and for a caller whose positions are sealed the
+  whole stream, to count what that caller can read.
+- **E4. The doctor** (`events.consistent`) also checks every record of an index against its
+  stream, and warns, suggesting `umbel event rebuild`, when one names a line the stream does not
+  hold there. A missing index or records past the stream are not reported: the next append
+  repairs them.
+- **E5. Measured** on macOS (release build, Apple Silicon, a shared machine), `event-list` with
+  `after` ten events before the head, median of 21 reads: 1.14 ms at 1,000 events and 202 ms at 1,000,000 (800 MB) before this change, and 0.75 to 0.93 ms and
+  0.75 to 1.10 ms with the index (257 to 532 ms at 1,000,000 without it, the fallback). Building a
+  missing index at 1,000,000 events took 0.28 to 0.94 s, once, inside the first append; opening the
+  stream for an append with the index current (measured without appending) took 0.5 to 0.96 ms
+  (0.45 to 0.79 ms before). Load was 40 to 60; in
+  later runs slowed by other work on the machine (the 1,000-event read 7 to 27 ms), the indexed read
+  at 1,000,000 events took 5 to 8 ms and the linear one 248 to 361 ms (`tests/it/events_scale.rs`,
+  ignored by default).
+- **E6. Still linear:** the one-off build of a missing index, the doctor's read of every stream,
+  and the journal's own reads, which segments and retention (#1770) address. #1770 can keep one
+  such index per segment file, since a record holds an absolute `seq` and an offset within one
+  file, or replace it under a new format version, which readers already treat as no index.
+
 ## Follow-ups
 
 | Date | Follow-up | Owner |

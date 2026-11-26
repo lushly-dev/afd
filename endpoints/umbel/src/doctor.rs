@@ -18,6 +18,7 @@ use afd::{CommandError, CommandResult, ResultOptions, Warning};
 use serde::Serialize;
 use serde_json::{Value, json};
 
+use crate::events::{INDEX_STRIDE, index_agrees};
 use crate::plugins::CompiledCatalog;
 use crate::workspace::{
     ConfigFile, FoundBy, Layout, Located, RootProblem, SpaceId, WorkspaceError, codes,
@@ -718,6 +719,7 @@ fn events_consistent(layout: &Layout, spaces: Option<&SpaceRules>, journal: &Jou
     const REBUILD: &str = "Run umbel event rebuild to rebuild the streams from the journal.";
     let mut held: BTreeMap<SpaceId, BTreeSet<u64>> = BTreeMap::new();
     let mut torn = Vec::new();
+    let mut stale = Vec::new();
     let mut total = 0usize;
     for space in stream_dirs(layout, spaces) {
         let path = layout.events_file(&space);
@@ -739,7 +741,11 @@ fn events_consistent(layout: &Layout, spaces: Option<&SpaceRules>, journal: &Jou
         let last_index = lines.len() - 1;
         let mut seen = BTreeSet::new();
         let (mut expect_seq, mut last_journal) = (1u64, 0u64);
+        // Where every `INDEX_STRIDE`th event's line starts, to check the index against (D209).
+        let (mut offset, mut strides) = (0u64, Vec::new());
         for (index, line) in lines.iter().enumerate() {
+            let at = offset;
+            offset += line.len() as u64 + 1;
             if line.trim().is_empty() {
                 continue;
             }
@@ -773,10 +779,16 @@ fn events_consistent(layout: &Layout, spaces: Option<&SpaceRules>, journal: &Jou
                     REBUILD,
                 );
             }
+            if seq.is_multiple_of(INDEX_STRIDE) {
+                strides.push((seq, at));
+            }
             expect_seq += 1;
             last_journal = journal_seq;
             total += 1;
             seen.insert(journal_seq);
+        }
+        if !index_agrees(&path, &strides) {
+            stale.push(space.to_string());
         }
         held.insert(space, seen);
     }
@@ -806,7 +818,7 @@ fn events_consistent(layout: &Layout, spaces: Option<&SpaceRules>, journal: &Jou
         }
     }
     let marker = layout.pending_marker().exists();
-    if marker || behind > 0 || !torn.is_empty() {
+    if marker || behind > 0 || !torn.is_empty() || !stale.is_empty() {
         let mut why = Vec::new();
         if marker {
             why.push("projection.pending is present".to_owned());
@@ -816,6 +828,12 @@ fn events_consistent(layout: &Layout, spaces: Option<&SpaceRules>, journal: &Jou
         }
         if !torn.is_empty() {
             why.push(format!("the last line of {} is torn", torn.join(", ")));
+        }
+        if !stale.is_empty() {
+            why.push(format!(
+                "the event index of {} names lines its stream does not hold (reads scan the whole stream)",
+                stale.join(", ")
+            ));
         }
         return Check::warn("events.consistent", why.join("; "), REBUILD);
     }
