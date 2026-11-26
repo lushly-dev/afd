@@ -1,9 +1,20 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import test from 'node:test';
+import test, { after } from 'node:test';
 import { planRelease } from './control.mjs';
+
+/** Fixture folders, removed once this file's tests finish so none outlives the run. */
+const temps = [];
+after(() => {
+	for (const dir of temps) rmSync(dir, { recursive: true, force: true });
+});
+function tempDir(prefix) {
+	const dir = mkdtempSync(join(tmpdir(), prefix));
+	temps.push(dir);
+	return dir;
+}
 
 for (const [format, registry, file] of [
 	['python', 'pypi', 'pyproject.toml'],
@@ -11,7 +22,7 @@ for (const [format, registry, file] of [
 	['cpp', 'source', 'CMakeLists.txt'],
 ]) {
 	test(`${format}: all four independently selected batch examples preserve prerequisite and coordinated intent rules`, () => {
-		const root = mkdtempSync(join(tmpdir(), `afd-${format}-release-`));
+		const root = tempDir(`afd-${format}-release-`);
 		const units = ['a', 'b'].map((id) => ({
 			id,
 			family: id,
@@ -72,7 +83,7 @@ for (const [format, registry, file] of [
 
 for (const format of ['python', 'rust']) {
 	test(`${format}: actual native manifest requirements constrain held aliases before planning`, () => {
-		const root = mkdtempSync(join(tmpdir(), `afd-${format}-manifest-`));
+		const root = tempDir(`afd-${format}-manifest-`);
 		const registry = format === 'python' ? 'pypi' : 'crates';
 		const file = format === 'python' ? 'pyproject.toml' : 'Cargo.toml';
 		const name = format === 'python' ? 'Held_Package.Name' : 'held-package';

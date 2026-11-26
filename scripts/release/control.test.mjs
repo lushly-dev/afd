@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import test from 'node:test';
+import test, { after } from 'node:test';
 import {
 	assertAdmission,
 	candidateDigest,
@@ -15,12 +15,23 @@ import {
 } from './control.mjs';
 import { simulateHandoff } from './handoff.mjs';
 
+/** Fixture folders, removed once this file's tests finish so none outlives the run. */
+const temps = [];
+after(() => {
+	for (const dir of temps) rmSync(dir, { recursive: true, force: true });
+});
+function tempDir(prefix) {
+	const dir = mkdtempSync(join(tmpdir(), prefix));
+	temps.push(dir);
+	return dir;
+}
+
 function write(root, file, text) {
 	mkdirSync(dirname(join(root, file)), { recursive: true });
 	writeFileSync(join(root, file), text);
 }
 function fixture({ held = false, dependency, shared = false, fixed = false } = {}) {
-	const root = mkdtempSync(join(tmpdir(), 'afd-release-'));
+	const root = tempDir('afd-release-');
 	const units = ['a', 'b'].map((id) => ({
 		id,
 		family: id,

@@ -1,10 +1,21 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import test from 'node:test';
+import test, { after } from 'node:test';
 import { fileURLToPath } from 'node:url';
+
+/** Fixture folders, removed once this file's tests finish so none outlives the run. */
+const temps = [];
+after(() => {
+	for (const dir of temps) rmSync(dir, { recursive: true, force: true });
+});
+function tempDir(prefix) {
+	const dir = mkdtempSync(join(tmpdir(), prefix));
+	temps.push(dir);
+	return dir;
+}
 
 const script = join(dirname(fileURLToPath(import.meta.url)), 'check-versions.mjs');
 
@@ -94,7 +105,7 @@ function fixture(overrides = {}) {
 		'README.md': readme('1.82', '1.0-rc'),
 		...overrides,
 	};
-	const root = mkdtempSync(join(tmpdir(), 'afd-versions-'));
+	const root = tempDir('afd-versions-');
 	for (const [file, text] of Object.entries(files)) {
 		mkdirSync(dirname(join(root, file)), { recursive: true });
 		writeFileSync(join(root, file), text);
