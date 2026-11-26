@@ -105,7 +105,7 @@ The queue adds a measure the baseline had none of: it removed these 100 pull req
 
 | Date | Raised by | Follow-up | State |
 | --- | --- | --- | --- |
-| 2026-11-26 | The 1-week measurement | Loam's session-log tables take every session's row at the same end, the file's most frequent conflict (20 of 89 base-syncs). Give each row its own insertion point, as Changesets did for the changelogs | Not filed: the owner's call |
-| 2026-11-26 | The 1-week measurement | `foundations/specimen/CHANGELOG.md` is hand-written under `## Unreleased` (6 conflicts); `packages/rust/CHANGELOG.md` likewise (2) | Not filed: the owner's call |
+| 2026-11-26 | The 1-week measurement | Loam's session-log tables take every session's row at the same end, the file's most frequent conflict (20 of 89 base-syncs). Give each row its own insertion point, as Changesets did for the changelogs | Filed as [#2665](https://github.com/lushly-dev/afd/issues/2665): the owner agreed on 2026-11-26 |
+| 2026-11-26 | The 1-week measurement | `foundations/specimen/CHANGELOG.md` is hand-written under `## Unreleased` (6 conflicts); `packages/rust/CHANGELOG.md` likewise (2) | Filed as [#2666](https://github.com/lushly-dev/afd/issues/2666) (Specimen) and [#2667](https://github.com/lushly-dev/afd/issues/2667) (Rust): the owner agreed on 2026-11-26 |
 | 2026-11-26 | The 1-week measurement | The plan's merge count reads 0 for any window after [#1901](https://github.com/lushly-dev/afd/pull/1901). A later measurement counts base-syncs from pushed heads, as Measure does, and the queue's `merge_conflict` removals | Not filed: the owner's call |
 | 2026-11-26 | The 1-week measurement's review | Pull request 5's line above says the ruleset squashes; the queue rebases now (`prepare-pr`'s step 9) | Not filed: the owner's call |
