@@ -31,7 +31,7 @@ import {
 } from '@lushly-dev/specimen-afd';
 
 /**
- * Preferred first-class tools under the `hybrid` strategy (`docs/features/active/agent-first-design/spec.md` §5.1).
+ * Preferred first-class tools under the `hybrid` strategy (`docs/features/complete/agent-first-design/spec.md` §5.1).
  * Filtered against the registered MCP-exposed commands and capped at `MAX_FIRST_CLASS_TOOLS` (8).
  */
 export const PREFERRED_SPECIMEN_FIRST_CLASS_TOOLS = [

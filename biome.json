@@ -34,8 +34,8 @@
 			"!endpoints/umbel/plugins/components/packs",
 			"!endpoints/botcore/src/botcore/provenance/*.json",
 			"!spec/wire/*.json",
-			"!docs/features/active/agent-first-design/bench/held/checks/*.json",
-			"!docs/features/active/agent-first-design/bench/held/fault-proofs.mjs",
+			"!docs/features/complete/agent-first-design/bench/held/checks/*.json",
+			"!docs/features/complete/agent-first-design/bench/held/fault-proofs.mjs",
 			"!scripts/affected/suites.generated.mjs"
 		]
 	},

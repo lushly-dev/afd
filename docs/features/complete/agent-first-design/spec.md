@@ -5,16 +5,26 @@
 | Epic | [#2544](https://github.com/lushly-dev/afd/issues/2544) (Q4 follow-up: [#2545](https://github.com/lushly-dev/afd/issues/2545)) |
 | Proposal & status | [`agent-first-design.proposal.md`](agent-first-design.proposal.md), [`STATUS.md`](STATUS.md) |
 | Phase 0 record | [`bench/record/README.md`](bench/record/README.md) (step 0.6 **go with changes**, 2026-11-24, [#2530](https://github.com/lushly-dev/afd/pull/2530)) |
-| Companion amendments applied to | [Patterns](../patterns/spec.md#8-amendment-agent-first-design-phase-a-approved-2026-11-24), [Design Decisions](../design-decisions/design-decisions.proposal.md#amendment-agent-first-design-phase-a-approved-2026-11-24), [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md#10-measurement-and-exit-criteria) |
+| Companion amendments applied to | [Patterns](../../active/patterns/spec.md#8-amendment-agent-first-design-phase-a-approved-2026-11-24), [Design Decisions](../../active/design-decisions/design-decisions.proposal.md#amendment-agent-first-design-phase-a-approved-2026-11-24), [Screens from Jobs](../../active/screens-from-jobs/screens-from-jobs.proposal.md#10-measurement-and-exit-criteria) |
 | Scenarios | [`scenarios/`](scenarios/) — 12 ranked jobs (5 in `slice-1`, 7 in `slice-2`; 58 steps) |
 
 ## Status
 
-- **State:** Approved Phase A specification (merged 2026-11-24 in [#2537](https://github.com/lushly-dev/afd/pull/2537);
-  all four companion amendments in [section 4](#4-proposed-amendments-for-the-owner) accepted by
-  the owner on 2026-11-24 and applied to Patterns, Design Decisions, Screens from Jobs, and
-  `agent-first-design.proposal.md` §10). Promoted from `proposed/` to
-  `docs/features/active/agent-first-design/` under Epic [#2544](https://github.com/lushly-dev/afd/issues/2544).
+- **State:** Complete (2026-11-26; moved to `docs/features/complete/agent-first-design/`, closes
+  Epic [#2544](https://github.com/lushly-dev/afd/issues/2544)). Approved Phase A specification
+  (merged 2026-11-24 in [#2537](https://github.com/lushly-dev/afd/pull/2537); all four companion
+  amendments in [section 4](#4-proposed-amendments-for-the-owner) accepted by the owner on
+  2026-11-24 and applied in [#2550](https://github.com/lushly-dev/afd/pull/2550)); all eight
+  implementation sub-issues ([#2545](https://github.com/lushly-dev/afd/issues/2545),
+  [#2558](https://github.com/lushly-dev/afd/issues/2558)–[#2564](https://github.com/lushly-dev/afd/issues/2564))
+  merged across [#2591](https://github.com/lushly-dev/afd/pull/2591),
+  [#2593](https://github.com/lushly-dev/afd/pull/2593),
+  [#2594](https://github.com/lushly-dev/afd/pull/2594),
+  [#2600](https://github.com/lushly-dev/afd/pull/2600),
+  [#2602](https://github.com/lushly-dev/afd/pull/2602),
+  [#2605](https://github.com/lushly-dev/afd/pull/2605),
+  [#2622](https://github.com/lushly-dev/afd/pull/2622), and
+  [#2630](https://github.com/lushly-dev/afd/pull/2630).
 - **Phase 0 inputs folded into this specification:**
   - Step 0.1 showed agents already pass nine checks in ten on result-state stories without a
     default pattern set; steps 0.2 and 0.5 stay deferred, so `afd-defaults` is specified as an
@@ -28,9 +38,9 @@
     comparison beside the journal path so worked-around perception trouble is caught.
 - **Companion amendments applied (2026-11-24):** All four amendments in
   [section 4](#4-proposed-amendments-for-the-owner) were accepted by the owner and applied to
-  [`../patterns/spec.md`](../patterns/spec.md#8-amendment-agent-first-design-phase-a-approved-2026-11-24),
-  [`../design-decisions/design-decisions.proposal.md`](../design-decisions/design-decisions.proposal.md#amendment-agent-first-design-phase-a-approved-2026-11-24),
-  [`../screens-from-jobs/screens-from-jobs.proposal.md`](../screens-from-jobs/screens-from-jobs.proposal.md#10-measurement-and-exit-criteria),
+  [`../../active/patterns/spec.md`](../../active/patterns/spec.md#8-amendment-agent-first-design-phase-a-approved-2026-11-24),
+  [`../../active/design-decisions/design-decisions.proposal.md`](../../active/design-decisions/design-decisions.proposal.md#amendment-agent-first-design-phase-a-approved-2026-11-24),
+  [`../../active/screens-from-jobs/screens-from-jobs.proposal.md`](../../active/screens-from-jobs/screens-from-jobs.proposal.md#10-measurement-and-exit-criteria),
   and [`agent-first-design.proposal.md` §10](agent-first-design.proposal.md#10-out-of-scope).
 
 ---
