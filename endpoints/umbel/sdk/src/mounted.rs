@@ -20,7 +20,13 @@ use afd::{
 use async_trait::async_trait;
 use serde_json::{Map, Value};
 
-use crate::{Asset, CallContext, Cx, HostError, HostServices, Level, Plugin};
+use crate::{
+    Asset, CallContext, ClockServices, ConfigServices, ContentServices, ContentWriteServices, Cx,
+    DeriveServices, DocumentServices, DocumentWriteServices, EventServices, GraphServices,
+    GraphWriteServices, HostError, IndexServices, IndexWriteServices, Level, LogServices,
+    MaintenanceServices, MemoryServices, MemoryWriteServices, PackServices, Plugin, RandomServices,
+    ReaderServices, RecordServices, RecordWriteServices,
+};
 
 /// One manifest command, as the server needs it.
 struct Spec {
@@ -230,15 +236,19 @@ impl Services {
     }
 }
 
-impl HostServices for Services {
+impl ConfigServices for Services {
     fn config(&self) -> Result<Value, HostError> {
         Ok(self.shared.config.clone())
     }
+}
 
+impl LogServices for Services {
     fn log(&self, level: Level, message: &str) {
         eprintln!("[{level:?}] {message}");
     }
+}
 
+impl PackServices for Services {
     fn pack_list(&self, pack: &str) -> Result<Vec<String>, HostError> {
         let directory = format!("{}/", self.pack_directory(pack)?);
         Ok(self
@@ -260,7 +270,9 @@ impl HostServices for Services {
             .map(<[u8]>::to_vec)
             .map_err(|_| HostError::NotFound(format!("the pack `{pack}` has no file `{path}`")))
     }
+}
 
+impl EventServices for Services {
     fn events(
         &self,
         _space: Option<&str>,
@@ -269,15 +281,37 @@ impl HostServices for Services {
     ) -> Result<Value, HostError> {
         not_granted("events")
     }
+}
 
+impl ClockServices for Services {
     fn now_ms(&self) -> Result<i64, HostError> {
         Ok(self.context.clock().now())
     }
+}
 
+impl RandomServices for Services {
     fn random(&self) -> Result<f64, HostError> {
         Ok(self.context.random().next())
     }
 }
+
+// A mounted server is outside the host: it has no store, so every store family answers its
+// default, `NotGranted`.
+impl ContentServices for Services {}
+impl ContentWriteServices for Services {}
+impl DocumentServices for Services {}
+impl DocumentWriteServices for Services {}
+impl RecordServices for Services {}
+impl RecordWriteServices for Services {}
+impl IndexServices for Services {}
+impl IndexWriteServices for Services {}
+impl GraphServices for Services {}
+impl GraphWriteServices for Services {}
+impl DeriveServices for Services {}
+impl MaintenanceServices for Services {}
+impl ReaderServices for Services {}
+impl MemoryServices for Services {}
+impl MemoryWriteServices for Services {}
 
 struct Handler<P: Plugin> {
     plugin: Arc<P>,

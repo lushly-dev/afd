@@ -9,7 +9,7 @@
 use std::sync::Arc;
 
 use serde_json::Value;
-use umbel_sdk::{CollectionMeta, HostError as ServiceError, HostServices, Reader};
+use umbel_sdk::{CollectionMeta, HostError as ServiceError, ReadServices, Reader};
 use umbel_store::{
     AccessSet, Actor, ActorKind, Change, ChunkHit, Direction, DocMeta, Document, DocumentWrite,
     Edge, EdgeKey, Envelope, Expect, GraphBatch, IndexChunk, IndexQuery, IndexWriterSession,
@@ -769,7 +769,7 @@ impl CallServices {
         crate::workspace::parse_principal(principal).map_err(ServiceError::Invalid)?;
         self.note_use();
         let reader = self.read_only_view(principal);
-        Ok(Reader::new(Box::new(reader) as Box<dyn HostServices>))
+        Ok(Reader::new(Box::new(reader) as Box<dyn ReadServices>))
     }
 }
 

@@ -24,7 +24,7 @@ impl Cx {
     /// Grant `records_write`: write a record of a standing kind and replace its evidence.
     ///
     /// # Errors
-    /// See [`HostServices::record_put_cited`](crate::HostServices::record_put_cited).
+    /// See [`RecordWriteServices::record_put_cited`](crate::RecordWriteServices::record_put_cited).
     #[allow(clippy::too_many_arguments)]
     pub fn record_put_cited(
         &self,
@@ -45,7 +45,7 @@ impl Cx {
     /// call the space's person decided.
     ///
     /// # Errors
-    /// See [`HostServices::record_decide`](crate::HostServices::record_decide).
+    /// See [`RecordWriteServices::record_decide`](crate::RecordWriteServices::record_decide).
     pub fn record_decide(
         &self,
         space: &str,
@@ -61,7 +61,7 @@ impl Cx {
     /// was shown, as the person's own.
     ///
     /// # Errors
-    /// See [`HostServices::doc_own_mark`](crate::HostServices::doc_own_mark).
+    /// See [`RecordWriteServices::doc_own_mark`](crate::RecordWriteServices::doc_own_mark).
     pub fn doc_own_mark(
         &self,
         space: &str,
@@ -76,7 +76,7 @@ impl Cx {
     /// Grants `records_write` and `documents`: take a mark back.
     ///
     /// # Errors
-    /// See [`HostServices::doc_own_unmark`](crate::HostServices::doc_own_unmark).
+    /// See [`RecordWriteServices::doc_own_unmark`](crate::RecordWriteServices::doc_own_unmark).
     pub fn doc_own_unmark(&self, space: &str, doc: &str) -> Result<Rev, HostError> {
         self.check_space(space)?;
         self.host()?.doc_own_unmark(space, doc)
@@ -85,7 +85,7 @@ impl Cx {
     /// Grant `documents`: how a readable document is the person's own now, or `None`.
     ///
     /// # Errors
-    /// See [`HostServices::doc_own`](crate::HostServices::doc_own).
+    /// See [`DocumentServices::doc_own`](crate::DocumentServices::doc_own).
     pub fn doc_own(&self, space: &str, doc: &str) -> Result<Option<OwnInfo>, HostError> {
         self.check_space(space)?;
         self.host()?.doc_own(space, doc)
@@ -192,7 +192,8 @@ mod tests {
     use umbel_store::lane::{FindOrder, Pointer};
 
     use super::*;
-    use crate::cx::{CallContext, HostServices, NoServices};
+    use crate::cx::CallContext;
+    use crate::services::{DocumentServices, NoServices, RecordServices, RecordWriteServices};
     use crate::store::Reader;
 
     fn cx(spaces: &[&str]) -> Cx {

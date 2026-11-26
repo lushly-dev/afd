@@ -125,7 +125,7 @@ impl Cx {
     /// Grant `memory`: one record.
     ///
     /// # Errors
-    /// See [`HostServices::memory_get`](crate::HostServices::memory_get).
+    /// See [`MemoryServices::memory_get`](crate::MemoryServices::memory_get).
     pub fn memory_get(
         &self,
         space: &str,
@@ -140,7 +140,7 @@ impl Cx {
     /// Grant `memory`: every version of a record.
     ///
     /// # Errors
-    /// See [`HostServices::memory_history`](crate::HostServices::memory_history).
+    /// See [`MemoryServices::memory_history`](crate::MemoryServices::memory_history).
     pub fn memory_history(&self, space: &str, id: &str) -> Result<Vec<MemoryRecord>, HostError> {
         self.check_space(space)?;
         self.host()?.memory_history(space, id)
@@ -149,7 +149,7 @@ impl Cx {
     /// Grant `memory`: list readable records.
     ///
     /// # Errors
-    /// See [`HostServices::memory_list`](crate::HostServices::memory_list).
+    /// See [`MemoryServices::memory_list`](crate::MemoryServices::memory_list).
     pub fn memory_list(&self, space: &str, query: &MemoryList) -> Result<MemoryPage, HostError> {
         self.check_space(space)?;
         self.host()?.memory_list(space, query)
@@ -158,7 +158,7 @@ impl Cx {
     /// Grant `memory`: ranked recall.
     ///
     /// # Errors
-    /// See [`HostServices::memory_recall`](crate::HostServices::memory_recall).
+    /// See [`MemoryServices::memory_recall`](crate::MemoryServices::memory_recall).
     pub fn memory_recall(&self, space: &str, query: &RecallQuery) -> Result<RecallPage, HostError> {
         self.check_space(space)?;
         self.host()?.memory_recall(space, query)
@@ -167,7 +167,7 @@ impl Cx {
     /// Grant `memory`: what a bundle's push rule leaves out.
     ///
     /// # Errors
-    /// See [`HostServices::memory_left_out`](crate::HostServices::memory_left_out).
+    /// See [`MemoryServices::memory_left_out`](crate::MemoryServices::memory_left_out).
     pub fn memory_left_out(&self, space: &str, query: &LeftOutQuery) -> Result<LeftOut, HostError> {
         self.check_space(space)?;
         self.host()?.memory_left_out(space, query)
@@ -176,7 +176,7 @@ impl Cx {
     /// Grant `memory`: readable changes.
     ///
     /// # Errors
-    /// See [`HostServices::memory_changes`](crate::HostServices::memory_changes).
+    /// See [`MemoryServices::memory_changes`](crate::MemoryServices::memory_changes).
     pub fn memory_changes(
         &self,
         space: &str,
@@ -191,7 +191,7 @@ impl Cx {
     /// Grant `memory`: counts over what the caller can read.
     ///
     /// # Errors
-    /// See [`HostServices::memory_counts`](crate::HostServices::memory_counts).
+    /// See [`MemoryServices::memory_counts`](crate::MemoryServices::memory_counts).
     pub fn memory_counts(
         &self,
         space: &str,
@@ -205,7 +205,7 @@ impl Cx {
     /// Grant `memory`: the caller's own usage.
     ///
     /// # Errors
-    /// See [`HostServices::memory_usage`](crate::HostServices::memory_usage).
+    /// See [`MemoryServices::memory_usage`](crate::MemoryServices::memory_usage).
     pub fn memory_usage(&self, space: &str, since: Millis) -> Result<MemoryUsage, HostError> {
         self.check_space(space)?;
         self.host()?.memory_usage(space, since)
@@ -214,7 +214,7 @@ impl Cx {
     /// Grant `memory`: the highest revision of a change the caller can read.
     ///
     /// # Errors
-    /// See [`HostServices::memory_head`](crate::HostServices::memory_head).
+    /// See [`MemoryServices::memory_head`](crate::MemoryServices::memory_head).
     pub fn memory_head(&self, space: &str) -> Result<Rev, HostError> {
         self.check_space(space)?;
         self.host()?.memory_head(space)
@@ -223,7 +223,7 @@ impl Cx {
     /// Grant `memory`: the key file's state.
     ///
     /// # Errors
-    /// See [`HostServices::memory_key_file`](crate::HostServices::memory_key_file).
+    /// See [`MemoryServices::memory_key_file`](crate::MemoryServices::memory_key_file).
     pub fn memory_key_file(&self, space: &str) -> Result<KeyFileState, HostError> {
         self.check_space(space)?;
         self.host()?.memory_key_file(space)
@@ -232,7 +232,7 @@ impl Cx {
     /// Grant `memory_write`: write a batch.
     ///
     /// # Errors
-    /// See [`HostServices::memory_write`](crate::HostServices::memory_write).
+    /// See [`MemoryWriteServices::memory_write`](crate::MemoryWriteServices::memory_write).
     pub fn memory_write(
         &self,
         space: &str,
@@ -245,7 +245,8 @@ impl Cx {
     /// Grant `memory_write`: invalidate a record.
     ///
     /// # Errors
-    /// See [`HostServices::memory_invalidate`](crate::HostServices::memory_invalidate).
+    /// See
+    /// [`MemoryWriteServices::memory_invalidate`](crate::MemoryWriteServices::memory_invalidate).
     pub fn memory_invalidate(
         &self,
         space: &str,
@@ -258,7 +259,7 @@ impl Cx {
     /// Grant `memory_write`: confirm a record.
     ///
     /// # Errors
-    /// See [`HostServices::memory_confirm`](crate::HostServices::memory_confirm).
+    /// See [`MemoryWriteServices::memory_confirm`](crate::MemoryWriteServices::memory_confirm).
     pub fn memory_confirm(
         &self,
         space: &str,
@@ -271,7 +272,7 @@ impl Cx {
     /// Grant `memory_write`: forget the caller's records.
     ///
     /// # Errors
-    /// See [`HostServices::memory_forget`](crate::HostServices::memory_forget).
+    /// See [`MemoryWriteServices::memory_forget`](crate::MemoryWriteServices::memory_forget).
     pub fn memory_forget(
         &self,
         space: &str,
@@ -284,7 +285,7 @@ impl Cx {
     /// Grant `memory_write`: `memory-erase` (phase 5 section 8.4).
     ///
     /// # Errors
-    /// See [`HostServices::memory_erase`](crate::HostServices::memory_erase).
+    /// See [`MemoryWriteServices::memory_erase`](crate::MemoryWriteServices::memory_erase).
     pub fn memory_erase(&self, space: &str, call: EraseCall) -> Result<EraseAnswer, HostError> {
         self.check_space(space)?;
         self.host()?.memory_erase(space, call)
@@ -293,7 +294,8 @@ impl Cx {
     /// Grant `memory_write`: what `memory-erase-preview` may show (phase 5 section 8.4).
     ///
     /// # Errors
-    /// See [`HostServices::memory_erase_preview`](crate::HostServices::memory_erase_preview).
+    /// See
+    /// [`MemoryWriteServices::memory_erase_preview`](crate::MemoryWriteServices::memory_erase_preview).
     pub fn memory_erase_preview(
         &self,
         space: &str,
@@ -306,7 +308,7 @@ impl Cx {
     /// Grant `memory_write`: purge records past their purge date.
     ///
     /// # Errors
-    /// See [`HostServices::memory_sweep`](crate::HostServices::memory_sweep).
+    /// See [`MemoryWriteServices::memory_sweep`](crate::MemoryWriteServices::memory_sweep).
     pub fn memory_sweep(
         &self,
         space: &str,
@@ -320,7 +322,7 @@ impl Cx {
     /// Grant `memory_write`: rebuild the lexical lane.
     ///
     /// # Errors
-    /// See [`HostServices::memory_reindex`](crate::HostServices::memory_reindex).
+    /// See [`MemoryWriteServices::memory_reindex`](crate::MemoryWriteServices::memory_reindex).
     pub fn memory_reindex(
         &self,
         space: &str,

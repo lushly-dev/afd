@@ -41,26 +41,36 @@ mod assets;
 #[cfg(feature = "component")]
 pub mod component;
 mod cx;
+mod legacy;
 mod memory;
 #[cfg(feature = "mounted")]
 mod mounted;
 mod outcome;
 mod records;
+mod services;
 mod store;
 
 pub mod build;
 
 pub use assets::Asset;
 pub use cx::{
-    CallContext, Cx, HostError, HostServices, Level, NoServices, PersonCheck, PersonDecision,
-    PipelineAttestation, WalCheckpoint,
+    CallContext, Cx, HostError, Level, PersonCheck, PersonDecision, PipelineAttestation,
+    WalCheckpoint,
 };
+pub use legacy::HostServices;
 pub use memory::{
     EraseAnswer, EraseCall, ErasePreview, LeftOutQuery, MemoryPath, MemoryWriteRequest,
 };
 #[cfg(feature = "mounted")]
 pub use mounted::{mounted_server, serve_mounted};
 pub use outcome::{Outcome, failure, success};
+pub use services::{
+    AllServices, ClockServices, ConfigServices, ContentServices, ContentWriteServices,
+    DeriveServices, DocumentServices, DocumentWriteServices, EventServices, GraphServices,
+    GraphWriteServices, IndexServices, IndexWriteServices, LogServices, MaintenanceServices,
+    MemoryServices, MemoryWriteServices, NoServices, PackServices, RandomServices, ReadServices,
+    ReaderServices, RecordServices, RecordWriteServices,
+};
 pub use store::{CollectionInfo, CollectionMeta, ContentEntry, Reader, SpaceCx};
 /// The store types the methods take and return (phase 2 specification, section 3.3).
 pub use umbel_store;

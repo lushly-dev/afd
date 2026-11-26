@@ -198,6 +198,11 @@ the content, document, record, index and graph grants for compiled plugins
 ([D54](decisions.md)); phase 3 adds the memory grants ([D74](decisions.md)); the others are named and refused until their phase. The journal is not a grant: the host
 journals every call itself. Enabling a plugin instance consents to its
 declared grants, minus those the deployer denies ([D42](decisions.md)).
+In the plugin SDK each grant family is a trait of its own, a read grant
+apart from its write grant, so an implementor writes the methods of the
+families it serves and a one-line empty impl of each other; the SDK's
+[README](../sdk/README.md) lists them and its version policy
+([D218](decisions.md)).
 
 Each command also declares its effects and capabilities in the shape of
 Botcore's command policy, so a deployer can see what a plugin may do before

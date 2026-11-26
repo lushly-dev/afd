@@ -15,7 +15,13 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use afd::CommandContext;
 use serde_json::Value;
-use umbel_sdk::{HostError as ServiceError, HostServices, Level, PipelineAttestation};
+use umbel_sdk::{
+    ClockServices, ConfigServices, ContentServices, ContentWriteServices, DeriveServices,
+    DocumentServices, DocumentWriteServices, EventServices, GraphServices, GraphWriteServices,
+    HostError as ServiceError, IndexServices, IndexWriteServices, Level, LogServices,
+    MaintenanceServices, MemoryServices, MemoryWriteServices, PackServices, PipelineAttestation,
+    RandomServices, ReaderServices, RecordServices, RecordWriteServices,
+};
 
 use std::collections::BTreeMap;
 
@@ -313,8 +319,9 @@ fn require(shared: &Shared, grant: &str) -> Result<(), ServiceError> {
     }
 }
 
-/// The host services of one call. Implements [`HostServices`], which is what `umbel_sdk::Cx`
-/// wraps; a raw [`CompiledPlugin`](super::CompiledPlugin) calls the same methods directly.
+/// The host services of one call. Implements every grant family of the SDK (D218), so it is the
+/// `umbel_sdk::AllServices` that `umbel_sdk::Cx` wraps; a raw
+/// [`CompiledPlugin`](super::CompiledPlugin) calls the same methods directly.
 ///
 /// The methods block on file reads: call them from a blocking context (`spawn_blocking`), as the
 /// SDK wrapper does, not from an async task's hot path.
@@ -606,12 +613,14 @@ impl CallServices {
     }
 }
 
-impl HostServices for CallServices {
+impl ConfigServices for CallServices {
     fn config(&self) -> Result<Value, ServiceError> {
         self.require("config")?;
         Ok(self.shared.config.clone())
     }
+}
 
+impl LogServices for CallServices {
     fn log(&self, level: Level, message: &str) {
         if self.require("log").is_err() {
             return;
@@ -628,7 +637,9 @@ impl HostServices for CallServices {
             Level::Trace => tracing::trace!(plugin = %plugin, "{message}"),
         }
     }
+}
 
+impl PackServices for CallServices {
     fn pack_list(&self, pack: &str) -> Result<Vec<String>, ServiceError> {
         self.require("packs")?;
         self.pack(pack)?.list().map_err(ServiceError::NotFound)
@@ -653,7 +664,9 @@ impl HostServices for CallServices {
         }
         copy.read(path).map_err(ServiceError::NotFound)
     }
+}
 
+impl EventServices for CallServices {
     fn events(
         &self,
         space: Option<&str>,
@@ -714,17 +727,23 @@ impl HostServices for CallServices {
         )
         .map_err(|error| ServiceError::Invalid(format!("{}: {}", error.code, error.message)))
     }
+}
 
+impl ClockServices for CallServices {
     fn now_ms(&self) -> Result<i64, ServiceError> {
         self.require("clock")?;
         Ok(self.context.clock().now())
     }
+}
 
+impl RandomServices for CallServices {
     fn random(&self) -> Result<f64, ServiceError> {
         self.require("random")?;
         Ok(self.context.random().next())
     }
+}
 
+impl ContentServices for CallServices {
     fn content_list(
         &self,
         space: &str,
@@ -747,7 +766,9 @@ impl HostServices for CallServices {
     ) -> Result<Vec<u8>, ServiceError> {
         self.svc_content_read(space, collection, path)
     }
+}
 
+impl ContentWriteServices for CallServices {
     fn content_replace(
         &self,
         space: &str,
@@ -758,7 +779,9 @@ impl HostServices for CallServices {
     ) -> Result<ContentHash, ServiceError> {
         self.svc_content_replace(space, collection, path, bytes, expect)
     }
+}
 
+impl DocumentServices for CallServices {
     fn doc_get(&self, space: &str, id: &str) -> Result<Option<Document>, ServiceError> {
         self.svc_doc_get(space, id)
     }
@@ -793,6 +816,17 @@ impl HostServices for CallServices {
         self.svc_readable_collections(space)
     }
 
+    #[cfg(feature = "store-embedded")]
+    fn doc_own(
+        &self,
+        space: &str,
+        doc: &str,
+    ) -> Result<Option<umbel_store::lane::OwnInfo>, ServiceError> {
+        self.svc_doc_own(space, doc)
+    }
+}
+
+impl DocumentWriteServices for CallServices {
     fn doc_put(
         &self,
         space: &str,
@@ -811,7 +845,9 @@ impl HostServices for CallServices {
     ) -> Result<Rev, ServiceError> {
         self.svc_doc_delete(space, id, expect, envelope)
     }
+}
 
+impl RecordServices for CallServices {
     fn record_get(
         &self,
         space: &str,
@@ -831,6 +867,38 @@ impl HostServices for CallServices {
         self.svc_record_list(space, kind, after, limit)
     }
 
+    #[cfg(feature = "store-embedded")]
+    fn record_read(
+        &self,
+        space: &str,
+        kind: &str,
+        id: &str,
+        standings: &[umbel_store::lane::Standing],
+        verified_only: bool,
+    ) -> Result<Option<umbel_store::lane::LaneRecord>, ServiceError> {
+        self.svc_record_read(space, kind, id, standings, verified_only)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn record_find(
+        &self,
+        space: &str,
+        query: &umbel_store::lane::RecordFind,
+    ) -> Result<umbel_store::lane::FindPage, ServiceError> {
+        self.svc_record_find(space, query)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn record_match(
+        &self,
+        space: &str,
+        query: &umbel_store::lane::RecordMatch,
+    ) -> Result<umbel_store::lane::MatchPage, ServiceError> {
+        self.svc_record_match(space, query)
+    }
+}
+
+impl RecordWriteServices for CallServices {
     fn record_put(
         &self,
         space: &str,
@@ -884,45 +952,17 @@ impl HostServices for CallServices {
         self.svc_doc_own_unmark(space, doc)
     }
 
-    #[cfg(feature = "store-embedded")]
-    fn doc_own(
-        &self,
-        space: &str,
-        doc: &str,
-    ) -> Result<Option<umbel_store::lane::OwnInfo>, ServiceError> {
-        self.svc_doc_own(space, doc)
-    }
-
-    #[cfg(feature = "store-embedded")]
-    fn record_read(
+    fn record_forget_history(
         &self,
         space: &str,
         kind: &str,
         id: &str,
-        standings: &[umbel_store::lane::Standing],
-        verified_only: bool,
-    ) -> Result<Option<umbel_store::lane::LaneRecord>, ServiceError> {
-        self.svc_record_read(space, kind, id, standings, verified_only)
+    ) -> Result<u64, ServiceError> {
+        self.svc_record_forget_history(space, kind, id)
     }
+}
 
-    #[cfg(feature = "store-embedded")]
-    fn record_find(
-        &self,
-        space: &str,
-        query: &umbel_store::lane::RecordFind,
-    ) -> Result<umbel_store::lane::FindPage, ServiceError> {
-        self.svc_record_find(space, query)
-    }
-
-    #[cfg(feature = "store-embedded")]
-    fn record_match(
-        &self,
-        space: &str,
-        query: &umbel_store::lane::RecordMatch,
-    ) -> Result<umbel_store::lane::MatchPage, ServiceError> {
-        self.svc_record_match(space, query)
-    }
-
+impl IndexServices for CallServices {
     fn index_search(&self, space: &str, query: &IndexQuery) -> Result<Vec<ChunkHit>, ServiceError> {
         self.svc_index_search(space, query)
     }
@@ -934,11 +974,15 @@ impl HostServices for CallServices {
     fn index_applied(&self, space: &str) -> Result<Rev, ServiceError> {
         self.svc_index_applied(space)
     }
+}
 
+impl IndexWriteServices for CallServices {
     fn index_writer(&self, space: &str) -> Result<Box<dyn IndexWriterSession>, ServiceError> {
         self.svc_index_writer(space)
     }
+}
 
+impl GraphServices for CallServices {
     fn graph_neighbors(
         &self,
         space: &str,
@@ -971,7 +1015,9 @@ impl HostServices for CallServices {
     fn graph_applied(&self, space: &str) -> Result<Rev, ServiceError> {
         self.svc_graph_applied(space)
     }
+}
 
+impl GraphWriteServices for CallServices {
     fn graph_apply(
         &self,
         space: &str,
@@ -980,7 +1026,9 @@ impl HostServices for CallServices {
     ) -> Result<(), ServiceError> {
         self.svc_graph_apply(space, batch, applied)
     }
+}
 
+impl DeriveServices for CallServices {
     fn derive_changes(
         &self,
         space: &str,
@@ -997,7 +1045,9 @@ impl HostServices for CallServices {
     fn derive_head(&self, space: &str) -> Result<Rev, ServiceError> {
         self.svc_derive_head(space)
     }
+}
 
+impl MaintenanceServices for CallServices {
     fn checkpoint(&self, space: &str) -> Result<(), ServiceError> {
         self.svc_checkpoint(space)
     }
@@ -1005,20 +1055,15 @@ impl HostServices for CallServices {
     fn truncate_wal(&self, space: &str) -> Result<umbel_sdk::WalCheckpoint, ServiceError> {
         self.svc_truncate_wal(space)
     }
+}
 
-    fn record_forget_history(
-        &self,
-        space: &str,
-        kind: &str,
-        id: &str,
-    ) -> Result<u64, ServiceError> {
-        self.svc_record_forget_history(space, kind, id)
-    }
-
+impl ReaderServices for CallServices {
     fn as_reader(&self, principal: &str) -> Result<Reader, ServiceError> {
         self.svc_as_reader(principal)
     }
+}
 
+impl MemoryServices for CallServices {
     #[cfg(feature = "store-embedded")]
     fn memory_get(
         &self,
@@ -1105,7 +1150,9 @@ impl HostServices for CallServices {
     fn memory_key_file(&self, space: &str) -> Result<memory::KeyFileState, ServiceError> {
         self.svc_memory_key_file(space)
     }
+}
 
+impl MemoryWriteServices for CallServices {
     #[cfg(feature = "store-embedded")]
     fn memory_write(
         &self,

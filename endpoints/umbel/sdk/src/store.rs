@@ -15,7 +15,8 @@ use umbel_store::{
     Page, Record, RecordMeta, Rev, Subgraph,
 };
 
-use crate::cx::{Cx, HostError, HostServices, WalCheckpoint};
+use crate::cx::{Cx, HostError, WalCheckpoint};
+use crate::services::ReadServices;
 
 /// One file of a collection, as `content_list` reports it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -70,14 +71,15 @@ pub struct CollectionMeta {
 }
 
 /// The read methods as another principal, from [`Cx::as_reader`]: the same filter the host
-/// builds for that principal in the call's spaces, and nothing that writes.
+/// builds for that principal in the call's spaces, and nothing that writes. It holds the four
+/// read families only ([`ReadServices`]), so no write method is reachable through it.
 pub struct Reader {
-    services: Box<dyn HostServices>,
+    services: Box<dyn ReadServices>,
 }
 
 impl Reader {
     /// A reader over services that answer the read methods; the host builds it.
-    pub fn new(services: Box<dyn HostServices>) -> Self {
+    pub fn new(services: Box<dyn ReadServices>) -> Self {
         Self { services }
     }
 }
@@ -90,14 +92,14 @@ impl std::fmt::Debug for Reader {
 
 /// Where the read methods find their services.
 trait Services {
-    fn services(&self) -> Result<&dyn HostServices, HostError>;
+    fn services(&self) -> Result<&dyn ReadServices, HostError>;
     /// The call's spaces are checked here as well as by the host.
     fn guard(&self, space: &str) -> Result<(), HostError>;
 }
 
 impl Services for Cx {
-    fn services(&self) -> Result<&dyn HostServices, HostError> {
-        self.host()
+    fn services(&self) -> Result<&dyn ReadServices, HostError> {
+        self.host().map(|host| host as &dyn ReadServices)
     }
 
     fn guard(&self, space: &str) -> Result<(), HostError> {
@@ -106,7 +108,7 @@ impl Services for Cx {
 }
 
 impl Services for Reader {
-    fn services(&self) -> Result<&dyn HostServices, HostError> {
+    fn services(&self) -> Result<&dyn ReadServices, HostError> {
         Ok(self.services.as_ref())
     }
 
@@ -122,7 +124,7 @@ macro_rules! reads {
             /// Grant `documents`: one document, or `None` when absent or not readable.
             ///
             /// # Errors
-            /// See [`HostServices::doc_get`].
+            /// See [`DocumentServices::doc_get`](crate::DocumentServices::doc_get).
             pub fn doc_get(&self, space: &str, id: &str) -> Result<Option<Document>, HostError> {
                 self.guard(space)?;
                 self.services()?.doc_get(space, id)
@@ -130,7 +132,7 @@ macro_rules! reads {
             /// Grant `documents`: readable documents, ordered by id.
             ///
             /// # Errors
-            /// See [`HostServices::doc_list`].
+            /// See [`DocumentServices::doc_list`](crate::DocumentServices::doc_list).
             pub fn doc_list(
                 &self,
                 space: &str,
@@ -142,7 +144,7 @@ macro_rules! reads {
             /// Grant `documents`: the readable changes after `after`.
             ///
             /// # Errors
-            /// See [`HostServices::doc_changes`].
+            /// See [`DocumentServices::doc_changes`](crate::DocumentServices::doc_changes).
             pub fn doc_changes(
                 &self,
                 space: &str,
@@ -156,7 +158,7 @@ macro_rules! reads {
             /// Grant `documents`: the access tokens of the caller's reader filter in the space.
             ///
             /// # Errors
-            /// See [`HostServices::reader_tokens`].
+            /// See [`DocumentServices::reader_tokens`](crate::DocumentServices::reader_tokens).
             pub fn reader_tokens(&self, space: &str) -> Result<Vec<String>, HostError> {
                 self.guard(space)?;
                 self.services()?.reader_tokens(space)
@@ -165,7 +167,8 @@ macro_rules! reads {
             /// metadata only (phase 4 step 4, amendment 1).
             ///
             /// # Errors
-            /// See [`HostServices::readable_collections`].
+            /// See
+            /// [`DocumentServices::readable_collections`](crate::DocumentServices::readable_collections).
             pub fn readable_collections(
                 &self,
                 space: &str,
@@ -176,7 +179,7 @@ macro_rules! reads {
             /// Grant `records`: one record of the instance's own namespace.
             ///
             /// # Errors
-            /// See [`HostServices::record_get`].
+            /// See [`RecordServices::record_get`](crate::RecordServices::record_get).
             pub fn record_get(
                 &self,
                 space: &str,
@@ -189,7 +192,7 @@ macro_rules! reads {
             /// Grant `records`: readable records of one kind.
             ///
             /// # Errors
-            /// See [`HostServices::record_list`].
+            /// See [`RecordServices::record_list`](crate::RecordServices::record_list).
             pub fn record_list(
                 &self,
                 space: &str,
@@ -204,7 +207,7 @@ macro_rules! reads {
             /// specification, section 7).
             ///
             /// # Errors
-            /// See [`HostServices::record_read`].
+            /// See [`RecordServices::record_read`](crate::RecordServices::record_read).
             pub fn record_read(
                 &self,
                 space: &str,
@@ -220,7 +223,7 @@ macro_rules! reads {
             /// Grant `records`: the readable records of a declared kind by key and by text.
             ///
             /// # Errors
-            /// See [`HostServices::record_find`].
+            /// See [`RecordServices::record_find`](crate::RecordServices::record_find).
             pub fn record_find(
                 &self,
                 space: &str,
@@ -232,7 +235,7 @@ macro_rules! reads {
             /// Grant `records`: the identical and the nearest readable records of each text.
             ///
             /// # Errors
-            /// See [`HostServices::record_match`].
+            /// See [`RecordServices::record_match`](crate::RecordServices::record_match).
             pub fn record_match(
                 &self,
                 space: &str,
@@ -244,7 +247,7 @@ macro_rules! reads {
             /// Grant `index`: search under the reader filter.
             ///
             /// # Errors
-            /// See [`HostServices::index_search`].
+            /// See [`IndexServices::index_search`](crate::IndexServices::index_search).
             pub fn index_search(
                 &self,
                 space: &str,
@@ -256,7 +259,7 @@ macro_rules! reads {
             /// Grant `index`: the stored chunks of one readable document.
             ///
             /// # Errors
-            /// See [`HostServices::index_chunks`].
+            /// See [`IndexServices::index_chunks`](crate::IndexServices::index_chunks).
             pub fn index_chunks(
                 &self,
                 space: &str,
@@ -268,7 +271,7 @@ macro_rules! reads {
             /// Grant `index`: the revision the space's index reflects.
             ///
             /// # Errors
-            /// See [`HostServices::index_applied`].
+            /// See [`IndexServices::index_applied`](crate::IndexServices::index_applied).
             pub fn index_applied(&self, space: &str) -> Result<Rev, HostError> {
                 self.guard(space)?;
                 self.services()?.index_applied(space)
@@ -276,7 +279,7 @@ macro_rules! reads {
             /// Grant `graph`: the readable edges incident to a node.
             ///
             /// # Errors
-            /// See [`HostServices::graph_neighbors`].
+            /// See [`GraphServices::graph_neighbors`](crate::GraphServices::graph_neighbors).
             pub fn graph_neighbors(
                 &self,
                 space: &str,
@@ -292,7 +295,7 @@ macro_rules! reads {
             /// Grant `graph`: the readable ones among `ids`.
             ///
             /// # Errors
-            /// See [`HostServices::graph_nodes`].
+            /// See [`GraphServices::graph_nodes`](crate::GraphServices::graph_nodes).
             pub fn graph_nodes(&self, space: &str, ids: &[String]) -> Result<Vec<Node>, HostError> {
                 self.guard(space)?;
                 self.services()?.graph_nodes(space, ids)
@@ -300,7 +303,7 @@ macro_rules! reads {
             /// Grant `graph`: readable edges of one kind, after `after`.
             ///
             /// # Errors
-            /// See [`HostServices::graph_edges`].
+            /// See [`GraphServices::graph_edges`](crate::GraphServices::graph_edges).
             pub fn graph_edges(
                 &self,
                 space: &str,
@@ -314,7 +317,7 @@ macro_rules! reads {
             /// Grant `graph`: the store revision the space's graph reflects.
             ///
             /// # Errors
-            /// See [`HostServices::graph_applied`].
+            /// See [`GraphServices::graph_applied`](crate::GraphServices::graph_applied).
             pub fn graph_applied(&self, space: &str) -> Result<Rev, HostError> {
                 self.guard(space)?;
                 self.services()?.graph_applied(space)
@@ -322,7 +325,7 @@ macro_rules! reads {
             /// Grant `graph`: the whole readable graph of the space.
             ///
             /// # Errors
-            /// See [`HostServices::graph_subgraph`].
+            /// See [`GraphServices::graph_subgraph`](crate::GraphServices::graph_subgraph).
             pub fn graph_subgraph(&self, space: &str) -> Result<Subgraph, HostError> {
                 self.guard(space)?;
                 self.services()?.graph_subgraph(space)
@@ -340,7 +343,7 @@ impl Cx {
     /// positions are sealed, else `rev` as a number.
     ///
     /// # Errors
-    /// See [`HostServices::doc_position`].
+    /// See [`DocumentServices::doc_position`](crate::DocumentServices::doc_position).
     pub fn doc_position(&self, space: &str, rev: Rev) -> Result<Value, HostError> {
         self.check_space(space)?;
         self.host()?.doc_position(space, rev)
@@ -349,7 +352,7 @@ impl Cx {
     /// Grant `documents`: the revision a value [`Cx::doc_position`] gave this caller names.
     ///
     /// # Errors
-    /// See [`HostServices::doc_position_of`].
+    /// See [`DocumentServices::doc_position_of`](crate::DocumentServices::doc_position_of).
     pub fn doc_position_of(&self, space: &str, value: &Value) -> Result<Rev, HostError> {
         self.check_space(space)?;
         self.host()?.doc_position_of(space, value)
@@ -382,7 +385,7 @@ impl Cx {
     /// Grant `content`: the files of one collection of the space, sorted by path.
     ///
     /// # Errors
-    /// See [`HostServices::content_list`].
+    /// See [`ContentServices::content_list`](crate::ContentServices::content_list).
     pub fn content_list(
         &self,
         space: &str,
@@ -397,7 +400,7 @@ impl Cx {
     /// Grant `content`: the collections of the space, in configuration order.
     ///
     /// # Errors
-    /// See [`HostServices::content_collections`].
+    /// See [`ContentServices::content_collections`](crate::ContentServices::content_collections).
     pub fn content_collections(&self, space: &str) -> Result<Vec<CollectionInfo>, HostError> {
         self.check_space(space)?;
         self.host()?.content_collections(space)
@@ -406,7 +409,7 @@ impl Cx {
     /// Grant `content`: one file of a collection.
     ///
     /// # Errors
-    /// See [`HostServices::content_read`].
+    /// See [`ContentServices::content_read`](crate::ContentServices::content_read).
     pub fn content_read(
         &self,
         space: &str,
@@ -420,7 +423,7 @@ impl Cx {
     /// Grant `content_write`: replace or create one file after checking `expect`.
     ///
     /// # Errors
-    /// See [`HostServices::content_replace`].
+    /// See [`ContentWriteServices::content_replace`](crate::ContentWriteServices::content_replace).
     pub fn content_replace(
         &self,
         space: &str,
@@ -437,7 +440,7 @@ impl Cx {
     /// Grant `documents_write`: write a document.
     ///
     /// # Errors
-    /// See [`HostServices::doc_put`].
+    /// See [`DocumentWriteServices::doc_put`](crate::DocumentWriteServices::doc_put).
     pub fn doc_put(
         &self,
         space: &str,
@@ -451,7 +454,7 @@ impl Cx {
     /// Grant `documents_write`: delete a document.
     ///
     /// # Errors
-    /// See [`HostServices::doc_delete`].
+    /// See [`DocumentWriteServices::doc_delete`](crate::DocumentWriteServices::doc_delete).
     pub fn doc_delete(
         &self,
         space: &str,
@@ -466,7 +469,7 @@ impl Cx {
     /// Grant `records_write`: write a record of the instance's own namespace.
     ///
     /// # Errors
-    /// See [`HostServices::record_put`].
+    /// See [`RecordWriteServices::record_put`](crate::RecordWriteServices::record_put).
     pub fn record_put(
         &self,
         space: &str,
@@ -484,7 +487,7 @@ impl Cx {
     /// Grant `index_write`: take the space's index writer.
     ///
     /// # Errors
-    /// See [`HostServices::index_writer`].
+    /// See [`IndexWriteServices::index_writer`](crate::IndexWriteServices::index_writer).
     pub fn index_writer(&self, space: &str) -> Result<Box<dyn IndexWriterSession>, HostError> {
         self.check_space(space)?;
         self.host()?.index_writer(space)
@@ -493,7 +496,7 @@ impl Cx {
     /// Grant `graph_write`: apply a batch and record `applied`, in one transaction.
     ///
     /// # Errors
-    /// See [`HostServices::graph_apply`].
+    /// See [`GraphWriteServices::graph_apply`](crate::GraphWriteServices::graph_apply).
     pub fn graph_apply(
         &self,
         space: &str,
@@ -507,7 +510,7 @@ impl Cx {
     /// A derivation read of the change log, for a command that builds derived data.
     ///
     /// # Errors
-    /// See [`HostServices::derive_changes`].
+    /// See [`DeriveServices::derive_changes`](crate::DeriveServices::derive_changes).
     pub fn derive_changes(
         &self,
         space: &str,
@@ -521,7 +524,7 @@ impl Cx {
     /// A derivation read of one document.
     ///
     /// # Errors
-    /// See [`HostServices::derive_document`].
+    /// See [`DeriveServices::derive_document`](crate::DeriveServices::derive_document).
     pub fn derive_document(&self, space: &str, id: &str) -> Result<Option<Document>, HostError> {
         self.check_space(space)?;
         self.host()?.derive_document(space, id)
@@ -531,7 +534,7 @@ impl Cx {
     /// read; for the commands that build derived data).
     ///
     /// # Errors
-    /// See [`HostServices::derive_head`].
+    /// See [`DeriveServices::derive_head`](crate::DeriveServices::derive_head).
     pub fn derive_head(&self, space: &str) -> Result<Rev, HostError> {
         self.check_space(space)?;
         self.host()?.derive_head(space)
@@ -540,7 +543,7 @@ impl Cx {
     /// Best-effort store maintenance after a run that wrote.
     ///
     /// # Errors
-    /// See [`HostServices::checkpoint`].
+    /// See [`MaintenanceServices::checkpoint`](crate::MaintenanceServices::checkpoint).
     pub fn checkpoint(&self, space: &str) -> Result<(), HostError> {
         self.check_space(space)?;
         self.host()?.checkpoint(space)
@@ -549,7 +552,8 @@ impl Cx {
     /// Grant `records_write`: forget the change log's hashes of a record's earlier versions.
     ///
     /// # Errors
-    /// See [`HostServices::record_forget_history`].
+    /// See
+    /// [`RecordWriteServices::record_forget_history`](crate::RecordWriteServices::record_forget_history).
     pub fn record_forget_history(
         &self,
         space: &str,
@@ -563,7 +567,7 @@ impl Cx {
     /// A reporting checkpoint of the document store after a write that removed text.
     ///
     /// # Errors
-    /// See [`HostServices::truncate_wal`].
+    /// See [`MaintenanceServices::truncate_wal`](crate::MaintenanceServices::truncate_wal).
     pub fn truncate_wal(&self, space: &str) -> Result<WalCheckpoint, HostError> {
         self.check_space(space)?;
         self.host()?.truncate_wal(space)
@@ -572,7 +576,7 @@ impl Cx {
     /// The read methods as another principal, in the call's spaces.
     ///
     /// # Errors
-    /// See [`HostServices::as_reader`].
+    /// See [`ReaderServices::as_reader`](crate::ReaderServices::as_reader).
     pub fn as_reader(&self, principal: &str) -> Result<Reader, HostError> {
         self.host()?.as_reader(principal)
     }
