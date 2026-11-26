@@ -1,0 +1,249 @@
+{
+	"databaseId": 42700000003,
+	"workflowName": "Loam desktop",
+	"path": ".github/workflows/loam-desktop.yml",
+	"repository": "lushly-dev/afd",
+	"event": "workflow_dispatch",
+	"headBranch": "main",
+	"headSha": "0123456789abcdef0123456789abcdef01234567",
+	"status": "completed",
+	"conclusion": "success",
+	"attempt": 1,
+	"url": "https://github.com/lushly-dev/afd/actions/runs/42700000003",
+	"jobs": [
+		{
+			"name": "Merge queue paths / Merge queue paths",
+			"databaseId": 11,
+			"status": "completed",
+			"conclusion": "success",
+			"startedAt": "2026-11-25T17:30:00Z",
+			"completedAt": "2026-11-25T17:30:07Z",
+			"steps": [
+				{
+					"name": "Set up job",
+					"number": 1,
+					"status": "completed",
+					"conclusion": "success",
+					"startedAt": "2026-11-25T17:30:00Z",
+					"completedAt": "2026-11-25T17:30:02Z"
+				},
+				{
+					"name": "Run if [ \"$GITHUB_EVENT_NAME\" = merge_group ]; then",
+					"number": 2,
+					"status": "completed",
+					"conclusion": "success",
+					"startedAt": "2026-11-25T17:30:03Z",
+					"completedAt": "2026-11-25T17:30:05Z"
+				},
+				{
+					"name": "Complete job",
+					"number": 3,
+					"status": "completed",
+					"conclusion": "success",
+					"startedAt": "2026-11-25T17:30:06Z",
+					"completedAt": "2026-11-25T17:30:07Z"
+				}
+			]
+		},
+		{
+			"name": "Affected units",
+			"databaseId": 12,
+			"status": "completed",
+			"conclusion": "success",
+			"startedAt": "2026-11-25T17:31:00Z",
+			"completedAt": "2026-11-25T17:31:12Z",
+			"steps": [
+				{
+					"name": "Set up job",
+					"number": 1,
+					"status": "completed",
+					"conclusion": "success",
+					"startedAt": "2026-11-25T17:31:00Z",
+					"completedAt": "2026-11-25T17:31:02Z"
+				},
+				{
+					"name": "Run actions/checkout",
+					"number": 2,
+					"status": "completed",
+					"conclusion": "success",
+					"startedAt": "2026-11-25T17:31:03Z",
+					"completedAt": "2026-11-25T17:31:06Z"
+				},
+				{
+					"name": "Run node scripts/affected.mjs gate --package @lushly-dev/loam-desktop",
+					"number": 3,
+					"status": "completed",
+					"conclusion": "success",
+					"startedAt": "2026-11-25T17:31:07Z",
+					"completedAt": "2026-11-25T17:31:10Z"
+				},
+				{
+					"name": "Complete job",
+					"number": 4,
+					"status": "completed",
+					"conclusion": "success",
+					"startedAt": "2026-11-25T17:31:11Z",
+					"completedAt": "2026-11-25T17:31:12Z"
+				}
+			]
+		},
+		{
+			"name": "Desktop on macOS",
+			"databaseId": 15,
+			"status": "completed",
+			"conclusion": "success",
+			"startedAt": "2026-11-25T17:50:00Z",
+			"completedAt": "2026-11-25T17:51:19Z",
+			"steps": [
+				{
+					"name": "Set up job",
+					"number": 1,
+					"status": "completed",
+					"conclusion": "success",
+					"startedAt": "2026-11-25T17:50:00Z",
+					"completedAt": "2026-11-25T17:50:04Z"
+				},
+				{
+					"name": "Build the app",
+					"number": 2,
+					"status": "completed",
+					"conclusion": "success",
+					"startedAt": "2026-11-25T17:50:05Z",
+					"completedAt": "2026-11-25T17:50:35Z"
+				},
+				{
+					"name": "WKWebView frame-to-IPC barrier (D153 and P6-D4)",
+					"number": 3,
+					"status": "completed",
+					"conclusion": "success",
+					"startedAt": "2026-11-25T17:50:36Z",
+					"completedAt": "2026-11-25T17:50:56Z"
+				},
+				{
+					"name": "Build the installers",
+					"number": 4,
+					"status": "completed",
+					"conclusion": "success",
+					"startedAt": "2026-11-25T17:50:57Z",
+					"completedAt": "2026-11-25T17:51:17Z"
+				},
+				{
+					"name": "Complete job",
+					"number": 5,
+					"status": "completed",
+					"conclusion": "success",
+					"startedAt": "2026-11-25T17:51:18Z",
+					"completedAt": "2026-11-25T17:51:19Z"
+				}
+			]
+		},
+		{
+			"name": "Desktop on Linux",
+			"databaseId": 13,
+			"status": "completed",
+			"conclusion": "success",
+			"startedAt": "2026-11-25T17:40:00Z",
+			"completedAt": "2026-11-25T17:42:10Z",
+			"steps": [
+				{
+					"name": "Set up job",
+					"number": 1,
+					"status": "completed",
+					"conclusion": "success",
+					"startedAt": "2026-11-25T17:40:00Z",
+					"completedAt": "2026-11-25T17:40:04Z"
+				},
+				{
+					"name": "Build the app",
+					"number": 2,
+					"status": "completed",
+					"conclusion": "success",
+					"startedAt": "2026-11-25T17:40:05Z",
+					"completedAt": "2026-11-25T17:40:35Z"
+				},
+				{
+					"name": "Build the mail engine with its test doubles",
+					"number": 3,
+					"status": "completed",
+					"conclusion": "success",
+					"startedAt": "2026-11-25T17:40:36Z",
+					"completedAt": "2026-11-25T17:40:46Z"
+				},
+				{
+					"name": "Desktop suite under tauri-driver",
+					"number": 4,
+					"status": "completed",
+					"conclusion": "success",
+					"startedAt": "2026-11-25T17:40:47Z",
+					"completedAt": "2026-11-25T17:41:47Z"
+				},
+				{
+					"name": "Build the installers",
+					"number": 5,
+					"status": "completed",
+					"conclusion": "success",
+					"startedAt": "2026-11-25T17:41:48Z",
+					"completedAt": "2026-11-25T17:42:08Z"
+				},
+				{
+					"name": "Complete job",
+					"number": 6,
+					"status": "completed",
+					"conclusion": "success",
+					"startedAt": "2026-11-25T17:42:09Z",
+					"completedAt": "2026-11-25T17:42:10Z"
+				}
+			]
+		},
+		{
+			"name": "Desktop on Windows",
+			"databaseId": 14,
+			"status": "completed",
+			"conclusion": "success",
+			"startedAt": "2026-11-25T17:47:00Z",
+			"completedAt": "2026-11-25T17:48:59Z",
+			"steps": [
+				{
+					"name": "Set up job",
+					"number": 1,
+					"status": "completed",
+					"conclusion": "success",
+					"startedAt": "2026-11-25T17:47:00Z",
+					"completedAt": "2026-11-25T17:47:04Z"
+				},
+				{
+					"name": "Build the app",
+					"number": 2,
+					"status": "completed",
+					"conclusion": "success",
+					"startedAt": "2026-11-25T17:47:05Z",
+					"completedAt": "2026-11-25T17:47:35Z"
+				},
+				{
+					"name": "Desktop suite under tauri-driver",
+					"number": 3,
+					"status": "completed",
+					"conclusion": "success",
+					"startedAt": "2026-11-25T17:47:36Z",
+					"completedAt": "2026-11-25T17:48:36Z"
+				},
+				{
+					"name": "Build the installers",
+					"number": 4,
+					"status": "completed",
+					"conclusion": "success",
+					"startedAt": "2026-11-25T17:48:37Z",
+					"completedAt": "2026-11-25T17:48:57Z"
+				},
+				{
+					"name": "Complete job",
+					"number": 5,
+					"status": "completed",
+					"conclusion": "success",
+					"startedAt": "2026-11-25T17:48:58Z",
+					"completedAt": "2026-11-25T17:48:59Z"
+				}
+			]
+		}
+	]
+}

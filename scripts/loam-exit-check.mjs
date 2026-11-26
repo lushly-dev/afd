@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * Loam's exit check: `node scripts/loam-exit-check.mjs <loam run id> <ci run id> [--phase 2|3|4 | --phase 6
- * --milestone m1]`. Phase 2's, by default, as below; `--phase 3` is phase 3's local part, after this comment's list.
+ * --milestone m1]`, or `node scripts/loam-exit-check.mjs <loam run id> <ci run id> <loam-desktop run id> --phase 5
+ * --milestone a`. Phase 2's, by default, as below; `--phase 3` is phase 3's local part, after this comment's list.
  *
  * Step 14 of the phase 2 specification (endpoints/loam/docs/phases/2-scope-projects/spec.md, section 16)
  * runs `loam.yml` and `ci.yml` by `workflow_dispatch` on `main`, which opens every gate, and then this. It
@@ -54,6 +55,18 @@
  * "The hosted server's unit suites with coverage" for `loam-host`, each counted on its own; "Host path" is its
  * "AFD's host path" step and "Hosted" its criterion step. P6-E9's budget is read under D115, as phase
  * 3's is. No earlier phase's row is read: M1 lists only its own (5.3), and the exit's reuse is step 13's.
+ *
+ * `--phase 5 --milestone a` is step 8 of the phase 5 specification (endpoints/loam/docs/phases/5-copilot/
+ * spec.md, sections 1, 16 and 18), the table's `'5-a'` entry: milestone A, the desktop copilot, is reached when
+ * P5-A1 to P5-A9 pass in their places. It takes a third id, a manual run of `loam-desktop.yml`, and holds all
+ * three runs to condition 1, on one commit. Each row is counted in the places section 18's Place column names,
+ * each in its own run's log: "Kernel units" is the `loam` job's unit step, the kernel package's titles alone;
+ * "Chromium" its Chromium step; "Desktop on Linux" (WebKitGTK) and "Desktop on Windows" (WebView2) the
+ * desktop workflow's two jobs of those names, each its "Desktop suite under tauri-driver" step. A desktop step
+ * that printed no Vitest result line fails by itself, naming the step. Condition 3 reads every `P5-` title in
+ * both logs, a row's place or not. Section 16's `budget` rows, and first paint's, are read under D115, as
+ * phase 6's are, though no row's place names the budget. loam-exit-check.p5.minimums.json's `a` holds the
+ * counts, and while the file says `placeholder` the check fails: step 8 sets them from its manual runs.
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -92,8 +105,8 @@ export const WORKFLOWS = {
 			'Mounted against Umbel',
 		],
 	},
-	// Phase 6's steps 11 and 12: the desktop suite and installers (specification, 10.7 and 11.3). Read only
-	// under `--phase 6` without `--milestone` (section 19).
+	// Phase 6's steps 11 and 12: the desktop suite and installers (specification, 10.7 and 11.3). Read under
+	// `--phase 5 --milestone a` (phase 5's section 18), and by phase 6's exit, step 13 (its section 19).
 	desktop: {
 		name: 'Loam desktop',
 		file: 'loam-desktop.yml',
@@ -162,6 +175,31 @@ export const LOCATIONS = {
 		label: 'Hosted',
 		job: 'Hosted development profile',
 		step: 'Hosted criterion against the development profile',
+	},
+	// Phase 5's section 18: "Kernel units" is the unit step's kernel package, so another package's titles (the
+	// copilot's, the CLI's) cannot stand in for the kernel's.
+	kernelUnits: {
+		label: 'Kernel units',
+		job: LOAM_JOB,
+		step: 'Unit suites with coverage',
+		within: /^endpoints\/loam\/packages\/kernel test: /,
+	},
+	// Phase 5's desktop suite, in `loam-desktop.yml`'s run and log (`workflow`): both jobs run a step of one
+	// name, so a place names its job too. `silent` is what a step that printed no Vitest result line says.
+	desktopLinux: {
+		label: 'Desktop on Linux',
+		workflow: 'desktop',
+		job: 'Desktop on Linux',
+		step: 'Desktop suite under tauri-driver',
+		silent: 'the WebKitGTK suite printed no result the check can read',
+	},
+	desktopWindows: {
+		label: 'Desktop on Windows',
+		workflow: 'desktop',
+		job: 'Desktop on Windows',
+		step: 'Desktop suite under tauri-driver',
+		silent:
+			"the step runs `test:desktop` through its medium-integrity launcher (CreateProcessAsUserW, which passes no standard handles of its own): if the step's log holds none of the suite's output, the child's output did not reach the log, which is no test result",
 	},
 };
 
@@ -345,6 +383,39 @@ export const P6_BUDGET_ROWS = [
 ];
 
 /**
+ * Milestone A's rows: section 18 of endpoints/loam/docs/phases/5-copilot/spec.md, by its Place column. Change a
+ * row here only with its spec row.
+ */
+export const P5_A_ROWS = [
+	{ row: 'A1', in: ['kernelUnits', 'chromium', 'desktopLinux', 'desktopWindows'] },
+	// "Chromium, WebView2, WebKitGTK": the unit titles of P5-A2 (the CLI's, the copilot's, `loam-host`'s in the
+	// hosted job) are read by condition 3 and counted in no place.
+	{ row: 'A2', in: ['chromium', 'desktopLinux', 'desktopWindows'] },
+	// "Desktop": the desktop suite, both jobs; the Rust host's own tests are `cargo test`, with no title read.
+	{ row: 'A3', in: ['desktopLinux', 'desktopWindows'] },
+	{ row: 'A4', in: ['kernelUnits', 'chromium'] },
+	{ row: 'A5', in: ['kernelUnits'] },
+	{ row: 'A6', in: ['kernelUnits', 'desktopLinux', 'desktopWindows'] },
+	{ row: 'A7', in: ['kernelUnits'] },
+	{ row: 'A8', in: ['chromium', 'desktopLinux', 'desktopWindows'] },
+	// Linux alone: vitest.desktop.config.ts leaves `test/mail.test.ts` out on Windows, where the engine's
+	// `test-world` is refused (the mail plugin's specification, 12.4).
+	{ row: 'A9', in: ['desktopLinux'] },
+];
+
+/**
+ * Section 16's `budget` rows, by the start of the label the budget script prints: first paint's two, which the
+ * section keeps, then the copilot's panel and its runtime per provider kind. Under D115, as phase 6's.
+ */
+export const P5_BUDGET_ROWS = [
+	'JavaScript, minified',
+	'JavaScript, gzip',
+	'The `copilot-panel` chunk',
+	'The copilot runtime for `anthropic` and `test`, gzip',
+	'The copilot runtime for the OpenAI kinds',
+];
+
+/**
  * ANSI escapes, as the escape character or in caret notation (`^[[32m`), which `gh run view --log` prints
  * in place of it since November 2026: neither is ever part of a title.
  */
@@ -359,13 +430,19 @@ const VITEST_RESULT =
 	/^(?:[\w./@-]+ [\w-]+(?::[\w-]+)*: )?\s*([^\w\s])\s+(?:\|[\w-]+\|\s+|[\w-]+\s+)?[\w./@-]+\.test\.[cm]?[jt]sx? > (.*)$/u;
 /** A node spec result, in the lean-path step only: a mark, the title, its duration, and any directive. */
 const NODE_RESULT = /^\s*([^\w\s])\s+(.*?) \(\d+(?:\.\d+)?ms\)(?: # (.+))?$/u;
-/** A row title starts a title segment: `P2-E2: `, or several, as `P2-E2: P2-D9: `; phase 3's `P3-E8: `. */
+/**
+ * A row title starts a title segment: `P2-E2: `, or several, as `P2-E2: P2-D9: `; phase 3's `P3-E8: `. Phase 5's
+ * may carry a note before its colon, `P5-A2 (D153): `.
+ */
 const ROW_TITLES = {
 	P2: /^(?:P2-[ED]\d+: )+/,
 	P3: /^(?:P3-E\d+: )+/,
 	P4: /^(?:P4-E\d+: )+/,
 	// Every kind of phase 6's section 19, so condition 3 reads a title of a row M1 does not list too.
 	P6: /^(?:P6-[EHMIDX]\d+: )+/,
+	// Every milestone's, so condition 3 reads a milestone B or C title too.
+	// A note names the case a title proves, as the tests write it (`P5-A2 (D153): `, `(S1)` to `(S3)`): nothing else.
+	P5: /^(?:P5-[ABC]\d+(?: \([DST]\d+\))?: )+/,
 };
 const VITEST_STATUS = { '✓': 'pass', '×': 'fail', '↓': 'skip', '□': 'todo' };
 const NODE_STATUS = { '✔': 'pass', '✖': 'fail', '﹣': 'skip' };
@@ -379,7 +456,9 @@ function claimedRows(segments, rowTitle) {
 	for (let index = segments.length - 1; index >= 0; index -= 1) {
 		const prefix = rowTitle.exec(segments[index]);
 		if (prefix)
-			return [...new Set(prefix[0].trim().split(/:\s*/).filter(Boolean))].map((id) => id.slice(3));
+			return [...new Set(prefix[0].replace(/ \([^)]*\)/g, '').match(/P\d-[A-Z]+\d+/g) ?? [])].map(
+				(id) => id.slice(3)
+			);
 	}
 	return [];
 }
@@ -389,7 +468,7 @@ function claimedRows(segments, rowTitle) {
  * whose title claims a row, with its job, step, status and rows. Only a result line counts: Vitest's verbose
  * shape anywhere, node's spec shape in the lean-path step. A status is `pass` only for a passing mark with
  * no retry and no node directive (`# SKIP`, `# TODO`, `# EXPECTED FAILURE`); an unknown mark is its own
- * status, so a change of format fails closed. `prefix` is the phase whose titles it reads, `P2`, `P3`, `P4` or `P6`;
+ * status, so a change of format fails closed. `prefix` is the phase whose titles it reads, `P2` to `P6`;
  * each is read alone, so an earlier phase's reading is the same with a later phase's titles in the log.
  */
 export function readTitles(log, prefix = 'P2') {
@@ -620,7 +699,7 @@ export function checkRun(run, workflow, { allowRerun = false, historicalJobs = [
 	return problems;
 }
 
-/** A location's step, from the run's jobs: present, and a success. */
+/** A location's step, from its own run's jobs: present, and a success. */
 function checkStep(run, location) {
 	const job = run.jobs.find((entry) => entry.name === location.job);
 	if (!job) return [];
@@ -639,9 +718,27 @@ export const P3_MINIMUMS_FILE = 'loam-exit-check.p3.minimums.json';
 export const P4_MINIMUMS_FILE = 'loam-exit-check.p4.minimums.json';
 /** Phase 6's, one object per milestone under `minimums`: `{ "minimums": { "m1": { "E1": { "units": n } } } }`. */
 export const P6_MINIMUMS_FILE = 'loam-exit-check.p6.minimums.json';
+/** Phase 5's, in phase 6's shape, by milestone: `{ "minimums": { "a": { "A1": { "kernelUnits": n } } } }`. */
+export const P5_MINIMUMS_FILE = 'loam-exit-check.p5.minimums.json';
+function readMinimumsFile(file) {
+	return JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), file), 'utf8'));
+}
 export function readMinimums(file = MINIMUMS_FILE) {
-	return JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), file), 'utf8'))
-		.minimums;
+	return readMinimumsFile(file).minimums;
+}
+/**
+ * Whether a minimums file holds placeholders, not a manual run's counts: its `placeholder` is true, or lists the
+ * milestone's key, so one milestone's counts can be set while a later one's are still placeholders. Any other value
+ * of the field fails safe: it is read as placeholders.
+ */
+export function minimumsArePlaceholders(file, key) {
+	const { placeholder } = readMinimumsFile(file);
+	if (placeholder === undefined || placeholder === false) return false;
+	if (placeholder === true) return true;
+	// Any other value is a mistake made by hand, read as placeholders, so it can never let a run pass.
+	if (!Array.isArray(placeholder) || !placeholder.every((entry) => typeof entry === 'string'))
+		return true;
+	return key !== undefined && placeholder.includes(key);
 }
 
 /** Condition 3: every title of the phase's prefix that is not a plain pass, by name. */
@@ -685,6 +782,18 @@ export const PHASES = {
 		budgetRows: P6_BUDGET_ROWS,
 		line: { E8: 'this check, milestone m1' },
 	},
+	// Milestone A reads the desktop run too (`desktop`), and section 16's budget though no row names it
+	// (`budgetLine`, the report's and each problem's label for it).
+	'5-a': {
+		prefix: 'P5',
+		rows: P5_A_ROWS,
+		minimumsFile: P5_MINIMUMS_FILE,
+		minimumsKey: 'a',
+		budgetRows: P5_BUDGET_ROWS,
+		budgetLine: "Section 16's bundle rows",
+		desktop: true,
+		line: {},
+	},
 };
 
 /** A phase's minimums as its file records them: the whole file's, or its milestone's object. */
@@ -700,9 +809,34 @@ export function minimumsShape(id, observed) {
 	return minimumsKey === undefined ? observed : { [minimumsKey]: observed };
 }
 
-/** Every place a phase's rows name, its reused phases' included. */
+/** Every place a phase reads, its reused phases' included: its rows', and the budget's for a `budgetLine`. */
 function placesOf(id) {
-	return PHASES[id].rows.flatMap((row) => (row.reuse ? placesOf(row.reuse) : row.in));
+	return [
+		...PHASES[id].rows.flatMap((row) => (row.reuse ? placesOf(row.reuse) : row.in)),
+		...(PHASES[id].budgetLine ? ['budget'] : []),
+	];
+}
+
+/** Titles read from each run's log, each marked with the workflow it ran in (`run`, as `LOCATIONS` names it). */
+function titlesOf(logs, prefix) {
+	return Object.entries(logs).flatMap(([run, log]) =>
+		readTitles(log, prefix).map((title) => ({ ...title, run }))
+	);
+}
+
+/** Whether a title ran in a place: its run, job and step, and the place's file or package if it names one. */
+function ranIn(title, location) {
+	return (
+		title.run === (location.workflow ?? 'loam') &&
+		title.job === location.job &&
+		title.step === location.step &&
+		(!location.within || location.within.test(title.text))
+	);
+}
+
+/** The Vitest result lines a place's step printed, any title's: none means the step's output was not read. */
+function resultLines(log, location) {
+	return stepText(log, location).filter((text) => VITEST_RESULT.test(text.trimEnd())).length;
 }
 
 /**
@@ -711,9 +845,12 @@ function placesOf(id) {
  * the title problems (condition 3, this phase's and each reused phase's, in that order), the row problems,
  * the report's lines and the counts observed for this phase's own rows.
  */
-function checkPhase(id, { log, minimumsOf, reused = false }) {
-	const { prefix, rows, minimumsFile, budgetRows, line } = PHASES[id];
-	const titles = readTitles(log, prefix);
+function checkPhase(id, { log, desktopLog, minimumsOf, reused = false }) {
+	const { prefix, rows, minimumsFile, budgetRows, budgetLine, line } = PHASES[id];
+	const titles = titlesOf(
+		desktopLog === undefined ? { loam: log } : { loam: log, desktop: desktopLog },
+		prefix
+	);
 	const titleIssues = titleProblems(titles, prefix);
 	// D115: a ceiling is the one the budget script holds, so phase 2's figures are read only as itself.
 	const budget = budgetRows
@@ -728,7 +865,7 @@ function checkPhase(id, { log, minimumsOf, reused = false }) {
 	const observed = {};
 	for (const { row, in: places, reuse } of rows) {
 		if (reuse) {
-			const inner = checkPhase(reuse, { log, minimumsOf, reused: true });
+			const inner = checkPhase(reuse, { log, desktopLog, minimumsOf, reused: true });
 			titleIssues.push(...inner.titleIssues);
 			nested.push(...inner.problems.map((problem) => `${prefix}-${row}: ${problem}`));
 			report.push(
@@ -748,12 +885,7 @@ function checkPhase(id, { log, minimumsOf, reused = false }) {
 				return `${location.label} ${budget.found.join(', ') || 'none'}`;
 			}
 			const passed = titles.filter(
-				(title) =>
-					title.status === 'pass' &&
-					title.job === location.job &&
-					title.step === location.step &&
-					title.rows.includes(row) &&
-					(!location.within || location.within.test(title.text))
+				(title) => title.status === 'pass' && title.rows.includes(row) && ranIn(title, location)
 			).length;
 			observed[row] = { ...observed[row], [key]: passed };
 			const floor = minimums[row]?.[key];
@@ -771,30 +903,40 @@ function checkPhase(id, { log, minimumsOf, reused = false }) {
 		});
 		report.push(`${prefix}-${row}: ${counts.join('; ')}`);
 	}
+	if (budgetLine) {
+		problems.push(...budget.problems.map((problem) => `${budgetLine}: ${problem}`));
+		report.push(`${budgetLine}: ${LOCATIONS.budget.label} ${budget.found.join(', ') || 'none'}`);
+	}
 	return { titleIssues, problems: [...problems, ...nested], report, observed };
 }
 
 /**
- * The whole check over the two runs and the Loam run's log. Returns the problems, each naming what is
- * wrong, the report's lines, and the counts observed for the phase's own rows, in the minimums file's shape.
- * `minimums` is the phase's own (its file by default), `phase2Minimums` phase 2's when another phase reuses
- * it, and `minimumsByPhase` any phase's, by number; each defaults to the committed file.
+ * The whole check over the runs and their logs: the Loam run's, and for a phase that reads it (`desktop`) the
+ * desktop run's. Returns the problems, each naming what is wrong, the report's lines, and the counts observed
+ * for the phase's own rows, in the minimums file's shape. `minimums` is the phase's own (its file by default),
+ * `phase2Minimums` phase 2's when another phase reuses it, and `minimumsByPhase` any phase's, by number; each
+ * defaults to the committed file, which fails the check while it says `placeholder`.
  */
 export function checkExit({
 	loam,
 	ci,
+	desktop,
 	log,
+	desktopLog,
 	phase = 2,
 	minimums,
 	phase2Minimums,
 	minimumsByPhase = {},
 	allowRerun = false,
 }) {
-	// A phase this check has no rows for is refused, never read as phase 2's: phase 6 only by a milestone.
-	if (!Object.hasOwn(PHASES, phase))
+	// A phase this check has no rows for is refused, never read as phase 2's: phases 5 and 6 only by a milestone.
+	if (!Object.hasOwn(PHASES, phase)) {
+		const milestones = PHASE_MILESTONES[String(phase)];
 		throw new Error(
-			`The exit check has no rows for phase ${phase}${String(phase) === '6' ? '; phase 6 takes --milestone m1' : ''}`
+			`The exit check has no rows for phase ${phase}${milestones ? `; phase ${phase} takes --milestone ${milestones.join('|')}` : ''}`
 		);
+	}
+	const readsDesktop = PHASES[phase].desktop === true;
 	const given = { ...minimumsByPhase };
 	if (phase2Minimums !== undefined) given[2] = phase2Minimums;
 	if (minimums !== undefined) given[phase] = minimums;
@@ -806,15 +948,61 @@ export function checkExit({
 		}),
 		...checkRun(ci, WORKFLOWS.ci, { allowRerun }),
 	];
+	const withDesktop = readsDesktop && desktop !== undefined && desktopLog !== undefined;
+	if (readsDesktop && !withDesktop)
+		problems.push(
+			`phase ${phase} reads three runs: no ${WORKFLOWS.desktop.file} run and log were given, the third id`
+		);
+	if (withDesktop) problems.push(...checkRun(desktop, WORKFLOWS.desktop, { allowRerun }));
 	if (loam.headSha !== ci.headSha)
 		problems.push(
 			`the runs are of different commits: loam.yml ${loam.headSha}, ci.yml ${ci.headSha}`
 		);
-
-	for (const key of new Set(placesOf(phase))) problems.push(...checkStep(loam, LOCATIONS[key]));
+	if (withDesktop && desktop.headSha !== loam.headSha)
+		problems.push(
+			`the runs are of different commits: loam.yml ${loam.headSha}, ${WORKFLOWS.desktop.file} ${desktop.headSha}`
+		);
+	// Each phase read from its committed file, a reused one included: one holding placeholders fails.
+	const phasesRead = (id) => [
+		id,
+		...PHASES[id].rows.flatMap((row) => (row.reuse ? phasesRead(row.reuse) : [])),
+	];
+	for (const id of new Set(phasesRead(phase)))
+		if (
+			given[id] === undefined &&
+			minimumsArePlaceholders(PHASES[id].minimumsFile, PHASES[id].minimumsKey)
+		)
+			problems.push(
+				`${PHASES[id].minimumsFile} holds placeholder counts, not a manual run's: set them from the runs' --print-minimums`
+			);
 
 	const resolvedLog = resolveLogSteps(log, loam);
-	const own = checkPhase(phase, { log: resolvedLog, minimumsOf });
+	const resolvedDesktopLog = withDesktop ? resolveLogSteps(desktopLog, desktop) : undefined;
+	for (const key of new Set(placesOf(phase))) {
+		const location = LOCATIONS[key];
+		if (location.workflow !== 'desktop') {
+			problems.push(...checkStep(loam, location));
+			continue;
+		}
+		if (!withDesktop) continue;
+		const stepProblems = checkStep(desktop, location);
+		problems.push(...stepProblems);
+		// A step that ran, passed and printed nothing the check reads: said once, naming why, before its rows'
+		// counts. A missing job is condition 1's, and a missing or failed step `checkStep`'s.
+		const ran = desktop.jobs.some((entry) => entry.name === location.job);
+		// Only a Vitest step says why it would be silent; a location of another kind is read as its rows say.
+		if (
+			location.silent &&
+			ran &&
+			stepProblems.length === 0 &&
+			resultLines(resolvedDesktopLog, location) === 0
+		)
+			problems.push(
+				`${location.label}: step "${location.step}" of ${WORKFLOWS.desktop.file}'s "${location.job}" printed no Vitest result line; ${location.silent}`
+			);
+	}
+
+	const own = checkPhase(phase, { log: resolvedLog, desktopLog: resolvedDesktopLog, minimumsOf });
 	problems.push(...own.titleIssues, ...own.problems);
 	const { report, observed } = own;
 
@@ -827,6 +1015,7 @@ export function checkExit({
 			`Repository ${REPOSITORY}`,
 			header(loam, WORKFLOWS.loam),
 			header(ci, WORKFLOWS.ci),
+			...(withDesktop ? [header(desktop, WORKFLOWS.desktop)] : []),
 			...report,
 		],
 	};
@@ -853,21 +1042,33 @@ export function fetchRun(id) {
 	return { ...run, path: api.path.replace(/@.*$/, ''), repository: api.repository };
 }
 
-export function fetchRuns(loamId, ciId) {
+/** The runs and their logs: the desktop run's only when its id is given, as the third. */
+export function fetchRuns(loamId, ciId, desktopId) {
 	return {
 		loam: fetchRun(loamId),
 		ci: fetchRun(ciId),
 		log: gh(['run', 'view', loamId, '--repo', REPOSITORY, '--log']),
+		...(desktopId === undefined
+			? {}
+			: {
+					desktop: fetchRun(desktopId),
+					desktopLog: gh(['run', 'view', desktopId, '--repo', REPOSITORY, '--log']),
+				}),
 	};
 }
 
-const USAGE =
-	'usage: node scripts/loam-exit-check.mjs <loam run id> <ci run id> [--phase 2|3|4 | --phase 6 --milestone m1] [--allow-rerun] [--print-minimums]';
+const USAGE = [
+	'usage: node scripts/loam-exit-check.mjs <loam run id> <ci run id> [--phase 2|3|4 | --phase 6 --milestone m1] [--allow-rerun] [--print-minimums]',
+	'       node scripts/loam-exit-check.mjs <loam run id> <ci run id> <loam-desktop run id> --phase 5 --milestone a [--allow-rerun] [--print-minimums]',
+].join('\n');
+
+/** Each phase's milestones the check has rows for; a phase listed here is read only by one of them. */
+export const PHASE_MILESTONES = { 5: ['a'], 6: ['m1'] };
 
 /**
- * The arguments, or null when they are not the usage's: two run ids, and each flag at most once; `--milestone`
- * only with `--phase 6`, which needs one until step 13 writes the exit's. Phase 6's milestone is the table's
- * `'6-<milestone>'`.
+ * The arguments, or null when they are not the usage's: two run ids, or three for a phase that reads the
+ * desktop run, and each flag at most once; `--milestone` only with `--phase 5` or `6`, each of which needs one
+ * of its own until its exit is written. A milestone is the table's `'<phase>-<milestone>'`.
  */
 export function parseArgs(argv) {
 	// Each flag's value is read where the flag stands in `argv`, before anything is removed, so one flag
@@ -881,17 +1082,24 @@ export function parseArgs(argv) {
 		if (!values.includes(value) || argv.indexOf(flag, at + 1) !== -1) return null;
 		return value;
 	};
-	const phaseValue = take('--phase', ['2', '3', '4', '6']);
-	const milestone = take('--milestone', ['m1']);
+	const phaseValue = take('--phase', ['2', '3', '4', '5', '6']);
+	const milestone = take('--milestone', Object.values(PHASE_MILESTONES).flat());
 	if (phaseValue === null || milestone === null) return null;
 	const rest = argv.filter((_, index) => !taken.has(index));
-	if ((phaseValue === '6') !== (milestone !== undefined)) return null;
+	const milestones = PHASE_MILESTONES[phaseValue];
+	if ((milestones !== undefined) !== (milestone !== undefined)) return null;
+	if (milestones !== undefined && !milestones.includes(milestone)) return null;
 	const phase =
-		phaseValue === undefined ? 2 : phaseValue === '6' ? `6-${milestone}` : Number(phaseValue);
+		phaseValue === undefined
+			? 2
+			: milestones !== undefined
+				? `${phaseValue}-${milestone}`
+				: Number(phaseValue);
 	const args = rest.filter((arg) => !arg.startsWith('--'));
 	const flags = rest.filter((arg) => arg.startsWith('--'));
 	const unknown = flags.filter((flag) => !['--allow-rerun', '--print-minimums'].includes(flag));
-	if (args.length !== 2 || args.some((arg) => !/^\d+$/.test(arg)) || unknown.length > 0)
+	const ids = PHASES[phase].desktop === true ? 3 : 2;
+	if (args.length !== ids || args.some((arg) => !/^\d+$/.test(arg)) || unknown.length > 0)
 		return null;
 	if (new Set(flags).size !== flags.length) return null;
 	return {
@@ -909,7 +1117,7 @@ function main(argv) {
 		return 2;
 	}
 	const { problems, report, observed } = checkExit({
-		...fetchRuns(parsed.ids[0], parsed.ids[1]),
+		...fetchRuns(...parsed.ids),
 		phase: parsed.phase,
 		allowRerun: parsed.allowRerun,
 	});

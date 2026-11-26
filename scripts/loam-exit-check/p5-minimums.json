@@ -1,0 +1,45 @@
+{
+	"about": "The counts p5-loam-run-log.txt and p5-desktop-run-log.txt meet exactly, for scripts/loam-exit-check.test.mjs's --phase 5 --milestone a cases.",
+	"minimums": {
+		"a": {
+			"A1": {
+				"kernelUnits": 1,
+				"chromium": 1,
+				"desktopLinux": 1,
+				"desktopWindows": 1
+			},
+			"A2": {
+				"chromium": 1,
+				"desktopLinux": 2,
+				"desktopWindows": 2
+			},
+			"A3": {
+				"desktopLinux": 2,
+				"desktopWindows": 2
+			},
+			"A4": {
+				"kernelUnits": 2,
+				"chromium": 1
+			},
+			"A5": {
+				"kernelUnits": 1
+			},
+			"A6": {
+				"kernelUnits": 1,
+				"desktopLinux": 1,
+				"desktopWindows": 1
+			},
+			"A7": {
+				"kernelUnits": 1
+			},
+			"A8": {
+				"chromium": 1,
+				"desktopLinux": 1,
+				"desktopWindows": 1
+			},
+			"A9": {
+				"desktopLinux": 2
+			}
+		}
+	}
+}
