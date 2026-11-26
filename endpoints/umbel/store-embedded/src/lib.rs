@@ -15,6 +15,7 @@ mod inspect;
 mod lane;
 mod limit;
 mod memory;
+mod migration_copy;
 mod readable_graph;
 mod schema;
 mod sql;
@@ -34,6 +35,9 @@ pub use limit::Hold;
 pub use memory::{
     KEYS_FILE, MEMORY_FILE, MEMORY_SCHEMA_VERSION, MemoryCheck, MemoryInfo, MemoryKeysInfo,
     MemoryMaintenance, SqliteMemoryStore, is_excluded_from_machine_backup,
+};
+pub use migration_copy::{
+    PRE_MIGRATION_SUFFIX, copy_before_migration, copy_database, pre_migration_path,
 };
 pub use readable_graph::{EdgeData, GRAPH_CACHE_ENTRIES, ReadableGraph};
 pub use schema::SCHEMA_VERSION;

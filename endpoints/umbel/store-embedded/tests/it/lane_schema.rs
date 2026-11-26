@@ -246,6 +246,16 @@ fn a_version_1_store_opens_as_the_current_version_with_its_records_intact() {
     }
     assert_eq!(rows(&raw, "records"), records_before);
     assert_eq!(rows(&raw, "documents"), documents_before);
+    // The copy taken before the migration (D214) is the version 1 store, rows and schema.
+    let copy = Connection::open(umbel_store_embedded::pre_migration_path(
+        &database(dir.path()),
+        1,
+    ))
+    .expect("the copy before migration");
+    assert_eq!(user_version(&copy), 1);
+    assert_eq!(objects(&copy), before);
+    assert_eq!(rows(&copy, "records"), records_before);
+    assert_eq!(rows(&copy, "documents"), documents_before);
     // The migrated schema is a new store's.
     let fresh_dir = tempfile::tempdir().expect("a temporary directory");
     drop(open_with(fresh_dir.path(), "main", StoreOptions::default()).expect("a new store"));
@@ -698,6 +708,24 @@ fn the_migration_sets_the_traits_version_a_store_was_created_under() {
         )
         .expect("count");
     assert_eq!(rows, 1, "the value is set, not inserted beside the old one");
+}
+
+#[test]
+fn a_store_whose_copy_cannot_be_taken_is_not_migrated() {
+    let dir = tempfile::tempdir().expect("a temporary directory");
+    drop(version_1(dir.path()));
+    // A directory stands where the copy is written, so it cannot be.
+    let copy = umbel_store_embedded::pre_migration_path(&database(dir.path()), 1);
+    let partial = copy.with_file_name("store.sqlite3.v1.pre-migration.partial");
+    std::fs::create_dir(&partial).expect("a directory in the copy's place");
+    let refused = open_with(dir.path(), "main", StoreOptions::default());
+    assert!(
+        matches!(refused, Err(StoreError::Io(ref message)) if message.contains("the copy before migrating")),
+        "{:?}",
+        refused.err()
+    );
+    let raw = Connection::open(database(dir.path())).expect("a raw connection");
+    assert_eq!(user_version(&raw), 1, "nothing was migrated");
 }
 
 #[test]

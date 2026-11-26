@@ -1,8 +1,9 @@
 //! `store-backup`: a consistent copy of a space's stores, with a manifest of digests.
 //!
 //! The copy holds the index writer, so no indexer commits or merges during it; the database is
-//! copied with `VACUUM INTO`. Restore is phase 6's.
+//! copied with `VACUUM INTO`. `store-restore` puts it back (D214).
 
+use super::backup_files::{digest, refusal};
 use super::store_common::{space_property, view};
 use super::{Builtin, blocking, returns_object};
 use crate::store::{Hub, codes, command_error};
@@ -13,7 +14,6 @@ use afd::{
 };
 use async_trait::async_trait;
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
@@ -24,15 +24,9 @@ struct Handler {
     stores: Hub,
 }
 
-fn refusal(code: &str, message: String, suggestion: &str) -> CommandError {
-    CommandError::new(code, message)
-        .with_suggestion(suggestion)
-        .with_retryable(false)
-}
-
 /// The destination: relative to the workspace (or absolute inside it), without `..`, not
 /// existing, and whose parent exists inside the workspace once resolved.
-fn destination(workspace: &Workspace, path: &str) -> Result<PathBuf, CommandError> {
+pub(super) fn destination(workspace: &Workspace, path: &str) -> Result<PathBuf, CommandError> {
     let invalid = |why: &str| {
         refusal(
             afd::error_codes::VALIDATION_ERROR,
@@ -97,35 +91,45 @@ fn destination(workspace: &Workspace, path: &str) -> Result<PathBuf, CommandErro
     Ok(target)
 }
 
-fn digest(path: &Path) -> Result<(String, u64), CommandError> {
-    let bytes = fs::read(path)
-        .map_err(|e| command_error(&StoreError::Io(format!("{}: {e}", path.display()))))?;
-    let mut text = String::from("sha256:");
-    for byte in Sha256::digest(&bytes) {
-        text.push_str(&format!("{byte:02x}"));
-    }
-    Ok((text, bytes.len() as u64))
+/// What [`copy_space`] wrote: each file by its name in the copy, and whether memory is in it.
+pub(super) struct SpaceCopy {
+    pub(super) files: Vec<(String, PathBuf)>,
+    pub(super) memory: bool,
 }
 
-fn run(
-    workspace: &Workspace,
+/// Copy `space`'s stores into `target`, a new directory: `store.sqlite3` with `VACUUM INTO`,
+/// memory's stripped copy, and the index's live files, all while holding the index writer so no
+/// indexer commits or merges meanwhile. On failure the directory is removed.
+pub(super) fn copy_space(
     stores: &Hub,
     space: &str,
-    path: &str,
-    now: &str,
-) -> Result<Value, CommandError> {
-    let target = destination(workspace, path)?;
+    target: &Path,
+) -> Result<SpaceCopy, CommandError> {
     let opened = stores.space(space).map_err(|e| command_error(&e))?;
     // Hold the index writer for the whole copy: no indexer commits or merges meanwhile.
     let mut writer = opened.index.writer().map_err(|e| command_error(&e))?;
-    let outcome = (|| -> Result<Value, CommandError> {
+    // Created here, before the copy whose failure removes it, so a failure never removes a
+    // directory another backup to the same path made first.
+    let created = target
+        .parent()
+        .map_or(Ok(()), fs::create_dir_all)
+        .and_then(|()| fs::create_dir(target));
+    if let Err(e) = created {
+        writer.abort();
+        return Err(if e.kind() == std::io::ErrorKind::AlreadyExists {
+            refusal(
+                codes::STORE_BACKUP_EXISTS,
+                format!("{} already exists", target.display()),
+                "Name a directory that does not exist; a backup is written to a new one.",
+            )
+        } else {
+            command_error(&StoreError::Io(format!("{}: {e}", target.display())))
+        });
+    }
+    let outcome = (|| -> Result<SpaceCopy, CommandError> {
         let io = |what: &Path, e: std::io::Error| {
             command_error(&StoreError::Io(format!("{}: {e}", what.display())))
         };
-        if let Some(parent) = target.parent() {
-            fs::create_dir_all(parent).map_err(|e| io(parent, e))?;
-        }
-        fs::create_dir(&target).map_err(|e| io(&target, e))?;
         let mut files: Vec<(String, PathBuf)> = Vec::new();
         let database = target.join("store.sqlite3");
         opened
@@ -135,7 +139,7 @@ fn run(
         files.push(("store.sqlite3".to_owned(), database));
         // The memory store's stripped copy (phase 3 section 5.4): sealed blobs, no index and
         // never the key file. Nothing to copy before the first memory write.
-        let memory = match opened.sqlite_memory.backup(&target) {
+        let memory = match opened.sqlite_memory.backup(target) {
             Ok(receipt) => {
                 files.push((umbel_store_embedded::MEMORY_FILE.to_owned(), receipt.file));
                 true
@@ -165,6 +169,26 @@ fn run(
                 to,
             ));
         }
+        Ok(SpaceCopy { files, memory })
+    })();
+    writer.abort();
+    drop(writer);
+    if outcome.is_err() {
+        let _ = fs::remove_dir_all(target);
+    }
+    outcome
+}
+
+fn run(
+    workspace: &Workspace,
+    stores: &Hub,
+    space: &str,
+    path: &str,
+    now: &str,
+) -> Result<Value, CommandError> {
+    let target = destination(workspace, path)?;
+    let SpaceCopy { files, memory } = copy_space(stores, space, &target)?;
+    let outcome = (|| -> Result<Value, CommandError> {
         let mut listed = Vec::new();
         let mut bytes = 0u64;
         for (name, file) in &files {
@@ -173,7 +197,7 @@ fn run(
             listed.push(json!({ "path": name, "bytes": size, "sha256": sha256 }));
         }
         let mut manifest = json!({
-            "version": 1,
+            "version": crate::versions::STORE_BACKUP_VERSION,
             "space": space,
             "createdAt": now,
             "files": listed,
@@ -187,7 +211,7 @@ fn run(
             &manifest_path,
             serde_json::to_vec_pretty(&manifest).unwrap_or_default(),
         )
-        .map_err(|e| io(&manifest_path, e))?;
+        .map_err(|e| command_error(&StoreError::Io(format!("{}: {e}", manifest_path.display()))))?;
         Ok(json!({
             "space": space,
             "path": path,
@@ -197,8 +221,6 @@ fn run(
             "memory": memory,
         }))
     })();
-    writer.abort();
-    drop(writer);
     if outcome.is_err() {
         let _ = fs::remove_dir_all(&target);
     }

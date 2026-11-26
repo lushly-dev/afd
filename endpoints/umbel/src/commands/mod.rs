@@ -4,6 +4,8 @@
 //! every `expose` flag is set explicitly.
 
 mod auth_show;
+#[cfg(feature = "store-embedded")]
+mod backup_files;
 mod event_ack;
 mod event_list;
 mod event_rebuild;
@@ -30,9 +32,13 @@ mod store_records;
 #[cfg(feature = "store-embedded")]
 mod store_records_eval;
 #[cfg(feature = "store-embedded")]
+mod store_restore;
+#[cfg(feature = "store-embedded")]
 mod store_show;
 #[cfg(feature = "auth")]
 mod usage_list;
+#[cfg(feature = "store-embedded")]
+mod workspace_backup;
 mod workspace_doctor;
 mod workspace_show;
 
@@ -70,9 +76,13 @@ pub(crate) use store_records_eval::{
     EVAL as STORE_RECORDS_EVAL, EVAL_KEPT as STORE_RECORDS_EVAL_KEPT, store_records_eval,
 };
 #[cfg(feature = "store-embedded")]
+pub(crate) use store_restore::store_restore;
+#[cfg(feature = "store-embedded")]
 pub(crate) use store_show::store_show;
 #[cfg(feature = "auth")]
 pub(crate) use usage_list::usage_list;
+#[cfg(feature = "store-embedded")]
+pub(crate) use workspace_backup::{workspace_backup, workspace_restore};
 pub(crate) use workspace_doctor::workspace_doctor;
 pub(crate) use workspace_show::workspace_show;
 

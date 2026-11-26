@@ -1,0 +1,52 @@
+{
+	"version": 1,
+	"scope": "workspace",
+	"createdAt": "2026-11-26T10:00:00.000Z",
+	"config": { "sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000" },
+	"spaces": ["main"],
+	"files": [
+		{
+			"path": "state/journal.jsonl",
+			"kind": "journal",
+			"bytes": 4096,
+			"sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+		},
+		{
+			"path": "state/spaces/main/events.jsonl",
+			"kind": "events",
+			"bytes": 2048,
+			"sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+		},
+		{
+			"path": "state/shared/person.sqlite3",
+			"kind": "shared",
+			"bytes": 16384,
+			"sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+		},
+		{
+			"path": "spaces/main/store.sqlite3",
+			"kind": "store",
+			"bytes": 131072,
+			"sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+		},
+		{
+			"path": "spaces/main/index/v2/meta.json",
+			"kind": "index",
+			"bytes": 812,
+			"sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+		}
+	],
+	"keys": [
+		{
+			"path": "state/keys/http.token",
+			"handling": "excluded",
+			"effect": "The HTTP surface's bearer token: a new one is made, and every client is given it again"
+		},
+		{
+			"path": "state/spaces/main/store/memory.keys",
+			"handling": "excluded",
+			"effect": "Holds this space's memory record keys (D82)"
+		}
+	],
+	"derived": ["events.idx", "memory index", "write-ahead logs"]
+}

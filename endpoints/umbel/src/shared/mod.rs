@@ -14,6 +14,7 @@
 pub(crate) mod limits;
 pub(crate) mod nonces;
 pub(crate) mod person;
+mod person_migration;
 pub(crate) mod read_limit;
 pub(crate) mod tasks;
 pub(crate) mod usage;
@@ -94,6 +95,65 @@ pub(crate) fn ensure_private_file(path: &Path) -> Result<(), WorkspaceError> {
         .map(drop)
         .map_err(|error| WorkspaceError::unwritable(path, error))?;
     restrict(path, 0o600)
+}
+
+/// Copy the shared store at `path`, at schema version `from`, beside it before it is migrated
+/// (D214), as the embedded backend's `umbel_store_embedded::copy_before_migration` does for a
+/// space's store: to `<file>.v<from>.pre-migration`, or the next free `<file>.v<from>.<n>.pre-migration`
+/// (no copy is reused or replaced), mode 0600, with `VACUUM INTO` on a connection of its own
+/// into `<copy>.partial`, synced, then linked into place, so a copy exists only whole. Call it
+/// while the migrating connection holds the write lock and has written nothing. When it fails the
+/// caller must not migrate. This crate builds the shared stores without the embedded backend, so
+/// it keeps its own copy of these lines; `tests/it/lane_schema.rs` and this module's tests hold
+/// both to the same names.
+pub(crate) fn copy_before_migration(path: &Path, from: i64) -> rusqlite::Result<()> {
+    let refused = |error: std::io::Error| {
+        rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::new(
+            error.kind(),
+            format!("the copy before migrating {}: {error}", path.display()),
+        )))
+    };
+    let named = |n: u32| {
+        let mut name = path.file_name().unwrap_or_default().to_os_string();
+        name.push(if n == 1 {
+            format!(".v{from}.pre-migration")
+        } else {
+            format!(".v{from}.{n}.pre-migration")
+        });
+        path.with_file_name(name)
+    };
+    let copy = (1..=1000)
+        .map(named)
+        .find(|candidate| !candidate.exists())
+        .ok_or_else(|| refused(std::io::Error::other("a thousand copies are already there")))?;
+    let mut partial = copy.as_os_str().to_os_string();
+    partial.push(".partial");
+    let partial = std::path::PathBuf::from(partial);
+    match fs::remove_file(&partial) {
+        Err(error) if error.kind() != std::io::ErrorKind::NotFound => return Err(refused(error)),
+        _ => {}
+    }
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    options.open(&partial).map(drop).map_err(refused)?;
+    let copied = rusqlite::Connection::open_with_flags(
+        path,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .and_then(|conn| {
+        conn.execute("VACUUM INTO ?1", [partial.to_string_lossy().as_ref()])
+            .map(drop)
+    })
+    .and_then(|()| {
+        fs::File::open(&partial)
+            .and_then(|file| file.sync_all())
+            .and_then(|()| fs::hard_link(&partial, &copy))
+            .map_err(refused)
+    });
+    let _ = fs::remove_file(&partial);
+    copied
 }
 
 /// Clear every permission bit of `path` outside `mode` (Unix only).

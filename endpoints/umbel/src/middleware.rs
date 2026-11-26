@@ -77,8 +77,9 @@ const HOST_PREFIX: &str = "dev.umbel/";
 
 /// Commands whose successful result is never projected into an event: the cursor the caller
 /// stores, the rebuild of the streams themselves, the export of skills to a directory and the
-/// scaffold of a plugin directory, and the copy of a space's stores (a workspace write that
-/// changes no knowledge), the rebuild of a record lane, which changes no record, and the
+/// scaffold of a plugin directory, the copy of a space's stores (a workspace write that changes
+/// no knowledge) and of the workspace, and the restores of either, which put back state the
+/// streams already held or are restored with, the rebuild of a record lane, which changes no record, and the
 /// holding of an own collection's documents to their files, which changes no document.
 pub(crate) const UNPROJECTED_MUTATIONS: &[&str] = &[
     "event-ack",
@@ -86,6 +87,9 @@ pub(crate) const UNPROJECTED_MUTATIONS: &[&str] = &[
     "skill-export",
     "plugin-new",
     "store-backup",
+    "store-restore",
+    "workspace-backup",
+    "workspace-restore",
     "store-records-reindex",
     "store-records-eval",
     "store-documents-hold",

@@ -1056,6 +1056,11 @@ Two stores with equal content digests answer every read identically.
   never invents keys. Keys never touch a temporary file. A restore across kinds is then checked by the content digest.
 - `store-restore` also reads the embedded backend's physical backup directories of phases 2 and 3, into an embedded
   space only. This closes phase 2's restore follow-up.
+  **Amended 2026-11-26 (D214, [#1772](https://github.com/lushly-dev/afd/issues/1772)):** this half landed before
+  phase 6, as `store-restore` on the embedded backend reading `schemas/store-backup.v1.json`, along with
+  `workspace-backup` and `workspace-restore` and a copy of each SQLite store before it is migrated. Step 6 adds the
+  archive half to the same command: it tells the two formats apart by the manifest (an archive's `source` and
+  `digest`).
 
 ### 6.3 `store-move`
 
