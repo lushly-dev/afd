@@ -1,7 +1,13 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import "./violet-slider.define";
 import type { VioletSlider } from "./violet-slider";
+
+/** Layout positions round to device pixels, so geometry is compared to within one pixel. */
+function expectWithinPixel(actual: number, expected: number): void {
+  expect(Math.abs(actual - expected)).toBeLessThanOrEqual(1);
+}
 
 function nextFrame(): Promise<void> {
   return new Promise((resolve) => {
@@ -95,5 +101,63 @@ describe("violet-slider", () => {
     expect(slider.shadowRoot?.getElementById(slider.errorTextId)?.getAttribute("role")).toBe(
       "alert",
     );
+  });
+
+  describe("in right-to-left", () => {
+    async function renderRtl(
+      value: string,
+    ): Promise<{ slider: VioletSlider; input: HTMLInputElement }> {
+      const slider = await renderSlider({ value });
+      slider.setAttribute("dir", "rtl");
+      await nextFrame();
+      return { slider, input: slider.shadowRoot?.querySelector(".input") as HTMLInputElement };
+    }
+
+    it("moves the value in the visual direction of the arrow keys", async () => {
+      const { slider, input } = await renderRtl("50");
+      input.focus();
+
+      await userEvent.keyboard("{ArrowRight}");
+      expect(slider.value).toBe("45");
+
+      await userEvent.keyboard("{ArrowLeft}{ArrowLeft}");
+      expect(slider.value).toBe("55");
+    });
+
+    it("mirrors the fill and centres the thumb on the value measured from the right", async () => {
+      const { slider } = await renderRtl("25");
+      const visual = slider.shadowRoot?.querySelector(".visual") as HTMLElement;
+      const fill = slider.shadowRoot?.querySelector(".fill") as HTMLElement;
+      const thumb = slider.shadowRoot?.querySelector(".thumb") as HTMLElement;
+      const box = visual.getBoundingClientRect();
+      const rail =
+        (
+          slider.shadowRoot?.querySelector(".rail") as HTMLElement | null
+        )?.getBoundingClientRect() ?? new DOMRect();
+      const thumbBox = thumb.getBoundingClientRect();
+
+      expectWithinPixel(fill.getBoundingClientRect().right, rail.right);
+      expectWithinPixel(fill.getBoundingClientRect().width, rail.width * 0.25);
+      expectWithinPixel(thumbBox.left + thumbBox.width / 2, box.right - box.width * 0.25);
+    });
+
+    it("reads a pointer position from the right edge", async () => {
+      const { slider, input } = await renderRtl("50");
+      const rect = input.getBoundingClientRect();
+      const pointer = {
+        bubbles: true,
+        composed: true,
+        pointerId: 3,
+        pointerType: "mouse",
+        button: 0,
+      };
+      const clientX = rect.right - rect.width * 0.2;
+      const clientY = rect.top + rect.height / 2;
+
+      input.dispatchEvent(new PointerEvent("pointerdown", { ...pointer, clientX, clientY }));
+      document.dispatchEvent(new PointerEvent("pointerup", { ...pointer, clientX, clientY }));
+
+      expect(slider.value).toBe("20");
+    });
   });
 });

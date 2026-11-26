@@ -6,6 +6,7 @@ import {
   type PartialFASTElementDefinition,
   when,
 } from "@lushly-dev/fast-element";
+import { isRtl, stepRangeInputInVisualDirection } from "../foundations/violet-direction";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
 import { resolveFieldErrorText } from "../shared/field-error";
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
@@ -88,6 +89,18 @@ const styles = css`
     .input-end {
         pointer-events: auto;
         clip-path: inset(0 0 0 var(--_mid-percent));
+    }
+
+    /*
+     * In right-to-left the start thumb is on the right, so each input takes the other half. :dir()
+     * follows the dir attribute; a direction set only through the CSS property is not supported.
+     */
+    :host(:dir(rtl):not([orientation="vertical"])) .input-start {
+        clip-path: inset(0 0 0 calc(100% - var(--_mid-percent)));
+    }
+
+    :host(:dir(rtl):not([orientation="vertical"])) .input-end {
+        clip-path: inset(0 var(--_mid-percent) 0 0);
     }
 
     :host([orientation="vertical"]) .input {
@@ -180,7 +193,9 @@ const styles = css`
         border-radius: var(--_radius-full);
         background: var(--_selection-fill);
         box-shadow: var(--_shadow-control);
-        transform: translate(-50%, -50%);
+        /* A logical margin centres the thumb on its position, so it stays centred when right-to-left mirrors it. */
+        margin-inline-start: calc(var(--_thumb-size) / -2);
+        transform: translateY(-50%);
         transition:
             transform var(--_duration-base) var(--_easing-standard),
             box-shadow var(--_duration-base) var(--_easing-standard);
@@ -197,7 +212,7 @@ const styles = css`
     :host([orientation="vertical"]) .thumb {
         inset-inline-start: 50%;
         inset-block-start: auto;
-        transform: translate(-50%, 50%);
+        transform: translateY(50%);
     }
 
     :host([orientation="vertical"]) .thumb-start {
@@ -337,6 +352,7 @@ const template = html<VioletRangeSlider>`
                 aria-invalid="${(x) => (!x.effectiveDisabled && x.invalid ? "true" : "false")}"
                 aria-orientation="${(x) => x.orientation}"
                 @pointerdown="${(x, c) => x.handlePointerDown(c.event as PointerEvent, "start")}"
+                @keydown="${(x, c) => x.handleKeyDown(c.event as KeyboardEvent)}"
                 @input="${(x, c) => x.handleInput(c.event)}"
                 @change="${(x, c) => x.handleCommit(c.event)}"
             />
@@ -359,6 +375,7 @@ const template = html<VioletRangeSlider>`
                 aria-invalid="${(x) => (!x.effectiveDisabled && x.invalid ? "true" : "false")}"
                 aria-orientation="${(x) => x.orientation}"
                 @pointerdown="${(x, c) => x.handlePointerDown(c.event as PointerEvent, "end")}"
+                @keydown="${(x, c) => x.handleKeyDown(c.event as KeyboardEvent)}"
                 @input="${(x, c) => x.handleInput(c.event)}"
                 @change="${(x, c) => x.handleCommit(c.event)}"
             />
@@ -660,6 +677,18 @@ export class VioletRangeSlider extends FASTElement {
     return `background-image: linear-gradient(${dir}, ${stops.join(", ")});`;
   }
 
+  /**
+   * Keeps ArrowLeft and ArrowRight moving the thumb in their visual direction in right-to-left,
+   * which WebKit's native range input does not do. Returns true to leave other keys to the input.
+   */
+  public handleKeyDown(event: KeyboardEvent): boolean {
+    const input = event.currentTarget as HTMLInputElement | null;
+    if (!input || this.orientation === "vertical") {
+      return true;
+    }
+    return !stepRangeInputInVisualDirection(event, input);
+  }
+
   public handleInput(event: Event): void {
     // The native `input` is composed and would reach the host as a second event; this element emits its own.
     event.stopPropagation();
@@ -867,10 +896,13 @@ export class VioletRangeSlider extends FASTElement {
       return null;
     }
 
+    // In right-to-left the minimum is on the right, so a horizontal ratio is measured from that edge.
     const ratio =
       this.orientation === "vertical"
         ? 1 - (event.clientY - rect.top) / rect.height
-        : (event.clientX - rect.left) / rect.width;
+        : isRtl(this)
+          ? (rect.right - event.clientX) / rect.width
+          : (event.clientX - rect.left) / rect.width;
 
     const boundedRatio = Math.min(1, Math.max(0, ratio));
     const rawValue = min + boundedRatio * (max - min);

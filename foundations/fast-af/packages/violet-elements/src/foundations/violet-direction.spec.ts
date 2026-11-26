@@ -12,7 +12,7 @@ import type { VioletCalendar } from "../calendar/violet-calendar";
 import type { VioletCarousel } from "../carousel/violet-carousel";
 import type { VioletRadioGroup } from "../radio-group/violet-radio-group";
 import type { VioletSegmentedControl } from "../segmented-control/violet-segmented-control";
-import { isRtl, logicalArrowKey } from "./violet-direction";
+import { isRtl, logicalArrowKey, stepRangeInputInVisualDirection } from "./violet-direction";
 
 function nextFrame(): Promise<void> {
   return new Promise((resolve) => requestAnimationFrame(() => resolve()));
@@ -201,5 +201,46 @@ describe("RTL arrow-key handling", () => {
       new KeyboardEvent("keydown", { key: "ArrowRight", cancelable: true }),
     );
     expect(ltrCarousel.activeIndex).toBe(1);
+  });
+
+  it("steps a right-to-left range input in the visual direction of the arrow keys", () => {
+    const host = document.createElement("div");
+    host.setAttribute("dir", "rtl");
+    const input = document.createElement("input");
+    input.type = "range";
+    input.min = "0";
+    input.max = "10";
+    input.value = "5";
+    host.append(input);
+    document.body.append(host);
+    const events: string[] = [];
+    input.addEventListener("input", () => events.push("input"));
+    input.addEventListener("change", () => events.push("change"));
+
+    const right = new KeyboardEvent("keydown", { key: "ArrowRight", cancelable: true });
+    expect(stepRangeInputInVisualDirection(right, input)).toBe(true);
+    expect(right.defaultPrevented).toBe(true);
+    expect(input.value).toBe("4");
+    expect(events).toEqual(["input", "change"]);
+
+    expect(
+      stepRangeInputInVisualDirection(new KeyboardEvent("keydown", { key: "ArrowLeft" }), input),
+    ).toBe(true);
+    expect(input.value).toBe("5");
+    expect(
+      stepRangeInputInVisualDirection(new KeyboardEvent("keydown", { key: "ArrowUp" }), input),
+    ).toBe(false);
+
+    input.step = "any";
+    expect(
+      stepRangeInputInVisualDirection(new KeyboardEvent("keydown", { key: "ArrowRight" }), input),
+    ).toBe(false);
+    input.step = "";
+
+    host.setAttribute("dir", "ltr");
+    expect(
+      stepRangeInputInVisualDirection(new KeyboardEvent("keydown", { key: "ArrowRight" }), input),
+    ).toBe(false);
+    host.remove();
   });
 });

@@ -1,8 +1,12 @@
+import { isRtl } from "../foundations/violet-direction";
+
 export interface VioletDataGridResizeSession {
   pointerId: number | null;
   columnId: string | null;
   startX: number;
   startWidth: number;
+  /** Whether the grid rendered right-to-left when the drag began, so the trailing edge is on the left. */
+  rtl: boolean;
 }
 
 export function beginColumnResize(options: {
@@ -11,6 +15,8 @@ export function beginColumnResize(options: {
   columnId: string;
   clientX: number;
   startWidth: number;
+  /** The grid; its writing direction when the drag begins decides which way the column grows. */
+  element: Element;
 }): VioletDataGridResizeSession | null {
   if (options.button !== 0) {
     return null;
@@ -21,6 +27,7 @@ export function beginColumnResize(options: {
     columnId: options.columnId,
     startX: options.clientX,
     startWidth: options.startWidth,
+    rtl: isRtl(options.element),
   };
 }
 
@@ -36,10 +43,12 @@ export function resizedColumnWidth(options: {
   clientX: number;
   minimumWidth: number;
 }): number {
-  return Math.max(
-    options.minimumWidth,
-    Math.round(options.session.startWidth + (options.clientX - options.session.startX)),
-  );
+  // The resizer sits on the column's trailing edge, so dragging toward it grows the column:
+  // rightward in left-to-right, leftward in right-to-left.
+  const delta = options.clientX - options.session.startX;
+  const growth = options.session.rtl ? -delta : delta;
+
+  return Math.max(options.minimumWidth, Math.round(options.session.startWidth + growth));
 }
 
 const KEYBOARD_RESIZE_STEP = 8;
@@ -73,6 +82,7 @@ export function clearedColumnResizeSession(): VioletDataGridResizeSession {
     columnId: null,
     startX: 0,
     startWidth: 0,
+    rtl: false,
   };
 }
 

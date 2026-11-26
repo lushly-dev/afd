@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Finish forced-colors and right-to-left coverage (#509):
+  - `violet-data-grid` draws selection, the active cell and focus with system colours in forced-colors mode: selected cells and rows take `Highlight` and `HighlightText`, the active cell keeps `Canvas` inside a `Highlight` ring, the focused cell adds an inner `Highlight` outline, the row checkbox column stays `Canvas`, and column resizers draw in `CanvasText`. Text in a `.cell-content` element, which the default cell template uses and a custom template may, opts out of the forced-colours text backplate so it stays readable on `Highlight`.
+  - `violet-data-grid`'s pointer column resizing grows the column toward its trailing edge in right-to-left, reading the direction with `violet-direction.ts` when the drag begins.
+  - `violet-slider` and `violet-range-slider` centre their thumbs with a logical margin, so they stay on their mirrored positions in right-to-left; a pointer reads its value from the right edge, the range slider's inputs swap halves so each covers its own thumb, and ArrowLeft and ArrowRight step in their visual direction in WebKit too (`stepRangeInputInVisualDirection` in `violet-direction.ts`).
+  - `violet-select`'s caret is drawn from physical edges, so it keeps pointing down in right-to-left.
+  - `src/foundations/violet-forced-colors.spec.ts` emulates forced colours in Chromium and checks the data grid, select, slider, range slider and switch.
+
 - Fix four `violet-elements` right-to-left, WebKit and Firefox bugs (#2693, #2694, #2712, #2446):
   - `violet-switch` now positions its checked thumb with a logical `inset-inline-start` offset instead of a physical `translate(...)`, keeping the thumb inside the track toward the inline-end edge in right-to-left layouts (#2693).
   - `violet-combobox`, `violet-accordion-item`, the five `violet-data-grid` cell pickers (`attachment-cell`, `multi-picker`, `persona-picker`, `pill-select`, `reference-picker`) and `violet-data-grid.stories.ts` now draw their rotated chevrons from physical `border-right` and `border-bottom` edges so they point vertically in right-to-left layouts (#2694).
