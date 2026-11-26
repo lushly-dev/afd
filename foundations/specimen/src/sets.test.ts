@@ -1,3 +1,4 @@
+import * as fs from 'node:fs/promises';
 import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -15,6 +16,7 @@ import {
 	runCaptureSet,
 	SET_ID_PATTERN,
 	updateCaptureSetLabel,
+	withFileLock,
 	writeCaptureSet,
 } from './sets.js';
 import {
@@ -24,6 +26,43 @@ import {
 	type Observation,
 	type SpecimenEntry,
 } from './types.js';
+
+vi.mock('node:fs/promises', { spy: true });
+
+describe('a sharing error while taking a file lock', () => {
+	const platform = Object.getOwnPropertyDescriptor(process, 'platform');
+	const setPlatform = (value: NodeJS.Platform) =>
+		Object.defineProperty(process, 'platform', { ...platform, value });
+	const sharing = (code: string) => Object.assign(new Error('Pending deletion'), { code });
+	afterEach(() => {
+		if (platform) Object.defineProperty(process, 'platform', platform);
+		vi.mocked(fs.open).mockReset();
+	});
+
+	it.each(['EPERM', 'EACCES', 'EBUSY'])(
+		'is retried on Windows, where the old lock can be pending deletion (%s)',
+		async (code) => {
+			const lock = join(await scratchDir(), 'sharing.lock');
+			setPlatform('win32');
+			vi.mocked(fs.open).mockRejectedValueOnce(sharing(code));
+			const work = vi.fn(async () => 'locked');
+			await expect(withFileLock(lock, work)).resolves.toBe('locked');
+			expect(work).toHaveBeenCalledOnce();
+			expect(fs.open).toHaveBeenCalledTimes(2);
+			await expect(stat(lock)).rejects.toMatchObject({ code: 'ENOENT' });
+		}
+	);
+
+	it('is thrown at once on other platforms', async () => {
+		const lock = join(await scratchDir(), 'sharing.lock');
+		setPlatform('linux');
+		vi.mocked(fs.open).mockRejectedValueOnce(sharing('EPERM'));
+		const work = vi.fn(async () => 'locked');
+		await expect(withFileLock(lock, work)).rejects.toMatchObject({ code: 'EPERM' });
+		expect(work).not.toHaveBeenCalled();
+		expect(fs.open).toHaveBeenCalledOnce();
+	});
+});
 
 const directories: string[] = [];
 afterEach(async () => {

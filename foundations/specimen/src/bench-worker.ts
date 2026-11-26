@@ -54,7 +54,16 @@ async function execute(message: WorkerRequest): Promise<unknown> {
 	if (message.operation === 'a11y') return bench.a11y(message.request);
 	if (message.operation === 'themes') return bench.themes(message.request);
 	if (message.operation === 'coverage') return bench.coverage(message.request);
-	if (message.operation === 'packBuild') return bench.packBuild(message.request);
+	if (message.operation === 'packBuild') {
+		return bench.packBuild(
+			message.request,
+			message.reportProgress
+				? (progress) => {
+						void reply({ id: message.id, progress }).catch(() => undefined);
+					}
+				: undefined
+		);
+	}
 	if (message.operation === 'contract') return bench.contract(message.request);
 	if (message.operation === 'suggest') return bench.suggest(message.request);
 	if (message.operation === 'profile') return bench.profile(message.request);

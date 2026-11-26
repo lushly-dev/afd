@@ -31,15 +31,34 @@ async function copy(): Promise<string> {
 
 describe('specimen pack', () => {
 	let bench: SpecimenBench;
+	const progress: string[] = [];
 	beforeAll(async () => {
-		bench = await createSpecimenBench({ root: join(fixtures, 'pack-library') });
+		bench = await createSpecimenBench({
+			root: join(fixtures, 'pack-library'),
+			runtimeIsolation: 'process',
+			onPackProgress: (message) => {
+				progress.push(message);
+				if (message === 'Preparing captures') throw new Error('Diagnostics unavailable');
+			},
+		});
 	});
 	afterAll(async () => {
 		await bench?.close();
 	});
 
 	it('builds the format’s fixture pack from the example library, byte for byte', async () => {
-		const run = await bench.packCheck({ workers: 1 });
+		const run = await bench.packCheck({ workers: 2 });
+		expect(progress).toEqual([
+			'Preparing captures',
+			'Capture pass 1/2 (9 cases)',
+			'Capture pass 1/2 - 9/9 cases completed',
+			'Capture pass 2/2 (9 cases)',
+			'Capture pass 2/2 - 9/9 cases completed',
+			'Comparing capture passes and computing coverage',
+			'Verifying examples by remounting',
+			'Building pack records after checking 3 remount candidates',
+			'Comparing with committed records',
+		]);
 		expect(packCheckRunSchema.parse(run)).toEqual(run);
 		expect(run.problems).toEqual([]);
 		expect({ changed: run.changed, added: run.added, removed: run.removed }).toEqual({

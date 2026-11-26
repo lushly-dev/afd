@@ -13,7 +13,7 @@ import { PACK_TEXT_LIMITS } from './pack-schema.js';
 import { computePatternCoverage, hasPatternCoverageScope } from './pattern-coverage.js';
 import { resolvePatternTarget } from './pattern-gates.js';
 import type { ComponentSchema } from './plugin.js';
-import { DEFAULT_SUITE_WORKERS } from './suite.js';
+import { DEFAULT_SUITE_WORKERS, pool } from './suite.js';
 import type {
 	GateRun,
 	Observation,
@@ -139,25 +139,36 @@ async function pass(
 	host: PackHost,
 	request: PackBuildRequest,
 	entries: SpecimenEntry[],
-	schemas: ComponentSchema[]
+	schemas: ComponentSchema[],
+	progress?: (message: string) => void
 ): Promise<CollectedCases & { retried: string[] }> {
-	const first = await collectCases(host, request, { entries, schemas });
+	let completed = 0;
+	const first = await collectCases(host, request, {
+		entries,
+		schemas,
+		onCaseComplete: () => {
+			completed++;
+			if (completed % 50 === 0 || completed === entries.length)
+				progress?.(`${completed}/${entries.length} cases completed`);
+		},
+	});
 	if (!first.failed.length) return { ...first, retried: [] };
-	const retried = first.failed.map((item) => item.id);
+	const retried = new Set(first.failed.map((item) => item.id));
+	progress?.(`Retrying ${retried.size} failed cases`);
 	const again = await collectCases(
 		host,
 		{ ...request, workers: 1 },
-		{ entries: entries.filter((entry) => retried.includes(entry.id)), schemas }
+		{ entries: entries.filter((entry) => retried.has(entry.id)), schemas }
 	);
 	// A case that failed may have left captures from before its failure; only its retry counts.
-	const earlier = (cases: CoverageCase[]) => cases.filter((item) => !retried.includes(item.id));
+	const earlier = (cases: CoverageCase[]) => cases.filter((item) => !retried.has(item.id));
 	return {
 		...first,
 		cases: [...earlier(first.cases), ...again.cases],
 		guideCases: [...earlier(first.guideCases), ...again.guideCases],
 		failed: again.failed,
 		skipped: first.skipped + again.skipped,
-		retried,
+		retried: [...retried],
 	};
 }
 
@@ -221,11 +232,16 @@ function indexOf(
 	};
 }
 
-export async function runPack(host: PackHost, request: PackBuildRequest): Promise<PackBuildRun> {
+export async function runPack(
+	host: PackHost,
+	request: PackBuildRequest,
+	progress?: (message: string) => void
+): Promise<PackBuildRun> {
 	const { config } = host;
 	const pack = config.config.pack;
 	if (!pack) throw new Error('This configuration has no pack key; add one to build a pack.');
 	const started = performance.now();
+	progress?.('Preparing captures');
 	const hasLocalPatterns = (config.patterns?.patterns.length ?? 0) > 0;
 	if (!config.entries.length && !hasLocalPatterns)
 		throw new Error('No specimen or retained story to build a pack from.');
@@ -253,8 +269,22 @@ export async function runPack(host: PackHost, request: PackBuildRequest): Promis
 		workers: 1,
 		retried: [],
 	};
-	const one = entries.length ? await pass(host, request, entries, schemas) : none;
-	const two = entries.length ? await pass(host, request, entries, schemas) : none;
+	const capturePass = async (number: number) => {
+		const phase = `Capture pass ${number}/2`;
+		progress?.(`${phase} (${entries.length} cases)`);
+		return entries.length
+			? pass(
+					host,
+					request,
+					entries,
+					schemas,
+					progress && ((message) => progress(`${phase} - ${message}`))
+				)
+			: none;
+	};
+	const one = await capturePass(1);
+	const two = await capturePass(2);
+	progress?.('Comparing capture passes and computing coverage');
 	const failedIds = new Set([...one.failed, ...two.failed].map((item) => item.id));
 	const failed = [
 		...one.failed,
@@ -321,29 +351,26 @@ export async function runPack(host: PackHost, request: PackBuildRequest): Promis
 			schema.properties.filter((member) => member.values?.length).map((member) => member.name),
 		])
 	);
-	const afterRun = (cases: readonly CoverageCase[], id: string) =>
-		cases.find(
-			(item) => item.id === id && item.observation.manifest.checkpoint.name === 'after-run'
-		);
-	for (const id of [...stable].sort()) {
+	const afterRun = (cases: readonly CoverageCase[] | undefined) =>
+		cases?.find((item) => item.observation.manifest.checkpoint.name === 'after-run');
+	progress?.('Verifying examples by remounting');
+	let remounts = 0;
+	const remounted = await pool([...stable].sort(), one.workers, async (id) => {
 		const tag = componentOf.get(id);
-		if (!tag || !library.has(tag)) continue;
-		const original = afterRun(one.cases, id);
-		const second = afterRun(two.cases, id);
-		if (!original || !second) continue;
+		if (!tag || !library.has(tag)) return;
+		const original = afterRun(firstById.get(id));
+		const second = afterRun(secondById.get(id));
+		if (!original || !second) return;
 		const html = exampleMarkup(original.observation.channels.dom.raw);
-		const omit = (reason: string) => leftOut.push({ tag, from: id, reason });
+		const omit = (reason: string) => ({ tag, from: id, reason });
 		if (!html.includes(`<${tag}`)) {
-			omit('Its markup does not hold the component.');
-			continue;
+			return omit('Its markup does not hold the component.');
 		}
 		if (html !== exampleMarkup(second.observation.channels.dom.raw)) {
-			omit('Its markup differs between the two passes.');
-			continue;
+			return omit('Its markup differs between the two passes.');
 		}
 		if ([...html].length > PACK_TEXT_LIMITS.example) {
-			omit(`Its markup is longer than ${PACK_TEXT_LIMITS.example} characters.`);
-			continue;
+			return omit(`Its markup is longer than ${PACK_TEXT_LIMITS.example} characters.`);
 		}
 		const captureRemount = async (): Promise<{
 			observation: Observation | null;
@@ -371,18 +398,26 @@ export async function runPack(host: PackHost, request: PackBuildRequest): Promis
 		if (attempt.error || !attempt.observation || shown(attempt.observation) !== expectedShown) {
 			attempt = await captureRemount();
 		}
+		remounts++;
+		if (remounts % 50 === 0) progress?.(`Checked ${remounts} remount candidates`);
 		if (attempt.error) {
 			const { error } = attempt;
-			omit(`Mounted again, it failed: ${error instanceof Error ? error.message : String(error)}`);
-			continue;
+			return omit(
+				`Mounted again, it failed: ${error instanceof Error ? error.message : String(error)}`
+			);
 		}
 		if (!attempt.observation || shown(attempt.observation) !== expectedShown) {
-			omit('Mounted again from its markup, it shows something else.');
-			continue;
+			return omit('Mounted again from its markup, it shows something else.');
 		}
-		examples.push({ tag, from: id, html });
+		return { tag, from: id, html };
+	});
+	for (const result of remounted) {
+		if (!result) continue;
+		if ('reason' in result) leftOut.push(result);
+		else examples.push(result);
 	}
 
+	progress?.(`Building pack records after checking ${remounts} remount candidates`);
 	const packCases: PackCase[] = cases.map(({ id, observation }) => ({
 		id,
 		...(componentOf.get(id) ? { component: componentOf.get(id) } : {}),

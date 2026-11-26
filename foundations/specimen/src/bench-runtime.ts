@@ -99,8 +99,6 @@ import {
 	type MatrixRun,
 	NORMALIZATION_VERSION,
 	type Observation,
-	type PackBuildRequest,
-	type PackBuildRun,
 	type PortableScenarioStep,
 	type ProfileBaseline,
 	type ProfileBaselines,
@@ -1342,14 +1340,12 @@ export async function createInProcessBench(
 			}
 			return runCoverage(caseHost(), request);
 		},
-		async packBuild(rawRequest: PackBuildRequest = {}): Promise<PackBuildRun> {
+		async packBuild(rawRequest = {}, progress = options.onPackProgress) {
 			ensureOpen();
 			const { allowFailed: _, ...request } = parsePackRequest(rawRequest);
+			const { index } = rawRequest;
 			// A pack records the accessibility check of the component a case is about.
-			return runPack(caseHost(true), {
-				...request,
-				...(rawRequest.index ? { index: rawRequest.index } : {}),
-			});
+			return runPack(caseHost(true), { ...request, ...(index ? { index } : {}) }, progress);
 		},
 		async a11y(rawRequest: A11yRequest = {}): Promise<A11yRun> {
 			ensureOpen();

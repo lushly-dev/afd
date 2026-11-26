@@ -428,7 +428,10 @@ export type BenchRuntime = Omit<
 	| 'patternMerge'
 > & {
 	/** Build the configured pack from two passes over every case, and write nothing. */
-	packBuild(request?: PackBuildRequest): Promise<PackBuildRun>;
+	packBuild(
+		request?: PackBuildRequest,
+		progress?: BenchOptions['onPackProgress']
+	): Promise<PackBuildRun>;
 };
 
 /** What static validation says of the configured specimens and stories. */
@@ -489,6 +492,15 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 	};
 	let config: LoadedConfig | undefined = freezeConfig(await loadConfig(options));
 	const executablePath = options.executablePath;
+	const onPackProgress =
+		options.onPackProgress &&
+		((message: string) => {
+			try {
+				options.onPackProgress?.(message);
+			} catch {
+				// A diagnostics sink must not interrupt an active pack check or its worker.
+			}
+		});
 	const runtimeIsolation = options.runtimeIsolation ?? 'in-process';
 	const inlineJobSources: JobSource[] = [...(options.jobSources ?? [])];
 	let loadedJobSources: JobSource[] | undefined;
@@ -556,11 +568,12 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		if (!backend) {
 			backend =
 				runtimeIsolation === 'process'
-					? new BenchWorkerClient(current, executablePath)
+					? new BenchWorkerClient(current, executablePath, onPackProgress)
 					: await (await import('./bench-runtime.js')).createInProcessBench(
 							{
 								root: current.root,
 								executablePath,
+								onPackProgress,
 								...(inlineJobSources.length > 0 ? { jobSources: inlineJobSources } : {}),
 							},
 							current
@@ -1002,6 +1015,7 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		async packCheck(rawRequest = {}) {
 			const snapshot = await refreshConfigIfChanged(ensureDiscovered());
 			const { build, allowFailed } = await packBuild(snapshot, rawRequest);
+			onPackProgress?.('Comparing with committed records');
 			return checkCommitted(snapshot, build, allowFailed);
 		},
 		async packExport(rawRequest) {

@@ -843,9 +843,12 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 	let bench: CliBench | undefined;
 	let result: CommandResult<unknown>;
 	let output: string | undefined;
+	let reportPackProgress: BenchOptions['onPackProgress'];
 	try {
 		const parsed = parseArguments(args);
 		validateOptions(parsed);
+		if (parsed.action === 'pack-check')
+			reportPackProgress = (message) => stderr(`[pack-check] ${message}\n`);
 		const root = resolve(parsed.options.get('root') ?? process.cwd());
 		output = parsed.options.get('output');
 		if (output) output = resolve(root, output);
@@ -880,6 +883,7 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 			bench = await (io.createBench ?? createSpecimenBench)({
 				root,
 				configFile: parsed.options.get('config'),
+				...(reportPackProgress ? { onPackProgress: reportPackProgress } : {}),
 			});
 			if (parsed.action === 'list') {
 				const rawLimit = parsed.options.get('limit');
@@ -1461,6 +1465,7 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 				}
 			}
 		}
+		if (bench) reportPackProgress?.('Shutting down');
 		await bench?.close();
 		bench = undefined;
 		if (output) await saveResult(output, result);
@@ -1476,6 +1481,7 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 	} finally {
 		if (bench) {
 			try {
+				reportPackProgress?.('Shutting down');
 				await bench.close();
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);

@@ -420,6 +420,8 @@ export interface BenchOptions {
 	root: string;
 	/** Process isolation releases runtime caches on close at the cost of cold-start CPU. */
 	runtimeIsolation?: 'in-process' | 'process';
+	/** Receives phase and case progress during pack operations. */
+	onPackProgress?: (message: string) => void;
 	configFile?: string;
 	executablePath?: string;
 	/** Programmatic Node-side job scenario sources (combined with any `jobSources` in config). */

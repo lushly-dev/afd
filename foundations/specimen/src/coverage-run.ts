@@ -88,7 +88,11 @@ export async function runSchemas(
 export async function collectCases(
 	host: CoverageHost,
 	request: CoverageRequest,
-	options: { entries?: SpecimenEntry[]; schemas?: ComponentSchema[] } = {}
+	options: {
+		entries?: SpecimenEntry[];
+		schemas?: ComponentSchema[];
+		onCaseComplete?: () => void;
+	} = {}
 ): Promise<CollectedCases> {
 	const { config, prepare, runStory, render } = host;
 	const tags = options.schemas ? [] : schemaTags(config, request.component);
@@ -140,6 +144,8 @@ export async function collectCases(
 				}
 		} catch (error) {
 			failed.push({ id, message: error instanceof Error ? error.message : String(error) });
+		} finally {
+			options.onCaseComplete?.();
 		}
 	});
 	return { entries, schemas, cases, guideCases, failed, skipped, workers };
