@@ -74,7 +74,14 @@ pub(crate) use record_services::scan_text as scan_record_text;
 pub(crate) use skills::{LoadedSkill, ORIGIN_FILE, origin_file};
 pub use skills::{MAX_SKILL_BYTES, MAX_SKILL_FILES, SkillReport, check_skill};
 pub use source::{CompiledCatalog, ResolvedSource, SourceSpec, resolve_source};
-pub use umbel_sdk::{HostError as ServiceError, HostServices, Level, PipelineAttestation};
+pub use umbel_sdk::{
+    AllServices, ClockServices, ConfigServices, ContentServices, ContentWriteServices,
+    DeriveServices, DocumentServices, DocumentWriteServices, EventServices, GraphServices,
+    GraphWriteServices, HostError as ServiceError, HostServices, IndexServices, IndexWriteServices,
+    Level, LogServices, MaintenanceServices, MemoryServices, MemoryWriteServices, PackServices,
+    PipelineAttestation, RandomServices, ReadServices, ReaderServices, RecordServices,
+    RecordWriteServices,
+};
 
 /// The newest manifest version this host reads (`manifest_version`).
 pub const MANIFEST_VERSION: u32 = 7;

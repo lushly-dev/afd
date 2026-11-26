@@ -8,7 +8,7 @@ use std::fs;
 use std::path::Path;
 use support::plugins::{closure, config, seal};
 use support::{agent, call};
-use umbel::plugins::{Asset, CompiledPlugin, HostServices, PluginCommand, PluginError, Services};
+use umbel::plugins::{Asset, CompiledPlugin, PackServices, PluginCommand, PluginError, Services};
 use umbel::testkit::TestHost;
 
 const MANIFEST: &str = r#"manifest_version = 1

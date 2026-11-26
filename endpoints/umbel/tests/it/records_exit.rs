@@ -27,7 +27,10 @@ use support::mcp::{Client, Era, Transport};
 use support::plugins::{Raw, closure, seal};
 use support::{Run, Scripted, cli_with};
 use umbel::Host;
-use umbel::plugins::{CallServices, HostServices, ServiceError, Services};
+use umbel::plugins::{
+    CallServices, DocumentServices, DocumentWriteServices, RecordServices, RecordWriteServices,
+    ServiceError, Services,
+};
 use umbel::workspace::Workspace;
 use umbel_sdk::umbel_store::lane::{
     Decision, Evidence, FindOrder, FindPage, KeyFilter, LaneRecord, MatchHit, MatchPage,

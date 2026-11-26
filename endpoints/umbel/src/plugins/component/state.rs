@@ -8,7 +8,10 @@ use wasmtime::{ResourceLimiter, StoreLimits, StoreLimitsBuilder};
 use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
 
 use super::super::grants::CallServices;
-use umbel_sdk::{HostError as ServiceError, HostServices, Level};
+use umbel_sdk::{
+    ClockServices, ConfigServices, EventServices, HostError as ServiceError, Level, LogServices,
+    PackServices, RandomServices,
+};
 
 /// The bindings of the WIT world `umbel:plugin/plugin@1.0.0`, generated from
 /// `wit/umbel-plugin-1.0.0/world.wit`, the normative file, which is frozen. The host imports of
