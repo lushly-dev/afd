@@ -330,16 +330,15 @@ function scopeList(what: string, scopes: unknown): string[] {
 }
 
 /**
- * The authorization layer of one HTTP handler.
+ * The `auth` option, checked as {@link createAuthLayer} checks it, without building the layer:
+ * stdio serves no HTTP route, yet refuses what HTTP would (#1746).
  *
- * @throws Error for invalid options: the resource, an authorization server or a published scope
- *   malformed; a verifier missing or whose rules name another resource or binding requirement;
- *   a required scope or a command's declared scope that is not a scope token; a resolver without
- *   `resolve` and `visible`
+ * @throws Error as {@link createAuthLayer} does
  */
-export function createAuthLayer(options: McpAuthOptions, server: AuthLayerContext): AuthLayer {
-	const { maxBodyBytes } = server;
-	const clock = server.clock ?? systemClock;
+export function checkAuthOptions(
+	options: McpAuthOptions,
+	commands: readonly ZodCommandDefinition[]
+) {
 	const requiredScopes = scopeList('auth.requiredScopes', options.requiredScopes);
 	const { resolver } = options;
 	if (
@@ -352,7 +351,7 @@ export function createAuthLayer(options: McpAuthOptions, server: AuthLayerContex
 		throw new Error('[AFD] auth.filterToolsByScope must be a boolean');
 	}
 	const filterToolsByScope = options.filterToolsByScope === true;
-	for (const command of server.commands) {
+	for (const command of commands) {
 		scopeList(`the scopes of command ${JSON.stringify(command.name)}`, command.scopes);
 	}
 	const { verifier } = options;
@@ -397,6 +396,37 @@ export function createAuthLayer(options: McpAuthOptions, server: AuthLayerContex
 			);
 		}
 	}
+	return {
+		requiredScopes,
+		resolver,
+		filterToolsByScope,
+		verifier,
+		rules,
+		requireBoundTokens,
+		resource,
+	};
+}
+
+/**
+ * The authorization layer of one HTTP handler.
+ *
+ * @throws Error for invalid options: the resource, an authorization server or a published scope
+ *   malformed; a verifier missing or whose rules name another resource or binding requirement;
+ *   a required scope or a command's declared scope that is not a scope token; a resolver without
+ *   `resolve` and `visible`
+ */
+export function createAuthLayer(options: McpAuthOptions, server: AuthLayerContext): AuthLayer {
+	const { maxBodyBytes } = server;
+	const clock = server.clock ?? systemClock;
+	const {
+		requiredScopes,
+		resolver,
+		filterToolsByScope,
+		verifier,
+		rules,
+		requireBoundTokens,
+		resource,
+	} = checkAuthOptions(options, server.commands);
 	const onRefusal = options.onRefusal ?? defaultRefusal;
 	const authority = createScopeAuthority({
 		requiredScopes,

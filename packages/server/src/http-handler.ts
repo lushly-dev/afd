@@ -28,7 +28,7 @@ import {
 	validateHttpRequest,
 } from './http-security.js';
 import type { SessionStore } from './http-sessions.js';
-import { createSseHub } from './http-sse.js';
+import { createSseHub, sseHubLimits } from './http-sse.js';
 import {
 	JsonRpcError,
 	JsonRpcErrorCode,
@@ -68,7 +68,7 @@ export interface HttpHandlerDeps extends HttpSecurityOptions {
 	/** Detailed error messages. It changes no Origin check and no CORS header. */
 	devMode: boolean;
 	cors: boolean;
-	getToolsList: (context: CommandContext) => unknown[];
+	getToolsList: (context: CommandContext) => readonly unknown[];
 	/** The MCP router, which the 2025-era `/message` lane routes `tools/call` through. */
 	routeToolCall: ToolRouter | ToolCallFunction;
 	/**
@@ -133,6 +133,26 @@ function afdFailure(code: string, message: string, suggestion: string) {
 	return { success: false, error: { code, message, suggestion } };
 }
 
+/**
+ * The handler's options, checked as {@link createHttpHandler} checks them, without building it:
+ * the maximum body size, defaults applied.
+ *
+ * @throws Error for an invalid `allowedOrigins` entry, body limit or SSE limit
+ */
+export function checkHttpHandlerOptions(
+	deps: Pick<
+		HttpHandlerDeps,
+		'allowedOrigins' | 'maxBodyBytes' | 'maxSseConnections' | 'sseHeartbeatMs'
+	>
+): { maxBodyBytes: number } {
+	assertAllowedOrigins(deps.allowedOrigins);
+	const maxBodyBytes = deps.maxBodyBytes ?? 1024 * 1024;
+	if (!Number.isSafeInteger(maxBodyBytes) || maxBodyBytes <= 0)
+		throw new Error('maxBodyBytes must be a positive integer');
+	sseHubLimits({ maxConnections: deps.maxSseConnections, heartbeatMs: deps.sseHeartbeatMs });
+	return { maxBodyBytes };
+}
+
 export function createHttpHandler(deps: HttpHandlerDeps) {
 	const {
 		name,
@@ -160,10 +180,7 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		...admissionDeps,
 		router: deps.restRouter,
 	});
-	assertAllowedOrigins(deps.allowedOrigins);
-	const maxBodyBytes = deps.maxBodyBytes ?? 1024 * 1024;
-	if (!Number.isSafeInteger(maxBodyBytes) || maxBodyBytes <= 0)
-		throw new Error('maxBodyBytes must be a positive integer');
+	const { maxBodyBytes } = checkHttpHandlerOptions(deps);
 	const sse = createSseHub({
 		maxConnections: deps.maxSseConnections,
 		heartbeatMs: deps.sseHeartbeatMs,

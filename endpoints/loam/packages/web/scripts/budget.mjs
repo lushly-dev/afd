@@ -930,9 +930,9 @@ export const CEILINGS = Object.freeze({
 	// in `afd-detail`/`afd-help`/`afd-docs`) on `main` at `0b56ceecb`: measured 41,008; set to 41,500 under D115.
 	// #2128 (`checkBatchLimits`, 41,202) and #2263 (`confirmationMode` / `humanRelay` in `tool-router`/`tools`/`lazy-tools`,
 	// measured 41,977 against `main` at `4da8efebe`); raised 41,500 → 42,500 under D115.
-	// #2652 (#1743: the router's unencoded outcome and a lane's own acknowledgement, the host-state token): measured
-	// 42,572 against `main` at `5ade6c0f4`; raised 42,500 → 43,000 under D115.
-	inboundMinified: 43_000,
+	// #2652 (#1743: router outcome, lane acknowledgement, host-state token): 42,572 at `5ade6c0f4`, 42,500 → 43,000;
+	// #1746 (the router's name map and lazy groups): 43,015 at `5e33124bc`; raised 43,000 → 43,500 under D115.
+	inboundMinified: 43_500,
 	mountMinified: 238_268,
 	switcherMinified: 12_100,
 	switcherColdMinified: 45_163,

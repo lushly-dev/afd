@@ -21,10 +21,11 @@ export interface SseHubOptions {
 }
 
 /**
- * Track open `/sse` responses. One shared timer writes a `: ping` comment to every client so
- * proxies keep idle streams open and dead peers are detected; it runs only while clients exist.
+ * The hub's limits, defaults applied.
+ *
+ * @throws Error when the connection cap is not a positive integer or the interval not positive
  */
-export function createSseHub(options: SseHubOptions = {}) {
+export function sseHubLimits(options: SseHubOptions = {}) {
 	const maxConnections = options.maxConnections ?? DEFAULT_MAX_SSE_CONNECTIONS;
 	const heartbeatMs = options.heartbeatMs ?? DEFAULT_SSE_HEARTBEAT_MS;
 	if (!Number.isSafeInteger(maxConnections) || maxConnections <= 0) {
@@ -33,6 +34,15 @@ export function createSseHub(options: SseHubOptions = {}) {
 	if (!Number.isFinite(heartbeatMs) || heartbeatMs <= 0) {
 		throw new Error('SSE heartbeat interval must be positive');
 	}
+	return { maxConnections, heartbeatMs };
+}
+
+/**
+ * Track open `/sse` responses. One shared timer writes a `: ping` comment to every client so
+ * proxies keep idle streams open and dead peers are detected; it runs only while clients exist.
+ */
+export function createSseHub(options: SseHubOptions = {}) {
+	const { maxConnections, heartbeatMs } = sseHubLimits(options);
 	const clients = new Map<string, SseClient>();
 	let counter = 0;
 	let heartbeat: ReturnType<typeof setInterval> | undefined;
