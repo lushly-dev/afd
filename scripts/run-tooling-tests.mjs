@@ -16,6 +16,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const testFiles = [
 	'scripts/bloat-sweeper.test.mjs',
 	'scripts/build-site-afd-theme.test.mjs',
+	'scripts/build-umbel-person-style.test.mjs',
 	'scripts/commit-credit.test.mjs',
 	'scripts/check-file-size.test.mjs',
 	'scripts/check-portability.test.mjs',
