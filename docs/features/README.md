@@ -90,6 +90,8 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 | [Chat History Panel](./proposed/chat-history-panel/) | Chat history UI component |
 | [Code Client](./proposed/code-client/) | Code-based client research |
 | [Design to Code](./proposed/design-to-code/) | Figma-to-code generation pipeline |
+| [Idempotency Keys](./proposed/idempotency-keys/idempotency-keys.proposal.md) | A key a caller sends with a mutation so a repeat returns the first call's result, an `idempotency` field on commands, and a retry middleware that never repeats an undeclared mutation. Epic [#2672](https://github.com/lushly-dev/afd/issues/2672) |
+| [Journal Seams](./proposed/journal-seams/journal-seams.proposal.md) | Four additions (a dispatch id, entry extensions every reader keeps, an approval summary, a record of abandoned calls) that let a host build a write-ahead, tamper-evident record beside AFD's journal without changing it for anyone else. Epic [#2677](https://github.com/lushly-dev/afd/issues/2677) |
 | [MCP Client Features](./proposed/mcp-client-features/STATUS.md) | Readiness of AFD servers, Botcore and Umbel for Claude's MCP client features (Skills over MCP, Tasks, Elicitation, tool search and tracked File Uploads) under epic [#2497](https://github.com/lushly-dev/afd/issues/2497). [Proposal](./proposed/mcp-client-features/mcp-client-features.proposal.md) |
 | [MCP Progress](./proposed/mcp-progress/mcp-progress.proposal.md) | A progress hook on the command context, delivered as MCP progress notifications, `/stream` chunks and DirectClient callbacks (MCP follow-on, rank 3) |
 | [Multi-Tool Registration](./proposed/multi-tool-registration/) | Batch MCP tool registration |
