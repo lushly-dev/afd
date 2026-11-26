@@ -308,7 +308,7 @@ describe('P5-A2: the runtime’s frame on the desktop', () => {
 		expect(received).toEqual([]);
 	});
 
-	it('P5-A2 (D153): no message the frame posts through invoke with a forged Origin or a raw IPC message runs a command', async () => {
+	it('P5-A2: D153, no message the frame posts through invoke with a forged Origin or a raw IPC message runs a command', async () => {
 		const first = await invoke('mount_open', { instance: 'fixture' });
 		expect(first.ok).toBe(true);
 		const posted = await inPage<{ found: Record<string, string> }>(

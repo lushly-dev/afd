@@ -179,7 +179,7 @@ describe("P5-A2: the runtime's frame and its ports, in Chromium (phase 5 specifi
 		expect(proxy.headers.get('content-security-policy')).toBe(`frame-ancestors ${site.origin}`);
 	});
 
-	it('P5-A2 (S1): a turn with no script settles done with "No script", every model byte crossing the page\'s transport, and the panel gets text parts only', async () => {
+	it('P5-A2: P5-A8: S1, a turn with no script settles done with "No script", every model byte crossing the page\'s transport, and the panel gets text parts only', async () => {
 		const runId = await call(page, 'turn', SESSION, 'Hello');
 		const seen = await call(page, 'settled', runId, 20_000);
 		expect(seen.outcomes).toHaveLength(1);
@@ -231,7 +231,7 @@ describe("P5-A2: the runtime's frame and its ports, in Chromium (phase 5 specifi
 		expect(source.length).toBeLessThan(2_048);
 	});
 
-	it('P5-A2 (S1): a scripted tool call reaches the stub capability through the agent port, and the panel gets tool-call parts, never a CUSTOM event', async () => {
+	it('P5-A2: S1, a scripted tool call reaches the stub capability through the agent port, and the panel gets tool-call parts, never a CUSTOM event', async () => {
 		const runId = await call(page, 'turn', SESSION, 'script:tools');
 		const seen = await call(page, 'settled', runId, 20_000);
 		expect(seen.outcomes[0]).toMatchObject({ state: 'done', reply: 'Listed.' });
@@ -325,7 +325,7 @@ describe("P5-A2: the runtime's frame and its ports, in Chromium (phase 5 specifi
 		expect(p95).toBeLessThan(FIVE_CALL_TURN_P95_MS);
 	});
 
-	it("P5-A2 (S3): aborting the run's signal cancels a running turn's model stream within 250 ms, nothing more of it reaches the panel, and the session's next turn runs", async () => {
+	it("P5-A2: P5-A8: S3, aborting the run's signal cancels a running turn's model stream within 250 ms, nothing more of it reaches the panel, and the session's next turn runs", async () => {
 		const runId = await call(page, 'turn', SESSION, 'script:hang');
 		expect((await call(page, 'streaming', runId, 15_000)).streams).toHaveLength(1);
 		// The turn is running: no outcome, its stream open.
@@ -432,7 +432,7 @@ describe("P5-A2: the runtime's frame and its ports, in Chromium (phase 5 specifi
 	});
 });
 
-describe('P5-A2 (S2): the frame and its worker are cut off from the shell, under the path-scoped policy (phase 5 specification, 0.3 and 3.2)', () => {
+describe('P5-A2: S2, the frame and its worker are cut off from the shell, under the path-scoped policy (phase 5 specification, 0.3 and 3.2)', () => {
 	let opened: ShellPage;
 	let page: Page;
 	beforeAll(async () => {
@@ -443,7 +443,7 @@ describe('P5-A2 (S2): the frame and its worker are cut off from the shell, under
 		await opened?.context.close();
 	});
 
-	it("P5-A2 (S2): none of the shell's storage is reachable from the frame or its worker, and no connection of their own opens", async () => {
+	it("P5-A2: S2, none of the shell's storage is reachable from the frame or its worker, and no connection of their own opens", async () => {
 		expect(await call(page, 'setupShellState')).toEqual({
 			indexedDB: 'written',
 			localStorage: 'written',
