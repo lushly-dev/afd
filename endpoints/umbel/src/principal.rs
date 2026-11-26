@@ -500,6 +500,15 @@ pub(crate) fn hook(
         context
             .extra
             .insert(crate::person::PREVIEW_PAGE_KEY.to_owned(), Value::Null);
+        // The call line's request id (D217): the W3C trace id of the request's
+        // `_meta.traceparent` (MCP 2026-07-28), or a new one; never a value a request brought
+        // under this key.
+        context.extra.insert(
+            crate::logging::REQUEST_ID_KEY.to_owned(),
+            Value::String(crate::logging::request_id_from(
+                request.request_context().meta.get_traceparent(),
+            )),
+        );
         // Which request's usage record this call belongs to (section 12.1): the host's own slot,
         // never anything a request brought.
         #[cfg(feature = "auth")]

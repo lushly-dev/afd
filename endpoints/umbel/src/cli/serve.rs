@@ -8,6 +8,7 @@ use crate::host::{Host, HostError};
 use crate::workspace::codes;
 use std::fmt::Display;
 use std::io::Write;
+use std::net::SocketAddr;
 use std::time::Duration;
 use tokio::net::TcpListener;
 
@@ -20,28 +21,84 @@ pub(super) enum Mode {
     Http { print_token: bool },
 }
 
+/// What `umbel serve` was asked for: the transport, and the metrics listener's loopback address
+/// (`--metrics-bind` or `UMBEL_METRICS_BIND`, D217), none by default.
+pub(super) struct Options {
+    pub(super) mode: Mode,
+    pub(super) metrics: Option<SocketAddr>,
+}
+
 /// Serve until the client disconnects (stdio) or a signal arrives; `Ok` is exit code 0.
 ///
 /// # Errors
-/// A startup failure: the token cannot be created, the address is in use, stdio cannot open.
-pub(super) async fn serve(host: &Host, mode: Mode, out: &mut dyn Write) -> Result<(), HostError> {
+/// A startup failure: the token cannot be created, an address is in use, stdio cannot open.
+pub(super) async fn serve(
+    host: &Host,
+    options: Options,
+    out: &mut dyn Write,
+) -> Result<(), HostError> {
     let signals = Signals::install();
     // The full catch-up of the event streams (a stream damaged by hand is repaired too), under
     // the workspace lock, before a client can ask for events. It runs before the runtime is busy
     // with any request, so blocking here is brief.
     host.repair_events()?;
-    match mode {
-        Mode::Stdio => Box::pin(serve_stdio(host, signals)).await,
-        Mode::Http { print_token } => Box::pin(serve_http(host, print_token, signals, out)).await,
+    match options.mode {
+        Mode::Stdio => Box::pin(serve_stdio(host, options.metrics, signals)).await,
+        Mode::Http { print_token } => {
+            Box::pin(serve_http(host, print_token, options.metrics, signals, out)).await
+        }
     }
 }
 
-async fn serve_stdio(host: &Host, signals: Signals) -> Result<(), HostError> {
+/// Bind the metrics listener (D217) when one is asked for: after the transport's own checks and
+/// binds, so a refusal stays the one failure line on stderr.
+async fn bind_metrics(bind: Option<SocketAddr>) -> Result<Option<TcpListener>, HostError> {
+    let Some(bind) = bind else {
+        return Ok(None);
+    };
+    let listener = TcpListener::bind(bind).await.map_err(|error| {
+        HostError::new(
+            codes::SERVER_START_FAILED,
+            format!("Binding the metrics listener {bind} failed: {error}"),
+            "Choose another address with --metrics-bind or UMBEL_METRICS_BIND (port 0 picks a free one; each process needs its own), or leave both out to serve without metrics.".to_owned(),
+        )
+    })?;
+    let address = listener
+        .local_addr()
+        .map_err(|error| start_failed("Reading the bound address", error))?;
+    eprintln!("umbel metrics on http://{address}/metrics");
+    Ok(Some(listener))
+}
+
+/// The metrics listener's server until `until`. It ends only with an error: after a clean stop
+/// (or without a listener) it never ends, so it never cuts short the grace the transport gives
+/// requests in flight after a signal.
+async fn exposition(
+    host: &Host,
+    listener: Option<TcpListener>,
+    until: impl std::future::Future<Output = ()> + Send + 'static,
+) -> Result<(), HostError> {
+    if let Some(listener) = listener {
+        crate::metrics::serve(listener, host.metrics(), until)
+            .await
+            .map_err(|error| start_failed("The metrics listener", error))?;
+    }
+    std::future::pending().await
+}
+
+async fn serve_stdio(
+    host: &Host,
+    metrics: Option<SocketAddr>,
+    signals: Signals,
+) -> Result<(), HostError> {
+    let metrics = bind_metrics(metrics).await?;
     let mut server = Box::pin(host.mcp_server().serve_stdio());
+    let mut exposition = Box::pin(exposition(host, metrics, std::future::pending()));
     tokio::select! {
         result = &mut server => {
             result.map_err(|message| start_failed("MCP stdio server", message))
         }
+        result = &mut exposition => result,
         () = signals.wait() => Ok(()),
     }
 }
@@ -49,6 +106,7 @@ async fn serve_stdio(host: &Host, signals: Signals) -> Result<(), HostError> {
 async fn serve_http(
     host: &Host,
     print_token: bool,
+    metrics: Option<SocketAddr>,
     signals: Signals,
     out: &mut dyn Write,
 ) -> Result<(), HostError> {
@@ -88,6 +146,7 @@ async fn serve_http(
         }
         _ => None,
     };
+    let metrics = bind_metrics(metrics).await?;
     // Signal handlers are installed above, before this line: a client that waits for it can
     // stop the server straight away.
     let scheme = if server.is_tls() { "https" } else { "http" };
@@ -130,10 +189,11 @@ async fn serve_http(
     // The person listener beside it, stopped by the same signal; without one, never ending.
     let mut page = Box::pin(async {
         match person {
-            Some((server, listener, _, _)) => server.serve(listener, until(stopped)).await,
+            Some((server, listener, _, _)) => server.serve(listener, until(stopped.clone())).await,
             None => std::future::pending().await,
         }
     });
+    let mut exposition = Box::pin(exposition(host, metrics, until(stopped.clone())));
     let interrupted = async {
         signals.wait().await;
         let _ = stop.send(true);
@@ -142,6 +202,7 @@ async fn serve_http(
     tokio::select! {
         result = &mut serving => result.map_err(|error| start_failed("The HTTP server", error)),
         result = &mut page => result.map_err(|error| start_failed("The person page's server", error)),
+        result = &mut exposition => result,
         () = interrupted => Ok(()),
     }
 }
@@ -210,13 +271,14 @@ mod tests {
 
     #[test]
     fn serve_futures_stay_small_enough_for_windows_main_stack() {
-        let serve_size =
-            future_size_of(|(host, mode, out): (&Host, Mode, &mut Vec<u8>)| serve(host, mode, out));
+        let serve_size = future_size_of(|(host, options, out): (&Host, Options, &mut Vec<u8>)| {
+            serve(host, options, out)
+        });
         let stdio_size =
-            future_size_of(|(host, signals): (&Host, Signals)| serve_stdio(host, signals));
+            future_size_of(|(host, signals): (&Host, Signals)| serve_stdio(host, None, signals));
         let http_size = future_size_of(
             |(host, print_token, signals, out): (&Host, bool, Signals, &mut Vec<u8>)| {
-                serve_http(host, print_token, signals, out)
+                serve_http(host, print_token, None, signals, out)
             },
         );
         for (name, size) in [

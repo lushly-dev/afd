@@ -29,7 +29,8 @@ pub fn command(cwd: &Path, args: &[&str]) -> Command {
         .env_remove("UMBEL_WORKSPACE")
         .env_remove("UMBEL_LOG")
         .env_remove("UMBEL_HTTP_BIND")
-        .env_remove("UMBEL_HTTP_PERSON_BIND");
+        .env_remove("UMBEL_HTTP_PERSON_BIND")
+        .env_remove("UMBEL_METRICS_BIND");
     for (name, _) in std::env::vars_os() {
         if name.to_string_lossy().starts_with("GIT_") {
             command.env_remove(name);

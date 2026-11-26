@@ -20,6 +20,7 @@ fn umbel(dir: &Path, args: &[&str]) -> Output {
         .env_remove("UMBEL_WORKSPACE")
         .env_remove("UMBEL_LOG")
         .env_remove("UMBEL_HTTP_BIND")
+        .env_remove("UMBEL_METRICS_BIND")
         .env_remove("GIT_DIR")
         .output()
         .unwrap()

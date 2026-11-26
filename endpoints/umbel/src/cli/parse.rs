@@ -71,6 +71,10 @@ pub(crate) enum Verb {
         /// Print the bearer token once on stdout.
         #[arg(long)]
         print_token: bool,
+        /// Serve metrics per command (Prometheus text) at /metrics on this loopback address,
+        /// with either transport (overrides UMBEL_METRICS_BIND; off by default).
+        #[arg(long, value_name = "ADDR")]
+        metrics_bind: Option<String>,
     },
     /// List the commands the CLI can run (afd-help).
     Help {

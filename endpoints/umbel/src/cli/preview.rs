@@ -21,7 +21,6 @@ use serde_json::{Map, Value, json};
 
 use super::terminal::sanitize;
 use crate::host::Host;
-use crate::logging;
 
 /// The code of a refused call whose preview failed.
 pub(crate) const CONFIRMATION_PREVIEW_FAILED: &str = "CONFIRMATION_PREVIEW_FAILED";
@@ -42,18 +41,10 @@ pub(super) async fn run(
     let declared = declared_input(host, preview, input);
     // A context of its own: a fresh trace id, the CLI's principal, and neither mark.
     let context = host.cli_context();
-    let trace = context.trace_id.clone();
-    let started = std::time::Instant::now();
     let result = host
         .cli_client()
         .call(preview, declared, Some(context))
         .await;
-    logging::log_call(
-        preview,
-        trace.as_deref(),
-        started.elapsed().as_millis(),
-        result.success,
-    );
     match preview_text(&result) {
         Some(text) => Ok(render(text)),
         None => Err(Box::new(failed(command, preview, &result))),
