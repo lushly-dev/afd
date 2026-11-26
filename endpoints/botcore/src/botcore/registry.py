@@ -93,15 +93,13 @@ def get_client(
             mw_registry.add_middleware(mw)
         # Telemetry middleware (opt-in via config)
         if config and getattr(config, "telemetry_enabled", False):
-            from typing import cast
-
             from afd.core.telemetry import ConsoleTelemetrySink
-            from afd.server.middleware import TelemetrySink, create_telemetry_middleware
+            from afd.server.middleware import create_telemetry_middleware
 
             sink = ConsoleTelemetrySink(
                 format=getattr(config, "telemetry_format", "text"),
             )
-            mw_registry.add_middleware(create_telemetry_middleware(cast(TelemetrySink, sink)))
+            mw_registry.add_middleware(create_telemetry_middleware(sink))
         for mw in _plugin_middleware:
             mw_registry.add_middleware(mw)
         _client = create_direct_client(

@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+
 from afd.core.errors import CommandError
 from afd.core.telemetry import (
     ConsoleTelemetrySink,
@@ -340,9 +342,7 @@ class TestConsoleTelemetrySink:
         )
         sink.record(event)
         captured = capsys.readouterr()
-        assert "[TELEMETRY] todo-create" in captured.err
-        assert "success=True" in captured.err
-        assert "duration=150" in captured.err
+        assert captured.err == "[Telemetry] todo-create SUCCESS in 150ms\n"
 
     def test_text_format_with_trace_id(self, capsys):
         """Test text format includes trace_id when present."""
@@ -357,7 +357,7 @@ class TestConsoleTelemetrySink:
         )
         sink.record(event)
         captured = capsys.readouterr()
-        assert "trace=trace-abc" in captured.err
+        assert "[Telemetry] [trace-abc] todo-create" in captured.err
 
     def test_text_format_with_error(self, capsys):
         """Test text format includes error code when present."""
@@ -372,7 +372,7 @@ class TestConsoleTelemetrySink:
         )
         sink.record(event)
         captured = capsys.readouterr()
-        assert "error=NOT_FOUND" in captured.err
+        assert "FAILURE in 150ms - NOT_FOUND: Not found" in captured.err
 
     def test_json_format_output(self, capsys):
         """Test JSON format output."""
@@ -388,10 +388,15 @@ class TestConsoleTelemetrySink:
         sink.record(event)
         captured = capsys.readouterr()
         data = json.loads(captured.err)
-        assert data["command_name"] == "todo-create"
-        assert data["duration_ms"] == 150
-        assert data["success"] is True
-        assert data["trace_id"] == "trace-abc"
+        assert data == {
+            "commandName": "todo-create",
+            "startedAt": "2024-01-15T10:30:00.000Z",
+            "completedAt": "2024-01-15T10:30:00.150Z",
+            "durationMs": 150,
+            "success": True,
+            "traceId": "trace-abc",
+            "_prefix": "[Telemetry]",
+        }
 
     def test_json_format_excludes_none_fields(self, capsys):
         """Test that JSON format excludes None fields."""
@@ -407,7 +412,7 @@ class TestConsoleTelemetrySink:
         captured = capsys.readouterr()
         data = json.loads(captured.err)
         assert "error" not in data
-        assert "trace_id" not in data
+        assert "traceId" not in data
         assert "confidence" not in data
 
     def test_default_format_is_text(self, capsys):
@@ -422,9 +427,69 @@ class TestConsoleTelemetrySink:
         )
         sink.record(event)
         captured = capsys.readouterr()
-        assert "[TELEMETRY]" in captured.err
+        assert captured.err.startswith("[Telemetry] test-cmd SUCCESS")
 
     def test_flush(self):
         """Test that flush does not raise."""
         sink = ConsoleTelemetrySink()
         sink.flush()
+
+
+class TestCamelCaseWire:
+    """One TelemetryEvent, serialized in camelCase like TypeScript's (#1760)."""
+
+    def test_serializes_in_camel_case(self):
+        from afd.core.wire import to_wire
+
+        event = TelemetryEvent(
+            command_name="todo-create",
+            started_at="2024-01-15T10:30:00.000Z",
+            completed_at="2024-01-15T10:30:00.150Z",
+            duration_ms=150,
+            success=True,
+            trace_id="trace-abc",
+            command_version="1.0.0",
+            actor_kind="agent",
+        )
+        assert to_wire(event) == {
+            "commandName": "todo-create",
+            "startedAt": "2024-01-15T10:30:00.000Z",
+            "completedAt": "2024-01-15T10:30:00.150Z",
+            "durationMs": 150,
+            "success": True,
+            "traceId": "trace-abc",
+            "commandVersion": "1.0.0",
+            "actorKind": "agent",
+        }
+
+    def test_reads_camel_case(self):
+        event = TelemetryEvent.model_validate(
+            {
+                "commandName": "x",
+                "startedAt": "a",
+                "completedAt": "b",
+                "durationMs": 3,
+                "success": False,
+                "error": {"code": "E", "message": "m"},
+            }
+        )
+        assert event.command_name == "x"
+        assert event.error is not None and event.error.code == "E"
+
+    def test_is_telemetry_event_accepts_the_wire_form(self):
+        wire = {
+            "commandName": "x",
+            "startedAt": "a",
+            "completedAt": "b",
+            "durationMs": 3,
+            "success": True,
+        }
+        assert is_telemetry_event(wire) is True
+        assert is_telemetry_event({**wire, "durationMs": True}) is False
+
+    def test_console_sink_accepts_both_constructors(self):
+        lines: list[str] = []
+        sink = ConsoleTelemetrySink(log=lines.append, json_mode=True, prefix="[X]")
+        assert sink.format == "json"
+        with pytest.raises(ValueError, match="format"):
+            ConsoleTelemetrySink(format="yaml")

@@ -1,0 +1,98 @@
+name: Python newest MCP SDK
+
+# The Python package caps `mcp` at the newest minor its full suite has passed on, because the
+# server relies on SDK internals (python/src/afd/server/sdk_internals.py, #1756). This runs the
+# full suite weekly on the newest `mcp` 2.x instead of the locked one, so the cap is widened on
+# purpose: when this passes on a release above the cap, widen it in python/pyproject.toml (both
+# extras) and relock. A failure opens an issue through scheduled-failure-issue.yml.
+on:
+  schedule:
+    - cron: '29 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  newest-mcp:
+    name: Python ${{ matrix.python-version }} on the newest mcp 2.x
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # The oldest and newest Python the package supports.
+        python-version: ['3.11', '3.14']
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: python
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install the locked dependencies
+        run: uv sync --frozen --all-extras
+
+      # Past the cap on purpose: the newest 2.x and its mcp-types. Every other package stays
+      # at its locked version unless the new SDK requires a newer one, so a failure here points
+      # at the SDK, not at an unrelated release.
+      - name: Upgrade to the newest mcp 2.x
+        run: uv pip install 'mcp>=2.3,<3' --upgrade-package mcp --upgrade-package mcp-types
+
+      - name: Report the versions under test
+        run: |
+          set -euo pipefail
+          tested=$(uv run --no-sync python -c 'from importlib.metadata import version; print(version("mcp"))')
+          cap=$(grep -Eo '"mcp>=[0-9.]+,<[0-9.]+"' pyproject.toml | head -1)
+          {
+            echo "### Newest mcp on Python ${{ matrix.python-version }}"
+            echo
+            echo "- Tested: mcp ${tested}"
+            echo "- Declared range: ${cap}"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "TESTED_MCP=${tested}" >> "$GITHUB_ENV"
+
+      - name: Type check
+        run: uv run --no-sync mypy src
+
+      - name: Test
+        run: uv run --no-sync pytest -q
+
+      - name: Say whether the cap can be widened
+        run: |
+          set -euo pipefail
+          uv run --no-sync python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import os
+          import re
+          from pathlib import Path
+
+          tested = os.environ["TESTED_MCP"]
+          match = re.search(r'"mcp>=[0-9.]+,<([0-9]+)\.([0-9]+)"', Path("pyproject.toml").read_text())
+          if match is None:
+              print("\nThe mcp cap in pyproject.toml is not of the form <MAJOR.MINOR.")
+          else:
+              cap = (int(match[1]), int(match[2]))
+              major, minor = (int(part) for part in tested.split(".")[:2])
+              if (major, minor) >= cap:
+                  print(
+                      f"\nThe full suite passed on mcp {tested}, above the cap "
+                      f"<{cap[0]}.{cap[1]}: widen it to <{major}.{minor + 1} in "
+                      "python/pyproject.toml (server and client extras) and relock (#1756)."
+                  )
+              else:
+                  print(f"\nmcp {tested} is within the cap; nothing to widen.")
+          PY

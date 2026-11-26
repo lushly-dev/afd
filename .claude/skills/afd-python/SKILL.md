@@ -122,7 +122,7 @@ server = create_server(
 - **Batch limits.** A batch holds at most 500 commands, with `parallelism` at most 16 (`create_server(max_batch_size=..., max_batch_parallelism=...)`). A larger request returns `INVALID_BATCH_REQUEST`, and nothing runs.
 - **`stopOnError`** stops scheduling: commands already running finish with their real results, and unstarted ones get `COMMAND_SKIPPED`.
 - **A batch `timeout`** cancels and awaits commands still running. They and any unstarted ones get `BATCH_TIMEOUT`.
-- **A handler that returns something other than a `CommandResult`** gives its item or step `INVALID_COMMAND_RESULT`.
+- **A handler that returns something other than a `CommandResult`** gets `INVALID_COMMAND_RESULT` on every path (single call, batch item, pipeline step, stream); a dict with a boolean `success` is parsed as a result.
 - **Pipelines are sequential.** `options.parallel` and `stream: true` steps fail with `UNSUPPORTED_OPTION` before any command runs.
 - **Pipeline variables** follow [spec/pipeline-variables.md](../../../spec/pipeline-variables.md): `$prev`, `$first`, `$steps[N]`, `$steps.<alias>` and `$input`, each with an optional path. Other `$` strings are literals, `$$` escapes, and an unresolved reference is omitted from objects (`None` in lists).
 - **Shared executors.** `execute_batch` and buffered `execute_stream` (`ExecutorOptions`, `StreamExecutorOptions`) are exported from `afd`, `afd.core` and `afd.server`, and exposed as `execute_batch()` / `execute_stream()` on `CommandRegistry`, `MCPServer`, `SimpleRegistry` and `MockServer`. Single commands share one executor (`afd.core.single_executor.execute_command`), and `DirectClient.pipe` delegates to core `execute_pipeline`.

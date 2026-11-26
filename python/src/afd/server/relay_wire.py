@@ -291,8 +291,8 @@ def install_pre_boundary_middleware(server: Any) -> None:
                 check_bindable_principal(method)
             return await call_next(ctx)
 
-    lowlevel = getattr(server._mcp_server, "_lowlevel_server", None)
-    chain = getattr(lowlevel, "middleware", None)
+    # The SDK's public middleware chain (``MCPServer.middleware``, provisional in 2.x).
+    chain = getattr(server._mcp_server, "middleware", None)
     boundary = next(
         (index for index, item in enumerate(chain or ()) if isinstance(item, RequestStateBoundary)),
         None,

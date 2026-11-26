@@ -40,14 +40,17 @@ dependencies = [
 [project.optional-dependencies]
 server = [
     # mcp 2.x: MCPServer (mcp.server.mcpserver) serves MCP 2026-07-28 and the
-    # 2025 initialize handshake from one endpoint.
-    "mcp>=2.3,<3",
+    # 2025 initialize handshake from one endpoint. Capped at the newest minor the full
+    # suite has passed on: the server relies on SDK internals (afd.server.sdk_internals).
+    # The weekly "Python newest MCP SDK" workflow tests the newest 2.x; widen the cap,
+    # here and in `client`, when it passes there (#1756).
+    "mcp>=2.3,<2.4",
     # SkillCatalog frontmatter parsing walks yaml.parse() events under the YAML 1.2 core schema.
     "pyyaml>=6.0",
 ]
 client = [
     "httpx>=0.27",
-    "mcp>=2.3,<3",  # SseTransport and the streamable HTTP client
+    "mcp>=2.3,<2.4",  # SseTransport and the streamable HTTP client; cap as in `server`
     "websockets>=14",  # additional_headers= needs websockets 14+
 ]
 cli = [

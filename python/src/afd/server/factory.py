@@ -23,7 +23,7 @@ from typing import (
     TypeVar,
 )
 
-from pydantic import BaseModel, ConfigDict, create_model
+from pydantic import BaseModel
 from pydantic import ValidationError as PydanticValidationError
 
 from afd.core.actor import Actor, ContextDefaults
@@ -214,6 +214,7 @@ from afd.server.resources import (
     create_resource_service,
     strip_unused_sdk_handlers,
 )
+from afd.server.sdk_internals import lowlevel_server
 from afd.server.session_context import (
     SessionContextState,
     UnknownContextError,
@@ -276,6 +277,47 @@ _CONTEXT_COMMAND_NAMES = frozenset({"afd-context-enter", "afd-context-exit"})
 # The SDK request context (``ServerRequestContext``) of the MCP request being handled,
 # captured by middleware so tools/list and tools/call can bind its context state.
 _CURRENT_REQUEST: ContextVar[Any] = ContextVar("afd_mcp_request", default=None)
+
+_MAX_TOOL_LISTS = 64
+"""Most cached tool lists a server keeps (one per strategy, active context and listed commands);
+past this, the cache starts again rather than grow with every scope view a caller presents."""
+
+
+def _copy_json(value: Any) -> Any:
+    """A copy of JSON-shaped data: new dicts and lists all the way down.
+
+    Tool definitions are JSON (``tool_meta`` and the schemas are checked to be), and this is
+    several times faster than ``copy.deepcopy``, which would cost as much as rebuilding.
+    """
+    if isinstance(value, dict):
+        return {key: _copy_json(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_copy_json(item) for item in value]
+    return value
+
+
+class _ToolList:
+    """One cached ``tools/list`` answer: its definitions and, once asked for, the SDK's models.
+
+    Shared between requests and never handed out: ``get_tool_definitions`` returns a copy, and
+    the SDK only serializes the models.
+    """
+
+    __slots__ = ("definitions", "group_by", "_sdk_tools")
+
+    def __init__(self, definitions: list[dict[str, Any]], group_by: Any) -> None:
+        self.definitions = definitions
+        # The key holds group_by by id; holding the object here keeps that id from being
+        # reused by another function while this list is cached.
+        self.group_by = group_by
+        self._sdk_tools: list[Any] | None = None
+
+    def sdk_tools(self) -> list[Any]:
+        if self._sdk_tools is None:
+            from mcp.types import Tool as MCPTool
+
+            self._sdk_tools = [MCPTool(**definition) for definition in self.definitions]
+        return list(self._sdk_tools)
 
 
 class MCPServer:
@@ -358,6 +400,12 @@ class MCPServer:
         self._command_index: dict[str, CommandDefinition] | None = None
         self._router: Callable[..., Awaitable[Any]] | None = None
         self._human_relay_gate: HumanRelayGate | None = None
+        # The MCP tool list per strategy, active context and listed commands (#1760).
+        self._tool_lists: dict[tuple[Any, ...], _ToolList] = {}
+        # The input schema of each tool the SDK may validate Mcp-Param headers against.
+        self._sdk_tool_schemas: dict[str, dict[str, Any]] = {}
+        # Schemas of tools served beside AFD's own (Botcore's compatibility aliases).
+        self._extra_tool_schemas: dict[str, dict[str, Any]] = {}
         self._scope_authority: ScopeAuthority | None = None
         self._first_class_checked = False
         self._auth_layer: AuthLayer | None = (
@@ -747,6 +795,9 @@ class MCPServer:
                 assert_tool_meta(command.name, command.tool_meta)
                 assert_advertised_input_schema(command.name, command.advertised_input_schema)
             self._names_key = key
+            # A command added through server.registry is callable from now on, so the SDK
+            # validates its Mcp-Param headers against its schema too.
+            self._sync_mcp_tool_definitions()
         if not (self.config.bootstrap or self.config.contexts):
             return
         for command in commands:
@@ -771,6 +822,7 @@ class MCPServer:
 
     def _invalidate_caches(self) -> None:
         self._command_index = None
+        self._tool_lists.clear()
         self._router = None
         self._human_relay_gate = None
         self._scope_authority = None
@@ -1136,12 +1188,13 @@ class MCPServer:
                 return _approval_unavailable(command.name, admission)
         return None
 
-    def _invoke_handler_for_execution(
+    async def _invoke_handler_for_execution(
         self, command: CommandDefinition, data: Any, context: CommandContext
-    ) -> Awaitable[Any]:
+    ) -> Any:
         clear_relay_evidence(context)
         handler = getattr(command.handler, "__afd_validated_handler__", command.handler)
-        return handler(data, context)
+        # The shared executor coerces what this returns (#1760).
+        return await handler(data, context)
 
     def _internal_error(self, command_name: str, exc: BaseException) -> CommandResult[Any]:
         """Log an unexpected exception and return a failure that is safe to send remotely.
@@ -1156,7 +1209,11 @@ class MCPServer:
         return execution_failure(exc, self.config.dev_mode)
 
     def _as_command_result(self, command_name: str, result: Any) -> CommandResult[Any]:
-        """Coerce a batch item or pipeline step result (see coerce_command_result)."""
+        """Coerce what a command or its middleware returned (see coerce_command_result).
+
+        A dict with a boolean ``success`` is parsed; anything else that is not a
+        CommandResult becomes an ``INVALID_COMMAND_RESULT`` failure.
+        """
         if isinstance(result, CommandResult):
             return result
         logger.warning(
@@ -1175,11 +1232,15 @@ class MCPServer:
         output_budget: Any = None,
         _check_before_request: bool = False,
         _meta_tools: bool = False,
-    ) -> Any:
+    ) -> CommandResult[Any]:
         """Run a command (never a built-in tool) through the shared single-command executor.
 
         ``_meta_tools`` says the caller's entry point also routes the meta-tools, as ``execute``
         does outside ``apps``.
+
+        Always a CommandResult: a handler's or middleware's raw return value is coerced the
+        same way for a single call, a batch item, a pipeline step and a stream
+        (``spec/error-codes.md``, ``INVALID_COMMAND_RESULT``).
         """
         remote = (
             bool(context.extra.get("remote")) if context is not None and context.extra else False
@@ -1218,13 +1279,16 @@ class MCPServer:
             invoke_handler=self._invoke_handler_for_execution,
             after_execute=self._refresh_dynamic_tools,
         )
-        return await execute_command(
+        result = await execute_command(
             name,
             input,
             context,
             config=config,
             output_budget=output_budget,
         )
+        # Already a CommandResult: the shared executor coerces a handler's or a middleware's
+        # plain value (afd.core.single_executor, #1760). This only keeps the type exact.
+        return self._as_command_result(name, result)
 
     async def execute(
         self,
@@ -1292,9 +1356,10 @@ class MCPServer:
         from the methods it serves (``subscriptions/listen`` on 2026-07-28), which would
         promise a notification that never comes.
         """
-        lowlevel = getattr(self._mcp_server, "_lowlevel_server", None)
+        lowlevel = lowlevel_server(self._mcp_server)
         if lowlevel is None:
             return
+        # SDK internal GET_CAPABILITIES (afd.server.sdk_internals).
         get_capabilities = getattr(lowlevel, "get_capabilities", None)
         if get_capabilities is None or getattr(lowlevel, "_afd_fixed_tools_list", False):
             return
@@ -1345,7 +1410,7 @@ class MCPServer:
         """
         if not self.config.context_fields:
             return
-        lowlevel = getattr(self._mcp_server, "_lowlevel_server", None)
+        lowlevel = lowlevel_server(self._mcp_server)
         if lowlevel is None:
             return
         get_handler = getattr(lowlevel, "get_request_handler", None)
@@ -1373,75 +1438,46 @@ class MCPServer:
         lowlevel.add_request_handler("server/discover", entry.params_type, discover_with_fields)
         lowlevel._afd_context_fields_discover = True
 
-    def _install_fastmcp_context_error_translation(self) -> None:
-        """Translate stale direct tool calls into actionable context errors when possible."""
+    async def _call_sdk_tool(self, name: str, arguments: Any, afd_ctx: Any) -> Any:
+        """Answer the SDK's ``tools/call`` for ``name``: every tool name, listed or not.
 
-        if self._mcp_server is None:
-            return
-
-        tool_manager = getattr(self._mcp_server, "_tool_manager", None)
-        if tool_manager is None or getattr(tool_manager, "_afd_context_error_translation", False):
-            return
-
-        original_call_tool = tool_manager.call_tool
-        server = self
-
-        async def wrapped_call_tool(
-            name: str,
-            arguments: dict[str, Any],
-            context: Any = None,
-            convert_result: bool = False,
-        ) -> Any:
-            tool = tool_manager.get_tool(name)
-            if tool is None:
-                if server._current_scope_view() is None:
-                    active_context = server._context_state.get_active()
-                    registered = server._find_command(
-                        name, include_bootstrap=True, context_filtered=False
-                    )
-                    visible = server._find_command(
-                        name, include_bootstrap=True, context_filtered=True
-                    )
-                    if (
-                        active_context
-                        and registered is not None
-                        and server._is_exposed_to(registered, "mcp")
-                        and visible is None
-                        and registered.contexts
-                        and active_context not in registered.contexts
-                    ):
-                        return _tool_call_result(
-                            not_in_context_error(
-                                name,
-                                active_context,
-                                can=lambda tool: can_call(
-                                    server, tool, None, active_context, interface="mcp"
-                                ),
-                                belongs_to=registered.contexts,
-                            )
+        A command hidden by the active context gets the actionable not-in-context error;
+        everything else goes through :meth:`_serve_tool_call`, so unknown and private names
+        share the D4 result and a command the strategy does not list (every command under
+        grouped or lazy) runs with the same confirmation and approval rounds as its own tool
+        (``spec/tool-strategies.md``, "Routing"). The SDK's own tool manager is never used.
+        """
+        payload = dict(arguments) if isinstance(arguments, Mapping) else {}
+        try:
+            if name not in self._sdk_tool_schemas and self._current_scope_view() is None:
+                active_context = self._context_state.get_active()
+                registered = self._find_command(
+                    name, include_bootstrap=True, context_filtered=False
+                )
+                visible = self._find_command(name, include_bootstrap=True, context_filtered=True)
+                if (
+                    active_context
+                    and registered is not None
+                    and self._is_exposed_to(registered, "mcp")
+                    and visible is None
+                    and registered.contexts
+                    and active_context not in registered.contexts
+                ):
+                    return _tool_call_result(
+                        not_in_context_error(
+                            name,
+                            active_context,
+                            can=lambda tool: can_call(
+                                self, tool, None, active_context, interface="mcp"
+                            ),
+                            belongs_to=registered.contexts,
                         )
-
-                # FastMCP otherwise returns an unstructured ToolError. Route through AFD so
-                # unknown and private names share the D4 result, and so a command the strategy
-                # does not list (every command under grouped or lazy) runs with the same
-                # confirmation and approval rounds as its own tool (spec/tool-strategies.md,
-                # "Routing").
-                try:
-                    return await server._serve_tool_call(name, arguments or {}, context)
-                except Exception as exc:
-                    if _is_mcp_error(exc):
-                        raise
-                    return _tool_call_result(server._internal_error(name, exc))
-
-            return await original_call_tool(
-                name,
-                arguments,
-                context=context,
-                convert_result=convert_result,
-            )
-
-        tool_manager.call_tool = wrapped_call_tool
-        tool_manager._afd_context_error_translation = True
+                    )
+            return await self._serve_tool_call(name, payload, afd_ctx)
+        except Exception as exc:
+            if _is_mcp_error(exc):
+                raise
+            return _tool_call_result(self._internal_error(name, exc))
 
     # ── Batch, pipeline and stream (shared core executors) ─────────────────
 
@@ -1635,22 +1671,60 @@ class MCPServer:
         return await self.route_tool_call(tool_name, {} if args is None else args)
 
     def get_tool_definitions(self) -> list[dict[str, Any]]:
-        """Return the MCP-visible tool definitions for the current strategy."""
+        """Return the MCP-visible tool definitions for the current strategy.
 
+        Each call returns its own copy, which the caller may change.
+        """
+
+        copied: list[dict[str, Any]] = _copy_json(self._tool_list().definitions)
+        return copied
+
+    def _tool_list(self) -> _ToolList:
+        """The tool list this request sees, built once per strategy, context and commands.
+
+        Building a tool list copies every command's input schema and, under ``grouped``,
+        measures each group's schemas, so ``tools/list`` reuses the list it built for the same
+        strategy, active context and listed commands (#1760). Registering a command, a change
+        to the registered names or built-ins, or a change to these options builds it again.
+        A registered definition is read once: changing one in place (its description, schema
+        or contexts) is not seen until the list is built again, so register a new definition
+        instead.
+        """
         self._check_before_request()
         exposed = self.list_exposed_commands(
             interface="mcp", include_bootstrap=True, context_filtered=False
         )
         listed = listed_commands(exposed, self._current_scope_view())
-        return get_tools_list(
-            listed,
+        active_context = self._context_state.get_active()
+        first_class = self.config.first_class_tools
+        key = (
+            tuple((id(command), command.name) for command in listed),
             self.config.tool_strategy,
-            group_by_fn=self.config.group_by,
-            active_context=self._context_state.get_active(),
-            confirmations=self._confirmations,
-            first_class_tools=self.config.first_class_tools,
-            output_schema=self.config.advertise_output_schema,
+            # By identity: the config holds it, and a callable object need not be hashable.
+            id(self.config.group_by),
+            active_context,
+            self._confirmations,
+            tuple(first_class) if first_class is not None else None,
+            self.config.advertise_output_schema,
         )
+        cached = self._tool_lists.get(key)
+        if cached is None or cached.group_by is not self.config.group_by:
+            if len(self._tool_lists) >= _MAX_TOOL_LISTS:
+                self._tool_lists.clear()
+            cached = _ToolList(
+                get_tools_list(
+                    listed,
+                    self.config.tool_strategy,
+                    group_by_fn=self.config.group_by,
+                    active_context=active_context,
+                    confirmations=self._confirmations,
+                    first_class_tools=first_class,
+                    output_schema=self.config.advertise_output_schema,
+                ),
+                self.config.group_by,
+            )
+            self._tool_lists[key] = cached
+        return cached
 
     def get_mcp_tools(self) -> list[dict[str, Any]]:
         """Compatibility wrapper returning current MCP-visible tool definitions."""
@@ -1658,17 +1732,20 @@ class MCPServer:
         return self.get_tool_definitions()
 
     def _sync_mcp_tool_definitions(self) -> None:
-        """Rebuild the live FastMCP tool registry from the current visible surface."""
+        """Record the input schema of every tool any session may list.
+
+        The SDK validates a 2026-07-28 HTTP request's ``Mcp-Param`` headers against the called
+        tool's input schema before any middleware runs, so this is the whole list, in no
+        context (``SessionMCPServer._tool_input_schema`` reads it). AFD does not register its
+        tools with the SDK's tool manager: ``tools/list`` and ``tools/call`` are answered by
+        ``SessionMCPServer`` itself (#1756). It is rebuilt at ``register()`` and, for a command
+        added through ``server.registry``, at the next request's checks: the SDK reads it
+        before those run, so that request's headers are checked against the previous table.
+        """
 
         if not self._mcp_server:
             return
-
-        tool_manager = getattr(self._mcp_server, "_tool_manager", None)
-        if tool_manager is None:
-            return
-
-        tool_manager._tools.clear()
-        # Session context must never mutate the globally shared tool registry.
+        # Session context must never narrow what every session may call.
         definitions = get_tools_list(
             self.list_exposed_commands(interface="mcp", include_bootstrap=True),
             self.config.tool_strategy,
@@ -1678,63 +1755,29 @@ class MCPServer:
             first_class_tools=self.config.first_class_tools,
             output_schema=self.config.advertise_output_schema,
         )
-        for tool_definition in definitions:
-            tool = self._create_fastmcp_tool(tool_definition)
-            tool_manager._tools[tool.name] = tool
+        self._sdk_tool_schemas = {
+            **self._extra_tool_schemas,
+            **{
+                definition["name"]: definition.get(
+                    "inputSchema", {"type": "object", "properties": {}}
+                )
+                for definition in definitions
+            },
+        }
 
-    def _build_input_model(self, tool_name: str, schema: dict[str, Any]) -> Any:
-        """Build a FastMCP argument model that passes arguments through unchanged.
+    def _add_tool_input_schemas(self, definitions: Sequence[Mapping[str, Any]]) -> None:
+        """Validate Mcp-Param headers for tools served beside AFD's own.
 
-        The advertised ``inputSchema`` is the command's schema, but FastMCP does
-        not validate against it: a missing or mistyped argument must reach the
-        command, whose own validation returns a structured VALIDATION_ERROR
-        result (as the TypeScript server does) instead of a raw FastMCP error.
+        For a host that answers more tool names on the SDK server than AFD lists (Botcore's
+        compatibility aliases): each definition's ``inputSchema`` is kept across
+        re-registration, and AFD's own tools win a name both have.
         """
-        from mcp.server.mcpserver.utilities.func_metadata import ArgModelBase
-
-        class PassthroughArgs(ArgModelBase):
-            model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
-
-            def model_dump_one_level(self) -> dict[str, Any]:
-                return dict(self.model_extra or {})
-
-        return create_model(
-            f"{tool_name.replace('-', '_')}_Input",
-            __base__=PassthroughArgs,
-        )
-
-    def _create_fastmcp_tool(self, tool_definition: dict[str, Any]) -> Any:
-        from mcp.server.mcpserver.tools import Tool
-        from mcp.server.mcpserver.utilities.func_metadata import FuncMetadata
-
-        input_schema = tool_definition.get("inputSchema", {"type": "object", "properties": {}})
-        input_model = self._build_input_model(
-            tool_definition["name"],
-            input_schema,
-        )
-
-        tool_name = tool_definition["name"]
-
-        async def handler(afd_ctx: Any = None, **payload: Any) -> Any:
-            try:
-                return await self._serve_tool_call(tool_name, payload, afd_ctx)
-            except Exception as exc:
-                if _is_mcp_error(exc):
-                    raise
-                return _tool_call_result(self._internal_error(tool_name, exc))
-
-        return Tool(
-            fn=handler,
-            name=tool_definition["name"],
-            title=tool_definition.get("title"),
-            description=tool_definition.get("description", ""),
-            parameters=input_schema,
-            fn_metadata=FuncMetadata(arg_model=input_model),
-            is_async=True,
-            context_kwarg="afd_ctx",
-            annotations=None,
-            meta=tool_definition.get("_meta"),
-        )
+        for definition in definitions:
+            schema = definition.get("inputSchema")
+            self._extra_tool_schemas[str(definition["name"])] = (
+                dict(schema) if isinstance(schema, Mapping) else {"type": "object"}
+            )
+        self._sync_mcp_tool_definitions()
 
     async def _serve_tool_call(self, tool_name: str, payload: dict[str, Any], afd_ctx: Any) -> Any:
         """Answer one SDK ``tools/call``: its result, or the next question.
@@ -1951,8 +1994,6 @@ class MCPServer:
                 await uvicorn_server.serve()
 
             async def list_tools(self) -> Any:
-                from mcp.types import Tool as MCPTool
-
                 if not server._is_auth_admitted():
                     raise server._unauthorized_rpc_error()
                 view = server._current_scope_view()
@@ -1961,7 +2002,12 @@ class MCPServer:
                     if req_dec != "proceed":
                         raise server._insufficient_scope_rpc_error(view, req_dec.forbidden)
                 with bound_request():
-                    return [MCPTool(**definition) for definition in server.get_tool_definitions()]
+                    return server._tool_list().sdk_tools()
+
+            def _tool_input_schema(self, name: str) -> dict[str, Any] | None:
+                # SDK internal (afd.server.sdk_internals): the low-level server reads it to
+                # validate Mcp-Param headers, before any middleware runs.
+                return server._sdk_tool_schemas.get(name)
 
             async def _dispatch_tool_call(
                 self, name: Any, arguments: Any, context: Any, outcome: HookOutcome | None
@@ -1987,7 +2033,9 @@ class MCPServer:
                     bind_context_field_values(values),
                     bind_output_budget_ask(budget_ask),
                 ):
-                    return await super().call_tool(name, lifted.arguments, context)
+                    return await server._call_sdk_tool(
+                        name if isinstance(name, str) else "", lifted.arguments, context
+                    )
 
             async def call_tool(self, name: Any, arguments: Any, context: Any = None) -> Any:
                 if not server._is_auth_admitted():
@@ -2045,7 +2093,7 @@ class MCPServer:
                 bind_principal=lambda _ctx: self._request_principal(),
             ),
         )
-        lowlevel = getattr(self._mcp_server, "_lowlevel_server", None)
+        lowlevel = lowlevel_server(self._mcp_server)
         strip_unused_sdk_handlers(lowlevel, serve_resources=self._resource_service is not None)
         if self._resource_service is not None:
             self._resource_service.install_handlers(
@@ -2055,7 +2103,6 @@ class MCPServer:
             )
         self._install_pre_boundary_middleware()
         self._sync_mcp_tool_definitions()
-        self._install_fastmcp_context_error_translation()
         self._advertise_fixed_tools_list()
         self._advertise_context_fields()
         return self._mcp_server

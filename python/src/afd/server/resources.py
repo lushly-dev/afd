@@ -25,6 +25,7 @@ from typing import Any, Literal, Protocol, TypeAlias, cast, get_args, runtime_ch
 
 from afd.core.meta_keys import check_meta_entry
 from afd.server.auth_rules import Credentials
+from afd.server.sdk_internals import request_handlers
 from afd.server.session_context import is_modern_protocol
 from afd.server.skills import (
     DIGEST_META_KEY,
@@ -766,8 +767,8 @@ class ResourceService:
 
 def strip_unused_sdk_handlers(lowlevel: Any, *, serve_resources: bool) -> None:
     """Remove the SDK's default prompt (always) and resource (when opt-in is off) handlers (R1)."""
-    handlers = getattr(lowlevel, "_request_handlers", None)
-    if not isinstance(handlers, dict):
+    handlers = request_handlers(lowlevel)
+    if handlers is None:
         return
     for method in ("prompts/list", "prompts/get"):
         handlers.pop(method, None)

@@ -16,16 +16,13 @@ Example:
 """
 
 import asyncio
-import json
 import logging
 import math
 import random
-import sys
 import time
 from collections import OrderedDict
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from contextlib import AbstractContextManager
-from dataclasses import dataclass
 from datetime import UTC
 from typing import (
     Any,
@@ -48,6 +45,10 @@ from afd.core.commands import (
 from afd.core.errors import Recovery, _retry_after
 from afd.core.result import CommandError, CommandResult
 from afd.core.running_command import pass_on_binding
+from afd.core.telemetry import TelemetryError as _TelemetryError
+from afd.core.telemetry import TelemetryEvent as _TelemetryEvent
+from afd.core.telemetry import TelemetrySink as _TelemetrySink
+from afd.core.wire import to_wire
 from afd.server.auth_middleware_check import carry_auth_middleware_mark
 from afd.server.instance_state import carry_approval_process_state
 
@@ -55,119 +56,10 @@ from afd.server.instance_state import carry_approval_process_state
 # TELEMETRY TYPES
 # =============================================================================
 
-
-@dataclass
-class TelemetryEvent:
-    """Telemetry event recorded for each command execution.
-
-    Attributes:
-        command_name: Name of the executed command.
-        started_at: ISO timestamp when execution started.
-        completed_at: ISO timestamp when execution completed.
-        duration_ms: Execution duration in milliseconds.
-        success: Whether the command succeeded.
-        error: Error details if the command failed.
-        trace_id: Trace ID for correlation.
-        input: Command input (if include_input enabled).
-        confidence: Result confidence score.
-        metadata: Result metadata.
-        command_version: Version of the command.
-        actor_kind: Kind of principal that called the command
-            (``context.actor.kind``), never its id.
-    """
-
-    command_name: str
-    started_at: str
-    completed_at: str
-    duration_ms: float
-    success: bool
-    error: dict[str, Any] | None = None
-    trace_id: str | None = None
-    input: Any | None = None
-    confidence: float | None = None
-    metadata: dict[str, Any] | None = None
-    command_version: str | None = None
-    actor_kind: str | None = None
-
-
-@runtime_checkable
-class TelemetrySink(Protocol):
-    """Protocol for telemetry event sinks."""
-
-    def record(self, event: TelemetryEvent) -> None | Awaitable[None]:
-        """Record a telemetry event. May be sync or async."""
-        ...
-
-    def flush(self) -> None:
-        """Flush any buffered events."""
-        ...
-
-
-def _write_stderr(message: str) -> None:
-    """Write a line to stderr (stdout carries JSON-RPC on the stdio transport)."""
-    print(message, file=sys.stderr, flush=True)
-
-
-class ConsoleTelemetrySink:
-    """Default telemetry sink that logs events to the console.
-
-    Events go to stderr by default, never stdout: on the stdio transport,
-    stdout carries the JSON-RPC stream and any other line corrupts it.
-
-    Example:
-        >>> sink = ConsoleTelemetrySink()  # human-readable, to stderr
-        >>> sink = ConsoleTelemetrySink(json_mode=True)  # JSON output
-        >>> sink = ConsoleTelemetrySink(log=logging.getLogger("telemetry").info)
-    """
-
-    def __init__(
-        self,
-        *,
-        log: Callable[[str], None] | None = None,
-        json_mode: bool = False,
-        prefix: str = "[Telemetry]",
-    ):
-        self._log = log or _write_stderr
-        self._json_mode = json_mode
-        self._prefix = prefix
-
-    def record(self, event: TelemetryEvent) -> None:
-        if self._json_mode:
-            event_dict = {
-                "command_name": event.command_name,
-                "started_at": event.started_at,
-                "completed_at": event.completed_at,
-                "duration_ms": event.duration_ms,
-                "success": event.success,
-                "_prefix": self._prefix,
-            }
-            if event.error is not None:
-                event_dict["error"] = event.error
-            if event.trace_id is not None:
-                event_dict["trace_id"] = event.trace_id
-            if event.actor_kind is not None:
-                event_dict["actor_kind"] = event.actor_kind
-            if event.confidence is not None:
-                event_dict["confidence"] = event.confidence
-            self._log(json.dumps(event_dict))
-        else:
-            status = "SUCCESS" if event.success else "FAILURE"
-            trace_info = f" [{event.trace_id}]" if event.trace_id else ""
-            confidence_info = (
-                f" (confidence: {event.confidence})" if event.confidence is not None else ""
-            )
-            error_info = ""
-            if event.error:
-                error_info = (
-                    f" - {event.error.get('code', 'UNKNOWN')}: {event.error.get('message', '')}"
-                )
-            self._log(
-                f"{self._prefix}{trace_info} {event.command_name} "
-                f"{status} in {event.duration_ms}ms{confidence_info}{error_info}"
-            )
-
-    def flush(self) -> None:
-        pass
+# The telemetry event, sink protocol and console sink are afd.core.telemetry's (#1760). This
+# module defined its own copies before; the names still resolve here, with a
+# DeprecationWarning (see __getattr__ at the end of the module).
+_DEPRECATED_TELEMETRY_NAMES = frozenset({"TelemetryEvent", "TelemetrySink", "ConsoleTelemetrySink"})
 
 
 # =============================================================================
@@ -575,7 +467,7 @@ def _iso_from_ms(ms: float) -> str:
 
 
 def create_telemetry_middleware(
-    sink: TelemetrySink,
+    sink: _TelemetrySink,
     *,
     include_input: bool = False,
     include_metadata: bool = True,
@@ -617,29 +509,24 @@ def create_telemetry_middleware(
             completed_at = _iso_from_ms(end_time)
             duration_ms = max(0, end_time - start_time)
 
-            error_dict = None
+            event_error = None
             if thrown_error:
-                error_dict = {
-                    "code": "UNHANDLED_ERROR",
-                    "message": str(thrown_error),
-                }
+                event_error = _TelemetryError(code="UNHANDLED_ERROR", message=str(thrown_error))
             elif result and not result.success and result.error:
-                error_dict = {
-                    "code": result.error.code,
-                    "message": result.error.message,
-                }
+                event_error = _TelemetryError(code=result.error.code, message=result.error.message)
 
             metadata_dict = None
             if not thrown_error and result and include_metadata and result.metadata:
-                metadata_dict = result.metadata.model_dump()
+                # The wire form, as TypeScript records it: camelCase, unset fields left out.
+                metadata_dict = to_wire(result.metadata)
 
-            event = TelemetryEvent(
+            event = _TelemetryEvent(
                 command_name=command_name,
                 started_at=started_at,
                 completed_at=completed_at,
                 duration_ms=duration_ms,
                 success=False if thrown_error else (result.success if result else False),
-                error=error_dict,
+                error=event_error,
                 trace_id=context.trace_id,
                 actor_kind=actor_kind_of(getattr(context, "actor", None)),
                 input=input if include_input else None,
@@ -756,3 +643,19 @@ def default_middleware(
         stack.append(create_timing_middleware(**kwargs))
 
     return stack
+
+
+def __getattr__(name: str) -> Any:
+    if name in _DEPRECATED_TELEMETRY_NAMES:
+        import warnings
+
+        from afd.core import telemetry
+
+        warnings.warn(
+            f"afd.server.middleware.{name} is deprecated: it is afd.core.telemetry.{name}, the "
+            f"one telemetry type. Import it from afd (or afd.core, or afd.server) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return getattr(telemetry, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

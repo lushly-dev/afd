@@ -376,8 +376,11 @@ does not define them.
 - **Pass-through codes.** `wrapError()` keeps a thrown error's own string `code`, so a result can
   carry a code this page does not list: the auth package's codes, or a Node system error such as
   `ENOENT`, whose message is replaced by a generic one naming the code.
-- **Python-only:** `INVALID_COMMAND_RESULT` (retryable: no) when a batch or pipeline item returns
-  something that is not a `CommandResult`. TypeScript does not check this at runtime.
+- **Python-only:** `INVALID_COMMAND_RESULT` (retryable: no) when a handler or middleware returns
+  something that is not a `CommandResult`, on every path (a single call, a batch item, a
+  pipeline step and a stream) and in every host (the MCP server, the command registry and
+  `DirectClient`). A dict with a boolean `success` is parsed as a result instead. TypeScript
+  does not check this at runtime.
 - **Package codes:**
   - auth: `INVALID_CREDENTIALS`, `PROVIDER_ERROR`, `NETWORK_ERROR` and `REFRESH_FAILED` (the last
     two retryable), `PASSKEY_CANCELLED` (the person dismissed the passkey ceremony, or it timed

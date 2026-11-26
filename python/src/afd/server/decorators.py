@@ -24,7 +24,9 @@ Example:
     ...     return success(GreetOutput(message=f"Hello, {input.name}!"))
 """
 
+import copy
 import inspect
+import weakref
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from functools import wraps
@@ -215,7 +217,7 @@ def define_command(
     normalized_output_budget = validate_output_budget_declaration(name, output_budget)
     normalized_scopes = validate_command_scopes(name, scopes)
     if input_schema is not None:
-        check_schema(_advertised_schema(input_schema))
+        check_schema(_validation_schema(input_schema))
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         # Build tags list, adding handoff tags if needed
@@ -323,7 +325,7 @@ def validate_command_input(
         return raw_input
     kwargs = {} if max_issues is None else {"max_issues": max_issues}
     data = validate_schema(
-        _advertised_schema(input_schema), {} if raw_input is None else raw_input, **kwargs
+        _validation_schema(input_schema), {} if raw_input is None else raw_input, **kwargs
     )
     if isinstance(input_schema, dict):
         return data
@@ -343,12 +345,42 @@ def _present_input(parsed: Any, raw: Any) -> Any:
     return parsed
 
 
-def _advertised_schema(input_schema: type[BaseModel] | dict[str, Any]) -> dict[str, Any]:
+_MODEL_SCHEMAS: "weakref.WeakKeyDictionary[type[BaseModel], tuple[object, dict[str, Any]]]" = (
+    weakref.WeakKeyDictionary()
+)
+"""Each input model's JSON Schema, with the core schema it was generated from (#1760)."""
+
+
+def _validation_schema(input_schema: type[BaseModel] | dict[str, Any]) -> dict[str, Any]:
+    """The JSON Schema that input is validated against, generated once per model.
+
+    Generating a Pydantic model's JSON Schema costs more than validating against it, and every
+    call validates, so the schema is kept per model class and regenerated only when the class is
+    rebuilt (``model_rebuild`` replaces its core schema). The returned dict is shared: callers
+    only read it, and :func:`_advertised_schema` hands out copies.
+    """
     if isinstance(input_schema, dict):
         return input_schema
     if not isinstance(input_schema, type) or not issubclass(input_schema, BaseModel):
         raise TypeError("input_schema must be a JSON Schema object or a Pydantic model class")
-    return input_schema.model_json_schema()
+    core_schema = input_schema.__dict__.get("__pydantic_core_schema__")
+    cached = _MODEL_SCHEMAS.get(input_schema)
+    if cached is not None and cached[0] is core_schema and core_schema is not None:
+        return cached[1]
+    generated = input_schema.model_json_schema()
+    # model_json_schema() may complete a deferred build, which sets the core schema.
+    _MODEL_SCHEMAS[input_schema] = (
+        input_schema.__dict__.get("__pydantic_core_schema__"),
+        generated,
+    )
+    return generated
+
+
+def _advertised_schema(input_schema: type[BaseModel] | dict[str, Any]) -> dict[str, Any]:
+    """The command's input JSON Schema, as its definition carries it: a copy of the cached one."""
+    if isinstance(input_schema, dict):
+        return input_schema
+    return copy.deepcopy(_validation_schema(input_schema))
 
 
 def _accepts_context(func: Callable[..., Any]) -> bool:

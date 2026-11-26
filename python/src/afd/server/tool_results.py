@@ -88,7 +88,11 @@ def is_error_result(result: Any) -> bool:
 
 
 def is_input_required(result: Any) -> bool:
-    return type(result).__name__ == "InputRequiredResult"
+    try:
+        from mcp_types import InputRequiredResult
+    except ImportError:  # pragma: no cover - optional dependency
+        return False
+    return isinstance(result, InputRequiredResult)
 
 
 def is_mcp_error(exc: BaseException) -> bool:
