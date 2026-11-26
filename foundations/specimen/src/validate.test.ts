@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { defaultContext } from './config.js';
 import { parseDesignStatesRequest } from './design-validate.js';
 import { packIdentifier } from './pack-schema.js';
+import { parsePanelWalkRequest } from './panel-validate.js';
 import { implementationContextsSchema, patternSetupBindingSchema } from './pattern-schema.js';
 import {
 	a11yRequestSchema,
@@ -32,6 +33,8 @@ import {
 	noteMoveRequestSchema,
 	noteReopenRequestSchema,
 	noteResolveRequestSchema,
+	panelConfigSchema,
+	panelWalkRequestSchema,
 	pointCheckRequestSchema,
 	pointMoveRequestSchema,
 	pointRequestSchema,
@@ -236,12 +239,14 @@ const configSchema = z
 				themeStylesheet: z.string().min(1).optional(),
 			})
 			.optional(),
+		panel: panelConfigSchema.optional(),
 	})
 	.refine(
 		(config) =>
 			config.specimens !== undefined ||
 			config.stories !== undefined ||
-			config.commandManifest !== undefined
+			config.commandManifest !== undefined ||
+			config.panel !== undefined
 	)
 	.refine((config) => config.preview === undefined || config.stories !== undefined)
 	.refine((config) => config.test === undefined || config.stories !== undefined)
@@ -584,6 +589,17 @@ describe('bench validation matches the Zod schemas', () => {
 			},
 			{
 				specimens: [{ ...entry, contexts: { reason: 'Missing viewport and themes.' } }],
+			},
+			{
+				panel: {
+					jobs: ['publish-post'],
+					personas: [{ id: 'p-sr', modality: 'screen-reader', name: 'Sam' }],
+				},
+			},
+			{
+				panel: {
+					personas: [{ id: 'p-bad', modality: 'invalid' }],
+				},
 			},
 		];
 		for (const value of cases) agrees(configSchema, parseConfig, value);
@@ -1571,6 +1587,121 @@ describe('request parsing agrees with the public schemas', () => {
 			{ defaults: 'afd-defaults@1.0.0' },
 		]) {
 			agrees(configSchema, parseConfig, config);
+		}
+	});
+
+	it('agrees on panel-walk requests', () => {
+		const values: unknown[] = [
+			{
+				job: 'publish-post',
+				persona: 'screen-reader-user',
+				modality: 'screen-reader',
+				target: 'http://127.0.0.1:4173',
+			},
+			{
+				job: 'publish-post',
+				persona: 'keyboard-user',
+				modality: 'keyboard',
+				target: 'http://127.0.0.1:4173',
+				appDate: '2030-05-01',
+				maxActions: 25,
+				baselineWalk: 'walk-1234567890ab',
+				requestedTools: ['key_press', 'type'],
+			},
+			{
+				job: 'publish-post',
+				persona: 'pointer-user',
+				modality: 'pointer',
+				target: 'http://127.0.0.1:4173',
+				appDate: '2030-02-29',
+			},
+			{
+				job: 'publish-post',
+				persona: 'low-vision-user',
+				modality: 'low-vision',
+				target: 'http://127.0.0.1:4173',
+				appDate: '2030-02-30',
+			},
+			{
+				job: 'publish-post',
+				persona: 'pointer-user',
+				modality: 'pointer',
+				target: 'http://127.0.0.1:4173',
+				appDate: '2024-02-29',
+			},
+			{
+				job: 'publish-post',
+				persona: 'pointer-user',
+				modality: 'pointer',
+				target: 'http://127.0.0.1:4173',
+				appDate: 'not-a-date',
+			},
+			{
+				job: 'publish-post',
+				persona: 'agent',
+				modality: 'pointer',
+				target: 'http://127.0.0.1:4173',
+				maxActions: 0,
+			},
+			{
+				job: 'publish-post',
+				persona: 'agent',
+				modality: 'pointer',
+				target: 'http://127.0.0.1:4173',
+				maxActions: 501,
+			},
+			{
+				job: 'publish-post',
+				persona: 'agent',
+				modality: 'pointer',
+				target: 'http://127.0.0.1:4173',
+				maxActions: 1.5,
+			},
+			{
+				job: 'publish-post',
+				persona: 'agent',
+				modality: 'invalid',
+				target: 'http://127.0.0.1:4173',
+			},
+			{
+				job: 'publish-post',
+				persona: 'agent',
+				modality: 'pointer',
+				target: 'http://127.0.0.1:4173',
+				baselineWalk: 'bad-id',
+			},
+			{
+				job: 'publish-post',
+				persona: 'agent',
+				modality: 'pointer',
+				target: 'http://127.0.0.1:4173',
+				requestedTools: [''],
+			},
+			{
+				job: 'publish-post',
+				persona: 'agent',
+				modality: 'pointer',
+				target: 'http://127.0.0.1:4173',
+				requestedTools: [],
+			},
+			{ job: 'publish-post', persona: 'agent', modality: 'pointer', target: 'local://checkout' },
+			{ job: 'publish-post', persona: 'agent', modality: 'pointer', target: 'file:///etc/passwd' },
+			{ job: 'publish-post', persona: 'agent', modality: 'pointer', target: 'not-a-url' },
+			{ job: '', persona: 'agent', modality: 'pointer', target: 'http://127.0.0.1:4173' },
+			{ job: 'publish-post', persona: '', modality: 'pointer', target: 'http://127.0.0.1:4173' },
+			{
+				job: 'publish-post',
+				persona: 'agent',
+				modality: 'pointer',
+				target: 'http://127.0.0.1:4173',
+				extra: true,
+			},
+			{ job: 'publish-post', persona: 'agent', modality: 'pointer' },
+			{},
+			null,
+		];
+		for (const value of values) {
+			agrees(panelWalkRequestSchema, parsePanelWalkRequest, value);
 		}
 	});
 });

@@ -35,6 +35,7 @@ import {
 	writePack,
 	writePackIndex,
 } from './pack-files.js';
+import { type RunPanelWalkOptions, runPanelWalk } from './panel-walk.js';
 import {
 	checkImplementationContexts,
 	effectiveGateContext,
@@ -116,6 +117,8 @@ import type {
 	PackExportRun,
 	PackRequest,
 	PackRun,
+	PanelWalkRequest,
+	PanelWalkResult,
 	PointCheckRequest,
 	PointCheckResult,
 	PointMoveRequest,
@@ -337,6 +340,8 @@ export interface SpecimenBench {
 	checkDecisions(request?: DecisionCheckRequest): Promise<DecisionCheckResult>;
 	/** Name every screen state a set of commands or a job scenario can produce, mapped to its pattern. */
 	designStates(request?: DesignStatesRequest): Promise<DesignStatesResult>;
+	/** Run one modality-enforced persona walk against a running application target. */
+	panelWalk(request: PanelWalkRequest, options?: RunPanelWalkOptions): Promise<PanelWalkResult>;
 	build(
 		outDir: string
 	): Promise<{ directory: string; shellBytes: number; budget: number; files: string[] }>;
@@ -362,6 +367,7 @@ export type BenchRuntime = Omit<
 	| 'listDecisions'
 	| 'checkDecisions'
 	| 'designStates'
+	| 'panelWalk'
 > & {
 	/** Build the configured pack from two passes over every case, and write nothing. */
 	packBuild(request?: PackBuildRequest): Promise<PackBuildRun>;
@@ -517,6 +523,8 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		pending = result.catch(() => {});
 		return result;
 	};
+	const activePanelWalks = new Set<Promise<unknown>>();
+	const panelWalkAbort = new AbortController();
 	const refreshConfigIfChanged = async (current: LoadedConfig): Promise<LoadedConfig> => {
 		const configText = await readFile(current.file, 'utf8').catch(() => null);
 		const configDigest =
@@ -1127,11 +1135,34 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 				return runDesignStates(current, rawRequest);
 			});
 		},
+		async panelWalk(rawRequest, walkOptions) {
+			const snapshot = ensureOpen();
+			const combinedController = new AbortController();
+			const onBenchClose = () => combinedController.abort();
+			const onCallerAbort = () => combinedController.abort();
+			panelWalkAbort.signal.addEventListener('abort', onBenchClose, { once: true });
+			walkOptions?.signal?.addEventListener('abort', onCallerAbort, { once: true });
+			if (panelWalkAbort.signal.aborted || walkOptions?.signal?.aborted) {
+				combinedController.abort();
+			}
+			const task = runPanelWalk(snapshot, rawRequest, {
+				...walkOptions,
+				signal: combinedController.signal,
+			}).finally(() => {
+				activePanelWalks.delete(task);
+				panelWalkAbort.signal.removeEventListener('abort', onBenchClose);
+				walkOptions?.signal?.removeEventListener('abort', onCallerAbort);
+			});
+			activePanelWalks.add(task);
+			return task;
+		},
 		close() {
 			closing ??= (async () => {
 				closed = true;
+				panelWalkAbort.abort();
 				try {
 					await pending;
+					await Promise.allSettled([...activePanelWalks]);
 					await backend?.close();
 				} finally {
 					backend = undefined;

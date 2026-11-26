@@ -144,6 +144,33 @@ export {
 	withNoteLock,
 	writeNoteFile,
 } from './note.js';
+export { assertWalkTargetAllowed } from './panel-browser.js';
+export {
+	DEFAULT_WALK_MAX_ACTIONS,
+	DEFAULT_WALK_TIMEOUT_MS,
+	MAX_WALK_ACTIONS,
+	MODALITY_TOOL_POLICIES,
+	MODALITY_VALUES,
+	UNIVERSAL_FORBIDDEN_TOOLS,
+	WALK_ID_LENGTH,
+	WALK_ID_PATTERN,
+	WALKS_DIR,
+} from './panel-types.js';
+export {
+	buildWalkPrompt,
+	compareWalkReportsBlind,
+	computeWalkPath,
+	createModalityToolbox,
+	enforceModalityTools,
+	generateWalkId,
+	parseWalkEnding,
+	type RunPanelWalkOptions,
+	readWalkRecord,
+	runPanelWalk,
+	WalkLimitError,
+	walksDir,
+	writeWalkRecord,
+} from './panel-walk.js';
 export { computePatternCoverage, PATTERNS_OBLIGATIONS } from './pattern-coverage.js';
 export {
 	checkImplementationContexts,

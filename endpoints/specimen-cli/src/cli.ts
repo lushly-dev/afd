@@ -100,6 +100,13 @@ const valueOptions = new Set([
 	'tokens',
 	'commands',
 	'consumer',
+	'job',
+	'persona',
+	'modality',
+	'app-date',
+	'max-actions',
+	'baseline-walk',
+	'requested-tools',
 ]);
 const flagOptions = new Set([
 	'require-visual',
@@ -138,7 +145,7 @@ function parseArguments(args: string[]): ParsedArguments {
 	const action = positionals.shift();
 	if (!action)
 		throw new Error(
-			'Choose a command: list, validate, inspect, render, capture, compare, review, run, themes, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, job-run, decision-record, decision-get, decision-list, decision-check, or design-states'
+			'Choose a command: list, validate, inspect, render, capture, compare, review, run, themes, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, job-run, decision-record, decision-get, decision-list, decision-check, design-states, or panel-walk'
 		);
 	return { action, positionals, options, flags };
 }
@@ -460,6 +467,19 @@ function validateOptions(parsed: ParsedArguments): void {
 			'limit',
 			'after',
 		]),
+		'panel-walk': new Set([
+			'root',
+			'config',
+			'output',
+			'job',
+			'persona',
+			'modality',
+			'target',
+			'app-date',
+			'max-actions',
+			'baseline-walk',
+			'requested-tools',
+		]),
 	};
 	const known = allowed[parsed.action];
 	if (!known) throw new Error(`Unknown command: ${parsed.action}`);
@@ -562,6 +582,13 @@ function validateOptions(parsed: ParsedArguments): void {
 	if (parsed.action === 'design-states') {
 		if (parsed.options.has('commands') && parsed.positionals.length > 0)
 			throw new Error('Give commands positionally or with --commands, not both.');
+		return;
+	}
+	if (parsed.action === 'panel-walk') {
+		if (parsed.options.has('job') && parsed.positionals.length > 0)
+			throw new Error('Give a job id positionally or with --job, not both.');
+		if (parsed.positionals.length > 1)
+			throw new Error('panel-walk expects at most 1 positional argument');
 		return;
 	}
 	const expected =
@@ -857,6 +884,39 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 					...(parsed.flags.has('include-proposed') ? { includeProposed: true } : {}),
 					...(limit !== undefined ? { limit } : {}),
 					...(parsed.options.has('after') ? { after: parsed.options.get('after') } : {}),
+				});
+			} else if (parsed.action === 'panel-walk') {
+				const rawMaxActions = parsed.options.get('max-actions');
+				let maxActions: number | undefined;
+				if (rawMaxActions !== undefined) {
+					const parsedMax = Number(rawMaxActions);
+					if (!rawMaxActions.trim() || !Number.isInteger(parsedMax) || parsedMax < 1) {
+						throw new Error('--max-actions expects a positive integer');
+					}
+					maxActions = parsedMax;
+				}
+				const rawTools = parsed.options.get('requested-tools');
+				let requestedTools: string[] | undefined;
+				if (rawTools !== undefined) {
+					requestedTools = rawTools
+						.split(',')
+						.map((t) => t.trim())
+						.filter(Boolean);
+					if (requestedTools.length === 0) {
+						throw new Error('--requested-tools expects at least one tool name');
+					}
+				}
+				result = await executeSpecimenCommand(bench, 'panel-walk', {
+					job: parsed.options.get('job') ?? parsed.positionals[0],
+					persona: parsed.options.get('persona'),
+					modality: parsed.options.get('modality'),
+					target: parsed.options.get('target'),
+					...(parsed.options.has('app-date') ? { appDate: parsed.options.get('app-date') } : {}),
+					...(maxActions !== undefined ? { maxActions } : {}),
+					...(parsed.options.has('baseline-walk')
+						? { baselineWalk: parsed.options.get('baseline-walk') }
+						: {}),
+					...(requestedTools !== undefined ? { requestedTools } : {}),
 				});
 			} else {
 				const context: Partial<SpecimenContext> = {};
@@ -1308,7 +1368,7 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 			code: 'SPECIMEN_CLI_ERROR',
 			message,
 			suggestion:
-				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID [--set SET], capture [IDS...] [--label NAME], compare ID1 ID2..., review (BEFORE AFTER | --before SET --after SET) [--ids A,B], run ID, a11y [ID] [--set SET], themes [ID] [--theme light,dark] [--threshold 0.02], migrate [--files A,B] [--helpers] [--apply], diff LEFT RIGHT, build OUTDIR, pack [TAG], pack-check [TAG], pack-export DIR, point POINTER | ID (--role ROLE [--name NAME] | --selector CSS), point-move POINT_ID DIRECTION [--index N], point-check POINT_ID, note-add (--point ID | --pointer URI) --text TEXT [--assignee NAME], note-list [--specimen ID] [--state open|resolved|all] [--assignee NAME] [--orphaned] [--limit N] [--after ID], note-check [SPECIMEN_ID], note-move NOTE_ID (--point ID | --pointer URI) --reason TEXT, note-resolve (NOTE_ID | --ids A,B) --outcome OUTCOME --reason TEXT [--revision SHA] [--capture REF], note-reopen NOTE_ID --reason TEXT, job-create ID --scenario PATH --module PATH --export-name NAME --target ID --captures STEPS, job-run ID [--label NAME], decision-record --chosen VAL --reason TEXT (--set SET --slug SLUG --question TEXT | --supersedes IDS | --items ITEMS), decision-get ID, decision-list, decision-check [--files A,B] [--specimens A,B] [--tokens A,B], or design-states [COMMANDS...] [--commands A,B] [--scenario PATH] [--consumer NAME] [--include-proposed] [--limit N] [--after CURSOR]; check option values and file paths.',
+				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID [--set SET], capture [IDS...] [--label NAME], compare ID1 ID2..., review (BEFORE AFTER | --before SET --after SET) [--ids A,B], run ID, a11y [ID] [--set SET], themes [ID] [--theme light,dark] [--threshold 0.02], migrate [--files A,B] [--helpers] [--apply], diff LEFT RIGHT, build OUTDIR, pack [TAG], pack-check [TAG], pack-export DIR, point POINTER | ID (--role ROLE [--name NAME] | --selector CSS), point-move POINT_ID DIRECTION [--index N], point-check POINT_ID, note-add (--point ID | --pointer URI) --text TEXT [--assignee NAME], note-list [--specimen ID] [--state open|resolved|all] [--assignee NAME] [--orphaned] [--limit N] [--after ID], note-check [SPECIMEN_ID], note-move NOTE_ID (--point ID | --pointer URI) --reason TEXT, note-resolve (NOTE_ID | --ids A,B) --outcome OUTCOME --reason TEXT [--revision SHA] [--capture REF], note-reopen NOTE_ID --reason TEXT, job-create ID --scenario PATH --module PATH --export-name NAME --target ID --captures STEPS, job-run ID [--label NAME], decision-record --chosen VAL --reason TEXT (--set SET --slug SLUG --question TEXT | --supersedes IDS | --items ITEMS), decision-get ID, decision-list, decision-check [--files A,B] [--specimens A,B] [--tokens A,B], design-states [COMMANDS...] [--commands A,B] [--scenario PATH] [--consumer NAME] [--include-proposed] [--limit N] [--after CURSOR], or panel-walk --job ID --persona ID --modality MODALITY --target URL; check option values and file paths.',
 		});
 	} finally {
 		if (bench) {

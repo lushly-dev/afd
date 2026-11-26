@@ -242,7 +242,10 @@ export type {
 	ResolvedJobCapture,
 } from './job-types.js';
 
+export type * from './panel-types.js';
+
 import type { JobConfig, JobScenario, JobSource, ResolvedJobCapture } from './job-types.js';
+import type { PanelConfig } from './panel-types.js';
 /** High-level specimen list kind filter and entry classification. */
 export type SpecimenListKind = 'job' | 'component' | 'story' | 'native' | 'gate';
 export interface SpecimenListFilter {
@@ -380,6 +383,8 @@ export interface BenchConfig {
 	commandManifest?: string;
 	/** What `specimen pack` builds: one library's component pack. Needs `manifest`, or `patterns` with `dependencies`/`localElements`. */
 	pack?: PackConfig;
+	/** Optional modality-enforced persona walk panel configuration (Phase C1). */
+	panel?: PanelConfig;
 }
 export interface ValidationIssue {
 	/** `deferred`: only the module, run, can settle it. */

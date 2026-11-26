@@ -421,6 +421,23 @@ function harness() {
 				},
 			],
 		})),
+		panelWalk: vi.fn(async () => ({
+			walk: 'walk-1234567890ab',
+			job: 'publish-post',
+			persona: 'screen-reader-user',
+			modality: 'screen-reader' as const,
+			ending: 'done' as const,
+			actions: 1,
+			path: {
+				done: true,
+				failed: 0,
+				repeats: 0,
+				outside: 0,
+				deviations: 0,
+			},
+			findings: [],
+			unmeasured: [],
+		})),
 		close: vi.fn(async () => {}),
 	};
 	const createBench = vi.fn(async () => bench);
@@ -2246,6 +2263,68 @@ describe('specimen CLI', () => {
 		});
 
 		expect(await runCli(['--root', root, 'design-states', '--limit', '0'], h.io)).toBe(1);
+	});
+
+	it('wires panel-walk with modality, target, app-date, max-actions, baseline-walk, and requested-tools flags', async () => {
+		const root = await directory();
+		const h = harness();
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'panel-walk',
+					'--job',
+					'checkout-out-of-stock',
+					'--persona',
+					'p-sr',
+					'--modality',
+					'screen-reader',
+					'--target',
+					'http://127.0.0.1:4180/?screen=checkout',
+					'--app-date',
+					'2030-05-12',
+					'--max-actions',
+					'40',
+					'--baseline-walk',
+					'walk-000000000001',
+					'--requested-tools',
+					'sr_read,press',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.panelWalk).toHaveBeenLastCalledWith({
+			job: 'checkout-out-of-stock',
+			persona: 'p-sr',
+			modality: 'screen-reader',
+			target: 'http://127.0.0.1:4180/?screen=checkout',
+			appDate: '2030-05-12',
+			maxActions: 40,
+			baselineWalk: 'walk-000000000001',
+			requestedTools: ['sr_read', 'press'],
+		});
+
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'panel-walk',
+					'--job',
+					'j',
+					'--persona',
+					'p',
+					'--modality',
+					'pointer',
+					'--target',
+					'http://127.0.0.1:4180',
+					'--max-actions',
+					'0',
+				],
+				h.io
+			)
+		).toBe(1);
 	});
 });
 

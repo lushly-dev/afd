@@ -1,4 +1,5 @@
 import { isValidIsoClock } from './browser/clock-parse.js';
+import { parsePanelConfig } from './panel-validate.js';
 import type {
 	A11yRequest,
 	BaselineRequest,
@@ -1180,13 +1181,15 @@ export function parseConfig(value: unknown): BenchConfig {
 		'defaults',
 		'commandManifest',
 		'pack',
+		'panel',
 	]);
 	if (
 		fields.specimens === undefined &&
 		fields.stories === undefined &&
-		fields.commandManifest === undefined
+		fields.commandManifest === undefined &&
+		fields.panel === undefined
 	)
-		fail('configuration', 'expected specimens, stories, commandManifest or a combination');
+		fail('configuration', 'expected specimens, stories, commandManifest, panel or a combination');
 	if (fields.preview !== undefined && fields.stories === undefined)
 		fail('configuration.preview', 'project annotations apply only to stories');
 	if (fields.test !== undefined && fields.stories === undefined)
@@ -1275,6 +1278,7 @@ export function parseConfig(value: unknown): BenchConfig {
 			? {}
 			: { commandManifest: text(fields.commandManifest, 'configuration.commandManifest') }),
 		...(pack === undefined ? {} : { pack }),
+		...(fields.panel === undefined ? {} : { panel: parsePanelConfig(fields.panel) }),
 	};
 }
 

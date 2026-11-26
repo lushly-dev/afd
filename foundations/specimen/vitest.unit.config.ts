@@ -36,6 +36,7 @@ export const browserSuites = [
 	'src/compare-bench.test.ts',
 	'src/defaults-gates.test.ts',
 	'src/jobs-bench.test.ts',
+	'src/panel-walk.browser.test.ts',
 	'src/review-bench.test.ts',
 ];
 
@@ -74,6 +75,8 @@ export default defineConfig({
 				'src/pack-atoms.ts',
 				'src/pack-files.ts',
 				'src/pack-schema.ts',
+				'src/panel-validate.ts',
+				'src/panel-walk.ts',
 				'src/pattern-schema.ts',
 				'src/patterns.ts',
 				'src/png.ts',
