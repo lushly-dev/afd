@@ -1,4 +1,12 @@
-import { FASTElement, Updates, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+  Updates,
+} from "@lushly-dev/fast-element";
 
 import { violetActionTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -153,15 +161,15 @@ const template = html<VioletButton>`
     <button
         class="control"
         part="control"
-        type="${x => x.type}"
-        data-appearance="${x => x.appearance}"
-        ?disabled="${x => x.disabled}"
-        aria-label="${x => x.ariaLabel || null}"
-        aria-description="${x => x.ariaDescription || null}"
-        aria-expanded="${x => x.ariaExpanded}"
-        aria-haspopup="${x => x.ariaHasPopup}"
-        aria-keyshortcuts="${x => x.ariaKeyShortcuts}"
-        aria-pressed="${x => x.ariaPressed}"
+        type="${(x) => x.type}"
+        data-appearance="${(x) => x.appearance}"
+        ?disabled="${(x) => x.disabled}"
+        aria-label="${(x) => x.ariaLabel || null}"
+        aria-description="${(x) => x.ariaDescription || null}"
+        aria-expanded="${(x) => x.ariaExpanded}"
+        aria-haspopup="${(x) => x.ariaHasPopup}"
+        aria-keyshortcuts="${(x) => x.ariaKeyShortcuts}"
+        aria-pressed="${(x) => x.ariaPressed}"
     >
         <slot name="before" part="before"></slot>
         <span class="label" part="label"><slot></slot></span>
@@ -171,19 +179,22 @@ const template = html<VioletButton>`
 
 /** The id-list attributes the button forwards, and the inner button's element-reference property for each. */
 const REFERENCES = {
-    "aria-labelledby": "ariaLabelledby",
-    "aria-describedby": "ariaDescribedby",
-    "aria-errormessage": "ariaErrormessage",
-    "aria-controls": "ariaControls",
+  "aria-labelledby": "ariaLabelledby",
+  "aria-describedby": "ariaDescribedby",
+  "aria-errormessage": "ariaErrormessage",
+  "aria-controls": "ariaControls",
 } as const;
 const REFERENCE_DOM_PROPERTIES = {
-    "aria-labelledby": "ariaLabelledByElements",
-    "aria-describedby": "ariaDescribedByElements",
-    "aria-errormessage": "ariaErrorMessageElements",
-    "aria-controls": "ariaControlsElements",
+  "aria-labelledby": "ariaLabelledByElements",
+  "aria-describedby": "ariaDescribedByElements",
+  "aria-errormessage": "ariaErrorMessageElements",
+  "aria-controls": "ariaControlsElements",
 } as const;
 type ReferenceAttribute = keyof typeof REFERENCES;
-type ElementReferences = Record<(typeof REFERENCE_DOM_PROPERTIES)[ReferenceAttribute], Element[] | null>;
+type ElementReferences = Record<
+  (typeof REFERENCE_DOM_PROPERTIES)[ReferenceAttribute],
+  Element[] | null
+>;
 
 /**
  * Violet reusable button primitive.
@@ -198,162 +209,167 @@ type ElementReferences = Record<(typeof REFERENCE_DOM_PROPERTIES)[ReferenceAttri
  * @csspart after - Trailing slot wrapper.
  */
 export class VioletButton extends FASTElement {
-    /**
-     * Visual emphasis variant for the button. `quiet` and `transparent` render the same, as text
-     * until the pointer is on it; `transparent` is kept for existing markup.
-     */
-    declare public appearance: VioletButtonAppearance;
+  /**
+   * Visual emphasis variant for the button. `quiet` and `transparent` render the same, as text
+   * until the pointer is on it; `transparent` is kept for existing markup.
+   */
+  declare public appearance: VioletButtonAppearance;
 
-    /**
-     * Native button type forwarded to the internal control.
-     */
-    declare public type: "button" | "submit" | "reset";
+  /**
+   * Native button type forwarded to the internal control.
+   */
+  declare public type: "button" | "submit" | "reset";
 
-    /**
-     * Disables the button.
-     */
-    declare public disabled: boolean;
+  /**
+   * Disables the button.
+   */
+  declare public disabled: boolean;
 
-    /**
-     * Optional accessible name override forwarded to the inner button.
-     */
-    declare public ariaLabel: string;
+  /**
+   * Optional accessible name override forwarded to the inner button.
+   */
+  declare public ariaLabel: string;
 
-    /**
-     * Ids of the elements that label the button, in the host's tree. The inner button gets them as
-     * element references, because ids do not resolve across a shadow root.
-     */
-    declare public ariaLabelledby: string | null;
+  /**
+   * Ids of the elements that label the button, in the host's tree. The inner button gets them as
+   * element references, because ids do not resolve across a shadow root.
+   */
+  declare public ariaLabelledby: string | null;
 
-    /**
-     * Ids of the elements that describe the button, in the host's tree, forwarded as element references.
-     */
-    declare public ariaDescribedby: string | null;
+  /**
+   * Ids of the elements that describe the button, in the host's tree, forwarded as element references.
+   */
+  declare public ariaDescribedby: string | null;
 
-    /**
-     * Id of the element holding the button's error message, in the host's tree, forwarded as an
-     * element reference.
-     */
-    declare public ariaErrormessage: string | null;
+  /**
+   * Id of the element holding the button's error message, in the host's tree, forwarded as an
+   * element reference.
+   */
+  declare public ariaErrormessage: string | null;
 
-    /**
-     * Ids of the elements the button controls, in the host's tree, forwarded as element references.
-     */
-    declare public ariaControls: string | null;
+  /**
+   * Ids of the elements the button controls, in the host's tree, forwarded as element references.
+   */
+  declare public ariaControls: string | null;
 
-    /**
-     * Plain-text description forwarded to the inner button.
-     */
-    declare public ariaDescription: string | null;
+  /**
+   * Plain-text description forwarded to the inner button.
+   */
+  declare public ariaDescription: string | null;
 
-    /**
-     * Optional expanded state forwarded to the inner button.
-     */
-    declare public ariaExpanded: string | null;
+  /**
+   * Optional expanded state forwarded to the inner button.
+   */
+  declare public ariaExpanded: string | null;
 
-    /**
-     * Optional popup type forwarded to the inner button.
-     */
-    declare public ariaHasPopup: string | null;
+  /**
+   * Optional popup type forwarded to the inner button.
+   */
+  declare public ariaHasPopup: string | null;
 
-    /**
-     * Optional keyboard shortcut description forwarded to the inner button.
-     */
-    declare public ariaKeyShortcuts: string | null;
+  /**
+   * Optional keyboard shortcut description forwarded to the inner button.
+   */
+  declare public ariaKeyShortcuts: string | null;
 
-    /**
-     * Optional pressed state ("true", "false" or "mixed") forwarded to the inner button for toggle buttons.
-     */
-    declare public ariaPressed: string | null;
+  /**
+   * Optional pressed state ("true", "false" or "mixed") forwarded to the inner button for toggle buttons.
+   */
+  declare public ariaPressed: string | null;
 
-    public constructor() {
-        super();
-        this.appearance = "primary";
-        this.type = "button";
-        this.disabled = false;
-        this.ariaLabel = "";
+  public constructor() {
+    super();
+    this.appearance = "primary";
+    this.type = "button";
+    this.disabled = false;
+    this.ariaLabel = "";
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    this.#forwardReference("aria-labelledby", this.ariaLabelledby);
+    this.#forwardReference("aria-describedby", this.ariaDescribedby);
+    this.#forwardReference("aria-errormessage", this.ariaErrormessage);
+    this.#forwardReference("aria-controls", this.ariaControls);
+  }
+
+  private ariaLabelledbyChanged(_previous: string | null, next: string | null): void {
+    this.#forwardReference("aria-labelledby", next);
+  }
+
+  private ariaDescribedbyChanged(_previous: string | null, next: string | null): void {
+    this.#forwardReference("aria-describedby", next);
+  }
+
+  private ariaErrormessageChanged(_previous: string | null, next: string | null): void {
+    this.#forwardReference("aria-errormessage", next);
+  }
+
+  private ariaControlsChanged(_previous: string | null, next: string | null): void {
+    this.#forwardReference("aria-controls", next);
+  }
+
+  private ariaExpandedChanged(_previous: string | null, next: string | null): void {
+    this.#forwardAriaAttribute("aria-expanded", next);
+  }
+
+  private ariaHasPopupChanged(_previous: string | null, next: string | null): void {
+    this.#forwardAriaAttribute("aria-haspopup", next);
+  }
+
+  private ariaKeyShortcutsChanged(_previous: string | null, next: string | null): void {
+    this.#forwardAriaAttribute("aria-keyshortcuts", next);
+  }
+
+  private ariaPressedChanged(_previous: string | null, next: string | null): void {
+    this.#forwardAriaAttribute("aria-pressed", next);
+  }
+
+  /**
+   * Sets an id-list attribute's elements on the inner button as element references, found by id
+   * in the tree that holds the host. When a referenced sibling mounts later in the same FAST
+   * render batch, retry once on the next Updates tick.
+   */
+  #forwardReference(
+    name: ReferenceAttribute,
+    value: string | null | undefined,
+    retried = false,
+  ): void {
+    const control = this.shadowRoot?.querySelector("button");
+    if (!control) {
+      return;
     }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        this.#forwardReference("aria-labelledby", this.ariaLabelledby);
-        this.#forwardReference("aria-describedby", this.ariaDescribedby);
-        this.#forwardReference("aria-errormessage", this.ariaErrormessage);
-        this.#forwardReference("aria-controls", this.ariaControls);
-    }
+    const root = this.getRootNode();
+    const ids = (value ?? "").split(/\s+/).filter(Boolean);
+    const elements =
+      root instanceof Document || root instanceof ShadowRoot
+        ? ids.map((id) => root.getElementById(id)).filter((element) => element !== null)
+        : [];
+    (control as unknown as ElementReferences)[REFERENCE_DOM_PROPERTIES[name]] =
+      elements.length > 0 ? elements : null;
 
-    private ariaLabelledbyChanged(_previous: string | null, next: string | null): void {
-        this.#forwardReference("aria-labelledby", next);
-    }
-
-    private ariaDescribedbyChanged(_previous: string | null, next: string | null): void {
-        this.#forwardReference("aria-describedby", next);
-    }
-
-    private ariaErrormessageChanged(_previous: string | null, next: string | null): void {
-        this.#forwardReference("aria-errormessage", next);
-    }
-
-    private ariaControlsChanged(_previous: string | null, next: string | null): void {
-        this.#forwardReference("aria-controls", next);
-    }
-
-    private ariaExpandedChanged(_previous: string | null, next: string | null): void {
-        this.#forwardAriaAttribute("aria-expanded", next);
-    }
-
-    private ariaHasPopupChanged(_previous: string | null, next: string | null): void {
-        this.#forwardAriaAttribute("aria-haspopup", next);
-    }
-
-    private ariaKeyShortcutsChanged(_previous: string | null, next: string | null): void {
-        this.#forwardAriaAttribute("aria-keyshortcuts", next);
-    }
-
-    private ariaPressedChanged(_previous: string | null, next: string | null): void {
-        this.#forwardAriaAttribute("aria-pressed", next);
-    }
-
-    /**
-     * Sets an id-list attribute's elements on the inner button as element references, found by id
-     * in the tree that holds the host. When a referenced sibling mounts later in the same FAST
-     * render batch, retry once on the next Updates tick.
-     */
-    #forwardReference(name: ReferenceAttribute, value: string | null | undefined, retried = false): void {
-        const control = this.shadowRoot?.querySelector("button");
-        if (!control) {
-            return;
+    if (!retried && elements.length < ids.length) {
+      Updates.enqueue(() => {
+        if (this[REFERENCES[name]] === value) {
+          this.#forwardReference(name, value, true);
         }
+      });
+    }
+  }
 
-        const root = this.getRootNode();
-        const ids = (value ?? "").split(/\s+/).filter(Boolean);
-        const elements =
-            root instanceof Document || root instanceof ShadowRoot
-                ? ids.map(id => root.getElementById(id)).filter(element => element !== null)
-                : [];
-        (control as unknown as ElementReferences)[REFERENCE_DOM_PROPERTIES[name]] = elements.length > 0 ? elements : null;
-
-        if (!retried && elements.length < ids.length) {
-            Updates.enqueue(() => {
-                if (this[REFERENCES[name]] === value) {
-                    this.#forwardReference(name, value, true);
-                }
-            });
-        }
+  #forwardAriaAttribute(name: string, value: string | null | undefined): void {
+    const control = this.shadowRoot?.querySelector("button");
+    if (!control) {
+      return;
     }
 
-    #forwardAriaAttribute(name: string, value: string | null | undefined): void {
-        const control = this.shadowRoot?.querySelector("button");
-        if (!control) {
-            return;
-        }
-
-        if (value == null) {
-            control.removeAttribute(name);
-        } else {
-            control.setAttribute(name, value);
-        }
+    if (value == null) {
+      control.removeAttribute(name);
+    } else {
+      control.setAttribute(name, value);
     }
+  }
 }
 
 attr(VioletButton.prototype, "appearance");
@@ -372,10 +388,10 @@ attr({ attribute: "aria-pressed" })(VioletButton.prototype, "ariaPressed");
 
 /** The FAST definition of `<violet-button>`; `defineVioletButton` in `./violet-button.define` registers it. */
 export const violetButtonDefinition = {
-    name: "violet-button",
-    template,
-    styles,
-    shadowOptions: {
-        delegatesFocus: true,
-    },
+  name: "violet-button",
+  template,
+  styles,
+  shadowOptions: {
+    delegatesFocus: true,
+  },
 } satisfies PartialFASTElementDefinition;

@@ -1,7 +1,12 @@
-import { FASTElement, attr, css, html, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
-
-import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 import { registerSystemChevronRightIcon } from "../icon/generated/icons/system-chevron-right";
+import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
 const styles = css`
     ${violetSurfaceTokenDefaults}
@@ -119,12 +124,12 @@ const template = html<VioletReasoningBlock>`
             class="toggle"
             part="toggle"
             type="button"
-            aria-expanded="${x => String(x.expanded)}"
+            aria-expanded="${(x) => String(x.expanded)}"
             aria-controls="reasoning-content"
-            @click="${x => x.toggleExpanded()}"
+            @click="${(x) => x.toggleExpanded()}"
         >
             <span class="chevron"><violet-icon icon="system/chevron-right" decorative></violet-icon></span>
-            ${x => x.label}
+            ${(x) => x.label}
             <span class="streaming-indicator" aria-hidden="true"></span>
         </button>
         <div
@@ -132,7 +137,7 @@ const template = html<VioletReasoningBlock>`
             part="content"
             id="reasoning-content"
             role="region"
-            ?hidden="${x => !x.expanded}"
+            ?hidden="${(x) => !x.expanded}"
         >
             <slot></slot>
         </div>
@@ -151,25 +156,25 @@ const template = html<VioletReasoningBlock>`
  * @csspart content - The collapsible content region.
  */
 export class VioletReasoningBlock extends FASTElement {
-    declare public expanded: boolean;
-    declare public state: string;
-    declare public label: string;
+  declare public expanded: boolean;
+  declare public state: string;
+  declare public label: string;
 
-    public constructor() {
-        super();
-        this.expanded = false;
-        this.state = "done";
-        this.label = "Thinking";
-    }
+  public constructor() {
+    super();
+    this.expanded = false;
+    this.state = "done";
+    this.label = "Thinking";
+  }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        registerSystemChevronRightIcon();
-    }
+  public connectedCallback(): void {
+    super.connectedCallback();
+    registerSystemChevronRightIcon();
+  }
 
-    public toggleExpanded(): void {
-        this.expanded = !this.expanded;
-    }
+  public toggleExpanded(): void {
+    this.expanded = !this.expanded;
+  }
 }
 
 export type VioletReasoningState = "streaming" | "done";
@@ -180,7 +185,7 @@ attr(VioletReasoningBlock.prototype, "label");
 
 /** The FAST definition of `<violet-reasoning-block>`; `defineVioletReasoningBlock` in `./violet-reasoning-block.define` registers it. */
 export const violetReasoningBlockDefinition = {
-    name: "violet-reasoning-block",
-    template,
-    styles,
+  name: "violet-reasoning-block",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

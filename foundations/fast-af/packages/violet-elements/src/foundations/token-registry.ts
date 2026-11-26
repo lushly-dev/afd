@@ -113,7 +113,7 @@ function readRegistry(text: string): VioletTokenRegistry {
           presets: Object.fromEntries(
             Object.entries(themeExport.presets).map(([preset, presetTokens]) => [
               preset,
-              presetTokens.find(token => token.id === id)?.value ?? value,
+              presetTokens.find((token) => token.id === id)?.value ?? value,
             ]),
           ),
           metadata: {
@@ -124,7 +124,10 @@ function readRegistry(text: string): VioletTokenRegistry {
         },
       };
     })
-    .sort((left, right) => familyIndex(left.token.id) - familyIndex(right.token.id) || left.order - right.order)
+    .sort(
+      (left, right) =>
+        familyIndex(left.token.id) - familyIndex(right.token.id) || left.order - right.order,
+    )
     .map(({ token }) => token);
 
   return {
@@ -140,7 +143,7 @@ function titleCase(segment: string): string {
   return segment
     .split(/[-.]/g)
     .filter(Boolean)
-    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 }
 
@@ -191,7 +194,10 @@ function groupIdForToken(token: VioletRegistryToken): string {
 }
 
 const groupDescriptions = new Map<string, string>([
-  ["target-scale", "Base control target sizes used for adaptive density across fine and coarse input modes."],
+  [
+    "target-scale",
+    "Base control target sizes used for adaptive density across fine and coarse input modes.",
+  ],
   ["font-weight", "Base weight values that semantic text styles reference."],
   ["surface", "Canvas and container surfaces that define depth and hierarchy."],
   ["text", "Readable foreground values for content, metadata, and lower-emphasis copy."],
@@ -220,7 +226,7 @@ export const violetTokenGroups: VioletTokenGroup[] = Array.from(
     existing.tokens.push(token);
     map.set(groupId, existing);
     return map;
-  }, new Map<string, VioletTokenGroup>())
+  }, new Map<string, VioletTokenGroup>()),
 ).map(([, group]) => group);
 
 /** The custom property the theme sheet sets for a token id: `violetTokenProperty`'s name. */
@@ -241,7 +247,9 @@ export function tokenValueToCssValue(value: VioletTokenValue): string {
 }
 
 export function buildRegistryCssVars(tokens: VioletRegistryToken[]): string {
-  return tokens.map(token => `${tokenIdToCssVar(token.id)}: ${tokenValueToCssValue(token.value)};`).join("\n");
+  return tokens
+    .map((token) => `${tokenIdToCssVar(token.id)}: ${tokenValueToCssValue(token.value)};`)
+    .join("\n");
 }
 
 export function isColorToken(token: VioletRegistryToken): boolean {

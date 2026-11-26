@@ -280,11 +280,7 @@
       "id": "field.value-attribute",
       "text": "The value attribute is the initial value and the form-reset default. Typing and writes to the value property are not reflected back to the attribute; read the property.",
       "appliesTo": {
-        "tags": [
-          "violet-combobox",
-          "violet-text-area",
-          "violet-text-field"
-        ]
+        "tags": ["violet-combobox", "violet-text-area", "violet-text-field"]
       }
     },
     {
@@ -387,54 +383,35 @@
       "id": "toggle.label",
       "text": "The default slot is the visible label and the accessible name. When there is no slot text, as with the inline attribute in a table cell, set aria-label on the host.",
       "appliesTo": {
-        "tags": [
-          "violet-checkbox",
-          "violet-radio",
-          "violet-switch"
-        ]
+        "tags": ["violet-checkbox", "violet-radio", "violet-switch"]
       }
     },
     {
       "id": "toggle.form-value",
       "text": "The checked attribute reflects the live state. The form receives the value attribute (default \"on\") under name only while checked. The change event fires on user toggles only, with detail.checked.",
       "appliesTo": {
-        "tags": [
-          "violet-checkbox",
-          "violet-switch"
-        ]
+        "tags": ["violet-checkbox", "violet-switch"]
       }
     },
     {
       "id": "options.children",
       "text": "Choices are violet-option descendants, optionally wrapped in violet-option-group. The parent rewrites the selected attribute of every option; choose through the parent's value, or mark one option selected initially.",
       "appliesTo": {
-        "tags": [
-          "violet-combobox",
-          "violet-listbox",
-          "violet-select"
-        ]
+        "tags": ["violet-combobox", "violet-listbox", "violet-select"]
       }
     },
     {
       "id": "overlay.anchor",
       "text": "The anchor attribute is the id of an element outside the component, resolved with document.getElementById when the component connects or the attribute changes. That element must already exist and must not be inside a shadow root.",
       "appliesTo": {
-        "tags": [
-          "violet-popover",
-          "violet-teaching-tip",
-          "violet-tooltip"
-        ]
+        "tags": ["violet-popover", "violet-teaching-tip", "violet-tooltip"]
       }
     },
     {
       "id": "overlay.positioning",
       "text": "The positioning attribute is above, below, before or after; before and after are the physical left and right of the anchor. It flips to the opposite side when there is no room.",
       "appliesTo": {
-        "tags": [
-          "violet-popover",
-          "violet-teaching-tip",
-          "violet-tooltip"
-        ]
+        "tags": ["violet-popover", "violet-teaching-tip", "violet-tooltip"]
       }
     },
     {
@@ -457,21 +434,14 @@
       "id": "message.announcement",
       "text": "The announcement attribute controls the live region: polite gives role status, assertive gives role alert, off gives none. The tone attribute is visual only and does not change it.",
       "appliesTo": {
-        "tags": [
-          "violet-alert",
-          "violet-snackbar",
-          "violet-toast"
-        ]
+        "tags": ["violet-alert", "violet-snackbar", "violet-toast"]
       }
     },
     {
       "id": "message.tone",
       "text": "The tone attribute is default, info, success, warning or danger. Success, warning and danger show a built-in leading icon; content in the icon slot replaces it.",
       "appliesTo": {
-        "tags": [
-          "violet-alert",
-          "violet-toast"
-        ]
+        "tags": ["violet-alert", "violet-toast"]
       }
     },
     {

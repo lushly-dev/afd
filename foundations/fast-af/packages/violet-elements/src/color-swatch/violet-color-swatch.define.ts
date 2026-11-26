@@ -7,8 +7,10 @@ import { VioletColorSwatch, violetColorSwatchDefinition } from "./violet-color-s
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletColorSwatch(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletElement(VioletColorSwatch, violetColorSwatchDefinition, registry);
+export async function defineVioletColorSwatch(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletElement(VioletColorSwatch, violetColorSwatchDefinition, registry);
 }
 
 await defineVioletColorSwatch();

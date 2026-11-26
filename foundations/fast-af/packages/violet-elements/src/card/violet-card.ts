@@ -1,4 +1,11 @@
-import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -137,14 +144,14 @@ const styles = css`
 
 const template = html<VioletCard>`
     <div class="root" part="root">
-        <div class="header" part="header" ?hidden="${x => !x.hasHeader}">
-            <slot name="header" @slotchange="${x => x.handleHeaderSlotChange()}"></slot>
+        <div class="header" part="header" ?hidden="${(x) => !x.hasHeader}">
+            <slot name="header" @slotchange="${(x) => x.handleHeaderSlotChange()}"></slot>
         </div>
         <div class="body" part="body">
             <slot></slot>
         </div>
-        <div class="footer" part="footer" ?hidden="${x => !x.hasFooter}">
-            <slot name="footer" @slotchange="${x => x.handleFooterSlotChange()}"></slot>
+        <div class="footer" part="footer" ?hidden="${(x) => !x.hasFooter}">
+            <slot name="footer" @slotchange="${(x) => x.handleFooterSlotChange()}"></slot>
         </div>
     </div>
 `;
@@ -162,85 +169,89 @@ const template = html<VioletCard>`
  * @csspart footer - Footer section wrapper.
  */
 export class VioletCard extends FASTElement {
-    @observable
-    declare public hasHeader: boolean;
+  @observable
+  declare public hasHeader: boolean;
 
-    @observable
-    declare public hasFooter: boolean;
+  @observable
+  declare public hasFooter: boolean;
 
-    declare public padding: string;
-    declare public appearance: string;
-    declare public interactive: boolean;
-    declare public orientation: string;
+  declare public padding: string;
+  declare public appearance: string;
+  declare public interactive: boolean;
+  declare public orientation: string;
 
-    public constructor() {
-        super();
-        this.hasHeader = false;
-        this.hasFooter = false;
-        this.padding = "none";
-        this.appearance = "filled";
-        this.interactive = false;
-        this.orientation = "vertical";
+  public constructor() {
+    super();
+    this.hasHeader = false;
+    this.hasFooter = false;
+    this.padding = "none";
+    this.appearance = "filled";
+    this.interactive = false;
+    this.orientation = "vertical";
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    this.handleHeaderSlotChange();
+    this.handleFooterSlotChange();
+    this.#syncInteractiveState();
+  }
+
+  public interactiveChanged(): void {
+    if (this.$fastController.isConnected) {
+      this.#syncInteractiveState();
     }
+  }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        this.handleHeaderSlotChange();
-        this.handleFooterSlotChange();
-        this.#syncInteractiveState();
-    }
-
-    public interactiveChanged(): void {
-        if (this.$fastController.isConnected) {
-            this.#syncInteractiveState();
+  public handleHeaderSlotChange(): void {
+    const slot = this.shadowRoot?.querySelector('slot[name="header"]') as HTMLSlotElement | null;
+    this.hasHeader =
+      Boolean(this.querySelector('[slot="header"]')) ||
+      (slot?.assignedNodes({ flatten: true }) ?? []).some((node) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          return Boolean(node.textContent?.trim());
         }
+        return true;
+      });
+    const header = this.shadowRoot?.querySelector(".header") as HTMLElement | null;
+    if (header) {
+      header.hidden = !this.hasHeader;
     }
+  }
 
-    public handleHeaderSlotChange(): void {
-        const slot = this.shadowRoot?.querySelector('slot[name="header"]') as HTMLSlotElement | null;
-        this.hasHeader = Boolean(this.querySelector('[slot="header"]')) || (slot?.assignedNodes({ flatten: true }) ?? []).some(node => {
-            if (node.nodeType === Node.TEXT_NODE) {
-                return Boolean(node.textContent?.trim());
-            }
-            return true;
-        });
-        const header = this.shadowRoot?.querySelector(".header") as HTMLElement | null;
-        if (header) {
-            header.hidden = !this.hasHeader;
+  public handleFooterSlotChange(): void {
+    const slot = this.shadowRoot?.querySelector('slot[name="footer"]') as HTMLSlotElement | null;
+    this.hasFooter =
+      Boolean(this.querySelector('[slot="footer"]')) ||
+      (slot?.assignedNodes({ flatten: true }) ?? []).some((node) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          return Boolean(node.textContent?.trim());
         }
+        return true;
+      });
+    const footer = this.shadowRoot?.querySelector(".footer") as HTMLElement | null;
+    if (footer) {
+      footer.hidden = !this.hasFooter;
     }
+  }
 
-    public handleFooterSlotChange(): void {
-        const slot = this.shadowRoot?.querySelector('slot[name="footer"]') as HTMLSlotElement | null;
-        this.hasFooter = Boolean(this.querySelector('[slot="footer"]')) || (slot?.assignedNodes({ flatten: true }) ?? []).some(node => {
-            if (node.nodeType === Node.TEXT_NODE) {
-                return Boolean(node.textContent?.trim());
-            }
-            return true;
-        });
-        const footer = this.shadowRoot?.querySelector(".footer") as HTMLElement | null;
-        if (footer) {
-            footer.hidden = !this.hasFooter;
-        }
+  #syncInteractiveState(): void {
+    if (this.interactive) {
+      if (!this.hasAttribute("tabindex")) {
+        this.setAttribute("tabindex", "0");
+      }
+      if (!this.hasAttribute("role")) {
+        this.setAttribute("role", "group");
+      }
+    } else {
+      if (this.getAttribute("tabindex") === "0") {
+        this.removeAttribute("tabindex");
+      }
+      if (this.getAttribute("role") === "group") {
+        this.removeAttribute("role");
+      }
     }
-
-    #syncInteractiveState(): void {
-        if (this.interactive) {
-            if (!this.hasAttribute("tabindex")) {
-                this.setAttribute("tabindex", "0");
-            }
-            if (!this.hasAttribute("role")) {
-                this.setAttribute("role", "group");
-            }
-        } else {
-            if (this.getAttribute("tabindex") === "0") {
-                this.removeAttribute("tabindex");
-            }
-            if (this.getAttribute("role") === "group") {
-                this.removeAttribute("role");
-            }
-        }
-    }
+  }
 }
 
 export type VioletCardPadding = "none" | "small" | "medium" | "large";
@@ -254,10 +265,10 @@ attr(VioletCard.prototype, "orientation");
 
 /** The FAST definition of `<violet-card>`; `defineVioletCard` in `./violet-card.define` registers it. */
 export const violetCardDefinition = {
-    name: "violet-card",
-    template,
-    styles,
-    shadowOptions: {
-        delegatesFocus: true,
-    },
+  name: "violet-card",
+  template,
+  styles,
+  shadowOptions: {
+    delegatesFocus: true,
+  },
 } satisfies PartialFASTElementDefinition;

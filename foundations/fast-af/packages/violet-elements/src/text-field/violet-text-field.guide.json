@@ -20,16 +20,12 @@
     {
       "id": "text-field.commit",
       "text": "The change event fires when the native input commits: on blur after an edit, or on Enter.",
-      "members": [
-        "change"
-      ]
+      "members": ["change"]
     },
     {
       "id": "text-field.before",
       "text": "The before slot holds leading inline content such as a search icon; mark an icon there decorative so it is not read.",
-      "members": [
-        "before"
-      ]
+      "members": ["before"]
     }
   ],
   "a11y": [

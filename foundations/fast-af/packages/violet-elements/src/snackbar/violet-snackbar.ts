@@ -1,7 +1,13 @@
-import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
-
-import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 import { registerSystemCloseIcon } from "../icon/generated/icons/system-close";
+import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
 const styles = css`
     ${violetSurfaceTokenDefaults}
@@ -162,22 +168,22 @@ const template = html<VioletSnackbar>`
                 <div
                     class="message-copy"
                     part="message-copy"
-                    role="${x => x.liveRegionRole || null}"
-                    aria-live="${x => x.liveRegionPoliteness || null}"
+                    role="${(x) => x.liveRegionRole || null}"
+                    aria-live="${(x) => x.liveRegionPoliteness || null}"
                 >
                     <slot></slot>
                 </div>
             </div>
-            <div class="action" part="action" ?hidden="${x => !x.hasAction}">
-                <slot name="action" @slotchange="${x => x.handleActionSlotChange()}"></slot>
+            <div class="action" part="action" ?hidden="${(x) => !x.hasAction}">
+                <slot name="action" @slotchange="${(x) => x.handleActionSlotChange()}"></slot>
             </div>
             <violet-icon-button
                 class="dismiss"
                 part="dismiss-button"
                 appearance="transparent"
                 label="Dismiss message"
-                ?hidden="${x => !x.dismissible}"
-                @click="${x => x.dismiss("dismiss-button")}"
+                ?hidden="${(x) => !x.dismissible}"
+                @click="${(x) => x.dismiss("dismiss-button")}"
             >
                 <violet-icon icon="system/close" decorative></violet-icon>
             </violet-icon-button>
@@ -200,132 +206,138 @@ const template = html<VioletSnackbar>`
  * @csspart dismiss-button - Optional dismiss button.
  */
 export class VioletSnackbar extends FASTElement {
-    @observable
-    declare public hasAction: boolean;
+  @observable
+  declare public hasAction: boolean;
 
-    declare public open: boolean;
-    declare public tone: string;
-    declare public announcement: string;
-    declare public dismissible: boolean;
-    declare public timeout: string;
+  declare public open: boolean;
+  declare public tone: string;
+  declare public announcement: string;
+  declare public dismissible: boolean;
+  declare public timeout: string;
 
-    #timeoutHandle: number | null = null;
+  #timeoutHandle: number | null = null;
 
-    public constructor() {
-        super();
-        this.hasAction = false;
-        this.open = false;
-        this.tone = "default";
-        this.announcement = "polite";
-        this.dismissible = false;
-        this.timeout = "6000";
+  public constructor() {
+    super();
+    this.hasAction = false;
+    this.open = false;
+    this.tone = "default";
+    this.announcement = "polite";
+    this.dismissible = false;
+    this.timeout = "6000";
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    registerSystemCloseIcon();
+    this.handleActionSlotChange();
+    this.#syncTimeout();
+  }
+
+  public disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.#clearTimeout();
+  }
+
+  public openChanged(previous: boolean | undefined, next: boolean): void {
+    if (!this.$fastController.isConnected || previous === next) {
+      return;
     }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        registerSystemCloseIcon();
-        this.handleActionSlotChange();
-        this.#syncTimeout();
+    this.#syncTimeout();
+    this.$emit("open-change", { open: next });
+  }
+
+  public timeoutChanged(): void {
+    if (this.$fastController.isConnected) {
+      this.#syncTimeout();
+    }
+  }
+
+  public handleActionSlotChange(): void {
+    this.hasAction = this.#slotHasContent('slot[name="action"]');
+    const action = this.shadowRoot?.querySelector(".action") as HTMLElement | null;
+    if (action) {
+      action.hidden = !this.hasAction;
+    }
+    if (this.$fastController.isConnected) {
+      this.#syncTimeout();
+    }
+  }
+
+  public dismiss(reason: "timeout" | "dismiss-button"): void {
+    if (!this.open) {
+      return;
     }
 
-    public disconnectedCallback(): void {
-        super.disconnectedCallback();
-        this.#clearTimeout();
+    this.#clearTimeout();
+    this.open = false;
+    this.$emit("dismiss", { reason });
+  }
+
+  public get liveRegionRole(): "alert" | "status" | null {
+    if (this.announcement === "assertive") {
+      return "alert";
     }
 
-    public openChanged(previous: boolean | undefined, next: boolean): void {
-        if (!this.$fastController.isConnected || previous === next) {
-            return;
-        }
-
-        this.#syncTimeout();
-        this.$emit("open-change", { open: next });
+    if (this.announcement === "polite") {
+      return "status";
     }
 
-    public timeoutChanged(): void {
-        if (this.$fastController.isConnected) {
-            this.#syncTimeout();
-        }
+    return null;
+  }
+
+  public get liveRegionPoliteness(): "assertive" | "polite" | null {
+    if (this.announcement === "assertive") {
+      return "assertive";
     }
 
-    public handleActionSlotChange(): void {
-        this.hasAction = this.#slotHasContent('slot[name="action"]');
-        const action = this.shadowRoot?.querySelector(".action") as HTMLElement | null;
-        if (action) {
-            action.hidden = !this.hasAction;
-        }
-        if (this.$fastController.isConnected) {
-            this.#syncTimeout();
-        }
+    if (this.announcement === "polite") {
+      return "polite";
     }
 
-    public dismiss(reason: "timeout" | "dismiss-button"): void {
-        if (!this.open) {
-            return;
-        }
+    return null;
+  }
 
-        this.#clearTimeout();
-        this.open = false;
-        this.$emit("dismiss", { reason });
+  #syncTimeout(): void {
+    this.#clearTimeout();
+
+    const timeout = Number.parseInt(this.timeout, 10);
+    if (
+      !this.open ||
+      this.hasAction ||
+      this.dismissible ||
+      !Number.isFinite(timeout) ||
+      timeout <= 0
+    ) {
+      return;
     }
 
-    public get liveRegionRole(): "alert" | "status" | null {
-        if (this.announcement === "assertive") {
-            return "alert";
-        }
+    this.#timeoutHandle = window.setTimeout(() => {
+      this.dismiss("timeout");
+    }, timeout);
+  }
 
-        if (this.announcement === "polite") {
-            return "status";
-        }
-
-        return null;
+  #clearTimeout(): void {
+    if (this.#timeoutHandle !== null) {
+      window.clearTimeout(this.#timeoutHandle);
+      this.#timeoutHandle = null;
     }
+  }
 
-    public get liveRegionPoliteness(): "assertive" | "polite" | null {
-        if (this.announcement === "assertive") {
-            return "assertive";
-        }
-
-        if (this.announcement === "polite") {
-            return "polite";
-        }
-
-        return null;
+  #slotHasContent(selector: string): boolean {
+    const slot = this.shadowRoot?.querySelector(selector) as HTMLSlotElement | null;
+    const slotName = slot?.name;
+    if (slotName && this.querySelector(`[slot="${slotName}"]`)) {
+      return true;
     }
-
-    #syncTimeout(): void {
-        this.#clearTimeout();
-
-        const timeout = Number.parseInt(this.timeout, 10);
-        if (!this.open || this.hasAction || this.dismissible || !Number.isFinite(timeout) || timeout <= 0) {
-            return;
-        }
-
-        this.#timeoutHandle = window.setTimeout(() => {
-            this.dismiss("timeout");
-        }, timeout);
-    }
-
-    #clearTimeout(): void {
-        if (this.#timeoutHandle !== null) {
-            window.clearTimeout(this.#timeoutHandle);
-            this.#timeoutHandle = null;
-        }
-    }
-
-    #slotHasContent(selector: string): boolean {
-        const slot = this.shadowRoot?.querySelector(selector) as HTMLSlotElement | null;
-        const slotName = slot?.name;
-        if (slotName && this.querySelector(`[slot="${slotName}"]`)) {
-            return true;
-        }
-        return (slot?.assignedNodes({ flatten: true }) ?? []).some(node => {
-            if (node.nodeType === Node.TEXT_NODE) {
-                return Boolean(node.textContent?.trim());
-            }
-            return true;
-        });
-    }
+    return (slot?.assignedNodes({ flatten: true }) ?? []).some((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return Boolean(node.textContent?.trim());
+      }
+      return true;
+    });
+  }
 }
 
 export type VioletSnackbarTone = "default" | "info" | "success" | "warning" | "danger";
@@ -339,10 +351,10 @@ attr(VioletSnackbar.prototype, "timeout");
 
 /** The FAST definition of `<violet-snackbar>`; `defineVioletSnackbar` in `./violet-snackbar.define` registers it. */
 export const violetSnackbarDefinition = {
-    name: "violet-snackbar",
-    template,
-    styles,
-    shadowOptions: {
-        delegatesFocus: true,
-    },
+  name: "violet-snackbar",
+  template,
+  styles,
+  shadowOptions: {
+    delegatesFocus: true,
+  },
 } satisfies PartialFASTElementDefinition;

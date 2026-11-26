@@ -7,8 +7,10 @@ import { VioletDataGridRating, violetDataGridRatingDefinition } from "./violet-d
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletDataGridRating(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletElement(VioletDataGridRating, violetDataGridRatingDefinition, registry);
+export async function defineVioletDataGridRating(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletElement(VioletDataGridRating, violetDataGridRatingDefinition, registry);
 }
 
 await defineVioletDataGridRating();

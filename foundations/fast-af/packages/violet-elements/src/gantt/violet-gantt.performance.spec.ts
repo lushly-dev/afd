@@ -1,16 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "./violet-gantt.define";
-import type {
-  VioletGantt,
-  VioletGanttItem,
-  VioletGanttRow,
-} from "./violet-gantt";
+import type { VioletGantt, VioletGanttItem, VioletGanttRow } from "./violet-gantt";
 
 const settle = () =>
   new Promise<void>((resolve) =>
     requestAnimationFrame(() =>
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-    )
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    ),
   );
 
 const rows: VioletGanttRow[] = Array.from({ length: 40 }, (_, index) => ({
@@ -83,12 +79,12 @@ describe("violet-gantt hot path", () => {
     expect(element.renderedRows.length).toBeGreaterThan(8);
     let measurements = 0;
     const original = HTMLElement.prototype.getBoundingClientRect;
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
-      function (this: HTMLElement) {
-        if (this.classList.contains("name-header")) measurements += 1;
-        return original.call(this);
-      }
-    );
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      if (this.classList.contains("name-header")) measurements += 1;
+      return original.call(this);
+    });
 
     const frames = 6;
     for (let step = 1; step <= frames; step += 1) {

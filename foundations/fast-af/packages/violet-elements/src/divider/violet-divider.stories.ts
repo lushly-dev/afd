@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect } from "@lushly-dev/specimen/test";
+import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 
 import "./violet-divider.define";
 import "../text/violet-text.define";
@@ -8,70 +8,70 @@ import type { VioletDivider } from "./violet-divider";
 type Story = StoryObj<VioletDivider>;
 
 const meta: Meta<VioletDivider> = {
-    title: "Components/Divider",
-    component: "violet-divider",
-    tags: ["autodocs"],
-    parameters: {
-        docs: {
-            description: {
-                component:
-                    "Lightweight Violet separator for horizontal and vertical structural boundaries. It can stay semantic by default or become decorative when the split is purely visual.",
-            },
-        },
+  title: "Components/Divider",
+  component: "violet-divider",
+  tags: ["autodocs"],
+  parameters: {
+    docs: {
+      description: {
+        component:
+          "Lightweight Violet separator for horizontal and vertical structural boundaries. It can stay semantic by default or become decorative when the split is purely visual.",
+      },
     },
-    args: {
-        appearance: "subtle",
-        orientation: "horizontal",
-        decorative: false,
+  },
+  args: {
+    appearance: "subtle",
+    orientation: "horizontal",
+    decorative: false,
+  },
+  argTypes: {
+    appearance: {
+      control: "select",
+      options: ["subtle", "strong"],
     },
-    argTypes: {
-        appearance: {
-            control: "select",
-            options: ["subtle", "strong"],
-        },
-        orientation: {
-            control: "select",
-            options: ["horizontal", "vertical"],
-        },
-        decorative: {
-            control: "boolean",
-        },
+    orientation: {
+      control: "select",
+      options: ["horizontal", "vertical"],
     },
-    render: args => {
-        const appearance = args.appearance ?? "subtle";
-        const orientation = args.orientation ?? "horizontal";
-        const decorative = args.decorative ? "decorative" : "";
-        return `<violet-divider appearance="${appearance}" orientation="${orientation}" ${decorative}></violet-divider>`;
+    decorative: {
+      control: "boolean",
     },
+  },
+  render: (args) => {
+    const appearance = args.appearance ?? "subtle";
+    const orientation = args.orientation ?? "horizontal";
+    const decorative = args.decorative ? "decorative" : "";
+    return `<violet-divider appearance="${appearance}" orientation="${orientation}" ${decorative}></violet-divider>`;
+  },
 };
 
 export default meta;
 
 export const Overview: Story = {
-    render: () => `
+  render: () => `
         <div style="display:grid;gap:12px;max-width:32rem;">
             <violet-text variant="label" as="label">Upcoming work</violet-text>
             <violet-divider></violet-divider>
             <violet-text as="p">Prepare spring seed trays, check propagation media, and confirm irrigation schedules.</violet-text>
         </div>
     `,
-    play: async ({ canvasElement }) => {
-        const divider = canvasElement.querySelector("violet-divider");
-        await expect(divider?.getAttribute("orientation")).toBeNull();
-    },
+  play: async ({ canvasElement }) => {
+    const divider = canvasElement.querySelector("violet-divider");
+    await expect(divider?.getAttribute("orientation")).toBeNull();
+  },
 };
 
 export const Strong: Story = {
-    args: {
-        appearance: "strong",
-    },
+  args: {
+    appearance: "strong",
+  },
 };
 
 export const Vertical: Story = {
-    args: {
-        orientation: "vertical",
-    },
-    render: () => `
+  args: {
+    orientation: "vertical",
+  },
+  render: () => `
         <div style="display:flex;align-items:stretch;gap:12px;block-size:3rem;">
             <violet-text>Overview</violet-text>
             <violet-divider orientation="vertical"></violet-divider>
@@ -81,12 +81,12 @@ export const Vertical: Story = {
 };
 
 export const Decorative: Story = {
-    args: {
-        decorative: true,
-    },
-    play: async ({ canvasElement }) => {
-        const divider = canvasElement.querySelector("violet-divider");
-        const hr = divider?.shadowRoot?.querySelector("hr");
-        await expect(hr?.getAttribute("aria-hidden")).toBe("true");
-    },
+  args: {
+    decorative: true,
+  },
+  play: async ({ canvasElement }) => {
+    const divider = canvasElement.querySelector("violet-divider");
+    const hr = divider?.shadowRoot?.querySelector("hr");
+    await expect(hr?.getAttribute("aria-hidden")).toBe("true");
+  },
 };

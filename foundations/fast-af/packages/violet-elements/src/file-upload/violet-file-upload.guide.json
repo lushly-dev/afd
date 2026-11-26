@@ -5,43 +5,27 @@
     {
       "id": "file-upload.form",
       "text": "The form receives one entry per file under name, and nothing without a name; submit it as multipart/form-data. The value property is always empty; read files, an array of File.",
-      "members": [
-        "name",
-        "value",
-        "files"
-      ]
+      "members": ["name", "value", "files"]
     },
     {
       "id": "file-upload.events",
       "text": "input and change carry detail.files, a copy of the File array. Removing a file also fires remove with detail { file, index, files }.",
-      "members": [
-        "input",
-        "change",
-        "remove"
-      ]
+      "members": ["input", "change", "remove"]
     },
     {
       "id": "file-upload.multiple",
       "text": "Without multiple, a new choice replaces the file. With it, each choice or drop adds to the list, skipping duplicates; take files out with removeFileAt(index) or clearFiles().",
-      "members": [
-        "multiple"
-      ]
+      "members": ["multiple"]
     },
     {
       "id": "file-upload.limits",
       "text": "accept, max-files and max-file-size (bytes) are checked on every choice and drop. A failing selection is rejected whole, the current files stay, and the reason is shown as the error.",
-      "members": [
-        "accept",
-        "max-files",
-        "max-file-size"
-      ]
+      "members": ["accept", "max-files", "max-file-size"]
     },
     {
       "id": "file-upload.dropzone",
       "text": "Drag and drop works only with appearance=\"dropzone\", where a click anywhere on the zone also opens the picker. The default appearance=\"button\" is a browse button only.",
-      "members": [
-        "appearance"
-      ]
+      "members": ["appearance"]
     },
     {
       "id": "file-upload.script",
@@ -52,10 +36,7 @@
     {
       "id": "file-upload.name",
       "text": "The browse button is named \"<label>: Browse file\" (\"Browse files\" with multiple, \"Replace file\" once a single file is chosen). The native file input is hidden from assistive technology.",
-      "members": [
-        "label",
-        "multiple"
-      ]
+      "members": ["label", "multiple"]
     },
     {
       "id": "file-upload.status",

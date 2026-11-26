@@ -8,9 +8,11 @@ import { VioletEmptyState, violetEmptyStateDefinition } from "./violet-empty-sta
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletEmptyState(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletText(registry);
-    await defineVioletElement(VioletEmptyState, violetEmptyStateDefinition, registry);
+export async function defineVioletEmptyState(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletText(registry);
+  await defineVioletElement(VioletEmptyState, violetEmptyStateDefinition, registry);
 }
 
 await defineVioletEmptyState();

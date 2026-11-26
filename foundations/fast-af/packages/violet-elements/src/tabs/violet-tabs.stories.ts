@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, waitFor } from "@lushly-dev/specimen/test";
+import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 
 import "../tab-panel/violet-tab-panel.define";
 import type { VioletTabPanel } from "../tab-panel/violet-tab-panel";
@@ -9,82 +9,83 @@ import "./violet-tabs.define";
 import type { VioletTabs, VioletTabsAppearance, VioletTabsOrientation } from "./violet-tabs";
 
 type VioletTabsStoryArgs = {
-    appearance: VioletTabsAppearance;
-    orientation: VioletTabsOrientation;
-    activeid: string;
-    disabled: boolean;
-    label?: string;
+  appearance: VioletTabsAppearance;
+  orientation: VioletTabsOrientation;
+  activeid: string;
+  disabled: boolean;
+  label?: string;
 };
 
 const defaultTabData = [
-    {
-        label: "Overview",
-        body: "Capture the current crop plan, status, and key bed-level metadata.",
-    },
-    {
-        label: "Planting",
-        body: "Track sowing method, transplant timing, and propagation defaults for this block.",
-    },
-    {
-        label: "Irrigation",
-        body: "Configure moisture thresholds, automation windows, and alert routing.",
-    },
+  {
+    label: "Overview",
+    body: "Capture the current crop plan, status, and key bed-level metadata.",
+  },
+  {
+    label: "Planting",
+    body: "Track sowing method, transplant timing, and propagation defaults for this block.",
+  },
+  {
+    label: "Irrigation",
+    body: "Configure moisture thresholds, automation windows, and alert routing.",
+  },
 ];
 
 function renderTabs(args: VioletTabsStoryArgs): HTMLElement {
-    const tabs = document.createElement("violet-tabs") as VioletTabs;
-    tabs.appearance = args.appearance;
-    tabs.orientation = args.orientation;
-    tabs.disabled = args.disabled;
-    if (args.label) {
-        tabs.label = args.label;
-    }
+  const tabs = document.createElement("violet-tabs") as VioletTabs;
+  tabs.appearance = args.appearance;
+  tabs.orientation = args.orientation;
+  tabs.disabled = args.disabled;
+  if (args.label) {
+    tabs.label = args.label;
+  }
 
-    defaultTabData.forEach((entry, index) => {
-        const tab = document.createElement("violet-tab") as VioletTab;
-        tab.textContent = entry.label;
-        tab.disabled = args.disabled ? false : index === 2 && args.orientation === "vertical";
-        tabs.append(tab);
+  defaultTabData.forEach((entry, index) => {
+    const tab = document.createElement("violet-tab") as VioletTab;
+    tab.textContent = entry.label;
+    tab.disabled = args.disabled ? false : index === 2 && args.orientation === "vertical";
+    tabs.append(tab);
 
-        const panel = document.createElement("violet-tab-panel") as VioletTabPanel;
-        panel.innerHTML = `
+    const panel = document.createElement("violet-tab-panel") as VioletTabPanel;
+    panel.innerHTML = `
             <h3 style="margin:0;font:600 1rem/1.2 var(--violet-font-family-heading);">${entry.label}</h3>
             <p style="margin:0;">${entry.body}</p>
         `;
-        tabs.append(panel);
-    });
+    tabs.append(panel);
+  });
 
-    if (args.activeid) {
-        tabs.activeid = args.activeid;
-    }
+  if (args.activeid) {
+    tabs.activeid = args.activeid;
+  }
 
-    return tabs;
+  return tabs;
 }
 
 const meta = {
-    title: "Components/Tabs",
-    component: "violet-tabs",
-    tags: ["autodocs"],
-    parameters: {
-        docs: {
-            description: {
-                component: "Reusable Violet tabs with automatic activation, paired panels, and open, closed, or mixed tabrail presentations.",
-            },
-        },
+  title: "Components/Tabs",
+  component: "violet-tabs",
+  tags: ["autodocs"],
+  parameters: {
+    docs: {
+      description: {
+        component:
+          "Reusable Violet tabs with automatic activation, paired panels, and open, closed, or mixed tabrail presentations.",
+      },
     },
-    argTypes: {
-        appearance: {
-            control: "inline-radio",
-            options: ["open", "closed", "mixed"],
-        },
-        orientation: {
-            control: "inline-radio",
-            options: ["horizontal", "vertical"],
-        },
-        disabled: { control: "boolean" },
-        label: { control: "text" },
+  },
+  argTypes: {
+    appearance: {
+      control: "inline-radio",
+      options: ["open", "closed", "mixed"],
     },
-    render: (args: VioletTabsStoryArgs) => renderTabs(args),
+    orientation: {
+      control: "inline-radio",
+      options: ["horizontal", "vertical"],
+    },
+    disabled: { control: "boolean" },
+    label: { control: "text" },
+  },
+  render: (args: VioletTabsStoryArgs) => renderTabs(args),
 } satisfies Meta<VioletTabsStoryArgs>;
 
 export default meta;
@@ -92,93 +93,97 @@ export default meta;
 type Story = StoryObj<VioletTabsStoryArgs>;
 
 export const Overview: Story = {
-    args: {
-        appearance: "open",
-        orientation: "horizontal",
-        activeid: "",
-        disabled: false,
-    },
-    play: async ({ canvasElement }) => {
-        const tabs = canvasElement.querySelector("violet-tabs") as VioletTabs | null;
-        const tabElements = Array.from(canvasElement.querySelectorAll("violet-tab")) as VioletTab[];
-        const panels = Array.from(canvasElement.querySelectorAll("violet-tab-panel")) as VioletTabPanel[];
+  args: {
+    appearance: "open",
+    orientation: "horizontal",
+    activeid: "",
+    disabled: false,
+  },
+  play: async ({ canvasElement }) => {
+    const tabs = canvasElement.querySelector("violet-tabs") as VioletTabs | null;
+    const tabElements = Array.from(canvasElement.querySelectorAll("violet-tab")) as VioletTab[];
+    const panels = Array.from(
+      canvasElement.querySelectorAll("violet-tab-panel"),
+    ) as VioletTabPanel[];
 
-        if (!tabs || tabElements.length < 2 || panels.length < 2) {
-            throw new Error("Expected violet-tabs to render tab and panel pairs.");
-        }
+    if (!tabs || tabElements.length < 2 || panels.length < 2) {
+      throw new Error("Expected violet-tabs to render tab and panel pairs.");
+    }
 
-        tabElements[0]?.focus();
-        tabElements[0]?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    tabElements[0]?.focus();
+    tabElements[0]?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+    );
 
-        await waitFor(() => {
-            expect(tabs.activeid).toBe(tabElements[1]?.id);
-            expect(tabElements[1]?.getAttribute("aria-selected")).toBe("true");
-            expect(panels[1]?.hidden).toBe(false);
-            expect(panels[0]?.hidden).toBe(true);
-        });
-    },
+    await waitFor(() => {
+      expect(tabs.activeid).toBe(tabElements[1]?.id);
+      expect(tabElements[1]?.getAttribute("aria-selected")).toBe("true");
+      expect(panels[1]?.hidden).toBe(false);
+      expect(panels[0]?.hidden).toBe(true);
+    });
+  },
 };
 
 export const Closed: Story = {
-    args: {
-        appearance: "closed",
-        orientation: "horizontal",
-        activeid: "",
-        disabled: false,
-    },
+  args: {
+    appearance: "closed",
+    orientation: "horizontal",
+    activeid: "",
+    disabled: false,
+  },
 };
 
 export const Mixed: Story = {
-    args: {
-        appearance: "mixed",
-        orientation: "horizontal",
-        activeid: "",
-        disabled: false,
-    },
-    play: async ({ canvasElement }) => {
-        const tabElements = Array.from(canvasElement.querySelectorAll("violet-tab")) as VioletTab[];
-        if (tabElements.length < 2) {
-            throw new Error("Expected mixed violet-tabs to render.");
-        }
+  args: {
+    appearance: "mixed",
+    orientation: "horizontal",
+    activeid: "",
+    disabled: false,
+  },
+  play: async ({ canvasElement }) => {
+    const tabElements = Array.from(canvasElement.querySelectorAll("violet-tab")) as VioletTab[];
+    if (tabElements.length < 2) {
+      throw new Error("Expected mixed violet-tabs to render.");
+    }
 
-        await expect(tabElements[0]?.getAttribute("data-appearance")).toBe("mixed");
-        await expect(tabElements[1]?.getAttribute("data-appearance")).toBe("open");
-    },
+    await expect(tabElements[0]?.getAttribute("data-appearance")).toBe("mixed");
+    await expect(tabElements[1]?.getAttribute("data-appearance")).toBe("open");
+  },
 };
 
 export const Vertical: Story = {
-    args: {
-        appearance: "open",
-        orientation: "vertical",
-        activeid: "",
-        disabled: false,
-    },
+  args: {
+    appearance: "open",
+    orientation: "vertical",
+    activeid: "",
+    disabled: false,
+  },
 };
 
 export const Disabled: Story = {
-    args: {
-        appearance: "closed",
-        orientation: "horizontal",
-        activeid: "",
-        disabled: true,
-    },
+  args: {
+    appearance: "closed",
+    orientation: "horizontal",
+    activeid: "",
+    disabled: true,
+  },
 };
 
 /** Two tab sets on one page need names: label names the tab list, which is in the shadow root. */
 export const Named: Story = {
-    args: {
-        appearance: "open",
-        orientation: "horizontal",
-        activeid: "",
-        disabled: false,
-        label: "Bed record",
-    },
-    play: async ({ canvasElement }) => {
-        const tabs = canvasElement.querySelector("violet-tabs") as VioletTabs | null;
-        const tablist = tabs?.shadowRoot?.querySelector('[role="tablist"]');
+  args: {
+    appearance: "open",
+    orientation: "horizontal",
+    activeid: "",
+    disabled: false,
+    label: "Bed record",
+  },
+  play: async ({ canvasElement }) => {
+    const tabs = canvasElement.querySelector("violet-tabs") as VioletTabs | null;
+    const tablist = tabs?.shadowRoot?.querySelector('[role="tablist"]');
 
-        await waitFor(() => {
-            expect(tablist?.getAttribute("aria-label")).toBe("Bed record");
-        });
-    },
+    await waitFor(() => {
+      expect(tablist?.getAttribute("aria-label")).toBe("Bed record");
+    });
+  },
 };

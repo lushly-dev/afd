@@ -1,8 +1,17 @@
-import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
-
-import { violetFieldTokenDefaults, violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 import type { VioletTab } from "../tab/violet-tab";
 import type { VioletTabPanel } from "../tab-panel/violet-tab-panel";
+import {
+  violetFieldTokenDefaults,
+  violetSurfaceTokenDefaults,
+} from "../theme/violet-token-defaults";
 
 export type VioletTabsAppearance = "open" | "closed" | "mixed";
 export type VioletTabsOrientation = "horizontal" | "vertical";
@@ -109,23 +118,23 @@ const template = html<VioletTabs>`
             class="tablist"
             part="tablist"
             role="tablist"
-            aria-label="${x => x.label || null}"
-            aria-orientation="${x => x.orientation}"
+            aria-label="${(x) => x.label || null}"
+            aria-orientation="${(x) => x.orientation}"
         >
-            <slot name="tab" @slotchange="${x => x.handleTabSlotChange()}"></slot>
+            <slot name="tab" @slotchange="${(x) => x.handleTabSlotChange()}"></slot>
         </div>
     </div>
-    <div class="panel-region" part="panel-region" ?hidden="${x => !x.hasPanels}">
-        <slot name="tabpanel" @slotchange="${x => x.handlePanelSlotChange()}"></slot>
+    <div class="panel-region" part="panel-region" ?hidden="${(x) => !x.hasPanels}">
+        <slot name="tabpanel" @slotchange="${(x) => x.handlePanelSlotChange()}"></slot>
     </div>
 `;
 
 function isVioletTab(element: Element): element is VioletTab {
-    return element.tagName === "VIOLET-TAB";
+  return element.tagName === "VIOLET-TAB";
 }
 
 function isVioletTabPanel(element: Element): element is VioletTabPanel {
-    return element.tagName === "VIOLET-TAB-PANEL";
+  return element.tagName === "VIOLET-TAB-PANEL";
 }
 
 /**
@@ -140,348 +149,351 @@ function isVioletTabPanel(element: Element): element is VioletTabPanel {
  * @csspart panel-region - Wrapper around the active tab panels.
  */
 export class VioletTabs extends FASTElement {
-    @observable
-    declare public tabs: VioletTab[];
+  @observable
+  declare public tabs: VioletTab[];
 
-    @observable
-    declare public panels: VioletTabPanel[];
+  @observable
+  declare public panels: VioletTabPanel[];
 
-    @observable
-    declare public hasPanels: boolean;
+  @observable
+  declare public hasPanels: boolean;
 
-    /**
-     * Visual treatment for the tab rail.
-     */
-    declare public appearance: VioletTabsAppearance;
+  /**
+   * Visual treatment for the tab rail.
+   */
+  declare public appearance: VioletTabsAppearance;
 
-    /**
-     * Disables tab interaction.
-     */
-    declare public disabled: boolean;
+  /**
+   * Disables tab interaction.
+   */
+  declare public disabled: boolean;
 
-    /**
-     * Orientation for the tablist keyboard and layout framing.
-     */
-    declare public orientation: VioletTabsOrientation;
+  /**
+   * Orientation for the tablist keyboard and layout framing.
+   */
+  declare public orientation: VioletTabsOrientation;
 
-    /**
-     * Active tab id.
-     */
-    declare public activeid: string;
+  /**
+   * Active tab id.
+   */
+  declare public activeid: string;
 
-    /**
-     * Accessible name for the tab list, which is inside the shadow root, so the host's aria-label
-     * cannot name it. It is not shown.
-     */
-    declare public label: string;
+  /**
+   * Accessible name for the tab list, which is inside the shadow root, so the host's aria-label
+   * cannot name it. It is not shown.
+   */
+  declare public label: string;
 
-    public activetab: VioletTab | null;
+  public activetab: VioletTab | null;
 
-    readonly #handleTabClick = (event: Event): void => {
-        if (this.disabled) {
-            return;
+  readonly #handleTabClick = (event: Event): void => {
+    if (this.disabled) {
+      return;
+    }
+
+    const tab = event.currentTarget as VioletTab | null;
+    if (!tab || this.#isTabDisabled(tab)) {
+      return;
+    }
+
+    tab.focus();
+    this.activeid = tab.id;
+  };
+
+  readonly #handleTabKeydown = (event: Event): void => {
+    if (this.disabled) {
+      return;
+    }
+
+    const keyboardEvent = event as KeyboardEvent;
+    const currentTab = keyboardEvent.currentTarget as VioletTab | null;
+    if (!currentTab || this.#isTabDisabled(currentTab)) {
+      return;
+    }
+
+    switch (keyboardEvent.key) {
+      case "ArrowLeft":
+        if (this.orientation === "horizontal") {
+          keyboardEvent.preventDefault();
+          this.#moveSelection(this.#isRtl() ? 1 : -1);
         }
-
-        const tab = event.currentTarget as VioletTab | null;
-        if (!tab || this.#isTabDisabled(tab)) {
-            return;
+        break;
+      case "ArrowRight":
+        if (this.orientation === "horizontal") {
+          keyboardEvent.preventDefault();
+          this.#moveSelection(this.#isRtl() ? -1 : 1);
         }
-
-        tab.focus();
-        this.activeid = tab.id;
-    };
-
-    readonly #handleTabKeydown = (event: Event): void => {
-        if (this.disabled) {
-            return;
+        break;
+      case "ArrowUp":
+        if (this.orientation === "vertical") {
+          keyboardEvent.preventDefault();
+          this.#moveSelection(-1);
         }
-
-        const keyboardEvent = event as KeyboardEvent;
-        const currentTab = keyboardEvent.currentTarget as VioletTab | null;
-        if (!currentTab || this.#isTabDisabled(currentTab)) {
-            return;
+        break;
+      case "ArrowDown":
+        if (this.orientation === "vertical") {
+          keyboardEvent.preventDefault();
+          this.#moveSelection(1);
         }
+        break;
+      case "Home":
+        keyboardEvent.preventDefault();
+        this.#moveToBoundary("start");
+        break;
+      case "End":
+        keyboardEvent.preventDefault();
+        this.#moveToBoundary("end");
+        break;
+      case "Enter":
+      case " ":
+        keyboardEvent.preventDefault();
+        this.activeid = currentTab.id;
+        break;
+    }
+  };
 
-        switch (keyboardEvent.key) {
-            case "ArrowLeft":
-                if (this.orientation === "horizontal") {
-                    keyboardEvent.preventDefault();
-                    this.#moveSelection(this.#isRtl() ? 1 : -1);
-                }
-                break;
-            case "ArrowRight":
-                if (this.orientation === "horizontal") {
-                    keyboardEvent.preventDefault();
-                    this.#moveSelection(this.#isRtl() ? -1 : 1);
-                }
-                break;
-            case "ArrowUp":
-                if (this.orientation === "vertical") {
-                    keyboardEvent.preventDefault();
-                    this.#moveSelection(-1);
-                }
-                break;
-            case "ArrowDown":
-                if (this.orientation === "vertical") {
-                    keyboardEvent.preventDefault();
-                    this.#moveSelection(1);
-                }
-                break;
-            case "Home":
-                keyboardEvent.preventDefault();
-                this.#moveToBoundary("start");
-                break;
-            case "End":
-                keyboardEvent.preventDefault();
-                this.#moveToBoundary("end");
-                break;
-            case "Enter":
-            case " ":
-                keyboardEvent.preventDefault();
-                this.activeid = currentTab.id;
-                break;
-        }
-    };
+  public constructor() {
+    super();
+    this.tabs = [];
+    this.panels = [];
+    this.hasPanels = false;
+    this.appearance = "open";
+    this.disabled = false;
+    this.orientation = "horizontal";
+    this.activeid = "";
+    this.label = "";
+    this.activetab = null;
+  }
 
-    public constructor() {
-        super();
-        this.tabs = [];
-        this.panels = [];
-        this.hasPanels = false;
-        this.appearance = "open";
-        this.disabled = false;
-        this.orientation = "horizontal";
-        this.activeid = "";
-        this.label = "";
-        this.activetab = null;
+  public connectedCallback(): void {
+    super.connectedCallback();
+    // Parsed markup upgrades in tree order, so the tabs and panels inside are not upgraded yet
+    // when this connects and lack the methods the state is applied through (#1172).
+    customElements.upgrade(this);
+    this.#syncTabs();
+    this.#syncPanels();
+    this.#applyState(false);
+  }
+
+  public disconnectedCallback(): void {
+    this.#detachListeners(this.tabs);
+    super.disconnectedCallback();
+  }
+
+  public appearanceChanged(): void {
+    if (this.$fastController.isConnected) {
+      this.#applyState(false);
+    }
+  }
+
+  public disabledChanged(): void {
+    if (this.$fastController.isConnected) {
+      this.#applyState(false);
+    }
+  }
+
+  public orientationChanged(): void {
+    if (this.$fastController.isConnected) {
+      this.#applyState(false);
+    }
+  }
+
+  public activeidChanged(previous: string, next: string): void {
+    if (this.$fastController.isConnected) {
+      this.#applyState(previous !== next);
+    }
+  }
+
+  public handleTabSlotChange(): void {
+    this.#syncTabs();
+    this.#applyState(false);
+  }
+
+  public handlePanelSlotChange(): void {
+    this.#syncPanels();
+    this.#applyState(false);
+  }
+
+  #syncTabs(): void {
+    const nextTabs = Array.from(this.children).filter(isVioletTab);
+    nextTabs.forEach((tab) => {
+      if (tab.slot !== "tab") {
+        tab.slot = "tab";
+      }
+    });
+    this.#detachListeners(this.tabs);
+    this.tabs = nextTabs;
+    this.#attachListeners(this.tabs);
+  }
+
+  #syncPanels(): void {
+    this.panels = Array.from(this.children).filter(isVioletTabPanel);
+    this.panels.forEach((panel) => {
+      if (panel.slot !== "tabpanel") {
+        panel.slot = "tabpanel";
+      }
+    });
+    this.hasPanels = this.panels.length > 0;
+  }
+
+  #attachListeners(tabs: VioletTab[]): void {
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", this.#handleTabClick);
+      tab.addEventListener("keydown", this.#handleTabKeydown);
+    });
+  }
+
+  #detachListeners(tabs: VioletTab[]): void {
+    tabs.forEach((tab) => {
+      tab.removeEventListener("click", this.#handleTabClick);
+      tab.removeEventListener("keydown", this.#handleTabKeydown);
+    });
+  }
+
+  #applyState(emitChange: boolean): void {
+    if (this.tabs.length === 0) {
+      this.activetab = null;
+      this.hasPanels = this.panels.length > 0;
+      return;
     }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        // Parsed markup upgrades in tree order, so the tabs and panels inside are not upgraded yet
-        // when this connects and lack the methods the state is applied through (#1172).
-        customElements.upgrade(this);
-        this.#syncTabs();
-        this.#syncPanels();
-        this.#applyState(false);
+    const activeIndex = this.#resolveActiveIndex();
+    const activeTab = this.tabs[activeIndex] ?? null;
+    this.activetab = activeTab;
+
+    const pairCount = Math.min(this.tabs.length, this.panels.length);
+
+    this.tabs.forEach((tab, index) => {
+      if (!tab.id) {
+        tab.id = `violet-tab-${++violetTabsId}`;
+      }
+
+      if (tab.slot !== "tab") {
+        tab.slot = "tab";
+      }
+
+      tab.setAttribute("role", "tab");
+
+      const pairedPanel = index < pairCount ? this.panels[index] : null;
+      if (pairedPanel && !pairedPanel.id) {
+        pairedPanel.id = `violet-tab-panel-${++violetTabsId}`;
+      }
+
+      if (pairedPanel && pairedPanel.slot !== "tabpanel") {
+        pairedPanel.slot = "tabpanel";
+      }
+
+      if (pairedPanel) {
+        pairedPanel.setAttribute("role", "tabpanel");
+      }
+
+      const isSelected = index === activeIndex;
+      const isDisabled = this.#isTabDisabled(tab);
+      const isFocusable = isSelected && !isDisabled;
+
+      tab.syncPresentation(this.#resolveTabAppearance(isSelected), this.orientation);
+      tab.setDisabledFromTabs(this.disabled);
+      tab.setAttribute("aria-disabled", isDisabled ? "true" : "false");
+      tab.setAttribute("aria-selected", isSelected ? "true" : "false");
+      tab.tabIndex = isFocusable ? 0 : -1;
+
+      if (pairedPanel) {
+        tab.setAttribute("aria-controls", pairedPanel.id);
+        pairedPanel.setAttribute("aria-labelledby", tab.id);
+        pairedPanel.hidden = !isSelected;
+        pairedPanel.tabIndex = 0;
+        pairedPanel.setAttribute("data-orientation", this.orientation);
+        pairedPanel.setAttribute("data-appearance", this.appearance);
+      } else {
+        tab.removeAttribute("aria-controls");
+      }
+    });
+
+    this.panels.forEach((panel, index) => {
+      if (index >= pairCount) {
+        panel.hidden = true;
+      }
+    });
+
+    if (activeTab && this.activeid !== activeTab.id) {
+      this.activeid = activeTab.id;
+      return;
     }
 
-    public disconnectedCallback(): void {
-        this.#detachListeners(this.tabs);
-        super.disconnectedCallback();
+    this.hasPanels = this.panels.length > 0;
+
+    if (emitChange && activeTab) {
+      this.$emit("change", activeTab);
+    }
+  }
+
+  #resolveActiveIndex(): number {
+    const requestedIndex = this.tabs.findIndex(
+      (tab) => tab.id === this.activeid && !this.#isTabDisabled(tab),
+    );
+    if (requestedIndex >= 0) {
+      return requestedIndex;
     }
 
-    public appearanceChanged(): void {
-        if (this.$fastController.isConnected) {
-            this.#applyState(false);
-        }
+    const selectedIndex = this.tabs.findIndex(
+      (tab) => tab.getAttribute("aria-selected") === "true" && !this.#isTabDisabled(tab),
+    );
+    if (selectedIndex >= 0) {
+      return selectedIndex;
     }
 
-    public disabledChanged(): void {
-        if (this.$fastController.isConnected) {
-            this.#applyState(false);
-        }
+    const firstEnabledIndex = this.tabs.findIndex((tab) => !this.#isTabDisabled(tab));
+    return firstEnabledIndex >= 0 ? firstEnabledIndex : 0;
+  }
+
+  #resolveTabAppearance(isSelected: boolean): VioletTabsAppearance {
+    if (this.appearance === "mixed") {
+      return isSelected ? "mixed" : "open";
     }
 
-    public orientationChanged(): void {
-        if (this.$fastController.isConnected) {
-            this.#applyState(false);
-        }
+    return this.appearance;
+  }
+
+  #moveSelection(delta: number): void {
+    const focusableTabs = this.tabs.filter((tab) => !this.#isTabDisabled(tab));
+    if (focusableTabs.length === 0) {
+      return;
     }
 
-    public activeidChanged(previous: string, next: string): void {
-        if (this.$fastController.isConnected) {
-            this.#applyState(previous !== next);
-        }
+    const currentIndex = this.activetab ? focusableTabs.indexOf(this.activetab) : 0;
+    const nextIndex = (currentIndex + delta + focusableTabs.length) % focusableTabs.length;
+    const nextTab = focusableTabs[nextIndex];
+    if (!nextTab) {
+      return;
     }
 
-    public handleTabSlotChange(): void {
-        this.#syncTabs();
-        this.#applyState(false);
+    nextTab.focus();
+    this.activeid = nextTab.id;
+  }
+
+  #moveToBoundary(position: "start" | "end"): void {
+    const focusableTabs = this.tabs.filter((tab) => !this.#isTabDisabled(tab));
+    if (focusableTabs.length === 0) {
+      return;
     }
 
-    public handlePanelSlotChange(): void {
-        this.#syncPanels();
-        this.#applyState(false);
+    const nextTab =
+      position === "start" ? focusableTabs[0] : focusableTabs[focusableTabs.length - 1];
+    if (!nextTab) {
+      return;
     }
 
-    #syncTabs(): void {
-        const nextTabs = Array.from(this.children).filter(isVioletTab);
-        nextTabs.forEach(tab => {
-            if (tab.slot !== "tab") {
-                tab.slot = "tab";
-            }
-        });
-        this.#detachListeners(this.tabs);
-        this.tabs = nextTabs;
-        this.#attachListeners(this.tabs);
-    }
+    nextTab.focus();
+    this.activeid = nextTab.id;
+  }
 
-    #syncPanels(): void {
-        this.panels = Array.from(this.children).filter(isVioletTabPanel);
-        this.panels.forEach(panel => {
-            if (panel.slot !== "tabpanel") {
-                panel.slot = "tabpanel";
-            }
-        });
-        this.hasPanels = this.panels.length > 0;
-    }
+  #isTabDisabled(tab: VioletTab): boolean {
+    return this.disabled || tab.disabled;
+  }
 
-    #attachListeners(tabs: VioletTab[]): void {
-        tabs.forEach(tab => {
-            tab.addEventListener("click", this.#handleTabClick);
-            tab.addEventListener("keydown", this.#handleTabKeydown);
-        });
-    }
-
-    #detachListeners(tabs: VioletTab[]): void {
-        tabs.forEach(tab => {
-            tab.removeEventListener("click", this.#handleTabClick);
-            tab.removeEventListener("keydown", this.#handleTabKeydown);
-        });
-    }
-
-    #applyState(emitChange: boolean): void {
-        if (this.tabs.length === 0) {
-            this.activetab = null;
-            this.hasPanels = this.panels.length > 0;
-            return;
-        }
-
-        const activeIndex = this.#resolveActiveIndex();
-        const activeTab = this.tabs[activeIndex] ?? null;
-        this.activetab = activeTab;
-
-        const pairCount = Math.min(this.tabs.length, this.panels.length);
-
-        this.tabs.forEach((tab, index) => {
-            if (!tab.id) {
-                tab.id = `violet-tab-${++violetTabsId}`;
-            }
-
-            if (tab.slot !== "tab") {
-                tab.slot = "tab";
-            }
-
-            tab.setAttribute("role", "tab");
-
-            const pairedPanel = index < pairCount ? this.panels[index] : null;
-            if (pairedPanel && !pairedPanel.id) {
-                pairedPanel.id = `violet-tab-panel-${++violetTabsId}`;
-            }
-
-            if (pairedPanel && pairedPanel.slot !== "tabpanel") {
-                pairedPanel.slot = "tabpanel";
-            }
-
-            if (pairedPanel) {
-                pairedPanel.setAttribute("role", "tabpanel");
-            }
-
-            const isSelected = index === activeIndex;
-            const isDisabled = this.#isTabDisabled(tab);
-            const isFocusable = isSelected && !isDisabled;
-
-            tab.syncPresentation(this.#resolveTabAppearance(isSelected), this.orientation);
-            tab.setDisabledFromTabs(this.disabled);
-            tab.setAttribute("aria-disabled", isDisabled ? "true" : "false");
-            tab.setAttribute("aria-selected", isSelected ? "true" : "false");
-            tab.tabIndex = isFocusable ? 0 : -1;
-
-            if (pairedPanel) {
-                tab.setAttribute("aria-controls", pairedPanel.id);
-                pairedPanel.setAttribute("aria-labelledby", tab.id);
-                pairedPanel.hidden = !isSelected;
-                pairedPanel.tabIndex = 0;
-                pairedPanel.setAttribute("data-orientation", this.orientation);
-                pairedPanel.setAttribute("data-appearance", this.appearance);
-            } else {
-                tab.removeAttribute("aria-controls");
-            }
-        });
-
-        this.panels.forEach((panel, index) => {
-            if (index >= pairCount) {
-                panel.hidden = true;
-            }
-        });
-
-        if (activeTab && this.activeid !== activeTab.id) {
-            this.activeid = activeTab.id;
-            return;
-        }
-
-        this.hasPanels = this.panels.length > 0;
-
-        if (emitChange && activeTab) {
-            this.$emit("change", activeTab);
-        }
-    }
-
-    #resolveActiveIndex(): number {
-        const requestedIndex = this.tabs.findIndex(tab => tab.id === this.activeid && !this.#isTabDisabled(tab));
-        if (requestedIndex >= 0) {
-            return requestedIndex;
-        }
-
-        const selectedIndex = this.tabs.findIndex(
-            tab => tab.getAttribute("aria-selected") === "true" && !this.#isTabDisabled(tab),
-        );
-        if (selectedIndex >= 0) {
-            return selectedIndex;
-        }
-
-        const firstEnabledIndex = this.tabs.findIndex(tab => !this.#isTabDisabled(tab));
-        return firstEnabledIndex >= 0 ? firstEnabledIndex : 0;
-    }
-
-    #resolveTabAppearance(isSelected: boolean): VioletTabsAppearance {
-        if (this.appearance === "mixed") {
-            return isSelected ? "mixed" : "open";
-        }
-
-        return this.appearance;
-    }
-
-    #moveSelection(delta: number): void {
-        const focusableTabs = this.tabs.filter(tab => !this.#isTabDisabled(tab));
-        if (focusableTabs.length === 0) {
-            return;
-        }
-
-        const currentIndex = this.activetab ? focusableTabs.indexOf(this.activetab) : 0;
-        const nextIndex = (currentIndex + delta + focusableTabs.length) % focusableTabs.length;
-        const nextTab = focusableTabs[nextIndex];
-        if (!nextTab) {
-            return;
-        }
-
-        nextTab.focus();
-        this.activeid = nextTab.id;
-    }
-
-    #moveToBoundary(position: "start" | "end"): void {
-        const focusableTabs = this.tabs.filter(tab => !this.#isTabDisabled(tab));
-        if (focusableTabs.length === 0) {
-            return;
-        }
-
-        const nextTab = position === "start" ? focusableTabs[0] : focusableTabs[focusableTabs.length - 1];
-        if (!nextTab) {
-            return;
-        }
-
-        nextTab.focus();
-        this.activeid = nextTab.id;
-    }
-
-    #isTabDisabled(tab: VioletTab): boolean {
-        return this.disabled || tab.disabled;
-    }
-
-    #isRtl(): boolean {
-        return getComputedStyle(this).direction === "rtl";
-    }
+  #isRtl(): boolean {
+    return getComputedStyle(this).direction === "rtl";
+  }
 }
 
 attr(VioletTabs.prototype, "appearance");
@@ -492,7 +504,7 @@ attr(VioletTabs.prototype, "label");
 
 /** The FAST definition of `<violet-tabs>`; `defineVioletTabs` in `./violet-tabs.define` registers it. */
 export const violetTabsDefinition = {
-    name: "violet-tabs",
-    template,
-    styles,
+  name: "violet-tabs",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

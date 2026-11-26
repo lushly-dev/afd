@@ -1,9 +1,17 @@
-import { FASTElement, attr, css, html, observable, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+  when,
+} from "@lushly-dev/fast-element";
 
 import { parseTimeValue } from "../date-time/violet-date-utils";
-import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
 import { resolveFieldErrorText } from "../shared/field-error";
+import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 
 export type VioletTimePickerSize = "compact" | "natural" | "comfortable";
 
@@ -164,23 +172,23 @@ const styles = css`
 const template = html<VioletTimePicker>`
     <div class="field" part="field">
         ${when(
-            x => Boolean(x.label),
-            html<VioletTimePicker>`<label class="label" part="label" for="${x => x.inputId}">${x => x.label}</label>`,
+          (x) => Boolean(x.label),
+          html<VioletTimePicker>`<label class="label" part="label" for="${(x) => x.inputId}">${(x) => x.label}</label>`,
         )}
         <div class="control-frame" part="control-frame">
             <input
-                id="${x => x.inputId}"
+                id="${(x) => x.inputId}"
                 class="input"
                 part="input"
                 type="time"
-                name="${x => x.name}"
-                min="${x => x.min}"
-                max="${x => x.max}"
-                step="${x => x.stepValue}"
-                ?disabled="${x => x.effectiveDisabled}"
-                ?required="${x => x.required}"
-                aria-describedby="${x => x.describedBy || null}"
-                aria-invalid="${x => (!x.effectiveDisabled && x.invalid) ? "true" : "false"}"
+                name="${(x) => x.name}"
+                min="${(x) => x.min}"
+                max="${(x) => x.max}"
+                step="${(x) => x.stepValue}"
+                ?disabled="${(x) => x.effectiveDisabled}"
+                ?required="${(x) => x.required}"
+                aria-describedby="${(x) => x.describedBy || null}"
+                aria-invalid="${(x) => (!x.effectiveDisabled && x.invalid ? "true" : "false")}"
                 @input="${(x, c) => x.handleInput(c.event)}"
                 @change="${(x, c) => x.handleCommit(c.event)}"
             />
@@ -189,12 +197,12 @@ const template = html<VioletTimePicker>`
             </span>
         </div>
         ${when(
-            x => Boolean(x.supportingText) && !x.displayErrorText,
-            html<VioletTimePicker>`<p class="supporting" part="supporting-text" id="${x => x.supportingId}">${x => x.supportingText}</p>`,
+          (x) => Boolean(x.supportingText) && !x.displayErrorText,
+          html<VioletTimePicker>`<p class="supporting" part="supporting-text" id="${(x) => x.supportingId}">${(x) => x.supportingText}</p>`,
         )}
         ${when(
-            x => Boolean(x.displayErrorText),
-            html<VioletTimePicker>`<p class="error" part="error-message" id="${x => x.errorId}" role="alert">${x => x.displayErrorText}</p>`,
+          (x) => Boolean(x.displayErrorText),
+          html<VioletTimePicker>`<p class="error" part="error-message" id="${(x) => x.errorId}" role="alert">${(x) => x.displayErrorText}</p>`,
         )}
     </div>
 `;
@@ -208,265 +216,265 @@ const template = html<VioletTimePicker>`
  * @csspart error-message - Error message element shown while invalid.
  */
 export class VioletTimePicker extends FASTElement {
-    public static readonly formAssociated = true;
+  public static readonly formAssociated = true;
 
-    readonly #internals: ElementInternals;
-    #defaultValue = "";
+  readonly #internals: ElementInternals;
+  #defaultValue = "";
 
-    @observable
-    declare public validationMessageText: string;
+  @observable
+  declare public validationMessageText: string;
 
-    declare public label: string;
-    declare public supportingText: string;
-    declare public errorText: string;
-    declare public value: string;
-    declare public name: string;
-    declare public min: string;
-    declare public max: string;
-    declare public step: string;
-    declare public required: boolean;
-    declare public disabled: boolean;
+  declare public label: string;
+  declare public supportingText: string;
+  declare public errorText: string;
+  declare public value: string;
+  declare public name: string;
+  declare public min: string;
+  declare public max: string;
+  declare public step: string;
+  declare public required: boolean;
+  declare public disabled: boolean;
 
-    /**
-     * True while an ancestor `<fieldset disabled>` disables the control.
-     */
-    declare public fieldsetDisabled: boolean;
+  /**
+   * True while an ancestor `<fieldset disabled>` disables the control.
+   */
+  declare public fieldsetDisabled: boolean;
 
-    /**
-     * Author `disabled` or fieldset-disabled.
-     */
-    declare public readonly effectiveDisabled: boolean;
-    declare public invalid: boolean;
-    declare public size: VioletTimePickerSize;
+  /**
+   * Author `disabled` or fieldset-disabled.
+   */
+  declare public readonly effectiveDisabled: boolean;
+  declare public invalid: boolean;
+  declare public size: VioletTimePickerSize;
 
-    public readonly inputId: string;
-    public readonly supportingId: string;
-    public readonly errorId: string;
+  public readonly inputId: string;
+  public readonly supportingId: string;
+  public readonly errorId: string;
 
-    public constructor() {
-        super();
-        this.#internals = this.attachInternals();
-        this.validationMessageText = "";
-        this.label = "";
-        this.supportingText = "";
-        this.errorText = "";
-        this.value = "";
-        this.name = "";
-        this.min = "";
-        this.max = "";
-        this.step = "60";
-        this.required = false;
-        this.disabled = false;
-        this.invalid = false;
-        this.size = "natural";
+  public constructor() {
+    super();
+    this.#internals = this.attachInternals();
+    this.validationMessageText = "";
+    this.label = "";
+    this.supportingText = "";
+    this.errorText = "";
+    this.value = "";
+    this.name = "";
+    this.min = "";
+    this.max = "";
+    this.step = "60";
+    this.required = false;
+    this.disabled = false;
+    this.invalid = false;
+    this.size = "natural";
 
-        violetTimePickerCount += 1;
-        this.inputId = `violet-time-picker-input-${violetTimePickerCount}`;
-        this.supportingId = `violet-time-picker-supporting-${violetTimePickerCount}`;
-        this.errorId = `violet-time-picker-error-${violetTimePickerCount}`;
+    violetTimePickerCount += 1;
+    this.inputId = `violet-time-picker-input-${violetTimePickerCount}`;
+    this.supportingId = `violet-time-picker-supporting-${violetTimePickerCount}`;
+    this.errorId = `violet-time-picker-error-${violetTimePickerCount}`;
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    this.#syncInputElement();
+    this.#defaultValue = this.value;
+    this.#syncFormState();
+  }
+
+  public get form(): HTMLFormElement | null {
+    return this.#internals.form;
+  }
+
+  public get validity(): ValidityState {
+    return this.#internals.validity;
+  }
+
+  public get validationMessage(): string {
+    return this.#internals.validationMessage;
+  }
+
+  public get willValidate(): boolean {
+    return this.#internals.willValidate;
+  }
+
+  public get describedBy(): string {
+    if (this.displayErrorText) {
+      return this.errorId;
+    }
+    return this.supportingText ? this.supportingId : "";
+  }
+
+  @observable
+  private nativeValidationMessage = "";
+
+  public get displayErrorText(): string {
+    return resolveFieldErrorText({
+      invalid: this.invalid,
+      disabled: this.effectiveDisabled,
+      errorText: this.errorText,
+      fallbackValidationMessage: this.nativeValidationMessage,
+    });
+  }
+
+  public get stepValue(): string {
+    return this.step || "60";
+  }
+
+  public valueChanged(): void {
+    this.#syncInputElement();
+    this.#syncFormState();
+  }
+
+  public disabledChanged(): void {
+    this.#syncFormState();
+  }
+
+  public requiredChanged(): void {
+    this.#syncFormState();
+  }
+
+  public stepChanged(): void {
+    this.#syncFormState();
+  }
+
+  public invalidChanged(): void {
+    this.#syncFormState();
+  }
+
+  public errorTextChanged(): void {
+    this.#syncFormState();
+  }
+
+  public minChanged(): void {
+    this.#syncFormState();
+  }
+
+  public maxChanged(): void {
+    this.#syncFormState();
+  }
+
+  public handleInput(event: Event): void {
+    // The native `input` is composed and would reach the host as a second event; this element emits its own.
+    event.stopPropagation();
+    const input = event.currentTarget as HTMLInputElement | null;
+    this.value = input?.value ?? "";
+    this.#syncFormState();
+    this.$emit("input", { value: this.value });
+  }
+
+  public handleCommit(event: Event): void {
+    const input = event.currentTarget as HTMLInputElement | null;
+    this.value = input?.value ?? "";
+    this.#syncFormState();
+    this.$emit("change", { value: this.value });
+  }
+
+  public formStateRestoreCallback(state: File | string | FormData | null): void {
+    if (typeof state === "string") {
+      this.value = state;
+    }
+  }
+
+  public formResetCallback(): void {
+    this.value = this.#defaultValue;
+    // Also when the value is unchanged: an incomplete entry reads as "" and must go too.
+    this.#syncInputElement(true);
+    this.#syncFormState();
+  }
+
+  public checkValidity(): boolean {
+    return this.#internals.checkValidity();
+  }
+
+  public reportValidity(): boolean {
+    return this.#internals.reportValidity();
+  }
+
+  private get inputElement(): HTMLInputElement | null {
+    return this.shadowRoot?.querySelector('input[type="time"]') as HTMLInputElement | null;
+  }
+
+  // Writes `value` to the native input only when it differs, never through a binding. The input reads `""`
+  // while a segment is incomplete, so writing that `""` back erased the segments already entered (#712).
+  #syncInputElement(force = false): void {
+    const input = this.inputElement;
+    if (input && (force || input.value !== this.value)) {
+      input.value = this.value;
+    }
+  }
+
+  #syncFormState(): void {
+    if (this.effectiveDisabled) {
+      this.nativeValidationMessage = "";
+      this.validationMessageText = "";
+      this.#internals.setFormValue(null);
+      this.#internals.setValidity({});
+      return;
     }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        this.#syncInputElement();
-        this.#defaultValue = this.value;
-        this.#syncFormState();
-    }
+    const input = this.inputElement;
+    const valueMissing = this.required && !this.value;
+    const badInput = this.value ? !parseTimeValue(this.value) : false;
+    const trimmedError = (this.errorText ?? "").trim();
+    const customError = this.invalid ? trimmedError || "Enter a valid time." : "";
 
-    public get form(): HTMLFormElement | null {
-        return this.#internals.form;
-    }
+    const toSeconds = (time: string): number | null => {
+      const parsed = parseTimeValue(time);
+      return parsed ? parsed.hour * 3600 + parsed.minute * 60 + parsed.second : null;
+    };
+    const current = this.value && !badInput ? toSeconds(this.value) : null;
+    const min = toSeconds(this.min);
+    const max = toSeconds(this.max);
+    const rangeUnderflow = current !== null && min !== null && current < min;
+    const rangeOverflow = current !== null && max !== null && current > max;
+    const rawStep = this.stepValue ?? "";
+    const isAnyStep = rawStep.toLowerCase() === "any";
+    const parsedStep =
+      !isAnyStep && /^(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(rawStep)
+        ? Number(rawStep)
+        : Number.NaN;
+    const stepSeconds = isAnyStep
+      ? Number.NaN
+      : Number.isFinite(parsedStep) && parsedStep > 0
+        ? parsedStep
+        : 60;
+    const stepBase = min ?? 0;
+    const delta = current !== null ? current - stepBase : 0;
+    const stepMismatch =
+      current !== null &&
+      Number.isFinite(stepSeconds) &&
+      stepSeconds > 0 &&
+      Math.abs(delta - Math.round(delta / stepSeconds) * stepSeconds) > 1e-6;
 
-    public get validity(): ValidityState {
-        return this.#internals.validity;
-    }
+    const constraintMessage = valueMissing
+      ? "Please choose a time."
+      : badInput
+        ? "Enter a valid time."
+        : rangeUnderflow
+          ? `Choose a time at or after ${this.min}.`
+          : rangeOverflow
+            ? `Choose a time at or before ${this.max}.`
+            : stepMismatch
+              ? "Choose a valid time increment."
+              : "";
 
-    public get validationMessage(): string {
-        return this.#internals.validationMessage;
-    }
+    this.nativeValidationMessage = constraintMessage;
+    this.validationMessageText = customError || constraintMessage;
 
-    public get willValidate(): boolean {
-        return this.#internals.willValidate;
-    }
-
-    public get describedBy(): string {
-        if (this.displayErrorText) {
-            return this.errorId;
-        }
-        return this.supportingText ? this.supportingId : "";
-    }
-
-    @observable
-    private nativeValidationMessage = "";
-
-    public get displayErrorText(): string {
-        return resolveFieldErrorText({
-            invalid: this.invalid,
-            disabled: this.effectiveDisabled,
-            errorText: this.errorText,
-            fallbackValidationMessage: this.nativeValidationMessage,
-        });
-    }
-
-    public get stepValue(): string {
-        return this.step || "60";
-    }
-
-    public valueChanged(): void {
-        this.#syncInputElement();
-        this.#syncFormState();
-    }
-
-    public disabledChanged(): void {
-        this.#syncFormState();
-    }
-
-    public requiredChanged(): void {
-        this.#syncFormState();
-    }
-
-    public stepChanged(): void {
-        this.#syncFormState();
-    }
-
-    public invalidChanged(): void {
-        this.#syncFormState();
-    }
-
-    public errorTextChanged(): void {
-        this.#syncFormState();
-    }
-
-    public minChanged(): void {
-        this.#syncFormState();
-    }
-
-    public maxChanged(): void {
-        this.#syncFormState();
-    }
-
-    public handleInput(event: Event): void {
-        // The native `input` is composed and would reach the host as a second event; this element emits its own.
-        event.stopPropagation();
-        const input = event.currentTarget as HTMLInputElement | null;
-        this.value = input?.value ?? "";
-        this.#syncFormState();
-        this.$emit("input", { value: this.value });
-    }
-
-    public handleCommit(event: Event): void {
-        const input = event.currentTarget as HTMLInputElement | null;
-        this.value = input?.value ?? "";
-        this.#syncFormState();
-        this.$emit("change", { value: this.value });
-    }
-
-    public formStateRestoreCallback(state: File | string | FormData | null): void {
-        if (typeof state === "string") {
-            this.value = state;
-        }
-    }
-
-    public formResetCallback(): void {
-        this.value = this.#defaultValue;
-        // Also when the value is unchanged: an incomplete entry reads as "" and must go too.
-        this.#syncInputElement(true);
-        this.#syncFormState();
-    }
-
-    public checkValidity(): boolean {
-        return this.#internals.checkValidity();
-    }
-
-    public reportValidity(): boolean {
-        return this.#internals.reportValidity();
-    }
-
-    private get inputElement(): HTMLInputElement | null {
-        return this.shadowRoot?.querySelector('input[type="time"]') as HTMLInputElement | null;
-    }
-
-    // Writes `value` to the native input only when it differs, never through a binding. The input reads `""`
-    // while a segment is incomplete, so writing that `""` back erased the segments already entered (#712).
-    #syncInputElement(force = false): void {
-        const input = this.inputElement;
-        if (input && (force || input.value !== this.value)) {
-            input.value = this.value;
-        }
-    }
-
-    #syncFormState(): void {
-        if (this.effectiveDisabled) {
-            this.nativeValidationMessage = "";
-            this.validationMessageText = "";
-            this.#internals.setFormValue(null);
-            this.#internals.setValidity({});
-            return;
-        }
-
-        const input = this.inputElement;
-        const valueMissing = this.required && !this.value;
-        const badInput = this.value ? !parseTimeValue(this.value) : false;
-        const trimmedError = (this.errorText ?? "").trim();
-        const customError = this.invalid ? trimmedError || "Enter a valid time." : "";
-
-        const toSeconds = (time: string): number | null => {
-            const parsed = parseTimeValue(time);
-            return parsed ? parsed.hour * 3600 + parsed.minute * 60 + parsed.second : null;
-        };
-        const current = this.value && !badInput ? toSeconds(this.value) : null;
-        const min = toSeconds(this.min);
-        const max = toSeconds(this.max);
-        const rangeUnderflow = current !== null && min !== null && current < min;
-        const rangeOverflow = current !== null && max !== null && current > max;
-        const rawStep = this.stepValue ?? "";
-        const isAnyStep = rawStep.toLowerCase() === "any";
-        const parsedStep =
-            !isAnyStep && /^(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(rawStep)
-                ? Number(rawStep)
-                : Number.NaN;
-        const stepSeconds = isAnyStep
-            ? Number.NaN
-            : Number.isFinite(parsedStep) && parsedStep > 0
-              ? parsedStep
-              : 60;
-        const stepBase = min ?? 0;
-        const delta = current !== null ? current - stepBase : 0;
-        const stepMismatch =
-            current !== null &&
-            Number.isFinite(stepSeconds) &&
-            stepSeconds > 0 &&
-            Math.abs(delta - Math.round(delta / stepSeconds) * stepSeconds) > 1e-6;
-
-        const constraintMessage = valueMissing
-            ? "Please choose a time."
-            : badInput
-              ? "Enter a valid time."
-              : rangeUnderflow
-                ? `Choose a time at or after ${this.min}.`
-                : rangeOverflow
-                  ? `Choose a time at or before ${this.max}.`
-                  : stepMismatch
-                    ? "Choose a valid time increment."
-                    : "";
-
-        this.nativeValidationMessage = constraintMessage;
-        this.validationMessageText = customError || constraintMessage;
-
-        this.#internals.setFormValue(this.value || null);
-        this.#internals.setValidity(
-            {
-                valueMissing,
-                badInput,
-                rangeUnderflow,
-                rangeOverflow,
-                stepMismatch,
-                customError: Boolean(customError),
-            },
-            this.validationMessageText,
-            input ?? undefined,
-        );
-    }
+    this.#internals.setFormValue(this.value || null);
+    this.#internals.setValidity(
+      {
+        valueMissing,
+        badInput,
+        rangeUnderflow,
+        rangeOverflow,
+        stepMismatch,
+        customError: Boolean(customError),
+      },
+      this.validationMessageText,
+      input ?? undefined,
+    );
+  }
 }
 
 attr(VioletTimePicker.prototype, "label");
@@ -485,10 +493,10 @@ attr(VioletTimePicker.prototype, "size");
 
 /** The FAST definition of `<violet-time-picker>`; `defineVioletTimePicker` in `./violet-time-picker.define` registers it. */
 export const violetTimePickerDefinition = {
-    name: "violet-time-picker",
-    template,
-    styles,
-    shadowOptions: {
-        delegatesFocus: true,
-    },
+  name: "violet-time-picker",
+  template,
+  styles,
+  shadowOptions: {
+    delegatesFocus: true,
+  },
 } satisfies PartialFASTElementDefinition;

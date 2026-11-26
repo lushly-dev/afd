@@ -7,8 +7,10 @@ import { VioletOption, violetOptionDefinition, violetOptionExtensions } from "./
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletOption(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletElement(VioletOption, violetOptionDefinition, registry, violetOptionExtensions);
+export async function defineVioletOption(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletElement(VioletOption, violetOptionDefinition, registry, violetOptionExtensions);
 }
 
 await defineVioletOption();

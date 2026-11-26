@@ -835,7 +835,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.spec.json",
     "dev": "tsc -p tsconfig.lib.json --watch",
     "clean": "rimraf dist",
-    "lint": "biome lint src && node ../../../../scripts/codemods/split-define.mjs --check",
+    "lint": "biome check src && node ../../../../scripts/codemods/split-define.mjs --check",
     "test:browser": "vitest --run --coverage",
     "test:browser:firefox": "node scripts/run-browser-tests.mjs firefox",
     "test:browser:webkit": "node scripts/run-browser-tests.mjs webkit",

@@ -5,9 +5,7 @@
     {
       "id": "icon.registry",
       "text": "The icon attribute is a registry name such as system/close (default system/search). An unregistered name renders an X-shaped fallback until that name is registered, when the icon redraws.",
-      "members": [
-        "icon"
-      ]
+      "members": ["icon"]
     },
     {
       "id": "icon.register",
@@ -22,10 +20,7 @@
     {
       "id": "icon.name",
       "text": "Unless decorative, the glyph has role img named by the label attribute. With no label the registry name itself (e.g. \"system/search\") is announced, so set label or decorative.",
-      "members": [
-        "label",
-        "decorative"
-      ]
+      "members": ["label", "decorative"]
     }
   ]
 }

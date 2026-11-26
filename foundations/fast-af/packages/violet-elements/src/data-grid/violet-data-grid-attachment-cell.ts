@@ -1,4 +1,14 @@
-import { attr, css, FASTElement, html, observable, repeat, Updates, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+  repeat,
+  Updates,
+  when,
+} from "@lushly-dev/fast-element";
 
 import type { VioletFileUpload } from "../file-upload/violet-file-upload";
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
@@ -552,15 +562,15 @@ const template = html<VioletDataGridAttachmentCell>`
  * @csspart empty-state - Empty message shown when no attachments exist.
  */
 export class VioletDataGridAttachmentCell extends FASTElement {
-  public declare placeholder: string;
+  declare public placeholder: string;
 
-  public declare disabled: boolean;
+  declare public disabled: boolean;
 
-  public declare readonly: boolean;
+  declare public readonly: boolean;
 
-  public declare attachments: VioletDataGridAttachmentItem[];
+  declare public attachments: VioletDataGridAttachmentItem[];
 
-  public declare open: boolean;
+  declare public open: boolean;
 
   readonly #instanceId = ++violetDataGridAttachmentCellInstanceCount;
   #openAttachmentSnapshot = "[]";
@@ -639,7 +649,9 @@ export class VioletDataGridAttachmentCell extends FASTElement {
    * of its name (WCAG 2.5.3). An empty trigger that shows its label is named once.
    */
   public get triggerLabelledBy(): string {
-    const showsLabel = this.attachments.length === 0 && this.triggerLabel === (this.placeholder || "Add attachments");
+    const showsLabel =
+      this.attachments.length === 0 &&
+      this.triggerLabel === (this.placeholder || "Add attachments");
     return showsLabel ? "trigger-value" : "trigger-label trigger-value";
   }
 

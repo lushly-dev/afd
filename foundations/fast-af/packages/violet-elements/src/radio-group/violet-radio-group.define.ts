@@ -1,5 +1,5 @@
-import { defineVioletElement } from "../shared/define-element";
 import { defineVioletRadio } from "../radio/violet-radio.define";
+import { defineVioletElement } from "../shared/define-element";
 import { VioletRadioGroup, violetRadioGroupDefinition } from "./violet-radio-group";
 
 /**
@@ -8,9 +8,11 @@ import { VioletRadioGroup, violetRadioGroupDefinition } from "./violet-radio-gro
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletRadioGroup(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletRadio(registry);
-    await defineVioletElement(VioletRadioGroup, violetRadioGroupDefinition, registry);
+export async function defineVioletRadioGroup(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletRadio(registry);
+  await defineVioletElement(VioletRadioGroup, violetRadioGroupDefinition, registry);
 }
 
 await defineVioletRadioGroup();

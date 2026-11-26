@@ -9,13 +9,13 @@ const RELATIVE_BASE = "http://violet.invalid/";
  * Uses the URL parser, so obfuscated schemes such as `java\tscript:` are caught.
  */
 export function isSafeLinkHref(href: string | null | undefined): boolean {
-    if (!href) {
-        return false;
-    }
+  if (!href) {
+    return false;
+  }
 
-    try {
-        return SAFE_PROTOCOLS.has(new URL(href, RELATIVE_BASE).protocol);
-    } catch {
-        return false;
-    }
+  try {
+    return SAFE_PROTOCOLS.has(new URL(href, RELATIVE_BASE).protocol);
+  } catch {
+    return false;
+  }
 }

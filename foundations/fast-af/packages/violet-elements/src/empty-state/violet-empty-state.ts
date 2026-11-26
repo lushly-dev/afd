@@ -1,4 +1,11 @@
-import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -107,19 +114,19 @@ const styles = css`
 
 const template = html<VioletEmptyState>`
     <div class="root" part="root">
-        <div class="media" part="media" ?hidden="${x => !x.hasMedia}">
-            <slot name="media" @slotchange="${x => x.handleMediaSlotChange()}"></slot>
+        <div class="media" part="media" ?hidden="${(x) => !x.hasMedia}">
+            <slot name="media" @slotchange="${(x) => x.handleMediaSlotChange()}"></slot>
         </div>
         <div class="body" part="body">
-            <violet-text class="heading" part="heading" as="h3" variant="title-sm" ?hidden="${x => !x.heading}">
-                ${x => x.heading}
+            <violet-text class="heading" part="heading" as="h3" variant="title-sm" ?hidden="${(x) => !x.heading}">
+                ${(x) => x.heading}
             </violet-text>
-            <violet-text class="message" part="message" as="p" variant="body" tone="secondary" ?hidden="${x => !x.message}">
-                ${x => x.message}
+            <violet-text class="message" part="message" as="p" variant="body" tone="secondary" ?hidden="${(x) => !x.message}">
+                ${(x) => x.message}
             </violet-text>
-            <slot class="body-slot" @slotchange="${x => x.handleDefaultSlotChange()}"></slot>
-            <div class="actions" part="actions" ?hidden="${x => !x.hasActions}">
-                <slot name="actions" @slotchange="${x => x.handleActionsSlotChange()}"></slot>
+            <slot class="body-slot" @slotchange="${(x) => x.handleDefaultSlotChange()}"></slot>
+            <div class="actions" part="actions" ?hidden="${(x) => !x.hasActions}">
+                <slot name="actions" @slotchange="${(x) => x.handleActionsSlotChange()}"></slot>
             </div>
         </div>
     </div>
@@ -140,48 +147,48 @@ const template = html<VioletEmptyState>`
  * @csspart actions - Actions row wrapper.
  */
 export class VioletEmptyState extends FASTElement {
-    @observable
-    declare public hasMedia: boolean;
+  @observable
+  declare public hasMedia: boolean;
 
-    @observable
-    declare public hasActions: boolean;
+  @observable
+  declare public hasActions: boolean;
 
-    declare public heading: string;
-    declare public message: string;
-    declare public appearance: VioletEmptyStateAppearance;
-    declare public orientation: VioletEmptyStateOrientation;
+  declare public heading: string;
+  declare public message: string;
+  declare public appearance: VioletEmptyStateAppearance;
+  declare public orientation: VioletEmptyStateOrientation;
 
-    public constructor() {
-        super();
-        this.hasMedia = false;
-        this.hasActions = false;
-        this.heading = "";
-        this.message = "";
-        this.appearance = "plain";
-        this.orientation = "vertical";
-    }
+  public constructor() {
+    super();
+    this.hasMedia = false;
+    this.hasActions = false;
+    this.heading = "";
+    this.message = "";
+    this.appearance = "plain";
+    this.orientation = "vertical";
+  }
 
-    public handleMediaSlotChange(): void {
-        this.hasMedia = this.#slotHasContent('slot[name="media"]');
-    }
+  public handleMediaSlotChange(): void {
+    this.hasMedia = this.#slotHasContent('slot[name="media"]');
+  }
 
-    public handleActionsSlotChange(): void {
-        this.hasActions = this.#slotHasContent('slot[name="actions"]');
-    }
+  public handleActionsSlotChange(): void {
+    this.hasActions = this.#slotHasContent('slot[name="actions"]');
+  }
 
-    public handleDefaultSlotChange(): void {
-        // Keep FAST slot assignment reactive for story/docs updates even though the default slot does not toggle a wrapper.
-    }
+  public handleDefaultSlotChange(): void {
+    // Keep FAST slot assignment reactive for story/docs updates even though the default slot does not toggle a wrapper.
+  }
 
-    #slotHasContent(selector: string): boolean {
-        const slot = this.shadowRoot?.querySelector(selector) as HTMLSlotElement | null;
-        return (slot?.assignedNodes({ flatten: true }) ?? []).some(node => {
-            if (node.nodeType === Node.TEXT_NODE) {
-                return Boolean(node.textContent?.trim());
-            }
-            return true;
-        });
-    }
+  #slotHasContent(selector: string): boolean {
+    const slot = this.shadowRoot?.querySelector(selector) as HTMLSlotElement | null;
+    return (slot?.assignedNodes({ flatten: true }) ?? []).some((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return Boolean(node.textContent?.trim());
+      }
+      return true;
+    });
+  }
 }
 
 attr(VioletEmptyState.prototype, "heading");
@@ -191,7 +198,7 @@ attr(VioletEmptyState.prototype, "orientation");
 
 /** The FAST definition of `<violet-empty-state>`; `defineVioletEmptyState` in `./violet-empty-state.define` registers it. */
 export const violetEmptyStateDefinition = {
-    name: "violet-empty-state",
-    template,
-    styles,
+  name: "violet-empty-state",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

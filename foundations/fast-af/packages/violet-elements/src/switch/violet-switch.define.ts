@@ -7,8 +7,10 @@ import { VioletSwitch, violetSwitchDefinition } from "./violet-switch";
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletSwitch(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletElement(VioletSwitch, violetSwitchDefinition, registry);
+export async function defineVioletSwitch(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletElement(VioletSwitch, violetSwitchDefinition, registry);
 }
 
 await defineVioletSwitch();

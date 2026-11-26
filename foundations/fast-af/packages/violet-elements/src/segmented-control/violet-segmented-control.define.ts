@@ -1,6 +1,9 @@
-import { defineVioletElement } from "../shared/define-element";
 import { defineVioletSegment } from "../segment/violet-segment.define";
-import { VioletSegmentedControl, violetSegmentedControlDefinition } from "./violet-segmented-control";
+import { defineVioletElement } from "../shared/define-element";
+import {
+  VioletSegmentedControl,
+  violetSegmentedControlDefinition,
+} from "./violet-segmented-control";
 
 /**
  * Defines `<violet-segmented-control>` in `registry`, after the elements it uses.
@@ -8,9 +11,11 @@ import { VioletSegmentedControl, violetSegmentedControlDefinition } from "./viol
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletSegmentedControl(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletSegment(registry);
-    await defineVioletElement(VioletSegmentedControl, violetSegmentedControlDefinition, registry);
+export async function defineVioletSegmentedControl(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletSegment(registry);
+  await defineVioletElement(VioletSegmentedControl, violetSegmentedControlDefinition, registry);
 }
 
 await defineVioletSegmentedControl();

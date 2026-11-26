@@ -1,9 +1,26 @@
-import { FASTElement, Updates, attr, css, html, nullableNumberConverter, observable, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
-
-import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  nullableNumberConverter,
+  observable,
+  type PartialFASTElementDefinition,
+  Updates,
+  when,
+} from "@lushly-dev/fast-element";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
+import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 
-export type VioletTextFieldType = "text" | "search" | "email" | "url" | "password" | "tel" | "number" | "date";
+export type VioletTextFieldType =
+  | "text"
+  | "search"
+  | "email"
+  | "url"
+  | "password"
+  | "tel"
+  | "number"
+  | "date";
 
 const styles = css`
     ${violetFieldTokenDefaults}
@@ -154,47 +171,47 @@ const styles = css`
 const template = html<VioletTextField>`
     <div class="field" part="field">
         ${when(
-            x => Boolean(x.label),
-            html<VioletTextField>`
-                <label class="label" part="label" for="${x => x.inputId}">${x => x.label}</label>
+          (x) => Boolean(x.label),
+          html<VioletTextField>`
+                <label class="label" part="label" for="${(x) => x.inputId}">${(x) => x.label}</label>
             `,
         )}
         <div class="control-frame" part="control-frame">
             <slot name="before" part="before"></slot>
             <input
-                id="${x => x.inputId}"
+                id="${(x) => x.inputId}"
                 class="control"
                 part="control"
-                name="${x => x.name}"
-                type="${x => x.type}"
-                min="${x => x.min}"
-                max="${x => x.max}"
-                step="${x => x.step}"
-                minlength="${x => x.minLength}"
-                maxlength="${x => x.maxLength}"
-                pattern="${x => x.pattern || null}"
-                autocomplete="${x => x.autocomplete}"
-                inputmode="${x => x.inputMode || null}"
-                placeholder="${x => x.placeholder}"
-                ?disabled="${x => x.effectiveDisabled}"
-                ?readonly="${x => x.readonly}"
-                ?required="${x => x.required}"
-                aria-label="${x => x.label || x.getAttribute("aria-label") || ""}"
-                aria-invalid="${x => x.invalid ? "true" : "false"}"
+                name="${(x) => x.name}"
+                type="${(x) => x.type}"
+                min="${(x) => x.min}"
+                max="${(x) => x.max}"
+                step="${(x) => x.step}"
+                minlength="${(x) => x.minLength}"
+                maxlength="${(x) => x.maxLength}"
+                pattern="${(x) => x.pattern || null}"
+                autocomplete="${(x) => x.autocomplete}"
+                inputmode="${(x) => x.inputMode || null}"
+                placeholder="${(x) => x.placeholder}"
+                ?disabled="${(x) => x.effectiveDisabled}"
+                ?readonly="${(x) => x.readonly}"
+                ?required="${(x) => x.required}"
+                aria-label="${(x) => x.label || x.getAttribute("aria-label") || ""}"
+                aria-invalid="${(x) => (x.invalid ? "true" : "false")}"
                 @input="${(x, c) => x.handleInput(c.event)}"
                 @change="${(x, c) => x.handleCommit(c.event)}"
             />
         </div>
         ${when(
-            x => !x.displayErrorText && Boolean(x.supportingText),
-            html<VioletTextField>`
-                <p class="supporting" part="supporting-text" id="${x => x.supportingId}">${x => x.supportingText}</p>
+          (x) => !x.displayErrorText && Boolean(x.supportingText),
+          html<VioletTextField>`
+                <p class="supporting" part="supporting-text" id="${(x) => x.supportingId}">${(x) => x.supportingText}</p>
             `,
         )}
         ${when(
-            x => Boolean(x.displayErrorText),
-            html<VioletTextField>`
-                <p class="error" part="error-message" id="${x => x.errorId}" role="alert">${x => x.displayErrorText}</p>
+          (x) => Boolean(x.displayErrorText),
+          html<VioletTextField>`
+                <p class="error" part="error-message" id="${(x) => x.errorId}" role="alert">${(x) => x.displayErrorText}</p>
             `,
         )}
     </div>
@@ -218,465 +235,475 @@ let violetTextFieldCount = 0;
  * @csspart error-message - Error message element shown while invalid.
  */
 export class VioletTextField extends FASTElement {
-    public static readonly formAssociated = true;
+  public static readonly formAssociated = true;
 
-    readonly #internals: ElementInternals;
-    readonly #describedByObserver = new MutationObserver(() => this.#scheduleSync());
-    readonly #handleFocusIn = (): void => this.#syncDescribedBy();
-    #syncScheduled = false;
-    #defaultValue: string;
+  readonly #internals: ElementInternals;
+  readonly #describedByObserver = new MutationObserver(() => this.#scheduleSync());
+  readonly #handleFocusIn = (): void => this.#syncDescribedBy();
+  #syncScheduled = false;
+  #defaultValue: string;
 
-    public readonly inputId: string;
+  public readonly inputId: string;
 
-    /**
-     * Id of the supporting text element inside the shadow root.
-     */
-    public readonly supportingId: string;
+  /**
+   * Id of the supporting text element inside the shadow root.
+   */
+  public readonly supportingId: string;
 
-    /**
-     * Id of the error message element inside the shadow root.
-     */
-    public readonly errorId: string;
+  /**
+   * Id of the error message element inside the shadow root.
+   */
+  public readonly errorId: string;
 
-    /**
-     * Backing state for `displayErrorText`.
-     */
-    @observable
-    private _displayErrorText = "";
+  /**
+   * Backing state for `displayErrorText`.
+   */
+  @observable
+  private _displayErrorText = "";
 
-    /**
-     * Active error message rendered while the field is invalid.
-     */
-    public get displayErrorText(): string {
-        return this._displayErrorText;
+  /**
+   * Active error message rendered while the field is invalid.
+   */
+  public get displayErrorText(): string {
+    return this._displayErrorText;
+  }
+
+  /**
+   * Optional field label.
+   */
+  declare public label: string;
+
+  /**
+   * Optional placeholder text.
+   */
+  declare public placeholder: string;
+
+  /**
+   * Current input value.
+   */
+  declare public value: string;
+
+  /**
+   * Native input type.
+   */
+  declare public type: VioletTextFieldType;
+
+  /**
+   * Optional supporting text shown below the field.
+   */
+  declare public supportingText: string;
+
+  /**
+   * Optional error message shown while the field is invalid.
+   */
+  declare public errorText: string;
+
+  /**
+   * Disables the field.
+   */
+  declare public disabled: boolean;
+
+  /**
+   * True while an ancestor `<fieldset disabled>` disables the control.
+   */
+  declare public fieldsetDisabled: boolean;
+
+  /**
+   * Author `disabled` or fieldset-disabled.
+   */
+  declare public readonly effectiveDisabled: boolean;
+
+  /**
+   * Marks the field readonly.
+   */
+  declare public readonly: boolean;
+
+  /**
+   * Marks the field invalid.
+   */
+  declare public invalid: boolean;
+
+  /**
+   * Native form name used during submission.
+   */
+  declare public name: string;
+
+  /**
+   * Marks the field as required.
+   */
+  declare public required: boolean;
+
+  /**
+   * Native `min` constraint (numbers, dates) forwarded to the input.
+   */
+  declare public min?: string | null;
+
+  /**
+   * Native `max` constraint (numbers, dates) forwarded to the input.
+   */
+  declare public max?: string | null;
+
+  /**
+   * Native `step` constraint forwarded to the input.
+   */
+  declare public step?: string | null;
+
+  /**
+   * Native `minlength` constraint forwarded to the input.
+   */
+  declare public minLength?: number | null;
+
+  /**
+   * Native `maxlength` constraint forwarded to the input.
+   */
+  declare public maxLength?: number | null;
+
+  /**
+   * Native `pattern` constraint forwarded to the input.
+   */
+  declare public pattern?: string | null;
+
+  /**
+   * Native `autocomplete` hint forwarded to the input.
+   */
+  declare public autocomplete?: string | null;
+
+  /**
+   * Native `inputmode` virtual-keyboard hint forwarded to the input
+   * (`none`, `text`, `decimal`, `numeric`, `tel`, `search`, `email` or `url`).
+   */
+  declare public inputMode: string;
+
+  public constructor() {
+    super();
+    this.#internals = this.attachInternals();
+    violetTextFieldCount += 1;
+    this.inputId = `violet-text-field-${violetTextFieldCount}`;
+    this.supportingId = `${this.inputId}-supporting`;
+    this.errorId = `${this.inputId}-error`;
+    this.label = "";
+    this.placeholder = "";
+    this.value = "";
+    this.type = "text";
+    this.supportingText = "";
+    this.errorText = "";
+    this.disabled = false;
+    this.readonly = false;
+    this.invalid = false;
+    this.name = "";
+    this.required = false;
+    this.#defaultValue = "";
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    this.#writeControl();
+    this.#defaultValue = this.getAttribute("value") ?? this.value ?? "";
+    this.#syncFormState();
+    this.#syncDescribedBy();
+    this.#describedByObserver.observe(this, {
+      attributes: true,
+      attributeFilter: ["aria-describedby"],
+    });
+    this.addEventListener("focusin", this.#handleFocusIn);
+    this.#scheduleSync();
+  }
+
+  public disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.#describedByObserver.disconnect();
+    this.removeEventListener("focusin", this.#handleFocusIn);
+  }
+
+  public handleInput(event: Event): void {
+    // The native `input` is composed and would reach the host as a second event; this element emits its own.
+    event.stopPropagation();
+    const control = event.currentTarget as HTMLInputElement | null;
+    this.value = control?.value ?? "";
+    this.#syncFormState();
+    this.$emit("input", { value: this.value });
+  }
+
+  public handleCommit(event: Event): void {
+    const control = event.currentTarget as HTMLInputElement | null;
+    this.value = control?.value ?? "";
+    this.#syncFormState();
+    this.$emit("change", { value: this.value });
+  }
+
+  public formStateRestoreCallback(state: File | string | FormData | null): void {
+    if (typeof state === "string") {
+      this.value = state;
+    }
+  }
+
+  public formResetCallback(): void {
+    this.value = this.#defaultValue;
+    // Also when the value is unchanged: a partial entry, such as "-", reads as "" and must go too.
+    this.#writeControl(true);
+    this.#syncFormState();
+  }
+
+  public get form(): HTMLFormElement | null {
+    return this.#internals.form;
+  }
+
+  public get validity(): ValidityState {
+    return this.#internals.validity;
+  }
+
+  public get validationMessage(): string {
+    return this.#internals.validationMessage;
+  }
+
+  public get willValidate(): boolean {
+    return this.#internals.willValidate;
+  }
+
+  public checkValidity(): boolean {
+    return this.#internals.checkValidity();
+  }
+
+  public reportValidity(): boolean {
+    return this.#internals.reportValidity();
+  }
+
+  public valueChanged(): void {
+    this.#writeControl();
+    this.#syncFormState();
+    this.#scheduleSync();
+  }
+
+  // Writes `value` to the native input only when it differs. A number input reads `""` while it holds a
+  // partial entry such as `-`, so writing that `""` back, as a binding would, erased the `-` (#712).
+  #writeControl(force = false): void {
+    const control = this.shadowRoot?.querySelector<HTMLInputElement>("input.control");
+    const value = this.value ?? "";
+    if (control && (force || control.value !== value)) {
+      control.value = value;
+    }
+  }
+
+  public typeChanged(): void {
+    this.#scheduleSync();
+  }
+
+  public minChanged(): void {
+    this.#scheduleSync();
+  }
+
+  public maxChanged(): void {
+    this.#scheduleSync();
+  }
+
+  public stepChanged(): void {
+    this.#scheduleSync();
+  }
+
+  public minLengthChanged(): void {
+    this.#scheduleSync();
+  }
+
+  public maxLengthChanged(): void {
+    this.#scheduleSync();
+  }
+
+  public patternChanged(): void {
+    this.#scheduleSync();
+  }
+
+  public supportingTextChanged(): void {
+    this.#scheduleSync();
+  }
+
+  public errorTextChanged(): void {
+    this.#syncFormState();
+    this.#scheduleSync();
+  }
+
+  #setDisplayErrorText(next: string): void {
+    if (this._displayErrorText === next) {
+      return;
+    }
+    this._displayErrorText = next;
+    if (!this.$fastController.isConnected) {
+      return;
+    }
+    Updates.enqueue(() => {
+      Updates.enqueue(() => {
+        this.#syncDescribedBy();
+      });
+    });
+  }
+
+  public disabledChanged(): void {
+    this.#syncFormState();
+    this.#scheduleSync();
+  }
+
+  public invalidChanged(): void {
+    this.#syncFormState();
+    this.#scheduleSync();
+  }
+
+  public readonlyChanged(): void {
+    this.#syncFormState();
+    this.#scheduleSync();
+  }
+
+  public requiredChanged(): void {
+    this.#syncFormState();
+    this.#scheduleSync();
+  }
+
+  /**
+   * Template bindings flush on the next update batch, so validity derived from the inner
+   * input and the describedby targets are re-synced once that batch has landed.
+   */
+  #scheduleSync(): void {
+    if (this.#syncScheduled || !this.$fastController.isConnected) {
+      return;
     }
 
-    /**
-     * Optional field label.
-     */
-    declare public label: string;
-
-    /**
-     * Optional placeholder text.
-     */
-    declare public placeholder: string;
-
-    /**
-     * Current input value.
-     */
-    declare public value: string;
-
-    /**
-     * Native input type.
-     */
-    declare public type: VioletTextFieldType;
-
-    /**
-     * Optional supporting text shown below the field.
-     */
-    declare public supportingText: string;
-
-    /**
-     * Optional error message shown while the field is invalid.
-     */
-    declare public errorText: string;
-
-    /**
-     * Disables the field.
-     */
-    declare public disabled: boolean;
-
-    /**
-     * True while an ancestor `<fieldset disabled>` disables the control.
-     */
-    declare public fieldsetDisabled: boolean;
-
-    /**
-     * Author `disabled` or fieldset-disabled.
-     */
-    declare public readonly effectiveDisabled: boolean;
-
-    /**
-     * Marks the field readonly.
-     */
-    declare public readonly: boolean;
-
-    /**
-     * Marks the field invalid.
-     */
-    declare public invalid: boolean;
-
-    /**
-     * Native form name used during submission.
-     */
-    declare public name: string;
-
-    /**
-     * Marks the field as required.
-     */
-    declare public required: boolean;
-
-    /**
-     * Native `min` constraint (numbers, dates) forwarded to the input.
-     */
-    declare public min?: string | null;
-
-    /**
-     * Native `max` constraint (numbers, dates) forwarded to the input.
-     */
-    declare public max?: string | null;
-
-    /**
-     * Native `step` constraint forwarded to the input.
-     */
-    declare public step?: string | null;
-
-    /**
-     * Native `minlength` constraint forwarded to the input.
-     */
-    declare public minLength?: number | null;
-
-    /**
-     * Native `maxlength` constraint forwarded to the input.
-     */
-    declare public maxLength?: number | null;
-
-    /**
-     * Native `pattern` constraint forwarded to the input.
-     */
-    declare public pattern?: string | null;
-
-    /**
-     * Native `autocomplete` hint forwarded to the input.
-     */
-    declare public autocomplete?: string | null;
-
-    /**
-     * Native `inputmode` virtual-keyboard hint forwarded to the input
-     * (`none`, `text`, `decimal`, `numeric`, `tel`, `search`, `email` or `url`).
-     */
-    declare public inputMode: string;
-
-    public constructor() {
-        super();
-        this.#internals = this.attachInternals();
-        violetTextFieldCount += 1;
-        this.inputId = `violet-text-field-${violetTextFieldCount}`;
-        this.supportingId = `${this.inputId}-supporting`;
-        this.errorId = `${this.inputId}-error`;
-        this.label = "";
-        this.placeholder = "";
-        this.value = "";
-        this.type = "text";
-        this.supportingText = "";
-        this.errorText = "";
-        this.disabled = false;
-        this.readonly = false;
-        this.invalid = false;
-        this.name = "";
-        this.required = false;
-        this.#defaultValue = "";
-    }
-
-    public connectedCallback(): void {
-        super.connectedCallback();
-        this.#writeControl();
-        this.#defaultValue = this.getAttribute("value") ?? this.value ?? "";
+    this.#syncScheduled = true;
+    Updates.enqueue(() => {
+      Updates.enqueue(() => {
+        this.#syncScheduled = false;
         this.#syncFormState();
         this.#syncDescribedBy();
-        this.#describedByObserver.observe(this, { attributes: true, attributeFilter: ["aria-describedby"] });
-        this.addEventListener("focusin", this.#handleFocusIn);
-        this.#scheduleSync();
+      });
+    });
+  }
+
+  /**
+   * IDREFs in a host `aria-describedby` cannot cross the shadow boundary, so the ids are
+   * resolved in the host's root node and assigned to the input through element reflection
+   * (`ariaDescribedByElements`), together with the active error or supporting text. Without
+   * element reflection only the internal caption is linked, by an IDREF inside the shadow root;
+   * light-DOM targets cannot be referenced in that case.
+   */
+  #syncDescribedBy(): void {
+    const control = this.shadowRoot?.querySelector("input") as HTMLInputElement | null;
+
+    if (!control) {
+      return;
     }
 
-    public disconnectedCallback(): void {
-        super.disconnectedCallback();
-        this.#describedByObserver.disconnect();
-        this.removeEventListener("focusin", this.#handleFocusIn);
+    const targets: Element[] = [];
+    const root = this.getRootNode() as Document | ShadowRoot;
+    const hostIds = (this.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean);
+
+    for (const id of hostIds) {
+      const target = root.getElementById?.(id) ?? null;
+      if (target && !targets.includes(target)) {
+        targets.push(target);
+      }
     }
 
-    public handleInput(event: Event): void {
-        // The native `input` is composed and would reach the host as a second event; this element emits its own.
-        event.stopPropagation();
-        const control = event.currentTarget as HTMLInputElement | null;
-        this.value = control?.value ?? "";
-        this.#syncFormState();
-        this.$emit("input", { value: this.value });
+    const error = this.displayErrorText
+      ? (this.shadowRoot?.getElementById(this.errorId) ?? null)
+      : null;
+    const supporting = !error ? (this.shadowRoot?.getElementById(this.supportingId) ?? null) : null;
+    const caption = error ?? supporting;
+    if (caption) {
+      targets.push(caption);
     }
 
-    public handleCommit(event: Event): void {
-        const control = event.currentTarget as HTMLInputElement | null;
-        this.value = control?.value ?? "";
-        this.#syncFormState();
-        this.$emit("change", { value: this.value });
+    const hasElementReflection: boolean = "ariaDescribedByElements" in control;
+    if (hasElementReflection) {
+      control.removeAttribute("aria-describedby");
+      control.ariaDescribedByElements = targets.length ? targets : null;
+      return;
     }
 
-    public formStateRestoreCallback(state: File | string | FormData | null): void {
-        if (typeof state === "string") {
-            this.value = state;
-        }
+    if (caption) {
+      control.setAttribute("aria-describedby", caption.id);
+    } else {
+      control.removeAttribute("aria-describedby");
+    }
+  }
+
+  #syncFormState(): void {
+    if (!this.$fastController.isConnected) {
+      return;
     }
 
-    public formResetCallback(): void {
-        this.value = this.#defaultValue;
-        // Also when the value is unchanged: a partial entry, such as "-", reads as "" and must go too.
-        this.#writeControl(true);
-        this.#syncFormState();
+    const control = this.shadowRoot?.querySelector("input") as HTMLInputElement | null;
+    const value = this.value ?? "";
+
+    this.#internals.ariaInvalid = this.invalid ? "true" : "false";
+    this.#internals.setFormValue(this.effectiveDisabled ? null : value);
+
+    if (this.effectiveDisabled || this.readonly) {
+      this.#setDisplayErrorText("");
+      this.#internals.setValidity({});
+      return;
     }
 
-    public get form(): HTMLFormElement | null {
-        return this.#internals.form;
+    if (this.invalid) {
+      const customError = (this.errorText ?? "").trim();
+      this.#setDisplayErrorText(customError || control?.validationMessage || "");
+      this.#internals.setValidity(
+        { customError: true },
+        customError || "Please correct this field.",
+        control ?? undefined,
+      );
+      return;
     }
 
-    public get validity(): ValidityState {
-        return this.#internals.validity;
+    this.#setDisplayErrorText("");
+
+    if (this.required && !value.trim()) {
+      this.#internals.setValidity(
+        { valueMissing: true },
+        "Please fill out this field.",
+        control ?? undefined,
+      );
+      return;
     }
 
-    public get validationMessage(): string {
-        return this.#internals.validationMessage;
+    if (!control) {
+      this.#internals.setValidity({});
+      return;
     }
 
-    public get willValidate(): boolean {
-        return this.#internals.willValidate;
+    // Native length validity only fires for user edits, and the `:value` binding resets that
+    // flag, so length limits are evaluated here against the current value instead.
+    const native = control.validity;
+    const length = value.length;
+    const tooShort =
+      native.tooShort || (this.minLength != null && length > 0 && length < this.minLength);
+    const tooLong = native.tooLong || (this.maxLength != null && length > this.maxLength);
+
+    if (native.valid && !tooShort && !tooLong) {
+      this.#internals.setValidity({});
+      return;
     }
 
-    public checkValidity(): boolean {
-        return this.#internals.checkValidity();
+    let message = control.validationMessage;
+    if (!message && tooShort) {
+      message = `Please lengthen this text to ${this.minLength} characters or more.`;
+    } else if (!message && tooLong) {
+      message = `Please shorten this text to ${this.maxLength} characters or less.`;
     }
 
-    public reportValidity(): boolean {
-        return this.#internals.reportValidity();
-    }
-
-    public valueChanged(): void {
-        this.#writeControl();
-        this.#syncFormState();
-        this.#scheduleSync();
-    }
-
-    // Writes `value` to the native input only when it differs. A number input reads `""` while it holds a
-    // partial entry such as `-`, so writing that `""` back, as a binding would, erased the `-` (#712).
-    #writeControl(force = false): void {
-        const control = this.shadowRoot?.querySelector<HTMLInputElement>("input.control");
-        const value = this.value ?? "";
-        if (control && (force || control.value !== value)) {
-            control.value = value;
-        }
-    }
-
-    public typeChanged(): void {
-        this.#scheduleSync();
-    }
-
-    public minChanged(): void {
-        this.#scheduleSync();
-    }
-
-    public maxChanged(): void {
-        this.#scheduleSync();
-    }
-
-    public stepChanged(): void {
-        this.#scheduleSync();
-    }
-
-    public minLengthChanged(): void {
-        this.#scheduleSync();
-    }
-
-    public maxLengthChanged(): void {
-        this.#scheduleSync();
-    }
-
-    public patternChanged(): void {
-        this.#scheduleSync();
-    }
-
-    public supportingTextChanged(): void {
-        this.#scheduleSync();
-    }
-
-    public errorTextChanged(): void {
-        this.#syncFormState();
-        this.#scheduleSync();
-    }
-
-    #setDisplayErrorText(next: string): void {
-        if (this._displayErrorText === next) {
-            return;
-        }
-        this._displayErrorText = next;
-        if (!this.$fastController.isConnected) {
-            return;
-        }
-        Updates.enqueue(() => {
-            Updates.enqueue(() => {
-                this.#syncDescribedBy();
-            });
-        });
-    }
-
-    public disabledChanged(): void {
-        this.#syncFormState();
-        this.#scheduleSync();
-    }
-
-    public invalidChanged(): void {
-        this.#syncFormState();
-        this.#scheduleSync();
-    }
-
-    public readonlyChanged(): void {
-        this.#syncFormState();
-        this.#scheduleSync();
-    }
-
-    public requiredChanged(): void {
-        this.#syncFormState();
-        this.#scheduleSync();
-    }
-
-    /**
-     * Template bindings flush on the next update batch, so validity derived from the inner
-     * input and the describedby targets are re-synced once that batch has landed.
-     */
-    #scheduleSync(): void {
-        if (this.#syncScheduled || !this.$fastController.isConnected) {
-            return;
-        }
-
-        this.#syncScheduled = true;
-        Updates.enqueue(() => {
-            Updates.enqueue(() => {
-                this.#syncScheduled = false;
-                this.#syncFormState();
-                this.#syncDescribedBy();
-            });
-        });
-    }
-
-    /**
-     * IDREFs in a host `aria-describedby` cannot cross the shadow boundary, so the ids are
-     * resolved in the host's root node and assigned to the input through element reflection
-     * (`ariaDescribedByElements`), together with the active error or supporting text. Without
-     * element reflection only the internal caption is linked, by an IDREF inside the shadow root;
-     * light-DOM targets cannot be referenced in that case.
-     */
-    #syncDescribedBy(): void {
-        const control = this.shadowRoot?.querySelector("input") as HTMLInputElement | null;
-
-        if (!control) {
-            return;
-        }
-
-        const targets: Element[] = [];
-        const root = this.getRootNode() as Document | ShadowRoot;
-        const hostIds = (this.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean);
-
-        for (const id of hostIds) {
-            const target = root.getElementById?.(id) ?? null;
-            if (target && !targets.includes(target)) {
-                targets.push(target);
-            }
-        }
-
-        const error = this.displayErrorText ? (this.shadowRoot?.getElementById(this.errorId) ?? null) : null;
-        const supporting = !error ? (this.shadowRoot?.getElementById(this.supportingId) ?? null) : null;
-        const caption = error ?? supporting;
-        if (caption) {
-            targets.push(caption);
-        }
-
-        const hasElementReflection: boolean = "ariaDescribedByElements" in control;
-        if (hasElementReflection) {
-            control.removeAttribute("aria-describedby");
-            control.ariaDescribedByElements = targets.length ? targets : null;
-            return;
-        }
-
-        if (caption) {
-            control.setAttribute("aria-describedby", caption.id);
-        } else {
-            control.removeAttribute("aria-describedby");
-        }
-    }
-
-    #syncFormState(): void {
-        if (!this.$fastController.isConnected) {
-            return;
-        }
-
-        const control = this.shadowRoot?.querySelector("input") as HTMLInputElement | null;
-        const value = this.value ?? "";
-
-        this.#internals.ariaInvalid = this.invalid ? "true" : "false";
-        this.#internals.setFormValue(this.effectiveDisabled ? null : value);
-
-        if (this.effectiveDisabled || this.readonly) {
-            this.#setDisplayErrorText("");
-            this.#internals.setValidity({});
-            return;
-        }
-
-        if (this.invalid) {
-            const customError = (this.errorText ?? "").trim();
-            this.#setDisplayErrorText(customError || control?.validationMessage || "");
-            this.#internals.setValidity(
-                { customError: true },
-                customError || "Please correct this field.",
-                control ?? undefined,
-            );
-            return;
-        }
-
-        this.#setDisplayErrorText("");
-
-        if (this.required && !value.trim()) {
-            this.#internals.setValidity({ valueMissing: true }, "Please fill out this field.", control ?? undefined);
-            return;
-        }
-
-        if (!control) {
-            this.#internals.setValidity({});
-            return;
-        }
-
-        // Native length validity only fires for user edits, and the `:value` binding resets that
-        // flag, so length limits are evaluated here against the current value instead.
-        const native = control.validity;
-        const length = value.length;
-        const tooShort = native.tooShort || (this.minLength != null && length > 0 && length < this.minLength);
-        const tooLong = native.tooLong || (this.maxLength != null && length > this.maxLength);
-
-        if (native.valid && !tooShort && !tooLong) {
-            this.#internals.setValidity({});
-            return;
-        }
-
-        let message = control.validationMessage;
-        if (!message && tooShort) {
-            message = `Please lengthen this text to ${this.minLength} characters or more.`;
-        } else if (!message && tooLong) {
-            message = `Please shorten this text to ${this.maxLength} characters or less.`;
-        }
-
-        this.#internals.setValidity(
-            {
-                valueMissing: native.valueMissing,
-                typeMismatch: native.typeMismatch,
-                patternMismatch: native.patternMismatch,
-                tooLong,
-                tooShort,
-                rangeUnderflow: native.rangeUnderflow,
-                rangeOverflow: native.rangeOverflow,
-                stepMismatch: native.stepMismatch,
-                badInput: native.badInput,
-                customError: native.customError,
-            },
-            message,
-            control,
-        );
-    }
+    this.#internals.setValidity(
+      {
+        valueMissing: native.valueMissing,
+        typeMismatch: native.typeMismatch,
+        patternMismatch: native.patternMismatch,
+        tooLong,
+        tooShort,
+        rangeUnderflow: native.rangeUnderflow,
+        rangeOverflow: native.rangeOverflow,
+        stepMismatch: native.stepMismatch,
+        badInput: native.badInput,
+        customError: native.customError,
+      },
+      message,
+      control,
+    );
+  }
 }
 
 attr(VioletTextField.prototype, "label");
@@ -687,8 +714,14 @@ attr(VioletTextField.prototype, "type");
 attr(VioletTextField.prototype, "min");
 attr(VioletTextField.prototype, "max");
 attr(VioletTextField.prototype, "step");
-attr({ attribute: "minlength", converter: nullableNumberConverter })(VioletTextField.prototype, "minLength");
-attr({ attribute: "maxlength", converter: nullableNumberConverter })(VioletTextField.prototype, "maxLength");
+attr({ attribute: "minlength", converter: nullableNumberConverter })(
+  VioletTextField.prototype,
+  "minLength",
+);
+attr({ attribute: "maxlength", converter: nullableNumberConverter })(
+  VioletTextField.prototype,
+  "maxLength",
+);
 attr(VioletTextField.prototype, "pattern");
 attr(VioletTextField.prototype, "autocomplete");
 attr({ attribute: "inputmode" })(VioletTextField.prototype, "inputMode");
@@ -703,10 +736,10 @@ attr({ mode: "boolean" })(VioletTextField.prototype, "required");
 
 /** The FAST definition of `<violet-text-field>`; `defineVioletTextField` in `./violet-text-field.define` registers it. */
 export const violetTextFieldDefinition = {
-    name: "violet-text-field",
-    template,
-    styles,
-    shadowOptions: {
-        delegatesFocus: true,
-    },
+  name: "violet-text-field",
+  template,
+  styles,
+  shadowOptions: {
+    delegatesFocus: true,
+  },
 } satisfies PartialFASTElementDefinition;

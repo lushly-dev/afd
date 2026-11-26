@@ -5,21 +5,14 @@
     {
       "id": "empty-state.content",
       "text": "The heading and message attributes are plain text. Buttons go in the actions slot, an illustration in the media slot, and extra copy in the default slot, after the message. Empty media and actions regions are hidden.",
-      "members": [
-        "heading",
-        "message",
-        "actions",
-        "media"
-      ]
+      "members": ["heading", "message", "actions", "media"]
     }
   ],
   "a11y": [
     {
       "id": "empty-state.heading",
       "text": "The heading attribute always renders as an h3; its level cannot be changed. Where h3 does not fit the outline, leave heading empty and put your own heading in the default slot.",
-      "members": [
-        "heading"
-      ]
+      "members": ["heading"]
     },
     {
       "id": "empty-state.announce",
@@ -28,9 +21,7 @@
     {
       "id": "empty-state.media",
       "text": "Media is read as is: give a purely decorative illustration alt=\"\" (or decorative on violet-image) so it is skipped.",
-      "members": [
-        "media"
-      ]
+      "members": ["media"]
     }
   ]
 }

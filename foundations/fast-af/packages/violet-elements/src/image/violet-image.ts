@@ -1,4 +1,13 @@
-import { FASTElement, Observable, attr, css, html, observable, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  Observable,
+  observable,
+  type PartialFASTElementDefinition,
+  when,
+} from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -110,26 +119,26 @@ const template = html<VioletImage>`
     <div
         class="root"
         part="root"
-        role="${x => x.accessibleRole}"
-        aria-label="${x => x.accessibleLabel}"
-        aria-hidden="${x => (x.decorative ? "true" : "false")}"
+        role="${(x) => x.accessibleRole}"
+        aria-label="${(x) => x.accessibleLabel}"
+        aria-hidden="${(x) => (x.decorative ? "true" : "false")}"
     >
         ${when(
-            x => Boolean(x.src),
-            html<VioletImage>`
+          (x) => Boolean(x.src),
+          html<VioletImage>`
                 <img
                     class="media"
                     part="image"
-                    src="${x => x.src}"
-                    alt="${x => x.computedAlt}"
-                    loading="${x => x.loading}"
+                    src="${(x) => x.src}"
+                    alt="${(x) => x.computedAlt}"
+                    loading="${(x) => x.loading}"
                     decoding="async"
-                    ?hidden="${x => x.imageFailed}"
-                    @error="${x => x.handleImageError()}"
+                    ?hidden="${(x) => x.imageFailed}"
+                    @error="${(x) => x.handleImageError()}"
                 />
             `,
         )}
-        <div class="fallback" part="fallback" ?hidden="${x => x.showImage}">
+        <div class="fallback" part="fallback" ?hidden="${(x) => x.showImage}">
             <slot name="fallback">Image unavailable</slot>
         </div>
     </div>
@@ -145,82 +154,82 @@ const template = html<VioletImage>`
  * @csspart fallback - The fallback container.
  */
 export class VioletImage extends FASTElement {
-    @observable
-    declare public imageFailed: boolean;
+  @observable
+  declare public imageFailed: boolean;
 
-    declare public src: string;
-    declare public alt: string;
-    declare public fit: VioletImageFit;
-    declare public ratio: VioletImageRatio;
-    declare public shape: VioletImageShape;
-    declare public loading: VioletImageLoading;
-    declare public decorative: boolean;
+  declare public src: string;
+  declare public alt: string;
+  declare public fit: VioletImageFit;
+  declare public ratio: VioletImageRatio;
+  declare public shape: VioletImageShape;
+  declare public loading: VioletImageLoading;
+  declare public decorative: boolean;
 
-    public constructor() {
-        super();
-        this.src = "";
-        this.alt = "";
-        this.fit = "cover";
-        this.ratio = "auto";
-        this.shape = "rounded";
-        this.loading = "lazy";
-        this.decorative = false;
-        this.imageFailed = false;
+  public constructor() {
+    super();
+    this.src = "";
+    this.alt = "";
+    this.fit = "cover";
+    this.ratio = "auto";
+    this.shape = "rounded";
+    this.loading = "lazy";
+    this.decorative = false;
+    this.imageFailed = false;
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    this.syncVisualState();
+  }
+
+  public srcChanged(): void {
+    this.imageFailed = false;
+    this.syncVisualState();
+  }
+
+  public get showImage(): boolean {
+    Observable.trackVolatile();
+    return Boolean(this.src) && !this.imageFailed;
+  }
+
+  public get computedAlt(): string {
+    Observable.trackVolatile();
+    return this.decorative ? "" : this.alt;
+  }
+
+  public get accessibleRole(): string | null {
+    Observable.trackVolatile();
+    if (this.decorative || this.showImage) {
+      return null;
+    }
+    return this.alt.trim() ? "img" : null;
+  }
+
+  public get accessibleLabel(): string | null {
+    Observable.trackVolatile();
+    if (this.decorative || this.showImage) {
+      return null;
+    }
+    return this.alt.trim() || null;
+  }
+
+  public handleImageError(): void {
+    this.imageFailed = true;
+    this.syncVisualState();
+  }
+
+  private syncVisualState(): void {
+    const image = this.shadowRoot?.querySelector<HTMLImageElement>(".media");
+    const fallback = this.shadowRoot?.querySelector<HTMLElement>(".fallback");
+
+    if (image) {
+      image.hidden = this.imageFailed;
     }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        this.syncVisualState();
+    if (fallback) {
+      fallback.hidden = this.showImage;
     }
-
-    public srcChanged(): void {
-        this.imageFailed = false;
-        this.syncVisualState();
-    }
-
-    public get showImage(): boolean {
-        Observable.trackVolatile();
-        return Boolean(this.src) && !this.imageFailed;
-    }
-
-    public get computedAlt(): string {
-        Observable.trackVolatile();
-        return this.decorative ? "" : this.alt;
-    }
-
-    public get accessibleRole(): string | null {
-        Observable.trackVolatile();
-        if (this.decorative || this.showImage) {
-            return null;
-        }
-        return this.alt.trim() ? "img" : null;
-    }
-
-    public get accessibleLabel(): string | null {
-        Observable.trackVolatile();
-        if (this.decorative || this.showImage) {
-            return null;
-        }
-        return this.alt.trim() || null;
-    }
-
-    public handleImageError(): void {
-        this.imageFailed = true;
-        this.syncVisualState();
-    }
-
-    private syncVisualState(): void {
-        const image = this.shadowRoot?.querySelector<HTMLImageElement>(".media");
-        const fallback = this.shadowRoot?.querySelector<HTMLElement>(".fallback");
-
-        if (image) {
-            image.hidden = this.imageFailed;
-        }
-
-        if (fallback) {
-            fallback.hidden = this.showImage;
-        }
-    }
+  }
 }
 
 attr(VioletImage.prototype, "src");
@@ -233,7 +242,7 @@ attr({ mode: "boolean" })(VioletImage.prototype, "decorative");
 
 /** The FAST definition of `<violet-image>`; `defineVioletImage` in `./violet-image.define` registers it. */
 export const violetImageDefinition = {
-    name: "violet-image",
-    template,
-    styles,
+  name: "violet-image",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

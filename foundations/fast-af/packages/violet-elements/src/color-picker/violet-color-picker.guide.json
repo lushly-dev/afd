@@ -5,18 +5,12 @@
     {
       "id": "color-picker.value",
       "text": "value is a hex color; 3- or 6-digit input is accepted and every user edit writes lowercase #rrggbb. The form receives value under name. Empty shows \"Choose color\".",
-      "members": [
-        "value",
-        "name"
-      ]
+      "members": ["value", "name"]
     },
     {
       "id": "color-picker.events",
       "text": "input fires as the color changes and change on commit (slider release, hex Enter or blur, preset click), both with detail.value. change fires only when the color differs, ignoring case, from the last commit.",
-      "members": [
-        "input",
-        "change"
-      ]
+      "members": ["input", "change"]
     },
     {
       "id": "color-picker.input",
@@ -29,25 +23,19 @@
     {
       "id": "color-picker.reset",
       "text": "Form reset restores the value the picker had when it was connected. The built-in swatches are fixed; content in the presets slot renders below them but is not wired to pick a color.",
-      "members": [
-        "presets"
-      ]
+      "members": ["presets"]
     },
     {
       "id": "color-picker.defaults",
       "text": "The empty-state slider seed (#146ba0) and eight built-in presets (#181b1a, #2c5e4b, #a3ebcd, #146ba0, #c42a1a, #f96e5b, #92400e, #6b7d6e) come from AFD's Refined palette as component defaults, not theme tokens.",
-      "members": [
-        "presets"
-      ]
+      "members": ["presets"]
     }
   ],
   "a11y": [
     {
       "id": "color-picker.trigger-name",
       "text": "The trigger button is named by the label attribute followed by its visible text, e.g. \"Accent #146ba0 Adjust color\"; without label the name is only that text.",
-      "members": [
-        "label"
-      ]
+      "members": ["label"]
     },
     {
       "id": "color-picker.focus",

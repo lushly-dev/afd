@@ -5,7 +5,10 @@
  */
 // violet-runtime's naming rule, copied by `theme:build`: this package takes no Violet dependency
 // (Loam D50).
-import { tokenCustomProperty, VIOLET_CSS_PREFIX } from "./generated/violet-token-property.generated.ts";
+import {
+  tokenCustomProperty,
+  VIOLET_CSS_PREFIX,
+} from "./generated/violet-token-property.generated.ts";
 
 /** The prefix of every property the components read: `tokens/interface.json`'s `cssPrefix`. */
 export { VIOLET_CSS_PREFIX };
@@ -18,8 +21,8 @@ export type VioletThemePreset = string;
 
 /** One resolved token: a Violet token id (`color.surface.page`) and its CSS value. */
 export interface VioletThemeToken {
-    readonly id: string;
-    readonly value: string;
+  readonly id: string;
+  readonly value: string;
 }
 
 /**
@@ -29,20 +32,20 @@ export interface VioletThemeToken {
  * default. This is the shape `@lushly-dev/violet-core`'s resolved tokens map to.
  */
 export interface VioletThemeSet {
-    readonly defaultPreset: VioletThemePreset;
-    readonly presets: Readonly<Record<VioletThemePreset, readonly VioletThemeToken[]>>;
+  readonly defaultPreset: VioletThemePreset;
+  readonly presets: Readonly<Record<VioletThemePreset, readonly VioletThemeToken[]>>;
 }
 
 /** The token types `tokens/interface.json` uses. */
 export const VIOLET_TOKEN_TYPES = [
-    "color",
-    "dimension",
-    "duration",
-    "cubicBezier",
-    "fontWeight",
-    "fontFamily",
-    "number",
-    "shadow",
+  "color",
+  "dimension",
+  "duration",
+  "cubicBezier",
+  "fontWeight",
+  "fontFamily",
+  "number",
+  "shadow",
 ] as const;
 
 /** One of `VIOLET_TOKEN_TYPES`. */
@@ -50,34 +53,34 @@ export type VioletTokenType = (typeof VIOLET_TOKEN_TYPES)[number];
 
 /** One entry of `tokens/interface.json`. */
 export interface VioletTokenInterfaceEntry {
-    readonly property: string;
-    readonly type: VioletTokenType;
-    /** In the interface, but no component reads it yet. A theme set supplies it anyway. */
-    readonly reserved?: boolean;
+  readonly property: string;
+  readonly type: VioletTokenType;
+  /** In the interface, but no component reads it yet. A theme set supplies it anyway. */
+  readonly reserved?: boolean;
 }
 
 /** `tokens/interface.json`: the custom properties the components read, per token id. */
 export interface VioletTokenInterface {
-    readonly contractVersion: number;
-    /** The prefix each property carries (`violet`), from contract version 4. */
-    readonly cssPrefix?: string;
-    readonly tokens: Readonly<Record<string, VioletTokenInterfaceEntry>>;
+  readonly contractVersion: number;
+  /** The prefix each property carries (`violet`), from contract version 4. */
+  readonly cssPrefix?: string;
+  readonly tokens: Readonly<Record<string, VioletTokenInterfaceEntry>>;
 }
 
 /** An interface id a preset does not supply, counting what it inherits from the default. */
 export interface VioletThemeSetGap {
-    readonly preset: VioletThemePreset;
-    readonly id: string;
-    readonly property: string;
+  readonly preset: VioletThemePreset;
+  readonly id: string;
+  readonly property: string;
 }
 
 /** What `findVioletThemeSetGaps` found: an unsound set's problems, or the ids it lacks. */
 export interface VioletThemeSetGaps {
-    /** `validateVioletThemeSet`'s problems; when any, `missing` is not computed and is empty. */
-    readonly problems: readonly string[];
-    readonly missing: readonly VioletThemeSetGap[];
-    /** No problems and nothing missing. */
-    readonly complete: boolean;
+  /** `validateVioletThemeSet`'s problems; when any, `missing` is not computed and is empty. */
+  readonly problems: readonly string[];
+  readonly missing: readonly VioletThemeSetGap[];
+  /** No problems and nothing missing. */
+  readonly complete: boolean;
 }
 
 const PRESET_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
@@ -93,22 +96,22 @@ const CLOSERS: Readonly<Record<string, string>> = { ")": "(", "]": "[" };
  * `rgb(0 0 0` is refused. Backslashes are refused already, so no quote is escaped.
  */
 function isBalanced(value: string): boolean {
-    const open: string[] = [];
-    let quote: string | null = null;
-    for (const char of value) {
-        if (quote !== null) {
-            if (char === quote) {
-                quote = null;
-            }
-        } else if (char === '"' || char === "'") {
-            quote = char;
-        } else if (char === "(" || char === "[") {
-            open.push(char);
-        } else if (char in CLOSERS && open.pop() !== CLOSERS[char]) {
-            return false;
-        }
+  const open: string[] = [];
+  let quote: string | null = null;
+  for (const char of value) {
+    if (quote !== null) {
+      if (char === quote) {
+        quote = null;
+      }
+    } else if (char === '"' || char === "'") {
+      quote = char;
+    } else if (char === "(" || char === "[") {
+      open.push(char);
+    } else if (char in CLOSERS && open.pop() !== CLOSERS[char]) {
+      return false;
     }
-    return quote === null && open.length === 0;
+  }
+  return quote === null && open.length === 0;
 }
 
 /**
@@ -118,7 +121,7 @@ function isBalanced(value: string): boolean {
  * name Violet's runtime and violet-core's CSS exporter write with that prefix.
  */
 export function violetTokenProperty(id: string): string {
-    return tokenCustomProperty(id, VIOLET_CSS_PREFIX);
+  return tokenCustomProperty(id, VIOLET_CSS_PREFIX);
 }
 
 /**
@@ -128,54 +131,65 @@ export function violetTokenProperty(id: string): string {
  * @deprecated Removed with the alias block in the release after the one that adds it.
  */
 function violetLegacyTokenProperty(id: string): string {
-    return tokenCustomProperty(id);
+  return tokenCustomProperty(id);
 }
 
 /** Every problem with a theme set's shape, preset names, ids and values; empty when it is sound. */
 export function validateVioletThemeSet(themeSet: VioletThemeSet): string[] {
-    const problems: string[] = [];
-    const presets = themeSet?.presets;
-    if (typeof presets !== "object" || presets === null || Array.isArray(presets)) {
-        return ["the theme set has no presets object"];
+  const problems: string[] = [];
+  const presets = themeSet?.presets;
+  if (typeof presets !== "object" || presets === null || Array.isArray(presets)) {
+    return ["the theme set has no presets object"];
+  }
+  const names = Object.keys(presets);
+  if (names.length === 0) {
+    problems.push("the theme set has no presets");
+  }
+  if (typeof themeSet.defaultPreset !== "string" || !names.includes(themeSet.defaultPreset)) {
+    problems.push(
+      `the default preset '${String(themeSet.defaultPreset)}' is not one of the presets (${names.join(", ")})`,
+    );
+  }
+  for (const name of names) {
+    if (!PRESET_NAME.test(name)) {
+      problems.push(
+        `the preset name '${name}' must be letters, digits, '-' and '_', starting with a letter or digit`,
+      );
     }
-    const names = Object.keys(presets);
-    if (names.length === 0) {
-        problems.push("the theme set has no presets");
+    const tokens = presets[name];
+    if (!Array.isArray(tokens)) {
+      problems.push(`the preset '${name}' is not a list of { id, value } tokens`);
+      continue;
     }
-    if (typeof themeSet.defaultPreset !== "string" || !names.includes(themeSet.defaultPreset)) {
-        problems.push(`the default preset '${String(themeSet.defaultPreset)}' is not one of the presets (${names.join(", ")})`);
+    const seen = new Set<string>();
+    for (const token of tokens) {
+      const id = token?.id;
+      if (typeof id !== "string" || !TOKEN_ID.test(id)) {
+        problems.push(`the preset '${name}' has a token with an invalid id ${JSON.stringify(id)}`);
+        continue;
+      }
+      if (seen.has(id)) {
+        problems.push(`the preset '${name}' lists '${id}' more than once`);
+      }
+      seen.add(id);
+      const value = token.value;
+      if (
+        typeof value !== "string" ||
+        value.trim() === "" ||
+        UNSAFE_VALUE.test(value) ||
+        !isBalanced(value)
+      ) {
+        problems.push(
+          `the preset '${name}' has an empty or unsafe value for '${id}': ${JSON.stringify(value)}`,
+        );
+      }
     }
-    for (const name of names) {
-        if (!PRESET_NAME.test(name)) {
-            problems.push(`the preset name '${name}' must be letters, digits, '-' and '_', starting with a letter or digit`);
-        }
-        const tokens = presets[name];
-        if (!Array.isArray(tokens)) {
-            problems.push(`the preset '${name}' is not a list of { id, value } tokens`);
-            continue;
-        }
-        const seen = new Set<string>();
-        for (const token of tokens) {
-            const id = token?.id;
-            if (typeof id !== "string" || !TOKEN_ID.test(id)) {
-                problems.push(`the preset '${name}' has a token with an invalid id ${JSON.stringify(id)}`);
-                continue;
-            }
-            if (seen.has(id)) {
-                problems.push(`the preset '${name}' lists '${id}' more than once`);
-            }
-            seen.add(id);
-            const value = token.value;
-            if (typeof value !== "string" || value.trim() === "" || UNSAFE_VALUE.test(value) || !isBalanced(value)) {
-                problems.push(`the preset '${name}' has an empty or unsafe value for '${id}': ${JSON.stringify(value)}`);
-            }
-        }
-    }
-    return problems;
+  }
+  return problems;
 }
 
 function declarations(tokens: readonly VioletThemeToken[]): string {
-    return tokens.map(token => `  ${violetTokenProperty(token.id)}: ${token.value};`).join("\n");
+  return tokens.map((token) => `  ${violetTokenProperty(token.id)}: ${token.value};`).join("\n");
 }
 
 /**
@@ -190,10 +204,12 @@ function declarations(tokens: readonly VioletThemeToken[]): string {
  * @deprecated Removed in the release after the one that adds it; read `--violet-*` instead.
  */
 function aliasDeclarations(themeSet: VioletThemeSet): string {
-    const ids = new Set(Object.values(themeSet.presets).flatMap(tokens => tokens.map(token => token.id)));
-    return [...ids]
-        .map(id => `  ${violetLegacyTokenProperty(id)}: var(${violetTokenProperty(id)});`)
-        .join("\n");
+  const ids = new Set(
+    Object.values(themeSet.presets).flatMap((tokens) => tokens.map((token) => token.id)),
+  );
+  return [...ids]
+    .map((id) => `  ${violetLegacyTokenProperty(id)}: var(${violetTokenProperty(id)});`)
+    .join("\n");
 }
 
 /**
@@ -203,32 +219,32 @@ function aliasDeclarations(themeSet: VioletThemeSet): string {
  * preset's selectors. Throws a `TypeError` listing every problem when the set is not sound.
  */
 export function createVioletThemeCss(themeSet: VioletThemeSet): string {
-    const problems = validateVioletThemeSet(themeSet);
-    if (problems.length > 0) {
-        throw new TypeError(`Invalid Violet theme set: ${problems.join("; ")}`);
+  const problems = validateVioletThemeSet(themeSet);
+  if (problems.length > 0) {
+    throw new TypeError(`Invalid Violet theme set: ${problems.join("; ")}`);
+  }
+  const blocks = [
+    ":root,",
+    `[${VIOLET_THEME_ROOT_ATTRIBUTE}]`,
+    "{",
+    declarations(themeSet.presets[themeSet.defaultPreset]),
+    "}",
+  ];
+  for (const [name, tokens] of Object.entries(themeSet.presets)) {
+    if (name === themeSet.defaultPreset) {
+      continue;
     }
-    const blocks = [
-        ":root,",
-        `[${VIOLET_THEME_ROOT_ATTRIBUTE}]`,
-        "{",
-        declarations(themeSet.presets[themeSet.defaultPreset]),
-        "}",
-    ];
-    for (const [name, tokens] of Object.entries(themeSet.presets)) {
-        if (name === themeSet.defaultPreset) {
-            continue;
-        }
-        blocks.push(
-            `:root[${VIOLET_THEME_PRESET_ATTRIBUTE}="${name}"],`,
-            `[${VIOLET_THEME_ROOT_ATTRIBUTE}][${VIOLET_THEME_PRESET_ATTRIBUTE}="${name}"]`,
-            "{",
-            declarations(tokens),
-            "}",
-        );
-    }
-    // Deprecated: the names before contract version 4, for one preview release.
-    blocks.push(":root,", `[${VIOLET_THEME_ROOT_ATTRIBUTE}]`, "{", aliasDeclarations(themeSet), "}");
-    return blocks.join("\n");
+    blocks.push(
+      `:root[${VIOLET_THEME_PRESET_ATTRIBUTE}="${name}"],`,
+      `[${VIOLET_THEME_ROOT_ATTRIBUTE}][${VIOLET_THEME_PRESET_ATTRIBUTE}="${name}"]`,
+      "{",
+      declarations(tokens),
+      "}",
+    );
+  }
+  // Deprecated: the names before contract version 4, for one preview release.
+  blocks.push(":root,", `[${VIOLET_THEME_ROOT_ATTRIBUTE}]`, "{", aliasDeclarations(themeSet), "}");
+  return blocks.join("\n");
 }
 
 /**
@@ -242,20 +258,23 @@ export function createVioletThemeCss(themeSet: VioletThemeSet): string {
  * `@lushly-dev/violet-elements/theme-css` entry. Ids the interface does not list are allowed: a
  * product's tree may hold more than the components read.
  */
-export function findVioletThemeSetGaps(themeSet: VioletThemeSet, tokenInterface: VioletTokenInterface): VioletThemeSetGaps {
-    const problems = validateVioletThemeSet(themeSet);
-    if (problems.length > 0) {
-        return { problems, missing: [], complete: false };
+export function findVioletThemeSetGaps(
+  themeSet: VioletThemeSet,
+  tokenInterface: VioletTokenInterface,
+): VioletThemeSetGaps {
+  const problems = validateVioletThemeSet(themeSet);
+  if (problems.length > 0) {
+    return { problems, missing: [], complete: false };
+  }
+  const missing: VioletThemeSetGap[] = [];
+  const defaults = new Set(themeSet.presets[themeSet.defaultPreset].map((token) => token.id));
+  for (const [preset, tokens] of Object.entries(themeSet.presets)) {
+    const supplied = new Set([...defaults, ...tokens.map((token) => token.id)]);
+    for (const [id, entry] of Object.entries(tokenInterface.tokens)) {
+      if (!supplied.has(id)) {
+        missing.push({ preset, id, property: entry.property });
+      }
     }
-    const missing: VioletThemeSetGap[] = [];
-    const defaults = new Set(themeSet.presets[themeSet.defaultPreset].map(token => token.id));
-    for (const [preset, tokens] of Object.entries(themeSet.presets)) {
-        const supplied = new Set([...defaults, ...tokens.map(token => token.id)]);
-        for (const [id, entry] of Object.entries(tokenInterface.tokens)) {
-            if (!supplied.has(id)) {
-                missing.push({ preset, id, property: entry.property });
-            }
-        }
-    }
-    return { problems: [], missing, complete: missing.length === 0 };
+  }
+  return { problems: [], missing, complete: missing.length === 0 };
 }

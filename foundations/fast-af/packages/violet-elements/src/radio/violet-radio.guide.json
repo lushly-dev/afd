@@ -9,33 +9,24 @@
     {
       "id": "radio.value",
       "text": "Give each radio a distinct value attribute. The default is \"on\", and the group selects by value, so radios without one are indistinguishable.",
-      "members": [
-        "value"
-      ]
+      "members": ["value"]
     },
     {
       "id": "radio.change",
       "text": "A user check fires a bubbling change event with detail { checked: true, value }. Nothing fires when it is already checked or when the group unchecks it.",
-      "members": [
-        "change"
-      ]
+      "members": ["change"]
     },
     {
       "id": "radio.error",
       "text": "An error message renders only while invalid is set (and not while disabled). It displays error-text, replaces supporting text, links to the radio as its description, and announces with role alert.",
-      "members": [
-        "invalid",
-        "error-text"
-      ]
+      "members": ["invalid", "error-text"]
     }
   ],
   "a11y": [
     {
       "id": "radio.description",
       "text": "The active error message, or content in the supporting slot when no error is shown, is linked as the radio's description.",
-      "members": [
-        "supporting"
-      ]
+      "members": ["supporting"]
     }
   ]
 }

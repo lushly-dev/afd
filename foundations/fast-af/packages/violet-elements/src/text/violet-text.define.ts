@@ -7,8 +7,10 @@ import { VioletText, violetTextDefinition } from "./violet-text";
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletText(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletElement(VioletText, violetTextDefinition, registry);
+export async function defineVioletText(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletElement(VioletText, violetTextDefinition, registry);
 }
 
 await defineVioletText();

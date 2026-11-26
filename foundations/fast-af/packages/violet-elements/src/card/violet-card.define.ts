@@ -7,8 +7,10 @@ import { VioletCard, violetCardDefinition } from "./violet-card";
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletCard(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletElement(VioletCard, violetCardDefinition, registry);
+export async function defineVioletCard(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletElement(VioletCard, violetCardDefinition, registry);
 }
 
 await defineVioletCard();

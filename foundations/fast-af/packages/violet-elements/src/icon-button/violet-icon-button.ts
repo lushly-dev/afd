@@ -1,4 +1,10 @@
-import { FASTElement, attr, css, html, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 
 import { violetActionTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -161,11 +167,11 @@ const template = html<VioletIconButton>`
     <button
         class="control"
         part="control"
-        type="${x => x.type}"
-        data-appearance="${x => x.appearance}"
-        aria-label="${x => x.label}"
-        title="${x => x.label}"
-        ?disabled="${x => x.disabled}"
+        type="${(x) => x.type}"
+        data-appearance="${(x) => x.appearance}"
+        aria-label="${(x) => x.label}"
+        title="${(x) => x.label}"
+        ?disabled="${(x) => x.disabled}"
     >
         <span class="icon" part="icon"><slot></slot></span>
     </button>
@@ -180,34 +186,34 @@ const template = html<VioletIconButton>`
  * @csspart icon - Inline wrapper for the slotted icon content.
  */
 export class VioletIconButton extends FASTElement {
-    /**
-     * Visual emphasis variant for the button. `quiet` and `transparent` render the same, as an
-     * icon until the pointer is on it; `transparent` is kept for existing markup.
-     */
-    declare public appearance: VioletIconButtonAppearance;
+  /**
+   * Visual emphasis variant for the button. `quiet` and `transparent` render the same, as an
+   * icon until the pointer is on it; `transparent` is kept for existing markup.
+   */
+  declare public appearance: VioletIconButtonAppearance;
 
-    /**
-     * Accessible name used for the internal button label.
-     */
-    declare public label: string;
+  /**
+   * Accessible name used for the internal button label.
+   */
+  declare public label: string;
 
-    /**
-     * Native button type forwarded to the internal control.
-     */
-    declare public type: "button" | "submit" | "reset";
+  /**
+   * Native button type forwarded to the internal control.
+   */
+  declare public type: "button" | "submit" | "reset";
 
-    /**
-     * Disables the button.
-     */
-    declare public disabled: boolean;
+  /**
+   * Disables the button.
+   */
+  declare public disabled: boolean;
 
-    public constructor() {
-        super();
-        this.appearance = "secondary";
-        this.label = "";
-        this.type = "button";
-        this.disabled = false;
-    }
+  public constructor() {
+    super();
+    this.appearance = "secondary";
+    this.label = "";
+    this.type = "button";
+    this.disabled = false;
+  }
 }
 
 attr(VioletIconButton.prototype, "appearance");
@@ -217,10 +223,10 @@ attr({ mode: "boolean" })(VioletIconButton.prototype, "disabled");
 
 /** The FAST definition of `<violet-icon-button>`; `defineVioletIconButton` in `./violet-icon-button.define` registers it. */
 export const violetIconButtonDefinition = {
-    name: "violet-icon-button",
-    template,
-    styles,
-    shadowOptions: {
-        delegatesFocus: true,
-    },
+  name: "violet-icon-button",
+  template,
+  styles,
+  shadowOptions: {
+    delegatesFocus: true,
+  },
 } satisfies PartialFASTElementDefinition;

@@ -1,4 +1,11 @@
-import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -199,32 +206,32 @@ const styles = css`
 const template = html<VioletDialog>`
     <dialog
         part="dialog"
-        id="${x => x.dialogId}"
-        aria-labelledby="${x => x.hasTitle ? x.titleId : undefined}"
-        aria-label="${x => x.hasTitle ? undefined : "Dialog"}"
+        id="${(x) => x.dialogId}"
+        aria-labelledby="${(x) => (x.hasTitle ? x.titleId : undefined)}"
+        aria-label="${(x) => (x.hasTitle ? undefined : "Dialog")}"
         @close="${(x, c) => x.handleClose(c.event)}"
         @cancel="${(x, c) => x.handleCancel(c.event)}"
     >
-        <div class="header" part="header" ?hidden="${x => !x.hasTitle && x.noCloseButton}">
-            <span class="title" part="title" id="${x => x.titleId}">
-                <slot name="title" @slotchange="${x => x.handleTitleSlotChange()}"></slot>
+        <div class="header" part="header" ?hidden="${(x) => !x.hasTitle && x.noCloseButton}">
+            <span class="title" part="title" id="${(x) => x.titleId}">
+                <slot name="title" @slotchange="${(x) => x.handleTitleSlotChange()}"></slot>
             </span>
             <violet-icon-button
                 class="close-button"
                 part="close-button"
-                ?hidden="${x => x.noCloseButton}"
+                ?hidden="${(x) => x.noCloseButton}"
                 appearance="quiet"
                 label="Close"
-                @click="${x => x.requestClose("close-button")}"
+                @click="${(x) => x.requestClose("close-button")}"
             >
                 <violet-icon icon="system/close" decorative></violet-icon>
             </violet-icon-button>
         </div>
-        <div class="body" part="body" id="${x => x.bodyId}" tabindex="${x => x.bodyScrollable ? "0" : null}">
-            <slot @slotchange="${x => x.handleBodySlotChange()}"></slot>
+        <div class="body" part="body" id="${(x) => x.bodyId}" tabindex="${(x) => (x.bodyScrollable ? "0" : null)}">
+            <slot @slotchange="${(x) => x.handleBodySlotChange()}"></slot>
         </div>
-        <div class="footer" part="footer" ?hidden="${x => !x.hasFooter}">
-            <slot name="footer" @slotchange="${x => x.handleFooterSlotChange()}"></slot>
+        <div class="footer" part="footer" ?hidden="${(x) => !x.hasFooter}">
+            <slot name="footer" @slotchange="${(x) => x.handleFooterSlotChange()}"></slot>
         </div>
     </dialog>
 `;
@@ -234,11 +241,11 @@ const template = html<VioletDialog>`
  * trigger that lives inside another component's shadow tree.
  */
 function deepActiveElement(): Element | null {
-    let active = document.activeElement;
-    while (active?.shadowRoot?.activeElement) {
-        active = active.shadowRoot.activeElement;
-    }
-    return active;
+  let active = document.activeElement;
+  while (active?.shadowRoot?.activeElement) {
+    active = active.shadowRoot.activeElement;
+  }
+  return active;
 }
 
 /**
@@ -259,282 +266,282 @@ function deepActiveElement(): Element | null {
  * @csspart footer - Footer section wrapper.
  */
 export class VioletDialog extends FASTElement {
-    @observable
-    declare public hasTitle: boolean;
+  @observable
+  declare public hasTitle: boolean;
 
-    @observable
-    declare public hasFooter: boolean;
+  @observable
+  declare public hasFooter: boolean;
 
-    /**
-     * True while the body overflows and therefore needs to be a keyboard tab stop.
-     */
-    declare public bodyScrollable: boolean;
+  /**
+   * True while the body overflows and therefore needs to be a keyboard tab stop.
+   */
+  declare public bodyScrollable: boolean;
 
-    declare public open: boolean;
-    declare public type: string;
-    declare public padding: string;
-    declare public noCloseButton: boolean;
-    declare public noBackdrop: boolean;
+  declare public open: boolean;
+  declare public type: string;
+  declare public padding: string;
+  declare public noCloseButton: boolean;
+  declare public noBackdrop: boolean;
 
-    public readonly dialogId: string;
-    public readonly titleId: string;
-    public readonly bodyId: string;
+  public readonly dialogId: string;
+  public readonly titleId: string;
+  public readonly bodyId: string;
 
-    #triggerElement: Element | null = null;
-    #closingProgrammatically = false;
-    #bodyObserver: ResizeObserver | null = null;
-    #initialOpenFrame = 0;
+  #triggerElement: Element | null = null;
+  #closingProgrammatically = false;
+  #bodyObserver: ResizeObserver | null = null;
+  #initialOpenFrame = 0;
 
-    public constructor() {
-        super();
-        this.hasTitle = false;
-        this.hasFooter = false;
-        this.bodyScrollable = false;
-        this.open = false;
-        this.type = "modal";
-        this.padding = "medium";
-        this.noCloseButton = false;
-        this.noBackdrop = false;
+  public constructor() {
+    super();
+    this.hasTitle = false;
+    this.hasFooter = false;
+    this.bodyScrollable = false;
+    this.open = false;
+    this.type = "modal";
+    this.padding = "medium";
+    this.noCloseButton = false;
+    this.noBackdrop = false;
 
-        const id = violetDialogId;
-        violetDialogId += 1;
-        this.dialogId = `violet-dialog-${id}`;
-        this.titleId = `violet-dialog-title-${id}`;
-        this.bodyId = `violet-dialog-body-${id}`;
+    const id = violetDialogId;
+    violetDialogId += 1;
+    this.dialogId = `violet-dialog-${id}`;
+    this.titleId = `violet-dialog-title-${id}`;
+    this.bodyId = `violet-dialog-body-${id}`;
+  }
+
+  public get returnValue(): string {
+    return this.#dialogElement?.returnValue ?? "";
+  }
+
+  public set returnValue(value: string) {
+    const dialog = this.#dialogElement;
+    if (dialog) {
+      dialog.returnValue = value;
+    }
+  }
+
+  get #dialogElement(): HTMLDialogElement | null {
+    return this.shadowRoot?.querySelector("dialog") ?? null;
+  }
+
+  public show(): void {
+    this.open = true;
+  }
+
+  public hide(returnValue?: string): void {
+    const dialog = this.#dialogElement;
+    if (dialog && returnValue !== undefined) {
+      dialog.returnValue = returnValue;
+    }
+    this.open = false;
+  }
+
+  public openChanged(): void {
+    if (!this.$fastController.isConnected) {
+      return;
     }
 
-    public get returnValue(): string {
-        return this.#dialogElement?.returnValue ?? "";
+    if (this.open) {
+      this.#openDialog();
+    } else {
+      this.#closeDialog();
+    }
+  }
+
+  public typeChanged(): void {
+    this.#syncDialogAttributes();
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+
+    if (this.open) {
+      this.#openDialog(true);
+    }
+  }
+
+  public disconnectedCallback(): void {
+    this.#clearInitialOpenFrame();
+    if (this.#dialogElement) {
+      delete this.#dialogElement.dataset.initialOpen;
+    }
+    this.#bodyObserver?.disconnect();
+    this.#bodyObserver = null;
+    super.disconnectedCallback();
+  }
+
+  public handleClose(_event: Event): void {
+    this.#closingProgrammatically = true;
+    this.open = false;
+    this.#closingProgrammatically = false;
+    this.#bodyObserver?.disconnect();
+    this.bodyScrollable = false;
+
+    this.$emit("open-change", { open: false });
+
+    const trigger = this.#triggerElement;
+    if (trigger instanceof HTMLElement && trigger.isConnected) {
+      trigger.focus();
+    }
+    this.#triggerElement = null;
+  }
+
+  public handleBodySlotChange(): void {
+    if (this.open) {
+      this.#observeBody();
+    }
+  }
+
+  public handleCancel(event: Event): void {
+    event.preventDefault();
+    this.requestClose("keyboard");
+  }
+
+  public requestClose(source: "close-button" | "keyboard" | "overlay"): void {
+    const event = new CustomEvent("request-close", {
+      bubbles: true,
+      composed: true,
+      cancelable: true,
+      detail: { source },
+    });
+
+    this.dispatchEvent(event);
+
+    if (!event.defaultPrevented) {
+      this.hide();
+    }
+  }
+
+  public handleTitleSlotChange(): void {
+    const slot = this.shadowRoot?.querySelector('slot[name="title"]') as HTMLSlotElement | null;
+    this.hasTitle = (slot?.assignedNodes({ flatten: true }) ?? []).some((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return Boolean(node.textContent?.trim());
+      }
+      return true;
+    });
+  }
+
+  public handleFooterSlotChange(): void {
+    const slot = this.shadowRoot?.querySelector('slot[name="footer"]') as HTMLSlotElement | null;
+    this.hasFooter = (slot?.assignedNodes({ flatten: true }) ?? []).some((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return Boolean(node.textContent?.trim());
+      }
+      return true;
+    });
+  }
+
+  #openDialog(initial = false): void {
+    const dialog = this.#dialogElement;
+    if (!dialog || dialog.open) {
+      return;
     }
 
-    public set returnValue(value: string) {
-        const dialog = this.#dialogElement;
-        if (dialog) {
-            dialog.returnValue = value;
-        }
+    this.#clearInitialOpenFrame();
+    if (initial) {
+      dialog.dataset.initialOpen = "";
+    } else {
+      delete dialog.dataset.initialOpen;
     }
 
-    get #dialogElement(): HTMLDialogElement | null {
-        return this.shadowRoot?.querySelector("dialog") ?? null;
+    this.#triggerElement = deepActiveElement();
+    this.#syncDialogAttributes();
+
+    if (this.type === "non-modal") {
+      dialog.show();
+    } else {
+      dialog.showModal();
     }
 
-    public show(): void {
-        this.open = true;
-    }
-
-    public hide(returnValue?: string): void {
-        const dialog = this.#dialogElement;
-        if (dialog && returnValue !== undefined) {
-            dialog.returnValue = returnValue;
-        }
-        this.open = false;
-    }
-
-    public openChanged(): void {
-        if (!this.$fastController.isConnected) {
-            return;
-        }
-
-        if (this.open) {
-            this.#openDialog();
-        } else {
-            this.#closeDialog();
-        }
-    }
-
-    public typeChanged(): void {
-        this.#syncDialogAttributes();
-    }
-
-    public connectedCallback(): void {
-        super.connectedCallback();
-
-        if (this.open) {
-            this.#openDialog(true);
-        }
-    }
-
-    public disconnectedCallback(): void {
-        this.#clearInitialOpenFrame();
-        if (this.#dialogElement) {
-            delete this.#dialogElement.dataset.initialOpen;
-        }
-        this.#bodyObserver?.disconnect();
-        this.#bodyObserver = null;
-        super.disconnectedCallback();
-    }
-
-    public handleClose(_event: Event): void {
-        this.#closingProgrammatically = true;
-        this.open = false;
-        this.#closingProgrammatically = false;
-        this.#bodyObserver?.disconnect();
-        this.bodyScrollable = false;
-
-        this.$emit("open-change", { open: false });
-
-        const trigger = this.#triggerElement;
-        if (trigger instanceof HTMLElement && trigger.isConnected) {
-            trigger.focus();
-        }
-        this.#triggerElement = null;
-    }
-
-    public handleBodySlotChange(): void {
-        if (this.open) {
-            this.#observeBody();
-        }
-    }
-
-    public handleCancel(event: Event): void {
-        event.preventDefault();
-        this.requestClose("keyboard");
-    }
-
-    public requestClose(source: "close-button" | "keyboard" | "overlay"): void {
-        const event = new CustomEvent("request-close", {
-            bubbles: true,
-            composed: true,
-            cancelable: true,
-            detail: { source },
-        });
-
-        this.dispatchEvent(event);
-
-        if (!event.defaultPrevented) {
-            this.hide();
-        }
-    }
-
-    public handleTitleSlotChange(): void {
-        const slot = this.shadowRoot?.querySelector('slot[name="title"]') as HTMLSlotElement | null;
-        this.hasTitle = (slot?.assignedNodes({ flatten: true }) ?? []).some(node => {
-            if (node.nodeType === Node.TEXT_NODE) {
-                return Boolean(node.textContent?.trim());
-            }
-            return true;
-        });
-    }
-
-    public handleFooterSlotChange(): void {
-        const slot = this.shadowRoot?.querySelector('slot[name="footer"]') as HTMLSlotElement | null;
-        this.hasFooter = (slot?.assignedNodes({ flatten: true }) ?? []).some(node => {
-            if (node.nodeType === Node.TEXT_NODE) {
-                return Boolean(node.textContent?.trim());
-            }
-            return true;
-        });
-    }
-
-    #openDialog(initial = false): void {
-        const dialog = this.#dialogElement;
-        if (!dialog || dialog.open) {
-            return;
-        }
-
-        this.#clearInitialOpenFrame();
-        if (initial) {
-            dialog.dataset.initialOpen = "";
-        } else {
+    if (initial) {
+      // Keep transitions off until after the first painted frame so an initially open dialog
+      // never fades in from opacity 0, then re-enable them for later close animations (#1171).
+      this.#initialOpenFrame = requestAnimationFrame(() => {
+        this.#initialOpenFrame = requestAnimationFrame(() => {
+          this.#initialOpenFrame = 0;
+          if (this.isConnected && dialog.open) {
             delete dialog.dataset.initialOpen;
-        }
-
-        this.#triggerElement = deepActiveElement();
-        this.#syncDialogAttributes();
-
-        if (this.type === "non-modal") {
-            dialog.show();
-        } else {
-            dialog.showModal();
-        }
-
-        if (initial) {
-            // Keep transitions off until after the first painted frame so an initially open dialog
-            // never fades in from opacity 0, then re-enable them for later close animations (#1171).
-            this.#initialOpenFrame = requestAnimationFrame(() => {
-                this.#initialOpenFrame = requestAnimationFrame(() => {
-                    this.#initialOpenFrame = 0;
-                    if (this.isConnected && dialog.open) {
-                        delete dialog.dataset.initialOpen;
-                    }
-                });
-            });
-        }
-
-        this.#observeBody();
-
-        this.$emit("open-change", { open: true });
+          }
+        });
+      });
     }
 
-    #closeDialog(): void {
-        const dialog = this.#dialogElement;
-        this.#clearInitialOpenFrame();
-        if (dialog) {
-            delete dialog.dataset.initialOpen;
-        }
-        if (!dialog?.open) {
-            return;
-        }
+    this.#observeBody();
 
-        if (!this.#closingProgrammatically) {
-            dialog.close();
-        }
+    this.$emit("open-change", { open: true });
+  }
+
+  #closeDialog(): void {
+    const dialog = this.#dialogElement;
+    this.#clearInitialOpenFrame();
+    if (dialog) {
+      delete dialog.dataset.initialOpen;
+    }
+    if (!dialog?.open) {
+      return;
     }
 
-    #clearInitialOpenFrame(): void {
-        if (this.#initialOpenFrame) {
-            cancelAnimationFrame(this.#initialOpenFrame);
-            this.#initialOpenFrame = 0;
-        }
+    if (!this.#closingProgrammatically) {
+      dialog.close();
+    }
+  }
+
+  #clearInitialOpenFrame(): void {
+    if (this.#initialOpenFrame) {
+      cancelAnimationFrame(this.#initialOpenFrame);
+      this.#initialOpenFrame = 0;
+    }
+  }
+
+  /**
+   * Makes the body a tab stop only while it actually overflows, so scrollable content stays
+   * keyboard reachable without adding a permanent empty stop.
+   */
+  #observeBody(): void {
+    const body = this.shadowRoot?.querySelector(".body") as HTMLElement | null;
+    if (!body) {
+      return;
     }
 
-    /**
-     * Makes the body a tab stop only while it actually overflows, so scrollable content stays
-     * keyboard reachable without adding a permanent empty stop.
-     */
-    #observeBody(): void {
-        const body = this.shadowRoot?.querySelector(".body") as HTMLElement | null;
-        if (!body) {
-            return;
-        }
+    this.#bodyObserver ??= new ResizeObserver(() => this.#syncBodyScrollable());
+    this.#bodyObserver.disconnect();
+    this.#bodyObserver.observe(body);
 
-        this.#bodyObserver ??= new ResizeObserver(() => this.#syncBodyScrollable());
-        this.#bodyObserver.disconnect();
-        this.#bodyObserver.observe(body);
-
-        const slot = body.querySelector("slot") as HTMLSlotElement | null;
-        for (const element of slot?.assignedElements({ flatten: true }) ?? []) {
-            this.#bodyObserver.observe(element);
-        }
-
-        this.#syncBodyScrollable();
+    const slot = body.querySelector("slot") as HTMLSlotElement | null;
+    for (const element of slot?.assignedElements({ flatten: true }) ?? []) {
+      this.#bodyObserver.observe(element);
     }
 
-    #syncBodyScrollable(): void {
-        const body = this.shadowRoot?.querySelector(".body") as HTMLElement | null;
-        this.bodyScrollable = Boolean(body && body.scrollHeight > body.clientHeight);
+    this.#syncBodyScrollable();
+  }
+
+  #syncBodyScrollable(): void {
+    const body = this.shadowRoot?.querySelector(".body") as HTMLElement | null;
+    this.bodyScrollable = Boolean(body && body.scrollHeight > body.clientHeight);
+  }
+
+  #syncDialogAttributes(): void {
+    const dialog = this.#dialogElement;
+    if (!dialog) {
+      return;
     }
 
-    #syncDialogAttributes(): void {
-        const dialog = this.#dialogElement;
-        if (!dialog) {
-            return;
-        }
-
-        if (this.type === "alert") {
-            dialog.setAttribute("role", "alertdialog");
-            dialog.setAttribute("aria-describedby", this.bodyId);
-            dialog.setAttribute("closedby", "closerequest");
-        } else if (this.type === "non-modal") {
-            dialog.removeAttribute("role");
-            dialog.removeAttribute("aria-describedby");
-            dialog.setAttribute("closedby", "any");
-        } else {
-            dialog.removeAttribute("role");
-            dialog.removeAttribute("aria-describedby");
-            dialog.setAttribute("closedby", "closerequest");
-        }
+    if (this.type === "alert") {
+      dialog.setAttribute("role", "alertdialog");
+      dialog.setAttribute("aria-describedby", this.bodyId);
+      dialog.setAttribute("closedby", "closerequest");
+    } else if (this.type === "non-modal") {
+      dialog.removeAttribute("role");
+      dialog.removeAttribute("aria-describedby");
+      dialog.setAttribute("closedby", "any");
+    } else {
+      dialog.removeAttribute("role");
+      dialog.removeAttribute("aria-describedby");
+      dialog.setAttribute("closedby", "closerequest");
     }
+  }
 }
 
 export type VioletDialogType = "modal" | "non-modal" | "alert";
@@ -548,7 +555,7 @@ attr({ attribute: "no-backdrop", mode: "boolean" })(VioletDialog.prototype, "noB
 
 /** The FAST definition of `<violet-dialog>`; `defineVioletDialog` in `./violet-dialog.define` registers it. */
 export const violetDialogDefinition = {
-    name: "violet-dialog",
-    template,
-    styles,
+  name: "violet-dialog",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

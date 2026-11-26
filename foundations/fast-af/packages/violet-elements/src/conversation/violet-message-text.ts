@@ -1,4 +1,10 @@
-import { FASTElement, attr, css, html, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -57,7 +63,7 @@ const styles = css`
 
 const template = html<VioletMessageText>`
     <div class="text" part="text">
-        <slot class="content-slot"></slot><span class="cursor" part="cursor" ?hidden="${x => x.state !== "streaming"}" aria-hidden="true"></span>
+        <slot class="content-slot"></slot><span class="cursor" part="cursor" ?hidden="${(x) => x.state !== "streaming"}" aria-hidden="true"></span>
     </div>
 `;
 
@@ -71,12 +77,12 @@ const template = html<VioletMessageText>`
  * @csspart cursor - The blinking cursor shown during streaming.
  */
 export class VioletMessageText extends FASTElement {
-    declare public state: string;
+  declare public state: string;
 
-    public constructor() {
-        super();
-        this.state = "done";
-    }
+  public constructor() {
+    super();
+    this.state = "done";
+  }
 }
 
 export type VioletMessageTextState = "streaming" | "done";
@@ -85,7 +91,7 @@ attr(VioletMessageText.prototype, "state");
 
 /** The FAST definition of `<violet-message-text>`; `defineVioletMessageText` in `./violet-message-text.define` registers it. */
 export const violetMessageTextDefinition = {
-    name: "violet-message-text",
-    template,
-    styles,
+  name: "violet-message-text",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

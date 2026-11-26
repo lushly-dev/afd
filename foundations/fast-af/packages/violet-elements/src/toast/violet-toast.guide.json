@@ -5,45 +5,29 @@
     {
       "id": "toast.open",
       "text": "It is hidden until open is set and has no show method. Every toast is position: fixed at the same block-end, inline-end corner, so open toasts overlap unless the page offsets them (--violet-toast-inset-block-end).",
-      "members": [
-        "open"
-      ]
+      "members": ["open"]
     },
     {
       "id": "toast.timeout",
       "text": "It closes itself after timeout (ms, default 5000) while the actions slot is empty, whether or not it is dismissible; a dismissible toast also shows its close button. Set timeout=\"0\" to keep it open until dismissed.",
-      "members": [
-        "timeout",
-        "dismissible",
-        "actions"
-      ]
+      "members": ["timeout", "dismissible", "actions"]
     },
     {
       "id": "toast.dismiss",
       "text": "Closing by timeout, the close button or dismiss(reason) clears open, fires open-change, then dismiss with detail.reason (timeout or dismiss-button). Clearing open from script fires only open-change.",
-      "members": [
-        "dismiss",
-        "open-change",
-        "open"
-      ]
+      "members": ["dismiss", "open-change", "open"]
     }
   ],
   "a11y": [
     {
       "id": "toast.announcement",
       "text": "announcement defaults to polite: the title and body get role=status; assertive gives role=alert. The actions slot is outside the live region.",
-      "members": [
-        "announcement",
-        "actions"
-      ]
+      "members": ["announcement", "actions"]
     },
     {
       "id": "toast.focus",
       "text": "Opening does not move focus, and its tab position follows its place in the DOM, not the corner it appears in. A toast with actions never times out. The close button is named \"Dismiss notification\".",
-      "members": [
-        "actions",
-        "dismissible"
-      ]
+      "members": ["actions", "dismissible"]
     }
   ]
 }

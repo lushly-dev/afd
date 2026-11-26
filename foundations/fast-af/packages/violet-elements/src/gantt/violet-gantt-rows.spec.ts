@@ -2,27 +2,17 @@ import { afterEach, describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import "./violet-gantt.define";
-import type {
-  VioletGantt,
-  VioletGanttItem,
-  VioletGanttRow,
-} from "./violet-gantt";
+import type { VioletGantt, VioletGanttItem, VioletGanttRow } from "./violet-gantt";
 
 function settle(count = 3): Promise<void> {
   return new Promise((resolve) => {
     const advance = (remaining: number) =>
-      requestAnimationFrame(() =>
-        remaining <= 1 ? resolve() : advance(remaining - 1)
-      );
+      requestAnimationFrame(() => (remaining <= 1 ? resolve() : advance(remaining - 1)));
     advance(count);
   });
 }
 
-function item(
-  id: string,
-  rowId: string,
-  start = "2028-03-01"
-): VioletGanttItem {
+function item(id: string, rowId: string, start = "2028-03-01"): VioletGanttItem {
   return {
     id,
     rowId,
@@ -36,7 +26,7 @@ function item(
 async function mount(
   rows: readonly VioletGanttRow[],
   items: readonly VioletGanttItem[],
-  overrides: Partial<VioletGantt> = {}
+  overrides: Partial<VioletGantt> = {},
 ): Promise<VioletGantt> {
   const element = document.createElement("violet-gantt") as VioletGantt;
   element.style.cssText = "display:block;width:760px;height:220px";
@@ -57,17 +47,13 @@ async function mount(
 }
 
 function renderedRow(element: VioletGantt, rowId: string): HTMLElement {
-  const row = element.shadowRoot?.querySelector<HTMLElement>(
-    `.row[data-row-id="${rowId}"]`
-  );
+  const row = element.shadowRoot?.querySelector<HTMLElement>(`.row[data-row-id="${rowId}"]`);
   if (!row) throw new Error(`Expected ${rowId} to be mounted.`);
   return row;
 }
 
 function press(row: HTMLElement, key: string): void {
-  row.dispatchEvent(
-    new KeyboardEvent("keydown", { key, bubbles: true, composed: true })
-  );
+  row.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, composed: true }));
 }
 
 describe("violet-gantt adaptive row layout", () => {
@@ -91,7 +77,7 @@ describe("violet-gantt adaptive row layout", () => {
           itemIds: ["stack-1", "stack-2", "stack-3"],
         },
       ],
-      items
+      items,
     );
     const single = renderedRow(element, "single");
     const stacked = renderedRow(element, "stacked");
@@ -105,38 +91,33 @@ describe("violet-gantt adaptive row layout", () => {
     expect(
       element.shadowRoot
         ?.querySelector<HTMLElement>(".body")
-        ?.style.getPropertyValue("--_gantt-body-height")
+        ?.style.getPropertyValue("--_gantt-body-height"),
     ).toBe("120px");
     expect(singleHeader.getBoundingClientRect().height).toBeCloseTo(
       singleChart.getBoundingClientRect().height,
-      0
+      0,
     );
     expect(
       Math.abs(
         mark.getBoundingClientRect().top +
           mark.getBoundingClientRect().height / 2 -
           (singleChart.getBoundingClientRect().top +
-            singleChart.getBoundingClientRect().height / 2)
-      )
+            singleChart.getBoundingClientRect().height / 2),
+      ),
     ).toBeLessThanOrEqual(1);
   });
 
   it.each([
     ["natural", "64px"],
     ["comfortable", "76px"],
-  ] as const)(
-    "preserves the %s single-lane minimum",
-    async (density, expected) => {
-      const element = await mount(
-        [{ id: "row", label: "Row", itemIds: ["one"] }],
-        [item("one", "row")],
-        { density }
-      );
-      expect(
-        renderedRow(element, "row").style.getPropertyValue("--_row-height")
-      ).toBe(expected);
-    }
-  );
+  ] as const)("preserves the %s single-lane minimum", async (density, expected) => {
+    const element = await mount(
+      [{ id: "row", label: "Row", itemIds: ["one"] }],
+      [item("one", "row")],
+      { density },
+    );
+    expect(renderedRow(element, "row").style.getPropertyValue("--_row-height")).toBe(expected);
+  });
 
   it("counts only items intersecting the controlled date viewport when sizing lanes", async () => {
     const inside = item("inside", "row");
@@ -149,17 +130,15 @@ describe("violet-gantt adaptive row layout", () => {
           start: "2028-04-01",
           endExclusive: "2028-04-03",
         },
-      })
+      }),
     );
     const items = [inside, ...outside];
     const element = await mount(
       [{ id: "row", label: "Row", itemIds: items.map(({ id }) => id) }],
-      items
+      items,
     );
 
-    expect(
-      renderedRow(element, "row").style.getPropertyValue("--_row-height")
-    ).toBe("36px");
+    expect(renderedRow(element, "row").style.getPropertyValue("--_row-height")).toBe("36px");
     expect(element.shadowRoot?.querySelectorAll(".item")).toHaveLength(1);
     expect(element.shadowRoot?.querySelector(".item-overflow")).toBeNull();
   });
@@ -203,21 +182,15 @@ describe("violet-gantt adaptive row layout", () => {
     press(renderedRow(element, "short-0"), "End");
     await settle(4);
     expect(element.activeRowId).toBe("tail-99");
-    expect(element.shadowRoot?.activeElement?.getAttribute("data-row-id")).toBe(
-      "tail-99"
-    );
-    expect(element.shadowRoot?.querySelectorAll(".row").length).toBeLessThan(
-      25
-    );
+    expect(element.shadowRoot?.activeElement?.getAttribute("data-row-id")).toBe("tail-99");
+    expect(element.shadowRoot?.querySelectorAll(".row").length).toBeLessThan(25);
   });
 
   it("expands and shrinks row geometry after data updates while retaining focus and selection", async () => {
     const first = item("first", "row");
-    const element = await mount(
-      [{ id: "row", label: "Row", itemIds: ["first"] }],
-      [first],
-      { selectedItemId: "first" }
-    );
+    const element = await mount([{ id: "row", label: "Row", itemIds: ["first"] }], [first], {
+      selectedItemId: "first",
+    });
     renderedRow(element, "row").focus();
     const expandedItems = [
       first,
@@ -225,47 +198,34 @@ describe("violet-gantt adaptive row layout", () => {
       item("third", "row"),
       item("fourth", "row"),
     ];
-    element.rows = [
-      { id: "row", label: "Row", itemIds: expandedItems.map(({ id }) => id) },
-    ];
+    element.rows = [{ id: "row", label: "Row", itemIds: expandedItems.map(({ id }) => id) }];
     element.items = expandedItems;
     await settle(4);
 
-    expect(
-      renderedRow(element, "row").style.getPropertyValue("--_row-height")
-    ).toBe("108px");
+    expect(renderedRow(element, "row").style.getPropertyValue("--_row-height")).toBe("108px");
     expect(
       element.shadowRoot
         ?.querySelector<HTMLElement>(".body")
-        ?.style.getPropertyValue("--_gantt-body-height")
+        ?.style.getPropertyValue("--_gantt-body-height"),
     ).toBe("108px");
-    expect(element.shadowRoot?.activeElement?.getAttribute("data-row-id")).toBe(
-      "row"
-    );
+    expect(element.shadowRoot?.activeElement?.getAttribute("data-row-id")).toBe("row");
     expect(element.selectedItemId).toBe("first");
 
     element.rows = [{ id: "row", label: "Row", itemIds: ["first"] }];
     element.items = [first];
     await settle(4);
-    expect(
-      renderedRow(element, "row").style.getPropertyValue("--_row-height")
-    ).toBe("36px");
+    expect(renderedRow(element, "row").style.getPropertyValue("--_row-height")).toBe("36px");
     expect(
       element.shadowRoot
         ?.querySelector<HTMLElement>(".body")
-        ?.style.getPropertyValue("--_gantt-body-height")
+        ?.style.getPropertyValue("--_gantt-body-height"),
     ).toBe("36px");
-    const viewport =
-      element.shadowRoot!.querySelector<HTMLElement>(".viewport")!;
-    expect(viewport.scrollTop).toBeLessThanOrEqual(
-      viewport.scrollHeight - viewport.clientHeight
-    );
+    const viewport = element.shadowRoot!.querySelector<HTMLElement>(".viewport")!;
+    expect(viewport.scrollTop).toBeLessThanOrEqual(viewport.scrollHeight - viewport.clientHeight);
   });
 
   it("clamps vertical scroll and restores focus when a tall expanded child collapses", async () => {
-    const childItems = Array.from({ length: 6 }, (_, index) =>
-      item(`child-${index}`, "child")
-    );
+    const childItems = Array.from({ length: 6 }, (_, index) => item(`child-${index}`, "child"));
     const element = await mount(
       [
         { id: "root", label: "Root", itemIds: [] },
@@ -277,23 +237,20 @@ describe("violet-gantt adaptive row layout", () => {
         },
       ],
       childItems,
-      { expandedRowIds: ["root"] }
+      { expandedRowIds: ["root"] },
     );
     renderedRow(element, "child").focus();
     element.expandedRowIds = [];
     await settle(4);
 
-    const viewport =
-      element.shadowRoot!.querySelector<HTMLElement>(".viewport")!;
+    const viewport = element.shadowRoot!.querySelector<HTMLElement>(".viewport")!;
     expect(element.activeRowId).toBe("root");
-    expect(element.shadowRoot?.activeElement?.getAttribute("data-row-id")).toBe(
-      "root"
-    );
+    expect(element.shadowRoot?.activeElement?.getAttribute("data-row-id")).toBe("root");
     expect(viewport.scrollTop).toBe(0);
     expect(
       element.shadowRoot
         ?.querySelector<HTMLElement>(".body")
-        ?.style.getPropertyValue("--_gantt-body-height")
+        ?.style.getPropertyValue("--_gantt-body-height"),
     ).toBe("36px");
   });
 
@@ -324,17 +281,13 @@ describe("violet-gantt adaptive row layout", () => {
           endExclusive: "2029-01-01",
           scale: "day",
         },
-      }
+      },
     );
     const before = element.renderedRows.map((row) => row.style);
-    expect(before.every((style) => style.includes("--_row-height:36px"))).toBe(
-      true
-    );
-    expect(
-      element.shadowRoot?.querySelectorAll(".single-item-overflow")
-    ).toHaveLength(1);
+    expect(before.every((style) => style.includes("--_row-height:36px"))).toBe(true);
+    expect(element.shadowRoot?.querySelectorAll(".single-item-overflow")).toHaveLength(1);
     const reveal = element.shadowRoot?.querySelector<HTMLElement>(
-      '.single-item-overflow[data-row-id="scheduled-row"]'
+      '.single-item-overflow[data-row-id="scheduled-row"]',
     );
     expect(reveal?.getAttribute("aria-label")).toBe("Reveal item in Scheduled");
     reveal?.focus();
@@ -342,33 +295,22 @@ describe("violet-gantt adaptive row layout", () => {
     await settle(4);
 
     expect(element.activeItemId).toBe("scheduled");
-    expect(
-      element.shadowRoot?.querySelector('[data-item-id="scheduled"]')
-    ).not.toBeNull();
-    expect(element.shadowRoot?.activeElement?.getAttribute("data-row-id")).toBe(
-      "scheduled-row"
-    );
-    expect(
-      element.shadowRoot?.activeElement?.getAttribute("aria-activedescendant")
-    ).toBe(
+    expect(element.shadowRoot?.querySelector('[data-item-id="scheduled"]')).not.toBeNull();
+    expect(element.shadowRoot?.activeElement?.getAttribute("data-row-id")).toBe("scheduled-row");
+    expect(element.shadowRoot?.activeElement?.getAttribute("aria-activedescendant")).toBe(
       element.shadowRoot
         ?.querySelector<HTMLElement>('[data-item-id="scheduled"]')
-        ?.getAttribute("id")
+        ?.getAttribute("id"),
     );
-    expect(
-      element.shadowRoot?.querySelectorAll(".single-item-overflow")
-    ).toHaveLength(1);
-    expect(element.shadowRoot?.querySelectorAll(".item-overflow")).toHaveLength(
-      0
-    );
+    expect(element.shadowRoot?.querySelectorAll(".single-item-overflow")).toHaveLength(1);
+    expect(element.shadowRoot?.querySelectorAll(".item-overflow")).toHaveLength(0);
     expect(
       element.renderedRows
         .map((row) => row.style)
-        .every((style) => style.includes("--_row-height:36px"))
+        .every((style) => style.includes("--_row-height:36px")),
     ).toBe(true);
 
-    const viewport =
-      element.shadowRoot!.querySelector<HTMLElement>(".viewport")!;
+    const viewport = element.shadowRoot!.querySelector<HTMLElement>(".viewport")!;
     expect(viewport.scrollLeft).toBeGreaterThan(0);
     viewport.scrollLeft = 0;
     viewport.dispatchEvent(new Event("scroll"));
@@ -377,43 +319,31 @@ describe("violet-gantt adaptive row layout", () => {
     expect(
       element.renderedRows
         .map((row) => row.style)
-        .every((style) => style.includes("--_row-height:36px"))
+        .every((style) => style.includes("--_row-height:36px")),
     ).toBe(true);
-    expect(
-      element.shadowRoot?.querySelectorAll(".single-item-overflow")
-    ).toHaveLength(1);
-    expect(element.shadowRoot?.querySelectorAll(".item-overflow")).toHaveLength(
-      0
-    );
+    expect(element.shadowRoot?.querySelectorAll(".single-item-overflow")).toHaveLength(1);
+    expect(element.shadowRoot?.querySelectorAll(".item-overflow")).toHaveLength(0);
   });
 
   it("caps busy rows at six lanes while overflow cycling reaches every item", async () => {
-    const items = Array.from({ length: 10 }, (_, index) =>
-      item(`dense-${index}`, "dense")
-    );
+    const items = Array.from({ length: 10 }, (_, index) => item(`dense-${index}`, "dense"));
     const element = await mount(
       [{ id: "dense", label: "Dense", itemIds: items.map(({ id }) => id) }],
-      items
+      items,
     );
-    expect(
-      renderedRow(element, "dense").style.getPropertyValue("--_row-height")
-    ).toBe("156px");
+    expect(renderedRow(element, "dense").style.getPropertyValue("--_row-height")).toBe("156px");
     expect(element.shadowRoot?.querySelectorAll(".item")).toHaveLength(6);
-    expect(
-      element.shadowRoot?.querySelector(".item-overflow")?.textContent
-    ).toContain("+4");
+    expect(element.shadowRoot?.querySelector(".item-overflow")?.textContent).toContain("+4");
 
     for (let index = 0; index < items.length; index += 1) {
       const next = element.shadowRoot?.querySelector<HTMLElement>(
-        '[data-action="cycle-overflow"][data-direction="next"]'
+        '[data-action="cycle-overflow"][data-direction="next"]',
       );
       if (!next) throw new Error("Expected overflow cycling controls.");
       await userEvent.click(next);
       await settle();
     }
     expect(element.activeItemId).toBe("dense-9");
-    expect(
-      element.shadowRoot?.querySelector('[data-item-id="dense-9"]')
-    ).not.toBeNull();
+    expect(element.shadowRoot?.querySelector('[data-item-id="dense-9"]')).not.toBeNull();
   });
 });

@@ -2,15 +2,15 @@ import { html, render, repeat, when } from "@lushly-dev/fast-element";
 
 import type { VioletDataGrid } from "./violet-data-grid";
 import {
-    defaultCellContentTemplate,
-    inputCellEditorTemplate,
-    selectCellEditorTemplate,
+  defaultCellContentTemplate,
+  inputCellEditorTemplate,
+  selectCellEditorTemplate,
 } from "./violet-data-grid-cell-templates";
 import { columnResizeKeyShortcut } from "./violet-data-grid-resize";
 import type {
-    VioletPresentedCell,
-    VioletPresentedColumn,
-    VioletRenderedRow,
+  VioletPresentedCell,
+  VioletPresentedColumn,
+  VioletRenderedRow,
 } from "./violet-data-grid-types";
 import { booleanCellValue as normalizeBooleanCellValue } from "./violet-data-grid-values";
 
@@ -31,18 +31,22 @@ const bodyRowTemplate = html<VioletRenderedRow, VioletDataGrid>`
                 ? "cell active-cell"
                 : "cell"}"
             role="${(_x, c) =>
-              c.parent.focusMode === "cell" && c.parent.selectionMode !== "none" ? "gridcell" : null}"
+              c.parent.focusMode === "cell" && c.parent.selectionMode !== "none"
+                ? "gridcell"
+                : null}"
             aria-colindex="${(_x, c) => (c.parent.selectionMode === "none" ? null : "1")}"
             tabindex="${(x, c) => c.parent.selectionCellTabIndexFor(x.row.id)}"
             data-selection-row-id="${(x) => x.row.id}"
             data-active="${(x, c) =>
-              c.parent.focusMode === "cell" ? String(c.parent.isSelectionCellActive(x.row.id)) : null}"
+              c.parent.focusMode === "cell"
+                ? String(c.parent.isSelectionCellActive(x.row.id))
+                : null}"
             headers="${(_x, c) => c.parent.selectionHeaderId}"
             ?hidden="${(x, c) => c.parent.selectionMode === "none"}"
         >
             ${when(
-                (x, c) => c.parent.selectionMode === "single",
-                html<VioletRenderedRow, VioletDataGrid>`
+              (x, c) => c.parent.selectionMode === "single",
+              html<VioletRenderedRow, VioletDataGrid>`
                     <violet-radio
                         class="selection-radio"
                         inline
@@ -58,8 +62,8 @@ const bodyRowTemplate = html<VioletRenderedRow, VioletDataGrid>`
                 `,
             )}
             ${when(
-                (x, c) => c.parent.selectionMode === "multiple",
-                html<VioletRenderedRow, VioletDataGrid>`
+              (x, c) => c.parent.selectionMode === "multiple",
+              html<VioletRenderedRow, VioletDataGrid>`
                     <violet-checkbox
                         class="selection-checkbox"
                         inline
@@ -74,17 +78,26 @@ const bodyRowTemplate = html<VioletRenderedRow, VioletDataGrid>`
         </td>
         ${repeat(
           (x) => x.row.cells,
-            html<VioletPresentedCell>`
+          html<VioletPresentedCell>`
                 <td
                     id="${(x) => x.cellId}"
                     role="${(_x, c) =>
-                      (c.parentContext.parent as VioletDataGrid).focusMode === "cell" ? "gridcell" : null}"
+                      (c.parentContext.parent as VioletDataGrid).focusMode === "cell"
+                        ? "gridcell"
+                        : null}"
                     aria-colindex="${(x, c) =>
-                      String((c.parentContext.parent as VioletDataGrid).columnAriaColIndexFor(x.columnId))}"
+                      String(
+                        (c.parentContext.parent as VioletDataGrid).columnAriaColIndexFor(
+                          x.columnId,
+                        ),
+                      )}"
                     aria-selected="${(x, c) =>
                       (c.parentContext.parent as VioletDataGrid).cellAriaSelectedFor(x)}"
                     tabindex="${(x, c) =>
-                      (c.parentContext.parent as VioletDataGrid).cellTabIndexFor(x.rowId, x.columnId)}"
+                      (c.parentContext.parent as VioletDataGrid).cellTabIndexFor(
+                        x.rowId,
+                        x.columnId,
+                      )}"
                     aria-keyshortcuts="${(_x, c) =>
                       (c.parentContext.parent as VioletDataGrid).focusMode === "cell"
                         ? columnResizeKeyShortcut
@@ -105,7 +118,7 @@ const bodyRowTemplate = html<VioletRenderedRow, VioletDataGrid>`
                 >
                     ${when(
                       (x) => x.editing && (x.editor === "text" || x.editor === "number"),
-                        html<VioletPresentedCell>`
+                      html<VioletPresentedCell>`
                             <span class="cell-sizing-content" aria-hidden="true">
                                 ${render(
                                   (x) => x,
@@ -117,7 +130,7 @@ const bodyRowTemplate = html<VioletRenderedRow, VioletDataGrid>`
                     )}
                     ${when(
                       (x) => x.editing && x.editor === "select",
-                        html<VioletPresentedCell>`
+                      html<VioletPresentedCell>`
                             <span class="cell-sizing-content" aria-hidden="true">
                                 ${render(
                                   (x) => x,
@@ -129,7 +142,7 @@ const bodyRowTemplate = html<VioletRenderedRow, VioletDataGrid>`
                     )}
                     ${when(
                       (x) => x.editing && x.editor === "custom",
-                        html<VioletPresentedCell>`
+                      html<VioletPresentedCell>`
                             <span class="cell-sizing-content" aria-hidden="true">
                                 ${render(
                                   (x) => x,
@@ -144,7 +157,7 @@ const bodyRowTemplate = html<VioletRenderedRow, VioletDataGrid>`
                     )}
                     ${when(
                       (x) => !x.editing && x.editor === "checkbox",
-                        html<VioletPresentedCell, VioletDataGrid>`
+                      html<VioletPresentedCell, VioletDataGrid>`
                             <span class="cell-widget" data-align="${(x) => x.align}">
                                 <violet-checkbox
                                     class="cell-checkbox"
@@ -152,10 +165,9 @@ const bodyRowTemplate = html<VioletRenderedRow, VioletDataGrid>`
                                     inline
                                     tabindex="${(x, c) =>
                                       String(
-                                        (c.parentContext.parent as VioletDataGrid).cellCheckboxTabIndexFor(
-                                          x.rowId,
-                                          x.columnId,
-                                        ),
+                                        (
+                                          c.parentContext.parent as VioletDataGrid
+                                        ).cellCheckboxTabIndexFor(x.rowId, x.columnId),
                                       )}"
                                     aria-label="${(x) => `${x.columnLabel} for ${x.rowLabel}`}"
                                     :checked="${(x) => normalizeBooleanCellValue(x.rawValue)}"
@@ -187,7 +199,7 @@ const bodyRowTemplate = html<VioletRenderedRow, VioletDataGrid>`
                     )}
                     ${when(
                       (x) => !x.editing && x.editor !== "checkbox",
-                        html<VioletPresentedCell>`
+                      html<VioletPresentedCell>`
                             ${render(
                               (x) => x,
                               (x) => x.cellTemplate ?? defaultCellContentTemplate,
@@ -195,12 +207,12 @@ const bodyRowTemplate = html<VioletRenderedRow, VioletDataGrid>`
                         `,
                     )}
                     ${when(
-                        (x, c) =>
-                            (c.parentContext.parent as VioletDataGrid).shouldShowFillHandleForCell(
-                                x.rowId,
+                      (x, c) =>
+                        (c.parentContext.parent as VioletDataGrid).shouldShowFillHandleForCell(
+                          x.rowId,
                           x.columnId,
-                            ),
-                        html<VioletPresentedCell>`
+                        ),
+                      html<VioletPresentedCell>`
                             <span class="fill-handle" data-fill-handle="true" aria-hidden="true"></span>
                         `,
                     )}
@@ -230,11 +242,11 @@ const fullTableTemplate = html<VioletDataGrid>`
                 style="width:var(--_selection-column-size);inline-size:var(--_selection-column-size);min-inline-size:var(--_selection-column-size);max-inline-size:var(--_selection-column-size);"
             />
                 ${repeat(
-              (x) => x.presentedColumns,
-                                html<VioletPresentedColumn>`
+                  (x) => x.presentedColumns,
+                  html<VioletPresentedColumn>`
                     <col data-column-id="${(x) => x.id}" style="${(x) => x.widthStyle}" />
                 `,
-                            )}
+                )}
         </colgroup>
         <thead part="head">
             <tr part="header-row" aria-rowindex="1">
@@ -253,7 +265,7 @@ const fullTableTemplate = html<VioletDataGrid>`
                     <span class="visually-hidden">${(x) => x.selectionHeaderLabel}</span>
                     ${when(
                       (x) => x.selectionMode === "multiple" && x.presentedRows.length > 0,
-                        html<VioletDataGrid>`
+                      html<VioletDataGrid>`
                             <violet-checkbox
                                 class="selection-checkbox"
                                 inline
@@ -269,7 +281,7 @@ const fullTableTemplate = html<VioletDataGrid>`
                 </th>
                 ${repeat(
                   (x) => x.presentedColumns,
-                    html<VioletPresentedColumn, VioletDataGrid>`
+                  html<VioletPresentedColumn, VioletDataGrid>`
                         <th
                             id="${(x, c) => c.parent.columnHeaderIdFor(x.id)}"
                             part="${(x) => x.headerPartText}"
@@ -286,7 +298,7 @@ const fullTableTemplate = html<VioletDataGrid>`
                         >
                             ${when(
                               (x) => x.sortable,
-                                html<VioletPresentedColumn, VioletDataGrid>`
+                              html<VioletPresentedColumn, VioletDataGrid>`
                                     <button
                                         class="header-button"
                                         type="button"
@@ -306,7 +318,7 @@ const fullTableTemplate = html<VioletDataGrid>`
                             )}
                             ${when(
                               (x) => !x.sortable,
-                                html<VioletPresentedColumn>`
+                              html<VioletPresentedColumn>`
                                     <span class="header-label">${(x) => x.label}</span>
                                 `,
                             )}
@@ -359,11 +371,11 @@ export const template = html<VioletDataGrid>`
     <div class="grid-shell">
         ${when(
           (x) => x.shouldShowToolbar,
-            html<VioletDataGrid>`
+          html<VioletDataGrid>`
                 <div class="toolbar" part="toolbar">
                     ${when(
                       (x) => x.showsBuiltInFilter,
-                        html<VioletDataGrid>`
+                      html<VioletDataGrid>`
                             <div class="filter-shell">
                                 <violet-text-field
                                     class="filter-field"
@@ -375,7 +387,7 @@ export const template = html<VioletDataGrid>`
                                 ></violet-text-field>
                             </div>
                         `,
-                        )}
+                    )}
                     ${when(
                       (x) => x.focusMode === "cell",
                       html<VioletDataGrid>`
@@ -418,7 +430,7 @@ export const template = html<VioletDataGrid>`
             >${(x) => x.editAnnouncement}</div>
             ${when(
               (x) => x.presentedRows.length > 0,
-                html<VioletDataGrid>`
+              html<VioletDataGrid>`
                             <div
                                 class="table-scroll"
                                 tabindex="${(x) => x.scrollContainerTabIndex}"
@@ -440,7 +452,7 @@ export const template = html<VioletDataGrid>`
                             >
                                 ${when(
                                   (x) => x.focusMode === "cell",
-                                    html<VioletDataGrid>`
+                                  html<VioletDataGrid>`
                                         <span class="visually-hidden" id="${(x) => x.activeCellLabelId}" aria-hidden="true">
                                             ${(x) => x.activeCellDescription}
                                         </span>
@@ -456,7 +468,7 @@ export const template = html<VioletDataGrid>`
 
             ${when(
               (x) => x.presentedRows.length === 0 && !x.busy,
-                html<VioletDataGrid>`
+              html<VioletDataGrid>`
                     <div class="empty-state" part="empty-state">
                         <slot name="empty">No rows available.</slot>
                     </div>
@@ -465,7 +477,7 @@ export const template = html<VioletDataGrid>`
 
             ${when(
               (x) => x.busy,
-                html<VioletDataGrid>`
+              html<VioletDataGrid>`
                     <div class="loading-overlay" part="loading-state">
                         <slot name="loading">Loading rows...</slot>
                     </div>

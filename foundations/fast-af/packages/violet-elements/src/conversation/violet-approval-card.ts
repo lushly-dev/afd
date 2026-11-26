@@ -1,9 +1,15 @@
-import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
-
-import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 import { registerSystemCheckmarkIcon } from "../icon/generated/icons/system-checkmark";
 import { registerSystemDismissIcon } from "../icon/generated/icons/system-dismiss";
 import { registerSystemWarningIcon } from "../icon/generated/icons/system-warning";
+import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
 const styles = css`
     ${violetSurfaceTokenDefaults}
@@ -202,49 +208,57 @@ const template = html<VioletApprovalCard>`
         <div class="header" part="header" slot="header">
             <span class="header-leading">
                 <span class="header-icon">
-                    ${x => {
-                        if (x.state === "approved") {
-                            return html`<violet-icon icon="system/checkmark" decorative></violet-icon>`;
-                        }
-                        if (x.state === "denied") {
-                            return html`<violet-icon icon="system/dismiss" decorative></violet-icon>`;
-                        }
-                        return html`<violet-icon icon="system/warning" decorative></violet-icon>`;
+                    ${(x) => {
+                      if (x.state === "approved") {
+                        return html`<violet-icon icon="system/checkmark" decorative></violet-icon>`;
+                      }
+                      if (x.state === "denied") {
+                        return html`<violet-icon icon="system/dismiss" decorative></violet-icon>`;
+                      }
+                      return html`<violet-icon icon="system/warning" decorative></violet-icon>`;
                     }}
                 </span>
                 <span class="header-title">
-                    ${x => {
-                        if (x.state === "approved") { return "Approved"; }
-                        if (x.state === "denied") { return "Denied"; }
-                        return "Approval required";
+                    ${(x) => {
+                      if (x.state === "approved") {
+                        return "Approved";
+                      }
+                      if (x.state === "denied") {
+                        return "Denied";
+                      }
+                      return "Approval required";
                     }}
                 </span>
             </span>
             <span class="status-chip" part="status-chip">
-                ${x => {
-                    if (x.state === "approved") { return "Confirmed"; }
-                    if (x.state === "denied") { return "Blocked"; }
-                    return "Pending";
+                ${(x) => {
+                  if (x.state === "approved") {
+                    return "Confirmed";
+                  }
+                  if (x.state === "denied") {
+                    return "Blocked";
+                  }
+                  return "Pending";
                 }}
             </span>
         </div>
-        <div class="summary" part="summary" ?hidden="${x => !x.hasSummary}">
-            <slot name="summary" @slotchange="${x => x.handleSummarySlotChange()}"></slot>
+        <div class="summary" part="summary" ?hidden="${(x) => !x.hasSummary}">
+            <slot name="summary" @slotchange="${(x) => x.handleSummarySlotChange()}"></slot>
         </div>
-        <div class="detail" part="detail" ?hidden="${x => !x.hasDetail}">
-            <slot name="detail" @slotchange="${x => x.handleDetailSlotChange()}"></slot>
+        <div class="detail" part="detail" ?hidden="${(x) => !x.hasDetail}">
+            <slot name="detail" @slotchange="${(x) => x.handleDetailSlotChange()}"></slot>
         </div>
-        <div class="actions" part="actions" slot="footer" ?hidden="${x => x.state !== "pending"}">
+        <div class="actions" part="actions" slot="footer" ?hidden="${(x) => x.state !== "pending"}">
             <slot name="actions">
                 <violet-button
                     appearance="primary"
                     part="approve-button"
-                    @click="${x => x.handleApprove()}"
+                    @click="${(x) => x.handleApprove()}"
                 >Approve</violet-button>
                 <violet-button
                     appearance="secondary"
                     part="deny-button"
-                    @click="${x => x.handleDeny()}"
+                    @click="${(x) => x.handleDeny()}"
                 >Deny</violet-button>
             </slot>
         </div>
@@ -270,57 +284,57 @@ const template = html<VioletApprovalCard>`
  * @fires deny - When the user denies the action.
  */
 export class VioletApprovalCard extends FASTElement {
-    declare public state: string;
+  declare public state: string;
 
-    @observable
-    declare public hasSummary: boolean;
+  @observable
+  declare public hasSummary: boolean;
 
-    @observable
-    declare public hasDetail: boolean;
+  @observable
+  declare public hasDetail: boolean;
 
-    public constructor() {
-        super();
-        this.state = "pending";
-        this.hasSummary = false;
-        this.hasDetail = false;
-    }
+  public constructor() {
+    super();
+    this.state = "pending";
+    this.hasSummary = false;
+    this.hasDetail = false;
+  }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        registerSystemCheckmarkIcon();
-        registerSystemDismissIcon();
-        registerSystemWarningIcon();
-        this.handleSummarySlotChange();
-        this.handleDetailSlotChange();
-    }
+  public connectedCallback(): void {
+    super.connectedCallback();
+    registerSystemCheckmarkIcon();
+    registerSystemDismissIcon();
+    registerSystemWarningIcon();
+    this.handleSummarySlotChange();
+    this.handleDetailSlotChange();
+  }
 
-    public handleApprove(): void {
-        this.$emit("approve");
-    }
+  public handleApprove(): void {
+    this.$emit("approve");
+  }
 
-    public handleDeny(): void {
-        this.$emit("deny");
-    }
+  public handleDeny(): void {
+    this.$emit("deny");
+  }
 
-    public handleSummarySlotChange(): void {
-        const slot = this.shadowRoot?.querySelector('slot[name="summary"]') as HTMLSlotElement | null;
-        this.hasSummary = (slot?.assignedNodes({ flatten: true }) ?? []).some(node => {
-            if (node.nodeType === Node.TEXT_NODE) {
-                return Boolean(node.textContent?.trim());
-            }
-            return true;
-        });
-    }
+  public handleSummarySlotChange(): void {
+    const slot = this.shadowRoot?.querySelector('slot[name="summary"]') as HTMLSlotElement | null;
+    this.hasSummary = (slot?.assignedNodes({ flatten: true }) ?? []).some((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return Boolean(node.textContent?.trim());
+      }
+      return true;
+    });
+  }
 
-    public handleDetailSlotChange(): void {
-        const slot = this.shadowRoot?.querySelector('slot[name="detail"]') as HTMLSlotElement | null;
-        this.hasDetail = (slot?.assignedNodes({ flatten: true }) ?? []).some(node => {
-            if (node.nodeType === Node.TEXT_NODE) {
-                return Boolean(node.textContent?.trim());
-            }
-            return true;
-        });
-    }
+  public handleDetailSlotChange(): void {
+    const slot = this.shadowRoot?.querySelector('slot[name="detail"]') as HTMLSlotElement | null;
+    this.hasDetail = (slot?.assignedNodes({ flatten: true }) ?? []).some((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return Boolean(node.textContent?.trim());
+      }
+      return true;
+    });
+  }
 }
 
 export type VioletApprovalState = "pending" | "approved" | "denied";
@@ -329,7 +343,7 @@ attr(VioletApprovalCard.prototype, "state");
 
 /** The FAST definition of `<violet-approval-card>`; `defineVioletApprovalCard` in `./violet-approval-card.define` registers it. */
 export const violetApprovalCardDefinition = {
-    name: "violet-approval-card",
-    template,
-    styles,
+  name: "violet-approval-card",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

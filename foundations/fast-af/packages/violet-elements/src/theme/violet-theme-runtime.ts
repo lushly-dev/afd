@@ -12,26 +12,29 @@
  * meanwhile). A product that installs its own set first never loads it, and a bundler keeps it in a
  * chunk of its own.
  */
-import { VIOLET_THEME_DEFAULT_PRESET, violetThemePresets } from "./generated/violet-theme-presets.generated";
 import {
-    createVioletThemeCss,
-    VIOLET_THEME_PRESET_ATTRIBUTE,
-    VIOLET_THEME_ROOT_ATTRIBUTE,
-    type VioletThemePreset,
-    type VioletThemeSet,
+  VIOLET_THEME_DEFAULT_PRESET,
+  violetThemePresets,
+} from "./generated/violet-theme-presets.generated";
+import {
+  createVioletThemeCss,
+  VIOLET_THEME_PRESET_ATTRIBUTE,
+  VIOLET_THEME_ROOT_ATTRIBUTE,
+  type VioletThemePreset,
+  type VioletThemeSet,
 } from "./violet-theme-css";
 import { isDocument, isShadowRoot } from "./violet-theme-nodes";
 
 export {
-    VIOLET_THEME_DEFAULT_PRESET,
-    type VioletBuiltInThemePreset,
-    violetThemePresets,
+  VIOLET_THEME_DEFAULT_PRESET,
+  type VioletBuiltInThemePreset,
+  violetThemePresets,
 } from "./generated/violet-theme-presets.generated";
 
 interface ProductThemeSet {
-    readonly cssText: string;
-    readonly presets: readonly VioletThemePreset[];
-    readonly defaultPreset: VioletThemePreset;
+  readonly cssText: string;
+  readonly presets: readonly VioletThemePreset[];
+  readonly defaultPreset: VioletThemePreset;
 }
 
 /** The product's set; `null` while the built-in default is active. */
@@ -57,25 +60,28 @@ const documentBySheet = new WeakMap<CSSStyleSheet, Document>();
 const writtenText = new WeakMap<CSSStyleSheet, string>();
 
 function activePresets(): readonly VioletThemePreset[] {
-    return product?.presets ?? violetThemePresets;
+  return product?.presets ?? violetThemePresets;
 }
 
 function activeDefaultPreset(): VioletThemePreset {
-    return product?.defaultPreset ?? VIOLET_THEME_DEFAULT_PRESET;
+  return product?.defaultPreset ?? VIOLET_THEME_DEFAULT_PRESET;
 }
 
 /** The active stylesheet; empty while the built-in one is still loading. */
 function activeCssText(): string {
-    if (product !== null) {
-        return product.cssText;
-    }
-    if (builtInCssText === undefined) {
-        loadVioletBuiltInTheme().catch((error: unknown) => {
-            console.error("violet-theme: the built-in theme failed to load; the next install retries", error);
-        });
-        return "";
-    }
-    return builtInCssText;
+  if (product !== null) {
+    return product.cssText;
+  }
+  if (builtInCssText === undefined) {
+    loadVioletBuiltInTheme().catch((error: unknown) => {
+      console.error(
+        "violet-theme: the built-in theme failed to load; the next install retries",
+        error,
+      );
+    });
+    return "";
+  }
+  return builtInCssText;
 }
 
 /**
@@ -85,42 +91,44 @@ function activeCssText(): string {
  * next call, or the next install, tries again.
  */
 export function loadVioletBuiltInTheme(): Promise<string> {
-    // Defer the dynamic import by a microtask so single-file bundles finish initializing
-    // `violet-theme-builtin` when a pre-existing `<violet-theme>` upgrades synchronously during
-    // `FASTElement.define`. When a single-file bundle also awaits further element registrations
-    // before the inlined built-in module runs, its hoisted `var` namespace is still `undefined`
-    // (or its `const` bindings are still in TDZ) after one microtask; yield one macrotask so all
-    // registration microtasks drain, then retry once (#2072).
-    const load = async (): Promise<string> => {
-        await Promise.resolve();
-        let cssText: string | undefined;
-        try {
-            const module = await importBuiltIn();
-            cssText = module?.violetThemeCssText;
-        } catch (error) {
-            if (!(error instanceof ReferenceError)) {
-                throw error;
-            }
-        }
-        if (cssText === undefined) {
-            await new Promise<void>(resolve => setTimeout(resolve, 0));
-            const module = await importBuiltIn();
-            if (module?.violetThemeCssText === undefined) {
-                throw new TypeError("violet-theme: built-in theme module did not export violetThemeCssText");
-            }
-            cssText = module.violetThemeCssText;
-        }
-        builtInCssText = cssText;
-        if (product === null) {
-            refreshInstalledSheets();
-        }
-        return cssText;
-    };
-    builtInLoad ??= load().catch((error: unknown) => {
-        builtInLoad = undefined;
+  // Defer the dynamic import by a microtask so single-file bundles finish initializing
+  // `violet-theme-builtin` when a pre-existing `<violet-theme>` upgrades synchronously during
+  // `FASTElement.define`. When a single-file bundle also awaits further element registrations
+  // before the inlined built-in module runs, its hoisted `var` namespace is still `undefined`
+  // (or its `const` bindings are still in TDZ) after one microtask; yield one macrotask so all
+  // registration microtasks drain, then retry once (#2072).
+  const load = async (): Promise<string> => {
+    await Promise.resolve();
+    let cssText: string | undefined;
+    try {
+      const module = await importBuiltIn();
+      cssText = module?.violetThemeCssText;
+    } catch (error) {
+      if (!(error instanceof ReferenceError)) {
         throw error;
-    });
-    return builtInLoad;
+      }
+    }
+    if (cssText === undefined) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      const module = await importBuiltIn();
+      if (module?.violetThemeCssText === undefined) {
+        throw new TypeError(
+          "violet-theme: built-in theme module did not export violetThemeCssText",
+        );
+      }
+      cssText = module.violetThemeCssText;
+    }
+    builtInCssText = cssText;
+    if (product === null) {
+      refreshInstalledSheets();
+    }
+    return cssText;
+  };
+  builtInLoad ??= load().catch((error: unknown) => {
+    builtInLoad = undefined;
+    throw error;
+  });
+  return builtInLoad;
 }
 
 type BuiltInImporter = () => Promise<{ violetThemeCssText: string }>;
@@ -136,52 +144,56 @@ let importBuiltIn: BuiltInImporter = () => import("./violet-theme-builtin");
  * @internal
  */
 export function setVioletBuiltInThemeImporterForTesting(importer: BuiltInImporter): void {
-    importBuiltIn = importer;
-    builtInLoad = undefined;
-    builtInCssText = undefined;
+  importBuiltIn = importer;
+  builtInLoad = undefined;
+  builtInCssText = undefined;
 }
 
 function resolvePresetTarget(target: Document | HTMLElement = document): HTMLElement {
-    if (isDocument(target)) {
-        return target.documentElement;
-    }
+  if (isDocument(target)) {
+    return target.documentElement;
+  }
 
-    return target;
+  return target;
 }
 
 /**
  * The document `target` belongs to, which must have a window: a constructed sheet is made by a
  * window's `CSSStyleSheet` and can be adopted only within the document it was made for.
  */
-function ownerDocumentOf(target: Document | ShadowRoot): Document & { defaultView: Window & typeof globalThis } {
-    let ownerDocument: Document;
-    if (isDocument(target)) {
-        ownerDocument = target;
-    } else if (isShadowRoot(target)) {
-        ownerDocument = target.ownerDocument;
-    } else {
-        throw new TypeError("violet-theme: the target must be a Document or a ShadowRoot");
-    }
-    if (ownerDocument.defaultView === null) {
-        throw new TypeError("violet-theme: this document has no window; a constructed stylesheet cannot be adopted into it");
-    }
-    return ownerDocument as Document & { defaultView: Window & typeof globalThis };
+function ownerDocumentOf(
+  target: Document | ShadowRoot,
+): Document & { defaultView: Window & typeof globalThis } {
+  let ownerDocument: Document;
+  if (isDocument(target)) {
+    ownerDocument = target;
+  } else if (isShadowRoot(target)) {
+    ownerDocument = target.ownerDocument;
+  } else {
+    throw new TypeError("violet-theme: the target must be a Document or a ShadowRoot");
+  }
+  if (ownerDocument.defaultView === null) {
+    throw new TypeError(
+      "violet-theme: this document has no window; a constructed stylesheet cannot be adopted into it",
+    );
+  }
+  return ownerDocument as Document & { defaultView: Window & typeof globalThis };
 }
 
 function writeSheet(sheet: CSSStyleSheet, cssText: string): void {
-    if (writtenText.get(sheet) !== cssText) {
-        sheet.replaceSync(cssText);
-        writtenText.set(sheet, cssText);
-    }
+  if (writtenText.get(sheet) !== cssText) {
+    sheet.replaceSync(cssText);
+    writtenText.set(sheet, cssText);
+  }
 }
 
 /** Drops the references to sheets that have been collected. */
 function pruneInstalledSheets(): void {
-    for (const ref of installedSheets) {
-        if (ref.deref() === undefined) {
-            installedSheets.delete(ref);
-        }
+  for (const ref of installedSheets) {
+    if (ref.deref() === undefined) {
+      installedSheets.delete(ref);
     }
+  }
 }
 
 /**
@@ -190,20 +202,20 @@ function pruneInstalledSheets(): void {
  * leaves nothing behind.
  */
 function adoptSheet(target: Document | ShadowRoot): CSSStyleSheet {
-    const ownerDocument = ownerDocumentOf(target);
-    const existing = sheetsByDocument.get(ownerDocument);
-    const sheet = existing ?? new ownerDocument.defaultView.CSSStyleSheet();
-    writeSheet(sheet, activeCssText());
-    if (!target.adoptedStyleSheets.includes(sheet)) {
-        target.adoptedStyleSheets = [...target.adoptedStyleSheets, sheet];
-    }
-    if (existing === undefined) {
-        sheetsByDocument.set(ownerDocument, sheet);
-        documentBySheet.set(sheet, ownerDocument);
-        pruneInstalledSheets();
-        installedSheets.add(new WeakRef(sheet));
-    }
-    return sheet;
+  const ownerDocument = ownerDocumentOf(target);
+  const existing = sheetsByDocument.get(ownerDocument);
+  const sheet = existing ?? new ownerDocument.defaultView.CSSStyleSheet();
+  writeSheet(sheet, activeCssText());
+  if (!target.adoptedStyleSheets.includes(sheet)) {
+    target.adoptedStyleSheets = [...target.adoptedStyleSheets, sheet];
+  }
+  if (existing === undefined) {
+    sheetsByDocument.set(ownerDocument, sheet);
+    documentBySheet.set(sheet, ownerDocument);
+    pruneInstalledSheets();
+    installedSheets.add(new WeakRef(sheet));
+  }
+  return sheet;
 }
 
 /**
@@ -211,24 +223,27 @@ function adoptSheet(target: Document | ShadowRoot): CSSStyleSheet {
  * and dropped, so it does not stop the others, and its document's next install makes a new one.
  */
 function refreshInstalledSheets(): void {
-    const cssText = activeCssText();
-    for (const ref of installedSheets) {
-        const sheet = ref.deref();
-        if (sheet === undefined) {
-            installedSheets.delete(ref);
-            continue;
-        }
-        try {
-            writeSheet(sheet, cssText);
-        } catch (error) {
-            console.error("violet-theme: a runtime sheet could not be rewritten and is no longer updated", error);
-            installedSheets.delete(ref);
-            const ownerDocument = documentBySheet.get(sheet);
-            if (ownerDocument !== undefined && sheetsByDocument.get(ownerDocument) === sheet) {
-                sheetsByDocument.delete(ownerDocument);
-            }
-        }
+  const cssText = activeCssText();
+  for (const ref of installedSheets) {
+    const sheet = ref.deref();
+    if (sheet === undefined) {
+      installedSheets.delete(ref);
+      continue;
     }
+    try {
+      writeSheet(sheet, cssText);
+    } catch (error) {
+      console.error(
+        "violet-theme: a runtime sheet could not be rewritten and is no longer updated",
+        error,
+      );
+      installedSheets.delete(ref);
+      const ownerDocument = documentBySheet.get(sheet);
+      if (ownerDocument !== undefined && sheetsByDocument.get(ownerDocument) === sheet) {
+        sheetsByDocument.delete(ownerDocument);
+      }
+    }
+  }
 }
 
 /**
@@ -245,7 +260,7 @@ function refreshInstalledSheets(): void {
  * by `createHTMLDocument` or `DOMParser`, or an iframe's once the iframe is removed).
  */
 export function installVioletTheme(target: Document | ShadowRoot = document): CSSStyleSheet {
-    return adoptSheet(target);
+  return adoptSheet(target);
 }
 
 /**
@@ -269,39 +284,39 @@ export function installVioletTheme(target: Document | ShadowRoot = document): CS
  * ```
  */
 export function installVioletThemeSet(
-    themeSet: VioletThemeSet,
-    target: Document | ShadowRoot = document,
+  themeSet: VioletThemeSet,
+  target: Document | ShadowRoot = document,
 ): CSSStyleSheet {
-    const cssText = createVioletThemeCss(themeSet);
-    ownerDocumentOf(target);
-    product = {
-        cssText,
-        presets: Object.keys(themeSet.presets),
-        defaultPreset: themeSet.defaultPreset,
-    };
-    refreshInstalledSheets();
-    return adoptSheet(target);
+  const cssText = createVioletThemeCss(themeSet);
+  ownerDocumentOf(target);
+  product = {
+    cssText,
+    presets: Object.keys(themeSet.presets),
+    defaultPreset: themeSet.defaultPreset,
+  };
+  refreshInstalledSheets();
+  return adoptSheet(target);
 }
 
 /** Makes the built-in default the active set again and rewrites every runtime sheet. */
 export function resetVioletThemeSet(): void {
-    product = null;
-    refreshInstalledSheets();
+  product = null;
+  refreshInstalledSheets();
 }
 
 /** The active set's preset names. */
 export function getVioletThemePresets(): readonly VioletThemePreset[] {
-    return activePresets();
+  return activePresets();
 }
 
 /** The active set's default preset. */
 export function getVioletThemeDefaultPreset(): VioletThemePreset {
-    return activeDefaultPreset();
+  return activeDefaultPreset();
 }
 
 /** Whether `value` names a preset of the active set. */
 export function isVioletThemePreset(value: string | null | undefined): value is VioletThemePreset {
-    return typeof value === "string" && activePresets().includes(value);
+  return typeof value === "string" && activePresets().includes(value);
 }
 
 /**
@@ -310,22 +325,30 @@ export function isVioletThemePreset(value: string | null | undefined): value is 
  * is never mapped to the default.
  */
 export function normalizeVioletThemePreset(value: string | null | undefined): VioletThemePreset {
-    if (value === null || value === undefined || value === "") {
-        return activeDefaultPreset();
-    }
-    if (isVioletThemePreset(value)) {
-        return value;
-    }
-    throw new RangeError(`Unknown Violet theme preset '${value}'; the installed presets are ${activePresets().join(", ")}`);
+  if (value === null || value === undefined || value === "") {
+    return activeDefaultPreset();
+  }
+  if (isVioletThemePreset(value)) {
+    return value;
+  }
+  throw new RangeError(
+    `Unknown Violet theme preset '${value}'; the installed presets are ${activePresets().join(", ")}`,
+  );
 }
 
 /**
  * Selects a preset of the active set on the document root or an element. Throws a `RangeError` for
  * a name the active set does not have, so install a product's set before selecting its presets.
  */
-export function applyVioletThemePreset<T extends Document | HTMLElement>(target: T, preset?: VioletThemePreset): T {
-    resolvePresetTarget(target).setAttribute(VIOLET_THEME_PRESET_ATTRIBUTE, normalizeVioletThemePreset(preset));
-    return target;
+export function applyVioletThemePreset<T extends Document | HTMLElement>(
+  target: T,
+  preset?: VioletThemePreset,
+): T {
+  resolvePresetTarget(target).setAttribute(
+    VIOLET_THEME_PRESET_ATTRIBUTE,
+    normalizeVioletThemePreset(preset),
+  );
+  return target;
 }
 
 /**
@@ -333,13 +356,18 @@ export function applyVioletThemePreset<T extends Document | HTMLElement>(target:
  * written, or the active set's default when it has none.
  */
 export function getVioletThemePreset(target: Document | HTMLElement = document): VioletThemePreset {
-    return resolvePresetTarget(target).getAttribute(VIOLET_THEME_PRESET_ATTRIBUTE) || activeDefaultPreset();
+  return (
+    resolvePresetTarget(target).getAttribute(VIOLET_THEME_PRESET_ATTRIBUTE) || activeDefaultPreset()
+  );
 }
 
 /** Marks an element as a scoped theme root and selects a preset of the active set on it. */
-export function applyVioletThemeRoot<T extends HTMLElement>(element: T, preset?: VioletThemePreset): T {
-    const resolved = normalizeVioletThemePreset(preset);
-    element.setAttribute(VIOLET_THEME_ROOT_ATTRIBUTE, "");
-    element.setAttribute(VIOLET_THEME_PRESET_ATTRIBUTE, resolved);
-    return element;
+export function applyVioletThemeRoot<T extends HTMLElement>(
+  element: T,
+  preset?: VioletThemePreset,
+): T {
+  const resolved = normalizeVioletThemePreset(preset);
+  element.setAttribute(VIOLET_THEME_ROOT_ATTRIBUTE, "");
+  element.setAttribute(VIOLET_THEME_PRESET_ATTRIBUTE, resolved);
+  return element;
 }

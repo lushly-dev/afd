@@ -1,4 +1,11 @@
-import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 
 import type { VioletBreadcrumbItem } from "../breadcrumb-item/violet-breadcrumb-item";
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
@@ -26,9 +33,9 @@ const styles = css`
 `;
 
 const template = html<VioletBreadcrumb>`
-    <nav class="nav" part="nav" aria-label="${x => x.label || "Breadcrumb"}">
+    <nav class="nav" part="nav" aria-label="${(x) => x.label || "Breadcrumb"}">
         <div class="list" part="list" role="list">
-            <slot @slotchange="${x => x.handleSlotChange()}"></slot>
+            <slot @slotchange="${(x) => x.handleSlotChange()}"></slot>
         </div>
     </nav>
 `;
@@ -42,57 +49,59 @@ const template = html<VioletBreadcrumb>`
  * @csspart list - Ordered list wrapper.
  */
 export class VioletBreadcrumb extends FASTElement {
-    @observable
-    declare public items: VioletBreadcrumbItem[];
+  @observable
+  declare public items: VioletBreadcrumbItem[];
 
-    declare public label: string;
+  declare public label: string;
 
-    public constructor() {
-        super();
-        this.items = [];
-    }
+  public constructor() {
+    super();
+    this.items = [];
+  }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        this.#syncAccessibility();
-        this.handleSlotChange();
-    }
+  public connectedCallback(): void {
+    super.connectedCallback();
+    this.#syncAccessibility();
+    this.handleSlotChange();
+  }
 
-    public handleSlotChange(): void {
-        this.items = this.#ownedItems();
-        this.#normalizeCurrentItem();
-    }
+  public handleSlotChange(): void {
+    this.items = this.#ownedItems();
+    this.#normalizeCurrentItem();
+  }
 
-    public labelChanged(): void {
-        this.#syncAccessibility();
-    }
+  public labelChanged(): void {
+    this.#syncAccessibility();
+  }
 
-    #ownedItems(): VioletBreadcrumbItem[] {
-        return Array.from(this.querySelectorAll("violet-breadcrumb-item")).filter(
-            item => item.closest("violet-breadcrumb") === this,
-        ) as VioletBreadcrumbItem[];
-    }
+  #ownedItems(): VioletBreadcrumbItem[] {
+    return Array.from(this.querySelectorAll("violet-breadcrumb-item")).filter(
+      (item) => item.closest("violet-breadcrumb") === this,
+    ) as VioletBreadcrumbItem[];
+  }
 
-    #normalizeCurrentItem(): void {
-        const explicitCurrentItems = this.items.filter(item => item.current);
-        const currentItem =
-            explicitCurrentItems[explicitCurrentItems.length - 1] ?? this.items[this.items.length - 1] ?? null;
+  #normalizeCurrentItem(): void {
+    const explicitCurrentItems = this.items.filter((item) => item.current);
+    const currentItem =
+      explicitCurrentItems[explicitCurrentItems.length - 1] ??
+      this.items[this.items.length - 1] ??
+      null;
 
-        this.items.forEach(item => {
-            item.current = item === currentItem;
-        });
-    }
+    this.items.forEach((item) => {
+      item.current = item === currentItem;
+    });
+  }
 
-    #syncAccessibility(): void {
-        this.ariaLabel = this.label || "Breadcrumb";
-    }
+  #syncAccessibility(): void {
+    this.ariaLabel = this.label || "Breadcrumb";
+  }
 }
 
 attr(VioletBreadcrumb.prototype, "label");
 
 /** The FAST definition of `<violet-breadcrumb>`; `defineVioletBreadcrumb` in `./violet-breadcrumb.define` registers it. */
 export const violetBreadcrumbDefinition = {
-    name: "violet-breadcrumb",
-    template,
-    styles,
+  name: "violet-breadcrumb",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

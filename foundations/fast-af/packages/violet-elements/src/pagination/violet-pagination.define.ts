@@ -7,8 +7,10 @@ import { VioletPagination, violetPaginationDefinition } from "./violet-paginatio
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletPagination(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletElement(VioletPagination, violetPaginationDefinition, registry);
+export async function defineVioletPagination(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletElement(VioletPagination, violetPaginationDefinition, registry);
 }
 
 await defineVioletPagination();

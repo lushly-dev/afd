@@ -5,10 +5,7 @@
     {
       "id": "switch.required",
       "text": "The required attribute is satisfied only while the switch is on.",
-      "members": [
-        "required",
-        "checked"
-      ]
+      "members": ["required", "checked"]
     },
     {
       "id": "switch.no-mixed",
@@ -19,9 +16,7 @@
     {
       "id": "switch.semantics",
       "text": "The inner input has role switch and is labelled by the slotted text. The active error message, or content in the supporting slot when no error is shown, is linked as its description.",
-      "members": [
-        "supporting"
-      ]
+      "members": ["supporting"]
     }
   ]
 }

@@ -1,9 +1,16 @@
-import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 
 import {
-    LazyFallbackPositionController,
-    bindOverlayAnchor,
-    createAnchorName,
+  bindOverlayAnchor,
+  createAnchorName,
+  LazyFallbackPositionController,
 } from "../shared/overlay-anchor";
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -156,42 +163,42 @@ const styles = css`
 
 const template = html<VioletTeachingTip>`
     <span class="anchor" part="anchor">
-        <slot @slotchange="${x => x.handleSlotChange()}"></slot>
+        <slot @slotchange="${(x) => x.handleSlotChange()}"></slot>
     </span>
     <div
         class="tip"
         part="tip"
-        id="${x => x.tipId}"
+        id="${(x) => x.tipId}"
         role="dialog"
-        aria-labelledby="${x => x.hasTitle ? x.titleId : undefined}"
-        aria-label="${x => x.hasTitle ? undefined : "Teaching tip"}"
+        aria-labelledby="${(x) => (x.hasTitle ? x.titleId : undefined)}"
+        aria-label="${(x) => (x.hasTitle ? undefined : "Teaching tip")}"
         popover="auto"
     >
-        <div class="header" part="header" ?hidden="${x => !x.hasTitle && x.noCloseButton}">
-            <span class="title" part="title" id="${x => x.titleId}">
-                <slot name="title" @slotchange="${x => x.handleTitleSlotChange()}"></slot>
+        <div class="header" part="header" ?hidden="${(x) => !x.hasTitle && x.noCloseButton}">
+            <span class="title" part="title" id="${(x) => x.titleId}">
+                <slot name="title" @slotchange="${(x) => x.handleTitleSlotChange()}"></slot>
             </span>
             <violet-icon-button
                 class="close-button"
                 part="close-button"
-                ?hidden="${x => x.noCloseButton}"
+                ?hidden="${(x) => x.noCloseButton}"
                 appearance="quiet"
                 label="Dismiss tip"
-                @click="${x => x.hide()}"
+                @click="${(x) => x.hide()}"
             >
                 <violet-icon icon="system/close" decorative></violet-icon>
             </violet-icon-button>
         </div>
         <div class="body" part="body">
-            <slot name="body">${x => x.content}</slot>
+            <slot name="body">${(x) => x.content}</slot>
         </div>
-        <div class="footer" part="footer" ?hidden="${x => !x.hasFooter && !x.totalSteps}">
+        <div class="footer" part="footer" ?hidden="${(x) => !x.hasFooter && !x.totalSteps}">
             <span
                 class="step-indicator"
                 part="step-indicator"
-                ?hidden="${x => !x.totalSteps}"
-            >${x => x.totalSteps ? `${x.currentStep} of ${x.totalSteps}` : ""}</span>
-            <slot name="footer" @slotchange="${x => x.handleFooterSlotChange()}"></slot>
+                ?hidden="${(x) => !x.totalSteps}"
+            >${(x) => (x.totalSteps ? `${x.currentStep} of ${x.totalSteps}` : "")}</span>
+            <slot name="footer" @slotchange="${(x) => x.handleFooterSlotChange()}"></slot>
         </div>
     </div>
 `;
@@ -217,288 +224,300 @@ const template = html<VioletTeachingTip>`
  * @csspart step-indicator - The step counter text.
  */
 export class VioletTeachingTip extends FASTElement {
-    @observable
-    declare public hasTitle: boolean;
+  @observable
+  declare public hasTitle: boolean;
 
-    @observable
-    declare public hasFooter: boolean;
+  @observable
+  declare public hasFooter: boolean;
 
-    declare public content: string;
-    declare public positioning: string;
-    declare public open: boolean;
-    declare public anchor: string;
-    declare public noCloseButton: boolean;
-    declare public currentStep: number;
-    declare public totalSteps: number;
+  declare public content: string;
+  declare public positioning: string;
+  declare public open: boolean;
+  declare public anchor: string;
+  declare public noCloseButton: boolean;
+  declare public currentStep: number;
+  declare public totalSteps: number;
 
-    public readonly tipId: string;
-    public readonly titleId: string;
-    public readonly anchorName: string;
+  public readonly tipId: string;
+  public readonly titleId: string;
+  public readonly anchorName: string;
 
-    #triggerElement: Element | null = null;
-    #externalAnchor: HTMLElement | null = null;
-    #externalListenersAttached = false;
-    #fallbackPosition = new LazyFallbackPositionController();
+  #triggerElement: Element | null = null;
+  #externalAnchor: HTMLElement | null = null;
+  #externalListenersAttached = false;
+  #fallbackPosition = new LazyFallbackPositionController();
 
-    public constructor() {
-        super();
-        this.hasTitle = false;
-        this.hasFooter = false;
-        this.content = "";
-        this.positioning = "below";
-        this.open = false;
-        this.noCloseButton = false;
-        this.currentStep = 0;
-        this.totalSteps = 0;
+  public constructor() {
+    super();
+    this.hasTitle = false;
+    this.hasFooter = false;
+    this.content = "";
+    this.positioning = "below";
+    this.open = false;
+    this.noCloseButton = false;
+    this.currentStep = 0;
+    this.totalSteps = 0;
 
-        const id = violetTeachingTipId;
-        violetTeachingTipId += 1;
-        this.tipId = `violet-teaching-tip-${id}`;
-        this.titleId = `violet-teaching-tip-title-${id}`;
-        this.anchorName = createAnchorName("violet-teaching-tip", id);
+    const id = violetTeachingTipId;
+    violetTeachingTipId += 1;
+    this.tipId = `violet-teaching-tip-${id}`;
+    this.titleId = `violet-teaching-tip-title-${id}`;
+    this.anchorName = createAnchorName("violet-teaching-tip", id);
+  }
+
+  get #tipElement(): HTMLElement | null {
+    return this.shadowRoot?.querySelector(".tip") ?? null;
+  }
+
+  get #internalAnchorElement(): HTMLElement | null {
+    return this.shadowRoot?.querySelector(".anchor") ?? null;
+  }
+
+  get #activeAnchorElement(): HTMLElement | null {
+    return this.#externalAnchor ?? this.#internalAnchorElement;
+  }
+
+  public show(): void {
+    this.open = true;
+  }
+
+  public hide(): void {
+    this.open = false;
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+
+    const tip = this.#tipElement;
+    if (tip) {
+      tip.addEventListener("toggle", this.#handleToggle);
     }
 
-    get #tipElement(): HTMLElement | null {
-        return this.shadowRoot?.querySelector(".tip") ?? null;
+    this.#resolveExternalAnchor();
+    this.#syncAnchoring();
+    this.#syncTriggerAria();
+
+    if (this.open) {
+      this.#showTip();
+    }
+  }
+
+  public disconnectedCallback(): void {
+    super.disconnectedCallback();
+
+    const tip = this.#tipElement;
+    if (tip) {
+      tip.removeEventListener("toggle", this.#handleToggle);
     }
 
-    get #internalAnchorElement(): HTMLElement | null {
-        return this.shadowRoot?.querySelector(".anchor") ?? null;
+    this.#fallbackPosition.stop(tip);
+    this.#detachExternalListeners();
+  }
+
+  public openChanged(): void {
+    if (!this.$fastController.isConnected) {
+      return;
     }
 
-    get #activeAnchorElement(): HTMLElement | null {
-        return this.#externalAnchor ?? this.#internalAnchorElement;
+    if (this.open) {
+      this.#showTip();
+    } else {
+      this.#hideTip();
     }
 
-    public show(): void {
-        this.open = true;
+    this.#syncTriggerAria();
+  }
+
+  public positioningChanged(): void {
+    if (this.open) {
+      this.#fallbackPosition.update();
+    }
+  }
+
+  public anchorChanged(): void {
+    if (!this.$fastController.isConnected) {
+      return;
     }
 
-    public hide(): void {
-        this.open = false;
+    this.#detachExternalListeners();
+    this.#resolveExternalAnchor();
+    this.#syncAnchoring();
+    if (!this.#externalListenersAttached) {
+      this.handleSlotChange();
+    } else {
+      this.#syncTriggerAria();
+    }
+    if (this.open) {
+      this.#startFallbackPosition();
+    }
+  }
+
+  public handleSlotChange(): void {
+    if (this.#externalListenersAttached) {
+      return;
+    }
+    const slot = this.shadowRoot?.querySelector("slot:not([name])") as HTMLSlotElement | null;
+    const assigned = slot?.assignedElements({ flatten: true }) ?? [];
+    if (this.#triggerElement instanceof HTMLElement) {
+      this.#clearTriggerAria(this.#triggerElement);
+    }
+    this.#triggerElement = assigned[0] ?? null;
+    this.#syncTriggerAria();
+  }
+
+  public handleTitleSlotChange(): void {
+    const slot = this.shadowRoot?.querySelector('slot[name="title"]') as HTMLSlotElement | null;
+    this.hasTitle = (slot?.assignedNodes({ flatten: true }) ?? []).some((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return Boolean(node.textContent?.trim());
+      }
+      return true;
+    });
+  }
+
+  public handleFooterSlotChange(): void {
+    const slot = this.shadowRoot?.querySelector('slot[name="footer"]') as HTMLSlotElement | null;
+    this.hasFooter = (slot?.assignedNodes({ flatten: true }) ?? []).some((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return Boolean(node.textContent?.trim());
+      }
+      return true;
+    });
+  }
+
+  #handleToggle = (event: Event): void => {
+    const toggle = event as ToggleEvent;
+    const isOpen = toggle.newState === "open";
+    this.open = isOpen;
+    if (isOpen) {
+      this.#syncAnchoring();
+      this.#startFallbackPosition();
+    } else {
+      this.#fallbackPosition.stop(this.#tipElement);
+    }
+    this.#syncTriggerAria();
+    this.$emit("open-change", { open: isOpen });
+    if (!isOpen) {
+      this.$emit("dismiss");
+    }
+  };
+
+  #syncAnchoring(): void {
+    bindOverlayAnchor(
+      this.#internalAnchorElement,
+      this.#externalAnchor,
+      this.#tipElement,
+      this.anchorName,
+    );
+  }
+
+  #startFallbackPosition(): void {
+    this.#fallbackPosition.start(
+      () => this.#activeAnchorElement,
+      () => this.#tipElement,
+      () => [
+        this.positioning,
+        "below",
+        "center",
+        getComputedStyle(this).getPropertyValue("--_tip-gap"),
+        this,
+        8,
+      ],
+      Boolean(this.#externalAnchor),
+    );
+  }
+
+  #resolveExternalAnchor(): void {
+    if (!this.anchor) {
+      return;
     }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-
-        const tip = this.#tipElement;
-        if (tip) {
-            tip.addEventListener("toggle", this.#handleToggle);
-        }
-
-        this.#resolveExternalAnchor();
-        this.#syncAnchoring();
-        this.#syncTriggerAria();
-
-        if (this.open) {
-            this.#showTip();
-        }
+    const external = document.getElementById(this.anchor);
+    if (!(external instanceof HTMLElement)) {
+      return;
     }
 
-    public disconnectedCallback(): void {
-        super.disconnectedCallback();
+    if (this.#triggerElement instanceof HTMLElement && this.#triggerElement !== external) {
+      this.#clearTriggerAria(this.#triggerElement);
+    }
+    this.#externalAnchor = external;
+    this.#triggerElement = external;
+    this.#externalListenersAttached = true;
+  }
 
-        const tip = this.#tipElement;
-        if (tip) {
-            tip.removeEventListener("toggle", this.#handleToggle);
-        }
-
-        this.#fallbackPosition.stop(tip);
-        this.#detachExternalListeners();
+  #detachExternalListeners(): void {
+    if (!this.#externalListenersAttached || !this.#externalAnchor) {
+      return;
     }
 
-    public openChanged(): void {
-        if (!this.$fastController.isConnected) {
-            return;
-        }
+    this.#clearTriggerAria(this.#externalAnchor);
+    if (this.#triggerElement === this.#externalAnchor) {
+      this.#triggerElement = null;
+    }
+    this.#externalAnchor = null;
+    this.#externalListenersAttached = false;
+  }
 
-        if (this.open) {
-            this.#showTip();
-        } else {
-            this.#hideTip();
-        }
-
-        this.#syncTriggerAria();
+  #syncTriggerAria(): void {
+    if (!(this.#triggerElement instanceof HTMLElement)) {
+      return;
     }
 
-    public positioningChanged(): void {
-        if (this.open) {
-            this.#fallbackPosition.update();
-        }
+    this.#triggerElement.setAttribute("aria-haspopup", "dialog");
+    this.#triggerElement.setAttribute("aria-expanded", String(this.open));
+
+    // The tip is in this shadow root, where an id from the trigger's tree cannot reach it.
+    // Where shadow roots support a reference target, name this host and let its shadow root
+    // forward the reference to the tip; elsewhere set no aria-controls rather than one that
+    // points at nothing.
+    const root = this.shadowRoot as (ShadowRoot & { referenceTarget?: string | null }) | null;
+    if (root && "referenceTarget" in ShadowRoot.prototype) {
+      root.referenceTarget = this.tipId;
+      if (!this.id) {
+        this.id = `${this.tipId}-host`;
+      }
+      this.#triggerElement.setAttribute("aria-controls", this.id);
+    } else {
+      this.#triggerElement.removeAttribute("aria-controls");
+    }
+  }
+
+  #clearTriggerAria(element: HTMLElement): void {
+    element.removeAttribute("aria-haspopup");
+    element.removeAttribute("aria-expanded");
+    element.removeAttribute("aria-controls");
+  }
+
+  #showTip(): void {
+    const tip = this.#tipElement;
+    if (!tip) {
+      return;
     }
 
-    public anchorChanged(): void {
-        if (!this.$fastController.isConnected) {
-            return;
-        }
+    try {
+      tip.showPopover();
+    } catch {
+      tip.toggleAttribute("popover-open", true);
+      tip.style.display = "block";
+    }
+    this.#syncAnchoring();
+    this.#startFallbackPosition();
+  }
 
-        this.#detachExternalListeners();
-        this.#resolveExternalAnchor();
-        this.#syncAnchoring();
-        if (!this.#externalListenersAttached) {
-            this.handleSlotChange();
-        } else {
-            this.#syncTriggerAria();
-        }
-        if (this.open) {
-            this.#startFallbackPosition();
-        }
+  #hideTip(): void {
+    const tip = this.#tipElement;
+    if (!tip) {
+      return;
     }
 
-    public handleSlotChange(): void {
-        if (this.#externalListenersAttached) {
-            return;
-        }
-        const slot = this.shadowRoot?.querySelector("slot:not([name])") as HTMLSlotElement | null;
-        const assigned = slot?.assignedElements({ flatten: true }) ?? [];
-        if (this.#triggerElement instanceof HTMLElement) {
-            this.#clearTriggerAria(this.#triggerElement);
-        }
-        this.#triggerElement = assigned[0] ?? null;
-        this.#syncTriggerAria();
+    this.#fallbackPosition.stop(tip);
+    try {
+      tip.hidePopover();
+    } catch {
+      tip.removeAttribute("popover-open");
+      tip.style.display = "";
     }
-
-    public handleTitleSlotChange(): void {
-        const slot = this.shadowRoot?.querySelector('slot[name="title"]') as HTMLSlotElement | null;
-        this.hasTitle = (slot?.assignedNodes({ flatten: true }) ?? []).some(node => {
-            if (node.nodeType === Node.TEXT_NODE) {
-                return Boolean(node.textContent?.trim());
-            }
-            return true;
-        });
-    }
-
-    public handleFooterSlotChange(): void {
-        const slot = this.shadowRoot?.querySelector('slot[name="footer"]') as HTMLSlotElement | null;
-        this.hasFooter = (slot?.assignedNodes({ flatten: true }) ?? []).some(node => {
-            if (node.nodeType === Node.TEXT_NODE) {
-                return Boolean(node.textContent?.trim());
-            }
-            return true;
-        });
-    }
-
-    #handleToggle = (event: Event): void => {
-        const toggle = event as ToggleEvent;
-        const isOpen = toggle.newState === "open";
-        this.open = isOpen;
-        if (isOpen) {
-            this.#syncAnchoring();
-            this.#startFallbackPosition();
-        } else {
-            this.#fallbackPosition.stop(this.#tipElement);
-        }
-        this.#syncTriggerAria();
-        this.$emit("open-change", { open: isOpen });
-        if (!isOpen) {
-            this.$emit("dismiss");
-        }
-    };
-
-    #syncAnchoring(): void {
-        bindOverlayAnchor(this.#internalAnchorElement, this.#externalAnchor, this.#tipElement, this.anchorName);
-    }
-
-    #startFallbackPosition(): void {
-        this.#fallbackPosition.start(
-            () => this.#activeAnchorElement,
-            () => this.#tipElement,
-            () => [this.positioning, "below", "center", getComputedStyle(this).getPropertyValue("--_tip-gap"), this, 8],
-            Boolean(this.#externalAnchor),
-        );
-    }
-
-    #resolveExternalAnchor(): void {
-        if (!this.anchor) {
-            return;
-        }
-
-        const external = document.getElementById(this.anchor);
-        if (!(external instanceof HTMLElement)) {
-            return;
-        }
-
-        if (this.#triggerElement instanceof HTMLElement && this.#triggerElement !== external) {
-            this.#clearTriggerAria(this.#triggerElement);
-        }
-        this.#externalAnchor = external;
-        this.#triggerElement = external;
-        this.#externalListenersAttached = true;
-    }
-
-    #detachExternalListeners(): void {
-        if (!this.#externalListenersAttached || !this.#externalAnchor) {
-            return;
-        }
-
-        this.#clearTriggerAria(this.#externalAnchor);
-        if (this.#triggerElement === this.#externalAnchor) {
-            this.#triggerElement = null;
-        }
-        this.#externalAnchor = null;
-        this.#externalListenersAttached = false;
-    }
-
-    #syncTriggerAria(): void {
-        if (!(this.#triggerElement instanceof HTMLElement)) {
-            return;
-        }
-
-        this.#triggerElement.setAttribute("aria-haspopup", "dialog");
-        this.#triggerElement.setAttribute("aria-expanded", String(this.open));
-
-        // The tip is in this shadow root, where an id from the trigger's tree cannot reach it.
-        // Where shadow roots support a reference target, name this host and let its shadow root
-        // forward the reference to the tip; elsewhere set no aria-controls rather than one that
-        // points at nothing.
-        const root = this.shadowRoot as (ShadowRoot & { referenceTarget?: string | null }) | null;
-        if (root && "referenceTarget" in ShadowRoot.prototype) {
-            root.referenceTarget = this.tipId;
-            if (!this.id) {
-                this.id = `${this.tipId}-host`;
-            }
-            this.#triggerElement.setAttribute("aria-controls", this.id);
-        } else {
-            this.#triggerElement.removeAttribute("aria-controls");
-        }
-    }
-
-    #clearTriggerAria(element: HTMLElement): void {
-        element.removeAttribute("aria-haspopup");
-        element.removeAttribute("aria-expanded");
-        element.removeAttribute("aria-controls");
-    }
-
-    #showTip(): void {
-        const tip = this.#tipElement;
-        if (!tip) {
-            return;
-        }
-
-        try {
-            tip.showPopover();
-        } catch {
-            tip.toggleAttribute("popover-open", true);
-            tip.style.display = "block";
-        }
-        this.#syncAnchoring();
-        this.#startFallbackPosition();
-    }
-
-    #hideTip(): void {
-        const tip = this.#tipElement;
-        if (!tip) {
-            return;
-        }
-
-        this.#fallbackPosition.stop(tip);
-        try {
-            tip.hidePopover();
-        } catch {
-            tip.removeAttribute("popover-open");
-            tip.style.display = "";
-        }
-    }
+  }
 }
 
 export type VioletTeachingTipPositioning = "above" | "below" | "before" | "after";
@@ -507,13 +526,28 @@ attr(VioletTeachingTip.prototype, "content");
 attr(VioletTeachingTip.prototype, "positioning");
 attr({ mode: "boolean" })(VioletTeachingTip.prototype, "open");
 attr(VioletTeachingTip.prototype, "anchor");
-attr({ attribute: "no-close-button", mode: "boolean" })(VioletTeachingTip.prototype, "noCloseButton");
-attr({ attribute: "current-step", converter: { fromView: (val: string) => Number.parseInt(val, 10) || 0, toView: (val: number) => String(val) } })(VioletTeachingTip.prototype, "currentStep");
-attr({ attribute: "total-steps", converter: { fromView: (val: string) => Number.parseInt(val, 10) || 0, toView: (val: number) => String(val) } })(VioletTeachingTip.prototype, "totalSteps");
+attr({ attribute: "no-close-button", mode: "boolean" })(
+  VioletTeachingTip.prototype,
+  "noCloseButton",
+);
+attr({
+  attribute: "current-step",
+  converter: {
+    fromView: (val: string) => Number.parseInt(val, 10) || 0,
+    toView: (val: number) => String(val),
+  },
+})(VioletTeachingTip.prototype, "currentStep");
+attr({
+  attribute: "total-steps",
+  converter: {
+    fromView: (val: string) => Number.parseInt(val, 10) || 0,
+    toView: (val: number) => String(val),
+  },
+})(VioletTeachingTip.prototype, "totalSteps");
 
 /** The FAST definition of `<violet-teaching-tip>`; `defineVioletTeachingTip` in `./violet-teaching-tip.define` registers it. */
 export const violetTeachingTipDefinition = {
-    name: "violet-teaching-tip",
-    template,
-    styles,
+  name: "violet-teaching-tip",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

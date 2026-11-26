@@ -1,8 +1,14 @@
-import { FASTElement, attr, css, html, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
-
-import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  type PartialFASTElementDefinition,
+  when,
+} from "@lushly-dev/fast-element";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
 import { resolveFieldErrorText } from "../shared/field-error";
+import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 
 export type VioletSliderOrientation = "horizontal" | "vertical";
 
@@ -262,35 +268,35 @@ const styles = css`
 const template = html<VioletSlider>`
     <div class="field" part="field">
         ${when(
-            x => Boolean(x.label),
-            html<VioletSlider>`
-                <label class="label" part="label" for="${x => x.inputId}">${x => x.label}</label>
+          (x) => Boolean(x.label),
+          html<VioletSlider>`
+                <label class="label" part="label" for="${(x) => x.inputId}">${(x) => x.label}</label>
             `,
         )}
-        <div class="control-shell" part="control-shell" style="${x => x.controlStyle}">
+        <div class="control-shell" part="control-shell" style="${(x) => x.controlStyle}">
             <input
-                id="${x => x.inputId}"
+                id="${(x) => x.inputId}"
                 class="input"
                 part="input"
                 type="range"
-                min="${x => x.min}"
-                max="${x => x.max}"
-                step="${x => x.step}"
-                :value="${x => x.value}"
-                name="${x => x.name}"
-                ?disabled="${x => x.effectiveDisabled}"
-                ?required="${x => x.required}"
-                aria-label="${x => x.label || x.getAttribute("aria-label") || ""}"
-                aria-describedby="${x => x.describedByIds || null}"
-                aria-invalid="${x => (!x.effectiveDisabled && x.invalid) ? "true" : "false"}"
-                aria-orientation="${x => x.orientation}"
-                aria-valuetext="${x => x.valueText || null}"
+                min="${(x) => x.min}"
+                max="${(x) => x.max}"
+                step="${(x) => x.step}"
+                :value="${(x) => x.value}"
+                name="${(x) => x.name}"
+                ?disabled="${(x) => x.effectiveDisabled}"
+                ?required="${(x) => x.required}"
+                aria-label="${(x) => x.label || x.getAttribute("aria-label") || ""}"
+                aria-describedby="${(x) => x.describedByIds || null}"
+                aria-invalid="${(x) => (!x.effectiveDisabled && x.invalid ? "true" : "false")}"
+                aria-orientation="${(x) => x.orientation}"
+                aria-valuetext="${(x) => x.valueText || null}"
                 @pointerdown="${(x, c) => x.handlePointerDown(c.event as PointerEvent)}"
                 @input="${(x, c) => x.handleInput(c.event)}"
                 @change="${(x, c) => x.handleCommit(c.event)}"
             />
             <div class="visual" part="visual" aria-hidden="true">
-                <div class="ticks" part="ticks" style="${x => x.tickStyle}"></div>
+                <div class="ticks" part="ticks" style="${(x) => x.tickStyle}"></div>
                 <div class="rail" part="rail">
                     <div class="fill" part="fill"></div>
                 </div>
@@ -298,15 +304,15 @@ const template = html<VioletSlider>`
             </div>
         </div>
         ${when(
-            x => Boolean(x.supportingText) && !x.displayErrorText,
-            html<VioletSlider>`
-                <p class="supporting" id="${x => x.supportingTextId}" part="supporting-text">${x => x.supportingText}</p>
+          (x) => Boolean(x.supportingText) && !x.displayErrorText,
+          html<VioletSlider>`
+                <p class="supporting" id="${(x) => x.supportingTextId}" part="supporting-text">${(x) => x.supportingText}</p>
             `,
         )}
         ${when(
-            x => Boolean(x.displayErrorText),
-            html<VioletSlider>`
-                <p class="error" id="${x => x.errorTextId}" part="error-message" role="alert">${x => x.displayErrorText}</p>
+          (x) => Boolean(x.displayErrorText),
+          html<VioletSlider>`
+                <p class="error" id="${(x) => x.errorTextId}" part="error-message" role="alert">${(x) => x.displayErrorText}</p>
             `,
         )}
     </div>
@@ -330,459 +336,459 @@ const template = html<VioletSlider>`
  * @csspart error-message - Visible error text.
  */
 export class VioletSlider extends FASTElement {
-    public static readonly formAssociated = true;
+  public static readonly formAssociated = true;
 
-    readonly #internals: ElementInternals;
-    #defaultValue: string;
-    #activePointerId: number | null;
+  readonly #internals: ElementInternals;
+  #defaultValue: string;
+  #activePointerId: number | null;
 
-    public readonly inputId: string;
-    public readonly supportingTextId: string;
-    public readonly errorTextId: string;
+  public readonly inputId: string;
+  public readonly supportingTextId: string;
+  public readonly errorTextId: string;
 
-    declare public label: string;
-    declare public supportingText: string;
-    declare public errorText: string;
-    declare public valueText: string;
-    declare public value: string;
-    declare public min: string;
-    declare public max: string;
-    declare public step: string;
-    declare public name: string;
-    declare public required: boolean;
-    declare public orientation: VioletSliderOrientation;
-    declare public disabled: boolean;
+  declare public label: string;
+  declare public supportingText: string;
+  declare public errorText: string;
+  declare public valueText: string;
+  declare public value: string;
+  declare public min: string;
+  declare public max: string;
+  declare public step: string;
+  declare public name: string;
+  declare public required: boolean;
+  declare public orientation: VioletSliderOrientation;
+  declare public disabled: boolean;
 
-    /**
-     * True while an ancestor `<fieldset disabled>` disables the control.
-     */
-    declare public fieldsetDisabled: boolean;
+  /**
+   * True while an ancestor `<fieldset disabled>` disables the control.
+   */
+  declare public fieldsetDisabled: boolean;
 
-    /**
-     * Author `disabled` or fieldset-disabled.
-     */
-    declare public readonly effectiveDisabled: boolean;
-    declare public invalid: boolean;
-    /**
-     * Kept so existing markup stays valid; it has no effect. The rail is always filled from the
-     * minimum to the value.
-     */
-    declare public showFill: boolean;
-    declare public showTicks: boolean;
+  /**
+   * Author `disabled` or fieldset-disabled.
+   */
+  declare public readonly effectiveDisabled: boolean;
+  declare public invalid: boolean;
+  /**
+   * Kept so existing markup stays valid; it has no effect. The rail is always filled from the
+   * minimum to the value.
+   */
+  declare public showFill: boolean;
+  declare public showTicks: boolean;
 
-    public constructor() {
-        super();
-        this.#internals = this.attachInternals();
-        violetSliderCount += 1;
-        this.inputId = `violet-slider-${violetSliderCount}`;
-        this.supportingTextId = `${this.inputId}-supporting`;
-        this.errorTextId = `${this.inputId}-error`;
-        this.#defaultValue = "";
-        this.#activePointerId = null;
-        this.label = "";
-        this.supportingText = "";
-        this.errorText = "";
-        this.valueText = "";
-        this.value = "50";
-        this.min = "0";
-        this.max = "100";
-        this.step = "1";
-        this.name = "";
-        this.required = false;
-        this.orientation = "horizontal";
-        this.disabled = false;
-        this.invalid = false;
-        this.showFill = false;
-        this.showTicks = false;
+  public constructor() {
+    super();
+    this.#internals = this.attachInternals();
+    violetSliderCount += 1;
+    this.inputId = `violet-slider-${violetSliderCount}`;
+    this.supportingTextId = `${this.inputId}-supporting`;
+    this.errorTextId = `${this.inputId}-error`;
+    this.#defaultValue = "";
+    this.#activePointerId = null;
+    this.label = "";
+    this.supportingText = "";
+    this.errorText = "";
+    this.valueText = "";
+    this.value = "50";
+    this.min = "0";
+    this.max = "100";
+    this.step = "1";
+    this.name = "";
+    this.required = false;
+    this.orientation = "horizontal";
+    this.disabled = false;
+    this.invalid = false;
+    this.showFill = false;
+    this.showTicks = false;
+  }
+
+  public get form(): HTMLFormElement | null {
+    return this.#internals.form;
+  }
+
+  public get validity(): ValidityState {
+    return this.#internals.validity;
+  }
+
+  public get validationMessage(): string {
+    return this.#internals.validationMessage;
+  }
+
+  public get willValidate(): boolean {
+    return this.#internals.willValidate;
+  }
+
+  public checkValidity(): boolean {
+    return this.#internals.checkValidity();
+  }
+
+  public reportValidity(): boolean {
+    return this.#internals.reportValidity();
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    if (this.name && this.getAttribute("name") !== this.name) {
+      this.setAttribute("name", this.name);
+    }
+    this.#defaultValue = this.getAttribute("value") ?? this.value;
+    this.#syncHostAttributes();
+    this.#syncValue();
+    this.#syncFormState();
+  }
+
+  public formStateRestoreCallback(state: File | string | FormData | null): void {
+    if (typeof state === "string") {
+      this.value = state;
+    }
+  }
+
+  public formResetCallback(): void {
+    this.value = this.#defaultValue || this.min || "0";
+    this.#syncValue();
+    this.#syncFormState();
+  }
+
+  public nameChanged(): void {
+    if (this.$fastController.isConnected && this.name && this.getAttribute("name") !== this.name) {
+      this.setAttribute("name", this.name);
+    }
+  }
+
+  public valueChanged(): void {
+    if (this.$fastController.isConnected) {
+      this.#syncValue();
+      this.#syncFormState();
+    }
+  }
+
+  public errorTextChanged(): void {
+    if (this.$fastController.isConnected) {
+      this.#syncFormState();
+    }
+  }
+
+  public minChanged(): void {
+    if (this.$fastController.isConnected) {
+      this.#syncValue();
+      this.#syncFormState();
+    }
+  }
+
+  public maxChanged(): void {
+    if (this.$fastController.isConnected) {
+      this.#syncValue();
+      this.#syncFormState();
+    }
+  }
+
+  public stepChanged(): void {
+    if (this.$fastController.isConnected) {
+      this.#syncValue();
+    }
+  }
+
+  public disabledChanged(): void {
+    if (this.$fastController.isConnected) {
+      this.#syncHostAttributes();
+      this.#syncFormState();
+    }
+  }
+
+  public invalidChanged(): void {
+    if (this.$fastController.isConnected) {
+      this.#syncHostAttributes();
+      this.#syncFormState();
+    }
+  }
+
+  public orientationChanged(): void {
+    if (this.$fastController.isConnected) {
+      this.#syncHostAttributes();
+    }
+  }
+
+  public get displayErrorText(): string {
+    return resolveFieldErrorText({
+      invalid: this.invalid,
+      disabled: this.effectiveDisabled,
+      errorText: this.errorText,
+    });
+  }
+
+  public get validationMessageText(): string {
+    return this.displayErrorText;
+  }
+
+  public get describedByIds(): string {
+    if (this.displayErrorText) {
+      return this.errorTextId;
+    }
+    return this.supportingText ? this.supportingTextId : "";
+  }
+
+  public get controlStyle(): string {
+    return `--_slider-percent: ${this.percent};`;
+  }
+
+  public get tickStyle(): string {
+    const min = this.minAsNumber;
+    const max = this.maxAsNumber;
+    const step = this.stepAsNumber;
+    const range = max - min;
+
+    if (range <= 0 || step <= 0) {
+      return "";
     }
 
-    public get form(): HTMLFormElement | null {
-        return this.#internals.form;
+    const count = Math.round(range / step);
+    if (count < 2 || count > 50) {
+      return "";
     }
 
-    public get validity(): ValidityState {
-        return this.#internals.validity;
+    const stops: string[] = [];
+    for (let i = 0; i <= count; i++) {
+      const pct = (i / count) * 100;
+      if (i === 0) {
+        stops.push(`var(--_tick-color) 0`, `var(--_tick-color) 1px`, `transparent 1px`);
+      } else if (i === count) {
+        stops.push(
+          `transparent calc(100% - 1px)`,
+          `var(--_tick-color) calc(100% - 1px)`,
+          `var(--_tick-color) 100%`,
+        );
+      } else {
+        stops.push(
+          `transparent calc(${pct}% - 0.5px)`,
+          `var(--_tick-color) calc(${pct}% - 0.5px)`,
+          `var(--_tick-color) calc(${pct}% + 0.5px)`,
+          `transparent calc(${pct}% + 0.5px)`,
+        );
+      }
     }
 
-    public get validationMessage(): string {
-        return this.#internals.validationMessage;
+    const dir = this.orientation === "vertical" ? "to top" : "to right";
+    return `background-image: linear-gradient(${dir}, ${stops.join(", ")});`;
+  }
+
+  public handleInput(event: Event): void {
+    // The native `input` is composed and would reach the host as a second event; this element emits its own.
+    event.stopPropagation();
+    const input = event.currentTarget as HTMLInputElement | null;
+    this.value = input?.value ?? this.value;
+    this.$emit("input", { value: this.value });
+  }
+
+  public handleCommit(event: Event): void {
+    const input = event.currentTarget as HTMLInputElement | null;
+    this.value = input?.value ?? this.value;
+    this.$emit("change", { value: this.value });
+  }
+
+  public handlePointerDown(event: PointerEvent): void {
+    if (this.effectiveDisabled || !this.#isPrimaryPointer(event)) {
+      return;
     }
 
-    public get willValidate(): boolean {
-        return this.#internals.willValidate;
+    const input = this.#inputControl;
+    if (!input) {
+      return;
     }
 
-    public checkValidity(): boolean {
-        return this.#internals.checkValidity();
+    event.preventDefault();
+    this.#activePointerId = event.pointerId;
+    input.focus({ preventScroll: true });
+    this.#teardownPointerListeners();
+    this.ownerDocument.addEventListener("pointermove", this.#handlePointerMove);
+    this.ownerDocument.addEventListener("pointerup", this.#handlePointerEnd);
+    this.ownerDocument.addEventListener("pointercancel", this.#handlePointerEnd);
+    this.#syncPointerValue(event, "input");
+  }
+
+  public disconnectedCallback(): void {
+    this.#teardownPointerListeners();
+    super.disconnectedCallback();
+  }
+
+  #syncValue(): void {
+    this.value = this.#normalizeValue(this.value);
+
+    const input = this.#inputControl;
+    if (input && input.value !== this.value) {
+      input.value = this.value;
+    }
+  }
+
+  #syncFormState(): void {
+    if (this.effectiveDisabled) {
+      this.#internals.setFormValue(null);
+      this.#internals.setValidity({});
+      return;
     }
 
-    public reportValidity(): boolean {
-        return this.#internals.reportValidity();
+    this.#internals.setFormValue(this.value);
+
+    if (this.invalid) {
+      this.#internals.setValidity(
+        { customError: true },
+        this.displayErrorText || "Please choose a valid value.",
+      );
+      return;
     }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        if (this.name && this.getAttribute("name") !== this.name) {
-            this.setAttribute("name", this.name);
-        }
-        this.#defaultValue = this.getAttribute("value") ?? this.value;
-        this.#syncHostAttributes();
-        this.#syncValue();
-        this.#syncFormState();
+    this.#internals.setValidity({});
+  }
+
+  #syncHostAttributes(): void {
+    this.#reflectBooleanAttribute("disabled", this.disabled);
+    this.#reflectBooleanAttribute("invalid", this.invalid);
+
+    const nextOrientation = this.orientation === "vertical" ? "vertical" : "horizontal";
+    if (this.getAttribute("orientation") !== nextOrientation) {
+      this.setAttribute("orientation", nextOrientation);
+    }
+  }
+
+  #reflectBooleanAttribute(name: string, value: boolean): void {
+    if (this.hasAttribute(name) !== value) {
+      this.toggleAttribute(name, value);
+    }
+  }
+
+  #normalizeValue(rawValue: string): string {
+    const min = this.minAsNumber;
+    const max = this.maxAsNumber;
+    const step = this.stepAsNumber;
+    const parsed = Number.parseFloat(rawValue);
+    const fallback = Number.isFinite(parsed) ? parsed : min;
+    const clamped = Math.min(max, Math.max(min, fallback));
+
+    if (!Number.isFinite(step) || step <= 0) {
+      return String(clamped);
     }
 
-    public formStateRestoreCallback(state: File | string | FormData | null): void {
-        if (typeof state === "string") {
-            this.value = state;
-        }
+    const stepped = Math.round((clamped - min) / step) * step + min;
+    const precision = this.#decimalPlaces(step);
+    return String(Number(stepped.toFixed(precision)));
+  }
+
+  #decimalPlaces(value: number): number {
+    const [, fraction = ""] = String(value).split(".");
+    return fraction.length;
+  }
+
+  #isPrimaryPointer(event: PointerEvent): boolean {
+    return event.pointerType !== "mouse" || event.button === 0;
+  }
+
+  get #inputControl(): HTMLInputElement | null {
+    return this.shadowRoot?.querySelector(".input") ?? null;
+  }
+
+  #syncPointerValue(event: PointerEvent, phase: "input" | "change"): void {
+    const input = this.#inputControl;
+    if (!input) {
+      return;
     }
 
-    public formResetCallback(): void {
-        this.value = this.#defaultValue || this.min || "0";
-        this.#syncValue();
-        this.#syncFormState();
+    const nextValue = this.#valueFromPointer(event, input);
+    if (nextValue === null) {
+      return;
     }
 
-    public nameChanged(): void {
-        if (this.$fastController.isConnected && this.name && this.getAttribute("name") !== this.name) {
-            this.setAttribute("name", this.name);
-        }
+    if (this.value !== nextValue) {
+      this.value = nextValue;
     }
 
-    public valueChanged(): void {
-        if (this.$fastController.isConnected) {
-            this.#syncValue();
-            this.#syncFormState();
-        }
+    if (input.value !== this.value) {
+      input.value = this.value;
     }
 
-    public errorTextChanged(): void {
-        if (this.$fastController.isConnected) {
-            this.#syncFormState();
-        }
+    if (phase === "input") {
+      this.$emit("input", { value: this.value });
+    } else {
+      this.$emit("change", { value: this.value });
+    }
+  }
+
+  #valueFromPointer(event: PointerEvent, input: HTMLInputElement): string | null {
+    const rect = input.getBoundingClientRect();
+    const min = this.minAsNumber;
+    const max = this.maxAsNumber;
+
+    if (rect.width <= 0 || rect.height <= 0 || max <= min) {
+      return null;
     }
 
-    public minChanged(): void {
-        if (this.$fastController.isConnected) {
-            this.#syncValue();
-            this.#syncFormState();
-        }
+    const ratio =
+      this.orientation === "vertical"
+        ? 1 - (event.clientY - rect.top) / rect.height
+        : (event.clientX - rect.left) / rect.width;
+
+    const boundedRatio = Math.min(1, Math.max(0, ratio));
+    const rawValue = min + boundedRatio * (max - min);
+    return this.#normalizeValue(String(rawValue));
+  }
+
+  #handlePointerMove = (event: PointerEvent): void => {
+    if (event.pointerId !== this.#activePointerId) {
+      return;
     }
 
-    public maxChanged(): void {
-        if (this.$fastController.isConnected) {
-            this.#syncValue();
-            this.#syncFormState();
-        }
+    event.preventDefault();
+    this.#syncPointerValue(event, "input");
+  };
+
+  #handlePointerEnd = (event: PointerEvent): void => {
+    if (event.pointerId !== this.#activePointerId) {
+      return;
     }
 
-    public stepChanged(): void {
-        if (this.$fastController.isConnected) {
-            this.#syncValue();
-        }
+    event.preventDefault();
+    this.#syncPointerValue(event, "change");
+
+    this.#activePointerId = null;
+    this.#teardownPointerListeners();
+  };
+
+  #teardownPointerListeners(): void {
+    this.ownerDocument.removeEventListener("pointermove", this.#handlePointerMove);
+    this.ownerDocument.removeEventListener("pointerup", this.#handlePointerEnd);
+    this.ownerDocument.removeEventListener("pointercancel", this.#handlePointerEnd);
+  }
+
+  get minAsNumber(): number {
+    const parsed = Number.parseFloat(this.min);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  get maxAsNumber(): number {
+    const parsed = Number.parseFloat(this.max);
+    return Number.isFinite(parsed) ? parsed : 100;
+  }
+
+  get stepAsNumber(): number {
+    const parsed = Number.parseFloat(this.step);
+    return Number.isFinite(parsed) ? parsed : 1;
+  }
+
+  get valueAsNumber(): number {
+    const parsed = Number.parseFloat(this.value);
+    return Number.isFinite(parsed) ? parsed : this.minAsNumber;
+  }
+
+  get percent(): string {
+    const min = this.minAsNumber;
+    const max = this.maxAsNumber;
+
+    if (max <= min) {
+      return "0%";
     }
 
-    public disabledChanged(): void {
-        if (this.$fastController.isConnected) {
-            this.#syncHostAttributes();
-            this.#syncFormState();
-        }
-    }
-
-    public invalidChanged(): void {
-        if (this.$fastController.isConnected) {
-            this.#syncHostAttributes();
-            this.#syncFormState();
-        }
-    }
-
-    public orientationChanged(): void {
-        if (this.$fastController.isConnected) {
-            this.#syncHostAttributes();
-        }
-    }
-
-    public get displayErrorText(): string {
-        return resolveFieldErrorText({
-            invalid: this.invalid,
-            disabled: this.effectiveDisabled,
-            errorText: this.errorText,
-        });
-    }
-
-    public get validationMessageText(): string {
-        return this.displayErrorText;
-    }
-
-    public get describedByIds(): string {
-        if (this.displayErrorText) {
-            return this.errorTextId;
-        }
-        return this.supportingText ? this.supportingTextId : "";
-    }
-
-    public get controlStyle(): string {
-        return `--_slider-percent: ${this.percent};`;
-    }
-
-    public get tickStyle(): string {
-        const min = this.minAsNumber;
-        const max = this.maxAsNumber;
-        const step = this.stepAsNumber;
-        const range = max - min;
-
-        if (range <= 0 || step <= 0) {
-            return "";
-        }
-
-        const count = Math.round(range / step);
-        if (count < 2 || count > 50) {
-            return "";
-        }
-
-        const stops: string[] = [];
-        for (let i = 0; i <= count; i++) {
-            const pct = (i / count) * 100;
-            if (i === 0) {
-                stops.push(
-                    `var(--_tick-color) 0`,
-                    `var(--_tick-color) 1px`,
-                    `transparent 1px`,
-                );
-            } else if (i === count) {
-                stops.push(
-                    `transparent calc(100% - 1px)`,
-                    `var(--_tick-color) calc(100% - 1px)`,
-                    `var(--_tick-color) 100%`,
-                );
-            } else {
-                stops.push(
-                    `transparent calc(${pct}% - 0.5px)`,
-                    `var(--_tick-color) calc(${pct}% - 0.5px)`,
-                    `var(--_tick-color) calc(${pct}% + 0.5px)`,
-                    `transparent calc(${pct}% + 0.5px)`,
-                );
-            }
-        }
-
-        const dir = this.orientation === "vertical" ? "to top" : "to right";
-        return `background-image: linear-gradient(${dir}, ${stops.join(", ")});`;
-    }
-
-    public handleInput(event: Event): void {
-        // The native `input` is composed and would reach the host as a second event; this element emits its own.
-        event.stopPropagation();
-        const input = event.currentTarget as HTMLInputElement | null;
-        this.value = input?.value ?? this.value;
-        this.$emit("input", { value: this.value });
-    }
-
-    public handleCommit(event: Event): void {
-        const input = event.currentTarget as HTMLInputElement | null;
-        this.value = input?.value ?? this.value;
-        this.$emit("change", { value: this.value });
-    }
-
-    public handlePointerDown(event: PointerEvent): void {
-        if (this.effectiveDisabled || !this.#isPrimaryPointer(event)) {
-            return;
-        }
-
-        const input = this.#inputControl;
-        if (!input) {
-            return;
-        }
-
-        event.preventDefault();
-        this.#activePointerId = event.pointerId;
-        input.focus({ preventScroll: true });
-        this.#teardownPointerListeners();
-        this.ownerDocument.addEventListener("pointermove", this.#handlePointerMove);
-        this.ownerDocument.addEventListener("pointerup", this.#handlePointerEnd);
-        this.ownerDocument.addEventListener("pointercancel", this.#handlePointerEnd);
-        this.#syncPointerValue(event, "input");
-    }
-
-    public disconnectedCallback(): void {
-        this.#teardownPointerListeners();
-        super.disconnectedCallback();
-    }
-
-    #syncValue(): void {
-        this.value = this.#normalizeValue(this.value);
-
-        const input = this.#inputControl;
-        if (input && input.value !== this.value) {
-            input.value = this.value;
-        }
-    }
-
-    #syncFormState(): void {
-        if (this.effectiveDisabled) {
-            this.#internals.setFormValue(null);
-            this.#internals.setValidity({});
-            return;
-        }
-
-        this.#internals.setFormValue(this.value);
-
-        if (this.invalid) {
-            this.#internals.setValidity({ customError: true }, this.displayErrorText || "Please choose a valid value.");
-            return;
-        }
-
-        this.#internals.setValidity({});
-    }
-
-    #syncHostAttributes(): void {
-        this.#reflectBooleanAttribute("disabled", this.disabled);
-        this.#reflectBooleanAttribute("invalid", this.invalid);
-
-        const nextOrientation = this.orientation === "vertical" ? "vertical" : "horizontal";
-        if (this.getAttribute("orientation") !== nextOrientation) {
-            this.setAttribute("orientation", nextOrientation);
-        }
-    }
-
-    #reflectBooleanAttribute(name: string, value: boolean): void {
-        if (this.hasAttribute(name) !== value) {
-            this.toggleAttribute(name, value);
-        }
-    }
-
-    #normalizeValue(rawValue: string): string {
-        const min = this.minAsNumber;
-        const max = this.maxAsNumber;
-        const step = this.stepAsNumber;
-        const parsed = Number.parseFloat(rawValue);
-        const fallback = Number.isFinite(parsed) ? parsed : min;
-        const clamped = Math.min(max, Math.max(min, fallback));
-
-        if (!Number.isFinite(step) || step <= 0) {
-            return String(clamped);
-        }
-
-        const stepped = Math.round((clamped - min) / step) * step + min;
-        const precision = this.#decimalPlaces(step);
-        return String(Number(stepped.toFixed(precision)));
-    }
-
-    #decimalPlaces(value: number): number {
-        const [, fraction = ""] = String(value).split(".");
-        return fraction.length;
-    }
-
-    #isPrimaryPointer(event: PointerEvent): boolean {
-        return event.pointerType !== "mouse" || event.button === 0;
-    }
-
-    get #inputControl(): HTMLInputElement | null {
-        return this.shadowRoot?.querySelector(".input") ?? null;
-    }
-
-    #syncPointerValue(event: PointerEvent, phase: "input" | "change"): void {
-        const input = this.#inputControl;
-        if (!input) {
-            return;
-        }
-
-        const nextValue = this.#valueFromPointer(event, input);
-        if (nextValue === null) {
-            return;
-        }
-
-        if (this.value !== nextValue) {
-            this.value = nextValue;
-        }
-
-        if (input.value !== this.value) {
-            input.value = this.value;
-        }
-
-        if (phase === "input") {
-            this.$emit("input", { value: this.value });
-        } else {
-            this.$emit("change", { value: this.value });
-        }
-    }
-
-    #valueFromPointer(event: PointerEvent, input: HTMLInputElement): string | null {
-        const rect = input.getBoundingClientRect();
-        const min = this.minAsNumber;
-        const max = this.maxAsNumber;
-
-        if (rect.width <= 0 || rect.height <= 0 || max <= min) {
-            return null;
-        }
-
-        const ratio = this.orientation === "vertical"
-            ? 1 - (event.clientY - rect.top) / rect.height
-            : (event.clientX - rect.left) / rect.width;
-
-        const boundedRatio = Math.min(1, Math.max(0, ratio));
-        const rawValue = min + boundedRatio * (max - min);
-        return this.#normalizeValue(String(rawValue));
-    }
-
-    #handlePointerMove = (event: PointerEvent): void => {
-        if (event.pointerId !== this.#activePointerId) {
-            return;
-        }
-
-        event.preventDefault();
-        this.#syncPointerValue(event, "input");
-    };
-
-    #handlePointerEnd = (event: PointerEvent): void => {
-        if (event.pointerId !== this.#activePointerId) {
-            return;
-        }
-
-        event.preventDefault();
-        this.#syncPointerValue(event, "change");
-
-        this.#activePointerId = null;
-        this.#teardownPointerListeners();
-    };
-
-    #teardownPointerListeners(): void {
-        this.ownerDocument.removeEventListener("pointermove", this.#handlePointerMove);
-        this.ownerDocument.removeEventListener("pointerup", this.#handlePointerEnd);
-        this.ownerDocument.removeEventListener("pointercancel", this.#handlePointerEnd);
-    }
-
-    get minAsNumber(): number {
-        const parsed = Number.parseFloat(this.min);
-        return Number.isFinite(parsed) ? parsed : 0;
-    }
-
-    get maxAsNumber(): number {
-        const parsed = Number.parseFloat(this.max);
-        return Number.isFinite(parsed) ? parsed : 100;
-    }
-
-    get stepAsNumber(): number {
-        const parsed = Number.parseFloat(this.step);
-        return Number.isFinite(parsed) ? parsed : 1;
-    }
-
-    get valueAsNumber(): number {
-        const parsed = Number.parseFloat(this.value);
-        return Number.isFinite(parsed) ? parsed : this.minAsNumber;
-    }
-
-    get percent(): string {
-        const min = this.minAsNumber;
-        const max = this.maxAsNumber;
-
-        if (max <= min) {
-            return "0%";
-        }
-
-        const ratio = (this.valueAsNumber - min) / (max - min);
-        const percent = Math.min(1, Math.max(0, ratio)) * 100;
-        return `${percent}%`;
-    }
+    const ratio = (this.valueAsNumber - min) / (max - min);
+    const percent = Math.min(1, Math.max(0, ratio)) * 100;
+    return `${percent}%`;
+  }
 }
 
 attr(VioletSlider.prototype, "label");
@@ -804,10 +810,10 @@ attr({ attribute: "show-ticks", mode: "boolean" })(VioletSlider.prototype, "show
 
 /** The FAST definition of `<violet-slider>`; `defineVioletSlider` in `./violet-slider.define` registers it. */
 export const violetSliderDefinition = {
-    name: "violet-slider",
-    template,
-    styles,
-    shadowOptions: {
-        delegatesFocus: true,
-    },
+  name: "violet-slider",
+  template,
+  styles,
+  shadowOptions: {
+    delegatesFocus: true,
+  },
 } satisfies PartialFASTElementDefinition;

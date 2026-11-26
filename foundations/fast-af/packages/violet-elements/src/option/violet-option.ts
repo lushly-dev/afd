@@ -1,4 +1,13 @@
-import { FASTElement, Observable, attr, css, html, observable, type PartialFASTElementDefinition, type FASTElementExtension } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  type FASTElementExtension,
+  html,
+  Observable,
+  observable,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 
 import { observeAttribute, reflectStringAttribute } from "../listbox/violet-selection-helpers";
 import { violetActionTokenDefaults } from "../theme/violet-token-defaults";
@@ -159,15 +168,15 @@ const styles = css`
 
 const template = html<VioletOption>`
     <div
-        class="${x => `control${x.active ? " active" : ""}${x.selected ? " selected" : ""}${x.isDisabled ? " disabled" : ""}`}"
+        class="${(x) => `control${x.active ? " active" : ""}${x.selected ? " selected" : ""}${x.isDisabled ? " disabled" : ""}`}"
         part="control"
         @click="${(x, c) => x.handleClick(c.event)}"
     >
         <span class="before" part="before"><slot name="before"></slot></span>
         <span class="content" part="content">
             <span class="label" part="label"><slot></slot></span>
-            <span class="description" part="description" ?hidden="${x => !x.hasDescription}">
-                <slot name="description" @slotchange="${x => x.handleDescriptionSlotChange()}"></slot>
+            <span class="description" part="description" ?hidden="${(x) => !x.hasDescription}">
+                <slot name="description" @slotchange="${(x) => x.handleDescriptionSlotChange()}"></slot>
             </span>
         </span>
         <span class="after" part="after"><slot name="after"></slot></span>
@@ -194,152 +203,160 @@ const template = html<VioletOption>`
  * @cssproperty --violet-option-active-ring - Inset ring color of the active option row when keyboard navigation is active.
  */
 export class VioletOption extends FASTElement {
-    #explicitValue: string | null = null;
-    #reflectingValue = false;
+  #explicitValue: string | null = null;
+  #reflectingValue = false;
 
-    @observable
-    declare public hasDescription: boolean;
+  @observable
+  declare public hasDescription: boolean;
 
-    @observable
-    declare public groupDisabled: boolean;
+  @observable
+  declare public groupDisabled: boolean;
 
-    declare public label: string;
-    declare public selected: boolean;
-    declare public active: boolean;
-    declare public disabled: boolean;
+  declare public label: string;
+  declare public selected: boolean;
+  declare public active: boolean;
+  declare public disabled: boolean;
 
-    public readonly optionId: string;
+  public readonly optionId: string;
 
-    public constructor() {
-        super();
-        violetOptionId += 1;
-        this.optionId = `violet-option-${violetOptionId}`;
-        this.label = "";
-        this.selected = false;
-        this.active = false;
-        this.disabled = false;
-        this.groupDisabled = false;
-        this.hasDescription = false;
+  public constructor() {
+    super();
+    violetOptionId += 1;
+    this.optionId = `violet-option-${violetOptionId}`;
+    this.label = "";
+    this.selected = false;
+    this.active = false;
+    this.disabled = false;
+    this.groupDisabled = false;
+    this.hasDescription = false;
+  }
+
+  public get value(): string {
+    Observable.track(this, "value");
+    return this.#explicitValue ?? this.labelText;
+  }
+
+  public set value(next: string) {
+    const normalized = next === null || next === undefined ? null : String(next);
+    const previous = this.#explicitValue ?? this.labelText;
+    this.#explicitValue = normalized;
+    this.#reflectValueAttribute(normalized);
+    if (previous !== (this.#explicitValue ?? this.labelText)) {
+      Observable.notify(this, "value");
     }
+  }
 
-    public get value(): string {
-        Observable.track(this, "value");
-        return this.#explicitValue ?? this.labelText;
-    }
-
-    public set value(next: string) {
-        const normalized = next === null || next === undefined ? null : String(next);
+  public override attributeChangedCallback(
+    name: string,
+    oldValue: string | null,
+    newValue: string | null,
+  ): void {
+    if (name === "value") {
+      if (!this.#reflectingValue) {
         const previous = this.#explicitValue ?? this.labelText;
-        this.#explicitValue = normalized;
-        this.#reflectValueAttribute(normalized);
+        this.#explicitValue = newValue;
         if (previous !== (this.#explicitValue ?? this.labelText)) {
-            Observable.notify(this, "value");
+          Observable.notify(this, "value");
         }
+      }
+      return;
+    }
+    super.attributeChangedCallback(name, oldValue, newValue);
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    if (this.#explicitValue === null && this.hasAttribute("value")) {
+      this.#explicitValue = this.getAttribute("value");
+    } else if (this.#explicitValue !== null) {
+      this.#reflectValueAttribute(this.#explicitValue);
+    }
+    this.id ||= this.optionId;
+    this.setAttribute("role", "option");
+    this.#syncAriaState();
+    this.handleDescriptionSlotChange();
+  }
+
+  public selectedChanged(): void {
+    this.#syncAriaState();
+  }
+
+  public disabledChanged(): void {
+    this.#syncAriaState();
+  }
+
+  public groupDisabledChanged(): void {
+    this.#syncAriaState();
+  }
+
+  public labelChanged(): void {
+    if (this.#explicitValue === null) {
+      Observable.notify(this, "value");
+    }
+  }
+
+  public handleDescriptionSlotChange(): void {
+    const slot = this.shadowRoot?.querySelector(
+      'slot[name="description"]',
+    ) as HTMLSlotElement | null;
+    const assigned = slot
+      ?.assignedNodes({ flatten: true })
+      .some((node: Node) => node.textContent?.trim());
+
+    this.hasDescription = Boolean(assigned);
+  }
+
+  public handleClick(event: Event): void {
+    if (this.isDisabled) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
     }
 
-    public override attributeChangedCallback(name: string, oldValue: string | null, newValue: string | null): void {
-        if (name === "value") {
-            if (!this.#reflectingValue) {
-                const previous = this.#explicitValue ?? this.labelText;
-                this.#explicitValue = newValue;
-                if (previous !== (this.#explicitValue ?? this.labelText)) {
-                    Observable.notify(this, "value");
-                }
-            }
-            return;
-        }
-        super.attributeChangedCallback(name, oldValue, newValue);
+    this.$emit("request-select", { value: this.value });
+  }
+
+  public get labelText(): string {
+    if (this.label) {
+      return this.label;
     }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        if (this.#explicitValue === null && this.hasAttribute("value")) {
-            this.#explicitValue = this.getAttribute("value");
-        } else if (this.#explicitValue !== null) {
-            this.#reflectValueAttribute(this.#explicitValue);
-        }
-        this.id ||= this.optionId;
-        this.setAttribute("role", "option");
-        this.#syncAriaState();
-        this.handleDescriptionSlotChange();
+    const unlottedText = Array.from(this.childNodes)
+      .filter((node) => !(node instanceof HTMLElement && node.slot))
+      .map((node) => node.textContent ?? "")
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    return unlottedText;
+  }
+
+  public get isDisabled(): boolean {
+    return this.disabled || this.groupDisabled;
+  }
+
+  #reflectValueAttribute(next: string | null): void {
+    this.#reflectingValue = true;
+    try {
+      reflectStringAttribute(this, "value", next);
+    } finally {
+      this.#reflectingValue = false;
+    }
+  }
+
+  #syncAriaState(): void {
+    if (!this.isConnected) {
+      return;
     }
 
-    public selectedChanged(): void {
-        this.#syncAriaState();
+    this.setAttribute("aria-selected", String(this.selected));
+    // An enabled option states nothing, so a disabled listbox's state reaches it.
+    if (this.isDisabled) {
+      this.setAttribute("aria-disabled", "true");
+    } else {
+      this.removeAttribute("aria-disabled");
     }
-
-    public disabledChanged(): void {
-        this.#syncAriaState();
-    }
-
-    public groupDisabledChanged(): void {
-        this.#syncAriaState();
-    }
-
-    public labelChanged(): void {
-        if (this.#explicitValue === null) {
-            Observable.notify(this, "value");
-        }
-    }
-
-    public handleDescriptionSlotChange(): void {
-        const slot = this.shadowRoot?.querySelector('slot[name="description"]') as HTMLSlotElement | null;
-        const assigned = slot?.assignedNodes({ flatten: true }).some((node: Node) => node.textContent?.trim());
-
-        this.hasDescription = Boolean(assigned);
-    }
-
-    public handleClick(event: Event): void {
-        if (this.isDisabled) {
-            event.preventDefault();
-            event.stopPropagation();
-            return;
-        }
-
-        this.$emit("request-select", { value: this.value });
-    }
-
-    public get labelText(): string {
-        if (this.label) {
-            return this.label;
-        }
-
-        const unlottedText = Array.from(this.childNodes)
-            .filter(node => !(node instanceof HTMLElement && node.slot))
-            .map(node => node.textContent ?? "")
-            .join(" ")
-            .replace(/\s+/g, " ")
-            .trim();
-
-        return unlottedText;
-    }
-
-    public get isDisabled(): boolean {
-        return this.disabled || this.groupDisabled;
-    }
-
-    #reflectValueAttribute(next: string | null): void {
-        this.#reflectingValue = true;
-        try {
-            reflectStringAttribute(this, "value", next);
-        } finally {
-            this.#reflectingValue = false;
-        }
-    }
-
-    #syncAriaState(): void {
-        if (!this.isConnected) {
-            return;
-        }
-
-        this.setAttribute("aria-selected", String(this.selected));
-        // An enabled option states nothing, so a disabled listbox's state reaches it.
-        if (this.isDisabled) {
-            this.setAttribute("aria-disabled", "true");
-        } else {
-            this.removeAttribute("aria-disabled");
-        }
-    }
+  }
 }
 
 attr(VioletOption.prototype, "label");
@@ -349,9 +366,9 @@ attr({ mode: "boolean" })(VioletOption.prototype, "disabled");
 
 /** The FAST definition of `<violet-option>`; `defineVioletOption` in `./violet-option.define` registers it. */
 export const violetOptionDefinition = {
-    name: "violet-option",
-    template,
-    styles,
+  name: "violet-option",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;
 
 /** The FAST extensions `<violet-option>` is defined with. */

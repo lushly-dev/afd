@@ -1,5 +1,5 @@
-import { defineVioletElement } from "../shared/define-element";
 import { defineVioletAccordionItem } from "../accordion-item/violet-accordion-item.define";
+import { defineVioletElement } from "../shared/define-element";
 import { VioletAccordion, violetAccordionDefinition } from "./violet-accordion";
 
 /**
@@ -8,9 +8,11 @@ import { VioletAccordion, violetAccordionDefinition } from "./violet-accordion";
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletAccordion(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletAccordionItem(registry);
-    await defineVioletElement(VioletAccordion, violetAccordionDefinition, registry);
+export async function defineVioletAccordion(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletAccordionItem(registry);
+  await defineVioletElement(VioletAccordion, violetAccordionDefinition, registry);
 }
 
 await defineVioletAccordion();

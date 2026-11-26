@@ -1,20 +1,30 @@
-import { FASTElement, Observable, Updates, attr, css, html, observable, repeat, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
-
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  Observable,
+  observable,
+  type PartialFASTElementDefinition,
+  repeat,
+  Updates,
+  when,
+} from "@lushly-dev/fast-element";
+import { installFormDisabled } from "../foundations/violet-form-disabled";
 import { registerSystemAttachIcon } from "../icon/generated/icons/system-attach";
 import { registerSystemDismissIcon } from "../icon/generated/icons/system-dismiss";
 import { registerSystemDocumentIcon } from "../icon/generated/icons/system-document";
-import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
-import { installFormDisabled } from "../foundations/violet-form-disabled";
 import { resolveFieldErrorText } from "../shared/field-error";
+import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 
 export type VioletFileUploadAppearance = "button" | "dropzone";
 export type VioletFileUploadSize = "compact" | "natural" | "comfortable";
 
 type VioletFileListItem = {
-    readonly file: File;
-    readonly index: number;
-    readonly key: string;
-    readonly meta: string;
+  readonly file: File;
+  readonly index: number;
+  readonly key: string;
+  readonly meta: string;
 };
 
 const styles = css`
@@ -385,36 +395,36 @@ const styles = css`
 const template = html<VioletFileUpload>`
     <div class="field" part="field">
         ${when(
-            x => Boolean(x.label),
-            html<VioletFileUpload>`
-                <p class="label" part="label" id="${x => x.labelId}">${x => x.label}</p>
+          (x) => Boolean(x.label),
+          html<VioletFileUpload>`
+                <p class="label" part="label" id="${(x) => x.labelId}">${(x) => x.label}</p>
             `,
         )}
 
         <input
-            id="${x => x.inputId}"
+            id="${(x) => x.inputId}"
             class="native-input"
             part="native-input"
             type="file"
             tabindex="-1"
             aria-hidden="true"
-            accept="${x => x.accept}"
-            name="${x => x.name}"
-            :value="${x => x.value}"
-            ?multiple="${x => x.multiple}"
-            ?disabled="${x => x.effectiveDisabled}"
-            ?required="${x => x.required}"
-            aria-invalid="${x => x.invalid ? "true" : "false"}"
+            accept="${(x) => x.accept}"
+            name="${(x) => x.name}"
+            :value="${(x) => x.value}"
+            ?multiple="${(x) => x.multiple}"
+            ?disabled="${(x) => x.effectiveDisabled}"
+            ?required="${(x) => x.required}"
+            aria-invalid="${(x) => (x.invalid ? "true" : "false")}"
             @input="${(x, c) => x.handleInput(c.event)}"
             @change="${(x, c) => x.handleCommit(c.event)}"
         />
 
         <div
-            class="${x => `surface ${x.appearance}`}"
+            class="${(x) => `surface ${x.appearance}`}"
             part="surface"
             role="group"
-            aria-labelledby="${x => x.label ? x.labelId : null}"
-            aria-describedby="${x => x.describedBy || null}"
+            aria-labelledby="${(x) => (x.label ? x.labelId : null)}"
+            aria-describedby="${(x) => x.describedBy || null}"
             @dragenter="${(x, c) => x.handleDragEnter(c.event as DragEvent)}"
             @dragover="${(x, c) => x.handleDragOver(c.event as DragEvent)}"
             @dragleave="${(x, c) => x.handleDragLeave(c.event as DragEvent)}"
@@ -422,53 +432,53 @@ const template = html<VioletFileUpload>`
             @click="${(x, c) => x.handleSurfaceClick(c.event)}"
         >
             ${when(
-                x => x.appearance === "button",
-                html<VioletFileUpload>`
+              (x) => x.appearance === "button",
+              html<VioletFileUpload>`
                     <div class="button-layout" part="button-layout">
                         <violet-button
                             class="browse-button"
                             part="browse-button"
                             appearance="secondary"
-                            :ariaLabel="${x => x.triggerAriaLabel}"
-                            :ariaDescribedby="${x => x.describedBy}"
-                            :ariaErrormessage="${x => x.errorMessageId}"
-                            ?disabled="${x => x.effectiveDisabled}"
+                            :ariaLabel="${(x) => x.triggerAriaLabel}"
+                            :ariaDescribedby="${(x) => x.describedBy}"
+                            :ariaErrormessage="${(x) => x.errorMessageId}"
+                            ?disabled="${(x) => x.effectiveDisabled}"
                             @click="${(x, c) => x.handleBrowseButtonClick(c.event)}"
                         >
                             <violet-icon slot="before" icon="system/attach" decorative></violet-icon>
-                            ${x => x.browseButtonLabel}
+                            ${(x) => x.browseButtonLabel}
                         </violet-button>
                         <div class="button-copy" part="button-copy">
-                            <p class="trigger-copy" part="trigger-copy">${x => x.buttonTitle}</p>
-                            <p class="summary" part="summary" id="${x => x.summaryId}" role="status" aria-live="polite">${x => x.summaryText}</p>
+                            <p class="trigger-copy" part="trigger-copy">${(x) => x.buttonTitle}</p>
+                            <p class="summary" part="summary" id="${(x) => x.summaryId}" role="status" aria-live="polite">${(x) => x.summaryText}</p>
                         </div>
                     </div>
                 `,
             )}
 
             ${when(
-                x => x.appearance === "dropzone",
-                html<VioletFileUpload>`
+              (x) => x.appearance === "dropzone",
+              html<VioletFileUpload>`
                     <div class="dropzone-layout" part="dropzone-layout">
                         <span class="leading-icon" part="leading-icon">
                             <violet-icon icon="system/attach" decorative></violet-icon>
                         </span>
                         <div class="dropzone-copy" part="dropzone-copy">
-                            <p class="dropzone-title" part="dropzone-title">${x => x.dropzoneTitle}</p>
-                            <p class="dropzone-message" part="dropzone-message" id="${x => x.summaryId}" role="status" aria-live="polite">${x => x.dropzoneMessage}</p>
+                            <p class="dropzone-title" part="dropzone-title">${(x) => x.dropzoneTitle}</p>
+                            <p class="dropzone-message" part="dropzone-message" id="${(x) => x.summaryId}" role="status" aria-live="polite">${(x) => x.dropzoneMessage}</p>
                         </div>
                         <div class="dropzone-actions" part="dropzone-actions">
                             <violet-button
                                 class="browse-button"
                                 part="browse-button"
                                 appearance="secondary"
-                                :ariaLabel="${x => x.triggerAriaLabel}"
-                                :ariaDescribedby="${x => x.describedBy}"
-                                :ariaErrormessage="${x => x.errorMessageId}"
-                                ?disabled="${x => x.effectiveDisabled}"
+                                :ariaLabel="${(x) => x.triggerAriaLabel}"
+                                :ariaDescribedby="${(x) => x.describedBy}"
+                                :ariaErrormessage="${(x) => x.errorMessageId}"
+                                ?disabled="${(x) => x.effectiveDisabled}"
                                 @click="${(x, c) => x.handleBrowseButtonClick(c.event)}"
                             >
-                                ${x => x.browseButtonLabel}
+                                ${(x) => x.browseButtonLabel}
                             </violet-button>
                         </div>
                     </div>
@@ -476,44 +486,44 @@ const template = html<VioletFileUpload>`
             )}
         </div>
 
-        <div class="selection" part="selection" ?hidden="${x => !x.hasFiles}">
-            <p class="selection-summary" part="selection-summary">${x => x.selectionSummaryText}</p>
+        <div class="selection" part="selection" ?hidden="${(x) => !x.hasFiles}">
+            <p class="selection-summary" part="selection-summary">${(x) => x.selectionSummaryText}</p>
             <ul class="file-list" part="file-list">
                 ${repeat(
-                    x => x.fileItems,
-                    html<VioletFileListItem, VioletFileUpload>`
+                  (x) => x.fileItems,
+                  html<VioletFileListItem, VioletFileUpload>`
                         <li class="file-item" part="file-item">
                             <span class="file-item-icon" part="file-icon">
                                 <violet-icon icon="system/document" decorative></violet-icon>
                             </span>
                             <div class="file-copy" part="file-copy">
-                                <p class="filename" part="filename" title="${x => x.file.name}">${x => x.file.name}</p>
-                                <p class="meta" part="file-meta">${x => x.meta}</p>
+                                <p class="filename" part="filename" title="${(x) => x.file.name}">${(x) => x.file.name}</p>
+                                <p class="meta" part="file-meta">${(x) => x.meta}</p>
                             </div>
                             <violet-icon-button
                                 class="remove-button"
                                 part="remove-button"
                                 appearance="transparent"
-                                label="${x => `Remove ${x.file.name}`}"
+                                label="${(x) => `Remove ${x.file.name}`}"
                                 @click="${(x, c) => (c.parent as VioletFileUpload).removeFileAt(x.index)}"
                             >
                                 <violet-icon icon="system/dismiss" decorative></violet-icon>
                             </violet-icon-button>
                         </li>
                     `,
-                    { positioning: true },
+                  { positioning: true },
                 )}
             </ul>
         </div>
 
-        <p class="supporting" part="supporting-text" id="${x => x.supportingId}" ?hidden="${x => !x.showSupportingText}">
-            ${x => x.supportingText}
+        <p class="supporting" part="supporting-text" id="${(x) => x.supportingId}" ?hidden="${(x) => !x.showSupportingText}">
+            ${(x) => x.supportingText}
         </p>
         ${when(
-            x => x.showErrorText,
-            html<VioletFileUpload>`
-                <p class="error" part="error-message" id="${x => x.errorId}" role="alert">
-                    ${x => x.effectiveErrorText}
+          (x) => x.showErrorText,
+          html<VioletFileUpload>`
+                <p class="error" part="error-message" id="${(x) => x.errorId}" role="alert">
+                    ${(x) => x.effectiveErrorText}
                 </p>
             `,
         )}
@@ -542,646 +552,661 @@ let violetFileUploadCount = 0;
  * @csspart error-message - Error message element shown while invalid.
  */
 export class VioletFileUpload extends FASTElement {
-    public static readonly formAssociated = true;
+  public static readonly formAssociated = true;
 
-    readonly #internals: ElementInternals;
-    readonly inputId: string;
-    readonly labelId: string;
-    readonly supportingId: string;
-    readonly errorId: string;
-    readonly summaryId: string;
-    #defaultFiles: File[];
-    #dragDepth: number;
-    #lastNativeSelectionKey: string;
-    #invalidFromRejection: boolean;
+  readonly #internals: ElementInternals;
+  readonly inputId: string;
+  readonly labelId: string;
+  readonly supportingId: string;
+  readonly errorId: string;
+  readonly summaryId: string;
+  #defaultFiles: File[];
+  #dragDepth: number;
+  #lastNativeSelectionKey: string;
+  #invalidFromRejection: boolean;
 
-    declare public label: string;
-    declare public supportingText: string;
-    declare public errorText: string;
-    declare public appearance: VioletFileUploadAppearance;
-    declare public size: VioletFileUploadSize;
-    declare public accept: string;
-    declare public name: string;
-    declare public disabled: boolean;
+  declare public label: string;
+  declare public supportingText: string;
+  declare public errorText: string;
+  declare public appearance: VioletFileUploadAppearance;
+  declare public size: VioletFileUploadSize;
+  declare public accept: string;
+  declare public name: string;
+  declare public disabled: boolean;
 
-    /**
-     * True while an ancestor `<fieldset disabled>` disables the control.
-     */
-    declare public fieldsetDisabled: boolean;
+  /**
+   * True while an ancestor `<fieldset disabled>` disables the control.
+   */
+  declare public fieldsetDisabled: boolean;
 
-    /**
-     * Author `disabled` or fieldset-disabled.
-     */
-    declare public readonly effectiveDisabled: boolean;
-    declare public required: boolean;
-    declare public invalid: boolean;
-    declare public multiple: boolean;
-    declare public maxFiles: string;
-    declare public maxFileSize: string;
-    declare public dragActive: boolean;
-    declare public files: File[];
-    declare public customValidationMessage: string;
+  /**
+   * Author `disabled` or fieldset-disabled.
+   */
+  declare public readonly effectiveDisabled: boolean;
+  declare public required: boolean;
+  declare public invalid: boolean;
+  declare public multiple: boolean;
+  declare public maxFiles: string;
+  declare public maxFileSize: string;
+  declare public dragActive: boolean;
+  declare public files: File[];
+  declare public customValidationMessage: string;
 
-    public constructor() {
-        super();
-        this.#internals = this.attachInternals();
-        violetFileUploadCount += 1;
-        this.inputId = `violet-file-upload-input-${violetFileUploadCount}`;
-        this.labelId = `violet-file-upload-label-${violetFileUploadCount}`;
-        this.supportingId = `violet-file-upload-supporting-${violetFileUploadCount}`;
-        this.errorId = `violet-file-upload-error-${violetFileUploadCount}`;
-        this.summaryId = `violet-file-upload-summary-${violetFileUploadCount}`;
-        this.#defaultFiles = [];
-        this.#dragDepth = 0;
-        this.#lastNativeSelectionKey = "";
-        this.#invalidFromRejection = false;
+  public constructor() {
+    super();
+    this.#internals = this.attachInternals();
+    violetFileUploadCount += 1;
+    this.inputId = `violet-file-upload-input-${violetFileUploadCount}`;
+    this.labelId = `violet-file-upload-label-${violetFileUploadCount}`;
+    this.supportingId = `violet-file-upload-supporting-${violetFileUploadCount}`;
+    this.errorId = `violet-file-upload-error-${violetFileUploadCount}`;
+    this.summaryId = `violet-file-upload-summary-${violetFileUploadCount}`;
+    this.#defaultFiles = [];
+    this.#dragDepth = 0;
+    this.#lastNativeSelectionKey = "";
+    this.#invalidFromRejection = false;
 
-        this.label = "";
-        this.supportingText = "";
-        this.errorText = "";
-        this.dragActive = false;
-        this.files = [];
-        this.customValidationMessage = "";
-        this.appearance = "button";
-        this.size = "natural";
-        this.accept = "";
-        this.name = "";
-        this.disabled = false;
-        this.required = false;
-        this.invalid = false;
-        this.multiple = false;
-        this.maxFiles = "";
-        this.maxFileSize = "";
+    this.label = "";
+    this.supportingText = "";
+    this.errorText = "";
+    this.dragActive = false;
+    this.files = [];
+    this.customValidationMessage = "";
+    this.appearance = "button";
+    this.size = "natural";
+    this.accept = "";
+    this.name = "";
+    this.disabled = false;
+    this.required = false;
+    this.invalid = false;
+    this.multiple = false;
+    this.maxFiles = "";
+    this.maxFileSize = "";
 
-        registerSystemAttachIcon();
-        registerSystemDocumentIcon();
-        registerSystemDismissIcon();
+    registerSystemAttachIcon();
+    registerSystemDocumentIcon();
+    registerSystemDismissIcon();
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    this.#defaultFiles = [...this.files];
+    this.#syncHostState();
+    this.#syncFormState();
+    // The browse button renders after this, so anchor validation to it once it has.
+    Updates.enqueue(() => this.#syncFormState());
+  }
+
+  public filesChanged(): void {
+    this.#syncHostState();
+    this.#syncFormState();
+  }
+
+  public disabledChanged(): void {
+    this.#syncHostState();
+    this.#syncFormState();
+  }
+
+  public requiredChanged(): void {
+    this.#syncFormState();
+  }
+
+  public invalidChanged(): void {
+    if (!this.invalid) {
+      this.customValidationMessage = "";
+      this.#invalidFromRejection = false;
+    }
+    this.#syncHostState();
+    this.#syncFormState();
+  }
+
+  public errorTextChanged(): void {
+    this.#syncFormState();
+  }
+
+  public customValidationMessageChanged(): void {
+    this.#syncHostState();
+    this.#syncFormState();
+  }
+
+  public dragActiveChanged(): void {
+    this.#syncHostState();
+  }
+
+  public multipleChanged(): void {
+    if (!this.multiple && this.files.length > 1) {
+      this.files = this.files.slice(0, 1);
+      return;
     }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        this.#defaultFiles = [...this.files];
-        this.#syncHostState();
-        this.#syncFormState();
-        // The browse button renders after this, so anchor validation to it once it has.
-        Updates.enqueue(() => this.#syncFormState());
+    this.#syncFormState();
+  }
+
+  public formResetCallback(): void {
+    this.files = [...this.#defaultFiles];
+    this.customValidationMessage = "";
+    if (this.#invalidFromRejection) {
+      this.#invalidFromRejection = false;
+      this.invalid = false;
+    }
+    this.dragActive = false;
+    this.#lastNativeSelectionKey = "";
+    this.#clearNativeInputValue();
+  }
+
+  /** Focuses the browse button. The native file input is hidden, so it is not a focus target. */
+  public override focus(options?: FocusOptions): void {
+    (this.shadowRoot?.querySelector('[part~="browse-button"]') as HTMLElement | null)?.focus(
+      options,
+    );
+  }
+
+  public get form(): HTMLFormElement | null {
+    return this.#internals.form;
+  }
+
+  public get validity(): ValidityState {
+    return this.#internals.validity;
+  }
+
+  public get validationMessage(): string {
+    return this.#internals.validationMessage;
+  }
+
+  public get willValidate(): boolean {
+    return this.#internals.willValidate;
+  }
+
+  public get value(): string {
+    return "";
+  }
+
+  public checkValidity(): boolean {
+    return this.#internals.checkValidity();
+  }
+
+  public reportValidity(): boolean {
+    return this.#internals.reportValidity();
+  }
+
+  public setFiles(files: readonly File[]): boolean {
+    const nextFiles = [...files];
+    const validationMessage = this.#validateFiles(nextFiles);
+
+    if (validationMessage) {
+      this.customValidationMessage = validationMessage;
+      if (!this.invalid) {
+        this.#invalidFromRejection = true;
+        this.invalid = true;
+      }
+      return false;
     }
 
-    public filesChanged(): void {
-        this.#syncHostState();
-        this.#syncFormState();
+    this.customValidationMessage = "";
+    if (this.#invalidFromRejection) {
+      this.#invalidFromRejection = false;
+      this.invalid = false;
+    }
+    this.#lastNativeSelectionKey = this.#selectionIdentity(nextFiles);
+    this.files = nextFiles;
+    this.#clearNativeInputValue();
+    this.$emit("input", { files: [...this.files] });
+    this.$emit("change", { files: [...this.files] });
+    return true;
+  }
+
+  public clearFiles(): void {
+    this.files = [];
+    this.customValidationMessage = "";
+    if (this.#invalidFromRejection) {
+      this.#invalidFromRejection = false;
+      this.invalid = false;
+    }
+    this.#lastNativeSelectionKey = "";
+    this.#clearNativeInputValue();
+    this.$emit("input", { files: [] });
+    this.$emit("change", { files: [] });
+  }
+
+  public removeFileAt(index: number): void {
+    const file = this.files[index];
+    if (!file) {
+      return;
     }
 
-    public disabledChanged(): void {
-        this.#syncHostState();
-        this.#syncFormState();
+    this.files = this.files.filter((_, currentIndex) => currentIndex !== index);
+    this.customValidationMessage = "";
+    if (this.#invalidFromRejection) {
+      this.#invalidFromRejection = false;
+      this.invalid = false;
+    }
+    this.#lastNativeSelectionKey = this.#selectionIdentity(this.files);
+    this.#clearNativeInputValue();
+    this.$emit("remove", { file, index, files: [...this.files] });
+    this.$emit("input", { files: [...this.files] });
+    this.$emit("change", { files: [...this.files] });
+  }
+
+  public handleInput(event: Event): void {
+    event.stopPropagation();
+    const control = event.currentTarget as HTMLInputElement | null;
+    const incomingFiles = Array.from(control?.files ?? []);
+    this.#lastNativeSelectionKey = this.#selectionIdentity(incomingFiles);
+  }
+
+  public handleCommit(event: Event): void {
+    event.stopPropagation();
+    this.handleInputChange(event);
+  }
+
+  public handleBrowseButtonClick(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.openPicker();
+  }
+
+  public handleSurfaceClick(event: Event): void {
+    if (this.effectiveDisabled || this.appearance !== "dropzone") {
+      return;
     }
 
-    public requiredChanged(): void {
-        this.#syncFormState();
+    const path = event.composedPath();
+    const clickedInteractive = path.some((target) => {
+      if (!(target instanceof HTMLElement)) {
+        return false;
+      }
+
+      return (
+        target.tagName === "BUTTON" ||
+        target.tagName === "VIOLET-BUTTON" ||
+        target.tagName === "VIOLET-ICON-BUTTON"
+      );
+    });
+
+    if (!clickedInteractive) {
+      this.openPicker();
+    }
+  }
+
+  public handleInputChange(event: Event): void {
+    const control = event.currentTarget as HTMLInputElement | null;
+    const incomingFiles = Array.from(control?.files ?? []);
+    this.#applyIncomingFiles(incomingFiles);
+  }
+
+  public handleDragEnter(event: DragEvent): void {
+    if (!this.#canAcceptDrop(event)) {
+      return;
     }
 
-    public invalidChanged(): void {
-        if (!this.invalid) {
-            this.customValidationMessage = "";
-            this.#invalidFromRejection = false;
-        }
-        this.#syncHostState();
-        this.#syncFormState();
+    event.preventDefault();
+    this.#dragDepth += 1;
+    this.dragActive = true;
+  }
+
+  public handleDragOver(event: DragEvent): void {
+    if (!this.#canAcceptDrop(event)) {
+      return;
     }
 
-    public errorTextChanged(): void {
-        this.#syncFormState();
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = "copy";
+    }
+    this.dragActive = true;
+  }
+
+  public handleDragLeave(event: DragEvent): void {
+    if (this.appearance !== "dropzone" || this.effectiveDisabled) {
+      return;
     }
 
-    public customValidationMessageChanged(): void {
-        this.#syncHostState();
-        this.#syncFormState();
+    event.preventDefault();
+    this.#dragDepth = Math.max(0, this.#dragDepth - 1);
+    if (this.#dragDepth === 0) {
+      this.dragActive = false;
+    }
+  }
+
+  public handleDrop(event: DragEvent): void {
+    if (!this.#canAcceptDrop(event)) {
+      return;
     }
 
-    public dragActiveChanged(): void {
-        this.#syncHostState();
+    event.preventDefault();
+    this.dragActive = false;
+    this.#dragDepth = 0;
+    const droppedFiles = Array.from(event.dataTransfer?.files ?? []);
+    this.#applyIncomingFiles(droppedFiles);
+  }
+
+  public openPicker(): void {
+    if (this.effectiveDisabled) {
+      return;
     }
 
-    public multipleChanged(): void {
-        if (!this.multiple && this.files.length > 1) {
-            this.files = this.files.slice(0, 1);
-            return;
-        }
+    const input = this.shadowRoot?.getElementById(this.inputId) as HTMLInputElement | null;
+    input?.click();
+  }
 
-        this.#syncFormState();
+  public get hasFiles(): boolean {
+    Observable.trackVolatile();
+    return this.files.length > 0;
+  }
+
+  public get fileItems(): VioletFileListItem[] {
+    Observable.trackVolatile();
+    return this.files.map((file, index) => ({
+      file,
+      index,
+      key: `${file.name}:${file.size}:${file.lastModified}:${file.type}:${index}`,
+      meta: this.formatFileMeta(file),
+    }));
+  }
+
+  public get browseButtonLabel(): string {
+    Observable.trackVolatile();
+    if (!this.multiple && this.hasFiles) {
+      return "Replace file";
     }
 
-    public formResetCallback(): void {
-        this.files = [...this.#defaultFiles];
-        this.customValidationMessage = "";
-        if (this.#invalidFromRejection) {
-            this.#invalidFromRejection = false;
-            this.invalid = false;
-        }
-        this.dragActive = false;
-        this.#lastNativeSelectionKey = "";
-        this.#clearNativeInputValue();
+    return this.multiple ? "Browse files" : "Browse file";
+  }
+
+  public get buttonTitle(): string {
+    Observable.trackVolatile();
+    if (!this.hasFiles) {
+      return this.multiple ? "Select files to upload" : "Select a file to upload";
     }
 
-    /** Focuses the browse button. The native file input is hidden, so it is not a focus target. */
-    public override focus(options?: FocusOptions): void {
-        (this.shadowRoot?.querySelector('[part~="browse-button"]') as HTMLElement | null)?.focus(options);
+    return this.multiple ? "Add or replace selected files" : "Replace the selected file";
+  }
+
+  public get summaryText(): string {
+    Observable.trackVolatile();
+    if (!this.hasFiles) {
+      return this.multiple ? "No files selected yet." : "No file selected yet.";
     }
 
-    public get form(): HTMLFormElement | null {
-        return this.#internals.form;
+    if (this.files.length === 1) {
+      return this.files[0].name;
     }
 
-    public get validity(): ValidityState {
-        return this.#internals.validity;
+    return `${this.files.length} files selected`;
+  }
+
+  public get dropzoneTitle(): string {
+    Observable.trackVolatile();
+    if (this.dragActive) {
+      return this.multiple ? "Drop files to add them" : "Drop a file to select it";
     }
 
-    public get validationMessage(): string {
-        return this.#internals.validationMessage;
+    return this.multiple ? "Drop files here" : "Drop a file here";
+  }
+
+  public get dropzoneMessage(): string {
+    Observable.trackVolatile();
+    if (this.hasFiles) {
+      return this.summaryText;
     }
 
-    public get willValidate(): boolean {
-        return this.#internals.willValidate;
+    return this.multiple
+      ? "Or browse from your device to select multiple files."
+      : "Or browse from your device to select one file.";
+  }
+
+  public get selectionSummaryText(): string {
+    Observable.trackVolatile();
+    if (!this.hasFiles) {
+      return "";
     }
 
-    public get value(): string {
-        return "";
+    return this.files.length === 1 ? "Selected file" : `${this.files.length} selected files`;
+  }
+
+  public get triggerAriaLabel(): string {
+    Observable.trackVolatile();
+    return this.label ? `${this.label}: ${this.browseButtonLabel}` : this.browseButtonLabel;
+  }
+
+  public get describedBy(): string | null {
+    Observable.trackVolatile();
+    const ids = [this.summaryId];
+    if (this.showErrorText) {
+      ids.push(this.errorId);
+    } else if (this.supportingText) {
+      ids.push(this.supportingId);
     }
 
-    public checkValidity(): boolean {
-        return this.#internals.checkValidity();
+    return ids.join(" ") || null;
+  }
+
+  public get errorMessageId(): string | null {
+    Observable.trackVolatile();
+    return this.showErrorText ? this.errorId : null;
+  }
+
+  public get displayErrorText(): string {
+    return this.effectiveErrorText;
+  }
+
+  public get effectiveErrorText(): string {
+    Observable.trackVolatile();
+    const rejection = (this.customValidationMessage ?? "").trim();
+    return resolveFieldErrorText({
+      invalid: this.invalid,
+      disabled: this.effectiveDisabled,
+      errorText: rejection || this.errorText,
+      fallbackValidationMessage: this.errorText,
+    });
+  }
+
+  public get showErrorText(): boolean {
+    Observable.trackVolatile();
+    return Boolean(this.effectiveErrorText);
+  }
+
+  public get showSupportingText(): boolean {
+    Observable.trackVolatile();
+    return Boolean(this.supportingText) && !this.showErrorText;
+  }
+
+  public formatFileMeta(file: File): string {
+    const parts = [this.#formatFileSize(file.size)];
+    if (file.type) {
+      parts.push(file.type);
     }
 
-    public reportValidity(): boolean {
-        return this.#internals.reportValidity();
+    return parts.join(" • ");
+  }
+
+  #applyIncomingFiles(incomingFiles: File[]): void {
+    const nextSelectionKey = this.#selectionIdentity(incomingFiles);
+    if (
+      nextSelectionKey === this.#lastNativeSelectionKey &&
+      nextSelectionKey === this.#selectionIdentity(this.files)
+    ) {
+      return;
     }
 
-    public setFiles(files: readonly File[]): boolean {
-        const nextFiles = [...files];
-        const validationMessage = this.#validateFiles(nextFiles);
+    this.#lastNativeSelectionKey = nextSelectionKey;
+    const nextFiles = this.multiple
+      ? this.#mergeFiles(this.files, incomingFiles)
+      : incomingFiles.slice(0, 1);
+    this.setFiles(nextFiles);
+  }
 
-        if (validationMessage) {
-            this.customValidationMessage = validationMessage;
-            if (!this.invalid) {
-                this.#invalidFromRejection = true;
-                this.invalid = true;
-            }
-            return false;
-        }
+  #mergeFiles(existingFiles: readonly File[], incomingFiles: readonly File[]): File[] {
+    const merged = [...existingFiles];
+    const seen = new Set(existingFiles.map((file) => this.#fileIdentity(file)));
 
-        this.customValidationMessage = "";
-        if (this.#invalidFromRejection) {
-            this.#invalidFromRejection = false;
-            this.invalid = false;
-        }
-        this.#lastNativeSelectionKey = this.#selectionIdentity(nextFiles);
-        this.files = nextFiles;
-        this.#clearNativeInputValue();
-        this.$emit("input", { files: [...this.files] });
-        this.$emit("change", { files: [...this.files] });
-        return true;
+    for (const file of incomingFiles) {
+      const identity = this.#fileIdentity(file);
+      if (!seen.has(identity)) {
+        seen.add(identity);
+        merged.push(file);
+      }
     }
 
-    public clearFiles(): void {
-        this.files = [];
-        this.customValidationMessage = "";
-        if (this.#invalidFromRejection) {
-            this.#invalidFromRejection = false;
-            this.invalid = false;
-        }
-        this.#lastNativeSelectionKey = "";
-        this.#clearNativeInputValue();
-        this.$emit("input", { files: [] });
-        this.$emit("change", { files: [] });
+    return merged;
+  }
+
+  #fileIdentity(file: File): string {
+    return `${file.name}:${file.size}:${file.type}:${file.lastModified}`;
+  }
+
+  #selectionIdentity(files: readonly File[]): string {
+    return files.map((file) => this.#fileIdentity(file)).join("|");
+  }
+
+  #validateFiles(files: readonly File[]): string {
+    if (!this.multiple && files.length > 1) {
+      return "Only one file can be selected.";
     }
 
-    public removeFileAt(index: number): void {
-        const file = this.files[index];
-        if (!file) {
-            return;
-        }
-
-        this.files = this.files.filter((_, currentIndex) => currentIndex !== index);
-        this.customValidationMessage = "";
-        if (this.#invalidFromRejection) {
-            this.#invalidFromRejection = false;
-            this.invalid = false;
-        }
-        this.#lastNativeSelectionKey = this.#selectionIdentity(this.files);
-        this.#clearNativeInputValue();
-        this.$emit("remove", { file, index, files: [...this.files] });
-        this.$emit("input", { files: [...this.files] });
-        this.$emit("change", { files: [...this.files] });
+    const maxFiles = this.#normalizedMaxFiles;
+    if (maxFiles > 0 && files.length > maxFiles) {
+      return maxFiles === 1
+        ? "Only one file can be selected."
+        : `Select no more than ${maxFiles} files.`;
     }
 
-    public handleInput(event: Event): void {
-        event.stopPropagation();
-        const control = event.currentTarget as HTMLInputElement | null;
-        const incomingFiles = Array.from(control?.files ?? []);
-        this.#lastNativeSelectionKey = this.#selectionIdentity(incomingFiles);
+    const maxFileSize = this.#normalizedMaxFileSize;
+    if (maxFileSize > 0) {
+      const oversized = files.find((file) => file.size > maxFileSize);
+      if (oversized) {
+        return `${oversized.name} exceeds the ${this.#formatFileSize(maxFileSize)} limit.`;
+      }
     }
 
-    public handleCommit(event: Event): void {
-        event.stopPropagation();
-        this.handleInputChange(event);
+    if (this.accept.trim()) {
+      const invalidFile = files.find((file) => !this.#matchesAccept(file));
+      if (invalidFile) {
+        return `${invalidFile.name} does not match the accepted file types.`;
+      }
     }
 
-    public handleBrowseButtonClick(event: Event): void {
-        event.preventDefault();
-        event.stopPropagation();
-        this.openPicker();
+    return "";
+  }
+
+  #matchesAccept(file: File): boolean {
+    const acceptTokens = this.accept
+      .split(",")
+      .map((token) => token.trim().toLowerCase())
+      .filter(Boolean);
+
+    if (acceptTokens.length === 0) {
+      return true;
     }
 
-    public handleSurfaceClick(event: Event): void {
-        if (this.effectiveDisabled || this.appearance !== "dropzone") {
-            return;
-        }
+    const fileName = file.name.toLowerCase();
+    const fileType = file.type.toLowerCase();
 
-        const path = event.composedPath();
-        const clickedInteractive = path.some(target => {
-            if (!(target instanceof HTMLElement)) {
-                return false;
-            }
+    return acceptTokens.some((token) => {
+      if (token.startsWith(".")) {
+        return fileName.endsWith(token);
+      }
 
-            return target.tagName === "BUTTON" || target.tagName === "VIOLET-BUTTON" || target.tagName === "VIOLET-ICON-BUTTON";
-        });
+      if (token.endsWith("/*")) {
+        const prefix = token.slice(0, -1);
+        return fileType.startsWith(prefix);
+      }
 
-        if (!clickedInteractive) {
-            this.openPicker();
-        }
+      return fileType === token;
+    });
+  }
+
+  get #normalizedMaxFiles(): number {
+    const value = Number.parseInt(this.maxFiles, 10);
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  }
+
+  get #normalizedMaxFileSize(): number {
+    const value = Number.parseInt(this.maxFileSize, 10);
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  }
+
+  #syncHostState(): void {
+    this.toggleAttribute("data-invalid", !this.effectiveDisabled && this.invalid);
+    this.toggleAttribute("data-drag-active", this.dragActive);
+  }
+
+  #syncFormState(): void {
+    if (!this.$fastController.isConnected) {
+      return;
     }
 
-    public handleInputChange(event: Event): void {
-        const control = event.currentTarget as HTMLInputElement | null;
-        const incomingFiles = Array.from(control?.files ?? []);
-        this.#applyIncomingFiles(incomingFiles);
+    if (this.effectiveDisabled) {
+      this.#internals.ariaInvalid = "false";
+      this.#internals.setValidity({});
+      this.#internals.setFormValue(null);
+      return;
     }
 
-    public handleDragEnter(event: DragEvent): void {
-        if (!this.#canAcceptDrop(event)) {
-            return;
-        }
+    const files = this.files ?? [];
+    const valueMissing = this.required && files.length === 0;
+    const customError = this.invalid;
+    const validationMessage =
+      this.effectiveErrorText ||
+      (this.invalid ? "Invalid file selection." : "") ||
+      (valueMissing ? "Select a file to continue." : "");
+    // The browse button's own button anchors validation, so a failed form submission focuses it, not the
+    // hidden file input. The anchor must itself be focusable, which a delegating host is not.
+    const browse = this.shadowRoot?.querySelector('[part~="browse-button"]');
+    const control =
+      (browse?.shadowRoot?.querySelector("button") as HTMLElement | null | undefined) ??
+      (this.shadowRoot?.querySelector("input") as HTMLInputElement | null);
 
-        event.preventDefault();
-        this.#dragDepth += 1;
-        this.dragActive = true;
+    this.#internals.ariaInvalid = this.invalid || this.customValidationMessage ? "true" : "false";
+
+    this.#internals.setValidity(
+      {
+        valueMissing,
+        customError,
+      },
+      validationMessage || undefined,
+      control ?? undefined,
+    );
+
+    if (this.effectiveDisabled || files.length === 0 || !this.name) {
+      this.#internals.setFormValue(null);
+      return;
     }
 
-    public handleDragOver(event: DragEvent): void {
-        if (!this.#canAcceptDrop(event)) {
-            return;
-        }
+    const formData = new FormData();
+    for (const file of files) {
+      formData.append(this.name, file);
+    }
+    this.#internals.setFormValue(formData);
+  }
 
-        event.preventDefault();
-        if (event.dataTransfer) {
-            event.dataTransfer.dropEffect = "copy";
-        }
-        this.dragActive = true;
+  #formatFileSize(sizeInBytes: number): string {
+    if (sizeInBytes < 1024) {
+      return `${sizeInBytes} B`;
     }
 
-    public handleDragLeave(event: DragEvent): void {
-        if (this.appearance !== "dropzone" || this.effectiveDisabled) {
-            return;
-        }
-
-        event.preventDefault();
-        this.#dragDepth = Math.max(0, this.#dragDepth - 1);
-        if (this.#dragDepth === 0) {
-            this.dragActive = false;
-        }
+    if (sizeInBytes < 1024 * 1024) {
+      return `${Math.round(sizeInBytes / 102.4) / 10} KB`;
     }
 
-    public handleDrop(event: DragEvent): void {
-        if (!this.#canAcceptDrop(event)) {
-            return;
-        }
+    return `${Math.round(sizeInBytes / 104857.6) / 10} MB`;
+  }
 
-        event.preventDefault();
-        this.dragActive = false;
-        this.#dragDepth = 0;
-        const droppedFiles = Array.from(event.dataTransfer?.files ?? []);
-        this.#applyIncomingFiles(droppedFiles);
+  #canAcceptDrop(event: DragEvent): boolean {
+    if (this.appearance !== "dropzone" || this.effectiveDisabled) {
+      return false;
     }
 
-    public openPicker(): void {
-        if (this.effectiveDisabled) {
-            return;
-        }
+    const types = event.dataTransfer?.types;
+    return types ? Array.from(types).includes("Files") : true;
+  }
 
-        const input = this.shadowRoot?.getElementById(this.inputId) as HTMLInputElement | null;
-        input?.click();
+  #clearNativeInputValue(): void {
+    const input = this.shadowRoot?.getElementById(this.inputId) as HTMLInputElement | null;
+    if (input) {
+      input.value = "";
     }
-
-    public get hasFiles(): boolean {
-        Observable.trackVolatile();
-        return this.files.length > 0;
-    }
-
-    public get fileItems(): VioletFileListItem[] {
-        Observable.trackVolatile();
-        return this.files.map((file, index) => ({
-            file,
-            index,
-            key: `${file.name}:${file.size}:${file.lastModified}:${file.type}:${index}`,
-            meta: this.formatFileMeta(file),
-        }));
-    }
-
-    public get browseButtonLabel(): string {
-        Observable.trackVolatile();
-        if (!this.multiple && this.hasFiles) {
-            return "Replace file";
-        }
-
-        return this.multiple ? "Browse files" : "Browse file";
-    }
-
-    public get buttonTitle(): string {
-        Observable.trackVolatile();
-        if (!this.hasFiles) {
-            return this.multiple ? "Select files to upload" : "Select a file to upload";
-        }
-
-        return this.multiple ? "Add or replace selected files" : "Replace the selected file";
-    }
-
-    public get summaryText(): string {
-        Observable.trackVolatile();
-        if (!this.hasFiles) {
-            return this.multiple ? "No files selected yet." : "No file selected yet.";
-        }
-
-        if (this.files.length === 1) {
-            return this.files[0].name;
-        }
-
-        return `${this.files.length} files selected`;
-    }
-
-    public get dropzoneTitle(): string {
-        Observable.trackVolatile();
-        if (this.dragActive) {
-            return this.multiple ? "Drop files to add them" : "Drop a file to select it";
-        }
-
-        return this.multiple ? "Drop files here" : "Drop a file here";
-    }
-
-    public get dropzoneMessage(): string {
-        Observable.trackVolatile();
-        if (this.hasFiles) {
-            return this.summaryText;
-        }
-
-        return this.multiple ? "Or browse from your device to select multiple files." : "Or browse from your device to select one file.";
-    }
-
-    public get selectionSummaryText(): string {
-        Observable.trackVolatile();
-        if (!this.hasFiles) {
-            return "";
-        }
-
-        return this.files.length === 1 ? "Selected file" : `${this.files.length} selected files`;
-    }
-
-    public get triggerAriaLabel(): string {
-        Observable.trackVolatile();
-        return this.label ? `${this.label}: ${this.browseButtonLabel}` : this.browseButtonLabel;
-    }
-
-    public get describedBy(): string | null {
-        Observable.trackVolatile();
-        const ids = [this.summaryId];
-        if (this.showErrorText) {
-            ids.push(this.errorId);
-        } else if (this.supportingText) {
-            ids.push(this.supportingId);
-        }
-
-        return ids.join(" ") || null;
-    }
-
-    public get errorMessageId(): string | null {
-        Observable.trackVolatile();
-        return this.showErrorText ? this.errorId : null;
-    }
-
-    public get displayErrorText(): string {
-        return this.effectiveErrorText;
-    }
-
-    public get effectiveErrorText(): string {
-        Observable.trackVolatile();
-        const rejection = (this.customValidationMessage ?? "").trim();
-        return resolveFieldErrorText({
-            invalid: this.invalid,
-            disabled: this.effectiveDisabled,
-            errorText: rejection || this.errorText,
-            fallbackValidationMessage: this.errorText,
-        });
-    }
-
-    public get showErrorText(): boolean {
-        Observable.trackVolatile();
-        return Boolean(this.effectiveErrorText);
-    }
-
-    public get showSupportingText(): boolean {
-        Observable.trackVolatile();
-        return Boolean(this.supportingText) && !this.showErrorText;
-    }
-
-    public formatFileMeta(file: File): string {
-        const parts = [this.#formatFileSize(file.size)];
-        if (file.type) {
-            parts.push(file.type);
-        }
-
-        return parts.join(" • ");
-    }
-
-    #applyIncomingFiles(incomingFiles: File[]): void {
-        const nextSelectionKey = this.#selectionIdentity(incomingFiles);
-        if (nextSelectionKey === this.#lastNativeSelectionKey && nextSelectionKey === this.#selectionIdentity(this.files)) {
-            return;
-        }
-
-        this.#lastNativeSelectionKey = nextSelectionKey;
-        const nextFiles = this.multiple ? this.#mergeFiles(this.files, incomingFiles) : incomingFiles.slice(0, 1);
-        this.setFiles(nextFiles);
-    }
-
-    #mergeFiles(existingFiles: readonly File[], incomingFiles: readonly File[]): File[] {
-        const merged = [...existingFiles];
-        const seen = new Set(existingFiles.map(file => this.#fileIdentity(file)));
-
-        for (const file of incomingFiles) {
-            const identity = this.#fileIdentity(file);
-            if (!seen.has(identity)) {
-                seen.add(identity);
-                merged.push(file);
-            }
-        }
-
-        return merged;
-    }
-
-    #fileIdentity(file: File): string {
-        return `${file.name}:${file.size}:${file.type}:${file.lastModified}`;
-    }
-
-    #selectionIdentity(files: readonly File[]): string {
-        return files.map(file => this.#fileIdentity(file)).join("|");
-    }
-
-    #validateFiles(files: readonly File[]): string {
-        if (!this.multiple && files.length > 1) {
-            return "Only one file can be selected.";
-        }
-
-        const maxFiles = this.#normalizedMaxFiles;
-        if (maxFiles > 0 && files.length > maxFiles) {
-            return maxFiles === 1 ? "Only one file can be selected." : `Select no more than ${maxFiles} files.`;
-        }
-
-        const maxFileSize = this.#normalizedMaxFileSize;
-        if (maxFileSize > 0) {
-            const oversized = files.find(file => file.size > maxFileSize);
-            if (oversized) {
-                return `${oversized.name} exceeds the ${this.#formatFileSize(maxFileSize)} limit.`;
-            }
-        }
-
-        if (this.accept.trim()) {
-            const invalidFile = files.find(file => !this.#matchesAccept(file));
-            if (invalidFile) {
-                return `${invalidFile.name} does not match the accepted file types.`;
-            }
-        }
-
-        return "";
-    }
-
-    #matchesAccept(file: File): boolean {
-        const acceptTokens = this.accept
-            .split(",")
-            .map(token => token.trim().toLowerCase())
-            .filter(Boolean);
-
-        if (acceptTokens.length === 0) {
-            return true;
-        }
-
-        const fileName = file.name.toLowerCase();
-        const fileType = file.type.toLowerCase();
-
-        return acceptTokens.some(token => {
-            if (token.startsWith(".")) {
-                return fileName.endsWith(token);
-            }
-
-            if (token.endsWith("/*")) {
-                const prefix = token.slice(0, -1);
-                return fileType.startsWith(prefix);
-            }
-
-            return fileType === token;
-        });
-    }
-
-    get #normalizedMaxFiles(): number {
-        const value = Number.parseInt(this.maxFiles, 10);
-        return Number.isFinite(value) && value > 0 ? value : 0;
-    }
-
-    get #normalizedMaxFileSize(): number {
-        const value = Number.parseInt(this.maxFileSize, 10);
-        return Number.isFinite(value) && value > 0 ? value : 0;
-    }
-
-    #syncHostState(): void {
-        this.toggleAttribute("data-invalid", !this.effectiveDisabled && this.invalid);
-        this.toggleAttribute("data-drag-active", this.dragActive);
-    }
-
-    #syncFormState(): void {
-        if (!this.$fastController.isConnected) {
-            return;
-        }
-
-        if (this.effectiveDisabled) {
-            this.#internals.ariaInvalid = "false";
-            this.#internals.setValidity({});
-            this.#internals.setFormValue(null);
-            return;
-        }
-
-        const files = this.files ?? [];
-        const valueMissing = this.required && files.length === 0;
-        const customError = this.invalid;
-        const validationMessage =
-            this.effectiveErrorText ||
-            (this.invalid ? "Invalid file selection." : "") ||
-            (valueMissing ? "Select a file to continue." : "");
-        // The browse button's own button anchors validation, so a failed form submission focuses it, not the
-        // hidden file input. The anchor must itself be focusable, which a delegating host is not.
-        const browse = this.shadowRoot?.querySelector('[part~="browse-button"]');
-        const control =
-            (browse?.shadowRoot?.querySelector("button") as HTMLElement | null | undefined) ??
-            (this.shadowRoot?.querySelector("input") as HTMLInputElement | null);
-
-        this.#internals.ariaInvalid = this.invalid || this.customValidationMessage ? "true" : "false";
-
-        this.#internals.setValidity(
-            {
-                valueMissing,
-                customError,
-            },
-            validationMessage || undefined,
-            control ?? undefined,
-        );
-
-        if (this.effectiveDisabled || files.length === 0 || !this.name) {
-            this.#internals.setFormValue(null);
-            return;
-        }
-
-        const formData = new FormData();
-        for (const file of files) {
-            formData.append(this.name, file);
-        }
-        this.#internals.setFormValue(formData);
-    }
-
-    #formatFileSize(sizeInBytes: number): string {
-        if (sizeInBytes < 1024) {
-            return `${sizeInBytes} B`;
-        }
-
-        if (sizeInBytes < 1024 * 1024) {
-            return `${Math.round(sizeInBytes / 102.4) / 10} KB`;
-        }
-
-        return `${Math.round(sizeInBytes / 104857.6) / 10} MB`;
-    }
-
-    #canAcceptDrop(event: DragEvent): boolean {
-        if (this.appearance !== "dropzone" || this.effectiveDisabled) {
-            return false;
-        }
-
-        const types = event.dataTransfer?.types;
-        return types ? Array.from(types).includes("Files") : true;
-    }
-
-    #clearNativeInputValue(): void {
-        const input = this.shadowRoot?.getElementById(this.inputId) as HTMLInputElement | null;
-        if (input) {
-            input.value = "";
-        }
-    }
+  }
 }
 
 attr(VioletFileUpload.prototype, "label");
@@ -1204,7 +1229,7 @@ observable(VioletFileUpload.prototype, "dragActive");
 
 /** The FAST definition of `<violet-file-upload>`; `defineVioletFileUpload` in `./violet-file-upload.define` registers it. */
 export const violetFileUploadDefinition = {
-    name: "violet-file-upload",
-    template,
-    styles,
+  name: "violet-file-upload",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

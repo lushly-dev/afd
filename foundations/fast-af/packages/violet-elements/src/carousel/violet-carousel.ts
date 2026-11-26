@@ -1,31 +1,37 @@
-import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
-
-import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 import { logicalArrowKey } from "../foundations/violet-direction";
+import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
 type VioletCarouselSlide = {
-    index: number;
-    label: string;
+  index: number;
+  label: string;
 };
 
 const integerConverter = {
-    fromView(value: string): number {
-        const parsed = Number.parseInt(value, 10);
-        return Number.isFinite(parsed) ? parsed : 0;
-    },
-    toView(value: number): string {
-        return String(value);
-    },
+  fromView(value: string): number {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : 0;
+  },
+  toView(value: number): string {
+    return String(value);
+  },
 };
 
 function readIntegerAttribute(element: HTMLElement, name: string, fallback: number): number {
-    const raw = element.getAttribute(name);
-    if (!raw) {
-        return fallback;
-    }
+  const raw = element.getAttribute(name);
+  if (!raw) {
+    return fallback;
+  }
 
-    const parsed = Number.parseInt(raw, 10);
-    return Number.isFinite(parsed) ? parsed : fallback;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 const styles = css`
@@ -222,16 +228,16 @@ const styles = css`
 `;
 
 const template = html<VioletCarousel>`
-    <section class="root" part="root" role="region" aria-roledescription="carousel" aria-label="${x => x.label}">
+    <section class="root" part="root" role="region" aria-roledescription="carousel" aria-label="${(x) => x.label}">
         <div
             class="viewport"
             part="viewport"
             tabindex="0"
-            @scroll="${x => x.handleViewportScroll()}"
+            @scroll="${(x) => x.handleViewportScroll()}"
             @keydown="${(x, c) => x.handleViewportKeydown(c.event as KeyboardEvent)}"
         >
             <div class="track" part="track">
-                <slot class="slides" @slotchange="${x => x.handleSlidesSlotChange()}"></slot>
+                <slot class="slides" @slotchange="${(x) => x.handleSlidesSlotChange()}"></slot>
             </div>
         </div>
 
@@ -241,19 +247,19 @@ const template = html<VioletCarousel>`
                 part="previous-button"
                 appearance="quiet"
                 label="Previous slide"
-                @click="${x => x.previous()}"
+                @click="${(x) => x.previous()}"
             >
                 <violet-icon icon="system/chevron-right" decorative></violet-icon>
             </violet-icon-button>
 
-            <div class="pagination" part="pagination" role="group" aria-label="${x => `${x.label} slide navigation`}"></div>
+            <div class="pagination" part="pagination" role="group" aria-label="${(x) => `${x.label} slide navigation`}"></div>
 
             <violet-icon-button
                 class="next-button"
                 part="next-button"
                 appearance="quiet"
                 label="Next slide"
-                @click="${x => x.next()}"
+                @click="${(x) => x.next()}"
             >
                 <violet-icon icon="system/chevron-right" decorative></violet-icon>
             </violet-icon-button>
@@ -281,422 +287,436 @@ const template = html<VioletCarousel>`
  * @csspart status - Screen-reader-only current slide announcement.
  */
 export class VioletCarousel extends FASTElement {
-    @observable
-    declare public slideCount: number;
+  @observable
+  declare public slideCount: number;
 
-    public slides: VioletCarouselSlide[];
-    declare public appearance: "framed" | "plain";
-    declare public label: string;
-    declare public activeIndex: number;
-    declare public slidesPerView: number;
-    declare public loop: boolean;
+  public slides: VioletCarouselSlide[];
+  declare public appearance: "framed" | "plain";
+  declare public label: string;
+  declare public activeIndex: number;
+  declare public slidesPerView: number;
+  declare public loop: boolean;
 
-    #connected = false;
-    #syncingFromScroll = false;
-    #scrollFrame = 0;
+  #connected = false;
+  #syncingFromScroll = false;
+  #scrollFrame = 0;
 
-    public constructor() {
-        super();
-        this.slides = [];
-        this.slideCount = 0;
-        this.appearance = "framed";
-        this.label = "Carousel";
-        this.activeIndex = 0;
-        this.slidesPerView = 1;
-        this.loop = false;
+  public constructor() {
+    super();
+    this.slides = [];
+    this.slideCount = 0;
+    this.appearance = "framed";
+    this.label = "Carousel";
+    this.activeIndex = 0;
+    this.slidesPerView = 1;
+    this.loop = false;
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    this.activeIndex = readIntegerAttribute(this, "active-index", this.activeIndex || 0);
+    this.slidesPerView = readIntegerAttribute(this, "slides-per-view", this.slidesPerView || 1);
+
+    requestAnimationFrame(() => {
+      if (!this.isConnected) {
+        return;
+      }
+
+      this.#connected = true;
+      this.#syncSlides();
+      this.#applyActiveState({ scroll: false, emit: false });
+    });
+  }
+
+  public disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.#connected = false;
+
+    if (this.#scrollFrame) {
+      cancelAnimationFrame(this.#scrollFrame);
+      this.#scrollFrame = 0;
+    }
+  }
+
+  public activeIndexChanged(): void {
+    if (!this.#connected) {
+      return;
     }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        this.activeIndex = readIntegerAttribute(this, "active-index", this.activeIndex || 0);
-        this.slidesPerView = readIntegerAttribute(this, "slides-per-view", this.slidesPerView || 1);
+    this.#applyActiveState({
+      scroll: !this.#syncingFromScroll,
+      emit: true,
+    });
+  }
 
-        requestAnimationFrame(() => {
-            if (!this.isConnected) {
-                return;
-            }
-
-            this.#connected = true;
-            this.#syncSlides();
-            this.#applyActiveState({ scroll: false, emit: false });
-        });
+  public slidesPerViewChanged(): void {
+    if (!this.#connected) {
+      return;
     }
 
-    public disconnectedCallback(): void {
-        super.disconnectedCallback();
-        this.#connected = false;
+    this.#applyActiveState({
+      scroll: false,
+      emit: false,
+    });
+  }
 
-        if (this.#scrollFrame) {
-            cancelAnimationFrame(this.#scrollFrame);
-            this.#scrollFrame = 0;
-        }
+  public handleSlidesSlotChange(): void {
+    this.#syncSlides();
+    this.#applyActiveState({ scroll: false, emit: false });
+  }
+
+  public handleViewportScroll(): void {
+    if (this.#scrollFrame) {
+      return;
     }
 
-    public activeIndexChanged(): void {
-        if (!this.#connected) {
-            return;
-        }
+    this.#scrollFrame = requestAnimationFrame(() => {
+      this.#scrollFrame = 0;
+      const nextIndex = this.#getNearestSlideIndex();
 
-        this.#applyActiveState({
-            scroll: !this.#syncingFromScroll,
-            emit: true,
-        });
+      if (nextIndex === this.activeIndex) {
+        return;
+      }
+
+      this.#syncingFromScroll = true;
+      this.activeIndex = nextIndex;
+      this.#syncingFromScroll = false;
+    });
+  }
+
+  public handleViewportKeydown(event: KeyboardEvent): boolean {
+    if (event.defaultPrevented || this.slides.length < 2) {
+      return true;
     }
 
-    public slidesPerViewChanged(): void {
-        if (!this.#connected) {
-            return;
-        }
+    switch (logicalArrowKey(event.key, this)) {
+      case "ArrowRight":
+        event.preventDefault();
+        this.next();
+        return false;
+      case "ArrowLeft":
+        event.preventDefault();
+        this.previous();
+        return false;
+      case "Home":
+        event.preventDefault();
+        this.goTo(0);
+        return false;
+      case "End":
+        event.preventDefault();
+        this.goTo(this.#maxStartIndex);
+        return false;
+      default:
+        return true;
+    }
+  }
 
-        this.#applyActiveState({
-            scroll: false,
-            emit: false,
-        });
+  public goTo(index: number): void {
+    const nextIndex = this.#clampIndex(index);
+    if (nextIndex === this.activeIndex) {
+      return;
     }
 
-    public handleSlidesSlotChange(): void {
-        this.#syncSlides();
-        this.#applyActiveState({ scroll: false, emit: false });
+    this.activeIndex = nextIndex;
+  }
+
+  public next(): void {
+    if (this.slides.length < 2) {
+      return;
     }
 
-    public handleViewportScroll(): void {
-        if (this.#scrollFrame) {
-            return;
-        }
-
-        this.#scrollFrame = requestAnimationFrame(() => {
-            this.#scrollFrame = 0;
-            const nextIndex = this.#getNearestSlideIndex();
-
-            if (nextIndex === this.activeIndex) {
-                return;
-            }
-
-            this.#syncingFromScroll = true;
-            this.activeIndex = nextIndex;
-            this.#syncingFromScroll = false;
-        });
+    if (this.loop) {
+      this.goTo((this.activeIndex + 1) % (this.#maxStartIndex + 1));
+      return;
     }
 
-    public handleViewportKeydown(event: KeyboardEvent): boolean {
-        if (event.defaultPrevented || this.slides.length < 2) {
-            return true;
-        }
+    this.goTo(this.activeIndex + 1);
+  }
 
-        switch (logicalArrowKey(event.key, this)) {
-            case "ArrowRight":
-                event.preventDefault();
-                this.next();
-                return false;
-            case "ArrowLeft":
-                event.preventDefault();
-                this.previous();
-                return false;
-            case "Home":
-                event.preventDefault();
-                this.goTo(0);
-                return false;
-            case "End":
-                event.preventDefault();
-                this.goTo(this.#maxStartIndex);
-                return false;
-            default:
-                return true;
-        }
+  public previous(): void {
+    if (this.slides.length < 2) {
+      return;
     }
 
-    public goTo(index: number): void {
-        const nextIndex = this.#clampIndex(index);
-        if (nextIndex === this.activeIndex) {
-            return;
-        }
-
-        this.activeIndex = nextIndex;
+    if (this.loop) {
+      this.goTo((this.activeIndex - 1 + this.#maxStartIndex + 1) % (this.#maxStartIndex + 1));
+      return;
     }
 
-    public next(): void {
-        if (this.slides.length < 2) {
-            return;
-        }
+    this.goTo(this.activeIndex - 1);
+  }
 
-        if (this.loop) {
-            this.goTo((this.activeIndex + 1) % (this.#maxStartIndex + 1));
-            return;
-        }
+  public get canGoPrevious(): boolean {
+    return this.slideCount > 1 && (this.loop || this.activeIndex > 0);
+  }
 
-        this.goTo(this.activeIndex + 1);
+  public get canGoNext(): boolean {
+    return this.slideCount > 1 && (this.loop || this.activeIndex < this.#maxStartIndex);
+  }
+
+  public get currentSlideStatus(): string {
+    if (this.slideCount < 1) {
+      return "";
     }
 
-    public previous(): void {
-        if (this.slides.length < 2) {
-            return;
-        }
+    const start = this.#clampIndex(this.activeIndex);
+    const visibleCount = this.#normalizedSlidesPerView;
+    const end = Math.min(this.slideCount, start + visibleCount);
+    const current = this.slides[start];
 
-        if (this.loop) {
-            this.goTo((this.activeIndex - 1 + this.#maxStartIndex + 1) % (this.#maxStartIndex + 1));
-            return;
-        }
-
-        this.goTo(this.activeIndex - 1);
+    if (visibleCount === 1) {
+      return `${current?.label ?? `Slide ${start + 1}`} (${start + 1} of ${this.slideCount})`;
     }
 
-    public get canGoPrevious(): boolean {
-        return this.slideCount > 1 && (this.loop || this.activeIndex > 0);
+    return `Showing slides ${start + 1} through ${end} of ${this.slideCount}`;
+  }
+
+  #syncSlides(): void {
+    const slides = this.slideElements;
+
+    slides.forEach((slide, index) => {
+      slide.dataset.carouselIndex = String(index);
+      slide.dataset.carouselLabel = this.#resolveSlideLabel(slide, index);
+    });
+
+    this.slides = slides.map((slide, index) => ({
+      index,
+      label: slide.dataset.carouselLabel ?? `Slide ${index + 1}`,
+    }));
+    this.slideCount = this.slides.length;
+    this.#renderPagination();
+    this.#syncChromeState();
+  }
+
+  #applyActiveState(options: { scroll: boolean; emit: boolean }): void {
+    const clamped = this.#clampIndex(this.activeIndex);
+    if (clamped !== this.activeIndex) {
+      this.activeIndex = clamped;
+      return;
     }
 
-    public get canGoNext(): boolean {
-        return this.slideCount > 1 && (this.loop || this.activeIndex < this.#maxStartIndex);
+    const slides = this.slideElements;
+    const activeSlide = slides[clamped] ?? null;
+
+    slides.forEach((slide, index) => {
+      const isActive = index >= clamped && index < clamped + this.#normalizedSlidesPerView;
+      slide.toggleAttribute("data-active", isActive);
+      slide.toggleAttribute("inert", !isActive);
+      slide.setAttribute("aria-hidden", String(!isActive));
+    });
+
+    this.#syncPaginationState();
+    this.#syncChromeState();
+
+    if (options.scroll && activeSlide) {
+      this.#scrollToSlide(activeSlide);
     }
 
-    public get currentSlideStatus(): string {
-        if (this.slideCount < 1) {
-            return "";
-        }
+    if (options.emit && activeSlide) {
+      this.$emit("slide-change", {
+        activeIndex: clamped,
+        slide: activeSlide,
+      });
+      this.$emit("change");
+    }
+  }
 
-        const start = this.#clampIndex(this.activeIndex);
-        const visibleCount = this.#normalizedSlidesPerView;
-        const end = Math.min(this.slideCount, start + visibleCount);
-        const current = this.slides[start];
-
-        if (visibleCount === 1) {
-            return `${current?.label ?? `Slide ${start + 1}`} (${start + 1} of ${this.slideCount})`;
-        }
-
-        return `Showing slides ${start + 1} through ${end} of ${this.slideCount}`;
+  #scrollToSlide(slide: HTMLElement): void {
+    const viewport = this.viewportElement;
+    if (!viewport) {
+      return;
     }
 
-    #syncSlides(): void {
-        const slides = this.slideElements;
+    const left = slide.offsetLeft;
 
-        slides.forEach((slide, index) => {
-            slide.dataset.carouselIndex = String(index);
-            slide.dataset.carouselLabel = this.#resolveSlideLabel(slide, index);
-        });
-
-        this.slides = slides.map((slide, index) => ({
-            index,
-            label: slide.dataset.carouselLabel ?? `Slide ${index + 1}`,
-        }));
-        this.slideCount = this.slides.length;
-        this.#renderPagination();
-        this.#syncChromeState();
+    if (typeof viewport.scrollTo === "function") {
+      viewport.scrollTo({
+        left,
+        behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
+      });
+      return;
     }
 
-    #applyActiveState(options: { scroll: boolean; emit: boolean }): void {
-        const clamped = this.#clampIndex(this.activeIndex);
-        if (clamped !== this.activeIndex) {
-            this.activeIndex = clamped;
-            return;
-        }
+    viewport.scrollLeft = left;
+  }
 
-        const slides = this.slideElements;
-        const activeSlide = slides[clamped] ?? null;
+  #getNearestSlideIndex(): number {
+    const viewport = this.viewportElement;
+    const slides = this.slideElements;
 
-        slides.forEach((slide, index) => {
-            const isActive = index >= clamped && index < clamped + this.#normalizedSlidesPerView;
-            slide.toggleAttribute("data-active", isActive);
-            slide.toggleAttribute("inert", !isActive);
-            slide.setAttribute("aria-hidden", String(!isActive));
-        });
-
-        this.#syncPaginationState();
-        this.#syncChromeState();
-
-        if (options.scroll && activeSlide) {
-            this.#scrollToSlide(activeSlide);
-        }
-
-        if (options.emit && activeSlide) {
-            this.$emit("slide-change", {
-                activeIndex: clamped,
-                slide: activeSlide,
-            });
-            this.$emit("change");
-        }
+    if (!viewport || slides.length < 2) {
+      return 0;
     }
 
-    #scrollToSlide(slide: HTMLElement): void {
-        const viewport = this.viewportElement;
-        if (!viewport) {
-            return;
-        }
+    const currentOffset = viewport.scrollLeft;
+    let nearestIndex = 0;
+    let nearestDistance = Number.POSITIVE_INFINITY;
 
-        const left = slide.offsetLeft;
+    slides.forEach((slide, index) => {
+      const distance = Math.abs(slide.offsetLeft - currentOffset);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = index;
+      }
+    });
 
-        if (typeof viewport.scrollTo === "function") {
-            viewport.scrollTo({
-                left,
-                behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
-            });
-            return;
-        }
+    return nearestIndex;
+  }
 
-        viewport.scrollLeft = left;
+  #resolveSlideLabel(slide: HTMLElement, index: number): string {
+    return (
+      slide.getAttribute("data-label") ??
+      slide.getAttribute("aria-label") ??
+      slide.getAttribute("title") ??
+      `Slide ${index + 1}`
+    );
+  }
+
+  #clampIndex(index: number): number {
+    if (this.slideCount < 1) {
+      return 0;
     }
 
-    #getNearestSlideIndex(): number {
-        const viewport = this.viewportElement;
-        const slides = this.slideElements;
+    return Math.max(0, Math.min(index, this.#maxStartIndex));
+  }
 
-        if (!viewport || slides.length < 2) {
-            return 0;
-        }
-
-        const currentOffset = viewport.scrollLeft;
-        let nearestIndex = 0;
-        let nearestDistance = Number.POSITIVE_INFINITY;
-
-        slides.forEach((slide, index) => {
-            const distance = Math.abs(slide.offsetLeft - currentOffset);
-            if (distance < nearestDistance) {
-                nearestDistance = distance;
-                nearestIndex = index;
-            }
-        });
-
-        return nearestIndex;
+  get #normalizedSlidesPerView(): number {
+    if (this.slideCount < 1) {
+      return Math.max(1, this.slidesPerView || 1);
     }
 
-    #resolveSlideLabel(slide: HTMLElement, index: number): string {
-        return (
-            slide.getAttribute("data-label") ??
-            slide.getAttribute("aria-label") ??
-            slide.getAttribute("title") ??
-            `Slide ${index + 1}`
-        );
+    return Math.max(1, Math.min(this.slidesPerView || 1, this.slideCount));
+  }
+
+  get #maxStartIndex(): number {
+    return Math.max(0, this.slideCount - this.#normalizedSlidesPerView);
+  }
+
+  get #pageStarts(): number[] {
+    return Array.from({ length: this.#maxStartIndex + 1 }, (_, index) => index);
+  }
+
+  #renderPagination(): void {
+    const pagination = this.paginationElement;
+    if (!pagination) {
+      return;
     }
 
-    #clampIndex(index: number): number {
-        if (this.slideCount < 1) {
-            return 0;
-        }
+    pagination.replaceChildren();
 
-        return Math.max(0, Math.min(index, this.#maxStartIndex));
+    this.#pageStarts.forEach((startIndex) => {
+      const button = document.createElement("button");
+      button.className = "dot";
+      button.part.add("dot");
+      button.type = "button";
+      const start = startIndex + 1;
+      const end = Math.min(this.slideCount, startIndex + this.#normalizedSlidesPerView);
+      button.setAttribute(
+        "aria-label",
+        this.#normalizedSlidesPerView === 1
+          ? `Go to ${this.slides[startIndex]?.label ?? `slide ${start}`}`
+          : `Go to slides ${start} through ${end}`,
+      );
+      button.addEventListener("click", () => {
+        this.goTo(startIndex);
+      });
+      pagination.append(button);
+    });
+
+    this.#syncPaginationState();
+  }
+
+  #syncPaginationState(): void {
+    const buttons = Array.from(
+      this.shadowRoot?.querySelectorAll(".dot") ?? [],
+    ) as HTMLButtonElement[];
+    buttons.forEach((button, index) => {
+      button.setAttribute("aria-pressed", String(this.#pageStarts[index] === this.activeIndex));
+    });
+  }
+
+  #syncChromeState(): void {
+    this.style.setProperty("--_carousel-slides-per-view", String(this.#normalizedSlidesPerView));
+    const hasMultiplePages = this.#maxStartIndex > 0;
+
+    const controls = this.controlsElement;
+    if (controls) {
+      controls.hidden = !hasMultiplePages;
     }
 
-    get #normalizedSlidesPerView(): number {
-        if (this.slideCount < 1) {
-            return Math.max(1, this.slidesPerView || 1);
-        }
-
-        return Math.max(1, Math.min(this.slidesPerView || 1, this.slideCount));
+    const previousButton = this.previousButtonElement;
+    if (previousButton) {
+      previousButton.disabled = !this.canGoPrevious;
     }
 
-    get #maxStartIndex(): number {
-        return Math.max(0, this.slideCount - this.#normalizedSlidesPerView);
+    const nextButton = this.nextButtonElement;
+    if (nextButton) {
+      nextButton.disabled = !this.canGoNext;
     }
 
-    get #pageStarts(): number[] {
-        return Array.from({ length: this.#maxStartIndex + 1 }, (_, index) => index);
+    const status = this.statusElement;
+    if (status) {
+      status.hidden = !hasMultiplePages;
+      status.textContent = this.currentSlideStatus;
     }
+  }
 
-    #renderPagination(): void {
-        const pagination = this.paginationElement;
-        if (!pagination) {
-            return;
-        }
+  private get viewportElement(): HTMLElement | null {
+    return this.shadowRoot?.querySelector(".viewport") ?? null;
+  }
 
-        pagination.replaceChildren();
+  private get paginationElement(): HTMLElement | null {
+    return this.shadowRoot?.querySelector(".pagination") ?? null;
+  }
 
-        this.#pageStarts.forEach(startIndex => {
-            const button = document.createElement("button");
-            button.className = "dot";
-            button.part.add("dot");
-            button.type = "button";
-            const start = startIndex + 1;
-            const end = Math.min(this.slideCount, startIndex + this.#normalizedSlidesPerView);
-            button.setAttribute(
-                "aria-label",
-                this.#normalizedSlidesPerView === 1
-                    ? `Go to ${this.slides[startIndex]?.label ?? `slide ${start}`}`
-                    : `Go to slides ${start} through ${end}`,
-            );
-            button.addEventListener("click", () => {
-                this.goTo(startIndex);
-            });
-            pagination.append(button);
-        });
+  private get controlsElement(): HTMLElement | null {
+    return this.shadowRoot?.querySelector(".controls") ?? null;
+  }
 
-        this.#syncPaginationState();
-    }
+  private get previousButtonElement(): (HTMLElement & { disabled?: boolean }) | null {
+    return this.shadowRoot?.querySelector(".previous-button") as
+      | (HTMLElement & { disabled?: boolean })
+      | null;
+  }
 
-    #syncPaginationState(): void {
-        const buttons = Array.from(this.shadowRoot?.querySelectorAll(".dot") ?? []) as HTMLButtonElement[];
-        buttons.forEach((button, index) => {
-            button.setAttribute("aria-pressed", String(this.#pageStarts[index] === this.activeIndex));
-        });
-    }
+  private get nextButtonElement(): (HTMLElement & { disabled?: boolean }) | null {
+    return this.shadowRoot?.querySelector(".next-button") as
+      | (HTMLElement & { disabled?: boolean })
+      | null;
+  }
 
-    #syncChromeState(): void {
-        this.style.setProperty("--_carousel-slides-per-view", String(this.#normalizedSlidesPerView));
-        const hasMultiplePages = this.#maxStartIndex > 0;
+  private get statusElement(): HTMLElement | null {
+    return this.shadowRoot?.querySelector(".status") ?? null;
+  }
 
-        const controls = this.controlsElement;
-        if (controls) {
-            controls.hidden = !hasMultiplePages;
-        }
-
-        const previousButton = this.previousButtonElement;
-        if (previousButton) {
-            previousButton.disabled = !this.canGoPrevious;
-        }
-
-        const nextButton = this.nextButtonElement;
-        if (nextButton) {
-            nextButton.disabled = !this.canGoNext;
-        }
-
-        const status = this.statusElement;
-        if (status) {
-            status.hidden = !hasMultiplePages;
-            status.textContent = this.currentSlideStatus;
-        }
-    }
-
-    private get viewportElement(): HTMLElement | null {
-        return this.shadowRoot?.querySelector(".viewport") ?? null;
-    }
-
-    private get paginationElement(): HTMLElement | null {
-        return this.shadowRoot?.querySelector(".pagination") ?? null;
-    }
-
-    private get controlsElement(): HTMLElement | null {
-        return this.shadowRoot?.querySelector(".controls") ?? null;
-    }
-
-    private get previousButtonElement(): (HTMLElement & { disabled?: boolean }) | null {
-        return this.shadowRoot?.querySelector(".previous-button") as (HTMLElement & { disabled?: boolean }) | null;
-    }
-
-    private get nextButtonElement(): (HTMLElement & { disabled?: boolean }) | null {
-        return this.shadowRoot?.querySelector(".next-button") as (HTMLElement & { disabled?: boolean }) | null;
-    }
-
-    private get statusElement(): HTMLElement | null {
-        return this.shadowRoot?.querySelector(".status") ?? null;
-    }
-
-    private get slideElements(): HTMLElement[] {
-        const slot = this.shadowRoot?.querySelector("slot") as HTMLSlotElement | null;
-        return (slot?.assignedElements({ flatten: true }) ?? []).filter(
-            (node): node is HTMLElement => node instanceof HTMLElement,
-        );
-    }
+  private get slideElements(): HTMLElement[] {
+    const slot = this.shadowRoot?.querySelector("slot") as HTMLSlotElement | null;
+    return (slot?.assignedElements({ flatten: true }) ?? []).filter(
+      (node): node is HTMLElement => node instanceof HTMLElement,
+    );
+  }
 }
 
 attr(VioletCarousel.prototype, "appearance");
 attr(VioletCarousel.prototype, "label");
-attr({ attribute: "active-index", converter: integerConverter })(VioletCarousel.prototype, "activeIndex");
-attr({ attribute: "slides-per-view", converter: integerConverter })(VioletCarousel.prototype, "slidesPerView");
+attr({ attribute: "active-index", converter: integerConverter })(
+  VioletCarousel.prototype,
+  "activeIndex",
+);
+attr({ attribute: "slides-per-view", converter: integerConverter })(
+  VioletCarousel.prototype,
+  "slidesPerView",
+);
 attr({ mode: "boolean" })(VioletCarousel.prototype, "loop");
 
 /** The FAST definition of `<violet-carousel>`; `defineVioletCarousel` in `./violet-carousel.define` registers it. */
 export const violetCarouselDefinition = {
-    name: "violet-carousel",
-    template,
-    styles,
-    shadowOptions: {
-        delegatesFocus: true,
-    },
+  name: "violet-carousel",
+  template,
+  styles,
+  shadowOptions: {
+    delegatesFocus: true,
+  },
 } satisfies PartialFASTElementDefinition;

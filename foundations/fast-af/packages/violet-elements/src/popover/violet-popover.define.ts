@@ -7,8 +7,10 @@ import { VioletPopover, violetPopoverDefinition } from "./violet-popover";
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletPopover(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletElement(VioletPopover, violetPopoverDefinition, registry);
+export async function defineVioletPopover(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletElement(VioletPopover, violetPopoverDefinition, registry);
 }
 
 await defineVioletPopover();

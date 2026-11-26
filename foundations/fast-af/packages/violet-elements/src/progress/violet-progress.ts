@@ -1,4 +1,12 @@
-import { FASTElement, Observable, attr, css, html, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  Observable,
+  type PartialFASTElementDefinition,
+  when,
+} from "@lushly-dev/fast-element";
 
 import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -135,32 +143,32 @@ const styles = css`
 
 const template = html<VioletProgress>`
     ${when(
-        x => Boolean((x.label ?? "").trim()) || x.showValueLabel,
-        html<VioletProgress>`
+      (x) => Boolean((x.label ?? "").trim()) || x.showValueLabel,
+      html<VioletProgress>`
             <div class="header" part="header">
                 ${when(
-                    x => Boolean((x.label ?? "").trim()),
-                    html<VioletProgress>`
-                        <p class="label" part="label" id="${x => x.labelId}">${x => x.label}</p>
-                    `
+                  (x) => Boolean((x.label ?? "").trim()),
+                  html<VioletProgress>`
+                        <p class="label" part="label" id="${(x) => x.labelId}">${(x) => x.label}</p>
+                    `,
                 )}
                 ${when(
-                    x => x.showValueLabel,
-                    html<VioletProgress>`
-                        <p class="value-label" part="value-label">${x => x.valueLabel}</p>
-                    `
+                  (x) => x.showValueLabel,
+                  html<VioletProgress>`
+                        <p class="value-label" part="value-label">${(x) => x.valueLabel}</p>
+                    `,
                 )}
             </div>
-        `
+        `,
     )}
     <progress
         class="progress"
         part="progress"
-        max="${x => x.normalizedMax}"
-        value="${x => x.progressValueAttribute}"
-        aria-labelledby="${x => (x.label ?? "").trim() ? x.labelId : null}"
-        aria-label="${x => (x.label ?? "").trim() ? null : "Progress"}"
-        aria-valuetext="${x => x.valueText || null}"
+        max="${(x) => x.normalizedMax}"
+        value="${(x) => x.progressValueAttribute}"
+        aria-labelledby="${(x) => ((x.label ?? "").trim() ? x.labelId : null)}"
+        aria-label="${(x) => ((x.label ?? "").trim() ? null : "Progress")}"
+        aria-valuetext="${(x) => x.valueText || null}"
     ></progress>
 `;
 
@@ -174,65 +182,65 @@ const template = html<VioletProgress>`
  * @csspart progress - The styled native progress element.
  */
 export class VioletProgress extends FASTElement {
-    declare public label: string;
-    declare public value: string;
-    declare public max: string;
-    declare public valueText: string;
+  declare public label: string;
+  declare public value: string;
+  declare public max: string;
+  declare public valueText: string;
 
-    public readonly labelId: string;
+  public readonly labelId: string;
 
-    public constructor() {
-        super();
-        const id = violetProgressId;
-        violetProgressId += 1;
-        this.labelId = `violet-progress-label-${id}`;
-        this.label = "";
-        this.value = "0";
-        this.max = "100";
-        this.valueText = "";
+  public constructor() {
+    super();
+    const id = violetProgressId;
+    violetProgressId += 1;
+    this.labelId = `violet-progress-label-${id}`;
+    this.label = "";
+    this.value = "0";
+    this.max = "100";
+    this.valueText = "";
+  }
+
+  public get normalizedMax(): string {
+    Observable.trackVolatile();
+    const max = Number.parseFloat(this.max);
+    return Number.isFinite(max) && max > 0 ? String(max) : "100";
+  }
+
+  public get progressValueAttribute(): string | null {
+    Observable.trackVolatile();
+    if (this.value === "") {
+      return null;
     }
 
-    public get normalizedMax(): string {
-        Observable.trackVolatile();
-        const max = Number.parseFloat(this.max);
-        return Number.isFinite(max) && max > 0 ? String(max) : "100";
+    const value = Number.parseFloat(this.value);
+    if (!Number.isFinite(value)) {
+      return "0";
     }
 
-    public get progressValueAttribute(): string | null {
-        Observable.trackVolatile();
-        if (this.value === "") {
-            return null;
-        }
+    return String(Math.min(Math.max(value, 0), Number.parseFloat(this.normalizedMax)));
+  }
 
-        const value = Number.parseFloat(this.value);
-        if (!Number.isFinite(value)) {
-            return "0";
-        }
+  public get accessibleLabel(): string {
+    Observable.trackVolatile();
+    return this.label || "Progress";
+  }
 
-        return String(Math.min(Math.max(value, 0), Number.parseFloat(this.normalizedMax)));
+  public get showValueLabel(): boolean {
+    Observable.trackVolatile();
+    return this.value !== "";
+  }
+
+  public get valueLabel(): string {
+    Observable.trackVolatile();
+    if (!this.showValueLabel) {
+      return "";
     }
 
-    public get accessibleLabel(): string {
-        Observable.trackVolatile();
-        return this.label || "Progress";
-    }
-
-    public get showValueLabel(): boolean {
-        Observable.trackVolatile();
-        return this.value !== "";
-    }
-
-    public get valueLabel(): string {
-        Observable.trackVolatile();
-        if (!this.showValueLabel) {
-            return "";
-        }
-
-        const value = Number.parseFloat(this.progressValueAttribute ?? "0");
-        const max = Number.parseFloat(this.normalizedMax);
-        const percent = max > 0 ? Math.round((value / max) * 100) : 0;
-        return `${percent}%`;
-    }
+    const value = Number.parseFloat(this.progressValueAttribute ?? "0");
+    const max = Number.parseFloat(this.normalizedMax);
+    const percent = max > 0 ? Math.round((value / max) * 100) : 0;
+    return `${percent}%`;
+  }
 }
 
 attr(VioletProgress.prototype, "label");
@@ -242,7 +250,7 @@ attr({ attribute: "value-text" })(VioletProgress.prototype, "valueText");
 
 /** The FAST definition of `<violet-progress>`; `defineVioletProgress` in `./violet-progress.define` registers it. */
 export const violetProgressDefinition = {
-    name: "violet-progress",
-    template,
-    styles,
+  name: "violet-progress",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

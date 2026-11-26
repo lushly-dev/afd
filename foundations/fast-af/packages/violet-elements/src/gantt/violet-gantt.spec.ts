@@ -274,8 +274,7 @@ describe("violet-gantt", () => {
     };
     const details: VioletGanttViewportChangeDetail[] = [];
     element.addEventListener("viewport-change", (event) => {
-      const detail = (event as CustomEvent<VioletGanttViewportChangeDetail>)
-        .detail;
+      const detail = (event as CustomEvent<VioletGanttViewportChangeDetail>).detail;
       details.push(detail);
       element.viewport = detail.viewport;
     });
@@ -287,16 +286,10 @@ describe("violet-gantt", () => {
     expect(details).toHaveLength(1);
     expect(details[0]?.reason).toBe("resize");
     expect(details[0]?.viewport.start).toBe("2028-01-01");
-    const scrollViewport = element.shadowRoot?.querySelector<HTMLElement>(
-      ".viewport"
-    );
-    const nameHeader = element.shadowRoot?.querySelector<HTMLElement>(
-      ".name-header"
-    );
-    if (!scrollViewport || !nameHeader)
-      throw new Error("Expected measured Gantt columns.");
-    const available =
-      scrollViewport.clientWidth - nameHeader.getBoundingClientRect().width;
+    const scrollViewport = element.shadowRoot?.querySelector<HTMLElement>(".viewport");
+    const nameHeader = element.shadowRoot?.querySelector<HTMLElement>(".name-header");
+    if (!scrollViewport || !nameHeader) throw new Error("Expected measured Gantt columns.");
+    const available = scrollViewport.clientWidth - nameHeader.getBoundingClientRect().width;
     expect(element.dayWidth).toBe(40);
     expect(element.chartWidth).toBeGreaterThanOrEqual(available);
 
@@ -305,9 +298,7 @@ describe("violet-gantt", () => {
     await nextFrames(5);
     expect(details).toHaveLength(2);
     expect(details[1]?.reason).toBe("resize");
-    const grownEnd = ganttDateToDay(
-      details[1]?.viewport.endExclusive ?? ""
-    );
+    const grownEnd = ganttDateToDay(details[1]?.viewport.endExclusive ?? "");
     const acceptedEnd = ganttDateToDay(accepted.endExclusive);
     expect(grownEnd).not.toBeNull();
     expect(acceptedEnd).not.toBeNull();
@@ -343,9 +334,7 @@ describe("violet-gantt", () => {
     element.status = { kind: "loading" };
     const details: VioletGanttViewportChangeDetail[] = [];
     element.addEventListener("viewport-change", (event) => {
-      details.push(
-        (event as CustomEvent<VioletGanttViewportChangeDetail>).detail
-      );
+      details.push((event as CustomEvent<VioletGanttViewportChangeDetail>).detail);
     });
 
     document.body.append(element);
@@ -383,9 +372,7 @@ describe("violet-gantt", () => {
     };
     const details: VioletGanttViewportChangeDetail[] = [];
     element.addEventListener("viewport-change", (event) => {
-      details.push(
-        (event as CustomEvent<VioletGanttViewportChangeDetail>).detail
-      );
+      details.push((event as CustomEvent<VioletGanttViewportChangeDetail>).detail);
     });
 
     document.body.append(element);
@@ -480,7 +467,8 @@ describe("violet-gantt", () => {
     });
     expect(element.axisContextLabel).toBe("2028 – 2029");
     expect(element.renderedDays.filter((day) => day.label).map((day) => day.label)).toEqual([
-      "Dec", "Jan",
+      "Dec",
+      "Jan",
     ]);
     expect(element.renderedDays[0]?.style).toContain("--_day-label-width:68px");
     element.viewport = { ...element.viewport, scale: "day" };
@@ -496,11 +484,7 @@ describe("violet-gantt", () => {
       ...(element.shadowRoot?.querySelectorAll<HTMLElement>(".day-label") ?? []),
     ].filter((label) => label.textContent?.trim());
 
-    expect(labels.map((label) => label.textContent?.trim())).toEqual([
-      "Apr",
-      "May",
-      "Jun",
-    ]);
+    expect(labels.map((label) => label.textContent?.trim())).toEqual(["Apr", "May", "Jun"]);
     expect(
       labels.map((label) => label.parentElement?.style.getPropertyValue("--_day-label-width")),
     ).toEqual(["120px", "124px", "56px"]);
@@ -592,49 +576,47 @@ describe("violet-gantt", () => {
     );
   });
 
-  it.each([
-    "planned",
-    "derived",
-    "advisory",
-    "actual",
-  ] as const)("anchors a %s point at its date while fitting the label inside the chart", async (provenance) => {
-    const point: VioletGanttItem = {
-      id: "edge-point",
-      rowId: "edge-row",
-      label: "A long milestone label at the end of the visible calendar",
-      time: { kind: "day-point", at: "2028-04-30" },
-      presentation: "milestone",
-      provenance,
-    };
-    const element = await renderGantt({
-      rows: [{ id: "edge-row", label: "Edge row", itemIds: [point.id] }],
-      items: [point],
-      expandedRowIds: [],
-      viewport: { start: "2028-04-01", endExclusive: "2028-05-01", scale: "month" },
-    });
-    const chart = element.shadowRoot!.querySelector<HTMLElement>(".chart")!;
-    const renderedItem = element.shadowRoot!.querySelector<HTMLElement>(".item")!;
-    const label = renderedItem.querySelector<HTMLElement>(".item-label")!;
-    const itemLeft = Number.parseFloat(renderedItem.style.getPropertyValue("--_item-left"));
-    const itemWidth = Number.parseFloat(renderedItem.style.inlineSize);
+  it.each(["planned", "derived", "advisory", "actual"] as const)(
+    "anchors a %s point at its date while fitting the label inside the chart",
+    async (provenance) => {
+      const point: VioletGanttItem = {
+        id: "edge-point",
+        rowId: "edge-row",
+        label: "A long milestone label at the end of the visible calendar",
+        time: { kind: "day-point", at: "2028-04-30" },
+        presentation: "milestone",
+        provenance,
+      };
+      const element = await renderGantt({
+        rows: [{ id: "edge-row", label: "Edge row", itemIds: [point.id] }],
+        items: [point],
+        expandedRowIds: [],
+        viewport: { start: "2028-04-01", endExclusive: "2028-05-01", scale: "month" },
+      });
+      const chart = element.shadowRoot!.querySelector<HTMLElement>(".chart")!;
+      const renderedItem = element.shadowRoot!.querySelector<HTMLElement>(".item")!;
+      const label = renderedItem.querySelector<HTMLElement>(".item-label")!;
+      const itemLeft = Number.parseFloat(renderedItem.style.getPropertyValue("--_item-left"));
+      const itemWidth = Number.parseFloat(renderedItem.style.inlineSize);
 
-    expect(renderedItem.classList.contains("label-before")).toBe(true);
-    expect(itemLeft + itemWidth - 6).toBe(29.5 * 4);
-    const markerStyle = getComputedStyle(renderedItem, "::before");
-    const markerCenter =
-      renderedItem.getBoundingClientRect().right -
-      parseFloat(getComputedStyle(renderedItem).paddingRight) -
-      parseFloat(markerStyle.marginRight) -
-      parseFloat(markerStyle.width) / 2;
-    expect(markerCenter - chart.getBoundingClientRect().left).toBeCloseTo(29.5 * 4, 0);
-    expect(markerStyle.paddingLeft).toBe("0px");
-    expect(markerStyle.paddingRight).toBe("0px");
-    expect(label.getBoundingClientRect().right).toBeLessThanOrEqual(
-      chart.getBoundingClientRect().right + 1,
-    );
-    expect(label.scrollWidth).toBeGreaterThan(label.clientWidth);
-    expect(getComputedStyle(label).textOverflow).toBe("ellipsis");
-  });
+      expect(renderedItem.classList.contains("label-before")).toBe(true);
+      expect(itemLeft + itemWidth - 6).toBe(29.5 * 4);
+      const markerStyle = getComputedStyle(renderedItem, "::before");
+      const markerCenter =
+        renderedItem.getBoundingClientRect().right -
+        parseFloat(getComputedStyle(renderedItem).paddingRight) -
+        parseFloat(markerStyle.marginRight) -
+        parseFloat(markerStyle.width) / 2;
+      expect(markerCenter - chart.getBoundingClientRect().left).toBeCloseTo(29.5 * 4, 0);
+      expect(markerStyle.paddingLeft).toBe("0px");
+      expect(markerStyle.paddingRight).toBe("0px");
+      expect(label.getBoundingClientRect().right).toBeLessThanOrEqual(
+        chart.getBoundingClientRect().right + 1,
+      );
+      expect(label.scrollWidth).toBeGreaterThan(label.clientWidth);
+      expect(getComputedStyle(label).textOverflow).toBe("ellipsis");
+    },
+  );
 
   it("collapses the slot-only toolbar and reveals it when meaningful content is assigned", async () => {
     const element = await renderGantt();

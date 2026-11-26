@@ -7,8 +7,10 @@ import { VioletCheckbox, violetCheckboxDefinition } from "./violet-checkbox";
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletCheckbox(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletElement(VioletCheckbox, violetCheckboxDefinition, registry);
+export async function defineVioletCheckbox(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletElement(VioletCheckbox, violetCheckboxDefinition, registry);
 }
 
 await defineVioletCheckbox();

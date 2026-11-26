@@ -7,8 +7,10 @@ import { VioletTextField, violetTextFieldDefinition } from "./violet-text-field"
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletTextField(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletElement(VioletTextField, violetTextFieldDefinition, registry);
+export async function defineVioletTextField(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletElement(VioletTextField, violetTextFieldDefinition, registry);
 }
 
 await defineVioletTextField();

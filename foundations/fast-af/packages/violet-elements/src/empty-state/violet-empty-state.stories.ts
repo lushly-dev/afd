@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect } from "@lushly-dev/specimen/test";
+import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 
 import "./violet-empty-state.define";
 import "../button/violet-button.define";
@@ -20,39 +20,40 @@ const demoImage = `data:image/svg+xml;utf8,${encodeURIComponent(`
 `)}`;
 
 const meta: Meta<VioletEmptyState> = {
-    title: "Components/Empty State",
-    component: "violet-empty-state",
-    tags: ["autodocs"],
-    parameters: {
-        docs: {
-            description: {
-                component:
-                    "Composable Violet empty-state surface for no-content, no-results, and first-run views. It keeps the copy contract simple while allowing slotted media and actions.",
-            },
-        },
+  title: "Components/Empty State",
+  component: "violet-empty-state",
+  tags: ["autodocs"],
+  parameters: {
+    docs: {
+      description: {
+        component:
+          "Composable Violet empty-state surface for no-content, no-results, and first-run views. It keeps the copy contract simple while allowing slotted media and actions.",
+      },
     },
-    args: {
-        heading: "No plans yet",
-        message: "Create your first crop plan to start scheduling propagation, irrigation, and harvest windows.",
-        appearance: "subtle",
-        orientation: "vertical",
+  },
+  args: {
+    heading: "No plans yet",
+    message:
+      "Create your first crop plan to start scheduling propagation, irrigation, and harvest windows.",
+    appearance: "subtle",
+    orientation: "vertical",
+  },
+  argTypes: {
+    appearance: {
+      control: "select",
+      options: ["plain", "subtle", "outline"],
     },
-    argTypes: {
-        appearance: {
-            control: "select",
-            options: ["plain", "subtle", "outline"],
-        },
-        orientation: {
-            control: "select",
-            options: ["vertical", "horizontal"],
-        },
+    orientation: {
+      control: "select",
+      options: ["vertical", "horizontal"],
     },
-    render: args => {
-        const heading = args.heading ?? "";
-        const message = args.message ?? "";
-        const appearance = args.appearance ?? "subtle";
-        const orientation = args.orientation ?? "vertical";
-        return `
+  },
+  render: (args) => {
+    const heading = args.heading ?? "";
+    const message = args.message ?? "";
+    const appearance = args.appearance ?? "subtle";
+    const orientation = args.orientation ?? "vertical";
+    return `
             <div style="max-inline-size:32rem;">
                 <violet-empty-state heading="${heading}" message="${message}" appearance="${appearance}" orientation="${orientation}">
                     <violet-image slot="media" src="${demoImage}" alt="" decorative ratio="square" style="inline-size:6rem;"></violet-image>
@@ -61,34 +62,34 @@ const meta: Meta<VioletEmptyState> = {
                 </violet-empty-state>
             </div>
         `;
-    },
+  },
 };
 
 export default meta;
 
 export const Overview: Story = {
-    play: async ({ canvasElement }) => {
-        const state = canvasElement.querySelector("violet-empty-state");
-        await expect(state?.getAttribute("heading")).toBe("No plans yet");
-    },
+  play: async ({ canvasElement }) => {
+    const state = canvasElement.querySelector("violet-empty-state");
+    await expect(state?.getAttribute("heading")).toBe("No plans yet");
+  },
 };
 
 export const Outline: Story = {
-    args: {
-        appearance: "outline",
-        heading: "No matching cultivars",
-        message: "Try broadening your filters or importing a new seed inventory list.",
-    },
+  args: {
+    appearance: "outline",
+    heading: "No matching cultivars",
+    message: "Try broadening your filters or importing a new seed inventory list.",
+  },
 };
 
 export const Horizontal: Story = {
-    args: {
-        orientation: "horizontal",
-        appearance: "plain",
-        heading: "No assignee selected",
-        message: "Assign a grower to keep notifications and approvals moving smoothly.",
-    },
-    render: args => `
+  args: {
+    orientation: "horizontal",
+    appearance: "plain",
+    heading: "No assignee selected",
+    message: "Assign a grower to keep notifications and approvals moving smoothly.",
+  },
+  render: (args) => `
         <div style="max-inline-size:40rem;">
             <violet-empty-state
                 heading="${args.heading ?? ""}"
@@ -104,7 +105,7 @@ export const Horizontal: Story = {
 };
 
 export const CopyOnly: Story = {
-    render: () => `
+  render: () => `
         <div style="max-inline-size:28rem;">
             <violet-empty-state
                 heading="No recent notes"

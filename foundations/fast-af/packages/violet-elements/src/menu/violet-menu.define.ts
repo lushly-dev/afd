@@ -7,8 +7,10 @@ import { VioletMenu, violetMenuDefinition } from "./violet-menu";
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletMenu(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletElement(VioletMenu, violetMenuDefinition, registry);
+export async function defineVioletMenu(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletElement(VioletMenu, violetMenuDefinition, registry);
 }
 
 await defineVioletMenu();

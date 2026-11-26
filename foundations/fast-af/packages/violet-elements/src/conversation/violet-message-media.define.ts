@@ -1,5 +1,5 @@
-import { defineVioletElement } from "../shared/define-element";
 import { defineVioletIcon } from "../icon/violet-icon.define";
+import { defineVioletElement } from "../shared/define-element";
 import { VioletMessageMedia, violetMessageMediaDefinition } from "./violet-message-media";
 
 /**
@@ -8,9 +8,11 @@ import { VioletMessageMedia, violetMessageMediaDefinition } from "./violet-messa
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletMessageMedia(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletIcon(registry);
-    await defineVioletElement(VioletMessageMedia, violetMessageMediaDefinition, registry);
+export async function defineVioletMessageMedia(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletIcon(registry);
+  await defineVioletElement(VioletMessageMedia, violetMessageMediaDefinition, registry);
 }
 
 await defineVioletMessageMedia();

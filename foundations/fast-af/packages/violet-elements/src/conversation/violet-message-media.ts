@@ -1,7 +1,13 @@
-import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
-
-import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 import { registerSystemAttachIcon } from "../icon/generated/icons/system-attach";
+import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
 const styles = css`
     ${violetSurfaceTokenDefaults}
@@ -92,7 +98,7 @@ const styles = css`
 
 const template = html<VioletMessageMedia>`
     <div class="root" part="root">
-        ${x => x.renderMedia()}
+        ${(x) => x.renderMedia()}
     </div>
 `;
 
@@ -113,122 +119,122 @@ const template = html<VioletMessageMedia>`
  * @csspart icon - The file type icon.
  */
 export class VioletMessageMedia extends FASTElement {
-    declare public src: string;
-    declare public mediaType: string;
-    declare public filename: string;
-    declare public alt: string;
-    declare public allowedOrigins: string;
+  declare public src: string;
+  declare public mediaType: string;
+  declare public filename: string;
+  declare public alt: string;
+  declare public allowedOrigins: string;
 
-    /** The src whose image failed to load; the file row shows while it equals `src`. */
-    @observable
-    private failedSrc = "";
+  /** The src whose image failed to load; the file row shows while it equals `src`. */
+  @observable
+  private failedSrc = "";
 
-    public constructor() {
-        super();
-        this.src = "";
-        this.mediaType = "";
-        this.filename = "";
-        this.alt = "";
-        this.allowedOrigins = "";
+  public constructor() {
+    super();
+    this.src = "";
+    this.mediaType = "";
+    this.filename = "";
+    this.alt = "";
+    this.allowedOrigins = "";
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    registerSystemAttachIcon();
+  }
+
+  /**
+   * Whether `src` may be requested under the `allowed-origins` policy. Always true when no
+   * policy is set. Relative, same-origin, `data:` and `blob:` sources are local and always
+   * allowed; any other source needs its origin on the list (unparsable or non-http(s) fails).
+   */
+  public isSourceAllowed(): boolean {
+    const policy = this.allowedOrigins.trim();
+    if (!policy) {
+      return true;
     }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        registerSystemAttachIcon();
+    let url: URL;
+    try {
+      url = new URL(this.src, document.baseURI);
+    } catch {
+      return false;
     }
 
-    /**
-     * Whether `src` may be requested under the `allowed-origins` policy. Always true when no
-     * policy is set. Relative, same-origin, `data:` and `blob:` sources are local and always
-     * allowed; any other source needs its origin on the list (unparsable or non-http(s) fails).
-     */
-    public isSourceAllowed(): boolean {
-        const policy = this.allowedOrigins.trim();
-        if (!policy) {
-            return true;
-        }
-
-        let url: URL;
-        try {
-            url = new URL(this.src, document.baseURI);
-        } catch {
-            return false;
-        }
-
-        if (url.protocol === "data:" || url.protocol === "blob:" || url.origin === location.origin) {
-            return true;
-        }
-
-        if (url.protocol !== "http:" && url.protocol !== "https:") {
-            return false;
-        }
-
-        return policy.split(/\s+/).some(entry => {
-            try {
-                return new URL(entry).origin === url.origin;
-            } catch {
-                return false;
-            }
-        });
+    if (url.protocol === "data:" || url.protocol === "blob:" || url.origin === location.origin) {
+      return true;
     }
 
-    public handleImageError(): void {
-        this.failedSrc = this.src;
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return false;
     }
 
-    public renderMedia(): ReturnType<typeof html> {
-        if (!this.src) {
-            return html``;
-        }
+    return policy.split(/\s+/).some((entry) => {
+      try {
+        return new URL(entry).origin === url.origin;
+      } catch {
+        return false;
+      }
+    });
+  }
 
-        if (!this.isSourceAllowed() || this.failedSrc === this.src) {
-            return this.renderFileRow();
-        }
+  public handleImageError(): void {
+    this.failedSrc = this.src;
+  }
 
-        const type = this.mediaType.split("/")[0].toLowerCase();
+  public renderMedia(): ReturnType<typeof html> {
+    if (!this.src) {
+      return html``;
+    }
 
-        if (type === "image") {
-            return html<VioletMessageMedia>`
+    if (!this.isSourceAllowed() || this.failedSrc === this.src) {
+      return this.renderFileRow();
+    }
+
+    const type = this.mediaType.split("/")[0].toLowerCase();
+
+    if (type === "image") {
+      return html<VioletMessageMedia>`
                 <div class="preview" part="preview">
-                    <img src="${x => x.src}" alt="${x => x.alt || x.filename || "Image"}" loading="lazy" referrerpolicy="no-referrer" @error="${x => x.handleImageError()}" />
+                    <img src="${(x) => x.src}" alt="${(x) => x.alt || x.filename || "Image"}" loading="lazy" referrerpolicy="no-referrer" @error="${(x) => x.handleImageError()}" />
                 </div>
             `;
-        }
+    }
 
-        if (type === "audio") {
-            return html<VioletMessageMedia>`
+    if (type === "audio") {
+      return html<VioletMessageMedia>`
                 <div class="preview" part="preview">
                     <audio controls preload="metadata">
-                        <source src="${x => x.src}" type="${x => x.mediaType}" />
+                        <source src="${(x) => x.src}" type="${(x) => x.mediaType}" />
                     </audio>
                 </div>
             `;
-        }
+    }
 
-        if (type === "video") {
-            return html<VioletMessageMedia>`
+    if (type === "video") {
+      return html<VioletMessageMedia>`
                 <div class="preview" part="preview">
                     <video controls preload="metadata">
-                        <source src="${x => x.src}" type="${x => x.mediaType}" />
+                        <source src="${(x) => x.src}" type="${(x) => x.mediaType}" />
                     </video>
                 </div>
             `;
-        }
-
-        return this.renderFileRow();
     }
 
-    private renderFileRow(): ReturnType<typeof html> {
-        return html<VioletMessageMedia>`
+    return this.renderFileRow();
+  }
+
+  private renderFileRow(): ReturnType<typeof html> {
+    return html<VioletMessageMedia>`
             <div class="file-row">
                 <span class="file-icon" part="icon"><violet-icon icon="system/attach" decorative></violet-icon></span>
                 <div class="file-info">
-                    <span class="file-name" part="filename">${x => x.filename || "File"}</span>
-                    <span class="file-type">${x => x.mediaType || "Unknown type"}</span>
+                    <span class="file-name" part="filename">${(x) => x.filename || "File"}</span>
+                    <span class="file-type">${(x) => x.mediaType || "Unknown type"}</span>
                 </div>
             </div>
         `;
-    }
+  }
 }
 
 attr(VioletMessageMedia.prototype, "src");
@@ -239,7 +245,7 @@ attr({ attribute: "allowed-origins" })(VioletMessageMedia.prototype, "allowedOri
 
 /** The FAST definition of `<violet-message-media>`; `defineVioletMessageMedia` in `./violet-message-media.define` registers it. */
 export const violetMessageMediaDefinition = {
-    name: "violet-message-media",
-    template,
-    styles,
+  name: "violet-message-media",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

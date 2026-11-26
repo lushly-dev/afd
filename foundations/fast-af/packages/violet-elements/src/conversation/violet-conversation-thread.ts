@@ -1,4 +1,11 @@
-import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -55,22 +62,22 @@ const styles = css`
 `;
 
 const template = html<VioletConversationThread>`
-    <div class="empty" part="empty" ?hidden="${x => !x.empty}">
+    <div class="empty" part="empty" ?hidden="${(x) => !x.empty}">
         <slot name="empty"></slot>
     </div>
     <div
         class="scroll-region"
         part="scroll-region"
         role="log"
-        aria-live="${x => x.busy ? "off" : "polite"}"
-        aria-busy="${x => x.busy ? "true" : "false"}"
+        aria-live="${(x) => (x.busy ? "off" : "polite")}"
+        aria-busy="${(x) => (x.busy ? "true" : "false")}"
         tabindex="0"
-        ?hidden="${x => x.empty}"
+        ?hidden="${(x) => x.empty}"
         @scroll="${(x, c) => x.handleScroll(c.event)}"
-        @wheel="${x => x.cancelAutoScroll()}"
-        @touchstart="${x => x.cancelAutoScroll()}"
-        @pointerdown="${x => x.cancelAutoScroll()}"
-        @keydown="${x => x.cancelAutoScroll()}"
+        @wheel="${(x) => x.cancelAutoScroll()}"
+        @touchstart="${(x) => x.cancelAutoScroll()}"
+        @pointerdown="${(x) => x.cancelAutoScroll()}"
+        @keydown="${(x) => x.cancelAutoScroll()}"
     >
         <div class="content" part="content">
             <slot></slot>
@@ -91,128 +98,128 @@ const template = html<VioletConversationThread>`
  * @csspart empty - The empty state container.
  */
 export class VioletConversationThread extends FASTElement {
-    declare public busy: boolean;
-    declare public empty: boolean;
+  declare public busy: boolean;
+  declare public empty: boolean;
 
-    @observable
-    declare public isOverflowing: boolean;
+  @observable
+  declare public isOverflowing: boolean;
 
-    @observable
-    declare public userScrolledAway: boolean;
+  @observable
+  declare public userScrolledAway: boolean;
 
-    public constructor() {
-        super();
-        this.busy = false;
-        this.empty = false;
-        this.isOverflowing = false;
-        this.userScrolledAway = false;
+  public constructor() {
+    super();
+    this.busy = false;
+    this.empty = false;
+    this.isOverflowing = false;
+    this.userScrolledAway = false;
+  }
+
+  get #scrollRegion(): HTMLElement | null {
+    return this.shadowRoot?.querySelector(".scroll-region") ?? null;
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    this.#observeContent();
+    this.#observeResize();
+    this.#scheduleOverflowSync();
+  }
+
+  public scrollToBottom(): void {
+    const region = this.#scrollRegion;
+    if (!region) {
+      return;
     }
 
-    get #scrollRegion(): HTMLElement | null {
-        return this.shadowRoot?.querySelector(".scroll-region") ?? null;
+    region.scrollTop = region.scrollHeight;
+    this.userScrolledAway = false;
+    // With `scroll-behavior: smooth` the browser fires scroll events mid-animation while still far from the
+    // bottom; ignore those until the animation lands or the user takes over.
+    this.#autoScrolling = region.scrollHeight - region.scrollTop - region.clientHeight > 1;
+  }
+
+  /** User input takes over from a programmatic scroll. Returns true so the default action is kept. */
+  public cancelAutoScroll(): boolean {
+    this.#autoScrolling = false;
+    return true;
+  }
+
+  #autoScrolling = false;
+
+  public handleScroll(_event: Event): void {
+    const region = this.#scrollRegion;
+    if (!region) {
+      return;
     }
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        this.#observeContent();
-        this.#observeResize();
-        this.#scheduleOverflowSync();
-    }
-
-    public scrollToBottom(): void {
-        const region = this.#scrollRegion;
-        if (!region) {
-            return;
-        }
-
-        region.scrollTop = region.scrollHeight;
-        this.userScrolledAway = false;
-        // With `scroll-behavior: smooth` the browser fires scroll events mid-animation while still far from the
-        // bottom; ignore those until the animation lands or the user takes over.
-        this.#autoScrolling = region.scrollHeight - region.scrollTop - region.clientHeight > 1;
-    }
-
-    /** User input takes over from a programmatic scroll. Returns true so the default action is kept. */
-    public cancelAutoScroll(): boolean {
+    const distanceFromBottom = region.scrollHeight - region.scrollTop - region.clientHeight;
+    if (this.#autoScrolling) {
+      if (distanceFromBottom <= 1) {
         this.#autoScrolling = false;
-        return true;
+      }
+      return;
     }
+    this.userScrolledAway = distanceFromBottom > 50;
+  }
 
-    #autoScrolling = false;
+  #observer: MutationObserver | null = null;
+  #resizeObserver: ResizeObserver | null = null;
 
-    public handleScroll(_event: Event): void {
-        const region = this.#scrollRegion;
-        if (!region) {
-            return;
+  #observeContent(): void {
+    this.#observer = new MutationObserver(() => {
+      this.#scheduleOverflowSync();
+      if (!this.userScrolledAway) {
+        requestAnimationFrame(() => this.scrollToBottom());
+      }
+    });
+
+    const slot = this.shadowRoot?.querySelector("slot:not([name])") as HTMLSlotElement | null;
+    if (slot) {
+      slot.addEventListener("slotchange", () => {
+        this.#scheduleOverflowSync();
+        if (!this.userScrolledAway) {
+          requestAnimationFrame(() => this.scrollToBottom());
         }
-
-        const distanceFromBottom = region.scrollHeight - region.scrollTop - region.clientHeight;
-        if (this.#autoScrolling) {
-            if (distanceFromBottom <= 1) {
-                this.#autoScrolling = false;
-            }
-            return;
-        }
-        this.userScrolledAway = distanceFromBottom > 50;
+      });
     }
 
-    #observer: MutationObserver | null = null;
-    #resizeObserver: ResizeObserver | null = null;
+    this.#observer.observe(this, { childList: true, subtree: true, characterData: true });
+  }
 
-    #observeContent(): void {
-        this.#observer = new MutationObserver(() => {
-            this.#scheduleOverflowSync();
-            if (!this.userScrolledAway) {
-                requestAnimationFrame(() => this.scrollToBottom());
-            }
-        });
-
-        const slot = this.shadowRoot?.querySelector("slot:not([name])") as HTMLSlotElement | null;
-        if (slot) {
-            slot.addEventListener("slotchange", () => {
-                this.#scheduleOverflowSync();
-                if (!this.userScrolledAway) {
-                    requestAnimationFrame(() => this.scrollToBottom());
-                }
-            });
-        }
-
-        this.#observer.observe(this, { childList: true, subtree: true, characterData: true });
+  #observeResize(): void {
+    const region = this.#scrollRegion;
+    if (!region || typeof ResizeObserver === "undefined") {
+      return;
     }
 
-    #observeResize(): void {
-        const region = this.#scrollRegion;
-        if (!region || typeof ResizeObserver === "undefined") {
-            return;
-        }
+    this.#resizeObserver = new ResizeObserver(() => {
+      this.#scheduleOverflowSync();
+    });
+    this.#resizeObserver.observe(region);
+  }
 
-        this.#resizeObserver = new ResizeObserver(() => {
-            this.#scheduleOverflowSync();
-        });
-        this.#resizeObserver.observe(region);
+  #scheduleOverflowSync(): void {
+    requestAnimationFrame(() => this.#updateOverflowState());
+  }
+
+  #updateOverflowState(): void {
+    const region = this.#scrollRegion;
+    if (!region || this.empty) {
+      this.isOverflowing = false;
+      return;
     }
 
-    #scheduleOverflowSync(): void {
-        requestAnimationFrame(() => this.#updateOverflowState());
-    }
+    this.isOverflowing = region.scrollHeight - region.clientHeight > 1;
+  }
 
-    #updateOverflowState(): void {
-        const region = this.#scrollRegion;
-        if (!region || this.empty) {
-            this.isOverflowing = false;
-            return;
-        }
-
-        this.isOverflowing = region.scrollHeight - region.clientHeight > 1;
-    }
-
-    public disconnectedCallback(): void {
-        super.disconnectedCallback();
-        this.#observer?.disconnect();
-        this.#observer = null;
-        this.#resizeObserver?.disconnect();
-        this.#resizeObserver = null;
-    }
+  public disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.#observer?.disconnect();
+    this.#observer = null;
+    this.#resizeObserver?.disconnect();
+    this.#resizeObserver = null;
+  }
 }
 
 attr({ mode: "boolean" })(VioletConversationThread.prototype, "busy");
@@ -220,7 +227,7 @@ attr({ mode: "boolean" })(VioletConversationThread.prototype, "empty");
 
 /** The FAST definition of `<violet-conversation-thread>`; `defineVioletConversationThread` in `./violet-conversation-thread.define` registers it. */
 export const violetConversationThreadDefinition = {
-    name: "violet-conversation-thread",
-    template,
-    styles,
+  name: "violet-conversation-thread",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, waitFor } from "@lushly-dev/specimen/test";
+import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 
 import "./violet-image.define";
 import "../text/violet-text.define";
@@ -20,72 +20,72 @@ const demoImage = `data:image/svg+xml;utf8,${encodeURIComponent(`
 `)}`;
 
 const meta: Meta<VioletImage> = {
-    title: "Components/Image",
-    component: "violet-image",
-    tags: ["autodocs"],
-    parameters: {
-        docs: {
-            description: {
-                component:
-                    "Native-first Violet image primitive with controlled aspect ratio, object-fit behavior, and fallback handling for decorative or informative media.",
-            },
-        },
+  title: "Components/Image",
+  component: "violet-image",
+  tags: ["autodocs"],
+  parameters: {
+    docs: {
+      description: {
+        component:
+          "Native-first Violet image primitive with controlled aspect ratio, object-fit behavior, and fallback handling for decorative or informative media.",
+      },
     },
-    args: {
-        src: demoImage,
-        alt: "Greenhouse planting trays in a light-filled growing room",
-        fit: "cover",
-        ratio: "landscape",
-        shape: "rounded",
-        loading: "lazy",
-        decorative: false,
+  },
+  args: {
+    src: demoImage,
+    alt: "Greenhouse planting trays in a light-filled growing room",
+    fit: "cover",
+    ratio: "landscape",
+    shape: "rounded",
+    loading: "lazy",
+    decorative: false,
+  },
+  argTypes: {
+    fit: {
+      control: "select",
+      options: ["cover", "contain", "fill"],
     },
-    argTypes: {
-        fit: {
-            control: "select",
-            options: ["cover", "contain", "fill"],
-        },
-        ratio: {
-            control: "select",
-            options: ["auto", "square", "landscape", "portrait", "video"],
-        },
-        shape: {
-            control: "select",
-            options: ["square", "rounded", "circle"],
-        },
-        loading: {
-            control: "select",
-            options: ["eager", "lazy"],
-        },
-        decorative: {
-            control: "boolean",
-        },
+    ratio: {
+      control: "select",
+      options: ["auto", "square", "landscape", "portrait", "video"],
     },
-    render: args => {
-        const src = args.src ?? "";
-        const alt = args.alt ?? "";
-        const fit = args.fit ?? "cover";
-        const ratio = args.ratio ?? "landscape";
-        const shape = args.shape ?? "rounded";
-        const loading = args.loading ?? "lazy";
-        const decorative = args.decorative ? "decorative" : "";
+    shape: {
+      control: "select",
+      options: ["square", "rounded", "circle"],
+    },
+    loading: {
+      control: "select",
+      options: ["eager", "lazy"],
+    },
+    decorative: {
+      control: "boolean",
+    },
+  },
+  render: (args) => {
+    const src = args.src ?? "";
+    const alt = args.alt ?? "";
+    const fit = args.fit ?? "cover";
+    const ratio = args.ratio ?? "landscape";
+    const shape = args.shape ?? "rounded";
+    const loading = args.loading ?? "lazy";
+    const decorative = args.decorative ? "decorative" : "";
 
-        return `<div style="max-inline-size: 20rem;"><violet-image src="${src}" alt="${alt}" fit="${fit}" ratio="${ratio}" shape="${shape}" loading="${loading}" ${decorative}></violet-image></div>`;
-    },
+    return `<div style="max-inline-size: 20rem;"><violet-image src="${src}" alt="${alt}" fit="${fit}" ratio="${ratio}" shape="${shape}" loading="${loading}" ${decorative}></violet-image></div>`;
+  },
 };
 
 export default meta;
 
 export const Overview: Story = {
-    play: async ({ canvasElement }) => {
-        const image = canvasElement.querySelector("violet-image");
-        const media = image?.shadowRoot?.querySelector("img");
-        await expect(media?.getAttribute("src")).toContain("data:image/svg+xml");
-    },
+  play: async ({ canvasElement }) => {
+    const image = canvasElement.querySelector("violet-image");
+    const media = image?.shadowRoot?.querySelector("img");
+    await expect(media?.getAttribute("src")).toContain("data:image/svg+xml");
+  },
 };
 
 export const ShapesAndRatios: Story = {
-    render: () => `
+  render: () => `
         <div style="display:grid;grid-template-columns:repeat(3,minmax(0,12rem));gap:16px;">
             <violet-image src="${demoImage}" alt="Propagation trays" ratio="square" shape="square"></violet-image>
             <violet-image src="${demoImage}" alt="Propagation trays" ratio="portrait" shape="rounded"></violet-image>
@@ -95,7 +95,7 @@ export const ShapesAndRatios: Story = {
 };
 
 export const ContainFit: Story = {
-    render: () => `
+  render: () => `
         <div style="max-inline-size: 16rem;">
             <violet-image src="${demoImage}" alt="Propagation trays" ratio="video" fit="contain"></violet-image>
         </div>
@@ -103,7 +103,7 @@ export const ContainFit: Story = {
 };
 
 export const Fallback: Story = {
-    render: () => `
+  render: () => `
         <div style="max-inline-size: 16rem;">
             <violet-image alt="Fallback planting image" ratio="landscape">
                 <violet-text slot="fallback" variant="caption">Image unavailable</violet-text>
@@ -113,31 +113,31 @@ export const Fallback: Story = {
 };
 
 export const ErrorFallback: Story = {
-    render: () => `
+  render: () => `
         <div style="max-inline-size: 16rem;">
             <violet-image src="${brokenImage}" alt="Fallback planting image" ratio="landscape">
                 <violet-text slot="fallback" variant="caption" tone="muted">Image unavailable</violet-text>
             </violet-image>
         </div>
     `,
-    // The fallback shows only after the image's error event, so wait for it before the capture.
-    play: async ({ canvasElement }) => {
-        const image = canvasElement.querySelector("violet-image");
-        await waitFor(() => {
-            expect(image?.shadowRoot?.querySelector<HTMLElement>(".fallback")?.hidden).toBe(false);
-            expect(image?.shadowRoot?.querySelector<HTMLElement>(".media")?.hidden).toBe(true);
-        });
-    },
+  // The fallback shows only after the image's error event, so wait for it before the capture.
+  play: async ({ canvasElement }) => {
+    const image = canvasElement.querySelector("violet-image");
+    await waitFor(() => {
+      expect(image?.shadowRoot?.querySelector<HTMLElement>(".fallback")?.hidden).toBe(false);
+      expect(image?.shadowRoot?.querySelector<HTMLElement>(".media")?.hidden).toBe(true);
+    });
+  },
 };
 
 export const Decorative: Story = {
-    args: {
-        decorative: true,
-        alt: "",
-    },
-    play: async ({ canvasElement }) => {
-        const image = canvasElement.querySelector("violet-image");
-        const root = image?.shadowRoot?.querySelector(".root");
-        await expect(root?.getAttribute("aria-hidden")).toBe("true");
-    },
+  args: {
+    decorative: true,
+    alt: "",
+  },
+  play: async ({ canvasElement }) => {
+    const image = canvasElement.querySelector("violet-image");
+    const root = image?.shadowRoot?.querySelector(".root");
+    await expect(root?.getAttribute("aria-hidden")).toBe("true");
+  },
 };

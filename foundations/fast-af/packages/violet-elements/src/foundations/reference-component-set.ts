@@ -13,7 +13,13 @@ export const referenceComponentSet: ReferenceComponentDefinition[] = [
     title: "Data Grid",
     status: "done",
     shape: "Dense structured data, selection, sorting, scrolling, and composed controls.",
-    validates: ["surface hierarchy", "row states", "selection", "spacing density", "focus visibility"],
+    validates: [
+      "surface hierarchy",
+      "row states",
+      "selection",
+      "spacing density",
+      "focus visibility",
+    ],
     whyItMatters:
       "It is the richest composite in the set and pressure-tests nearly every foundational token family at once.",
   },
@@ -102,8 +108,14 @@ export const referenceComponentSet: ReferenceComponentDefinition[] = [
     id: "carousel",
     title: "Carousel",
     status: "done",
-    shape: "Paged horizontal surface with slotted slides, generated navigation, and active item state.",
-    validates: ["scroll snapping", "overlay-free navigation", "active vs inactive content", "control grouping"],
+    shape:
+      "Paged horizontal surface with slotted slides, generated navigation, and active item state.",
+    validates: [
+      "scroll snapping",
+      "overlay-free navigation",
+      "active vs inactive content",
+      "control grouping",
+    ],
     whyItMatters:
       "Carousels pressure-test how well the system handles reusable composite navigation around arbitrary content instead of one fixed media type.",
   },
@@ -111,8 +123,15 @@ export const referenceComponentSet: ReferenceComponentDefinition[] = [
     id: "tree",
     title: "Tree",
     status: "done",
-    shape: "Hierarchical navigation and selection surface with expansion, focus movement, and nested item metadata.",
-    validates: ["hierarchy clarity", "keyboard traversal", "selection vs focus", "nested spacing", "branch indicators"],
+    shape:
+      "Hierarchical navigation and selection surface with expansion, focus movement, and nested item metadata.",
+    validates: [
+      "hierarchy clarity",
+      "keyboard traversal",
+      "selection vs focus",
+      "nested spacing",
+      "branch indicators",
+    ],
     whyItMatters:
       "Trees prove whether the system can express hierarchy, expansion, and single selection without collapsing into listbox or accordion patterns.",
   },
@@ -120,8 +139,15 @@ export const referenceComponentSet: ReferenceComponentDefinition[] = [
     id: "color-picker",
     title: "Color Picker",
     status: "done",
-    shape: "Field-like color selection control with a swatch trigger, textual value, channel editing, and suggested presets.",
-    validates: ["non-color value fallback", "popover composition", "token-driven previews", "form value clarity", "editable color channels"],
+    shape:
+      "Field-like color selection control with a swatch trigger, textual value, channel editing, and suggested presets.",
+    validates: [
+      "non-color value fallback",
+      "popover composition",
+      "token-driven previews",
+      "form value clarity",
+      "editable color channels",
+    ],
     whyItMatters:
       "Color pickers pressure-test whether the system can expose complex visual input without relying on color alone or falling back to browser-default chrome.",
   },

@@ -5,18 +5,22 @@
  * declaration or open another one (`;`, braces, comments, `url(`) is refused.
  */
 export function safeCssValue(property: string, value: unknown): string | undefined {
-    if (typeof value !== "string") {
-        return undefined;
-    }
+  if (typeof value !== "string") {
+    return undefined;
+  }
 
-    const trimmed = value.trim();
-    if (!trimmed || /[;{}\\]|\/\*|url\s*\(|expression\s*\(/i.test(trimmed)) {
-        return undefined;
-    }
+  const trimmed = value.trim();
+  if (!trimmed || /[;{}\\]|\/\*|url\s*\(|expression\s*\(/i.test(trimmed)) {
+    return undefined;
+  }
 
-    if (typeof CSS !== "undefined" && typeof CSS.supports === "function" && !CSS.supports(property, trimmed)) {
-        return undefined;
-    }
+  if (
+    typeof CSS !== "undefined" &&
+    typeof CSS.supports === "function" &&
+    !CSS.supports(property, trimmed)
+  ) {
+    return undefined;
+  }
 
-    return trimmed;
+  return trimmed;
 }

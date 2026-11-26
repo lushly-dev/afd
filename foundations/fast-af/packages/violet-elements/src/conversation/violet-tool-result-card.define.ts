@@ -1,6 +1,6 @@
-import { defineVioletElement } from "../shared/define-element";
-import { defineVioletIcon } from "../icon/violet-icon.define";
 import { defineVioletCard } from "../card/violet-card.define";
+import { defineVioletIcon } from "../icon/violet-icon.define";
+import { defineVioletElement } from "../shared/define-element";
 import { VioletToolResultCard, violetToolResultCardDefinition } from "./violet-tool-result-card";
 
 /**
@@ -9,10 +9,12 @@ import { VioletToolResultCard, violetToolResultCardDefinition } from "./violet-t
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletToolResultCard(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletIcon(registry);
-    await defineVioletCard(registry);
-    await defineVioletElement(VioletToolResultCard, violetToolResultCardDefinition, registry);
+export async function defineVioletToolResultCard(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletIcon(registry);
+  await defineVioletCard(registry);
+  await defineVioletElement(VioletToolResultCard, violetToolResultCardDefinition, registry);
 }
 
 await defineVioletToolResultCard();

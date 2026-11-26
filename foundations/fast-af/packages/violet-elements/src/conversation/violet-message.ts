@@ -1,4 +1,11 @@
-import { FASTElement, attr, css, html, observable, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 
 import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
@@ -116,15 +123,15 @@ const template = html<VioletMessage>`
     <article
         class="root"
         part="root"
-        aria-label="${x => `${x.messageRole} message`}"
-        aria-busy="${x => (x.streaming ? "true" : null)}"
+        aria-label="${(x) => `${x.messageRole} message`}"
+        aria-busy="${(x) => (x.streaming ? "true" : null)}"
     >
-        <div class="avatar" part="avatar" ?hidden="${x => !x.hasAvatar}">
-            <slot name="avatar" @slotchange="${x => x.handleAvatarSlotChange()}"></slot>
+        <div class="avatar" part="avatar" ?hidden="${(x) => !x.hasAvatar}">
+            <slot name="avatar" @slotchange="${(x) => x.handleAvatarSlotChange()}"></slot>
         </div>
         <div class="surface" part="surface">
-            <div class="meta" part="meta" ?hidden="${x => !x.hasMeta}">
-                <slot name="meta" @slotchange="${x => x.handleMetaSlotChange()}"></slot>
+            <div class="meta" part="meta" ?hidden="${(x) => !x.hasMeta}">
+                <slot name="meta" @slotchange="${(x) => x.handleMetaSlotChange()}"></slot>
             </div>
             <div class="body" part="body">
                 <slot></slot>
@@ -149,44 +156,44 @@ const template = html<VioletMessage>`
  * @csspart body - The body content area.
  */
 export class VioletMessage extends FASTElement {
-    @observable
-    declare public hasAvatar: boolean;
+  @observable
+  declare public hasAvatar: boolean;
 
-    @observable
-    declare public hasMeta: boolean;
+  @observable
+  declare public hasMeta: boolean;
 
-    declare public messageRole: string;
-    declare public tone: string;
-    declare public streaming: boolean;
+  declare public messageRole: string;
+  declare public tone: string;
+  declare public streaming: boolean;
 
-    public constructor() {
-        super();
-        this.hasAvatar = false;
-        this.hasMeta = false;
-        this.messageRole = "assistant";
-        this.tone = "default";
-        this.streaming = false;
-    }
+  public constructor() {
+    super();
+    this.hasAvatar = false;
+    this.hasMeta = false;
+    this.messageRole = "assistant";
+    this.tone = "default";
+    this.streaming = false;
+  }
 
-    public handleAvatarSlotChange(): void {
-        const slot = this.shadowRoot?.querySelector('slot[name="avatar"]') as HTMLSlotElement | null;
-        this.hasAvatar = (slot?.assignedNodes({ flatten: true }) ?? []).some(node => {
-            if (node.nodeType === Node.TEXT_NODE) {
-                return Boolean(node.textContent?.trim());
-            }
-            return true;
-        });
-    }
+  public handleAvatarSlotChange(): void {
+    const slot = this.shadowRoot?.querySelector('slot[name="avatar"]') as HTMLSlotElement | null;
+    this.hasAvatar = (slot?.assignedNodes({ flatten: true }) ?? []).some((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return Boolean(node.textContent?.trim());
+      }
+      return true;
+    });
+  }
 
-    public handleMetaSlotChange(): void {
-        const slot = this.shadowRoot?.querySelector('slot[name="meta"]') as HTMLSlotElement | null;
-        this.hasMeta = (slot?.assignedNodes({ flatten: true }) ?? []).some(node => {
-            if (node.nodeType === Node.TEXT_NODE) {
-                return Boolean(node.textContent?.trim());
-            }
-            return true;
-        });
-    }
+  public handleMetaSlotChange(): void {
+    const slot = this.shadowRoot?.querySelector('slot[name="meta"]') as HTMLSlotElement | null;
+    this.hasMeta = (slot?.assignedNodes({ flatten: true }) ?? []).some((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return Boolean(node.textContent?.trim());
+      }
+      return true;
+    });
+  }
 }
 
 export type VioletMessageRole = "user" | "assistant" | "system";
@@ -198,7 +205,7 @@ attr({ mode: "boolean" })(VioletMessage.prototype, "streaming");
 
 /** The FAST definition of `<violet-message>`; `defineVioletMessage` in `./violet-message.define` registers it. */
 export const violetMessageDefinition = {
-    name: "violet-message",
-    template,
-    styles,
+  name: "violet-message",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

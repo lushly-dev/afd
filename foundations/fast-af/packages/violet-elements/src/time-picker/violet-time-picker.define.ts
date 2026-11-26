@@ -1,6 +1,6 @@
-import { defineVioletElement } from "../shared/define-element";
-import { defineVioletIcon } from "../icon/violet-icon.define";
 import { registerSystemClockIcon } from "../icon/generated/icons/system-clock";
+import { defineVioletIcon } from "../icon/violet-icon.define";
+import { defineVioletElement } from "../shared/define-element";
 import { VioletTimePicker, violetTimePickerDefinition } from "./violet-time-picker";
 
 /**
@@ -9,10 +9,12 @@ import { VioletTimePicker, violetTimePickerDefinition } from "./violet-time-pick
  *
  * @param registry - The registry to define it in: the global one unless a scoped registry is given.
  */
-export async function defineVioletTimePicker(registry: CustomElementRegistry = customElements): Promise<void> {
-    await defineVioletIcon(registry);
-    registerSystemClockIcon();
-    await defineVioletElement(VioletTimePicker, violetTimePickerDefinition, registry);
+export async function defineVioletTimePicker(
+  registry: CustomElementRegistry = customElements,
+): Promise<void> {
+  await defineVioletIcon(registry);
+  registerSystemClockIcon();
+  await defineVioletElement(VioletTimePicker, violetTimePickerDefinition, registry);
 }
 
 await defineVioletTimePicker();

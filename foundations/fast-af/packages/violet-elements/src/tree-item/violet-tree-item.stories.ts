@@ -1,22 +1,22 @@
-import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { expect, within } from "@lushly-dev/specimen/test";
+import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 
 import "../tree/violet-tree.define";
 import "./violet-tree-item.define";
 
 const meta = {
-    title: "Components/Tree Item",
-    component: "violet-tree-item",
-    tags: ["autodocs"],
-    parameters: {
-        docs: {
-            description: {
-                component:
-                    "Focusable Violet tree item used within `violet-tree` for branch and leaf rows, including selected and disabled states.",
-            },
-        },
+  title: "Components/Tree Item",
+  component: "violet-tree-item",
+  tags: ["autodocs"],
+  parameters: {
+    docs: {
+      description: {
+        component:
+          "Focusable Violet tree item used within `violet-tree` for branch and leaf rows, including selected and disabled states.",
+      },
     },
-    render: () => `
+  },
+  render: () => `
         <div style="max-inline-size: 28rem;">
             <violet-tree label="Tree item states" appearance="plain">
                 <violet-tree-item value="overview" selected>Overview</violet-tree-item>
@@ -35,20 +35,20 @@ export default meta;
 type Story = StoryObj;
 
 export const Overview: Story = {
-    play: async ({ canvasElement }) => {
-        const canvas = within(canvasElement);
-        const treeItems = canvasElement.querySelectorAll("violet-tree-item");
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const treeItems = canvasElement.querySelectorAll("violet-tree-item");
 
-        await expect(treeItems.length).toBeGreaterThan(0);
-        await expect(treeItems[0]?.getAttribute("selected")).toBe("");
-        await expect(treeItems[3]?.getAttribute("disabled")).toBe("");
-        await expect(canvas.getByText("Overview")).toBeVisible();
-    },
+    await expect(treeItems.length).toBeGreaterThan(0);
+    await expect(treeItems[0]?.getAttribute("selected")).toBe("");
+    await expect(treeItems[3]?.getAttribute("disabled")).toBe("");
+    await expect(canvas.getByText("Overview")).toBeVisible();
+  },
 };
 
 export const Selected: Story = {
-    name: "Selected",
-    render: () => `
+  name: "Selected",
+  render: () => `
         <div style="max-inline-size: 28rem;">
             <violet-tree label="Selected tree item" appearance="plain">
                 <violet-tree-item value="overview" selected>Overview</violet-tree-item>
@@ -59,8 +59,8 @@ export const Selected: Story = {
 };
 
 export const Disabled: Story = {
-    name: "Disabled",
-    render: () => `
+  name: "Disabled",
+  render: () => `
         <div style="max-inline-size: 28rem;">
             <violet-tree label="Disabled tree item" appearance="plain">
                 <violet-tree-item value="workspace" expanded>

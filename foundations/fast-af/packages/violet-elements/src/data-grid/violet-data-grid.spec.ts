@@ -7,33 +7,33 @@ import "../button/violet-button.define";
 import "./violet-data-grid-pill-select.define";
 import type {
   VioletDataGrid,
-    VioletDataGridCellLocation,
-    VioletDataGridCellTemplateContext,
-    VioletDataGridChangeDetail,
-    VioletDataGridColumn,
-    VioletDataGridEditorOption,
-    VioletDataGridFilterState,
-    VioletDataGridRow,
-    VioletDataGridSort,
+  VioletDataGridCellLocation,
+  VioletDataGridCellTemplateContext,
+  VioletDataGridChangeDetail,
+  VioletDataGridColumn,
+  VioletDataGridEditorOption,
+  VioletDataGridFilterState,
+  VioletDataGridRow,
+  VioletDataGridSort,
 } from "./violet-data-grid";
 import { sampleAutosizeRows } from "./violet-data-grid-clipboard";
 
 type TestRow = {
-    tracked: boolean;
-    commonName: string;
-    status: string;
-    dtm: string;
+  tracked: boolean;
+  commonName: string;
+  status: string;
+  dtm: string;
 };
 
 type PillSelectElement = HTMLElement & {
-    value?: string;
+  value?: string;
 };
 
 const statusEditorOptions: VioletDataGridEditorOption[] = [
-    { label: "Seedling", value: "Seedling", tone: "blue" },
-    { label: "In bed", value: "In bed", tone: "teal" },
-    { label: "Established", value: "Established", tone: "olive" },
-    { label: "Harvesting", value: "Harvesting", tone: "green" },
+  { label: "Seedling", value: "Seedling", tone: "blue" },
+  { label: "In bed", value: "In bed", tone: "teal" },
+  { label: "Established", value: "Established", tone: "olive" },
+  { label: "Harvesting", value: "Harvesting", tone: "green" },
 ];
 
 const statusPillEditorTemplate = html<VioletDataGridCellTemplateContext<TestRow>>`
@@ -63,68 +63,68 @@ const shadowWidgetCellTemplate = html<VioletDataGridCellTemplateContext<TestRow>
 `;
 
 const widgetColumns: VioletDataGridColumn<TestRow>[] = [
-    {
-        id: "tracked",
-        label: "Track",
-        width: "5rem",
-        align: "center",
-        editable: true,
-        editor: "checkbox",
+  {
+    id: "tracked",
+    label: "Track",
+    width: "5rem",
+    align: "center",
+    editable: true,
+    editor: "checkbox",
     value: (row) => row.tracked,
-    },
-    {
-        id: "commonName",
-        label: "Plant",
-        sortable: true,
-        editable: true,
-        editor: "text",
+  },
+  {
+    id: "commonName",
+    label: "Plant",
+    sortable: true,
+    editable: true,
+    editor: "text",
     value: (row) => row.commonName,
-    },
-    {
-        id: "status",
-        label: "Status",
-        editable: true,
-        editor: "custom",
+  },
+  {
+    id: "status",
+    label: "Status",
+    editable: true,
+    editor: "custom",
     value: (row) => row.status,
-        editorTemplate: statusPillEditorTemplate,
-        editorOptions: statusEditorOptions,
-    },
-    {
-        id: "dtm",
-        label: "DTM",
-        editable: true,
-        editor: "number",
+    editorTemplate: statusPillEditorTemplate,
+    editorOptions: statusEditorOptions,
+  },
+  {
+    id: "dtm",
+    label: "DTM",
+    editable: true,
+    editor: "number",
     value: (row) => row.dtm,
-    },
+  },
 ];
 
 const widgetRows: VioletDataGridRow<TestRow>[] = [
-    {
-        id: "black-currant",
-        label: "Black currant",
-        data: {
-            tracked: true,
-            commonName: "Black currant",
-            status: "Established",
-            dtm: "365",
-        },
+  {
+    id: "black-currant",
+    label: "Black currant",
+    data: {
+      tracked: true,
+      commonName: "Black currant",
+      status: "Established",
+      dtm: "365",
     },
-    {
-        id: "romanesco",
-        label: "Romanesco cauliflower",
-        data: {
-            tracked: false,
-            commonName: "Romanesco",
-            status: "In bed",
-            dtm: "80",
-        },
+  },
+  {
+    id: "romanesco",
+    label: "Romanesco cauliflower",
+    data: {
+      tracked: false,
+      commonName: "Romanesco",
+      status: "In bed",
+      dtm: "80",
     },
+  },
 ];
 
 function nextFrame(): Promise<void> {
   return new Promise((resolve) => {
-        requestAnimationFrame(() => resolve());
-    });
+    requestAnimationFrame(() => resolve());
+  });
 }
 
 async function nextFrames(count = 2): Promise<void> {
@@ -164,39 +164,39 @@ async function renderVirtualGrid<RowData>(options: {
 }
 
 async function renderGrid(
-    overrides: Partial<{
-        rows: VioletDataGridRow<TestRow>[];
-        columns: VioletDataGridColumn<TestRow>[];
-        sort: VioletDataGridSort | null;
-        sortMode: "local" | "external";
-        selectionMode: "none" | "single" | "multiple";
+  overrides: Partial<{
+    rows: VioletDataGridRow<TestRow>[];
+    columns: VioletDataGridColumn<TestRow>[];
+    sort: VioletDataGridSort | null;
+    sortMode: "local" | "external";
+    selectionMode: "none" | "single" | "multiple";
   }> = {},
 ): Promise<VioletDataGrid> {
-    document.body.innerHTML = "";
+  document.body.innerHTML = "";
 
-    const grid = document.createElement("violet-data-grid") as VioletDataGrid;
-    (grid as any).columns = overrides.columns ?? widgetColumns;
-    (grid as any).rows = overrides.rows ?? widgetRows;
-    (grid as any).focusMode = "cell";
-    (grid as any).selectionMode = overrides.selectionMode ?? "none";
-    (grid as any).showFilter = false;
-    (grid as any).showToolbarAction = false;
-    (grid as any).stickyHeader = true;
-    (grid as any).virtualize = false;
-    (grid as any).sortMode = overrides.sortMode ?? "local";
-    (grid as any).sort = overrides.sort ?? null;
-    (grid as any).estimatedRowHeight = 44;
-    (grid as any).overscanCount = 5;
-    (grid as any).filterState = {};
+  const grid = document.createElement("violet-data-grid") as VioletDataGrid;
+  (grid as any).columns = overrides.columns ?? widgetColumns;
+  (grid as any).rows = overrides.rows ?? widgetRows;
+  (grid as any).focusMode = "cell";
+  (grid as any).selectionMode = overrides.selectionMode ?? "none";
+  (grid as any).showFilter = false;
+  (grid as any).showToolbarAction = false;
+  (grid as any).stickyHeader = true;
+  (grid as any).virtualize = false;
+  (grid as any).sortMode = overrides.sortMode ?? "local";
+  (grid as any).sort = overrides.sort ?? null;
+  (grid as any).estimatedRowHeight = 44;
+  (grid as any).overscanCount = 5;
+  (grid as any).filterState = {};
 
-    document.body.append(grid);
+  document.body.append(grid);
 
-    await customElements.whenDefined("violet-data-grid");
-    await customElements.whenDefined("violet-data-grid-pill-select");
-    await customElements.whenDefined("violet-radio");
-    await nextFrame();
+  await customElements.whenDefined("violet-data-grid");
+  await customElements.whenDefined("violet-data-grid-pill-select");
+  await customElements.whenDefined("violet-radio");
+  await nextFrame();
 
-    return grid;
+  return grid;
 }
 
 async function openRenderedEditor(
@@ -229,138 +229,131 @@ async function openRenderedEditor(
 }
 
 describe("violet-data-grid", () => {
-    afterEach(() => {
-        document.body.innerHTML = "";
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  // Regression: with selection off, the selection <col> and the spacer rows' extra column still made a
+  // column slot that no visible cell filled, so every cell sat one slot to the left and took the wider
+  // of its own width and its left neighbour's (a 100px column after a 200px one was drawn 200px wide).
+  for (const selectionMode of ["none", "single"] as const) {
+    it(`gives each column its own width with selection-mode="${selectionMode}"`, async () => {
+      const columns = [
+        { id: "title", label: "Title", width: "200px", value: (row: TestRow) => row.commonName },
+        { id: "category", label: "Category", width: "100px", value: (row: TestRow) => row.status },
+      ] as VioletDataGridColumn<TestRow>[];
+      const grid = await renderGrid({ columns, selectionMode });
+      await nextFrames(2);
+
+      const header = (id: string) =>
+        grid.shadowRoot?.querySelector(`th[data-column-id="${id}"]`) as HTMLElement;
+      const title = header("title").getBoundingClientRect().width;
+      const category = header("category").getBoundingClientRect().width;
+
+      expect(title).toBeGreaterThan(0);
+      expect(Math.abs(title - category * 2)).toBeLessThanOrEqual(2);
     });
+  }
 
-    // Regression: with selection off, the selection <col> and the spacer rows' extra column still made a
-    // column slot that no visible cell filled, so every cell sat one slot to the left and took the wider
-    // of its own width and its left neighbour's (a 100px column after a 200px one was drawn 200px wide).
-    for (const selectionMode of ["none", "single"] as const) {
-        it(`gives each column its own width with selection-mode="${selectionMode}"`, async () => {
-            const columns = [
-                { id: "title", label: "Title", width: "200px", value: (row: TestRow) => row.commonName },
-                { id: "category", label: "Category", width: "100px", value: (row: TestRow) => row.status },
-            ] as VioletDataGridColumn<TestRow>[];
-            const grid = await renderGrid({ columns, selectionMode });
-            await nextFrames(2);
+  // Regression: the sticky-header rules set `z-index: var(--_layer-raised)`,
+  // but the data grid never declared that token. An undefined custom property
+  // makes the declaration invalid at computed-value time, so it was dropped
+  // and the header fell back to `z-index: auto` — it scrolled behind the rows.
+  it("gives the sticky header a stacking context above the rows", async () => {
+    const grid = await renderGrid();
+    const shadowRoot = grid.shadowRoot;
+    if (!shadowRoot) throw new Error("Expected a shadow root.");
 
-            const header = (id: string) =>
-                grid.shadowRoot?.querySelector(`th[data-column-id="${id}"]`) as HTMLElement;
-            const title = header("title").getBoundingClientRect().width;
-            const category = header("category").getBoundingClientRect().width;
+    const header =
+      shadowRoot.querySelector(".table-head-table") ??
+      shadowRoot.querySelector(".table-full-table thead th");
+    if (!header) throw new Error("Expected a sticky header element.");
 
-            expect(title).toBeGreaterThan(0);
-            expect(Math.abs(title - category * 2)).toBeLessThanOrEqual(2);
-        });
+    const headerStyle = getComputedStyle(header as HTMLElement);
+    expect(headerStyle.position).toBe("sticky");
+    expect(headerStyle.zIndex).not.toBe("auto");
+    expect(Number(headerStyle.zIndex)).toBeGreaterThan(0);
+  });
+
+  it("keeps column resize targets large and clear of sortable header buttons", async () => {
+    const grid = await renderGrid();
+    const shadowRoot = grid.shadowRoot;
+    if (!shadowRoot) throw new Error("Expected a shadow root.");
+
+    const handles = Array.from(shadowRoot.querySelectorAll<HTMLButtonElement>(".column-resizer"));
+    expect(handles.length).toBeGreaterThan(0);
+
+    for (const handle of handles) {
+      const bounds = handle.getBoundingClientRect();
+      const header = handle.closest("th");
+      const sortButton = header?.querySelector<HTMLButtonElement>(".header-button");
+      const nextSortButton =
+        header?.nextElementSibling?.querySelector<HTMLButtonElement>(".header-button");
+
+      expect(bounds.width).toBeGreaterThanOrEqual(24);
+      expect(bounds.height).toBeGreaterThanOrEqual(24);
+      expect(handle.getAttribute("aria-label")).toMatch(/^Resize .+ column$/);
+
+      if (sortButton) {
+        expect(bounds.left).toBeGreaterThanOrEqual(sortButton.getBoundingClientRect().right);
+      }
+
+      if (nextSortButton) {
+        expect(bounds.right).toBeLessThanOrEqual(nextSortButton.getBoundingClientRect().left);
+      }
     }
+  });
 
-    // Regression: the sticky-header rules set `z-index: var(--_layer-raised)`,
-    // but the data grid never declared that token. An undefined custom property
-    // makes the declaration invalid at computed-value time, so it was dropped
-    // and the header fell back to `z-index: auto` — it scrolled behind the rows.
-    it("gives the sticky header a stacking context above the rows", async () => {
-        const grid = await renderGrid();
-        const shadowRoot = grid.shadowRoot;
-        if (!shadowRoot) throw new Error("Expected a shadow root.");
-
-        const header =
-            shadowRoot.querySelector(".table-head-table") ??
-            shadowRoot.querySelector(".table-full-table thead th");
-        if (!header) throw new Error("Expected a sticky header element.");
-
-        const headerStyle = getComputedStyle(header as HTMLElement);
-        expect(headerStyle.position).toBe("sticky");
-        expect(headerStyle.zIndex).not.toBe("auto");
-        expect(Number(headerStyle.zIndex)).toBeGreaterThan(0);
-    });
-
-    it("keeps column resize targets large and clear of sortable header buttons", async () => {
-        const grid = await renderGrid();
-        const shadowRoot = grid.shadowRoot;
-        if (!shadowRoot) throw new Error("Expected a shadow root.");
-
-        const handles = Array.from(
-            shadowRoot.querySelectorAll<HTMLButtonElement>(".column-resizer"),
-        );
-        expect(handles.length).toBeGreaterThan(0);
-
-        for (const handle of handles) {
-            const bounds = handle.getBoundingClientRect();
-            const header = handle.closest("th");
-            const sortButton = header?.querySelector<HTMLButtonElement>(".header-button");
-            const nextSortButton = header?.nextElementSibling?.querySelector<HTMLButtonElement>(
-                ".header-button",
-            );
-
-            expect(bounds.width).toBeGreaterThanOrEqual(24);
-            expect(bounds.height).toBeGreaterThanOrEqual(24);
-            expect(handle.getAttribute("aria-label")).toMatch(/^Resize .+ column$/);
-
-            if (sortButton) {
-                expect(bounds.left).toBeGreaterThanOrEqual(
-                    sortButton.getBoundingClientRect().right,
-                );
-            }
-
-            if (nextSortButton) {
-                expect(bounds.right).toBeLessThanOrEqual(
-                    nextSortButton.getBoundingClientRect().left,
-                );
-            }
-        }
-    });
-
-    it("enters custom edit mode on double click for widget-backed cells", async () => {
-        const grid = await renderGrid();
-        const shadowRoot = grid.shadowRoot;
-        const scrollContainer = shadowRoot?.querySelector(".table-scroll") as HTMLDivElement | null;
-        const statusCell = shadowRoot?.querySelector(
+  it("enters custom edit mode on double click for widget-backed cells", async () => {
+    const grid = await renderGrid();
+    const shadowRoot = grid.shadowRoot;
+    const scrollContainer = shadowRoot?.querySelector(".table-scroll") as HTMLDivElement | null;
+    const statusCell = shadowRoot?.querySelector(
       'td[data-row-id="black-currant"][data-column-id="status"]',
-        ) as HTMLTableCellElement | null;
+    ) as HTMLTableCellElement | null;
 
-        expect(scrollContainer).toBeTruthy();
-        expect(statusCell).toBeTruthy();
+    expect(scrollContainer).toBeTruthy();
+    expect(statusCell).toBeTruthy();
 
-        scrollContainer?.focus();
-        grid.activeCell = {
-            rowId: "black-currant",
-            columnId: "status",
-        };
-        await nextFrame();
+    scrollContainer?.focus();
+    grid.activeCell = {
+      rowId: "black-currant",
+      columnId: "status",
+    };
+    await nextFrame();
 
-        expect(grid.activeCell?.rowId).toBe("black-currant");
-        expect(grid.activeCell?.columnId).toBe("status");
+    expect(grid.activeCell?.rowId).toBe("black-currant");
+    expect(grid.activeCell?.columnId).toBe("status");
 
-        const doubleClickEvent = new MouseEvent("dblclick", {
-            bubbles: true,
-            composed: true,
-            detail: 2,
-        });
-        Object.defineProperty(doubleClickEvent, "target", {
-            configurable: true,
-            value: statusCell,
-        });
-        (grid as any).locationFromMouseEvent = () => ({
-            rowId: "black-currant",
-            columnId: "status",
-        });
-
-        grid.handleGridDoubleClick(doubleClickEvent);
-        await nextFrame();
-
-        expect(grid.editingCell?.rowId).toBe("black-currant");
-        expect(grid.editingCell?.columnId).toBe("status");
-
-        const editor = shadowRoot?.querySelector(
-      '.cell-editor[data-cell-editor="custom"]',
-        ) as PillSelectElement | null;
-
-        expect(editor).toBeTruthy();
-        expect(editor?.value).toBe("Established");
+    const doubleClickEvent = new MouseEvent("dblclick", {
+      bubbles: true,
+      composed: true,
+      detail: 2,
+    });
+    Object.defineProperty(doubleClickEvent, "target", {
+      configurable: true,
+      value: statusCell,
+    });
+    (grid as any).locationFromMouseEvent = () => ({
+      rowId: "black-currant",
+      columnId: "status",
     });
 
-    it("toggles a checkbox-backed cell from a widget click event", async () => {
+    grid.handleGridDoubleClick(doubleClickEvent);
+    await nextFrame();
+
+    expect(grid.editingCell?.rowId).toBe("black-currant");
+    expect(grid.editingCell?.columnId).toBe("status");
+
+    const editor = shadowRoot?.querySelector(
+      '.cell-editor[data-cell-editor="custom"]',
+    ) as PillSelectElement | null;
+
+    expect(editor).toBeTruthy();
+    expect(editor?.value).toBe("Established");
+  });
+
+  it("toggles a checkbox-backed cell from a widget click event", async () => {
     const rows = widgetRows.map((row) =>
       row.id === "romanesco"
         ? {
@@ -370,135 +363,138 @@ describe("violet-data-grid", () => {
         : row,
     );
     const grid = await renderGrid({ rows });
-        const shadowRoot = grid.shadowRoot;
-        const checkbox = shadowRoot?.querySelector(
+    const shadowRoot = grid.shadowRoot;
+    const checkbox = shadowRoot?.querySelector(
       'td[data-row-id="romanesco"][data-column-id="tracked"] violet-checkbox[data-cell-widget="checkbox"]',
-        ) as HTMLElement | null;
+    ) as HTMLElement | null;
 
-        expect(checkbox).toBeTruthy();
+    expect(checkbox).toBeTruthy();
 
-        const checkboxBox = checkbox?.shadowRoot?.querySelector(".box") as HTMLElement | null;
+    const checkboxBox = checkbox?.shadowRoot?.querySelector(".box") as HTMLElement | null;
 
-        expect(checkboxBox).toBeTruthy();
+    expect(checkboxBox).toBeTruthy();
     expect((checkbox as HTMLElement & { checked: boolean }).checked).toBe(false);
     expect(checkbox?.getAttribute("aria-label")).toBe("Track for Romanesco cauliflower");
     expect(checkbox?.shadowRoot?.querySelector("input")?.getAttribute("aria-label")).toBe(
       "Track for Romanesco cauliflower",
     );
 
-        let emittedChange: VioletDataGridChangeDetail | undefined;
-        const handleCellChange = (event: Event) => {
-            emittedChange = (event as CustomEvent<VioletDataGridChangeDetail>).detail;
-        };
-        grid.addEventListener("cell-change", handleCellChange);
+    let emittedChange: VioletDataGridChangeDetail | undefined;
+    const handleCellChange = (event: Event) => {
+      emittedChange = (event as CustomEvent<VioletDataGridChangeDetail>).detail;
+    };
+    grid.addEventListener("cell-change", handleCellChange);
 
-        try {
+    try {
       grid.activeCell = { rowId: "romanesco", columnId: "commonName" };
       await nextFrame();
       checkboxBox?.click();
       await nextFrame();
 
-            expect(grid.activeCell).toEqual({
-                rowId: "romanesco",
+      expect(grid.activeCell).toEqual({
+        rowId: "romanesco",
         columnId: "commonName",
-            });
-            expect(emittedChange).toEqual({
-                rowId: "romanesco",
-                columnId: "tracked",
-                value: true,
-            });
-        } finally {
-            grid.removeEventListener("cell-change", handleCellChange);
-        }
-    });
+      });
+      expect(emittedChange).toEqual({
+        rowId: "romanesco",
+        columnId: "tracked",
+        value: true,
+      });
+    } finally {
+      grid.removeEventListener("cell-change", handleCellChange);
+    }
+  });
 
-    it("names single-selection radios with selection-label and exposes a selection-header-cell part", async () => {
-        const grid = await renderGrid();
-        (grid as any).selectionMode = "single";
-        await nextFrame();
+  it("names single-selection radios with selection-label and exposes a selection-header-cell part", async () => {
+    const grid = await renderGrid();
+    (grid as any).selectionMode = "single";
+    await nextFrame();
 
-        const radios = () =>
-            grid.shadowRoot?.querySelectorAll("violet-radio.selection-radio") as NodeListOf<HTMLElement>;
-        expect(radios()[0]?.getAttribute("aria-label")).toBe("Select row Black currant");
+    const radios = () =>
+      grid.shadowRoot?.querySelectorAll("violet-radio.selection-radio") as NodeListOf<HTMLElement>;
+    expect(radios()[0]?.getAttribute("aria-label")).toBe("Select row Black currant");
 
-        grid.setAttribute("selection-label", "Open");
-        await nextFrame();
-        expect(radios()[0]?.getAttribute("aria-label")).toBe("Open Black currant");
+    grid.setAttribute("selection-label", "Open");
+    await nextFrame();
+    expect(radios()[0]?.getAttribute("aria-label")).toBe("Open Black currant");
 
-        grid.removeAttribute("selection-label");
-        await nextFrame();
-        expect(radios()[0]?.getAttribute("aria-label")).toBe("Select row Black currant");
+    grid.removeAttribute("selection-label");
+    await nextFrame();
+    expect(radios()[0]?.getAttribute("aria-label")).toBe("Select row Black currant");
 
-        const headerCell = grid.shadowRoot?.querySelector("th.selection-header");
-        expect(headerCell?.getAttribute("part")?.split(" ")).toEqual(["header-cell", "selection-header-cell"]);
-    });
+    const headerCell = grid.shadowRoot?.querySelector("th.selection-header");
+    expect(headerCell?.getAttribute("part")?.split(" ")).toEqual([
+      "header-cell",
+      "selection-header-cell",
+    ]);
+  });
 
-    it("names the single-selection column header from selection-label", async () => {
-        const grid = await renderGrid({ selectionMode: "single" });
-        const header = () => grid.shadowRoot?.querySelector("th.selection-header") as HTMLElement;
-        const hiddenName = () => header().querySelector(".visually-hidden")?.textContent?.trim();
-        expect(header().getAttribute("aria-label")).toBe("Selected row");
+  it("names the single-selection column header from selection-label", async () => {
+    const grid = await renderGrid({ selectionMode: "single" });
+    const header = () => grid.shadowRoot?.querySelector("th.selection-header") as HTMLElement;
+    const hiddenName = () => header().querySelector(".visually-hidden")?.textContent?.trim();
+    expect(header().getAttribute("aria-label")).toBe("Selected row");
 
-        grid.setAttribute("selection-label", "Open");
-        await nextFrame();
-        expect(header().getAttribute("aria-label")).toBe("Open");
-        expect(hiddenName()).toBe("Open");
+    grid.setAttribute("selection-label", "Open");
+    await nextFrame();
+    expect(header().getAttribute("aria-label")).toBe("Open");
+    expect(hiddenName()).toBe("Open");
 
-        (grid as any).selectionMode = "multiple";
-        await nextFrame();
-        expect(header().getAttribute("aria-label")).toBe("Select rows");
+    (grid as any).selectionMode = "multiple";
+    await nextFrame();
+    expect(header().getAttribute("aria-label")).toBe("Select rows");
 
-        (grid as any).selectionMode = "single";
-        grid.setAttribute("selection-label", "   ");
-        await nextFrame();
-        expect(header().getAttribute("aria-label")).toBe("Selected row");
-    });
+    (grid as any).selectionMode = "single";
+    grid.setAttribute("selection-label", "   ");
+    await nextFrame();
+    expect(header().getAttribute("aria-label")).toBe("Selected row");
+  });
 
-    it("keeps the generic row label for multiple selection even with selection-label", async () => {
-        const grid = await renderGrid();
-        (grid as any).selectionMode = "multiple";
-        grid.setAttribute("selection-label", "Open");
-        await nextFrame();
+  it("keeps the generic row label for multiple selection even with selection-label", async () => {
+    const grid = await renderGrid();
+    (grid as any).selectionMode = "multiple";
+    grid.setAttribute("selection-label", "Open");
+    await nextFrame();
 
-        const rowCheckbox = grid.shadowRoot?.querySelector("tbody violet-checkbox.selection-checkbox");
-        expect(rowCheckbox?.getAttribute("aria-label")).toBe("Select row Black currant");
-    });
+    const rowCheckbox = grid.shadowRoot?.querySelector("tbody violet-checkbox.selection-checkbox");
+    expect(rowCheckbox?.getAttribute("aria-label")).toBe("Select row Black currant");
+  });
 
-    it("uses violet-radio controls for single row selection", async () => {
-        const grid = await renderGrid();
-        (grid as any).selectionMode = "single";
-        await nextFrame();
+  it("uses violet-radio controls for single row selection", async () => {
+    const grid = await renderGrid();
+    (grid as any).selectionMode = "single";
+    await nextFrame();
 
-        const shadowRoot = grid.shadowRoot;
+    const shadowRoot = grid.shadowRoot;
     const rowRadios = shadowRoot?.querySelectorAll("violet-radio.selection-radio") as
       | NodeListOf<HTMLElement & { checked?: boolean }>
       | undefined;
 
-        expect(rowRadios?.length).toBe(widgetRows.length);
+    expect(rowRadios?.length).toBe(widgetRows.length);
 
-        const firstRadio = rowRadios?.[0];
-        const secondRadio = rowRadios?.[1];
-        const firstControl = firstRadio?.shadowRoot?.querySelector(".root") as HTMLElement | null;
-        const secondControl = secondRadio?.shadowRoot?.querySelector(".root") as HTMLElement | null;
+    const firstRadio = rowRadios?.[0];
+    const secondRadio = rowRadios?.[1];
+    const firstControl = firstRadio?.shadowRoot?.querySelector(".root") as HTMLElement | null;
+    const secondControl = secondRadio?.shadowRoot?.querySelector(".root") as HTMLElement | null;
 
-        expect(firstRadio?.getAttribute("aria-label")).toBe("Select row Black currant");
-        expect(firstControl).toBeTruthy();
-        expect(secondControl).toBeTruthy();
+    expect(firstRadio?.getAttribute("aria-label")).toBe("Select row Black currant");
+    expect(firstControl).toBeTruthy();
+    expect(secondControl).toBeTruthy();
 
-        firstControl?.click();
-        await nextFrame();
+    firstControl?.click();
+    await nextFrame();
 
-        expect(grid.selectedRowIds).toEqual(["black-currant"]);
-        expect(firstRadio?.checked).toBe(true);
-        expect(secondRadio?.checked).toBe(false);
+    expect(grid.selectedRowIds).toEqual(["black-currant"]);
+    expect(firstRadio?.checked).toBe(true);
+    expect(secondRadio?.checked).toBe(false);
 
-        secondControl?.click();
-        await nextFrame();
+    secondControl?.click();
+    await nextFrame();
 
-        expect(grid.selectedRowIds).toEqual(["romanesco"]);
-        expect(firstRadio?.checked).toBe(false);
-        expect(secondRadio?.checked).toBe(true);
-    });
+    expect(grid.selectedRowIds).toEqual(["romanesco"]);
+    expect(firstRadio?.checked).toBe(false);
+    expect(secondRadio?.checked).toBe(true);
+  });
 
   it.each([
     ["single", "violet-radio.selection-radio"],
@@ -778,19 +774,19 @@ describe("violet-data-grid", () => {
     ).toBe(false);
   });
 
-    it("reorders rows locally when sort mode is local", async () => {
+  it("reorders rows locally when sort mode is local", async () => {
     const rows = [widgetRows[1]!, widgetRows[0]!];
-        const grid = await renderGrid({
-            rows,
-            sort: {
-                columnId: "commonName",
-                direction: "ascending",
-            },
-            sortMode: "local",
-        });
+    const grid = await renderGrid({
+      rows,
+      sort: {
+        columnId: "commonName",
+        direction: "ascending",
+      },
+      sortMode: "local",
+    });
 
     expect(grid.presentedRows.map((row) => row.id)).toEqual(["black-currant", "romanesco"]);
-    });
+  });
 
   it("sorts through source accessors for nested data and reuses their keys", async () => {
     type NestedRow = { profile: { commonName: string } };
@@ -844,7 +840,7 @@ describe("violet-data-grid", () => {
     const rows: VioletDataGridRow<MutableRow>[] = [
       { id: "one", data: { primary: "Zebra", secondary: "Zinnia" } },
       { id: "two", data: { primary: "Birch", secondary: "Aster" } },
-        ];
+    ];
     const grid = await renderVirtualGrid({
       columns,
       rows,
@@ -869,576 +865,593 @@ describe("violet-data-grid", () => {
 
   it("preserves row order and still emits sort intent when sort mode is external", async () => {
     const rows = [widgetRows[1]!, widgetRows[0]!];
-        const grid = await renderGrid({
-            rows,
-            sortMode: "external",
-        });
+    const grid = await renderGrid({
+      rows,
+      sortMode: "external",
+    });
 
-        let emittedSort: VioletDataGridSort | null | undefined;
-        const handleSortChange = (event: Event) => {
-            emittedSort = (event as CustomEvent<VioletDataGridSort | null>).detail;
-        };
+    let emittedSort: VioletDataGridSort | null | undefined;
+    const handleSortChange = (event: Event) => {
+      emittedSort = (event as CustomEvent<VioletDataGridSort | null>).detail;
+    };
 
-        grid.addEventListener("sort-change", handleSortChange);
+    grid.addEventListener("sort-change", handleSortChange);
 
-        try {
-            grid.handleSortRequest("commonName");
-            await nextFrame();
+    try {
+      grid.handleSortRequest("commonName");
+      await nextFrame();
 
-            expect(grid.sort).toEqual({
-                columnId: "commonName",
-                direction: "ascending",
-            });
-            expect(emittedSort).toEqual({
-                columnId: "commonName",
-                direction: "ascending",
-            });
+      expect(grid.sort).toEqual({
+        columnId: "commonName",
+        direction: "ascending",
+      });
+      expect(emittedSort).toEqual({
+        columnId: "commonName",
+        direction: "ascending",
+      });
       expect(grid.presentedRows.map((row) => row.id)).toEqual(["romanesco", "black-currant"]);
-        } finally {
-            grid.removeEventListener("sort-change", handleSortChange);
-        }
+    } finally {
+      grid.removeEventListener("sort-change", handleSortChange);
+    }
+  });
+
+  it("clears range-driven state on sort but preserves the active cell and row selection", async () => {
+    const grid = await renderGrid();
+    const privateGrid = grid as any;
+
+    grid.activeCell = {
+      rowId: "black-currant",
+      columnId: "status",
+    };
+    grid.cellSelection = {
+      anchor: {
+        rowId: "black-currant",
+        columnId: "status",
+      },
+      focus: {
+        rowId: "romanesco",
+        columnId: "dtm",
+      },
+    };
+    grid.selectedRowIds = ["black-currant"];
+    privateGrid.editingCell = {
+      rowId: "black-currant",
+      columnId: "status",
+    };
+    privateGrid.fillPreview = {
+      anchor: {
+        rowId: "black-currant",
+        columnId: "status",
+      },
+      focus: {
+        rowId: "romanesco",
+        columnId: "dtm",
+      },
+    };
+    await nextFrame();
+
+    grid.sort = {
+      columnId: "commonName",
+      direction: "ascending",
+    };
+    await nextFrame();
+
+    expect(grid.activeCell).toEqual({
+      rowId: "black-currant",
+      columnId: "status",
+    });
+    expect(grid.selectedRowIds).toEqual(["black-currant"]);
+    expect(grid.cellSelection).toBeNull();
+    expect(privateGrid.editingCell).toBeNull();
+    expect(privateGrid.fillPreview).toBeNull();
+  });
+
+  it("keeps row selection by id across sorts and prunes (and announces) ids that leave rows", async () => {
+    const grid = await renderGrid({ selectionMode: "multiple" });
+    const selectionEvents: string[][] = [];
+    grid.addEventListener("selection-change", (event) => {
+      selectionEvents.push(
+        (event as CustomEvent<{ selectedRowIds: string[] }>).detail.selectedRowIds,
+      );
     });
 
-    it("clears range-driven state on sort but preserves the active cell and row selection", async () => {
-        const grid = await renderGrid();
-        const privateGrid = grid as any;
+    grid.selectedRowIds = ["black-currant", "romanesco"];
+    await nextFrame();
+    grid.sort = { columnId: "commonName", direction: "descending" };
+    await nextFrame();
 
-        grid.activeCell = {
-            rowId: "black-currant",
-            columnId: "status",
-        };
-        grid.cellSelection = {
-            anchor: {
-                rowId: "black-currant",
-                columnId: "status",
-            },
-            focus: {
-                rowId: "romanesco",
-                columnId: "dtm",
-            },
-        };
-        grid.selectedRowIds = ["black-currant"];
-        privateGrid.editingCell = {
-            rowId: "black-currant",
-            columnId: "status",
-        };
-        privateGrid.fillPreview = {
-            anchor: {
-                rowId: "black-currant",
-                columnId: "status",
-            },
-            focus: {
-                rowId: "romanesco",
-                columnId: "dtm",
-            },
-        };
-        await nextFrame();
+    expect(grid.selectedRowIds).toEqual(["black-currant", "romanesco"]);
+    expect(selectionEvents).toEqual([]);
 
-        grid.sort = {
-            columnId: "commonName",
-            direction: "ascending",
-        };
-        await nextFrame();
+    grid.rows = grid.rows.filter((row) => row.id !== "romanesco");
+    await nextFrame();
 
-        expect(grid.activeCell).toEqual({
-            rowId: "black-currant",
-            columnId: "status",
-        });
-        expect(grid.selectedRowIds).toEqual(["black-currant"]);
-        expect(grid.cellSelection).toBeNull();
-        expect(privateGrid.editingCell).toBeNull();
-        expect(privateGrid.fillPreview).toBeNull();
-    });
+    expect(grid.selectedRowIds).toEqual(["black-currant"]);
+    expect(selectionEvents).toEqual([["black-currant"]]);
+  });
 
-    it("keeps row selection by id across sorts and prunes (and announces) ids that leave rows", async () => {
-        const grid = await renderGrid({ selectionMode: "multiple" });
-        const selectionEvents: string[][] = [];
-        grid.addEventListener("selection-change", (event) => {
-            selectionEvents.push((event as CustomEvent<{ selectedRowIds: string[] }>).detail.selectedRowIds);
-        });
+  it("clears range-driven state on filter input but preserves the active cell and row selection, and emits filter intent", async () => {
+    const grid = await renderGrid();
+    const privateGrid = grid as any;
 
-        grid.selectedRowIds = ["black-currant", "romanesco"];
-        await nextFrame();
-        grid.sort = { columnId: "commonName", direction: "descending" };
-        await nextFrame();
+    grid.activeCell = {
+      rowId: "black-currant",
+      columnId: "status",
+    };
+    grid.cellSelection = {
+      anchor: {
+        rowId: "black-currant",
+        columnId: "status",
+      },
+      focus: {
+        rowId: "romanesco",
+        columnId: "dtm",
+      },
+    };
+    grid.selectedRowIds = ["black-currant"];
+    privateGrid.editingCell = {
+      rowId: "black-currant",
+      columnId: "status",
+    };
+    privateGrid.fillPreview = {
+      anchor: {
+        rowId: "black-currant",
+        columnId: "status",
+      },
+      focus: {
+        rowId: "romanesco",
+        columnId: "dtm",
+      },
+    };
 
-        expect(grid.selectedRowIds).toEqual(["black-currant", "romanesco"]);
-        expect(selectionEvents).toEqual([]);
+    let emittedFilterState: VioletDataGridFilterState | undefined;
+    const handleFilterChange = (event: Event) => {
+      emittedFilterState = (event as CustomEvent<VioletDataGridFilterState>).detail;
+    };
+    grid.addEventListener("filter-change", handleFilterChange);
 
-        grid.rows = grid.rows.filter((row) => row.id !== "romanesco");
-        await nextFrame();
+    try {
+      const filterInput = { value: "currant" };
+      const inputEvent = new Event("input");
+      Object.defineProperty(inputEvent, "currentTarget", {
+        configurable: true,
+        value: filterInput,
+      });
 
-        expect(grid.selectedRowIds).toEqual(["black-currant"]);
-        expect(selectionEvents).toEqual([["black-currant"]]);
-    });
+      grid.handleFilterInput(inputEvent);
+      await nextFrame();
 
-    it("clears range-driven state on filter input but preserves the active cell and row selection, and emits filter intent", async () => {
-        const grid = await renderGrid();
-        const privateGrid = grid as any;
+      expect(grid.activeCell).toEqual({
+        rowId: "black-currant",
+        columnId: "status",
+      });
+      expect(grid.filterState).toEqual({ query: "currant" });
+      expect(emittedFilterState).toEqual({ query: "currant" });
+      expect(grid.selectedRowIds).toEqual(["black-currant"]);
+      expect(grid.cellSelection).toBeNull();
+      expect(privateGrid.editingCell).toBeNull();
+      expect(privateGrid.fillPreview).toBeNull();
+    } finally {
+      grid.removeEventListener("filter-change", handleFilterChange);
+    }
+  });
 
-        grid.activeCell = {
-            rowId: "black-currant",
-            columnId: "status",
-        };
-        grid.cellSelection = {
-            anchor: {
-                rowId: "black-currant",
-                columnId: "status",
-            },
-            focus: {
-                rowId: "romanesco",
-                columnId: "dtm",
-            },
-        };
-        grid.selectedRowIds = ["black-currant"];
-        privateGrid.editingCell = {
-            rowId: "black-currant",
-            columnId: "status",
-        };
-        privateGrid.fillPreview = {
-            anchor: {
-                rowId: "black-currant",
-                columnId: "status",
-            },
-            focus: {
-                rowId: "romanesco",
-                columnId: "dtm",
-            },
-        };
-
-        let emittedFilterState: VioletDataGridFilterState | undefined;
-        const handleFilterChange = (event: Event) => {
-            emittedFilterState = (event as CustomEvent<VioletDataGridFilterState>).detail;
-        };
-        grid.addEventListener("filter-change", handleFilterChange);
-
-        try {
-            const filterInput = { value: "currant" };
-            const inputEvent = new Event("input");
-            Object.defineProperty(inputEvent, "currentTarget", {
-                configurable: true,
-                value: filterInput,
-            });
-
-            grid.handleFilterInput(inputEvent);
-            await nextFrame();
-
-            expect(grid.activeCell).toEqual({
-                rowId: "black-currant",
-                columnId: "status",
-            });
-            expect(grid.filterState).toEqual({ query: "currant" });
-            expect(emittedFilterState).toEqual({ query: "currant" });
-            expect(grid.selectedRowIds).toEqual(["black-currant"]);
-            expect(grid.cellSelection).toBeNull();
-            expect(privateGrid.editingCell).toBeNull();
-            expect(privateGrid.fillPreview).toBeNull();
-        } finally {
-            grid.removeEventListener("filter-change", handleFilterChange);
-        }
-    });
-
-    it("skips locked cells when mapping pasted text across a selected range", async () => {
-        const columns: VioletDataGridColumn<TestRow>[] = [
-            {
-                id: "commonName",
-                label: "Plant",
-                editable: true,
-                editor: "text",
+  it("skips locked cells when mapping pasted text across a selected range", async () => {
+    const columns: VioletDataGridColumn<TestRow>[] = [
+      {
+        id: "commonName",
+        label: "Plant",
+        editable: true,
+        editor: "text",
         value: (row) => row.commonName,
-            },
-            {
-                id: "status",
-                label: "Status",
+      },
+      {
+        id: "status",
+        label: "Status",
         value: (row) => row.status,
-            },
-            {
-                id: "dtm",
-                label: "DTM",
-                editable: true,
-                editor: "number",
+      },
+      {
+        id: "dtm",
+        label: "DTM",
+        editable: true,
+        editor: "number",
         value: (row) => row.dtm,
-            },
-        ];
-        const grid = await renderGrid({ columns });
-        const privateGrid = grid as any;
+      },
+    ];
+    const grid = await renderGrid({ columns });
+    const privateGrid = grid as any;
 
-        grid.activeCell = {
-            rowId: "black-currant",
-            columnId: "commonName",
-        };
-        grid.cellSelection = {
-            anchor: {
-                rowId: "black-currant",
-                columnId: "commonName",
-            },
-            focus: {
-                rowId: "romanesco",
-                columnId: "dtm",
-            },
-        };
-        await nextFrame();
+    grid.activeCell = {
+      rowId: "black-currant",
+      columnId: "commonName",
+    };
+    grid.cellSelection = {
+      anchor: {
+        rowId: "black-currant",
+        columnId: "commonName",
+      },
+      focus: {
+        rowId: "romanesco",
+        columnId: "dtm",
+      },
+    };
+    await nextFrame();
 
     const detail = privateGrid.pasteDetailForText(
       "Gooseberry\tLocked\t120\nRomanesco\tLocked too\t81",
     );
 
-        expect(detail).not.toBeNull();
-        expect(detail?.origin).toEqual({
-            rowId: "black-currant",
-            columnId: "commonName",
-        });
-        expect(detail?.changes).toEqual([
-            {
-                rowId: "black-currant",
-                columnId: "commonName",
-                value: "Gooseberry",
-            },
-            {
-                rowId: "black-currant",
-                columnId: "dtm",
-                value: 120,
-            },
-            {
-                rowId: "romanesco",
-                columnId: "commonName",
-                value: "Romanesco",
-            },
-            {
-                rowId: "romanesco",
-                columnId: "dtm",
-                value: 81,
-            },
-        ]);
+    expect(detail).not.toBeNull();
+    expect(detail?.origin).toEqual({
+      rowId: "black-currant",
+      columnId: "commonName",
     });
+    expect(detail?.changes).toEqual([
+      {
+        rowId: "black-currant",
+        columnId: "commonName",
+        value: "Gooseberry",
+      },
+      {
+        rowId: "black-currant",
+        columnId: "dtm",
+        value: 120,
+      },
+      {
+        rowId: "romanesco",
+        columnId: "commonName",
+        value: "Romanesco",
+      },
+      {
+        rowId: "romanesco",
+        columnId: "dtm",
+        value: 81,
+      },
+    ]);
+  });
 
-    it("emits a boolean cell-change when a checkbox-backed cell toggles", async () => {
-        const grid = await renderGrid();
-        const privateGrid = grid as any;
+  it("emits a boolean cell-change when a checkbox-backed cell toggles", async () => {
+    const grid = await renderGrid();
+    const privateGrid = grid as any;
 
-        let emittedChange: VioletDataGridChangeDetail | undefined;
-        const handleCellChange = (event: Event) => {
-            emittedChange = (event as CustomEvent<VioletDataGridChangeDetail>).detail;
-        };
-        grid.addEventListener("cell-change", handleCellChange);
+    let emittedChange: VioletDataGridChangeDetail | undefined;
+    const handleCellChange = (event: Event) => {
+      emittedChange = (event as CustomEvent<VioletDataGridChangeDetail>).detail;
+    };
+    grid.addEventListener("cell-change", handleCellChange);
 
-        try {
-            privateGrid.commitCheckboxCellToggle(
-                {
-                    rowId: "romanesco",
-                    columnId: "tracked",
-                },
+    try {
+      privateGrid.commitCheckboxCellToggle(
+        {
+          rowId: "romanesco",
+          columnId: "tracked",
+        },
         true,
-            );
+      );
 
-            expect(emittedChange).toEqual({
-                rowId: "romanesco",
-                columnId: "tracked",
-                value: true,
-            });
-        } finally {
-            grid.removeEventListener("cell-change", handleCellChange);
-        }
+      expect(emittedChange).toEqual({
+        rowId: "romanesco",
+        columnId: "tracked",
+        value: true,
+      });
+    } finally {
+      grid.removeEventListener("cell-change", handleCellChange);
+    }
+  });
+
+  it("serializes the active cell for copy when no range is selected", async () => {
+    const grid = await renderGrid();
+    const privateGrid = grid as any;
+
+    grid.activeCell = {
+      rowId: "black-currant",
+      columnId: "status",
+    };
+    await nextFrame();
+
+    expect(privateGrid.copyDetailForCurrentSelection()).toEqual({
+      cells: [
+        {
+          rowId: "black-currant",
+          columnId: "status",
+        },
+      ],
+      text: "Established",
+    });
+  });
+
+  it("serializes a rectangular selection as TSV for copy", async () => {
+    const grid = await renderGrid();
+    const privateGrid = grid as any;
+
+    grid.activeCell = {
+      rowId: "black-currant",
+      columnId: "commonName",
+    };
+    grid.cellSelection = {
+      anchor: {
+        rowId: "black-currant",
+        columnId: "commonName",
+      },
+      focus: {
+        rowId: "romanesco",
+        columnId: "status",
+      },
+    };
+    await nextFrame();
+
+    expect(privateGrid.copyDetailForCurrentSelection()).toEqual({
+      cells: [
+        { rowId: "black-currant", columnId: "commonName" },
+        { rowId: "black-currant", columnId: "status" },
+        { rowId: "romanesco", columnId: "commonName" },
+        { rowId: "romanesco", columnId: "status" },
+      ],
+      text: "Black currant\tEstablished\nRomanesco\tIn bed",
+    });
+  });
+
+  it("emits cell-copy and writes clipboard text for the current selection", async () => {
+    const grid = await renderGrid();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const originalClipboard = globalThis.navigator.clipboard;
+    const clipboard = { writeText } as unknown as Clipboard;
+    Object.defineProperty(globalThis.navigator, "clipboard", {
+      configurable: true,
+      value: clipboard,
     });
 
-    it("serializes the active cell for copy when no range is selected", async () => {
-        const grid = await renderGrid();
-        const privateGrid = grid as any;
+    grid.activeCell = {
+      rowId: "black-currant",
+      columnId: "commonName",
+    };
 
-        grid.activeCell = {
-            rowId: "black-currant",
-            columnId: "status",
-        };
-        await nextFrame();
-
-        expect(privateGrid.copyDetailForCurrentSelection()).toEqual({
-            cells: [
-                {
-                    rowId: "black-currant",
-                    columnId: "status",
-                },
-            ],
-            text: "Established",
-        });
-    });
-
-    it("serializes a rectangular selection as TSV for copy", async () => {
-        const grid = await renderGrid();
-        const privateGrid = grid as any;
-
-        grid.activeCell = {
-            rowId: "black-currant",
-            columnId: "commonName",
-        };
-        grid.cellSelection = {
-            anchor: {
-                rowId: "black-currant",
-                columnId: "commonName",
-            },
-            focus: {
-                rowId: "romanesco",
-                columnId: "status",
-            },
-        };
-        await nextFrame();
-
-        expect(privateGrid.copyDetailForCurrentSelection()).toEqual({
-            cells: [
-                { rowId: "black-currant", columnId: "commonName" },
-                { rowId: "black-currant", columnId: "status" },
-                { rowId: "romanesco", columnId: "commonName" },
-                { rowId: "romanesco", columnId: "status" },
-            ],
-            text: "Black currant\tEstablished\nRomanesco\tIn bed",
-        });
-    });
-
-    it("emits cell-copy and writes clipboard text for the current selection", async () => {
-        const grid = await renderGrid();
-        const writeText = vi.fn().mockResolvedValue(undefined);
-        const originalClipboard = globalThis.navigator.clipboard;
-        const clipboard = { writeText } as unknown as Clipboard;
-        Object.defineProperty(globalThis.navigator, "clipboard", {
-            configurable: true,
-            value: clipboard,
-        });
-
-        grid.activeCell = {
-            rowId: "black-currant",
-            columnId: "commonName",
-        };
-
-        let emittedCopy: { cells: VioletDataGridCellLocation[]; text: string } | undefined;
-        const handleCellCopy = (event: Event) => {
+    let emittedCopy: { cells: VioletDataGridCellLocation[]; text: string } | undefined;
+    const handleCellCopy = (event: Event) => {
       emittedCopy = (event as CustomEvent<{ cells: VioletDataGridCellLocation[]; text: string }>)
         .detail;
-        };
-        grid.addEventListener("cell-copy", handleCellCopy);
+    };
+    grid.addEventListener("cell-copy", handleCellCopy);
 
-        try {
-            await grid.handleCopyRequest();
+    try {
+      await grid.handleCopyRequest();
 
-            expect(emittedCopy).toEqual({
-                cells: [
-                    {
-                        rowId: "black-currant",
-                        columnId: "commonName",
-                    },
-                ],
-                text: "Black currant",
-            });
-            expect(writeText).toHaveBeenCalledWith("Black currant");
-        } finally {
-            grid.removeEventListener("cell-copy", handleCellCopy);
-            Object.defineProperty(globalThis.navigator, "clipboard", {
-                configurable: true,
-                value: originalClipboard,
-            });
-        }
+      expect(emittedCopy).toEqual({
+        cells: [
+          {
+            rowId: "black-currant",
+            columnId: "commonName",
+          },
+        ],
+        text: "Black currant",
+      });
+      expect(writeText).toHaveBeenCalledWith("Black currant");
+    } finally {
+      grid.removeEventListener("cell-copy", handleCellCopy);
+      Object.defineProperty(globalThis.navigator, "clipboard", {
+        configurable: true,
+        value: originalClipboard,
+      });
+    }
+  });
+
+  it("writes TSV through clipboardData on the native copy event", async () => {
+    const grid = await renderGrid();
+    const scroll = grid.shadowRoot?.querySelector(".table-scroll") as HTMLDivElement;
+    const cellCopies: string[] = [];
+    grid.addEventListener("cell-copy", (event) => {
+      cellCopies.push((event as CustomEvent<{ text: string }>).detail.text);
     });
+    grid.activeCell = { rowId: "black-currant", columnId: "commonName" };
+    grid.cellSelection = {
+      anchor: { rowId: "black-currant", columnId: "commonName" },
+      focus: { rowId: "romanesco", columnId: "status" },
+    };
 
-    it("writes TSV through clipboardData on the native copy event", async () => {
-        const grid = await renderGrid();
-        const scroll = grid.shadowRoot?.querySelector(".table-scroll") as HTMLDivElement;
-        const cellCopies: string[] = [];
-        grid.addEventListener("cell-copy", (event) => {
-            cellCopies.push((event as CustomEvent<{ text: string }>).detail.text);
-        });
-        grid.activeCell = { rowId: "black-currant", columnId: "commonName" };
-        grid.cellSelection = {
-            anchor: { rowId: "black-currant", columnId: "commonName" },
-            focus: { rowId: "romanesco", columnId: "status" },
-        };
+    const clipboardData = new DataTransfer();
+    const event = new ClipboardEvent("copy", {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      clipboardData,
+    });
+    // Firefox ignores clipboardData in synthetic ClipboardEvent constructors and creates a read-only one.
+    if (event.clipboardData !== clipboardData) {
+      Object.defineProperty(event, "clipboardData", { value: clipboardData });
+    }
+    scroll.dispatchEvent(event);
 
-        const clipboardData = new DataTransfer();
-        const event = new ClipboardEvent("copy", {
-            bubbles: true,
-            cancelable: true,
-            composed: true,
-            clipboardData,
+    expect(event.defaultPrevented).toBe(true);
+    expect(clipboardData.getData("text/plain")).toBe(
+      "Black currant\tEstablished\nRomanesco\tIn bed",
+    );
+    expect(cellCopies).toEqual(["Black currant\tEstablished\nRomanesco\tIn bed"]);
+  });
+
+  it("surfaces clipboard failures as cell-copy-error instead of swallowing them", async () => {
+    const grid = await renderGrid();
+    const originalClipboard = globalThis.navigator.clipboard;
+    const failure = new Error("denied");
+    Object.defineProperty(globalThis.navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: vi.fn().mockRejectedValue(failure) },
+    });
+    const errors: { text: string; error: unknown }[] = [];
+    grid.addEventListener("cell-copy-error", (event) => {
+      errors.push((event as CustomEvent<{ text: string; error: unknown }>).detail);
+    });
+    grid.activeCell = { rowId: "black-currant", columnId: "commonName" };
+
+    try {
+      await grid.handleCopyRequest();
+      expect(errors).toHaveLength(1);
+      expect(errors[0]?.text).toBe("Black currant");
+      expect(errors[0]?.error).toBe(failure);
+
+      Object.defineProperty(globalThis.navigator, "clipboard", {
+        configurable: true,
+        value: undefined,
+      });
+      await grid.handleCopyRequest();
+      expect(errors).toHaveLength(2);
+      expect(errors[1]?.error).toBeInstanceOf(Error);
+    } finally {
+      Object.defineProperty(globalThis.navigator, "clipboard", {
+        configurable: true,
+        value: originalClipboard,
+      });
+    }
+  });
+
+  it("lets Ctrl+C reach the native copy event and only falls back to the async clipboard when none fires", async () => {
+    const grid = await renderGrid();
+    const scroll = grid.shadowRoot?.querySelector(".table-scroll") as HTMLDivElement;
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const originalClipboard = globalThis.navigator.clipboard;
+    Object.defineProperty(globalThis.navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    grid.activeCell = { rowId: "black-currant", columnId: "commonName" };
+
+    try {
+      const keydown = () => {
+        const event = new KeyboardEvent("keydown", {
+          bubbles: true,
+          cancelable: true,
+          key: "c",
+          ctrlKey: true,
         });
-        // Firefox ignores clipboardData in synthetic ClipboardEvent constructors and creates a read-only one.
-        if (event.clipboardData !== clipboardData) {
-            Object.defineProperty(event, "clipboardData", { value: clipboardData });
-        }
         scroll.dispatchEvent(event);
+        return event;
+      };
 
-        expect(event.defaultPrevented).toBe(true);
-        expect(clipboardData.getData("text/plain")).toBe("Black currant\tEstablished\nRomanesco\tIn bed");
-        expect(cellCopies).toEqual(["Black currant\tEstablished\nRomanesco\tIn bed"]);
-    });
+      const first = keydown();
+      expect(first.defaultPrevented).toBe(false);
+      scroll.dispatchEvent(
+        new ClipboardEvent("copy", {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          clipboardData: new DataTransfer(),
+        }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(writeText).not.toHaveBeenCalled();
 
-    it("surfaces clipboard failures as cell-copy-error instead of swallowing them", async () => {
-        const grid = await renderGrid();
-        const originalClipboard = globalThis.navigator.clipboard;
-        const failure = new Error("denied");
-        Object.defineProperty(globalThis.navigator, "clipboard", {
-            configurable: true,
-            value: { writeText: vi.fn().mockRejectedValue(failure) },
-        });
-        const errors: { text: string; error: unknown }[] = [];
-        grid.addEventListener("cell-copy-error", (event) => {
-            errors.push((event as CustomEvent<{ text: string; error: unknown }>).detail);
-        });
-        grid.activeCell = { rowId: "black-currant", columnId: "commonName" };
+      keydown();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(writeText).toHaveBeenCalledWith("Black currant");
+    } finally {
+      Object.defineProperty(globalThis.navigator, "clipboard", {
+        configurable: true,
+        value: originalClipboard,
+      });
+    }
+  });
 
-        try {
-            await grid.handleCopyRequest();
-            expect(errors).toHaveLength(1);
-            expect(errors[0]?.text).toBe("Black currant");
-            expect(errors[0]?.error).toBe(failure);
+  it("lets native copy and paste pass through inside a custom cellTemplate interactive widget (#2368)", async () => {
+    const columns: VioletDataGridColumn<TestRow>[] = [
+      { ...widgetColumns[1]!, cellTemplate: nativeWidgetCellTemplate },
+      { ...widgetColumns[2]!, cellTemplate: shadowWidgetCellTemplate },
+    ];
+    const grid = await renderGrid({ columns });
+    grid.activeCell = { rowId: "black-currant", columnId: "commonName" };
+    await nextFrame();
 
-            Object.defineProperty(globalThis.navigator, "clipboard", { configurable: true, value: undefined });
-            await grid.handleCopyRequest();
-            expect(errors).toHaveLength(2);
-            expect(errors[1]?.error).toBeInstanceOf(Error);
-        } finally {
-            Object.defineProperty(globalThis.navigator, "clipboard", {
-                configurable: true,
-                value: originalClipboard,
-            });
-        }
-    });
+    const cellInput = grid.shadowRoot!.querySelector<HTMLInputElement>(
+      'td[data-row-id="black-currant"][data-column-id="commonName"] input[type="text"]',
+    )!;
+    const shadowWidget = grid.shadowRoot!.querySelector<HTMLElement>(
+      'td[data-row-id="black-currant"][data-column-id="status"] [data-cell-widget]',
+    )!;
+    const shadowInner = shadowWidget.shadowRoot!.querySelector<HTMLElement>("button")!;
+    expect(cellInput).toBeTruthy();
+    expect(shadowInner).toBeTruthy();
 
-    it("lets Ctrl+C reach the native copy event and only falls back to the async clipboard when none fires", async () => {
-        const grid = await renderGrid();
-        const scroll = grid.shadowRoot?.querySelector(".table-scroll") as HTMLDivElement;
-        const writeText = vi.fn().mockResolvedValue(undefined);
-        const originalClipboard = globalThis.navigator.clipboard;
-        Object.defineProperty(globalThis.navigator, "clipboard", {
-            configurable: true,
-            value: { writeText },
-        });
-        grid.activeCell = { rowId: "black-currant", columnId: "commonName" };
+    const copies: unknown[] = [];
+    const pastes: unknown[] = [];
+    grid.addEventListener("cell-copy", (event) => copies.push((event as CustomEvent).detail));
+    grid.addEventListener("cell-paste", (event) => pastes.push((event as CustomEvent).detail));
 
-        try {
-            const keydown = () => {
-                const event = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: "c", ctrlKey: true });
-                scroll.dispatchEvent(event);
-                return event;
-            };
+    for (const target of [cellInput, shadowInner]) {
+      target.focus();
 
-            const first = keydown();
-            expect(first.defaultPrevented).toBe(false);
-            scroll.dispatchEvent(
-                new ClipboardEvent("copy", { bubbles: true, cancelable: true, composed: true, clipboardData: new DataTransfer() }),
-            );
-            await new Promise((resolve) => setTimeout(resolve, 20));
-            expect(writeText).not.toHaveBeenCalled();
+      const copyData = new DataTransfer();
+      const copyEvent = new ClipboardEvent("copy", {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        clipboardData: copyData,
+      });
+      if (copyEvent.clipboardData !== copyData) {
+        Object.defineProperty(copyEvent, "clipboardData", { value: copyData });
+      }
+      target.dispatchEvent(copyEvent);
 
-            keydown();
-            await new Promise((resolve) => setTimeout(resolve, 20));
-            expect(writeText).toHaveBeenCalledWith("Black currant");
-        } finally {
-            Object.defineProperty(globalThis.navigator, "clipboard", {
-                configurable: true,
-                value: originalClipboard,
-            });
-        }
-    });
+      expect(copyEvent.defaultPrevented).toBe(false);
+      expect(copyData.getData("text/plain")).toBe("");
+      expect(copies).toEqual([]);
 
-    it("lets native copy and paste pass through inside a custom cellTemplate interactive widget (#2368)", async () => {
-        const columns: VioletDataGridColumn<TestRow>[] = [
-            { ...widgetColumns[1]!, cellTemplate: nativeWidgetCellTemplate },
-            { ...widgetColumns[2]!, cellTemplate: shadowWidgetCellTemplate },
-        ];
-        const grid = await renderGrid({ columns });
-        grid.activeCell = { rowId: "black-currant", columnId: "commonName" };
-        await nextFrame();
+      const pasteData = new DataTransfer();
+      pasteData.setData("text/plain", "Gooseberry");
+      const pasteEvent = new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        clipboardData: pasteData,
+      });
+      if (pasteEvent.clipboardData !== pasteData) {
+        Object.defineProperty(pasteEvent, "clipboardData", { value: pasteData });
+      }
+      target.dispatchEvent(pasteEvent);
 
-        const cellInput = grid.shadowRoot!.querySelector<HTMLInputElement>(
-            'td[data-row-id="black-currant"][data-column-id="commonName"] input[type="text"]',
-        )!;
-        const shadowWidget = grid.shadowRoot!.querySelector<HTMLElement>(
-            'td[data-row-id="black-currant"][data-column-id="status"] [data-cell-widget]',
-        )!;
-        const shadowInner = shadowWidget.shadowRoot!.querySelector<HTMLElement>("button")!;
-        expect(cellInput).toBeTruthy();
-        expect(shadowInner).toBeTruthy();
+      expect(pasteEvent.defaultPrevented).toBe(false);
+      expect(pastes).toEqual([]);
+    }
+  });
 
-        const copies: unknown[] = [];
-        const pastes: unknown[] = [];
-        grid.addEventListener("cell-copy", (event) => copies.push((event as CustomEvent).detail));
-        grid.addEventListener("cell-paste", (event) => pastes.push((event as CustomEvent).detail));
+  it("commits text and number edits with normalized values", async () => {
+    const grid = await renderGrid();
+    const privateGrid = grid as any;
 
-        for (const target of [cellInput, shadowInner]) {
-            target.focus();
+    const changes: VioletDataGridChangeDetail[] = [];
+    const handleCellChange = (event: Event) => {
+      changes.push((event as CustomEvent<VioletDataGridChangeDetail>).detail);
+    };
+    grid.addEventListener("cell-change", handleCellChange);
 
-            const copyData = new DataTransfer();
-            const copyEvent = new ClipboardEvent("copy", {
-                bubbles: true,
-                cancelable: true,
-                composed: true,
-                clipboardData: copyData,
-            });
-            if (copyEvent.clipboardData !== copyData) {
-                Object.defineProperty(copyEvent, "clipboardData", { value: copyData });
-            }
-            target.dispatchEvent(copyEvent);
+    try {
+      privateGrid.editingCell = {
+        rowId: "black-currant",
+        columnId: "commonName",
+      };
+      privateGrid.editingValue = "Gooseberry";
+      privateGrid.commitEditingCell();
 
-            expect(copyEvent.defaultPrevented).toBe(false);
-            expect(copyData.getData("text/plain")).toBe("");
-            expect(copies).toEqual([]);
+      privateGrid.editingCell = {
+        rowId: "romanesco",
+        columnId: "dtm",
+      };
+      privateGrid.editingValue = "";
+      privateGrid.commitEditingCell();
 
-            const pasteData = new DataTransfer();
-            pasteData.setData("text/plain", "Gooseberry");
-            const pasteEvent = new ClipboardEvent("paste", {
-                bubbles: true,
-                cancelable: true,
-                composed: true,
-                clipboardData: pasteData,
-            });
-            if (pasteEvent.clipboardData !== pasteData) {
-                Object.defineProperty(pasteEvent, "clipboardData", { value: pasteData });
-            }
-            target.dispatchEvent(pasteEvent);
-
-            expect(pasteEvent.defaultPrevented).toBe(false);
-            expect(pastes).toEqual([]);
-        }
-    });
-
-    it("commits text and number edits with normalized values", async () => {
-        const grid = await renderGrid();
-        const privateGrid = grid as any;
-
-        const changes: VioletDataGridChangeDetail[] = [];
-        const handleCellChange = (event: Event) => {
-            changes.push((event as CustomEvent<VioletDataGridChangeDetail>).detail);
-        };
-        grid.addEventListener("cell-change", handleCellChange);
-
-        try {
-            privateGrid.editingCell = {
-                rowId: "black-currant",
-                columnId: "commonName",
-            };
-            privateGrid.editingValue = "Gooseberry";
-            privateGrid.commitEditingCell();
-
-            privateGrid.editingCell = {
-                rowId: "romanesco",
-                columnId: "dtm",
-            };
-            privateGrid.editingValue = "";
-            privateGrid.commitEditingCell();
-
-            expect(changes).toEqual([
-                {
-                    rowId: "black-currant",
-                    columnId: "commonName",
-                    value: "Gooseberry",
-                },
-                {
-                    rowId: "romanesco",
-                    columnId: "dtm",
-                    value: null,
-                },
-            ]);
-        } finally {
-            grid.removeEventListener("cell-change", handleCellChange);
-        }
-    });
+      expect(changes).toEqual([
+        {
+          rowId: "black-currant",
+          columnId: "commonName",
+          value: "Gooseberry",
+        },
+        {
+          rowId: "romanesco",
+          columnId: "dtm",
+          value: null,
+        },
+      ]);
+    } finally {
+      grid.removeEventListener("cell-change", handleCellChange);
+    }
+  });
 
   it("commits a mounted editor once when blur has no related target", async () => {
     const grid = await renderGrid();
@@ -1469,366 +1482,366 @@ describe("violet-data-grid", () => {
     expect(changes).toHaveLength(1);
   });
 
-    it("cancels editing without emitting cell-change and emits edit-cancel instead", async () => {
-        const grid = await renderGrid();
-        const privateGrid = grid as any;
+  it("cancels editing without emitting cell-change and emits edit-cancel instead", async () => {
+    const grid = await renderGrid();
+    const privateGrid = grid as any;
 
-        const changeHandler = vi.fn();
-        let cancelledCell: VioletDataGridCellLocation | undefined;
-        const handleEditCancel = (event: Event) => {
-            cancelledCell = (event as CustomEvent<VioletDataGridCellLocation>).detail;
-        };
+    const changeHandler = vi.fn();
+    let cancelledCell: VioletDataGridCellLocation | undefined;
+    const handleEditCancel = (event: Event) => {
+      cancelledCell = (event as CustomEvent<VioletDataGridCellLocation>).detail;
+    };
 
-        grid.addEventListener("cell-change", changeHandler);
-        grid.addEventListener("edit-cancel", handleEditCancel);
+    grid.addEventListener("cell-change", changeHandler);
+    grid.addEventListener("edit-cancel", handleEditCancel);
 
-        try {
-            privateGrid.editingCell = {
-                rowId: "black-currant",
-                columnId: "commonName",
-            };
-            privateGrid.editingValue = "Should not commit";
+    try {
+      privateGrid.editingCell = {
+        rowId: "black-currant",
+        columnId: "commonName",
+      };
+      privateGrid.editingValue = "Should not commit";
 
-            grid.cancelActiveEdit();
+      grid.cancelActiveEdit();
 
-            expect(changeHandler).not.toHaveBeenCalled();
-            expect(cancelledCell).toEqual({
-                rowId: "black-currant",
-                columnId: "commonName",
-            });
-            expect(privateGrid.editingCell).toBeNull();
-            expect(privateGrid.editingValue).toBe("");
-        } finally {
-            grid.removeEventListener("cell-change", changeHandler);
-            grid.removeEventListener("edit-cancel", handleEditCancel);
-        }
+      expect(changeHandler).not.toHaveBeenCalled();
+      expect(cancelledCell).toEqual({
+        rowId: "black-currant",
+        columnId: "commonName",
+      });
+      expect(privateGrid.editingCell).toBeNull();
+      expect(privateGrid.editingValue).toBe("");
+    } finally {
+      grid.removeEventListener("cell-change", changeHandler);
+      grid.removeEventListener("edit-cancel", handleEditCancel);
+    }
+  });
+
+  it("falls back to the first available cell when the active row disappears", async () => {
+    const grid = await renderGrid();
+
+    grid.activeCell = {
+      rowId: "black-currant",
+      columnId: "status",
+    };
+    await nextFrame();
+
+    grid.rows = [widgetRows[1]!];
+    await nextFrame();
+
+    expect(grid.activeCell).toEqual({
+      rowId: "romanesco",
+      columnId: "tracked",
+    });
+  });
+
+  it("lets Tab leave the grid when not editing in roving-focus cell mode (#510)", async () => {
+    const grid = await renderGrid();
+    const activeCell = grid.shadowRoot?.querySelector(
+      'td[data-row-id="black-currant"][data-column-id="commonName"]',
+    ) as HTMLTableCellElement | null;
+
+    grid.activeCell = {
+      rowId: "black-currant",
+      columnId: "commonName",
+    };
+    await nextFrame();
+
+    const keyEvent = new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      key: "Tab",
+    });
+    Object.defineProperty(keyEvent, "target", {
+      configurable: true,
+      value: activeCell,
     });
 
-    it("falls back to the first available cell when the active row disappears", async () => {
-        const grid = await renderGrid();
+    const allowDefault = grid.handleGridKeydown(keyEvent);
 
-        grid.activeCell = {
-            rowId: "black-currant",
-            columnId: "status",
-        };
-        await nextFrame();
+    expect(allowDefault).toBe(true);
+    expect(keyEvent.defaultPrevented).toBe(false);
+    expect(grid.activeCell).toEqual({
+      rowId: "black-currant",
+      columnId: "commonName",
+    });
+  });
 
-        grid.rows = [widgetRows[1]!];
-        await nextFrame();
+  it("commits the current edit and moves focus with Tab from an editor", async () => {
+    const grid = await renderGrid();
+    const privateGrid = grid as any;
 
-        expect(grid.activeCell).toEqual({
-            rowId: "romanesco",
-            columnId: "tracked",
-        });
+    grid.activeCell = {
+      rowId: "black-currant",
+      columnId: "commonName",
+    };
+    privateGrid.editingCell = {
+      rowId: "black-currant",
+      columnId: "commonName",
+    };
+    privateGrid.editingValue = "Gooseberry";
+
+    let emittedChange: VioletDataGridChangeDetail | undefined;
+    const handleCellChange = (event: Event) => {
+      emittedChange = (event as CustomEvent<VioletDataGridChangeDetail>).detail;
+    };
+    grid.addEventListener("cell-change", handleCellChange);
+
+    try {
+      const editor = document.createElement("input");
+      editor.className = "cell-editor";
+      const keyEvent = new KeyboardEvent("keydown", {
+        bubbles: true,
+        key: "Tab",
+      });
+      Object.defineProperty(keyEvent, "target", {
+        configurable: true,
+        value: editor,
+      });
+
+      grid.handleGridKeydown(keyEvent);
+
+      expect(emittedChange).toEqual({
+        rowId: "black-currant",
+        columnId: "commonName",
+        value: "Gooseberry",
+      });
+      expect(privateGrid.editingCell).toBeNull();
+      expect(grid.activeCell).toEqual({
+        rowId: "black-currant",
+        columnId: "status",
+      });
+    } finally {
+      grid.removeEventListener("cell-change", handleCellChange);
+    }
+  });
+
+  it("derives the fill source range from the active cell or the selected range", async () => {
+    const grid = await renderGrid();
+    const privateGrid = grid as any;
+
+    grid.activeCell = {
+      rowId: "black-currant",
+      columnId: "commonName",
+    };
+
+    expect(privateGrid.currentFillSourceRange()).toEqual({
+      anchor: {
+        rowId: "black-currant",
+        columnId: "commonName",
+      },
+      focus: {
+        rowId: "black-currant",
+        columnId: "commonName",
+      },
     });
 
-    it("lets Tab leave the grid when not editing in roving-focus cell mode (#510)", async () => {
-        const grid = await renderGrid();
-        const activeCell = grid.shadowRoot?.querySelector(
-            'td[data-row-id="black-currant"][data-column-id="commonName"]',
-        ) as HTMLTableCellElement | null;
+    grid.cellSelection = {
+      anchor: {
+        rowId: "black-currant",
+        columnId: "commonName",
+      },
+      focus: {
+        rowId: "romanesco",
+        columnId: "status",
+      },
+    };
 
-        grid.activeCell = {
-            rowId: "black-currant",
-            columnId: "commonName",
-        };
-        await nextFrame();
-
-        const keyEvent = new KeyboardEvent("keydown", {
-            bubbles: true,
-            cancelable: true,
-            key: "Tab",
-        });
-        Object.defineProperty(keyEvent, "target", {
-            configurable: true,
-            value: activeCell,
-        });
-
-        const allowDefault = grid.handleGridKeydown(keyEvent);
-
-        expect(allowDefault).toBe(true);
-        expect(keyEvent.defaultPrevented).toBe(false);
-        expect(grid.activeCell).toEqual({
-            rowId: "black-currant",
-            columnId: "commonName",
-        });
+    expect(privateGrid.currentFillSourceRange()).toEqual({
+      anchor: {
+        rowId: "black-currant",
+        columnId: "commonName",
+      },
+      focus: {
+        rowId: "romanesco",
+        columnId: "status",
+      },
     });
+  });
 
-    it("commits the current edit and moves focus with Tab from an editor", async () => {
-        const grid = await renderGrid();
-        const privateGrid = grid as any;
-
-        grid.activeCell = {
-            rowId: "black-currant",
-            columnId: "commonName",
-        };
-        privateGrid.editingCell = {
-            rowId: "black-currant",
-            columnId: "commonName",
-        };
-        privateGrid.editingValue = "Gooseberry";
-
-        let emittedChange: VioletDataGridChangeDetail | undefined;
-        const handleCellChange = (event: Event) => {
-            emittedChange = (event as CustomEvent<VioletDataGridChangeDetail>).detail;
-        };
-        grid.addEventListener("cell-change", handleCellChange);
-
-        try {
-            const editor = document.createElement("input");
-            editor.className = "cell-editor";
-            const keyEvent = new KeyboardEvent("keydown", {
-                bubbles: true,
-                key: "Tab",
-            });
-            Object.defineProperty(keyEvent, "target", {
-                configurable: true,
-                value: editor,
-            });
-
-            grid.handleGridKeydown(keyEvent);
-
-            expect(emittedChange).toEqual({
-                rowId: "black-currant",
-                columnId: "commonName",
-                value: "Gooseberry",
-            });
-            expect(privateGrid.editingCell).toBeNull();
-            expect(grid.activeCell).toEqual({
-                rowId: "black-currant",
-                columnId: "status",
-            });
-        } finally {
-            grid.removeEventListener("cell-change", handleCellChange);
-        }
-    });
-
-    it("derives the fill source range from the active cell or the selected range", async () => {
-        const grid = await renderGrid();
-        const privateGrid = grid as any;
-
-        grid.activeCell = {
-            rowId: "black-currant",
-            columnId: "commonName",
-        };
-
-        expect(privateGrid.currentFillSourceRange()).toEqual({
-            anchor: {
-                rowId: "black-currant",
-                columnId: "commonName",
-            },
-            focus: {
-                rowId: "black-currant",
-                columnId: "commonName",
-            },
-        });
-
-        grid.cellSelection = {
-            anchor: {
-                rowId: "black-currant",
-                columnId: "commonName",
-            },
-            focus: {
-                rowId: "romanesco",
-                columnId: "status",
-            },
-        };
-
-        expect(privateGrid.currentFillSourceRange()).toEqual({
-            anchor: {
-                rowId: "black-currant",
-                columnId: "commonName",
-            },
-            focus: {
-                rowId: "romanesco",
-                columnId: "status",
-            },
-        });
-    });
-
-    it("clamps fill expansion at the first locked column boundary", async () => {
-        const columns: VioletDataGridColumn<TestRow>[] = [
-            {
-                id: "commonName",
-                label: "Plant",
-                editable: true,
-                editor: "text",
+  it("clamps fill expansion at the first locked column boundary", async () => {
+    const columns: VioletDataGridColumn<TestRow>[] = [
+      {
+        id: "commonName",
+        label: "Plant",
+        editable: true,
+        editor: "text",
         value: (row) => row.commonName,
-            },
-            {
-                id: "status",
-                label: "Status",
+      },
+      {
+        id: "status",
+        label: "Status",
         value: (row) => row.status,
-            },
-            {
-                id: "dtm",
-                label: "DTM",
-                editable: true,
-                editor: "number",
+      },
+      {
+        id: "dtm",
+        label: "DTM",
+        editable: true,
+        editor: "number",
         value: (row) => row.dtm,
-            },
-        ];
-        const grid = await renderGrid({ columns });
-        const privateGrid = grid as any;
+      },
+    ];
+    const grid = await renderGrid({ columns });
+    const privateGrid = grid as any;
 
-        const sourceBounds = {
-            rowStart: 0,
-            rowEnd: 0,
-            columnStart: 0,
-            columnEnd: 0,
-        };
-        const expandedBounds = {
-            rowStart: 0,
-            rowEnd: 0,
-            columnStart: 0,
-            columnEnd: 2,
-        };
+    const sourceBounds = {
+      rowStart: 0,
+      rowEnd: 0,
+      columnStart: 0,
+      columnEnd: 0,
+    };
+    const expandedBounds = {
+      rowStart: 0,
+      rowEnd: 0,
+      columnStart: 0,
+      columnEnd: 2,
+    };
 
-        expect(privateGrid.clampFillBoundsToEditableTargets(expandedBounds, sourceBounds)).toEqual({
-            rowStart: 0,
-            rowEnd: 0,
-            columnStart: 0,
-            columnEnd: 0,
-        });
+    expect(privateGrid.clampFillBoundsToEditableTargets(expandedBounds, sourceBounds)).toEqual({
+      rowStart: 0,
+      rowEnd: 0,
+      columnStart: 0,
+      columnEnd: 0,
     });
+  });
 
-    it("normalizes pasted text line endings and trims a trailing newline", async () => {
-        const grid = await renderGrid();
-        const privateGrid = grid as any;
+  it("normalizes pasted text line endings and trims a trailing newline", async () => {
+    const grid = await renderGrid();
+    const privateGrid = grid as any;
 
-        expect(privateGrid.normalizePastedText("Black currant\r\nEstablished\r")).toBe(
+    expect(privateGrid.normalizePastedText("Black currant\r\nEstablished\r")).toBe(
       "Black currant\nEstablished",
-        );
-        expect(privateGrid.normalizePastedText("Black currant\r\nEstablished\r\n")).toBe(
+    );
+    expect(privateGrid.normalizePastedText("Black currant\r\nEstablished\r\n")).toBe(
       "Black currant\nEstablished",
-        );
+    );
+  });
+
+  it("uses the top-left selected cell as the paste origin", async () => {
+    const grid = await renderGrid();
+    const privateGrid = grid as any;
+
+    grid.activeCell = {
+      rowId: "romanesco",
+      columnId: "status",
+    };
+    grid.cellSelection = {
+      anchor: {
+        rowId: "romanesco",
+        columnId: "status",
+      },
+      focus: {
+        rowId: "black-currant",
+        columnId: "commonName",
+      },
+    };
+
+    expect(privateGrid.pasteOriginLocation()).toEqual({
+      rowId: "black-currant",
+      columnId: "commonName",
     });
+  });
 
-    it("uses the top-left selected cell as the paste origin", async () => {
-        const grid = await renderGrid();
-        const privateGrid = grid as any;
-
-        grid.activeCell = {
-            rowId: "romanesco",
-            columnId: "status",
-        };
-        grid.cellSelection = {
-            anchor: {
-                rowId: "romanesco",
-                columnId: "status",
-            },
-            focus: {
-                rowId: "black-currant",
-                columnId: "commonName",
-            },
-        };
-
-        expect(privateGrid.pasteOriginLocation()).toEqual({
-            rowId: "black-currant",
-            columnId: "commonName",
-        });
-    });
-
-    it("applies a single pasted value across the whole selected range while skipping locked cells", async () => {
-        const columns: VioletDataGridColumn<TestRow>[] = [
-            {
-                id: "commonName",
-                label: "Plant",
-                editable: true,
-                editor: "text",
+  it("applies a single pasted value across the whole selected range while skipping locked cells", async () => {
+    const columns: VioletDataGridColumn<TestRow>[] = [
+      {
+        id: "commonName",
+        label: "Plant",
+        editable: true,
+        editor: "text",
         value: (row) => row.commonName,
-            },
-            {
-                id: "status",
-                label: "Status",
+      },
+      {
+        id: "status",
+        label: "Status",
         value: (row) => row.status,
-            },
-            {
-                id: "dtm",
-                label: "DTM",
-                editable: true,
-                editor: "number",
+      },
+      {
+        id: "dtm",
+        label: "DTM",
+        editable: true,
+        editor: "number",
         value: (row) => row.dtm,
-            },
-        ];
-        const grid = await renderGrid({ columns });
-        const privateGrid = grid as any;
+      },
+    ];
+    const grid = await renderGrid({ columns });
+    const privateGrid = grid as any;
 
-        grid.activeCell = {
-            rowId: "black-currant",
-            columnId: "commonName",
-        };
-        grid.cellSelection = {
-            anchor: {
-                rowId: "black-currant",
-                columnId: "commonName",
-            },
-            focus: {
-                rowId: "romanesco",
-                columnId: "dtm",
-            },
-        };
+    grid.activeCell = {
+      rowId: "black-currant",
+      columnId: "commonName",
+    };
+    grid.cellSelection = {
+      anchor: {
+        rowId: "black-currant",
+        columnId: "commonName",
+      },
+      focus: {
+        rowId: "romanesco",
+        columnId: "dtm",
+      },
+    };
 
-        expect(privateGrid.pasteDetailForText("42")?.changes).toEqual([
-            {
-                rowId: "black-currant",
-                columnId: "commonName",
-                value: "42",
-            },
-            {
-                rowId: "black-currant",
-                columnId: "dtm",
-                value: 42,
-            },
-            {
-                rowId: "romanesco",
-                columnId: "commonName",
-                value: "42",
-            },
-            {
-                rowId: "romanesco",
-                columnId: "dtm",
-                value: 42,
-            },
-        ]);
-    });
+    expect(privateGrid.pasteDetailForText("42")?.changes).toEqual([
+      {
+        rowId: "black-currant",
+        columnId: "commonName",
+        value: "42",
+      },
+      {
+        rowId: "black-currant",
+        columnId: "dtm",
+        value: 42,
+      },
+      {
+        rowId: "romanesco",
+        columnId: "commonName",
+        value: "42",
+      },
+      {
+        rowId: "romanesco",
+        columnId: "dtm",
+        value: 42,
+      },
+    ]);
+  });
 
-    it("samples autosize rows with a bounded set and still includes the last row", async () => {
-        const rows: VioletDataGridRow<TestRow>[] = Array.from({ length: 205 }, (_, index) => ({
-            id: `row-${index + 1}`,
-            data: {
-                tracked: index % 2 === 0,
-                commonName: `Plant ${index + 1}`,
-                status: index === 204 ? "Last row sentinel" : "Seedling",
-                dtm: String(index + 1),
-            },
-        }));
-        const grid = await renderGrid({ rows });
-        const sample = sampleAutosizeRows(grid.presentedRows);
+  it("samples autosize rows with a bounded set and still includes the last row", async () => {
+    const rows: VioletDataGridRow<TestRow>[] = Array.from({ length: 205 }, (_, index) => ({
+      id: `row-${index + 1}`,
+      data: {
+        tracked: index % 2 === 0,
+        commonName: `Plant ${index + 1}`,
+        status: index === 204 ? "Last row sentinel" : "Seedling",
+        dtm: String(index + 1),
+      },
+    }));
+    const grid = await renderGrid({ rows });
+    const sample = sampleAutosizeRows(grid.presentedRows);
 
-        expect(sample.length).toBeLessThanOrEqual(151);
-        expect(sample[0]?.id).toBe("row-1");
-        expect(sample[99]?.id).toBe("row-100");
+    expect(sample.length).toBeLessThanOrEqual(151);
+    expect(sample[0]?.id).toBe("row-1");
+    expect(sample[99]?.id).toBe("row-100");
     expect(sample.some((row) => row.id === "row-205")).toBe(true);
-    });
+  });
 
-    it("falls back to the first available cell when the active column disappears", async () => {
-        const grid = await renderGrid();
+  it("falls back to the first available cell when the active column disappears", async () => {
+    const grid = await renderGrid();
 
-        grid.activeCell = {
-            rowId: "black-currant",
-            columnId: "status",
-        };
-        await nextFrame();
+    grid.activeCell = {
+      rowId: "black-currant",
+      columnId: "status",
+    };
+    await nextFrame();
 
     (grid as any).columns = widgetColumns.filter((column) => column.id !== "status");
-        await nextFrame();
+    await nextFrame();
 
-        expect(grid.activeCell).toEqual({
-            rowId: "black-currant",
-            columnId: "tracked",
-        });
+    expect(grid.activeCell).toEqual({
+      rowId: "black-currant",
+      columnId: "tracked",
     });
+  });
 
   it("tracks the effective density row height until a caller supplies an override", () => {
     const grid = document.createElement("violet-data-grid") as VioletDataGrid;
@@ -2274,7 +2287,12 @@ describe("violet-data-grid", () => {
     const columns: VioletDataGridColumn<{ value: string }>[] = [
       { id: "value", label: "Value", editable: true, editor: "text", value: (row) => row.value },
     ];
-    const grid = await renderVirtualGrid({ rows: makeRows("row", 100), columns, height: 160, focusMode: "cell" });
+    const grid = await renderVirtualGrid({
+      rows: makeRows("row", 100),
+      columns,
+      height: 160,
+      focusMode: "cell",
+    });
     const privateGrid = grid as any;
     const scroll = grid.shadowRoot?.querySelector(".table-scroll") as HTMLDivElement | null;
     if (!scroll) throw new Error("Expected a virtual scroll container.");
@@ -2314,13 +2332,17 @@ describe("violet-data-grid", () => {
     const privateGrid = grid as any;
 
     expect(privateGrid.cellIdFor("a-b", "c")).not.toBe(privateGrid.cellIdFor("a", "b-c"));
-    const ids = rows.flatMap((row) => columns.map((column) => privateGrid.cellIdFor(row.id, column.id)));
+    const ids = rows.flatMap((row) =>
+      columns.map((column) => privateGrid.cellIdFor(row.id, column.id)),
+    );
     expect(new Set(ids).size).toBe(ids.length);
     for (const id of ids) {
       expect(id).toMatch(/^[A-Za-z0-9_-]+$/);
     }
     expect(grid.shadowRoot?.querySelectorAll("td[id]").length).toBe(ids.length);
-    expect(new Set([...grid.shadowRoot!.querySelectorAll("td[id]")].map((cell) => cell.id)).size).toBe(ids.length);
+    expect(
+      new Set([...grid.shadowRoot!.querySelectorAll("td[id]")].map((cell) => cell.id)).size,
+    ).toBe(ids.length);
 
     grid.activeCell = { rowId: 'a"]', columnId: 'b"]-c' };
     privateGrid.startEditingCell(grid.activeCell);
@@ -2382,8 +2404,12 @@ describe("violet-data-grid", () => {
     expect(cancellations).toEqual([{ rowId: "row-0", columnId: "dtm" }]);
     expect(announcementAtCancellation).toMatch(/unsaved invalid edit.+cancelled/i);
     expect(grid.editingCell).toBeNull();
-    const editStatus = grid.shadowRoot?.querySelector<HTMLElement>('[part~="edit-status"][role="status"]');
-    expect(grid.shadowRoot?.querySelector('.fill-status[role="status"]')).toBeInstanceOf(HTMLElement);
+    const editStatus = grid.shadowRoot?.querySelector<HTMLElement>(
+      '[part~="edit-status"][role="status"]',
+    );
+    expect(grid.shadowRoot?.querySelector('.fill-status[role="status"]')).toBeInstanceOf(
+      HTMLElement,
+    );
     expect(editStatus?.getAttribute("aria-live")).toBe("polite");
     expect(editStatus?.textContent).toMatch(/unsaved invalid edit.+cancelled/i);
     expect(editStatus ? getComputedStyle(editStatus).display : "none").not.toBe("none");
@@ -2398,9 +2424,9 @@ describe("violet-data-grid", () => {
       rowId: nextCell.dataset.rowId ?? "",
       columnId: nextCell.dataset.columnId ?? "",
     };
-    const firstColumnCell = nextCell.closest("tr")?.querySelector<HTMLTableCellElement>(
-      'td[data-column-id="dtm"]',
-    );
+    const firstColumnCell = nextCell
+      .closest("tr")
+      ?.querySelector<HTMLTableCellElement>('td[data-column-id="dtm"]');
     if (!firstColumnCell) throw new Error("Expected the first column beside the rendered cell.");
     const firstColumnLocation = {
       rowId: firstColumnCell.dataset.rowId ?? "",
@@ -2507,7 +2533,9 @@ describe("violet-data-grid", () => {
     expect(cancellations).toEqual([{ rowId: "row-0", columnId: "dtm" }]);
     expect(changes).toEqual([]);
     expect(grid.editingCell).toEqual({ rowId: "row-1", columnId: "name" });
-    expect(grid.shadowRoot?.activeElement).not.toBe(grid.shadowRoot?.querySelector(".table-scroll"));
+    expect(grid.shadowRoot?.activeElement).not.toBe(
+      grid.shadowRoot?.querySelector(".table-scroll"),
+    );
     expect(grid.editAnnouncement).toBe("");
   });
 
@@ -2519,7 +2547,9 @@ describe("violet-data-grid", () => {
     await nextFrame();
 
     expect(grid.editAnnouncement).toBe("");
-    expect(grid.shadowRoot?.querySelector('[part~="edit-status"][role="status"]')?.textContent).toBe("");
+    expect(
+      grid.shadowRoot?.querySelector('[part~="edit-status"][role="status"]')?.textContent,
+    ).toBe("");
   });
 
   it("clears the active edit before a reentrant commit listener runs", async () => {
@@ -2623,9 +2653,7 @@ describe("violet-data-grid", () => {
     ) as HTMLInputElement | null;
     expect(grid.editingCell).toBe(editingCell);
     expect(retainedEditor?.value).toBe("eight days");
-    expect(retainedEditor?.getAttribute("aria-label")).toBe(
-      "Edit DTM for Romanesco cauliflower",
-    );
+    expect(retainedEditor?.getAttribute("aria-label")).toBe("Edit DTM for Romanesco cauliflower");
     expect(retainedEditor?.getAttribute("aria-invalid")).toBe("true");
     expect(retainedEditor?.getAttribute("aria-errormessage")).toBeTruthy();
     expect(grid.shadowRoot?.querySelector('[role="alert"]')?.textContent).toContain("number");
@@ -2807,7 +2835,12 @@ describe("violet-data-grid", () => {
       focus: { rowId: "black-currant", columnId: "commonName" },
     };
     const clipboardData = new DataTransfer();
-    const copyEvent = new ClipboardEvent("copy", { bubbles: true, cancelable: true, composed: true, clipboardData });
+    const copyEvent = new ClipboardEvent("copy", {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      clipboardData,
+    });
     if (copyEvent.clipboardData !== clipboardData) {
       Object.defineProperty(copyEvent, "clipboardData", { value: clipboardData });
     }
@@ -2848,9 +2881,9 @@ describe("violet-data-grid", () => {
     grid.activeCell = { rowId: "black-currant", columnId: "status" };
     (grid as any).startEditingCell(grid.activeCell);
     await nextFrames(2);
-    const editor = grid.shadowRoot?.querySelector(
-      '.cell-editor[data-cell-editor="custom"]',
-    ) as (HTMLElement & { value: string }) | null;
+    const editor = grid.shadowRoot?.querySelector('.cell-editor[data-cell-editor="custom"]') as
+      | (HTMLElement & { value: string })
+      | null;
     if (!editor) throw new Error("Expected the rendered custom editor.");
     editor.value = "Unknown";
     editor.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
@@ -2944,7 +2977,9 @@ describe("violet-data-grid", () => {
     outside.focus();
     await nextFrames(5);
 
-    expect(changes).toEqual([{ rowId: "black-currant", columnId: "commonName", value: "Gooseberry" }]);
+    expect(changes).toEqual([
+      { rowId: "black-currant", columnId: "commonName", value: "Gooseberry" },
+    ]);
     expect(grid.editingCell).toBeNull();
     expect(document.activeElement).toBe(outside);
   });
@@ -3117,18 +3152,18 @@ describe("violet-data-grid", () => {
   it.each(invalidatingColumnTransitions)(
     "cancels once when $transition invalidates the stable target",
     async ({ columns }) => {
-    const grid = await renderGrid();
-    await openRenderedEditor(grid, "black-currant", "commonName");
-    const cancellations: VioletDataGridCellLocation[] = [];
-    grid.addEventListener("edit-cancel", (event) => {
-      cancellations.push((event as CustomEvent<VioletDataGridCellLocation>).detail);
-    });
+      const grid = await renderGrid();
+      await openRenderedEditor(grid, "black-currant", "commonName");
+      const cancellations: VioletDataGridCellLocation[] = [];
+      grid.addEventListener("edit-cancel", (event) => {
+        cancellations.push((event as CustomEvent<VioletDataGridCellLocation>).detail);
+      });
 
-    grid.columns = columns as VioletDataGridColumn[];
-    await nextFrames(2);
+      grid.columns = columns as VioletDataGridColumn[];
+      await nextFrames(2);
 
-    expect(cancellations).toEqual([{ rowId: "black-currant", columnId: "commonName" }]);
-    expect(grid.editingCell).toBeNull();
+      expect(cancellations).toEqual([{ rowId: "black-currant", columnId: "commonName" }]);
+      expect(grid.editingCell).toBeNull();
     },
   );
 

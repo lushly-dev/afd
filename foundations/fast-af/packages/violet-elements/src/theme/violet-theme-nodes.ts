@@ -8,7 +8,7 @@
  * @internal
  */
 export function isShadowRoot(target: unknown): target is ShadowRoot {
-    return (target as Node | null)?.nodeType === 11 && "host" in (target as object);
+  return (target as Node | null)?.nodeType === 11 && "host" in (target as object);
 }
 
 /**
@@ -17,5 +17,5 @@ export function isShadowRoot(target: unknown): target is ShadowRoot {
  * @internal
  */
 export function isDocument(target: unknown): target is Document {
-    return (target as Node | null)?.nodeType === 9;
+  return (target as Node | null)?.nodeType === 9;
 }

@@ -1,7 +1,15 @@
-import { FASTElement, Updates, attr, css, html, observable, when, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
-
-import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  observable,
+  type PartialFASTElementDefinition,
+  Updates,
+  when,
+} from "@lushly-dev/fast-element";
 import { installFormDisabled } from "../foundations/violet-form-disabled";
+import { violetFieldTokenDefaults } from "../theme/violet-token-defaults";
 
 const styles = css`
     ${violetFieldTokenDefaults}
@@ -256,13 +264,13 @@ const template = html<VioletCheckbox>`
                 part="input"
                 id="control"
                 type="checkbox"
-                :checked="${x => x.checked}"
-                name="${x => x.name}"
-                value="${x => x.value}"
-                ?disabled="${x => x.effectiveDisabled}"
-                ?required="${x => x.required}"
-                aria-label="${x => x.explicitAriaLabel}"
-                aria-invalid="${x => x.invalid ? "true" : "false"}"
+                :checked="${(x) => x.checked}"
+                name="${(x) => x.name}"
+                value="${(x) => x.value}"
+                ?disabled="${(x) => x.effectiveDisabled}"
+                ?required="${(x) => x.required}"
+                aria-label="${(x) => x.explicitAriaLabel}"
+                aria-invalid="${(x) => (x.invalid ? "true" : "false")}"
                 @change="${(x, c) => x.handleChange(c.event)}"
             />
             <span class="box" part="control" aria-hidden="true">
@@ -270,22 +278,22 @@ const template = html<VioletCheckbox>`
                 <span class="mixed-mark" part="mark mixed-mark"></span>
             </span>
         </label>
-        <span class="content" ?hidden="${x => x.inline && !x.hasLabel && !x.hasSupporting && !x.displayErrorText}">
-            <label class="label" part="label" for="control" ?hidden="${x => x.inline && !x.hasLabel}">
-                <slot @slotchange="${x => x.handleDefaultSlotChange()}"></slot>
+        <span class="content" ?hidden="${(x) => x.inline && !x.hasLabel && !x.hasSupporting && !x.displayErrorText}">
+            <label class="label" part="label" for="control" ?hidden="${(x) => x.inline && !x.hasLabel}">
+                <slot @slotchange="${(x) => x.handleDefaultSlotChange()}"></slot>
             </label>
             <span
                 class="supporting"
                 part="supporting-text"
                 id="supporting-text"
-                ?hidden="${x => !x.hasSupporting || Boolean(x.displayErrorText)}"
+                ?hidden="${(x) => !x.hasSupporting || Boolean(x.displayErrorText)}"
             >
-                <slot name="supporting" @slotchange="${x => x.handleSupportingSlotChange()}"></slot>
+                <slot name="supporting" @slotchange="${(x) => x.handleSupportingSlotChange()}"></slot>
             </span>
             ${when(
-                x => Boolean(x.displayErrorText),
-                html<VioletCheckbox>`
-                    <span class="error" part="error-message" id="error-message" role="alert">${x => x.displayErrorText}</span>
+              (x) => Boolean(x.displayErrorText),
+              html<VioletCheckbox>`
+                    <span class="error" part="error-message" id="error-message" role="alert">${(x) => x.displayErrorText}</span>
                 `,
             )}
         </span>
@@ -308,384 +316,406 @@ const template = html<VioletCheckbox>`
  * @csspart error-message - Error message element shown while invalid.
  */
 export class VioletCheckbox extends FASTElement {
-    public static readonly formAssociated = true;
+  public static readonly formAssociated = true;
 
-    readonly #internals: ElementInternals;
-    readonly #hostAriaObserver = new MutationObserver(() => this.#syncControlState());
-    // A described-by target can appear after the host connects without the attribute changing, so focus re-links it.
-    readonly #handleFocusIn = (): void => this.#syncDescribedBy();
-    #defaultChecked: boolean;
-    #defaultIndeterminate: boolean;
+  readonly #internals: ElementInternals;
+  readonly #hostAriaObserver = new MutationObserver(() => this.#syncControlState());
+  // A described-by target can appear after the host connects without the attribute changing, so focus re-links it.
+  readonly #handleFocusIn = (): void => this.#syncDescribedBy();
+  #defaultChecked: boolean;
+  #defaultIndeterminate: boolean;
 
-    @observable
-    declare public hasSupporting: boolean;
+  @observable
+  declare public hasSupporting: boolean;
 
-    @observable
-    declare public hasLabel: boolean;
+  @observable
+  declare public hasLabel: boolean;
 
-    /**
-     * Backing state for `displayErrorText`.
-     */
-    @observable
-    private _displayErrorText = "";
+  /**
+   * Backing state for `displayErrorText`.
+   */
+  @observable
+  private _displayErrorText = "";
 
-    /**
-     * Active error message rendered while the checkbox is invalid.
-     */
-    public get displayErrorText(): string {
-        return this._displayErrorText;
+  /**
+   * Active error message rendered while the checkbox is invalid.
+   */
+  public get displayErrorText(): string {
+    return this._displayErrorText;
+  }
+
+  /**
+   * Checked state for the checkbox.
+   */
+  declare public checked: boolean;
+
+  /**
+   * Mixed selection state for aggregate checkboxes.
+   */
+  declare public indeterminate: boolean;
+
+  /**
+   * Disables the checkbox.
+   */
+  declare public disabled: boolean;
+
+  /**
+   * True while an ancestor `<fieldset disabled>` disables the control.
+   */
+  declare public fieldsetDisabled: boolean;
+
+  /**
+   * Author `disabled` or fieldset-disabled.
+   */
+  declare public readonly effectiveDisabled: boolean;
+
+  /**
+   * Presents a compact inline layout that can collapse to the control only.
+   */
+  declare public inline: boolean;
+
+  /**
+   * Marks the checkbox as invalid.
+   */
+  declare public invalid: boolean;
+
+  /**
+   * Optional error message shown while the checkbox is invalid.
+   */
+  declare public errorText: string;
+
+  /**
+   * Native form name used during submission.
+   */
+  declare public name: string;
+
+  /**
+   * Native submitted value when checked.
+   */
+  declare public value: string;
+
+  /**
+   * Marks the checkbox as required.
+   */
+  declare public required: boolean;
+
+  public constructor() {
+    super();
+    this.#internals = this.attachInternals();
+    this.hasSupporting = false;
+    this.hasLabel = false;
+    this.checked = false;
+    this.indeterminate = false;
+    this.disabled = false;
+    this.inline = false;
+    this.invalid = false;
+    this.errorText = "";
+    this.name = "";
+    this.value = "on";
+    this.required = false;
+    this.#defaultChecked = false;
+    this.#defaultIndeterminate = false;
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    this.#defaultChecked = this.hasAttribute("checked")
+      ? this.getAttribute("checked") !== "false"
+      : this.checked;
+    this.#defaultIndeterminate = this.hasAttribute("indeterminate")
+      ? this.getAttribute("indeterminate") !== "false"
+      : this.indeterminate;
+    this.#syncLabelState();
+    this.#syncSupportingState();
+    this.#syncControlState();
+    this.#syncFormState();
+    this.#hostAriaObserver.observe(this, {
+      attributes: true,
+      attributeFilter: ["aria-describedby", "aria-label"],
+    });
+    this.addEventListener("focusin", this.#handleFocusIn);
+    // Targets rendered in the same update as the checkbox exist once that update has landed.
+    Updates.enqueue(() => this.#syncDescribedBy());
+  }
+
+  public disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.#hostAriaObserver.disconnect();
+    this.removeEventListener("focusin", this.#handleFocusIn);
+  }
+
+  public handleChange(event: Event): void {
+    const control = event.currentTarget as HTMLInputElement | null;
+    this.checked = control?.checked ?? false;
+    this.indeterminate = false;
+    this.$emit("change", { checked: this.checked });
+  }
+
+  public handleDefaultSlotChange(): void {
+    this.#syncLabelState();
+  }
+
+  public handleSupportingSlotChange(): void {
+    this.#syncSupportingState();
+    this.#syncDescribedBy();
+  }
+
+  public formStateRestoreCallback(state: File | string | FormData | null): void {
+    if (state === "checked" || state === "unchecked") {
+      this.checked = state === "checked";
+    }
+  }
+
+  public formResetCallback(): void {
+    this.checked = this.#defaultChecked;
+    this.indeterminate = this.#defaultIndeterminate;
+  }
+
+  public get explicitAriaLabel(): string | null {
+    return this.getAttribute("aria-label")?.trim() || null;
+  }
+
+  public get controlAriaLabel(): string | null {
+    const explicitLabel = this.explicitAriaLabel;
+    if (explicitLabel) {
+      return explicitLabel;
     }
 
-    /**
-     * Checked state for the checkbox.
-     */
-    declare public checked: boolean;
+    const visibleLabel = this.#defaultSlotText();
+    return visibleLabel || null;
+  }
 
-    /**
-     * Mixed selection state for aggregate checkboxes.
-     */
-    declare public indeterminate: boolean;
+  public get form(): HTMLFormElement | null {
+    return this.#internals.form;
+  }
 
-    /**
-     * Disables the checkbox.
-     */
-    declare public disabled: boolean;
+  public get validity(): ValidityState {
+    return this.#internals.validity;
+  }
 
-    /**
-     * True while an ancestor `<fieldset disabled>` disables the control.
-     */
-    declare public fieldsetDisabled: boolean;
+  public get validationMessage(): string {
+    return this.#internals.validationMessage;
+  }
 
-    /**
-     * Author `disabled` or fieldset-disabled.
-     */
-    declare public readonly effectiveDisabled: boolean;
+  public get willValidate(): boolean {
+    return this.#internals.willValidate;
+  }
 
-    /**
-     * Presents a compact inline layout that can collapse to the control only.
-     */
-    declare public inline: boolean;
+  public checkValidity(): boolean {
+    return this.#internals.checkValidity();
+  }
 
-    /**
-     * Marks the checkbox as invalid.
-     */
-    declare public invalid: boolean;
+  public reportValidity(): boolean {
+    return this.#internals.reportValidity();
+  }
 
-    /**
-     * Optional error message shown while the checkbox is invalid.
-     */
-    declare public errorText: string;
+  public checkedChanged(): void {
+    this.#syncControlState();
+    this.#syncFormState();
+  }
 
-    /**
-     * Native form name used during submission.
-     */
-    declare public name: string;
+  public indeterminateChanged(): void {
+    this.#syncControlState();
+    this.#syncFormState();
+  }
 
-    /**
-     * Native submitted value when checked.
-     */
-    declare public value: string;
+  public disabledChanged(): void {
+    this.#syncControlState();
+    this.#syncFormState();
+  }
 
-    /**
-     * Marks the checkbox as required.
-     */
-    declare public required: boolean;
+  public invalidChanged(): void {
+    this.#syncControlState();
+    this.#syncFormState();
+  }
 
-    public constructor() {
-        super();
-        this.#internals = this.attachInternals();
-        this.hasSupporting = false;
-        this.hasLabel = false;
-        this.checked = false;
-        this.indeterminate = false;
-        this.disabled = false;
-        this.inline = false;
-        this.invalid = false;
-        this.errorText = "";
-        this.name = "";
-        this.value = "on";
-        this.required = false;
-        this.#defaultChecked = false;
-        this.#defaultIndeterminate = false;
+  public errorTextChanged(): void {
+    this.#syncFormState();
+  }
+
+  #setDisplayErrorText(next: string): void {
+    if (this._displayErrorText === next) {
+      return;
     }
-
-    public connectedCallback(): void {
-        super.connectedCallback();
-        this.#defaultChecked = this.hasAttribute("checked") ? this.getAttribute("checked") !== "false" : this.checked;
-        this.#defaultIndeterminate = this.hasAttribute("indeterminate")
-            ? this.getAttribute("indeterminate") !== "false"
-            : this.indeterminate;
-        this.#syncLabelState();
-        this.#syncSupportingState();
-        this.#syncControlState();
-        this.#syncFormState();
-        this.#hostAriaObserver.observe(this, {
-            attributes: true,
-            attributeFilter: ["aria-describedby", "aria-label"],
-        });
-        this.addEventListener("focusin", this.#handleFocusIn);
-        // Targets rendered in the same update as the checkbox exist once that update has landed.
-        Updates.enqueue(() => this.#syncDescribedBy());
+    this._displayErrorText = next;
+    if (!this.$fastController.isConnected) {
+      return;
     }
-
-    public disconnectedCallback(): void {
-        super.disconnectedCallback();
-        this.#hostAriaObserver.disconnect();
-        this.removeEventListener("focusin", this.#handleFocusIn);
-    }
-
-    public handleChange(event: Event): void {
-        const control = event.currentTarget as HTMLInputElement | null;
-        this.checked = control?.checked ?? false;
-        this.indeterminate = false;
-        this.$emit("change", { checked: this.checked });
-    }
-
-    public handleDefaultSlotChange(): void {
-        this.#syncLabelState();
-    }
-
-    public handleSupportingSlotChange(): void {
-        this.#syncSupportingState();
+    Updates.enqueue(() => {
+      Updates.enqueue(() => {
         this.#syncDescribedBy();
-    }
+      });
+    });
+  }
 
-    public formStateRestoreCallback(state: File | string | FormData | null): void {
-        if (state === "checked" || state === "unchecked") {
-            this.checked = state === "checked";
-        }
-    }
+  public requiredChanged(): void {
+    this.#syncControlState();
+    this.#syncFormState();
+  }
 
-    public formResetCallback(): void {
-        this.checked = this.#defaultChecked;
-        this.indeterminate = this.#defaultIndeterminate;
-    }
+  public valueChanged(): void {
+    this.#syncControlState();
+    this.#syncFormState();
+  }
 
-    public get explicitAriaLabel(): string | null {
-        return this.getAttribute("aria-label")?.trim() || null;
-    }
+  public nameChanged(): void {
+    this.#syncControlState();
+  }
 
-    public get controlAriaLabel(): string | null {
-        const explicitLabel = this.explicitAriaLabel;
-        if (explicitLabel) {
-            return explicitLabel;
-        }
+  #syncLabelState(): void {
+    this.hasLabel = this.#defaultSlotText().length > 0;
+  }
 
-        const visibleLabel = this.#defaultSlotText();
-        return visibleLabel || null;
-    }
+  #syncSupportingState(): void {
+    const slot = this.shadowRoot?.querySelector(
+      'slot[name="supporting"]',
+    ) as HTMLSlotElement | null;
+    this.hasSupporting = (slot?.assignedNodes({ flatten: true }) ?? []).some((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return Boolean(node.textContent?.trim());
+      }
+      return true;
+    });
+  }
 
-    public get form(): HTMLFormElement | null {
-        return this.#internals.form;
-    }
-
-    public get validity(): ValidityState {
-        return this.#internals.validity;
-    }
-
-    public get validationMessage(): string {
-        return this.#internals.validationMessage;
-    }
-
-    public get willValidate(): boolean {
-        return this.#internals.willValidate;
-    }
-
-    public checkValidity(): boolean {
-        return this.#internals.checkValidity();
-    }
-
-    public reportValidity(): boolean {
-        return this.#internals.reportValidity();
-    }
-
-    public checkedChanged(): void {
-        this.#syncControlState();
-        this.#syncFormState();
-    }
-
-    public indeterminateChanged(): void {
-        this.#syncControlState();
-        this.#syncFormState();
-    }
-
-    public disabledChanged(): void {
-        this.#syncControlState();
-        this.#syncFormState();
-    }
-
-    public invalidChanged(): void {
-        this.#syncControlState();
-        this.#syncFormState();
-    }
-
-    public errorTextChanged(): void {
-        this.#syncFormState();
-    }
-
-    #setDisplayErrorText(next: string): void {
-        if (this._displayErrorText === next) {
-            return;
-        }
-        this._displayErrorText = next;
-        if (!this.$fastController.isConnected) {
-            return;
-        }
-        Updates.enqueue(() => {
-            Updates.enqueue(() => {
-                this.#syncDescribedBy();
-            });
-        });
-    }
-
-    public requiredChanged(): void {
-        this.#syncControlState();
-        this.#syncFormState();
-    }
-
-    public valueChanged(): void {
-        this.#syncControlState();
-        this.#syncFormState();
-    }
-
-    public nameChanged(): void {
-        this.#syncControlState();
-    }
-
-    #syncLabelState(): void {
-        this.hasLabel = this.#defaultSlotText().length > 0;
-    }
-
-    #syncSupportingState(): void {
-        const slot = this.shadowRoot?.querySelector('slot[name="supporting"]') as HTMLSlotElement | null;
-        this.hasSupporting = (slot?.assignedNodes({ flatten: true }) ?? []).some(node => {
-            if (node.nodeType === Node.TEXT_NODE) {
-                return Boolean(node.textContent?.trim());
-            }
-            return true;
-        });
-    }
-
-    #defaultSlotText(): string {
-        return Array.from(this.childNodes)
-            .filter(node => {
-                if (node.nodeType !== Node.ELEMENT_NODE) {
-                    return true;
-                }
-
-                return !(node as Element).hasAttribute("slot");
-            })
-            .map(node => node.textContent ?? "")
-            .join(" ")
-            .trim();
-    }
-
-    #syncControlState(): void {
-        if (!this.$fastController.isConnected) {
-            return;
+  #defaultSlotText(): string {
+    return Array.from(this.childNodes)
+      .filter((node) => {
+        if (node.nodeType !== Node.ELEMENT_NODE) {
+          return true;
         }
 
-        const control = this.shadowRoot?.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
-        if (!control) {
-            return;
-        }
+        return !(node as Element).hasAttribute("slot");
+      })
+      .map((node) => node.textContent ?? "")
+      .join(" ")
+      .trim();
+  }
 
-        control.checked = this.checked;
-        control.indeterminate = this.indeterminate;
-        control.disabled = this.effectiveDisabled;
-        control.required = this.required;
-        control.name = this.name;
-        control.value = this.value;
-        control.setAttribute("aria-invalid", this.invalid ? "true" : "false");
-
-        const explicitAriaLabel = this.explicitAriaLabel;
-        if (explicitAriaLabel) {
-            control.setAttribute("aria-label", explicitAriaLabel);
-        } else {
-            control.removeAttribute("aria-label");
-        }
-
-        this.#syncDescribedBy();
+  #syncControlState(): void {
+    if (!this.$fastController.isConnected) {
+      return;
     }
 
-    /**
-     * Describes the input by the host's `aria-describedby` targets and the active error or slotted
-     * supporting text. Host IDREFs cannot cross the shadow boundary, so they are resolved in the
-     * host's root node and assigned through element reflection (`ariaDescribedByElements`). Without
-     * element reflection only the internal caption is linked, by an IDREF inside the shadow root.
-     */
-    #syncDescribedBy(): void {
-        const control = this.shadowRoot?.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
-        if (!control) {
-            return;
-        }
-
-        const targets: Element[] = [];
-        const root = this.getRootNode() as Document | ShadowRoot;
-        for (const id of (this.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean)) {
-            const target = root.getElementById?.(id) ?? null;
-            if (target && !targets.includes(target)) {
-                targets.push(target);
-            }
-        }
-
-        const error = this.displayErrorText ? (this.shadowRoot?.getElementById("error-message") ?? null) : null;
-        const supporting = !error && this.hasSupporting ? (this.shadowRoot?.getElementById("supporting-text") ?? null) : null;
-        const caption = error ?? supporting;
-        if (caption) {
-            targets.push(caption);
-        }
-
-        const hasElementReflection: boolean = "ariaDescribedByElements" in control;
-        if (hasElementReflection) {
-            control.removeAttribute("aria-describedby");
-            control.ariaDescribedByElements = targets.length ? targets : null;
-            return;
-        }
-
-        if (caption) {
-            control.setAttribute("aria-describedby", caption.id);
-        } else {
-            control.removeAttribute("aria-describedby");
-        }
+    const control = this.shadowRoot?.querySelector(
+      'input[type="checkbox"]',
+    ) as HTMLInputElement | null;
+    if (!control) {
+      return;
     }
 
-    #syncFormState(): void {
-        if (!this.$fastController.isConnected) {
-            return;
-        }
+    control.checked = this.checked;
+    control.indeterminate = this.indeterminate;
+    control.disabled = this.effectiveDisabled;
+    control.required = this.required;
+    control.name = this.name;
+    control.value = this.value;
+    control.setAttribute("aria-invalid", this.invalid ? "true" : "false");
 
-        const control = this.shadowRoot?.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
-
-        this.#internals.ariaInvalid = this.invalid ? "true" : "false";
-        this.#internals.setFormValue(!this.effectiveDisabled && this.checked ? this.value : null, this.checked ? "checked" : "unchecked");
-
-        if (this.effectiveDisabled) {
-            this.#setDisplayErrorText("");
-            this.#internals.setValidity({});
-            return;
-        }
-
-        if (this.invalid) {
-            const customError = (this.errorText ?? "").trim();
-            this.#setDisplayErrorText(customError || control?.validationMessage || "");
-            this.#internals.setValidity(
-                { customError: true },
-                customError || "Please correct this field.",
-                control ?? undefined,
-            );
-            return;
-        }
-
-        this.#setDisplayErrorText("");
-
-        if (this.required && !this.checked) {
-            this.#internals.setValidity({ valueMissing: true }, "Please select this option.", control ?? undefined);
-            return;
-        }
-
-        this.#internals.setValidity({});
+    const explicitAriaLabel = this.explicitAriaLabel;
+    if (explicitAriaLabel) {
+      control.setAttribute("aria-label", explicitAriaLabel);
+    } else {
+      control.removeAttribute("aria-label");
     }
+
+    this.#syncDescribedBy();
+  }
+
+  /**
+   * Describes the input by the host's `aria-describedby` targets and the active error or slotted
+   * supporting text. Host IDREFs cannot cross the shadow boundary, so they are resolved in the
+   * host's root node and assigned through element reflection (`ariaDescribedByElements`). Without
+   * element reflection only the internal caption is linked, by an IDREF inside the shadow root.
+   */
+  #syncDescribedBy(): void {
+    const control = this.shadowRoot?.querySelector(
+      'input[type="checkbox"]',
+    ) as HTMLInputElement | null;
+    if (!control) {
+      return;
+    }
+
+    const targets: Element[] = [];
+    const root = this.getRootNode() as Document | ShadowRoot;
+    for (const id of (this.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean)) {
+      const target = root.getElementById?.(id) ?? null;
+      if (target && !targets.includes(target)) {
+        targets.push(target);
+      }
+    }
+
+    const error = this.displayErrorText
+      ? (this.shadowRoot?.getElementById("error-message") ?? null)
+      : null;
+    const supporting =
+      !error && this.hasSupporting
+        ? (this.shadowRoot?.getElementById("supporting-text") ?? null)
+        : null;
+    const caption = error ?? supporting;
+    if (caption) {
+      targets.push(caption);
+    }
+
+    const hasElementReflection: boolean = "ariaDescribedByElements" in control;
+    if (hasElementReflection) {
+      control.removeAttribute("aria-describedby");
+      control.ariaDescribedByElements = targets.length ? targets : null;
+      return;
+    }
+
+    if (caption) {
+      control.setAttribute("aria-describedby", caption.id);
+    } else {
+      control.removeAttribute("aria-describedby");
+    }
+  }
+
+  #syncFormState(): void {
+    if (!this.$fastController.isConnected) {
+      return;
+    }
+
+    const control = this.shadowRoot?.querySelector(
+      'input[type="checkbox"]',
+    ) as HTMLInputElement | null;
+
+    this.#internals.ariaInvalid = this.invalid ? "true" : "false";
+    this.#internals.setFormValue(
+      !this.effectiveDisabled && this.checked ? this.value : null,
+      this.checked ? "checked" : "unchecked",
+    );
+
+    if (this.effectiveDisabled) {
+      this.#setDisplayErrorText("");
+      this.#internals.setValidity({});
+      return;
+    }
+
+    if (this.invalid) {
+      const customError = (this.errorText ?? "").trim();
+      this.#setDisplayErrorText(customError || control?.validationMessage || "");
+      this.#internals.setValidity(
+        { customError: true },
+        customError || "Please correct this field.",
+        control ?? undefined,
+      );
+      return;
+    }
+
+    this.#setDisplayErrorText("");
+
+    if (this.required && !this.checked) {
+      this.#internals.setValidity(
+        { valueMissing: true },
+        "Please select this option.",
+        control ?? undefined,
+      );
+      return;
+    }
+
+    this.#internals.setValidity({});
+  }
 }
 
 attr({ mode: "boolean" })(VioletCheckbox.prototype, "checked");
@@ -701,10 +731,10 @@ attr({ mode: "boolean" })(VioletCheckbox.prototype, "required");
 
 /** The FAST definition of `<violet-checkbox>`; `defineVioletCheckbox` in `./violet-checkbox.define` registers it. */
 export const violetCheckboxDefinition = {
-    name: "violet-checkbox",
-    template,
-    styles,
-    shadowOptions: {
-        delegatesFocus: true,
-    },
+  name: "violet-checkbox",
+  template,
+  styles,
+  shadowOptions: {
+    delegatesFocus: true,
+  },
 } satisfies PartialFASTElementDefinition;

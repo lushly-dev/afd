@@ -5,43 +5,29 @@
     {
       "id": "button.no-form",
       "text": "Not form-associated: type=\"submit\" or \"reset\" is copied to a button inside the shadow root and does not submit or reset an enclosing form. Call form.requestSubmit() from a click listener.",
-      "members": [
-        "type"
-      ]
+      "members": ["type"]
     },
     {
       "id": "button.popup-toggle",
       "text": "aria-expanded, aria-controls, aria-haspopup and aria-pressed set on the host (or the matching properties) reach the inner button. Use them for disclosure, menu and toggle buttons.",
-      "members": [
-        "aria-expanded",
-        "aria-controls",
-        "aria-haspopup",
-        "aria-pressed"
-      ]
+      "members": ["aria-expanded", "aria-controls", "aria-haspopup", "aria-pressed"]
     },
     {
       "id": "button.slots",
       "text": "Put a leading icon in the before slot and a trailing one in the after slot; mark a violet-icon there decorative when the text already says what the button does.",
-      "members": [
-        "before",
-        "after"
-      ]
+      "members": ["before", "after"]
     },
     {
       "id": "button.appearance",
       "text": "The default appearance is primary, so in a row of buttons set secondary or quiet on all but the main action, and danger on a destructive one. Transparent renders exactly as quiet and is kept for existing markup; write quiet.",
-      "members": [
-        "appearance"
-      ]
+      "members": ["appearance"]
     }
   ],
   "a11y": [
     {
       "id": "button.name",
       "text": "The slotted text is the accessible name. For an icon-only button set the ariaLabel property in script (it has no attribute; an aria-label on the host is not forwarded), or use violet-icon-button.",
-      "members": [
-        "ariaLabel"
-      ]
+      "members": ["ariaLabel"]
     },
     {
       "id": "button.idrefs",

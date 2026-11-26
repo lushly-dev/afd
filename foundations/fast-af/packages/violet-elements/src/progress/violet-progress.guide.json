@@ -5,34 +5,24 @@
     {
       "id": "progress.indeterminate",
       "text": "Set value=\"\" for indeterminate, which also hides the percentage. With no value attribute it shows 0, and a value that is not a number is treated as 0.",
-      "members": [
-        "value"
-      ]
+      "members": ["value"]
     },
     {
       "id": "progress.value",
       "text": "The value is clamped to 0 through max, and a max that is not a positive number falls back to 100. While determinate, a rounded percentage is shown beside the label.",
-      "members": [
-        "value",
-        "max"
-      ]
+      "members": ["value", "max"]
     }
   ],
   "a11y": [
     {
       "id": "progress.name",
       "text": "The label attribute is shown and names the bar; without it the name is \"Progress\". The value-text attribute sets aria-valuetext.",
-      "members": [
-        "label",
-        "value-text"
-      ]
+      "members": ["label", "value-text"]
     },
     {
       "id": "progress.motion",
       "text": "Under prefers-reduced-motion: reduce the indeterminate bar does not slide: it fills the track and only its opacity eases. Prefer a determinate value or a status in text where you can.",
-      "members": [
-        "value"
-      ]
+      "members": ["value"]
     },
     {
       "id": "progress.announce",

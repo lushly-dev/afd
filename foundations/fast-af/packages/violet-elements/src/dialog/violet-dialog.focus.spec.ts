@@ -64,7 +64,9 @@ describe("closed violet-dialog focus", () => {
         expect(openHit).toBe(input);
       } else {
         // Firefox returns the shadow body wrapping the slot for elementFromPoint on a slotted input.
-        expect(openHit === input || openHit === dialog.shadowRoot!.querySelector(".body")).toBe(true);
+        expect(openHit === input || openHit === dialog.shadowRoot!.querySelector(".body")).toBe(
+          true,
+        );
       }
 
       dialog.hide();

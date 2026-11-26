@@ -1,8 +1,23 @@
-import { FASTElement, attr, css, html, type PartialFASTElementDefinition } from "@lushly-dev/fast-element";
+import {
+  attr,
+  css,
+  FASTElement,
+  html,
+  type PartialFASTElementDefinition,
+} from "@lushly-dev/fast-element";
 
-import { VIOLET_THEME_PRESET_ATTRIBUTE, VIOLET_THEME_ROOT_ATTRIBUTE, type VioletThemePreset } from "./violet-theme-css";
+import {
+  VIOLET_THEME_PRESET_ATTRIBUTE,
+  VIOLET_THEME_ROOT_ATTRIBUTE,
+  type VioletThemePreset,
+} from "./violet-theme-css";
 import { isShadowRoot } from "./violet-theme-nodes";
-import { getVioletThemeDefaultPreset, getVioletThemePresets, installVioletTheme, isVioletThemePreset } from "./violet-theme-runtime";
+import {
+  getVioletThemeDefaultPreset,
+  getVioletThemePresets,
+  installVioletTheme,
+  isVioletThemePreset,
+} from "./violet-theme-runtime";
 
 const styles = css`
     :host {
@@ -21,47 +36,47 @@ const template = html<VioletTheme>`
  * @slot - Descendant content that should inherit Violet token values from this scope.
  */
 export class VioletTheme extends FASTElement {
-    /**
-     * Selects which preset of the installed Violet theme set this scoped host exposes. Any name the
-     * set has works; the built-in set has light, dark and high-contrast.
-     */
-    @attr
-    declare public preset: VioletThemePreset;
+  /**
+   * Selects which preset of the installed Violet theme set this scoped host exposes. Any name the
+   * set has works; the built-in set has light, dark and high-contrast.
+   */
+  @attr
+  declare public preset: VioletThemePreset;
 
-    public connectedCallback(): void {
-        super.connectedCallback();
-        const rootNode = this.getRootNode();
-        installVioletTheme(isShadowRoot(rootNode) ? rootNode : this.ownerDocument);
-        this.setAttribute(VIOLET_THEME_ROOT_ATTRIBUTE, "");
-        this.applyPreset();
+  public connectedCallback(): void {
+    super.connectedCallback();
+    const rootNode = this.getRootNode();
+    installVioletTheme(isShadowRoot(rootNode) ? rootNode : this.ownerDocument);
+    this.setAttribute(VIOLET_THEME_ROOT_ATTRIBUTE, "");
+    this.applyPreset();
+  }
+
+  public presetChanged(): void {
+    if (!this.$fastController.isConnected) {
+      return;
     }
 
-    public presetChanged(): void {
-        if (!this.$fastController.isConnected) {
-            return;
-        }
+    this.applyPreset();
+  }
 
-        this.applyPreset();
+  /**
+   * Writes the preset as given: a name the installed set lacks is kept, not mapped to the default,
+   * so it applies as soon as a set that has it is installed, and a warning names the known ones.
+   */
+  private applyPreset(): void {
+    const preset = this.getAttribute("preset") || this.preset || getVioletThemeDefaultPreset();
+    if (!isVioletThemePreset(preset)) {
+      console.warn(
+        `violet-theme: the preset '${preset}' is not in the installed theme set (${getVioletThemePresets().join(", ")})`,
+      );
     }
-
-    /**
-     * Writes the preset as given: a name the installed set lacks is kept, not mapped to the default,
-     * so it applies as soon as a set that has it is installed, and a warning names the known ones.
-     */
-    private applyPreset(): void {
-        const preset = this.getAttribute("preset") || this.preset || getVioletThemeDefaultPreset();
-        if (!isVioletThemePreset(preset)) {
-            console.warn(
-                `violet-theme: the preset '${preset}' is not in the installed theme set (${getVioletThemePresets().join(", ")})`,
-            );
-        }
-        this.setAttribute(VIOLET_THEME_PRESET_ATTRIBUTE, preset);
-    }
+    this.setAttribute(VIOLET_THEME_PRESET_ATTRIBUTE, preset);
+  }
 }
 
 /** The FAST definition of `<violet-theme>`; `defineVioletTheme` in `./violet-theme.define` registers it. */
 export const violetThemeDefinition = {
-    name: "violet-theme",
-    template,
-    styles,
+  name: "violet-theme",
+  template,
+  styles,
 } satisfies PartialFASTElementDefinition;

@@ -3,7 +3,7 @@
  * and the `direction` CSS property).
  */
 export function isRtl(element: Element): boolean {
-    return getComputedStyle(element).direction === "rtl";
+  return getComputedStyle(element).direction === "rtl";
 }
 
 /**
@@ -12,13 +12,13 @@ export function isRtl(element: Element): boolean {
  * Non-horizontal keys are returned unchanged.
  */
 export function logicalArrowKey(key: string, element: Element): string {
-    if (key !== "ArrowLeft" && key !== "ArrowRight") {
-        return key;
-    }
+  if (key !== "ArrowLeft" && key !== "ArrowRight") {
+    return key;
+  }
 
-    if (!isRtl(element)) {
-        return key;
-    }
+  if (!isRtl(element)) {
+    return key;
+  }
 
-    return key === "ArrowLeft" ? "ArrowRight" : "ArrowLeft";
+  return key === "ArrowLeft" ? "ArrowRight" : "ArrowLeft";
 }
