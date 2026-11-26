@@ -34,6 +34,7 @@ import type {
 	PointMoveDirection,
 	PointMoveRequest,
 	PointRequest,
+	PointTarget,
 	ProfileRequest,
 	RunRequest,
 	SpecimenAction,
@@ -41,7 +42,6 @@ import type {
 	SuggestRequest,
 	SuiteFilter,
 	SuiteRequest,
-	Target,
 	ThemeSupport,
 	ThemesRequest,
 } from './types.js';
@@ -1377,7 +1377,7 @@ function parseDimensionPairText(value: string, path: string, heightOptional: boo
 	return value;
 }
 
-function parsePointTarget(value: unknown, path: string): Target {
+function parsePointTarget(value: unknown, path: string): PointTarget {
 	if (typeof value !== 'object' || value === null || Array.isArray(value))
 		fail(path, 'expected a selector or role target object');
 	const raw = value as Fields;

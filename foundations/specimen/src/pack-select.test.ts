@@ -104,6 +104,43 @@ describe('a pack run’s passes', () => {
 		expect(run.cases.unstable).toEqual(['checks--select-disabled']);
 	});
 
+	it('reports pack phases and preserves records when remounts finish out of order', async () => {
+		const render = (id: string) => {
+			const tag = id.startsWith('example-select') ? 'example-select' : 'example-field';
+			return observation(id, 'after-run', { domRaw: `<${tag}></${tag}>` });
+		};
+		const serial = await runPack(host(render), { workers: 1 });
+		const parallel = host(render);
+		const capture = parallel.capture;
+		const firstId = 'example-field--default';
+		const secondId = 'example-field--invalid';
+		const release = Promise.withResolvers<void>();
+		const completed: string[] = [];
+		parallel.capture = async (id, options) => {
+			if (id === firstId) await release.promise;
+			const result = await capture(id, options);
+			completed.push(id);
+			if (id === secondId) release.resolve();
+			return result;
+		};
+
+		const progress: string[] = [];
+		const run = await runPack(parallel, { workers: 2 }, (message) => progress.push(message));
+		expect(completed.indexOf(secondId)).toBeLessThan(completed.indexOf(firstId));
+		expect(run.files).toEqual(serial.files);
+		expect(run.examples).toEqual(serial.examples);
+		expect(progress).toEqual([
+			'Preparing captures',
+			'Capture pass 1/2 (9 cases)',
+			'Capture pass 1/2 - 9/9 cases completed',
+			'Capture pass 2/2 (9 cases)',
+			'Capture pass 2/2 - 9/9 cases completed',
+			'Comparing capture passes and computing coverage',
+			'Verifying examples by remounting',
+			'Building pack records after checking 3 remount candidates',
+		]);
+	});
+
 	it('retries a remount once after a transient error or mismatch, and omits a persistent mismatch', async () => {
 		const domByCase: Record<string, string> = {
 			'example-field--default': '<example-field label="A"></example-field>',

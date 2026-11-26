@@ -447,16 +447,11 @@ async function renameWithRetry(source: string, destination: string): Promise<voi
 export async function withFileLock<T>(lockPath: string, fn: () => Promise<T>): Promise<T> {
 	await mkdir(dirname(lockPath), { recursive: true });
 	const deadline = Date.now() + LOCK_TIMEOUT_MS;
-	let acquired = false;
+	let handle: Awaited<ReturnType<typeof open>> | undefined;
+	let sharingError: unknown;
 	while (Date.now() <= deadline) {
 		try {
-			const handle = await open(lockPath, 'wx');
-			try {
-				await handle.writeFile(`${process.pid}:${Date.now()}\n`, 'utf8');
-			} finally {
-				await handle.close();
-			}
-			acquired = true;
+			handle = await open(lockPath, 'wx');
 			break;
 		} catch (error) {
 			const code = (error as NodeJS.ErrnoException).code;
@@ -464,7 +459,17 @@ export async function withFileLock<T>(lockPath: string, fn: () => Promise<T>): P
 				await mkdir(dirname(lockPath), { recursive: true });
 				continue;
 			}
+			if (
+				process.platform === 'win32' &&
+				(code === 'EPERM' || code === 'EACCES' || code === 'EBUSY')
+			) {
+				// Windows can refuse exclusive creation while the old lock is pending deletion.
+				sharingError = error;
+				await sleep(10 + Math.floor(Math.random() * 20));
+				continue;
+			}
 			if (code !== 'EEXIST') throw error;
+			sharingError = undefined;
 			try {
 				const info = await stat(lockPath);
 				if (Date.now() - info.mtimeMs > LOCK_STALE_MS) {
@@ -477,8 +482,17 @@ export async function withFileLock<T>(lockPath: string, fn: () => Promise<T>): P
 			await sleep(10 + Math.floor(Math.random() * 20));
 		}
 	}
-	if (!acquired) throw new Error(`Timed out waiting for capture set lock: ${lockPath}`);
+	if (!handle)
+		throw new Error(
+			`Timed out waiting for capture set lock: ${lockPath}`,
+			sharingError ? { cause: sharingError } : undefined
+		);
 	try {
+		try {
+			await handle.writeFile(`${process.pid}:${Date.now()}\n`, 'utf8');
+		} finally {
+			await handle.close();
+		}
 		return await fn();
 	} finally {
 		await rm(lockPath, { force: true });

@@ -63,7 +63,7 @@ type WorkerOperation =
 	| { operation: 'a11y'; request: A11yRequest }
 	| { operation: 'themes'; request: ThemesRequest }
 	| { operation: 'coverage'; request: CoverageRequest }
-	| { operation: 'packBuild'; request: PackBuildRequest }
+	| { operation: 'packBuild'; request: PackBuildRequest; reportProgress: boolean }
 	| { operation: 'contract'; request: ContractRequest }
 	| { operation: 'suggest'; request: SuggestRequest }
 	| { operation: 'profile'; request: ProfileRequest }
@@ -90,6 +90,7 @@ export interface WorkerError {
 	errors?: WorkerError[];
 }
 export type WorkerReply =
+	| { id: number; progress: string }
 	| { id: number; success: true; result: unknown }
 	| { id: number; success: false; error: WorkerError };
 
@@ -169,11 +170,17 @@ export class BenchWorkerClient {
 	private readonly exited: Promise<void>;
 	private resolveExit: () => void = () => {};
 	private failure: Error | undefined;
+	private reportPackProgress = false;
 	private stderr = '';
 	private closing: Promise<void> | undefined;
 	private terminating: Promise<void> | undefined;
 
-	constructor(config: LoadedConfig, executablePath?: string) {
+	constructor(
+		config: LoadedConfig,
+		executablePath?: string,
+		onPackProgress?: (message: string) => void
+	) {
+		this.reportPackProgress = onPackProgress !== undefined;
 		this.exited = new Promise((resolveExit) => {
 			this.resolveExit = resolveExit;
 		});
@@ -195,6 +202,10 @@ export class BenchWorkerClient {
 		child.on('message', (message: WorkerReply) => {
 			const request = this.requests.get(message.id);
 			if (!request) return;
+			if ('progress' in message) {
+				onPackProgress?.(message.progress);
+				return;
+			}
 			this.requests.delete(message.id);
 			clearTimeout(request.timer);
 			if (message.success) request.resolve(message.result);
@@ -348,7 +359,10 @@ export class BenchWorkerClient {
 	}
 	async packBuild(request: PackBuildRequest = {}): Promise<PackBuildRun> {
 		await this.ready;
-		return (await this.request({ operation: 'packBuild', request }, 3_600_000)) as PackBuildRun;
+		return (await this.request(
+			{ operation: 'packBuild', request, reportProgress: this.reportPackProgress },
+			3_600_000
+		)) as PackBuildRun;
 	}
 	async a11y(request: A11yRequest): Promise<A11yRun> {
 		await this.ready;

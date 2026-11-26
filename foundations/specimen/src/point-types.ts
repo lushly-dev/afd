@@ -1,4 +1,4 @@
-import type { SpecimenContext, Target } from './types.js';
+import type { SpecimenContext } from './types.js';
 
 /** String-or-structured context accepted by `specimen-point` (matches both CLI/pointer strings and SpecimenContext). */
 export interface PointContextInput {
@@ -11,6 +11,8 @@ export interface PointContextInput {
 	themeMedia?: SpecimenContext['themeMedia'];
 }
 
+export type PointTarget = { selector: string } | { role: string; name?: string };
+
 export type PointRequest =
 	| {
 			pointer: string;
@@ -20,7 +22,7 @@ export type PointRequest =
 			id: string;
 			context?: PointContextInput;
 			checkpoint?: string;
-			target: Target;
+			target: PointTarget;
 			timeoutMs?: number;
 	  };
 

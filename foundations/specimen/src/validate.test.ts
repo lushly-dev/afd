@@ -46,6 +46,7 @@ import {
 	suiteRequestSchema,
 	themesRequestSchema,
 } from './schema.js';
+import type { PointRequest } from './types.js';
 import {
 	parseA11yRequest,
 	parseBaselineRequest,
@@ -969,6 +970,9 @@ describe('request parsing agrees with the public schemas', () => {
 			{ id: 'toolbar', target: { selector: '' } },
 			{ id: 'toolbar', target: { selector: 'button', role: 'button' } },
 			{ id: 'toolbar', target: { role: 'button', name: 42 } },
+			{ id: 'toolbar', target: { role: ['button', 'link'] } },
+			{ id: 'toolbar', target: { role: 'button', nameStartsWith: 'Save' } },
+			{ id: 'toolbar', target: { role: 'button', nameContains: 'Save' } },
 			{ id: 'toolbar' },
 			{ target: { role: 'button' } },
 			{},
@@ -978,6 +982,18 @@ describe('request parsing agrees with the public schemas', () => {
 			null,
 		];
 		for (const value of pointValues) agrees(pointRequestSchema, parsePointRequest, value);
+		// The TypeScript type admits the targets the parser does, and no others (#2362).
+		const typedPoints: PointRequest[] = [
+			{ id: 'toolbar', target: { selector: 'button' } },
+			{ id: 'toolbar', target: { role: 'button', name: 'Save' } },
+			// @ts-expect-error A Pointing target names one role.
+			{ id: 'toolbar', target: { role: ['button', 'link'] } },
+			// @ts-expect-error A Pointing target matches a whole name.
+			{ id: 'toolbar', target: { role: 'button', nameStartsWith: 'Save' } },
+			// @ts-expect-error A Pointing target matches a whole name.
+			{ id: 'toolbar', target: { role: 'button', nameContains: 'Save' } },
+		];
+		for (const value of typedPoints) agrees(pointRequestSchema, parsePointRequest, value);
 
 		const moveValues: unknown[] = [
 			{ id: 'pt-5r8k2w9m4c1x', to: 'parent' },

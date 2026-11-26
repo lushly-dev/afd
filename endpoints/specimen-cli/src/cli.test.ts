@@ -1,6 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { BenchOptions } from '@lushly-dev/specimen/types';
 import type { SpecimenCommandBench } from '@lushly-dev/specimen-afd';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runCli } from './cli.js';
@@ -568,7 +569,7 @@ function harness() {
 		),
 		close: vi.fn(async () => {}),
 	};
-	const createBench = vi.fn(async () => bench);
+	const createBench = vi.fn(async (_options: BenchOptions) => bench);
 	return {
 		output,
 		errors,
@@ -901,9 +902,21 @@ describe('specimen CLI', () => {
 			component: 'example-option',
 			allowFailed: ['a', 'b'],
 		});
+		expect(h.createBench.mock.lastCall?.[0]).not.toHaveProperty('onPackProgress');
 		packValid = true;
+		const check = vi.mocked(h.bench.packCheck).getMockImplementation();
+		if (!check) throw new Error('The harness has no pack-check stub.');
+		vi.mocked(h.bench.packCheck).mockImplementationOnce(async () => {
+			h.createBench.mock.lastCall?.[0]?.onPackProgress?.('Capture pass 1/2');
+			return check();
+		});
 		expect(await runCli(['--root', root, 'pack-check', '--workers', '2'], h.io)).toBe(0);
 		expect(h.bench.packCheck).toHaveBeenLastCalledWith({ workers: 2 });
+		const progress = h.errors.indexOf('[pack-check] Capture pass 1/2\n');
+		expect(progress).toBeGreaterThanOrEqual(0);
+		expect(h.errors.indexOf('[pack-check] Shutting down\n')).toBeGreaterThan(progress);
+		expect(h.output).toHaveLength(2);
+		expect(() => JSON.parse(h.output[1] as string)).not.toThrow();
 		packValid = false;
 		expect(await runCli(['--root', root, 'pack-check'], h.io)).toBe(1);
 		packValid = true;
