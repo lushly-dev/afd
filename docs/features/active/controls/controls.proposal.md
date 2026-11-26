@@ -27,13 +27,13 @@ happens before one is called: the draft a person and an agent fill in together.
 | --- | --- |
 | Epic | [#1385](https://github.com/lushly-dev/afd/issues/1385), step 8. One issue for each phase: [#2487](https://github.com/lushly-dev/afd/issues/2487) (A), [#2488](https://github.com/lushly-dev/afd/issues/2488) (B), [#2489](https://github.com/lushly-dev/afd/issues/2489) (C), [#2490](https://github.com/lushly-dev/afd/issues/2490) (D). They replace #2275, whose approach this proposal was |
 | Units likely touched | `packages/view-state`; `packages/testing` (a fixture adapter); `foundations/specimen` and `integrations/specimen-fast-af` (the state contract); `foundations/fast-af/packages/violet-elements` (components held to it); one example application |
-| Related | [Agent-First Design](../agent-first-design/agent-first-design.proposal.md#510-where-the-parts-live), section 5.10 and question 13; [`afd-view-state`](../../../../packages/view-state/README.md) |
+| Related | [Agent-First Design](../../complete/agent-first-design/agent-first-design.proposal.md#510-where-the-parts-live), section 5.10 and question 13; [`afd-view-state`](../../../../packages/view-state/README.md) |
 
 ## 1. Problem
 
 On 2026-11-24 the owner agreed that an agent inside an AFD application should see and fill
 what is on the screen, through `afd-view-state` and with no actions declared by components
-([Agent-First Design](../agent-first-design/agent-first-design.proposal.md#9-for-the-owner),
+([Agent-First Design](../../complete/agent-first-design/agent-first-design.proposal.md#9-for-the-owner),
 question 13). Asked the same day what "shoehorning it in with some other command/ui layer" had
 meant, the owner said that "a system designed to allow an agent to edit controls and their
 content is better than what AFD might have done without the feature which would have been a
@@ -137,7 +137,7 @@ checked first-hand.
 ### A published design
 
 UI SDK's agent bridge, read on 2026-11-24 and summarised in
-[Agent-First Design](../agent-first-design/agent-first-design.proposal.md#a-published-design-to-compare),
+[Agent-First Design](../../complete/agent-first-design/agent-first-design.proposal.md#a-published-design-to-compare),
 section 5.10. [Section 4.7](#47-kept-different-on-purpose) says where this direction differs
 from it.
 

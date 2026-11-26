@@ -15,7 +15,7 @@ import type { LibraryFixtureInput } from './fixture.js';
 
 const FIXTURES = new URL('../scenarios/fixtures/', import.meta.url);
 const TASKS = new URL(
-	'../../../../docs/features/active/agent-first-design/bench/tasks/',
+	'../../../../docs/features/complete/agent-first-design/bench/tasks/',
 	import.meta.url
 );
 const read = (url: URL) => readFileSync(fileURLToPath(url), 'utf8');

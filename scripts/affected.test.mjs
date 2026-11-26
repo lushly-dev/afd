@@ -258,7 +258,7 @@ test("the todo example's scenarios and commands reach afd-testing's own tests, n
 test("the bench's results and tasks reach the seed library, and its other prose none", () => {
 	const root = join(import.meta.dirname, '..');
 	const scope = (files) => resolveScope({ root, files, git: () => '' });
-	const bench = 'docs/features/active/agent-first-design/bench';
+	const bench = 'docs/features/complete/agent-first-design/bench';
 	for (const file of [
 		`${bench}/results/t1-lend-a-packet/lent.json`,
 		`${bench}/tasks/t3-a-variety.md`,

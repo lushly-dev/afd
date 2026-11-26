@@ -389,7 +389,7 @@ a set of kind `compare`, and diffs each against the first.
 - **`page`** links to `compare.html?set=`, which shows the screenshots side by side with the
   structured differences.
 - **Variants differ in mechanism** (amended 2026-11-24 for
-  [Agent-First Design](../agent-first-design/spec.md#42-amendment-to-design-decisions-docsfeaturesactivedesign-decisionsdesign-decisionsproposalmd)):
+  [Agent-First Design](../../complete/agent-first-design/spec.md#42-amendment-to-design-decisions-docsfeaturesactivedesign-decisionsdesign-decisionsproposalmd)):
   `specimen-compare` variants should differ in how they solve the problem, not only in styling
   density.
 
@@ -782,7 +782,7 @@ Confirmed by the owner in a three-pass walkthrough on 2026-11-22 (Q1–Q19):
 
 ### Amendment: Agent-First Design Phase A (approved 2026-11-24)
 
-Approved by the owner on 2026-11-24 at [Agent-First Design](../agent-first-design/spec.md#42-amendment-to-design-decisions-docsfeaturesactivedesign-decisionsdesign-decisionsproposalmd) Phase A exit (Epic [#2544](https://github.com/lushly-dev/afd/issues/2544)). Full wire contracts live in [`../agent-first-design/spec.md`](../agent-first-design/spec.md):
+Approved by the owner on 2026-11-24 at [Agent-First Design](../../complete/agent-first-design/spec.md#42-amendment-to-design-decisions-docsfeaturesactivedesign-decisionsdesign-decisionsproposalmd) Phase A exit (Epic [#2544](https://github.com/lushly-dev/afd/issues/2544)). Full wire contracts live in [`../../complete/agent-first-design/spec.md`](../../complete/agent-first-design/spec.md):
 
 1. **Provisional panel answers (`decidedBy.kind: 'panel'`):** `decidedBy` adds `{ kind: 'panel', reviewers: string[], split: string }`, valid only on Mode 3 (`items: string[]`) with `provisional: true` and `panel: { reviewers, split }` for non-release, non-guidance, non-escalated review items (refused with `AUTHOR_CANNOT_DECIDE`, verified against `ctx.actor.id`/change author, if authored by the caller, or `PERSON_REQUIRED` on card/release/guidance approval).
 2. **Q7 resolution & static `confirmationMode: 'host-verified'`:** Keeps CLI `decidedBy: { kind: 'script' }` answers for solo local review triage (Q7), while upgrading `decision-record` (alongside new `design-release` and `panel-calibrate`) to static `confirmationMode: 'host-verified'` with `HumanRelay` (`spec/command-metadata.md:40,145-158`) over MCP (`HumanRelay` returns `CONFIRMATION_REQUIRED` when unavailable and `CONFIRMATION_DECLINED` when declined, distinct from approval middleware's `APPROVAL_REQUIRED`/`APPROVAL_UNAVAILABLE` and handler-level `PERSON_REQUIRED`). Provisional panel Mode 3 settlements run in-process from `panel-review` via `DirectRegistry` (`spec/command-metadata.md:158`). Outside MCP, release cards, guidance approvals, `design-release` and `panel-calibrate` require interactive review-page or CLI confirmation (`decidedBy: { kind: 'person', channel: 'review-page' | 'cli' }`, refusing `script`/agent actors with `PERSON_REQUIRED`).
