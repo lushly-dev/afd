@@ -1023,7 +1023,7 @@ createMcpServer({
 ```
 
 - **An approver gets the token:** its `APPROVAL_REQUIRED` results carry `details.approvalToken` whatever `includeToken` says, and the relay never answers it with a form.
-- **It retries one command on MCP 2026-07-28** with the token in `_meta["dev.afd/approval"]` (`AFD_APPROVAL_META_KEY`) and the same input. On `afd-batch`, `afd-pipe` or a 2025-era request the key fails the call with `APPROVAL_REQUIRED` before anything runs.
+- **It retries one command on MCP 2026-07-28** with the token in `_meta["dev.afd/approval"]` (`AFD_APPROVAL_META_KEY`) and the same input. On `afd-batch`, `afd-pipe`, a 2025-era request or the HTTP `/rpc`, `/batch` and `/stream` routes the key fails the call with `APPROVAL_REQUIRED` before anything runs.
 - **Its tokens bind its principal binding** (the actor and the credentials' issuer, subject and client), so another client, even of the same person, gets `credentials-mismatch`.
 - **Anyone else's key is ignored,** and the key in tool arguments (or the HTTP routes' input) is refused with `VALIDATION_ERROR`, from every caller.
 - **The approver promises** never to give the token to an agent or a model, and to present it only on a retry a person approved after seeing the action, shown by `approvalDisplay` from `@lushly-dev/afd-core`, which refuses input too large, too deep or hiding characters.

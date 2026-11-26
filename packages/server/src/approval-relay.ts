@@ -3,7 +3,7 @@
  * an MCP client, through a form elicitation, instead of returning a token to the agent.
  *
  * The MCP lane binds an {@link ApprovalRelay} to the context of each `tools/call` that can carry a
- * form elicitation, under a private symbol (as the confirmation channel is), so neither
+ * form elicitation, in its host state (`host-state.ts`, as the confirmation channel is), so neither
  * `createContext` nor tool arguments can forge one. The tool router names the one command the
  * call routes to; with `relay: 'mcp-elicitation'`, the approval middleware of that command reads
  * the human's answer from the relay or records a hold on it, and the lane then answers the call
@@ -24,6 +24,7 @@ import type {
 	CommandResult,
 	PipelineRequest,
 } from '@lushly-dev/afd-core';
+import { hostState, patchHostStateInPlace, withHostState } from './host-state.js';
 import type { ZodCommandDefinition } from './schema.js';
 
 /** The `inputRequests` key of the approval elicitation. */
@@ -248,14 +249,6 @@ export interface UpFrontApproval {
 	refusal?: CommandError;
 }
 
-const RELAY = Symbol('afd.approvalRelay');
-const UP_FRONT = Symbol('afd.upFrontApproval');
-
-type RelayContext = CommandContext & {
-	[RELAY]?: ApprovalRelay;
-	[UP_FRONT]?: UpFrontApproval;
-};
-
 /** A relay that never asks: the steps of `afd-batch` and `afd-pipe` get it. */
 const NEVER_ASKS: ApprovalRelay = {
 	route() {},
@@ -268,8 +261,7 @@ const NEVER_ASKS: ApprovalRelay = {
 
 /** Return a copy of `context` bound to `relay`. */
 export function bindApprovalRelay(context: CommandContext, relay: ApprovalRelay): CommandContext {
-	const bound: RelayContext = { ...context, [RELAY]: relay };
-	return bound;
+	return withHostState(context, { approvalRelay: relay });
 }
 
 /**
@@ -277,13 +269,13 @@ export function bindApprovalRelay(context: CommandContext, relay: ApprovalRelay)
  * middleware can still tell the agent to run the command on its own.
  */
 export function withoutApprovalRelay(context: CommandContext): CommandContext {
-	if (!(context as RelayContext)[RELAY]) return context;
+	if (!hostState(context).approvalRelay) return context;
 	return bindApprovalRelay(context, NEVER_ASKS);
 }
 
 /** The relay bound to `context`, if any. */
 export function approvalRelay(context: CommandContext | undefined): ApprovalRelay | undefined {
-	return (context as RelayContext | undefined)?.[RELAY];
+	return hostState(context).approvalRelay;
 }
 
 /**
@@ -294,13 +286,12 @@ export function bindUpFrontApproval(
 	context: CommandContext,
 	upFront: UpFrontApproval
 ): CommandContext {
-	const bound: RelayContext = { ...context, [RELAY]: NEVER_ASKS, [UP_FRONT]: upFront };
-	return bound;
+	return withHostState(context, { approvalRelay: NEVER_ASKS, upFrontApproval: upFront });
 }
 
 /** The up-front approval bound to `context`, if any. */
 export function upFrontApproval(context: CommandContext | undefined): UpFrontApproval | undefined {
-	return (context as RelayContext | undefined)?.[UP_FRONT];
+	return hostState(context).upFrontApproval;
 }
 
 /**
@@ -314,7 +305,7 @@ export function upFrontApproval(context: CommandContext | undefined): UpFrontApp
  * before it retries the step on the ordinary single-command path, which holds it again.
  */
 export function releaseUpFrontApproval(context: CommandContext): void {
-	delete (context as RelayContext)[UP_FRONT];
+	patchHostStateInPlace(context, { upFrontApproval: undefined });
 }
 
 /** Longest input shown in an approval elicitation, in characters. */

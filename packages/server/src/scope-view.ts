@@ -2,14 +2,16 @@
  * @fileoverview A request's scope view on its command context (`spec/authorization.md`, M6).
  *
  * The HTTP layer of a server with MCP authorization binds each admitted request's view
- * (`mcp-auth-view.ts`) under a module-private symbol, so every copy the router, the engine and the
- * meta-tools make carries it, and a nested call that passes its context on is decided too. Tool
- * arguments and `createContext` values are JSON and string keys, so they cannot carry one. This
- * module imports nothing at run time, so the engine and router, which `/direct` also bundles,
- * read a view without bringing the authorization layer: nothing binds one in process.
+ * (`mcp-auth-view.ts`) in the context's host state (`host-state.ts`), so every copy the router, the
+ * engine and the meta-tools make carries it, and a nested call that passes its context on is
+ * decided too. Tool arguments and `createContext` values are JSON and string keys, so they cannot
+ * carry one. This module loads only `host-state.ts`, which loads nothing, so the engine and
+ * router, which `/direct` also bundles, read a view without bringing the authorization layer:
+ * nothing binds one in process.
  */
 
 import type { CommandContext, CommandError } from '@lushly-dev/afd-core';
+import { hostState, withHostState } from './host-state.js';
 import type { Credentials } from './mcp-auth-rules.js';
 import type { RequestDecision } from './mcp-auth-scopes.js';
 
@@ -36,19 +38,17 @@ export interface ScopeView {
 	insufficientScope(missing: readonly string[]): CommandError;
 }
 
-const VIEW = Symbol('afd.scopeView');
-type ViewContext = CommandContext & { [VIEW]?: ScopeView };
 /** `context` carrying `view`, or `context` itself without one. */
 export function bindScopeView<T extends CommandContext>(
 	context: T,
 	view: ScopeView | undefined
 ): T {
-	return view ? { ...context, [VIEW]: view } : context;
+	return view ? withHostState(context, { scopeView: view }) : context;
 }
 
 /** The scope view bound to `context`, if any. */
 export function scopeViewOf(context: CommandContext | undefined): ScopeView | undefined {
-	return (context as ViewContext | undefined)?.[VIEW];
+	return hostState(context).scopeView;
 }
 
 /** `items` that exist for the caller of `context` (all of them without a view). */

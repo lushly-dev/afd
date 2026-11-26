@@ -772,7 +772,9 @@ export const CEILINGS = Object.freeze({
 	// Raised under D115 by #2648 (`applyContextFields` keeps a schema's exception text out of production errors
 	// and reports it to `onError`, in `afd-server`, through the kernel's direct registry): measured 161,059 on
 	// `main` at `8b3123580` plus #2648; set to 161,500.
-	kernelMinified: 161_500,
+	// Raised under D115 by #2652 (#1743: afd-server's host-state token and one admission pipeline): measured 161,182
+	// on `main` at `5ade6c0f4`, 161,304 with #2648 merged (`main` at `e0dbde691`); set to 161,600.
+	kernelMinified: 161_600,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).
@@ -928,7 +930,9 @@ export const CEILINGS = Object.freeze({
 	// in `afd-detail`/`afd-help`/`afd-docs`) on `main` at `0b56ceecb`: measured 41,008; set to 41,500 under D115.
 	// #2128 (`checkBatchLimits`, 41,202) and #2263 (`confirmationMode` / `humanRelay` in `tool-router`/`tools`/`lazy-tools`,
 	// measured 41,977 against `main` at `4da8efebe`); raised 41,500 → 42,500 under D115.
-	inboundMinified: 42_500,
+	// #2652 (#1743: the router's unencoded outcome and a lane's own acknowledgement, the host-state token): measured
+	// 42,572 against `main` at `5ade6c0f4`; raised 42,500 → 43,000 under D115.
+	inboundMinified: 43_000,
 	mountMinified: 238_268,
 	switcherMinified: 12_100,
 	switcherColdMinified: 45_163,

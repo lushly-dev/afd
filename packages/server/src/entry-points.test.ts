@@ -317,6 +317,14 @@ const HOST_IMPORTS =
  *   and keeps a schema's exception text out of production errors, bringing host, with `main` at
  *   `d831d4044` merged, to 52,366 bytes (raised 52,300 → 52,500 under D115); approval, tool-surface
  *   and every-export stay within their ceilings.
+ *   One admission pipeline and trusted host state (#1743, under D115): the nine module-private
+ *   context symbols become one host-state token (`host-state.ts`), and the router returns an
+ *   unencoded outcome with a lane's own acknowledgement (`Afd-Confirm`), so every lane shares its
+ *   stages. Measured on `main` at `1df3406ce` 52,269 / 67,620 / 91,616 / 119,592 bytes and 52,438
+ *   / 67,722 / 92,108 / 120,086 after, with esbuild 0.28.2; the three it exceeds are raised to
+ *   52,500, 92,200 and 120,200. With #2141's context-field redaction merged (`main` at `e0dbde691`),
+ *   host, approval and tool-surface measure 52,535 / 67,819 / 92,205; raised to 52,700, 68,000 and
+ *   92,400 (every-export stays within 120,200).
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
@@ -329,19 +337,19 @@ const DIRECT_BUDGETS = [
 	{
 		what: 'a host that imports the registry, the journal and defineCommand',
 		imports: HOST_IMPORTS,
-		bytes: 52_500,
+		bytes: 52_700,
 	},
 	{
 		what: 'the same host with the approval middleware',
 		imports: `${HOST_IMPORTS}, createApprovalMiddleware`,
-		bytes: 67_800,
+		bytes: 68_000,
 	},
 	{
 		what: 'a host with the tool surface',
 		imports: `${HOST_IMPORTS}, createDirectToolSurface`,
-		bytes: 91_800,
+		bytes: 92_400,
 	},
-	{ what: 'every export', imports: undefined, bytes: 120_000 },
+	{ what: 'every export', imports: undefined, bytes: 120_200 },
 ];
 
 /** The modules only the tool surface needs. */

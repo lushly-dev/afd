@@ -218,6 +218,51 @@ describe('the approver carrier', () => {
 		expect(runs).toEqual([]);
 	});
 
+	it('decides an approver on the HTTP routes as on /message: its token, and its key refused (#1743)', async () => {
+		const { base, runs } = await serve();
+		const post = (path: string, body: unknown) =>
+			fetch(`${base}${path}`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(body),
+			});
+		const rpc = async (meta: Record<string, unknown>) => {
+			const response = await post('/rpc', {
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'todo-delete',
+				params: { id: 7, _meta: meta },
+			});
+			return ((await response.json()) as { result: CommandResult }).result;
+		};
+		const held = await rpc({});
+		expect(held.error?.code).toBe('APPROVAL_REQUIRED');
+		const approval = token(held);
+		expect(approval).toMatch(/^afdap1\./);
+		const meta = { [AFD_APPROVAL_META_KEY]: approval };
+
+		const retried = await rpc(meta);
+		expect(retried.error).toMatchObject({ code: 'APPROVAL_REQUIRED', retryable: false });
+		expect(retried.error?.message).toContain('one command');
+
+		const batch = (await (
+			await post('/batch', {
+				commands: [{ command: 'todo-delete', input: { id: 7 } }],
+				_meta: meta,
+			})
+		).json()) as CommandResult;
+		expect(batch.error).toMatchObject({ code: 'APPROVAL_REQUIRED', retryable: false });
+
+		const stream = await (await post('/stream/todo-delete', { id: 7, _meta: meta })).text();
+		const chunk = JSON.parse(/^data: (.*)$/m.exec(stream)?.[1] ?? 'null');
+		expect(chunk).toMatchObject({
+			type: 'error',
+			error: { code: 'APPROVAL_REQUIRED', retryable: false },
+			recoverable: false,
+		});
+		expect(runs).toEqual([]);
+	});
+
 	it('still asks a caller that is not an approver with the relay', async () => {
 		const runs: string[] = [];
 		const list = commands(runs);

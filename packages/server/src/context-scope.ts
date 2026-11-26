@@ -3,14 +3,15 @@
  *
  * HTTP clients each get their own context stack (keyed by MCP session), so the state cannot
  * live in a closure shared by the whole server. The HTTP handler binds the caller's state to
- * the command context under a private symbol; the tool router, execution engine and
- * `afd-context-*` commands read it back. Symbol keys survive the `{ ...context }` copies made
- * for batch items and pipeline steps, never serialize, and cannot be set by `createContext`.
+ * the command context's host state (`host-state.ts`); the tool router, execution engine and
+ * `afd-context-*` commands read it back. It survives the `{ ...context }` copies made for batch
+ * items and pipeline steps, never serializes, and cannot be set by `createContext`.
  * `createDirectRegistry` binds a state per call, built from the call's `activeContext` option,
  * so this module stays free of the bootstrap commands and of Node.js built-ins.
  */
 
 import type { CommandContext } from '@lushly-dev/afd-core';
+import { hostState, withHostState } from './host-state.js';
 
 /** Default maximum depth of a context stack. */
 export const DEFAULT_CONTEXT_MAX_DEPTH = 16;
@@ -65,10 +66,6 @@ export function createContextState(
 	};
 }
 
-const CONTEXT_STATE = Symbol('afd.contextState');
-
-type ScopedContext = CommandContext & { [CONTEXT_STATE]?: ContextState | null };
-
 /**
  * Return a copy of `context` bound to `state`.
  *
@@ -79,8 +76,7 @@ export function bindContextState(
 	context: CommandContext,
 	state: ContextState | null
 ): CommandContext {
-	const scoped: ScopedContext = { ...context, [CONTEXT_STATE]: state };
-	return scoped;
+	return withHostState(context, { contextState: state });
 }
 
 /**
@@ -93,6 +89,6 @@ export function resolveContextState(
 	context: CommandContext | undefined,
 	fallback?: ContextState
 ): ContextState | null | undefined {
-	const scoped = context as ScopedContext | undefined;
-	return scoped && CONTEXT_STATE in scoped ? scoped[CONTEXT_STATE] : fallback;
+	const state = hostState(context);
+	return Object.hasOwn(state, 'contextState') ? state.contextState : fallback;
 }

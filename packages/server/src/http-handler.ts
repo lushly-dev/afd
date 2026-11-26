@@ -2,15 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type {
-	Actor,
-	BatchRequest,
-	BatchResult,
-	CommandContext,
-	CommandError,
-	CommandResult,
-	StreamChunk,
-} from '@lushly-dev/afd-core';
+import type { Actor, CommandContext, CommandError, StreamChunk } from '@lushly-dev/afd-core';
 import {
 	checkBatchLimits,
 	createErrorChunk,
@@ -20,16 +12,12 @@ import {
 	isBatchRequest,
 	truncateName,
 } from '@lushly-dev/afd-core';
-import {
-	type ApproverPredicate,
-	approvalKeyInInput,
-	bindApprover,
-	decideApprover,
-} from './approver.js';
+import { type AdmissionLane, createAdmission, type DecodedCall } from './admission.js';
+import type { ApproverPredicate } from './approver.js';
 import type { ContextState } from './bootstrap/afd-context.js';
-import { createHttpConfirmationCheck } from './confirmation-gate.js';
-import type { ConfirmationGate, ConfirmationStep } from './confirmations.js';
-import { type ContextField, contextFieldValues } from './context-fields.js';
+import { httpConfirmationChannel } from './confirmation-gate.js';
+import { bindConfirmationChannel } from './confirmations.js';
+import type { ContextField } from './context-fields.js';
 import { bindContextState } from './context-scope.js';
 import {
 	assertAllowedOrigins,
@@ -52,15 +40,20 @@ import {
 } from './json-rpc.js';
 import type { AuthLayer } from './mcp-auth.js';
 import type { ModernHttpLane } from './mcp-modern.js';
-import { liftMetaArgument, metaArgumentKeys } from './meta-argument.js';
-import { withMetaOutputBudget } from './output-budget.js';
 import { credentialsBinding } from './principal-binding.js';
 import { requestContextValues } from './request-context.js';
 import { bindScopeView } from './scope-view.js';
 import type { CreateRequestContext } from './server-types.js';
 import { bindTaskDispatch } from './task-dispatch.js';
 import type { TaskRuntime } from './tasks-runtime.js';
-import { resultContent, type ToolCallResult } from './tool-router.js';
+import {
+	asToolRouter,
+	type RouteOutcome,
+	type RunAdmitted,
+	type ToolCallFunction,
+	type ToolRouter,
+	toolResultOf,
+} from './tool-router.js';
 
 /** Seconds a refused `initialize` is told to wait (`Retry-After`) when the session store is full. */
 const SESSION_RETRY_AFTER_S = 60;
@@ -76,17 +69,15 @@ export interface HttpHandlerDeps extends HttpSecurityOptions {
 	devMode: boolean;
 	cors: boolean;
 	getToolsList: (context: CommandContext) => unknown[];
-	routeToolCall: (
-		toolName: string,
-		args: unknown,
-		context: CommandContext
-	) => Promise<ToolCallResult>;
-	executeCommand: (
-		name: string,
-		input: unknown,
-		context?: CommandContext
-	) => Promise<CommandResult>;
-	executeBatch: (request: BatchRequest, context?: CommandContext) => Promise<BatchResult>;
+	/** The MCP router, which the 2025-era `/message` lane routes `tools/call` through. */
+	routeToolCall: ToolRouter | ToolCallFunction;
+	/**
+	 * The router of the HTTP `/rpc`, `/batch` and `/stream` routes: the same stages as the MCP
+	 * router's, without the meta-tools in its refusals, and with the `Afd-Confirm` header for
+	 * acknowledgement.
+	 */
+	restRouter: ToolRouter;
+	/** Streams the one command `/stream` admitted. */
 	executeStream: (
 		name: string,
 		input: unknown,
@@ -108,10 +99,6 @@ export interface HttpHandlerDeps extends HttpSecurityOptions {
 	sseHeartbeatMs?: number;
 	/** The MCP 2026-07-28 endpoint served at `POST /mcp`. */
 	modern?: ModernHttpLane;
-	/** Confirmation enforcement for `/rpc`, `/batch` and `/stream` (acknowledged by `Afd-Confirm`). */
-	confirmations?: ConfirmationGate;
-	/** Host-verified confirmation check for `/rpc`, `/batch` and `/stream` (always refused). */
-	hostVerifiedCheck?: (steps: readonly ConfirmationStep[]) => CommandError | undefined;
 	/**
 	 * MCP authorization (`spec/authorization.md`): every route but the metadata needs a verified
 	 * token, and every command context carries the request's credentials.
@@ -153,9 +140,6 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		cors,
 		devMode,
 		getToolsList,
-		routeToolCall,
-		executeCommand,
-		executeBatch,
 		executeStream,
 		isMutation,
 		sessions,
@@ -163,12 +147,19 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		contextFields,
 		onError,
 		modern,
-		confirmations,
-		hostVerifiedCheck,
 		auth,
 	} = deps;
-	const unconfirmed = createHttpConfirmationCheck(confirmations);
-	const metaKeys = metaArgumentKeys(contextFields);
+	// One admission pipeline (`admission.ts`): the MCP router for `/message`, the HTTP routes' own
+	// router for `/rpc`, `/batch` and `/stream`. The lanes below only decode and encode.
+	const admissionDeps = { contextFields, approver: deps.approver, actor: deps.actor };
+	const mcpAdmission = createAdmission({
+		...admissionDeps,
+		router: asToolRouter(deps.routeToolCall),
+	});
+	const restAdmission = createAdmission({
+		...admissionDeps,
+		router: deps.restRouter,
+	});
 	assertAllowedOrigins(deps.allowedOrigins);
 	const maxBodyBytes = deps.maxBodyBytes ?? 1024 * 1024;
 	if (!Number.isSafeInteger(maxBodyBytes) || maxBodyBytes <= 0)
@@ -224,60 +215,71 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		return credentials ? JSON.stringify([credentials.issuer, credentials.subject]) : undefined;
 	}
 
-	/**
-	 * `INSUFFICIENT_SCOPE` when the request's credentials lack a scope these calls need, decided
-	 * after routing and before the confirmation gate (M6); none without MCP authorization.
-	 */
-	function scopeRefusal(
-		req: IncomingMessage,
-		calls: readonly { command: string; input: unknown }[]
-	): CommandError | undefined {
-		const view = auth?.viewFor(req);
-		const decision = view?.decideCommands(calls);
-		return view && decision && decision !== 'proceed'
-			? view.insufficientScope(decision.forbidden)
-			: undefined;
-	}
-
-	/** The steps naming commands that exist for the caller: a confirmation never names another. */
-	function existing<T extends { command: string }>(req: IncomingMessage, steps: T[]): T[] {
-		const view = auth?.viewFor(req);
-		return view ? steps.filter((step) => view.known(step.command)) : steps;
-	}
-
 	function scoped(context: CommandContext, state: ContextState | null | undefined): CommandContext {
 		return state === undefined ? context : bindContextState(context, state);
 	}
 
 	/**
-	 * The `CommandContext` for commands run by this request: `createContext` values, an
-	 * `AbortSignal` that fires if the client disconnects before the response finishes, and
-	 * the caller's session.
+	 * Decode one call of `req` for admission: its `createContext` values, scope view, session and
+	 * an `AbortSignal` that fires if the client disconnects before the response finishes.
 	 */
-	async function commandContext(
+	function decoded(
 		req: IncomingMessage,
 		res: ServerResponse,
-		state: ContextState | null | undefined,
-		controller = new AbortController(),
-		meta?: unknown
-	): Promise<CommandContext> {
+		call: {
+			lane: AdmissionLane;
+			tool: string;
+			args: unknown;
+			meta: unknown;
+			state: ContextState | null | undefined;
+			controller?: AbortController;
+			channels?: DecodedCall['channels'];
+		}
+	): DecodedCall {
+		const controller = call.controller ?? new AbortController();
 		res.once('close', () => {
 			if (!res.writableFinished) controller.abort(new Error('Client disconnected'));
 		});
-		const custom = await requestContextValues(createContext, req, auth?.credentialsFor(req));
-		// Declared fields from `_meta` first, so a value `createContext` sets wins.
-		const declared = contextFieldValues(contextFields, meta);
-		return bindScopeView(
-			scoped(
-				withMetaOutputBudget(
-					{ ...declared, ...custom, signal: controller.signal, interface: 'mcp' },
-					meta,
-					custom
-				),
-				state
-			),
-			auth?.viewFor(req)
-		);
+		return {
+			lane: call.lane,
+			tool: call.tool,
+			args: call.args,
+			meta: call.meta,
+			state: () => call.state,
+			values: () => requestContextValues(createContext, req, auth?.credentialsFor(req)),
+			view: auth?.viewFor(req),
+			signal: controller.signal,
+			channels: call.channels,
+		};
+	}
+
+	/** A call to `/rpc`, `/batch` or `/stream`: acknowledged by `Afd-Confirm`, never elicited. */
+	function restCall(
+		req: IncomingMessage,
+		res: ServerResponse,
+		tool: 'afd-call' | 'afd-batch',
+		args: unknown,
+		meta: unknown,
+		state: ContextState | null | undefined,
+		controller?: AbortController
+	): DecodedCall {
+		return decoded(req, res, {
+			lane: 'rest',
+			tool,
+			args,
+			meta,
+			state,
+			controller,
+			channels: (context) => bindConfirmationChannel(context, httpConfirmationChannel(req)),
+		});
+	}
+
+	/** The `CommandResult` of an `/rpc` outcome. */
+	function restResult(outcome: RouteOutcome): unknown {
+		if (outcome.kind === 'refused') return failure(outcome.error);
+		// The HTTP routes bind no task dispatch, so no outcome is a task's tool result.
+		if (outcome.kind === 'tool') throw new Error('An HTTP route produced an MCP tool result');
+		return outcome.value;
 	}
 
 	/** An input object without its `_meta` member, which carries request values, not input. */
@@ -338,40 +340,30 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 						'Send params as { "name": "<tool>", "arguments": { ... } }'
 					);
 				}
-				// Approval evidence is never input, from any caller.
-				const keyed = approvalKeyInInput(params.arguments);
-				if (keyed) return resultContent(failure(keyed), true);
-				const lifted = liftMetaArgument(params.name, params.arguments, params._meta, metaKeys);
-				if (!lifted.ok) return resultContent(failure(lifted.error), true);
-				const args = lifted.args ?? {};
-				if (!isRecord(args)) {
+				const args = params.arguments;
+				if (args !== undefined && args !== null && !isRecord(args)) {
 					throw new JsonRpcError(
 						JsonRpcErrorCode.INVALID_PARAMS,
 						'tools/call params.arguments must be an object',
 						'Send the tool arguments as a JSON object'
 					);
 				}
-				const context = await commandContext(req, res, state, undefined, lifted.meta);
 				// A 2025-era request: an approver gets its token but cannot carry it back here.
-				const actor = (context.actor ?? deps.actor) as Actor | undefined;
-				const carrier = decideApprover({
-					approver: deps.approver,
-					context: { ...context, actor },
-					actor,
-					credentials: context.credentials,
-					meta: params._meta,
-					tool: params.name,
-					modern: false,
-				});
-				if (carrier.kind === 'refuse') return resultContent(failure(carrier.error), true);
-				let routedContext = carrier.approver ? bindApprover(context, carrier.approver) : context;
-				if (deps.tasks) {
-					routedContext = bindTaskDispatch(
-						routedContext,
-						deps.tasks.legacyHttpDispatchFor(auth?.credentialsFor(req))
-					);
-				}
-				return routeToolCall(params.name, args, routedContext);
+				const tasks = deps.tasks;
+				const outcome = await mcpAdmission.run(
+					decoded(req, res, {
+						lane: 'mcp-legacy',
+						tool: params.name,
+						args,
+						meta: params._meta,
+						state,
+						channels: tasks
+							? (context) =>
+									bindTaskDispatch(context, tasks.legacyHttpDispatchFor(auth?.credentialsFor(req)))
+							: undefined,
+					})
+				);
+				return toolResultOf(outcome);
 			}
 			default:
 				throw methodNotFound(message.method);
@@ -430,20 +422,10 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		const message = parseJsonRpcMessage(await readJsonBody(req, maxBodyBytes));
 		const state = sessionState(req);
 		const body = await answer(message, async () => {
+			// `/rpc` names a command as its method: decoded as `afd-call` with that command.
 			const { input, meta } = splitMeta(message.params ?? {});
-			const keyed = approvalKeyInInput(input);
-			if (keyed) return { success: false, error: keyed };
-			const steps = [{ command: message.method, input }];
-			const existingSteps = existing(req, steps);
-			const refused =
-				scopeRefusal(req, steps) ??
-				hostVerifiedCheck?.(existingSteps) ??
-				(await unconfirmed(req, existingSteps));
-			if (refused) return { success: false, error: refused };
-			return executeCommand(message.method, input, {
-				...(await commandContext(req, res, state, undefined, meta)),
-				traceId: `rpc-${randomUUID()}`,
-			});
+			const call = restCall(req, res, 'afd-call', { command: message.method, input }, meta, state);
+			return restResult(await restAdmission.run(call));
 		});
 		// A notification still runs (JSON-RPC semantics), but its outcome is not sent back.
 		if (message.notification) {
@@ -460,6 +442,11 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 			commandName = decodeURIComponent(url.pathname.slice('/stream/'.length));
 		} catch {
 			throw new HttpRequestError(400, 'Invalid stream command name');
+		}
+		if (commandName === '') {
+			throw new HttpRequestError(400, 'The stream path names no command', {
+				suggestion: 'Name the command in the path: /stream/<command>',
+			});
 		}
 		// GET is a safe method: link prefetchers and crawlers must not be able to trigger writes.
 		// A command hidden from this caller is not one here (M6), so it falls through to the
@@ -496,25 +483,42 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 			}
 		}
 		const split = splitMeta(input);
-		input = split.input;
-		const steps = [{ command: commandName, input }];
-		const existingSteps = existing(req, steps);
-		const refused =
-			approvalKeyInInput(input) ??
-			scopeRefusal(req, steps) ??
-			hostVerifiedCheck?.(existingSteps) ??
-			(await unconfirmed(req, existingSteps));
-		if (refused) {
-			res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
-			res.end(`event: chunk\ndata: ${JSON.stringify(createErrorChunk(refused, 0, false))}\n\n`);
-			return;
-		}
 		const state = sessionState(req);
 		const controller = new AbortController();
-		const context: CommandContext = {
-			...(await commandContext(req, res, state, controller, split.meta)),
-			traceId: `stream-${randomUUID()}`,
+		// Decoded as `afd-call` with the stream's command; admission and the router decide it, and
+		// the one command admitted is streamed instead of run.
+		let admitted: { name: string; input: unknown; context: CommandContext } | undefined;
+		const capture: RunAdmitted = async (name, admittedInput, context) => {
+			admitted = { name, input: admittedInput, context };
+			return { kind: 'value', value: undefined, isError: false };
 		};
+		const outcome = await restAdmission.run(
+			restCall(
+				req,
+				res,
+				'afd-call',
+				{ command: commandName, input: split.input },
+				split.meta,
+				state,
+				controller
+			),
+			capture
+		);
+		if (!admitted) {
+			const result = restResult(outcome) as { error?: CommandError };
+			const refused: CommandError = result.error ?? {
+				code: 'COMMAND_FAILED',
+				message: 'Command execution failed',
+				suggestion: 'Check the command input and try again',
+			};
+			res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
+			res.end(
+				`event: chunk\ndata: ${JSON.stringify(createErrorChunk(refused, 0, refused.retryable ?? false))}\n\n`
+			);
+			return;
+		}
+		const run = admitted;
+		const context: CommandContext = { ...run.context, traceId: `stream-${randomUUID()}` };
 		streams.set(res, controller);
 		res.writeHead(200, {
 			'Content-Type': 'text/event-stream',
@@ -523,7 +527,7 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		});
 		res.flushHeaders();
 		try {
-			for await (const chunk of executeStream(commandName, input, context)) {
+			for await (const chunk of executeStream(run.name, run.input, context)) {
 				if (controller.signal.aborted) break;
 				if (!res.write(`event: chunk\ndata: ${JSON.stringify(chunk)}\n\n`)) {
 					await once(res, 'drain', { signal: controller.signal });
@@ -639,24 +643,25 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 				json(res, 400, createFailedBatchResult(limitError, {}));
 				return;
 			}
-			const steps = request.commands.map((item) => ({
-				command: item.command,
-				input: item.input ?? {},
-			}));
-			// A batch fails as a whole before its first step (M6), as a confirmation does.
-			const existingSteps = existing(req, steps);
-			const refused =
-				approvalKeyInInput(steps.map((step) => step.input)) ??
-				scopeRefusal(req, steps) ??
-				hostVerifiedCheck?.(existingSteps) ??
-				(await unconfirmed(req, existingSteps));
-			if (refused) {
-				json(res, 200, createFailedBatchResult(refused, {}));
-				return;
-			}
-			const meta = (request as { _meta?: unknown })._meta;
-			const context = await commandContext(req, res, sessionState(req), undefined, meta);
-			json(res, 200, await executeBatch(request, { ...context, traceId: `batch-${randomUUID()}` }));
+			// Decoded as `afd-batch`. `_meta` carries the request's values; `confirm` and `meta` are
+			// `afd-batch` arguments only over MCP (`Afd-Confirm` acknowledges here), so they are no
+			// arguments here, as they never were.
+			const {
+				_meta: meta,
+				confirm: _confirm,
+				meta: _metaArgument,
+				...args
+			} = request as unknown as Record<string, unknown>;
+			const call = restCall(req, res, 'afd-batch', args, meta, sessionState(req));
+			const outcome = await restAdmission.run(call);
+			// A batch refused before its first step is still a BatchResult (M6, confirmations).
+			json(
+				res,
+				200,
+				outcome.kind === 'refused'
+					? createFailedBatchResult(outcome.error, {})
+					: restResult(outcome)
+			);
 			return;
 		}
 		if (url.pathname.startsWith('/stream/') && (req.method === 'GET' || req.method === 'POST')) {

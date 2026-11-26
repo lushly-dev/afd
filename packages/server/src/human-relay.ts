@@ -16,6 +16,7 @@ import { actorJson, canonicalJson } from './approval-crypto.js';
 import { withoutApprovalRelay } from './approval-relay.js';
 import type { ConfirmationStep, HumanRelayGate, HumanRelayOutcome } from './confirmations.js';
 import { applyContextFields, type ContextField, RESERVED_CONTEXT_NAMES } from './context-fields.js';
+import { hostState, withHostState } from './host-state.js';
 import type { Credentials } from './mcp-auth-rules.js';
 import {
 	credentialsBinding,
@@ -47,23 +48,19 @@ export interface HumanRelayChannel {
 	readonly relayAction?: 'accept' | 'decline' | 'cancel';
 }
 
-const HUMAN_RELAY_CHANNEL = Symbol('afd.humanRelayChannel');
-type HumanRelayChannelContext = CommandContext & { [HUMAN_RELAY_CHANNEL]?: HumanRelayChannel };
-
 /** Return a copy of `context` carrying the lane's host-verified relay channel. */
 export function bindHumanRelayChannel(
 	context: CommandContext,
 	channel: HumanRelayChannel
 ): CommandContext {
-	const bound: HumanRelayChannelContext = { ...context, [HUMAN_RELAY_CHANNEL]: channel };
-	return bound;
+	return withHostState(context, { humanRelayChannel: channel });
 }
 
 /** The host-verified relay channel bound to `context`, if any. */
 export function humanRelayChannel(
 	context: CommandContext | undefined
 ): HumanRelayChannel | undefined {
-	return (context as HumanRelayChannelContext | undefined)?.[HUMAN_RELAY_CHANNEL];
+	return hostState(context).humanRelayChannel;
 }
 
 /**
@@ -710,30 +707,5 @@ export function createHumanRelayGate(options: HumanRelayGateOptions): HumanRelay
 				validatedCanonical
 			);
 		},
-	};
-}
-
-/**
- * Check `/rpc`, `/batch` and `/stream` steps for host-verified commands: always refused with
- * `CONFIRMATION_REQUIRED` regardless of `confirmations` (`'off'` included) and `Afd-Confirm`.
- */
-export function createHttpHostVerifiedCheck(
-	commands: readonly ZodCommandDefinition[],
-	hasRelay: boolean
-) {
-	const hostVerified = new Set(
-		commands
-			.filter((command) => command.confirmationMode === 'host-verified')
-			.map((command) => command.name)
-	);
-	return (steps: readonly ConfirmationStep[]): CommandError | undefined => {
-		if (hostVerified.size === 0) return undefined;
-		const names: string[] = [];
-		for (const step of steps) {
-			if (hostVerified.has(step.command) && !names.includes(step.command)) {
-				names.push(step.command);
-			}
-		}
-		return names.length > 0 ? hostVerifiedUnrelayable(names, hasRelay) : undefined;
 	};
 }

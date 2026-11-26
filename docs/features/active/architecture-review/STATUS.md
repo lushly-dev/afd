@@ -53,7 +53,7 @@ These keep their own work; this review only cross-references them.
 
 ### TypeScript core and server
 
-- [#1743](https://github.com/lushly-dev/afd/issues/1743) server: one admission pipeline for every TypeScript lane
+- [#1743](https://github.com/lushly-dev/afd/issues/1743) server: one admission pipeline for every TypeScript lane; merged in #2652
 
 - [#1744](https://github.com/lushly-dev/afd/issues/1744) server: pin the MCP SDK and add guard tests for the internals AFD patches
 

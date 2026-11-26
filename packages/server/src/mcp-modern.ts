@@ -37,6 +37,7 @@ import {
 	type Transport,
 } from '@modelcontextprotocol/server';
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
+import { createAdmission } from './admission.js';
 import {
 	APPROVAL_INPUT_KEY,
 	APPROVAL_REQUESTED_SCHEMA,
@@ -45,12 +46,7 @@ import {
 	type StepsHold,
 } from './approval-relay.js';
 import { createUpFrontApproval } from './approval-up-front.js';
-import {
-	type ApproverPredicate,
-	approvalKeyInInput,
-	bindApprover,
-	decideApprover,
-} from './approver.js';
+import { type ApproverPredicate, approvalKeyInInput } from './approver.js';
 import {
 	AFD_CONTEXT_META_KEY,
 	type ContextState,
@@ -64,11 +60,7 @@ import {
 	type ConfirmationChannel,
 	InputRequiredSignal,
 } from './confirmations.js';
-import {
-	AFD_CONTEXT_FIELDS_META_KEY,
-	type ContextField,
-	contextFieldValues,
-} from './context-fields.js';
+import { AFD_CONTEXT_FIELDS_META_KEY, type ContextField } from './context-fields.js';
 import { describeContextFields } from './context-fields-describe.js';
 import { bindContextState } from './context-scope.js';
 import {
@@ -81,8 +73,6 @@ import {
 import { prereadBody } from './http-security.js';
 import { bindHumanRelayChannel, RELAY_INPUT_KEY } from './human-relay.js';
 import type { AuthLayer } from './mcp-auth.js';
-import { liftMetaArgument, metaArgumentKeys } from './meta-argument.js';
-import { withMetaOutputBudget } from './output-budget.js';
 import { type PrincipalCredentials, principalBinding } from './principal-binding.js';
 import { requestContextValues } from './request-context.js';
 import { type ResourceService, resourceCacheHints } from './resources.js';
@@ -91,7 +81,13 @@ import type { ContextConfig, CreateRequestContext, ToolStrategy } from './server
 import { bindTaskDispatch } from './task-dispatch.js';
 import { TASKS_EXTENSION_ID } from './tasks.js';
 import { CreateTaskSignal, patchToolsCallForTasks, type TaskRuntime } from './tasks-runtime.js';
-import { resultContent, type ToolCallResult } from './tool-router.js';
+import {
+	asToolRouter,
+	resultContent,
+	type ToolCallFunction,
+	type ToolRouter,
+	toolResultOf,
+} from './tool-router.js';
 
 /** The MCP protocol revision this lane serves statelessly. */
 export const MODERN_PROTOCOL_VERSION = '2026-07-28';
@@ -111,11 +107,8 @@ export interface ModernMcpDeps {
 	/** Natural-language guidance returned by `server/discover`. */
 	instructions: string;
 	getToolsList: (context: CommandContext) => unknown[];
-	routeToolCall: (
-		toolName: string,
-		args: Record<string, unknown>,
-		context: CommandContext
-	) => Promise<ToolCallResult>;
+	/** Runs the router's stages after admission (`admission.ts`): a tool router, or a plain function. */
+	routeToolCall: ToolRouter | ToolCallFunction;
 	/** Configured contexts; enables `_meta["dev.afd/context"]`. */
 	contexts?: ContextConfig[];
 	/** Declared context fields, read from each `tools/call`'s `_meta` and listed by `server/discover`. */
@@ -185,11 +178,6 @@ function reporter(onError: ModernMcpDeps['onError']) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === 'object' && !Array.isArray(value);
-}
-
-/** A shallow copy of a plain object; anything else as it is. */
-function shallowCopy(value: unknown): unknown {
-	return isRecord(value) ? { ...value } : value;
 }
 
 /**
@@ -320,7 +308,12 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 		return state;
 	}
 
-	const metaKeys = metaArgumentKeys(deps.contextFields);
+	const admission = createAdmission({
+		router: asToolRouter(deps.routeToolCall),
+		contextFields: deps.contextFields,
+		approver: deps.approver,
+		actor: deps.actor,
+	});
 
 	function scoped(context: CommandContext, state: ContextState | null | undefined) {
 		return state === undefined ? context : bindContextState(context, state);
@@ -615,104 +608,65 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 		});
 
 		server.setRequestHandler('tools/call', async (request, ctx) => {
-			const { name } = request.params;
-			// Approval evidence is never input, from any caller: refused before anything else.
-			const keyed = approvalKeyInInput(request.params.arguments);
-			if (keyed) return resultContent(failure(keyed), true) as never;
-			// A meta-tool's `meta` argument counts as `_meta` from here on.
-			const lifted = liftMetaArgument(name, request.params.arguments, ctx.mcpReq._meta, metaKeys);
-			if (!lifted.ok) return resultContent(failure(lifted.error), true) as never;
-			const { args, meta } = lifted;
-			const state = contextStateFor(era, meta);
-			let values: Record<string, unknown>;
-			try {
-				values = options.requestValues ? await options.requestValues() : {};
-			} catch (error) {
-				throw internalError(error);
-			}
+			// Decode the call; admission (`admission.ts`) and the router decide it.
 			const canElicit = canElicitFor(era, server, ctx);
-			// Declared fields from `_meta` first, so a value `createContext` sets wins. Neither
-			// `actor` nor `credentials` can be a declared field: only `createContext` sets them.
-			const declared = contextFieldValues(deps.contextFields, meta);
-			const callValues: CommandContext = withMetaOutputBudget(
-				{ ...declared, ...values },
-				meta,
-				values
-			);
-			// Who is calling, as the call starts: the actor the commands run with (`createContext`'s,
-			// or the server's default) and `createContext`'s credentials, copied so that code
-			// changing them in place later cannot change what the state binds. They are checked
-			// and bound only when a state is read or minted, so other calls are unaffected.
-			const actorAtStart = shallowCopy(callValues.actor ?? deps.actor);
-			const credentialsAtStart = shallowCopy(callValues.credentials);
-			let principal: string | undefined;
-			const round = elicitationRound(ctx, () => {
-				principal ??= principalBinding(
-					actorAtStart as Actor | undefined,
-					credentialsAtStart as PrincipalCredentials | undefined
-				);
-				return principal;
-			});
-			// An approver's call carries its token in `_meta`, and is never asked with a form.
-			let carrier: ReturnType<typeof decideApprover>;
-			try {
-				carrier = decideApprover({
-					approver: deps.approver,
-					context: {
-						...callValues,
-						actor: actorAtStart as Actor | undefined,
-						interface: 'mcp',
-					},
-					actor: actorAtStart as Actor | undefined,
-					credentials: credentialsAtStart,
-					meta: ctx.mcpReq._meta,
-					tool: name,
-					modern: era === 'modern',
-				});
-			} catch (error) {
-				throw internalError(error);
-			}
-			if (carrier.kind === 'refuse') return resultContent(failure(carrier.error), true) as never;
-			const approver = carrier.approver;
-			const relay = canElicit && !approver ? approvalRelayFor(round) : undefined;
 			const rawCaps = (ctx.mcpReq.envelope as Record<string, unknown> | undefined)?.[
 				CLIENT_CAPABILITIES_META_KEY
 			];
 			const relayView = inputResponse(ctx.mcpReq.inputResponses, RELAY_INPUT_KEY);
 			const rawState = ctx.mcpReq.requestState();
-			let context = bindHumanRelayChannel(
-				bindConfirmationChannel(
-					bindScopeView(
-						scoped({ ...callValues, signal: ctx.mcpReq.signal, interface: 'mcp' }, state),
-						options.requestView?.()
-					),
-					confirmationChannelFor(canElicit, round, ctx)
-				),
-				{
-					modern: era === 'modern',
-					...(isRecord(rawCaps) && { clientCapabilities: rawCaps }),
-					...(typeof rawState === 'string' && rawState.length > 0 && { requestState: rawState }),
-					...(relayView.kind === 'elicit' && { relayAction: relayView.action }),
-				}
-			);
-			if (relay) context = bindApprovalRelay(context, relay.relay);
-			if (approver) context = bindApprover(context, approver);
-			if (deps.tasks) {
-				context = bindTaskDispatch(
-					context,
-					deps.tasks.dispatchFor(era, isHttp, ctx, options.requestView?.()?.credentials)
-				);
-			}
+			const view = options.requestView?.();
+			let relay: ReturnType<typeof approvalRelayFor> | undefined;
+			let round: ReturnType<typeof elicitationRound> | undefined;
 			try {
-				const result = await deps.routeToolCall(
-					name,
-					(args ?? {}) as Record<string, unknown>,
-					context
-				);
+				const outcome = await admission.run({
+					lane: era === 'modern' ? 'mcp' : 'mcp-legacy',
+					tool: request.params.name,
+					args: request.params.arguments,
+					meta: ctx.mcpReq._meta,
+					state: (meta) => contextStateFor(era, meta),
+					values: options.requestValues ?? (() => ({})),
+					view,
+					signal: ctx.mcpReq.signal,
+					channels(context, principal) {
+						// The principal binding of the elicitations' `requestState`: who is calling, as
+						// the call starts. It is checked and bound only when a state is read or minted,
+						// so other calls are unaffected.
+						let binding: string | undefined;
+						const callRound = elicitationRound(ctx, () => {
+							binding ??= principalBinding(
+								principal.actor,
+								principal.credentials as PrincipalCredentials | undefined
+							);
+							return binding;
+						});
+						round = callRound;
+						// An approver's call carries its token in `_meta`, and is never asked with a form.
+						relay = canElicit && !principal.approver ? approvalRelayFor(callRound) : undefined;
+						let bound = bindHumanRelayChannel(
+							bindConfirmationChannel(context, confirmationChannelFor(canElicit, callRound, ctx)),
+							{
+								modern: era === 'modern',
+								...(isRecord(rawCaps) && { clientCapabilities: rawCaps }),
+								...(typeof rawState === 'string' &&
+									rawState.length > 0 && { requestState: rawState }),
+								...(relayView.kind === 'elicit' && { relayAction: relayView.action }),
+							}
+						);
+						if (relay) bound = bindApprovalRelay(bound, relay.relay);
+						if (deps.tasks) {
+							bound = bindTaskDispatch(
+								bound,
+								deps.tasks.dispatchFor(era, isHttp, ctx, view?.credentials)
+							);
+						}
+						return bound;
+					},
+				});
 				// The approval middleware held the call for the human: ask, instead of returning
 				// the held result.
 				const held = relay?.held();
-				if (held) {
+				if (held && round) {
 					return (await round.askAll(
 						held.questions.map((question) => ({
 							k: APPROVAL_INPUT_KEY,
@@ -731,7 +685,7 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 						held.questions.flatMap((question) => question.bindings)
 					)) as never;
 				}
-				return { ...result } as never;
+				return { ...toolResultOf(outcome) } as never;
 			} catch (error) {
 				if (error instanceof InputRequiredSignal) return error.result as never;
 				if (error instanceof CreateTaskSignal || error instanceof ProtocolError) throw error;
