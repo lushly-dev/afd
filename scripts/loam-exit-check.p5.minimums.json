@@ -1,50 +1,49 @@
 {
 	"about": [
 		"The fewest passing titles scripts/loam-exit-check.mjs --phase 5 --milestone a accepts for each of milestone A's rows (phase 5 specification, section 18), by the place its row names, so an exclude, a skipped suite or a deleted file cannot pass unnoticed.",
-		"These counts are placeholders, each 1, and `placeholder` lists `a`, so the check fails on them whatever the runs show. Step 8 dispatches loam.yml, ci.yml and loam-desktop.yml on main, runs the check on the three runs with --print-minimums, copies the counts it prints here, removes `a` from `placeholder` (the field itself once no milestone is listed) and records the runs in `observed`.",
+		"Set from the manual runs in `observed` by step 8 of the phase 5 specification; `placeholder` is gone, so the check reads these counts.",
 		"After that, when exit tests are added or removed on purpose, run the check on runs that have them with --print-minimums and copy the counts it prints here in the same pull request, saying why each changed."
 	],
-	"placeholder": ["a"],
-	"observed": "No run yet: step 8 sets these counts from its manual runs",
+	"observed": "Manual runs on main at b5efe6f6 (2026-11-26): loam.yml 45822277634, ci.yml 45822283163, loam-desktop.yml 45822288786. Each count is what --print-minimums printed, but P5-A8's desktopWindows: that run's Windows job failed one of its three P5-A8 tests on a stale element (the panel redrew its cards between finding and clicking Decline), fixed in this change, so its minimum is the three the file holds, as on Linux.",
 	"minimums": {
 		"a": {
 			"A1": {
-				"kernelUnits": 1,
-				"chromium": 1,
-				"desktopLinux": 1,
-				"desktopWindows": 1
+				"kernelUnits": 10,
+				"chromium": 8,
+				"desktopLinux": 10,
+				"desktopWindows": 10
 			},
 			"A2": {
-				"chromium": 1,
-				"desktopLinux": 1,
-				"desktopWindows": 1
+				"chromium": 10,
+				"desktopLinux": 7,
+				"desktopWindows": 7
 			},
 			"A3": {
-				"desktopLinux": 1,
-				"desktopWindows": 1
+				"desktopLinux": 9,
+				"desktopWindows": 9
 			},
 			"A4": {
-				"kernelUnits": 1,
+				"kernelUnits": 29,
 				"chromium": 1
 			},
 			"A5": {
-				"kernelUnits": 1
+				"kernelUnits": 14
 			},
 			"A6": {
-				"kernelUnits": 1,
-				"desktopLinux": 1,
-				"desktopWindows": 1
+				"kernelUnits": 21,
+				"desktopLinux": 5,
+				"desktopWindows": 5
 			},
 			"A7": {
-				"kernelUnits": 1
+				"kernelUnits": 37
 			},
 			"A8": {
-				"chromium": 1,
-				"desktopLinux": 1,
-				"desktopWindows": 1
+				"chromium": 6,
+				"desktopLinux": 3,
+				"desktopWindows": 3
 			},
 			"A9": {
-				"desktopLinux": 1
+				"desktopLinux": 6
 			}
 		}
 	}

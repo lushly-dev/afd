@@ -253,18 +253,31 @@ describe('P5-A8: the panel on the desktop', () => {
 		});
 		await new Promise((resolve) => setTimeout(resolve, 500));
 		expect(await confirmationState()).toBe('pending');
-		// WebDriver's own click on the card's Decline: a press the page sees as the person's (`isTrusted`).
-		const decline = await desktop.browser.execute(() => {
-			const buttons = document
-				.querySelector('loam-shell')
-				?.shadowRoot?.querySelector('loam-copilot-panel')
-				?.shadowRoot?.querySelectorAll('.cards violet-approval-card violet-button');
-			return (
-				[...(buttons ?? [])].find((button) => button.textContent?.trim() === 'Decline') ?? null
-			);
-		});
-		expect(decline).not.toBeNull();
-		await (await desktop.browser.$(decline as never)).click();
+		// WebDriver's own click on the card's Decline: a press the page sees as the person's (`isTrusted`). The panel
+		// redraws its cards from the kernel's records while a confirmation waits, so a button found just before a redraw
+		// is gone when clicked ("stale element"); that click pressed nothing, and the button is found again.
+		const findDecline = () =>
+			desktop.browser.execute(() => {
+				const buttons = document
+					.querySelector('loam-shell')
+					?.shadowRoot?.querySelector('loam-copilot-panel')
+					?.shadowRoot?.querySelectorAll('.cards violet-approval-card violet-button');
+				return (
+					[...(buttons ?? [])].find((button) => button.textContent?.trim() === 'Decline') ?? null
+				);
+			});
+		let pressed = false;
+		for (let tries = 0; tries < 10 && !pressed; tries++) {
+			const decline = await findDecline();
+			expect(decline).not.toBeNull();
+			try {
+				await (await desktop.browser.$(decline as never)).click();
+				pressed = true;
+			} catch (error) {
+				if (!/stale element/i.test(String(error))) throw error;
+			}
+		}
+		expect(pressed, 'the Decline button stayed stale through ten redraws').toBe(true);
 		expect(
 			await until(
 				async () => ((await confirmationState()) === 'declined' ? 'declined' : undefined),
