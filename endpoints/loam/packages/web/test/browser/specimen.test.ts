@@ -263,8 +263,10 @@ const NOTES_CAPTURES: [string, string[]][] = [
 			'list "Embedded documents"',
 			'group "Embedded: Launch plan"',
 			'link "Launch plan"',
+			'button "Remove embed: Launch plan"',
 			'Plans for the quarter, and what ships first.',
 			'group "Embedded: Document"',
+			'button "Remove embed: document"',
 			'Not available',
 		],
 	],
@@ -323,7 +325,6 @@ describe("P2-D10: Specimen captures of notes' editor, inspector and embed", () =
 				expectClean(observation);
 				for (const each of expected) expect(observation.channels.a11y.snapshot, id).toContain(each);
 				if (id.startsWith('notes-editor-embeds')) {
-					// Both embed rows expose a Remove embed button (accepting the document-qualified name too).
 					expect(
 						observation.channels.a11y.snapshot.match(/button "Remove embed(?:: [^"]+)?"/g),
 						id
@@ -598,6 +599,11 @@ describe('P2-D10: Specimen captures of the documents section and New', () => {
 				const observation = await bench.render({ id, context: { ...CONTEXT, theme } });
 				expectClean(observation);
 				for (const each of expected) expect(observation.channels.a11y.snapshot, id).toContain(each);
+				if (id === 'documents-section' || id === 'documents-section-compact') {
+					expect(observation.channels.dom.normalized, id).toContain(
+						'href="https://loam.example/personal/~/documents/doc_roadmap"'
+					);
+				}
 				if (id.startsWith('documents-tree-rename') || id.startsWith('documents-tree-links')) {
 					expect(observation.channels.a11y.snapshot, id).not.toContain('tree "Documents"');
 					const a11y = await bench.a11y({ id, context: { ...CONTEXT, theme } });
