@@ -1,6 +1,6 @@
-//! `umbel-plugin.toml`, manifest versions 1 to 6 (specification section 2, D37; phase 2 section
+//! `umbel-plugin.toml`, manifest versions 1 to 7 (specification section 2, D37; phase 2 section
 //! 3.4, D54; phase 3 section 2.3; phase 4 section 2.2, in [`v4`]; phase 5 section 2.3, in [`v5`];
-//! the records host specification section 2, in [`v6`]).
+//! the records host specification section 2, in [`v6`]; phase 1 section 8.7, in [`v7`]).
 //!
 //! [`Manifest::parse`] reads and validates the text; [`Manifest::validate_files`] checks what it
 //! names on disk; [`Manifest::load`] does both for a plugin directory. Every failure is a
@@ -30,9 +30,12 @@ use super::{
 mod v4;
 mod v5;
 mod v6;
+mod v7;
+mod versioned;
 
 pub use v4::PipelineResult;
 pub use v5::{Assurance, PersonDecl, TaskMode};
+pub use v7::MAX_INSTRUCTIONS_CHARS;
 
 /// The largest `component.path` file the host compiles.
 pub const MAX_COMPONENT_BYTES: u64 = 32 * 1024 * 1024;
@@ -694,7 +697,7 @@ pub struct MountDecl {
 pub struct Manifest {
     /// Where the text came from, for messages.
     pub file: String,
-    /// The `manifest_version` the file declared: 1 to 6.
+    /// The `manifest_version` the file declared: 1 to 7.
     pub manifest_version: u32,
     /// `[plugin]`.
     pub plugin: PluginInfo,
@@ -719,6 +722,8 @@ pub struct Manifest {
     /// `[[records]]` (manifest version 6): the record kinds of the plugin's namespace that the
     /// host indexes (records host specification, section 2); none before version 6.
     pub records: Vec<RecordDecl>,
+    /// `instructions` (manifest version 7, phase 1 section 8.7): none before version 7.
+    pub instructions: Option<String>,
 }
 
 impl Manifest {
@@ -779,12 +784,13 @@ impl Manifest {
             Tbl::root(&table, file, 1).version("manifest_version", MANIFEST_VERSIONS)?;
         let root = Tbl::root(&table, file, manifest_version);
         root.version("protocol", &[PLUGIN_PROTOCOL_VERSION])?;
-        root.check_versioned_keys(TOP_KEYS, TOP_RESERVED, &[(6, v6::TOP_KEYS_V6)])?;
+        root.check_versioned_keys(TOP_KEYS, TOP_RESERVED, versioned::TOP_KEYS)?;
 
         let plugin = plugin_info(&root)?;
         let grants = grants(&root, plugin.kind)?;
         let manifest = Self {
             records: v6::records(&root, &plugin, &grants)?,
+            instructions: v7::instructions(&root, &plugin)?,
             file: file.to_owned(),
             manifest_version,
             component: component(&root, plugin.kind)?,
@@ -1054,26 +1060,6 @@ impl<'a> Tbl<'a> {
             }
         }
         Ok(())
-    }
-
-    /// [`check_keys`](Self::check_keys) with the keys each later manifest version adds: known from
-    /// that version on, and named and refused before it, saying which version.
-    fn check_versioned_keys(
-        &self,
-        known: &[&str],
-        reserved: &[(&str, &str)],
-        versioned: &[(u32, &[(&str, &str)])],
-    ) -> Result<(), PluginError> {
-        let mut known = known.to_vec();
-        let mut reserved = reserved.to_vec();
-        for (version, keys) in versioned {
-            if self.manifest_version >= *version {
-                known.extend(keys.iter().map(|(name, _)| *name));
-            } else {
-                reserved.extend_from_slice(keys);
-            }
-        }
-        self.check_keys(&known, &reserved)
     }
 
     /// `manifest_version` and `protocol`: required, and one of the `served` versions.

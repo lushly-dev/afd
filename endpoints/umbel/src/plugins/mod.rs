@@ -61,9 +61,9 @@ pub(crate) use manifest::to_json;
 pub use manifest::{
     ApprovalDecl, Assurance, Bearer, CommandDecl, ComponentDecl, ConfigDecl, ContextDecl, Effect,
     Expose, GrantDecl, JournalDecl, JournalMode, MAX_AUTHORITY_PROMPT_CHARS, MAX_COMPONENT_BYTES,
-    MAX_JOURNAL_KEEP, Manifest, MountDecl, MountTool, OutputBudget, PackDecl, PersonDecl,
-    PipelineDecl, PipelineResult, PipelineStep, PluginInfo, PluginKind, SchemaRef, SkillDecl,
-    TaskMode, Transport,
+    MAX_INSTRUCTIONS_CHARS, MAX_JOURNAL_KEEP, Manifest, MountDecl, MountTool, OutputBudget,
+    PackDecl, PersonDecl, PipelineDecl, PipelineResult, PipelineStep, PluginInfo, PluginKind,
+    SchemaRef, SkillDecl, TaskMode, Transport,
 };
 #[cfg(feature = "mounted")]
 pub use mounted::{InjectionHit, mount_command_name, scan_description, scan_schema_descriptions};
@@ -77,11 +77,11 @@ pub use source::{CompiledCatalog, ResolvedSource, SourceSpec, resolve_source};
 pub use umbel_sdk::{HostError as ServiceError, HostServices, Level, PipelineAttestation};
 
 /// The newest manifest version this host reads (`manifest_version`).
-pub const MANIFEST_VERSION: u32 = 6;
-/// Every manifest version this host reads: versions 2 to 6 are additions within protocol 1
+pub const MANIFEST_VERSION: u32 = 7;
+/// Every manifest version this host reads: versions 2 to 7 are additions within protocol 1
 /// (D54, phase 3 section 2.3, phase 4 section 2.2, phase 5 section 2.3, the records host
-/// specification section 2).
-pub const MANIFEST_VERSIONS: &[u32] = &[1, 2, 3, 4, 5, 6];
+/// specification section 2, phase 1 section 8.7).
+pub const MANIFEST_VERSIONS: &[u32] = &[1, 2, 3, 4, 5, 6, 7];
 /// The plugin protocol version this host serves (`protocol`).
 pub const PLUGIN_PROTOCOL_VERSION: u32 = 1;
 /// The WIT world a component is built against.

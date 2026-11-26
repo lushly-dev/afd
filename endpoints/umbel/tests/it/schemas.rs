@@ -2,7 +2,8 @@
 //! sections 2, 8.2 and 9.1; phase 2 section 2; phase 3 section 2; phase 4 section 2, in
 //! `schemas/phase4.rs`; phase 5 section 2, in `schemas/phase5.rs` and
 //! `schemas/phase5_records.rs`; the records host specification sections 2 and 3, whose version 6
-//! schemas are held to the host in `manifest_v6.rs` and `config_v6.rs`; the Ideas host-review
+//! schemas are held to the host in `manifest_v6.rs` and `config_v6.rs`; phase 1 section 8.7,
+//! whose manifest version 7 schema is held to the host in `manifest_v7.rs`; the Ideas host-review
 //! specification sections 3 and 6.4, in `schemas/review.rs`, whose configuration version 7 is
 //! held to the host in `config_v7.rs`) and the WIT world.
 #[path = "../schemas/phase4.rs"]
@@ -25,7 +26,7 @@ use umbel::plugins::{Manifest, PackManifest};
 use umbel::provenance::Envelope;
 use umbel::workspace::ConfigFile;
 
-const STEMS: [&str; 50] = [
+const STEMS: [&str; 51] = [
     "workspace-config.v1",
     "workspace-config.v2",
     "workspace-config.v3",
@@ -76,6 +77,7 @@ const STEMS: [&str; 50] = [
     "workspace-config.v7",
     "person-decision.v2",
     "provenance-envelope.v4",
+    "plugin-manifest.v7",
 ];
 
 fn schemas_dir() -> PathBuf {

@@ -197,6 +197,8 @@ pub(crate) struct LoadedPlugins {
     /// The commands whose manifest says `first_class = true` and that MCP exposes, in instance
     /// order and manifest order (section 8.4, D45).
     pub suggestions: Vec<String>,
+    /// The loaded instances' instructions paragraphs (section 8.7, D211).
+    pub instructions: Vec<crate::surfaces::mcp::InstructionsPart>,
     /// Every skill of every loaded instance, in `plugins.enabled` order and manifest order.
     pub skills: Vec<LoadedSkill>,
     /// Every space override of a loaded compiled instance's pack, which the doctor's
@@ -451,6 +453,11 @@ pub(crate) fn load(inputs: &Inputs<'_>) -> Result<LoadedPlugins, PluginError> {
         loaded.gate.extend(prepared.gate);
         loaded.contexts.extend(prepared.contexts);
         loaded.suggestions.extend(prepared.suggestions);
+        crate::surfaces::mcp::InstructionsPart::add(
+            &mut loaded.instructions,
+            &id,
+            &prepared.manifest,
+        );
         loaded.skills.extend(prepared.skills);
         loaded.pack_checks.extend(prepared.pack_checks);
         loaded.config_checks.extend(prepared.config_check);

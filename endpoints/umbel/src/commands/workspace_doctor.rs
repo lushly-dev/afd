@@ -74,11 +74,13 @@ impl Handler {
     fn mcp_surface(&self, registry: &Arc<CommandRegistry>) -> Check {
         let first_class = self.first_class.get().cloned().unwrap_or_default();
         // The live registry already has the context commands, so none are passed here; the
-        // server's announced identity does not change what validates, so Umbel's own serves.
+        // server's announced identity and the plugins' instructions do not change what validates,
+        // so Umbel's own identity and no paragraph serve.
         match surfaces::mcp::build_server(
             registry,
             &self.workspace,
             &first_class,
+            &[],
             &[],
             None,
             &surfaces::mcp::ServerIdentity::default(),

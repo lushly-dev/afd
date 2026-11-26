@@ -288,7 +288,7 @@ pub struct McpConfig {
     pub confirmations: Confirmations,
     /// MCP approval policy (version 7, D202); `Enforce` by default.
     pub approvals: McpApprovals,
-    /// Replacement for AFD's default instructions; empty keeps them.
+    /// Replaces the whole of the server's instructions; empty keeps AFD's and plugins' (D211).
     pub instructions: String,
 }
 

@@ -1,5 +1,15 @@
-manifest_version = 6
+manifest_version = 7
 protocol = 1
+# The paragraph the host adds after AFD's default instructions (phase 1 specification, section
+# 8.7); this plugin's specification, section 11.2, holds it.
+instructions = """\
+This instance keeps the person's ideas. When they share a view, a claim or a question they want \
+kept, save it with ideas-capture, not memory; facts about the person and how to work with them \
+go to memory-remember where the instance has it. When they ask what they think, or want \
+something written in their voice, call ideas-ask and use only the ideas that bear on the \
+question. Ideas the person has not affirmed are marked seed; say so when you rely on one. To \
+review, stage proposals with ideas-review-stage and give the person the page address \
+ideas-review-apply returns."""
 
 [plugin]
 id = "ideas"

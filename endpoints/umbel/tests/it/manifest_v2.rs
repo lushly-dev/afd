@@ -71,21 +71,21 @@ fn a_host_reads_manifest_versions_1_and_2_and_version_3_beside_them() {
     assert_eq!(one.manifest_version, 1);
     let two = parse(&head(2, "compiled")).unwrap();
     assert_eq!(two.manifest_version, 2);
-    // Versions 3 (phase 3), 4 (phase 4), 5 (phase 5) and 6 (the records host specification) are
-    // tested in `manifest_v3.rs` to `manifest_v6.rs`.
-    assert_eq!(umbel::MANIFEST_VERSIONS, [1, 2, 3, 4, 5, 6]);
-    for other in [0, 7] {
+    // Versions 3 (phase 3), 4 (phase 4), 5 (phase 5), 6 (the records host specification) and 7
+    // (phase 1 section 8.7) are tested in `manifest_v3.rs` to `manifest_v7.rs`.
+    assert_eq!(umbel::MANIFEST_VERSIONS, [1, 2, 3, 4, 5, 6, 7]);
+    for other in [0, 8] {
         let error = parse(&head(other, "compiled")).unwrap_err();
         assert_eq!(error.code(), "PLUGIN_PROTOCOL_UNSUPPORTED", "{other}");
         assert!(error.message().contains("manifest_version"), "{error}");
-        assert!(error.suggestion().contains("versions 1 to 6"), "{error}");
+        assert!(error.suggestion().contains("versions 1 to 7"), "{error}");
     }
     let text = head(2, "compiled").replace("manifest_version = 2", "manifest_version = \"2\"");
     invalid(&text, "manifest_version");
     let missing = head(2, "compiled").replace("manifest_version = 2\n", "");
     let error = invalid(&missing, "manifest_version");
     assert!(
-        error.message().contains("set manifest_version = 6"),
+        error.message().contains("set manifest_version = 7"),
         "{error}"
     );
 }

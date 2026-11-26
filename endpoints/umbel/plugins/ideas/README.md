@@ -79,17 +79,6 @@ bind = "127.0.0.1:7421"
 
 [mcp]
 first_class_tools = ["ideas-capture", "ideas-ask", "ideas-guide", "memory-remember"]
-instructions = """\
-Umbel is an AFD server. Every tool returns a CommandResult as JSON text: { success, data, error: \
-{ code, message, suggestion, recovery } }; follow error.suggestion to recover. When error.recovery is present, it is the same step in a form a program can follow. The command tools listed \
-are the common ones. Call afd-discover to find others, afd-detail for a schema, and afd-call to \
-run one. Use afd-batch for several independent commands and afd-pipe to chain them. This \
-instance keeps the person's ideas. When they share a view, a claim or a question they want kept, \
-save it with ideas-capture, not memory; facts about the person and how to work with them go to \
-memory-remember. When they ask what they think, or want something written in their voice, call \
-ideas-ask and use only the ideas that bear on the question. Ideas the person has not affirmed \
-are marked seed; say so when you rely on one. To review, stage proposals with ideas-review-stage \
-and give the person the page address ideas-review-apply returns."""
 ```
 
 The space's `verified_levels` is left at its default, so `ideas-ask` with `verifiedOnly` leaves out
@@ -179,20 +168,22 @@ decisions.
 
 ### The paragraph for the server's instructions
 
-A deployer's `mcp.instructions` replaces AFD's default whole, so the paragraph starts with the
-default's sentences for the hybrid strategy (section 11.2). It is the text above, and
-`tests/instructions.rs` holds that the three agree:
+The plugin's manifest carries a paragraph for the server's instructions, and the host adds it
+after AFD's default instructions (Umbel's phase 1 specification, section 8.7), so the instance
+above sets no `mcp.instructions`. A deployer who sets `mcp.instructions` replaces the whole text,
+this paragraph included; `umbel-first-party --workspace ~/ideas plugin show plugin=ideas` shows
+the paragraph and whether it is served. An instance set up before this paragraph moved into the
+manifest has AFD's sentences and the old paragraph pasted into `mcp.instructions`: delete that
+key, or the pasted text keeps replacing both. It is the specification's section 11.2, and
+`tests/instructions.rs` holds that they agree:
 
-> Umbel is an AFD server. Every tool returns a CommandResult as JSON text: { success, data, error: {
-> code, message, suggestion, recovery } }; follow error.suggestion to recover. When error.recovery is present, it is the same step in a form a program can follow. The command tools listed are
-> the common ones. Call afd-discover to find others, afd-detail for a schema, and afd-call to run
-> one. Use afd-batch for several independent commands and afd-pipe to chain them. This instance
-> keeps the person's ideas. When they share a view, a claim or a question they want kept, save it
-> with ideas-capture, not memory; facts about the person and how to work with them go to
-> memory-remember. When they ask what they think, or want something written in their voice, call
-> ideas-ask and use only the ideas that bear on the question. Ideas the person has not affirmed are
-> marked seed; say so when you rely on one. To review, stage proposals with ideas-review-stage and
-> give the person the page address ideas-review-apply returns.
+> This instance keeps the person's ideas. When they share a view, a claim or a question they want
+> kept, save it with ideas-capture, not memory; facts about the person and how to work with them
+> go to memory-remember where the instance has it. When they ask what they think, or want
+> something written in their voice, call ideas-ask and use only the ideas that bear on the
+> question. Ideas the person has not affirmed are marked seed; say so when you rely on one. To
+> review, stage proposals with ideas-review-stage and give the person the page address
+> ideas-review-apply returns.
 
 It does not tell an agent to call `ideas-guide` first: in phase 0.10 that led one model to call it
 before every request.

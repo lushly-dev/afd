@@ -526,6 +526,7 @@ impl HostBuilder {
             &workspace,
             &first_class,
             &loaded.contexts,
+            &loaded.instructions,
             self.clock.as_ref(),
             &self.server_identity,
         )?;

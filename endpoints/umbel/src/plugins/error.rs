@@ -130,10 +130,10 @@ impl PluginError {
         Self::new(
             codes::PLUGIN_PROTOCOL_UNSUPPORTED,
             format!(
-                "{file}: `{key}` is {found}; this umbel serves manifest versions 1 to 6, protocol {} and umbel:plugin@1.x",
+                "{file}: `{key}` is {found}; this umbel serves manifest versions 1 to 7, protocol {} and umbel:plugin@1.x",
                 super::PLUGIN_PROTOCOL_VERSION
             ),
-            "This umbel serves manifest versions 1 to 6, protocol 1 and umbel:plugin@1.x; rebuild the plugin against them or upgrade umbel.".to_owned(),
+            "This umbel serves manifest versions 1 to 7, protocol 1 and umbel:plugin@1.x; rebuild the plugin against them or upgrade umbel.".to_owned(),
         )
     }
 
@@ -295,7 +295,7 @@ impl PluginError {
         Self::new(
             codes::PLUGIN_PROTOCOL_UNSUPPORTED,
             format!("plugins.{instance}: {problem}"),
-            "This umbel serves manifest versions 1 to 6, protocol 1 and umbel:plugin@1.x; rebuild the plugin against them or upgrade umbel.".to_owned(),
+            "This umbel serves manifest versions 1 to 7, protocol 1 and umbel:plugin@1.x; rebuild the plugin against them or upgrade umbel.".to_owned(),
         )
     }
 

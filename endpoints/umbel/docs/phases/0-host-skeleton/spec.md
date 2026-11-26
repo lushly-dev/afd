@@ -915,7 +915,11 @@ McpServer::new(registry, "umbel", env!("CARGO_PKG_VERSION"))
   default hybrid instructions unchanged. The `afd` crate has no accessor for
   its default text, so Umbel cannot append a line to it without copying it;
   the [Follow-ups](#follow-ups) record the accessor as a possible AFD
-  addition. A non-empty value replaces the default entirely.
+  addition. A non-empty value replaces the default entirely. *Amended
+  2026-11-26 (D211):* plugins may add paragraphs after the default, which
+  Umbel reads through `ServerHandler::get_info` without copying it; a
+  non-empty value still replaces the whole text ([phase 1 specification,
+  section 8.7](../1-plugin-contract/spec.md#87-instructions-manifest-version-7-d211)).
 - **stdio:** `umbel serve --stdio` calls `serve_stdio`. stdout carries only
   JSON-RPC; every log line goes to stderr.
 - **Streamable HTTP:** `umbel serve --http [--bind <addr>] [--print-token]`
@@ -1685,6 +1689,6 @@ the tests needed:
 | 2026-10-31 | AFD: a journal sink failure never changes the command's result, so a lock timeout or a full disk loses a journal entry and its event while the command succeeds; decide whether Umbel needs a fail-closed mode for audited mutations before phase 2 writes records | Phase 2 specification |
 | 2026-10-31 | ~~Several harnesses on one workspace over stdio contend for the writer lock; consider `umbel serve --stdio --proxy <url>`~~ Superseded 2026-10-31: D29 now allows any number of processes per workspace | Phase 1 or 7 specification |
 | 2026-10-31 | The phase 2 embedded store must support several processes on one workspace (for example SQLite in WAL mode, or LMDB), so that D29's model survives; no single-writer daemon (D28) | Phase 2 specification |
-| 2026-10-31 | AFD: an accessor for `McpServer`'s default instructions, so a host can add a line (Umbel would name the default space) without replacing them | AFD, if wanted |
+| 2026-10-31 | AFD: an accessor for `McpServer`'s default instructions, so a host can add a line (Umbel would name the default space) without replacing them. *Answered 2026-11-26 without one (D211):* Umbel reads the default through `ServerHandler::get_info` ([phase 1, section 8.7](../1-plugin-contract/spec.md#87-instructions-manifest-version-7-d211)) | AFD, if wanted |
 | 2026-10-31 | Windows in the `umbel.yml` matrix: key-file permissions, file locks on open files, and signal handling differ | Phase 7 |
 | 2026-10-31 | An external client check: `afd validate` against `umbel serve --http` in CI, which needs the client to send the bearer token | Phase 1 |

@@ -990,23 +990,26 @@ tool.
 
 ### 11.2 The paragraph for the server's instructions
 
-P18 is not built, so the deployer pastes this into `mcp.instructions`. A deployer's text replaces AFD's default whole
-(`packages/rust/src/server.rs:776`), so it starts with the default's sentences for the hybrid strategy, with the
-server's name:
+*Amended 2026-11-26 when P18 was built ([#2011](https://github.com/lushly-dev/afd/issues/2011), Umbel's D211).* The
+manifest declares this paragraph as `instructions` (manifest version 7), and the host adds it after AFD's default
+instructions for the server, a blank line between them, unless the deployer's `mcp.instructions` replaces the whole
+text ([phase 1 specification, section 8.7](../../phases/1-plugin-contract/spec.md#87-instructions-manifest-version-7-d211)).
+The deployer no longer pastes AFD's sentences, which had gone stale once already (the `recovery` sentence of
+2026-11-24). Until then the deployer pasted AFD's default sentences for the hybrid strategy, with this paragraph, into
+`mcp.instructions`.
 
-> Umbel is an AFD server. Every tool returns a CommandResult as JSON text: { success, data, error: { code, message,
-> suggestion, recovery } }; follow error.suggestion to recover. When error.recovery is present, it is the same step in a form a program can follow. The command tools listed are the common ones. Call
-> afd-discover to find others, afd-detail for a schema, and afd-call to run one. Use afd-batch for several
-> independent commands and afd-pipe to chain them. This instance keeps the person's ideas. When they share a view, a
-> claim or a question they want kept, save it with ideas-capture, not memory; facts about the person and how to work
-> with them go to memory-remember. When they ask what they think, or want something written in their voice, call
-> ideas-ask and use only the ideas that bear on the question. Ideas the person has not affirmed are marked seed; say
-> so when you rely on one. To review, stage proposals with ideas-review-stage and give the person the page address
-> ideas-review-apply returns.
+> This instance keeps the person's ideas. When they share a view, a claim or a question they want kept, save it with
+> ideas-capture, not memory; facts about the person and how to work with them go to memory-remember where the
+> instance has it. When they ask what they think, or want something written in their voice, call ideas-ask and use
+> only the ideas that bear on the question. Ideas the person has not affirmed are marked seed; say so when you rely on
+> one. To review, stage proposals with ideas-review-stage and give the person the page address ideas-review-apply
+> returns.
 
-It does not tell an agent to call `ideas-guide` first: in phase 0.10 that led one model to call it before every
-request. The README holds this text, and `tests/instructions.rs` holds that its first sentences equal AFD's default
-for the hybrid strategy.
+The manifest serves every instance, including one without the memory plugin, so "go to memory-remember" became "go
+to memory-remember where the instance has it", as F-5 did for `ideas-capture`'s description. It does not tell an agent
+to call `ideas-guide` first: in phase 0.10 that led one model to call it before every request. The README holds this
+text, and `tests/instructions.rs` holds that the manifest, this section, the README and `ideas-guide`'s `start` agree,
+and that a host serves it after AFD's default.
 
 ### 11.3 The skill
 
@@ -1026,7 +1029,7 @@ person says so. Nothing depends on it.
 | `person.local` | `enabled = true` | Section 9, once H3 is built |
 | `spaces.<id>.verified_levels` | Left at its default | Section 9; section 17 row 16 |
 | `person.decision_ttl_s` | 3600 | A long review is read in one decision |
-| `mcp.first_class_tools`, `mcp.instructions` | 11.1, 11.2 | |
+| `mcp.first_class_tools` | 11.1 | `mcp.instructions` is left unset: the manifest gives the paragraph (11.2) |
 
 ## 12. Failures
 

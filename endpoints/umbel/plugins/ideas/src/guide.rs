@@ -11,8 +11,9 @@ use crate::pending::{count, key, pending};
 use crate::records::{PROPOSAL, REVIEW, WORDING};
 use crate::{Call, fail};
 
-/// Section 11.2's paragraph without AFD's sentences, then how to review in five lines.
-pub(crate) const START: &str = "This instance keeps the person's ideas. When they share a view, a claim or a question they want kept, save it with ideas-capture, not memory; facts about the person and how to work with them go to memory-remember. When they ask what they think, or want something written in their voice, call ideas-ask and use only the ideas that bear on the question. Ideas the person has not affirmed are marked seed; say so when you rely on one. To review, stage proposals with ideas-review-stage and give the person the page address ideas-review-apply returns.\n\
+/// Section 11.2's paragraph, which the manifest's `instructions` holds, then how to review in five
+/// lines.
+pub(crate) const START: &str = "This instance keeps the person's ideas. When they share a view, a claim or a question they want kept, save it with ideas-capture, not memory; facts about the person and how to work with them go to memory-remember where the instance has it. When they ask what they think, or want something written in their voice, call ideas-ask and use only the ideas that bear on the question. Ideas the person has not affirmed are marked seed; say so when you rely on one. To review, stage proposals with ideas-review-stage and give the person the page address ideas-review-apply returns.\n\
 To review:\n\
 1. Match held seeds against each other with ideas-match and ids, and read the candidates and bands.\n\
 2. Stage proposals with ideas-review-stage, in groups, each with a one-line reason and honest confidence: affirm what the person said, decline what says nothing, reword what is two ideas or unclear, fold a duplicate into the better wording.\n\

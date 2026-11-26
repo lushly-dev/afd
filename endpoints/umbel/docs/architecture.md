@@ -304,6 +304,9 @@ sequenceDiagram
   *Decided 2026-11-11 ([D159](decisions.md), under the owner's direction;
   he has not yet read it):* manifest version 6 adds `[[records]]`, a
   compiled plugin's declared record kinds.
+  *Decided 2026-11-26 ([D211](decisions.md)):* manifest version 7 adds
+  `instructions`, a paragraph the host adds after AFD's default server
+  instructions unless the deployer's `mcp.instructions` replaces them.
 - **Host WIT world.** The imports a component may use, each gated by a grant,
   including clock and random from the command context, and the exports a
   component provides. Versioned with the manifest. Settled as

@@ -62,6 +62,7 @@ mod manifest_v3;
 mod manifest_v4;
 mod manifest_v5;
 mod manifest_v6;
+mod manifest_v7;
 mod memory_grants;
 mod mount_naming;
 mod multi_process;
@@ -78,6 +79,7 @@ mod pipeline_expose;
 mod plugin_commands;
 mod plugin_compiled;
 mod plugin_conflicts;
+mod plugin_instructions;
 mod plugin_mounted;
 #[cfg(feature = "cli")]
 mod plugin_scaffold;

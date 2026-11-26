@@ -39,7 +39,7 @@ component = ["dep:bytes", "dep:rand", "dep:wasmtime", "dep:wasmtime-wasi", "dep:
 # `umbel::testkit`: `TestHost` and its MCP drivers, for plugin crates' tests and the host's own
 # (specification section 10.1). The specification names `tempfile` and `rmcp`; the drivers also
 # need `http` and `http-body-util` to speak to the router in process.
-testkit = ["dep:tempfile", "dep:rmcp", "dep:http", "dep:http-body-util", "umbel-store-embedded?/testkit"]
+testkit = ["dep:tempfile", "dep:http", "dep:http-body-util", "umbel-store-embedded?/testkit"]
 # The doctor's hosted profile (step 2c) reads certificate validity with `x509-parser` and, on
 # Linux and macOS, the file system type of `state/shared/` with `rustix`'s `statfs`; both were
 # already in the lock; on Windows, the files' owners and ACLs and the drive type of
@@ -53,7 +53,7 @@ auth = ["afd/server-auth", "dep:aws-lc-rs", "dep:base64", "dep:http", "dep:http-
 # process is spawned here rather than by rmcp's `TokioChildProcess`, which has neither
 # `kill_on_drop` nor a hook for the bounded stdio reader the result limit needs.
 mounted = [
-	"dep:rmcp", "dep:http", "dep:futures", "dep:umbel-process", "dep:umbel-scan", "dep:reqwest", "dep:sse-stream",
+	"dep:http", "dep:futures", "dep:umbel-process", "dep:umbel-scan", "dep:reqwest", "dep:sse-stream",
 	"rmcp/client", "rmcp/transport-streamable-http-client-reqwest", "rmcp/reqwest",
 ]
 
@@ -162,8 +162,10 @@ x509-parser = { version = "0.18", default-features = false, optional = true }
 # integration tests' own use).
 http = { version = "1", optional = true }
 http-body-util = { version = "0.1", optional = true }
-# The in-memory stdio driver serves the McpServer over a pipe; same requirement as the afd crate.
-rmcp = { version = "3.9", optional = true, default-features = false, features = ["server", "transport-io"] }
+# The in-memory stdio driver serves the McpServer over a pipe, and the MCP surface reads AFD's
+# default instructions through `ServerHandler::get_info` (phase 1 section 8.7); same requirement
+# as the afd crate.
+rmcp = { version = "3.9", default-features = false, features = ["server", "transport-io"] }
 tempfile = { version = "3", optional = true }
 umbel-sdk = { path = "sdk" }
 # The store traits and shared types, and (feature `store-embedded`) the embedded backend.
