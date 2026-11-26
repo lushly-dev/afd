@@ -1228,19 +1228,22 @@ importers:
       '@lushly-dev/afd-core':
         specifier: workspace:^2.2.0
         version: link:../../packages/core
+      '@lushly-dev/afd-server':
+        specifier: workspace:^2.2.0
+        version: link:../../packages/server
       '@lushly-dev/specimen':
         specifier: workspace:^
         version: link:../../foundations/specimen
       '@lushly-dev/specimen-afd':
         specifier: workspace:^
         version: link:../../integrations/specimen-afd
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.31.0
-        version: 1.32.2(@cfworker/json-schema@4.1.6)(supports-color@10.2.2)(zod@4.6.7)
     devDependencies:
       '@lushly-dev/specimen-cli':
         specifier: workspace:^
         version: link:../specimen-cli
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.31.0
+        version: 1.32.2(@cfworker/json-schema@4.1.6)(supports-color@10.2.2)(zod@4.6.7)
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6

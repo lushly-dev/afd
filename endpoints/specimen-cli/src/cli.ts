@@ -2,6 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
+import { createInterface } from 'node:readline/promises';
 import type { CommandResult } from '@lushly-dev/afd-core';
 import { failure } from '@lushly-dev/afd-server/define';
 import { createSpecimenBench } from '@lushly-dev/specimen';
@@ -13,6 +14,7 @@ import {
 	type SpecimenCommandBench,
 } from '@lushly-dev/specimen-afd';
 import { z } from 'zod';
+import { runDesignCliAction } from './design-actions.js';
 
 interface CliBench extends SpecimenCommandBench {
 	close(): Promise<void>;
@@ -21,6 +23,51 @@ export interface CliIO {
 	stdout?: (text: string) => void;
 	stderr?: (text: string) => void;
 	createBench?: (options: BenchOptions) => Promise<CliBench>;
+	/**
+	 * Interactive person confirmation callback for host-verified CLI commands (`decision-record`
+	 * card mode and `design-release`). Defaults to prompting on an interactive TTY (`stdin.isTTY && stderr.isTTY`)
+	 * and refusing non-interactive runs (`PERSON_REQUIRED`).
+	 */
+	confirmPrompt?: (
+		prompt: string
+	) => Promise<boolean | { confirmed: boolean; confirmedBy?: string }>;
+}
+
+async function promptCliHumanConfirmation(
+	prompt: string,
+	customPrompt?: CliIO['confirmPrompt']
+): Promise<{ humanConfirmed: true; channel: 'cli'; confirmedBy?: string } | undefined> {
+	if (customPrompt) {
+		const answer = await customPrompt(prompt);
+		if (typeof answer === 'boolean') {
+			return answer ? { humanConfirmed: true, channel: 'cli' } : undefined;
+		}
+		return answer.confirmed
+			? {
+					humanConfirmed: true,
+					channel: 'cli',
+					...(answer.confirmedBy ? { confirmedBy: answer.confirmedBy } : {}),
+				}
+			: undefined;
+	}
+	if (!process.stdin.isTTY || !process.stderr.isTTY) {
+		return undefined;
+	}
+	const rl = createInterface({ input: process.stdin, output: process.stderr });
+	try {
+		const reply = (await rl.question(`${prompt} [y/N]: `)).trim().toLowerCase();
+		if (reply === 'y' || reply === 'yes') {
+			const user = process.env.USER ?? process.env.USERNAME;
+			return {
+				humanConfirmed: true,
+				channel: 'cli',
+				...(user ? { confirmedBy: user } : {}),
+			};
+		}
+		return undefined;
+	} finally {
+		rl.close();
+	}
 }
 interface ParsedArguments {
 	action: string;
@@ -107,6 +154,17 @@ const valueOptions = new Set([
 	'max-actions',
 	'baseline-walk',
 	'requested-tools',
+	'card',
+	'cards',
+	'refusal-scope',
+	'remediation',
+	'status',
+	'severity',
+	'scope',
+	'release',
+	'decisions',
+	'released-at',
+	'meant-to-fix',
 ]);
 const flagOptions = new Set([
 	'require-visual',
@@ -117,6 +175,11 @@ const flagOptions = new Set([
 	'orphaned',
 	'no-orphaned',
 	'include-proposed',
+	'regression-accepted',
+	'include-provisional',
+	'include-decided',
+	'released',
+	'unreleased',
 ]);
 function parseArguments(args: string[]): ParsedArguments {
 	const positionals: string[] = [];
@@ -145,7 +208,7 @@ function parseArguments(args: string[]): ParsedArguments {
 	const action = positionals.shift();
 	if (!action)
 		throw new Error(
-			'Choose a command: list, validate, inspect, render, capture, compare, review, run, themes, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, job-run, decision-record, decision-get, decision-list, decision-check, design-states, or panel-walk'
+			'Choose a command: list, validate, inspect, render, capture, compare, review, run, themes, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, job-run, decision-record, decision-get, decision-list, decision-check, design-states, panel-walk, design-card-list, or design-release'
 		);
 	return { action, positionals, options, flags };
 }
@@ -447,14 +510,29 @@ function validateOptions(parsed: ParsedArguments): void {
 			'set',
 			'supersedes',
 			'items',
+			'card',
+			'cards',
 			'chosen',
 			'reason',
+			'refusal-scope',
+			'regression-accepted',
+			'remediation',
+			'meant-to-fix',
 			'specimens',
 			'files',
 			'tokens',
 		]),
 		'decision-get': new Set(['root', 'config', 'output']),
-		'decision-list': new Set(['root', 'config', 'output']),
+		'decision-list': new Set([
+			'root',
+			'config',
+			'output',
+			'kind',
+			'released',
+			'unreleased',
+			'limit',
+			'after',
+		]),
 		'decision-check': new Set(['root', 'config', 'output', 'files', 'specimens', 'tokens']),
 		'design-states': new Set([
 			'root',
@@ -479,6 +557,28 @@ function validateOptions(parsed: ParsedArguments): void {
 			'max-actions',
 			'baseline-walk',
 			'requested-tools',
+		]),
+		'design-card-list': new Set([
+			'root',
+			'config',
+			'output',
+			'card',
+			'status',
+			'severity',
+			'scope',
+			'include-provisional',
+			'include-decided',
+			'limit',
+			'after',
+		]),
+		'design-release': new Set([
+			'root',
+			'config',
+			'output',
+			'release',
+			'decisions',
+			'scope',
+			'released-at',
 		]),
 	};
 	const known = allowed[parsed.action];
@@ -597,7 +697,9 @@ function validateOptions(parsed: ParsedArguments): void {
 		parsed.action === 'migrate' ||
 		parsed.action === 'decision-record' ||
 		parsed.action === 'decision-list' ||
-		parsed.action === 'decision-check'
+		parsed.action === 'decision-check' ||
+		parsed.action === 'design-card-list' ||
+		parsed.action === 'design-release'
 			? 0
 			: parsed.action === 'point-move'
 				? 2
@@ -834,23 +936,72 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 							...(parsed.options.has('tokens') ? { tokens: splitList('tokens') } : {}),
 						}
 					: undefined;
-				result = await executeSpecimenCommand(bench, 'decision-record', {
-					...(parsed.options.has('slug') ? { slug: parsed.options.get('slug') } : {}),
-					...(parsed.options.has('question') ? { question: parsed.options.get('question') } : {}),
-					...(parsed.options.has('set') ? { set: parsed.options.get('set') } : {}),
-					...(supersedes !== undefined ? { supersedes } : {}),
-					...(parsed.options.has('items') ? { items: splitList('items') } : {}),
-					...(parsed.options.has('chosen') ? { chosen: parsed.options.get('chosen') } : {}),
-					...(parsed.options.has('reason') ? { reason: parsed.options.get('reason') } : {}),
-					...(subjects !== undefined ? { subjects } : {}),
-				});
+				const rawMeantToFix = parsed.options.get('meant-to-fix');
+				let meantToFix: unknown;
+				if (rawMeantToFix !== undefined) {
+					try {
+						meantToFix = JSON.parse(rawMeantToFix) as unknown;
+					} catch {
+						throw new Error(
+							'--meant-to-fix expects a valid JSON object: {"job":"...","target":"..."}'
+						);
+					}
+				}
+				const isCardMode = parsed.options.has('card') || parsed.options.has('cards');
+				const cardConfirmation = isCardMode
+					? await promptCliHumanConfirmation(
+							`Confirm decision-record (${parsed.options.get('chosen') ?? ''}) for ${parsed.options.get('card') ?? parsed.options.get('cards') ?? 'card(s)'}?`,
+							io.confirmPrompt
+						)
+					: undefined;
+				result = await executeSpecimenCommand(
+					bench,
+					'decision-record',
+					{
+						...(parsed.options.has('slug') ? { slug: parsed.options.get('slug') } : {}),
+						...(parsed.options.has('question') ? { question: parsed.options.get('question') } : {}),
+						...(parsed.options.has('set') ? { set: parsed.options.get('set') } : {}),
+						...(supersedes !== undefined ? { supersedes } : {}),
+						...(parsed.options.has('items') ? { items: splitList('items') } : {}),
+						...(parsed.options.has('card') ? { card: parsed.options.get('card') } : {}),
+						...(parsed.options.has('cards') ? { cards: splitList('cards') } : {}),
+						...(parsed.options.has('chosen') ? { chosen: parsed.options.get('chosen') } : {}),
+						...(parsed.options.has('reason') ? { reason: parsed.options.get('reason') } : {}),
+						...(parsed.options.has('refusal-scope')
+							? { refusalScope: parsed.options.get('refusal-scope') }
+							: {}),
+						...(parsed.flags.has('regression-accepted') ? { regressionAccepted: true } : {}),
+						...(parsed.options.has('remediation')
+							? { remediation: parsed.options.get('remediation') }
+							: {}),
+						...(meantToFix !== undefined ? { meantToFix } : {}),
+						...(subjects !== undefined ? { subjects } : {}),
+					},
+					cardConfirmation
+				);
 			} else if (parsed.action === 'decision-get')
 				result = await executeSpecimenCommand(bench, 'decision-get', {
 					decision: parsed.positionals[0],
 				});
-			else if (parsed.action === 'decision-list')
-				result = await executeSpecimenCommand(bench, 'decision-list', {});
-			else if (parsed.action === 'decision-check') {
+			else if (parsed.action === 'decision-list') {
+				if (parsed.flags.has('released') && parsed.flags.has('unreleased'))
+					throw new Error('Give either --released or --unreleased, not both.');
+				const rawLimit = parsed.options.get('limit');
+				let limit: number | undefined;
+				if (rawLimit !== undefined) {
+					const parsedLimit = Number(rawLimit);
+					if (!rawLimit.trim() || !Number.isInteger(parsedLimit))
+						throw new Error('--limit expects a whole number');
+					limit = parsedLimit;
+				}
+				result = await executeSpecimenCommand(bench, 'decision-list', {
+					...(parsed.options.has('kind') ? { kind: parsed.options.get('kind') } : {}),
+					...(parsed.flags.has('released') ? { released: true } : {}),
+					...(parsed.flags.has('unreleased') ? { released: false } : {}),
+					...(limit !== undefined ? { limit } : {}),
+					...(parsed.options.has('after') ? { after: parsed.options.get('after') } : {}),
+				});
+			} else if (parsed.action === 'decision-check') {
 				const splitList = (option: string) =>
 					(parsed.options.get(option) ?? '').split(',').filter(Boolean);
 				const splitGlobs = (option: string) => splitTopLevelList(parsed.options.get(option) ?? '');
@@ -859,65 +1010,17 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 					...(parsed.options.has('specimens') ? { specimens: splitList('specimens') } : {}),
 					...(parsed.options.has('tokens') ? { tokens: splitList('tokens') } : {}),
 				});
-			} else if (parsed.action === 'design-states') {
-				const rawLimit = parsed.options.get('limit');
-				let limit: number | undefined;
-				if (rawLimit !== undefined) {
-					const parsedLimit = Number(rawLimit);
-					if (!rawLimit.trim() || !Number.isInteger(parsedLimit)) {
-						throw new Error('--limit expects a whole number');
-					}
-					limit = parsedLimit;
-				}
-				const commands = parsed.options.has('commands')
-					? (parsed.options.get('commands') ?? '')
-							.split(',')
-							.map((name) => name.trim())
-							.filter(Boolean)
-					: parsed.positionals.length > 0
-						? parsed.positionals
-						: undefined;
-				result = await executeSpecimenCommand(bench, 'design-states', {
-					...(commands !== undefined ? { commands } : {}),
-					...(parsed.options.has('scenario') ? { scenario: parsed.options.get('scenario') } : {}),
-					...(parsed.options.has('consumer') ? { consumer: parsed.options.get('consumer') } : {}),
-					...(parsed.flags.has('include-proposed') ? { includeProposed: true } : {}),
-					...(limit !== undefined ? { limit } : {}),
-					...(parsed.options.has('after') ? { after: parsed.options.get('after') } : {}),
-				});
-			} else if (parsed.action === 'panel-walk') {
-				const rawMaxActions = parsed.options.get('max-actions');
-				let maxActions: number | undefined;
-				if (rawMaxActions !== undefined) {
-					const parsedMax = Number(rawMaxActions);
-					if (!rawMaxActions.trim() || !Number.isInteger(parsedMax) || parsedMax < 1) {
-						throw new Error('--max-actions expects a positive integer');
-					}
-					maxActions = parsedMax;
-				}
-				const rawTools = parsed.options.get('requested-tools');
-				let requestedTools: string[] | undefined;
-				if (rawTools !== undefined) {
-					requestedTools = rawTools
-						.split(',')
-						.map((t) => t.trim())
-						.filter(Boolean);
-					if (requestedTools.length === 0) {
-						throw new Error('--requested-tools expects at least one tool name');
-					}
-				}
-				result = await executeSpecimenCommand(bench, 'panel-walk', {
-					job: parsed.options.get('job') ?? parsed.positionals[0],
-					persona: parsed.options.get('persona'),
-					modality: parsed.options.get('modality'),
-					target: parsed.options.get('target'),
-					...(parsed.options.has('app-date') ? { appDate: parsed.options.get('app-date') } : {}),
-					...(maxActions !== undefined ? { maxActions } : {}),
-					...(parsed.options.has('baseline-walk')
-						? { baselineWalk: parsed.options.get('baseline-walk') }
-						: {}),
-					...(requestedTools !== undefined ? { requestedTools } : {}),
-				});
+			} else if (
+				parsed.action === 'design-states' ||
+				parsed.action === 'panel-walk' ||
+				parsed.action === 'design-card-list' ||
+				parsed.action === 'design-release'
+			) {
+				const designResult = await runDesignCliAction(bench, parsed, (prompt) =>
+					promptCliHumanConfirmation(prompt, io.confirmPrompt)
+				);
+				if (!designResult) throw new Error(`Unknown command: ${parsed.action}`);
+				result = designResult;
 			} else {
 				const context: Partial<SpecimenContext> = {};
 				const viewport = parsed.options.get('viewport');
@@ -1368,7 +1471,7 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 			code: 'SPECIMEN_CLI_ERROR',
 			message,
 			suggestion:
-				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID [--set SET], capture [IDS...] [--label NAME], compare ID1 ID2..., review (BEFORE AFTER | --before SET --after SET) [--ids A,B], run ID, a11y [ID] [--set SET], themes [ID] [--theme light,dark] [--threshold 0.02], migrate [--files A,B] [--helpers] [--apply], diff LEFT RIGHT, build OUTDIR, pack [TAG], pack-check [TAG], pack-export DIR, point POINTER | ID (--role ROLE [--name NAME] | --selector CSS), point-move POINT_ID DIRECTION [--index N], point-check POINT_ID, note-add (--point ID | --pointer URI) --text TEXT [--assignee NAME], note-list [--specimen ID] [--state open|resolved|all] [--assignee NAME] [--orphaned] [--limit N] [--after ID], note-check [SPECIMEN_ID], note-move NOTE_ID (--point ID | --pointer URI) --reason TEXT, note-resolve (NOTE_ID | --ids A,B) --outcome OUTCOME --reason TEXT [--revision SHA] [--capture REF], note-reopen NOTE_ID --reason TEXT, job-create ID --scenario PATH --module PATH --export-name NAME --target ID --captures STEPS, job-run ID [--label NAME], decision-record --chosen VAL --reason TEXT (--set SET --slug SLUG --question TEXT | --supersedes IDS | --items ITEMS), decision-get ID, decision-list, decision-check [--files A,B] [--specimens A,B] [--tokens A,B], design-states [COMMANDS...] [--commands A,B] [--scenario PATH] [--consumer NAME] [--include-proposed] [--limit N] [--after CURSOR], or panel-walk --job ID --persona ID --modality MODALITY --target URL; check option values and file paths.',
+				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID [--set SET], capture [IDS...] [--label NAME], compare ID1 ID2..., review (BEFORE AFTER | --before SET --after SET) [--ids A,B], run ID, a11y [ID] [--set SET], themes [ID] [--theme light,dark] [--threshold 0.02], migrate [--files A,B] [--helpers] [--apply], diff LEFT RIGHT, build OUTDIR, pack [TAG], pack-check [TAG], pack-export DIR, point POINTER | ID (--role ROLE [--name NAME] | --selector CSS), point-move POINT_ID DIRECTION [--index N], point-check POINT_ID, note-add (--point ID | --pointer URI) --text TEXT [--assignee NAME], note-list [--specimen ID] [--state open|resolved|all] [--assignee NAME] [--orphaned] [--limit N] [--after ID], note-check [SPECIMEN_ID], note-move NOTE_ID (--point ID | --pointer URI) --reason TEXT, note-resolve (NOTE_ID | --ids A,B) --outcome OUTCOME --reason TEXT [--revision SHA] [--capture REF], note-reopen NOTE_ID --reason TEXT, job-create ID --scenario PATH --module PATH --export-name NAME --target ID --captures STEPS, job-run ID [--label NAME], decision-record --chosen VAL --reason TEXT (--set SET --slug SLUG --question TEXT | --supersedes IDS | --items ITEMS | --card CARD | --cards CARDS), decision-get ID, decision-list [--kind choice|card|answer|all] [--released|--unreleased] [--limit N] [--after ID], decision-check [--files A,B] [--specimens A,B] [--tokens A,B], design-states [COMMANDS...] [--commands A,B] [--scenario PATH] [--consumer NAME] [--include-proposed] [--limit N] [--after CURSOR], panel-walk --job ID --persona ID --modality MODALITY --target URL, design-card-list [--card ID] [--status STATUS] [--severity SEV] [--scope SCOPE] [--include-provisional] [--include-decided] [--limit N] [--after ID], or design-release --release VER --decisions IDS [--scope SCOPE] [--released-at ISO]; check option values and file paths.',
 		});
 	} finally {
 		if (bench) {

@@ -1,5 +1,12 @@
 import { z } from 'zod';
+import { meantToFixSchema, refusalScopeSchema } from './card-schema.js';
+import { CARD_CHOSEN_VALUES, CARD_ID_PATTERN } from './card-types.js';
 import { isValidSubjectGlob } from './decision-validate.js';
+
+const trimmedText = z
+	.string()
+	.min(1)
+	.refine((v) => v.trim().length > 0, 'Expected a non-empty string');
 
 const compareDiffChannelSchema = z.enum(['dom', 'a11y', 'layout', 'styles', 'state', 'events']);
 const decisionIdSchema = z.string().regex(/^dec-[0-9a-hjkmnp-tv-z]{12}$/);
@@ -10,8 +17,11 @@ const decisionPathSchema = z
 	.regex(/^specimens\/decisions\/dec-[0-9a-hjkmnp-tv-z]{12}\.json$/);
 
 export const decisionActorSchema = z.strictObject({
-	kind: z.enum(['person', 'script', 'test']),
+	kind: z.enum(['person', 'panel', 'script', 'test']),
 	id: z.string().min(1).optional(),
+	channel: z.enum(['review-page', 'cli', 'mcp-relay']).optional(),
+	reviewers: z.array(z.string().min(1)).optional(),
+	split: z.string().min(1).optional(),
 });
 
 export const decisionSubjectsSchema = z.strictObject({
@@ -57,6 +67,11 @@ export const decisionAnswerEntrySchema = z.strictObject({
 	fingerprint: z.string(),
 });
 
+const decisionPanelProvenanceSchema = z.strictObject({
+	reviewers: z.array(trimmedText).min(1),
+	split: trimmedText,
+});
+
 export const decisionRecordRequestSchema = z
 	.strictObject({
 		slug: z.string().min(1).optional(),
@@ -79,19 +94,116 @@ export const decisionRecordRequestSchema = z
 			.min(1)
 			.refine((items) => new Set(items).size === items.length, 'Review item ids must be unique')
 			.optional(),
+		card: trimmedText.optional(),
+		cards: z
+			.array(trimmedText)
+			.min(1)
+			.refine(
+				(ids) => new Set(ids.map((id) => id.trim())).size === ids.length,
+				'Card ids must be unique'
+			)
+			.optional(),
 		chosen: z.string().min(1),
 		reason: z.string().optional(),
 		subjects: decisionSubjectsSchema.optional(),
+		refusalScope: refusalScopeSchema.optional(),
+		regressionAccepted: z.boolean().optional(),
+		meantToFix: meantToFixSchema.optional(),
+		remediation: trimmedText.optional(),
+		provisional: z.boolean().optional(),
+		panel: decisionPanelProvenanceSchema.optional(),
+		changeAuthor: trimmedText.optional(),
 	})
 	.superRefine((value, ctx) => {
+		const hasCard = value.card !== undefined;
+		const hasCards = value.cards !== undefined;
 		const hasSet = value.set !== undefined;
 		const hasSupersedes = value.supersedes !== undefined;
 		const hasItems = value.items !== undefined;
+
+		if (hasCard && hasCards) {
+			ctx.addIssue({ code: 'custom', message: 'Provide either card or cards, not both.' });
+			return;
+		}
+		if (hasCard || hasCards) {
+			if (hasSet || hasItems) {
+				ctx.addIssue({
+					code: 'custom',
+					message: 'Card mode cannot be combined with set or items.',
+				});
+			}
+			if (value.subjects !== undefined) {
+				ctx.addIssue({
+					code: 'custom',
+					path: ['subjects'],
+					message: 'Card mode cannot carry subjects.',
+				});
+			}
+			if (Array.isArray(value.supersedes)) {
+				ctx.addIssue({
+					code: 'custom',
+					path: ['supersedes'],
+					message: 'Card mode supersedes accepts a single decision id.',
+				});
+			}
+			if (!(CARD_CHOSEN_VALUES as readonly string[]).includes(value.chosen)) {
+				ctx.addIssue({
+					code: 'custom',
+					path: ['chosen'],
+					message: `Card mode requires chosen to be one of ${CARD_CHOSEN_VALUES.join(', ')}.`,
+				});
+			}
+			if (value.refusalScope !== undefined && value.chosen !== 'reject') {
+				ctx.addIssue({
+					code: 'custom',
+					path: ['refusalScope'],
+					message: 'refusalScope is only valid when chosen is "reject".',
+				});
+			}
+			if (value.regressionAccepted !== undefined && value.chosen !== 'approve') {
+				ctx.addIssue({
+					code: 'custom',
+					path: ['regressionAccepted'],
+					message: 'regressionAccepted is only valid when chosen is "approve".',
+				});
+			}
+			return;
+		}
+
+		if (value.refusalScope !== undefined) {
+			ctx.addIssue({
+				code: 'custom',
+				path: ['refusalScope'],
+				message: 'refusalScope applies only in card mode.',
+			});
+		}
+		if (value.regressionAccepted !== undefined) {
+			ctx.addIssue({
+				code: 'custom',
+				path: ['regressionAccepted'],
+				message: 'regressionAccepted applies only in card mode.',
+			});
+		}
+		if (value.meantToFix !== undefined) {
+			ctx.addIssue({
+				code: 'custom',
+				path: ['meantToFix'],
+				message: 'meantToFix applies only in card mode.',
+			});
+		}
+		if (value.remediation !== undefined) {
+			ctx.addIssue({
+				code: 'custom',
+				path: ['remediation'],
+				message: 'remediation applies only in card mode.',
+			});
+		}
+
 		if (!hasSet && !hasSupersedes && !hasItems) {
 			ctx.addIssue({
 				code: 'custom',
 				message:
-					'Provide set (new choice), supersedes (supersede choice), or items (review answer).',
+					'Provide set (new choice), supersedes (supersede choice), items (review answer), or card/cards (card mode).',
 			});
 			return;
 		}
@@ -190,21 +302,28 @@ export const decisionRecordRequestSchema = z
 
 export const decisionRecordSingleResultSchema = z.strictObject({
 	decision: decisionIdSchema,
-	kind: z.enum(['choice', 'answer']),
+	kind: z.enum(['choice', 'answer', 'card']),
 	path: decisionPathSchema,
 	chosen: z.string().min(1),
+	card: z.string().regex(CARD_ID_PATTERN).optional(),
 	kept: z.array(z.string().min(1)).optional(),
 	supersedes: decisionIdSchema.optional(),
+	superseded: decisionIdSchema.optional(),
 	answers: z.array(decisionAnswerEntrySchema).optional(),
 	evidence: decisionEvidenceRefSchema.optional(),
 	evidenceDir: decisionEvidenceDirSchema.optional(),
 	subjects: decisionSubjectsSchema.optional(),
+	refusalScope: refusalScopeSchema.optional(),
+	regressionAccepted: z.boolean().optional(),
+	meantToFix: meantToFixSchema.optional(),
+	appliedPatterns: z.array(z.string().min(1)).optional(),
+	provisional: z.literal(true).optional(),
 });
 
 export const decisionRecordResultSchema = z.union([
 	decisionRecordSingleResultSchema,
 	z.strictObject({
-		decisions: z.array(decisionRecordSingleResultSchema).min(2),
+		decisions: z.array(decisionRecordSingleResultSchema).min(1),
 	}),
 ]);
 
@@ -246,12 +365,36 @@ export const decisionGetResultSchema = z.union([
 		chosen: z.enum(['accept', 'reject']),
 		reason: z.string().min(1),
 		answers: z.array(decisionAnswerEntrySchema).min(1),
+		provisional: z.literal(true).optional(),
+		decidedAt: z.string().min(1),
+		decidedBy: decisionActorSchema,
+	}),
+	z.strictObject({
+		decision: decisionIdSchema,
+		id: decisionIdSchema,
+		kind: z.literal('card'),
+		card: z.string().regex(CARD_ID_PATTERN),
+		question: z.string().min(1),
+		chosen: z.enum(CARD_CHOSEN_VALUES),
+		reason: z.string().min(1),
+		refusalScope: refusalScopeSchema.optional(),
+		regressionAccepted: z.boolean().optional(),
+		meantToFix: meantToFixSchema.optional(),
+		supersedes: decisionIdSchema.optional(),
+		remediation: z.string().min(1).optional(),
+		changeSignature: z.string().min(1).optional(),
+		appliedPatterns: z.array(z.string().min(1)).optional(),
 		decidedAt: z.string().min(1),
 		decidedBy: decisionActorSchema,
 	}),
 ]);
 
-export const decisionListRequestSchema = z.strictObject({});
+export const decisionListRequestSchema = z.strictObject({
+	kind: z.enum(['choice', 'card', 'answer', 'all']).optional(),
+	released: z.boolean().optional(),
+	limit: z.number().int().min(1).max(200).optional(),
+	after: trimmedText.optional(),
+});
 
 export const decisionListResultSchema = z.strictObject({
 	decisions: z.array(
@@ -260,6 +403,12 @@ export const decisionListResultSchema = z.strictObject({
 			question: z.string().min(1),
 			chosen: z.string().min(1),
 			stale: z.array(z.string().min(1)),
+			kind: z.enum(['choice', 'card', 'answer']).optional(),
+			card: z.string().regex(CARD_ID_PATTERN).optional(),
+			released: z.boolean().optional(),
+			release: z.string().min(1).optional(),
+			refusalScope: refusalScopeSchema.optional(),
+			meantToFix: meantToFixSchema.optional(),
 		})
 	),
 	undecided: z.array(
@@ -268,6 +417,8 @@ export const decisionListResultSchema = z.strictObject({
 			ids: z.array(z.string().min(1)),
 		})
 	),
+	total: z.number().int().min(0).optional(),
+	next: z.string().min(1).optional(),
 });
 
 export const decisionCheckRequestSchema = z.strictObject({

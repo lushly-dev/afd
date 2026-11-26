@@ -28,6 +28,7 @@ import type {
 	AnswerDecisionRecord,
 	CaptureSetEntry,
 	CaptureSetManifest,
+	CardDecisionRecord,
 	ChoiceDecisionRecord,
 	ComparePageData,
 	DecisionEvidenceCapture,
@@ -582,6 +583,8 @@ export function supersededIdsFromRecords(records: readonly DecisionRecord[]): Se
 		if (record.kind === 'choice') {
 			if (record.status === 'superseded') superseded.add(record.id);
 			if (record.supersedes) superseded.add(record.supersedes);
+		} else if (record.kind === 'card' && record.supersedes) {
+			superseded.add(record.supersedes);
 		}
 	}
 	return superseded;
@@ -657,6 +660,29 @@ export function formatSingleAnswerResult(
 		path,
 		chosen: record.chosen,
 		answers: record.answers,
+		...(record.provisional ? { provisional: true as const } : {}),
+	};
+}
+
+export function formatSingleCardResult(
+	record: CardDecisionRecord,
+	path: string
+): DecisionRecordSingleResult {
+	return {
+		decision: record.id,
+		kind: 'card',
+		path,
+		card: record.card,
+		chosen: record.chosen,
+		...(record.refusalScope !== undefined ? { refusalScope: record.refusalScope } : {}),
+		...(record.regressionAccepted !== undefined
+			? { regressionAccepted: record.regressionAccepted }
+			: {}),
+		...(record.meantToFix !== undefined ? { meantToFix: record.meantToFix } : {}),
+		...(record.supersedes !== undefined ? { superseded: record.supersedes } : {}),
+		...(record.appliedPatterns !== undefined && record.appliedPatterns.length > 0
+			? { appliedPatterns: record.appliedPatterns }
+			: {}),
 	};
 }
 

@@ -22,6 +22,8 @@ import {
 	decisionGetRequestSchema,
 	decisionListRequestSchema,
 	decisionRecordRequestSchema,
+	designCardListRequestSchema,
+	designReleaseRequestSchema,
 	designStatesRequestSchema,
 	jobConfigSchema,
 	jobCreateRequestSchema,
@@ -59,6 +61,8 @@ import {
 	parseDecisionGetRequest,
 	parseDecisionListRequest,
 	parseDecisionRecordRequest,
+	parseDesignCardListRequest,
+	parseDesignReleaseRequest,
 	parseJobCreateRequest,
 	parseJobRunRequest,
 	parseMatrixRequest,
@@ -211,6 +215,7 @@ const configSchema = z
 		patternSources: z.array(z.string().min(1)).optional(),
 		defaults: z.string().min(1).optional(),
 		commandManifest: z.string().min(1).optional(),
+		patternBindings: z.record(z.string().min(1), z.string().min(1)).optional(),
 		pack: z
 			.strictObject({
 				library: packIdentifier('library'),
@@ -475,6 +480,13 @@ describe('bench validation matches the Zod schemas', () => {
 			{ specimens: [entry], patternSources: ['../violet/pack', '@lushly-dev/violet-elements'] },
 			{ specimens: [entry], patternSources: [''] },
 			{ specimens: [entry], patternSources: '../violet/pack' },
+			{
+				specimens: [entry],
+				patternBindings: { 'afd-defaults/error-recovery': 'acme/error-recovery' },
+			},
+			{ specimens: [entry], patternBindings: { '': 'acme/error-recovery' } },
+			{ specimens: [entry], patternBindings: { 'afd-defaults/error-recovery': '' } },
+			{ specimens: [entry], patternBindings: ['invalid'] },
 		];
 		for (const value of configs) agrees(configSchema, parseConfig, value);
 	});
@@ -1542,8 +1554,120 @@ describe('request parsing agrees with the public schemas', () => {
 			agrees(decisionGetRequestSchema, parseDecisionGetRequest, value);
 		}
 
-		for (const value of [{}, { extra: true }, null, []]) {
+		for (const value of [
+			{},
+			{ kind: 'card' },
+			{ kind: 'all', released: true, limit: 10, after: 'dec-aaaaaaaaaaaa' },
+			{ kind: 'invalid' },
+			{ released: 'yes' },
+			{ limit: 0 },
+			{ limit: 201 },
+			{ after: '   ' },
+			{ extra: true },
+			null,
+			[],
+		]) {
 			agrees(decisionListRequestSchema, parseDecisionListRequest, value);
+		}
+
+		for (const value of [
+			{},
+			{ scope: 'release', status: 'open', severity: 'blocker', limit: 20 },
+			{ card: 'card-aaaaaaaaaaaa', includeProvisional: true, includeDecided: true },
+			{ card: ' card-aaaaaaaaaaaa ', after: ' card-bbbbbbbbbbbb ' },
+			{ scope: 'bad' },
+			{ status: 'approved' },
+			{ limit: 0 },
+			{ limit: 201 },
+			{ after: '' },
+			{ extra: true },
+			null,
+		]) {
+			agrees(designCardListRequestSchema, parseDesignCardListRequest, value);
+		}
+
+		for (const value of [
+			{ release: '1.2.0', decisions: ['dec-aaaaaaaaaaaa'] },
+			{
+				release: '2026.11-rc1',
+				decisions: ['dec-aaaaaaaaaaaa', 'dec-bbbbbbbbbbbb'],
+				scope: 'release',
+				releasedAt: '2026-11-26T00:00:00.000Z',
+			},
+			{ release: '../bad', decisions: ['dec-aaaaaaaaaaaa'] },
+			{ release: '1.2.0', decisions: [] },
+			{ release: '1.2.0', decisions: ['dec-aaaaaaaaaaaa', 'dec-aaaaaaaaaaaa'] },
+			{ release: ' 1.2.0 ', decisions: [' dec-aaaaaaaaaaaa ', 'dec-aaaaaaaaaaaa'] },
+			{ release: ' 1.2.0 ', decisions: [' dec-aaaaaaaaaaaa '] },
+			{ release: '1.2.0', decisions: ['dec-aaaaaaaaaaaa'], releasedAt: 'not-a-date' },
+			{ release: '1.2.0', decisions: ['dec-aaaaaaaaaaaa'], extra: true },
+			null,
+		]) {
+			agrees(designReleaseRequestSchema, parseDesignReleaseRequest, value);
+		}
+
+		for (const value of [
+			{ card: 'card-aaaaaaaaaaaa', chosen: 'approve', reason: 'Looks good.' },
+			{
+				card: 'card-aaaaaaaaaaaa',
+				chosen: 'reject',
+				refusalScope: 'unsafe',
+				reason: 'Unsafe direction.',
+			},
+			{
+				cards: ['card-aaaaaaaaaaaa', 'card-bbbbbbbbbbbb'],
+				chosen: 'approve',
+				reason: 'Batch ok.',
+			},
+			{
+				cards: ['card-aaaaaaaaaaaa', ' card-aaaaaaaaaaaa '],
+				chosen: 'approve',
+				reason: 'Duplicate trimmed card id.',
+			},
+			{
+				card: 'card-aaaaaaaaaaaa',
+				chosen: 'approve',
+				refusalScope: 'unsafe',
+				reason: 'Incompatible refusalScope on approve.',
+			},
+			{
+				card: 'card-aaaaaaaaaaaa',
+				chosen: 'reject',
+				refusalScope: 'unsafe',
+				regressionAccepted: true,
+				reason: 'Incompatible regressionAccepted on reject.',
+			},
+			{
+				card: 'card-aaaaaaaaaaaa',
+				chosen: 'approve',
+				supersedes: 'dec-aaaaaaaaaaaa',
+				remediation: 'Idempotent key added.',
+				meantToFix: { job: 'checkout', target: 'retry-errors' },
+				reason: 'Remediated.',
+			},
+			{
+				card: 'card-aaaaaaaaaaaa',
+				cards: ['card-bbbbbbbbbbbb'],
+				chosen: 'approve',
+				reason: 'Both card and cards.',
+			},
+			{ card: 'card-aaaaaaaaaaaa', chosen: 'accept', reason: 'Wrong chosen for card mode.' },
+			{
+				card: 'card-aaaaaaaaaaaa',
+				chosen: 'approve',
+				subjects: { specimens: ['a'] },
+				reason: 'Subjects forbidden in card mode.',
+			},
+			{
+				items: ['changed:a:b:set-4f1c0a9e2b7d..set-7e2a90c4d311'],
+				chosen: 'accept',
+				reason: 'Panel settlement.',
+				provisional: true,
+				panel: { reviewers: ['r1', 'r2'], split: '2-0' },
+				changeAuthor: 'author-1',
+			},
+		]) {
+			agrees(decisionRecordRequestSchema, parseDecisionRecordRequest, value);
 		}
 
 		for (const value of [

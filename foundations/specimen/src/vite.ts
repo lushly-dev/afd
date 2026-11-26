@@ -21,6 +21,7 @@ import {
 	type Rolldown,
 	type ViteDevServer,
 } from 'vite';
+import { listDesignCards, renderCardsPageHtml } from './cards.js';
 import { renderComparePageHtml } from './compare-page.js';
 import { bundled, defaultContext, type LoadedConfig } from './config.js';
 import type { SpecimenHostError } from './host.js';
@@ -364,6 +365,68 @@ export async function startBenchServer(
 					res.statusCode = 200;
 					res.setHeader('Content-Type', 'text/html; charset=utf-8');
 					res.end(req.method === 'HEAD' ? undefined : body);
+					return;
+				}
+				if (pathname === '/cards.html') {
+					const body = renderCardsPageHtml();
+					res.statusCode = 200;
+					res.setHeader('Content-Type', 'text/html; charset=utf-8');
+					res.end(req.method === 'HEAD' ? undefined : body);
+					return;
+				}
+				if (pathname === '/api/cards.json') {
+					const reqUrl = new URL(req.url ?? '/', 'http://127.0.0.1');
+					const params = reqUrl.searchParams;
+					const card = params.get('card')?.trim() || undefined;
+					const scope = params.get('scope')?.trim() || undefined;
+					const status = params.get('status')?.trim() || undefined;
+					const severity = params.get('severity')?.trim() || undefined;
+					const includeProvisional = params.get('includeProvisional') === 'true' ? true : undefined;
+					const includeDecided = params.get('includeDecided') === 'true' ? true : undefined;
+					const rawLimit = params.get('limit')?.trim();
+					const limit = rawLimit ? Number(rawLimit) : undefined;
+					const after = params.get('after')?.trim() || undefined;
+					void (async () => {
+						try {
+							const data = await listDesignCards(projectRoot, {
+								...(card ? { card } : {}),
+								...(scope ? { scope: scope as 'all' | 'release' | 'guidance' | 'interface' } : {}),
+								...(status
+									? {
+											status: status as
+												| 'open'
+												| 'deferred'
+												| 'changes-requested'
+												| 'withdrawn'
+												| 'all',
+										}
+									: {}),
+								...(severity ? { severity: severity as 'blocker' | 'major' | 'minor' } : {}),
+								...(includeProvisional ? { includeProvisional } : {}),
+								...(includeDecided ? { includeDecided } : {}),
+								...(limit !== undefined ? { limit } : {}),
+								...(after ? { after } : {}),
+							});
+							res.statusCode = 200;
+							res.setHeader('Content-Type', 'application/json; charset=utf-8');
+							res.end(req.method === 'HEAD' ? undefined : JSON.stringify(data));
+						} catch (error) {
+							const hostError = error as SpecimenHostError;
+							res.statusCode = hostError.code === 'CARD_NOT_FOUND' ? 404 : 400;
+							res.setHeader('Content-Type', 'application/json; charset=utf-8');
+							res.end(
+								req.method === 'HEAD'
+									? undefined
+									: JSON.stringify({
+											error: {
+												code: hostError.code ?? 'DESIGN_CARD_LIST_FAILED',
+												message:
+													error instanceof Error ? error.message : 'Could not list decision cards.',
+											},
+										})
+							);
+						}
+					})();
 					return;
 				}
 				if (pathname === '/api/review.json') {
@@ -728,11 +791,15 @@ async function buildStatic(
 	const reviewPath = join(outRoot, 'review.html');
 	await assertNoSymlinkPath(outRoot, reviewPath);
 	await writeFile(reviewPath, renderReviewPageHtml(), 'utf8');
+	const cardsPath = join(outRoot, 'cards.html');
+	await assertNoSymlinkPath(outRoot, cardsPath);
+	await writeFile(cardsPath, renderCardsPageHtml(), 'utf8');
 	const copiedCompareAssets = await copyCompareAssets(projectRoot, outRoot);
 	const files = [
 		...result.output.map((output) => output.fileName),
 		'compare.html',
 		'review.html',
+		'cards.html',
 		...copiedCompareAssets,
 	];
 	// Its emitted, minified file. A build without it would publish an unstyled index, so it fails.

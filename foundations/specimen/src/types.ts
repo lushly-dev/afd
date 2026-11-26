@@ -5,7 +5,9 @@ import type { ComponentSchema, JobDriverResult } from './plugin.js';
 export const CAPTURE_VERSION = '0.10' as const;
 export const NORMALIZATION_VERSION = '0.2' as const;
 
+export type * from './card-types.js';
 export type { Args, Decorator, Meta, Preview, StoryContext, StoryObj } from './csf-types.js';
+export type * from './decision-types.js';
 export type * from './design-types.js';
 export type * from './note-types.js';
 export type * from './pack-types.js';
@@ -381,6 +383,8 @@ export interface BenchConfig {
 	defaults?: string;
 	/** Path to the product's AFD command manifest JSON, relative to the configuration file. */
 	commandManifest?: string;
+	/** Maps upstream `<library>/<pattern>` keys to local override `<localLibrary>/<pattern>` targets. */
+	patternBindings?: Record<string, string>;
 	/** What `specimen pack` builds: one library's component pack. Needs `manifest`, or `patterns` with `dependencies`/`localElements`. */
 	pack?: PackConfig;
 	/** Optional modality-enforced persona walk panel configuration (Phase C1). */

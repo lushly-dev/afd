@@ -8,18 +8,26 @@ import {
 	diffObservations,
 	getDecision,
 	listDecisions,
+	listDesignCards,
 	recordDecision,
+	recordDesignRelease,
 	runCaptureSet,
 	runCompare,
 	runReview,
+	writeCardRecord,
 } from '@lushly-dev/specimen';
 import type { Observation, SpecimenEntry } from '@lushly-dev/specimen/types';
 import { describe, expect, it, vi } from 'vitest';
 import {
 	createSpecimenCommands,
+	createSpecimenDirectRegistry,
 	executeSpecimenCommand,
 	executeSpecimenDiff,
+	markSpecimenChangeAuthor,
+	markSpecimenRelayConfirmed,
 	observationSchema,
+	SPECIMEN_CHANGE_AUTHOR_CONTEXT_KEY,
+	SPECIMEN_RELAY_CONTEXT_KEY,
 	type SpecimenCommandBench,
 } from './commands.js';
 
@@ -559,6 +567,21 @@ function bench(): SpecimenCommandBench {
 				{ area: 'forced-colors', reason: 'not tested', addToMeasure: 'specimen-themes' },
 			],
 		})),
+		listDesignCards: vi.fn(async () => ({
+			page: 'cards.html',
+			cards: [],
+			total: 0,
+			more: 0,
+			unmeasured: [],
+		})),
+		recordDesignRelease: vi.fn(async (request) => ({
+			release: request.release,
+			manifestPath: `specimens/releases/${request.release}.json`,
+			releasedAt: '2026-11-26T00:00:00.000Z',
+			decisions: request.decisions,
+			nextSteps: [],
+			unmeasured: [],
+		})),
 		review: vi.fn(async () => ({
 			before: { set: 'set-4f1c0a9e2b7d', revision: 'a1b2c3d', dirty: false },
 			after: { set: 'set-7e2a90c4d311', revision: 'e4f5a6b', dirty: false },
@@ -694,6 +717,8 @@ describe('specimen commands', () => {
 			'decision-check',
 			'design-states',
 			'panel-walk',
+			'design-card-list',
+			'design-release',
 		]);
 		for (const command of commands) {
 			expect(command.expose).toEqual({ mcp: true, cli: true });
@@ -2875,6 +2900,203 @@ describe('specimen commands', () => {
 			} finally {
 				await realBench.close();
 			}
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it('exposes Phase C2 metadata, anti-spoofing HumanRelay tokens, design-card-list, design-release, and DirectRegistry provisional writes', async () => {
+		const root = await mkdtemp(join(tmpdir(), 'specimen-afd-c2-'));
+		try {
+			const realInstance = bench();
+			realInstance.recordDecision = (request, options) => recordDecision(root, request, options);
+			realInstance.getDecision = (request) => getDecision(root, request);
+			realInstance.listDecisions = (request) => listDecisions(root, request);
+			realInstance.checkDecisions = (request) => checkDecisions(root, request);
+			realInstance.listDesignCards = (request) => listDesignCards(root, request);
+			realInstance.recordDesignRelease = (request, options) =>
+				recordDesignRelease(root, request, options);
+
+			const commands = createSpecimenCommands(realInstance);
+			const byName = (name: string) => commands.find((command) => command.name === name);
+			expect(byName('decision-record')).toMatchObject({
+				category: 'decision',
+				mutation: true,
+				confirmationMode: 'host-verified',
+			});
+			expect(byName('design-card-list')).toMatchObject({
+				category: 'design',
+				mutation: false,
+				outputBudget: { defaultBytes: 32768, maxBytes: 98304 },
+			});
+			expect(byName('design-release')).toMatchObject({
+				category: 'design',
+				mutation: true,
+				confirmationMode: 'host-verified',
+				outputBudget: { defaultBytes: 16384, maxBytes: 49152 },
+			});
+
+			await writeCardRecord(root, {
+				card: 'card-c20000000001',
+				what: 'Clarify retry message',
+				owner: 'product',
+				scope: 'release',
+				touches: ['src/checkout.ts'],
+				severity: 'major',
+				visual: { kind: 'transcript', summary: 'Walk stopped on unclear retry message.' },
+				why: {
+					findings: [{ summary: 'Retry button lacks error context.', evidence: 'observed' }],
+					reviewerCount: 5,
+					split: '5-0',
+					trigger: 'split-3-to-2',
+				},
+				effect: {
+					gatesBefore: { passed: 5, failed: 1 },
+					gatesAfter: { passed: 6, failed: 0 },
+					regression: false,
+				},
+				risk: { affects: ['checkout'], undoable: true },
+				status: 'open',
+			});
+
+			const listed = await executeSpecimenCommand(realInstance, 'design-card-list', {});
+			expect(listed.success).toBe(true);
+			expect((listed.data as { cards: { card: string }[] }).cards.map((c) => c.card)).toEqual([
+				'card-c20000000001',
+			]);
+
+			// Plain JSON object under SPECIMEN_RELAY_CONTEXT_KEY is ignored (cannot forge person provenance).
+			const registry = createSpecimenDirectRegistry(realInstance);
+			const spoofed = await registry.execute(
+				'decision-record',
+				{ card: 'card-c20000000001', chosen: 'approve', reason: 'Spoof attempt.' },
+				{
+					actor: { kind: 'agent' },
+					[SPECIMEN_RELAY_CONTEXT_KEY]: {
+						decisionId: 'fake-1',
+						confirmedBy: 'spoof',
+						channel: 'mcp-relay',
+					},
+				}
+			);
+			expect(spoofed.success).toBe(false);
+			expect(spoofed.error?.code).toBe('PERSON_REQUIRED');
+
+			// A token minted for design-release cannot be replayed on decision-record.
+			const wrongCmdToken = await registry.execute(
+				'decision-record',
+				{ card: 'card-c20000000001', chosen: 'approve', reason: 'Replay wrong command.' },
+				{
+					actor: { kind: 'agent' },
+					[SPECIMEN_RELAY_CONTEXT_KEY]: markSpecimenRelayConfirmed({
+						decisionId: 'relay-wrong',
+						command: 'design-release',
+						confirmedBy: 'alice',
+						channel: 'mcp-relay',
+					}),
+				}
+			);
+			expect(wrongCmdToken.success).toBe(false);
+			expect(wrongCmdToken.error?.code).toBe('PERSON_REQUIRED');
+
+			// Minted relay confirmation token succeeds and records person provenance.
+			const minted = await registry.execute(
+				'decision-record',
+				{ card: 'card-c20000000001', chosen: 'approve', reason: 'Verified via HumanRelay.' },
+				{
+					actor: { kind: 'agent' },
+					[SPECIMEN_RELAY_CONTEXT_KEY]: markSpecimenRelayConfirmed({
+						decisionId: 'relay-1',
+						command: 'decision-record',
+						confirmedBy: 'alice',
+						channel: 'mcp-relay',
+					}),
+				}
+			);
+			expect(minted.success).toBe(true);
+			const decisionId = (minted.data as { decision: string }).decision;
+
+			// design-release succeeds with minted relay confirmation token.
+			const released = await registry.execute(
+				'design-release',
+				{ release: '1.0.0', decisions: [decisionId] },
+				{
+					actor: { kind: 'agent' },
+					[SPECIMEN_RELAY_CONTEXT_KEY]: markSpecimenRelayConfirmed({
+						decisionId: 'relay-2',
+						command: 'design-release',
+						confirmedBy: 'alice',
+						channel: 'mcp-relay',
+					}),
+				}
+			);
+			expect(released.success).toBe(true);
+			expect((released.data as { release: string }).release).toBe('1.0.0');
+
+			// DirectRegistry in-process Mode 3 provisional write requires host-minted server changeAuthor and enforces AUTHOR_CANNOT_DECIDE.
+			realInstance.recordDecision = (request, options) =>
+				recordDecision(root, request, {
+					...options,
+					resolveReviewItem: async (item) => ({
+						entry: { item, fingerprint: 'fp-direct' },
+						afterSet: 'set-0123456789ab',
+						touchedChoices: [],
+						question: 'Accept spacing tweak?',
+					}),
+				});
+			const selfDecide = await registry.execute(
+				'decision-record',
+				{
+					items: ['changed:a:b:set-111111111111..set-0123456789ab'],
+					chosen: 'accept',
+					reason: 'Author trying to settle own change.',
+					provisional: true,
+					panel: { reviewers: ['r1', 'r2', 'r3', 'r4', 'r5'], split: '5-0' },
+					changeAuthor: 'author-bot',
+				},
+				{
+					actor: { kind: 'agent', id: 'author-bot' },
+					[SPECIMEN_CHANGE_AUTHOR_CONTEXT_KEY]: markSpecimenChangeAuthor('author-bot'),
+				}
+			);
+			expect(selfDecide.success).toBe(false);
+			expect(selfDecide.error?.code).toBe('AUTHOR_CANNOT_DECIDE');
+
+			// Plain JSON object under SPECIMEN_CHANGE_AUTHOR_CONTEXT_KEY is ignored (fails closed with AUTHOR_CANNOT_DECIDE).
+			const spoofedAuthor = await registry.execute(
+				'decision-record',
+				{
+					items: ['changed:a:b:set-111111111111..set-0123456789ab'],
+					chosen: 'accept',
+					reason: 'Spoofed author context.',
+					provisional: true,
+					panel: { reviewers: ['r1', 'r2', 'r3', 'r4', 'r5'], split: '5-0' },
+				},
+				{
+					actor: { kind: 'agent', id: 'panel-bot' },
+					[SPECIMEN_CHANGE_AUTHOR_CONTEXT_KEY]: { author: 'author-bot' },
+				}
+			);
+			expect(spoofedAuthor.success).toBe(false);
+			expect(spoofedAuthor.error?.code).toBe('AUTHOR_CANNOT_DECIDE');
+
+			const independent = await registry.execute(
+				'decision-record',
+				{
+					items: ['changed:a:b:set-111111111111..set-0123456789ab'],
+					chosen: 'accept',
+					reason: 'Independent panel unanimous.',
+					provisional: true,
+					panel: { reviewers: ['r1', 'r2', 'r3', 'r4', 'r5'], split: '5-0' },
+					changeAuthor: 'author-bot',
+				},
+				{
+					actor: { kind: 'agent', id: 'panel-bot' },
+					[SPECIMEN_CHANGE_AUTHOR_CONTEXT_KEY]: markSpecimenChangeAuthor('author-bot'),
+				}
+			);
+			expect(independent.success).toBe(true);
+			expect((independent.data as { provisional?: boolean }).provisional).toBe(true);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

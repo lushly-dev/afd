@@ -16,6 +16,7 @@ import {
 	SPECIMEN_DATA_DIR,
 } from './sets.js';
 import {
+	type AnswerDecisionRecord,
 	CAPTURE_VERSION,
 	type CaptureSetEntry,
 	type CaptureSetManifest,
@@ -331,7 +332,7 @@ interface MatchedAnswerOutcome {
 }
 
 interface AnswerCandidate {
-	record: DecisionRecord;
+	record: ChoiceDecisionRecord | AnswerDecisionRecord;
 	entry: DecisionAnswerEntry;
 	effectiveOutcome: 'accept' | 'reject';
 }
@@ -348,7 +349,7 @@ function collectAnswerCandidates(
 			for (const entry of record.answers) {
 				candidates.push({ record, entry, effectiveOutcome: 'accept' });
 			}
-		} else {
+		} else if (record.kind === 'answer') {
 			for (const entry of record.answers) {
 				candidates.push({ record, entry, effectiveOutcome: record.chosen });
 			}
