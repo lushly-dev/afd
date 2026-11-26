@@ -1,0 +1,1485 @@
+{
+	"description": "Cases for a plugin bundle's manifest (phase 5 no-terminal amendment, 4.4), run by @lushly-dev/loam-manifest's read-plugin.test.ts and meant for loam-desktop's Rust inspect (step 9c). Each case is `base` with its `patch` applied as an RFC 7386 JSON merge patch (null removes a key; an array is replaced whole). `refused` lists every refusal by code and key, in no order; `appCases` add each app's packed manifest, as much of it as the rules read. `bundleDigest` is the amendment's 7.1 digest of a bundle's files, each given by its path and its bytes' SHA-256, computed apart from either implementation.",
+	"base": {
+		"plugin_manifest_version": 1,
+		"plugin": {
+			"id": "mail",
+			"title": "Mail",
+			"version": "0.1.0",
+			"description": "Local mail sync, search, drafts and reply sets.",
+			"license": "MIT",
+			"homepage": "https://afd.dev/loam/plugins/mail"
+		},
+		"apps": [
+			{
+				"id": "mail",
+				"path": "apps/mail"
+			},
+			{
+				"id": "mailapp",
+				"path": "apps/mailapp"
+			}
+		],
+		"engine": {
+			"id": "loam-mail",
+			"kind": "http-service",
+			"mount_app": "mail",
+			"service_mode": "login",
+			"artifacts": {
+				"darwin-arm64": {
+					"path": "engines/darwin-arm64/loam-mail",
+					"sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+				},
+				"windows-x64": {
+					"path": "engines/windows-x64/loam-mail.exe",
+					"sha256": "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+				},
+				"linux-x64": {
+					"path": "engines/linux-x64/loam-mail",
+					"sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+				}
+			},
+			"auth": {
+				"mode": "approver"
+			},
+			"mount": {
+				"audience": "person",
+				"labels": "per-part",
+				"approvals": "shell",
+				"expose": {
+					"agent": true,
+					"palette": true
+				},
+				"commands": {
+					"mail-draft-send": {
+						"expose": {
+							"agent": true,
+							"apps": true
+						},
+						"preview": {
+							"command": "mail-draft-show",
+							"input": ["draft", "revision"]
+						}
+					},
+					"mail-replyset-submit": {
+						"expose": {
+							"agent": true
+						}
+					}
+				}
+			}
+		}
+	},
+	"valid": [
+		{
+			"name": "a Mail-shaped plugin: an approver engine whose sends the shell releases",
+			"patch": {}
+		},
+		{
+			"name": "a pure-app plugin: no engine",
+			"patch": {
+				"plugin": {
+					"id": "notes",
+					"title": "Notes",
+					"homepage": null
+				},
+				"apps": [
+					{
+						"id": "notes",
+						"path": "apps/notes"
+					}
+				],
+				"engine": null
+			}
+		},
+		{
+			"name": "a Trillium-shaped plugin: an agent token, no shell approvals",
+			"patch": {
+				"plugin": {
+					"id": "trillium",
+					"title": "Trillium"
+				},
+				"apps": [
+					{
+						"id": "trillium",
+						"path": "apps/trillium"
+					},
+					{
+						"id": "trilliumview",
+						"path": "apps/view"
+					}
+				],
+				"engine": {
+					"id": "trillium-engine",
+					"mount_app": "trillium",
+					"auth": {
+						"mode": "agent"
+					},
+					"mount": {
+						"approvals": "none",
+						"labels": "whole",
+						"commands": {
+							"mail-draft-send": null,
+							"mail-replyset-submit": null,
+							"trillium-note-create": {
+								"expose": {
+									"agent": true
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"name": "an engine with no auth and no mount table",
+			"patch": {
+				"engine": {
+					"auth": {
+						"mode": "none"
+					},
+					"mount": null
+				}
+			}
+		},
+		{
+			"name": "a homepage with a query and a port",
+			"patch": {
+				"plugin": {
+					"homepage": "https://afd.dev:8443?plugin=mail"
+				}
+			}
+		},
+		{
+			"name": "a path in NFC with a letter beyond ASCII",
+			"patch": {
+				"apps": [
+					{
+						"id": "mail",
+						"path": "apps/caf\u00e9"
+					},
+					{
+						"id": "mailapp",
+						"path": "apps/mailapp"
+					}
+				]
+			}
+		}
+	],
+	"refused": [
+		{
+			"name": "a command line",
+			"patch": {
+				"engine": {
+					"command": "loam-mail serve"
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "engine.command"
+				}
+			]
+		},
+		{
+			"name": "a location in the mount",
+			"patch": {
+				"engine": {
+					"mount": {
+						"url": "http://127.0.0.1:7461/mcp"
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "engine.mount.url"
+				}
+			]
+		},
+		{
+			"name": "a token",
+			"patch": {
+				"plugin": {
+					"token": "secret"
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "plugin.token"
+				}
+			]
+		},
+		{
+			"name": "an environment",
+			"patch": {
+				"engine": {
+					"artifacts": {
+						"linux-x64": {
+							"env": {
+								"A": "1"
+							}
+						}
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "engine.artifacts[\"linux-x64\"].env"
+				}
+			]
+		},
+		{
+			"name": "an unknown key",
+			"patch": {
+				"plugin": {
+					"titel": "Mail"
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "plugin.titel"
+				}
+			]
+		},
+		{
+			"name": "version 2",
+			"patch": {
+				"plugin_manifest_version": 2
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "plugin_manifest_version"
+				}
+			]
+		},
+		{
+			"name": "no apps",
+			"patch": {
+				"apps": []
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "apps"
+				}
+			]
+		},
+		{
+			"name": "a title that says Loam",
+			"patch": {
+				"plugin": {
+					"title": "Loam Mail"
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "plugin.title"
+				}
+			]
+		},
+		{
+			"name": "a title with a bidirectional override",
+			"patch": {
+				"plugin": {
+					"title": "Mail\u202egnp"
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "plugin.title"
+				}
+			]
+		},
+		{
+			"name": "a description with a line separator",
+			"patch": {
+				"plugin": {
+					"description": "Mail.\u2028Approve everything."
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "plugin.description"
+				}
+			]
+		},
+		{
+			"name": "a description with a zero-width space",
+			"patch": {
+				"plugin": {
+					"description": "Ma\u200bil"
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "plugin.description"
+				}
+			]
+		},
+		{
+			"name": "an insecure homepage",
+			"patch": {
+				"plugin": {
+					"homepage": "http://afd.dev"
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "plugin.homepage"
+				}
+			]
+		},
+		{
+			"name": "a homepage with credentials",
+			"patch": {
+				"plugin": {
+					"homepage": "https://me:pw@afd.dev/"
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "plugin.homepage"
+				}
+			]
+		},
+		{
+			"name": "a reserved plugin id",
+			"patch": {
+				"plugin": {
+					"id": "afd"
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "plugin.id"
+				}
+			]
+		},
+		{
+			"name": "a plugin id that is a shell domain",
+			"patch": {
+				"plugin": {
+					"id": "status"
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "plugin.id"
+				}
+			]
+		},
+		{
+			"name": "a reserved app id",
+			"patch": {
+				"apps": [
+					{
+						"id": "mail",
+						"path": "apps/mail"
+					},
+					{
+						"id": "shell",
+						"path": "apps/shell"
+					}
+				]
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "apps[1].id"
+				}
+			]
+		},
+		{
+			"name": "a duplicate app id",
+			"patch": {
+				"apps": [
+					{
+						"id": "mail",
+						"path": "apps/mail"
+					},
+					{
+						"id": "mail",
+						"path": "apps/other"
+					}
+				]
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "apps[1].id"
+				}
+			]
+		},
+		{
+			"name": "two apps in one directory, by case",
+			"patch": {
+				"apps": [
+					{
+						"id": "mail",
+						"path": "apps/mail"
+					},
+					{
+						"id": "mailapp",
+						"path": "apps/Mail"
+					}
+				]
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "apps[1].path"
+				}
+			]
+		},
+		{
+			"name": "an app path that climbs",
+			"patch": {
+				"apps": [
+					{
+						"id": "mail",
+						"path": "apps/../../mail"
+					},
+					{
+						"id": "mailapp",
+						"path": "apps/mailapp"
+					}
+				]
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_PATH_ESCAPE",
+					"key": "apps[0].path"
+				}
+			]
+		},
+		{
+			"name": "an absolute app path",
+			"patch": {
+				"apps": [
+					{
+						"id": "mail",
+						"path": "/apps/mail"
+					},
+					{
+						"id": "mailapp",
+						"path": "apps/mailapp"
+					}
+				]
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_PATH_ESCAPE",
+					"key": "apps[0].path"
+				}
+			]
+		},
+		{
+			"name": "a backslash",
+			"patch": {
+				"apps": [
+					{
+						"id": "mail",
+						"path": "apps\\mail"
+					},
+					{
+						"id": "mailapp",
+						"path": "apps/mailapp"
+					}
+				]
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_PATH_ESCAPE",
+					"key": "apps[0].path"
+				}
+			]
+		},
+		{
+			"name": "a drive letter",
+			"patch": {
+				"apps": [
+					{
+						"id": "mail",
+						"path": "C:/mail"
+					},
+					{
+						"id": "mailapp",
+						"path": "apps/mailapp"
+					}
+				]
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_PATH_ESCAPE",
+					"key": "apps[0].path"
+				}
+			]
+		},
+		{
+			"name": "a name Windows reserves",
+			"patch": {
+				"apps": [
+					{
+						"id": "mail",
+						"path": "apps/con.txt"
+					},
+					{
+						"id": "mailapp",
+						"path": "apps/mailapp"
+					}
+				]
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_PATH_ESCAPE",
+					"key": "apps[0].path"
+				}
+			]
+		},
+		{
+			"name": "a Windows engine that is a script",
+			"patch": {
+				"engine": {
+					"artifacts": {
+						"windows-x64": {
+							"path": "engines/windows-x64/loam-mail.bat"
+						}
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "engine.artifacts[\"windows-x64\"].path"
+				}
+			]
+		},
+		{
+			"name": "a Unix engine that is a script",
+			"patch": {
+				"engine": {
+					"artifacts": {
+						"linux-x64": {
+							"path": "engines/linux-x64/run.sh"
+						}
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "engine.artifacts[\"linux-x64\"].path"
+				}
+			]
+		},
+		{
+			"name": "an engine in another target's directory",
+			"patch": {
+				"engine": {
+					"artifacts": {
+						"linux-x64": {
+							"path": "engines/darwin-arm64/loam-mail"
+						}
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "engine.artifacts[\"linux-x64\"].path"
+				}
+			]
+		},
+		{
+			"name": "an engine below its target's directory",
+			"patch": {
+				"engine": {
+					"artifacts": {
+						"linux-x64": {
+							"path": "engines/linux-x64/bin/loam-mail"
+						}
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "engine.artifacts[\"linux-x64\"].path"
+				}
+			]
+		},
+		{
+			"name": "an uppercase hash",
+			"patch": {
+				"engine": {
+					"artifacts": {
+						"linux-x64": {
+							"sha256": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+						}
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "engine.artifacts[\"linux-x64\"].sha256"
+				}
+			]
+		},
+		{
+			"name": "an unknown target",
+			"patch": {
+				"engine": {
+					"artifacts": {
+						"freebsd-x64": {
+							"path": "engines/freebsd-x64/loam-mail",
+							"sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+						}
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "engine.artifacts[\"freebsd-x64\"]"
+				}
+			]
+		},
+		{
+			"name": "no artifact",
+			"patch": {
+				"engine": {
+					"artifacts": {
+						"darwin-arm64": null,
+						"windows-x64": null,
+						"linux-x64": null
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "engine.artifacts"
+				}
+			]
+		},
+		{
+			"name": "a mount app that is no app",
+			"patch": {
+				"engine": {
+					"mount_app": "inbox"
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "engine.mount_app"
+				}
+			]
+		},
+		{
+			"name": "an approver token with no shell approvals",
+			"patch": {
+				"engine": {
+					"mount": {
+						"approvals": "none",
+						"commands": {
+							"mail-draft-send": {
+								"preview": null
+							}
+						}
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "engine.auth.mode"
+				}
+			]
+		},
+		{
+			"name": "shell approvals with an agent token",
+			"patch": {
+				"engine": {
+					"auth": {
+						"mode": "agent"
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "engine.mount.approvals"
+				}
+			]
+		},
+		{
+			"name": "shell approvals and no preview",
+			"patch": {
+				"engine": {
+					"mount": {
+						"commands": {
+							"mail-draft-send": {
+								"preview": null
+							}
+						}
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "DEPLOYMENT_PREVIEW_REQUIRED",
+					"key": "engine.mount.approvals"
+				}
+			]
+		},
+		{
+			"name": "a preview of itself",
+			"patch": {
+				"engine": {
+					"mount": {
+						"commands": {
+							"mail-draft-send": {
+								"preview": {
+									"command": "mail-draft-send"
+								}
+							}
+						}
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "DEPLOYMENT_PREVIEW_INVALID",
+					"key": "engine.mount.commands[\"mail-draft-send\"].preview.command"
+				}
+			]
+		},
+		{
+			"name": "the instance exposed to apps",
+			"patch": {
+				"engine": {
+					"mount": {
+						"expose": {
+							"apps": true
+						}
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "engine.mount.expose.apps"
+				}
+			]
+		},
+		{
+			"name": "a command exposed over MCP",
+			"patch": {
+				"engine": {
+					"mount": {
+						"commands": {
+							"mail-replyset-submit": {
+								"expose": {
+									"mcp": true
+								}
+							}
+						}
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "engine.mount.commands[\"mail-replyset-submit\"].expose.mcp"
+				}
+			]
+		},
+		{
+			"name": "an audience other than the person",
+			"patch": {
+				"engine": {
+					"mount": {
+						"audience": "agent"
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "engine.mount.audience"
+				}
+			]
+		},
+		{
+			"name": "another engine kind",
+			"patch": {
+				"engine": {
+					"kind": "stdio"
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "engine.kind"
+				}
+			]
+		},
+		{
+			"name": "a homepage with no host",
+			"patch": {
+				"plugin": {
+					"homepage": "https://:443/"
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "plugin.homepage"
+				}
+			]
+		},
+		{
+			"name": "a homepage with a bad port",
+			"patch": {
+				"plugin": {
+					"homepage": "https://afd.dev:99999/"
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "plugin.homepage"
+				}
+			]
+		},
+		{
+			"name": "a preview on an instance the shell releases nothing of",
+			"patch": {
+				"engine": {
+					"auth": {
+						"mode": "agent"
+					},
+					"mount": {
+						"approvals": "none"
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "DEPLOYMENT_PREVIEW_INVALID",
+					"key": "engine.mount.commands[\"mail-draft-send\"].preview"
+				}
+			]
+		},
+		{
+			"name": "the reserved plugin id loam",
+			"patch": {
+				"plugin": {
+					"id": "loam"
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "plugin.id"
+				}
+			]
+		},
+		{
+			"name": "the reserved app id p",
+			"patch": {
+				"apps": [
+					{
+						"id": "mail",
+						"path": "apps/mail"
+					},
+					{
+						"id": "p",
+						"path": "apps/p"
+					}
+				]
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "apps[1].id"
+				}
+			]
+		},
+		{
+			"name": "nine apps",
+			"patch": {
+				"apps": [
+					{
+						"id": "mail",
+						"path": "apps/mail"
+					},
+					{
+						"id": "app0",
+						"path": "apps/app0"
+					},
+					{
+						"id": "app1",
+						"path": "apps/app1"
+					},
+					{
+						"id": "app2",
+						"path": "apps/app2"
+					},
+					{
+						"id": "app3",
+						"path": "apps/app3"
+					},
+					{
+						"id": "app4",
+						"path": "apps/app4"
+					},
+					{
+						"id": "app5",
+						"path": "apps/app5"
+					},
+					{
+						"id": "app6",
+						"path": "apps/app6"
+					},
+					{
+						"id": "app7",
+						"path": "apps/app7"
+					}
+				]
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "apps"
+				}
+			]
+		},
+		{
+			"name": "a Windows engine that is a .cmd",
+			"patch": {
+				"engine": {
+					"artifacts": {
+						"windows-x64": {
+							"path": "engines/windows-x64/loam-mail.cmd"
+						}
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "engine.artifacts[\"windows-x64\"].path"
+				}
+			]
+		},
+		{
+			"name": "a Windows engine that is a .ps1",
+			"patch": {
+				"engine": {
+					"artifacts": {
+						"windows-x64": {
+							"path": "engines/windows-x64/loam-mail.ps1"
+						}
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "engine.artifacts[\"windows-x64\"].path"
+				}
+			]
+		},
+		{
+			"name": "a Windows engine that is a .com",
+			"patch": {
+				"engine": {
+					"artifacts": {
+						"windows-x64": {
+							"path": "engines/windows-x64/loam-mail.com"
+						}
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "engine.artifacts[\"windows-x64\"].path"
+				}
+			]
+		},
+		{
+			"name": "a segment ending in a dot",
+			"patch": {
+				"apps": [
+					{
+						"id": "mail",
+						"path": "apps/mail."
+					},
+					{
+						"id": "mailapp",
+						"path": "apps/mailapp"
+					}
+				]
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_PATH_ESCAPE",
+					"key": "apps[0].path"
+				}
+			]
+		},
+		{
+			"name": "a segment ending in a space",
+			"patch": {
+				"apps": [
+					{
+						"id": "mail",
+						"path": "apps/mail "
+					},
+					{
+						"id": "mailapp",
+						"path": "apps/mailapp"
+					}
+				]
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_PATH_ESCAPE",
+					"key": "apps[0].path"
+				}
+			]
+		},
+		{
+			"name": "a Windows console name",
+			"patch": {
+				"apps": [
+					{
+						"id": "mail",
+						"path": "apps/CONIN$"
+					},
+					{
+						"id": "mailapp",
+						"path": "apps/mailapp"
+					}
+				]
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_PATH_ESCAPE",
+					"key": "apps[0].path"
+				}
+			]
+		},
+		{
+			"name": "a reserved name with a space before its extension",
+			"patch": {
+				"apps": [
+					{
+						"id": "mail",
+						"path": "apps/con .txt"
+					},
+					{
+						"id": "mailapp",
+						"path": "apps/mailapp"
+					}
+				]
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_PATH_ESCAPE",
+					"key": "apps[0].path"
+				}
+			]
+		},
+		{
+			"name": "a port name with a superscript digit",
+			"patch": {
+				"apps": [
+					{
+						"id": "mail",
+						"path": "apps/COM\u00b9"
+					},
+					{
+						"id": "mailapp",
+						"path": "apps/mailapp"
+					}
+				]
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_PATH_ESCAPE",
+					"key": "apps[0].path"
+				}
+			]
+		},
+		{
+			"name": "a character Windows names cannot hold",
+			"patch": {
+				"apps": [
+					{
+						"id": "mail",
+						"path": "apps/mail?"
+					},
+					{
+						"id": "mailapp",
+						"path": "apps/mailapp"
+					}
+				]
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_PATH_ESCAPE",
+					"key": "apps[0].path"
+				}
+			]
+		},
+		{
+			"name": "a path not in NFC",
+			"patch": {
+				"apps": [
+					{
+						"id": "mail",
+						"path": "apps/cafe\u0301"
+					},
+					{
+						"id": "mailapp",
+						"path": "apps/mailapp"
+					}
+				]
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_PATH_ESCAPE",
+					"key": "apps[0].path"
+				}
+			]
+		}
+	],
+	"appCases": [
+		{
+			"name": "Mail's two packages",
+			"patch": {},
+			"apps": {
+				"mail": {
+					"plugin": {
+						"id": "mail",
+						"kind": "mounted"
+					},
+					"mount": {
+						"prefix": "mail",
+						"transport": "http"
+					}
+				},
+				"mailapp": {
+					"plugin": {
+						"id": "mailapp",
+						"kind": "native"
+					}
+				}
+			},
+			"refusals": []
+		},
+		{
+			"name": "a native app whose instance is not its id",
+			"patch": {},
+			"apps": {
+				"mail": {
+					"plugin": {
+						"id": "mail",
+						"kind": "mounted"
+					},
+					"mount": {
+						"prefix": "mail",
+						"transport": "http"
+					}
+				},
+				"mailapp": {
+					"plugin": {
+						"id": "mailui",
+						"kind": "native"
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "apps[1].id"
+				}
+			]
+		},
+		{
+			"name": "a mount app that is native",
+			"patch": {},
+			"apps": {
+				"mail": {
+					"plugin": {
+						"id": "mail",
+						"kind": "native"
+					}
+				},
+				"mailapp": {
+					"plugin": {
+						"id": "mailapp",
+						"kind": "native"
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "engine.mount_app"
+				}
+			]
+		},
+		{
+			"name": "a mount over stdio",
+			"patch": {},
+			"apps": {
+				"mail": {
+					"plugin": {
+						"id": "mail",
+						"kind": "mounted"
+					},
+					"mount": {
+						"prefix": "mail",
+						"transport": "stdio"
+					}
+				},
+				"mailapp": {
+					"plugin": {
+						"id": "mailapp",
+						"kind": "native"
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "engine.mount_app"
+				}
+			]
+		},
+		{
+			"name": "a second mounted app",
+			"patch": {},
+			"apps": {
+				"mail": {
+					"plugin": {
+						"id": "mail",
+						"kind": "mounted"
+					},
+					"mount": {
+						"prefix": "mail",
+						"transport": "http"
+					}
+				},
+				"mailapp": {
+					"plugin": {
+						"id": "mailapp",
+						"kind": "mounted"
+					},
+					"mount": {
+						"prefix": "mailapp",
+						"transport": "http"
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "apps[1].id"
+				}
+			]
+		},
+		{
+			"name": "a mounted app with no engine",
+			"patch": {
+				"engine": null
+			},
+			"apps": {
+				"mail": {
+					"plugin": {
+						"id": "mail",
+						"kind": "mounted"
+					},
+					"mount": {
+						"prefix": "mail",
+						"transport": "http"
+					}
+				},
+				"mailapp": {
+					"plugin": {
+						"id": "mailapp",
+						"kind": "native"
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "apps[0].id"
+				}
+			]
+		},
+		{
+			"name": "a command of another prefix",
+			"patch": {
+				"engine": {
+					"mount": {
+						"commands": {
+							"notes-page-create": {
+								"expose": {
+									"agent": true
+								}
+							}
+						}
+					}
+				}
+			},
+			"apps": {
+				"mail": {
+					"plugin": {
+						"id": "mail",
+						"kind": "mounted"
+					},
+					"mount": {
+						"prefix": "mail",
+						"transport": "http"
+					}
+				},
+				"mailapp": {
+					"plugin": {
+						"id": "mailapp",
+						"kind": "native"
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "engine.mount.commands[\"notes-page-create\"]"
+				}
+			]
+		},
+		{
+			"name": "a preview of another prefix",
+			"patch": {
+				"engine": {
+					"mount": {
+						"commands": {
+							"mail-draft-send": {
+								"preview": {
+									"command": "notes-page-show"
+								}
+							}
+						}
+					}
+				}
+			},
+			"apps": {
+				"mail": {
+					"plugin": {
+						"id": "mail",
+						"kind": "mounted"
+					},
+					"mount": {
+						"prefix": "mail",
+						"transport": "http"
+					}
+				},
+				"mailapp": {
+					"plugin": {
+						"id": "mailapp",
+						"kind": "native"
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "DEPLOYMENT_PREVIEW_INVALID",
+					"key": "engine.mount.commands[\"mail-draft-send\"].preview.command"
+				}
+			]
+		},
+		{
+			"name": "a mount whose prefix is a sibling app's domain",
+			"patch": {
+				"engine": {
+					"auth": {
+						"mode": "none"
+					},
+					"mount": {
+						"approvals": "none",
+						"commands": null
+					}
+				}
+			},
+			"apps": {
+				"mail": {
+					"plugin": {
+						"id": "mail",
+						"kind": "mounted"
+					},
+					"mount": {
+						"prefix": "mailapp",
+						"transport": "http"
+					}
+				},
+				"mailapp": {
+					"plugin": {
+						"id": "mailapp",
+						"kind": "native"
+					}
+				}
+			},
+			"refusals": [
+				{
+					"code": "PLUGIN_MANIFEST_INVALID",
+					"key": "apps[1].id"
+				}
+			]
+		}
+	],
+	"bundleDigest": {
+		"files": [
+			{
+				"path": "plugin-manifest.json",
+				"sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+			},
+			{
+				"path": "apps/mail/app-manifest.json",
+				"sha256": "00d8d3f11739d2f3537099982b4674c29fc59a8fda350fca1379613adbb09119"
+			},
+			{
+				"path": "engines/linux-x64/loam-mail",
+				"sha256": "3bdbb4fe8397cd2b842430b39ccff01a8663c751945ef5e9a09e267fb8b1d359"
+			},
+			{
+				"path": "apps/Zeta/x",
+				"sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+			},
+			{
+				"path": "apps/mail/\u00e9.txt",
+				"sha256": "3f79bb7b435b05321651daefd374cdc681dc06faa65e374e38337b88ca046dea"
+			}
+		],
+		"digest": "f3241323af6a3bd2b9b977a9dda45e0ae90331707efa38316c36812f6774011d"
+	}
+}

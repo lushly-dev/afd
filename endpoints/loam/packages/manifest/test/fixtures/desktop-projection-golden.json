@@ -1,0 +1,242 @@
+{
+	"description": "The desktop's golden projection (phase 5 no-terminal amendment, 9.3; D168): one input, and what `loam deployment write --host desktop` (@lushly-dev/loam-cli's desktop-golden.test.ts) and loam-desktop's Rust materializer (step 9b) each write from it. `apps` is in the projection's order, which is the materializer's (plugin id, then app id); each names the plugin that brings it. An expected file's bytes are its object here, keys in the order written, serialized with tab indentation and a trailing newline. `mounts` lists the fields both write; the CLI adds `bearer`, the materializer `bearer_keychain` and `proof_key`, which each test asserts apart.",
+	"platform": "linux",
+	"workspace": {
+		"id": "personal",
+		"name": "Personal"
+	},
+	"identity": {
+		"mode": "local"
+	},
+	"inbound": true,
+	"copilot": {
+		"default": "claude",
+		"providers": [
+			{
+				"id": "claude",
+				"kind": "anthropic",
+				"model": "claude-sonnet-4-5",
+				"key": {
+					"keychain": "loam-copilot",
+					"account": "claude"
+				}
+			}
+		]
+	},
+	"apps": [
+		{
+			"plugin": "board",
+			"instance": "board",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"title": "An app",
+					"version": "0.1.0",
+					"description": "An app, for the desktop's golden projection.",
+					"id": "board",
+					"kind": "view",
+					"domains": ["board"]
+				},
+				"view": {}
+			}
+		},
+		{
+			"plugin": "mail",
+			"instance": "mail",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"title": "An app",
+					"version": "0.1.0",
+					"description": "An app, for the desktop's golden projection.",
+					"id": "mail",
+					"kind": "mounted",
+					"domains": ["mail"]
+				},
+				"mount": {
+					"prefix": "mail",
+					"transport": "http"
+				}
+			},
+			"mount": {
+				"port": 17400,
+				"auth": "approver",
+				"labels": "per-part",
+				"approvals": "shell",
+				"expose": {
+					"agent": true,
+					"palette": true
+				},
+				"commands": {
+					"mail-draft-send": {
+						"expose": {
+							"agent": true,
+							"apps": true
+						},
+						"preview": {
+							"command": "mail-draft-show",
+							"input": ["draft", "revision"]
+						}
+					},
+					"mail-draft-show": {
+						"expose": {
+							"agent": true,
+							"palette": true,
+							"apps": true
+						}
+					}
+				}
+			}
+		},
+		{
+			"plugin": "mail",
+			"instance": "mailapp",
+			"manifest": {
+				"manifest_version": 1,
+				"protocol": 1,
+				"plugin": {
+					"title": "An app",
+					"version": "0.1.0",
+					"description": "An app, for the desktop's golden projection.",
+					"id": "mailapp",
+					"kind": "native",
+					"domains": ["mailapp"]
+				},
+				"native": {
+					"entry": "dist/native.js"
+				}
+			}
+		}
+	],
+	"expected": {
+		"deployment": {
+			"deployment_version": 4,
+			"generation": "sha256-936727771bc472e8a613b600f58d209bc834660565039cac15ed673eac8202ac",
+			"workspace": {
+				"id": "personal",
+				"name": "Personal"
+			},
+			"sandbox_origin": "loam-sandbox://localhost",
+			"identity": {
+				"mode": "local"
+			},
+			"host": {
+				"kind": "desktop"
+			},
+			"copilot": {
+				"default": "claude",
+				"providers": [
+					{
+						"id": "claude",
+						"kind": "anthropic",
+						"model": "claude-sonnet-4-5"
+					}
+				]
+			},
+			"apps": [
+				{
+					"instance": "board",
+					"app": "board",
+					"package": "apps/board/",
+					"boot": {
+						"title": "An app",
+						"kind": "view",
+						"icon": "system/folder",
+						"order": 100,
+						"scope_levels": ["workspace"],
+						"rail": true,
+						"parts": [],
+						"layout": {},
+						"refusal": null
+					}
+				},
+				{
+					"instance": "mail",
+					"app": "mail",
+					"package": "apps/mail/",
+					"prefix": "mail",
+					"audience": "person",
+					"transport": "http",
+					"route": "mounts/mail/mcp",
+					"labels": "per-part",
+					"approvals": "shell",
+					"expose": {
+						"agent": true,
+						"palette": true
+					},
+					"commands": {
+						"mail-draft-send": {
+							"expose": {
+								"agent": true,
+								"apps": true
+							},
+							"preview": {
+								"command": "mail-draft-show",
+								"input": ["draft", "revision"]
+							}
+						},
+						"mail-draft-show": {
+							"expose": {
+								"agent": true,
+								"palette": true,
+								"apps": true
+							}
+						}
+					},
+					"boot": {
+						"title": "An app",
+						"kind": "mounted",
+						"icon": "system/folder",
+						"order": 100,
+						"scope_levels": ["workspace"],
+						"rail": true,
+						"parts": [],
+						"layout": {},
+						"refusal": null
+					}
+				},
+				{
+					"instance": "mailapp",
+					"app": "mailapp",
+					"package": "apps/mailapp/",
+					"boot": {
+						"title": "An app",
+						"kind": "native",
+						"icon": "system/folder",
+						"order": 100,
+						"scope_levels": ["workspace"],
+						"rail": true,
+						"parts": [],
+						"layout": {},
+						"refusal": null
+					}
+				}
+			]
+		},
+		"models": {
+			"providers": [
+				{
+					"id": "claude",
+					"kind": "anthropic",
+					"model": "claude-sonnet-4-5",
+					"key": {
+						"keychain": "loam-copilot",
+						"account": "claude"
+					}
+				}
+			]
+		},
+		"mounts": {
+			"mounts": [
+				{
+					"instance": "mail",
+					"url": "http://127.0.0.1:17400/mcp"
+				}
+			],
+			"inbound": true
+		},
+		"frameSrc": "loam-sandbox://localhost"
+	}
+}

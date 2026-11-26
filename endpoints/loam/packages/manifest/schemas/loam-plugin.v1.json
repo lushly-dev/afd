@@ -1,0 +1,238 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/loam/schemas/loam-plugin.v1.json",
+	"title": "Loam plugin manifest, version 1",
+	"description": "A plugin bundle's loam-plugin.toml, read as JSON, and the plugin-manifest.json `loam plugin pack` writes (phase 5 no-terminal amendment, section 4; D166): the packed apps a plugin brings and, optionally, its engine as hash-pinned artifacts. It names no command line, environment, location, port or token. Closed at every depth.",
+	"type": "object",
+	"properties": {
+		"plugin_manifest_version": {
+			"const": 1
+		},
+		"plugin": {
+			"type": "object",
+			"properties": {
+				"id": {
+					"$ref": "#/$defs/pluginId"
+				},
+				"title": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 80
+				},
+				"version": {
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/semver"
+				},
+				"description": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 500
+				},
+				"license": {
+					"description": "An SPDX expression, shown only.",
+					"type": "string",
+					"pattern": "^[A-Za-z0-9.+()-]+( (AND|OR|WITH) [A-Za-z0-9.+()-]+)*$",
+					"maxLength": 128
+				},
+				"homepage": {
+					"description": "Shown as text only: Loam never fetches or opens it. The reader also refuses one a URL parser does not read as `https:` with a host and no user name or password.",
+					"type": "string",
+					"pattern": "^https://\\S+$",
+					"maxLength": 512
+				}
+			},
+			"required": ["id", "title", "version", "description"],
+			"additionalProperties": false
+		},
+		"apps": {
+			"description": "The packed app packages the bundle holds, each a directory with its app-manifest.json.",
+			"type": "array",
+			"minItems": 1,
+			"maxItems": 8,
+			"items": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"$ref": "#/$defs/appId"
+					},
+					"path": {
+						"$ref": "#/$defs/bundlePath"
+					}
+				},
+				"required": ["id", "path"],
+				"additionalProperties": false
+			}
+		},
+		"engine": {
+			"type": "object",
+			"properties": {
+				"id": {
+					"$ref": "#/$defs/pluginId"
+				},
+				"kind": {
+					"enum": ["http-service"]
+				},
+				"mount_app": {
+					"$ref": "#/$defs/appId"
+				},
+				"service_mode": {
+					"enum": ["login"]
+				},
+				"artifacts": {
+					"description": "One artifact per platform the plugin ships for; at least one.",
+					"type": "object",
+					"properties": {
+						"darwin-arm64": {
+							"$ref": "#/$defs/artifact"
+						},
+						"darwin-x64": {
+							"$ref": "#/$defs/artifact"
+						},
+						"windows-x64": {
+							"$ref": "#/$defs/artifact"
+						},
+						"windows-arm64": {
+							"$ref": "#/$defs/artifact"
+						},
+						"linux-x64": {
+							"$ref": "#/$defs/artifact"
+						},
+						"linux-arm64": {
+							"$ref": "#/$defs/artifact"
+						}
+					},
+					"minProperties": 1,
+					"additionalProperties": false
+				},
+				"auth": {
+					"type": "object",
+					"properties": {
+						"mode": {
+							"enum": ["approver", "agent", "none"]
+						}
+					},
+					"required": ["mode"],
+					"additionalProperties": false
+				},
+				"mount": {
+					"description": "The mounted instance's policy, shown in full at consent before any entry is written.",
+					"type": "object",
+					"properties": {
+						"audience": {
+							"const": "person"
+						},
+						"labels": {
+							"enum": ["whole", "per-part"]
+						},
+						"approvals": {
+							"enum": ["none", "shell"]
+						},
+						"expose": {
+							"type": "object",
+							"properties": {
+								"agent": {
+									"type": "boolean"
+								},
+								"palette": {
+									"type": "boolean"
+								}
+							},
+							"additionalProperties": false
+						},
+						"commands": {
+							"type": "object",
+							"propertyNames": {
+								"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/commandName"
+							},
+							"maxProperties": 256,
+							"additionalProperties": {
+								"$ref": "#/$defs/commandOverride"
+							}
+						}
+					},
+					"additionalProperties": false
+				}
+			},
+			"required": ["id", "kind", "mount_app", "service_mode", "artifacts", "auth"],
+			"additionalProperties": false
+		}
+	},
+	"required": ["plugin_manifest_version", "plugin", "apps"],
+	"additionalProperties": false,
+	"$defs": {
+		"pluginId": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,31}$"
+		},
+		"appId": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9]{0,31}$"
+		},
+		"bundlePath": {
+			"description": "Relative to the bundle's root, with `/` separators and normal segments only; the reader refuses the rest (4.4, rule 3).",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 512
+		},
+		"artifact": {
+			"type": "object",
+			"properties": {
+				"path": {
+					"$ref": "#/$defs/bundlePath"
+				},
+				"sha256": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{64}$"
+				}
+			},
+			"required": ["path", "sha256"],
+			"additionalProperties": false
+		},
+		"commandOverride": {
+			"type": "object",
+			"properties": {
+				"expose": {
+					"type": "object",
+					"properties": {
+						"agent": {
+							"type": "boolean"
+						},
+						"palette": {
+							"type": "boolean"
+						},
+						"apps": {
+							"type": "boolean"
+						}
+					},
+					"additionalProperties": false
+				},
+				"effects": {
+					"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/effects"
+				},
+				"destructive": {
+					"type": "boolean"
+				},
+				"preview": {
+					"type": "object",
+					"properties": {
+						"command": {
+							"$ref": "https://afd.dev/spec/plugin-manifest.core.v1.json#/$defs/commandName"
+						},
+						"input": {
+							"type": "array",
+							"minItems": 1,
+							"maxItems": 16,
+							"uniqueItems": true,
+							"items": {
+								"type": "string",
+								"pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+							}
+						}
+					},
+					"required": ["command", "input"],
+					"additionalProperties": false
+				}
+			},
+			"additionalProperties": false
+		}
+	}
+}

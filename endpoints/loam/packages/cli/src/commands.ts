@@ -12,6 +12,8 @@ import { appPack } from './app-pack.js';
 import type { AppCheckReport } from './check.js';
 import { type CopilotKeySetDeps, copilotKeySet, systemKeySetDeps } from './copilot-key.js';
 import { analyzeDeployment, type DeploymentFinding, writeDeployment } from './deployment.js';
+import { type PluginCheckReport, pluginCheck } from './plugin-check.js';
+import { pluginPack } from './plugin-pack.js';
 
 /** A CLI command is on no shell surface: there is no shell here to expose it to. */
 const EXPOSE = { cli: true, palette: false, agent: false, mcp: false };
@@ -163,6 +165,57 @@ export const deploymentWriteCommand = defineCommand({
 				notices: written.notices,
 			},
 			{ reasoning: `Wrote ${written.projection.apps.length} instances.` }
+		);
+	},
+});
+
+/** What a plugin check reports beside its refusals: nothing secret, since a manifest holds no secret (D166). */
+function pluginDetails({ form, manifest, engines, bundleSha256, files }: PluginCheckReport) {
+	return {
+		...(form ? { form } : {}),
+		...(manifest
+			? {
+					plugin: { id: manifest.plugin.id, version: manifest.plugin.version },
+					apps: manifest.apps.map((app) => app.id),
+				}
+			: {}),
+		...(engines ? { engines } : {}),
+		...(files ? { files: files.length } : {}),
+		...(bundleSha256 ? { bundleSha256 } : {}),
+	};
+}
+
+export const pluginCheckCommand = defineCommand({
+	name: 'plugin-check',
+	title: 'Check a plugin',
+	description:
+		"Check a plugin's source or packed bundle: its manifest, its packed apps, its engines' SHA-256s and its bounds, running none of its code.",
+	input: z.object({ dir: z.string().optional() }),
+	mutation: false,
+	expose: EXPOSE,
+	async handler(input) {
+		const report = await pluginCheck(input);
+		if (!report.ok) return refused(report.refusals, pluginDetails(report));
+		return success(pluginDetails(report), {
+			reasoning: `No refusal; the bundle's digest is ${report.bundleSha256}.`,
+		});
+	},
+});
+
+export const pluginPackCommand = defineCommand({
+	name: 'plugin-pack',
+	title: 'Pack a plugin',
+	description:
+		"Check a plugin's source, then write the directory bundle the desktop installs: its manifest, packed apps and engines.",
+	input: z.object({ dir: z.string().optional(), out: z.string() }),
+	mutation: true,
+	expose: EXPOSE,
+	async handler(input) {
+		const { report, out, files, bundleSha256 } = await pluginPack(input);
+		if (!out) return refused(report.refusals, pluginDetails(report));
+		return success(
+			{ out, ...pluginDetails(report), files, ...(bundleSha256 ? { bundleSha256 } : {}) },
+			{ reasoning: `Packed ${files.length} files; the bundle's digest is ${bundleSha256}.` }
 		);
 	},
 });
