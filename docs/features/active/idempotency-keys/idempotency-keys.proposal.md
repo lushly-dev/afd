@@ -8,10 +8,10 @@ Epic: [#2672](https://github.com/lushly-dev/afd/issues/2672).
 
 | Field | Value |
 |---|---|
-| Status | Proposed 2026-11-26. No code. |
+| Status | Approved 2026-11-26: the owner accepted decisions I1 to I9 as recommended. No code yet; progress is in [STATUS.md](./STATUS.md). |
 | Author | jasfalk (drafted with Claude) |
 | Packages | `spec/`, `packages/core`, `packages/server`, `packages/client`, `packages/cli`, `python/`, `packages/rust`, `packages/cpp` |
-| Related | [`spec/execution-controls.md`](../../../../spec/execution-controls.md), [`spec/error-codes.md`](../../../../spec/error-codes.md), [`spec/recovery.md`](../../../../spec/recovery.md), [authorization, M8](../../../../spec/authorization.md#m8-the-principal-binding), [Factory Gateway](../../active/factory-gateway/factory-gateway.proposal.md), [journal seams](../journal-seams/journal-seams.proposal.md) |
+| Related | [`spec/execution-controls.md`](../../../../spec/execution-controls.md), [`spec/error-codes.md`](../../../../spec/error-codes.md), [`spec/recovery.md`](../../../../spec/recovery.md), [authorization, M8](../../../../spec/authorization.md#m8-the-principal-binding), [Factory Gateway](../factory-gateway/factory-gateway.proposal.md), [journal seams](../journal-seams/journal-seams.proposal.md) |
 
 ## Why
 
@@ -38,7 +38,7 @@ Applications answer it one at a time, each with its own spelling:
 
 - Factory Gateway gave two of its commands a `dedupe_key` input and wrote a job for it, "never
   file the same issue or post the same comment twice"
-  ([scenario 09](../../active/factory-gateway/scenarios/09-never-file-or-say-it-twice.scenario.yaml)).
+  ([scenario 09](../factory-gateway/scenarios/09-never-file-or-say-it-twice.scenario.yaml)).
 - Umbel's `knowledge-propose` takes a required `idempotency_key` input and refuses a reused one
   with `PROPOSAL_KEY_REUSED` (`endpoints/umbel/docs/phases/2-knowledge/spec.md`), and its
   curator carries keys of its own.
@@ -131,7 +131,7 @@ declared `keyed`, on a call that carries a key.
 | A stored result, same input digest | Returns it without running the handler, with `metadata.idempotentReplay: true` |
 | A stored result or a reservation, different input digest | Refuses with `IDEMPOTENCY_KEY_REUSED`, not retryable, recovery `stop` |
 | A live reservation, same input digest | Refuses with `IDEMPOTENCY_IN_PROGRESS`, retryable, recovery `retry` with `afterMs` |
-| A reservation that will never be completed | Refuses with the catalog's `OUTCOME_UNKNOWN`, not retryable, recovery `external`: the suggestion says to check the effect and then use a new key |
+| A reservation that will never be completed | Refuses with the existing `OUTCOME_UNKNOWN`, not retryable, recovery `external`: the suggestion says to check the effect and then use a new key |
 
 What the step stores when the handler settles:
 
@@ -176,8 +176,8 @@ that knows better passes `retryMutations: true`.
 
 The first half of this ships on its own, ahead of everything else here: until `idempotency`
 exists, the middleware stops repeating any command with `mutation: true`
-([#2673](https://github.com/lushly-dev/afd/issues/2673)). Whether that default change ships in a
-minor release is I6.
+([#2673](https://github.com/lushly-dev/afd/issues/2673)). That default change ships in a minor
+release, as a fix (I6).
 
 ### 5. What callers see
 
@@ -214,7 +214,9 @@ minor release is I6.
   callers-apart rule, the store's contract and the two tiers.
 - `spec/error-codes.md` and `spec/vectors/error-codes.json`: `IDEMPOTENCY_KEY_REUSED` and
   `IDEMPOTENCY_IN_PROGRESS` in a new `idempotency` profile, and `OUTCOME_UNKNOWN`'s entry
-  extended to the lost reservation.
+  extended to the lost reservation. `OUTCOME_UNKNOWN` is a transport-specific code today, not in
+  the shared catalog, so the spec pull request also decides whether it joins the profile or
+  stays where it is with the engine step named as a sender.
 - `spec/recovery.md`, engine table: the two new codes, `OUTCOME_UNKNOWN` from this step, and
   the conditional `retry` on `TIMEOUT`. `spec/execution-controls.md`: the expiry rule gains it.
 - `spec/context-fields.md` and `spec/meta-tools.json`: `idempotencyKey` joins the reserved
@@ -236,9 +238,11 @@ minor release is I6.
 | 3 | TypeScript ([#2675](https://github.com/lushly-dev/afd/issues/2675)): metadata, key delivery, the engine step and in-memory store, the retry rule, the CLI flag and DirectClient option, and the todo example's nine mutations each declared `natural` or `keyed` | Every vector passes in TypeScript; `afd validate --surface` on the todo example reports no undeclared mutation |
 | 4 | Python, Rust and C++ ([#2676](https://github.com/lushly-dev/afd/issues/2676)) | Every vector passes in each, and the parity page shows no gap |
 
-## Decisions for the owner
+## Decisions
 
-| # | Question | Recommendation |
+Decided by the owner on 2026-11-26, each as recommended.
+
+| # | Question | Decision |
 |---|---|---|
 | I1 | One field with `natural` and `keyed`, or a boolean? | The two values. An agent plans differently for "repeat freely" and "repeat only with a key", and only the first maps to `idempotentHint`. |
 | I2 | An engine step after the approval check, so a repeat is approved again, or an outer step, so a repeat skips the gates? | After the check. A repeat that skips authorization is a way to read a result without holding the rights to produce it. The cost is a second approval after a timed-out approved call. |
