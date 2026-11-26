@@ -425,13 +425,6 @@ export const styles = css`
         border-color: var(--_focus-ring);
     }
 
-    @media (forced-colors: active) {
-        td[tabindex]:focus-visible {
-            outline: 2px solid Highlight;
-            outline-offset: -2px;
-        }
-    }
-
     td[data-active="true"] {
         background: color-mix(in srgb, var(--_surface-selected) 70%, var(--_surface-page));
     }
@@ -709,6 +702,67 @@ export const styles = css`
 
         .toolbar-meta {
             justify-content: flex-end;
+        }
+    }
+
+    /*
+     * Forced colours drop background tints, so selection, the active cell and focus are drawn
+     * with system colours: selected cells and rows take Highlight, the active cell keeps Canvas
+     * inside a Highlight ring, and the focused cell adds an inner Highlight outline. This block
+     * is last so it outranks the tinted rules above. A custom cell template that renders text in a
+     * \`.cell-content\` element gets the same backplate opt-out as the default one.
+     */
+    @media (forced-colors: active) {
+        td[data-selected="true"],
+        td[data-fill-preview="true"],
+        tbody tr[data-selected="true"] td {
+            background-color: Highlight;
+            color: HighlightText;
+        }
+
+        /*
+         * Forced colours paint a Canvas backplate behind text, which would hide HighlightText on
+         * Highlight, so the plain cell text opts out and inherits the cell's system colours.
+         */
+        td[data-selected="true"] .cell-content,
+        td[data-fill-preview="true"] .cell-content,
+        tbody tr[data-selected="true"] td .cell-content {
+            forced-color-adjust: none;
+        }
+
+        tbody tr td[data-active="true"] {
+            background-color: Canvas;
+            color: CanvasText;
+        }
+
+        tbody tr td[data-active="true"] .cell-content {
+            forced-color-adjust: auto;
+        }
+
+        /* The row's checkbox already shows it is selected; on Highlight, a checked box would lose its edge. */
+        tbody tr[data-selected="true"] td.selection-cell {
+            background-color: Canvas;
+            color: CanvasText;
+        }
+
+        td[data-active="true"]::after,
+        td[tabindex]:focus-visible::after {
+            border-color: Highlight;
+        }
+
+        td[tabindex]:focus-visible {
+            outline: 2px solid Highlight;
+            outline-offset: -2px;
+        }
+
+        .column-resizer::before {
+            background: CanvasText;
+        }
+
+        /* Its focus ring is a box-shadow, which forced colours drop. */
+        .table-scroll:focus-visible {
+            outline: 2px solid Highlight;
+            outline-offset: -2px;
         }
     }
 `;

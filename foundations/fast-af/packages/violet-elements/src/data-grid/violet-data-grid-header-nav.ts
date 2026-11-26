@@ -1,4 +1,4 @@
-import { logicalArrowKey } from "../foundations/violet-direction";
+import { isRtl, logicalArrowKey } from "../foundations/violet-direction";
 import {
   keyboardResizedColumnWidth as computeKeyboardResizedColumnWidth,
   isColumnResizeShortcut,
@@ -58,7 +58,7 @@ export function handleColumnResizeKeyDownEvent(
     shiftKey: event.shiftKey,
     currentWidth: declaredPixels ?? host.renderedColumnWidth(columnId),
     minimumWidth: host.minimumColumnWidth(columnId),
-    rtl: getComputedStyle(host.element).direction === "rtl",
+    rtl: isRtl(host.element),
   });
 
   if (width === null) {

@@ -1767,6 +1767,7 @@ export class VioletDataGrid extends FASTElement {
             columnId,
             clientX: event.clientX,
             startWidth: this.renderedColumnWidth(columnId),
+            element: this,
         });
 
         if (!session) {

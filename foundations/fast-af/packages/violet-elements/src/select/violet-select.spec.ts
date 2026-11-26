@@ -638,4 +638,43 @@ describe("violet-select", () => {
       expect(requiredSelect.shadowRoot?.querySelector(".error")).toBeNull();
     });
   });
+
+  describe("in right-to-left", () => {
+    it("keeps a downward caret, aligns the list with the trigger and steps options with the arrow keys", async () => {
+      const select = await renderSelect();
+      select.setAttribute("dir", "rtl");
+      // Narrower than the viewport, so the list is not clamped to the viewport's padding.
+      select.style.inlineSize = "240px";
+      await nextFrame();
+
+      // The chevron is drawn from two physical edges and rotated; logical edges would point it sideways.
+      const caret = getComputedStyle(select.shadowRoot?.querySelector(".caret") as HTMLElement);
+      expect(caret.borderRightStyle).toBe("solid");
+      expect(caret.borderBottomStyle).toBe("solid");
+      expect(caret.borderLeftStyle).toBe("none");
+
+      const trigger = select.shadowRoot?.querySelector(".trigger") as HTMLElement;
+      const valueText = select.shadowRoot?.querySelector(".value") as HTMLElement;
+      const caretBox =
+        (
+          select.shadowRoot?.querySelector(".caret") as HTMLElement | null
+        )?.getBoundingClientRect() ?? new DOMRect();
+      expect(caretBox.right).toBeLessThan(valueText.getBoundingClientRect().left + 1);
+
+      select.show();
+      await nextFrame();
+      await nextFrame();
+      const panel = select.shadowRoot?.querySelector(".panel") as HTMLElement;
+      expect(getComputedStyle(panel).direction).toBe("rtl");
+      expect(panel.getBoundingClientRect().right).toBeCloseTo(
+        trigger.getBoundingClientRect().right,
+        0,
+      );
+
+      select.handleListboxKeydown(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+      select.handleListboxKeydown(new KeyboardEvent("keydown", { key: "Enter" }));
+      await nextFrame();
+      expect(select.value).toBe("transplant");
+    });
+  });
 });
