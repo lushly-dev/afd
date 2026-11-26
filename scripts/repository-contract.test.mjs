@@ -326,7 +326,17 @@ test('every non-reusable workflow job declares timeout-minutes, ci.yml disables 
 	// scheduled-failure-issue.yml watches every scheduled workflow in both directions.
 	const watcher = parseWorkflow(read('.github/workflows/scheduled-failure-issue.yml'));
 	const watched = watcher.triggers.workflow_run?.workflows ?? [];
-	assert.deepEqual([...watched].sort(), [...scheduledNames].sort());
+	// GitHub reads each entry as a filter pattern; an unescaped pattern character such as the `+`
+	// in `C++` fails the whole file at startup on every watched run's completion.
+	for (const pattern of watched) {
+		assert.doesNotMatch(
+			pattern.replace(/\\./g, ''),
+			/[*?+[\]!]/,
+			`scheduled-failure-issue.yml: escape the pattern characters in "${pattern}" with a backslash`
+		);
+	}
+	const names = watched.map((pattern) => pattern.replace(/\\(.)/g, '$1'));
+	assert.deepEqual([...names].sort(), [...scheduledNames].sort());
 });
 
 test('agent instruction files fit what every harness loads', () => {

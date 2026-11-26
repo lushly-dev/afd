@@ -3,13 +3,18 @@ name: Scheduled failure issue
 # Opens or updates one GitHub issue per scheduled workflow when a scheduled run fails, and
 # closes that issue when a later scheduled run succeeds (#1799). Running via `workflow_run`
 # keeps `issues: write` out of every CI workflow.
+#
+# GitHub reads each `workflows` entry as a filter pattern, so a name holding a pattern character
+# (`*`, `?`, `+`, `[`, `]`, `!`) is escaped with `\`: an unescaped `C++` stops this file from
+# loading and turns every watched run's completion into a startup failure. Keep entries plain or
+# single-quoted: the contract test's parser does not decode double-quoted escapes.
 on:
   workflow_run:
     workflows:
       - Botcore
       - CI
       - Conformance
-      - C++
+      - C\+\+
       - FAST-AF
       - Loam
       - Loam desktop
