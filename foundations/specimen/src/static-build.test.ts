@@ -14,12 +14,21 @@ const compat = resolve(import.meta.dirname, '../compat');
 interface BuildReport {
 	shellBytes: number;
 	budget: number;
-	total: { bytes: number; budget: number };
+	total: { bytes: number; tripwire: number };
 	styles: { file: string; bytes: number; budget: number };
-	categories: Record<string, { bytes: number; budget: number }>;
+	categories: Record<string, { bytes: number; budget?: number }>;
 	reported: { catalog: number; incumbent: number; consumer: number };
 	entries: { id: string; title: string; url: string; story?: { play: string } }[];
 	chunks: { file: string; category: string; bytes: number }[];
+	modules: {
+		id: string;
+		chunk: string;
+		category: string;
+		renderedBytes: number;
+		package?: { name: string; version: string };
+	}[];
+	waste: string[];
+	advisories: string[];
 }
 
 let scratch: string;
@@ -92,7 +101,7 @@ describe('the build accounting', () => {
 				.filter((chunk) => categories.includes(chunk.category))
 				.reduce((bytes, chunk) => bytes + chunk.bytes, 0);
 		expect(report.total.bytes).toBe(sum(['shell', 'interaction', 'accessibility']));
-		expect(report.total.bytes).toBeLessThanOrEqual(report.total.budget);
+		expect(report.total.bytes).toBeLessThanOrEqual(report.total.tripwire);
 		expect(report.reported).toEqual({
 			catalog: sum(['catalog']),
 			incumbent: sum(['incumbent']),
@@ -101,12 +110,55 @@ describe('the build accounting', () => {
 		expect(new Set(report.chunks.map((chunk) => chunk.category))).not.toContain(undefined);
 	});
 
+	it('gates the accessibility engine on waste, not size, and lists each module for comparison', () => {
+		const { report } = whole;
+		// No ceiling: axe-core's growth is reported, never failed on (#1072).
+		expect(report.categories.accessibility).toEqual({
+			bytes: report.categories.accessibility?.bytes,
+		});
+		expect(report.categories.shell?.budget).toBe(70_000);
+		expect(report.categories.interaction?.budget).toBe(615_000);
+		expect(report.total.tripwire).toBe(2_700_000);
+		expect(report.waste).toEqual([]);
+		const engine = report.modules.filter((module) => module.package?.name === 'axe-core');
+		expect(engine.length).toBeGreaterThan(0);
+		for (const module of engine) expect(module.category).toBe('accessibility');
+		// Machine-independent ids, so two builds' reports compare module by module.
+		for (const module of report.modules) {
+			expect(module.id).not.toMatch(/^\/|^[A-Za-z]:|\\|\0/);
+			expect(report.chunks.some((chunk) => chunk.file === module.chunk)).toBe(true);
+		}
+	});
+
+	it('fails a build whose preview loads the accessibility engine with every case', async () => {
+		const bench = await createSpecimenBench({
+			root: resolve(import.meta.dirname, '../fixtures/waste'),
+		});
+		try {
+			const dir = join(scratch, 'waste');
+			await expect(bench.build(dir)).rejects.toThrow(
+				/eager-accessibility: axe-core loads with every case, in assets\/axe-.+\.js/
+			);
+			const report = JSON.parse(
+				await readFile(join(dir, 'specimen-build.json'), 'utf8')
+			) as BuildReport;
+			expect(report.waste).toHaveLength(1);
+		} finally {
+			await bench.close();
+		}
+	}, 120_000);
+
 	it('counts Specimen’s own helpers and all they bring, and brings no Storybook', async () => {
 		const native = await built('native', ['native/native.stories.ts']);
 		expect(native.report.reported.incumbent).toBe(0);
 		expect(native.report.categories.interaction?.bytes).toBeGreaterThan(200_000);
 		// Only the fixture's own code: nothing the helpers import is left to look like a consumer's.
 		expect(native.report.reported.consumer).toBeLessThan(5_000);
+		// Testing Library's own ranges split these two; reported, and the build still passes.
+		expect(native.report.waste).toEqual([]);
+		expect(native.report.advisories.map((line) => line.split(' ')[1])).toEqual(
+			expect.arrayContaining(['aria-query', 'dom-accessibility-api'])
+		);
 	}, 120_000);
 
 	it('keeps the shell constant as stories grow: the catalog is what grows', async () => {

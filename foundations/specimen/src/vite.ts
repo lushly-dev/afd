@@ -21,6 +21,7 @@ import {
 	type Rolldown,
 	type ViteDevServer,
 } from 'vite';
+import { inspectBuild, TOTAL_TRIPWIRE } from './build-waste.js';
 import { listDesignCards, renderCardsPageHtml } from './cards.js';
 import { renderComparePageHtml } from './compare-page.js';
 import { bundled, defaultContext, type LoadedConfig } from './config.js';
@@ -130,18 +131,15 @@ const SHELL_BUDGET = 70_000;
 /** The index and preview pages' own stylesheet, in minified UTF-8 bytes; a story's CSS is its own. */
 const STYLE_BUDGET = 8_000;
 /**
- * The proposal's category ceilings, in minified UTF-8 JavaScript bytes. Accessibility moved from
- * 650,000 to 680,000 for axe-core 4.14.0 (#1022, 659,293 bytes), leaving 1,510 bytes under the
- * original 1,300,000 total; #2042 moved total to 1,330,000 alongside the shell ceiling (68,000);
- * #2037 moves interaction to 615,000 and total to 1,345,000 alongside the 70,000 shell ceiling
- * after the lazy `job-runtime`/`clock` chunk (4,420 bytes) took compat interaction to 598,652 B
- * on Windows / 600,210 B on Linux (total 1,325,796 B on Windows).
+ * The proposal's category ceilings, in minified UTF-8 JavaScript bytes, for the bench's own code.
+ * #2037 moved interaction to 615,000 after the lazy `job-runtime`/`clock` chunk (4,420 bytes)
+ * took compat interaction to 598,652 B on Windows / 600,210 B on Linux. The accessibility engine
+ * and the total have no ceiling (#1072): axe-core is a dependency whose growth is reported, and
+ * `build-waste.ts` fails what is waste instead, by a named cause, with a distant total tripwire.
  */
-const TOTAL_BUDGET = 1_345_000;
 const CATEGORY_BUDGETS = {
 	shell: SHELL_BUDGET,
 	interaction: 615_000,
-	accessibility: 680_000,
 } as const;
 /**
  * The helpers a play imports, with what they bring: the proposal's interaction support (Vitest
@@ -227,7 +225,9 @@ export async function prepareBenchSite(config: LoadedConfig): Promise<BenchSite>
 				outDir,
 				config.staticDirs,
 				bundled(config).entries,
-				config.root
+				config.root,
+				// What every case loads: the plugins and a retained story's project annotations.
+				[...config.plugins, ...(config.stories?.preview ? [config.stories.preview] : [])]
 			),
 		dispose: () => rm(root, { recursive: true, force: true }),
 	};
@@ -669,7 +669,8 @@ async function buildStatic(
 	outDir: string,
 	staticDirs: LoadedConfig['staticDirs'],
 	entries: SpecimenEntry[],
-	projectRoot: string
+	projectRoot: string,
+	alwaysLoaded: readonly string[]
 ): Promise<{ directory: string; shellBytes: number; budget: number; files: string[] }> {
 	const directory = resolve(outDir);
 	await mkdir(directory, { recursive: true });
@@ -784,6 +785,12 @@ async function buildStatic(
 		accessibility: bytesOf('accessibility'),
 	};
 	const total = Object.values(categoryBytes).reduce((sum, bytes) => sum + bytes, 0);
+	const { modules, waste, advisories } = inspectBuild(
+		chunks,
+		(fileName) => categories.get(fileName) ?? 'consumer',
+		{ packageSource, projectRoot, siteRoot: root, alwaysLoaded },
+		total
+	);
 	const outRoot = await realpath(directory);
 	const comparePath = join(outRoot, 'compare.html');
 	await assertNoSymlinkPath(outRoot, comparePath);
@@ -825,13 +832,14 @@ async function buildStatic(
 					...entry,
 					url: `specimen.html?id=${encodeURIComponent(entry.id)}`,
 				})),
-				total: { bytes: total, budget: TOTAL_BUDGET },
+				// A tripwire, not a budget: only an accident comes near it.
+				total: { bytes: total, tripwire: TOTAL_TRIPWIRE },
 				styles: { file: styles.fileName, bytes: styleBytes, budget: STYLE_BUDGET },
 				categories: Object.fromEntries(
-					Object.entries(categoryBytes).map(([category, bytes]) => [
-						category,
-						{ bytes, budget: CATEGORY_BUDGETS[category as keyof typeof CATEGORY_BUDGETS] },
-					])
+					Object.entries(categoryBytes).map(([category, bytes]) => {
+						const budget = CATEGORY_BUDGETS[category as keyof typeof CATEGORY_BUDGETS];
+						return [category, budget === undefined ? { bytes } : { bytes, budget }];
+					})
 				),
 				// The proposal reports consumer code separately, with no core-wide ceiling.
 				reported: {
@@ -844,6 +852,10 @@ async function buildStatic(
 					category: categories.get(chunk.fileName),
 					bytes: Buffer.byteLength(chunk.code),
 				})),
+				// Each module's rendered bytes, for `buildSizeDeltas` to compare with another build.
+				modules,
+				waste,
+				advisories,
 			},
 			null,
 			2
@@ -851,14 +863,13 @@ async function buildStatic(
 	);
 	if (shellBytes > SHELL_BUDGET)
 		throw new Error(`Bench shell exceeds budget: ${shellBytes} > ${SHELL_BUDGET} bytes`);
-	for (const [category, bytes] of Object.entries(categoryBytes)) {
-		const budget = CATEGORY_BUDGETS[category as keyof typeof CATEGORY_BUDGETS];
+	for (const [category, budget] of Object.entries(CATEGORY_BUDGETS)) {
+		const bytes = categoryBytes[category as keyof typeof CATEGORY_BUDGETS];
 		if (bytes > budget)
 			throw new Error(`Bench ${category} code exceeds budget: ${bytes} > ${budget} bytes`);
 	}
 	if (styleBytes > STYLE_BUDGET)
 		throw new Error(`Bench page styles exceed budget: ${styleBytes} > ${STYLE_BUDGET} bytes`);
-	if (total > TOTAL_BUDGET)
-		throw new Error(`Bench JavaScript exceeds budget: ${total} > ${TOTAL_BUDGET} bytes`);
+	if (waste.length) throw new Error(`Bench build has waste:\n- ${waste.join('\n- ')}`);
 	return report;
 }

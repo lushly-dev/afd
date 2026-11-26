@@ -10,6 +10,12 @@ export {
 	resolveElementRef,
 } from './browser/climb-dom.js';
 export {
+	type BuildModule,
+	type BuildSizeDelta,
+	buildSizeDeltas,
+	TOTAL_TRIPWIRE,
+} from './build-waste.js';
+export {
 	CARD_ID_LENGTH,
 	CARD_ID_PATTERN,
 	CARDS_DIR,

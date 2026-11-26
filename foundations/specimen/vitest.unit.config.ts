@@ -51,6 +51,7 @@ export default defineConfig({
 				'src/browser/clock.ts',
 				'src/browser/clock-parse.ts',
 				'src/browser/instrumentation.ts',
+				'src/build-waste.ts',
 				'src/card-decisions.ts',
 				'src/card-validate.ts',
 				'src/cards.ts',
