@@ -154,9 +154,8 @@ pub(super) fn lane(env: &Env<'_>) -> Result<Option<(Fresh, LaneOpen)>, String> {
 
 fn write(flags: &[MemoryFlag]) -> LaneWrite {
     LaneWrite {
-        evidence: None,
         flags: flags.to_vec(),
-        model: None,
+        ..LaneWrite::default()
     }
 }
 
@@ -286,6 +285,7 @@ fn declared_and_undeclared(env: &Env<'_>) -> CaseResult {
                 evidence: None,
                 flags: vec![MemoryFlag::InstructionLike],
                 model: Some(model),
+                quota: None,
             },
             &writer(),
         )

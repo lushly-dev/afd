@@ -9,7 +9,8 @@ use umbel_store::StoreError;
 
 use crate::error::{Fail, map_sql};
 use crate::schema::{
-    HELD_SCHEMA, LANE_SCHEMA, POSTINGS_BACKFILL, POSTINGS_SCHEMA, SCHEMA, SCHEMA_VERSION,
+    CHARGES_BACKFILL, CHARGES_SCHEMA, HELD_SCHEMA, LANE_SCHEMA, POSTINGS_BACKFILL, POSTINGS_SCHEMA,
+    SCHEMA, SCHEMA_VERSION,
 };
 
 /// How many idle connections the pool keeps.
@@ -213,6 +214,12 @@ fn initialise(conn: &mut Connection, space: &str, timeout: Duration) -> Result<(
             // 3 has it counted here, once, from its lane; a new store has no kind to count.
             tx.execute_batch(POSTINGS_SCHEMA)?;
             tx.execute_batch(POSTINGS_BACKFILL)?;
+        }
+        if version < 5 {
+            // Schema version 5 (D212): the principal each declared record is charged to. A store
+            // at version 2 to 4 has its records charged here, once, from their envelopes.
+            tx.execute_batch(CHARGES_SCHEMA)?;
+            tx.execute_batch(CHARGES_BACKFILL)?;
         }
         tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
         tx.commit()?;

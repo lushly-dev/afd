@@ -51,6 +51,13 @@ impl SqliteStore {
                 .optional()?
                 .unwrap_or(0);
             let postings = to_u64(postings)?;
+            // The largest use of any one principal (D212), by the index that covers the sums.
+            let (most_records, most_postings): (i64, i64) = tx.query_row(
+                super::charge::MOST_USE_SQL,
+                params![ns, kind],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )?;
+            let (most_records, most_postings) = (to_u64(most_records)?, to_u64(most_postings)?);
             let mut vectors = BTreeMap::new();
             {
                 let mut statement = tx.prepare(
@@ -71,6 +78,8 @@ impl SqliteStore {
                 unindexed,
                 with_match,
                 postings,
+                most_records,
+                most_postings,
                 vectors,
             })
         })

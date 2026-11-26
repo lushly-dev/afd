@@ -14,6 +14,7 @@ mod label;
 mod r#match;
 mod no_plugin_dependency;
 mod pack;
+mod quota;
 mod read;
 mod report;
 mod review_apply;

@@ -316,7 +316,7 @@ fn the_doctor_reads_version_7_and_names_an_unknown_key() {
         keys.suggestion
             .as_deref()
             .unwrap()
-            .contains("versions 1 to 7")
+            .contains("versions 1 to 8")
     );
 }
 
@@ -480,18 +480,11 @@ fn the_version_7_examples_validate_and_open() {
         }
         opens(&instance).unwrap_or_else(|error| panic!("{name}: {error}"));
     }
-    // What `umbel init` writes is the bare example.
-    let dir = tempfile::tempdir().unwrap();
-    let target = dir.path().join("fresh");
-    Workspace::init(&target, None).unwrap();
-    let written: toml::Table = fs::read_to_string(target.join("umbel.toml"))
-        .unwrap()
-        .parse()
-        .unwrap();
-    assert_eq!(
-        serde_json::to_value(written).unwrap(),
-        example("workspace-config.v7.json")
-    );
+    // What `umbel init` writes is version 8's bare example (`config_v8.rs`), which is this one
+    // lifted to version 8.
+    let mut bare = example("workspace-config.v7.json");
+    bare["config_version"] = json!(8);
+    assert_eq!(bare, example("workspace-config.v8.json"));
     // Each version's schema refuses the other's files.
     let v6 = self::validator(6);
     assert!(!v6.is_valid(&local_json()));

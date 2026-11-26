@@ -15,6 +15,7 @@
 //! decision row, attested by evidence that cites a document that is the person's own now, or
 //! unverified. Nothing of that is read from a body or from a call.
 
+mod charge;
 mod find;
 mod matching;
 #[cfg(any(test, feature = "testkit"))]

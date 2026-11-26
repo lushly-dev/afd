@@ -25,6 +25,7 @@ mod index;
 mod lane;
 mod matching;
 mod memory;
+mod quota;
 mod records;
 pub mod samples;
 mod standing;
@@ -308,6 +309,7 @@ const GROUPS: &[Group] = &[
     ("lane", lane::CASES),
     ("standing", standing::CASES),
     ("matching", matching::CASES),
+    ("quota", quota::CASES),
     ("changes", changes::CASES),
     ("envelope", envelope::CASES),
     ("access", access::CASES),

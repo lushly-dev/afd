@@ -84,6 +84,13 @@ pub enum StoreError {
     /// stored with another content hash, without saying which of those three. The reason names
     /// the rule and never a value. Nothing was written.
     EvidenceInvalid(String),
+    /// A declared put would leave its principal past a limit of the records write quota and
+    /// would add to its use of that limit (`RECORD_QUOTA_EXCEEDED`, records host specification
+    /// section 4.2, D212). Nothing was written.
+    RecordQuotaExceeded {
+        /// Which limit.
+        limit: crate::lane::RecordQuotaLimit,
+    },
 }
 
 impl StoreError {
@@ -139,6 +146,11 @@ impl fmt::Display for StoreError {
                 )
             }
             Self::EvidenceInvalid(rule) => write!(f, "the evidence is not acceptable: {rule}"),
+            Self::RecordQuotaExceeded { limit } => write!(
+                f,
+                "the writer's records quota's {} is reached for this kind; nothing was written",
+                limit.as_str()
+            ),
         }
     }
 }

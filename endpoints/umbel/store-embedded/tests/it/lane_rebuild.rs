@@ -311,6 +311,7 @@ fn a_wording_edited_while_undeclared_loses_its_standing_under_any_declaration() 
                     evidence: None,
                     flags: Vec::new(),
                     model: None,
+                    quota: None,
                 },
                 &everyone(),
             )

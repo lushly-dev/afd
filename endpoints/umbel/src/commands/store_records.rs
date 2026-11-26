@@ -605,6 +605,80 @@ fn size_check(found: &[Found], record_bound: u64, postings_bound: u64) -> Check 
     }
 }
 
+/// `records.quota` (D212): no principal is at or past the records write quota in a kind. A
+/// principal there keeps every record it holds, and its puts that would add more are refused
+/// (`RECORD_QUOTA_EXCEEDED`); a deployer who lowered a limit under what a principal holds, or a
+/// rebuild that gave its records more postings, is how one passes it. The check names no
+/// principal: the store reports the largest use, not whose. With no limit set (mode `none`'s
+/// default) it passes saying so; with a kind it could not read (`unread`, which
+/// `records.declared` names) a pass says it is incomplete.
+fn quota_check(found: &[Found], unread: usize, quota: umbel_store::lane::RecordQuota) -> Check {
+    const ID: &str = "records.quota";
+    if quota == umbel_store::lane::RecordQuota::unlimited() {
+        return Check::pass(
+            ID,
+            "no records write quota is set: limits.kind_records and limits.kind_postings apply by default only in a hosted mode".to_owned(),
+        );
+    }
+    let at: Vec<String> = found
+        .iter()
+        .filter_map(|kind| {
+            let records = kind.status.most_records >= quota.records;
+            let postings = kind.status.most_postings >= quota.postings;
+            let mut held = Vec::new();
+            if records {
+                held.push(format!(
+                    "{} of kind_records {}",
+                    kind.status.most_records,
+                    limit(quota.records)
+                ));
+            }
+            if postings {
+                held.push(format!(
+                    "{} of kind_postings {}",
+                    kind.status.most_postings,
+                    limit(quota.postings)
+                ));
+            }
+            (!held.is_empty())
+                .then(|| format!("{}: {} ({})", kind.space, kind.name, held.join(", ")))
+        })
+        .collect();
+    if at.is_empty() {
+        let incomplete = if unread == 0 {
+            String::new()
+        } else {
+            format!(" ({unread} declared kind(s) could not be read; records.declared names them)")
+        };
+        Check::pass(
+            ID,
+            format!(
+                "no principal holds kind_records {} or kind_postings {} in a declared record kind{incomplete}",
+                limit(quota.records),
+                limit(quota.postings)
+            ),
+        )
+    } else {
+        Check::warn(
+            ID,
+            format!(
+                "a principal is at or past its records write quota in: {}",
+                at.join("; ")
+            ),
+            "Its puts that would add records or postings to the kind are refused (RECORD_QUOTA_EXCEEDED); no service deletes a declared record, so raise limits.kind_records or limits.kind_postings in umbel.toml (config_version 8) if the use is expected.",
+        )
+    }
+}
+
+/// A limit as the check prints it: `none` for no limit.
+fn limit(value: u64) -> String {
+    if value == u64::MAX {
+        "none".to_owned()
+    } else {
+        value.to_string()
+    }
+}
+
 /// One space where a standing kind is enabled, as `records.standing` reports it.
 struct StandingSpace {
     space: String,
@@ -864,17 +938,17 @@ fn meaning_check(
     }
 }
 
-/// The doctor's five record checks on a sealed host, in order: `records.declared`,
-/// `records.standing`, `records.meaning`, `records.own` and `records.size`. The first and the
-/// last read the lane of every declared kind of every loaded instance, and the fourth the
-/// documents of every own collection, in each space that already has a store: a space nothing
+/// The doctor's six record checks on a sealed host, in order: `records.declared`,
+/// `records.standing`, `records.meaning`, `records.own`, `records.size` and `records.quota`.
+/// The first and the last two read the lane of every declared kind of every loaded instance, and
+/// the fourth the documents of every own collection, in each space that already has a store: a space nothing
 /// has written to is not given an empty store by a health check.
 pub(crate) fn checks(
     workspace: &Workspace,
     stores: &Hub,
     loaded: &LoadedPlugins,
     meaning: &MeaningHub,
-) -> [Check; 5] {
+) -> [Check; 6] {
     let mut found = Vec::new();
     let mut failed = Vec::new();
     let (mut unheld, mut own_failed, mut own_collections) = (Vec::new(), Vec::new(), 0usize);
@@ -937,6 +1011,7 @@ pub(crate) fn checks(
         meaning_check(workspace, loaded, meaning, &found),
         own_check(&unheld, &own_failed, own_collections),
         size_check(&found, LANE_DESIGN_RECORDS, MATCH_POSTINGS),
+        quota_check(&found, failed.len(), workspace.record_quota()),
     ]
 }
 
@@ -971,6 +1046,8 @@ mod tests {
                 unindexed: 0,
                 with_match: 0,
                 postings: 80,
+                most_records: 12,
+                most_postings: 80,
                 vectors: std::collections::BTreeMap::new(),
             },
         }
@@ -1186,6 +1263,68 @@ mod tests {
         );
         assert_eq!(LANE_DESIGN_RECORDS, 100_000);
         assert_eq!(MATCH_POSTINGS, 4_000_000);
+    }
+
+    #[test]
+    fn a_principal_at_its_quota_warns_naming_the_kind_and_the_limit() {
+        use umbel_store::lane::RecordQuota;
+        let ready = decl(false, &["/statement"]);
+        let kinds = [found(ready.clone(), LaneState::Ready, Some(&ready))];
+        // The fixture's largest use is 12 records and 80 postings.
+        let quota = |records, postings| RecordQuota { records, postings };
+        assert_eq!(
+            quota_check(&kinds, 0, quota(13, 81)).status,
+            CheckStatus::Pass
+        );
+        let check = quota_check(&kinds, 0, quota(12, 81));
+        assert_eq!(check.status, CheckStatus::Warn);
+        assert!(
+            check
+                .message
+                .contains("garden: notes.note (12 of kind_records 12)"),
+            "{check:?}"
+        );
+        let check = quota_check(&kinds, 0, quota(10, 40));
+        assert!(
+            check
+                .message
+                .contains("(12 of kind_records 10, 80 of kind_postings 40)"),
+            "{check:?}"
+        );
+        assert!(
+            check
+                .suggestion
+                .as_deref()
+                .unwrap()
+                .contains("RECORD_QUOTA_EXCEEDED"),
+            "{check:?}"
+        );
+        assert_eq!(
+            quota_check(&kinds, 0, crate::workspace::default_record_quota()).status,
+            CheckStatus::Pass
+        );
+        // A kind the doctor could not read makes a pass say so.
+        let check = quota_check(&kinds, 1, quota(13, 81));
+        assert_eq!(check.status, CheckStatus::Pass);
+        assert!(
+            check
+                .message
+                .contains("1 declared kind(s) could not be read"),
+            "{check:?}"
+        );
+        // No limit set: mode none's default.
+        let check = quota_check(&kinds, 0, RecordQuota::unlimited());
+        assert_eq!(check.status, CheckStatus::Pass);
+        assert!(
+            check.message.contains("no records write quota is set"),
+            "{check:?}"
+        );
+        // One limit set and the other none.
+        let check = quota_check(&kinds, 0, quota(u64::MAX, 40));
+        assert!(
+            check.message.contains("(80 of kind_postings 40)"),
+            "{check:?}"
+        );
     }
 
     #[test]

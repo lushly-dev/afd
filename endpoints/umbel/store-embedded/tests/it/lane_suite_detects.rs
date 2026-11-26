@@ -1,4 +1,4 @@
-//! The suite's `lane`, `standing` and `matching` groups fail on a broken backend (records host
+//! The suite's `lane`, `standing`, `matching` and `quota` groups fail on a broken backend (records host
 //! specification, section 15.1): the embedded store behind a wrapper that breaks one rule of
 //! the lane, of standing or of matching at a time, as `index_suite_detects.rs` does for the
 //! index. Unbroken, the wrapper passes all three groups.
@@ -95,6 +95,12 @@ enum Fault {
     VectorsIgnoreReader,
     /// `match_records` ignores `vectors.weight` and always uses `0.0`.
     WeightIgnored,
+    /// A declared put is never held to its writer's quota (D212).
+    QuotaIgnored,
+    /// A declared put is held to one record and one posting fewer than its quota.
+    QuotaOffByOne,
+    /// `lane_status` reports no principal's use.
+    UseHidden,
 }
 
 thread_local! {
@@ -246,6 +252,17 @@ impl DocumentStore for Faulty {
         lane: LaneWrite,
         writer: &ReaderFilter,
     ) -> Result<DeclaredPut, StoreError> {
+        let mut lane = lane;
+        match self.fault {
+            Fault::QuotaIgnored => lane.quota = None,
+            Fault::QuotaOffByOne => {
+                if let Some(quota) = lane.quota.as_mut() {
+                    quota.records = quota.records.saturating_sub(1);
+                    quota.postings = quota.postings.saturating_sub(1);
+                }
+            }
+            _ => {}
+        }
         self.inner
             .put_declared_record(ns, decl, id, body, envelope, expect, lane, writer)
     }
@@ -625,7 +642,16 @@ impl DocumentStore for Faulty {
             .reindex_records(ns, decl, scan, embedder, vectors_only)
     }
     fn lane_status(&self, ns: &str, decl: &RecordDecl) -> Result<LaneStatus, StoreError> {
-        self.inner.lane_status(ns, decl)
+        let status = self.inner.lane_status(ns, decl)?;
+        Ok(if self.fault == Fault::UseHidden {
+            LaneStatus {
+                most_records: 0,
+                most_postings: 0,
+                ..status
+            }
+        } else {
+            status
+        })
     }
     fn forget_record_history(&self, ns: &str, kind: &str, id: &str) -> Result<u64, StoreError> {
         self.inner.forget_record_history(ns, kind, id)
@@ -921,4 +947,55 @@ fn each_matching_fault_of_scoring_fails_where_it_should() {
             &["with_vectors_meaning_and_fused_hold_to_four_places_and_order_by_fused_then_id"],
         ),
     ]);
+}
+
+#[test]
+fn an_unfaulted_wrapper_passes_the_quota_group() {
+    assert_eq!(failures_of("quota", Fault::None), Vec::<&str>::new());
+}
+
+#[test]
+fn each_quota_fault_fails_where_it_should() {
+    for (fault, cases) in [
+        (
+            Fault::QuotaIgnored,
+            &[
+                "a_writer_past_its_record_limit_is_refused_and_another_writer_is_not",
+                "a_writer_past_its_posting_limit_is_refused_and_may_still_shrink",
+                "under_a_lowered_quota_a_put_that_keeps_or_shrinks_is_admitted",
+                "a_rewrite_by_another_principal_moves_the_whole_charge",
+                "a_rebuild_sets_every_charge_refusing_nothing_and_counting_nothing_twice",
+                "puts_by_one_writer_at_once_never_pass_its_quota_together",
+            ][..],
+        ),
+        (
+            Fault::QuotaOffByOne,
+            &[
+                "a_writer_past_its_record_limit_is_refused_and_another_writer_is_not",
+                "a_writer_past_its_posting_limit_is_refused_and_may_still_shrink",
+                "a_rewrite_by_another_principal_moves_the_whole_charge",
+                "a_rebuild_sets_every_charge_refusing_nothing_and_counting_nothing_twice",
+                "a_record_a_rebuild_leaves_without_lane_rows_releases_its_charge",
+                "puts_by_one_writer_at_once_never_pass_its_quota_together",
+            ][..],
+        ),
+        (
+            Fault::UseHidden,
+            &[
+                "a_writer_past_its_record_limit_is_refused_and_another_writer_is_not",
+                "a_writer_past_its_posting_limit_is_refused_and_may_still_shrink",
+                "under_a_lowered_quota_a_put_that_keeps_or_shrinks_is_admitted",
+                "a_rewrite_by_another_principal_moves_the_whole_charge",
+                "a_rebuild_sets_every_charge_refusing_nothing_and_counting_nothing_twice",
+            ][..],
+        ),
+    ] {
+        let failed = failures_of("quota", fault);
+        for case in cases {
+            assert!(
+                failed.contains(case),
+                "{fault:?} is not caught by {case}: {failed:?}"
+            );
+        }
+    }
 }

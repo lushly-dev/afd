@@ -150,6 +150,8 @@ pub(crate) mod records {
     /// A probes file is missing, too large, invalid against `record-probes.v1.json`, or names
     /// another space, plugin or kind.
     pub(crate) const RECORD_PROBES_INVALID: &str = "RECORD_PROBES_INVALID";
+    /// A declared put past its writer's records write quota (D212): nothing was written.
+    pub(crate) const RECORD_QUOTA_EXCEEDED: &str = "RECORD_QUOTA_EXCEEDED";
     /// No model is configured for the space, or its model did not load.
     pub(crate) const RECORD_MODEL_UNAVAILABLE: &str = "RECORD_MODEL_UNAVAILABLE";
 
@@ -205,6 +207,11 @@ pub(crate) fn host_error(error: StoreError) -> umbel_sdk::HostError {
         }
         other @ StoreError::EvidenceInvalid(_) => {
             HostError::Invalid(format!("{}: {other}", records::RECORD_EVIDENCE_INVALID))
+        }
+        // Memory's `MEMORY_QUOTA_EXCEEDED` is its own variant; the record lane's refusals are
+        // `Invalid`, code first, and this one names the limit (D212).
+        other @ StoreError::RecordQuotaExceeded { .. } => {
+            HostError::Invalid(format!("{}: {other}", records::RECORD_QUOTA_EXCEEDED))
         }
         other => HostError::Io(other.to_string()),
     }
@@ -311,6 +318,12 @@ mod tests {
                 "units must hold 1 to 256 unit numbers".to_owned()
             )),
             "RECORD_EVIDENCE_INVALID: the evidence is not acceptable: units must hold 1 to 256 unit numbers"
+        );
+        assert_eq!(
+            invalid(StoreError::RecordQuotaExceeded {
+                limit: umbel_store::lane::RecordQuotaLimit::Postings
+            }),
+            "RECORD_QUOTA_EXCEEDED: the writer's records quota's kind_postings is reached for this kind; nothing was written"
         );
         assert_eq!(
             records::stale_message("note"),

@@ -157,11 +157,7 @@ fn put(
         body,
         samples::envelope(access, "match", AT),
         Expect::Any,
-        LaneWrite {
-            evidence: None,
-            flags: Vec::new(),
-            model: None,
-        },
+        LaneWrite::default(),
         &writer(),
     )
     .map(drop)

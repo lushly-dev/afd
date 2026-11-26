@@ -94,6 +94,13 @@ fn host_code(message: &str) -> Option<&str> {
     (code.starts_with("RECORD_") || code.starts_with("STORE_")).then_some(code)
 }
 
+/// The limit a `RECORD_QUOTA_EXCEEDED` message names: `kind_records` or `kind_postings`.
+fn quota_limit(message: &str) -> Option<&'static str> {
+    ["kind_records", "kind_postings"]
+        .into_iter()
+        .find(|limit| message.contains(limit))
+}
+
 /// Whether the host refused a find's text for holding no token it indexes
 /// (`store/src/lane/query.rs:160`). The host answers `RECORD_QUERY_INVALID` for several rules,
 /// so the rule is read from its message.
@@ -122,6 +129,21 @@ pub(crate) fn host(error: &HostError) -> Outcome {
                     "The store is past its matching size; find by type or recency, and tell the operator",
                 )
                 .with_error_details(json!({ "host": "RECORD_QUERY_TOO_BROAD" })),
+                // The writer's records write quota (D212). The refused record was not written,
+                // and a call that writes several records keeps those before it, as after any
+                // host fault (section 7.1). No command deletes an idea, so the remedy is the
+                // operator's. The host's message names the limit, a configuration key and
+                // nothing of a record; only that key is passed on.
+                Some("RECORD_QUOTA_EXCEEDED") => failure(
+                    "QUOTA_EXCEEDED",
+                    "the host's records quota for this writer is reached; records this call wrote before the refusal stay",
+                    "Ask the operator to raise limits.kind_records or limits.kind_postings in umbel.toml (umbel workspace doctor names the kind), then send the call again with the same idempotencyKey to finish it; without one, find which ideas landed before sending the rest again",
+                )
+                .with_retryable(false)
+                .with_error_details(json!({
+                    "host": "RECORD_QUOTA_EXCEEDED",
+                    "limit": quota_limit(message),
+                })),
                 Some(
                     host @ ("RECORD_DECISION_NOT_GATED" | "RECORD_DECISION_NOT_THE_PERSON"),
                 ) => failure(

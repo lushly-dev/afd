@@ -9,6 +9,7 @@ use rusqlite::{Connection, params, params_from_iter};
 use umbel_store::lane::{FindOrder, KeyFilter, RecordDecl, RecordFind, StandingView, TextQuery};
 use umbel_store::{ReaderFilter, StoreError};
 
+use super::charge::{CHARGE_OF_SQL, MOST_USE_SQL, USE_SQL};
 use super::find::{and_filters, select};
 use super::matching::{hits_sql, identical_sql, missing_vector_sql, terms_sql, vectors_sql};
 use super::rank::{Scope, counts_sql};
@@ -238,6 +239,24 @@ impl SqliteStore {
                 explain_raw(&tx, FIRST_PUTS_SQL, [])?,
             ));
 
+            // 23. the records write quota: one principal's use (a put's step 7.5a, D212)
+            out.push((
+                "quota_use".to_owned(),
+                explain_raw(&tx, USE_SQL, params![ns, kind, "human:local"])?,
+            ));
+
+            // 24. a record's charge
+            out.push((
+                "quota_charge".to_owned(),
+                explain_raw(&tx, CHARGE_OF_SQL, [1i64])?,
+            ));
+
+            // 25. the largest use of any principal (lane_status)
+            out.push((
+                "quota_most".to_owned(),
+                explain_raw(&tx, MOST_USE_SQL, params![ns, kind])?,
+            ));
+
             Ok(out)
         })
     }
@@ -287,6 +306,7 @@ mod tests {
                         flags: Vec::new(),
                         evidence: None,
                         model: None,
+                        quota: None,
                     },
                     &reader,
                 )
@@ -302,7 +322,7 @@ mod tests {
         let plans = store
             .explain_lane_plans("notes", &decl, &view, &reader, "stub@0123456789abcdef")
             .expect("plans");
-        assert_eq!(plans.len(), 23);
+        assert_eq!(plans.len(), 26);
 
         let find_plan = |name: &str| -> String {
             plans
@@ -390,6 +410,25 @@ mod tests {
             find_plan("standing_sources").contains("SEARCH l USING INTEGER PRIMARY KEY"),
             "{}",
             find_plan("standing_sources")
+        );
+        // The quota reads only its principal's rows, from the index alone (D212).
+        assert!(
+            find_plan("quota_use").contains(
+                "SEARCH record_charges USING COVERING INDEX record_charges_by_principal (ns=? AND kind=? AND principal=?)"
+            ),
+            "{}",
+            find_plan("quota_use")
+        );
+        assert!(
+            find_plan("quota_charge").contains("SEARCH record_charges USING INTEGER PRIMARY KEY"),
+            "{}",
+            find_plan("quota_charge")
+        );
+        assert!(
+            find_plan("quota_most")
+                .contains("USING COVERING INDEX record_charges_by_principal (ns=? AND kind=?)"),
+            "{}",
+            find_plan("quota_most")
         );
     }
 }

@@ -27,6 +27,7 @@ use umbel_store::{
     unit_vector,
 };
 
+use super::charge::set_charge;
 use super::write::{
     LaneValues, add_postings, clear_standing, insert_lane, lane_row, update_lane, write_keys,
     write_terms,
@@ -178,6 +179,15 @@ enum Chunk {
     Last,
     /// The generation is not this rebuild's: it wrote nothing, and the rebuild stops.
     Superseded,
+}
+
+/// The `principal` a stored envelope names, if any.
+fn envelope_principal(envelope: &str) -> Result<Option<String>, crate::error::Fail> {
+    let envelope: Json = parse_json(envelope)?;
+    Ok(envelope
+        .get("principal")
+        .and_then(Json::as_str)
+        .map(str::to_owned))
 }
 
 impl SqliteStore {
@@ -334,6 +344,15 @@ impl SqliteStore {
                 };
                 write_terms(&tx, ns, kind, lane, &found)?;
                 write_keys(&tx, ns, kind, lane, &found)?;
+                // Charged to its envelope's principal with the postings it holds now, set and
+                // never added: no quota is checked, and no record counts twice (D212).
+                set_charge(
+                    &tx,
+                    lane,
+                    ns,
+                    kind,
+                    envelope_principal(envelope)?.as_deref(),
+                )?;
             }
             tx.commit()?;
             counts.records += chunk_counts.records;
@@ -858,6 +877,7 @@ mod tests {
                     flags: Vec::new(),
                     evidence: None,
                     model: None,
+                    quota: None,
                 },
                 &reader,
             )
@@ -953,6 +973,7 @@ mod tests {
                         flags: Vec::new(),
                         evidence: None,
                         model: None,
+                        quota: None,
                     },
                     &reader,
                 )
@@ -976,6 +997,7 @@ mod tests {
                         flags: Vec::new(),
                         evidence: None,
                         model: None,
+                        quota: None,
                     },
                     &reader,
                 )
@@ -1037,6 +1059,7 @@ mod tests {
                                 flags: Vec::new(),
                                 evidence: None,
                                 model: None,
+                                quota: None,
                             },
                             &reader,
                         )
@@ -1071,6 +1094,7 @@ mod tests {
                         flags: Vec::new(),
                         evidence: None,
                         model: None,
+                        quota: None,
                     },
                     &reader,
                 )
@@ -1136,6 +1160,7 @@ mod tests {
                                 flags: Vec::new(),
                                 evidence: None,
                                 model: None,
+                                quota: None,
                             },
                             &reader,
                         )
@@ -1152,6 +1177,7 @@ mod tests {
                                 flags: Vec::new(),
                                 evidence: None,
                                 model: None,
+                                quota: None,
                             },
                             &reader,
                         )
@@ -1194,6 +1220,7 @@ mod tests {
                     flags: Vec::new(),
                     evidence: None,
                     model: None,
+                    quota: None,
                 },
                 &reader,
             )

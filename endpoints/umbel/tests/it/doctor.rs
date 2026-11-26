@@ -106,6 +106,7 @@ fn a_fresh_workspace_is_healthy_with_seventeen_skipped_checks() {
             "records.meaning",
             "records.own",
             "records.size",
+            "records.quota",
             "state.writable",
             "state.lock",
             "keys.present",
@@ -145,6 +146,7 @@ fn a_fresh_workspace_is_healthy_with_seventeen_skipped_checks() {
             "records.meaning",
             "records.own",
             "records.size",
+            "records.quota",
             "mcp.surface",
             "cli.verbs",
             "plugins.loaded",
@@ -223,11 +225,11 @@ fn a_workspace_whose_umbel_toml_does_not_parse_is_still_reported() {
 
 #[test]
 fn config_parse_fails_for_another_version_and_names_the_supported_one() {
-    let (_dir, root) = with_config("config_version = 8\n");
+    let (_dir, root) = with_config("config_version = 9\n");
     let report = doctor::run(&root);
     let parse = check(&report, "config.parse");
     assert_eq!(parse.status, CheckStatus::Fail);
-    assert!(parse.message.contains("versions 1 to 7"));
+    assert!(parse.message.contains("versions 1 to 8"));
     assert!(parse.suggestion.is_some());
 }
 

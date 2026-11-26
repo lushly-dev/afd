@@ -25,7 +25,7 @@ fn the_store_is_wal_full_sync_with_the_default_autocheckpoint() {
     )
     .expect("opening");
     let info = store.info().expect("info");
-    assert_eq!(info.schema_version, 4);
+    assert_eq!(info.schema_version, 5);
     assert_eq!(info.journal_mode, "wal");
     assert!(
         info.synchronous_full,
@@ -52,7 +52,7 @@ fn a_newer_schema_is_refused_naming_what_this_build_serves() {
     let dir = tempfile::tempdir().expect("a temporary directory");
     drop(open_with(dir.path(), "main", StoreOptions::default()).expect("creating"));
     let raw = Connection::open(database(dir.path())).expect("a raw connection");
-    raw.pragma_update(None, "user_version", 5)
+    raw.pragma_update(None, "user_version", 6)
         .expect("bumping the version");
     drop(raw);
     let error = SqliteStore::open(dir.path(), "main", StoreOptions::default())
@@ -61,12 +61,12 @@ fn a_newer_schema_is_refused_naming_what_this_build_serves() {
     assert_eq!(
         error,
         StoreError::VersionUnsupported {
-            found: 5,
-            supported: 4
+            found: 6,
+            supported: 5
         }
     );
     assert!(
-        error.to_string().contains("version 5") && error.to_string().contains("up to version 4")
+        error.to_string().contains("version 6") && error.to_string().contains("up to version 5")
     );
 }
 

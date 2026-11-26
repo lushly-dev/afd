@@ -102,6 +102,7 @@ fn put(store: &dyn DocumentStore, id: &str, body: serde_json::Value) {
                 evidence: None,
                 flags: Vec::new(),
                 model: None,
+                quota: None,
             },
             &everyone(),
         )

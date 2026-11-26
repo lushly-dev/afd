@@ -14,8 +14,8 @@ fn a_correct_in_memory_backend_passes_every_case() {
     // Without a spawn_writer and an index, the multi-process case and every index case wait; the
     // embedded backend's own tests run those, and detect their faults. The fake has no memory
     // store, so every memory case waits too; `memory_suite_detects.rs` runs them on a fake of
-    // their own. It has no record lane either, so the `lane`, `standing` and `matching` groups
-    // wait for the embedded backend's tests as well.
+    // their own. It has no record lane either, so the `lane`, `standing`, `matching` and
+    // `quota` groups wait for the embedded backend's tests as well.
     let skipped = report.skipped();
     let (memory, other): (Vec<_>, Vec<_>) = skipped
         .iter()
@@ -29,9 +29,13 @@ fn a_correct_in_memory_backend_passes_every_case() {
     let (matching, other): (Vec<_>, Vec<_>) = other
         .into_iter()
         .partition(|s| s.starts_with("matching::") && s.contains("no record lane"));
+    let (quota, other): (Vec<_>, Vec<_>) = other
+        .into_iter()
+        .partition(|s| s.starts_with("quota::") && s.contains("no record lane"));
     assert_eq!(lane.len(), 17, "every lane case: {skipped:?}");
     assert_eq!(standing.len(), 17, "every standing case: {skipped:?}");
     assert_eq!(matching.len(), 18, "every matching case: {skipped:?}");
+    assert_eq!(quota.len(), 7, "every quota case: {skipped:?}");
     assert!(
         other
             .iter()
