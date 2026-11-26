@@ -831,6 +831,23 @@ describe('the agent port’s kernel half (3.2, P5-A2)', () => {
 		});
 	});
 
+	it("records one round's calls in the order they were made, not the order they settle (#2647)", async () => {
+		const { kernel, agent, session } = await fakeTurn();
+		// Sent together, as one model round's calls are: the asked mutation usually settles after the read made after it,
+		// which put the read first before #2647. Which settles first is left unasserted, so this never flakes on it.
+		agent.post({ id: 1, key: 'call', name: 'project-create', input: { name: 'Payroll' } });
+		agent.post({ id: 2, key: 'call', name: 'shell-info-get', input: {} });
+		await agent.next();
+		await agent.next();
+		const stopped = data<{ turn: CopilotTurnV1 }>(
+			await kernel.call('copilot-turn-stop', { session, turn: 1 })
+		);
+		expect(stopped.turn.calls.map((call) => [call.callId, call.command])).toEqual([
+			['cpc_0001', 'project-create'],
+			['cpc_0002', 'shell-info-get'],
+		]);
+	});
+
 	it('copies the trace to every call made while a copilot call runs, nested calls included (3.2)', async () => {
 		const launcher = fakeLauncher();
 		const { kernel, journal } = await setup({ launcher, documents: true });
