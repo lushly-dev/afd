@@ -9,12 +9,15 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import os
 import shutil
+import tempfile
 import tomllib
 from pathlib import Path
 
 import pytest
 from botcore.context import ExecutionContext
+from private_temp import private_temp
 
 from botcore_factory.adapter import FactoryConfig
 from botcore_factory.fixture_world import FixtureWorld, deep_merge, load_fixture, open_run
@@ -27,6 +30,19 @@ FIXTURES = SCENARIOS / "fixtures"
 EXAMPLE = Path(__file__).resolve().parents[1] / "scenarios" / "repository"
 #: The foreman session tests hold the lane with (``Run.take_lane``).
 FOREMAN = "thread-foreman"
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """On Windows, move ``tmp_path`` off a ``%TEMP%`` the token store refuses (#2696)."""
+    if os.name != "nt" or config.option.basetemp or os.environ.get("PYTEST_DEBUG_TEMPROOT"):
+        return  # pytest does not read tempfile then.
+    from botcore._windows_security import ensure_directory
+
+    # Resolved as pytest resolves its temporary root, so a junction is checked where it leads.
+    system_temp, home = Path(tempfile.gettempdir()).resolve(), Path.home().resolve()
+    private = private_temp(system_temp, home, ensure_directory)
+    if private is not None:
+        tempfile.tempdir = str(private)  # pytest reads it lazily, at the first tmp_path.
 
 
 def example_repository(directory: Path) -> Path:
