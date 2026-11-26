@@ -10,7 +10,12 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { StreamableHttpTransport } from '@lushly-dev/afd-client/streamable-http';
-import { type JournalEntry, type JournalRecord, MemoryJournalSink } from '@lushly-dev/afd-core';
+import {
+	type CommandResult,
+	type JournalEntry,
+	type JournalRecord,
+	MemoryJournalSink,
+} from '@lushly-dev/afd-core';
 import { createMcpHandler } from '@lushly-dev/afd-server';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { ManifestV1, ProjectionV3 } from '@lushly-dev/loam-manifest';
@@ -1070,4 +1075,235 @@ describe('#2117: kernel records, WAR ordering, kernel-run reads, and hosted MCP 
 		});
 		expect(report.entries.filter(({ status }) => status !== 'same')).toEqual([]);
 	});
+});
+
+/** The probe documents app in the scoped workspace, with one note, `Alpha`, and its journal kept apart. */
+async function probeNote() {
+	const store = new MemoryAdapter();
+	const docDeployment = () => ({
+		...deployment(),
+		apps: [...deployment().apps, { instance: 'probe', app: 'probe', package: 'fixtures/probe/' }],
+	});
+	const docPorts = () =>
+		createFixturePorts({
+			...scopedPackages(),
+			'fixtures/book/': { manifest: BOOK_MANIFEST, definition: BOOK },
+			'fixtures/probe/': {
+				manifest: PROBE_DOCUMENTS_MANIFEST,
+				definition: PROBE_DOCUMENTS_DEFINITION,
+			},
+		});
+	const journal = new MemoryJournalSink();
+	const { kernel } = await createScopedWorkspace({
+		store,
+		journal,
+		deployment: docDeployment(),
+		ports: docPorts(),
+	});
+	kernels.push(kernel);
+	const created = await kernel.call<{ id: string }>('document-create', {
+		type: 'probe',
+		title: 'Alpha',
+	});
+	const document = created.data?.id as string;
+	const get = store.get.bind(store);
+	const batch = store.batch.bind(store);
+	/** Whether `ops` is a write of the note's content, or of its record (the stamp). */
+	const content = (ops: Parameters<MemoryAdapter['batch']>[0]) =>
+		ops.some((op) => op.method === 'PUT' && op.path.startsWith('/app-probe/'));
+	const stamp = (ops: Parameters<MemoryAdapter['batch']>[0]) =>
+		ops.some((op) => op.method === 'PUT' && op.path === `/document/${document}`);
+	/** The journal's commands, in order, and what a replay of it changed. */
+	const replayed = async () => {
+		const entries = await journal.read();
+		const { report } = await replayKernel(entries, {
+			deployment: docDeployment(),
+			ports: docPorts(),
+		});
+		return {
+			commands: entries.map((entry) => entry.command),
+			different: report.entries.filter(({ status }) => status !== 'same'),
+		};
+	};
+	return { store, kernel, document, get, batch, content, stamp, replayed };
+}
+
+const held = () => {
+	let release!: () => void;
+	const promise = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	return { promise, release };
+};
+
+type Content = CommandResult<{ content: { text: string } | null }>;
+
+/**
+ * #2705: a type's instance query reads the record (its check) and then the content, and a concurrent instance mutation
+ * of the same document writes the content and then stamps the record. A stamp changes nothing a check reads, so it
+ * orders nothing against one: the content alone puts the query before or after the mutation, as the query saw it.
+ */
+describe('#2705: an instance query beside an instance mutation of the same document', () => {
+	it('journals a query that checked after the mutation’s check and read its content after it, after it (P2-D1)', async () => {
+		const note = await probeNote();
+		let query: Promise<Content> | undefined;
+		const found = held();
+		const stamped = held();
+		let holdFind = false;
+		note.store.batch = (async (ops: Parameters<MemoryAdapter['batch']>[0]) => {
+			if (note.stamp(ops)) stamped.release();
+			const result = await note.batch(ops);
+			if (!query && note.content(ops)) {
+				holdFind = true;
+				query = note.kernel.call('probe-content-get', {
+					document: note.document,
+				}) as Promise<Content>;
+				await found.promise;
+			}
+			return result;
+		}) as typeof note.store.batch;
+		note.store.get = (async <T>(table: string, id: string) => {
+			const result = await note.get<T>(table, id);
+			if (holdFind && table === 'document' && id === note.document) {
+				holdFind = false;
+				found.release();
+				// Its content read comes once the stamp is issued.
+				await stamped.promise;
+			}
+			return result;
+		}) as typeof note.store.get;
+
+		const set = await note.kernel.call('probe-content-set', {
+			document: note.document,
+			text: 'Alpha text',
+		});
+		expect(set.success, JSON.stringify(set.error)).toBe(true);
+		expect((await query)?.data?.content).toEqual({ text: 'Alpha text' });
+		const { commands, different } = await note.replayed();
+		expect(commands.indexOf('probe-content-get')).toBeGreaterThan(
+			commands.indexOf('probe-content-set')
+		);
+		expect(different).toEqual([]);
+	});
+
+	it('journals a query that checked before the mutation began and read its content after it, after it', async () => {
+		const note = await probeNote();
+		let set: Promise<CommandResult> | undefined;
+		const stamped = held();
+		let holdFind = true;
+		note.store.batch = (async (ops: Parameters<MemoryAdapter['batch']>[0]) => {
+			if (note.stamp(ops)) stamped.release();
+			return note.batch(ops);
+		}) as typeof note.store.batch;
+		note.store.get = (async <T>(table: string, id: string) => {
+			const result = await note.get<T>(table, id);
+			if (holdFind && table === 'document' && id === note.document) {
+				holdFind = false;
+				set = note.kernel.call('probe-content-set', {
+					document: note.document,
+					text: 'Alpha text',
+				});
+				// Its content read comes once the mutation has written the content and issued its stamp.
+				await stamped.promise;
+			}
+			return result;
+		}) as typeof note.store.get;
+
+		const query = (await note.kernel.call('probe-content-get', {
+			document: note.document,
+		})) as Content;
+		expect((await set)?.success).toBe(true);
+		expect(query.data?.content).toEqual({ text: 'Alpha text' });
+		const { commands, different } = await note.replayed();
+		expect(commands.indexOf('probe-content-get')).toBeGreaterThan(
+			commands.indexOf('probe-content-set')
+		);
+		expect(different).toEqual([]);
+	});
+
+	it('journals a query that ran whole between the mutation’s check and its write, before it', async () => {
+		const note = await probeNote();
+		let query: Content | undefined;
+		let armed = true;
+		// The mutation's quota reads its row before the write is issued: the query runs whole there.
+		note.store.get = (async <T>(table: string, id: string) => {
+			if (armed && table === 'app-probe') {
+				armed = false;
+				query = (await note.kernel.call('probe-content-get', {
+					document: note.document,
+				})) as Content;
+			}
+			return note.get<T>(table, id);
+		}) as typeof note.store.get;
+
+		const set = await note.kernel.call('probe-content-set', {
+			document: note.document,
+			text: 'Alpha text',
+		});
+		expect(set.success, JSON.stringify(set.error)).toBe(true);
+		expect(query?.data?.content).toEqual({ text: '' });
+		const { commands, different } = await note.replayed();
+		expect(commands.indexOf('probe-content-get')).toBeLessThan(
+			commands.indexOf('probe-content-set')
+		);
+		expect(different).toEqual([]);
+	});
+
+	for (const command of ['document-get', 'document-list'] as const) {
+		it(`replays a ${command} that read the record between the mutation’s check and its stamp`, async () => {
+			const note = await probeNote();
+			const before = (
+				(await note.kernel.call('document-get', { document: note.document })) as CommandResult<{
+					updatedAt: number;
+				}>
+			).data?.updatedAt;
+			let read: Promise<CommandResult> | undefined;
+			const seen = held();
+			let holdRead = false;
+			note.store.batch = (async (ops: Parameters<MemoryAdapter['batch']>[0]) => {
+				if (!read && note.content(ops)) {
+					holdRead = true;
+					read = note.kernel.call(
+						command,
+						command === 'document-get' ? { document: note.document } : {}
+					);
+					// The stamp waits until the read has read the record.
+					await seen.promise;
+				}
+				return note.batch(ops);
+			}) as typeof note.store.batch;
+			const record = (table: string) => {
+				if (holdRead && table === 'document') {
+					holdRead = false;
+					seen.release();
+				}
+			};
+			note.store.get = (async <T>(table: string, id: string) => {
+				const result = await note.get<T>(table, id);
+				record(table);
+				return result;
+			}) as typeof note.store.get;
+			const list = note.store.list.bind(note.store);
+			note.store.list = (async <T>(
+				table: string,
+				filter?: Parameters<MemoryAdapter['list']>[1]
+			) => {
+				const result = await list<T>(table, filter);
+				record(table);
+				return result;
+			}) as typeof note.store.list;
+
+			const set = await note.kernel.call('probe-content-set', {
+				document: note.document,
+				text: 'Alpha text',
+			});
+			expect(set.success, JSON.stringify(set.error)).toBe(true);
+			const got = (await read) as CommandResult<{
+				updatedAt?: number;
+				documents?: Array<{ updatedAt: number }>;
+			}>;
+			expect(got.data?.updatedAt ?? got.data?.documents?.[0]?.updatedAt).toBe(before);
+			expect((await note.replayed()).different).toEqual([]);
+		});
+	}
 });

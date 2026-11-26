@@ -211,6 +211,7 @@ export function createLinkCommands(deps: LinkDeps): ZodCommandDefinition[] {
 		const found: LinkRowV1[] = [];
 		for (const link of links) {
 			check.order(context, `doc:${link[other]}`)?.read();
+			check.order(context, `doc-stamp:${link[other]}`)?.read();
 			const record = await store.get<DocumentRecordV1>(DOCUMENT_TABLE, link[other]);
 			if (record?.scope.project !== undefined) check.order(context, 'record:project')?.read();
 			// Left out, and counted nowhere: missing, refused, or outside an app's scope (9.3).
