@@ -14,7 +14,7 @@ use crate::doctor::{self, AuthInputs, Check, CheckStatus};
 use crate::host::RESERVED_VERBS;
 use crate::plugins::{
     CompiledCatalog, LoadedPlugins, config_checks_check, first_class_check, loaded_check,
-    pack_checks_check, panicked_check, pipelines_check,
+    pack_checks_check, pipelines_check,
 };
 use crate::store::Hub;
 use crate::surfaces::{self, FirstClassPlan};
@@ -131,77 +131,78 @@ impl CommandHandler for Handler {
         {
             return afd::failure(operator_only());
         }
-        let workspace = Arc::clone(&self.workspace);
+        // AFD's timer started before this handler: the plugins' own checks get their deadline
+        // from here, as a compiled call does from its start, so the report answers before it.
+        let start = tokio::time::Instant::now();
         let registry = self.registry.upgrade();
         let first_class_ready = self.first_class.get().is_some();
-        let catalog = Arc::clone(&self.catalog);
-        let auth = AuthInputs {
-            #[cfg(feature = "auth")]
-            environment: self.auth_environment.clone(),
-            person_mcp: self.loaded.get().map(|loaded| person_mcp(loaded)),
-        };
-        let mut report = tokio::task::spawn_blocking(move || {
-            doctor::inspect_with(
-                Ok(Located {
-                    root: workspace.root().to_path_buf(),
-                    found_by: workspace.found_by(),
-                }),
-                Some(&catalog),
-                &auth,
-            )
-        })
-        .await
-        .unwrap_or_else(|_| doctor::run_with_catalog(self.workspace.root(), &self.catalog));
-        #[cfg(feature = "store-embedded")]
-        {
-            let stores = Arc::clone(&self.stores);
+        let inspection = async {
             let workspace = Arc::clone(&self.workspace);
-            let meaning = Arc::clone(&self.meaning);
-            let now = context.clock().now();
-            let loaded = self.loaded.get().cloned();
-            let found = tokio::task::spawn_blocking(move || {
-                let mut found: Vec<Check> = super::store_doctor_checks(&workspace, &stores).into();
-                found.extend(super::store_memory_checks(&workspace, &stores, now));
-                if let Some(loaded) = &loaded {
-                    found.extend(super::store_record_checks(
-                        &workspace, &stores, loaded, &meaning,
-                    ));
-                }
-                found
+            let catalog = Arc::clone(&self.catalog);
+            let auth = AuthInputs {
+                #[cfg(feature = "auth")]
+                environment: self.auth_environment.clone(),
+                person_mcp: self.loaded.get().map(|loaded| person_mcp(loaded)),
+            };
+            #[cfg_attr(not(feature = "store-embedded"), allow(unused_mut))]
+            let mut report = tokio::task::spawn_blocking(move || {
+                doctor::inspect_with(
+                    Ok(Located {
+                        root: workspace.root().to_path_buf(),
+                        found_by: workspace.found_by(),
+                    }),
+                    Some(&catalog),
+                    &auth,
+                )
             })
-            .await;
-            if let Ok(found) = found {
-                for found in found {
-                    if let Some(check) = report.checks.iter_mut().find(|c| c.id == found.id) {
-                        *check = found;
+            .await
+            .unwrap_or_else(|_| doctor::run_with_catalog(self.workspace.root(), &self.catalog));
+            #[cfg(feature = "store-embedded")]
+            {
+                let stores = Arc::clone(&self.stores);
+                let workspace = Arc::clone(&self.workspace);
+                let meaning = Arc::clone(&self.meaning);
+                let now = context.clock().now();
+                let loaded = self.loaded.get().cloned();
+                let found = tokio::task::spawn_blocking(move || {
+                    let mut found: Vec<Check> =
+                        super::store_doctor_checks(&workspace, &stores).into();
+                    found.extend(super::store_memory_checks(&workspace, &stores, now));
+                    if let Some(loaded) = &loaded {
+                        found.extend(super::store_record_checks(
+                            &workspace, &stores, loaded, &meaning,
+                        ));
+                    }
+                    found
+                })
+                .await;
+                if let Ok(found) = found {
+                    for found in found {
+                        if let Some(check) = report.checks.iter_mut().find(|c| c.id == found.id) {
+                            *check = found;
+                        }
                     }
                 }
             }
-        }
-        // The plugins' own pack checks read files, so they run on a blocking thread (D172).
-        let pack_checks = match self.loaded.get() {
-            Some(loaded) if registry.is_some() => {
-                let loaded = Arc::clone(loaded);
-                Some(
-                    tokio::task::spawn_blocking(move || pack_checks_check(&loaded))
-                        .await
-                        .unwrap_or_else(|_| panicked_check("plugins.pack_checks")),
-                )
-            }
-            _ => None,
+            report
         };
-        // The plugins' own configuration checks may read files or probe a local service.
-        let config_checks = match self.loaded.get() {
-            Some(loaded) if registry.is_some() => {
-                let loaded = Arc::clone(loaded);
-                Some(
-                    tokio::task::spawn_blocking(move || config_checks_check(&loaded))
-                        .await
-                        .unwrap_or_else(|_| panicked_check("plugins.config_checks")),
-                )
+        // The plugins' own checks are compiled-plugin code: they take D204's turns, and run
+        // beside the inspection, so a slow inspection does not use up their time.
+        let plugin_checks = async {
+            match self.loaded.get() {
+                Some(loaded) if registry.is_some() => {
+                    let gate = self.workspace.compiled_gate();
+                    let deadline = gate.check_deadline(&context, start);
+                    let (packs, config) = tokio::join!(
+                        pack_checks_check(loaded, gate.turns(), deadline),
+                        config_checks_check(loaded, gate.turns(), deadline),
+                    );
+                    (Some(packs), Some(config))
+                }
+                _ => (None, None),
             }
-            _ => None,
         };
+        let (mut report, (pack_checks, config_checks)) = tokio::join!(inspection, plugin_checks);
         if let Some(registry) = registry {
             let mut pack_checks = pack_checks;
             let mut config_checks = config_checks;

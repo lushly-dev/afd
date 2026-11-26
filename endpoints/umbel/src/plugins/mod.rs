@@ -44,7 +44,7 @@ pub(crate) use compiled_gate::CompiledGate;
 pub(crate) use content::file_hash as own_file_hash;
 pub(crate) use doctor::{
     checks as doctor_checks, config_checks_check, first_class_check, loaded_check,
-    pack_checks_check, panicked_check, pipelines_check,
+    pack_checks_check, pipelines_check,
 };
 pub use error::{PluginError, codes};
 pub use files::{AssetFiles, DirFiles, PluginFiles};

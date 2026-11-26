@@ -996,6 +996,7 @@ fn prepare(
                         space: state.space.clone(),
                         plugin: Arc::clone(plugin),
                         services: services.clone(),
+                        in_flight: Arc::new(tokio::sync::Mutex::new(())),
                     })
             })
             .collect(),
@@ -1006,6 +1007,7 @@ fn prepare(
         required,
         plugin: Arc::clone(plugin),
         services: services.clone(),
+        in_flight: Arc::new(tokio::sync::Mutex::new(())),
         space: (!spaces_enabled.contains(workspace.default_space()))
             .then(|| spaces_enabled.first())
             .flatten()

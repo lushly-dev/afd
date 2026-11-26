@@ -78,6 +78,10 @@ fn read_voice(cx: &Cx) -> Result<usize, Outcome> {
             "Retry.",
         )
     })?;
+    assert!(
+        !files.iter().any(|file| file == "data/panic.txt"),
+        "fixture panic"
+    );
     if files.iter().any(|file| file == "data/bad.txt") {
         return Err(failure(
             "VOICE_INVALID",
@@ -191,6 +195,19 @@ fn find<'a>(report: &'a Value, id: &str) -> &'a Value {
         .iter()
         .find(|check| check["id"] == id)
         .unwrap_or_else(|| panic!("no check {id}"))
+}
+
+#[tokio::test]
+async fn a_panicked_override_keeps_other_check_failures() {
+    let (_dir, root) = workspace("");
+    override_pack(&root, "beta", "voice", &["panic.txt"]);
+    override_pack(&root, "gamma", "voice", &["bad.txt"]);
+    let (_, report) = sealed(&root).await;
+    let check = find(&report, "plugins.pack_checks");
+    assert_eq!(check["status"], "fail");
+    let message = check["message"].as_str().unwrap();
+    assert!(message.contains("space `beta` panicked"), "{message}");
+    assert!(message.contains("VOICE_INVALID"), "{message}");
 }
 
 #[tokio::test]
