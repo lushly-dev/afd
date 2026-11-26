@@ -30,6 +30,7 @@
 			"!endpoints/loam/packages/theme/tree/*.tokens.json",
 			"!foundations/specimen/provenance/*.json",
 			"!foundations/specimen/fixtures/pack",
+			"!foundations/specimen/defaults/pack",
 			"!endpoints/umbel/plugins/components/packs",
 			"!endpoints/botcore/src/botcore/provenance/*.json",
 			"!spec/wire/*.json",

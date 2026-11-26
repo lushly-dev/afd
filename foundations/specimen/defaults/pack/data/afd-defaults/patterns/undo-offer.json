@@ -1,0 +1,140 @@
+{
+	"avoidWhen": [
+		{
+			"id": "undo-offer.avoid-when.irreversible",
+			"text": "Avoid offering undo for destructive commands that cannot be reversed; use destructive-confirm beforehand."
+		}
+	],
+	"customize": [
+		{
+			"id": "undo-offer.customize.duration",
+			"text": "Choose whether the undo offer sits in a non-blocking toast or an inline confirmation bar."
+		}
+	],
+	"facets": {
+		"behavior": [
+			"live-announcement",
+			"recovery"
+		],
+		"purpose": [
+			"reversibility",
+			"undo"
+		],
+		"structure": [
+			"status",
+			"toast"
+		]
+	},
+	"format": 2,
+	"gates": {
+		"fits-narrow": {
+			"context": {
+				"viewport": {
+					"height": 844,
+					"width": 390
+				}
+			},
+			"scenario": [
+				{
+					"expect": {
+						"layout": {
+							"noOverflow": true
+						},
+						"target": "undo"
+					},
+					"id": "narrow-layout"
+				}
+			],
+			"setup": "default"
+		},
+		"status-region": {
+			"scenario": [
+				{
+					"expect": {
+						"a11y": {
+							"role": "status"
+						},
+						"target": "notice"
+					},
+					"id": "check-status"
+				}
+			],
+			"setup": "default"
+		},
+		"undo-operable": {
+			"scenario": [
+				{
+					"expect": {
+						"a11y": {
+							"disabled": false,
+							"nameContains": "Undo",
+							"role": "button"
+						},
+						"target": "undo"
+					},
+					"id": "check-undo"
+				},
+				{
+					"action": {
+						"focus": "undo"
+					},
+					"id": "focus-undo"
+				},
+				{
+					"expect": {
+						"focus": true,
+						"target": "undo"
+					},
+					"id": "undo-focused"
+				}
+			],
+			"setup": "default"
+		}
+	},
+	"implementations": [],
+	"keep": [
+		{
+			"gate": "status-region",
+			"id": "undo-offer.keep.status-region",
+			"text": "Announces the completed reversible action in a polite status region."
+		},
+		{
+			"gate": "undo-operable",
+			"id": "undo-offer.keep.undo-operable",
+			"text": "Provides an operable Undo button reachable by keyboard focus."
+		},
+		{
+			"gate": "fits-narrow",
+			"id": "undo-offer.keep.fits-narrow",
+			"text": "Fits a narrow viewport without clipping the Undo button."
+		},
+		{
+			"id": "undo-offer.keep.invokes-undo-command",
+			"text": "Activating Undo invokes the result's undoCommand with its undoArgs rather than reimplementing reversal in the UI."
+		}
+	],
+	"pattern": "undo-offer",
+	"scope": "composition",
+	"setups": {
+		"default": {
+			"targets": {
+				"notice": {
+					"role": "status"
+				},
+				"undo": {
+					"nameContains": "Undo",
+					"role": "button"
+				}
+			},
+			"text": "Mount a reversible mutation result from spec/wire/result-success-full.json with a status region and an operable Undo button."
+		}
+	},
+	"status": "stable",
+	"summary": "Offer an immediate, keyboard-reachable Undo action inside a polite status notice after a reversible mutation.",
+	"useWhen": [
+		{
+			"id": "undo-offer.use-when.undoable-mutation",
+			"text": "Use when a command declares undoable: true or returns undoCommand and undoArgs so the person can take the change back immediately."
+		}
+	]
+}

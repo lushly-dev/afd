@@ -5,6 +5,7 @@ import { BenchWorkerClient } from './bench-worker-client.js';
 import { selectCompareEntries } from './compare.js';
 import { type LoadedConfig, loadConfig, resolveContext } from './config.js';
 import { checkDecisions, getDecision, listDecisions, recordDecision } from './decisions.js';
+import { runDesignStates } from './design-states.js';
 import { withGuides } from './guides.js';
 import type { SpecimenHostError } from './host.js';
 import { JOBS_COVERAGE_OBLIGATIONS, readJobCoverageFromSet } from './job-coverage.js';
@@ -82,6 +83,8 @@ import type {
 	DecisionListResult,
 	DecisionRecordRequest,
 	DecisionRecordResult,
+	DesignStatesRequest,
+	DesignStatesResult,
 	DiffRequest,
 	GateRun,
 	InspectRequest,
@@ -332,6 +335,8 @@ export interface SpecimenBench {
 	listDecisions(): Promise<DecisionListResult>;
 	/** Return current choice decisions covering any of the given `files`, `specimens`, or `tokens`. */
 	checkDecisions(request?: DecisionCheckRequest): Promise<DecisionCheckResult>;
+	/** Name every screen state a set of commands or a job scenario can produce, mapped to its pattern. */
+	designStates(request?: DesignStatesRequest): Promise<DesignStatesResult>;
 	build(
 		outDir: string
 	): Promise<{ directory: string; shellBytes: number; budget: number; files: string[] }>;
@@ -356,6 +361,7 @@ export type BenchRuntime = Omit<
 	| 'getDecision'
 	| 'listDecisions'
 	| 'checkDecisions'
+	| 'designStates'
 > & {
 	/** Build the configured pack from two passes over every case, and write nothing. */
 	packBuild(request?: PackBuildRequest): Promise<PackBuildRun>;
@@ -1113,6 +1119,13 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		async checkDecisions(rawRequest = {}) {
 			const snapshot = ensureOpen();
 			return checkDecisions(snapshot.root, rawRequest);
+		},
+		async designStates(rawRequest = {}) {
+			ensureOpen();
+			return enqueueLocal(async (initial) => {
+				const current = await refreshConfigIfChanged(initial);
+				return runDesignStates(current, rawRequest);
+			});
 		},
 		close() {
 			closing ??= (async () => {

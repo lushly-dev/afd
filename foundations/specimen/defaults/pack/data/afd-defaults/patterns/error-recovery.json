@@ -1,0 +1,152 @@
+{
+	"avoidWhen": [
+		{
+			"id": "error-recovery.avoid-when.empty-state",
+			"text": "Avoid for empty search or list results where the command succeeded; use collection-states instead."
+		}
+	],
+	"customize": [
+		{
+			"id": "error-recovery.customize.placement",
+			"text": "Place inline beside the failing control or in an embedded notice region depending on scope."
+		}
+	],
+	"facets": {
+		"behavior": [
+			"live-announcement",
+			"recovery"
+		],
+		"purpose": [
+			"error-state",
+			"recovery"
+		],
+		"structure": [
+			"alert",
+			"notice"
+		]
+	},
+	"format": 2,
+	"gates": {
+		"alert-role": {
+			"scenario": [
+				{
+					"expect": {
+						"a11y": {
+							"role": [
+								"alert",
+								"region"
+							]
+						},
+						"target": "notice"
+					},
+					"id": "check-notice"
+				}
+			],
+			"setup": "default"
+		},
+		"fits-narrow": {
+			"context": {
+				"viewport": {
+					"height": 800,
+					"width": 320
+				}
+			},
+			"scenario": [
+				{
+					"expect": {
+						"layout": {
+							"noOverflow": true
+						},
+						"target": "notice"
+					},
+					"id": "narrow-layout"
+				}
+			],
+			"setup": "default"
+		},
+		"recovery-operable": {
+			"scenario": [
+				{
+					"expect": {
+						"a11y": {
+							"disabled": false,
+							"nameContains": "Retry",
+							"role": [
+								"button",
+								"link"
+							]
+						},
+						"target": "recovery"
+					},
+					"id": "check-recovery"
+				},
+				{
+					"action": {
+						"focus": "recovery"
+					},
+					"id": "focus-recovery"
+				},
+				{
+					"expect": {
+						"focus": true,
+						"target": "recovery"
+					},
+					"id": "recovery-focused"
+				}
+			],
+			"setup": "default"
+		}
+	},
+	"implementations": [],
+	"keep": [
+		{
+			"gate": "alert-role",
+			"id": "error-recovery.keep.alert-role",
+			"text": "Announces the failure in an alert or named notice region visible to assistive technology."
+		},
+		{
+			"gate": "recovery-operable",
+			"id": "error-recovery.keep.recovery-operable",
+			"text": "Provides an operable recovery control with an accessible name when retry or follow-up action is available."
+		},
+		{
+			"gate": "fits-narrow",
+			"id": "error-recovery.keep.fits-narrow",
+			"text": "Fits a narrow viewport without horizontal overflow or clipped error text."
+		},
+		{
+			"id": "error-recovery.keep.clear-next-step",
+			"text": "Show both what failed (error.message) and what the person can do next (error.suggestion) in plain language."
+		}
+	],
+	"pattern": "error-recovery",
+	"scope": "composition",
+	"setups": {
+		"default": {
+			"targets": {
+				"notice": {
+					"role": [
+						"alert",
+						"region"
+					]
+				},
+				"recovery": {
+					"nameContains": "Retry",
+					"role": [
+						"button",
+						"link"
+					]
+				}
+			},
+			"text": "Mount a command failure from spec/wire/result-failure.json showing the error message, suggestion, and an operable recovery control."
+		}
+	},
+	"status": "stable",
+	"summary": "Show a command failure with its message and actionable recovery step in an accessible alert or notice.",
+	"useWhen": [
+		{
+			"id": "error-recovery.use-when.command-failure",
+			"text": "Use whenever an AFD command returns success: false with an error message and recovery suggestion."
+		}
+	]
+}

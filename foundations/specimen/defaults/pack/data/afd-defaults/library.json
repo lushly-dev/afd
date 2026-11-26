@@ -1,0 +1,218 @@
+{
+	"components": [],
+	"copies": [],
+	"digest": "sha256:564e71d8e414b8a308f2d17bd668db8f9b40009bfee0992744c4899f14ef9755",
+	"format": 2,
+	"library": "afd-defaults",
+	"package": {
+		"name": "@lushly-dev/specimen",
+		"version": "1.0.0"
+	},
+	"patterns": [
+		{
+			"digest": "sha256:0e9c98c2d85cffeb99a294ff6fe474b9524e72ed4d384cb3f538378185155fce",
+			"facets": {
+				"behavior": [
+					"selection"
+				],
+				"purpose": [
+					"alternatives",
+					"confidence"
+				],
+				"structure": [
+					"panel"
+				]
+			},
+			"pattern": "alternatives-and-confidence",
+			"scope": "composition",
+			"status": "stable",
+			"summary": "Present a primary result alongside selectable alternatives and calibrated certainty without tying auto-apply to confidence."
+		},
+		{
+			"digest": "sha256:385f24d715136ac2aeea0ee193699e260134567cca54339c7bae08eec6212220",
+			"facets": {
+				"behavior": [
+					"confirmation",
+					"focus-management"
+				],
+				"purpose": [
+					"approval",
+					"governance"
+				],
+				"structure": [
+					"dialog",
+					"panel"
+				]
+			},
+			"pattern": "approval-request",
+			"scope": "composition",
+			"status": "stable",
+			"summary": "Show an action held for explicit approval with what was requested, where it waits, and safe focus on decline or cancel."
+		},
+		{
+			"digest": "sha256:b0007340a455ae6a4862c6be23d12f457c9f593957af4d0ee6c1738b45020733",
+			"facets": {
+				"behavior": [
+					"live-announcement",
+					"recovery"
+				],
+				"purpose": [
+					"batch",
+					"partial-failure"
+				],
+				"structure": [
+					"list",
+					"status"
+				]
+			},
+			"pattern": "batch-partial-failure",
+			"scope": "composition",
+			"status": "stable",
+			"summary": "Report per-item outcomes of a batch command so succeeded items stay done and failed items expose reasons and recovery controls."
+		},
+		{
+			"digest": "sha256:1a57dfe4745b6300b5393635d87e9c313caf8f99a9df4c12c606e23cfb8b7ca5",
+			"facets": {
+				"behavior": [
+					"state-distinction"
+				],
+				"purpose": [
+					"collection",
+					"empty-state",
+					"error-state"
+				],
+				"structure": [
+					"list"
+				]
+			},
+			"pattern": "collection-states",
+			"scope": "composition",
+			"status": "stable",
+			"summary": "Distinguish populated, empty, loading, and failed collection states clearly so an empty list never looks like an error."
+		},
+		{
+			"digest": "sha256:1eafd0ed787d60b044075f5190250751572d6d1b80a5e9c666cf26ca60a61c62",
+			"facets": {
+				"behavior": [
+					"confirmation",
+					"escape-dismiss",
+					"focus-management"
+				],
+				"purpose": [
+					"destructive-action",
+					"safety"
+				],
+				"structure": [
+					"dialog"
+				]
+			},
+			"pattern": "destructive-confirm",
+			"scope": "composition",
+			"status": "stable",
+			"summary": "Ask for explicit confirmation before running a destructive command, focusing Cancel first and cancelling cleanly on Escape."
+		},
+		{
+			"digest": "sha256:ab1fd5e96d8818b8ddc733ad1b61f10b6344d4d703e1edf1116c9b917f59cfe2",
+			"facets": {
+				"behavior": [
+					"live-announcement",
+					"recovery"
+				],
+				"purpose": [
+					"error-state",
+					"recovery"
+				],
+				"structure": [
+					"alert",
+					"notice"
+				]
+			},
+			"pattern": "error-recovery",
+			"scope": "composition",
+			"status": "stable",
+			"summary": "Show a command failure with its message and actionable recovery step in an accessible alert or notice."
+		},
+		{
+			"digest": "sha256:4a1cf38159b9d3f977ea56c69e864981ad36dbe27708785d6b78ad10f93f11a4",
+			"facets": {
+				"behavior": [
+					"disclosure"
+				],
+				"purpose": [
+					"evidence",
+					"transparency"
+				],
+				"structure": [
+					"panel"
+				]
+			},
+			"pattern": "evidence-and-sources",
+			"scope": "composition",
+			"status": "stable",
+			"summary": "Make a command result's reasoning and cited sources inspectable with operable source references."
+		},
+		{
+			"digest": "sha256:5b8abc8003e1dfef1ff4eb28b074f73806c86c04fabf31a260c395c553d83ca2",
+			"facets": {
+				"behavior": [
+					"live-announcement"
+				],
+				"purpose": [
+					"loading",
+					"progress"
+				],
+				"structure": [
+					"status"
+				]
+			},
+			"pattern": "progress-and-plan",
+			"scope": "composition",
+			"status": "stable",
+			"summary": "Show pending work and multi-step plan status in an accessible status or progressbar region without stealing focus."
+		},
+		{
+			"digest": "sha256:9cee343b19a201a2172d897b725f0f793bd8157cdb9e6377442bcb8eb2a9c389",
+			"facets": {
+				"behavior": [
+					"live-announcement",
+					"recovery"
+				],
+				"purpose": [
+					"reversibility",
+					"undo"
+				],
+				"structure": [
+					"status",
+					"toast"
+				]
+			},
+			"pattern": "undo-offer",
+			"scope": "composition",
+			"status": "stable",
+			"summary": "Offer an immediate, keyboard-reachable Undo action inside a polite status notice after a reversible mutation."
+		},
+		{
+			"digest": "sha256:23e824ad5907afb004b546adaeadff895463d1dc44284b09336fe96d3220f2f5",
+			"facets": {
+				"behavior": [
+					"dismissible",
+					"live-announcement"
+				],
+				"purpose": [
+					"warnings"
+				],
+				"structure": [
+					"banner",
+					"toast"
+				]
+			},
+			"pattern": "warnings-banner",
+			"scope": "composition",
+			"status": "stable",
+			"summary": "Surface non-blocking result warnings with text tone indicators and a named dismiss control without relying on color alone."
+		}
+	],
+	"prefix": "afd-",
+	"rules": "sha256:278e5beccdcc3761edfe6ca3de461a4d2c112d9a575eb5499d2939bff254447f",
+	"title": "AFD default result-state patterns"
+}

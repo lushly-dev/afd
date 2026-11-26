@@ -30,6 +30,8 @@ import {
 	decisionListResultSchema,
 	decisionRecordRequestSchema,
 	decisionRecordResultSchema,
+	designStatesRequestSchema,
+	designStatesResultSchema,
 	gateRunSchema,
 	inspectRequestSchema,
 	inspectResultSchema,
@@ -118,6 +120,8 @@ import type {
 	DecisionListResult,
 	DecisionRecordRequest,
 	DecisionRecordResult,
+	DesignStatesRequest,
+	DesignStatesResult,
 	DiffRequest,
 	GateRun,
 	InspectRequest,
@@ -352,6 +356,7 @@ export interface SpecimenCommandBench {
 	getDecision(request: DecisionGetRequest): Promise<DecisionGetResult>;
 	listDecisions(): Promise<DecisionListResult>;
 	checkDecisions(request?: DecisionCheckRequest): Promise<DecisionCheckResult>;
+	designStates(request?: DesignStatesRequest): Promise<DesignStatesResult>;
 }
 
 /** One story or synthesized gate by id, or a suite by filter; the handler tells them apart. */
@@ -1102,6 +1107,23 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				'Capture both sets under the same conditions with specimen-capture before running specimen-review.'
 			),
 	});
+	const designStates = defineCommand({
+		...common,
+		name: 'design-states',
+		description:
+			'Name every screen state a set of commands or a job scenario can produce, mapped to the approved pattern (from afd-defaults or product bindings) covering each state, with concrete nextSteps and unmeasured areas. Read-only and browserless; refuses empty input with NO_COMMANDS and unknown product commands with TARGET_COMMAND_NOT_FOUND.',
+		mutation: false,
+		outputBudget: { defaultBytes: 32768, maxBytes: 98304 },
+		input: designStatesRequestSchema,
+		output: designStatesResultSchema,
+		handler: async (input) =>
+			result(
+				() => bench.designStates(input),
+				designStatesResultSchema,
+				'SPECIMEN_DESIGN_STATES_FAILED',
+				'Pass at least one command name in commands or a scenario path in scenario, and verify commandManifest in specimen.config.json.'
+			),
+	});
 	return [
 		list,
 		render,
@@ -1140,6 +1162,7 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		decisionGet,
 		decisionList,
 		decisionCheck,
+		designStates,
 	] as const;
 }
 
@@ -1239,6 +1262,7 @@ export async function executeSpecimenCommand(
 		decisionGet,
 		decisionList,
 		decisionCheck,
+		designStates,
 	] = createSpecimenCommands(bench);
 	switch (name) {
 		case 'specimen-list':
@@ -1315,12 +1339,14 @@ export async function executeSpecimenCommand(
 			return execute(decisionList, input, options);
 		case 'decision-check':
 			return execute(decisionCheck, input, options);
+		case 'design-states':
+			return execute(designStates, input, options);
 		default:
 			return failure({
 				code: 'COMMAND_NOT_FOUND',
 				message: `Unknown command: ${name}`,
 				suggestion:
-					'Use specimen list, validate, inspect, render, capture, compare, review, run, themes, migrate, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, job-run, decision-record, decision-get, decision-list, or decision-check.',
+					'Use specimen list, validate, inspect, render, capture, compare, review, run, themes, migrate, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, job-run, decision-record, decision-get, decision-list, decision-check, or design-states.',
 			});
 	}
 }

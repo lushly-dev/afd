@@ -193,9 +193,19 @@ export async function loadConfig(options: BenchOptions): Promise<LoadedConfig> {
 	const defaultPatternsDir = resolve(dirname(file), DEFAULT_PATTERNS_DIRECTORY);
 	const hasDefaultPatternsDir =
 		existsSync(defaultPatternsDir) && statSync(defaultPatternsDir).isDirectory();
+	const effectivePatternSources = (() => {
+		const configured = config.patternSources ? [...config.patternSources] : [];
+		if (
+			config.defaults !== undefined &&
+			!configured.some((source) => source === 'afd-defaults' || source.startsWith('afd-defaults@'))
+		) {
+			configured.push(config.defaults);
+		}
+		return configured.length > 0 ? configured : undefined;
+	})();
 	const needsPatterns =
 		config.patterns !== undefined ||
-		config.patternSources !== undefined ||
+		effectivePatternSources !== undefined ||
 		hasDefaultPatternsDir ||
 		Boolean(guides?.components.some((guide) => guide.implements && guide.implements.length > 0)) ||
 		entries.some((entry) => entry.patternSetup !== undefined) ||
@@ -205,7 +215,9 @@ export async function loadConfig(options: BenchOptions): Promise<LoadedConfig> {
 				root,
 				configFile: file,
 				...(config.patterns === undefined ? {} : { patterns: config.patterns }),
-				...(config.patternSources === undefined ? {} : { patternSources: config.patternSources }),
+				...(effectivePatternSources === undefined
+					? {}
+					: { patternSources: effectivePatternSources }),
 				...(config.pack?.library === undefined ? {} : { localLibrary: config.pack.library }),
 				...(guides ? { guides } : {}),
 				entries,

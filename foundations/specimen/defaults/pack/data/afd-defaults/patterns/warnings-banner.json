@@ -1,0 +1,147 @@
+{
+	"avoidWhen": [
+		{
+			"id": "warnings-banner.avoid-when.blocking-error",
+			"text": "Avoid for failed commands; use error-recovery instead."
+		}
+	],
+	"customize": [
+		{
+			"id": "warnings-banner.customize.placement",
+			"text": "Present as an inline banner near the affected data or a warning toast (such as Loam's loam-toast with tone warning)."
+		}
+	],
+	"facets": {
+		"behavior": [
+			"dismissible",
+			"live-announcement"
+		],
+		"purpose": [
+			"warnings"
+		],
+		"structure": [
+			"banner",
+			"toast"
+		]
+	},
+	"format": 2,
+	"gates": {
+		"accessible-notice": {
+			"scenario": [
+				{
+					"expect": {
+						"a11y": {
+							"role": [
+								"status",
+								"alert",
+								"region"
+							]
+						},
+						"target": "notice"
+					},
+					"id": "check-notice"
+				}
+			],
+			"setup": "default"
+		},
+		"dismiss-operable": {
+			"scenario": [
+				{
+					"expect": {
+						"a11y": {
+							"disabled": false,
+							"nameContains": "Dismiss",
+							"role": "button"
+						},
+						"target": "dismiss"
+					},
+					"id": "check-dismiss"
+				},
+				{
+					"action": {
+						"focus": "dismiss"
+					},
+					"id": "focus-dismiss"
+				},
+				{
+					"expect": {
+						"focus": true,
+						"target": "dismiss"
+					},
+					"id": "dismiss-focused"
+				}
+			],
+			"setup": "default"
+		},
+		"fits-narrow": {
+			"context": {
+				"viewport": {
+					"height": 844,
+					"width": 390
+				}
+			},
+			"scenario": [
+				{
+					"expect": {
+						"layout": {
+							"noOverflow": true
+						},
+						"target": "notice"
+					},
+					"id": "narrow-layout"
+				}
+			],
+			"setup": "default"
+		}
+	},
+	"implementations": [],
+	"keep": [
+		{
+			"gate": "accessible-notice",
+			"id": "warnings-banner.keep.accessible-notice",
+			"text": "Exposes the warning inside a status, alert, or named region carrying its warning text."
+		},
+		{
+			"gate": "dismiss-operable",
+			"id": "warnings-banner.keep.dismiss-operable",
+			"text": "Provides a named, keyboard-focusable dismiss control when warnings are dismissible."
+		},
+		{
+			"gate": "fits-narrow",
+			"id": "warnings-banner.keep.fits-narrow",
+			"text": "Fits a narrow viewport without horizontal overflow."
+		},
+		{
+			"id": "warnings-banner.keep.not-color-alone",
+			"text": "Convey warning tone with a word or icon in addition to color so forced-colors and color-blind users still read it."
+		}
+	],
+	"pattern": "warnings-banner",
+	"scope": "composition",
+	"setups": {
+		"default": {
+			"targets": {
+				"dismiss": {
+					"nameContains": "Dismiss",
+					"role": "button"
+				},
+				"notice": {
+					"role": [
+						"status",
+						"alert",
+						"region"
+					]
+				}
+			},
+			"text": "Mount a warning from spec/wire/result-success-full.json (or Loam's loam-toast with tone warning) exposing the warning notice and a named Dismiss button."
+		}
+	},
+	"status": "stable",
+	"summary": "Surface non-blocking result warnings with text tone indicators and a named dismiss control without relying on color alone.",
+	"useWhen": [
+		{
+			"id": "warnings-banner.use-when.result-warnings",
+			"text": "Use when a succeeding command returns one or more entries in result.warnings."
+		}
+	]
+}

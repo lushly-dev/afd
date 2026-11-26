@@ -1,0 +1,136 @@
+{
+	"pattern": "collection-states",
+	"summary": "Distinguish populated, empty, loading, and failed collection states clearly so an empty list never looks like an error.",
+	"status": "stable",
+	"scope": "composition",
+	"facets": {
+		"behavior": ["state-distinction"],
+		"purpose": ["collection", "empty-state", "error-state"],
+		"structure": ["list"]
+	},
+	"useWhen": [
+		{
+			"id": "collection-states.use-when.list-command",
+			"text": "Use for any screen region backed by a list or search command that can be loading, populated, empty, or failed."
+		}
+	],
+	"avoidWhen": [
+		{
+			"id": "collection-states.avoid-when.single-detail",
+			"text": "Avoid for single-record detail forms that do not render a collection."
+		}
+	],
+	"keep": [
+		{
+			"id": "collection-states.keep.populated-accessible",
+			"text": "Populated collections expose an accessible listbox or list with named items.",
+			"gate": "populated-accessible"
+		},
+		{
+			"id": "collection-states.keep.empty-not-alert",
+			"text": "An empty collection shows a plain-text empty message and is never announced as an error alert.",
+			"gate": "empty-not-alert"
+		},
+		{
+			"id": "collection-states.keep.failed-alert",
+			"text": "A failed collection read announces the error with role alert and explains how to recover.",
+			"gate": "failed-alert"
+		},
+		{
+			"id": "collection-states.keep.distinguish-empty-from-error",
+			"text": "Keep empty-result copy distinct from read-failure copy so people can tell nothing matched from a broken fetch."
+		}
+	],
+	"customize": [
+		{
+			"id": "collection-states.customize.empty-copy",
+			"text": "Tailor the empty message and optional call to action to what will appear in the collection."
+		}
+	],
+	"setups": {
+		"populated": {
+			"text": "Mount a populated collection (such as Loam's loam-list) labeled \"Greetings\" with at least one selectable item.",
+			"targets": {
+				"list": {
+					"role": ["listbox", "list"],
+					"nameContains": "Greetings"
+				},
+				"first": {
+					"role": ["option", "listitem"],
+					"nameContains": "Ada"
+				}
+			}
+		},
+		"empty": {
+			"text": "Mount an empty collection (such as Loam's ListEmpty) showing a plain empty message with no alert role.",
+			"targets": {
+				"empty": {
+					"role": ["region", "status", "paragraph"]
+				}
+			}
+		},
+		"failed": {
+			"text": "Mount a failed collection read (such as Loam's ListFailed) with role alert carrying the failure message and recovery suggestion.",
+			"targets": {
+				"failure": {
+					"role": "alert"
+				}
+			}
+		}
+	},
+	"gates": {
+		"populated-accessible": {
+			"setup": "populated",
+			"scenario": [
+				{
+					"id": "check-list",
+					"expect": {
+						"target": "list",
+						"a11y": {
+							"role": ["listbox", "list"],
+							"nameContains": "Greetings"
+						}
+					}
+				},
+				{
+					"id": "check-item",
+					"expect": {
+						"target": "first",
+						"a11y": {
+							"role": ["option", "listitem"],
+							"nameContains": "Ada"
+						}
+					}
+				}
+			]
+		},
+		"empty-not-alert": {
+			"setup": "empty",
+			"scenario": [
+				{
+					"id": "check-empty",
+					"expect": {
+						"target": "empty",
+						"a11y": {
+							"role": ["region", "status", "paragraph"]
+						}
+					}
+				}
+			]
+		},
+		"failed-alert": {
+			"setup": "failed",
+			"scenario": [
+				{
+					"id": "check-failure",
+					"expect": {
+						"target": "failure",
+						"a11y": {
+							"role": "alert"
+						}
+					}
+				}
+			]
+		}
+	}
+}

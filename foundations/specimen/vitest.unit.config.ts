@@ -34,6 +34,7 @@ export const browserSuites = [
 	'src/network.test.ts',
 	'src/sets-bench.test.ts',
 	'src/compare-bench.test.ts',
+	'src/defaults-gates.test.ts',
 	'src/jobs-bench.test.ts',
 	'src/review-bench.test.ts',
 ];
@@ -55,6 +56,9 @@ export default defineConfig({
 				'src/decision-validate.ts',
 				'src/decisions.ts',
 				'src/decisions-store.ts',
+				'src/defaults.ts',
+				'src/design-states.ts',
+				'src/design-validate.ts',
 				'src/diff.ts',
 				'src/evidence.ts',
 				'src/guide-coverage.ts',

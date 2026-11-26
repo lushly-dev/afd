@@ -89,7 +89,10 @@ describe('Specimen MCP endpoint', () => {
 		try {
 			const definitions = createSpecimenCommands(bench).filter((command) => command.expose?.mcp);
 			const { tools } = await client.listTools();
-			expect(tools).toHaveLength(37);
+			expect(tools).toHaveLength(38);
+			expect(tools.find((tool) => tool.name === 'design-states')?.annotations).toEqual({
+				readOnlyHint: true,
+			});
 			expect(tools.find((tool) => tool.name === 'specimen-review')?.annotations).toEqual({
 				readOnlyHint: true,
 			});
@@ -1182,6 +1185,74 @@ describe('Specimen MCP endpoint', () => {
 			settled: { unchanged: 1, kept: 1, answered: 0 },
 			page: `review.html?before=${written.run.set}&after=${written.run.set}`,
 		});
+	});
+
+	it('exposes design-states over MCP for commands-only configs with structured errors', async () => {
+		const dir = await mkdtemp(join(tmpdir(), 'specimen-mcp-design-states-'));
+		try {
+			await writeFile(
+				join(dir, 'commands.json'),
+				JSON.stringify({
+					app: 'bookshop',
+					commands: [
+						{ name: 'order-create', undoable: true, errors: ['OUT_OF_STOCK'] },
+						{ name: 'catalog-import', batch: true },
+					],
+				})
+			);
+			await writeFile(
+				join(dir, 'specimen.config.json'),
+				JSON.stringify({
+					defaults: 'afd-defaults@1.0.0',
+					commandManifest: './commands.json',
+				})
+			);
+			const server = await createSpecimenMcpServer({ root: dir });
+			servers.push(server);
+			const client = new Client({ name: 'specimen-design-states-test', version: '1.0.0' });
+			clients.push(client);
+			const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+			await server.connect(serverTransport);
+			await client.connect(clientTransport);
+
+			const ok = await client.callTool({
+				name: 'design-states',
+				arguments: { commands: ['order-create', 'catalog-import'] },
+			});
+			expect(ok.isError).toBe(false);
+			expect(envelope(ok as CallToolResult).data).toMatchObject({
+				defaultsVersion: 'afd-defaults@1.0.0',
+				states: [
+					expect.objectContaining({
+						command: 'order-create',
+						pattern: 'afd-defaults/error-recovery',
+						approvalStatus: 'approved',
+					}),
+					expect.objectContaining({
+						command: 'order-create',
+						pattern: 'afd-defaults/undo-offer',
+						approvalStatus: 'approved',
+					}),
+					expect.objectContaining({
+						command: 'catalog-import',
+						pattern: 'afd-defaults/batch-partial-failure',
+						approvalStatus: 'approved',
+					}),
+				],
+				unmeasured: expect.arrayContaining([expect.objectContaining({ area: 'screen-gates' })]),
+			});
+
+			const missing = await client.callTool({
+				name: 'design-states',
+				arguments: { commands: ['book-teleport'] },
+			});
+			expect(missing.isError).toBe(true);
+			expect(envelope(missing as CallToolResult).error).toMatchObject({
+				code: 'TARGET_COMMAND_NOT_FOUND',
+			});
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
 	});
 
 	it('lists and calls over stdio with exactly the real CLI result envelope', async () => {

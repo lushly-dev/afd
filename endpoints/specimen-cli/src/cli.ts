@@ -98,6 +98,8 @@ const valueOptions = new Set([
 	'chosen',
 	'specimens',
 	'tokens',
+	'commands',
+	'consumer',
 ]);
 const flagOptions = new Set([
 	'require-visual',
@@ -107,6 +109,7 @@ const flagOptions = new Set([
 	'no-axe',
 	'orphaned',
 	'no-orphaned',
+	'include-proposed',
 ]);
 function parseArguments(args: string[]): ParsedArguments {
 	const positionals: string[] = [];
@@ -135,7 +138,7 @@ function parseArguments(args: string[]): ParsedArguments {
 	const action = positionals.shift();
 	if (!action)
 		throw new Error(
-			'Choose a command: list, validate, inspect, render, capture, compare, review, run, themes, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, job-run, decision-record, decision-get, decision-list, or decision-check'
+			'Choose a command: list, validate, inspect, render, capture, compare, review, run, themes, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, job-run, decision-record, decision-get, decision-list, decision-check, or design-states'
 		);
 	return { action, positionals, options, flags };
 }
@@ -446,6 +449,17 @@ function validateOptions(parsed: ParsedArguments): void {
 		'decision-get': new Set(['root', 'config', 'output']),
 		'decision-list': new Set(['root', 'config', 'output']),
 		'decision-check': new Set(['root', 'config', 'output', 'files', 'specimens', 'tokens']),
+		'design-states': new Set([
+			'root',
+			'config',
+			'output',
+			'commands',
+			'scenario',
+			'consumer',
+			'include-proposed',
+			'limit',
+			'after',
+		]),
 	};
 	const known = allowed[parsed.action];
 	if (!known) throw new Error(`Unknown command: ${parsed.action}`);
@@ -543,6 +557,11 @@ function validateOptions(parsed: ParsedArguments): void {
 			throw new Error('Give note ids positionally or with --ids, not both.');
 		if (!parsed.options.has('ids') && parsed.positionals.length === 0)
 			throw new Error('note-resolve expects at least 1 note id positionally or via --ids');
+		return;
+	}
+	if (parsed.action === 'design-states') {
+		if (parsed.options.has('commands') && parsed.positionals.length > 0)
+			throw new Error('Give commands positionally or with --commands, not both.');
 		return;
 	}
 	const expected =
@@ -812,6 +831,32 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 					...(parsed.options.has('files') ? { files: splitGlobs('files') } : {}),
 					...(parsed.options.has('specimens') ? { specimens: splitList('specimens') } : {}),
 					...(parsed.options.has('tokens') ? { tokens: splitList('tokens') } : {}),
+				});
+			} else if (parsed.action === 'design-states') {
+				const rawLimit = parsed.options.get('limit');
+				let limit: number | undefined;
+				if (rawLimit !== undefined) {
+					const parsedLimit = Number(rawLimit);
+					if (!rawLimit.trim() || !Number.isInteger(parsedLimit)) {
+						throw new Error('--limit expects a whole number');
+					}
+					limit = parsedLimit;
+				}
+				const commands = parsed.options.has('commands')
+					? (parsed.options.get('commands') ?? '')
+							.split(',')
+							.map((name) => name.trim())
+							.filter(Boolean)
+					: parsed.positionals.length > 0
+						? parsed.positionals
+						: undefined;
+				result = await executeSpecimenCommand(bench, 'design-states', {
+					...(commands !== undefined ? { commands } : {}),
+					...(parsed.options.has('scenario') ? { scenario: parsed.options.get('scenario') } : {}),
+					...(parsed.options.has('consumer') ? { consumer: parsed.options.get('consumer') } : {}),
+					...(parsed.flags.has('include-proposed') ? { includeProposed: true } : {}),
+					...(limit !== undefined ? { limit } : {}),
+					...(parsed.options.has('after') ? { after: parsed.options.get('after') } : {}),
 				});
 			} else {
 				const context: Partial<SpecimenContext> = {};
@@ -1263,7 +1308,7 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 			code: 'SPECIMEN_CLI_ERROR',
 			message,
 			suggestion:
-				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID [--set SET], capture [IDS...] [--label NAME], compare ID1 ID2..., review (BEFORE AFTER | --before SET --after SET) [--ids A,B], run ID, a11y [ID] [--set SET], themes [ID] [--theme light,dark] [--threshold 0.02], migrate [--files A,B] [--helpers] [--apply], diff LEFT RIGHT, build OUTDIR, pack [TAG], pack-check [TAG], pack-export DIR, point POINTER | ID (--role ROLE [--name NAME] | --selector CSS), point-move POINT_ID DIRECTION [--index N], point-check POINT_ID, note-add (--point ID | --pointer URI) --text TEXT [--assignee NAME], note-list [--specimen ID] [--state open|resolved|all] [--assignee NAME] [--orphaned] [--limit N] [--after ID], note-check [SPECIMEN_ID], note-move NOTE_ID (--point ID | --pointer URI) --reason TEXT, note-resolve (NOTE_ID | --ids A,B) --outcome OUTCOME --reason TEXT [--revision SHA] [--capture REF], note-reopen NOTE_ID --reason TEXT, job-create ID --scenario PATH --module PATH --export-name NAME --target ID --captures STEPS, job-run ID [--label NAME], decision-record --chosen VAL --reason TEXT (--set SET --slug SLUG --question TEXT | --supersedes IDS | --items ITEMS), decision-get ID, decision-list, or decision-check [--files A,B] [--specimens A,B] [--tokens A,B]; check option values and file paths.',
+				'Use specimen list, validate [--id ID | --file PATH], inspect ID, render ID [--set SET], capture [IDS...] [--label NAME], compare ID1 ID2..., review (BEFORE AFTER | --before SET --after SET) [--ids A,B], run ID, a11y [ID] [--set SET], themes [ID] [--theme light,dark] [--threshold 0.02], migrate [--files A,B] [--helpers] [--apply], diff LEFT RIGHT, build OUTDIR, pack [TAG], pack-check [TAG], pack-export DIR, point POINTER | ID (--role ROLE [--name NAME] | --selector CSS), point-move POINT_ID DIRECTION [--index N], point-check POINT_ID, note-add (--point ID | --pointer URI) --text TEXT [--assignee NAME], note-list [--specimen ID] [--state open|resolved|all] [--assignee NAME] [--orphaned] [--limit N] [--after ID], note-check [SPECIMEN_ID], note-move NOTE_ID (--point ID | --pointer URI) --reason TEXT, note-resolve (NOTE_ID | --ids A,B) --outcome OUTCOME --reason TEXT [--revision SHA] [--capture REF], note-reopen NOTE_ID --reason TEXT, job-create ID --scenario PATH --module PATH --export-name NAME --target ID --captures STEPS, job-run ID [--label NAME], decision-record --chosen VAL --reason TEXT (--set SET --slug SLUG --question TEXT | --supersedes IDS | --items ITEMS), decision-get ID, decision-list, decision-check [--files A,B] [--specimens A,B] [--tokens A,B], or design-states [COMMANDS...] [--commands A,B] [--scenario PATH] [--consumer NAME] [--include-proposed] [--limit N] [--after CURSOR]; check option values and file paths.',
 		});
 	} finally {
 		if (bench) {

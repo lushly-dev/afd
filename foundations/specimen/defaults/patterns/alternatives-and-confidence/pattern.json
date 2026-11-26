@@ -1,0 +1,126 @@
+{
+	"pattern": "alternatives-and-confidence",
+	"summary": "Present a primary result alongside selectable alternatives and calibrated certainty without tying auto-apply to confidence.",
+	"status": "stable",
+	"scope": "composition",
+	"facets": {
+		"behavior": ["selection"],
+		"purpose": ["alternatives", "confidence"],
+		"structure": ["panel"]
+	},
+	"useWhen": [
+		{
+			"id": "alternatives-and-confidence.use-when.multiple-matches",
+			"text": "Use when a command returns alternatives or a confidence score the person can review and act on."
+		}
+	],
+	"avoidWhen": [
+		{
+			"id": "alternatives-and-confidence.avoid-when.single-certain",
+			"text": "Avoid showing confidence numbers when the person cannot act on them or choose another option."
+		}
+	],
+	"keep": [
+		{
+			"id": "alternatives-and-confidence.keep.region-named",
+			"text": "Exposes an accessible region naming the primary recommendation and its alternatives.",
+			"gate": "region-named"
+		},
+		{
+			"id": "alternatives-and-confidence.keep.alternative-operable",
+			"text": "Each offered alternative is reachable and selectable through a named operable control.",
+			"gate": "alternative-operable"
+		},
+		{
+			"id": "alternatives-and-confidence.keep.fits-narrow",
+			"text": "Fits a narrow viewport without horizontal overflow.",
+			"gate": "fits-narrow"
+		},
+		{
+			"id": "alternatives-and-confidence.keep.reversibility-governs-apply",
+			"text": "Confidence expresses certainty only; whether an action applies automatically depends on reversibility, not a confidence threshold."
+		}
+	],
+	"customize": [
+		{
+			"id": "alternatives-and-confidence.customize.presentation",
+			"text": "Choose how strongly to emphasize the primary recommendation and whether to display numeric confidence beside each option."
+		}
+	],
+	"setups": {
+		"default": {
+			"text": "Mount a result with confidence and alternatives from spec/wire/result-success-full.json, showing the primary option and an operable alternative control.",
+			"targets": {
+				"region": {
+					"role": "region",
+					"nameContains": "Alternatives"
+				},
+				"alternative": {
+					"role": ["button", "radio", "option"],
+					"nameContains": "Completed"
+				}
+			}
+		}
+	},
+	"gates": {
+		"region-named": {
+			"setup": "default",
+			"scenario": [
+				{
+					"id": "check-region",
+					"expect": {
+						"target": "region",
+						"a11y": {
+							"role": "region",
+							"nameNonEmpty": true
+						}
+					}
+				}
+			]
+		},
+		"alternative-operable": {
+			"setup": "default",
+			"scenario": [
+				{
+					"id": "check-alt",
+					"expect": {
+						"target": "alternative",
+						"a11y": {
+							"role": ["button", "radio", "option"],
+							"nameContains": "Completed",
+							"disabled": false
+						}
+					}
+				},
+				{
+					"id": "focus-alt",
+					"action": { "focus": "alternative" }
+				},
+				{
+					"id": "alt-focused",
+					"expect": {
+						"target": "alternative",
+						"focus": true
+					}
+				}
+			]
+		},
+		"fits-narrow": {
+			"setup": "default",
+			"context": {
+				"viewport": { "width": 390, "height": 844 }
+			},
+			"scenario": [
+				{
+					"id": "narrow-layout",
+					"expect": {
+						"target": "region",
+						"layout": {
+							"noOverflow": true
+						}
+					}
+				}
+			]
+		}
+	}
+}
