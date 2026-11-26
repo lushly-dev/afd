@@ -26,12 +26,13 @@
 	},
 	"dependencies": {
 		"@lushly-dev/afd-core": "workspace:^2.2.0",
+		"@lushly-dev/afd-server": "workspace:^2.2.0",
 		"@lushly-dev/specimen": "workspace:^",
-		"@lushly-dev/specimen-afd": "workspace:^",
-		"@modelcontextprotocol/sdk": "^1.31.0"
+		"@lushly-dev/specimen-afd": "workspace:^"
 	},
 	"devDependencies": {
 		"@lushly-dev/specimen-cli": "workspace:^",
+		"@modelcontextprotocol/sdk": "^1.31.0",
 		"@types/node": "^26.6.6",
 		"@vitest/coverage-v8": "^5.1.1",
 		"rimraf": "^6.1.4",

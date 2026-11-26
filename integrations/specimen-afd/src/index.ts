@@ -17,6 +17,10 @@ export {
 	decisionListResultSchema,
 	decisionRecordRequestSchema,
 	decisionRecordResultSchema,
+	designCardListRequestSchema,
+	designCardListResultSchema,
+	designReleaseRequestSchema,
+	designReleaseResultSchema,
 	gateRunSchema,
 	inspectResultSchema,
 	jobCreateRequestSchema,
@@ -43,8 +47,15 @@ export {
 } from '@lushly-dev/specimen/schema';
 export {
 	createSpecimenCommands,
+	createSpecimenDirectRegistry,
 	type ExecuteSpecimenCommandOptions,
 	executeSpecimenCommand,
 	executeSpecimenDiff,
+	markSpecimenChangeAuthor,
+	markSpecimenRelayConfirmed,
+	SPECIMEN_CHANGE_AUTHOR_CONTEXT_KEY,
+	SPECIMEN_RELAY_CONTEXT_KEY,
+	type SpecimenChangeAuthorProof,
 	type SpecimenCommandBench,
+	type SpecimenRelayConfirmation,
 } from './commands.js';

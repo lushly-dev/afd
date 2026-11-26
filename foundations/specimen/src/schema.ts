@@ -1463,6 +1463,7 @@ export const jobRunSchema = z.strictObject({
 	counts: captureSetRunSchema.shape.counts,
 });
 
+export * from './card-schema.js';
 export * from './decision-schema.js';
 export * from './design-schema.js';
 export * from './panel-schema.js';

@@ -1,4 +1,5 @@
 import { isValidIsoClock } from './browser/clock-parse.js';
+import { parsePatternBindings } from './card-validate.js';
 import { parsePanelConfig } from './panel-validate.js';
 import type {
 	A11yRequest,
@@ -1180,6 +1181,7 @@ export function parseConfig(value: unknown): BenchConfig {
 		'patternSources',
 		'defaults',
 		'commandManifest',
+		'patternBindings',
 		'pack',
 		'panel',
 	]);
@@ -1212,6 +1214,8 @@ export function parseConfig(value: unknown): BenchConfig {
 						text(item, `configuration.patternSources[${index}]`)
 					)
 				: fail('configuration.patternSources', 'expected an array of pack paths or package names');
+	const patternBindings =
+		fields.patternBindings === undefined ? undefined : parsePatternBindings(fields.patternBindings);
 	const pack = fields.pack === undefined ? undefined : packConfig(fields.pack);
 	if (pack !== undefined && fields.manifest === undefined) {
 		const hasAppElements =
@@ -1277,6 +1281,7 @@ export function parseConfig(value: unknown): BenchConfig {
 		...(fields.commandManifest === undefined
 			? {}
 			: { commandManifest: text(fields.commandManifest, 'configuration.commandManifest') }),
+		...(patternBindings === undefined ? {} : { patternBindings }),
 		...(pack === undefined ? {} : { pack }),
 		...(fields.panel === undefined ? {} : { panel: parsePanelConfig(fields.panel) }),
 	};
@@ -1430,10 +1435,9 @@ export function parsePointRequest(value: unknown): PointRequest {
 				'provide either pointer or id and target (with optional context and checkpoint), not both'
 			);
 		if (typeof fields.pointer !== 'string') fail(`${path}.pointer`, 'expected a string');
-		return {
-			pointer: fields.pointer,
-			...(timeoutMs === undefined ? {} : { timeoutMs }),
-		};
+		return timeoutMs === undefined
+			? { pointer: fields.pointer }
+			: { pointer: fields.pointer, timeoutMs };
 	}
 	if (fields.id === undefined || fields.target === undefined)
 		fail(path, 'provide either pointer, or both id and target');
@@ -1457,13 +1461,8 @@ export function parsePointMoveRequest(value: unknown): PointMoveRequest {
 	const to = choice<PointMoveDirection>(fields.to, `${path}.to`, POINT_MOVE_DIRECTIONS);
 	let index: number | undefined;
 	if (fields.index !== undefined) {
-		if (
-			typeof fields.index !== 'number' ||
-			!Number.isSafeInteger(fields.index) ||
-			fields.index < 0
-		) {
+		if (typeof fields.index !== 'number' || !Number.isSafeInteger(fields.index) || fields.index < 0)
 			fail(`${path}.index`, 'expected a non-negative integer');
-		}
 		if (to !== 'child') fail(`${path}.index`, 'index applies only when to is "child"');
 		index = fields.index;
 	}
@@ -1487,12 +1486,10 @@ export function parsePointCheckRequest(value: unknown): PointCheckRequest {
 		fields.timeoutMs === undefined
 			? undefined
 			: integer(fields.timeoutMs, `${path}.timeoutMs`, 1, 60_000);
-	return {
-		id,
-		...(timeoutMs === undefined ? {} : { timeoutMs }),
-	};
+	return timeoutMs === undefined ? { id } : { id, timeoutMs };
 }
 
+export { parseDesignCardListRequest, parseDesignReleaseRequest } from './card-validate.js';
 export * from './decision-validate.js';
 export * from './note-validate.js';
 export { parseReviewRequest } from './review-validate.js';

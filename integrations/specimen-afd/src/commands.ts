@@ -1,18 +1,11 @@
 /** AFD command definitions shared by the CLI and MCP hosts. */
+import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
+import { defineCommand, failure, success } from '@lushly-dev/afd-server/define';
 import {
-	type Actor,
-	AFD_OUTPUT_BUDGET_META_KEY,
-	type CommandContext,
-	type CommandResult,
-	type OutputBudget,
-	type Warning,
-} from '@lushly-dev/afd-core';
-import {
-	defineCommand,
-	failure,
-	success,
-	type ZodCommandDefinition,
-} from '@lushly-dev/afd-server/define';
+	createDirectRegistry,
+	type DirectCommandRegistry,
+	type DirectRegistryOptions,
+} from '@lushly-dev/afd-server/direct';
 import { diffCaptures, filterAndPaginateListEntries } from '@lushly-dev/specimen';
 import {
 	a11yRequestSchema,
@@ -37,6 +30,10 @@ import {
 	decisionListResultSchema,
 	decisionRecordRequestSchema,
 	decisionRecordResultSchema,
+	designCardListRequestSchema,
+	designCardListResultSchema,
+	designReleaseRequestSchema,
+	designReleaseResultSchema,
 	designStatesRequestSchema,
 	designStatesResultSchema,
 	gateRunSchema,
@@ -89,6 +86,19 @@ import {
 	themesRunSchema,
 } from '@lushly-dev/specimen/schema';
 import { z } from 'zod';
+import { type ExecuteSpecimenCommandOptions, executeValidatedCommand } from './execute.js';
+import {
+	ERROR_SUGGESTIONS,
+	markSpecimenChangeAuthor,
+	markSpecimenRelayConfirmed,
+	normalizeOptionalId,
+	readSpecimenChangeAuthor,
+	readSpecimenRelayConfirmation,
+	SPECIMEN_CHANGE_AUTHOR_CONTEXT_KEY,
+	SPECIMEN_RELAY_CONTEXT_KEY,
+	type SpecimenChangeAuthorProof,
+	type SpecimenRelayConfirmation,
+} from './relay.js';
 
 export {
 	buildOutputSchema,
@@ -106,6 +116,15 @@ export {
 	pointSchema,
 	storyRunSchema,
 } from '@lushly-dev/specimen/schema';
+export type { ExecuteSpecimenCommandOptions };
+export {
+	markSpecimenChangeAuthor,
+	markSpecimenRelayConfirmed,
+	SPECIMEN_CHANGE_AUTHOR_CONTEXT_KEY,
+	SPECIMEN_RELAY_CONTEXT_KEY,
+	type SpecimenChangeAuthorProof,
+	type SpecimenRelayConfirmation,
+};
 
 import type {
 	A11yRequest,
@@ -126,9 +145,14 @@ import type {
 	DecisionCheckResult,
 	DecisionGetRequest,
 	DecisionGetResult,
+	DecisionListRequest,
 	DecisionListResult,
 	DecisionRecordRequest,
 	DecisionRecordResult,
+	DesignCardListRequest,
+	DesignCardListResult,
+	DesignReleaseRequest,
+	DesignReleaseResult,
 	DesignStatesRequest,
 	DesignStatesResult,
 	DiffRequest,
@@ -365,10 +389,15 @@ export interface SpecimenCommandBench {
 		options?: RecordDecisionOptions
 	): Promise<DecisionRecordResult>;
 	getDecision(request: DecisionGetRequest): Promise<DecisionGetResult>;
-	listDecisions(): Promise<DecisionListResult>;
+	listDecisions(request?: DecisionListRequest): Promise<DecisionListResult>;
 	checkDecisions(request?: DecisionCheckRequest): Promise<DecisionCheckResult>;
 	designStates(request?: DesignStatesRequest): Promise<DesignStatesResult>;
 	panelWalk(request: PanelWalkRequest): Promise<PanelWalkResult>;
+	listDesignCards(request?: DesignCardListRequest): Promise<DesignCardListResult>;
+	recordDesignRelease(
+		request: DesignReleaseRequest,
+		options?: RecordDecisionOptions
+	): Promise<DesignReleaseResult>;
 }
 
 /** One story or synthesized gate by id, or a suite by filter; the handler tells them apart. */
@@ -388,33 +417,6 @@ function safeErrorDetails(value: unknown): Record<string, unknown> | undefined {
 		return undefined;
 	}
 }
-
-/** Per-error-code recovery suggestions (`docs/features/active/patterns/spec.md` §5.5). */
-const ERROR_SUGGESTIONS: Readonly<Record<string, string>> = {
-	TARGET_NOT_FOUND:
-		'Run specimen-list or name a { role, name } target (or Pointing point) that matches an accessible element in the rendered specimen.',
-	TARGET_AMBIGUOUS:
-		'Narrow the target with name, nameStartsWith, or nameContains (or pass a Pointing point) so it matches one element.',
-	SPECIMEN_NOT_FOUND:
-		'Use one of the nearest specimen ids listed in details, or run specimen-list.',
-	ALREADY_EXISTS: 'Choose another copy name, or pass replace: true to overwrite the existing copy.',
-	PATTERN_UNKNOWN:
-		'Use one of the nearest local patterns in specimens/patterns/, or pass createPattern: true to start a new pattern.',
-	COPY_NOT_FOUND:
-		'Run specimen-pattern-save in capture mode (id + target/point) before re-verifying in place.',
-	COPY_DOWNGRADE_REFUSED:
-		'Fix the stripped items or remount errors so the copy stays complete, or pass allowDowngrade: true to demote it to draft.',
-	COPY_REFRESH_UNSUPPORTED:
-		'Update .html/.css on disk and run specimen-pattern-save with { pattern, name, replace: true } (copy was edited in place or lacks a durable origin.target).',
-	PATTERN_SETUP_MISSING:
-		'Add the missing setup case (run specimen-suggest with the reported pattern: obligation) or declare a contexts limit on the implementation.',
-	POINT_STALE: 'Run specimen-point again to capture a fresh point id before saving.',
-	MODALITY_FORBIDDEN:
-		'Remove forbidden tools and run with only the tools permitted for the persona modality.',
-	JOB_NOT_FOUND: "Pass a job id present in the product's scenarios/ directory.",
-	PERSONA_NOT_FOUND: "Pass a persona id declared in the product's persona set.",
-	WALK_NOT_FOUND: 'Run panel-walk first to produce a baseline walk id.',
-};
 
 async function result<T>(
 	operation: () => T | Promise<T>,
@@ -1027,44 +1029,83 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 			return outcome;
 		},
 	});
+	const decisionCommon = {
+		category: 'decision',
+		expose: { mcp: true, cli: true },
+		version: '0.1.0',
+	};
+	const designCommon = { category: 'design', expose: { mcp: true, cli: true }, version: '0.1.0' };
+	const resolveDecisionOptions = (
+		context: CommandContext,
+		commandName: 'decision-record' | 'design-release'
+	): RecordDecisionOptions => {
+		// `person` provenance comes exclusively from host-verified HumanRelay confirmation
+		// (`SPECIMEN_RELAY_CONTEXT_KEY` minted by `markSpecimenRelayConfirmed`) or accepted
+		// `executeSpecimenCommand(..., { humanConfirmed: true })`, never from copying `context.actor.kind`.
+		const confirmation = readSpecimenRelayConfirmation(context, commandName);
+		const actorId = normalizeOptionalId(context.actor?.id);
+		const invokingActorKind = context.actor?.kind;
+		const changeAuthor = readSpecimenChangeAuthor(context);
+		const decidedBy: DecisionActor = confirmation
+			? {
+					kind: 'person',
+					...(confirmation.channel ? { channel: confirmation.channel } : {}),
+					...(confirmation.confirmedBy ? { id: confirmation.confirmedBy } : {}),
+				}
+			: invokingActorKind === 'test'
+				? { kind: 'test', ...(actorId ? { id: actorId } : {}) }
+				: {
+						kind: 'script',
+						...(invokingActorKind === 'script' && actorId ? { id: actorId } : {}),
+					};
+		return {
+			decidedBy,
+			humanConfirmed: confirmation !== undefined,
+			...(invokingActorKind ? { invokingActorKind } : {}),
+			...(actorId ? { actorId } : {}),
+			...(changeAuthor ? { changeAuthor } : {}),
+			...(confirmation?.cardDigests ? { expectedCardDigests: confirmation.cardDigests } : {}),
+		};
+	};
 	const decisionRecord = defineCommand({
-		...common,
+		...decisionCommon,
 		name: 'decision-record',
 		description:
-			'Record a design decision with its required reason and write its files under specimens/decisions/ and specimens/evidence/ (never running git commit). Supports three input modes: new choice from a capture/compare set (set, slug, question, chosen, reason, optional subjects); supersede one or more current choices (supersedes: id or id[], chosen, reason, optional set/items/slug/question/subjects — writes one successor choice per superseded id and swaps old->new chosen in subjects.specimens on variant reversal); or review answer (items, chosen accept|reject, reason, optional slug/question, no subjects).',
+			'Record a design decision with its required reason under specimens/decisions/ (never running git commit). Hard human boundary: design choices and decision cards belong to the person and require host-verified confirmation via HumanRelay over MCP; show the card or page URL to the person and wait rather than fabricating human confirmation. Supports four modes: new choice from a capture/compare set (set, slug, question, chosen, reason, optional subjects); supersede one or more current choices (supersedes, chosen, reason); review answer (items, chosen accept|reject, reason, optional provisional: true with panel for in-process DirectRegistry panel settlements); or decision card mode (card or non-regression batch cards, chosen approve|request-changes|defer|reject, reason, optional refusalScope, regressionAccepted, meantToFix, remediation, supersedes).',
 		mutation: true,
+		confirmationMode: 'host-verified',
 		confirmPrompt: 'Record this design decision and write its files under specimens/?',
+		errors: [
+			'REASON_REQUIRED',
+			'CARD_NOT_FOUND',
+			'CARD_ALREADY_DECIDED',
+			'STALE_CARD',
+			'PERSON_REQUIRED',
+			'REFUSAL_SCOPE_REQUIRED',
+			'REGRESSION_ACK_REQUIRED',
+			'UPSTREAM_CHANGED',
+			'REFUSED_AS_UNSAFE',
+			'AUTHOR_CANNOT_DECIDE',
+			'SUPERSEDE_REQUIRED',
+			'VARIANT_NOT_FOUND',
+			'CHOSEN_FAILS_GATE',
+			'DECISION_NOT_FOUND',
+		],
 		input: decisionRecordRequestSchema,
 		output: decisionRecordResultSchema,
-		handler: async (input, context) => {
-			// `person` provenance comes exclusively from accepted human elicitation under
-			// `confirmations: 'require-human'`, never from copying `context.actor.kind`.
-			const confirmation = (context as SpecimenCommandContext)[HUMAN_CONFIRMED];
-			const actorId = normalizeOptionalId(context.actor?.id);
-			const decidedBy: DecisionActor = confirmation
-				? {
-						kind: 'person',
-						...(confirmation.confirmedBy ? { id: confirmation.confirmedBy } : {}),
-					}
-				: context.actor?.kind === 'test'
-					? { kind: 'test', ...(actorId ? { id: actorId } : {}) }
-					: {
-							kind: 'script',
-							...(context.actor?.kind === 'script' && actorId ? { id: actorId } : {}),
-						};
-			return result(
-				() => bench.recordDecision(input, { decidedBy }),
+		handler: async (input, context) =>
+			result(
+				() => bench.recordDecision(input, resolveDecisionOptions(context, 'decision-record')),
 				decisionRecordResultSchema,
 				'SPECIMEN_DECISION_RECORD_FAILED',
-				'Check the set id, decision id(s), variant id, and non-empty reason, then run decision-record again.'
-			);
-		},
+				'Check the set id, card id(s), decision id(s), chosen value, and non-empty reason, then run decision-record again.'
+			),
 	});
 	const decisionGet = defineCommand({
-		...common,
+		...decisionCommon,
 		name: 'decision-get',
 		description:
-			'Read a recorded design decision by id, returning its reason, variants, subjects, and committed evidence captures. Use decision-list to find current decision ids.',
+			'Read a recorded design decision by id (choice, answer, or card decision), returning its reason, provenance, and committed evidence captures for choices. Use decision-list to find decision ids.',
 		mutation: false,
 		input: decisionGetRequestSchema,
 		output: decisionGetResultSchema,
@@ -1077,23 +1118,23 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 			),
 	});
 	const decisionList = defineCommand({
-		...common,
+		...decisionCommon,
 		name: 'decision-list',
 		description:
-			'List all current choice decisions sorted by decision id ascending (with stale subject globs that match no file) and undecided comparison sets.',
+			'List design decisions sorted by decision id ascending (defaulting to current choice decisions, with optional kind: choice|card|answer|all, released: boolean, and limit/after cursor pagination) plus undecided comparison sets.',
 		mutation: false,
 		input: decisionListRequestSchema,
 		output: decisionListResultSchema,
-		handler: async () =>
+		handler: async (input) =>
 			result(
-				() => bench.listDecisions(),
+				() => bench.listDecisions(input),
 				decisionListResultSchema,
 				'SPECIMEN_DECISION_LIST_FAILED',
 				'Verify specimens/decisions/ and .specimen/sets/ are readable, then run decision-list again.'
 			),
 	});
 	const decisionCheck = defineCommand({
-		...common,
+		...decisionCommon,
 		name: 'decision-check',
 		description:
 			'Call decision-check with the files, specimens, or tokens you are about to change, before editing. Returns matching current choice decisions with their chosen variant, reason, and matched subjects; informs and does not block. Use decision-list to see every current decision id.',
@@ -1106,6 +1147,49 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				decisionCheckResultSchema,
 				'SPECIMEN_DECISION_CHECK_FAILED',
 				'Pass files, specimens, or tokens to check, or use decision-list to see every current decision id.'
+			),
+	});
+	const designCardList = defineCommand({
+		...designCommon,
+		name: 'design-card-list',
+		description:
+			'List persisted design decision cards under specimens/cards/ without launching a browser, ordered by severity (blocker, major, minor) then card id ascending, with optional scope, card, status, severity, includeProvisional (default false), includeDecided (default false), and cursor pagination (limit default 10, max 200, after/next). Returns a compact summary list and cards.html review page link.',
+		mutation: false,
+		outputBudget: { defaultBytes: 32768, maxBytes: 98304 },
+		errors: ['CARD_NOT_FOUND'],
+		input: designCardListRequestSchema,
+		output: designCardListResultSchema,
+		handler: async (input) =>
+			result(
+				() => bench.listDesignCards(input),
+				designCardListResultSchema,
+				'DESIGN_CARD_LIST_FAILED',
+				'Check the specimens/cards/ directory and filter options, then run design-card-list again.'
+			),
+	});
+	const designRelease = defineCommand({
+		...designCommon,
+		name: 'design-release',
+		description:
+			'Record an immutable design release manifest under specimens/releases/<release>.json linking approved decision ids to a release version and timestamp. Hard human boundary: only a person may confirm a release via host-verified HumanRelay confirmation over MCP; show the card or page URL to the person and wait rather than fabricating confirmation. Refuses if any referenced decision is missing or unapproved (DECISION_NOT_FOUND / DECISION_NOT_APPROVED), or if any open or changes-requested decision cards remain (UNAPPROVED_CARDS_OPEN).',
+		mutation: true,
+		confirmationMode: 'host-verified',
+		confirmPrompt: 'Record this design release manifest under specimens/releases/?',
+		outputBudget: { defaultBytes: 16384, maxBytes: 49152 },
+		errors: [
+			'PERSON_REQUIRED',
+			'UNAPPROVED_CARDS_OPEN',
+			'DECISION_NOT_FOUND',
+			'DECISION_NOT_APPROVED',
+		],
+		input: designReleaseRequestSchema,
+		output: designReleaseResultSchema,
+		handler: async (input, context) =>
+			result(
+				() => bench.recordDesignRelease(input, resolveDecisionOptions(context, 'design-release')),
+				designReleaseResultSchema,
+				'DESIGN_RELEASE_FAILED',
+				'Resolve all open or changes-requested cards and pass approved decision ids with host-verified person confirmation.'
 			),
 	});
 	const review = defineCommand({
@@ -1201,153 +1285,21 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		decisionCheck,
 		designStates,
 		panelWalk,
+		designCardList,
+		designRelease,
 	] as const;
 }
 
-/** Execution provenance passed into `executeSpecimenCommand`. */
-export interface ExecuteSpecimenCommandOptions {
-	/** Invoking AFD actor (defaults to `{ kind: 'script' }` when omitted, e.g. CLI). */
-	actor?: Actor;
-	/**
-	 * Set to `true` only by an MCP host after a person accepted an elicitation under
-	 * `confirmations: 'require-human'`. Never derived from `actor.kind`.
-	 */
-	humanConfirmed?: boolean;
-	/** Optional host-verified identifier for the confirming person. */
-	confirmedBy?: string;
-	/** Optional caller output budget ask (`{ maxBytes }` or byte count) forwarded from `_meta["dev.afd/outputBudget"]`. */
-	outputBudget?: unknown;
-}
-
-const HUMAN_CONFIRMED = Symbol('specimen.humanConfirmed');
-const utf8Encoder = new TextEncoder();
-
-interface SpecimenCommandContext extends CommandContext {
-	[HUMAN_CONFIRMED]?: { confirmedBy?: string };
-}
-
-function normalizeOptionalId(value: unknown): string | undefined {
-	if (typeof value !== 'string') return undefined;
-	const trimmed = value.trim();
-	return trimmed.length > 0 ? trimmed : undefined;
-}
-
-function parseOutputBudgetAsk(raw: unknown): number | undefined {
-	if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined;
-	const keys = Object.keys(raw);
-	if (keys.length !== 1 || keys[0] !== 'maxBytes') return undefined;
-	const maxBytes = (raw as { maxBytes?: unknown }).maxBytes;
-	if (typeof maxBytes !== 'number' || !Number.isSafeInteger(maxBytes) || maxBytes < 1) {
-		return undefined;
-	}
-	return maxBytes;
-}
-
-function effectiveOutputBudget(budget: OutputBudget, askBytes: number | undefined): number {
-	if (askBytes === undefined) return budget.defaultBytes;
-	return Math.min(askBytes, budget.maxBytes);
-}
-
-function measureBudgetBytes(res: CommandResult<unknown>): number | undefined {
-	try {
-		const withoutMetadata: Record<string, unknown> = Object.create(null);
-		const record = res as unknown as Record<string, unknown>;
-		for (const key of Object.keys(record)) {
-			if (key !== 'metadata') withoutMetadata[key] = record[key];
-		}
-		const json = JSON.stringify(withoutMetadata);
-		return json === undefined ? undefined : utf8Encoder.encode(json).length;
-	} catch {
-		return undefined;
-	}
-}
-
-async function execute<TInput extends z.ZodType, TOutput>(
-	command: ZodCommandDefinition<TInput, TOutput>,
-	input: unknown,
-	options?: ExecuteSpecimenCommandOptions
-): Promise<CommandResult<TOutput>> {
-	const parsed = command.inputSchema.safeParse(input);
-	if (!parsed.success)
-		return failure({
-			code: 'VALIDATION_ERROR',
-			message: parsed.error.message,
-			suggestion: `Provide input matching the ${command.name} schema.`,
-		});
-	let askBytes: number | undefined;
-	if (options?.outputBudget !== undefined && options.outputBudget !== null) {
-		const rawAsk =
-			typeof options.outputBudget === 'number'
-				? { maxBytes: options.outputBudget }
-				: options.outputBudget;
-		askBytes = parseOutputBudgetAsk(rawAsk);
-		if (askBytes === undefined) {
-			return failure({
-				code: 'VALIDATION_ERROR',
-				message: `Invalid output budget in _meta["${AFD_OUTPUT_BUDGET_META_KEY}"]`,
-				suggestion: `Pass _meta["${AFD_OUTPUT_BUDGET_META_KEY}"] = { "maxBytes": N } with a positive integer.`,
-			});
-		}
-	}
-	const limitBytes = command.outputBudget
-		? effectiveOutputBudget(command.outputBudget, askBytes)
-		: undefined;
-	const confirmedBy = normalizeOptionalId(options?.confirmedBy);
-	const context: SpecimenCommandContext = {
-		actor: options?.actor ?? { kind: 'script' },
-		...(limitBytes !== undefined ? { outputBudget: limitBytes } : {}),
-		...(options?.humanConfirmed === true && command.confirmPrompt
-			? {
-					[HUMAN_CONFIRMED]: {
-						...(confirmedBy ? { confirmedBy } : {}),
-					},
-				}
-			: {}),
-	};
-	const outcome = await command.handler(parsed.data, context);
-	if (!command.outputBudget || limitBytes === undefined || outcome.success !== true) {
-		return outcome;
-	}
-	const usedBytes = measureBudgetBytes(outcome);
-	if (usedBytes === undefined) return outcome;
-	if (usedBytes > limitBytes && command.mutation !== true) {
-		const { maxBytes } = command.outputBudget;
-		const suggestion =
-			limitBytes < maxBytes
-				? `Narrow the request or ask for up to ${maxBytes} bytes with _meta["${AFD_OUTPUT_BUDGET_META_KEY}"] = { "maxBytes": ${maxBytes} }.`
-				: `Narrow the request; ${maxBytes} bytes is this command's largest output budget.`;
-		return failure({
-			code: 'OUTPUT_BUDGET_EXCEEDED',
-			message: `The result is ${usedBytes} bytes, over this call's output budget of ${limitBytes} bytes`,
-			suggestion,
-			retryable: false,
-			details: { limitBytes, actualBytes: usedBytes, maxBytes },
-		});
-	}
-	const report = { limitBytes, usedBytes };
-	if (usedBytes > limitBytes) {
-		const warning: Warning = {
-			code: 'OUTPUT_BUDGET_EXCEEDED',
-			message: `The result is ${usedBytes} bytes, over this call's output budget of ${limitBytes} bytes; the change was made`,
-			severity: 'caution',
-			details: { limitBytes, actualBytes: usedBytes },
-		};
-		return {
-			...outcome,
-			warnings: [...(outcome.warnings ?? []), warning],
-			metadata: {
-				...outcome.metadata,
-				[AFD_OUTPUT_BUDGET_META_KEY]: report,
-			},
-		};
-	}
-	return {
-		...outcome,
-		metadata: {
-			...outcome.metadata,
-			[AFD_OUTPUT_BUDGET_META_KEY]: report,
-		},
-	};
+/**
+ * Create an in-process validating `DirectCommandRegistry` over Specimen's commands.
+ * Used by in-process callers (such as `panel-review` recording Mode 3 provisional panel
+ * settlements) that bypass MCP `HumanRelay` while keeping Zod validation and `AUTHOR_CANNOT_DECIDE`.
+ */
+export function createSpecimenDirectRegistry(
+	bench: SpecimenCommandBench,
+	options?: DirectRegistryOptions
+): DirectCommandRegistry {
+	return createDirectRegistry([...createSpecimenCommands(bench)], options);
 }
 
 /** Execute through the command schema; adapters must not call handlers with unvalidated data. */
@@ -1397,92 +1349,98 @@ export async function executeSpecimenCommand(
 		decisionCheck,
 		designStates,
 		panelWalk,
+		designCardList,
+		designRelease,
 	] = createSpecimenCommands(bench);
 	switch (name) {
 		case 'specimen-list':
-			return execute(list, input, options);
+			return executeValidatedCommand(list, input, options);
 		case 'specimen-render':
-			return execute(render, input, options);
+			return executeValidatedCommand(render, input, options);
 		case 'specimen-capture':
-			return execute(capture, input, options);
+			return executeValidatedCommand(capture, input, options);
 		case 'specimen-compare':
-			return execute(compare, input, options);
+			return executeValidatedCommand(compare, input, options);
 		case 'specimen-diff':
-			return execute(diff, input, options);
+			return executeValidatedCommand(diff, input, options);
 		case 'specimen-review':
-			return execute(review, input, options);
+			return executeValidatedCommand(review, input, options);
 		case 'specimen-build':
-			return execute(build, input, options);
+			return executeValidatedCommand(build, input, options);
 		case 'specimen-validate':
-			return execute(validate, input, options);
+			return executeValidatedCommand(validate, input, options);
 		case 'specimen-run':
-			return execute(runStory, input, options);
+			return executeValidatedCommand(runStory, input, options);
 		case 'specimen-a11y':
-			return execute(a11y, input, options);
+			return executeValidatedCommand(a11y, input, options);
 		case 'specimen-profile':
-			return execute(profile, input, options);
+			return executeValidatedCommand(profile, input, options);
 		case 'specimen-baseline':
-			return execute(baseline, input, options);
+			return executeValidatedCommand(baseline, input, options);
 		case 'specimen-suggest':
-			return execute(suggest, input, options);
+			return executeValidatedCommand(suggest, input, options);
 		case 'specimen-contract':
-			return execute(contract, input, options);
+			return executeValidatedCommand(contract, input, options);
 		case 'specimen-coverage':
-			return execute(coverage, input, options);
+			return executeValidatedCommand(coverage, input, options);
 		case 'specimen-matrix':
-			return execute(matrix, input, options);
+			return executeValidatedCommand(matrix, input, options);
 		case 'specimen-inspect':
-			return execute(inspect, input, options);
+			return executeValidatedCommand(inspect, input, options);
 		case 'specimen-migrate':
-			return execute(migrate, input, options);
+			return executeValidatedCommand(migrate, input, options);
 		case 'specimen-pack':
-			return execute(pack, input, options);
+			return executeValidatedCommand(pack, input, options);
 		case 'specimen-pack-check':
-			return execute(packCheck, input, options);
+			return executeValidatedCommand(packCheck, input, options);
 		case 'specimen-pack-export':
-			return execute(packExport, input, options);
+			return executeValidatedCommand(packExport, input, options);
 		case 'specimen-themes':
-			return execute(themes, input, options);
+			return executeValidatedCommand(themes, input, options);
 		case 'specimen-point':
-			return execute(point, input, options);
+			return executeValidatedCommand(point, input, options);
 		case 'specimen-point-move':
-			return execute(pointMove, input, options);
+			return executeValidatedCommand(pointMove, input, options);
 		case 'specimen-point-check':
-			return execute(pointCheck, input, options);
+			return executeValidatedCommand(pointCheck, input, options);
 		case 'specimen-note-add':
-			return execute(noteAdd, input, options);
+			return executeValidatedCommand(noteAdd, input, options);
 		case 'specimen-note-list':
-			return execute(noteList, input, options);
+			return executeValidatedCommand(noteList, input, options);
 		case 'specimen-note-check':
-			return execute(noteCheck, input, options);
+			return executeValidatedCommand(noteCheck, input, options);
 		case 'specimen-note-move':
-			return execute(noteMove, input, options);
+			return executeValidatedCommand(noteMove, input, options);
 		case 'specimen-note-resolve':
-			return execute(noteResolve, input, options);
+			return executeValidatedCommand(noteResolve, input, options);
 		case 'specimen-note-reopen':
-			return execute(noteReopen, input, options);
+			return executeValidatedCommand(noteReopen, input, options);
 		case 'specimen-job-create':
-			return execute(jobCreate, input, options);
+			return executeValidatedCommand(jobCreate, input, options);
 		case 'specimen-job-run':
-			return execute(jobRun, input, options);
+			return executeValidatedCommand(jobRun, input, options);
 		case 'decision-record':
-			return execute(decisionRecord, input, options);
+			return executeValidatedCommand(decisionRecord, input, options);
 		case 'decision-get':
-			return execute(decisionGet, input, options);
+			return executeValidatedCommand(decisionGet, input, options);
 		case 'decision-list':
-			return execute(decisionList, input, options);
+			return executeValidatedCommand(decisionList, input, options);
 		case 'decision-check':
-			return execute(decisionCheck, input, options);
+			return executeValidatedCommand(decisionCheck, input, options);
 		case 'design-states':
-			return execute(designStates, input, options);
+			return executeValidatedCommand(designStates, input, options);
 		case 'panel-walk':
-			return execute(panelWalk, input, options);
+			return executeValidatedCommand(panelWalk, input, options);
+		case 'design-card-list':
+			return executeValidatedCommand(designCardList, input, options);
+		case 'design-release':
+			return executeValidatedCommand(designRelease, input, options);
 		default:
 			return failure({
 				code: 'COMMAND_NOT_FOUND',
 				message: `Unknown command: ${name}`,
 				suggestion:
-					'Use specimen list, validate, inspect, render, capture, compare, review, run, themes, migrate, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, job-run, decision-record, decision-get, decision-list, decision-check, design-states, or panel-walk.',
+					'Use specimen list, validate, inspect, render, capture, compare, review, run, themes, migrate, diff, build, point, point-move, point-check, note-add, note-list, note-check, note-move, note-resolve, note-reopen, job-create, job-run, decision-record, decision-get, decision-list, decision-check, design-states, panel-walk, design-card-list, or design-release.',
 			});
 	}
 }
@@ -1492,7 +1450,7 @@ export async function executeSpecimenDiff(
 	input: unknown,
 	options: { root?: string } = {}
 ): Promise<CommandResult<unknown>> {
-	return execute(
+	return executeValidatedCommand(
 		createDiffCommand((request) => diffCaptures(options.root ?? process.cwd(), request)),
 		input
 	);

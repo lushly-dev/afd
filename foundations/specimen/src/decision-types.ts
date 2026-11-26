@@ -1,3 +1,4 @@
+import type { CardChosen, MeantToFix, RefusalScope } from './card-types.js';
 import type {
 	AxeOutcome,
 	CaptureSetManifest,
@@ -6,11 +7,14 @@ import type {
 } from './types.js';
 
 /** Provenance kind of the actor who recorded a design decision. */
-export type DecisionActorKind = 'person' | 'script' | 'test';
+export type DecisionActorKind = 'person' | 'panel' | 'script' | 'test';
 /** Provenance metadata recorded on a design decision file. */
 export interface DecisionActor {
 	kind: DecisionActorKind;
 	id?: string;
+	channel?: 'review-page' | 'cli' | 'mcp-relay';
+	reviewers?: string[];
+	split?: string;
 }
 /** Code, specimen, and token subjects covered by a choice decision. */
 export interface DecisionSubjects {
@@ -93,36 +97,78 @@ export interface AnswerDecisionRecord {
 	chosen: 'accept' | 'reject';
 	reason: string;
 	answers: DecisionAnswerEntry[];
+	provisional?: true;
+	decidedAt: string;
+	decidedBy: DecisionActor;
+}
+/** On-disk decision card outcome stored at `specimens/decisions/<id>.json`. */
+export interface CardDecisionRecord {
+	id: string;
+	kind: 'card';
+	card: string;
+	question: string;
+	chosen: CardChosen;
+	reason: string;
+	refusalScope?: RefusalScope;
+	regressionAccepted?: boolean;
+	meantToFix?: MeantToFix;
+	supersedes?: string;
+	remediation?: string;
+	changeSignature?: string;
+	appliedPatterns?: string[];
 	decidedAt: string;
 	decidedBy: DecisionActor;
 }
 /** Union of committed design decision records. */
-export type DecisionRecord = ChoiceDecisionRecord | AnswerDecisionRecord;
-/** Request to `decision-record` across its three input modes (`set`, `supersedes`, or `items`). */
+export type DecisionRecord = ChoiceDecisionRecord | AnswerDecisionRecord | CardDecisionRecord;
+
+/** Panel provenance supplied on provisional Mode 3 review answers. */
+export interface DecisionPanelProvenance {
+	reviewers: string[];
+	split: string;
+}
+
+/** Request to `decision-record` across its four input modes (`set`, `supersedes`, `items`, or `card`/`cards`). */
 export interface DecisionRecordRequest {
 	slug?: string;
 	question?: string;
 	set?: string;
 	supersedes?: string | string[];
 	items?: string[];
+	card?: string;
+	cards?: string[];
 	chosen: string;
 	reason?: string;
 	subjects?: DecisionSubjects;
+	refusalScope?: RefusalScope;
+	regressionAccepted?: boolean;
+	meantToFix?: MeantToFix;
+	remediation?: string;
+	provisional?: boolean;
+	panel?: DecisionPanelProvenance;
+	changeAuthor?: string;
 }
 /** Single decision returned by `decision-record`. */
 export interface DecisionRecordSingleResult {
 	decision: string;
-	kind: 'choice' | 'answer';
+	kind: 'choice' | 'answer' | 'card';
 	path: string;
 	chosen: string;
+	card?: string;
 	kept?: string[];
 	supersedes?: string;
+	superseded?: string;
 	answers?: DecisionAnswerEntry[];
 	evidence?: DecisionEvidenceRef;
 	evidenceDir?: string;
 	subjects?: DecisionSubjects;
+	refusalScope?: RefusalScope;
+	regressionAccepted?: boolean;
+	meantToFix?: MeantToFix;
+	appliedPatterns?: string[];
+	provisional?: true;
 }
-/** Multi-choice result returned by `decision-record` when `supersedes` names 2 or more choices. */
+/** Multi-decision result returned by `decision-record` for multi-choice `supersedes` or batch `cards`. */
 export interface DecisionRecordMultiResult {
 	decisions: DecisionRecordSingleResult[];
 }
@@ -143,14 +189,34 @@ export interface ChoiceDecisionGetResult extends Omit<ChoiceDecisionRecord, 'evi
 export interface AnswerDecisionGetResult extends AnswerDecisionRecord {
 	decision: string;
 }
+/** Card decision returned by `decision-get`. */
+export interface CardDecisionGetResult extends CardDecisionRecord {
+	decision: string;
+}
 /** Result of `decision-get`. */
-export type DecisionGetResult = ChoiceDecisionGetResult | AnswerDecisionGetResult;
-/** One current choice entry returned by `decision-list`. */
+export type DecisionGetResult =
+	| ChoiceDecisionGetResult
+	| AnswerDecisionGetResult
+	| CardDecisionGetResult;
+/** Request filters for `decision-list`. */
+export interface DecisionListRequest {
+	kind?: 'choice' | 'card' | 'answer' | 'all';
+	released?: boolean;
+	limit?: number;
+	after?: string;
+}
+/** One decision entry returned by `decision-list`. */
 export interface DecisionListEntry {
 	decision: string;
 	question: string;
 	chosen: string;
 	stale: string[];
+	kind?: 'choice' | 'card' | 'answer';
+	card?: string;
+	released?: boolean;
+	release?: string;
+	refusalScope?: RefusalScope;
+	meantToFix?: MeantToFix;
 }
 /** One comparison capture set not yet cited by any decision. */
 export interface UndecidedComparison {
@@ -161,6 +227,8 @@ export interface UndecidedComparison {
 export interface DecisionListResult {
 	decisions: DecisionListEntry[];
 	undecided: UndecidedComparison[];
+	total?: number;
+	next?: string;
 }
 /** Request to `decision-check` before editing files, specimens, or tokens. */
 export interface DecisionCheckRequest {
@@ -197,6 +265,16 @@ export interface ResolvedReviewItem {
 /** Execution options for `recordDecision` (actor provenance and optional review-item resolver). */
 export interface RecordDecisionOptions {
 	decidedBy?: DecisionActor;
+	/** Set to true when confirmed via HumanRelay or interactive person confirmation. */
+	humanConfirmed?: boolean;
+	/** Invoking actor kind from AFD context (e.g. 'agent' | 'human' | 'person' | 'script' | 'service' | 'test'). */
+	invokingActorKind?: 'person' | 'human' | 'agent' | 'script' | 'service' | 'test';
+	/** Invoking actor id for server-side `AUTHOR_CANNOT_DECIDE` enforcement. */
+	actorId?: string;
+	/** Author of the change under review (derived server-side when available). */
+	changeAuthor?: string;
+	/** Optional map of cardId -> sha256 content digest pinned when HumanRelay confirmation began. */
+	expectedCardDigests?: Readonly<Record<string, string>>;
 	now?: () => Date;
 	resolveReviewItem?: (item: string) => Promise<ResolvedReviewItem>;
 }

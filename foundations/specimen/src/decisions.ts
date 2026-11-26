@@ -1,6 +1,7 @@
 import type { Dirent } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { recordCardDecision } from './card-decisions.js';
 import {
 	allocateDecisionId,
 	cleanSubjects,
@@ -37,6 +38,7 @@ import {
 	writeDecisionFile,
 } from './decisions-store.js';
 import type { SpecimenHostError } from './host.js';
+import { readAllReleases } from './releases.js';
 import { resolveReviewItemFromSets } from './review.js';
 import {
 	assertRealContained,
@@ -49,6 +51,7 @@ import {
 import type {
 	AnswerDecisionRecord,
 	CaptureSetManifest,
+	CardDecisionRecord,
 	ChoiceDecisionRecord,
 	DecisionActor,
 	DecisionCheckEntry,
@@ -57,6 +60,7 @@ import type {
 	DecisionGetRequest,
 	DecisionGetResult,
 	DecisionListEntry,
+	DecisionListRequest,
 	DecisionListResult,
 	DecisionRecordRequest,
 	DecisionRecordResult,
@@ -69,6 +73,7 @@ import type {
 import {
 	parseDecisionCheckRequest,
 	parseDecisionGetRequest,
+	parseDecisionListRequest,
 	parseDecisionRecordRequest,
 } from './validate.js';
 
@@ -193,6 +198,11 @@ export async function recordDecision(
 	await assertRealContained(root, lockPath, `Decision lock escapes root: ${lockPath}`);
 
 	return withFileLock(lockPath, async () => {
+		// Card mode (Phase C2): single `card` or non-regression batch `cards`.
+		if (request.card !== undefined || request.cards !== undefined) {
+			return recordCardDecision(root, request, trimmedReason, decidedAt, options);
+		}
+
 		const allExisting = await readAllDecisions(root);
 		const supersededIds = supersededIdsFromRecords(allExisting);
 		const currentChoices = currentChoicesFromRecords(allExisting);
@@ -206,6 +216,13 @@ export async function recordDecision(
 			request.supersedes === undefined &&
 			request.items === undefined
 		) {
+			if (request.provisional === true) {
+				throw typedError(
+					'PERSON_REQUIRED',
+					'Provisional panel decisions are only allowed for review answers, not choice decisions.',
+					'Ask a person to record this choice decision through the host relay.'
+				);
+			}
 			const manifest = await readCaptureSetManifest(root, request.set);
 			const compareOrder = await readCompareVariantOrder(root, manifest.set);
 			const manifestKeys = Object.keys(manifest.captures);
@@ -248,6 +265,13 @@ export async function recordDecision(
 
 		// Mode 2: Supersede one or more existing choice decisions.
 		if (request.supersedes !== undefined) {
+			if (request.provisional === true) {
+				throw typedError(
+					'PERSON_REQUIRED',
+					'Provisional panel decisions cannot supersede existing choice decisions.',
+					'Ask a person to supersede this choice decision through the host relay.'
+				);
+			}
 			const supersedeIds = Array.isArray(request.supersedes)
 				? request.supersedes
 				: [request.supersedes];
@@ -464,6 +488,50 @@ export async function recordDecision(
 			}
 		}
 
+		let answerDecidedBy: DecisionActor = decidedBy;
+		let isProvisional = false;
+		if (request.provisional === true) {
+			const actorId = options.actorId?.trim();
+			const serverAuthor = options.changeAuthor?.trim();
+			const callerAuthor = request.changeAuthor?.trim();
+			if (!actorId || !serverAuthor) {
+				throw typedError(
+					'AUTHOR_CANNOT_DECIDE',
+					'Provisional panel settlements require both a verified reviewer actorId and a server-derived changeAuthor.',
+					'Run panel-review from a verified independent reviewer identity or ask a person to decide.'
+				);
+			}
+			if (callerAuthor && callerAuthor !== serverAuthor) {
+				throw typedError(
+					'AUTHOR_CANNOT_DECIDE',
+					`Caller-supplied changeAuthor '${callerAuthor}' disagrees with server-derived changeAuthor '${serverAuthor}'.`,
+					'Do not override server-derived authorship; have an independent reviewer or person decide.'
+				);
+			}
+			const panel = request.panel;
+			if (!panel) {
+				throw typedError(
+					'VALIDATION_ERROR',
+					'provisional: true requires panel provenance (reviewers and split).',
+					'Pass panel: { reviewers, split } when recording a provisional panel settlement.'
+				);
+			}
+			const normalizedReviewers = panel.reviewers.map((r) => r.trim());
+			if (actorId === serverAuthor || normalizedReviewers.includes(serverAuthor)) {
+				throw typedError(
+					'AUTHOR_CANNOT_DECIDE',
+					`Author '${serverAuthor}' cannot decide or sit on the panel for their own provisional settlement.`,
+					'Run panel-review from an independent reviewer panel or ask a person to decide.'
+				);
+			}
+			answerDecidedBy = {
+				kind: 'panel',
+				reviewers: [...panel.reviewers],
+				split: panel.split,
+			};
+			isProvisional = true;
+		}
+
 		const id = await allocateDecisionId(root, new Set());
 		const derivedQuestion =
 			request.question ??
@@ -478,8 +546,9 @@ export async function recordDecision(
 			chosen: request.chosen as 'accept' | 'reject',
 			reason: trimmedReason,
 			answers: resolvedItems.map((resolved) => resolved.entry),
+			...(isProvisional ? { provisional: true } : {}),
 			decidedAt,
-			decidedBy,
+			decidedBy: answerDecidedBy,
 		};
 		const path = await writeDecisionFile(root, answerRecord);
 		return formatSingleAnswerResult(answerRecord, path);
@@ -493,7 +562,7 @@ export async function getDecision(
 ): Promise<DecisionGetResult> {
 	const request = parseDecisionGetRequest(rawRequest);
 	const record = await readDecisionRecord(root, request.decision);
-	if (record.kind === 'answer') {
+	if (record.kind === 'answer' || record.kind === 'card') {
 		return {
 			decision: record.id,
 			...record,
@@ -519,32 +588,123 @@ export async function getDecision(
 }
 
 /**
- * List current choice decisions sorted by `decision` id ascending (with `stale` subject globs)
- * and local comparison sets that no decision cites (`undecided`).
+ * List decisions sorted by `decision` id ascending and local comparison sets that no decision cites
+ * (`undecided`). Defaults to current choice decisions; supports `kind` (`choice` | `card` |
+ * `answer` | `all`), `released`, and cursor pagination (`limit` / `after`).
  */
-export async function listDecisions(root: string): Promise<DecisionListResult> {
+export async function listDecisions(
+	root: string,
+	rawRequest: DecisionListRequest = {}
+): Promise<DecisionListResult> {
+	const request = parseDecisionListRequest(rawRequest);
 	const allRecords = await readAllDecisions(root);
+	const supersededIds = supersededIdsFromRecords(allRecords);
 	const choices = allRecords.filter(
 		(record): record is ChoiceDecisionRecord => record.kind === 'choice'
 	);
 	const citedSets = new Set(choices.map((choice) => choice.evidence.set));
 	const currentChoices = currentChoicesFromRecords(allRecords);
 
-	const decisions: DecisionListEntry[] = [];
-	for (const choice of currentChoices) {
-		const stale: string[] = [];
-		for (const pattern of choice.subjects.files ?? []) {
-			if (!(await globMatchesAnyFile(root, pattern))) {
-				stale.push(pattern);
+	const allReleases = await readAllReleases(root);
+	const releaseByDecision = new Map<string, string>();
+	for (const manifest of allReleases) {
+		for (const decisionId of manifest.decisions) {
+			if (!releaseByDecision.has(decisionId)) {
+				releaseByDecision.set(decisionId, manifest.release);
 			}
 		}
-		decisions.push({
-			decision: choice.id,
-			question: choice.question,
-			chosen: choice.chosen,
-			stale,
-		});
 	}
+
+	const kindFilter = request.kind ?? 'choice';
+	const includeExtendedFields = request.kind !== undefined || request.released !== undefined;
+	const entries: DecisionListEntry[] = [];
+
+	if (kindFilter === 'choice' || kindFilter === 'all') {
+		for (const choice of currentChoices) {
+			const stale: string[] = [];
+			for (const pattern of choice.subjects.files ?? []) {
+				if (!(await globMatchesAnyFile(root, pattern))) {
+					stale.push(pattern);
+				}
+			}
+			const release = releaseByDecision.get(choice.id);
+			entries.push({
+				decision: choice.id,
+				question: choice.question,
+				chosen: choice.chosen,
+				stale,
+				...(includeExtendedFields
+					? {
+							kind: 'choice' as const,
+							released: release !== undefined,
+							...(release !== undefined ? { release } : {}),
+						}
+					: {}),
+			});
+		}
+	}
+
+	if (kindFilter === 'card' || kindFilter === 'all') {
+		const cardRecords = allRecords.filter(
+			(record): record is CardDecisionRecord =>
+				record.kind === 'card' && !supersededIds.has(record.id)
+		);
+		for (const record of cardRecords) {
+			const release = releaseByDecision.get(record.id);
+			entries.push({
+				decision: record.id,
+				kind: 'card',
+				card: record.card,
+				question: record.question ?? `Card ${record.card}`,
+				chosen: record.chosen,
+				stale: [],
+				released: release !== undefined,
+				...(release !== undefined ? { release } : {}),
+				...(record.refusalScope !== undefined ? { refusalScope: record.refusalScope } : {}),
+				...(record.meantToFix !== undefined ? { meantToFix: record.meantToFix } : {}),
+			});
+		}
+	}
+
+	if (kindFilter === 'answer' || kindFilter === 'all') {
+		const answerRecords = allRecords.filter(
+			(record): record is AnswerDecisionRecord => record.kind === 'answer'
+		);
+		for (const record of answerRecords) {
+			const release = releaseByDecision.get(record.id);
+			entries.push({
+				decision: record.id,
+				kind: 'answer',
+				question: record.question ?? `Answer ${record.id}`,
+				chosen: record.chosen,
+				stale: [],
+				released: release !== undefined,
+				...(release !== undefined ? { release } : {}),
+			});
+		}
+	}
+
+	entries.sort((a, b) => compareCodeUnits(a.decision, b.decision));
+
+	const releaseFiltered =
+		request.released === undefined
+			? entries
+			: entries.filter((entry) => releaseByDecision.has(entry.decision) === request.released);
+
+	const total = releaseFiltered.length;
+	const hasPagination = request.limit !== undefined || request.after !== undefined;
+	const afterFiltered =
+		request.after === undefined
+			? releaseFiltered
+			: releaseFiltered.filter(
+					(entry) => compareCodeUnits(entry.decision, request.after as string) > 0
+				);
+	const pageLimit = request.limit ?? 50;
+	const decisions = hasPagination ? afterFiltered.slice(0, pageLimit) : afterFiltered;
+	const next =
+		hasPagination && afterFiltered.length > pageLimit
+			? decisions[decisions.length - 1]?.decision
+			: undefined;
 
 	const undecided: UndecidedComparison[] = [];
 	const setsRoot = captureSetsDir(root);
@@ -584,7 +744,12 @@ export async function listDecisions(root: string): Promise<DecisionListResult> {
 		}
 	}
 
-	return { decisions, undecided };
+	return {
+		decisions,
+		undecided,
+		...(hasPagination || includeExtendedFields ? { total } : {}),
+		...(next !== undefined ? { next } : {}),
+	};
 }
 
 /**

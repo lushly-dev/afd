@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { createSpecimenMcpServer } from './server.js';
 
 try {
@@ -14,7 +13,7 @@ try {
 		if (option === '--root') root = value;
 		else configFile = value;
 	}
-	const server = await createSpecimenMcpServer({ root, configFile });
+	const server = await createSpecimenMcpServer({ root, configFile, transport: 'stdio' });
 	const close = () => {
 		void server
 			.close()
@@ -23,7 +22,7 @@ try {
 	process.once('SIGINT', close);
 	process.once('SIGTERM', close);
 	process.stdin.once('end', close);
-	await server.connect(new StdioServerTransport());
+	await server.start();
 } catch (error) {
 	console.error('[specimen-mcp] Fatal error:', error);
 	process.exitCode = 1;

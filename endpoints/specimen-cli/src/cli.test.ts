@@ -438,6 +438,21 @@ function harness() {
 			findings: [],
 			unmeasured: [],
 		})),
+		listDesignCards: vi.fn(async () => ({
+			page: 'cards.html',
+			cards: [],
+			total: 0,
+			more: 0,
+			unmeasured: [],
+		})),
+		recordDesignRelease: vi.fn(async (request) => ({
+			release: request.release,
+			manifestPath: `specimens/releases/${request.release}.json`,
+			releasedAt: '2026-11-26T00:00:00.000Z',
+			decisions: request.decisions,
+			nextSteps: [],
+			unmeasured: [],
+		})),
 		close: vi.fn(async () => {}),
 	};
 	const createBench = vi.fn(async () => bench);
@@ -2027,7 +2042,7 @@ describe('specimen CLI', () => {
 					tokens: ['space.toolbar.gap'],
 				},
 			},
-			{ decidedBy: { kind: 'script' } }
+			{ decidedBy: { kind: 'script' }, humanConfirmed: false, invokingActorKind: 'script' }
 		);
 
 		// Invalid character range glob in --files fails validation cleanly.
@@ -2142,7 +2157,7 @@ describe('specimen CLI', () => {
 				chosen: 'accept',
 				reason: 'Shared token updated.',
 			},
-			{ decidedBy: { kind: 'script' } }
+			{ decidedBy: { kind: 'script' }, humanConfirmed: false, invokingActorKind: 'script' }
 		);
 
 		expect(await runCli(['--root', root, 'decision-get', 'dec-q7k2m4xab3na'], h.io)).toBe(0);
@@ -2171,6 +2186,71 @@ describe('specimen CLI', () => {
 			files: ['src/toolbar/toolbar.css'],
 			specimens: ['toolbar--dense'],
 			tokens: ['space.toolbar.gap'],
+		});
+
+		// Phase C2: design-card-list, design-release, and decision-list filter flags.
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'design-card-list',
+					'--scope',
+					'release',
+					'--status',
+					'open',
+					'--severity',
+					'blocker',
+					'--limit',
+					'5',
+					'--include-provisional',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.listDesignCards).toHaveBeenLastCalledWith({
+			scope: 'release',
+			status: 'open',
+			severity: 'blocker',
+			limit: 5,
+			includeProvisional: true,
+		});
+
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'design-release',
+					'--release',
+					'1.2.0',
+					'--decisions',
+					'dec-q7k2m4xab3na',
+					'--scope',
+					'release',
+				],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.recordDesignRelease).toHaveBeenLastCalledWith(
+			{
+				release: '1.2.0',
+				decisions: ['dec-q7k2m4xab3na'],
+				scope: 'release',
+			},
+			{ decidedBy: { kind: 'script' }, humanConfirmed: false, invokingActorKind: 'script' }
+		);
+
+		expect(
+			await runCli(
+				['--root', root, 'decision-list', '--kind', 'card', '--released', '--limit', '10'],
+				h.io
+			)
+		).toBe(0);
+		expect(h.bench.listDecisions).toHaveBeenLastCalledWith({
+			kind: 'card',
+			released: true,
+			limit: 10,
 		});
 	});
 
@@ -2325,6 +2405,162 @@ describe('specimen CLI', () => {
 				h.io
 			)
 		).toBe(1);
+	});
+
+	it('enforces interactive person confirmation on CLI card decision-record and design-release against the real authorization path', async () => {
+		const root = await directory();
+		await writeFile(join(root, 'sample.ts'), 'export const Sample = {};\n');
+		await writeFile(
+			join(root, 'specimen.config.json'),
+			JSON.stringify({
+				specimens: [
+					{ id: 'sample', title: 'Test/Sample', module: './sample.ts', exportName: 'Sample' },
+				],
+			})
+		);
+		const { writeCardRecord, getDecision, readReleaseManifest } = await import(
+			'@lushly-dev/specimen'
+		);
+		await writeCardRecord(root, {
+			card: 'card-c11000000001',
+			scope: 'release',
+			what: 'Confirm CLI person channel',
+			owner: 'product',
+			touches: ['src/app.ts'],
+			severity: 'major',
+			visual: { kind: 'diff', summary: 'Updated copy.' },
+			why: {
+				findings: [{ summary: 'Verified copy.', evidence: 'observed' }],
+				reviewerCount: 3,
+				split: '3-0',
+				trigger: 'split-3-to-2',
+			},
+			effect: {
+				gatesBefore: { passed: 1, failed: 0 },
+				gatesAfter: { passed: 1, failed: 0 },
+				regression: false,
+			},
+			risk: { affects: ['src/app.ts'], undoable: true },
+			status: 'open',
+		});
+
+		// Non-interactive CLI (declined / no TTY) refuses card approval with PERSON_REQUIRED.
+		let out = '';
+		const refusedCode = await runCli(
+			[
+				'--root',
+				root,
+				'decision-record',
+				'--card',
+				'card-c11000000001',
+				'--chosen',
+				'approve',
+				'--reason',
+				'Automated script attempt.',
+			],
+			{
+				stdout: (text) => {
+					out += text;
+				},
+				stderr: () => {},
+				confirmPrompt: async () => false,
+			}
+		);
+		expect(refusedCode).toBe(1);
+		expect(JSON.parse(out)).toMatchObject({
+			success: false,
+			error: { code: 'PERSON_REQUIRED' },
+		});
+
+		// Malformed --meant-to-fix produces a clear flag-specific error.
+		let badJsonOut = '';
+		expect(
+			await runCli(
+				[
+					'--root',
+					root,
+					'decision-record',
+					'--card',
+					'card-c11000000001',
+					'--chosen',
+					'approve',
+					'--reason',
+					'Bad json.',
+					'--meant-to-fix',
+					'{not-json',
+				],
+				{
+					stdout: (text) => {
+						badJsonOut += text;
+					},
+					stderr: () => {},
+				}
+			)
+		).toBe(1);
+		expect(JSON.parse(badJsonOut).error?.message).toContain('--meant-to-fix');
+
+		// Interactive confirmation records channel: 'cli' and person id.
+		let okOut = '';
+		const okCode = await runCli(
+			[
+				'--root',
+				root,
+				'decision-record',
+				'--card',
+				'card-c11000000001',
+				'--chosen',
+				'approve',
+				'--reason',
+				'Approved interactively via CLI.',
+			],
+			{
+				stdout: (text) => {
+					okOut += text;
+				},
+				stderr: () => {},
+				confirmPrompt: async () => ({ confirmed: true, confirmedBy: 'cli-person' }),
+			}
+		);
+		expect(okCode).toBe(0);
+		const decisionId = (JSON.parse(okOut) as { data: { decision: string } }).data.decision;
+		const fetched = await getDecision(root, { decision: decisionId });
+		expect(fetched.decidedBy).toEqual({ kind: 'person', id: 'cli-person', channel: 'cli' });
+
+		// Non-interactive design-release fails with PERSON_REQUIRED; interactive succeeds with channel: 'cli'.
+		let relRefused = '';
+		expect(
+			await runCli(
+				['--root', root, 'design-release', '--release', '1.0.0', '--decisions', decisionId],
+				{
+					stdout: (text) => {
+						relRefused += text;
+					},
+					stderr: () => {},
+					confirmPrompt: async () => false,
+				}
+			)
+		).toBe(1);
+		expect(JSON.parse(relRefused)).toMatchObject({
+			success: false,
+			error: { code: 'PERSON_REQUIRED' },
+		});
+
+		let relOk = '';
+		expect(
+			await runCli(
+				['--root', root, 'design-release', '--release', '1.0.0', '--decisions', decisionId],
+				{
+					stdout: (text) => {
+						relOk += text;
+					},
+					stderr: () => {},
+					confirmPrompt: async () => ({ confirmed: true, confirmedBy: 'cli-person' }),
+				}
+			)
+		).toBe(0);
+		expect(JSON.parse(relOk)).toMatchObject({ success: true, data: { release: '1.0.0' } });
+		const manifest = await readReleaseManifest(root, '1.0.0');
+		expect(manifest?.releasedBy).toEqual({ kind: 'person', id: 'cli-person', channel: 'cli' });
 	});
 });
 

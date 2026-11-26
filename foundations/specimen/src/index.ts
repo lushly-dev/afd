@@ -10,6 +10,26 @@ export {
 	resolveElementRef,
 } from './browser/climb-dom.js';
 export {
+	CARD_ID_LENGTH,
+	CARD_ID_PATTERN,
+	CARDS_DIR,
+	RELEASE_ID_PATTERN,
+	RELEASES_DIR,
+} from './card-types.js';
+export {
+	CARDS_PAGE_FILE,
+	cardFilePath,
+	cardNotFoundError,
+	cardsDir,
+	computeCardDigest,
+	generateCardId,
+	listDesignCards,
+	readAllCards,
+	readCardRecord,
+	renderCardsPageHtml,
+	writeCardRecord,
+} from './cards.js';
+export {
 	type ClimbNode,
 	type ClimbOptions,
 	type ClimbResult,
@@ -240,6 +260,14 @@ export {
 	parsePointer,
 	type SpecimenPointer,
 } from './pointer.js';
+export {
+	readAllReleases,
+	readReleaseManifest,
+	recordDesignRelease,
+	releaseFilePath,
+	releaseRelativePath,
+	releasesDir,
+} from './releases.js';
 export {
 	computeCauseHash,
 	computeChangedFingerprint,

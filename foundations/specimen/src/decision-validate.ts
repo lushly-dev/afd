@@ -1,6 +1,14 @@
+import {
+	CARD_CHOSEN_VALUES,
+	type MeantToFix,
+	REFUSAL_SCOPE_VALUES,
+	type RefusalScope,
+} from './card-types.js';
 import type {
 	DecisionCheckRequest,
 	DecisionGetRequest,
+	DecisionListRequest,
+	DecisionPanelProvenance,
 	DecisionRecordRequest,
 	DecisionSubjects,
 } from './types.js';
@@ -21,6 +29,11 @@ function record(value: unknown, path: string, keys: readonly string[]): Fields {
 
 function text(value: unknown, path: string): string {
 	if (typeof value !== 'string' || value.length < 1) fail(path, 'expected a non-empty string');
+	return value;
+}
+
+function trimmedText(value: unknown, path: string): string {
+	if (typeof value !== 'string' || !value.trim()) fail(path, 'expected a non-empty string');
 	return value;
 }
 
@@ -120,7 +133,6 @@ export function compileSubjectGlob(glob: string): RegExp {
 				}
 				let content = variant.slice(i + 1, close);
 				if (content.startsWith('!')) content = `^${content.slice(1)}`;
-				// Validate the character class independently so reversed ranges like [z-a] fail cleanly.
 				new RegExp(`[${content}]`);
 				out += `[${content}]`;
 				i = close + 1;
@@ -172,6 +184,28 @@ function parseDecisionSubjects(value: unknown, path: string): DecisionSubjects {
 	};
 }
 
+function parseMeantToFix(value: unknown, path: string): MeantToFix {
+	const fields = record(value, path, ['job', 'target']);
+	return {
+		job: trimmedText(fields.job, `${path}.job`),
+		target: trimmedText(fields.target, `${path}.target`),
+	};
+}
+
+function parsePanelProvenance(value: unknown, path: string): DecisionPanelProvenance {
+	const fields = record(value, path, ['reviewers', 'split']);
+	if (!Array.isArray(fields.reviewers) || fields.reviewers.length < 1) {
+		fail(`${path}.reviewers`, 'expected a non-empty array of reviewer ids');
+	}
+	const reviewers = fields.reviewers.map((item, idx) =>
+		trimmedText(item, `${path}.reviewers[${idx}]`)
+	);
+	return {
+		reviewers,
+		split: trimmedText(fields.split, `${path}.split`),
+	};
+}
+
 export function parseDecisionRecordRequest(value: unknown): DecisionRecordRequest {
 	const path = 'decision record request';
 	const fields = record(value, path, [
@@ -180,9 +214,18 @@ export function parseDecisionRecordRequest(value: unknown): DecisionRecordReques
 		'set',
 		'supersedes',
 		'items',
+		'card',
+		'cards',
 		'chosen',
 		'reason',
 		'subjects',
+		'refusalScope',
+		'regressionAccepted',
+		'meantToFix',
+		'remediation',
+		'provisional',
+		'panel',
+		'changeAuthor',
 	]);
 	const slug = fields.slug === undefined ? undefined : text(fields.slug, `${path}.slug`);
 	const question =
@@ -211,6 +254,15 @@ export function parseDecisionRecordRequest(value: unknown): DecisionRecordReques
 		if (new Set(items).size !== items.length)
 			fail(`${path}.items`, 'review item ids must be unique');
 	}
+	const card = fields.card === undefined ? undefined : trimmedText(fields.card, `${path}.card`);
+	let cards: string[] | undefined;
+	if (fields.cards !== undefined) {
+		if (!Array.isArray(fields.cards) || fields.cards.length < 1)
+			fail(`${path}.cards`, 'expected a non-empty array of card ids');
+		cards = fields.cards.map((item, index) => trimmedText(item, `${path}.cards[${index}]`));
+		if (new Set(cards.map((id) => id.trim())).size !== cards.length)
+			fail(`${path}.cards`, 'card ids must be unique');
+	}
 	const chosen = text(fields.chosen, `${path}.chosen`);
 	let reason: string | undefined;
 	if (fields.reason !== undefined) {
@@ -221,42 +273,128 @@ export function parseDecisionRecordRequest(value: unknown): DecisionRecordReques
 		fields.subjects === undefined
 			? undefined
 			: parseDecisionSubjects(fields.subjects, `${path}.subjects`);
+	let refusalScope: RefusalScope | undefined;
+	if (fields.refusalScope !== undefined) {
+		if (
+			typeof fields.refusalScope !== 'string' ||
+			!(REFUSAL_SCOPE_VALUES as readonly string[]).includes(fields.refusalScope)
+		) {
+			fail(`${path}.refusalScope`, `expected one of ${REFUSAL_SCOPE_VALUES.join(', ')}`);
+		}
+		refusalScope = fields.refusalScope as RefusalScope;
+	}
+	let regressionAccepted: boolean | undefined;
+	if (fields.regressionAccepted !== undefined) {
+		if (typeof fields.regressionAccepted !== 'boolean') {
+			fail(`${path}.regressionAccepted`, 'expected a boolean');
+		}
+		regressionAccepted = fields.regressionAccepted;
+	}
+	const meantToFix =
+		fields.meantToFix === undefined
+			? undefined
+			: parseMeantToFix(fields.meantToFix, `${path}.meantToFix`);
+	const remediation =
+		fields.remediation === undefined
+			? undefined
+			: trimmedText(fields.remediation, `${path}.remediation`);
+	let provisional: boolean | undefined;
+	if (fields.provisional !== undefined) {
+		if (typeof fields.provisional !== 'boolean') fail(`${path}.provisional`, 'expected a boolean');
+		provisional = fields.provisional;
+	}
+	const panel =
+		fields.panel === undefined ? undefined : parsePanelProvenance(fields.panel, `${path}.panel`);
+	const changeAuthor =
+		fields.changeAuthor === undefined
+			? undefined
+			: trimmedText(fields.changeAuthor, `${path}.changeAuthor`);
 
+	const hasCard = card !== undefined;
+	const hasCards = cards !== undefined;
 	const hasSet = set !== undefined;
 	const hasSupersedes = supersedes !== undefined;
 	const hasItems = items !== undefined;
-	if (!hasSet && !hasSupersedes && !hasItems) {
-		fail(path, 'provide set (new choice), supersedes (supersede choice), or items (review answer)');
+
+	if (hasCard && hasCards) {
+		fail(path, 'provide either card or cards, not both');
 	}
-	if (hasSet && !hasSupersedes && !hasItems) {
-		if (slug === undefined) fail(`${path}.slug`, 'required when recording a new choice from a set');
-		if (question === undefined)
-			fail(`${path}.question`, 'required when recording a new choice from a set');
-	} else if (hasSupersedes) {
-		const supersedeCount = Array.isArray(supersedes) ? supersedes.length : 1;
-		if (hasItems) {
-			if (chosen !== 'accept')
-				fail(`${path}.chosen`, 'superseding choices from review items requires chosen: "accept"');
-			if (subjects !== undefined)
-				fail(
-					`${path}.subjects`,
-					'accepting review items preserves each superseded choice’s existing subjects'
-				);
-			if (hasSet) fail(`${path}.set`, 'accepting review items cites the accepted item’s after set');
+	if (hasCard || hasCards) {
+		if (hasSet || hasItems) {
+			fail(path, 'card mode cannot be combined with set or items');
 		}
-		if (supersedeCount > 1) {
-			if (slug !== undefined)
-				fail(`${path}.slug`, 'cannot override slug when superseding multiple choices');
-			if (question !== undefined)
-				fail(`${path}.question`, 'cannot override question when superseding multiple choices');
-			if (subjects !== undefined)
-				fail(`${path}.subjects`, 'cannot override subjects when superseding multiple choices');
+		if (subjects !== undefined) {
+			fail(`${path}.subjects`, 'card mode cannot carry subjects');
+		}
+		if (Array.isArray(supersedes)) {
+			fail(`${path}.supersedes`, 'card mode supersedes accepts a single decision id');
+		}
+		if (!(CARD_CHOSEN_VALUES as readonly string[]).includes(chosen)) {
+			fail(
+				`${path}.chosen`,
+				`card mode requires chosen to be one of ${CARD_CHOSEN_VALUES.join(', ')}`
+			);
+		}
+		if (refusalScope !== undefined && chosen !== 'reject') {
+			fail(`${path}.refusalScope`, 'refusalScope is only valid when chosen is "reject"');
+		}
+		if (regressionAccepted !== undefined && chosen !== 'approve') {
+			fail(
+				`${path}.regressionAccepted`,
+				'regressionAccepted is only valid when chosen is "approve"'
+			);
 		}
 	} else {
-		if (hasSet) fail(`${path}.set`, 'cannot be combined with items without supersedes');
-		if (subjects !== undefined) fail(`${path}.subjects`, 'review answers cannot carry subjects');
-		if (chosen !== 'accept' && chosen !== 'reject')
-			fail(`${path}.chosen`, 'review answers require chosen to be "accept" or "reject"');
+		if (refusalScope !== undefined) {
+			fail(`${path}.refusalScope`, 'refusalScope applies only in card mode');
+		}
+		if (regressionAccepted !== undefined) {
+			fail(`${path}.regressionAccepted`, 'regressionAccepted applies only in card mode');
+		}
+		if (meantToFix !== undefined) {
+			fail(`${path}.meantToFix`, 'meantToFix applies only in card mode');
+		}
+		if (remediation !== undefined) {
+			fail(`${path}.remediation`, 'remediation applies only in card mode');
+		}
+		if (!hasSet && !hasSupersedes && !hasItems) {
+			fail(
+				path,
+				'provide set (new choice), supersedes (supersede choice), items (review answer), or card/cards (card mode)'
+			);
+		}
+		if (hasSet && !hasSupersedes && !hasItems) {
+			if (slug === undefined)
+				fail(`${path}.slug`, 'required when recording a new choice from a set');
+			if (question === undefined)
+				fail(`${path}.question`, 'required when recording a new choice from a set');
+		} else if (hasSupersedes) {
+			const supersedeCount = Array.isArray(supersedes) ? supersedes.length : 1;
+			if (hasItems) {
+				if (chosen !== 'accept')
+					fail(`${path}.chosen`, 'superseding choices from review items requires chosen: "accept"');
+				if (subjects !== undefined)
+					fail(
+						`${path}.subjects`,
+						'accepting review items preserves each superseded choice’s existing subjects'
+					);
+				if (hasSet)
+					fail(`${path}.set`, 'accepting review items cites the accepted item’s after set');
+			}
+			if (supersedeCount > 1) {
+				if (slug !== undefined)
+					fail(`${path}.slug`, 'cannot override slug when superseding multiple choices');
+				if (question !== undefined)
+					fail(`${path}.question`, 'cannot override question when superseding multiple choices');
+				if (subjects !== undefined)
+					fail(`${path}.subjects`, 'cannot override subjects when superseding multiple choices');
+			}
+		} else {
+			if (hasSet) fail(`${path}.set`, 'cannot be combined with items without supersedes');
+			if (subjects !== undefined) fail(`${path}.subjects`, 'review answers cannot carry subjects');
+			if (chosen !== 'accept' && chosen !== 'reject')
+				fail(`${path}.chosen`, 'review answers require chosen to be "accept" or "reject"');
+		}
 	}
 
 	return {
@@ -265,9 +403,18 @@ export function parseDecisionRecordRequest(value: unknown): DecisionRecordReques
 		...(set === undefined ? {} : { set }),
 		...(supersedes === undefined ? {} : { supersedes }),
 		...(items === undefined ? {} : { items }),
+		...(card === undefined ? {} : { card }),
+		...(cards === undefined ? {} : { cards }),
 		chosen,
 		...(reason === undefined ? {} : { reason }),
 		...(subjects === undefined ? {} : { subjects }),
+		...(refusalScope === undefined ? {} : { refusalScope }),
+		...(regressionAccepted === undefined ? {} : { regressionAccepted }),
+		...(meantToFix === undefined ? {} : { meantToFix }),
+		...(remediation === undefined ? {} : { remediation }),
+		...(provisional === undefined ? {} : { provisional }),
+		...(panel === undefined ? {} : { panel }),
+		...(changeAuthor === undefined ? {} : { changeAuthor }),
 	};
 }
 
@@ -277,9 +424,45 @@ export function parseDecisionGetRequest(value: unknown): DecisionGetRequest {
 	return { decision: text(fields.decision, `${path}.decision`) };
 }
 
-export function parseDecisionListRequest(value: unknown): Record<string, never> {
-	record(value, 'decision list request', []);
-	return {};
+const DECISION_LIST_KINDS = ['choice', 'card', 'answer', 'all'] as const;
+
+export function parseDecisionListRequest(value: unknown = {}): DecisionListRequest {
+	const path = 'decision list request';
+	const fields = record(value, path, ['kind', 'released', 'limit', 'after']);
+	let kind: DecisionListRequest['kind'];
+	if (fields.kind !== undefined) {
+		if (
+			typeof fields.kind !== 'string' ||
+			!(DECISION_LIST_KINDS as readonly string[]).includes(fields.kind)
+		) {
+			fail(`${path}.kind`, `expected one of ${DECISION_LIST_KINDS.join(', ')}`);
+		}
+		kind = fields.kind as DecisionListRequest['kind'];
+	}
+	let released: boolean | undefined;
+	if (fields.released !== undefined) {
+		if (typeof fields.released !== 'boolean') fail(`${path}.released`, 'expected a boolean');
+		released = fields.released;
+	}
+	let limit: number | undefined;
+	if (fields.limit !== undefined) {
+		if (
+			typeof fields.limit !== 'number' ||
+			!Number.isSafeInteger(fields.limit) ||
+			fields.limit < 1 ||
+			fields.limit > 200
+		) {
+			fail(`${path}.limit`, 'expected an integer from 1 to 200');
+		}
+		limit = fields.limit;
+	}
+	const after = fields.after === undefined ? undefined : trimmedText(fields.after, `${path}.after`);
+	return {
+		...(kind === undefined ? {} : { kind }),
+		...(released === undefined ? {} : { released }),
+		...(limit === undefined ? {} : { limit }),
+		...(after === undefined ? {} : { after }),
+	};
 }
 
 export function parseDecisionCheckRequest(value: unknown): DecisionCheckRequest {

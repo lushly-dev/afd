@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFile, realpath } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { BenchWorkerClient } from './bench-worker-client.js';
+import { listDesignCards } from './cards.js';
 import { selectCompareEntries } from './compare.js';
 import { type LoadedConfig, loadConfig, resolveContext } from './config.js';
 import { checkDecisions, getDecision, listDecisions, recordDecision } from './decisions.js';
@@ -51,6 +52,7 @@ import {
 	specimenNotFoundError,
 } from './point.js';
 import { parsePointer } from './pointer.js';
+import { recordDesignRelease } from './releases.js';
 import { runReview } from './review.js';
 import {
 	assertRealContained,
@@ -81,9 +83,14 @@ import type {
 	DecisionCheckResult,
 	DecisionGetRequest,
 	DecisionGetResult,
+	DecisionListRequest,
 	DecisionListResult,
 	DecisionRecordRequest,
 	DecisionRecordResult,
+	DesignCardListRequest,
+	DesignCardListResult,
+	DesignReleaseRequest,
+	DesignReleaseResult,
 	DesignStatesRequest,
 	DesignStatesResult,
 	DiffRequest,
@@ -334,14 +341,21 @@ export interface SpecimenBench {
 	): Promise<DecisionRecordResult>;
 	/** Read a recorded design decision by id, including committed `evidence.captures` for choices. */
 	getDecision(request: DecisionGetRequest): Promise<DecisionGetResult>;
-	/** List current choice decisions sorted by id ascending (with stale globs) and undecided comparison sets. */
-	listDecisions(): Promise<DecisionListResult>;
+	/** List decisions sorted by id ascending (with optional `kind`/`released`/pagination filters) and undecided comparison sets. */
+	listDecisions(request?: DecisionListRequest): Promise<DecisionListResult>;
 	/** Return current choice decisions covering any of the given `files`, `specimens`, or `tokens`. */
 	checkDecisions(request?: DecisionCheckRequest): Promise<DecisionCheckResult>;
 	/** Name every screen state a set of commands or a job scenario can produce, mapped to its pattern. */
 	designStates(request?: DesignStatesRequest): Promise<DesignStatesResult>;
 	/** Run one modality-enforced persona walk against a running application target. */
 	panelWalk(request: PanelWalkRequest, options?: RunPanelWalkOptions): Promise<PanelWalkResult>;
+	/** List persisted design cards under `specimens/cards/` with severity ordering, filtering, and cursor pagination. */
+	listDesignCards(request?: DesignCardListRequest): Promise<DesignCardListResult>;
+	/** Record a design release manifest under `specimens/releases/<release>.json` after verifying approvals and open cards. */
+	recordDesignRelease(
+		request: DesignReleaseRequest,
+		options?: RecordDecisionOptions
+	): Promise<DesignReleaseResult>;
 	build(
 		outDir: string
 	): Promise<{ directory: string; shellBytes: number; budget: number; files: string[] }>;
@@ -368,6 +382,8 @@ export type BenchRuntime = Omit<
 	| 'checkDecisions'
 	| 'designStates'
 	| 'panelWalk'
+	| 'listDesignCards'
+	| 'recordDesignRelease'
 > & {
 	/** Build the configured pack from two passes over every case, and write nothing. */
 	packBuild(request?: PackBuildRequest): Promise<PackBuildRun>;
@@ -1120,9 +1136,9 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 			const snapshot = ensureOpen();
 			return getDecision(snapshot.root, rawRequest);
 		},
-		async listDecisions() {
+		async listDecisions(rawRequest = {}) {
 			const snapshot = ensureOpen();
-			return listDecisions(snapshot.root);
+			return listDecisions(snapshot.root, rawRequest);
 		},
 		async checkDecisions(rawRequest = {}) {
 			const snapshot = ensureOpen();
@@ -1155,6 +1171,14 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 			});
 			activePanelWalks.add(task);
 			return task;
+		},
+		async listDesignCards(rawRequest = {}) {
+			const snapshot = ensureOpen();
+			return listDesignCards(snapshot.root, rawRequest);
+		},
+		async recordDesignRelease(rawRequest, decisionOptions) {
+			const snapshot = ensureOpen();
+			return recordDesignRelease(snapshot.root, rawRequest, decisionOptions);
 		},
 		close() {
 			closing ??= (async () => {
