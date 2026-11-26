@@ -199,7 +199,7 @@ The design review and phases 0, 1, 2 and 4 are done or exited: their detail is a
 - **Steps** ([plan](phases/5-copilot/spec.md#19-implementation-plan); one line each, made before the step starts, so parallel pull requests touch different lines):
   - 7, mail on the desktop: merged as [#2495](https://github.com/lushly-dev/afd/pull/2495).
 
-  - 8, milestone A: not started.
+  - 8, milestone A: in progress in [#2657](https://github.com/lushly-dev/afd/pull/2657).
 
   - 9, plugin engines: not started.
 

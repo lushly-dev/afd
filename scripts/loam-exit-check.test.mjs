@@ -1357,10 +1357,10 @@ test('Milestone A: all green passes, each row counted in its places, each in its
 	assert.ok(!checkExit(p6()).report.some((entry) => entry.startsWith('loam-desktop.yml')));
 });
 
-test('Milestone A: the committed minimums are placeholders, and the check fails on them by name', () => {
+test("Milestone A: the committed minimums are a manual run's counts, one for each row's every place", () => {
 	const { a, ...others } = readMinimums(P5_MINIMUMS_FILE);
 	assert.deepEqual(Object.keys(others), []);
-	assert.equal(minimumsArePlaceholders(P5_MINIMUMS_FILE, 'a'), true);
+	assert.equal(minimumsArePlaceholders(P5_MINIMUMS_FILE, 'a'), false);
 	for (const { row, in: places } of P5_A_ROWS)
 		for (const key of places) assert.ok(a[row]?.[key] >= 1, `P5-${row} ${key}: ${a[row]?.[key]}`);
 	assert.deepEqual(
@@ -1371,13 +1371,14 @@ test('Milestone A: the committed minimums are placeholders, and the check fails 
 		Object.fromEntries(Object.entries(a).map(([row, places]) => [row, Object.keys(places)])),
 		Object.fromEntries(P5_A_ROWS.map(({ row, in: places }) => [row, places]))
 	);
-	// The fixture's runs meet every placeholder count, so the placeholder alone fails the check.
-	const { minimums: _, ...fromFile } = p5();
-	assert.deepEqual(problemsOf(fromFile), [
-		`${P5_MINIMUMS_FILE} holds placeholder counts, not a manual run's: set them from the runs' --print-minimums`,
-	]);
-	// The earlier phases' files are a run's counts, and say so.
-	for (const file of [MINIMUMS_FILE, P3_MINIMUMS_FILE, P4_MINIMUMS_FILE, P6_MINIMUMS_FILE])
+	// Every phase's file is a run's counts, and says so.
+	for (const file of [
+		MINIMUMS_FILE,
+		P3_MINIMUMS_FILE,
+		P4_MINIMUMS_FILE,
+		P6_MINIMUMS_FILE,
+		P5_MINIMUMS_FILE,
+	])
 		assert.equal(minimumsArePlaceholders(file), false, file);
 	// A file may list the milestones still placeholders: one listed is, another set from its runs is not.
 	const written = join(mkdtempSync(join(tmpdir(), 'loam-exit-p5-')), 'minimums.json');
