@@ -1540,6 +1540,46 @@ describe('MCP Tasks over HTTP', () => {
 		).toBe('stdio');
 	});
 
+	it('ends a task whose result cannot be serialized as failed, with error.message (#2501)', async () => {
+		// Claude Code reads a failed task's error.message; AFD sets failed only for internal errors.
+		const jobBigint = defineCommand({
+			name: 'job-bigint',
+			description: 'Return a result JSON cannot hold',
+			expose: { mcp: true },
+			task: 'required',
+			input: z.object({}),
+			async handler() {
+				return success({ count: 1n });
+			},
+		});
+		const handler = createMcpHandler({
+			name: 'tasks-failed',
+			version: '1.0.0',
+			commands: [jobBigint],
+			toolStrategy: 'individual',
+			createContext: makeActorContext,
+			taskOptions: defaultTaskOptions,
+		});
+		const http = await listenHandler(handler);
+		const started = await rpc(
+			http.url,
+			'tools/call',
+			{ name: 'job-bigint', arguments: {} },
+			{
+				tasks: true,
+			}
+		);
+		const seed = started.body.result as { resultType?: string; taskId: string };
+		expect(seed.resultType).toBe('task');
+		const settled = await pollUntilSettled(http.url, seed.taskId);
+		expect(settled).toMatchObject({
+			resultType: 'complete',
+			status: 'failed',
+			error: { code: -32603, message: 'Internal error' },
+		});
+		expect(settled.result).toBeUndefined();
+	});
+
 	it('retains a finished task result for ttlMs after finish even past maxRunMs, and times out working tasks', async () => {
 		const runs = { echo: 0, wait: 0, list: 0, aborted: 0 };
 		const waitStarted = deferred();

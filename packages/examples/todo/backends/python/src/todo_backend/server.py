@@ -150,7 +150,18 @@ def create_todo_commands(store: Store, env: Env) -> list[Callable[..., Any]]:
             await asyncio.sleep(input.delay_ms / 1000.0)
             return success({"delayedMs": input.delay_ms})
 
-        commands = [*commands, slow_task]
+        @define_command(
+            name="todo-unserializable-task",
+            description="Return a result JSON cannot hold, so its task ends failed",
+            expose=ExposeOptions(mcp=True),
+            task="required",
+        )
+        async def unserializable_task(input: Any) -> Any:
+            loop: dict[str, Any] = {}
+            loop["self"] = loop
+            return success(loop)
+
+        commands = [*commands, slow_task, unserializable_task]
     return commands
 
 

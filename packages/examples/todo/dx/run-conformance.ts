@@ -343,6 +343,15 @@ const PASS_THROUGH_SCHEMA = {
 interface Session {
 	client: Client;
 	interceptedTasks: Map<string, Record<string, unknown>>;
+	/** When each intercepted task answer arrived (`performance.now()`), by the same token. */
+	taskAnsweredAt: Map<string, number>;
+	/**
+	 * The latest `tasks/get` answer for each task id, as it came over the wire: the SDK client's
+	 * `request` result drops `resultType`, which Claude Code's client reads.
+	 */
+	taskGets: Map<string, Record<string, unknown>>;
+	/** The first `tasks/get` answer for each task id, off the wire: usually one still `working`. */
+	taskFirstGets: Map<string, Record<string, unknown>>;
 	close(): Promise<void>;
 }
 
@@ -392,11 +401,25 @@ async function connect(
 		throw error;
 	}
 	const interceptedTasks = new Map<string, Record<string, unknown>>();
+	const taskAnsweredAt = new Map<string, number>();
+	const taskGets = new Map<string, Record<string, unknown>>();
+	const taskFirstGets = new Map<string, Record<string, unknown>>();
 	if (tasks) {
 		let seq = 0;
 		const deliver = transport.onmessage;
 		transport.onmessage = (message) => {
 			const msg = message as { id?: string | number; result?: Record<string, unknown> };
+			const answer = msg?.result;
+			if (
+				answer &&
+				typeof answer === 'object' &&
+				answer.resultType !== 'task' &&
+				typeof answer.taskId === 'string' &&
+				typeof answer.status === 'string'
+			) {
+				taskGets.set(answer.taskId, { ...answer });
+				if (!taskFirstGets.has(answer.taskId)) taskFirstGets.set(answer.taskId, { ...answer });
+			}
 			if (
 				msg &&
 				typeof msg === 'object' &&
@@ -407,6 +430,7 @@ async function connect(
 			) {
 				const token = String(++seq);
 				interceptedTasks.set(token, msg.result);
+				taskAnsweredAt.set(token, performance.now());
 				deliver?.({
 					jsonrpc: '2.0',
 					id: msg.id as string | number,
@@ -427,6 +451,9 @@ async function connect(
 	return {
 		client,
 		interceptedTasks,
+		taskAnsweredAt,
+		taskGets,
+		taskFirstGets,
 		async close() {
 			await client.close();
 			await stop();
@@ -439,7 +466,7 @@ function toolCaller(
 	session: Session,
 	taskWire?: { expectTaskFor?: ReadonlySet<string>; taskIds: string[] }
 ) {
-	const { client, interceptedTasks } = session;
+	const { client, interceptedTasks, taskAnsweredAt, taskGets, taskFirstGets } = session;
 	return async (name: string, args: unknown, meta?: Record<string, unknown>) => {
 		if (name === TOOL_LIST) {
 			console.log('Listing tools');
@@ -450,6 +477,7 @@ function toolCaller(
 			};
 		}
 		console.log(`Calling tool: ${name}`, args);
+		const sentAt = performance.now();
 		const raw = (await client.callTool({
 			name,
 			arguments: args as Record<string, unknown>,
@@ -474,9 +502,13 @@ function toolCaller(
 		}
 
 		let result: { content: Array<{ text: string }>; isError?: boolean } = raw;
+		/** The task's wire messages, which a case reads under `$task` (task-cases.json). */
+		let taskView: Record<string, unknown> | undefined;
 		if (startedAsTask) {
 			const seed = interceptedTasks.get(taskToken);
+			const answeredAt = taskAnsweredAt.get(taskToken) ?? performance.now();
 			interceptedTasks.delete(taskToken);
+			taskAnsweredAt.delete(taskToken);
 			if (!seed || typeof seed.taskId !== 'string' || !/^[a-z2-7]{26}$/.test(seed.taskId)) {
 				throw new Error(`Invalid task seed from '${name}': ${JSON.stringify(seed)}`);
 			}
@@ -497,12 +529,32 @@ function toolCaller(
 				}
 				await new Promise((r) => setTimeout(r, 15));
 			}
+			const view = () => {
+				const got = {
+					answer: seed,
+					firstGet: taskFirstGets.get(seed.taskId as string),
+					get: taskGets.get(seed.taskId as string) ?? settled,
+					answeredMs: answeredAt - sentAt,
+				};
+				taskGets.delete(seed.taskId as string);
+				taskFirstGets.delete(seed.taskId as string);
+				return got;
+			};
+			// A failed task has no CommandResult, only the JSON-RPC error a case reads under `$task`.
+			if (settled?.status === 'failed') {
+				return { success: false, $task: view() } as {
+					success?: boolean;
+					data?: unknown;
+					error?: { message: string };
+				};
+			}
 			if (settled?.status !== 'completed' || !settled.result) {
 				throw new Error(
 					`Task ${seed.taskId} for '${name}' did not reach status 'completed': ${JSON.stringify(settled)}`
 				);
 			}
 			result = settled.result as { content: Array<{ text: string }>; isError?: boolean };
+			taskView = view();
 		}
 
 		const text = result.content[0]?.text;
@@ -516,6 +568,10 @@ function toolCaller(
 		const problems = wireProblems(parsed, result.isError === true, wireSchemaForTool(name));
 		if (problems.length > 0) {
 			throw new Error(`${name} broke the wire format (spec/wire): ${problems.join('; ')}`);
+		}
+		// Added after the wire check: `$task` is the runner's, never the server's.
+		if (taskView && parsed && typeof parsed === 'object') {
+			Object.assign(parsed, { $task: taskView });
 		}
 		return parsed as { success?: boolean; data?: unknown; error?: { message: string } };
 	};
@@ -590,10 +646,19 @@ async function run() {
 				continue;
 			}
 			const isTasksClient = kind === 'tasks';
-			const session = await connect(target, mode, {}, { tasks: isTasksClient });
+			// TASK_CONFORMANCE adds todo-slow-task, which a case runs as a task to see the answer
+			// arrive while the work is still running, and todo-unserializable-task, whose task fails.
+			const session = await connect(
+				target,
+				mode,
+				{ TASK_CONFORMANCE: '1' },
+				{ tasks: isTasksClient }
+			);
 			try {
 				const taskWire = {
-					expectTaskFor: isTasksClient ? new Set(['todo-create-batch']) : new Set<string>(),
+					expectTaskFor: isTasksClient
+						? new Set(['todo-create-batch', 'todo-slow-task', 'todo-unserializable-task'])
+						: new Set<string>(),
 					taskIds: [] as string[],
 				};
 				if (isTasksClient) {
@@ -696,6 +761,7 @@ async function run() {
 					}
 					const seed = session.interceptedTasks.get(token);
 					session.interceptedTasks.delete(token);
+					session.taskAnsweredAt.delete(token);
 					if (!seed || typeof seed.taskId !== 'string') {
 						throw new Error(`Invalid task seed: ${JSON.stringify(seed)}`);
 					}

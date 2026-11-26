@@ -148,6 +148,16 @@ export function createTodoCommands(env: Env): ZodCommandDefinition[] {
 					});
 					return success({ delayedMs: input.delayMs });
 				},
+			}),
+			defineCommand({
+				name: 'todo-unserializable-task',
+				description: 'Return a result JSON cannot hold, so its task ends failed',
+				expose: { mcp: true },
+				task: 'required',
+				input: z.object({}),
+				async handler() {
+					return success({ count: 1n });
+				},
 			})
 		);
 	}

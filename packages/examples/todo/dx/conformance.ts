@@ -10,7 +10,9 @@ import { AjvJsonSchemaValidator } from '@modelcontextprotocol/client/validators/
  *
  * Each `expect` entry maps a dotted path in the CommandResult (array indexes and
  * `.length` included, e.g. `data.todos.0.title`) to either an exact JSON value
- * or `{ "exists": boolean }`, which checks presence without fixing the value.
+ * or a matcher: `{ "exists": boolean }` checks presence without fixing the value,
+ * `{ "matches": "<regex>" }` a string against a regular expression, `{ "type": "<typeof>" }`
+ * the value's JavaScript type, and `{ "lessThan": n }` a number's upper bound.
  *
  * An expected array is compared as JSON, whole.
  *
@@ -261,13 +263,18 @@ export class ConformanceRunner {
 		for (const [key, expectedValue] of Object.entries(expect)) {
 			const actualValue = this.getValue(actual, key);
 
-			// The only object form is the { exists } matcher; an array is compared as JSON.
+			// An object is a matcher (exists, matches, type, lessThan); an array is compared as JSON.
 			if (Array.isArray(expectedValue)) {
 				if (JSON.stringify(actualValue) !== JSON.stringify(expectedValue)) {
 					errors.push(
 						`Expected ${key} to be ${JSON.stringify(expectedValue)}, got ${JSON.stringify(actualValue)}`
 					);
 				}
+				continue;
+			}
+			const matched = matcherProblem(key, actualValue, expectedValue);
+			if (matched !== undefined) {
+				if (matched) errors.push(matched);
 				continue;
 			}
 			if (isExistsMatcher(expectedValue)) {
@@ -301,6 +308,36 @@ export class ConformanceRunner {
 		}
 		return current;
 	}
+}
+
+/**
+ * For a `matches`, `type` or `lessThan` matcher: the problem, or `''` when the value passes.
+ * `undefined` when `expected` is not one of these matchers.
+ */
+function matcherProblem(key: string, actual: unknown, expected: unknown): string | undefined {
+	if (typeof expected !== 'object' || expected === null || Array.isArray(expected)) {
+		return undefined;
+	}
+	const entries = Object.entries(expected);
+	if (entries.length !== 1) return undefined;
+	const [kind, operand] = entries[0] as [string, unknown];
+	const got = JSON.stringify(actual);
+	if (kind === 'matches' && typeof operand === 'string') {
+		return typeof actual === 'string' && new RegExp(operand).test(actual)
+			? ''
+			: `Expected ${key} to match /${operand}/, got ${got}`;
+	}
+	if (kind === 'type' && typeof operand === 'string') {
+		return typeof actual === operand && actual !== null
+			? ''
+			: `Expected ${key} to be a ${operand}, got ${got}`;
+	}
+	if (kind === 'lessThan' && typeof operand === 'number') {
+		return typeof actual === 'number' && actual < operand
+			? ''
+			: `Expected ${key} to be less than ${operand}, got ${got}`;
+	}
+	return undefined;
 }
 
 function isExistsMatcher(value: unknown): value is { exists: boolean } {
