@@ -1,27 +1,31 @@
-# Agent OS: an operating system built for agents first
+# Loam OS: an operating system built for agents first
 
 An operating system in which everything above the kernel and the base packages is reached through
 one command system, AFD, built for agents first and used by people through the same commands. It
 starts small: a host that makes a Linux machine for one piece of work, runs that work inside it
 with no credential, keeps the record outside it, and destroys it afterwards. The first work it
-runs is the software factory's validation of a branch. "Agent OS" is a working name.
+runs is the software factory's validation of a branch. Originally drafted under the working name
+"Agent OS", named **Loam OS** by the owner on 2026-11-25.
 
 ## Status
 
-- **State:** proposed. A first draft, written 2026-11-21 against `main` at `a91acface`, revised the
-  same day after five readers walked its jobs in three passes, the owner answered three of its
-  questions and two independent reviewers read it, and revised again on 2026-11-22 after a fresh
-  end-to-end review against `main` at `39ca857fd`. Not approved. Nothing is built.
+- **State:** active. Approved by the owner on 2026-11-25 and promoted from `proposed/agent-os/`
+  under Epic [#2595](https://github.com/lushly-dev/afd/issues/2595). A first draft was written
+  2026-11-21 against `main` at `a91acface`, revised after five readers walked its jobs in three
+  passes and two independent reviewers read it ([#1912](https://github.com/lushly-dev/afd/pull/1912)),
+  and revised again on 2026-11-22 after a fresh end-to-end review against `main` at `39ca857fd`
+  ([#2121](https://github.com/lushly-dev/afd/pull/2121)). Nothing is built yet; M0 is planned in
+  [#2596](https://github.com/lushly-dev/afd/issues/2596).
 - **Origin:** a conversation with the owner on 2026-11-21 about an operating system built on AFD
   from its core, starting as a headless runner for agents in a container image, with
   [Omarchy](https://omarchy.org/) as the example of an opinionated system built on an existing
   distribution.
 - **Relation to the [Software Factory](../../active/software-factory/software-factory.proposal.md)
   and the [Factory Gateway](../../active/factory-gateway/factory-gateway.proposal.md):** the first
-  milestone moves a branch's install and its tests (and, if the owner approves question 10, the
-  push's hook) out of reach of the lane's credentials, which is most of the validation half of
-  the gateway's G4 ("code under validation cannot reach a credential") by another means.
-  [The problem](#the-problem) names what stays on the lane host.
+  milestone moves a branch's install, its tests, and the push's hook out of reach of the lane's
+  credentials, which is most of the validation half of the gateway's G4 ("code under validation
+  cannot reach a credential") by another means. [The problem](#the-problem) names what stays on the
+  lane host.
 - **Verified:** the facts in [What exists today](#what-exists-today) were read on `main` at
   `a91acface` and re-checked on `39ca857fd`. No code was built or run except the scenario checks.
 - **Not verified:** which container runtime the lane host can run and what it costs there;
@@ -35,9 +39,8 @@ runs is the software factory's validation of a branch. "Agent OS" is a working n
 - **Jobs:** eighteen for M0 to M2, written as scenarios and checked ([Checks](#checks)). Three
   readers who did not write them walked the first fourteen, and the revision added three. A
   fourth made a second pass over the seventeen. The eighteenth came from the owner's answer and
-  was walked by a fifth
-  ([Walking the paths](#walking-the-paths)). The owner ranks them next
-  ([For the owner](#for-the-owner)).
+  was walked by a fifth ([Walking the paths](#walking-the-paths)). On 2026-11-25 the owner kept
+  all eighteen jobs in their proposed build order ([Decisions](#decisions)).
 - **Progress:** [STATUS.md](STATUS.md).
 
 ## Decisions
@@ -46,7 +49,7 @@ The owner's answers of 2026-11-21.
 
 | Question | Decision | What it changes |
 |---|---|---|
-| How it is built | Commands first and no interface: the command layer is refined while only agents use it. One edition may stay headless, for light sessions that start fast. A later one adds an interface for people and could replace a person's main operating system | [Milestones](#milestones) M0 to M3 have no interface at all. M4 is the first surface for a person. A desktop is the far end and is not specified here |
+| How it is built | Commands first and no interface: the command layer is refined while only agents use it. One edition may stay headless, for light sessions that start fast. A later one adds an interface for people and could replace a person's main operating system *(superseded 2026-11-25 below: no standalone headless-only edition; web-based Loam shell desktop is the product target)* | [Milestones](#milestones) M0 to M3 have no interface at all as the foundation. M4 is the first surface for a person. A web-based Loam shell desktop is the far end and is not specified here |
 | First form | A machine per session | The unit is a Linux machine made for one piece of work and destroyed after it, a container first |
 | Where authority lives | Outside the machine first | The container is the sandbox. A host process outside it holds the limits, the network policy, the record and, later, the credentials. Nothing inside a machine is trusted to enforce anything |
 | Host base | A separate binary on Umbel's host library, with the machine's capabilities as compiled plugins | The registry, the MCP and command-line surfaces, sign-in, the journal and the event log come from Umbel. "The machine's capabilities" is read here as the commands that govern a machine, in one plugin; the capabilities an agent finds inside a machine are M3's ([The idea](#the-idea)). It also tests whether Umbel can be a machine's command host, and it needs changes to Umbel and to AFD's journal ([What Umbel and AFD need](#what-umbel-and-afd-need)) |
@@ -54,6 +57,21 @@ The owner's answers of 2026-11-21.
 | Where AFD runs | The five stages of [The idea](#the-idea): around a machine first, then inside a machine and between apps from M3 | Nothing inside a machine uses AFD in M0 to M2, and no AFD client goes into the image before M3 |
 | Umbel's rules | Both bend for this binary: a journal mode that writes an entry before the effect, with Umbel's default left as it is, and a recorded exception to principle 11 | The host stays on Umbel's library ([What Umbel and AFD need](#what-umbel-and-afd-need)). The fallback on the `afd` crate is left for the case that M0 cannot build either |
 | A failure that only happens on Linux | From M1 a cell may run its own branch in a machine through the same commands, with one machine beyond `lane.slots` kept for that | Job 18 and its rules in [How the lane uses it](#how-the-lane-uses-it). No command is added: a run's record gains its steps and size, so a run can be repeated. In M1 nothing tells a cell from the lane, so the limit of one rests on the cell's instructions and the reaper, and what is at risk is load |
+
+The owner's answers of 2026-11-25, settling [For the owner](#for-the-owner) and promoting the feature to `active/`:
+
+| Question | Decision | What it changes |
+|---|---|---|
+| The far end | Yes: full desktop/OS UI built on AFD with a web-based Loam shell; no standalone headless-only product edition | M0–M3 remain commands-first as the foundation, but the product target is Loam OS with a Loam shell rather than a separate headless edition |
+| Jobs | Keep all 18 jobs in their proposed build order | No jobs cut, added, or re-ordered; M1/M2 exit criteria stand as drafted |
+| Name | **Loam OS** *(public claim wording remains open)* | Replaces working name "Agent OS"; folder moved to `docs/features/active/loam-os/` |
+| Where it lives | A new Rust unit under `endpoints/` in `afd` for M0–M4, registered in `architecture.json`; revisit splitting out into its own repo at M5 | Enables atomic changes with Umbel, `botcore-factory`, and Loam while unpublished; same licensing |
+| Validation on Linux only | Run the lane's `coverage` in a Linux machine too, and rely on CI's macOS and Windows jobs for those systems | Both `validate` and `coverage` run in machines once `validate_in = "machine"` is active |
+| Images | Hand-built and pinned by digest by the operator in M0–M1 | No image-building command or CI image pipeline until the steps are proven |
+| Base distribution | Minimal headless Ubuntu LTS for M0–M4; M5 reopens the choice | Matches CI and Playwright support without fighting desktop bloat inside session containers |
+| Container runtime | No preference before M0 benchmarks | M0 measures candidate runtimes on the lane hosts and records the choice |
+| Gateway G4 | Amend G4 at M1 exit | Records the validation half met by Loam OS (install, tests, and hook-free push) and what remains: regeneration during a merge (closed by M3 or G4), and G4's half about agents' own users, kept until M3 |
+| Hook-free lane push | Approved for M1 | Lane verifies the host's observed passing run and `main`'s `acceptRecord` on the external output file, then pushes with the branch's pre-push hook off |
 
 ## The idea
 
@@ -110,7 +128,8 @@ Others use the words. As read on 2026-11-21:
 
 Each of these adds agent tooling to a system whose administration is still files, a shell and
 many separate tools. None was found in which one command contract is the only way to run the
-system. That structure is what this proposal claims, and the label is a question for the owner.
+system. That structure is what this proposal claims, named **Loam OS** by the owner on 2026-11-25
+([Decisions](#decisions); public claim wording remains open).
 
 ## The problem
 
@@ -142,8 +161,8 @@ differently:
   `scripts/pre-push.mjs` run with the lane's credentials, and run every check on the lane host
   when they refuse the verify record. In M1 the lane checks the record itself with `main`'s copy
   of the check, against the slot and the host's result, pushes with the branch's hook off, and
-  never runs the checks in the slot. That sets a standing rule aside for the lane, so it is put
-  to the owner.
+  never runs the checks in the slot. That sets a standing rule aside for the lane and was approved
+  by the owner on 2026-11-25 ([Decisions](#decisions)).
 - **Regeneration during a merge.** When `main` conflicts in a generated file, the adapter's
   `regenerate` commands run in the slot. They stay on the lane host in M1 and are what remains
   of G4's validation half, for M3 or G4 itself.
@@ -198,7 +217,7 @@ already has.
 | The journal's actor kinds are `human`, `agent`, `service`, `script` and `test` | [`spec/journal.md`](../../../../spec/journal.md) |
 | A command that declares a confirmation or an approval cannot be an MCP task: "a task never asks a person" | [`spec/command-metadata.md`](../../../../spec/command-metadata.md) |
 | In Loam "only a human gesture confirms", and human commands are "never served over MCP" (D121, D87) | `endpoints/loam/docs/decisions.md` |
-| The agent engine research concludes that "durable work state must outlive an individual worker or context window" and that "a stop request is not rollback" | [Agent Engine research](../agent-engine/research.md) |
+| The agent engine research concludes that "durable work state must outlive an individual worker or context window" and that "a stop request is not rollback" | [Agent Engine research](../../proposed/agent-engine/research.md) |
 
 ## Design
 
@@ -471,17 +490,15 @@ host's MCP endpoint on loopback.
 - **The commit.** The lane keeps its slot for merging `main` in, folding the branch into one
   commit on `base` (`validatedHead`, `#1809`), and pushing. It passes `validatedHead` as `head`
   and the `main` it folded onto as `base`.
-- **The push.** If the owner approves question 10, the lane no longer lets the branch's own
-  pre-push hook run on the lane host. Instead, the lane performs a two-part check before pushing
-  with the hook off: (1) verify that the host's own observed `run` has `state: "passed"` and
-  `head`, `tree` and `base` matching the slot's checkout identity, and (2) parse the verify
-  record file at `output.location` and call `main`'s `acceptRecord({ record, identity, updates })`
-  (`scripts/verify-record.mjs`) with the slot's identity and the actual intended ref update. A
-  disagreement or refusal means validating again or ejecting, and never running the checks in the
-  slot, which is what the hook does today. `main`'s CLI script reads the checkout it stands in,
-  so invoking `acceptRecord` on a slot's identity and external record path is a small M1 adapter
-  seam. If the owner declines question 10, the branch's pre-push hook stays on (and on refusal
-  runs `pre-push-checks` on the lane host).
+- **The push.** In M1 the lane no longer lets the branch's own pre-push hook run on the lane host.
+  Instead, the lane performs a two-part check before pushing with the hook off: (1) verify that the
+  host's own observed `run` has `state: "passed"` and `head`, `tree` and `base` matching the slot's
+  checkout identity, and (2) parse the verify record file at `output.location` and call `main`'s
+  `acceptRecord({ record, identity, updates })` (`scripts/verify-record.mjs`) with the slot's
+  identity and the actual intended ref update. A disagreement or refusal means validating again or
+  ejecting, and never running the checks in the slot, which is what the hook does today. `main`'s
+  CLI script reads the checkout it stands in, so invoking `acceptRecord` on a slot's identity and
+  external record path is a small M1 adapter seam.
 - **Waiting.** The lane's loop never blocks, so it reads `run-get` on each pass, on a slower beat
   than its 5 seconds. A lane that restarts finds its branch's machine and run with `machine-get`
   and takes the run up again; it does not stop it.
@@ -493,16 +510,13 @@ host's MCP endpoint on loopback.
   own runs. A host that serves several lanes needs the sum of their slots plus one, which is
   the operator's to set.
 - **The verify record.** Until the gateway's G1 is the lane's path, the lane names
-  `.git/afd-verify-record.json` as an output. With hook-free push (question 10), the lane first
-  checks the host's observed passing run (`state`, `head`, `tree`, `base`) against the slot, and
-  then parses the output file at `output.location` and calls `main`'s `acceptRecord` with the
-  slot's identity and actual ref update—it does not install the file into the slot's git
-  directory. M1 requires a factory integration test for reading that external output and
-  rejecting a push whenever the host result or `acceptRecord` disagrees. If the owner declines
-  question 10 and keeps the branch's pre-push hook on, the lane installs the output into the
-  slot's git directory for the hook to read, which trusts the machine's word as far as the slot
-  does today (and lets a rejected record trigger `pre-push-checks` on the lane host). With G1,
-  `verification-record` is written from the host's result and the file is no longer needed.
+  `.git/afd-verify-record.json` as an output. With hook-free push, the lane first checks the
+  host's observed passing run (`state`, `head`, `tree`, `base`) against the slot, and then parses
+  the output file at `output.location` and calls `main`'s `acceptRecord` with the slot's identity
+  and actual ref update—it does not install the file into the slot's git directory. M1 requires a
+  factory integration test for reading that external output and rejecting a push whenever the host
+  result or `acceptRecord` disagrees. With G1, `verification-record` is written from the host's
+  result and the file is no longer needed.
 - **A cell's own runs.** From M1 a cell repairing an ejected branch may repeat the lane's failed
   run in a machine itself, through the same commands on the host's command line, when the
   failure does not happen on the lane host's own system (job 18). The lane's `ejected` event
@@ -555,9 +569,10 @@ What the lane does with each answer:
 
 Machines are Linux. On macOS and Windows a container runtime runs them in a Linux virtual
 machine, which also puts a second boundary around them. The lane's validation then runs on
-Linux, as CI's does, and no longer on the lane host's own system; what that loses is a question
-for the owner. On Apple silicon the machines are arm64 while CI's runners are x86-64, and whether
-every suite passes there is M0's to find out.
+Linux, as CI's does, and no longer on the lane host's own system; on 2026-11-25 the owner decided
+to run the lane's `coverage` in a Linux machine too and rely on CI's macOS and Windows jobs for
+those systems ([Decisions](#decisions)). On Apple silicon the machines are arm64 while CI's runners
+are x86-64, and whether every suite passes there is M0's to find out.
 
 ## Commands (draft)
 
@@ -630,22 +645,22 @@ and an exit, before it starts.
 - **Builds:** every M1 command; the supervisor, reaper, proxy and mirror; the journal changes
   (durable pre-effect intent entry and live health/buffer counts); the factory adapter's
   `validate_in`, the lane's rules for each answer, its two-part verify-record check and
-  hook-free push (subject to question 10) with factory integration tests covering external output
-  validation and mismatch rejection, and a cell's instructions for a run of its own.
+  hook-free push with factory integration tests covering external output validation and mismatch
+  rejection, and a cell's instructions for a run of its own.
 - **Jobs:** `m1` (01 to 11 and 14 to 18).
 - **Process:** the factory's `factory` docs topic and `run-fleet`, `SETUP.md`, and a runbook in
   `docs/operations/`. The cell brief in `run-fleet`'s runbook keeps a cell from whole suites and
   reproduction loops today, because the lane's validation shares the host; it gains what a cell
   may run in a machine instead. The gateway's G4 is amended to say which part of its validation
-  half is met here (question 9).
+  half is met here ([Decisions](#decisions)).
 - **Exit:** every `m1` scenario passes against the fake runtime, and 01, 03, 04, 08 and 16
   against a real one. Unit/integration tests verify crash recovery at the pre-effect journal
   boundary (no machine or run starts without a persisted intent entry) and the lane's external
   verify-record check (including rejection when the host's observed `state`, `head`, `tree` or
   `base` disagrees with the output or slot). In one fleet run every validation ran in a machine.
   A test branch whose tests try to read the lane's token, the `gh` sign-in and a file outside the
-  workspace, and to reach a host outside every policy, gets none of them, and (if question 10 is
-  approved) its own pre-push hook does not run on the lane host. A cell given a planted branch,
+  workspace, and to reach a host outside every policy, gets none of them, and its own pre-push hook
+  does not run on the lane host. A cell given a planted branch,
   whose test fails in the image and passes on the lane host's own system, repeats the failed run
   in a machine of its own and destroys the machine. After the run the host's disk use is back at
   its level before it, and `host-status` shows nothing unlisted. The report gives validation time
@@ -716,14 +731,15 @@ the references to read for its specification; neither was read for this proposal
 - When I sit at this system as my main computer, I want its interface to call the same commands
   my agents use, so that anything I can do an agent can do, and the record holds both.
 
-Loam is the candidate shell. Nothing about it is specified here.
+The owner chose a web-based Loam shell for this desktop on 2026-11-25 ([Decisions](#decisions)).
+Nothing about it is specified here.
 
 ## Security
 
 | Threat | Answer |
 |---|---|
 | Code under validation reads a credential | A machine holds none of the host's. No input passes a host path, a host variable or a host credential through, and its mounts are the host's own volumes. A value a caller supplies itself does go into the machine: the secret rules refuse what they recognise (`SECRET_IN_INPUT`), which is detection and no guarantee. M1's exit tests it with a branch that looks |
-| A branch changes the push's hook, or a generator the lane runs | If question 10 is approved, from M1 the lane pushes with the branch's hook off after checking the host's observed run and `main`'s `acceptRecord`. If question 10 is declined, the branch's pre-push hook (and `pre-push-checks` on record refusal) remains branch-controlled code on the lane host with lane-host access alongside `regenerate`, which M3 or G4 closes |
+| A branch changes the push's hook, or a generator the lane runs | From M1 the lane pushes with the branch's hook off after checking the host's observed run and `main`'s `acceptRecord`. Regeneration during a merge (`regenerate`) remains branch-controlled code on the lane host until M3 or G4 closes it |
 | One branch's run reads another branch's code | Each checkout has an object store of its own with only what its commit and base reach; on an M2 warm machine, the host uses the checkpoint's `work` layer only when the checkpoint's base commit is an ancestor of `base` and falls back to a fresh clone otherwise. The mirror is never mounted |
 | Code under validation sends data out | No network without a named policy, policies named by the operator, and the proxy as the only route. Refused connections are listed in the result |
 | One branch changes what the next builds on | A fresh checkout for every run on cold machines, private copy-on-write layers over a `main`-only checkpoint in M2, and a build volume for each machine. The shared `downloads` cache remains until M2, as the lane host's shared caches do today; M2's checkpoints are made only from `main` and every machine writes to its own layer |
@@ -989,9 +1005,8 @@ Declined, with the reason:
 - `expect` cannot read `retryable`, so job 17 shows the refusal codes and the draft says which
   are worth retrying.
 - Checking the host's observed run (`state`, `head`, `tree`, `base`) and validating the external
-  verify record output with `main`'s `acceptRecord` (or installing it into the slot if the
-  branch's pre-push hook stays on) (06) are M1 lane steps that require new factory integration
-  tests (including rejection when the host result disagrees).
+  verify record output with `main`'s `acceptRecord` (06) are M1 lane steps that require new factory
+  integration tests (including rejection when the host result disagrees).
 - Writing held journal entries once the journal returns (14), the reaper's schedule (16) and
   that log text stays out of the journal (11) happen between commands and need unit tests.
 - Whether a machine is fast enough, what a cold and a warm validation cost, what the lane's
@@ -1029,10 +1044,10 @@ not drafted: []
 - M1: every `m1` scenario passes; crash recovery at the pre-effect journal boundary and the
   lane's external verify-record check (including mismatch rejection) pass their tests; one fleet
   run with every validation in a machine; the test branch finds no credential, no file outside
-  its workspace and no route out, and (if question 10 is approved) its hook does not run on the
-  lane host; a cell repeats a planted branch's failed run in a machine of its own; disk use
-  returns to its level and nothing unlisted remains; validation time, the journal's growth and
-  the count of operator uses of the runtime's own tools are reported.
+  its workspace and no route out, and its hook does not run on the lane host; a cell repeats a
+  planted branch's failed run in a machine of its own; disk use returns to its level and nothing
+  unlisted remains; validation time, the journal's growth and the count of operator uses of the
+  runtime's own tools are reported.
 - M2: the `warm` scenarios pass; one branch's file is absent from the next machine; warm
   validation time is reported.
 - M3 to M5 have no exit yet. Each gets one in its own specification: M3's is written when M1
@@ -1040,35 +1055,28 @@ not drafted: []
 
 ## For the owner
 
-Three questions of the first draft were answered on 2026-11-21 and are in
-[Decisions](#decisions): where AFD runs, Umbel's rules, and repairing a failure that only
-happens on Linux. These remain.
+All thirteen questions were addressed and recorded in [Decisions](#decisions): three on 2026-11-21
+(where AFD runs, Umbel's rules, and repairing a failure that only happens on Linux) and the ten
+below on 2026-11-25, promoting the feature to `active/loam-os` under Epic
+[#2595](https://github.com/lushly-dev/afd/issues/2595) (only public claim wording under question 3
+remains open for when Loam OS is announced publicly).
 
-1. **The far end.** Whether a desktop that could replace a person's main system stays the far
-   end, beyond M5.
-2. **Jobs.** Cut, add and rank the eighteen jobs. The order above is the proposed build order.
-3. **Name.** "Agent OS" is a working name, and others use near forms of it. Name it, and say how
-   the claim should be worded in public, if at all.
-4. **Where it lives.** A new Rust unit under `endpoints/`, depending on Umbel's crates, with its
-   entry in `architecture.json`. Recommended.
-5. **Validation on Linux only.** With `validate_in = "machine"` the lane no longer runs the suites
-   on its own macOS or Windows. Recommended: run the lane's `coverage` in a machine too, and rely
-   on CI's Windows and macOS jobs for those systems; or keep `coverage` on the host's own system.
-6. **Images.** In M0 and M1 the operator builds and pins each image by hand from the repository's
-   container file. Recommended, with automation left until the steps are known.
-7. **Base distribution.** Ubuntu's long-term release for M0 to M4, because CI runs on it and
-   Playwright supports it. M5 reopens the choice.
-8. **The container runtime.** Any runtime with Docker's interface would do. Whether the owner has
-   a preference for the lane hosts, before M0 measures them.
-9. **G4.** When M1 exits, amend the gateway's G4 to say which part of its validation half is met
-   here (a branch's install, its tests, and—if question 10 is approved—the push's hook) and
-   which remains (regeneration during a merge, plus the push's hook and `pre-push-checks` if
-   question 10 is declined), and keep its half about agents' own users until M3.
-10. **The lane's push without the branch's hook.** The repository's rule is that a push skips
-    its hook only with the owner's approval and separate evidence for that commit. Recommended
-    for the lane from M1: the evidence is the host's observed passing run and `main`'s
-    `acceptRecord` check on the output file, and the hook it skips is code the branch could have
-    changed. If declined, the branch's pre-push hook (and `pre-push-checks` on record refusal)
-    stays on the lane host with lane-host access alongside `regenerate`, the lane installs the
-    verify record output into the slot's git directory, and the hook-free clause is removed from
-    G4's M1 amendment, the security claim and M1's exit criteria.
+1. **The far end (answered 2026-11-25).** Keep a full desktop/OS UI beyond M5, built on AFD with a
+   web-based Loam shell; no standalone headless-only product edition.
+2. **Jobs (answered 2026-11-25).** Keep all eighteen jobs in their proposed build order.
+3. **Name (answered 2026-11-25).** **Loam OS** (public claim wording remains open).
+4. **Where it lives (answered 2026-11-25).** A new Rust unit under `endpoints/` in `afd`, depending
+   on Umbel's crates and registered in `architecture.json`, for M0–M4; revisit splitting out at M5.
+5. **Validation on Linux only (answered 2026-11-25).** Run the lane's `coverage` in a machine too,
+   and rely on CI's Windows and macOS jobs for those systems.
+6. **Images (answered 2026-11-25).** Operator builds and pins each image by digest by hand in M0–M1.
+7. **Base distribution (answered 2026-11-25).** Minimal headless Ubuntu LTS for M0–M4; M5 reopens
+   the choice.
+8. **The container runtime (answered 2026-11-25).** No owner preference; M0 measures candidates on
+   the lane hosts.
+9. **G4 (answered 2026-11-25).** Amend Factory Gateway G4 at M1 exit to record the validation half
+   met here (install, tests, and hook-free push) and what remains: regeneration during a merge
+   (closed by M3 or G4), and G4's half about agents' own users, kept until M3.
+10. **The lane's push without the branch's hook (answered 2026-11-25).** Approved for M1: the lane
+    verifies the host's observed passing run and `main`'s `acceptRecord` on the output file, then
+    pushes with the branch's pre-push hook off.

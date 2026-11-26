@@ -1,6 +1,8 @@
-# Agent OS: status
+# Loam OS: status
 
-Read this before the [proposal](agent-os.proposal.md). It records exactly what is done and what is
+Epic: [#2595](https://github.com/lushly-dev/afd/issues/2595).
+
+Read this before the [proposal](loam-os.proposal.md). It records exactly what is done and what is
 not, so an agent never has to scan the code to learn what is current. It follows the shape of the
 [Patterns status](../../active/patterns/STATUS.md).
 
@@ -17,17 +19,26 @@ not, so an agent never has to scan the code to learn what is current. It follows
 
 ## Status block
 
-- **State:** proposed. A first draft, written 2026-11-21 against `main` at `a91acface`, revised
-  the same day after five readers walked its jobs in three passes, the owner answered three of
-  its questions and two independent reviewers read it, and revised again on 2026-11-22 after a
-  fresh end-to-end review against `main` at `39ca857fd`. Not approved.
-- **Epic:** none. It is opened when the feature moves to `active/`.
-- **Decided by the owner, 2026-11-21:** commands first with no interface; a machine per session as
-  the first form; authority outside the machine; a separate binary on Umbel's host library; a
-  branch's validation run as the first workload; AFD inside a machine from M3 and not before;
-  Umbel's journal rule and principle 11 bend for this binary; from M1 a cell may repeat a
-  failed run in a machine of its own. The proposal's
-  [Decisions](agent-os.proposal.md#decisions) has the table.
+- **State:** active. Drafted 2026-11-21 as `proposed/agent-os` against `main` at `a91acface`,
+  revised after five-reader path walks and two independent reviews ([#1912](https://github.com/lushly-dev/afd/pull/1912)),
+  revised again on 2026-11-22 after a fresh end-to-end review against `main` at `39ca857fd`
+  ([#2121](https://github.com/lushly-dev/afd/pull/2121)), and approved and promoted to `active/loam-os`
+  by the owner on 2026-11-25.
+- **Epic:** [#2595](https://github.com/lushly-dev/afd/issues/2595).
+- **Decided by the owner:**
+  - **2026-11-21:** commands first with no interface in M0–M3; a machine per session as the first
+    form; authority outside the machine; a separate binary on Umbel's host library; a branch's
+    validation run as the first workload; AFD inside a machine from M3 and not before; Umbel's
+    journal rule and principle 11 bend for this binary; from M1 a cell may repeat a failed run in
+    a machine of its own.
+  - **2026-11-25:** named **Loam OS**; full desktop/OS UI beyond M5 built on AFD with a web-based
+    Loam shell (no standalone headless-only product edition); all 18 jobs kept in proposed build
+    order; lives in `afd` under `endpoints/` for M0–M4 (revisit splitting out at M5); minimal
+    headless Ubuntu LTS base for M0–M4; hand-built digest-pinned images in M0–M1; no container
+    runtime preference before M0 benchmarks; Linux-only validation including `coverage` (rely on CI
+    for macOS/Windows); hook-free lane push in M1 via `main`'s verify-record check; Factory Gateway
+    G4 amended at M1 exit. The proposal's [Decisions](loam-os.proposal.md#decisions) has the full
+    table.
 - **Built:** nothing. Nothing is implemented and nothing is measured.
 - **Last verified:** 2026-11-22, the scenario checks below, on `main` at `d91d228a5` on Node 26.13.1.
 
@@ -35,16 +46,16 @@ not, so an agent never has to scan the code to learn what is current. It follows
 
 | Step | State | Evidence |
 | --- | --- | --- |
-| Draft the proposal | Merged in [#1912](https://github.com/lushly-dev/afd/pull/1912) | [`agent-os.proposal.md`](agent-os.proposal.md) |
+| Draft the proposal | Merged in [#1912](https://github.com/lushly-dev/afd/pull/1912) | [`loam-os.proposal.md`](loam-os.proposal.md) |
 | Write the jobs as scenarios | Merged in [#1912](https://github.com/lushly-dev/afd/pull/1912) | [`scenarios/`](scenarios/), 18 files, 131 steps |
 | Check the scenarios | Run 2026-11-22, after the end-to-end review revision | [How the jobs were checked](#how-the-jobs-were-checked) |
-| Walk the paths with readers who did not write them | Walked 2026-11-21 by three readers, one in each seat, a second pass by a fourth after the revision, and a walk of job 18 by a fifth | Proposal, [Walking the paths](agent-os.proposal.md#walking-the-paths) |
-| Independent review of the proposal | Reviewed 2026-11-21 by two reviewers and revised; a focused pass then checked the fixes | [How it was reviewed](#how-it-was-reviewed) |
-| The owner cuts, adds and ranks the jobs, and answers the proposal's [For the owner](agent-os.proposal.md#for-the-owner) | Three questions answered 2026-11-21; the ranking and nine questions remain | Proposal, [Decisions](agent-os.proposal.md#decisions) |
-| M0: stand it up | Not started; needs the owner's go | Proposal, [M0](agent-os.proposal.md#m0-stand-it-up) |
-| M1: validation in a machine | Not started | Proposal, [M1](agent-os.proposal.md#m1-mvp-validation-in-a-machine) |
-| M2: warm starts | Not started | Proposal, [M2](agent-os.proposal.md#m2-warm-starts) |
-| M3 to M5 | Direction only, with no scenarios and no exit. M3 is specified when M1 exits, M4 when M3 exits and M5 when M4 exits | Proposal, [Milestones](agent-os.proposal.md#milestones) |
+| Walk the paths with readers who did not write them | Walked 2026-11-21 by three readers, one in each seat, a second pass by a fourth after the revision, and a walk of job 18 by a fifth | Proposal, [Walking the paths](loam-os.proposal.md#walking-the-paths) |
+| Independent review of the proposal | Reviewed 2026-11-21 by two reviewers and revised; a focused pass then checked the fixes; end-to-end review merged in [#2121](https://github.com/lushly-dev/afd/pull/2121) | [How it was reviewed](#how-it-was-reviewed) |
+| The owner cuts, adds and ranks the jobs, and answers the proposal's [For the owner](loam-os.proposal.md#for-the-owner) | Approved 2026-11-25; promoted to `active/loam-os` in [#2598](https://github.com/lushly-dev/afd/pull/2598) | Proposal, [Decisions](loam-os.proposal.md#decisions); Epic [#2595](https://github.com/lushly-dev/afd/issues/2595) |
+| M0: stand it up | Planned in [#2596](https://github.com/lushly-dev/afd/issues/2596) | Proposal, [M0](loam-os.proposal.md#m0-stand-it-up) |
+| M1: validation in a machine | Not started | Proposal, [M1](loam-os.proposal.md#m1-mvp-validation-in-a-machine) |
+| M2: warm starts | Not started | Proposal, [M2](loam-os.proposal.md#m2-warm-starts) |
+| M3 to M5 | Direction only, with no scenarios and no exit. M3 is specified when M1 exits, M4 when M3 exits and M5 when M4 exits | Proposal, [Milestones](loam-os.proposal.md#milestones) |
 
 ## How the jobs were checked
 
@@ -52,8 +63,10 @@ On 2026-11-21, after `pnpm -F "@lushly-dev/afd-cli..." build`, again after the w
 after job 18 was added and revised, after the independent reviews' revision, and again on
 2026-11-22 after the end-to-end review revision (adding the warm base-advance case to job 12):
 
-- `node packages/cli/dist/bin.js scenario validate docs/features/proposed/agent-os/scenarios`:
-  all 18 files parse.
+- `node packages/cli/dist/bin.js scenario validate docs/features/proposed/agent-os/scenarios`
+  (historical path before the 2026-11-25 move to `docs/features/active/loam-os/scenarios`; all 27
+  scenario and fixture files moved with no content change, including `"app": "agent-os"` in
+  `fixtures/host.json`): all 18 files parse.
 - The dry-run check of [jobs first](../../../../.claude/skills/afd/references/jobs-first.md#checking-without-a-server)
   (`validateScenario` with `checkFixtures: true`): no errors in 18 files and 131 steps.
 - The coverage report (`scenarioCoverage`), given the 15 drafted commands, Umbel's `event-list`
@@ -90,7 +103,7 @@ On 2026-11-21 two fresh reviewers read the whole change read-only, with the acce
 and without the drafting session's reasoning: Opus 5.5 and GPT-6.2 Astra, both at high effort.
 Each traced the proposal's statements about existing code and ran the scenario checks. Their
 blockers were checked against the code and fixed, and the proposal's
-[Walking the paths](agent-os.proposal.md#walking-the-paths) lists what changed and what was
+[Walking the paths](loam-os.proposal.md#walking-the-paths) lists what changed and what was
 declined. The revision added one refusal (`RUN_NOT_CONFIGURED`) and no job or command. A
 focused pass by Opus 5.5 at high effort then checked the fixes. Its verdict was to revise:
 sixteen of seventeen findings were settled, two passages still gave the old checkpoint rule, and
@@ -107,8 +120,8 @@ repository and approved it with four minor polish improvements, all applied.
 
 ## What is not verified
 
-The proposal's [Status](agent-os.proposal.md#status) lists what nobody has measured, and M0
-settles it. The rows of [What Umbel and AFD need](agent-os.proposal.md#what-umbel-and-afd-need)
+The proposal's [Status](loam-os.proposal.md#status) lists what nobody has measured, and M0
+settles it. The rows of [What Umbel and AFD need](loam-os.proposal.md#what-umbel-and-afd-need)
 were read from Umbel's code on 2026-11-21 and re-verified on 2026-11-22 against `main` at
 `39ca857fd`, and have not been built against yet.
 
@@ -124,3 +137,4 @@ were read from Umbel's code on 2026-11-21 and re-verified on 2026-11-22 against 
 | --- | --- | --- |
 | 2026-11-21 | The drafting session | Drafted the proposal and its jobs from the owner's decisions, had them walked in two passes and revised. Wrote the owner's three further answers in, added job 18 and had it walked. Two independent reviews and their revision. Corrected the stale statements found on the way |
 | 2026-11-22 | Fresh review session | Conducted a fresh end-to-end review against `main` at `39ca857fd` (4 blockers, 5 improvements), addressed GPT-6.2 Astra's review (5 blockers, 2 improvements), and applied 4 polish improvements from the approving read-only review |
+| 2026-11-25 | Promotion session | Recorded the owner's 10 remaining decisions (named Loam OS, web-based Loam shell as the far end, lives under `endpoints/` for M0–M4), moved `proposed/agent-os/` to `active/loam-os/`, updated `docs/features/README.md`, and opened Epic [#2595](https://github.com/lushly-dev/afd/issues/2595) and M0 sub-issue [#2596](https://github.com/lushly-dev/afd/issues/2596) |
