@@ -817,7 +817,11 @@ export function createCopilotParts(deps: CopilotDeps): CopilotParts {
 					...(opened ? { unit: opened.unit } : {}),
 				};
 				if (!live.revoked) {
-					live.turn.calls.push(entry);
+					// In the order the calls were made, not the order they settled: one model round's calls run together,
+					// so a slower earlier call would otherwise land after a later one (#2647). Ids are zero-padded.
+					const after = live.turn.calls.findIndex((each) => each.callId > callId);
+					if (after === -1) live.turn.calls.push(entry);
+					else live.turn.calls.splice(after, 0, entry);
 					if (currentClaim !== undefined) {
 						live.pending.set(currentClaim.id, currentClaim.expiresAt);
 						tracker.noteRaised(session.id, currentClaim.id);

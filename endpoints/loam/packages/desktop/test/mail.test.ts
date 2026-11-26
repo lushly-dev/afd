@@ -125,16 +125,81 @@ interface Turn {
 	calls: Call[];
 }
 
-/** A new session, and the turn the person's text starts in it, once it settles or waits. */
+/**
+ * How long one WebDriver command may go unanswered before the session is called hung (#2656), well under the test's
+ * 120 s: on Linux a call once never answered, WebKitWebDriver queued every later command behind it, and five tests
+ * each waited out their timeout with nothing said of what was pending.
+ */
+const COMMAND_MS = 45_000;
+/** How long a turn may stay `running`: the scripted model answers at once, so a turn is quick or stuck. */
+const TURN_MS = 60_000;
+/** The command the session stopped answering at, once one did not answer. */
+let hung: string | undefined;
+
+/** What the model and the engine had seen when a wait ran out. */
+function pendingNote(): string {
+	const last = model?.requests.at(-1);
+	return JSON.stringify({
+		modelRequests: model?.requests.length ?? 0,
+		lastAsked: last?.asked ?? null,
+		// Printed to the CI log, so never with a token in it, should the engine ever log one.
+		engineStderr:
+			engine?.stderr
+				.slice(-5)
+				.map((line) => (bearer ? line.replaceAll(bearer, '<bearer>') : line))
+				.map((line) => line.replace(/afdap1\.\S*/g, '<approval>')) ?? [],
+		// The app's own log, redacted as it is read (`harness.ts`).
+		appStderr: desktop?.stderr.lines.slice(-5) ?? [],
+	});
+}
+
+/** `run`, failing once `COMMAND_MS` passes, and every later command at once, rather than waiting out each test. */
+async function bounded<T>(what: string, run: () => Promise<T>): Promise<T> {
+	if (hung !== undefined)
+		throw new Error(`the WebDriver session stopped answering at ${hung}; ${what} was not sent`);
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const deadline = new Promise<never>((_, reject) => {
+		timer = setTimeout(() => {
+			hung = what;
+			reject(new Error(`WebDriver did not answer ${what} in ${COMMAND_MS} ms: ${pendingNote()}`));
+		}, COMMAND_MS);
+	});
+	try {
+		return await Promise.race([run(), deadline]);
+	} finally {
+		clearTimeout(timer);
+	}
+}
+
+const call = (name: string, input?: unknown) => bounded(name, () => desktop.call(name, input));
+const agentCall = (name: string, input?: unknown) =>
+	bounded(`${name} as the agent`, () => desktop.agentCall(name, input));
+
+/**
+ * A new session, and the turn the person's text starts in it, once it settles or waits. Sent without waiting and read
+ * back until it leaves `running`, so a turn that never settles fails here with the calls it made (#2656).
+ */
 async function turn(text: string): Promise<{ session: string; turn: Turn }> {
-	const started = dataOf<{ session: { id: string } }>(
-		await desktop.call('copilot-session-start', {})
-	);
+	const started = dataOf<{ session: { id: string } }>(await call('copilot-session-start', {}));
 	const session = started.session.id;
-	const sent = dataOf<{ turn: Turn }>(
-		await desktop.call('copilot-message-send', { session, text, wait: true })
+	const sent = dataOf<{ turn: Turn & { seq: number } }>(
+		await call('copilot-message-send', { session, text, wait: false })
 	);
-	return { session, turn: sent.turn };
+	let seen: Turn = sent.turn;
+	const settled = await until(
+		async () => {
+			const got = dataOf<{ turns: Array<Turn & { seq: number }> }>(
+				await call('copilot-session-get', { session })
+			);
+			seen = got.turns.find((each) => each.seq === sent.turn.seq) ?? seen;
+			return seen.state === 'running' ? undefined : seen;
+		},
+		`the turn "${text}" to settle or wait`,
+		TURN_MS,
+		async () =>
+			`calls ${JSON.stringify(seen.calls.map((each) => [each.command, each.outcome]))}, ${pendingNote()}`
+	);
+	return { session, turn: settled };
 }
 
 interface Confirmation {
@@ -150,7 +215,7 @@ interface Confirmation {
 
 async function pending(): Promise<Confirmation[]> {
 	const listed = dataOf<{ notifications: Confirmation[] }>(
-		await desktop.call('notification-list', { kind: 'confirmation', body: true })
+		await call('notification-list', { kind: 'confirmation', body: true })
 	);
 	return listed.notifications.filter((each) => each.confirmation?.state === 'pending');
 }
@@ -181,8 +246,8 @@ type MailAction = 'found' | 'ready' | 'sent' | 'type' | 'press' | 'state';
  * event, or a press of one of its buttons. The shell's policy runs no `eval`, so each action is named here.
  */
 function inMailApp<T>(action: MailAction, selector = '', value = ''): Promise<T | undefined> {
-	return desktop.browser
-		.execute(
+	return bounded(`the mail app's ${action}`, () =>
+		desktop.browser.execute(
 			(action: MailAction, selector: string, value: string) => {
 				const deep = (root: Document | ShadowRoot, wanted: string): Element | null => {
 					const found = root.querySelector(wanted);
@@ -224,7 +289,7 @@ function inMailApp<T>(action: MailAction, selector = '', value = ''): Promise<T 
 			selector,
 			value
 		)
-		.then((answered) => (answered === null ? undefined : (answered as T)));
+	).then((answered) => (answered === null ? undefined : (answered as T)));
 }
 
 /**
@@ -252,7 +317,7 @@ interface Prompt {
 
 /** The slot's prompts that ask for a confirmation. */
 async function prompts(): Promise<Prompt[]> {
-	const listed = dataOf<{ overlays: Prompt[] }>(await desktop.call('overlay-list'));
+	const listed = dataOf<{ overlays: Prompt[] }>(await call('overlay-list'));
 	return listed.overlays.filter(
 		(each) => each.kind === 'prompt' && each.for?.kind === 'confirmation'
 	);
@@ -271,15 +336,14 @@ beforeAll(async () => {
 	model = await startMailModel();
 	bearer = readFileSync(engine.approverTokenFile, 'utf8').trim();
 	desktop = await openDesktop({ deployment: await deployment() });
-	await untilInstance(desktop, 'mail', 'ready');
+	// Through `bounded`, so a hang here fails the hook at once too.
+	await untilInstance({ ...desktop, call }, 'mail', 'ready');
 	// The person's own rows, as `p5-base` sets them: the shell's project-create and mail's drafts run without asking.
 	for (const [instance, command] of [
 		['shell', 'project-create'],
 		['mail', 'mail-draft-create'],
 	] as const)
-		dataOf(
-			await desktop.call('autonomy-set', { level: 'workspace', instance, command, mode: 'act' })
-		);
+		dataOf(await call('autonomy-set', { level: 'workspace', instance, command, mode: 'act' }));
 }, 300_000);
 
 afterAll(async () => {
@@ -292,7 +356,7 @@ describe('P5-A9: mail on the desktop, against the real engine', () => {
 	it('P5-A9: the README entry mounts the engine on MCP 2026-07-28 with its approvals', async () => {
 		const listed = dataOf<{
 			instances: { instance: string; protocolVersion?: string; warnings: { code: string }[] }[];
-		}>(await desktop.call('app-instance-list'));
+		}>(await call('app-instance-list'));
 		const row = listed.instances.find((each) => each.instance === 'mail');
 		expect(row?.protocolVersion).toBe('2026-07-28');
 		expect(row?.warnings.map((each) => each.code)).not.toContain('INSTANCE_APPROVALS_UNAVAILABLE');
@@ -314,7 +378,7 @@ describe('P5-A9: mail on the desktop, against the real engine', () => {
 		);
 
 		const got = dataOf<{ session: { taint: { source: string }[] } }>(
-			await desktop.call('copilot-session-get', { session })
+			await call('copilot-session-get', { session })
 		);
 		expect(got.session.taint.map((each) => each.source)).toEqual(['mail']);
 		const [asked, ...others] = await pending();
@@ -325,9 +389,9 @@ describe('P5-A9: mail on the desktop, against the real engine', () => {
 			asked: { reason: 'taint', sources: ['mail'] },
 		});
 		expect(
-			dataOf(await desktop.call('notification-act', { notification: asked?.id, answer: 'decline' }))
+			dataOf(await call('notification-act', { notification: asked?.id, answer: 'decline' }))
 		).toMatchObject({ state: 'declined' });
-		const project = await desktop.call('project-get', { project: 'payroll' });
+		const project = await call('project-get', { project: 'payroll' });
 		expect(project.error?.code).toBe('PROJECT_NOT_FOUND');
 	});
 
@@ -353,12 +417,12 @@ describe('P5-A9: mail on the desktop, against the real engine', () => {
 		expect(await engine.received()).toEqual([]);
 		// An agent's read of the inbox names the preview's read alone: never its data or digest.
 		const theirs = dataOf<{ notifications: Confirmation[] }>(
-			await desktop.agentCall('notification-list', { kind: 'confirmation', body: true })
+			await agentCall('notification-list', { kind: 'confirmation', body: true })
 		).notifications.find((each) => each.id === asked?.id);
 		expect(theirs?.confirmation?.preview).toEqual({ command: 'mail-draft-show' });
 
 		// An agent cannot answer it.
-		const forged = await desktop.agentCall('notification-act', {
+		const forged = await agentCall('notification-act', {
 			notification: asked?.id,
 			answer: 'confirm',
 		});
@@ -366,12 +430,12 @@ describe('P5-A9: mail on the desktop, against the real engine', () => {
 		expect(await engine.received()).toEqual([]);
 
 		expect(
-			dataOf(await desktop.call('notification-act', { notification: asked?.id, answer: 'confirm' }))
+			dataOf(await call('notification-act', { notification: asked?.id, answer: 'confirm' }))
 		).toMatchObject({ state: 'confirmed' });
 		expect((await engine.received()).map((each) => each.to)).toEqual([['ada@example.com']]);
 		// Once: the ended confirmation is answered where it stands, and nothing more is sent.
 		expect(
-			dataOf(await desktop.call('notification-act', { notification: asked?.id, answer: 'confirm' }))
+			dataOf(await call('notification-act', { notification: asked?.id, answer: 'confirm' }))
 		).toMatchObject({ state: 'confirmed' });
 		expect(await engine.received()).toHaveLength(1);
 	});
@@ -385,7 +449,7 @@ describe('P5-A9: mail on the desktop, against the real engine', () => {
 			['mail-replyset-next', 'ok', 'composed'],
 		]);
 		const got = dataOf<{ session: { taint: unknown[] } }>(
-			await desktop.call('copilot-session-get', { session })
+			await call('copilot-session-get', { session })
 		);
 		expect(got.session.taint).toEqual([]);
 
@@ -413,7 +477,7 @@ describe('P5-A9: mail on the desktop, against the real engine', () => {
 			replyset: {
 				replies: { content: { recipient: { address: string }; text: string | null } }[];
 			};
-		}>(await desktop.call('mail-replyset-show', { replyset: 1 }));
+		}>(await call('mail-replyset-show', { replyset: 1 }));
 		expect(
 			shown.replyset.replies.map((each) => [each.content.recipient.address, each.content.text])
 		).toEqual([
@@ -424,7 +488,7 @@ describe('P5-A9: mail on the desktop, against the real engine', () => {
 
 	it('P5-A9: the person presses Send in the mail app; it is asked once in the slot with the preview, and sent once', async () => {
 		const sentBefore = (await engine.received()).length;
-		dataOf(await desktop.call('app-open', { instance: 'mailapp' }));
+		dataOf(await call('app-open', { instance: 'mailapp' }));
 		const state = () => inMailApp<string>('state');
 		await until(() => inMailApp<boolean>('found'), 'the mail app', 30_000, state);
 		await type('.thread-id', '8');
@@ -451,7 +515,10 @@ describe('P5-A9: mail on the desktop, against the real engine', () => {
 		});
 		// Shown to the person in the slot once it has drawn (the record comes first), and nothing sent before they answer.
 		await until(
-			async () => ((await pageText(desktop.browser)).includes(BODY) ? true : undefined),
+			async () =>
+				(await bounded('the page text', () => pageText(desktop.browser))).includes(BODY)
+					? true
+					: undefined,
 			'the slot to show the draft',
 			30_000,
 			state
@@ -462,16 +529,14 @@ describe('P5-A9: mail on the desktop, against the real engine', () => {
 		expect(await pending()).toEqual([]);
 
 		// An agent cannot answer the slot's prompt.
-		const forged = await desktop.agentCall('overlay-dismiss', {
+		const forged = await agentCall('overlay-dismiss', {
 			overlayId: prompt.overlayId,
 			result: 'confirm',
 		});
 		expect(forged.error?.code).toBe('HUMAN_REQUIRED');
 		expect(await engine.received()).toHaveLength(sentBefore);
 		expect(await prompts()).toHaveLength(1);
-		dataOf(
-			await desktop.call('overlay-dismiss', { overlayId: prompt.overlayId, result: 'confirm' })
-		);
+		dataOf(await call('overlay-dismiss', { overlayId: prompt.overlayId, result: 'confirm' }));
 		const notice = await until(
 			() => inMailApp<string>('sent'),
 			'the app to say it was sent',
@@ -486,8 +551,8 @@ describe('P5-A9: mail on the desktop, against the real engine', () => {
 	});
 
 	it('P5-A9: no approval token or bearer is in the page, its storage, the site, the app’s log or the engine’s', async () => {
-		const page = await pageText(desktop.browser);
-		const stored = await storedText(desktop.browser);
+		const page = await bounded('the page text', () => pageText(desktop.browser));
+		const stored = await bounded('the stored text', () => storedText(desktop.browser));
 		const logged = desktop.stderr.lines.join('\n');
 		// The engine's own log, and every file the deployment wrote for the webview to serve.
 		const engineLogged = engine.stderr.join('\n');
