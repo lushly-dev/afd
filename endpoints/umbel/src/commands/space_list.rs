@@ -10,7 +10,7 @@
 use super::event_list::admits;
 use super::{Builtin, blocking, empty_input, expose_everywhere_but_the_palette, returns_object};
 use crate::access::{Caller, reader_filter};
-use crate::events::{Cursor, Projector, scan_readable};
+use crate::events::{Cursor, Projector, count_readable};
 use crate::positions::Presenter;
 use crate::workspace::Workspace;
 use afd::{CommandContext, CommandDefinition, CommandHandler, CommandResult, failure, success};
@@ -49,10 +49,9 @@ impl CommandHandler for Handler {
                         let filter = reader_filter(workspace.config(), space.id.as_str(), &caller)?;
                         let tokens = filter.token_list().unwrap_or_default();
                         let path = workspace.layout().events_file(&space.id);
-                        let scan =
-                            scan_readable(&path, 0, 0, 0, events, |event| admits(tokens, event))
-                                .map_err(|error| error.to_sealed_command_error())?;
-                        (scan.count, presenter.cursor(&space.id, scan.head))
+                        let readable = count_readable(&path, events, |event| admits(tokens, event))
+                            .map_err(|error| error.to_sealed_command_error())?;
+                        (readable.count, presenter.cursor(&space.id, readable.head))
                     } else {
                         (events, Cursor::new(space.id.clone(), events).to_string())
                     };

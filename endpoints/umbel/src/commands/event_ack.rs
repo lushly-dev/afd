@@ -11,7 +11,7 @@ use super::{
     returns_object,
 };
 use crate::access::{Caller, reader_filter};
-use crate::events::{Cursor, Projector, read_cursor_as, scan_readable, write_cursor};
+use crate::events::{Cursor, Projector, last_readable_at, read_cursor_as, write_cursor};
 use crate::positions::{Kind, Presenter};
 use crate::workspace::Workspace;
 use afd::{CommandContext, CommandDefinition, CommandError, CommandHandler, CommandResult};
@@ -99,13 +99,13 @@ impl CommandHandler for Handler {
                 let filter = reader_filter(workspace.config(), space.as_str(), &reader)?;
                 let tokens = filter.token_list().unwrap_or_default();
                 let path = layout.events_file(&space);
-                let scan = scan_readable(&path, 0, previous.seq().min(head), 0, head, |event| {
+                let marked = last_readable_at(&path, previous.seq().min(head), |event| {
                     admits(tokens, event)
                 })
                 .map_err(|error| error.to_sealed_command_error())?;
                 (
                     presenter.cursor(&space, cursor.seq()),
-                    presenter.cursor(&space, scan.marked),
+                    presenter.cursor(&space, marked),
                 )
             } else {
                 (cursor.to_string(), previous.to_string())

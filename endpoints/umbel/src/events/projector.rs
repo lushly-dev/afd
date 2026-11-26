@@ -17,6 +17,7 @@
 
 use super::error::EventsError;
 use super::event::{Event, candidate_space};
+use super::index::{IndexBuilder, remove_index};
 use super::stream::{self, StreamWriter};
 use crate::workspace::{Layout, SpaceId, Workspace};
 use afd::{
@@ -197,7 +198,8 @@ impl Projector {
     }
 
     /// Rewrite the streams of `spaces` from the journal, each into a temporary file renamed over
-    /// the old one. Hold the lock. The marker goes once every stream is current.
+    /// the old one, and its index with it (D209). Hold the lock. The marker goes once every stream
+    /// is current.
     pub(crate) fn rebuild(
         &self,
         lock: &JournalFileLock,
@@ -243,10 +245,12 @@ impl Projector {
     ) -> Result<u64, EventsError> {
         use std::io::Write;
         let mut text = String::new();
+        let mut index = IndexBuilder::new();
         let mut seq = 0u64;
         for entry in entries {
             if candidate_space(&entry.result).as_ref() == Some(space) {
                 seq += 1;
+                index.line(seq, text.len() as u64);
                 text.push_str(&Event::from_entry(entry, space, seq).to_line());
                 text.push('\n');
             }
@@ -261,6 +265,17 @@ impl Projector {
             })
             .and_then(|()| fs::rename(temporary, path))
             .map_err(|error| EventsError::io(path, error))?;
+        // The new index replaces the old one after the stream: a reader that pairs the old index
+        // with the new stream in between checks every record it uses and reads around a wrong
+        // one. The index is derived, so failing to write it never fails the rebuild; the old one
+        // is removed then, and the next append builds it.
+        if let Err(error) = index.write(path) {
+            let _ = remove_index(path);
+            tracing::warn!(
+                "{}: the event index was not written ({error}); the next append builds it",
+                path.display()
+            );
+        }
         Ok(seq)
     }
 

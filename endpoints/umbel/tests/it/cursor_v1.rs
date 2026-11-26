@@ -742,3 +742,118 @@ async fn an_embedder_posing_as_the_cli_is_no_operator() {
         run.stdout
     );
 }
+
+// ── The event index (D209, #1771) ───────────────────────────────────────────────────────────────
+
+/// Replace `main`'s stream with `count` events copied from its first two lines, renumbered: bo's
+/// (the first line) at every `every`th position, ada's (the second) elsewhere. Each keeps
+/// `journalSeq` 0, so the next real write is appended after them, and that append builds the
+/// index the new stream does not have.
+fn synthesize(dir: &std::path::Path, count: u64, every: u64) {
+    use std::io::Write;
+    let path = support::events_path(dir, "main");
+    let lines = support::jsonl(&path);
+    let (bo, ada) = (lines[0].clone(), lines[1].clone());
+    let mut out = std::io::BufWriter::new(std::fs::File::create(&path).unwrap());
+    for seq in 1..=count {
+        let mut event = if seq.is_multiple_of(every) {
+            bo.clone()
+        } else {
+            ada.clone()
+        };
+        event["seq"] = json!(seq);
+        event["journalSeq"] = json!(0);
+        event["id"] = json!(format!("main:{seq}"));
+        event["cursor"] = json!(format!("v0:main:{seq}"));
+        serde_json::to_writer(&mut out, &event).unwrap();
+        out.write_all(b"\n").unwrap();
+    }
+    out.flush().unwrap();
+    let _ = std::fs::remove_file(path.with_file_name("events.idx"));
+}
+
+/// What bo is shown, then two acknowledgements of his second page's cursor under `consumer`.
+async fn shown_and_acked(host: &Host, consumer: &str) -> Vec<Value> {
+    let mut out = shown(host, bo(), 100).await;
+    out.extend(shown(host, bo(), 7).await);
+    out.extend(shown(host, ada(), 250).await);
+    let second = out[1]["cursor"].clone();
+    for _ in 0..2 {
+        let mut acked = data(
+            host,
+            bo(),
+            "event-ack",
+            json!({"cursor": second, "consumer": consumer}),
+        )
+        .await;
+        acked["consumer"] = json!("");
+        out.push(acked);
+    }
+    out
+}
+
+#[tokio::test]
+async fn a_sealed_caller_is_shown_the_same_with_or_without_the_event_index() {
+    let h = hosted("local_id = \"corp/ada\"").await;
+    write(&h.host, bo(), "notes/b", &[P_BO]).await;
+    write(&h.host, ada(), "notes/a", &[P_ADA]).await;
+    synthesize(h.dir.path(), 700, 7);
+    write(&h.host, bo(), "notes/last", &[P_BO]).await;
+    let index = support::events_path(h.dir.path(), "main").with_file_name("events.idx");
+    assert_eq!(std::fs::metadata(&index).unwrap().len(), 16 + 2 * 16);
+
+    let indexed = shown_and_acked(&h.host, "with").await;
+    assert_eq!(indexed[0]["events"].as_array().unwrap().len(), 100);
+    std::fs::remove_file(&index).unwrap();
+    assert_eq!(shown_and_acked(&h.host, "without").await, indexed);
+}
+
+#[tokio::test]
+#[ignore = "scale benchmark at 1 000 and 1 000 000 events; run in release with --ignored --nocapture"]
+async fn sealed_event_reads_at_1k_and_1m() {
+    use std::time::{Duration, Instant};
+    async fn median(host: &Host, command: &str, input: &Value) -> Duration {
+        let mut samples = Vec::new();
+        for _ in 0..11 {
+            let started = Instant::now();
+            let result = call(host, bo(), command, input.clone()).await;
+            samples.push(started.elapsed());
+            assert!(result.success, "{result:?}");
+        }
+        samples.sort();
+        samples[samples.len() / 2]
+    }
+    for count in [1_000u64, 1_000_000] {
+        let h = hosted("local_id = \"corp/ada\"").await;
+        write(&h.host, bo(), "notes/b", &[P_BO]).await;
+        write(&h.host, ada(), "notes/a", &[P_ADA]).await;
+        synthesize(h.dir.path(), count, 100);
+        let head = data(&h.host, bo(), "space-list", json!({})).await["spaces"][0]["head"].clone();
+        let at_head = json!({"after": head, "limit": 10});
+        let first = json!({"limit": 10});
+        println!("\n{count} events, bo reads every 100th (sealed):");
+        let linear = (
+            median(&h.host, "event-list", &at_head).await,
+            median(&h.host, "event-list", &first).await,
+        );
+        write(&h.host, bo(), "notes/last", &[P_BO]).await;
+        let head = data(&h.host, bo(), "space-list", json!({})).await["spaces"][0]["head"].clone();
+        let at_head = json!({"after": head, "limit": 10});
+        let indexed = (
+            median(&h.host, "event-list", &at_head).await,
+            median(&h.host, "event-list", &first).await,
+        );
+        println!(
+            "  event-list after the head: no index {:.2?}, index {:.2?}",
+            linear.0, indexed.0
+        );
+        println!(
+            "  event-list first page:     no index {:.2?}, index {:.2?}",
+            linear.1, indexed.1
+        );
+        println!(
+            "  space-list (a readable count, still linear): {:.2?}",
+            median(&h.host, "space-list", &json!({})).await
+        );
+    }
+}

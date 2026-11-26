@@ -7,6 +7,7 @@
 mod cursor;
 mod error;
 mod event;
+mod index;
 mod projector;
 mod store;
 mod stream;
@@ -18,6 +19,7 @@ pub use projector::{RepairReport, RepairedSpace};
 
 pub(crate) use error::{EventsError, invalid_cursor};
 pub(crate) use event::CHANGES_KEY;
+pub(crate) use index::{STRIDE as INDEX_STRIDE, index_agrees};
 pub(crate) use projector::{ProjectingSink, Projector};
 pub(crate) use store::{read_as as read_cursor_as, valid_consumer, write as write_cursor};
-pub(crate) use stream::{read_after, scan_readable};
+pub(crate) use stream::{count_readable, last_readable_at, read_after, scan_readable};
