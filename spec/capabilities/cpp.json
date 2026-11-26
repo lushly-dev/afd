@@ -762,6 +762,11 @@
 			"note": "exercised through the TypeScript CLI and scenario runner over MCP (D6)",
 			"evidence": ["docs/features/active/parity-closure/parity-closure.plan.md"]
 		},
+		"tooling.skill-limits": {
+			"status": "na",
+			"note": "exercised through the TypeScript CLI over MCP (D6)",
+			"evidence": ["docs/language-parity.md"]
+		},
 		"tooling.ui-packages": {
 			"status": "na",
 			"evidence": ["docs/language-parity.md"]

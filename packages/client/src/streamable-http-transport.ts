@@ -242,6 +242,9 @@ export class StreamableHttpTransport implements Transport {
 				case 'tasks/get':
 				case 'tasks/update':
 				case 'tasks/cancel':
+				// The Skills extension (spec/mcp-resources.md, S3 and S4).
+				case 'skills/list':
+				case 'skills/get':
 					result = await client.request(
 						{ method: request.method, params: request.params as Record<string, unknown> },
 						PASS_THROUGH_SCHEMA as never,

@@ -145,6 +145,33 @@ itself (`afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail`, `afd-
 `afd-docs`, `afd-schema`, `afd-context-*`; `AFD_BUILTIN_TOOL_NAMES` in
 `@lushly-dev/afd-core`) are skipped.
 
+### Claude Code's skill limits
+
+A server that declares the Skills extension (`io.modelcontextprotocol/skills`) also has its
+`skills/list` manifest checked against what Claude Code loads, which is much less than AFD's own
+limits of 512 files and 16 MiB a skill. Claude Code drops what it cannot load without telling the
+server, so `afd validate --surface` warns, naming the skill, the limit and Claude Code. The skill
+count applies to every server; the other rules apply only where Claude Code scans the skills (a
+claude.ai Directory connector, or a custom connector with organization scanning on), not to a
+server added with `claude mcp add`, and their warnings say so:
+
+| Rule | Warns when |
+|------|------------|
+| `claude-code-skill-count` | The catalog has more than 100 skills (Claude Code shows up to 100 a server) |
+| `claude-code-file-size` | A text file is over 100 KB |
+| `claude-code-skill-size` | A skill's text files are over 400 KB together |
+| `claude-code-unsupported-file` | A skill holds an archive, another binary file (such as WebP or OTF) or text under `dist/`, so it does not load |
+
+The 100-skill cap covers every skill a server lists, `skills/list` pages and dynamic skills
+included. Images, fonts,
+media and dependency lock files (`package-lock.json`, `uv.lock`, `Cargo.lock` and the like) are not
+counted. A KB is taken as 1,000 bytes, the lower reading of Claude Code's documentation. Files are
+classified by their URI's decoded path, and binary files are known by their suffix. A manifest
+entry or file without a `uri` is skipped and reported as not checked. The
+findings are warnings, since a server may serve other clients: `--strict` makes them fail, and
+`--suppress <rule>` or `--suppress <rule>:<skill>` turns one off. In code, call
+`checkClaudeCodeSkillLimits(entries)` with the `skills` of a `skills/list` result.
+
 ## Agent Integration (Phase 3)
 
 MCP server and tools for AI agent integration.

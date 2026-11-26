@@ -1,0 +1,163 @@
+{
+	"description": "Claude Code's limits on MCP skills (https://code.claude.com/docs/en/mcp#use-skills-from-mcp-servers, read 2026-11-26), checked against a skills/list manifest. Each case gives the manifest's entries and the findings expected, as rule, skill and file. A case with generate.skills appends that many minimal skills named generated-0, generated-1 and so on (a SKILL.md of 1,000 bytes each) after its entries. Shared by every implementation of checkClaudeCodeSkillLimits.",
+	"cases": [
+		{
+			"name": "a catalog within every limit has no findings",
+			"entries": [
+				{
+					"uri": "skill://acme/lint-rules/SKILL.md",
+					"frontmatter": { "name": "lint-rules", "description": "Lint rules" },
+					"resources": [
+						{ "uri": "skill://acme/lint-rules/SKILL.md", "size": 2000 },
+						{ "uri": "skill://acme/lint-rules/references/rules.md", "size": 100000 }
+					]
+				}
+			],
+			"expect": []
+		},
+		{
+			"name": "a text file over 100,000 bytes",
+			"entries": [
+				{
+					"uri": "skill://pdf-tools/SKILL.md",
+					"frontmatter": { "name": "pdf-tools", "description": "PDF tools" },
+					"resources": [
+						{ "uri": "skill://pdf-tools/SKILL.md", "size": 1000 },
+						{ "uri": "skill://pdf-tools/references/api.md", "size": 100001 }
+					]
+				}
+			],
+			"expect": [
+				{ "rule": "claude-code-file-size", "skill": "pdf-tools", "file": "references/api.md" }
+			]
+		},
+		{
+			"name": "a skill whose counted files pass 400,000 bytes, with images and lock files left out",
+			"entries": [
+				{
+					"uri": "skill://big/SKILL.md",
+					"frontmatter": { "name": "big", "description": "Big" },
+					"resources": [
+						{ "uri": "skill://big/SKILL.md", "size": 1000 },
+						{ "uri": "skill://big/a.md", "size": 100000 },
+						{ "uri": "skill://big/b.md", "size": 100000 },
+						{ "uri": "skill://big/c.md", "size": 100000 },
+						{ "uri": "skill://big/d.md", "size": 99001 },
+						{ "uri": "skill://big/diagram.PNG", "size": 900000 },
+						{ "uri": "skill://big/package-lock.json", "size": 900000 },
+						{ "uri": "skill://big/fonts/Inter.woff2", "size": 900000 }
+					]
+				}
+			],
+			"expect": [{ "rule": "claude-code-skill-size", "skill": "big" }]
+		},
+		{
+			"name": "exactly 400,000 counted bytes is within the limit",
+			"entries": [
+				{
+					"uri": "skill://edge/SKILL.md",
+					"frontmatter": { "name": "edge", "description": "Edge" },
+					"resources": [
+						{ "uri": "skill://edge/SKILL.md", "size": 100000 },
+						{ "uri": "skill://edge/a.md", "size": 100000 },
+						{ "uri": "skill://edge/b.md", "size": 100000 },
+						{ "uri": "skill://edge/c.md", "size": 100000 }
+					]
+				}
+			],
+			"expect": []
+		},
+		{
+			"name": "an archive, another binary and text under dist/ keep a skill from loading",
+			"entries": [
+				{
+					"uri": "skill://tools/bundler/SKILL.md",
+					"frontmatter": { "name": "bundler", "description": "Bundler" },
+					"resources": [
+						{ "uri": "skill://tools/bundler/SKILL.md", "size": 1000 },
+						{ "uri": "skill://tools/bundler/assets/templates.zip", "size": 10 },
+						{ "uri": "skill://tools/bundler/assets/hero.webp", "size": 10 },
+						{ "uri": "skill://tools/bundler/fonts/Brand.otf", "size": 10 },
+						{ "uri": "skill://tools/bundler/scripts/dist/index.js", "size": 10 },
+						{ "uri": "skill://tools/bundler/scripts/distance.js", "size": 10 }
+					]
+				}
+			],
+			"expect": [
+				{
+					"rule": "claude-code-unsupported-file",
+					"skill": "bundler",
+					"file": "assets/templates.zip"
+				},
+				{ "rule": "claude-code-unsupported-file", "skill": "bundler", "file": "assets/hero.webp" },
+				{ "rule": "claude-code-unsupported-file", "skill": "bundler", "file": "fonts/Brand.otf" },
+				{
+					"rule": "claude-code-unsupported-file",
+					"skill": "bundler",
+					"file": "scripts/dist/index.js"
+				}
+			]
+		},
+		{
+			"name": "a skill without a frontmatter name is named by its path",
+			"entries": [
+				{
+					"uri": "skill://acme/unnamed/SKILL.md",
+					"resources": [
+						{ "uri": "skill://acme/unnamed/SKILL.md", "size": 1000 },
+						{ "uri": "skill://acme/unnamed/data.json", "size": 250000 }
+					]
+				}
+			],
+			"expect": [{ "rule": "claude-code-file-size", "skill": "unnamed", "file": "data.json" }]
+		},
+		{
+			"name": "a file is classified by its decoded URI path, and only dependency lock files are exempt",
+			"entries": [
+				{
+					"uri": "skill://paths/SKILL.md",
+					"frontmatter": { "name": "paths", "description": "Paths" },
+					"resources": [
+						{ "uri": "skill://paths/SKILL.md", "size": 1000 },
+						{ "uri": "skill://paths/manual.lock", "size": 120000 },
+						{ "uri": "skill://paths/vendor%2Ezip", "size": 10 },
+						{ "uri": "skill://paths/image.png?version=3", "size": 900000 },
+						{ "uri": "skill://paths/uv.lock", "size": 900000 }
+					]
+				}
+			],
+			"expect": [
+				{ "rule": "claude-code-file-size", "skill": "paths", "file": "manual.lock" },
+				{ "rule": "claude-code-unsupported-file", "skill": "paths", "file": "vendor.zip" }
+			]
+		},
+		{
+			"name": "a malformed manifest member is skipped and its siblings are still checked",
+			"entries": [
+				{
+					"uri": "skill://odd/SKILL.md",
+					"frontmatter": { "name": "odd", "description": "Odd" },
+					"resources": [
+						null,
+						{ "size": 5 },
+						{ "uri": "skill://odd/SKILL.md", "size": 1000 },
+						{ "uri": "skill://odd/big.md", "size": 100001 }
+					]
+				}
+			],
+			"expect": [{ "rule": "claude-code-file-size", "skill": "odd", "file": "big.md" }]
+		},
+		{
+			"name": "100 skills a server are shown and the 101st is warned about",
+			"entries": [],
+			"generate": { "skills": 101 },
+			"expect": [{ "rule": "claude-code-skill-count", "skill": "generated-100" }]
+		},
+		{
+			"name": "exactly 100 skills is within the limit",
+			"entries": [],
+			"generate": { "skills": 100 },
+			"expect": []
+		}
+	]
+}

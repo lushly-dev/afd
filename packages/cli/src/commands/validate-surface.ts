@@ -10,6 +10,7 @@ import { type ConnectFlags, requireClient } from '../connection.js';
 import { printError, printInfo, printSuccess, printWarning } from '../output.js';
 import { terminalText } from '../terminal.js';
 import { collectSurfaceCommands, type SurfaceCommandSet } from './surface-commands.js';
+import { checkSkillCatalog, type SkillCatalogCheck } from './surface-skills.js';
 
 export { mapToolsToSurfaceCommands } from './surface-commands.js';
 
@@ -74,6 +75,30 @@ function printFindings(findings: SurfaceFinding[], verbose: boolean): void {
 	}
 }
 
+/**
+ * Print the skill catalog's findings against Claude Code's limits. They are warnings: a server may
+ * serve other clients. Finding text comes from the server's skill names and file paths.
+ */
+function printSkillFindings(check: SkillCatalogCheck, verbose: boolean): void {
+	if (check.warning) printWarning(check.warning);
+	if (check.skillCount === undefined) return;
+	const shown = check.findings.filter((finding) => !finding.suppressed);
+	console.log(
+		chalk.dim(`  Skill catalog: ${check.skillCount} skill(s) checked against Claude Code's limits`)
+	);
+	console.log();
+	if (shown.length === 0) return;
+	console.log(chalk.yellow.bold(`△ SKILLS (${shown.length}):`));
+	for (const finding of shown) {
+		console.log(chalk.yellow(`  ${terminalText(`${finding.rule}: ${finding.message}`)}`));
+		if (verbose) {
+			console.log(chalk.dim(`    Fix: ${terminalText(finding.suggestion)}`));
+			console.log(chalk.dim(`    Evidence: ${terminalText(JSON.stringify(finding.evidence))}`));
+		}
+	}
+	console.log();
+}
+
 export async function runSurfaceValidation(options: SurfaceOptions): Promise<void> {
 	const client = await requireClient(options);
 
@@ -98,6 +123,13 @@ export async function runSurfaceValidation(options: SurfaceOptions): Promise<voi
 			configuredContexts,
 		});
 
+		spinner.text = 'Checking the skill catalog...';
+		const skills = await checkSkillCatalog(client, options.suppress);
+		// A catalog that could not be read in full is a warning too, so the run never reads as clean.
+		const skillWarnings =
+			skills.findings.filter((finding) => !finding.suppressed).length + (skills.warning ? 1 : 0);
+		const skillSuppressed = skills.findings.filter((finding) => finding.suppressed).length;
+
 		spinner.stop();
 
 		console.log();
@@ -106,10 +138,12 @@ export async function runSurfaceValidation(options: SurfaceOptions): Promise<voi
 		printSource(surface);
 
 		printFindings(result.findings, options.verbose === true);
+		printSkillFindings(skills, options.verbose === true);
 
 		// Suppressed count
-		if (result.summary.suppressedCount > 0) {
-			console.log(chalk.dim(`  ${result.summary.suppressedCount} finding(s) suppressed`));
+		const suppressedCount = result.summary.suppressedCount + skillSuppressed;
+		if (suppressedCount > 0) {
+			console.log(chalk.dim(`  ${suppressedCount} finding(s) suppressed`));
 		}
 
 		// Summary
@@ -119,14 +153,15 @@ export async function runSurfaceValidation(options: SurfaceOptions): Promise<voi
 			`  ${result.summary.rulesEvaluated.length} rules evaluated in ${result.summary.durationMs}ms`
 		);
 		console.log(`  ${chalk.red(result.summary.errorCount)} errors`);
-		console.log(`  ${chalk.yellow(result.summary.warningCount)} warnings`);
+		console.log(`  ${chalk.yellow(result.summary.warningCount + skillWarnings)} warnings`);
 		console.log(`  ${chalk.blue(result.summary.infoCount)} info`);
 
-		if (!result.valid) {
+		// --strict treats warnings as errors, the skill catalog's included.
+		if (!result.valid || (options.strict === true && skillWarnings > 0)) {
 			console.log();
 			printWarning('Surface validation failed. Fix the issues above.');
 			process.exit(1);
-		} else if (result.summary.warningCount > 0) {
+		} else if (result.summary.warningCount + skillWarnings > 0) {
 			console.log();
 			printInfo('Surface validation passed with warnings. Consider addressing them.');
 		} else {

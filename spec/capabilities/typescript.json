@@ -752,6 +752,13 @@
 			"status": "yes",
 			"evidence": ["packages/testing/src/index.ts", "packages/testing/src/validators.ts"]
 		},
+		"tooling.skill-limits": {
+			"status": "yes",
+			"evidence": [
+				"packages/testing/src/surface/skill-limits.ts",
+				"packages/cli/src/commands/surface-skills.ts"
+			]
+		},
 		"tooling.ui-packages": {
 			"status": "yes",
 			"evidence": ["packages/auth/src/react.ts"]

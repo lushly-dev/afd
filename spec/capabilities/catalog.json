@@ -447,6 +447,10 @@
 			"label": "Testing: JTBD scenarios, surface validation (13 rules), assertions"
 		},
 		{
+			"id": "tooling.skill-limits",
+			"label": "`afd validate --surface` warns when a skill catalog exceeds Claude Code's limits (100 skills, 100 KB a text file, 400 KB a skill; [#2502](https://github.com/lushly-dev/afd/issues/2502))"
+		},
+		{
 			"id": "tooling.ui-packages",
 			"label": "UI: view-state, adapters, local-db, React hooks"
 		},
@@ -799,6 +803,9 @@
 				},
 				{
 					"capability": "tooling.testing"
+				},
+				{
+					"capability": "tooling.skill-limits"
 				},
 				{
 					"capability": "tooling.ui-packages"

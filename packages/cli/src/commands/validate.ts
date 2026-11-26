@@ -53,7 +53,7 @@ export function registerValidateCommand(program: Command): void {
 		)
 		.option(
 			'--suppress <rule>',
-			'Suppress a surface validation rule or rule:cmdA:cmdB pair (repeatable)',
+			'Suppress a surface validation rule, a rule:cmdA:cmdB pair or a skill rule:skill (repeatable)',
 			collectValues,
 			[]
 		)
