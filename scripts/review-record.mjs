@@ -48,9 +48,18 @@ const LANE_KEYS = ['lane', 'model', 'effort', 'verdict', 'fixed', 'deferred'];
 /** A lane named self, Self or self-review is the session's own review, not an independent one. */
 const isSelf = (lane) => /^self(-?review)?$/i.test(lane.lane.trim());
 
-/** Where this worktree keeps its record: inside its git directory, never in the tree. */
+/**
+ * Where this worktree keeps its record: inside its git directory, never in the tree.
+ *
+ * Git answers `--git-path` relative to the checkout `git` runs in (`.git/...` in a primary clone),
+ * so ask for an absolute path: resolving a relative answer against `root` would read this
+ * checkout's record for a `git` that runs in another one (#2659).
+ */
 export function recordPath(git, root) {
-	return resolve(root, git(['rev-parse', '--git-path', 'afd-review-record.json']).trim());
+	return resolve(
+		root,
+		git(['rev-parse', '--path-format=absolute', '--git-path', 'afd-review-record.json']).trim()
+	);
 }
 
 /** The commit, tree, branch, merge base with the default base, and whether the checkout is clean. */

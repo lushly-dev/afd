@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, it } from 'node:test';
@@ -166,7 +166,7 @@ describe('carryRecord', () => {
 
 describe('in a repository', () => {
 	const repo = () => {
-		const root = mkdtempSync(join(tmpdir(), 'afd-verify-record-'));
+		const root = realpathSync(mkdtempSync(join(tmpdir(), 'afd-verify-record-')));
 		const git = (args) =>
 			execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.invalid', ...args], {
 				cwd: root,
@@ -203,6 +203,29 @@ describe('in a repository', () => {
 		writeRecord(path, recordFor());
 		assert.deepEqual(readRecord(path), recordFor());
 		assert.equal(currentIdentity(git).clean, true);
+	});
+
+	it('finds the record of the checkout git runs in, not of the root it is given (#2659)', (t) => {
+		const here = repo();
+		const there = repo();
+		t.after(() => {
+			rmSync(here.root, { recursive: true, force: true });
+			rmSync(there.root, { recursive: true, force: true });
+		});
+		const expected = join(there.root, '.git', 'afd-verify-record.json');
+		assert.equal(recordPath(there.git, here.root), expected);
+		const current = currentIdentity(there.git);
+		let read = null;
+		decide({
+			updates: push(current.head),
+			git: there.git,
+			read: (path) => {
+				read = path;
+				return null;
+			},
+			now: NOW,
+		});
+		assert.equal(read, expected);
 	});
 
 	it('pre-push accepts a record verify would write, and nothing for another commit', (t) => {
