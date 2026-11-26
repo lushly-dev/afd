@@ -1,4 +1,14 @@
-//! The version of each versioned shape this crate writes (specification section 7).
+//! The version of each versioned shape this crate writes (specification section 7), and the one
+//! index of every schema-versioned shape the host reads and writes (D213). The configuration and
+//! manifest constants are defined beside their parsers and re-exported here; [`SCHEMA_SURFACES`]
+//! names every shape and the versions read, and `architecture.json`'s schema-version surfaces for
+//! the `endpoints/umbel/Cargo.toml` unit are generated from it (`versions/tests.rs`;
+//! `UMBEL_UPDATE_SURFACES=1 cargo test -p umbel --lib versions::` rewrites them).
+
+/// The plugin manifest this host writes, every version it reads, and the pack manifest version.
+pub use crate::plugins::{MANIFEST_VERSION, MANIFEST_VERSIONS, PACK_VERSION};
+/// The workspace configuration this host writes, and every version it reads.
+pub use crate::workspace::{CONFIG_VERSION, CONFIG_VERSIONS};
 
 /// The principal projection, version 0.
 pub use crate::principal::PRINCIPAL_VERSION;
@@ -65,3 +75,66 @@ pub const USAGE_VERSION: u32 = 1;
 /// specification, section 3): version 1 (phase 5 section 7.2) with the pages the person was shown
 /// and the items they pulled out, and the level `local`.
 pub const PERSON_VERSION: u32 = 2;
+
+/// The cursor file a stream's reader position is kept in, version 0 (`schemas/cursor-file.v0.json`):
+/// versioned apart from the cursor string it holds.
+pub const CURSOR_FILE_VERSION: u32 = 0;
+/// An event as a caller whose positions are sealed sees it, version 1 (`schemas/event-view.v1.json`).
+pub const EVENT_VIEW_VERSION: u32 = 1;
+/// The protected resource metadata the hosted surface serves, version 1
+/// (`schemas/protected-resource.v1.json`, phase 5).
+pub const PROTECTED_RESOURCE_VERSION: u32 = 1;
+/// A record lane's probes file, version 1 (`schemas/record-probes.v1.json`).
+pub const RECORD_PROBES_VERSION: u32 = 1;
+/// A record lane's eval report, version 1 (`schemas/record-eval-report.v1.json`).
+pub const RECORD_EVAL_REPORT_VERSION: u32 = 1;
+
+/// Every schema-versioned shape the host reads or writes, as the stem of its schema files
+/// (`schemas/<stem>.v<version>.json`) and the versions a deployment reads side by side. Each
+/// pair gives `architecture.json` one surface per version, `<stem>-<version>` (D213). A new
+/// shape or version is added here, then the surfaces regenerated.
+pub const SCHEMA_SURFACES: &[(&str, &[u32])] = &[
+    ("workspace-config", CONFIG_VERSIONS),
+    ("plugin-manifest", MANIFEST_VERSIONS),
+    ("pack-manifest", &[PACK_VERSION]),
+    ("principal", PRINCIPAL_VERSIONS),
+    ("provenance-envelope", ENVELOPE_VERSIONS),
+    ("event", EVENT_VERSIONS),
+    ("cursor", CURSOR_VERSIONS),
+    ("document", &[DOCUMENT_VERSION]),
+    ("locator", LOCATOR_VERSIONS),
+    ("proposal", PROPOSAL_VERSIONS),
+    ("memory-record", MEMORY_VERSIONS),
+    ("capture", &[CAPTURE_VERSION]),
+    ("context-bundle", &[BUNDLE_VERSION]),
+    ("curator-record", &[CURATOR_VERSION]),
+    ("curator-report", &[CURATOR_VERSION]),
+    ("task-record", &[TASK_VERSION]),
+    ("usage-event", &[USAGE_VERSION]),
+    ("person-decision", &[PERSON_VERSION]),
+    ("cursor-file", &[CURSOR_FILE_VERSION]),
+    ("event-view", &[EVENT_VIEW_VERSION]),
+    ("protected-resource", &[PROTECTED_RESOURCE_VERSION]),
+    ("record-probes", &[RECORD_PROBES_VERSION]),
+    ("record-eval-report", &[RECORD_EVAL_REPORT_VERSION]),
+];
+
+/// Schema files in `schemas/` that are not the host's surfaces, with the reason. Every other file
+/// there is a version [`SCHEMA_SURFACES`] lists, or the `versions::` tests fail.
+pub const NOT_SURFACES: &[(&str, &str)] = &[
+    (
+        "person-decision.v1.json",
+        "superseded by version 2; the person store migrates its rows at open and serves version 2 alone",
+    ),
+    (
+        "eval-queries.v1.json",
+        "the knowledge plugin's eval input, not the host's",
+    ),
+    (
+        "eval-report.v1.json",
+        "the knowledge plugin's eval report, not the host's",
+    ),
+];
+
+#[cfg(test)]
+mod tests;

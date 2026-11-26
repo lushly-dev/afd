@@ -10,7 +10,7 @@
 
 use super::cursor::Cursor;
 use super::error::EventsError;
-use crate::versions::CURSOR_VERSION;
+use crate::versions::CURSOR_FILE_VERSION;
 use crate::workspace::{Layout, SpaceId};
 use afd::Actor;
 use serde::{Deserialize, Serialize};
@@ -119,9 +119,9 @@ fn read_key(layout: &Layout, space: &SpaceId, key: &str) -> Result<Option<Cursor
     };
     let file: CursorFile = serde_json::from_str(&text)
         .map_err(|error| EventsError::damaged(&path, format!("not a cursor file: {error}")))?;
-    if file.version != CURSOR_VERSION {
+    if file.version != CURSOR_FILE_VERSION {
         return Err(EventsError::Damaged(format!(
-            "{} is cursor file version {}; this umbel reads version {CURSOR_VERSION}. Upgrade umbel to read it.",
+            "{} is cursor file version {}; this umbel reads version {CURSOR_FILE_VERSION}. Upgrade umbel to read it.",
             path.display(),
             file.version
         )));
@@ -151,7 +151,7 @@ pub(crate) fn write(
     let key = key_for(actor, id, person, consumer);
     let target = layout.cursor_file(space, &key);
     let file = CursorFile {
-        version: CURSOR_VERSION,
+        version: CURSOR_FILE_VERSION,
         actor: FileActor {
             kind: kind_name(actor),
             id: id.to_owned(),

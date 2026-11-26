@@ -749,23 +749,40 @@ test('Umbel is a private, route-less endpoint over the afd crate', async () => {
 	);
 	assert.equal(boundary.family, 'umbel');
 	assert.equal(boundary.layer, 'endpoint');
-	assert.deepEqual(boundary.publicSurfaces, [
+	// The schema-version surfaces after the hand-written ones are generated from
+	// endpoints/umbel/src/versions.rs, and the `umbel` crate's `versions::` tests fail when they
+	// differ (Umbel's D213), so only their shape is held here.
+	const handWritten = [
 		'rust-library',
 		'bin:umbel',
 		'umbel serve --stdio',
 		'umbel serve --http',
-		'workspace-config-1',
-		'workspace-config-2',
-		'plugin-manifest-1',
-		'pack-manifest-1',
 		'plugin-protocol-1',
 		'wit:umbel:plugin@1.0.0',
 		'wit:umbel:plugin@1.1.0',
-		'principal-0',
-		'provenance-envelope-0',
-		'event-0',
-		'cursor-0',
-	]);
+	];
+	assert.deepEqual(boundary.publicSurfaces.slice(0, handWritten.length), handWritten);
+	const generated = boundary.publicSurfaces.slice(handWritten.length);
+	for (const shape of ['workspace-config-1', 'plugin-manifest-1', 'pack-manifest-1', 'event-0'])
+		assert.ok(generated.includes(shape), shape);
+	assert.equal(new Set(boundary.publicSurfaces).size, boundary.publicSurfaces.length);
+	// Each generated name is a schema file, and every version of a listed shape is listed (but a
+	// superseded one versions.rs's NOT_SURFACES names), so a hand edit here fails without Umbel's gate.
+	const schemaFiles = readdirSync(join(repoRoot, 'endpoints/umbel/schemas')).filter((name) =>
+		name.endsWith('.json')
+	);
+	// Keep in step with NOT_SURFACES's superseded versions in endpoints/umbel/src/versions.rs.
+	const superseded = new Set(['person-decision.v1.json']);
+	for (const surface of generated) {
+		const [, stem, version] = surface.match(/^([a-z][a-z-]*)-(\d+)$/) ?? [];
+		assert.ok(stem, surface);
+		assert.ok(schemaFiles.includes(`${stem}.v${version}.json`), surface);
+		for (const file of schemaFiles) {
+			const [, fileStem, fileVersion] = file.match(/^(.+)\.v(\d+)\.json$/) ?? [];
+			if (fileStem === stem && !superseded.has(file))
+				assert.ok(generated.includes(`${stem}-${fileVersion}`), `${file} is not listed`);
+		}
+	}
 	const manifest = read('endpoints/umbel/Cargo.toml');
 	assert.match(manifest, /^publish = false$/m);
 	assert.match(manifest, /^afd = \{ path = "\.\.\/\.\.\/packages\/rust"/m);

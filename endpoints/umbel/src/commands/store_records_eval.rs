@@ -36,6 +36,7 @@ use crate::meaning::{
 use crate::plugins::LoadedPlugins;
 use crate::plugins::record_services::{embed_match_texts, person_identities};
 use crate::store::{Hub, command_error, records};
+use crate::versions::{RECORD_EVAL_REPORT_VERSION, RECORD_PROBES_VERSION};
 use crate::workspace::{SpaceConfig, Workspace, parse_principal};
 
 /// The command's name.
@@ -168,8 +169,10 @@ fn parse_probes(
             )));
         }
     }
-    if obj.get("version").and_then(Value::as_u64) != Some(1) {
-        return Err(probes_invalid("probes file version must be 1"));
+    if obj.get("version").and_then(Value::as_u64) != Some(u64::from(RECORD_PROBES_VERSION)) {
+        return Err(probes_invalid(format!(
+            "probes file version must be {RECORD_PROBES_VERSION}"
+        )));
     }
     let file_space = obj
         .get("space")
@@ -548,7 +551,7 @@ fn evaluate_probes_with_status(
     let passed = rule_passes(n, words_hits.k, fused_hits.k, leaks);
     Ok((
         RecordEvalReport {
-            version: 1,
+            version: RECORD_EVAL_REPORT_VERSION,
             space: space.id.to_string(),
             plugin: plugin.to_owned(),
             kind: decl.kind.clone(),

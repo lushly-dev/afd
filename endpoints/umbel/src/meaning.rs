@@ -295,10 +295,11 @@ pub(crate) fn check_report(
     expected_weight: f64,
     expected_k: u64,
 ) -> GateState {
-    if report.version != 1 {
+    if report.version != crate::versions::RECORD_EVAL_REPORT_VERSION {
         return GateState::Invalid(format!(
-            "unsupported report version {} (expected 1)",
-            report.version
+            "unsupported report version {} (expected {})",
+            report.version,
+            crate::versions::RECORD_EVAL_REPORT_VERSION
         ));
     }
     if report.space != space || report.plugin != plugin || report.kind != decl.kind {
