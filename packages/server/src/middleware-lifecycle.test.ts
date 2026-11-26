@@ -17,7 +17,8 @@ describe('middleware lifecycle', () => {
 		const events: string[] = [];
 		let attempts = 0;
 		const middleware = composeMiddleware(
-			createRetryMiddleware({ maxRetries: 1, retryDelay: 1 }),
+			// Called outside the engine, which alone tells it a command is not a mutation.
+			createRetryMiddleware({ maxRetries: 1, retryDelay: 1, retryMutations: true }),
 			async (_name, _input, _context, next) => {
 				events.push('gate');
 				try {

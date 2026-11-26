@@ -259,6 +259,7 @@ from afd.server.types import (
     GroupByFn,
     ToolStrategy,
 )
+from afd.server.up_front_check import check_approved_at_run
 from afd.server.validation import _input_validation_failure
 
 TInput = TypeVar("TInput", bound=BaseModel)
@@ -1103,6 +1104,11 @@ class MCPServer:
         up_front = current_up_front_approval()
         approved = None if up_front is None else await up_front.validated(command.name, input)
         if approved is not None:
+            refused = check_approved_at_run(
+                command.name, input_schema, approved[0], self._max_validation_issues
+            )
+            if refused is not None:
+                return False, refused
             data = approved[0]
         return True, data
 

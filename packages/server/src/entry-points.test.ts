@@ -332,6 +332,10 @@ const HOST_IMPORTS =
  *   92,108 / 120,086 bytes and 92,568 / 120,549 after, with esbuild 0.28.2; the two it exceeds are
  *   raised to 92,700 and 120,700. Host and approval are unchanged. On `main` at `5e33124` (#1743 and
  *   #2141 merged) it measures 92,665 / 120,646; raised to 92,900 and 120,900.
+ *   The retry middleware reads `mutation` from the engine (#2673), and the approval middleware
+ *   imports its key on first use and answers a missing WebCrypto with `APPROVAL_UNAVAILABLE`
+ *   (#1699): approval and every-export measure 68,511 / 121,533 on `main` at `257c9a493`
+ *   with the change, with esbuild 0.28.2; raised to 68,800 and 121,800.
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
@@ -349,14 +353,14 @@ const DIRECT_BUDGETS = [
 	{
 		what: 'the same host with the approval middleware',
 		imports: `${HOST_IMPORTS}, createApprovalMiddleware`,
-		bytes: 68_000,
+		bytes: 68_800,
 	},
 	{
 		what: 'a host with the tool surface',
 		imports: `${HOST_IMPORTS}, createDirectToolSurface`,
 		bytes: 92_900,
 	},
-	{ what: 'every export', imports: undefined, bytes: 120_900 },
+	{ what: 'every export', imports: undefined, bytes: 121_800 },
 ];
 
 /** The modules only the tool surface needs. */

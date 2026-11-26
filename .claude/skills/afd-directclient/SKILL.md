@@ -94,6 +94,7 @@ A held call returns `APPROVAL_REQUIRED` before its handler runs, and the hook re
 - `timeout` bounds each attempt, not the human. Close the prompt when `signal` aborts; a call cancelled while waiting is denied.
 - In `pipe()` each gated step asks when reached, with its resolved input (tokens bind to input), and `timeoutMs` includes the wait.
 - In a page the secret is readable by page scripts: the gate stops the model, not page code. Keep approvals on a server when you need that boundary.
+- The middleware signs tokens with WebCrypto, which a browser exposes only on a secure origin (HTTPS or `localhost`). Opened over plain HTTP from a network address, such as a phone on `http://192.168.x.x`, the app still starts, but every gated call returns `APPROVAL_UNAVAILABLE` (`details.reason: "no-webcrypto"`). To test from another device, serve HTTPS with a local certificate or use a tunnel.
 - Confirmations (`confirmPrompt`) never gate in-process calls.
 
 Contract: `spec/command-metadata.md`, "Approvals".

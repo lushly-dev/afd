@@ -11,13 +11,14 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
-from afd import ExposeOptions, success
+from afd import ExposeOptions, error, success
 from afd.core.commands import CommandContext
 from afd.server import (
     DEFAULT_COMMAND_TIMEOUT_MS,
     DEFAULT_MAX_BATCH_PARALLELISM,
     DEFAULT_MAX_BATCH_SIZE,
     DEFAULT_MAX_VALIDATION_ISSUES,
+    create_retry_middleware,
     create_server,
 )
 from afd.server.batch_execution import execute_batch
@@ -35,9 +36,11 @@ EXECUTED_CONTROLS = {
     "batchCancellation",
     "batchLimits",
     "validationIssueCap",
+    "retryMutation",
 }
 BATCH_LIMIT_CASES = [c for c in VECTORS["cases"] if c["control"] == "batchLimits"]
 VALIDATION_CAP_CASES = [c for c in VECTORS["cases"] if c["control"] == "validationIssueCap"]
+RETRY_MUTATION_CASES = [c for c in VECTORS["cases"] if c["control"] == "retryMutation"]
 
 
 def _case(case_id: str) -> dict[str, Any]:
@@ -432,3 +435,50 @@ async def test_timeout_keeps_signal_set_for_cleanup_and_preserves_partial_caller
     assert len(entries) == 3
     assert entries[0].context_digest.hash == entries[1].context_digest.hash
     assert entries[0].context_digest.hash != entries[2].context_digest.hash
+
+
+def test_retry_mutation_cases_present():
+    assert [c["id"] for c in RETRY_MUTATION_CASES] == [
+        "retry-read-after-timeout",
+        "retry-mutation-not-repeated",
+        "retry-mutation-with-option",
+    ]
+
+
+@pytest.mark.parametrize("case", RETRY_MUTATION_CASES, ids=[c["id"] for c in RETRY_MUTATION_CASES])
+async def test_retry_mutation(case: dict[str, Any]):
+    """The retry middleware repeats a mutation only with ``retry_mutations`` (#2673)."""
+    retry = case["retry"]
+    server = create_server(
+        "execution-controls-retry",
+        middleware=[
+            create_retry_middleware(
+                max_retries=retry["maxRetries"],
+                retry_delay=retry["retryDelayMs"],
+                jitter=retry["jitter"],
+                retry_mutations=retry.get("retryMutations", False),
+            )
+        ],
+    )
+    runs = 0
+
+    @server.command(
+        name=case["command"]["name"],
+        description="Fails once, then succeeds",
+        mutation=case["command"]["mutation"],
+    )
+    async def flaky(input: Any):
+        nonlocal runs
+        runs += 1
+        if runs == 1:
+            code = case["handler"]["failFirst"]["code"]
+            return error(code, "Downstream timed out", suggestion="Check, then retry")
+        return success({"runs": runs})
+
+    result = await server.execute(case["command"]["name"], {})
+    expected = case["expect"]
+    assert runs == expected["handlerRuns"]
+    assert result.success is expected["success"]
+    if "code" in expected:
+        assert result.error is not None
+        assert result.error.code == expected["code"]

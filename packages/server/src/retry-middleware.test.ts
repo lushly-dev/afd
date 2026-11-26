@@ -3,9 +3,12 @@
  * `context.signal`. The old middleware backed off linearly (`retryDelay * n`)
  * although it documented exponential backoff, and ignored the signal.
  */
-import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
+import { type CommandContext, type CommandResult, failure, success } from '@lushly-dev/afd-core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createRetryMiddleware, type RetryOptions } from './middleware.js';
+import { z } from 'zod';
+import { composeMiddleware, createRetryMiddleware, type RetryOptions } from './middleware.js';
+import { defineCommand } from './schema.js';
+import { createMcpServer } from './server.js';
 
 const transient: CommandResult = {
 	success: false,
@@ -23,7 +26,8 @@ afterEach(() => {
 
 /**
  * Run the middleware over a handler that fails transiently `failures` times,
- * recording the fake-clock time of every attempt.
+ * recording the fake-clock time of every attempt. Called directly, outside the
+ * engine, the middleware cannot read `mutation`, so these set `retryMutations`.
  */
 function run(options: RetryOptions, failures: number, context: CommandContext = {}) {
 	const attemptTimes: number[] = [];
@@ -31,7 +35,12 @@ function run(options: RetryOptions, failures: number, context: CommandContext = 
 		attemptTimes.push(Date.now());
 		return attemptTimes.length <= failures ? transient : { success: true, data: 'done' };
 	});
-	const result = createRetryMiddleware(options)('item-get', {}, context, next);
+	const result = createRetryMiddleware({ retryMutations: true, ...options })(
+		'item-get',
+		{},
+		context,
+		next
+	);
 	return { result, next, attemptTimes };
 }
 
@@ -112,6 +121,7 @@ describe('createRetryMiddleware backoff', () => {
 			maxRetries: 1,
 			jitter: false,
 			shouldRetry: (code) => code === 'NOT_FOUND',
+			retryMutations: true,
 		})('item-get', {}, {}, custom);
 		await vi.runAllTimersAsync();
 		expect(await retried).toBe(permanent);
@@ -161,5 +171,72 @@ describe('createRetryMiddleware cancellation', () => {
 
 		expect((await result).success).toBe(true);
 		expect(remove).toHaveBeenCalledWith('abort', expect.any(Function));
+	});
+});
+
+describe('createRetryMiddleware and mutations (#2673)', () => {
+	/** A server whose `kind` command fails with `code` once, then succeeds, counting its runs. */
+	function host(mutation: boolean, options: RetryOptions, code = 'TIMEOUT', compose = false) {
+		let runs = 0;
+		const command = defineCommand({
+			name: mutation ? 'order-place' : 'order-get',
+			description: 'Fails once, then succeeds',
+			input: z.object({}),
+			mutation,
+			handler: async () =>
+				++runs === 1
+					? failure({ code, message: 'Timed out', suggestion: 'Retry later' })
+					: success({ runs }),
+		});
+		const retry = createRetryMiddleware({ retryDelay: 0, jitter: false, ...options });
+		const server = createMcpServer({
+			name: 'retry',
+			version: '1',
+			commands: [command],
+			middleware: [compose ? composeMiddleware(retry) : retry],
+		});
+		return { run: () => server.execute(command.name, {}), runs: () => runs };
+	}
+
+	it('retries a read that timed out', async () => {
+		vi.useRealTimers();
+		const { run, runs } = host(false, {});
+		expect((await run()).success).toBe(true);
+		expect(runs()).toBe(2);
+	});
+
+	it('never repeats a mutation by default, for TIMEOUT or TRANSIENT_ERROR', async () => {
+		vi.useRealTimers();
+		for (const code of ['TIMEOUT', 'TRANSIENT_ERROR']) {
+			const { run, runs } = host(true, {}, code);
+			const result = await run();
+			expect(result.success).toBe(false);
+			expect(result.error?.code).toBe(code);
+			expect(runs()).toBe(1);
+		}
+	});
+
+	it('repeats a mutation only with retryMutations', async () => {
+		vi.useRealTimers();
+		const { run, runs } = host(true, { retryMutations: true });
+		expect((await run()).success).toBe(true);
+		expect(runs()).toBe(2);
+	});
+
+	it('reads the declaration through composeMiddleware too', async () => {
+		vi.useRealTimers();
+		const read = host(false, {}, 'TIMEOUT', true);
+		expect((await read.run()).success).toBe(true);
+		expect(read.runs()).toBe(2);
+		const write = host(true, {}, 'TIMEOUT', true);
+		expect((await write.run()).success).toBe(false);
+		expect(write.runs()).toBe(1);
+	});
+
+	it('counts a call outside the engine as a mutation, whatever its name', async () => {
+		const next = vi.fn(async () => transient);
+		const result = await createRetryMiddleware({ retryDelay: 0 })('order-get', {}, {}, next);
+		expect(result).toBe(transient);
+		expect(next).toHaveBeenCalledOnce();
 	});
 });

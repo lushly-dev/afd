@@ -73,6 +73,7 @@ fn defaults_and_no_remaining_rust_gaps() {
         "batchCancellation",
         "batchLimits",
         "validationIssueCap",
+        "retryMutation",
     ];
     for case in vectors["cases"].as_array().expect("cases is an array") {
         let control = case["control"].as_str().expect("case control is a string");
@@ -745,4 +746,95 @@ async fn batch_deadline_signals_handler_cancellation() {
         .as_ref()
         .expect("batch item observed deadline cancellation signal")
         .is_cancelled());
+}
+
+/// Fails its first run with the vector's code, then succeeds, counting its runs.
+struct FailFirstHandler {
+    code: String,
+    runs: Arc<AtomicUsize>,
+}
+
+#[async_trait]
+impl CommandHandler for FailFirstHandler {
+    async fn execute(&self, _input: Value, _context: CommandContext) -> CommandResult<Value> {
+        if self.runs.fetch_add(1, Ordering::SeqCst) == 0 {
+            return afd::failure(afd::CommandError::new(&self.code, "Downstream timed out"));
+        }
+        success(json!({ "runs": self.runs.load(Ordering::SeqCst) }))
+    }
+}
+
+/// The retry middleware repeats a mutation only with `retry_mutations` (#2673).
+#[tokio::test]
+async fn retry_mutation_vectors() {
+    let vectors = load_vectors();
+    let cases: Vec<&Value> = vectors["cases"]
+        .as_array()
+        .expect("cases is an array")
+        .iter()
+        .filter(|case| case["control"] == "retryMutation")
+        .collect();
+    let ids: Vec<&str> = cases
+        .iter()
+        .map(|case| case["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        ids,
+        [
+            "retry-read-after-timeout",
+            "retry-mutation-not-repeated",
+            "retry-mutation-with-option",
+        ]
+    );
+    for case in cases {
+        let id = case["id"].as_str().unwrap();
+        let name = case["command"]["name"].as_str().unwrap();
+        let runs = Arc::new(AtomicUsize::new(0));
+        let mut command = CommandDefinition::new(
+            name,
+            "Fails once, then succeeds",
+            vec![],
+            FailFirstHandler {
+                code: case["handler"]["failFirst"]["code"]
+                    .as_str()
+                    .unwrap()
+                    .to_string(),
+                runs: Arc::clone(&runs),
+            },
+        );
+        if case["command"]["mutation"].as_bool().unwrap() {
+            command = command.as_mutation();
+        }
+        let registry = CommandRegistry::new();
+        registry.register(command).expect("register handler");
+        let retry = &case["retry"];
+        let sleep: afd::middleware::SleepFn = Arc::new(|_| Box::pin(async {}));
+        registry.add_middleware(
+            afd::middleware::create_retry_middleware(afd::middleware::RetryOptions {
+                max_retries: u32::try_from(retry["maxRetries"].as_u64().unwrap()).unwrap(),
+                retry_delay_ms: retry["retryDelayMs"].as_u64().unwrap(),
+                jitter: retry["jitter"].as_bool().unwrap(),
+                retry_mutations: retry["retryMutations"].as_bool().unwrap_or(false),
+                sleep: Some(sleep),
+                ..Default::default()
+            })
+            .expect("retry middleware"),
+        );
+
+        let result = registry.execute(name, json!({}), None).await;
+        let expected = &case["expect"];
+        assert_eq!(
+            runs.load(Ordering::SeqCst) as u64,
+            expected["handlerRuns"].as_u64().unwrap(),
+            "{id}: handler runs"
+        );
+        assert_eq!(
+            result.success,
+            expected["success"].as_bool().unwrap(),
+            "{id}"
+        );
+        if let Some(code) = expected["code"].as_str() {
+            assert_eq!(result.error.expect("an error").code, code, "{id}");
+        }
+    }
 }

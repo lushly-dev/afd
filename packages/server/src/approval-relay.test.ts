@@ -1738,7 +1738,7 @@ describe('a step runs on the input approved up front (#1414)', () => {
 		expect(calls).toEqual(['list', approvedInput]);
 	});
 
-	it('asks again, running nothing, when the approved input is too long to keep', async () => {
+	it('refuses, running nothing, when the approved input is too long to keep (#1511)', async () => {
 		const { url, calls } = await serve({ extra: noteAdd });
 		const call = rawCaller(url);
 		const long = {
@@ -1748,12 +1748,64 @@ describe('a step runs on the input approved up front (#1414)', () => {
 			],
 		};
 		const first = asked(await call('afd-batch', long));
-		const second = asked(
-			await call('afd-batch', long, { inputResponses: approved, requestState: first.requestState })
+		expect(first.resultType).toBe('input_required');
+		const second = await call('afd-batch', long, {
+			inputResponses: approved,
+			requestState: first.requestState,
+		});
+		// Validated again, the random default differs from the one approved, and it would differ
+		// on every retry: a final refusal, not another question.
+		expect(asked(second).resultType).not.toBe('input_required');
+		const refused = body(second.result);
+		expect(refused).toMatchObject({
+			success: false,
+			error: {
+				code: 'APPROVAL_REQUIRED',
+				details: { reason: 'input-not-kept', step: 1, command: 'note-add' },
+			},
+		});
+		expect((refused.error as { suggestion: string }).suggestion).toContain(
+			'Call note-add on its own'
 		);
-		// Validated again, the random default differs from the one approved.
-		expect(second.resultType).toBe('input_required');
 		expect(calls).toEqual([]);
+	});
+
+	it('asks again when the approval of a step too long to keep only expired', async () => {
+		// The same long input validates to itself every time: an expired approval is asked about
+		// again, and the answer that comes back in time runs it.
+		const memo = (calls: string[]) =>
+			[
+				defineCommand({
+					name: 'memo-add',
+					description: 'Add a memo',
+					mutation: true,
+					approval: 'required',
+					expose: { mcp: true },
+					input: z.object({ text: z.string() }),
+					handler: async (input) => {
+						calls.push(`memo:${input.text.length}`);
+						return success({ added: true });
+					},
+				}),
+			] as unknown as ReturnType<typeof commands>;
+		const { url, calls, clock } = await serve({ extra: memo });
+		const call = rawCaller(url);
+		const long = {
+			commands: [{ command: 'memo-add', input: { text: 'x'.repeat(MAX_KEPT_INPUT) } }],
+		};
+		const state = asked(await call('afd-batch', long)).requestState as string;
+		clock.advance(TTL_MS);
+		const late = asked(
+			await call('afd-batch', long, { inputResponses: approved, requestState: state })
+		);
+		expect(late.resultType).toBe('input_required');
+		expect(calls).toEqual([]);
+		const onTime = await call('afd-batch', long, {
+			inputResponses: approved,
+			requestState: late.requestState,
+		});
+		expect((onTime.result as { isError?: boolean }).isError).toBe(false);
+		expect(calls).toEqual([`memo:${MAX_KEPT_INPUT}`]);
 	});
 });
 
@@ -1797,6 +1849,46 @@ function items(calls: string[]) {
 			handler: async (input) => {
 				calls.push(`wipe:${input.id}`);
 				return success({ wiped: input.id });
+			},
+		}),
+	] as unknown as ReturnType<typeof commands>;
+}
+
+/**
+ * Slots whose default id reads the store: `slot-claim`'s id defaults to the next free one and must
+ * be free, and `slot-take` takes one.
+ */
+function slots(calls: string[]) {
+	const store = new Set([1]);
+	const next = () => Math.max(...store) + 1;
+	return [
+		defineCommand({
+			name: 'slot-take',
+			description: 'Take a slot',
+			mutation: true,
+			expose: { mcp: true },
+			input: z.object({ id: z.number() }),
+			handler: async (input) => {
+				store.add(input.id);
+				calls.push(`take:${input.id}`);
+				return success({ taken: input.id });
+			},
+		}),
+		defineCommand({
+			name: 'slot-claim',
+			description: 'Claim the next free slot',
+			mutation: true,
+			approval: 'required',
+			expose: { mcp: true },
+			input: z.object({
+				id: z
+					.number()
+					.default(next)
+					.refine((id) => !store.has(id), { message: 'Slot taken' }),
+			}),
+			handler: async (input) => {
+				calls.push(`claim:${input.id}`);
+				return success({ claimed: input.id });
 			},
 		}),
 	] as unknown as ReturnType<typeof commands>;
@@ -1846,5 +1938,54 @@ describe('a step is still validated when it runs (#1414)', () => {
 		expect(prompts).toHaveLength(1);
 		expect(codes(result)).toEqual([undefined, 'VALIDATION_ERROR']);
 		expect(calls).toEqual(['remove:1']);
+	});
+
+	it('fails an approved step whose approved input, not only the input sent, an earlier step made invalid (#1511)', async () => {
+		const { url, calls } = await serve({ extra: slots });
+		const prompts: string[] = [];
+		const client = await connect(url, 'accept', prompts);
+		const result = await client.callTool({
+			name: 'afd-batch',
+			arguments: {
+				commands: [
+					{ command: 'slot-take', input: { id: 2 } },
+					{ command: 'slot-claim', input: {} },
+				],
+			},
+		});
+		// The human approved slot 2, the next free one when asked. When the step runs, the input
+		// as sent defaults to slot 3, which is free, but slot 2, the one that would run, is taken.
+		expect(prompts).toHaveLength(1);
+		expect(prompts[0]).toContain('"id":2');
+		expect(codes(result)).toEqual([undefined, 'VALIDATION_ERROR']);
+		expect(calls).toEqual(['take:2']);
+	});
+
+	it('fails an approved step whose schema does not read its approved input back unchanged (#1511)', async () => {
+		const scaled = (calls: string[]) =>
+			[
+				defineCommand({
+					name: 'price-set',
+					description: 'Set a price in cents',
+					mutation: true,
+					approval: 'required',
+					expose: { mcp: true },
+					input: z.object({ cents: z.number().transform((n) => n * 100) }),
+					handler: async (input) => {
+						calls.push(`price:${input.cents}`);
+						return success({ cents: input.cents });
+					},
+				}),
+			] as unknown as ReturnType<typeof commands>;
+		const { url, calls } = await serve({ extra: scaled });
+		const prompts: string[] = [];
+		const client = await connect(url, 'accept', prompts);
+		const result = await client.callTool({
+			name: 'afd-batch',
+			arguments: { commands: [{ command: 'price-set', input: { cents: 5 } }] },
+		});
+		// 500 was approved; read back, it would be 50,000. Nothing runs.
+		expect(codes(result)).toEqual(['VALIDATION_ERROR']);
+		expect(calls).toEqual([]);
 	});
 });

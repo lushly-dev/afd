@@ -608,3 +608,56 @@ describe('canonicalJson', () => {
 		expect(() => canonicalJson(cyclic)).toThrow('cyclic');
 	});
 });
+
+describe('without WebCrypto (#1699)', () => {
+	// A browser page served over plain HTTP from a network address has no `crypto.subtle`.
+	const insecure = () =>
+		vi.stubGlobal('crypto', {
+			getRandomValues: <T extends ArrayBufferView>(array: T) => array,
+		});
+
+	it('creates the middleware, runs ungated commands and refuses a gated one with a suggestion', async () => {
+		insecure();
+		try {
+			const ran: string[] = [];
+			const middleware = createApprovalMiddleware({ secret: SECRET });
+			const registry = createDirectRegistry(
+				[
+					defineCommand({
+						name: 'todo-list',
+						description: 'List todos',
+						input: z.object({}),
+						handler: async () => {
+							ran.push('list');
+							return { success: true, data: [] };
+						},
+					}),
+					defineCommand({
+						name: 'todo-clear',
+						description: 'Clear every todo',
+						input: z.object({}),
+						mutation: true,
+						approval: 'required',
+						handler: async () => {
+							ran.push('clear');
+							return { success: true, data: null };
+						},
+					}),
+				],
+				{ middleware: [middleware] }
+			);
+			expect((await registry.execute('todo-list', {})).success).toBe(true);
+			const refused = await registry.execute('todo-clear', {});
+			expect(refused.success).toBe(false);
+			expect(refused.error).toMatchObject({
+				code: 'APPROVAL_UNAVAILABLE',
+				retryable: false,
+				details: { reason: 'no-webcrypto', command: 'todo-clear' },
+			});
+			expect(refused.error?.suggestion).toMatch(/HTTPS|localhost/);
+			expect(ran).toEqual(['list']);
+		} finally {
+			vi.unstubAllGlobals();
+		}
+	});
+});

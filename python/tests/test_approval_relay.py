@@ -694,7 +694,7 @@ async def test_a_spent_batch_approval_is_asked_again_saying_why():
 # ── A step runs on the input approved up front (#1414) ───────────────────────────────────────
 
 
-def _notes(calls):
+def _notes(calls, **options):
     """A server with a gated command whose defaults differ from one validation to the next."""
     import uuid
 
@@ -704,7 +704,7 @@ def _notes(calls):
         text: str
         id: str = Field(default_factory=lambda: uuid.uuid4().hex)
 
-    server = _server(calls)
+    server = _server(calls, **options)
 
     @server.command(
         name="note-add",
@@ -942,3 +942,175 @@ async def test_a_step_is_still_validated_when_it_runs(mode, gated_server, second
     assert calls == ["remove:1"]
     # Asked about the gated step only where a middleware gates it: it was valid then.
     assert len(prompts) == (1 if gated_server and second == "item-wipe" else 0)
+
+
+async def test_a_step_too_long_to_keep_is_refused_on_the_retry_not_asked_again():
+    """A gated step whose input is not kept, with a random default, would be asked about again on
+    every retry: the retry gets a final refusal instead (#1511)."""
+    from afd.server.approval_relay import MAX_KEPT_INPUT
+
+    calls = []
+    # A fixed key, so the retry's server reads the request state the first one issued.
+    server = _notes(calls, confirmation_key=KEY)
+    long = {
+        "commands": [
+            {"command": "todo-get", "input": {}},
+            {"command": "note-add", "input": {"text": "x" * MAX_KEPT_INPUT}},
+        ]
+    }
+    asked = await _ask(server, "afd-batch", long)
+    retried = await _retry(server, asked.request_state, APPROVE, "afd-batch", long)
+    assert type(retried).__name__ != "InputRequiredResult", retried
+    refused = body(retried)
+    assert refused["success"] is False, refused
+    error = refused["error"]
+    assert error["code"] == "APPROVAL_REQUIRED"
+    assert error["details"] == {"reason": "input-not-kept", "step": 1, "command": "note-add"}
+    assert "Call note-add on its own" in error["suggestion"]
+    assert calls == []
+
+
+def _slots(calls):
+    """A server whose ``slot-claim`` id defaults to the next free slot and must be free, and whose
+    ``slot-take`` takes one."""
+    from pydantic import BaseModel, Field, field_validator
+
+    store = {1}
+
+    class Claim(BaseModel):
+        id: int = Field(default_factory=lambda: max(store) + 1)
+
+        @field_validator("id")
+        @classmethod
+        def free(cls, value):
+            if value in store:
+                raise ValueError("Slot taken")
+            return value
+
+    server = _server(calls)
+
+    @server.command(
+        name="slot-take",
+        description="Take a slot",
+        mutation=True,
+        input_schema={"type": "object", "properties": {"id": {"type": "integer"}}},
+        expose=MCP,
+    )
+    async def take(input):
+        store.add(input["id"])
+        calls.append(f"take:{input['id']}")
+        return success({"taken": input["id"]})
+
+    @server.command(
+        name="slot-claim",
+        description="Claim the next free slot",
+        mutation=True,
+        approval="required",
+        input_schema=Claim,
+        expose=MCP,
+    )
+    async def claim(input):
+        calls.append(f"claim:{input.id}")
+        return success({"claimed": input.id})
+
+    return server
+
+
+@pytest.mark.parametrize("mode", MODES)
+async def test_an_approved_input_an_earlier_step_made_invalid_fails_when_it_runs(mode):
+    """The approved input itself is validated when the step runs, not only the input as sent,
+    whose fresh default may pass where the approved one fails (#1511)."""
+    calls, prompts = [], []
+    request = {
+        "commands": [
+            {"command": "slot-take", "input": {"id": 2}},
+            {"command": "slot-claim", "input": {}},
+        ]
+    }
+    result = await _call(
+        _slots(calls), mode, prompts, "accept", tool="afd-batch", arguments=request
+    )
+    # Slot 2 was approved, the next free one when asked. As sent, the step now defaults to slot 3,
+    # which is free; slot 2, the one that would run, is taken.
+    assert len(prompts) == 1
+    assert '"id":2' in prompts[0]
+    assert _codes(result) == [None, "VALIDATION_ERROR"], result
+    assert calls == ["take:2"]
+
+
+async def test_an_expired_approval_of_a_step_too_long_to_keep_is_asked_again():
+    """The same long input validates to itself every time: an approval of its own binding that
+    only expired is asked about again, not refused as ``input-not-kept`` (#1511)."""
+    from pydantic import BaseModel
+
+    from afd import fixed_clock
+    from afd.server.approval_relay import MAX_KEPT_INPUT
+
+    class Memo(BaseModel):
+        text: str
+
+    calls = []
+    clock = fixed_clock(1_000_000)
+    server, approve = _gated_server(tool_strategy="individual", confirmation_key=KEY)
+
+    @server.command(
+        name="memo-add",
+        description="Add a memo",
+        mutation=True,
+        approval="required",
+        input_schema=Memo,
+        expose=MCP,
+    )
+    async def add(input):
+        calls.append(len(input.text))
+        return success({})
+
+    approve(relay="mcp-elicitation", ttl_ms=1000, clock=clock)
+    long = {"commands": [{"command": "memo-add", "input": {"text": "x" * MAX_KEPT_INPUT}}]}
+    state = (await _ask(server, "afd-batch", long)).request_state
+    clock.advance(1000)
+    again = await _retry(server, state, APPROVE, "afd-batch", long)
+    assert type(again).__name__ == "InputRequiredResult", again
+    assert calls == []
+
+
+def test_a_validator_that_raises_fails_the_approved_input_check():
+    """A validator that raises while the approved input is checked fails the step with
+    ``VALIDATION_ERROR`` and a suggestion, as its own validation would (#1511)."""
+    from pydantic import BaseModel, field_validator
+
+    from afd.server.up_front_check import check_approved_at_run
+
+    class Broken(BaseModel):
+        id: int
+
+        @field_validator("id")
+        @classmethod
+        def boom(cls, value):
+            raise RuntimeError("store unavailable")
+
+    refused = check_approved_at_run("slot-claim", Broken, {"id": 2}, 100)
+    assert refused is not None
+    assert refused.error.code == "VALIDATION_ERROR"
+    assert refused.error.suggestion
+
+
+def test_an_approved_input_the_schema_does_not_read_back_unchanged_fails():
+    """A validator that returns another value fails the approved input's check: the value that
+    would run is not the one approved (#1511)."""
+    from pydantic import BaseModel, field_validator
+
+    from afd.server.up_front_check import check_approved_at_run
+
+    class Scaled(BaseModel):
+        cents: int
+
+        @field_validator("cents")
+        @classmethod
+        def scale(cls, value):
+            return value * 100
+
+    refused = check_approved_at_run("price-set", Scaled, Scaled(cents=5), 100)
+    assert refused is not None
+    assert refused.error.code == "VALIDATION_ERROR"
+    assert refused.error.suggestion

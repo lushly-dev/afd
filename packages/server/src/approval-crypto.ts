@@ -66,9 +66,27 @@ export function actorJson(actor: Actor | undefined): string {
 	return canonicalJson({ kind: actor.kind, id: actor.id, onBehalfOf: actor.onBehalfOf });
 }
 
-/** An HMAC-SHA256 key, imported once and reused for every token it signs or checks. */
+/**
+ * An HMAC-SHA256 key, imported on first use and reused for every token it signs or checks. The
+ * import waits for first use so that an app that never asks for approval starts where WebCrypto
+ * is missing, such as a browser page served over plain HTTP from a network address (#1699).
+ */
 export interface ApprovalKey {
 	readonly key: Promise<CryptoKey>;
+}
+
+/**
+ * WebCrypto is missing: Node.js before 22, or a browser page on an insecure origin, where
+ * `crypto.subtle` is not exposed. The approval middleware answers a call it meets this way with
+ * `APPROVAL_UNAVAILABLE` (`details.reason: "no-webcrypto"`).
+ */
+export class WebCryptoUnavailableError extends TypeError {
+	constructor() {
+		super(
+			'The approval middleware needs WebCrypto (globalThis.crypto.subtle): Node.js 22 or later, or a browser on a secure origin (HTTPS or localhost)'
+		);
+		this.name = 'WebCryptoUnavailableError';
+	}
 }
 
 export function toKeys(
@@ -80,21 +98,38 @@ export function toKeys(
 		if (typeof candidate !== 'string' && !(candidate instanceof Uint8Array)) {
 			throw new TypeError('Approval secret is required: pass a string or Uint8Array');
 		}
-		// A copy, so a caller that reuses its buffer cannot change the key.
-		const bytes = typeof candidate === 'string' ? encoder.encode(candidate) : candidate.slice();
+		// A copy, so a caller that reuses its buffer cannot change the key, which is imported only
+		// on first use. `new Uint8Array` copies a Node.js `Buffer` too, whose `slice` shares memory.
+		const bytes =
+			typeof candidate === 'string' ? encoder.encode(candidate) : new Uint8Array(candidate);
 		if (bytes.length < MIN_SECRET_BYTES) {
 			throw new TypeError(`Approval secret must be at least ${MIN_SECRET_BYTES} bytes`);
 		}
-		const key = cryptoApi().subtle.importKey(
-			'raw',
-			bytes,
-			{ name: 'HMAC', hash: 'SHA-256' },
-			false,
-			['sign']
-		);
-		// Reported when the key is first used; keeps an unused rejection from going unhandled.
-		key.catch(() => undefined);
-		return { key };
+		let key: Promise<CryptoKey> | undefined;
+		return {
+			get key() {
+				if (!key) {
+					try {
+						const imported = cryptoApi().subtle.importKey(
+							'raw',
+							bytes,
+							{ name: 'HMAC', hash: 'SHA-256' },
+							false,
+							['sign']
+						);
+						// A failed import is not kept, so a later call tries again.
+						imported.catch(() => {
+							if (key === imported) key = undefined;
+						});
+						key = imported;
+					} catch (error) {
+						// Not kept: a page that gains WebCrypto later is not held to the first answer.
+						return Promise.reject(error);
+					}
+				}
+				return key;
+			},
+		};
 	});
 }
 
@@ -212,10 +247,6 @@ export function createMemoryNonceStore() {
 
 function cryptoApi(): Crypto {
 	const api = globalThis.crypto;
-	if (!api?.subtle) {
-		throw new TypeError(
-			'The approval middleware needs WebCrypto (globalThis.crypto.subtle): Node.js 22 or later, or a browser on a secure origin'
-		);
-	}
+	if (!api?.subtle) throw new WebCryptoUnavailableError();
 	return api;
 }

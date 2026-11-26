@@ -108,6 +108,9 @@ pub(crate) struct Admission {
     state: Mutex<State>,
     /// Set by the approval middleware when its commands list gates this command.
     required: AtomicBool,
+    /// Set when the registry's call of this record returns, so a context kept past it (a clone a
+    /// middleware held on to) no longer speaks for the command.
+    ended: AtomicBool,
 }
 
 impl Admission {
@@ -117,7 +120,20 @@ impl Admission {
             command,
             state: Mutex::new(State::default()),
             required: AtomicBool::new(false),
+            ended: AtomicBool::new(false),
         })
+    }
+
+    /// Record that the registry's call of this record returned.
+    pub(crate) fn end(&self) {
+        self.ended.store(true, Ordering::SeqCst);
+    }
+
+    /// The command's `mutation` declaration, for the retry middleware: `None` once the call that
+    /// made this record returned, or when it names another command.
+    pub(crate) fn live_mutation(&self, name: &str) -> Option<bool> {
+        (!self.ended.load(Ordering::SeqCst) && self.command.name == name)
+            .then_some(self.command.mutation)
     }
 
     /// The command this call runs, as registered.

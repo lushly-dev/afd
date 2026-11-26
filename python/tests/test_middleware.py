@@ -262,7 +262,7 @@ class TestRetryMiddleware:
             call_count[0] += 1
             return success({"ok": True})
 
-        mw = create_retry_middleware(max_retries=3, retry_delay=1)
+        mw = create_retry_middleware(retry_mutations=True, max_retries=3, retry_delay=1)
         ctx = make_context()
 
         result = await mw("test-cmd", {}, ctx, handler)
@@ -279,7 +279,7 @@ class TestRetryMiddleware:
                 return error("TRANSIENT_ERROR", "temporary", suggestion="retry")
             return success({"ok": True})
 
-        mw = create_retry_middleware(max_retries=3, retry_delay=1)
+        mw = create_retry_middleware(retry_mutations=True, max_retries=3, retry_delay=1)
         ctx = make_context()
 
         result = await mw("test-cmd", {}, ctx, handler)
@@ -294,7 +294,7 @@ class TestRetryMiddleware:
             call_count[0] += 1
             return error("TRANSIENT_ERROR", "always fails", suggestion="retry")
 
-        mw = create_retry_middleware(max_retries=2, retry_delay=1)
+        mw = create_retry_middleware(retry_mutations=True, max_retries=2, retry_delay=1)
         ctx = make_context()
 
         result = await mw("test-cmd", {}, ctx, handler)
@@ -312,6 +312,7 @@ class TestRetryMiddleware:
             return error("CUSTOM_ERROR", "custom", suggestion="retry")
 
         mw = create_retry_middleware(
+            retry_mutations=True,
             max_retries=2,
             retry_delay=1,
             should_retry=lambda code: code == "CUSTOM_ERROR",
@@ -323,6 +324,20 @@ class TestRetryMiddleware:
         assert call_count[0] == 3  # 1 initial + 2 retries
 
     @pytest.mark.asyncio
+    async def test_outside_the_engine_counts_as_a_mutation(self):
+        """Called directly, the middleware cannot read ``mutation``, so it does not retry (#2673)."""
+        call_count = [0]
+
+        async def handler():
+            call_count[0] += 1
+            return error("TIMEOUT", "timed out", suggestion="retry")
+
+        mw = create_retry_middleware(max_retries=3, retry_delay=0)
+        result = await mw("item-get", {}, make_context(), handler)
+        assert result.error.code == "TIMEOUT"
+        assert call_count[0] == 1
+
+    @pytest.mark.asyncio
     async def test_no_retry_for_non_retryable(self):
         call_count = [0]
 
@@ -330,7 +345,7 @@ class TestRetryMiddleware:
             call_count[0] += 1
             return error("VALIDATION_ERROR", "bad input", suggestion="fix input")
 
-        mw = create_retry_middleware(max_retries=3, retry_delay=1)
+        mw = create_retry_middleware(retry_mutations=True, max_retries=3, retry_delay=1)
         ctx = make_context()
 
         result = await mw("test-cmd", {}, ctx, handler)
@@ -359,7 +374,9 @@ class TestRetryBackoff:
     @patch("afd.server.middleware.asyncio.sleep", new_callable=AsyncMock)
     async def test_backoff_doubles_and_is_capped_by_max_delay(self, mock_sleep):
         handler, calls = self._always_transient()
-        mw = create_retry_middleware(max_retries=6, retry_delay=100, max_delay=1000, jitter=False)
+        mw = create_retry_middleware(
+            retry_mutations=True, max_retries=6, retry_delay=100, max_delay=1000, jitter=False
+        )
 
         result = await mw("test-cmd", {}, make_context(), handler)
 
@@ -371,7 +388,9 @@ class TestRetryBackoff:
     @patch("afd.server.middleware.asyncio.sleep", new_callable=AsyncMock)
     async def test_max_delay_defaults_to_five_seconds(self, mock_sleep):
         handler, _ = self._always_transient()
-        mw = create_retry_middleware(max_retries=8, retry_delay=100, jitter=False)
+        mw = create_retry_middleware(
+            retry_mutations=True, max_retries=8, retry_delay=100, jitter=False
+        )
 
         await mw("test-cmd", {}, make_context(), handler)
 
@@ -381,7 +400,7 @@ class TestRetryBackoff:
     @patch("afd.server.middleware.asyncio.sleep", new_callable=AsyncMock)
     async def test_default_jitter_waits_between_half_and_all_of_the_backoff(self, mock_sleep):
         handler, _ = self._always_transient()
-        mw = create_retry_middleware(max_retries=5)
+        mw = create_retry_middleware(retry_mutations=True, max_retries=5)
 
         with patch(
             "afd.server.middleware.random.uniform", side_effect=lambda low, high: low
@@ -401,7 +420,7 @@ class TestRetryBackoff:
     @patch("afd.server.middleware.asyncio.sleep", new_callable=AsyncMock)
     async def test_jittered_waits_stay_in_range(self, mock_sleep):
         handler, _ = self._always_transient()
-        mw = create_retry_middleware(max_retries=4, retry_delay=100)
+        mw = create_retry_middleware(retry_mutations=True, max_retries=4, retry_delay=100)
 
         await mw("test-cmd", {}, make_context(), handler)
 
@@ -413,7 +432,9 @@ class TestRetryBackoff:
     @patch("afd.server.middleware.asyncio.sleep", new_callable=AsyncMock)
     async def test_many_retries_do_not_overflow(self, mock_sleep):
         handler, calls = self._always_transient()
-        mw = create_retry_middleware(max_retries=1100, retry_delay=100.0, jitter=False)
+        mw = create_retry_middleware(
+            retry_mutations=True, max_retries=1100, retry_delay=100.0, jitter=False
+        )
 
         await mw("test-cmd", {}, make_context(), handler)
 
@@ -423,7 +444,9 @@ class TestRetryBackoff:
     @pytest.mark.asyncio
     async def test_cancellation_during_backoff_stops_retrying(self):
         handler, calls = self._always_transient()
-        mw = create_retry_middleware(max_retries=3, retry_delay=60_000, jitter=False)
+        mw = create_retry_middleware(
+            retry_mutations=True, max_retries=3, retry_delay=60_000, jitter=False
+        )
 
         task = asyncio.create_task(mw("test-cmd", {}, make_context(), handler))
         while not calls:

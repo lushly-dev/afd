@@ -261,7 +261,12 @@ imports from `/direct`. It exports everything `/define` does, plus:
   per call;
 - `createDirectToolSurface`, the MCP tool surface for that registry (see
   below);
-- `createApprovalMiddleware`, on WebCrypto (see [Approvals](#approvals));
+- `createApprovalMiddleware`, on WebCrypto (see [Approvals](#approvals)). A
+  browser exposes WebCrypto only on a secure origin (HTTPS or `localhost`): over
+  plain HTTP from a network address, such as a phone opening
+  `http://192.168.x.x:5173/`, the app starts but every gated call returns
+  `APPROVAL_UNAVAILABLE` with `details.reason: "no-webcrypto"`. To test from
+  another device, serve HTTPS with a local certificate or use a tunnel;
 - `createJournalMiddleware`, `JOURNAL_RESULT_UNSERIALIZABLE`, `replayJournal` and `MemoryJournalSink`;
 - the middleware with no Node.js builtin in its module graph:
   `composeMiddleware`, `defaultMiddleware`, `createLoggingMiddleware`,
@@ -903,7 +908,9 @@ const server = createMcpServer({
 
 ### Retries
 
-`createRetryMiddleware` reruns a command whose failure code passes `shouldRetry` (default: `TRANSIENT_ERROR` and `TIMEOUT`), up to `maxRetries` times (default: 3). The backoff is exponential and capped: retry `n` backs off `min(maxDelay, retryDelay * 2 ** (n - 1))`, with `retryDelay` defaulting to 100 ms and `maxDelay` to 5000 ms. With `jitter` (the default) each wait is a random time between half and all of that backoff; `jitter: false` waits exactly the backoff. When `context.signal` aborts, for example because the client disconnected or a batch deadline passed, the wait ends and the last failure is returned without further retries. Retry only commands that are safe to repeat.
+`createRetryMiddleware` reruns a command whose failure code passes `shouldRetry` (default: `TRANSIENT_ERROR` and `TIMEOUT`), up to `maxRetries` times (default: 3). The backoff is exponential and capped: retry `n` backs off `min(maxDelay, retryDelay * 2 ** (n - 1))`, with `retryDelay` defaulting to 100 ms and `maxDelay` to 5000 ms. With `jitter` (the default) each wait is a random time between half and all of that backoff; `jitter: false` waits exactly the backoff. When `context.signal` aborts, for example because the client disconnected or a batch deadline passed, the wait ends and the last failure is returned without further retries.
+
+A command that declares `mutation: true` is never retried unless you pass `retryMutations: true`: a handler that returned `TIMEOUT` after a downstream write may already have applied it, and a retry would apply it again. The middleware reads `mutation` from the command the engine runs, not from its name; called directly, outside the engine, it counts every call as a mutation. Set `retryMutations` only when every mutation it wraps is safe to repeat.
 
 ```typescript
 import { createRetryMiddleware } from '@lushly-dev/afd-server';

@@ -222,9 +222,16 @@ impl CommandRegistry {
         // This call's own admission record (#1886): fresh for every call, so a batch item, a
         // pipeline step or a nested call never inherits another call's admission.
         let mut context = context;
-        context.approval_admission = Some(crate::approval::admission::Admission::begin(
-            Arc::clone(&command),
-        ));
+        let admission = crate::approval::admission::Admission::begin(Arc::clone(&command));
+        context.approval_admission = Some(Arc::clone(&admission));
+        // Marks the record ended however this call returns (an early failure, a panic unwinding).
+        struct EndAdmission(Arc<crate::approval::admission::Admission>);
+        impl Drop for EndAdmission {
+            fn drop(&mut self) {
+                self.0.end();
+            }
+        }
+        let _end_admission = EndAdmission(admission);
         let context_fields = Arc::clone(&read_lock(&self.context_fields));
         if let Err(error) = apply_context_fields(
             &context_fields.0,

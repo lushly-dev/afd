@@ -35,6 +35,7 @@ import type {
 	ApprovalPolicy,
 	Clock,
 	CommandContext,
+	CommandError,
 	CommandMiddleware,
 } from '@lushly-dev/afd-core';
 import { ErrorCodes, failure, systemClock } from '@lushly-dev/afd-core';
@@ -62,6 +63,7 @@ import {
 	safeEqualText,
 	sha256Base64url,
 	toKeys,
+	WebCryptoUnavailableError,
 } from './approval-crypto.js';
 import { markApprovalProcessState } from './approval-process-state.js';
 import {
@@ -543,7 +545,7 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 	// This approval step, as the admission records name it.
 	const self = {};
 
-	const middleware: CommandMiddleware = async (commandName, input, context, outerNext) => {
+	const gate: CommandMiddleware = async (commandName, input, context, outerNext) => {
 		// Every way this middleware lets a call it may gate through admits this command on the
 		// canonical input it decided on, computed before any await, which the engine checks, and
 		// takes, before it dispatches a command that its own or its listed policy gates. A call no
@@ -752,12 +754,34 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 			},
 		});
 	};
+	// Where WebCrypto is missing (a browser page over plain HTTP from a network address), a call
+	// this step must sign or check a token for gets an answer an agent can act on (#1699).
+	const middleware: CommandMiddleware = async (commandName, input, context, outerNext) => {
+		try {
+			return await gate(commandName, input, context, outerNext);
+		} catch (error) {
+			if (error instanceof WebCryptoUnavailableError) return failure(noWebCrypto(commandName));
+			throw error;
+		}
+	};
 	markApprovalProcessState(middleware, {
 		relay: relayMode === 'mcp-elicitation',
 		perProcessNonces: singleUse && !options.nonceStore,
 		perProcessRelayNonces: !options.nonceStore,
 	});
 	return middleware;
+}
+
+/** The approval step needs WebCrypto to sign or check a token, and this page has none. */
+function noWebCrypto(command: string): CommandError {
+	return {
+		code: ErrorCodes.APPROVAL_UNAVAILABLE,
+		message: `${command} needs a person's approval, and this app cannot ask for it: WebCrypto (crypto.subtle) is missing, which a browser exposes only on a secure origin`,
+		suggestion:
+			'Do not retry: serve the app over HTTPS or open it from localhost (to test from another device, use HTTPS with a local certificate or a tunnel), or run it on Node.js 22 or later',
+		retryable: false,
+		details: { reason: 'no-webcrypto', command },
+	};
 }
 
 function parsePayload(encoded: string): TokenPayload | undefined {

@@ -255,6 +255,69 @@ async fn retry_stops_at_the_first_success_and_skips_other_codes() {
     assert_eq!(calls.load(Ordering::SeqCst), 1);
 }
 
+/// Outside the registry the declaration cannot be read, so the call counts as a mutation
+/// (#2673); with `retry_mutations` it is retried.
+#[tokio::test]
+async fn retry_outside_the_registry_counts_as_a_mutation() {
+    for (retry_mutations, expected) in [(false, 1), (true, 2)] {
+        let (_, sleep) = recorded_sleep();
+        let retry = create_retry_middleware(RetryOptions {
+            max_retries: 1,
+            sleep: Some(sleep),
+            retry_mutations,
+            ..RetryOptions::default()
+        })
+        .unwrap();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let counted = Arc::clone(&calls);
+        let next: crate::commands::MiddlewareNext = Arc::new(move |_context| {
+            counted.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async { failure(CommandError::new("TIMEOUT", "Timed out")) })
+        });
+        let result = retry(
+            "echo-run".to_string(),
+            Arc::new(json!({})),
+            CommandContext::new(),
+            next,
+        )
+        .await;
+        assert_eq!(result.error.unwrap().code, "TIMEOUT");
+        assert_eq!(calls.load(Ordering::SeqCst), expected);
+    }
+}
+
+/// A context kept past the call that made it no longer speaks for the command (#2673): a
+/// middleware that holds a read's context and runs the retry with it later is not retried.
+#[tokio::test]
+async fn retry_does_not_trust_a_context_kept_past_its_call() {
+    let (registry, _) = registry_with(0, "TIMEOUT");
+    let kept: Arc<Mutex<Option<CommandContext>>> = Arc::default();
+    let keeper = Arc::clone(&kept);
+    registry.add_middleware(Arc::new(move |_name, _input, context, next| {
+        *keeper.lock().unwrap() = Some(context.clone());
+        Box::pin(async move { next(context).await })
+    }));
+    assert!(registry.execute("echo-run", json!({}), None).await.success);
+    let context = kept.lock().unwrap().take().expect("kept context");
+
+    let (_, sleep) = recorded_sleep();
+    let retry = create_retry_middleware(RetryOptions {
+        max_retries: 1,
+        sleep: Some(sleep),
+        ..RetryOptions::default()
+    })
+    .unwrap();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let counted = Arc::clone(&calls);
+    let next: crate::commands::MiddlewareNext = Arc::new(move |_context| {
+        counted.fetch_add(1, Ordering::SeqCst);
+        Box::pin(async { failure(CommandError::new("TIMEOUT", "Timed out")) })
+    });
+    let result = retry("echo-run".to_string(), Arc::new(json!({})), context, next).await;
+    assert_eq!(result.error.unwrap().code, "TIMEOUT");
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+}
+
 #[tokio::test]
 async fn retry_jitter_waits_between_half_and_all_of_the_backoff() {
     let (registry, _) = registry_with(10, "TRANSIENT_ERROR");

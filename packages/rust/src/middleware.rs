@@ -289,6 +289,11 @@ pub struct RetryOptions {
     pub random: Option<Arc<dyn RandomSource>>,
     /// Waits between attempts. Defaults to `tokio::time::sleep` (the `native` feature).
     pub sleep: Option<SleepFn>,
+    /// Retry a command declaring [`mutation`](crate::CommandDefinition::as_mutation) too (default
+    /// `false`). A failed mutation, such as one whose handler returned `TIMEOUT` after a
+    /// downstream write, may already have applied its change, so retrying it can apply it twice.
+    /// Set this only when every mutation the middleware wraps is safe to repeat.
+    pub retry_mutations: bool,
 }
 
 impl Default for RetryOptions {
@@ -301,6 +306,7 @@ impl Default for RetryOptions {
             should_retry: None,
             random: None,
             sleep: None,
+            retry_mutations: false,
         }
     }
 }
@@ -318,6 +324,13 @@ fn backoff(retry: u32, base_ms: u64, max_ms: u64) -> u64 {
 /// cancellation signal fires stops waiting and returns the last failure. Each attempt runs the
 /// rest of the chain with a copy of the context.
 ///
+/// A command declaring `mutation` is never retried unless [`RetryOptions::retry_mutations`] is
+/// set. The middleware reads the declaration from the command the registry runs for the call,
+/// never from its name; a call whose declaration it cannot read (outside
+/// [`CommandRegistry::execute`](crate::CommandRegistry::execute), or with a context kept past
+/// the call that made it) counts as a mutation. Unlike TypeScript, Python and C++, it does not
+/// check that `next` is the registry's own continuation.
+///
 /// Add it before the approval middleware. There, a retry of a gated command reaches the approval
 /// step again, which holds it for a new approval (a token works once). After it, the registry
 /// refuses the second dispatch (`APPROVAL_UNAVAILABLE`, `admission-mismatch`).
@@ -333,13 +346,22 @@ pub fn create_retry_middleware(options: RetryOptions) -> Result<CommandMiddlewar
         Arc::new(|code: &str| code == "TRANSIENT_ERROR" || code == error_codes::TIMEOUT)
     });
     let random = options.random.unwrap_or_else(|| Arc::new(SystemRandom));
-    let (max_retries, base, max, jitter) = (
+    let (max_retries, base, max, jitter, retry_mutations) = (
         options.max_retries,
         options.retry_delay_ms,
         options.max_delay_ms,
         options.jitter,
+        options.retry_mutations,
     );
-    Ok(Arc::new(move |_name, _input, context, next| {
+    Ok(Arc::new(move |name, _input, context, next| {
+        // The registry's record of the command this call runs, which only it sets, while that call
+        // runs and when it names the command this middleware was given.
+        let repeatable = retry_mutations
+            || context
+                .approval_admission
+                .as_deref()
+                .and_then(|admission| admission.live_mutation(&name))
+                == Some(false);
         let (sleep, should_retry, random) = (
             Arc::clone(&sleep),
             Arc::clone(&should_retry),
@@ -347,6 +369,9 @@ pub fn create_retry_middleware(options: RetryOptions) -> Result<CommandMiddlewar
         );
         Box::pin(async move {
             let mut result = next(context.clone()).await;
+            if !repeatable {
+                return result;
+            }
             for retry in 1..=max_retries {
                 let retryable = result
                     .error

@@ -33,6 +33,8 @@ export interface AdmissionCommand {
 	confirmPrompt?: string;
 	/** The command's `secret` declaration, which the journal middleware reads. */
 	secret?: boolean;
+	/** The command's `mutation` declaration, which the retry middleware reads. */
+	mutation?: boolean;
 }
 
 /** The canonical JSON of a value, or undefined when it has none. */
@@ -139,6 +141,9 @@ export function beginAdmission(context: CommandContext, command: AdmissionComman
 			approval: command.approval,
 			confirmPrompt: command.confirmPrompt,
 			...(command.secret === true && { secret: true }),
+			// Always a boolean in this copy's records, so a record from an older copy of the
+			// package, which never sets it, reads as unknown.
+			mutation: command.mutation === true,
 		},
 		admitted: [],
 		steps: new Set(),
@@ -280,4 +285,16 @@ export function liveSecret(context: CommandContext, next: object): boolean | und
 	const found = record(context);
 	if (!found?.chain || !weakSetHas.call(found.chain, next)) return undefined;
 	return found.command.secret === true;
+}
+
+/**
+ * Whether the command the engine runs for `context` declares `mutation`, for the retry
+ * middleware: `true` or `false` for a middleware the engine invoked, and `undefined` for any other
+ * caller, as {@link liveSecret} decides.
+ */
+export function liveMutation(context: CommandContext, next: object): boolean | undefined {
+	const found = record(context);
+	if (!found?.chain || !weakSetHas.call(found.chain, next)) return undefined;
+	const mutation = found.command.mutation;
+	return typeof mutation === 'boolean' ? mutation : undefined;
 }

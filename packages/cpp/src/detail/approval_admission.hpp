@@ -78,6 +78,13 @@ struct ApprovalAdmission {
 /// `ApprovalAdmission::chain_begin`). False for a context the registry did not record.
 bool is_registry_next(const CommandContext& context, const Next& next);
 
+/// The `mutation` declaration of the command the registry runs for this call, for the retry
+/// middleware, read as the journal reads `secret` (journal_replay.cpp, `live_secret`): unset
+/// outside the registry's execution, for a record naming another command, and for a `next` the
+/// registry did not build.
+std::optional<bool> live_mutation(const CommandContext& context, std::string_view name,
+                                  const Next& next);
+
 /// Marks `inner` as the registry's for as long as it lives, when `outer` is: `compose_middleware`
 /// builds continuations of its own for the parts it composes, and a part the registry reached
 /// through it is still the registry's. Unmarks it on destruction.

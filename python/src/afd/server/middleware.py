@@ -44,7 +44,7 @@ from afd.core.commands import (
 )
 from afd.core.errors import Recovery, _retry_after
 from afd.core.result import CommandError, CommandResult
-from afd.core.running_command import pass_on_binding
+from afd.core.running_command import pass_on_binding, running_command_mutation
 from afd.core.telemetry import TelemetryError as _TelemetryError
 from afd.core.telemetry import TelemetryEvent as _TelemetryEvent
 from afd.core.telemetry import TelemetrySink as _TelemetrySink
@@ -239,6 +239,7 @@ def create_retry_middleware(
     should_retry: Callable[[str], bool] | None = None,
     max_delay: float = 5000,
     jitter: bool = True,
+    retry_mutations: bool = False,
 ) -> CommandMiddleware:
     """Create retry middleware for transient failures.
 
@@ -247,6 +248,13 @@ def create_retry_middleware(
     ``createRetryMiddleware``: retry ``n`` backs off
     ``min(max_delay, retry_delay * 2 ** (n - 1))`` ms. Cancelling the call
     (``asyncio.CancelledError``) during a wait stops retrying at once.
+
+    A command that declares ``mutation=True`` is never retried unless
+    ``retry_mutations`` is set: a failed mutation, such as one whose handler
+    returned ``TIMEOUT`` after a downstream write, may already have applied its
+    change. The declaration is read from the command the engine runs, never
+    from its name; a call whose declaration cannot be read (outside the engine)
+    counts as a mutation.
 
     Args:
         max_retries: Maximum number of retries after the first attempt. Default 3.
@@ -258,6 +266,9 @@ def create_retry_middleware(
         jitter: Randomize each wait to between half and all of the backoff,
             so clients that failed together do not retry in lockstep. Default
             True; False waits exactly the backoff.
+        retry_mutations: Retry commands that declare ``mutation=True`` too.
+            Default False. Set it only when every mutation the middleware wraps
+            is safe to repeat.
 
     Raises:
         ValueError: If ``max_retries`` is not a nonnegative integer, or
@@ -278,7 +289,11 @@ def create_retry_middleware(
         context: CommandContext,
         next_fn: NextFn,
     ) -> CommandResult[Any]:
+        # Read before the first attempt, while the engine's dispatch is open.
+        repeatable = retry_mutations or running_command_mutation(context, next_fn) is False
         result = await next_fn()
+        if not repeatable:
+            return result
         for retry in range(1, max_retries + 1):
             if result.success or not result.error or not _should_retry(result.error.code):
                 return result

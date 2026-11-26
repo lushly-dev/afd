@@ -178,6 +178,7 @@ Expected<CommandMiddleware> create_retry_middleware(RetryOptions options) {
     const double retry_delay_ms = options.retry_delay_ms;
     const double max_delay_ms = options.max_delay_ms;
     const bool jitter = options.jitter;
+    const bool retry_mutations = options.retry_mutations;
     auto should_retry = options.should_retry
                             ? std::move(options.should_retry)
                             : std::function<bool(std::string_view)>([](std::string_view code) {
@@ -189,12 +190,18 @@ Expected<CommandMiddleware> create_retry_middleware(RetryOptions options) {
                        ? std::move(options.sleep)
                        : std::function<bool(double, const CancellationToken&)>(default_sleep);
 
-    return CommandMiddleware([max_retries, retry_delay_ms, max_delay_ms, jitter,
+    return CommandMiddleware([max_retries, retry_delay_ms, max_delay_ms, jitter, retry_mutations,
                               should_retry = std::move(should_retry), random = std::move(random),
-                              sleeper = std::move(sleeper)](std::string_view, const Json&,
+                              sleeper = std::move(sleeper)](std::string_view name, const Json&,
                                                             CommandContext& context,
                                                             const Next& next) -> CommandResult {
+        // Read before the first attempt, while the registry's record of the call is running.
+        const bool repeatable =
+            retry_mutations || detail::live_mutation(context, name, next) == std::optional(false);
         CommandResult result = next();
+        if (!repeatable) {
+            return result;
+        }
         for (int retry = 0; retry < max_retries; ++retry) {
             if (result.success || !result.error || !should_retry(result.error->code)) {
                 return result;
