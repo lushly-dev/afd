@@ -538,6 +538,12 @@ async fn multiple_refuses_mid_request_per_process_middleware_even_when_hook_retu
     let structured = &payload["result"]["structuredContent"];
     assert_eq!(structured["success"], json!(false));
     assert_eq!(structured["error"]["code"], json!("INTERNAL_ERROR"));
+    assert_eq!(structured["error"]["retryable"], json!(false));
+    let suggestion = structured["error"]["suggestion"]
+        .as_str()
+        .expect("operator suggestion");
+    assert!(suggestion.contains("nonce_store"));
+    assert!(!suggestion.to_ascii_lowercase().contains("try again"));
 }
 
 #[cfg(feature = "server-auth")]

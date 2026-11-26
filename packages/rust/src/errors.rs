@@ -1168,9 +1168,18 @@ pub fn internal_error(message: &str) -> CommandError {
     CommandError::internal(message)
 }
 
-/// Wrap an arbitrary error-like value in a CommandError.
-pub fn wrap_error(error: impl Display) -> CommandError {
-    CommandError::internal(&error.to_string())
+/// Wrap an arbitrary error-like value in a safe, non-retryable [`CommandError`].
+///
+/// The raw `Display` output of `error` is intentionally omitted from the returned
+/// [`CommandError::message`] so internal paths, SQL text, credentials, or stack details cannot
+/// reach an agent. This always produces a fresh generic `INTERNAL_ERROR` (even when passed a
+/// [`CommandError`], which implements `Display`). Log `error` on the host side before calling
+/// this helper, or construct a domain-specific [`CommandError`] with sanitized prose and an
+/// explicit retryability flag.
+pub fn wrap_error(_error: impl Display) -> CommandError {
+    CommandError::new(error_codes::INTERNAL_ERROR, "An internal error occurred")
+        .with_suggestion("Check the server logs or contact the server operator.")
+        .with_retryable(false)
 }
 
 /// Whether `value` is a recovery a reader keeps: it matches `$defs/recovery` in
@@ -1288,8 +1297,16 @@ mod tests {
 
     #[test]
     fn test_wrap_error() {
-        let error = wrap_error("unexpected failure");
+        let error = wrap_error("failed to open /private/secret-path: permission denied");
         assert_eq!(error.code, "INTERNAL_ERROR");
-        assert_eq!(error.message, "unexpected failure");
+        assert_eq!(error.message, "An internal error occurred");
+        assert_eq!(error.retryable, Some(false));
+        assert!(error.suggestion.is_some());
+        assert!(error.recovery.is_none());
+        assert!(error.details.is_none());
+        assert!(error.cause.is_none());
+        let serialized = serde_json::to_string(&error).unwrap();
+        assert!(!serialized.contains("secret-path"));
+        assert!(!serialized.contains("permission denied"));
     }
 }
