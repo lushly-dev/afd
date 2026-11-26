@@ -1,0 +1,39 @@
+Merge queue paths / Merge queue paths	UNKNOWN STEP	2026-11-25T17:30:00.0000001Z ﻿Current runner version: '2.338.2'
+Affected units	UNKNOWN STEP	2026-11-25T17:31:07.0000002Z ##[group]Run node scripts/affected.mjs gate --package @lushly-dev/loam-desktop
+Desktop on Linux	UNKNOWN STEP	2026-11-25T17:40:00.0000003Z ﻿Current runner version: '2.338.2'
+Desktop on Linux	UNKNOWN STEP	2026-11-25T17:40:05.0000004Z ##[group]Run pnpm -F @lushly-dev/loam-desktop build:app
+Desktop on Linux	UNKNOWN STEP	2026-11-25T17:40:36.0000005Z ##[group]Run cargo build --locked --features test-doubles --bin loam-mail
+Desktop on Linux	UNKNOWN STEP	2026-11-25T17:40:47.0000006Z ##[group]Run dbus-run-session -- xvfb-run -a pnpm -F @lushly-dev/loam-desktop test:desktop
+Desktop on Linux	UNKNOWN STEP	2026-11-25T17:40:49.0000007Z  RUN  v4.1.5 /home/runner/work/afd/afd/endpoints/loam/packages/desktop
+Desktop on Linux	UNKNOWN STEP	2026-11-25T17:40:50.0000008Z  [32m✓[39m test/slice.test.ts[2m > [22mP5-A1: the slice on the desktop[2m > [22mcopilot-asks-before-mail-send[32m 12[2mms[22m[39m
+Desktop on Linux	UNKNOWN STEP	2026-11-25T17:40:51.0000009Z P5-A2 linux S1: {"settled":{"outcomes":[{"state":"done","reply":"No script"}]}}
+Desktop on Linux	UNKNOWN STEP	2026-11-25T17:40:51.0000010Z  [32m✓[39m test/copilot.test.ts[2m > [22mP5-A2: the runtime’s frame on the desktop[2m > [22mP5-A2: S1 a Hello turn in the production frame settles done with No script[32m 12[2mms[22m[39m
+Desktop on Linux	UNKNOWN STEP	2026-11-25T17:40:52.0000011Z  [32m✓[39m test/copilot.test.ts[2m > [22mP5-A2: the runtime’s frame on the desktop[2m > [22mP5-A2 (D153): no message the frame posts through invoke with a forged Origin or a raw IPC message runs a command[32m 12[2mms[22m[39m
+Desktop on Linux	UNKNOWN STEP	2026-11-25T17:40:53.0000012Z  [32m✓[39m test/models.test.ts[2m > [22mP5-A3: the model transport on the desktop[2m > [22mP5-A3: model_cancel drops the request[32m 12[2mms[22m[39m
+Desktop on Linux	UNKNOWN STEP	2026-11-25T17:40:53.0000013Z  [32m✓[39m test/models.test.ts[2m > [22mP5-A3: the model transport on the desktop[2m > [22m#1448: the harness shows Tauri's refusal line with the expected key replaced[32m 12[2mms[22m[39m
+Desktop on Linux	UNKNOWN STEP	2026-11-25T17:40:54.0000014Z  [32m✓[39m test/approvals.test.ts[2m > [22mP5-A6: mounted approvals on the desktop[2m > [22mP5-A6: a dev.afd/approval key in an input is refused, and nothing is asked[32m 12[2mms[22m[39m
+Desktop on Linux	UNKNOWN STEP	2026-11-25T17:40:55.0000015Z  [32m✓[39m test/panel.test.ts[2m > [22mP5-A8: the panel on the desktop, with axe[2m > [22mpasses axe in dark[32m 12[2mms[22m[39m
+Desktop on Linux	UNKNOWN STEP	2026-11-25T17:40:56.0000016Z  [32m✓[39m test/mail.test.ts[2m > [22mP5-A9: mail on the desktop, against the real engine[2m > [22mP5-A9: a stranger's instruction to act elsewhere raises a confirmation naming Mail, and declining makes nothing[32m 12[2mms[22m[39m
+Desktop on Linux	UNKNOWN STEP	2026-11-25T17:40:56.0000017Z  [32m✓[39m test/mail.test.ts[2m > [22mP5-A9: mail on the desktop, against the real engine[2m > [22mP5-A9: a send the copilot asks for is asked once in the shell with the preview, and sent once on confirm[32m 12[2mms[22m[39m
+Desktop on Linux	UNKNOWN STEP	2026-11-25T17:40:57.0000018Z  [32m✓[39m test/boot.test.ts[2m > [22mP6-D1: the shell boots in the webview[32m 12[2mms[22m[39m
+Desktop on Linux	UNKNOWN STEP	2026-11-25T17:40:58.0000019Z [2m Test Files [22m [1m[32m7 passed[39m[22m
+Desktop on Linux	UNKNOWN STEP	2026-11-25T17:41:48.0000020Z ##[group]Run pnpm -F @lushly-dev/loam-desktop build:installers
+Desktop on Linux	UNKNOWN STEP	2026-11-25T17:41:51.0000021Z  [32m✓[39m test/installers/sums.test.ts[2m > [22mP6-D5: each installer has its SHA-256 sum[32m 12[2mms[22m[39m
+Desktop on Windows	UNKNOWN STEP	2026-11-25T17:47:00.0000022Z ﻿Current runner version: '2.338.2'
+Desktop on Windows	UNKNOWN STEP	2026-11-25T17:47:05.0000023Z ##[group]Run pnpm -F @lushly-dev/loam-desktop build:app
+Desktop on Windows	UNKNOWN STEP	2026-11-25T17:47:36.0000024Z ##[group]Run $sid = (& (Join-Path $env:SystemRoot "System32\whoami.exe") /user /fo csv /nh).Trim().Split(',')[-1].Trim('"')
+Desktop on Windows	UNKNOWN STEP	2026-11-25T17:47:38.0000025Z  RUN  v4.1.5 D:/a/afd/afd/endpoints/loam/packages/desktop
+Desktop on Windows	UNKNOWN STEP	2026-11-25T17:47:39.0000026Z  [32m✓[39m test/slice.test.ts[2m > [22mP5-A1: the slice on the desktop[2m > [22mcopilot-asks-before-mail-send[32m 12[2mms[22m[39m
+Desktop on Windows	UNKNOWN STEP	2026-11-25T17:47:40.0000027Z P5-A2 win32 S1: {"settled":{"outcomes":[{"state":"done","reply":"No script"}]}}
+Desktop on Windows	UNKNOWN STEP	2026-11-25T17:47:40.0000028Z  [32m✓[39m test/copilot.test.ts[2m > [22mP5-A2: the runtime’s frame on the desktop[2m > [22mP5-A2: S1 a Hello turn in the production frame settles done with No script[32m 12[2mms[22m[39m
+Desktop on Windows	UNKNOWN STEP	2026-11-25T17:47:41.0000029Z  [32m✓[39m test/copilot.test.ts[2m > [22mP5-A2: the runtime’s frame on the desktop[2m > [22mP5-A2 (D153): no message the frame posts through invoke with a forged Origin or a raw IPC message runs a command[32m 12[2mms[22m[39m
+Desktop on Windows	UNKNOWN STEP	2026-11-25T17:47:42.0000030Z  [32m✓[39m test/models.test.ts[2m > [22mP5-A3: the model transport on the desktop[2m > [22mP5-A3: model_cancel drops the request[32m 12[2mms[22m[39m
+Desktop on Windows	UNKNOWN STEP	2026-11-25T17:47:42.0000031Z  [32m✓[39m test/models.test.ts[2m > [22mP5-A3: the model transport on the desktop[2m > [22m#1448: the harness shows Tauri's refusal line with the expected key replaced[32m 12[2mms[22m[39m
+Desktop on Windows	UNKNOWN STEP	2026-11-25T17:47:43.0000032Z  [32m✓[39m test/approvals.test.ts[2m > [22mP5-A6: mounted approvals on the desktop[2m > [22mP5-A6: a dev.afd/approval key in an input is refused, and nothing is asked[32m 12[2mms[22m[39m
+Desktop on Windows	UNKNOWN STEP	2026-11-25T17:47:44.0000033Z  [32m✓[39m test/panel.test.ts[2m > [22mP5-A8: the panel on the desktop, with axe[2m > [22mpasses axe in dark[32m 12[2mms[22m[39m
+Desktop on Windows	UNKNOWN STEP	2026-11-25T17:47:46.0000034Z  [32m✓[39m test/boot.test.ts[2m > [22mP6-D1: the shell boots in the webview[32m 12[2mms[22m[39m
+Desktop on Windows	UNKNOWN STEP	2026-11-25T17:47:47.0000035Z [2m Test Files [22m [1m[32m6 passed[39m[22m
+Desktop on Windows	UNKNOWN STEP	2026-11-25T17:48:37.0000036Z ##[group]Run pnpm -F @lushly-dev/loam-desktop build:installers
+Desktop on Windows	UNKNOWN STEP	2026-11-25T17:48:40.0000037Z  [32m✓[39m test/installers/sums.test.ts[2m > [22mP6-D5: each installer has its SHA-256 sum[32m 12[2mms[22m[39m
+Desktop on macOS	UNKNOWN STEP	2026-11-25T17:50:36.0000038Z ##[group]Run pnpm -F @lushly-dev/loam-desktop test:macos
+Desktop on macOS	UNKNOWN STEP	2026-11-25T17:50:38.0000039Z  [32m✓[39m test/macos/barrier.test.ts[2m > [22mP6-D4: the frame reaches no IPC on WKWebView[32m 12[2mms[22m[39m

@@ -1,19 +1,21 @@
 /**
- * P2-E14, P3-E16 and P4-E16: the exit check over recorded runs. The fixtures in loam-exit-check/ are a manual run of each
+ * P2-E14, P3-E16, P4-E16, P6-E8 and phase 5's milestone A: the exit check over recorded runs. The fixtures in loam-exit-check/ are a manual run of each
  * workflow on one commit, every job a success, the Loam run's log in `gh run view --log`'s layout, with
  * Vitest's verbose and node's spec reporters as each step prints them, colour included, and the minimum
  * counts that log meets exactly.
  */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, relative } from 'node:path';
 import test from 'node:test';
 import {
 	checkExit,
 	checkRun,
 	LOCATIONS,
 	MINIMUMS_FILE,
+	minimumsArePlaceholders,
 	minimumsShape,
 	P3_BUDGET_ROWS,
 	P3_MINIMUMS_FILE,
@@ -21,6 +23,9 @@ import {
 	P4_BUDGET_ROWS,
 	P4_MINIMUMS_FILE,
 	P4_ROWS,
+	P5_A_ROWS,
+	P5_BUDGET_ROWS,
+	P5_MINIMUMS_FILE,
 	P6_BUDGET_ROWS,
 	P6_M1_ROWS,
 	P6_MINIMUMS_FILE,
@@ -399,24 +404,34 @@ test("P6-E8: the desktop workflow's jobs are loam-desktop.yml's, by name", () =>
 	assert.match(desktop, /^ {6}- name: Desktop suite under tauri-driver$/m);
 });
 
-test("P2-E14: the jobs and steps the check reads are loam.yml's and ci.yml's", () => {
-	const loam = readFileSync(join(root, '.github/workflows/loam.yml'), 'utf8');
-	const jobs = loam
-		.slice(loam.indexOf('\njobs:\n'))
-		.split(/\n(?= {2}[\w-]+:\n)/)
-		.slice(1)
-		.map((block) => ({
-			name: /^ {4}name: (.+)$/m.exec(block)?.[1],
-			steps: [...block.matchAll(/^ {6}- name: (.+)$/gm)].map((match) => match[1]),
-		}));
+test("P2-E14: the jobs and steps the check reads are loam.yml's, loam-desktop.yml's and ci.yml's", () => {
+	const jobsOf = (file) => {
+		const text = readFileSync(join(root, '.github/workflows', file), 'utf8');
+		return text
+			.slice(text.indexOf('\njobs:\n'))
+			.split(/\n(?= {2}[\w-]+:\n)/)
+			.slice(1)
+			.map((block) => ({
+				name: /^ {4}name: (.+)$/m.exec(block)?.[1],
+				steps: [...block.matchAll(/^ {6}- name: (.+)$/gm)].map((match) => match[1]),
+			}));
+	};
+	const jobs = jobsOf(WORKFLOWS.loam.file);
 	assert.deepEqual(
 		jobs.map((entry) => entry.name),
 		WORKFLOWS.loam.jobs
 	);
+	const desktopJobs = jobsOf(WORKFLOWS.desktop.file);
+	// Every place, in the workflow it names: a desktop place is a job and step of loam-desktop.yml.
+	const workflows = new Set();
 	for (const location of Object.values(LOCATIONS)) {
-		const owner = jobs.find((entry) => entry.name === location.job);
+		workflows.add(location.workflow ?? 'loam');
+		const owner = (location.workflow === 'desktop' ? desktopJobs : jobs).find(
+			(entry) => entry.name === location.job
+		);
 		assert.ok(owner?.steps.includes(location.step), `${location.job}: ${location.step}`);
 	}
+	assert.deepEqual([...workflows].sort(), ['desktop', 'loam']);
 	const ci = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8');
 	assert.match(ci, /^ {4}name: TypeScript \(Node \$\{\{ matrix\.node-version \}\}\)$/m);
 	const manual = /workflow_dispatch'\)\n\s+&& '(\[[^']+\])'/.exec(ci)?.[1];
@@ -1286,4 +1301,429 @@ test('P6-E8: the arguments: `--phase 6` only with `--milestone m1`, each at most
 		['1', '2', '--phase', '6', '--milestone', 'm1', '--print-minimums', '--print-minimums'],
 	])
 		assert.equal(parseArgs(argv), null, argv.join(' '));
+});
+
+// Phase 5's milestone A (`--phase 5 --milestone a`), over three runs on one commit: p6-loam-run.json, whose jobs
+// and steps are today's loam.yml, with p5-loam-run-log.txt; ci-run.json; and p5-desktop-run.json with
+// p5-desktop-run-log.txt, as `gh run view --log` prints a desktop run today: every line `UNKNOWN STEP`, placed by
+// the steps' times, the escape character for colour. The logs hold one passing `P5-A` title or more in each place
+// section 18 names, titles of other packages, rows and steps that count nowhere, and section 16's budget rows.
+const p5 = () => ({
+	loam: JSON.parse(fixture('p6-loam-run.json')),
+	ci: JSON.parse(fixture('ci-run.json')),
+	desktop: JSON.parse(fixture('p5-desktop-run.json')),
+	log: fixture('p5-loam-run-log.txt'),
+	desktopLog: fixture('p5-desktop-run-log.txt'),
+	phase: '5-a',
+	minimums: JSON.parse(fixture('p5-minimums.json')).minimums.a,
+});
+const SUITE = LOCATIONS.desktopLinux.step;
+/** The desktop log's lines, each with its step as `resolveLogSteps` places it, so a test can find a step's lines. */
+const desktopLines = (input) => resolveLogSteps(input.desktopLog, input.desktop).split('\n');
+const inSuite = (entry, jobName) => entry.startsWith(`${jobName}\t${SUITE}\t`);
+/**
+ * The desktop log with a line added to a job's suite step, `UNKNOWN STEP` as the log prints it, in its place in
+ * the log and at the step's start: the log is in time order, and a line out of it stays unplaced.
+ */
+const withSuiteLine = (input, jobName, text) => {
+	const lines = input.desktopLog.split('\n');
+	const at = desktopLines(input).findIndex((entry) => inSuite(entry, jobName));
+	const stamp = lines[at].split('\t')[2].split(' ')[0];
+	lines.splice(at + 1, 0, `${jobName}\tUNKNOWN STEP\t${stamp} ${text}`);
+	return lines.join('\n');
+};
+
+test('Milestone A: all green passes, each row counted in its places, each in its own run', () => {
+	const { problems, report, observed } = checkExit(p5());
+	assert.deepEqual(problems, []);
+	assert.match(
+		report[3],
+		/^loam-desktop\.yml run 42700000003, attempt 1 \(workflow_dispatch on main at 01234567\), https:\/\/github\.com\/lushly-dev\/afd\/actions\/runs\/42700000003: .*Desktop on Windows success$/
+	);
+	assert.deepEqual(report.slice(4), [
+		'P5-A1: Kernel units 1; Chromium 1; Desktop on Linux 1; Desktop on Windows 1',
+		'P5-A2: Chromium 1; Desktop on Linux 2; Desktop on Windows 2',
+		'P5-A3: Desktop on Linux 2; Desktop on Windows 2',
+		'P5-A4: Kernel units 2; Chromium 1',
+		'P5-A5: Kernel units 1',
+		'P5-A6: Kernel units 1; Desktop on Linux 1; Desktop on Windows 1',
+		'P5-A7: Kernel units 1',
+		'P5-A8: Chromium 1; Desktop on Linux 1; Desktop on Windows 1',
+		'P5-A9: Desktop on Linux 2',
+		"Section 16's bundle rows: Bundle budget JavaScript, minified 345700 of 346000, JavaScript, gzip 102898 of 103600, The `copilot-panel` chunk 66021 of 72800, The copilot runtime for `anthropic` and `test`, gzip 95985 of 120000, The copilot runtime for the OpenAI kinds 95847 of 120000",
+	]);
+	assert.deepEqual(observed, p5().minimums);
+	// A milestone of phase 6 still reads two runs: the desktop run is milestone A's alone.
+	assert.ok(!checkExit(p6()).report.some((entry) => entry.startsWith('loam-desktop.yml')));
+});
+
+test('Milestone A: the committed minimums are placeholders, and the check fails on them by name', () => {
+	const { a, ...others } = readMinimums(P5_MINIMUMS_FILE);
+	assert.deepEqual(Object.keys(others), []);
+	assert.equal(minimumsArePlaceholders(P5_MINIMUMS_FILE, 'a'), true);
+	for (const { row, in: places } of P5_A_ROWS)
+		for (const key of places) assert.ok(a[row]?.[key] >= 1, `P5-${row} ${key}: ${a[row]?.[key]}`);
+	assert.deepEqual(
+		Object.keys(a),
+		P5_A_ROWS.map(({ row }) => row)
+	);
+	assert.deepEqual(
+		Object.fromEntries(Object.entries(a).map(([row, places]) => [row, Object.keys(places)])),
+		Object.fromEntries(P5_A_ROWS.map(({ row, in: places }) => [row, places]))
+	);
+	// The fixture's runs meet every placeholder count, so the placeholder alone fails the check.
+	const { minimums: _, ...fromFile } = p5();
+	assert.deepEqual(problemsOf(fromFile), [
+		`${P5_MINIMUMS_FILE} holds placeholder counts, not a manual run's: set them from the runs' --print-minimums`,
+	]);
+	// The earlier phases' files are a run's counts, and say so.
+	for (const file of [MINIMUMS_FILE, P3_MINIMUMS_FILE, P4_MINIMUMS_FILE, P6_MINIMUMS_FILE])
+		assert.equal(minimumsArePlaceholders(file), false, file);
+	// A file may list the milestones still placeholders: one listed is, another set from its runs is not.
+	const written = join(mkdtempSync(join(tmpdir(), 'loam-exit-p5-')), 'minimums.json');
+	writeFileSync(written, JSON.stringify({ placeholder: ['b'], minimums: { a: {}, b: {} } }));
+	// A minimums file is named from this folder, as the phases' entries name theirs.
+	const listed = relative(import.meta.dirname, written);
+	assert.equal(minimumsArePlaceholders(listed, 'b'), true);
+	assert.equal(minimumsArePlaceholders(listed, 'a'), false);
+	assert.equal(minimumsArePlaceholders(listed), false);
+	// A malformed field fails safe, whatever the milestone.
+	for (const placeholder of ['a', { a: true }, [1]]) {
+		writeFileSync(written, JSON.stringify({ placeholder, minimums: { a: {} } }));
+		assert.equal(minimumsArePlaceholders(listed, 'a'), true, JSON.stringify(placeholder));
+	}
+	rmSync(dirname(written), { recursive: true, force: true });
+	// `--print-minimums` prints the observed counts in the file's own shape, under the milestone.
+	assert.deepEqual(minimumsShape('5-a', { A1: { kernelUnits: 3 } }), {
+		a: { A1: { kernelUnits: 3 } },
+	});
+});
+
+test('Milestone A: the arguments are three run ids with `--phase 5 --milestone a`, each flag at most once', () => {
+	assert.deepEqual(
+		parseArgs(['--phase', '5', '--milestone', 'a', '1', '2', '3', '--allow-rerun']),
+		{
+			ids: ['1', '2', '3'],
+			phase: '5-a',
+			allowRerun: true,
+			printMinimums: false,
+		}
+	);
+	for (const argv of [
+		// The third run is required, and no fourth is taken.
+		['1', '2', '--phase', '5', '--milestone', 'a'],
+		['1', '2', '3', '4', '--phase', '5', '--milestone', 'a'],
+		['1', '2', 'x', '--phase', '5', '--milestone', 'a'],
+		// Phase 5 only by a milestone, and only its own.
+		['1', '2', '3', '--phase', '5'],
+		['1', '2', '3', '--phase', '5', '--milestone', 'm1'],
+		['1', '2', '3', '--phase', '5', '--milestone', 'b'],
+		['1', '2', '--phase', '6', '--milestone', 'a'],
+		['1', '2', '3', '--milestone', 'a'],
+		['1', '2', '3', '--phase', '5', '--milestone', 'a', '--milestone', 'a'],
+	])
+		assert.equal(parseArgs(argv), null, argv.join(' '));
+	// Phase 2's, 3's, 4's and 6-m1's arguments are as they were: two ids.
+	assert.equal(parseArgs(['1', '2']).phase, 2);
+	assert.equal(parseArgs(['1', '2', '3']), null);
+	assert.throws(
+		() => checkExit({ ...p5(), phase: 5 }),
+		/no rows for phase 5; phase 5 takes --milestone a/
+	);
+});
+
+test('Milestone A: a missing third run fails, and so does a desktop run of another commit', () => {
+	const { desktop: _, ...missing } = p5();
+	const problems = problemsOf(missing);
+	assert.equal(
+		problems[0],
+		'phase 5-a reads three runs: no loam-desktop.yml run and log were given, the third id'
+	);
+	// With no desktop run, no desktop place has a title, so each row there fails too.
+	assert.ok(
+		problems.includes(
+			'P5-A9: no passing title in Desktop on Linux ("Desktop on Linux", step "Desktop suite under tauri-driver")'
+		)
+	);
+	const { desktopLog: __, ...noLog } = p5();
+	assert.equal(problemsOf(noLog)[0], problems[0]);
+
+	const commit = p5();
+	commit.desktop.headSha = 'f'.repeat(40);
+	assert.deepEqual(problemsOf(commit), [
+		`the runs are of different commits: loam.yml ${'0123456789abcdef'.repeat(2)}01234567, loam-desktop.yml ${'f'.repeat(40)}`,
+	]);
+});
+
+test('Milestone A: the desktop run is held to condition 1, every job its workflow has, macOS included', () => {
+	const missing = p5();
+	missing.desktop.jobs = missing.desktop.jobs.filter(
+		(entry) => entry.name !== 'Desktop on Windows'
+	);
+	const problems = problemsOf(missing);
+	assert.equal(
+		problems[0],
+		'loam-desktop.yml run 42700000003: job "Desktop on Windows" is missing'
+	);
+	assert.ok(
+		problems.includes(
+			'P5-A3: no passing title in Desktop on Windows ("Desktop on Windows", step "Desktop suite under tauri-driver")'
+		)
+	);
+	// A missing job is no silent suite: the launcher is not blamed for it.
+	assert.ok(!problems.some((entry) => /printed no Vitest result line/.test(entry)));
+
+	const macos = p5();
+	job(macos.desktop, 'Desktop on macOS').conclusion = 'failure';
+	assert.deepEqual(problemsOf(macos), [
+		'loam-desktop.yml run 42700000003: job "Desktop on macOS" is failure, not success',
+	]);
+
+	const scheduled = p5();
+	scheduled.desktop.event = 'schedule';
+	scheduled.desktop.attempt = 2;
+	scheduled.desktop.workflowName = 'Loam';
+	assert.deepEqual(problemsOf(scheduled), [
+		'loam-desktop.yml run 42700000003 is a run of "Loam", not "Loam desktop"',
+		'loam-desktop.yml run 42700000003 was triggered by schedule, not workflow_dispatch, so its gates were not all open',
+		"loam-desktop.yml run 42700000003 is attempt 2: a re-run can hide its first attempt's failure; pass --allow-rerun to accept it",
+	]);
+	assert.equal(problemsOf({ ...scheduled, allowRerun: true }).length, 2);
+
+	const step = p5();
+	job(step.desktop, 'Desktop on Linux').steps.find((entry) => entry.name === SUITE).conclusion =
+		'failure';
+	assert.ok(
+		problemsOf(step).includes(
+			'Desktop on Linux: step "Desktop suite under tauri-driver" is failure, not success'
+		)
+	);
+	assert.ok(!problemsOf(step).some((entry) => /printed no Vitest result line/.test(entry)));
+});
+
+test('Milestone A: a count below its minimum fails, and so does a place with none recorded', () => {
+	const input = p5();
+	input.minimums.A9.desktopLinux = 3;
+	delete input.minimums.A5;
+	assert.deepEqual(problemsOf(input), [
+		`P5-A5: ${P5_MINIMUMS_FILE} records no minimum for Kernel units`,
+		`P5-A9: 2 passing titles in Desktop on Linux, fewer than the 3 ${P5_MINIMUMS_FILE} records`,
+	]);
+});
+
+test('Milestone A: any P5 title not a plain pass fails, in either log, a row of A or not', () => {
+	const input = p5();
+	input.desktopLog = withSuiteLine(
+		input,
+		'Desktop on Windows',
+		` ${E}[33m↓${E}[39m test/models.test.ts${E}[2m > ${E}[22mP5-A3: model_cancel drops the request`
+	);
+	input.desktopLog = withSuiteLine(
+		input,
+		'Desktop on Linux',
+		' ✗ test/mail.test.ts > P5-A9: a new mark 3ms'
+	);
+	input.desktopLog = withSuiteLine(
+		input,
+		'Desktop on Linux',
+		' ✓ test/mail.test.ts > P5-A9: passes on a retry 3ms (retry x1)'
+	);
+	input.log += `${line(LOCATIONS.chromium, `   ${E}[31m×${E}[39m test/browser/bus.test.ts > P5-B2 (T30): event-list tails 12ms`)}\n`;
+	const problems = problemsOf(input);
+	assert.ok(
+		problems.some((entry) => entry.startsWith('P5-A9 is marked retried in "Desktop on Linux"')),
+		problems.join('\n')
+	);
+	assert.deepEqual(
+		problems.filter((entry) => !entry.includes('retried')),
+		[
+			'P5-B2 is marked fail in "Build, unit and Chromium", step "Chromium suite against the built shell (phase 0\'s E1 to E10, phase 1\'s so far, A1 to A3; the walk is its own job)": × test/browser/bus.test.ts > P5-B2 (T30): event-list tails 12ms',
+			// The desktop log's, in its order: the Linux job's lines come before the Windows job's.
+			'P5-A9 is marked unknown mark "✗" in "Desktop on Linux", step "Desktop suite under tauri-driver": ✗ test/mail.test.ts > P5-A9: a new mark 3ms',
+			'P5-A3 is marked skip in "Desktop on Windows", step "Desktop suite under tauri-driver": ↓ test/models.test.ts > P5-A3: model_cancel drops the request',
+		]
+	);
+});
+
+test('Milestone A: a Windows suite that printed no Vitest result line fails by itself, naming the launcher', () => {
+	const input = p5();
+	// The step ran and passed, but its log holds only the launcher's own lines and a console line.
+	const lines = desktopLines(input);
+	input.desktopLog = lines
+		.filter((entry) => !(inSuite(entry, 'Desktop on Windows') && /[✓×↓]/.test(entry)))
+		.join('\n');
+	const problems = problemsOf(input);
+	assert.match(
+		problems[0],
+		/^Desktop on Windows: step "Desktop suite under tauri-driver" of loam-desktop\.yml's "Desktop on Windows" printed no Vitest result line; the step runs `test:desktop` through its medium-integrity launcher \(CreateProcessAsUserW/
+	);
+	assert.ok(!problems.some((entry) => entry.startsWith('Desktop on Linux:')));
+	assert.deepEqual(
+		problems.slice(1),
+		['A1', 'A2', 'A3', 'A6', 'A8'].map(
+			(row) =>
+				`P5-${row}: no passing title in Desktop on Windows ("Desktop on Windows", step "Desktop suite under tauri-driver")`
+		)
+	);
+	// A suite that printed results, none of a row's, fails by the row alone: the output reached the log.
+	const other = p5();
+	other.desktopLog = desktopLines(other)
+		.filter((entry) => !(inSuite(entry, 'Desktop on Windows') && /P5-A/.test(entry)))
+		.join('\n');
+	assert.ok(!problemsOf(other).some((entry) => /printed no Vitest result line/.test(entry)));
+});
+
+test('Milestone A: a title counts only in its own run, job and step, and Kernel units only in the kernel', () => {
+	// A desktop title copied into the Loam log, under the desktop job's own name, is not the desktop run's.
+	const crossed = p5();
+	crossed.desktopLog = desktopLines(crossed)
+		.filter((entry) => !(inSuite(entry, 'Desktop on Linux') && entry.includes('P5-A9')))
+		.join('\n');
+	crossed.log += `${desktopLines(p5())
+		.filter((entry) => inSuite(entry, 'Desktop on Linux') && entry.includes('P5-A9'))
+		.join('\n')}\n`;
+	assert.deepEqual(problemsOf(crossed), [
+		'P5-A9: no passing title in Desktop on Linux ("Desktop on Linux", step "Desktop suite under tauri-driver")',
+	]);
+	// A9 on Windows counts nowhere: its place is Linux alone. The installers' step is no suite either.
+	const windows = p5();
+	windows.desktopLog = desktopLines(windows)
+		.map((entry) =>
+			inSuite(entry, 'Desktop on Linux') && entry.includes('P5-A9')
+				? entry.replace('Desktop on Linux\t', 'Desktop on Windows\t')
+				: entry
+		)
+		.join('\n');
+	assert.deepEqual(problemsOf(windows), [
+		'P5-A9: no passing title in Desktop on Linux ("Desktop on Linux", step "Desktop suite under tauri-driver")',
+	]);
+	// The copilot package's P5-A4 title stays in the unit step, but it is not the kernel's.
+	const kernel = p5();
+	kernel.log = without(kernel.log, 'src/copilot/taint.test.ts');
+	assert.deepEqual(problemsOf(kernel), [
+		'P5-A4: no passing title in Kernel units ("Build, unit and Chromium", step "Unit suites with coverage")',
+	]);
+	assert.ok(
+		kernel.log.includes('endpoints/loam/packages/copilot test: ^[[32m✓^[[39m src/runtime.test.ts')
+	);
+	// P5-A2's unit titles, the CLI's and the hosted job's `host.test.ts`, are read but counted in no place.
+	const units = readTitles(p5().log, 'P5').filter((title) => title.rows.includes('A2'));
+	assert.deepEqual(
+		units.map((title) => title.step),
+		[LOCATIONS.units.step, LOCATIONS.chromium.step, LOCATIONS.hostUnits.step]
+	);
+});
+
+test('Milestone A: a title with a note before its colon claims its row, and a mention mid-title claims none', () => {
+	const titles = readTitles(
+		fixture('p5-desktop-run-log.txt').replaceAll('UNKNOWN STEP', SUITE),
+		'P5'
+	);
+	assert.deepEqual(titles.find((title) => title.text.includes('a forged Origin')).rows, ['A2']);
+	assert.deepEqual(
+		readTitles(unit('✓ src/a.test.ts > P5-A2 (D153): P5-A3 (S2): a chain of notes 1ms'), 'P5')[0]
+			.rows,
+		['A2', 'A3']
+	);
+	assert.deepEqual(
+		readTitles(unit('✓ src/a.test.ts > the agent port (3.2, P5-A2) > a mention 1ms'), 'P5'),
+		[]
+	);
+	// Console output that names a row is no result, in either log.
+	assert.ok(!titles.some((title) => /S1: \{/.test(title.text)));
+	// Phase 5's titles leave phase 6's reading as it was.
+	assert.deepEqual(readTitles(fixture('p5-loam-run-log.txt'), 'P6'), []);
+});
+
+test("Milestone A: section 16's budget is read under D115, though no row's place names it", () => {
+	const input = p5();
+	assert.deepEqual(readBudgetWithin(input.log, P5_BUDGET_ROWS).problems, []);
+	assert.deepEqual(problemsOf({ ...p5(), log: without(input.log, 'The `copilot-panel` chunk') }), [
+		'Section 16\'s bundle rows: Bundle budget: no "The `copilot-panel` chunk" row in the step\'s log',
+	]);
+	const over = {
+		...p5(),
+		log: input.log.replace(/95,847 {5}of 120,000 {4}80%/, '120,847    of 120,000    OVER'),
+	};
+	assert.deepEqual(problemsOf(over), [
+		'Section 16\'s bundle rows: Bundle budget: "The copilot runtime for the OpenAI kinds, gzip" is 120847, over 120000',
+	]);
+	const step = p5();
+	step.loam.jobs
+		.find((entry) => entry.name === LOCATIONS.budget.job)
+		.steps.find((entry) => entry.name === 'Bundle budget').conclusion = 'skipped';
+	assert.ok(
+		problemsOf(step).includes('Bundle budget: step "Bundle budget" is skipped, not success')
+	);
+});
+
+test("Milestone A: the row table is section 18's Place column, and the Place column its Where", () => {
+	const spec = readFileSync(join(root, 'endpoints/loam/docs/phases/5-copilot/spec.md'), 'utf8');
+	const rows = spec
+		.split('\n')
+		.filter((entry) => /^\| P5-A\d+ \|/.test(entry))
+		.map((entry) => entry.split(' | '));
+	assert.equal(rows.length, 9);
+	const keyOf = {
+		'Kernel units': 'kernelUnits',
+		Chromium: 'chromium',
+		'Desktop on Linux': 'desktopLinux',
+		'Desktop on Windows': 'desktopWindows',
+	};
+	const placed = rows.map(([id, , , place]) => [
+		id.slice(5),
+		place
+			.split('; ')
+			.map((name) => keyOf[name.replace(/ \(.*\)$/, '')])
+			.sort(),
+	]);
+	assert.ok(
+		placed.every(([, keys]) => keys.every(Boolean)),
+		JSON.stringify(placed)
+	);
+	assert.deepEqual(
+		P5_A_ROWS.map(({ row, in: places }) => [row, [...places].sort()]),
+		placed
+	);
+	// The Where prose read on its own gives the same places, but for A9's Windows half (below).
+	const fromWhere = rows.map(([id, , where]) => {
+		const keys = new Set();
+		if (/Kernel units/.test(where)) keys.add('kernelUnits');
+		if (/\bChromium\b/.test(where)) keys.add('chromium');
+		if (/desktop suite|^Desktop$/.test(where)) keys.add('desktopLinux').add('desktopWindows');
+		if (/WebKitGTK/.test(where)) keys.add('desktopLinux');
+		if (/WebView2/.test(where)) keys.add('desktopWindows');
+		return [id.slice(5), [...keys].sort()];
+	});
+	assert.deepEqual(
+		fromWhere.map(([row, keys]) => [
+			row,
+			row === 'A9' ? keys.filter((key) => key !== 'desktopWindows') : keys,
+		]),
+		placed
+	);
+	// A9 is Linux alone because the desktop suite leaves its file out on Windows, and that file is A9's.
+	const config = readFileSync(
+		join(root, 'endpoints/loam/packages/desktop/vitest.desktop.config.ts'),
+		'utf8'
+	);
+	assert.match(config, /process\.platform === 'win32' \? \['test\/mail\.test\.ts'\] : \[\]/);
+	assert.match(
+		readFileSync(join(root, 'endpoints/loam/packages/desktop/test/mail.test.ts'), 'utf8'),
+		/describe\('P5-A9: /
+	);
+	// The places table names each step and job the check reads, as LOCATIONS spells them.
+	for (const key of ['kernelUnits', 'chromium', 'desktopLinux', 'desktopWindows', 'budget']) {
+		assert.ok(spec.includes(`\`${LOCATIONS[key].step}\``), key);
+		assert.ok(spec.includes(`\`${LOCATIONS[key].job}\``), key);
+	}
+	assert.ok(spec.includes('`endpoints/loam/packages/kernel` package'));
+	assert.ok(
+		LOCATIONS.kernelUnits.within.test('endpoints/loam/packages/kernel test: ✓ src/a.test.ts > x')
+	);
+	assert.ok(
+		!LOCATIONS.kernelUnits.within.test('endpoints/loam/packages/kernel-x test: ✓ src/a.test.ts > x')
+	);
+	// And the milestone's line: the check gains `--phase 5 --milestone a`, with phase 6's shape of file.
+	assert.match(spec, /`scripts\/loam-exit-check\.mjs` gains `--phase 5 --milestone a\|b\|c`/);
 });

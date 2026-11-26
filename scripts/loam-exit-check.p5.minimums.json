@@ -1,0 +1,51 @@
+{
+	"about": [
+		"The fewest passing titles scripts/loam-exit-check.mjs --phase 5 --milestone a accepts for each of milestone A's rows (phase 5 specification, section 18), by the place its row names, so an exclude, a skipped suite or a deleted file cannot pass unnoticed.",
+		"These counts are placeholders, each 1, and `placeholder` lists `a`, so the check fails on them whatever the runs show. Step 8 dispatches loam.yml, ci.yml and loam-desktop.yml on main, runs the check on the three runs with --print-minimums, copies the counts it prints here, removes `a` from `placeholder` (the field itself once no milestone is listed) and records the runs in `observed`.",
+		"After that, when exit tests are added or removed on purpose, run the check on runs that have them with --print-minimums and copy the counts it prints here in the same pull request, saying why each changed."
+	],
+	"placeholder": ["a"],
+	"observed": "No run yet: step 8 sets these counts from its manual runs",
+	"minimums": {
+		"a": {
+			"A1": {
+				"kernelUnits": 1,
+				"chromium": 1,
+				"desktopLinux": 1,
+				"desktopWindows": 1
+			},
+			"A2": {
+				"chromium": 1,
+				"desktopLinux": 1,
+				"desktopWindows": 1
+			},
+			"A3": {
+				"desktopLinux": 1,
+				"desktopWindows": 1
+			},
+			"A4": {
+				"kernelUnits": 1,
+				"chromium": 1
+			},
+			"A5": {
+				"kernelUnits": 1
+			},
+			"A6": {
+				"kernelUnits": 1,
+				"desktopLinux": 1,
+				"desktopWindows": 1
+			},
+			"A7": {
+				"kernelUnits": 1
+			},
+			"A8": {
+				"chromium": 1,
+				"desktopLinux": 1,
+				"desktopWindows": 1
+			},
+			"A9": {
+				"desktopLinux": 1
+			}
+		}
+	}
+}
