@@ -313,7 +313,9 @@ flowchart TB
 
 Every grant is scoped to the workspaces and projects the app is enabled for
 and the caller may read. Scoping is enforced here, not by apps; for a native
-app, which is trusted code (D54), it is a contract rather than a boundary.
+app, which is trusted code sharing the shell's realm and desktop IPC commands
+while staying excluded from `host-setup` and raw secrets (D54, D165), it is a
+contract rather than a boundary.
 
 | Grant | The shell provides | Rule |
 | --- | --- | --- |
@@ -731,9 +733,12 @@ flowchart TD
   resets inherited styles; tokens pass as custom properties. An overlay
   belongs to its owner. The `calls` grant is the only supported path between
   apps. Isolation is enforced for sandboxed views and mounted apps. Native
-  apps share the shell's page, so they are trusted code, and the rest of this
-  bullet is a contract for them rather than a boundary (D54); `app check` says
-  "trusted, not sandboxed", and untrusted apps ship as views.
+  apps share the shell's page, desktop IPC commands (`mount_*`, `model_*`,
+  `inbound_reply`, and under D165 `setup_open`), and `loam:*` DOM events while
+  staying excluded from `host-setup` (D165) and raw secrets, so they are
+  trusted code and the rest of this bullet is a contract for them rather than a
+  boundary (D54); `app check` and `host-setup` consent say "trusted, not
+  sandboxed", and untrusted apps ship as views.
 - **Accessibility.** Every part and overlay carries its role and name; focus
   order follows the parts model; modals trap and return focus; every command
   in the palette is reachable from the keyboard; the chrome passes axe WCAG

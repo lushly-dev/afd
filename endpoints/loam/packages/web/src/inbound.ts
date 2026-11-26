@@ -11,11 +11,7 @@
 
 import type { KernelParts } from '@lushly-dev/loam-kernel';
 import { createInboundDispatcher, type InboundResponseV1 } from '@lushly-dev/loam-kernel/inbound';
-
-/** What Tauri's IPC script puts in the main frame. */
-interface TauriInternals {
-	invoke(command: string, args: Record<string, unknown>): Promise<unknown>;
-}
+import { captureDesktopInvoke, type DesktopInvoke } from './desktop-ipc.js';
 
 /** The event's name on `window`, as the Rust host dispatches it. */
 export const INBOUND_EVENT = 'loam:inbound';
@@ -39,17 +35,16 @@ export async function startInbound(
 	target: Window,
 	parts: Pick<KernelParts, 'kernel' | 'inboundCommands'>,
 	report: (error: unknown) => void = reportError,
-	wait: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+	wait: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+	invoke: DesktopInvoke | null = captureDesktopInvoke(target)
 ): Promise<() => void> {
-	const internals = (target as unknown as { __TAURI_INTERNALS__?: TauriInternals })
-		.__TAURI_INTERNALS__;
-	if (typeof internals?.invoke !== 'function' || parts.kernel.lateFailure) return () => {};
+	if (!invoke || parts.kernel.lateFailure) return () => {};
 	const dispatcher = createInboundDispatcher({
 		agent: parts.kernel.agent,
 		commands: () => parts.inboundCommands(),
 	});
 	const reply = (id: number, message: InboundResponseV1) =>
-		internals.invoke('inbound_reply', { id, message });
+		invoke('inbound_reply', { id, message });
 	const listener = (event: Event) => {
 		const detail = (event as CustomEvent<unknown>).detail as { id?: unknown; message?: unknown };
 		if (typeof detail !== 'object' || detail === null) return;
@@ -78,7 +73,7 @@ export async function startInbound(
 	target.addEventListener(INBOUND_EVENT, listener);
 	void (async () => {
 		for (let tries = 0; ; tries++) {
-			if ((await internals.invoke('inbound_reply', { ready: true })) !== false) return;
+			if ((await invoke('inbound_reply', { ready: true })) !== false) return;
 			if (tries === READY_TRIES)
 				report(
 					new Error(

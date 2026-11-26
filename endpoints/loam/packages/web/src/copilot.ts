@@ -13,6 +13,7 @@ import {
 	type ModelTransportV1,
 	type RuntimeLauncherV1,
 } from '@lushly-dev/loam-kernel/copilot';
+import { captureDesktopInvoke, type DesktopInvoke } from './desktop-ipc.js';
 
 /** The frame's document on the sandbox origin (3.2): its `copilot/` path, which its own policy names. */
 export const COPILOT_FRAME_PATH = '/sandbox/copilot/index.html';
@@ -97,11 +98,6 @@ function modelFailure(code: string): Error & { code: string } {
 	return Object.assign(new Error(code), { code });
 }
 
-/** What Tauri's IPC script puts in the main frame (phase 6 specification, 10.2). */
-interface TauriInternals {
-	invoke(command: string, args: Record<string, unknown>): Promise<unknown>;
-}
-
 /** One `loam:model` event's detail, as the Rust host sends it (4.2). */
 type ModelEvent =
 	| { stream: number; status: number }
@@ -144,17 +140,18 @@ function streamId(): number {
  * ended, throws with its code; a provider's refusal (`4xx`) is its status alone, which the runtime reads. A stream
  * the page stops reading before its end, whatever stopped it, is cancelled at the host, so it spends nothing more.
  */
-export function createDesktopModelTransport(target: Window = window): ModelTransportV1 {
+export function createDesktopModelTransport(
+	target: Window = window,
+	invoke: DesktopInvoke | null = captureDesktopInvoke(target)
+): ModelTransportV1 {
 	const queues = new Map<number, (event: ModelEvent) => void>();
 	target.addEventListener('loam:model', (event) => {
 		const detail = modelEventOf((event as CustomEvent).detail);
 		if (detail) queues.get(detail.stream)?.(detail);
 	});
-	const internals = (): TauriInternals => {
-		const found = (target as unknown as { __TAURI_INTERNALS__?: TauriInternals })
-			.__TAURI_INTERNALS__;
-		if (typeof found?.invoke !== 'function') throw modelFailure('MODEL_UNREACHABLE');
-		return found;
+	const requireInvoke = (): DesktopInvoke => {
+		if (!invoke) throw modelFailure('MODEL_UNREACHABLE');
+		return invoke;
 	};
 	return {
 		async send(provider, body, signal) {
@@ -172,7 +169,7 @@ export function createDesktopModelTransport(target: Window = window): ModelTrans
 				signal.removeEventListener('abort', stop);
 				if (!finished)
 					void Promise.resolve()
-						.then(() => internals().invoke('model_cancel', { stream }))
+						.then(() => requireInvoke()('model_cancel', { stream }))
 						.catch(() => undefined);
 				wake?.();
 			};
@@ -184,7 +181,7 @@ export function createDesktopModelTransport(target: Window = window): ModelTrans
 			// Heard from now: a stop while `model_send` answers cancels the slot the host holds for it.
 			signal.addEventListener('abort', stop, { once: true });
 			try {
-				const answer = await internals().invoke('model_send', {
+				const answer = await requireInvoke()('model_send', {
 					provider: provider.id,
 					body,
 					stream,
@@ -204,7 +201,7 @@ export function createDesktopModelTransport(target: Window = window): ModelTrans
 				// Stopped while `model_send` answered: its first cancel may have reached the host before the stream's slot
 				// did, so it is sent again now the stream is known to be there. A second cancel is harmless.
 				void Promise.resolve()
-					.then(() => internals().invoke('model_cancel', { stream }))
+					.then(() => requireInvoke()('model_cancel', { stream }))
 					.catch(() => undefined);
 				throw modelFailure('MODEL_UNREACHABLE');
 			}
@@ -254,13 +251,11 @@ export function createDesktopModelTransport(target: Window = window): ModelTrans
  */
 export function createHostTransport(
 	target: Window = window,
-	scripts: Readonly<Record<string, ModelScriptV1>> = {}
+	scripts: Readonly<Record<string, ModelScriptV1>> = {},
+	invoke: DesktopInvoke | null = captureDesktopInvoke(target)
 ): ModelTransportV1 {
 	const page = createPageTransport(scripts);
-	const desktop =
-		typeof (target as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ === 'object'
-			? createDesktopModelTransport(target)
-			: undefined;
+	const desktop = invoke ? createDesktopModelTransport(target, invoke) : undefined;
 	return {
 		send(provider, body, signal) {
 			if (provider.kind === 'test' || !desktop) return page.send(provider, body, signal);

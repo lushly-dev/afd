@@ -199,7 +199,7 @@ pub fn resolve_key(key: &KeyRef) -> Result<String, &'static str> {
             if !keychain_name(keychain) || !keychain_name(account) {
                 return Err(KEY_MISSING);
             }
-            keychain_read(keychain, account).ok_or(KEY_MISSING)?
+            crate::keychain::read(keychain, account).ok_or(KEY_MISSING)?
         }
     };
     let trimmed = found.trim_end_matches(['\r', '\n']);
@@ -208,81 +208,6 @@ pub fn resolve_key(key: &KeyRef) -> Result<String, &'static str> {
     } else {
         Err(KEY_MISSING)
     }
-}
-
-/// Windows: the generic credential `<service>/<account>`, as `loam copilot key set` writes it with `CredWriteW`,
-/// its blob UTF-16 as Windows stores a typed password.
-#[cfg(windows)]
-fn keychain_read(service: &str, account: &str) -> Option<String> {
-    use windows_sys::Win32::Security::Credentials::{
-        CRED_TYPE_GENERIC, CREDENTIALW, CredFree, CredReadW,
-    };
-    let target: Vec<u16> = format!("{service}/{account}")
-        .encode_utf16()
-        .chain(std::iter::once(0))
-        .collect();
-    let mut credential: *mut CREDENTIALW = std::ptr::null_mut();
-    // SAFETY: `target` is a NUL-terminated UTF-16 string that outlives the call, and `credential` is written by
-    // the call only when it succeeds.
-    let found = unsafe { CredReadW(target.as_ptr(), CRED_TYPE_GENERIC, 0, &mut credential) };
-    if found == 0 || credential.is_null() {
-        return None;
-    }
-    // SAFETY: on success `credential` points at a CREDENTIALW whose blob holds `CredentialBlobSize` bytes; both
-    // live until `CredFree`, which is called once, after the copy.
-    let bytes = unsafe {
-        let held = &*credential;
-        let size = held.CredentialBlobSize as usize;
-        let bytes = if held.CredentialBlob.is_null() || size > 2 * 4096 {
-            Vec::new()
-        } else {
-            std::slice::from_raw_parts(held.CredentialBlob, size).to_vec()
-        };
-        CredFree(credential.cast());
-        bytes
-    };
-    if bytes.len() % 2 != 0 {
-        return None;
-    }
-    let units: Vec<u16> = bytes
-        .as_chunks::<2>()
-        .0
-        .iter()
-        .map(|pair| u16::from_le_bytes(*pair))
-        .collect();
-    String::from_utf16(&units).ok()
-}
-
-/// macOS: the generic password for the service and account, from the keychain's own tool.
-#[cfg(target_os = "macos")]
-fn keychain_read(service: &str, account: &str) -> Option<String> {
-    let output = std::process::Command::new("/usr/bin/security")
-        .args(["find-generic-password", "-s", service, "-a", account, "-w"])
-        .stdin(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .output()
-        .ok()?;
-    output
-        .status
-        .success()
-        .then(|| String::from_utf8(output.stdout).ok())
-        .flatten()
-}
-
-/// Linux and the other Unixes: the Secret Service item with the service and account, from `secret-tool`.
-#[cfg(all(unix, not(target_os = "macos")))]
-fn keychain_read(service: &str, account: &str) -> Option<String> {
-    let output = std::process::Command::new("secret-tool")
-        .args(["lookup", "service", service, "account", account])
-        .stdin(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .output()
-        .ok()?;
-    output
-        .status
-        .success()
-        .then(|| String::from_utf8(output.stdout).ok())
-        .flatten()
 }
 
 // ─── The body's allow-list (4.2) ───────────────────────────────────────────────

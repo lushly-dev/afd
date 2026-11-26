@@ -12,7 +12,7 @@ import { readProjection } from '@lushly-dev/loam-manifest/validate';
 import { describe, expect, it } from 'vitest';
 import { runCli } from './cli.js';
 import { createCopilotKeySetCommand } from './commands.js';
-import { checkRequest, copilotKeySet, KEY_PATTERN } from './copilot-key.js';
+import { checkRequest, copilotKeySet, KEY_PATTERN, systemKeychain } from './copilot-key.js';
 import { writeDeployment } from './deployment.js';
 import { temporaryDirectory } from './test-support.js';
 
@@ -337,5 +337,91 @@ describe('`loam copilot key set` (4.2)', () => {
 			headers: { authorization: `Bearer ${KEY}` },
 		});
 		expect(KEY_PATTERN.test(KEY)).toBe(true);
+	});
+
+	it('on macOS, fails on non-empty `security -i` stderr (even on exit 0) and verifies read-back equality', async () => {
+		const calls: Array<{ program: string; args: string[]; stdin?: string }> = [];
+		const okKeychain = systemKeychain('darwin', async (program, args, stdin) => {
+			calls.push({ program, args, ...(stdin !== undefined ? { stdin } : {}) });
+			if (args[0] === '-i') return { code: 0, stdout: '', stderr: '' };
+			return { code: 0, stdout: `${KEY}\n`, stderr: '' };
+		});
+		await okKeychain.set('loam-copilot', 'claude', KEY);
+		expect(calls).toHaveLength(2);
+		expect(calls[0]).toEqual({
+			program: '/usr/bin/security',
+			args: ['-i'],
+			stdin: `add-generic-password -U -s "loam-copilot" -a "claude" -l "Loam copilot key" -w "${KEY}"\n`,
+		});
+		expect(calls[1]).toEqual({
+			program: '/usr/bin/security',
+			args: ['find-generic-password', '-s', 'loam-copilot', '-a', 'claude', '-w'],
+		});
+		// Secret never appears in argv of either invocation.
+		expect(calls.flatMap((c) => c.args).join(' ')).not.toContain(KEY);
+
+		// Silent exit-0 failure from `security -i` (error printed only to stderr) is refused before read-back.
+		let readBackCalls = 0;
+		const silentFail = systemKeychain('darwin', async (_program, args) => {
+			if (args[0] === '-i') {
+				return {
+					code: 0,
+					stdout: '',
+					stderr: 'security: SecKeychainAddGenericPassword: User canceled',
+				};
+			}
+			readBackCalls += 1;
+			return { code: 0, stdout: `${KEY}\n`, stderr: '' };
+		});
+		const silentErr = await silentFail
+			.set('loam-copilot', 'claude', KEY)
+			.catch((err: Error) => err);
+		expect(silentErr).toBeInstanceOf(Error);
+		expect((silentErr as Error).message).not.toContain(KEY);
+		expect(readBackCalls).toBe(0);
+
+		// Mismatched read-back is refused without leaking the secret.
+		const mismatch = systemKeychain('darwin', async (_program, args) => {
+			if (args[0] === '-i') return { code: 0, stdout: '', stderr: '' };
+			return { code: 0, stdout: 'different-stored-secret\n', stderr: '' };
+		});
+		const mismatchErr = await mismatch
+			.set('loam-copilot', 'claude', KEY)
+			.catch((err: Error) => err);
+		expect(mismatchErr).toBeInstanceOf(Error);
+		expect((mismatchErr as Error).message).not.toContain(KEY);
+
+		// Non-zero exit on read-back is refused.
+		const missingReadBack = systemKeychain('darwin', async (_program, args) => {
+			if (args[0] === '-i') return { code: 0, stdout: '', stderr: '' };
+			return { code: 44, stdout: '', stderr: 'not found' };
+		});
+		await expect(missingReadBack.set('loam-copilot', 'claude', KEY)).rejects.toThrow();
+
+		// Whitespace-only stderr on `security -i` is also refused before read-back.
+		let wsReadBackCalls = 0;
+		const whitespaceStderr = systemKeychain('darwin', async (_program, args) => {
+			if (args[0] === '-i') return { code: 0, stdout: '', stderr: ' ' };
+			wsReadBackCalls += 1;
+			return { code: 0, stdout: `${KEY}\n`, stderr: '' };
+		});
+		await expect(whitespaceStderr.set('loam-copilot', 'claude', KEY)).rejects.toThrow();
+		expect(wsReadBackCalls).toBe(0);
+
+		// A valid 4,096-character key whose encoded `security -i` line exceeds Apple's 4,095-byte buffer
+		// is refused BEFORE spawning `/usr/bin/security`, leaving any existing credential intact.
+		const oversizedKey = 'k'.repeat(4096);
+		expect(KEY_PATTERN.test(oversizedKey)).toBe(true);
+		let oversizedCalls = 0;
+		const oversizedKeychain = systemKeychain('darwin', async () => {
+			oversizedCalls += 1;
+			return { code: 0, stdout: '', stderr: '' };
+		});
+		const oversizedErr = await oversizedKeychain
+			.set('loam-copilot', 'claude', oversizedKey)
+			.catch((err: Error) => err);
+		expect(oversizedErr).toBeInstanceOf(Error);
+		expect((oversizedErr as Error).message).not.toContain(oversizedKey);
+		expect(oversizedCalls).toBe(0);
 	});
 });
