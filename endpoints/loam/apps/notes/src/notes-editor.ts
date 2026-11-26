@@ -102,7 +102,7 @@ const template = html<NotesEditor>`
 				<loam-embed :document="${(id) => id}"></loam-embed>
 				<violet-button
 					class="unembed"
-					aria-label="${(id, c) => `Remove embed: ${c.parent.titles[id] ?? 'document'}`}"
+					:ariaLabel="${(id, c) => `Remove embed: ${c.parent.titles[id] ?? 'document'}`}"
 					@click="${(id, c) => c.parent.unembed(id)}"
 					>Remove embed</violet-button
 				>

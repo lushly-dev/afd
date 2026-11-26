@@ -392,7 +392,8 @@ async function section(
 	const element = document.createElement(documentsSectionDefinition.name) as LoamDocumentsSection;
 	element.kernel = stubKernel(READS);
 	element.workspace = 'personal';
-	element.base = `${location.origin}/`;
+	// These fixture links are inspected, so keep their origin stable across capture servers.
+	element.base = 'https://loam.example/';
 	configure?.(element);
 	wrapper.append(element);
 	await element.read();
