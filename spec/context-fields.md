@@ -53,7 +53,10 @@ handler run, on every surface:
 
 An invalid value, or a missing required one, fails the call with `VALIDATION_ERROR` before the
 handler runs. The error's details name the field and its `_meta` key, and its suggestion gives the
-expected shape. No new error code is added.
+expected shape. No new error code is added. A schema callback that throws (TypeScript) or a
+validator that raises an exception other than a validation error (Python) fails the call the same
+way; the exception's text reaches the caller only in dev mode, and the exception goes to the
+server's error hook (`onError`, the `afd.server` logger) either way.
 
 **Trusted code wins.** A value the host's own code sets for the same name (TypeScript
 `createContext`, Python `context_hook`, Rust's context hook, or the in-process caller) is never overwritten by a value from

@@ -587,7 +587,18 @@ export function createHumanRelayGate(options: HumanRelayGateOptions): HumanRelay
 			// Validate declared context fields before asking a person, so `call.context` matches
 			// what the command runs with and invalid `_meta` context fields fail fast.
 			if (contextFields?.length) {
-				const invalidField = applyContextFields(contextFields, relayContext, name);
+				const invalidField = applyContextFields(contextFields, relayContext, name, {
+					devMode,
+					// Guarded here: a hook that throws or rejects must not change the answer.
+					onError: (error) => {
+						try {
+							const returned: unknown = onError?.(
+								error instanceof Error ? error : new Error(String(error))
+							);
+							if (returned instanceof Promise) returned.catch(() => {});
+						} catch {}
+					},
+				});
 				if (invalidField?.error) {
 					return { kind: 'error', error: invalidField.error };
 				}

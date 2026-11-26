@@ -900,7 +900,9 @@ class HumanRelayGate:
             _scope_view=call_context._scope_view,
         )
         if self._context_fields:
-            invalid_field = apply_context_fields(self._context_fields, relay_context, name)
+            invalid_field = apply_context_fields(
+                self._context_fields, relay_context, name, dev_mode=self._dev_mode
+            )
             if invalid_field is not None:
                 return HumanRelayOutcome("error", error=invalid_field.error)
 
@@ -984,7 +986,9 @@ class HumanRelayGate:
                     if self._context_fields:
                         replaced = [f for f in self._context_fields if f.name in approved_extra]
                         if replaced:
-                            invalid_replaced = apply_context_fields(replaced, exec_context, name)
+                            invalid_replaced = apply_context_fields(
+                                replaced, exec_context, name, dev_mode=self._dev_mode
+                            )
                             if invalid_replaced is not None:
                                 return HumanRelayOutcome("error", error=invalid_replaced.error)
                         journaled = getattr(relay_context, JOURNALED_CONTEXT_FIELDS, None)

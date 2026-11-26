@@ -6,6 +6,7 @@ Mirrors ``packages/server/src/context-fields.test.ts``.
 
 from __future__ import annotations
 
+import logging
 from typing import Annotated, Any
 
 import pytest
@@ -232,7 +233,7 @@ async def test_required_is_not_enforced_for_afd_commands_but_present_values_are_
 
 
 @pytest.mark.asyncio
-async def test_a_validator_that_raises_fails_the_call():
+async def test_a_validator_that_raises_fails_the_call(caplog: pytest.LogCaptureFixture):
     def explode(value: Any) -> Any:
         raise RuntimeError("bad scope")
 
@@ -240,8 +241,20 @@ async def test_a_validator_that_raises_fails_the_call():
 
     field = _field(schema=Annotated[Any, PlainValidator(explode)])
     server = _server([field])
-    result = await server.execute("scope-echo", {}, CommandContext(extra={"scope": "x"}))
+    with caplog.at_level(logging.ERROR, logger="afd.server"):
+        result = await server.execute("scope-echo", {}, CommandContext(extra={"scope": "x"}))
     assert result.error.code == "VALIDATION_ERROR"
+    # Outside dev mode the exception text stays in the log (#2141).
+    assert result.error.details["errors"] == [
+        {"path": "", "message": "The value could not be validated"}
+    ]
+    assert "bad scope" not in repr(result.error)
+    assert any(
+        record.exc_info and "bad scope" in str(record.exc_info[1]) for record in caplog.records
+    )
+
+    dev = _server([field], dev_mode=True)
+    result = await dev.execute("scope-echo", {}, CommandContext(extra={"scope": "x"}))
     assert result.error.details["errors"] == [{"path": "", "message": "bad scope"}]
 
 

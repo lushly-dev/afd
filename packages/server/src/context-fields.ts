@@ -122,11 +122,28 @@ function isMcpLabel(label: string): boolean {
 	return label === 'mcp' || label === 'modelcontextprotocol';
 }
 
+/** How `applyContextFields` reports a schema that throws. */
+export interface ApplyContextFieldsOptions {
+	/** Return the exception's text to the caller. Default `false`: a generic message. */
+	devMode?: boolean;
+	/**
+	 * Receives the exception a schema callback threw, as thrown. It must not throw or reject: each
+	 * caller passes a guarded hook.
+	 */
+	onError?: (error: unknown) => void;
+}
+
+/** What the caller reads, outside `devMode`, when a field's schema threw. */
+const SCHEMA_THREW = 'The value could not be validated';
+
 /**
  * Validate a call's declared fields on its context, in place: each value is replaced by its
  * schema's output, and the journaled names are marked for the journal. An absent or `null` value
  * is no value. A required field is not enforced for AFD's own `afd-*` commands, so a client can
  * discover the fields before it sends them.
+ *
+ * A schema callback that throws is an invalid value too. Its exception text reaches the caller only
+ * in `devMode`, as `execution.ts` does for a handler; the exception always goes to `onError`.
  *
  * @returns a `VALIDATION_ERROR` result for an invalid value or a missing required one, else
  * `undefined`
@@ -134,7 +151,8 @@ function isMcpLabel(label: string): boolean {
 export function applyContextFields(
 	fields: readonly ContextField[],
 	context: CommandContext,
-	commandName: string
+	commandName: string,
+	options: ApplyContextFieldsOptions = {}
 ): CommandResult | undefined {
 	if (fields.length === 0) return undefined;
 	const values = context as Record<string, unknown>;
@@ -163,8 +181,16 @@ export function applyContextFields(
 			}
 			values[field.name] = parsed.data;
 		} catch (error) {
+			options.onError?.(error);
 			return fieldFailure(field, `Context field '${field.name}' is not valid`, [
-				{ path: '', message: error instanceof Error ? error.message : String(error) },
+				{
+					path: '',
+					message: options.devMode
+						? error instanceof Error
+							? error.message
+							: String(error)
+						: SCHEMA_THREW,
+				},
 			]);
 		}
 	}

@@ -1686,6 +1686,42 @@ describe('HumanRelay with MCP authorization, scopes, hidden commands and M8', ()
 		);
 		expect(seenContext).toEqual([{ tenant: 'acme' }]);
 
+		// A field schema that throws is reported to onError, and its text stays on the server (#2141).
+		const relayErrors: Error[] = [];
+		const throwingFields = await createHarness({
+			extraOptions: {
+				humanRelay: ctxRelay,
+				// An async hook that rejects must not escape as an unhandled rejection.
+				onError: async (error: Error) => {
+					relayErrors.push(error);
+					throw new Error('async hook failed');
+				},
+				contextFields: [
+					{
+						name: 'tenant',
+						meta: 'dev.example/tenant',
+						schema: z.string().transform(() => {
+							throw new Error('tenant-sentinel');
+						}),
+					},
+				],
+			},
+		});
+		const thrown = commandResult(
+			(
+				await postMcp(
+					throwingFields.url,
+					makeCall('memory-erase', { id: '42' }, urlCaps(), {
+						_meta: { 'dev.example/tenant': 'acme' },
+					})
+				)
+			).json
+		);
+		expect((thrown.error as { code: string }).code).toBe(ErrorCodes.VALIDATION_ERROR);
+		expect(JSON.stringify(thrown)).not.toContain('tenant-sentinel');
+		expect(relayErrors.map((error) => error.message)).toEqual(['tenant-sentinel']);
+		expect(seenContext).toEqual([{ tenant: 'acme' }]);
+
 		// 3. Approver client cannot bypass HumanRelay via _meta["dev.afd/approval"]
 		const withApprover = await createHarness({
 			extraOptions: { approver: () => true },

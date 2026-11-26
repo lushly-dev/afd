@@ -769,7 +769,10 @@ export const CEILINGS = Object.freeze({
 	// Raised under D115 by #2539 (engine errors carry a recovery: `canCall` and its builders in `afd-server`'s
 	// `command-routing.ts`, through the kernel's direct registry): measured 160,603 with `main` at `ad9e42890`
 	// merged (after #2576's 159,823); set to 161,000.
-	kernelMinified: 161_000,
+	// Raised under D115 by #2648 (`applyContextFields` keeps a schema's exception text out of production errors
+	// and reports it to `onError`, in `afd-server`, through the kernel's direct registry): measured 161,059 on
+	// `main` at `8b3123580` plus #2648; set to 161,500.
+	kernelMinified: 161_500,
 	// Phase 4's steps 2 (+1,494) and 3 (+8,786) together: 92,316 measured with both merged; set to 93,000.
 	// Phase 4's step 5: 93,596, the inbox's wiring (above); set to 94,000.
 	// With step 8 merged beside them, 93,244; set to 94,000 (the header records it).
