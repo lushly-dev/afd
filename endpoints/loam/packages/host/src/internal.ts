@@ -8,6 +8,7 @@
 import { createServer as createHttpServer, type Server } from 'node:http';
 import { createServer as createHttpsServer } from 'node:https';
 import type { DataLock } from './lock.js';
+import type { TestOAuthV1 } from './provider.js';
 
 export const HOST_INTERNALS: unique symbol = Symbol('loam-host.internals');
 
@@ -26,6 +27,8 @@ export interface HostInternals {
 		start?: true;
 		/** Tests only, through `dev`: the provider's rate limit, raised for a suite (never off). */
 		rateLimit?: { window: number; max: number };
+		/** Tests only, through `dev`: phase 3's step 10's authorization server options (`TestOAuthV1`). */
+		testOAuth?: TestOAuthV1;
 	};
 }
 

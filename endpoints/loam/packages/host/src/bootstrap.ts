@@ -34,7 +34,7 @@ import {
 import { HostError } from './errors.js';
 import { bindServer, createHostServer } from './internal.js';
 import { acquireDataLock } from './lock.js';
-import { createMail, type HostProvider, openProvider } from './provider.js';
+import { createMail, type HostProvider, openProvider, type TestOAuthV1 } from './provider.js';
 
 export interface BootstrapInput {
 	/** The path of `loam.deployment.toml`. */
@@ -117,7 +117,12 @@ export interface BootstrapProvider {
 export async function withBootstrapProvider<T>(
 	options: { deployment: string } & (
 		| { form: 'server'; server: ServerConfigV1 }
-		| { form: 'dev'; data?: string }
+		| {
+				form: 'dev';
+				data?: string;
+				/** Tests only, from `startDevHost`: the provider's options for phase 3's step 10 (`TestOAuthV1`). */
+				testOAuth?: TestOAuthV1;
+		  }
 	),
 	use: (opened: BootstrapProvider) => Promise<T>
 ): Promise<T> {
@@ -153,6 +158,7 @@ export async function withBootstrapProvider<T>(
 			workspace: checked.analysis?.workspace?.id as string,
 			basePath: checked.analysis?.basePath ?? '/',
 			mail: await createMail(server),
+			...(options.form === 'dev' && options.testOAuth ? { testOAuth: options.testOAuth } : {}),
 		});
 		try {
 			return await use({ provider, organization: identity.organization, data });

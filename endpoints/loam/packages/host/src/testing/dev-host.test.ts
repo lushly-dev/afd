@@ -22,21 +22,23 @@ interface Call {
 	env: Record<string, string>;
 	certificateExisted: boolean;
 	stops: string[];
+	testOAuth?: unknown;
 }
 
 /** The profile in this process: what the child runs, with this suite's small `dist`. */
 async function inProcess(): Promise<{ launch: Launcher; calls: Call[] }> {
 	const dist = await fixtureDist(await temporaryDirectory());
 	const calls: Call[] = [];
-	const launch: Launcher = async (deployment, env, logs) => {
+	const launch: Launcher = async (deployment, env, logs, _rateLimit, _limits, testOAuth) => {
 		const call: Call = {
 			deployment,
 			env,
 			certificateExisted: existsSync(env.NODE_EXTRA_CA_CERTS ?? ''),
 			stops: [],
+			...(testOAuth ? { testOAuth } : {}),
 		};
 		calls.push(call);
-		const profile = await runDev({ deployment, dist });
+		const profile = await runDev({ deployment, dist, ...(testOAuth ? { testOAuth } : {}) });
 		logs.push(`ready ${profile.origin}`);
 		const { origin, sandboxOrigin, spki, certificate, mail, data } = profile;
 		return {
@@ -58,15 +60,14 @@ async function start(options: Partial<Parameters<typeof createDevHost>[0]> = {})
 }
 
 describe('startDevHost, in-process (5.2)', () => {
-	it.each([
-		['resources', ['https://example.com/mcp'], "phase 3's step 10"],
-		['accessTokenTtlSeconds', 60, "phase 3's step 10"],
-		['modules', [], 'HostModule'],
-	])('refuses `%s` until the step that builds it', async (key, value, step) => {
-		const { launch, calls } = await inProcess();
-		await expect(createDevHost({ config: CONFIG, [key]: value }, launch)).rejects.toThrow(step);
-		expect(calls).toEqual([]);
-	});
+	it.each([['modules', [], 'HostModule']])(
+		'refuses `%s` until the step that builds it',
+		async (key, value, step) => {
+			const { launch, calls } = await inProcess();
+			await expect(createDevHost({ config: CONFIG, [key]: value }, launch)).rejects.toThrow(step);
+			expect(calls).toEqual([]);
+		}
+	);
 
 	it('bootstraps the organization and seeds its people before the profile starts, through bootstrap --dev (5.2, 3.7)', async () => {
 		const { host, calls } = await start({
@@ -122,6 +123,46 @@ describe('startDevHost, in-process (5.2)', () => {
 			.get(id) as { name: string; redirectUris: string } | undefined;
 		expect(row?.name).toBe('agent');
 		expect(row?.redirectUris).toContain('http://127.0.0.1:43123/callback');
+	});
+
+	it("phase 3's step 10: `resources`, `accessTokenTtlSeconds` and `clientMetadata` reach the provider of the bootstrap and of the profile, and a client is linked to each resource", async () => {
+		const other = 'https://other.example/mcp';
+		const document = { client_id: 'https://agent.example/client.json' };
+		const { host, calls } = await start({
+			config: PROVIDER,
+			organization: { slug: 'acme', name: 'Acme' },
+			people: [
+				{
+					email: 'olu@acme.example',
+					name: 'Olu',
+					role: 'owner',
+					methods: ['password'],
+					password: 'p'.repeat(12),
+				},
+			],
+			clients: [{ name: 'agent', redirect: 'http://127.0.0.1:43123/callback' }],
+			resources: [other],
+			accessTokenTtlSeconds: 5,
+			clientMetadata: { [document.client_id]: document },
+		});
+		expect(calls.map((call) => call.testOAuth)).toEqual([
+			{
+				resources: [other],
+				accessTokenSeconds: 5,
+				clientMetadata: { [document.client_id]: document },
+			},
+		]);
+		// Linked at registration, in the bootstrap's provider: the profile's own MCP resource and the other one.
+		const linked = host
+			.db()
+			.auth.prepare(
+				'SELECT resourceId FROM oauthClientResource WHERE clientId = ? ORDER BY resourceId'
+			)
+			.all(host.clients.agent as string) as Array<{ resourceId: string }>;
+		expect(linked.map((row) => row.resourceId)).toEqual([`${host.root}mcp`, other].sort());
+		// And without them, the launcher is told nothing, so the bin's path is the deployment's.
+		const plain = await start({ config: CONFIG });
+		expect(plain.calls[0]?.testOAuth).toBeUndefined();
 	});
 
 	it('refuses `clients` with no organization, or with no owner who has a password', async () => {

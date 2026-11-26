@@ -141,7 +141,13 @@ const work = (extra: Record<string, unknown> = {}) => ({
 async function boot(
 	transports: Record<string, (url: string) => Promise<MountTransport> | MountTransport>,
 	entries: Array<Record<string, unknown>> = [work()],
-	options: { manifest?: ManifestV1; clock?: () => number; held?: Promise<void> } = {}
+	options: {
+		manifest?: ManifestV1;
+		clock?: () => number;
+		held?: Promise<void>;
+		/** The server's kernel (phase 3's 9.5): a `provider` deployment behind `principalGate`. */
+		gated?: true;
+	} = {}
 ) {
 	const packages = Object.fromEntries(
 		entries.map(({ instance }) => [
@@ -202,6 +208,18 @@ async function boot(
 				}
 			: { deployment, ports }),
 		...(options.clock ? { clock: options.clock } : {}),
+		...(options.gated
+			? {
+					identity: {
+						mode: 'provider' as const,
+						organization: 'acme',
+						path: 'api/auth',
+						methods: ['passkey' as const],
+					},
+					membership: { mode: 'provider' as const, members: new Map(), digest: 'x' },
+					gate: 'principal' as const,
+				}
+			: {}),
 	});
 	return { ...parts, journal, deployment, packages, asked, store };
 }
@@ -210,6 +228,30 @@ async function instance(kernel: LoamKernel, name = 'work'): Promise<AppInstance 
 	const { data } = await kernel.call<{ instances: AppInstance[] }>('app-instance-list');
 	return data?.instances.find((row) => row.instance === name);
 }
+
+describe("P3-E8: `startInstances` on a principal-gated kernel (phase 3's 9.5)", () => {
+	it('P3-E8: a real `startInstances` refresh of a mounted instance runs with no principal, journaled with no actor; the same command called without one is refused', async () => {
+		const transport = fakeTransport({ 'a-read': { mutation: false } });
+		const parts = await boot({ work: () => transport }, [work()], { gated: true });
+		await parts.kernel.startInstances();
+		// It reached the server: discovery's two reads, under the kernel's own instance fields.
+		expect(transport.calls.map(({ tool }) => tool)).toEqual(['afd-help', 'afd-detail']);
+		const refreshes = (await parts.journal.read()).filter(
+			(entry) => entry.command === 'app-instance-refresh'
+		);
+		expect(refreshes).toHaveLength(1);
+		expect(refreshes[0]?.input).toEqual({ instance: 'work' });
+		expect(refreshes[0]?.result?.success).toBe(true);
+		expect(refreshes[0]?.actor).toBeUndefined();
+		// Nothing else passes with no principal: the person's and the agent's interfaces, the refresh among them.
+		for (const refused of [
+			await parts.kernel.call('app-instance-refresh', { instance: 'work' }),
+			await parts.kernel.agent.call('app-instance-refresh', { instance: 'work' }),
+		])
+			expect(refused.error?.code).toBe('UNAUTHORIZED');
+		expect(transport.calls).toHaveLength(2);
+	});
+});
 
 describe('discoverInstance (7.3)', () => {
 	it('reads afd-help and afd-detail, drops afd-*, and renames by the rule', async () => {

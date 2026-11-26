@@ -30,7 +30,8 @@
 		},
 		"E8": {
 			"units": 2,
-			"handler": 1
+			"handler": 1,
+			"hosted": 1
 		},
 		"E9": {
 			"identity": 2
@@ -67,6 +68,21 @@
 		"E20": {
 			"chromium": 1,
 			"units": 1
+		},
+		"H1": {
+			"hosted": 1
+		},
+		"H2": {
+			"hosted": 1
+		},
+		"H3": {
+			"hosted": 1
+		},
+		"H4": {
+			"hosted": 1
+		},
+		"H5": {
+			"hosted": 1
 		}
 	}
 }

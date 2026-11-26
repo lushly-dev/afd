@@ -14,6 +14,7 @@ import { oauthProviderAuthServerMetadata } from '@better-auth/oauth-provider';
 import {
 	createLoamAuthOptions,
 	type LoamMailV1,
+	type LoamOAuthConfig,
 	type LoamOidcProviderV1,
 	type MemberRemovedV1,
 	readBinding,
@@ -28,6 +29,49 @@ import type { ResolvedSecrets } from './secrets.js';
 
 /** The provider's database in the data directory (section 4). */
 export const AUTH_DATABASE = 'auth.sqlite';
+
+/**
+ * Tests only, from `startDevHost` through `dev` (phase 3's step 10): the authorization server's further resources and
+ * shorter token lifetime (P3-H1, P3-H4), and the Client ID Metadata Documents a suite serves (P3-H3), since the
+ * provider's own transport refuses every special-use address and a suite has no public host. The bin passes none.
+ */
+export interface TestOAuthV1 {
+	/** Further resources beside `<base>mcp`, each linked to every client: `createLoamAuthOptions`' `otherResources`. */
+	resources?: string[];
+	/** An access token's lifetime, from 1 to 600 seconds: `createLoamAuthOptions`' `accessTokenSeconds`. */
+	accessTokenSeconds?: number;
+	/** Metadata documents by their `https` URL, the client id: answered from memory, every other URL refused. */
+	clientMetadata?: Record<string, unknown>;
+}
+
+/**
+ * The provider's authorization server options for a test's {@link TestOAuthV1}: none for a deployment. A metadata
+ * document's fetch answers only the URLs the suite named, as JSON, and refuses every other as the provider's own
+ * transport refuses an address it may not reach, so the provider's CIMD validation reads exactly what it would.
+ */
+export function testOAuthConfig(test: TestOAuthV1 | undefined): LoamOAuthConfig | undefined {
+	if (!test) return undefined;
+	const documents = test.clientMetadata;
+	return {
+		...(test.resources ? { otherResources: test.resources } : {}),
+		...(test.accessTokenSeconds !== undefined
+			? { accessTokenSeconds: test.accessTokenSeconds }
+			: {}),
+		...(documents
+			? {
+					fetchClientMetadataResource: async (input: string | URL | Request) => {
+						const url = new Request(input).url;
+						if (!Object.hasOwn(documents, url))
+							throw new TypeError('A test serves no metadata document at this URL');
+						return new Response(JSON.stringify(documents[url]), {
+							status: 200,
+							headers: { 'content-type': 'application/json' },
+						});
+					},
+				}
+			: {}),
+	};
+}
 
 type Provider = ReturnType<typeof betterAuth>;
 
@@ -117,6 +161,8 @@ export async function openProvider(options: {
 	mail: Mailer;
 	/** Tests only: a raised rate limit; the limiter is `createLoamAuthOptions`' and on in every mode. */
 	rateLimit?: { window: number; max: number };
+	/** Tests only: {@link TestOAuthV1}. */
+	testOAuth?: TestOAuthV1;
 }): Promise<HostProvider> {
 	const { server, secrets, identity, workspace, basePath } = options;
 	if (secrets.auth === undefined) {
@@ -141,6 +187,7 @@ export async function openProvider(options: {
 		const shell = `${server.origin}${basePath}`;
 		const oidc = oidcProviders(server, secrets);
 		let removals: ((event: MemberRemovedV1) => Promise<void>) | undefined;
+		const oauth = testOAuthConfig(options.testOAuth);
 		const authOptions = createLoamAuthOptions({
 			// Once per removal (A4): the server kernel's `agent-member-settle`, once it is open.
 			onMemberRemoved: async (event) => {
@@ -158,6 +205,7 @@ export async function openProvider(options: {
 			shell,
 			...(oidc ? { oidc } : {}),
 			...(options.rateLimit ? { rateLimit: options.rateLimit } : {}),
+			...(oauth ? { oauth } : {}),
 		});
 		await (await getMigrations(authOptions)).runMigrations();
 		const auth = betterAuth(authOptions);

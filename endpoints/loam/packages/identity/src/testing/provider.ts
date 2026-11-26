@@ -39,6 +39,8 @@ export interface TestProviderConfig {
 	rateLimit?: { window: number; max: number };
 	/** The host's removal callback (phase 3's A4), heard once per removal. */
 	onMemberRemoved?: LoamAuthConfig['onMemberRemoved'];
+	/** The authorization server's options: a test's other resources and shorter token lifetime among them (P3-H1, P3-H4). */
+	oauth?: LoamAuthConfig['oauth'];
 }
 
 /** What the test-only provider raises the limit to by default: suites sign in many times from one address. */
@@ -59,6 +61,7 @@ export async function createTestProvider(config: TestProviderConfig) {
 			...(config.shell ? { shell: config.shell } : {}),
 			rateLimit: config.rateLimit ?? TEST_RATE_LIMIT,
 			...(config.onMemberRemoved ? { onMemberRemoved: config.onMemberRemoved } : {}),
+			...(config.oauth ? { oauth: config.oauth } : {}),
 		}),
 		logger: { disabled: true },
 	};
