@@ -41,7 +41,14 @@ from afd.core.output_budget import (
     coerce_budgeted_result,
     normalize_ask_option,
 )
-from afd.core.result import CommandResult, ResultMetadata, error, execution_failure, failure
+from afd.core.result import (
+    CommandResult,
+    ResultMetadata,
+    coerce_command_result,
+    error,
+    execution_failure,
+    failure,
+)
 from afd.core.running_command import bind_continuation, open_running_command
 from afd.core.similarity import find_similar_tools, truncate_name
 
@@ -386,6 +393,20 @@ async def _run_chain_with_deadline(
             task.add_done_callback(_consume_task_exception)
 
 
+def _as_command_result(result: Any, name: str, logger: logging.Logger) -> CommandResult[Any]:
+    """``result`` as a CommandResult: one rule for every host and path (#1760).
+
+    A dict with a boolean ``success`` is parsed; anything else that is not a CommandResult
+    becomes ``INVALID_COMMAND_RESULT`` (``spec/error-codes.md``).
+    """
+    if isinstance(result, CommandResult):
+        return result
+    logger.warning(
+        "Command '%s' returned %s instead of a CommandResult", name, type(result).__name__
+    )
+    return coerce_command_result(result, name)
+
+
 async def execute_command(
     name: str,
     input: Any,
@@ -403,7 +424,7 @@ async def execute_command(
         else nullcontext()
     )
     with scope:
-        return await _execute_command_inner(
+        result = await _execute_command_inner(
             name,
             input,
             context,
@@ -412,6 +433,8 @@ async def execute_command(
             output_budget=output_budget,
             skip_output_budget=skip_output_budget,
         )
+    # A middleware that returns a plain value gets the same answer as a handler that does.
+    return _as_command_result(result, name, config.logger)
 
 
 async def _execute_command_inner(
@@ -635,6 +658,8 @@ async def _execute_command_inner(
                 result = await validated_handler(data, exec_context)
             else:
                 result = await command.handler(data, exec_context)
+            # Coerced before the budget check, the metadata stamp and any middleware.
+            result = _as_command_result(result, name, config.logger)
             if effective_budget is not None:
                 normalized = coerce_budgeted_result(result)
                 if normalized is not None:

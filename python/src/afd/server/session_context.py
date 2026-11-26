@@ -19,6 +19,7 @@ from typing import Any
 from weakref import WeakKeyDictionary
 
 from afd.server.bootstrap.afd_context import AFD_CONTEXT_META_KEY, ContextState
+from afd.server.sdk_internals import connection_identity
 
 MODERN_PROTOCOL_VERSION = "2026-07-28"
 """The first MCP revision without sessions (per-request ``_meta``)."""
@@ -120,9 +121,9 @@ class SessionContextState(ContextState):
                 yield
                 return
             # mcp 2.x builds a ServerSession per request; the connection it wraps is
-            # the identity of a 2025-era client. There is no public accessor, and the
-            # live session-isolation tests fail if this stops holding.
-            identity = getattr(session, "_connection", session)
+            # the identity of a 2025-era client. There is no public accessor:
+            # tests/test_sdk_internals.py fails if this stops holding.
+            identity = connection_identity(session)
             existing = self.sessions.get(identity)
             if existing is None:
                 state = ContextState()

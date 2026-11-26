@@ -3,6 +3,10 @@
 This module provides types for capturing and storing telemetry data
 about command executions, enabling monitoring, debugging, and analytics.
 
+There is one event type, :class:`TelemetryEvent`, which serializes in camelCase like
+TypeScript's, and one sink protocol, :class:`TelemetrySink`.
+``afd.server.middleware`` re-exports both under deprecated aliases.
+
 Example:
     >>> from afd.core.telemetry import create_telemetry_event, is_telemetry_event
     >>>
@@ -20,19 +24,23 @@ Example:
 
 import json
 import sys
+import warnings
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Any, Protocol, runtime_checkable
 
-from pydantic import BaseModel
-
 from afd.core.errors import CommandError
+from afd.core.wire import WireModel, to_wire
 
 
-class TelemetryEvent(BaseModel):
+class TelemetryEvent(WireModel):
     """Telemetry event representing a single command execution.
 
-    Contains all relevant information about the command invocation,
-    including timing, outcome, and optional context.
+    The one telemetry event type: ``create_telemetry_middleware`` records it and
+    ``create_telemetry_event`` builds it. It serializes in camelCase, as TypeScript's
+    ``TelemetryEvent`` does (``to_wire(event)`` or ``model_dump(by_alias=True)``:
+    ``commandName``, ``startedAt``, ``durationMs`` and so on), and accepts the snake_case
+    field names or the camelCase keys when built.
 
     Attributes:
         command_name: Name of the command that was executed.
@@ -40,7 +48,8 @@ class TelemetryEvent(BaseModel):
         completed_at: ISO timestamp when command execution completed.
         duration_ms: Duration of execution in milliseconds.
         success: Whether the command executed successfully.
-        error: Error details if the command failed.
+        error: Error details if the command failed. A dict with ``code`` and ``message`` is
+            accepted and read as a ``CommandError``.
         trace_id: Trace ID for correlating related events.
         confidence: Confidence score from the result (0-1), if provided.
         metadata: Additional metadata from the command result.
@@ -58,12 +67,14 @@ class TelemetryEvent(BaseModel):
         ...     success=True,
         ...     trace_id="trace-abc123",
         ... )
+        >>> to_wire(event)["commandName"]
+        'todo-create'
     """
 
     command_name: str
     started_at: str
     completed_at: str
-    duration_ms: float
+    duration_ms: int | float
     success: bool
     error: CommandError | None = None
     trace_id: str | None = None
@@ -74,12 +85,44 @@ class TelemetryEvent(BaseModel):
     actor_kind: str | None = None
 
 
+class TelemetryError(CommandError):
+    """The ``error`` of an event that ``create_telemetry_middleware`` records.
+
+    A ``CommandError``. Events from the middleware used to carry a plain dict, so reading
+    ``event.error["code"]`` or ``event.error.get("code")`` still works, with a
+    ``DeprecationWarning``: read ``event.error.code`` instead.
+    """
+
+    def _mapping_access(self, key: str) -> Any:
+        warnings.warn(
+            "Reading a telemetry event's error as a dict is deprecated: the event's error is "
+            f"a CommandError, so read event.error.{key} instead of event.error[{key!r}].",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        if key not in type(self).model_fields:
+            raise KeyError(key)
+        return getattr(self, key)
+
+    def __getitem__(self, key: str) -> Any:
+        return self._mapping_access(key)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        try:
+            value = self._mapping_access(key)
+        except KeyError:
+            return default
+        return default if value is None else value
+
+
 @runtime_checkable
 class TelemetrySink(Protocol):
     """Interface for pluggable telemetry storage backends.
 
     Implement this protocol to send telemetry events to your preferred
     storage or monitoring system (console, file, database, cloud service).
+    ``record`` may be synchronous or a coroutine; ``create_telemetry_middleware``
+    awaits one that returns an awaitable.
 
     Example:
         >>> class MyCustomSink:
@@ -90,7 +133,7 @@ class TelemetrySink(Protocol):
         ...         pass
     """
 
-    def record(self, event: TelemetryEvent) -> None:
+    def record(self, event: TelemetryEvent) -> None | Awaitable[None]:
         """Record a telemetry event.
 
         This method should be non-blocking when possible.
@@ -102,49 +145,70 @@ class TelemetrySink(Protocol):
         """Flush any pending events to storage.
 
         Called during graceful shutdown to ensure all events are persisted.
-        Optional — implementations may omit this method (matches TS parity).
         """
+        ...
+
+
+def _write_stderr(message: str) -> None:
+    """Write a line to stderr (stdout carries JSON-RPC on the stdio transport)."""
+    print(message, file=sys.stderr, flush=True)
 
 
 class ConsoleTelemetrySink:
-    """Default telemetry sink that logs events to the console.
+    """Default telemetry sink that logs events to the console, as TypeScript's does.
 
-    Supports two output formats: human-readable text and JSON.
+    Events go to stderr by default, never stdout: on the stdio transport, stdout carries the
+    JSON-RPC stream and any other line corrupts it. The text line is
+    ``"<prefix> [<traceId>] <command> SUCCESS in <ms>ms (confidence: <c>) - <code>: <message>"``
+    (the bracketed trace, confidence and error parts only when present); the JSON line is the
+    event in camelCase with ``_prefix`` added.
 
     Args:
-        format: Output format, either "text" or "json". Defaults to "text".
+        format: ``"text"`` (the default) or ``"json"``.
+        log: Where each line goes. Defaults to stderr.
+        json_mode: ``True`` is the same as ``format="json"``.
+        prefix: The text line's first word, and the JSON line's ``_prefix``.
 
     Example:
-        >>> sink = ConsoleTelemetrySink(format="text")
-        >>> sink.record(event)
-        [TELEMETRY] todo-create success=True duration=150.0ms
+        >>> sink = ConsoleTelemetrySink()  # human-readable, to stderr
+        >>> sink = ConsoleTelemetrySink(format="json")  # JSON output
+        >>> sink = ConsoleTelemetrySink(log=logging.getLogger("telemetry").info)
     """
 
-    def __init__(self, format: str = "text") -> None:
-        self.format = format
+    def __init__(
+        self,
+        format: str = "text",
+        *,
+        log: Callable[[str], None] | None = None,
+        json_mode: bool = False,
+        prefix: str = "[Telemetry]",
+    ) -> None:
+        if format not in ("text", "json"):
+            raise ValueError('format must be "text" or "json"')
+        self.format = "json" if json_mode else format
+        self._log = log or _write_stderr
+        self._prefix = prefix
 
     def record(self, event: TelemetryEvent) -> None:
-        """Record a telemetry event to console."""
+        """Record a telemetry event to the console."""
         if self.format == "json":
-            print(
-                json.dumps(event.model_dump(exclude_none=True), default=str),
-                file=sys.stderr,
-            )
-        else:
-            parts = [
-                f"[TELEMETRY] {event.command_name}",
-                f"success={event.success}",
-                f"duration={event.duration_ms}ms",
-            ]
-            if event.trace_id:
-                parts.append(f"trace={event.trace_id}")
-            if event.error:
-                parts.append(f"error={event.error.code}")
-            print(" ".join(parts), file=sys.stderr)
+            self._log(json.dumps({**to_wire(event), "_prefix": self._prefix}, default=str))
+            return
+        status = "SUCCESS" if event.success else "FAILURE"
+        trace_info = f" [{event.trace_id}]" if event.trace_id else ""
+        confidence_info = (
+            f" (confidence: {event.confidence})" if event.confidence is not None else ""
+        )
+        error_info = f" - {event.error.code}: {event.error.message}" if event.error else ""
+        self._log(
+            f"{self._prefix}{trace_info} {event.command_name} "
+            f"{status} in {event.duration_ms}ms{confidence_info}{error_info}"
+        )
 
     def flush(self) -> None:
-        """Flush stderr."""
-        sys.stderr.flush()
+        """Nothing is buffered; flushes stderr when that is where lines go."""
+        if self._log is _write_stderr:
+            sys.stderr.flush()
 
 
 def create_telemetry_event(
@@ -226,7 +290,8 @@ def create_telemetry_event(
 def is_telemetry_event(value: Any) -> bool:
     """Type guard to check if an object is a valid TelemetryEvent.
 
-    Works with both TelemetryEvent instances and plain dicts.
+    Works with TelemetryEvent instances and plain dicts, with camelCase keys (the wire form)
+    or snake_case ones.
 
     Args:
         value: Any value to check.
@@ -247,10 +312,15 @@ def is_telemetry_event(value: Any) -> bool:
     if not isinstance(value, dict):
         return False
 
+    def field(name: str, alias: str) -> Any:
+        return value[alias] if alias in value else value.get(name)
+
+    duration = field("duration_ms", "durationMs")
     return (
-        isinstance(value.get("command_name"), str)
-        and isinstance(value.get("started_at"), str)
-        and isinstance(value.get("completed_at"), str)
-        and isinstance(value.get("duration_ms"), (int, float))
+        isinstance(field("command_name", "commandName"), str)
+        and isinstance(field("started_at", "startedAt"), str)
+        and isinstance(field("completed_at", "completedAt"), str)
+        and isinstance(duration, (int, float))
+        and not isinstance(duration, bool)
         and isinstance(value.get("success"), bool)
     )

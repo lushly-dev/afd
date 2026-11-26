@@ -83,7 +83,7 @@ These keep their own work; this review only cross-references them.
 
 ### Python
 
-- [#1756](https://github.com/lushly-dev/afd/issues/1756) python: a tested mcp SDK range, a weekly newest-SDK run, and fewer private internals
+- [#1756](https://github.com/lushly-dev/afd/issues/1756) python: a tested mcp SDK range, a weekly newest-SDK run, and fewer private internals; merged in #2646
 
 - [#1757](https://github.com/lushly-dev/afd/issues/1757) python: lint and type gates across afd, Botcore, Alfred and Health; merged in #2357
 
@@ -91,7 +91,7 @@ These keep their own work; this review only cross-references them.
 
 - [#1759](https://github.com/lushly-dev/afd/issues/1759) python: move the multi-language linter (lushx_ext) out of the runtime wheel
 
-- [#1760](https://github.com/lushly-dev/afd/issues/1760) python: per-call schema work cached, one result rule for raw returns, one telemetry type
+- [#1760](https://github.com/lushly-dev/afd/issues/1760) python: per-call schema work cached, one result rule for raw returns, one telemetry type; merged in #2646
 
 ### Rust
 

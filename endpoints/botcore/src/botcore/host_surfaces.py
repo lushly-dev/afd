@@ -417,12 +417,21 @@ def _install_alias_tools(
     afd_server: AfdMCPServer,
     alias_defs: list[dict[str, Any]],
 ) -> None:
-    """Register compatibility alias schemas in the SDK tool manager for ``_tool_input_schema``."""
+    """Give the SDK the compatibility aliases' input schemas, for Mcp-Param header checks.
+
+    afd 0.14 answers the SDK's ``_tool_input_schema`` from its own table
+    (``_add_tool_input_schemas``, lushly-dev/afd#1756); afd 0.13 read the SDK's tool manager.
+    """
+    add_schemas = getattr(afd_server, "_add_tool_input_schemas", None)
+    if add_schemas is not None:
+        add_schemas(alias_defs)
+        return
     tool_manager = getattr(sdk_server, "_tool_manager", None)
-    if tool_manager is None:
+    create_tool = getattr(afd_server, "_create_fastmcp_tool", None)
+    if tool_manager is None or create_tool is None:
         return
     for definition in alias_defs:
-        tool_manager._tools[definition["name"]] = afd_server._create_fastmcp_tool(definition)
+        tool_manager._tools[definition["name"]] = create_tool(definition)
 
 
 def _decide_alias_scope(

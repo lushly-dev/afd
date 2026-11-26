@@ -2358,10 +2358,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "5a8f2faa56c758ebfe90d4be554b1c5a461acc00fadf115a3c7a0c384c5a0cbe",
+      "current_import_sha256": "935ea0a1c3c6ff3967fb4730f79d451a467f7eab839af8eae5108ef94a10a085",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test (lushly-dev/afd#1793); Format Botcore, add mypy type checking and py.typed marker (#1757); Versioned by pnpm version-track python (afd-python 0.13.0); Versioned by pnpm version-track botcore (lushly-botcore 0.9.0); Refresh botcore-factory lockfile for lushly-botcore[mcp] extra (#2499); Versioned by pnpm version-track botcore (lushly-botcore 0.10.0)"
+      "import_reason": "Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test (lushly-dev/afd#1793); Format Botcore, add mypy type checking and py.typed marker (#1757); Versioned by pnpm version-track python (afd-python 0.13.0); Versioned by pnpm version-track botcore (lushly-botcore 0.9.0); Refresh botcore-factory lockfile for lushly-botcore[mcp] extra (#2499); Versioned by pnpm version-track botcore (lushly-botcore 0.10.0); Relock after afd caps mcp below 2.4 (lushly-dev/afd#1756)"
     },
     {
       "path": "plugins/botcore-teams/LICENSE",
@@ -3612,11 +3612,11 @@
       "path": "src/botcore/host_surfaces.py",
       "upstream_sha256": null,
       "staged_sha256": "9c9daa261ede670474aff53168b4d4095ad6a1b1b7371c46e595904fac0a806a",
-      "current_import_sha256": "fda46aa0773b77526e2b62a26225ed8fe365c1f61404d30fb8f57c7cf1328f14",
+      "current_import_sha256": "f089762f5b0eb01a8061ea3584ed11d8cb57604dcd347c3d24ccefcae0af1f19",
       "stage_classification": "added-in-staging",
       "stage_reason": "Expose managed CLI/MCP through the shared host dispatcher",
       "import_classification": "modified-after-staging",
-      "import_reason": "Support both SDKs and safe Python aliases for canonical kebab IDs; resolve raw-Python aliases through the host; call over MCP as an agent; Format Botcore, add mypy type checking and py.typed marker (#1757); serve each host command as its own MCP tool with the host as the only validator (factory gateway change 3); Serve managed host MCP server through afd.server.create_server with policy middleware and compatibility aliases (#2499); Serve managed host MCP through afd.create_server (#2499)"
+      "import_reason": "Support both SDKs and safe Python aliases for canonical kebab IDs; resolve raw-Python aliases through the host; call over MCP as an agent; Format Botcore, add mypy type checking and py.typed marker (#1757); serve each host command as its own MCP tool with the host as the only validator (factory gateway change 3); Serve managed host MCP server through afd.server.create_server with policy middleware and compatibility aliases (#2499); Serve managed host MCP through afd.create_server (#2499); Register alias schemas through afd's own table and import telemetry from afd.core after afd drops the SDK tool manager and the duplicate telemetry types (lushly-dev/afd#1756, #1760)"
     },
     {
       "path": "src/botcore/host_tokens.py",
@@ -3654,11 +3654,11 @@
       "path": "src/botcore/registry.py",
       "upstream_sha256": "44662667db769aae671455275cd538a2250ee7d8eb658fa114bbe7a898b0ceea",
       "staged_sha256": "44662667db769aae671455275cd538a2250ee7d8eb658fa114bbe7a898b0ceea",
-      "current_import_sha256": "c5a86340fe146289493720262136193881d6cb4cd6fb9c15b0f265548fd07fa2",
+      "current_import_sha256": "b4f0e0bb633ef521c126a402cf10504e4ef9f1dc6354db903755f59a35c301d2",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Format Botcore, add mypy type checking and py.typed marker (#1757)"
+      "import_reason": "Imported exact frozen staged-input bytes; Format Botcore, add mypy type checking and py.typed marker (#1757); Register alias schemas through afd's own table and import telemetry from afd.core after afd drops the SDK tool manager and the duplicate telemetry types (lushly-dev/afd#1756, #1760)"
     },
     {
       "path": "src/botcore/server.py",
@@ -7686,11 +7686,11 @@
       "path": "uv.lock",
       "upstream_sha256": "de195f74ec7cf4a8bc26f1d03a89ece63b7607f23433c23b86ab342dc335cd95",
       "staged_sha256": "de195f74ec7cf4a8bc26f1d03a89ece63b7607f23433c23b86ab342dc335cd95",
-      "current_import_sha256": "3628359e59a9c57701d53eca555a262b0239e410545b10c8dad999158cfb3a86",
+      "current_import_sha256": "13a13ae68bd6a6aad548128a3485d22a3616d83b31c5ef6e9e7b7c4afba97065",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Lock local AFD 0.10 and MCP 2.3; refresh dependencies within declared constraints; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Lock the editable afd source at 0.11.0; Versioned by pnpm version-track botcore (lushly-botcore 0.8.0); Versioned by pnpm version-track python (afd-python 0.12.0); Refresh uv.lock after promoting pyyaml to afd[server] (#1981); Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test (lushly-dev/afd#1793); Format Botcore, add mypy type checking and py.typed marker (#1757); Versioned by pnpm version-track python (afd-python 0.13.0); Versioned by pnpm version-track botcore (lushly-botcore 0.9.0); Serve managed host MCP server through afd.server.create_server with policy middleware and compatibility aliases (#2499); Versioned by pnpm version-track botcore (lushly-botcore 0.10.0)"
+      "import_reason": "Lock local AFD 0.10 and MCP 2.3; refresh dependencies within declared constraints; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Lock the editable afd source at 0.11.0; Versioned by pnpm version-track botcore (lushly-botcore 0.8.0); Versioned by pnpm version-track python (afd-python 0.12.0); Refresh uv.lock after promoting pyyaml to afd[server] (#1981); Run every sibling package's, plugin's and mock integration scenario's tests in CI, the factory on macOS and Windows, and a multi-process lock test (lushly-dev/afd#1793); Format Botcore, add mypy type checking and py.typed marker (#1757); Versioned by pnpm version-track python (afd-python 0.13.0); Versioned by pnpm version-track botcore (lushly-botcore 0.9.0); Serve managed host MCP server through afd.server.create_server with policy middleware and compatibility aliases (#2499); Versioned by pnpm version-track botcore (lushly-botcore 0.10.0); Relock after afd caps mcp below 2.4 (lushly-dev/afd#1756)"
     }
   ]
 }

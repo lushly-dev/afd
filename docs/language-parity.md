@@ -178,7 +178,7 @@ Rendered from [`spec/capabilities/`](../spec/capabilities/README.md) (`typescrip
 | --- | --- | --- | --- | --- |
 | `HandoffResult`, `createHandoff`, default reconnect policy (3 attempts, 1000 ms) | Yes | Yes (#545 candidate): fresh shared default policy | Partial: `is_handoff_protocol` and `is_handoff_command` mean different things; `handoff:<p>` tags are ignored | Yes |
 | Handoff client: WebSocket and SSE handlers, reconnect | Yes: reconnect falls back to the default policy | Yes (#545 candidate): metadata then shared default; explicit options win | N/A: no remote client (D6) | N/A: no remote client (D6) |
-| `TelemetryEvent`, `TelemetrySink` | Yes | Partial: the core event serializes snake_case, and the middleware defines a second copy | Partial: `durationMs` is an integer | Yes (#547): `afd/telemetry.hpp` (`TelemetryEvent`, `TelemetrySink`, `create_telemetry_event`, `is_telemetry_event`, `ConsoleTelemetrySink`) |
+| `TelemetryEvent`, `TelemetrySink` | Yes | Yes (#1760): one event, camelCase on the wire; `afd.server.middleware` keeps deprecated aliases | Partial: `durationMs` is an integer | Yes (#547): `afd/telemetry.hpp` (`TelemetryEvent`, `TelemetrySink`, `create_telemetry_event`, `is_telemetry_event`, `ConsoleTelemetrySink`) |
 | Telemetry middleware | Yes | Yes | Yes (#1600): `create_telemetry_middleware` | Yes (#547): `create_telemetry_middleware` |
 | `calculateSimilarity`, `findSimilarTools` (128 cap, 0.4 threshold) | Yes | Yes (not exported from `afd`) | Yes (counts chars, not UTF-16 units) | Yes |
 <!-- generated:capabilities:parity.handoff-telemetry-similarity:end -->

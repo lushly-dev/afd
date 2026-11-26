@@ -268,8 +268,9 @@ the whole request before anything runs, and so does a malformed `when` condition
   and keep their results, and commands not yet started report `COMMAND_SKIPPED`. A batch
   `timeout` cancels and awaits running commands, which report `BATCH_TIMEOUT`, so nothing
   keeps running after the result is sent.
-- A handler that returns something other than a `CommandResult` gives its item or step
-  an `INVALID_COMMAND_RESULT` failure instead of breaking the aggregate result.
+- A handler (or middleware) that returns something other than a `CommandResult` gets an
+  `INVALID_COMMAND_RESULT` failure, the same on a single call, a batch item, a pipeline step
+  and a stream; a dict with a boolean `success` is read as a result.
 - Pipelines run sequentially. `options.parallel` and a step with `stream: true` are not
   implemented: the offending step (step 0 for `parallel`) fails with
   `UNSUPPORTED_OPTION` and every other step is skipped, before any command runs.
@@ -280,7 +281,7 @@ the whole request before anything runs, and so does a malformed `when` condition
 Track command execution with standardized telemetry events:
 
 ```python
-from afd import create_telemetry_event, ConsoleTelemetrySink
+from afd import create_telemetry_event, ConsoleTelemetrySink, to_wire
 
 # Create an event from execution data
 event = create_telemetry_event(
@@ -292,14 +293,14 @@ event = create_telemetry_event(
 )
 # duration_ms is auto-calculated: 150.0
 
-# Log to console (text or JSON format)
+# Log to console (text or JSON format); JSON lines are camelCase, as in TypeScript
 sink = ConsoleTelemetrySink(format="json")
-sink.record(event)
+sink.record(event)  # {"commandName": "todo-create", ..., "_prefix": "[Telemetry]"}
 
 # Implement a custom sink
 class MyMonitoringSink:
     def record(self, event):
-        send_to_monitoring(event.model_dump(exclude_none=True))
+        send_to_monitoring(to_wire(event))  # camelCase: commandName, durationMs, ...
 
     def flush(self):
         pass

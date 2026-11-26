@@ -402,8 +402,8 @@
 			"evidence": ["python/src/afd/handoff_client.py", "python/tests/test_handoff_client.py"]
 		},
 		"hts.telemetry-types": {
-			"status": "partial",
-			"note": "the core event serializes snake_case, and the middleware defines a second copy",
+			"status": "yes",
+			"note": "(#1760): one event, camelCase on the wire; `afd.server.middleware` keeps deprecated aliases",
 			"evidence": ["python/src/afd/core/telemetry.py", "python/tests/test_telemetry.py"]
 		},
 		"hts.telemetry-middleware": {

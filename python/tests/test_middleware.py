@@ -12,10 +12,9 @@ import afd.server.middleware as middleware_module
 from afd import error, success
 from afd.core.commands import CommandContext
 from afd.core.result import CommandResult
+from afd.core.telemetry import ConsoleTelemetrySink, TelemetryEvent
 from afd.server import create_server
 from afd.server.middleware import (
-    ConsoleTelemetrySink,
-    TelemetryEvent,
     compose_middleware,
     create_auto_trace_id_middleware,
     create_logging_middleware,
@@ -741,7 +740,42 @@ class TestTelemetryMiddleware:
 
         event = sink.events[0]
         assert event.success is False
-        assert event.error["code"] == "TEST_ERROR"
+        assert event.error.code == "TEST_ERROR"
+        assert event.error.message == "something went wrong"
+
+    @pytest.mark.asyncio
+    async def test_error_still_reads_as_a_dict_with_a_warning(self):
+        """Events from the middleware carried a plain dict error before #1760."""
+        sink = RecordingSink()
+        mw = create_telemetry_middleware(sink)
+
+        await mw("test-cmd", {}, make_context(), failure_handler)
+
+        error = sink.events[0].error
+        with pytest.warns(DeprecationWarning, match=r"event\.error\.code"):
+            assert error["code"] == "TEST_ERROR"
+        with pytest.warns(DeprecationWarning):
+            assert error.get("message") == "something went wrong"
+        with pytest.warns(DeprecationWarning):
+            assert error.get("nope", "fallback") == "fallback"
+
+    @pytest.mark.asyncio
+    async def test_records_the_core_event_in_camel_case(self):
+        from afd.core.wire import to_wire
+
+        sink = RecordingSink()
+        mw = create_telemetry_middleware(sink)
+
+        await mw("test-cmd", {}, make_context(trace_id="t1"), failure_handler)
+
+        event = sink.events[0]
+        assert type(event) is TelemetryEvent
+        wire = to_wire(event)
+        assert wire["commandName"] == "test-cmd"
+        assert wire["traceId"] == "t1"
+        assert wire["error"] == {"code": "TEST_ERROR", "message": "something went wrong"}
+        assert {"startedAt", "completedAt", "durationMs", "success"} <= wire.keys()
+        assert "command_name" not in wire
 
     @pytest.mark.asyncio
     async def test_sink_errors_are_swallowed(self):
@@ -808,8 +842,8 @@ class TestTelemetryMiddleware:
         assert len(sink.events) == 1
         event = sink.events[0]
         assert event.success is False
-        assert event.error["code"] == "UNHANDLED_ERROR"
-        assert "boom" in event.error["message"]
+        assert event.error.code == "UNHANDLED_ERROR"
+        assert "boom" in event.error.message
 
 
 # =============================================================================
@@ -867,7 +901,8 @@ class TestConsoleTelemetrySink:
         sink.record(event)
 
         parsed = json.loads(messages[0])
-        assert parsed["command_name"] == "test-cmd"
+        assert parsed["commandName"] == "test-cmd"
+        assert parsed["durationMs"] == 42
         assert parsed["success"] is True
         assert parsed["_prefix"] == "[Telemetry]"
 
@@ -1110,3 +1145,64 @@ class TestMiddlewareIntegration:
 
         result = await server.execute("test-cmd", {})
         assert result.success is True
+
+
+# =============================================================================
+# Deprecated telemetry names (#1760)
+# =============================================================================
+
+
+@pytest.mark.parametrize("name", ["TelemetryEvent", "TelemetrySink", "ConsoleTelemetrySink"])
+def test_middleware_telemetry_names_are_deprecated_aliases_of_the_core_ones(name):
+    import afd
+    import afd.core.telemetry as core_telemetry
+    import afd.server
+
+    with pytest.warns(DeprecationWarning, match=f"afd.core.telemetry.{name}"):
+        alias = getattr(middleware_module, name)
+    assert alias is getattr(core_telemetry, name)
+    assert getattr(afd, name) is alias
+    assert getattr(afd.server, name) is alias
+
+
+def test_old_middleware_import_still_builds_events():
+    with pytest.warns(DeprecationWarning):
+        from afd.server.middleware import TelemetryEvent as OldEvent
+    event = OldEvent(
+        command_name="test-cmd",
+        started_at="",
+        completed_at="",
+        duration_ms=1,
+        success=False,
+        error={"code": "FAIL", "message": "oops"},
+    )
+    assert event.error is not None and event.error.code == "FAIL"
+
+
+@pytest.mark.asyncio
+async def test_server_telemetry_metadata_is_camel_case_without_unset_fields():
+    """The event's metadata is the result's wire form, as TypeScript records it (#1760)."""
+    from afd.core.wire import to_wire
+
+    events: list[TelemetryEvent] = []
+
+    class Sink:
+        def record(self, event: TelemetryEvent) -> None:
+            events.append(event)
+
+        def flush(self) -> None:
+            pass
+
+    server = create_server("t", middleware=[create_telemetry_middleware(Sink())])
+
+    @server.command(name="item-get", description="Get", version="1.2.0")
+    async def item_get(input):
+        return success({"ok": True})
+
+    await server.execute("item-get", {})
+
+    metadata = to_wire(events[0])["metadata"]
+    assert metadata["commandVersion"] == "1.2.0"
+    assert "executionTimeMs" in metadata
+    assert not any("_" in key for key in metadata)
+    assert None not in metadata.values()

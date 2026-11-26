@@ -59,6 +59,7 @@ from afd.core.output_budget import (
     MAX_OUTPUT_BUDGET_BYTES,
     OutputBudget,
 )
+from afd.core.telemetry import ConsoleTelemetrySink, TelemetryEvent, TelemetrySink
 from afd.server.approval import (
     ApprovalCommand,
     ApprovalNonceStore,
@@ -210,10 +211,7 @@ from afd.server.journal import (
 )
 from afd.server.middleware import (
     CommandMiddleware,
-    ConsoleTelemetrySink,
     NextFn,
-    TelemetryEvent,
-    TelemetrySink,
     compose_middleware,
     create_auto_trace_id_middleware,
     create_logging_middleware,

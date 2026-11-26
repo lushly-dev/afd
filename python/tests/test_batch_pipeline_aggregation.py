@@ -705,3 +705,160 @@ class TestServerMetadata:
 
         assert isinstance(result, CommandResult)
         assert result.metadata.execution_time_ms >= 0
+
+
+class TestOneRuleForRawReturns:
+    """A raw handler return is coerced the same way on every path (#1760).
+
+    ``spec/error-codes.md``: a value that is not a CommandResult is an
+    ``INVALID_COMMAND_RESULT`` failure, and a dict with a boolean ``success`` is parsed.
+    """
+
+    @staticmethod
+    async def _single(server, name):
+        return await server.execute(name, {})
+
+    @staticmethod
+    async def _tool(server, name):
+        return await server.call_tool(name, {})
+
+    @staticmethod
+    async def _afd_call(server, name):
+        return await server.call_tool("afd-call", {"command": name, "input": {}})
+
+    @staticmethod
+    async def _batch(server, name):
+        batch = await server.execute_batch({"commands": [{"command": name, "input": {}}]})
+        return batch.results[0].result
+
+    @staticmethod
+    async def _pipeline(server, name):
+        pipeline = await server._execute_pipeline({"steps": [{"command": name}]})
+        step = pipeline.steps[0]
+        if step.status == StepStatus.SUCCESS:
+            return success(step.data)
+        return CommandResult(success=False, error=step.error)
+
+    @staticmethod
+    async def _stream(server, name):
+        chunks = [chunk async for chunk in server.execute_stream(name, {})]
+        last = chunks[-1]
+        if last.type == "error":
+            return CommandResult(success=False, error=last.error)
+        data = [chunk.data for chunk in chunks if chunk.type == "data"]
+        return success(data[0] if len(data) == 1 else data)
+
+    PATHS = ("_single", "_tool", "_afd_call", "_batch", "_pipeline", "_stream")
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("path", PATHS)
+    async def test_a_plain_value_is_invalid_command_result_on_every_path(self, path):
+        writes: list = []
+        server = _server(writes)
+
+        result = await getattr(self, path)(server, "todo-raw")
+
+        assert result.success is False, path
+        assert result.error.code == "INVALID_COMMAND_RESULT", path
+        assert result.error.retryable is False
+        assert "todo-raw" in result.error.message
+        assert [kind for kind, _ in writes] == ["raw"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("path", PATHS)
+    async def test_a_result_shaped_dict_is_parsed_on_every_path(self, path):
+        server = _server([])
+
+        result = await getattr(self, path)(server, "todo-rawresult")
+
+        assert result.success is True, path
+        assert result.data == {"id": "dict-1"}, path
+
+    @pytest.mark.asyncio
+    async def test_the_single_call_failure_carries_execution_metadata(self):
+        server = _server([])
+
+        result = await server.execute("todo-raw", {})
+
+        assert result.error.code == "INVALID_COMMAND_RESULT"
+        assert result.metadata is not None
+        assert result.metadata.execution_time_ms is not None
+
+    @pytest.mark.asyncio
+    async def test_middleware_sees_the_coerced_result(self):
+        seen: list = []
+
+        async def record(name, input, context, next_fn):
+            result = await next_fn()
+            seen.append(result)
+            return result
+
+        server = create_server("aggregation", middleware=[record])
+
+        @server.command(name="todo-raw", description="Returns a plain dict", expose=MCP)
+        async def todo_raw(input):
+            return {"id": "raw-1"}
+
+        await server.execute("todo-raw", {})
+
+        assert isinstance(seen[0], CommandResult)
+        assert seen[0].error.code == "INVALID_COMMAND_RESULT"
+
+    @pytest.mark.asyncio
+    async def test_a_middleware_returning_a_plain_value_is_coerced_too(self):
+        async def broken(name, input, context, next_fn):
+            await next_fn()
+            return "not a result"
+
+        server = create_server("aggregation", middleware=[broken])
+
+        @server.command(name="todo-create", description="Create", expose=MCP)
+        async def todo_create(input):
+            return success({"ok": True})
+
+        result = await server.execute("todo-create", {})
+
+        assert result.success is False
+        assert result.error.code == "INVALID_COMMAND_RESULT"
+
+
+class TestCoreHostsFollowTheSameRule:
+    """The core registry and DirectClient share the single-command executor (#1760)."""
+
+    @pytest.mark.asyncio
+    async def test_core_registry_single_call(self):
+        from afd.core.commands import CommandDefinition, create_command_registry
+
+        async def raw(input, context=None):
+            return {"id": 1}
+
+        async def shaped(input, context=None):
+            return {"success": True, "data": {"id": 2}}
+
+        registry = create_command_registry()
+        registry.register(CommandDefinition(name="raw-get", description="Raw", handler=raw))
+        registry.register(
+            CommandDefinition(name="shaped-get", description="Shaped", handler=shaped)
+        )
+
+        raw_result = await registry.execute("raw-get", {})
+        assert raw_result.success is False
+        assert raw_result.error.code == "INVALID_COMMAND_RESULT"
+        shaped_result = await registry.execute("shaped-get", {})
+        assert shaped_result.success is True
+        assert shaped_result.data == {"id": 2}
+
+    @pytest.mark.asyncio
+    async def test_direct_client_single_call(self):
+        from afd.direct import DirectClient, SimpleRegistry
+
+        registry = SimpleRegistry()
+
+        @registry.command(name="raw-get")
+        async def raw_get():
+            return {"id": 1}
+
+        result = await DirectClient(registry).call("raw-get", {})
+
+        assert result.success is False
+        assert result.error.code == "INVALID_COMMAND_RESULT"
