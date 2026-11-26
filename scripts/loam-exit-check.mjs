@@ -36,7 +36,10 @@
  * 2026-11-13): a ceiling rises with its measurement, so neither P3-E10 nor E12's P2-E2 holds a ceiling to a
  * figure; each row the specification names must be printed, at or under its own ceiling, and no row OVER. Once
  * D161 names the date D115 ends, this reading goes back to holding the figures the specification names.
- * The hosted part, P3-H1 to P3-H5, is step 10's.
+ * The hosted part is step 10's: P3-H1 to P3-H5, and P3-E8's two cases left to the server (section 18's "Hosted" for
+ * E8), each in the "Hosted" place, the `Hosted development profile` job's criterion step. They are phase 3's own
+ * rows (`ownRows`), read when phase 3 is checked as itself: `--phase 3` is the exit, both parts, and phase 4's P4-E14,
+ * which reuses "phase 3's local rows", reads the local ones alone.
  *
  * `--phase 4` is step 11 of the phase 4 specification (endpoints/loam/docs/phases/4-settings/spec.md, section
  * 20), its whole exit, which is local (D126). It checks the same two runs by condition 1, then each `P4-E<n>:`
@@ -245,7 +248,7 @@ export const ROWS = [
 /**
  * Phase 3's exit rows: section 18 of endpoints/loam/docs/phases/3-identity/spec.md, by its "Place" column.
  * E12 reuses phase 2's rows and minimums (`reuse`); E16 is this check. Change a row here only with its spec
- * row. The `P3-H` rows are the hosted part, step 10's.
+ * row. The hosted part, step 10's, is {@link P3_HOSTED_ROWS}.
  */
 export const P3_ROWS = [
 	{ row: 'E1', in: ['chromium', 'units'] },
@@ -271,6 +274,19 @@ export const P3_ROWS = [
 	{ row: 'E18', in: ['chromium', 'units'] },
 	{ row: 'E19', in: ['units', 'chromium'] },
 	{ row: 'E20', in: ['chromium', 'units'] },
+];
+
+/**
+ * Phase 3's hosted part (step 10): section 18's `P3-H` rows, and E8's "Hosted", the two cases step 7 left to the
+ * server, each in the hosted criterion's step. Read only when phase 3 is checked as itself (`ownRows`).
+ */
+export const P3_HOSTED_ROWS = [
+	{ row: 'E8', in: ['hosted'] },
+	{ row: 'H1', in: ['hosted'] },
+	{ row: 'H2', in: ['hosted'] },
+	{ row: 'H3', in: ['hosted'] },
+	{ row: 'H4', in: ['hosted'] },
+	{ row: 'H5', in: ['hosted'] },
 ];
 
 /** The two ceilings E2 names, as the budget script prints their rows. */
@@ -436,7 +452,8 @@ const NODE_RESULT = /^\s*([^\w\s])\s+(.*?) \(\d+(?:\.\d+)?ms\)(?: # (.+))?$/u;
  */
 const ROW_TITLES = {
 	P2: /^(?:P2-[ED]\d+: )+/,
-	P3: /^(?:P3-E\d+: )+/,
+	// The local rows' and step 10's hosted ones (`P3-H1: `).
+	P3: /^(?:P3-[EH]\d+: )+/,
 	P4: /^(?:P4-E\d+: )+/,
 	// Every kind of phase 6's section 19, so condition 3 reads a title of a row M1 does not list too.
 	P6: /^(?:P6-[EHMIDX]\d+: )+/,
@@ -765,9 +782,12 @@ export const PHASES = {
 	3: {
 		prefix: 'P3',
 		rows: P3_ROWS,
+		// Step 10's hosted part: read when phase 3 is checked as itself, never when another phase reuses its local rows.
+		ownRows: P3_HOSTED_ROWS,
 		minimumsFile: P3_MINIMUMS_FILE,
 		budgetRows: P3_BUDGET_ROWS,
 		line: { E16: 'this check, the local part' },
+		ownLine: { E16: 'this check, both parts' },
 	},
 	4: {
 		prefix: 'P4',
@@ -811,10 +831,30 @@ export function minimumsShape(id, observed) {
 	return minimumsKey === undefined ? observed : { [minimumsKey]: observed };
 }
 
+/**
+ * A phase's rows: its `rows`, then its `ownRows` when it is checked as itself (`reused` false), as phase 3's hosted
+ * part is.
+ */
+function rowsOf(id, reused) {
+	const { rows, ownRows } = PHASES[id];
+	return reused || !ownRows ? rows : [...rows, ...ownRows];
+}
+
+/**
+ * Whether a title ran in a place only the phase's `ownRows` name, none of its `rows`: phase 3's hosted step. Another
+ * phase that reuses it reads its local rows alone, so condition 3 there leaves such a title to the phase's own check.
+ */
+function ranOnlyInOwnPlaces(id, title) {
+	const local = new Set(PHASES[id].rows.flatMap((row) => row.in));
+	return (PHASES[id].ownRows ?? []).some(({ in: places }) =>
+		places.some((key) => !local.has(key) && ranIn(title, LOCATIONS[key]))
+	);
+}
+
 /** Every place a phase reads, its reused phases' included: its rows', and the budget's for a `budgetLine`. */
-function placesOf(id) {
+function placesOf(id, reused = false) {
 	return [
-		...PHASES[id].rows.flatMap((row) => (row.reuse ? placesOf(row.reuse) : row.in)),
+		...rowsOf(id, reused).flatMap((row) => (row.reuse ? placesOf(row.reuse, true) : row.in)),
 		...(PHASES[id].budgetLine ? ['budget'] : []),
 	];
 }
@@ -848,11 +888,13 @@ function resultLines(log, location) {
  * the report's lines and the counts observed for this phase's own rows.
  */
 function checkPhase(id, { log, desktopLog, minimumsOf, reused = false }) {
-	const { prefix, rows, minimumsFile, budgetRows, budgetLine, line } = PHASES[id];
+	const { prefix, minimumsFile, budgetRows, budgetLine } = PHASES[id];
+	const rows = rowsOf(id, reused);
+	const line = reused ? PHASES[id].line : { ...PHASES[id].line, ...PHASES[id].ownLine };
 	const titles = titlesOf(
 		desktopLog === undefined ? { loam: log } : { loam: log, desktop: desktopLog },
 		prefix
-	);
+	).filter((title) => !(reused && ranOnlyInOwnPlaces(id, title)));
 	const titleIssues = titleProblems(titles, prefix);
 	// D115: a ceiling is the one the budget script holds, so phase 2's figures are read only as itself.
 	const budget = budgetRows

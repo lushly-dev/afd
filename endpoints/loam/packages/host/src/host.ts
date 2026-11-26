@@ -398,6 +398,9 @@ function bindHost(listen: string): string {
 export async function createLoamHost(config: LoamHostConfig & HostInternals): Promise<LoamHost> {
 	const internals = config[HOST_INTERNALS] ?? {};
 	try {
+		// A test's provider options reach only the development profile, never `start` (phase 3's step 10).
+		if (internals.start && internals.testOAuth)
+			throw new Error("`loam-host start` takes no test's provider options");
 		return await construct(config, internals);
 	} catch (cause) {
 		// What the caller handed over is the host's: a failed start releases and closes it.
@@ -469,6 +472,7 @@ async function construct(
 				basePath: base,
 				mail: await createMail(server),
 				...(internals.rateLimit ? { rateLimit: internals.rateLimit } : {}),
+				...(internals.testOAuth ? { testOAuth: internals.testOAuth } : {}),
 			});
 			// Only `start` refuses an organization never bootstrapped; `dev` serves the shell's notice (3.1, 5.1).
 			if (internals.start && !(await provider.bootstrapped())) {

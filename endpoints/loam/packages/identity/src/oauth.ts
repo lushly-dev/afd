@@ -50,6 +50,38 @@ export interface LoamOAuthConfig {
 	fetchClientMetadataResource?: ClientMetadataResourceFetch;
 	/** Dynamic Client Registration, which MCP 2026-07-28 deprecates: off unless the deployer turns it on. */
 	allowDynamicClientRegistration?: boolean;
+	/**
+	 * Tests only (phase 3's P3-H1): further resources the provider issues tokens for, beside `resource`, each linked to
+	 * every client as `resource` is, so a token for another audience comes from this provider itself and the hosted
+	 * server must refuse it. A deployment passes none: `loam-host` sets it only from `startDevHost`.
+	 */
+	otherResources?: readonly string[];
+	/**
+	 * Tests only (phase 3's P3-H4): an access token's lifetime in seconds, shorter than {@link ACCESS_TOKEN_SECONDS}, so a
+	 * suite sees a person's last token refused once it expires. Never longer: a whole number from 1 to 600.
+	 */
+	accessTokenSeconds?: number;
+}
+
+/** The resources `oauthPlugins` configures: the one resource first, then a test's others, each once and absolute. */
+export function oauthResources(resource: string, config: LoamOAuthConfig): string[] {
+	const others = config.otherResources ?? [];
+	for (const other of others) {
+		if (!URL.canParse(other) || other === resource)
+			throw new Error('Each of `otherResources` is an absolute URI other than `resource`');
+	}
+	if (new Set(others).size !== others.length)
+		throw new Error('`otherResources` names a resource twice');
+	return [resource, ...others];
+}
+
+/** An access token's lifetime: {@link ACCESS_TOKEN_SECONDS}, or a test's shorter one (never longer). */
+export function accessTokenSecondsOf(config: LoamOAuthConfig): number {
+	const seconds = config.accessTokenSeconds;
+	if (seconds === undefined) return ACCESS_TOKEN_SECONDS;
+	if (!Number.isInteger(seconds) || seconds < 1 || seconds > ACCESS_TOKEN_SECONDS)
+		throw new Error(`\`accessTokenSeconds\` is a whole number from 1 to ${ACCESS_TOKEN_SECONDS}`);
+	return seconds;
 }
 
 /** Every route that registers or changes a client: none may turn PKCE off or skip consent. */
@@ -129,18 +161,22 @@ export function oauthPlugins(options: {
 	isOwner(userId: string): Promise<boolean>;
 }): OAuthPlugins {
 	const { shell, resource, config } = options;
+	const resources = oauthResources(resource, config);
 	return [
 		jwt({ jwks: { keyPairConfig: { alg: 'EdDSA', crv: 'Ed25519' } } }),
 		oauthProvider({
 			scopes: [...OAUTH_SCOPES],
 			clientRegistrationDefaultScopes: [...OAUTH_SCOPES],
 			clientRegistrationAllowedScopes: [...OAUTH_SCOPES],
-			resources: [{ identifier: resource, allowedScopes: [...OAUTH_SCOPES] }],
+			resources: resources.map((identifier) => ({
+				identifier,
+				allowedScopes: [...OAUTH_SCOPES],
+			})),
 			resourceSeedMode: 'overwrite',
-			// Every client, however registered, is linked to the one resource and no other.
-			clientRegistrationDefaultResources: [resource],
-			clientRegistrationAllowedResources: [resource],
-			accessTokenExpiresIn: ACCESS_TOKEN_SECONDS,
+			// Every client, however registered, is linked to the one resource and no other (a test's others beside it).
+			clientRegistrationDefaultResources: resources,
+			clientRegistrationAllowedResources: resources,
+			accessTokenExpiresIn: accessTokenSecondsOf(config),
 			refreshTokenExpiresIn: REFRESH_TOKEN_SECONDS,
 			allowDynamicClientRegistration: config.allowDynamicClientRegistration === true,
 			allowUnauthenticatedClientRegistration: false,

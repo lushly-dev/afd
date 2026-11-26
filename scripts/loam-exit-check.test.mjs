@@ -18,6 +18,7 @@ import {
 	minimumsArePlaceholders,
 	minimumsShape,
 	P3_BUDGET_ROWS,
+	P3_HOSTED_ROWS,
 	P3_MINIMUMS_FILE,
 	P3_ROWS,
 	P4_BUDGET_ROWS,
@@ -461,7 +462,10 @@ test('P3-E16: all green passes, with each P3-E row where it ran and E12 as phase
 	assert.ok(report.includes('P3-E1: Chromium 1; Units 1'));
 	assert.ok(report.includes('P3-E9: Identity path 2'));
 	assert.ok(report.includes('P3-E15: Chromium 1; Units 1'));
-	assert.ok(report.includes('P3-E16: this check, the local part'));
+	assert.ok(report.includes('P3-E16: this check, both parts'));
+	// Step 10's hosted part, after the local rows: E8's two cases left to the server and P3-H1 to P3-H5.
+	for (const { row } of P3_HOSTED_ROWS) assert.ok(report.includes(`P3-${row}: Hosted 1`), row);
+	assert.ok(report.includes('P3-E8: Units 2; Units, `identity/src/mcp-identity.test.ts` 1'));
 	assert.match(
 		report.find((entry) => entry.startsWith('P3-E10:')),
 		/^P3-E10: Bundle budget JavaScript, minified 329804 of 330300, JavaScript, gzip 103590 of 103700, .*The chrome's `surfaces` chunk 96810 of 97000; Chromium 1$/
@@ -475,8 +479,34 @@ test('P3-E16: all green passes, with each P3-E row where it ran and E12 as phase
 		ROWS.map(({ row }) => `  P2-${row}:`.padEnd(9).slice(0, 9))
 	);
 	assert.ok(report.includes('  P2-E13: Chromium 3; Mounted 1; Units 1'));
-	assert.equal(report.length, 3 + P3_ROWS.length + ROWS.length);
+	assert.equal(report.length, 3 + P3_ROWS.length + P3_HOSTED_ROWS.length + ROWS.length);
 	assert.deepEqual(observed, p3().minimums);
+});
+
+test("P3-E16: the hosted part is phase 3's own: without its titles `--phase 3` fails by row and place, and phase 4's reuse never reads it", () => {
+	const local = p3()
+		.log.split('\n')
+		.filter((line) => !line.includes('\tHosted criterion against the development profile\t'))
+		.join('\n');
+	const problems = p3Problems({ ...p3(), log: local });
+	for (const { row } of P3_HOSTED_ROWS)
+		assert.ok(
+			problems.includes(
+				`P3-${row}: no passing title in Hosted ("Hosted development profile", step "Hosted criterion against the development profile")`
+			),
+			row
+		);
+	assert.equal(problems.length, P3_HOSTED_ROWS.length);
+	// A hosted title counts only in the hosted step: the same title in the Chromium step does not stand in for it.
+	const moved = p3().log.replaceAll(
+		'Hosted development profile\tHosted criterion against the development profile\t',
+		"Build, unit and Chromium\tChromium suite against the built shell (phase 0's E1 to E10, phase 1's so far, A1 to A3; the walk is its own job)\t"
+	);
+	assert.ok(
+		p3Problems({ ...p3(), log: moved }).includes(
+			'P3-H1: no passing title in Hosted ("Hosted development profile", step "Hosted criterion against the development profile")'
+		)
+	);
 });
 
 test('P3-E16: phase 3 titles leave phase 2 reading as it was, and caret-notation colour is stripped', () => {
@@ -606,7 +636,7 @@ test("P3-E16: the phase 3 row table is section 18's Place column", () => {
 	const spec = readFileSync(join(root, 'endpoints/loam/docs/phases/3-identity/spec.md'), 'utf8');
 	const rows = spec
 		.split('\n')
-		.filter((entry) => /^\| P3-E\d+ \|/.test(entry))
+		.filter((entry) => /^\| P3-[EH]\d+ \|/.test(entry))
 		.map((entry) => entry.split(' | '))
 		.map(([id, , place]) => {
 			if (/Phase 2's places and minimums/.test(place)) return [id.slice(5), 'reuse'];
@@ -619,17 +649,24 @@ test("P3-E16: the phase 3 row table is section 18's Place column", () => {
 				[/Identity path/, 'identity'],
 				// A place that names its file: that file's titles are counted on their own too.
 				[/identity\/src\/mcp-identity\.test\.ts/, 'handler'],
+				[/\bHosted\b/, 'hosted'],
 			])
 				if (pattern.test(place)) places.push(key);
 			return [id.slice(5), places.sort()];
 		});
-	assert.equal(rows.length, 20);
+	assert.equal(rows.length, 25);
+	// A row's places, its local ones and its hosted ones (step 10's) together, in section 18's order.
+	const table = new Map(
+		P3_ROWS.map(({ row, in: places, reuse }) => [row, reuse ? 'reuse' : [...places]])
+	);
+	for (const { row, in: places } of P3_HOSTED_ROWS)
+		table.set(row, [...(table.get(row) ?? []), ...places]);
 	assert.deepEqual(
-		P3_ROWS.map(({ row, in: places, reuse }) => [row, reuse ? 'reuse' : [...places].sort()]),
+		[...table].map(([row, places]) => [row, places === 'reuse' ? places : [...places].sort()]),
 		rows
 	);
 	// The places table names each step the check reads, as LOCATIONS spells it.
-	for (const key of ['units', 'chromium', 'identity', 'budget', 'mounted', 'walk'])
+	for (const key of ['units', 'chromium', 'identity', 'budget', 'mounted', 'walk', 'hosted'])
 		assert.ok(spec.includes(`\`${LOCATIONS[key].step}\``), key);
 });
 
@@ -776,6 +813,24 @@ test("P4-E16: a P4 title counts only in its row's places, and another phase's ti
 	assert.deepEqual(problemsOf(input), [
 		'P4-E2: no passing title in Units ("Build, unit and Chromium", step "Unit suites with coverage")',
 	]);
+});
+
+test("P4-E16: E14 reads phase 3's local rows alone: a skipped or failed hosted P3 title is phase 3's, never phase 4's", () => {
+	const hosted = 'Hosted development profile\tHosted criterion against the development profile\t';
+	for (const [mark, title] of [
+		['↓', 'P3-H2: a skipped hosted title'],
+		['×', 'P3-E8: a failed hosted case left to the server'],
+	]) {
+		const log = `${p4().log}\n${hosted}2026-11-22T16:40:00.0000001Z  ^[[33m${mark}^[[39m test/hosted/identity.test.ts^[[2m > ^[[22m${title}^[[32m 12^[[2mms^[[22m^[[39m\n`;
+		assert.deepEqual(checkExit({ ...p4(), log }).problems, [], title);
+		// The same title is phase 3's own problem, by condition 3.
+		assert.ok(
+			p3Problems({ ...p3(), log: `${p3().log}${log.slice(p4().log.length)}` }).some((problem) =>
+				problem.includes(title)
+			),
+			title
+		);
+	}
 });
 
 test("P4-E16: E14 fails on any phase 3 row, and on phase 2's through phase 3's E12, each prefixed", () => {

@@ -4,6 +4,7 @@
  */
 
 import type { ServerConfigV1 } from '@lushly-dev/loam-manifest/server';
+import type { TestOAuthV1 } from '../provider.js';
 import type { ChildReady } from './protocol.js';
 
 export interface Launched {
@@ -20,5 +21,7 @@ export type Launcher = (
 	/** Tests only: the provider's rate limit, raised for a suite's many requests from one address (never off). */
 	rateLimit?: { window: number; max: number },
 	/** Tests only: the server configuration's `[limits]`, such as P6-H6's short relay limits. */
-	limits?: ServerConfigV1['limits']
+	limits?: ServerConfigV1['limits'],
+	/** Tests only: phase 3's step 10's authorization server options, such as P3-H1's second resource. */
+	testOAuth?: TestOAuthV1
 ) => Promise<Launched>;

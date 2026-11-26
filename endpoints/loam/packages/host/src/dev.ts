@@ -33,6 +33,7 @@ import { HostError } from './errors.js';
 import { createLoamHost, type LoamHost } from './host.js';
 import { bindServer, createHostServer, HOST_INTERNALS } from './internal.js';
 import { acquireDataLock, type DataLock } from './lock.js';
+import type { TestOAuthV1 } from './provider.js';
 
 /** The directory beside the deployment file that `--data` defaults to. */
 export const DEV_DATA_DIRECTORY = '.loam-dev';
@@ -56,6 +57,8 @@ export interface DevOptions {
 	 * `relay_session_idle_ms` for P6-H6. Read and checked as `loam.server.toml`'s are. The bin passes none.
 	 */
 	limits?: ServerConfigV1['limits'];
+	/** Tests only, from `startDevHost`: phase 3's step 10's authorization server options. The bin passes none. */
+	testOAuth?: TestOAuthV1;
 }
 
 export interface DevProfile {
@@ -231,6 +234,7 @@ export async function runDev(options: DevOptions): Promise<DevProfile> {
 				servers: { shell, ...(sandbox ? { sandbox } : {}) },
 				...(sandboxOrigin ? { sandboxOrigin } : {}),
 				...(options.rateLimit ? { rateLimit: options.rateLimit } : {}),
+				...(options.testOAuth ? { testOAuth: options.testOAuth } : {}),
 			},
 		});
 		// 5. Serving. The host owns the lock and the sockets now, so a failed listen closes it.

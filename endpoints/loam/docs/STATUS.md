@@ -188,7 +188,7 @@ The design review and phases 0, 1, 2 and 4 are done or exited: their detail is a
 
 - **Detail and merged steps:** [archived 2026-11-23](STATUS.archive-2026-11-phases-3-6-1.md#3-identity).
 - **Steps** ([plan](phases/3-identity/spec.md#19-implementation-plan); one line each, made before the step starts, so parallel pull requests touch different lines):
-  - 10, the hosted criterion and the exit: not started. It waits for phase 6's development profile.
+  - 10, the hosted criterion and the exit: in progress: P3-H1 to P3-H5 and the check's hosted rows in [#2744](https://github.com/lushly-dev/afd/pull/2744) first, then the exit run and its record ([its record](phases/3-identity/spec.md#status)).
 - **Follow-ups:** in the [specification](phases/3-identity/spec.md#follow-ups).
 
 ### 5. Bus, copilot and mounted servers
@@ -289,6 +289,7 @@ status changes.
 | 2026-11-22 | Phase 6 step 11b | A mount's notification (`notify::script`) and a model's event (`models::event_script`) are object literals, so a `"__proto__"` key a server sends sets the detail's prototype; deliver them as `JSON.parse` of a string, as `loam:inbound` now is | Open |
 | 2026-11-22 | Phase 6 step 11b | `test/macos/inbound.test.ts`'s `[host] inbound = false` case waits five seconds for the host's setup; give it a signal to wait on | Open |
 | 2026-11-22 | Phase 6 step 11b | Whether the desktop's inbound results should carry phase 5's 5.1 labels, so an outside agent can tell content from Loam's own claims; taint marks only a copilot session, whose model Loam holds (step 11b's deviation 10) | Open, for phase 5 |
+| 2026-11-26 | Phase 3 step 10 | The rows of 2026-11-21 "`startDevHost`'s `resources` and `accessTokenTtlSeconds`" and "E8's listed-slug `project-create` over MCP": `createLoamAuthOptions` takes `otherResources` and `accessTokenSeconds` (tests only), `startDevHost` passes them, and P3-H5(b) is the case ([phase 3's step 10](phases/3-identity/spec.md#status)) | Done in phase 3's step 10 |
 
 ### Follow-ups: every other area
 
@@ -321,6 +322,7 @@ on 2026-11-23 are in the [session archives](#archive), in the tables they were w
 
 | Date | Session | What changed |
 | --- | --- | --- |
+| 2026-11-26 | Phase 3 step 10, the hosted criterion | P3-H1 to P3-H5 on the development profile (`web/test/hosted/identity.test.ts`, `identity-sessions.test.ts`), with the provider's own token for a second resource, a metadata document's client, a 30 s token lifetime and a team instance; E8's two server cases; `--phase 3` reads the hosted rows. [Its record](phases/3-identity/spec.md#status) |
 
 ### Sessions: phase 4, settings, experiments, notifications, overlays
 

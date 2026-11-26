@@ -20,6 +20,7 @@ import {
 	type SinkMessage,
 	writePrivate,
 } from '../dev-files.js';
+import type { TestOAuthV1 } from '../provider.js';
 import type { Launched, Launcher } from './launcher.js';
 import { registerTestClients, type TestClientV1 } from './oauth.js';
 
@@ -75,8 +76,18 @@ export interface StartDevHostOptions {
 	 * with one redirect, through the provider's server API by the first seeded owner with a password.
 	 */
 	clients?: readonly TestClientV1[];
+	/**
+	 * Phase 3's P3-H1: further resources the provider issues tokens for, beside `<base>mcp`, each an absolute URI linked
+	 * to every client, so a token for another audience comes from the profile's own provider. Test-only, as `rateLimit`.
+	 */
 	resources?: string[];
+	/** Phase 3's P3-H4: an access token's lifetime, from 1 to 600 seconds (default 600), so a suite sees one expire. */
 	accessTokenTtlSeconds?: number;
+	/**
+	 * Phase 3's P3-H3: Client ID Metadata Documents by their `https` URL, which the provider reads from memory, since its
+	 * own transport refuses every special-use address and a suite has no public host. Its CIMD validation is unchanged.
+	 */
+	clientMetadata?: Record<string, unknown>;
 	/**
 	 * The provider's rate limit, raised for a suite that legitimately makes many requests from one address, such as
 	 * P6-H3's 500 `whoami` reads. It raises the limit only: the limiter is on in every mode.
@@ -93,12 +104,20 @@ export interface StartDevHostOptions {
 
 /** The options a later step brings, refused until then rather than ignored. */
 const LATER: Record<string, string> = {
-	// Phase 3's step 10 needs these for P3-H1's second audience and P3-H4's expiry; `createLoamAuthOptions` takes
-	// neither yet, so phase 6's step 4, which mounts the route, leaves them to the step that adds them there.
-	resources: "phase 3's step 10, with the provider's second resource",
-	accessTokenTtlSeconds: "phase 3's step 10, with the provider's test-only token lifetime",
 	modules: 'the step that builds HostModule',
 };
+
+/** The provider's options for phase 3's step 10, from the suite's: none when it names none. */
+function testOAuthOf(options: StartDevHostOptions): TestOAuthV1 | undefined {
+	const test: TestOAuthV1 = {
+		...(options.resources ? { resources: options.resources } : {}),
+		...(options.accessTokenTtlSeconds !== undefined
+			? { accessTokenSeconds: options.accessTokenTtlSeconds }
+			: {}),
+		...(options.clientMetadata ? { clientMetadata: options.clientMetadata } : {}),
+	};
+	return Object.keys(test).length > 0 ? test : undefined;
+}
 
 /**
  * The deployment file's text with `site.base_path` set: into its own `[site]` table when it has one, which
@@ -144,6 +163,7 @@ export async function createDevHost(
 		await claimDataDirectory(data);
 		await writePrivate(join(data, '.gitignore'), DEV_GITIGNORE);
 		const { certificate } = await ensureCertificate(data);
+		const testOAuth = testOAuthOf(options);
 		if (options.people && !options.organization)
 			throw new Error("startDevHost's `people` are seeded into its `organization`.");
 		let clients: Record<string, string> = {};
@@ -164,7 +184,14 @@ export async function createDevHost(
 					throw new Error(`startDevHost's ${person.email} signs in with a password, and has none.`);
 			}
 			if (people.length > 0 || options.clients?.length) {
-				await withBootstrapProvider({ form: 'dev', deployment, data }, async ({ provider }) => {
+				// The same provider options as the profile's, so a client is linked to a test's other resources too.
+				const opened = {
+					form: 'dev' as const,
+					deployment,
+					data,
+					...(testOAuth ? { testOAuth } : {}),
+				};
+				await withBootstrapProvider(opened, async ({ provider }) => {
 					await seedTestPeople(
 						provider.auth,
 						report.organization.id,
@@ -192,7 +219,7 @@ export async function createDevHost(
 			throw new Error("startDevHost's `clients` are registered in its `organization`.");
 		}
 		const env = { ...options.env, NODE_EXTRA_CA_CERTS: certificate };
-		running = await launch(deployment, env, logs, options.rateLimit, options.limits);
+		running = await launch(deployment, env, logs, options.rateLimit, options.limits, testOAuth);
 		const basePath = options.basePath ?? '/';
 		const current = (): Launched => {
 			if (!running) throw new Error('The development profile is not running.');
@@ -256,7 +283,7 @@ export async function createDevHost(
 				const before = current().ready.origin;
 				await current().stop('SIGTERM');
 				running = undefined;
-				running = await launch(deployment, env, logs, options.rateLimit, options.limits);
+				running = await launch(deployment, env, logs, options.rateLimit, options.limits, testOAuth);
 				if (running.ready.origin !== before)
 					throw new Error(
 						`The origin changed across a restart: ${before} to ${running.ready.origin}.`
