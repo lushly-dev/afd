@@ -188,6 +188,15 @@ fn directory(root: &Path, instance: &str, rel: &str) -> Result<ResolvedSource, P
             format!("`{rel}` leaves the workspace through a symlink"),
         ));
     }
+    let state_dir =
+        fs::canonicalize(workspace.join("state")).unwrap_or_else(|_| workspace.join("state"));
+    if dir.starts_with(&state_dir) {
+        return Err(PluginError::config_invalid(
+            instance,
+            "source",
+            format!("`{rel}` is under state/, which the host owns"),
+        ));
+    }
     if !dir.is_dir() {
         return Err(not_found(format!("`{rel}` is not a directory")));
     }
@@ -213,6 +222,29 @@ mod tests {
         );
         for bad in ["compiled:", "compiled:Hello", "../x", "/abs", ""] {
             assert!(SourceSpec::parse(bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn directory_under_state_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let state_plugin = dir.path().join("state").join("sneaky");
+        fs::create_dir_all(&state_plugin).unwrap();
+        fs::write(state_plugin.join(MANIFEST_FILE), "manifest_version = 1\n").unwrap();
+
+        let err = resolve_source(dir.path(), "sneaky", Some("state/sneaky"), None).unwrap_err();
+        assert_eq!(err.code(), crate::plugins::codes::PLUGIN_CONFIG_INVALID);
+        assert!(err.message().contains("state/"), "{}", err.message());
+
+        #[cfg(unix)]
+        {
+            let plugins = dir.path().join("plugins");
+            fs::create_dir_all(&plugins).unwrap();
+            std::os::unix::fs::symlink(&state_plugin, plugins.join("linked")).unwrap();
+            let err =
+                resolve_source(dir.path(), "linked", Some("plugins/linked"), None).unwrap_err();
+            assert_eq!(err.code(), crate::plugins::codes::PLUGIN_CONFIG_INVALID);
+            assert!(err.message().contains("state/"), "{}", err.message());
         }
     }
 }

@@ -9,7 +9,7 @@ description = "AFD Umbel: an empty host for capability plugins over MCP and CLI"
 repository = "https://github.com/lushly-dev/afd"
 
 [workspace]
-members = [".", "sdk", "store", "store-embedded", "embed", "scan", "okf", "plugins/hello", "plugins/todo", "plugins/sources-filesystem", "plugins/knowledge", "plugins/memory", "plugins/context", "plugins/components", "plugins/ideas", "plugins/curator", "bins/todo", "first-party", "adapters/hook", "testkit-idp", "windows", "tests/fixtures/components/*"]
+members = [".", "sdk", "store", "store-embedded", "embed", "scan", "okf", "process", "plugins/hello", "plugins/todo", "plugins/sources-filesystem", "plugins/knowledge", "plugins/memory", "plugins/context", "plugins/components", "plugins/ideas", "plugins/curator", "bins/todo", "first-party", "adapters/hook", "testkit-idp", "windows", "tests/fixtures/components/*"]
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -53,7 +53,7 @@ auth = ["afd/server-auth", "dep:aws-lc-rs", "dep:base64", "dep:http", "dep:http-
 # process is spawned here rather than by rmcp's `TokioChildProcess`, which has neither
 # `kill_on_drop` nor a hook for the bounded stdio reader the result limit needs.
 mounted = [
-	"dep:rmcp", "dep:http", "dep:futures", "dep:umbel-scan", "dep:reqwest", "dep:sse-stream",
+	"dep:rmcp", "dep:http", "dep:futures", "dep:umbel-process", "dep:umbel-scan", "dep:reqwest", "dep:sse-stream",
 	"rmcp/client", "rmcp/transport-streamable-http-client-reqwest", "rmcp/reqwest",
 ]
 
@@ -171,7 +171,10 @@ umbel-store = { path = "store" }
 umbel-store-embedded = { path = "store-embedded", optional = true }
 # Optional: the record lane's embedding providers (features `embed-static`, `embed-onnx`, `embed-http`).
 umbel-embed = { path = "embed", optional = true }
-# Optional: the `mounted` feature scans tool descriptions with the patterns the OKF reader shares.
+# Optional: the `mounted` feature scans tool descriptions with the patterns the OKF reader shares,
+# and closes non-stdio inherited descriptors on Unix through `umbel-process` (where the `pre_exec`
+# FFI this crate forbids lives).
+umbel-process = { path = "process", optional = true }
 umbel-scan = { path = "scan", optional = true }
 
 # Optional, Windows only: the `auth` feature judges the hosted profile's files by their owner and

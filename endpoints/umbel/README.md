@@ -81,7 +81,7 @@ It runs one of four ways, which its `plugin.kind` names:
 | --- | --- | --- |
 | `compiled` | A Rust crate linked into a host binary through `umbel-sdk` | None: it runs with the host's permissions, and its grants are a declaration |
 | `component` | The same source built as a WebAssembly component for `wasm32-wasip2` | A sandbox: no network, files or environment; only the interfaces its grants allow; fuel, time and memory limits per call |
-| `mounted` | An external MCP server the host starts over stdio (or reaches over HTTP), its tools renamed under a prefix | A separate process with a cleared environment; no caller credential ever reaches it |
+| `mounted` | An external MCP server the host starts over stdio (or reaches over HTTP), its tools renamed under a prefix | A separate process with a cleared environment, command and working directory outside `state/`, no inherited descriptors above stdio on Unix, and no caller credentials; **not OS-sandboxed** — a stdio mount runs as the host user with the host user's file access (including `state/keys/` and every space) until OS sandboxing lands ([D205](docs/decisions.md)) |
 | `pack` | Content only: packs and skills, no code | Not applicable |
 
 Scaffold one, check it, and read the manifest it writes:
@@ -124,7 +124,11 @@ randomness only through `Cx`. Random bytes are written to the journal, so never 
 
 **Mounting a server.** Any MCP server over stdio works; AFD's TypeScript (`@lushly-dev/afd-server`),
 Python (`afd` with the `mcp` SDK) and Rust (`afd` with its `server` feature, or `umbel-sdk`'s
-`serve_mounted`) servers all do. `umbel plugin check path=<dir>` reads the manifest and does not
+`serve_mounted`) servers all do. Mounting a stdio server in `umbel.toml` grants it the host
+operating-system user's file access (including `state/keys/` and every space) until OS sandboxing
+lands ([D205](docs/decisions.md)): clearing the environment, refusing paths under `state/`, and
+dropping extra descriptors on Unix prevent accidental leakage, not malicious reads, so hosted
+deployments should not allow stdio mounts until OS sandboxing is in place. `umbel plugin check path=<dir>` reads the manifest and does not
 start the server. `spawn=true` starts it, lists its tools and reports what mounts, what was skipped
 and which descriptions match the `description-injection` rule. It runs the plugin's own program, so
 it is off unless you ask for it.

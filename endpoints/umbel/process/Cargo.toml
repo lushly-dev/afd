@@ -1,0 +1,26 @@
+[package]
+name = "umbel-process"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+license = "MIT"
+description = "AFD Umbel process-isolation helpers behind safe functions"
+repository = "https://github.com/lushly-dev/afd"
+
+# `libc` is already in the workspace lockfile.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+# The workspace lints, with one scoped exception: the host forbids `unsafe`, and this crate is
+# where its Unix child-spawn FFI lives (mirroring `umbel-windows`), so `unsafe_code` is `deny`,
+# not `forbid`, and only the Unix module allows it with a `SAFETY` comment at every call.
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+unreachable_pub = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+expect_used = "warn"

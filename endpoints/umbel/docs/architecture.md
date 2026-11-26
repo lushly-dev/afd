@@ -648,13 +648,15 @@ material, from loosest to strongest:
 ## 8. Cross-cutting rules
 
 - **Security.** Sandboxed component plugins (only components are sandboxed;
-  compiled-in plugins and stdio mounts are trusted code, the owner's decision
-  of 2026-11-01, [D42](decisions.md) and [D43](decisions.md)); no token forwarding to plugins or mounted
+  compiled-in plugins and stdio mounts are trusted code, the owner's decisions
+  of 2026-11-01 and 2026-11-25, [D42](decisions.md), [D43](decisions.md) and [D205](decisions.md)); no token forwarding to plugins or mounted
   servers; untrusted content labeled on read and scanned on write; size caps,
   and rate limits per agent (memory writes from phase 3,
   [D74](decisions.md); read limits and verified agents from phase 5,
   [D128](decisions.md)); audit on
-  every write, recording both the agent and
+  every write (except compiled `secret` commands, which write no journal entry
+  and produce no event until a plugin needs a secret mutation,
+  [D205](decisions.md)), recording both the agent and
   the person on whose behalf it acted. Over MCP, a held result never carries
   an approval token: approval evidence comes from trusted application code,
   so the host turns token inclusion off on the MCP path, where the Rust
